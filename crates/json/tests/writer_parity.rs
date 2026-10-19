@@ -49,16 +49,17 @@ fn json_files(dir: &Path) -> Vec<(PathBuf, u64)> {
     found
 }
 
-/// The files this test compares: a deterministic sample of the whole tree.
+/// The files this test compares: every one of them.
+///
+/// A sample was enough to find the writer's layout rules; it is not enough to
+/// claim the writer matches, because the rules that only bite on one shape -
+/// a key that needs escaping, a float that lands on a rounding boundary, an
+/// empty object nested three deep - live in the files a sample skips. The whole
+/// tree is cheap enough to check on every run.
 fn sample_files() -> Vec<PathBuf> {
-    let mut files = json_files(&data_dir());
+    let files = json_files(&data_dir());
     assert_eq!(files.len(), 6220, "unexpected fixture count under data");
-    let mut sample: Vec<PathBuf> = files.iter().step_by(50).map(|(p, _)| p.clone()).collect();
-    files.sort_by_key(|(path, size)| (std::cmp::Reverse(*size), path.clone()));
-    sample.extend(files.iter().take(3).map(|(p, _)| p.clone()));
-    sample.sort();
-    sample.dedup();
-    sample
+    files.into_iter().map(|(path, _)| path).collect()
 }
 
 /// Starts the probe with `paths` on its stdin, fed from its own thread so a full
