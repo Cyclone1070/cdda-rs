@@ -7,7 +7,9 @@
 //!
 //! Reference: `references/Cataclysm-DDA/src/options.cpp` (line numbers in
 //! comments) and `src/options.h`.
-#![allow(clippy::expect_used, clippy::panic)]
+#![allow(clippy::expect_used, clippy::float_cmp, clippy::panic)]
+// Comparisons of f32 are exact on purpose: the corpus stores the reference's
+// 32-bit floats widened exactly, so equal means bit-equal.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -98,17 +100,23 @@ fn corpus_table_lists_every_option_once() {
     // Both sources reach the table: options.cpp registers SEASON_LENGTH
     // (options.cpp:2794), external_options.json declares PLAYER_HUNGER_RATE, and
     // PREVENT_OCCLUSION is the int_map overload (options.cpp:2857).
-    let find = |name: &str| -> OptionType {
-        table
-            .specs()
-            .iter()
-            .find(|spec| spec.name == name)
-            .map(|spec| spec.opt_type)
-            .unwrap_or_else(|| panic!("{name} is missing from the table"))
-    };
-    assert_eq!(find("SEASON_LENGTH"), OptionType::Int);
-    assert_eq!(find("PLAYER_HUNGER_RATE"), OptionType::Float);
-    assert_eq!(find("PREVENT_OCCLUSION"), OptionType::IntMap);
+    assert_eq!(spec_of(&table, "SEASON_LENGTH").opt_type, OptionType::Int);
+    assert_eq!(
+        spec_of(&table, "PLAYER_HUNGER_RATE").opt_type,
+        OptionType::Float
+    );
+    assert_eq!(
+        spec_of(&table, "PREVENT_OCCLUSION").opt_type,
+        OptionType::IntMap
+    );
+}
+
+fn spec_of<'a>(table: &'a Table, name: &str) -> &'a OptionSpec {
+    table
+        .specs()
+        .iter()
+        .find(|spec| spec.name == name)
+        .unwrap_or_else(|| panic!("{name} is missing from the table"))
 }
 
 fn entries(json: &Json) -> &[Json] {
@@ -277,13 +285,7 @@ fn spec_values_match_the_corpus() {
 #[test]
 fn the_add_overloads_keep_the_values_the_reference_writes() {
     let table = Table::parse(&table_text()).expect("table parses");
-    let spec = |name: &str| -> &OptionSpec {
-        table
-            .specs()
-            .iter()
-            .find(|spec| spec.name == name)
-            .unwrap_or_else(|| panic!("{name} is missing from the table"))
-    };
+    let spec = |name: &str| spec_of(&table, name);
 
     // SEASON_LENGTH is registered as add(..., 14, 127, 91, COPT_ALWAYS_HIDE)
     // (options.cpp:2794).
@@ -506,4 +508,284 @@ fn string_input_is_cut_to_its_maximum_length() {
     // string_input has no limit at all.
     assert!(options.set_text("DEFAULT_REGION", &long));
     assert_eq!(options.get("DEFAULT_REGION"), Some(&Value::Text(long)));
+}
+
+#[test]
+fn options_the_reference_fills_at_runtime_start_unset() {
+    // build_display_list() and SystemLocale::UseMetricSystem() run when the game
+    // starts (options.cpp:1809,2650), so the table records the expression instead
+    // of a value.  Such an option exists, but has no value until one is supplied.
+    let mut options = options();
+    for name in [
+        "DISPLAY",
+        "USE_METRIC_SPEEDS",
+        "USE_METRIC_WEIGHTS",
+        "DISTANCE_UNITS",
+    ] {
+        assert!(options.has_option(name), "{name}");
+        assert_eq!(options.get(name), None, "{name}");
+    }
+    assert!(options.set_text("USE_METRIC_SPEEDS", "km/h"));
+    assert_eq!(
+        options.get("USE_METRIC_SPEEDS"),
+        Some(&Value::Text("km/h".to_owned()))
+    );
+
+    // TILES writes a literal default — but a runtime item list — so it starts at
+    // that literal.  The reference then replaces the default with items[0] if the
+    // installed tilesets do not include it (options.cpp:357-370); a port that
+    // cannot see the installed tilesets cannot reproduce that substitution.
+    assert_eq!(
+        options.get("TILES"),
+        Some(&Value::Text("UltimateCataclysm".to_owned()))
+    );
+    assert!(matches!(
+        options.table().spec("TILES").map(|spec| &spec.items),
+        Some(Some(Items::Runtime { .. }))
+    ));
+}
+
+#[test]
+fn int_map_values_must_be_one_of_the_map_keys() {
+    // options.cpp:1100-1109: parse, then findInt(); a value the map does not hold
+    // becomes iDefault.  PREVENT_OCCLUSION is {0, 1, 2}, initial and default 2.
+    let mut options = options();
+    assert_eq!(options.get("PREVENT_OCCLUSION"), Some(&Value::Int(2)));
+    assert!(options.set_text("PREVENT_OCCLUSION", "1"));
+    assert_eq!(options.get("PREVENT_OCCLUSION"), Some(&Value::Int(1)));
+    assert!(options.set_text("PREVENT_OCCLUSION", "7"));
+    assert_eq!(options.get("PREVENT_OCCLUSION"), Some(&Value::Int(2)));
+    assert!(options.set_text("PREVENT_OCCLUSION", "many"));
+    assert_eq!(options.get("PREVENT_OCCLUSION"), Some(&Value::Int(2)));
+
+    // The typed overloads refuse a value of the wrong type, and an unknown
+    // option, without touching anything (options.cpp:1044-1047,1106-1110).
+    assert!(!options.set("SEASON_LENGTH", Value::Bool(true)));
+    assert_eq!(options.get("SEASON_LENGTH"), Some(&Value::Int(91)));
+    assert!(!options.set("ETERNAL_SEASON", Value::Int(1)));
+    assert_eq!(options.get("ETERNAL_SEASON"), Some(&Value::Bool(false)));
+    assert!(!options.set("NO_SUCH_OPTION", Value::Int(1)));
+    assert!(!options.has_option("NO_SUCH_OPTION"));
+    assert_eq!(options.get("NO_SUCH_OPTION"), None);
+}
+
+#[test]
+fn loading_a_saved_file_applies_entries_and_leaves_the_rest_alone() {
+    // deserialize() walks the array and calls setValue() per entry, so a name the
+    // file omits keeps its start value, an unknown name is silently ignored (the
+    // map default-constructs a VOID option), and an out-of-range value becomes the
+    // default (options.cpp:3972-3997; MUSIC_VOLUME is 0..128 with default 100).
+    let mut options = options();
+    let saved = r#"[
+        { "info": "Season length", "default": "91", "name": "SEASON_LENGTH", "value": "100" },
+        { "name": "MONSTER_SPEED", "value": "150%" },
+        { "name": "NOT_AN_OPTION", "value": "whatever" },
+        { "name": "MUSIC_VOLUME", "value": "999" }
+    ]"#;
+    let report = options
+        .load(saved)
+        .expect("a saved file the game could write");
+
+    assert_eq!(options.get("SEASON_LENGTH"), Some(&Value::Int(100)));
+    assert_eq!(options.get("MONSTER_SPEED"), Some(&Value::Int(150)));
+    assert_eq!(options.get("MUSIC_VOLUME"), Some(&Value::Int(100)));
+    assert!(!options.has_option("NOT_AN_OPTION"));
+    // Untouched: CITY_SIZE is 0..16 with default 8 and the file says nothing.
+    assert_eq!(options.get("CITY_SIZE"), Some(&Value::Int(8)));
+
+    assert_eq!(report.applied, 3);
+    assert_eq!(report.skipped_unknown, 1);
+}
+
+#[test]
+fn a_saved_entry_missing_a_value_is_an_error_not_a_silent_skip() {
+    // The reference reads both members with get_string(), which throws, so a
+    // malformed entry fails the load instead of being ignored.
+    let mut options = options();
+    assert!(options.load(r#"[ { "name": "SEASON_LENGTH" } ]"#).is_err());
+    assert!(options.load(r#"[ { "value": "100" } ]"#).is_err());
+    assert!(
+        options
+            .load(r#"[ { "name": "SEASON_LENGTH", "value": 100 } ]"#)
+            .is_err()
+    );
+    assert!(options.load("not json").is_err());
+    // A failed load leaves the values it did not reach untouched.
+    assert_eq!(options.get("SEASON_LENGTH"), Some(&Value::Int(91)));
+}
+
+#[test]
+fn an_entry_for_a_removed_option_is_skipped_before_anything_else() {
+    // deserialize() drops eight option names the reference no longer reads from a
+    // save file (options.cpp:3976-3983) — and INITIAL_STAT_POINTS is one of them
+    // even though the option itself still exists as a JSON-declared external
+    // option (external_options.json:578), so the skip has to come first.
+    let mut options = options();
+    assert!(options.has_option("INITIAL_STAT_POINTS"));
+    // The list itself is part of the table, extracted from the reference.
+    assert_eq!(options.table().removed().len(), 8);
+    assert!(options.table().is_removed("INITIAL_STAT_POINTS"));
+    let report = options
+        .load(r#"[ { "name": "INITIAL_STAT_POINTS", "value": "99" } ]"#)
+        .expect("a saved file the game could write");
+    assert_eq!(report.skipped_removed, 1);
+    assert_eq!(report.applied, 0);
+    assert_eq!(report.skipped_unknown, 0);
+    assert_eq!(options.get("INITIAL_STAT_POINTS"), Some(&Value::Int(6)));
+}
+
+#[test]
+fn old_option_names_and_values_are_migrated_before_the_value_is_applied() {
+    // migrateOptionName() renames DELETE_WORLD to WORLD_END and
+    // migrateOptionValue() maps "no" to "keep" and "yes" to "delete"
+    // (options.cpp:196-207,3999-4030); an unmapped value passes through.
+    let mut options = options();
+    let report = options
+        .load(r#"[ { "name": "DELETE_WORLD", "value": "no" } ]"#)
+        .expect("a saved file the game could write");
+    assert_eq!(report.migrated, 1);
+    assert_eq!(
+        options.get("WORLD_END"),
+        Some(&Value::Text("keep".to_owned()))
+    );
+
+    options
+        .load(r#"[ { "name": "DELETE_WORLD", "value": "yes" } ]"#)
+        .expect("a saved file the game could write");
+    assert_eq!(
+        options.get("WORLD_END"),
+        Some(&Value::Text("delete".to_owned()))
+    );
+
+    options
+        .load(r#"[ { "name": "DELETE_WORLD", "value": "query" } ]"#)
+        .expect("a saved file the game could write");
+    assert_eq!(
+        options.get("WORLD_END"),
+        Some(&Value::Text("query".to_owned()))
+    );
+
+    // MONSTER_UPGRADE_FACTOR became EVOLUTION_INVERSE_MULTIPLIER, and its value is
+    // divided by four and printed with two decimals before being parsed back
+    // (options.cpp:4005-4015), so 8 becomes 2.00 and then 2.0.
+    options
+        .load(r#"[ { "name": "MONSTER_UPGRADE_FACTOR", "value": "8" } ]"#)
+        .expect("a saved file the game could write");
+    assert_eq!(
+        options.get("EVOLUTION_INVERSE_MULTIPLIER"),
+        Some(&Value::Float(2.0))
+    );
+}
+
+fn saved_entries(text: &str) -> Vec<(String, String)> {
+    let json = cdda_json::parse(text.as_bytes()).expect("saved options.json parses");
+    let Json::Array(list) = json else {
+        panic!("saved options.json is not an array");
+    };
+    list.iter()
+        .map(|entry| {
+            (
+                text_of(entry, "name").to_owned(),
+                text_of(entry, "value").to_owned(),
+            )
+        })
+        .collect()
+}
+
+fn text_of<'a>(entry: &'a Json, key: &str) -> &'a str {
+    match member(entry, key) {
+        Json::Str(text) => text,
+        other => panic!("{key} is {other}, expected a string"),
+    }
+}
+
+#[test]
+fn saving_writes_exactly_the_options_that_are_on_a_page() {
+    // serialize() walks the pages and writes only the options placed on one, so an
+    // EXTERNAL_OPTION (which add_external never puts on a page,
+    // options.cpp:311-348) is never saved; deserialize() re-derives it from data.
+    let mut options = options();
+    assert!(options.set_text("SEASON_LENGTH", "100"));
+    // The exception is the option whose start value the reference computes at
+    // startup and which nobody has set: there is nothing honest to write for it.
+    let on_page = options
+        .table()
+        .specs()
+        .iter()
+        .filter(|spec| spec.in_page)
+        .count();
+    let start_unset = match meta(&table_json(), "options_starting_unset") {
+        Json::Array(names) => names.clone(),
+        _ => panic!("meta.options_starting_unset is not an array"),
+    };
+    let unset = options
+        .table()
+        .specs()
+        .iter()
+        .filter(|spec| matches!(spec.initial, Assigned::Runtime { .. }))
+        .count();
+    assert_eq!(unset, start_unset.len());
+    let saved = saved_entries(&options.save());
+    assert_eq!(saved.len(), on_page - unset);
+
+    let names: Vec<&str> = saved.iter().map(|(name, _)| name.as_str()).collect();
+    assert!(names.contains(&"SEASON_LENGTH"));
+    assert!(!names.contains(&"PLAYER_HUNGER_RATE"));
+
+    // What is written loads back unchanged.
+    let mut reloaded = Options::new(Table::parse(&table_text()).expect("table parses"));
+    reloaded.load(&options.save()).expect("a round trip");
+    for spec in options.table().specs() {
+        assert_eq!(
+            reloaded.get(&spec.name),
+            options.get(&spec.name),
+            "{}",
+            spec.name
+        );
+    }
+}
+
+#[test]
+fn a_saved_value_is_written_with_the_options_own_format() {
+    // getValue( true ) prints an int with its format ("%i%%" gives "100%"), a float
+    // with two decimals, a bool as "true"/"false" and text as itself
+    // (options.cpp:725-745,1096-1109).
+    let mut options = options();
+    assert!(options.set_text("MONSTER_SPEED", "150"));
+    assert!(options.set_text("EVOLUTION_INVERSE_MULTIPLIER", "2.5"));
+    assert!(options.set_text("ETERNAL_SEASON", "t"));
+    assert!(options.set_text("MORALE_STYLE", "horizontal"));
+    let saved = saved_entries(&options.save());
+    let value = |name: &str| -> &str {
+        saved
+            .iter()
+            .find(|(saved_name, _)| saved_name == name)
+            .map_or_else(
+                || panic!("{name} is not in the saved file"),
+                |(_, value)| value.as_str(),
+            )
+    };
+    assert_eq!(value("MONSTER_SPEED"), "150%");
+    assert_eq!(value("SEASON_LENGTH"), "91");
+    assert_eq!(value("EVOLUTION_INVERSE_MULTIPLIER"), "2.50");
+    assert_eq!(value("ETERNAL_SEASON"), "true");
+    assert_eq!(value("MORALE_STYLE"), "horizontal");
+}
+
+#[test]
+fn a_bool_option_accepts_its_own_type_but_not_another() {
+    // The reference sets a bool only from text (options.h:120-122 has no
+    // setValue( bool )), computing `bSet` from four spellings
+    // (options.cpp:1075-1077); assigning the flag directly is that same rule with
+    // the string round trip removed, and still refuses a value of another type.
+    let mut options = options();
+    assert!(options.set("ETERNAL_SEASON", Value::Bool(true)));
+    assert_eq!(options.get("ETERNAL_SEASON"), Some(&Value::Bool(true)));
+    assert!(options.set("ETERNAL_SEASON", Value::Bool(false)));
+    assert_eq!(options.get("ETERNAL_SEASON"), Some(&Value::Bool(false)));
+
+    assert!(!options.set("ETERNAL_SEASON", Value::Int(1)));
+    assert!(!options.set("ETERNAL_SEASON", Value::Float(1.0)));
+    assert!(!options.set("MORALE_STYLE", Value::Bool(true)));
+    assert_eq!(options.get("ETERNAL_SEASON"), Some(&Value::Bool(false)));
 }

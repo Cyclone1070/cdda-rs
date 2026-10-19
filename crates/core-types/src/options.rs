@@ -50,7 +50,7 @@ impl OptionType {
 
     /// The type with this `sType` string, if the reference has one.
     #[must_use]
-    pub fn from_str(name: &str) -> Option<Self> {
+    pub fn from_name(name: &str) -> Option<Self> {
         match name {
             "bool" => Some(Self::Bool),
             "int" => Some(Self::Int),
@@ -90,7 +90,7 @@ impl Source {
 
     /// The source with this corpus name, if there is one.
     #[must_use]
-    pub fn from_str(name: &str) -> Option<Self> {
+    pub fn from_name(name: &str) -> Option<Self> {
         match name {
             "options.cpp" => Some(Self::OptionsCpp),
             "external_options.json" => Some(Self::ExternalOptionsJson),
@@ -132,7 +132,7 @@ impl HideFlag {
 
     /// The flag with this corpus name, if there is one.
     #[must_use]
-    pub fn from_str(name: &str) -> Option<Self> {
+    pub fn from_name(name: &str) -> Option<Self> {
         match name {
             "no_hide" => Some(Self::NoHide),
             "sdl_hide" => Some(Self::SdlHide),
@@ -160,19 +160,6 @@ pub enum Value {
     Float(f32),
     /// A `"string_select"` or `"string_input"` option.
     Text(String),
-}
-
-impl Value {
-    /// The type name a value of this kind belongs to, for error messages.
-    #[must_use]
-    pub const fn kind(&self) -> &'static str {
-        match self {
-            Self::Bool(_) => "bool",
-            Self::Int(_) => "int",
-            Self::Float(_) => "float",
-            Self::Text(_) => "string",
-        }
-    }
 }
 
 /// A value the table can name, or a slot the reference fills at runtime.
@@ -292,9 +279,25 @@ impl From<cdda_json::ParseError> for TableError {
 }
 
 /// The option table, in the corpus's order.
+/// A rename the reference applies to a saved option name, plus any value map
+/// that goes with it (`options.cpp:196-207`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Migration {
+    /// The name a saved file may hold.
+    pub old: String,
+    /// The name the reference uses now.
+    pub new: String,
+    /// Old value to new value, for options whose values were renamed too.
+    pub values: BTreeMap<String, String>,
+}
+
+/// The option table: every registration, the rename map and the removed names,
+/// as `tools/gen_options.py` extracted them from the reference.
 #[derive(Clone, Debug)]
 pub struct Table {
     specs: Vec<OptionSpec>,
+    migrations: Vec<Migration>,
+    removed: Vec<String>,
 }
 
 impl Table {
@@ -317,15 +320,15 @@ impl Table {
         for entry in options {
             let name = field(entry, "name")?;
             let type_name = field(entry, "type")?;
-            let opt_type = OptionType::from_str(&type_name).ok_or_else(|| {
+            let opt_type = OptionType::from_name(&type_name).ok_or_else(|| {
                 TableError::Shape(format!("{name}: unknown option type {type_name:?}"))
             })?;
             let hide_name = field(entry, "hide")?;
-            let hide = HideFlag::from_str(&hide_name).ok_or_else(|| {
+            let hide = HideFlag::from_name(&hide_name).ok_or_else(|| {
                 TableError::Shape(format!("{name}: unknown hide flag {hide_name:?}"))
             })?;
             let source_name = field(entry, "source")?;
-            let source = Source::from_str(&source_name).ok_or_else(|| {
+            let source = Source::from_name(&source_name).ok_or_else(|| {
                 TableError::Shape(format!("{name}: unknown source {source_name:?}"))
             })?;
             let line = number(entry, "line")?;
@@ -348,7 +351,31 @@ impl Table {
                 items: items(entry)?,
             });
         }
-        Ok(Self { specs })
+        Ok(Self {
+            specs,
+            migrations: migrations(&json)?,
+            removed: removed(&json)?,
+        })
+    }
+
+    /// The rename a saved option name may need, if the reference has one.
+    #[must_use]
+    pub fn migration(&self, name: &str) -> Option<&Migration> {
+        self.migrations
+            .iter()
+            .find(|migration| migration.old == name)
+    }
+
+    /// The option names `deserialize()` skips outright (`options.cpp:3976-3983`).
+    #[must_use]
+    pub fn removed(&self) -> &[String] {
+        &self.removed
+    }
+
+    /// Whether `deserialize()` skips this saved name.
+    #[must_use]
+    pub fn is_removed(&self, name: &str) -> bool {
+        self.removed.iter().any(|removed| removed == name)
     }
 
     /// The options, in the corpus's order (sorted by name).
@@ -425,6 +452,7 @@ fn literal(entry: &cdda_json::Value, key: &str) -> Result<Value, TableError> {
 /// The corpus writes the reference's floats widened exactly, so a value that
 /// does not survive the narrowing means the corpus holds a double the reference
 /// never had: report it rather than round it.
+#[allow(clippy::float_cmp)] // exact comparison is the point: a rounded value is an error
 fn narrow(value: f64) -> Result<f32, TableError> {
     #[allow(clippy::cast_possible_truncation)]
     let narrowed = value as f32;
@@ -656,7 +684,7 @@ impl Options {
 /// (options.cpp:1083-1098).
 fn parse_saved_int(spec: &OptionSpec, text: &str) -> i32 {
     let without_percent = text.strip_suffix('%').unwrap_or(text);
-    parse_int_prefix(without_percent)
+    parse_int_text(without_percent)
         .unwrap_or_else(|| spec.default.literal().and_then(as_int).unwrap_or(0))
 }
 
@@ -664,7 +692,7 @@ fn parse_saved_int(spec: &OptionSpec, text: &str) -> i32 {
 /// (options.cpp:1100-1109).
 fn int_map_value(spec: &OptionSpec, text: &str) -> i32 {
     let default = spec.default.literal().and_then(as_int).unwrap_or(0);
-    let Some(number) = parse_int_prefix(text) else {
+    let Some(number) = parse_int_text(text) else {
         return default;
     };
     match &spec.items {
@@ -726,7 +754,7 @@ fn truncate_bytes(text: &str, spec: &OptionSpec) -> String {
 /// Parses an integer the way `try_parse_integer<int>( s, false )` does
 /// (`try_parse_integer.cpp:18-52`): leading whitespace allowed, an optional
 /// sign, digits, then nothing but whitespace.
-fn parse_int_prefix(text: &str) -> Option<i32> {
+fn parse_int_text(text: &str) -> Option<i32> {
     let trimmed = text.trim_start();
     let (negative, digits) = match trimmed.strip_prefix('-') {
         Some(rest) => (true, rest),
@@ -862,4 +890,298 @@ fn as_float(value: &Value) -> Option<f32> {
         Value::Float(number) => Some(*number),
         _ => None,
     }
+}
+
+/// What a saved `options.json` did when it was loaded.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct LoadReport {
+    /// Entries that were read and applied.
+    pub applied: usize,
+    /// Entries naming an option the reference no longer reads from a save file,
+    /// which `deserialize()` drops before anything else (`options.cpp:3976-3983`).
+    pub skipped_removed: usize,
+    /// Entries whose option name was renamed before being applied
+    /// (`options.cpp:3999-4003`).
+    pub migrated: usize,
+    /// Entries naming an option the reference does not have.  The reference
+    /// default-constructs an option of type `"VOID"` for these and drops the
+    /// value, so they are counted and otherwise ignored (`options.cpp:3995`).
+    pub skipped_unknown: usize,
+}
+
+/// Everything wrong with a saved `options.json`.
+#[derive(Debug)]
+pub enum LoadError {
+    /// The file is not JSON the reference's loader would accept.
+    Json(cdda_json::ParseError),
+    /// The file is JSON, but not shaped like `options.json`.
+    Shape(String),
+}
+
+impl fmt::Display for LoadError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Json(error) => write!(f, "{error}"),
+            Self::Shape(detail) => f.write_str(detail),
+        }
+    }
+}
+
+impl std::error::Error for LoadError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Json(error) => Some(error),
+            Self::Shape(_) => None,
+        }
+    }
+}
+
+impl From<cdda_json::ParseError> for LoadError {
+    fn from(error: cdda_json::ParseError) -> Self {
+        Self::Json(error)
+    }
+}
+
+impl Options {
+    /// Applies the contents of a saved `options.json`, the way
+    /// `options_manager::deserialize()` does (`options.cpp:3972-3997`).
+    ///
+    /// The file is the array `serialize()` writes: one object per option with a
+    /// `"name"` and a `"value"`, both strings.  A name the reference does not
+    /// register is ignored, because the reference's `options[name]` creates a
+    /// `"VOID"` option whose `setValue()` accepts nothing; an entry without a
+    /// `"name"` or `"value"` fails the whole load, because the reference reads
+    /// them with `get_string()`, which throws.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`LoadError`] if the text is not JSON, or an entry is not an
+    /// object with string `"name"` and `"value"` members.
+    pub fn load(&mut self, text: &str) -> Result<LoadReport, LoadError> {
+        let json = cdda_json::parse(text.as_bytes())?;
+        let cdda_json::Value::Array(entries) = &json else {
+            return Err(LoadError::Shape("options.json is not an array".to_owned()));
+        };
+        let mut report = LoadReport::default();
+        for entry in entries {
+            let saved_name = saved_member(entry, "name")?;
+            let saved_value = saved_member(entry, "value")?;
+            let migration = self.table.migration(&saved_name);
+            let name = match migration {
+                Some(migration) => {
+                    report.migrated += 1;
+                    migration.new.clone()
+                }
+                None => saved_name.clone(),
+            };
+            if self.table.is_removed(&name) {
+                report.skipped_removed += 1;
+                continue;
+            }
+            if !self.has_option(&name) {
+                report.skipped_unknown += 1;
+                continue;
+            }
+            let value = migrate_value(&saved_name, &saved_value, migration);
+            self.set_text(&name, &value);
+            report.applied += 1;
+        }
+        Ok(report)
+    }
+}
+
+/// A string member of one saved entry.
+fn saved_member(entry: &cdda_json::Value, key: &str) -> Result<String, LoadError> {
+    match entry {
+        cdda_json::Value::Object(object) => match object.get(key) {
+            Some(cdda_json::Value::Str(text)) => Ok(text.clone()),
+            Some(other) => Err(LoadError::Shape(format!(
+                "an entry's {key:?} is {other}, expected a string"
+            ))),
+            None => Err(LoadError::Shape(format!("an entry has no {key:?}"))),
+        },
+        other => Err(LoadError::Shape(format!(
+            "an entry is {other}, expected an object"
+        ))),
+    }
+}
+
+/// The value a saved entry holds after the reference's rename map and its
+/// hand-written conversions (`options.cpp:4005-4030`).
+fn migrate_value(saved_name: &str, value: &str, migration: Option<&Migration>) -> String {
+    // MONSTER_UPGRADE_FACTOR used to be the reciprocal of the new option scaled by
+    // four; the reference converts the number and prints it with two decimals so
+    // the float parser sees exactly what the options UI would have written
+    // (options.cpp:4005-4018).
+    if saved_name == "MONSTER_UPGRADE_FACTOR"
+        && let Ok(number) = value.parse::<f32>()
+    {
+        return format!("{:.2}", number / 4.0);
+    }
+    // The table's own value map, for renames that also renamed the values, and
+    // the original value for everything it does not mention (options.cpp:4022-4030).
+    match migration.and_then(|migration| migration.values.get(value)) {
+        Some(migrated) => migrated.clone(),
+        None => value.to_owned(),
+    }
+}
+
+/// The `migrations` array of a table.
+fn migrations(json: &cdda_json::Value) -> Result<Vec<Migration>, TableError> {
+    let cdda_json::Value::Array(list) = meta_member(json, "migrations")? else {
+        return Err(TableError::Shape(
+            "meta.migrations is not an array".to_owned(),
+        ));
+    };
+    let mut result = Vec::with_capacity(list.len());
+    for entry in list {
+        let old = field(entry, "old")?;
+        let new = field(entry, "new")?;
+        let mut values = BTreeMap::new();
+        let Some(node) = member(entry, "values") else {
+            return Err(TableError::Shape(format!("{old}: no `values` map")));
+        };
+        let cdda_json::Value::Object(object) = node else {
+            return Err(TableError::Shape(format!(
+                "{old}: `values` is not an object"
+            )));
+        };
+        for (from, to) in object.members() {
+            let cdda_json::Value::Str(to) = to else {
+                return Err(TableError::Shape(format!("{old}.{from} is not a string")));
+            };
+            values.insert(from.clone(), to.clone());
+        }
+        result.push(Migration { old, new, values });
+    }
+    Ok(result)
+}
+
+/// The `removed_options` array of a table.
+fn removed(json: &cdda_json::Value) -> Result<Vec<String>, TableError> {
+    let cdda_json::Value::Array(list) = meta_member(json, "removed_options")? else {
+        return Err(TableError::Shape(
+            "meta.removed_options is not an array".to_owned(),
+        ));
+    };
+    let mut result = Vec::with_capacity(list.len());
+    for entry in list {
+        let cdda_json::Value::Str(name) = entry else {
+            return Err(TableError::Shape(
+                "a removed option is not a string".to_owned(),
+            ));
+        };
+        result.push(name.clone());
+    }
+    Ok(result)
+}
+
+/// A member of the table's `meta` object.
+fn meta_member<'a>(
+    json: &'a cdda_json::Value,
+    key: &str,
+) -> Result<&'a cdda_json::Value, TableError> {
+    let Some(meta) = member(json, "meta") else {
+        return Err(TableError::Shape("the table has no `meta`".to_owned()));
+    };
+    member(meta, key).ok_or_else(|| TableError::Shape(format!("meta.{key} is missing")))
+}
+
+impl Options {
+    /// Writes the `options.json` text the reference's `serialize()` writes
+    /// (`options.cpp:3941-3960`).
+    ///
+    /// Only options on a page are written, in table order; an option whose value
+    /// the reference computes at startup and nobody has supplied is skipped,
+    /// because writing a value the port does not have would invent one.
+    ///
+    /// The reference also writes `"info"` and `"default"` members, which hold a
+    /// translated tooltip and a default rendered through the UI's item names. The
+    /// table carries neither, and `deserialize()` ignores both
+    /// (`options.cpp:3973`, `allow_omitted_members()`), so this writes the two
+    /// members a load needs.
+    #[must_use]
+    pub fn save(&self) -> String {
+        let mut writer = cdda_json::Writer::new(true);
+        writer.start_array(true);
+        for spec in self.table.specs() {
+            if !spec.in_page {
+                continue;
+            }
+            let Some(value) = self.values.get(&spec.name) else {
+                continue;
+            };
+            writer.start_object(true);
+            writer.member("name");
+            writer.write_str(&spec.name);
+            writer.member("value");
+            writer.write_str(&saved_text(spec, value));
+            writer.end_object();
+        }
+        writer.end_array();
+        writer.into_string()
+    }
+}
+
+/// The text `getValue( true )` would produce for a value (`options.cpp:725-745`).
+fn saved_text(spec: &OptionSpec, value: &Value) -> String {
+    match value {
+        Value::Bool(flag) => (if *flag { "true" } else { "false" }).to_owned(),
+        Value::Int(number) => format_int(spec.format.as_deref(), *number),
+        Value::Float(number) => format_float(spec.format.as_deref(), *number),
+        Value::Text(text) => text.clone(),
+    }
+}
+
+/// Applies an int option's printf format, e.g. `"%i"` or `"%i%%"`.
+fn format_int(format: Option<&str>, value: i32) -> String {
+    let Some(format) = format else {
+        return value.to_string();
+    };
+    let mut out = String::new();
+    let mut rest = format;
+    let mut written = false;
+    while let Some(index) = rest.find('%') {
+        let Some(prefix) = rest.get(..index) else {
+            break;
+        };
+        out.push_str(prefix);
+        let Some(tail) = rest.get(index + 1..) else {
+            break;
+        };
+        if let Some(after) = tail.strip_prefix('%') {
+            out.push('%');
+            rest = after;
+            continue;
+        }
+        if let Some(after) = tail.strip_prefix(['i', 'd', 'u']) {
+            if !written {
+                out.push_str(&value.to_string());
+                written = true;
+            }
+            rest = after;
+            continue;
+        }
+        out.push('%');
+        rest = tail;
+    }
+    out.push_str(rest);
+    if written {
+        out
+    } else {
+        // A format with no conversion specifier: the reference's string_format
+        // would print the number, so print it.
+        format!("{value}{out}")
+    }
+}
+
+/// Applies a float option's printf format, e.g. `"%.2f"`.
+fn format_float(format: Option<&str>, value: f32) -> String {
+    let format = format.unwrap_or("%.2f");
+    let precision = format
+        .split_once("%.")
+        .and_then(|(_, rest)| rest.split_once('f'))
+        .and_then(|(digits, _)| digits.parse::<usize>().ok())
+        .unwrap_or(2);
+    format!("{value:.precision$}")
 }

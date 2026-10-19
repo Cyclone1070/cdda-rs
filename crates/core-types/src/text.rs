@@ -1,17 +1,64 @@
-//! Message translation and printf-compatible formatting.
+//! printf-compatible formatting.
 //!
-//! Reference: `src/translations.h`, `src/string_formatter.h`.
+//! Reference: `src/string_formatter.h` (the parser, the `convert` overloads and
+//! `string_format`), `src/string_formatter.cpp` (the cursor helpers and the error
+//! text) and `tests/string_formatter_test.cpp` (the expectations; all 339 active
+//! rows of its table are reproduced in `crates/core-types/tests/text.rs`).
 //!
-//! The formatter is a re-implementation of `cata::string_formatter`
-//! (`src/string_formatter.h:182-399`, `src/string_formatter.cpp`): it walks the
-//! format string one conversion at a time and formats each argument separately,
-//! which is what makes it possible to be type-safe where `printf` is not.
+//! # What is ported
 //!
-//! The reference reports every problem by throwing (`string_formatter.cpp:104-109`)
-//! and `string_format` then *returns the exception text as the formatted
-//! result* (`src/string_formatter.h:426-436`). Both halves are kept: [`string_format`]
-//! returns the throw as [`FormatError`], and [`string_format_or_error`] returns
-//! the error text the way the reference's wrapper does.
+//! `cata::string_formatter` walks the format string one conversion at a time and
+//! formats each argument separately (`src/string_formatter.h:341-370`). That is
+//! what makes it type-safe: it converts the argument to the type the conversion
+//! asks for, instead of letting `printf` read a `double` out of an `int`.
+//!
+//! A conversion is read in this order (`src/string_formatter.h:357-368`): a
+//! positional argument index (`%1$s`), the flags `#0 +'I-`
+//! (`src/string_formatter.cpp:28-34`), a field width or `*`, a precision or `.*`
+//! (`src/string_formatter.cpp:72-102`), a length modifier (`l`, `ll`, `h`,
+//! `hh`, `z`, `t`, all of which are dropped: `src/string_formatter.h:274-287`),
+//! and one conversion character:
+//!
+//! | conversion | the argument becomes | arguments accepted |
+//! |---|---|---|
+//! | `%c` | `int` (`:291-292`) | integer, `char` |
+//! | `%d`, `%i` | `signed long long int` (`:294-297`) | integer, `char` |
+//! | `%o`, `%u`, `%x`, `%X` | `unsigned long long int` (`:298-304`) | integer, `char`, wrapped the way C wraps them |
+//! | `%f`, `%F`, `%e`, `%E`, `%g`, `%G`, `%a`, `%A` | `double` (`:305-314`) | floating point **only** |
+//! | `%s` | `const char *` (`:318-320`) | string, `char`, integer, floating point |
+//! | `%p` | `void *` (`:315-317`) | pointer |
+//!
+//! `%%` is the only escape; a `%` followed by anything else is an unsupported
+//! conversion (`:352-355`, `:321-322`). A `bool` argument is accepted by none of
+//! the conversions: the reference excludes `bool` from `is_numeric` (`:54-58`)
+//! and its catch-all `convert` fails a `static_assert` (`:161-164`), which is a
+//! *compile* error there and a returned error here.
+//!
+//! # Errors: throw and assert on one side, a value on the other
+//!
+//! The reference reports every problem by throwing a `std::runtime_error`
+//! carrying `"{message} at: \"{prefix}|{suffix}\""` (`src/string_formatter.cpp:104-109`),
+//! and its `string_format` *catches that throw and returns the message as the
+//! formatted string* (`src/string_formatter.h:426-436`,
+//! `handle_string_format_error`, `src/string_formatter.cpp:111-118`). Both halves
+//! are kept, as values:
+//!
+//! - [`string_format`] returns `Err(FormatError)` where the reference throws —
+//!   the throwing form, which is what the reference's own tests call
+//!   (`tests/string_formatter_test.cpp:17-22`). [`FormatError::kind`] is the
+//!   error as data, and [`fmt::Display`] renders the reference's text.
+//! - [`string_format_or_error`] is the swallowing form: the error text *is* the
+//!   result, exactly as the reference's wrapper behaves.
+//!
+//! The reference's one `assert` in this code (`src/string_formatter.cpp:55`) is
+//! unreachable — its own comment says so — and needs no counterpart.
+//!
+//! # Out of scope
+//!
+//! Translation lookup and plural selection (`src/translations.h`), colour tags,
+//! and text folding and wrapping. A `translation` argument in the reference is
+//! `std::string`-like to the formatter (`src/string_formatter.h:127-132`), so it
+//! reaches this port as [`Arg::Str`] holding text that has already been looked up.
 
 use core::fmt;
 
@@ -152,6 +199,10 @@ pub enum FormatErrorKind {
         /// What the conversion wanted.
         target: Conversion,
     },
+    /// A `*` width or precision with a positional argument index but no `$`.
+    /// The reference's message calls it "field precision" even when it is the
+    /// width that was being read (`src/string_formatter.cpp:80`).
+    ExpectedDollar,
     /// The conversion asked for an argument that was not supplied
     /// (`src/string_formatter.h:256-259`): `"Requested argument N but input has
     /// only M"`.
@@ -176,6 +227,7 @@ impl FormatErrorKind {
                 argument.as_str(),
                 target.as_str()
             ),
+            Self::ExpectedDollar => "expected '$' after field precision".to_owned(),
             Self::MissingArgument {
                 requested,
                 available,
@@ -647,6 +699,19 @@ pub fn string_format(format: &str, args: &[Arg<'_>]) -> Result<String, FormatErr
     Formatter::new(format, args).parse()
 }
 
+/// Where a field width or precision comes from.
+///
+/// Reference: `read_number_or_argument_index` (`src/string_formatter.cpp:72-88`),
+/// which either copies the digits it read into the rebuilt `sprintf` format or
+/// returns the index of the argument holding the number.
+#[derive(Debug, Clone, Copy)]
+enum Amount {
+    /// Digits in the format itself.
+    Fixed(usize),
+    /// The argument at this index (`*`).
+    FromArgument(usize),
+}
+
 /// Which digits an integer conversion writes.
 ///
 /// Reference: `read_conversion` (`src/string_formatter.h:293-304`), which picks
@@ -717,11 +782,27 @@ impl<'f, 'a> Formatter<'f, 'a> {
     /// Reads and applies one conversion (`read_conversion`,
     /// `src/string_formatter.h:272-324`).
     fn parse_conversion(&mut self) -> Result<(), FormatError> {
+        // A positional argument index comes before the flags
+        // (`src/string_formatter.h:357-358`).
+        let named_index = self.read_argument_index();
         // Flags come before the field width, which comes before the precision,
         // which comes before the conversion itself (`src/string_formatter.h:357-368`).
-        let flags = Flags::read(&mut self.cursor);
-        let width = self.read_width();
-        let precision = self.read_precision();
+        let mut flags = Flags::read(&mut self.cursor);
+        let (width, negative_width) = self.resolve_width()?;
+        if negative_width {
+            // A negative width means "left justify this far" (`printf`): the
+            // reference rebuilds the format as `%-3s` by appending "-3"
+            // (`src/string_formatter.h:359-362`), so serial 144 pads on the right.
+            flags = Flags(flags.0 | Flags::LEFT);
+        }
+        let precision = self.resolve_precision()?;
+        // Which argument this conversion formats: the named one if it named one,
+        // otherwise the next in sequence (`src/string_formatter.h:367`). The star
+        // arguments above have already advanced the sequence.
+        let argument_index = match named_index {
+            Some(index) => index,
+            None => self.take_argument_index(),
+        };
         self.read_length_modifier();
         // The conversion character is consumed before it is looked at (`:288-290`),
         // so an unknown one is reported *after* it, and a format that ends here
@@ -729,19 +810,16 @@ impl<'f, 'a> Formatter<'f, 'a> {
         let conversion = self.cursor.consume_next_input();
         match conversion {
             'c' => {
-                let argument_index = self.take_argument_index();
                 let value = self.character(argument_index)?;
                 self.push_character(value, flags, width);
                 Ok(())
             }
             'd' | 'i' => {
-                let argument_index = self.take_argument_index();
                 let value = self.signed_integer(argument_index)?;
                 self.push_signed(value, flags, width, precision);
                 Ok(())
             }
             'o' | 'u' | 'x' | 'X' => {
-                let argument_index = self.take_argument_index();
                 let value = self.unsigned_integer(argument_index)?;
                 let base = match conversion {
                     'o' => Base::Octal,
@@ -753,43 +831,66 @@ impl<'f, 'a> Formatter<'f, 'a> {
                 Ok(())
             }
             'f' | 'F' => {
-                let argument_index = self.take_argument_index();
                 let value = self.floating_point(argument_index)?;
                 self.push_fixed(value, flags, width, precision, conversion == 'F');
                 Ok(())
             }
             'e' | 'E' => {
-                let argument_index = self.take_argument_index();
                 let value = self.floating_point(argument_index)?;
                 self.push_exponential(value, flags, width, precision, conversion == 'E');
                 Ok(())
             }
             'g' | 'G' => {
-                let argument_index = self.take_argument_index();
                 let value = self.floating_point(argument_index)?;
                 self.push_general(value, flags, width, precision, conversion == 'G');
                 Ok(())
             }
             'a' | 'A' => {
-                let argument_index = self.take_argument_index();
                 let value = self.floating_point(argument_index)?;
                 self.push_hexadecimal(value, flags, width, precision, conversion == 'A');
                 Ok(())
             }
             'p' => {
-                let argument_index = self.take_argument_index();
                 let value = self.pointer(argument_index)?;
                 self.push_pointer(value, flags, width);
                 Ok(())
             }
             's' => {
-                let argument_index = self.take_argument_index();
                 let text = self.string(argument_index)?;
                 self.push_string(&text, flags, width, precision);
                 Ok(())
             }
             _ => Err(self.error(FormatErrorKind::UnsupportedConversion(conversion))),
         }
+    }
+
+    /// Reads a `%N$` positional argument index (`read_argument_index`,
+    /// `src/string_formatter.cpp:42-60`).
+    ///
+    /// The reference looks for the end of the digits with
+    /// `find_first_not_of( "012345678" )`, a set that is missing `9`. An index
+    /// whose second digit is a `9` therefore fails that lookahead and is *not*
+    /// treated as positional at all: `%19$s` is a string with width 19. That is
+    /// reproduced here, because the width it falls back to is what the reference
+    /// parses too.
+    fn read_argument_index(&mut self) -> Option<usize> {
+        let first = self.cursor.get_current_input();
+        if !first.is_ascii_digit() || first == '0' {
+            return None;
+        }
+        let start = self.cursor.position() + first.len_utf8();
+        let following = self
+            .format
+            .get(start..)
+            .unwrap_or_default()
+            .chars()
+            .find(|character| !"012345678".contains(*character));
+        if following != Some('$') {
+            return None;
+        }
+        let index = self.cursor.parse_integer().saturating_sub(1);
+        self.cursor.consume_next_input_if('$');
+        Some(index)
     }
 
     /// The argument this conversion formats when it names none: the reference's
@@ -800,24 +901,77 @@ impl<'f, 'a> Formatter<'f, 'a> {
         index
     }
 
-    /// Reads the field width (`read_width` / `read_number_or_argument_index`,
-    /// `src/string_formatter.cpp:72-93`). Only the fixed form is handled so far;
-    /// a `*` width comes from an argument and is added with its own test.
-    fn read_width(&mut self) -> Option<usize> {
-        if !self.cursor.has_digit() {
-            return None;
-        }
-        Some(self.cursor.parse_integer())
+    /// Reads the field width, or the argument it comes from
+    /// (`read_width`, `src/string_formatter.cpp:90-93`).
+    fn read_width(&mut self) -> Result<Option<Amount>, FormatError> {
+        self.read_number_or_argument_index()
     }
 
     /// Reads the precision (`read_precision`, `src/string_formatter.cpp:95-102`).
     /// A `.` with no digits after it means a precision of zero, which is how
     /// `%20.d` (serial 386) behaves like `%20.0d`.
-    fn read_precision(&mut self) -> Option<usize> {
+    fn read_precision(&mut self) -> Result<Option<Amount>, FormatError> {
         if !self.cursor.consume_next_input_if('.') {
-            return None;
+            return Ok(None);
         }
-        Some(self.cursor.parse_integer())
+        Ok(Some(
+            self.read_number_or_argument_index()?
+                .unwrap_or(Amount::Fixed(0)),
+        ))
+    }
+
+    /// The common body of the two (`read_number_or_argument_index`,
+    /// `src/string_formatter.cpp:72-88`).
+    ///
+    /// `*` takes the number from the next argument — or, with a positional
+    /// index, from the argument named before the `$`, in which case a missing
+    /// `$` is an error.
+    fn read_number_or_argument_index(&mut self) -> Result<Option<Amount>, FormatError> {
+        if self.cursor.consume_next_input_if('*') {
+            if !self.cursor.has_digit() {
+                return Ok(Some(Amount::FromArgument(self.take_argument_index())));
+            }
+            let index = self.cursor.parse_integer().saturating_sub(1);
+            if !self.cursor.consume_next_input_if('$') {
+                return Err(self.error(FormatErrorKind::ExpectedDollar));
+            }
+            return Ok(Some(Amount::FromArgument(index)));
+        }
+        if self.cursor.has_digit() {
+            return Ok(Some(Amount::Fixed(self.cursor.parse_integer())));
+        }
+        Ok(None)
+    }
+
+    /// Turns a width into a number, reading an argument if it is a `*`
+    /// (`src/string_formatter.h:359-362`). The second value is whether the
+    /// argument was negative, which means left justification.
+    fn resolve_width(&mut self) -> Result<(Option<usize>, bool), FormatError> {
+        match self.read_width()? {
+            None => Ok((None, false)),
+            Some(Amount::Fixed(width)) => Ok((Some(width), false)),
+            Some(Amount::FromArgument(index)) => {
+                let value = self.int_value(index)?;
+                Ok((
+                    Some(usize::try_from(value.unsigned_abs()).unwrap_or(0)),
+                    value < 0,
+                ))
+            }
+        }
+    }
+
+    /// Turns a precision into a number, reading an argument if it is a `*`
+    /// (`src/string_formatter.h:363-366`). A negative precision counts as no
+    /// precision at all, as `printf` defines it.
+    fn resolve_precision(&mut self) -> Result<Option<usize>, FormatError> {
+        match self.read_precision()? {
+            None => Ok(None),
+            Some(Amount::Fixed(precision)) => Ok(Some(precision)),
+            Some(Amount::FromArgument(index)) => {
+                let value = self.int_value(index)?;
+                Ok(usize::try_from(value).ok())
+            }
+        }
     }
 
     /// Consumes and drops the length modifier (`l`, `ll`, `h`, `hh`, `z`, `t`).
@@ -1089,11 +1243,19 @@ impl<'f, 'a> Formatter<'f, 'a> {
     /// `get_nth_arg_as<int>` for `%c` (`src/string_formatter.h:291-292`): any
     /// integer, including `char`; `printf` then takes its low byte.
     fn character(&self, index: usize) -> Result<char, FormatError> {
+        let value = self.int_value(index)?;
+        Ok(char::from(
+            u8::try_from(value.cast_unsigned() & 0xff).unwrap_or(0),
+        ))
+    }
+
+    /// `get_nth_arg_as<int>`: any integer, including `char`. Used by `%c` and by
+    /// a `*` width or precision, which the reference reads with the same call
+    /// (`src/string_formatter.h:360`, `364`).
+    fn int_value(&self, index: usize) -> Result<i64, FormatError> {
         match self.argument(index)? {
-            Arg::Int(value) => Ok(char::from(
-                u8::try_from(value.cast_unsigned() & 0xff).unwrap_or(0),
-            )),
-            Arg::Char(value) => Ok(*value),
+            Arg::Int(value) => Ok(*value),
+            Arg::Char(value) => Ok(i64::from(u32::from(*value))),
             other => Err(self.unsupported_argument(other, Conversion::Character)),
         }
     }

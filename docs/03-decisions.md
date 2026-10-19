@@ -130,6 +130,21 @@ independent of ECS.
 
 ---
 
+## Reference defects the port must decide about
+
+Found mechanically while extracting the options table. Each is reproduced by the
+reference today, so each is a choice: copy the behaviour, or diverge and say so.
+
+| Defect | Evidence | Decision needed |
+|---|---|---|
+| A default outside its own option's value list | `MORALE_STYLE` items are lower case, default is `Vertical`; reference silently falls back to the first item (`options.cpp:2151`) | Copy the fallback, or fix the data |
+| Same, second case | `ASTERISK_POSITION` items are `prefix`/`suffix`, default `right` (`options.cpp:2216`) | Same |
+| A setting that is silently dropped | `DEFAULT_REGION` is a `string_input`, but regions are added with `add_value`, which only extends `string_select` (`regional_settings.cpp:1189`) | Copy the dead setting, or wire it up |
+| One option registered twice | `RENDERER`, once per build profile (`options.cpp:2673`, `:2687`) | Not a defect in a single build; note it for the port's table |
+
+The port's default is to reproduce observable behaviour, so the first three are
+copied unless a decision says otherwise; each gets a test that pins the fallback.
+
 ## Settled since the plan was written
 
 | Decision | Choice | Consequence |
@@ -148,7 +163,7 @@ independent of ECS.
 | When is parallelism allowed, and which systems are actually independent? | The read/write declarations exist for this | Record declarations from day one; defer any threading until a profile demands it |
 | What entity count is the design targeting? | It is the number that decides whether ECS earns its keep | Instrument turn time vs entity count in the first playable build |
 | What ordering does a tie get when the reference has none? | Pointer-order tie-breaks and hash-order iteration exist today; the port cannot reproduce them and should not try | Pick one canonical order per case, list them as declared divergences |
-| Do the 234 C++ option declarations become data? | Mods can only ship three option files today; moving options into data is a modding gain and a compatibility risk | Decide with the registry phase; measure how many options mods actually override |
+| Do the 188 C++ option declarations become data (276 total with the JSON ones)? Mods can only ship three option files today; moving options into data is a modding gain and a compatibility risk | Decide with the registry phase; measure how many options mods actually override |
 | Which reference warts are deliberately not reproduced? | Two are known: a shared static object handed out by uniform map regions, and a graveyard that keeps dangling creature references alive | Add each to the equivalence spec as an explicit, reviewed exception |
 
 ---

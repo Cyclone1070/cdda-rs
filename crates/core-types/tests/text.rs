@@ -12,8 +12,12 @@
 // The numeric literals are copied from the reference's table as written there,
 // so that each row can be checked against its serial number at a glance.
 #![allow(clippy::unreadable_literal)]
+// `3.14159265` is the reference's own test value (serials 61 and 63).
+#![allow(clippy::approx_constant)]
 
-use cdda_core_types::text::{Arg, string_format};
+use cdda_core_types::text::{
+    Arg, FormatError, FormatErrorKind, string_format, string_format_or_error,
+};
 use std::slice;
 
 /// `throwing_string_format` (reference line 17), with a readable failure.
@@ -33,6 +37,10 @@ fn literal_text_and_escaped_percent_are_copied_verbatim() {
     assert_eq!(format("%%", &[]), "%");
     assert_eq!(format("50%% off", &[]), "50% off");
     assert_eq!(format("%%%%", &[]), "%%");
+    // The parser loops `while( const char c = consume_next_input() )`, so a null
+    // character in the format ends the output there, as it does in the
+    // reference (`src/string_formatter.h:347`, `src/string_formatter.cpp:8-11`).
+    assert_eq!(format("a\0b", &[]), "a");
 }
 
 #[test]
@@ -426,4 +434,1048 @@ fn pointer_conversion_prints_the_address_in_lowercase_hex() {
         format("%020p", &[Arg::Pointer(0x1234)]),
         "0x000000000000001234"
     );
+}
+
+#[test]
+fn star_takes_the_width_and_precision_from_arguments() {
+    let rows: &[(&str, &[Arg<'_>], &str)] = &[
+        // The star consumes the next argument, before the one being formatted
+        // (serials 208, 60, 143, 144, 61, 63, 211, 328-341, 403-415).
+        ("%.*f", &[Arg::Int(2), Arg::Float(0.33333333)], "0.33"), // serial 208
+        ("%*s", &[Arg::Int(4), Arg::Str("foo")], " foo"),         // serial 60
+        ("%*sx\\n", &[Arg::Int(-3), Arg::Str("hi")], "hi x\\n"),  // serial 416
+        (
+            "%*.*f",
+            &[Arg::Int(10), Arg::Int(2), Arg::Float(3.14159265)],
+            "      3.14",
+        ), // serial 61
+        (
+            "%-*.*f",
+            &[Arg::Int(10), Arg::Int(2), Arg::Float(3.14159265)],
+            "3.14      ",
+        ), // serial 63
+        ("%.*s", &[Arg::Int(1), Arg::Str("foo")], "f"),           // serial 143
+        ("%*s", &[Arg::Int(-5), Arg::Str("foo")], "foo  "),       // serial 144
+        (
+            "%*s",
+            &[Arg::Int(20), Arg::Str("Hallo")],
+            "               Hallo",
+        ), // serial 328
+        (
+            "%*d",
+            &[Arg::Int(20), Arg::Int(1024)],
+            "                1024",
+        ), // serial 329
+        (
+            "%*d",
+            &[Arg::Int(20), Arg::Int(-1024)],
+            "               -1024",
+        ), // serial 330
+        (
+            "%*c",
+            &[Arg::Int(20), Arg::Char('x')],
+            "                   x",
+        ), // serial 341
+        (
+            "% -0+*.*s",
+            &[Arg::Int(20), Arg::Int(5), Arg::Str("Hallo heimur")],
+            "Hallo               ",
+        ), // serial 403
+        (
+            "% -0+*.*d",
+            &[Arg::Int(20), Arg::Int(5), Arg::Int(1024)],
+            "+01024              ",
+        ), // serial 404
+        (
+            "% -0+*.*d",
+            &[Arg::Int(20), Arg::Int(5), Arg::Int(-1024)],
+            "-01024              ",
+        ), // serial 405
+        (
+            "% 0-+*.*i",
+            &[Arg::Int(20), Arg::Int(5), Arg::Int(-1024)],
+            "-01024              ",
+        ), // serial 407
+        (
+            "%+ -0*.*o",
+            &[Arg::Int(20), Arg::Int(5), Arg::Int(511)],
+            "00777               ",
+        ), // serial 410
+        (
+            "%+ -0*.*x",
+            &[Arg::Int(20), Arg::Int(10), Arg::Int(3989525555)],
+            "00edcb5433          ",
+        ), // serial 413
+        (
+            "%-*.*f",
+            &[Arg::Int(4), Arg::Int(7), Arg::Float(100.44)],
+            "100.4400000",
+        ), // reference line 157
+    ];
+    for (format_string, args, expected) in rows {
+        assert_eq!(
+            format(format_string, args),
+            *expected,
+            "format {format_string:?}"
+        );
+    }
+}
+
+#[test]
+fn positional_conversions_name_their_argument() {
+    // `%N$` picks the argument by number and does not advance the sequence
+    // (serials 55, 56, and the `%6$-*5$.*4$f` pattern of reference line 165).
+    assert_eq!(
+        format("%1$s %2$s", &[Arg::Str("Hot"), Arg::Str("Pocket")]),
+        "Hot Pocket" // serial 55
+    );
+    assert_eq!(
+        format(
+            "%1$.1f %2$s %3$ss",
+            &[Arg::Float(12.0), Arg::Str("Hot"), Arg::Str("Pocket")]
+        ),
+        "12.0 Hot Pockets" // serial 56
+    );
+    // The width and precision come from named arguments too.
+    assert_eq!(
+        format(
+            "%6$-*5$.*4$f",
+            &[
+                Arg::Str(""),
+                Arg::Str(""),
+                Arg::Str(""),
+                Arg::Int(7),
+                Arg::Int(4),
+                Arg::Float(100.44)
+            ]
+        ),
+        "100.4400000" // reference line 165, checked against printf: the
+                      // width comes from `*5$` (the fourth argument) and the
+                      // precision from `.*4$` (the fifth, which is 7)
+    );
+    // Without a `$` after a `*`, a digit is a plain width (`%2$s` style naming is
+    // the only thing `$` is read for).
+    assert_eq!(format("%2s", &[Arg::Str("x")]), " x");
+    // A `%` followed by `0` is not a positional index (`read_argument_index`
+    // only starts at '1').
+    assert_eq!(format("%0d", &[Arg::Int(7)]), "7");
+    // The lookahead that finds the `$` searches for a character outside
+    // "012345678", a set the reference forgot to put '9' in
+    // (`src/string_formatter.cpp:47`). An index whose second digit is '9' is
+    // therefore not read as positional: `%19$s` is width 19 and then a `$`
+    // conversion, which is an error — the same error the reference throws.
+    assert_eq!(
+        error_of("%19$s", &[Arg::Str("a")]).kind(),
+        &FormatErrorKind::UnsupportedConversion('$')
+    );
+    // A positional index past the end is the usual missing-argument error.
+    assert_eq!(
+        error_of("%2$s", &[Arg::Str("a")]).to_string(),
+        "Requested argument 1 but input has only 1 at: \"%2$s|\""
+    );
+}
+
+/// `test_for_error` (reference line 52): the call must fail, and the failure is
+/// returned rather than thrown.
+#[track_caller]
+fn error_of(format_string: &str, args: &[Arg<'_>]) -> FormatError {
+    match string_format(format_string, args) {
+        Ok(text) => panic!("{format_string:?} returned {text:?}, expected an error"),
+        Err(error) => error,
+    }
+}
+
+#[test]
+fn malformed_formats_and_mismatched_arguments_are_errors() {
+    // `string_formatter_errors` (reference lines 596-610).
+    // `%6$-*5$.*4$f` needs six arguments and is given three, four and five.
+    for args in [
+        &[Arg::Int(1), Arg::Int(2), Arg::Int(3)][..],
+        &[Arg::Int(1), Arg::Int(2), Arg::Int(3), Arg::Int(4)][..],
+        &[
+            Arg::Int(1),
+            Arg::Int(2),
+            Arg::Int(3),
+            Arg::Int(4),
+            Arg::Int(5),
+        ][..],
+    ] {
+        assert!(string_format("%6$-*5$.*4$f", args).is_err());
+    }
+    // An invalid format specifier (reference line 603).
+    let unsupported = error_of("%k", &[]);
+    assert_eq!(
+        unsupported.kind(),
+        &FormatErrorKind::UnsupportedConversion('k')
+    );
+    assert_eq!(
+        unsupported.to_string(),
+        "Unsupported format conversion: k at: \"%k|\""
+    );
+    // A pointer cannot be printed as a string or as an integer (lines 605-606).
+    assert!(string_format("%s", &[Arg::Pointer(0)]).is_err());
+    assert!(string_format("%d", &[Arg::Pointer(0)]).is_err());
+    // Nor can a string be printed as an integer (line 607).
+    let mismatch = error_of("%d", &[Arg::Str("some string")]);
+    assert_eq!(
+        mismatch.to_string(),
+        "Tried to convert argument of type string to signed long long int, \
+         which is not possible at: \"%d|\""
+    );
+    // Too few arguments for the conversions given (line 609).
+    let missing = error_of(
+        "%d %d %d %d %d",
+        &[Arg::Int(1), Arg::Int(2), Arg::Int(3), Arg::Int(4)],
+    );
+    assert_eq!(
+        missing.to_string(),
+        "Requested argument 4 but input has only 4 at: \"%d %d %d %d %d|\""
+    );
+    // `%f` of an integer is a *type* error in the reference, not a conversion:
+    // `convert<double>` only accepts floating point (reference lines 95-101).
+    assert!(string_format("%f", &[Arg::Int(7)]).is_err());
+    // A `bool` argument is a compile error in the reference (lines 54-58 and
+    // 161-164), which Rust cannot express, so it is a returned error here.
+    for format_string in ["%d", "%s", "%c", "%f", "%p"] {
+        assert!(
+            string_format(format_string, &[Arg::Bool(true)]).is_err(),
+            "{format_string} accepted a bool"
+        );
+    }
+    // A `*` with a positional width needs its `$`
+    // (`expected '$' after field precision`, reference line 80).
+    let missing_dollar = error_of("%.*5f", &[Arg::Int(1), Arg::Float(1.0)]);
+    assert_eq!(missing_dollar.kind(), &FormatErrorKind::ExpectedDollar);
+    // A format that ends in a lone `%` reads the end of the string as a null
+    // character and reports it as the unsupported conversion (reference lines
+    // 8-11 and 321-322).
+    let lone_percent = error_of("%", &[]);
+    assert_eq!(
+        lone_percent.kind(),
+        &FormatErrorKind::UnsupportedConversion('\0')
+    );
+    assert_eq!(lone_percent.position(), 1);
+}
+
+#[test]
+fn the_swallowing_entry_point_returns_the_error_text() {
+    // `string_format` in the reference catches the exception and returns its
+    // text as the result (reference lines 426-436, `handle_string_format_error`).
+    assert_eq!(string_format_or_error("%d", &[Arg::Int(7)]), "7");
+    assert_eq!(
+        string_format_or_error("%d", &[Arg::Str("no")]),
+        "Tried to convert argument of type string to signed long long int, \
+         which is not possible at: \"%d|\""
+    );
+}
+
+/// Every active `importet_test` row of the reference's table, transcribed
+/// mechanically from `tests/string_formatter_test.cpp` — serial number, format,
+/// arguments, expected text — so that none of the reference's checks is dropped.
+static REFERENCE_TABLE: &[(u32, &str, &[Arg<'static>], &str)] = &[
+    (1, "%.*f", &[Arg::Int(2), Arg::Float(0.33333333)], "0.33"),
+    (2, "%.3s", &[Arg::Str("foobar")], "foo"),
+    (3, "%10.5d", &[Arg::Int(4)], "     00004"),
+    (416, "%*sx\\n", &[Arg::Int(-3), Arg::Str("hi")], "hi x\\n"),
+    (4, "% d", &[Arg::Int(42)], " 42"),
+    (5, "% d", &[Arg::Int(-42)], "-42"),
+    (6, "% 5d", &[Arg::Int(42)], "   42"),
+    (7, "% 5d", &[Arg::Int(-42)], "  -42"),
+    (8, "% 15d", &[Arg::Int(42)], "             42"),
+    (9, "% 15d", &[Arg::Int(-42)], "            -42"),
+    (10, "%+d", &[Arg::Int(42)], "+42"),
+    (11, "%+d", &[Arg::Int(-42)], "-42"),
+    (12, "%+5d", &[Arg::Int(42)], "  +42"),
+    (13, "%+5d", &[Arg::Int(-42)], "  -42"),
+    (14, "%+15d", &[Arg::Int(42)], "            +42"),
+    (15, "%+15d", &[Arg::Int(-42)], "            -42"),
+    (16, "%0d", &[Arg::Int(42)], "42"),
+    (17, "%0d", &[Arg::Int(-42)], "-42"),
+    (18, "%05d", &[Arg::Int(42)], "00042"),
+    (19, "%05d", &[Arg::Int(-42)], "-0042"),
+    (20, "%015d", &[Arg::Int(42)], "000000000000042"),
+    (21, "%015d", &[Arg::Int(-42)], "-00000000000042"),
+    (22, "%-d", &[Arg::Int(42)], "42"),
+    (23, "%-d", &[Arg::Int(-42)], "-42"),
+    (24, "%-5d", &[Arg::Int(42)], "42   "),
+    (25, "%-5d", &[Arg::Int(-42)], "-42  "),
+    (26, "%-15d", &[Arg::Int(42)], "42             "),
+    (27, "%-15d", &[Arg::Int(-42)], "-42            "),
+    (28, "%-0d", &[Arg::Int(42)], "42"),
+    (29, "%-0d", &[Arg::Int(-42)], "-42"),
+    (30, "%-05d", &[Arg::Int(42)], "42   "),
+    (31, "%-05d", &[Arg::Int(-42)], "-42  "),
+    (32, "%-015d", &[Arg::Int(42)], "42             "),
+    (33, "%-015d", &[Arg::Int(-42)], "-42            "),
+    (34, "%0-d", &[Arg::Int(42)], "42"),
+    (35, "%0-d", &[Arg::Int(-42)], "-42"),
+    (36, "%0-5d", &[Arg::Int(42)], "42   "),
+    (37, "%0-5d", &[Arg::Int(-42)], "-42  "),
+    (38, "%0-15d", &[Arg::Int(42)], "42             "),
+    (39, "%0-15d", &[Arg::Int(-42)], "-42            "),
+    (43, "%.2f", &[Arg::Float(42.8952)], "42.90"),
+    (44, "%.2F", &[Arg::Float(42.8952)], "42.90"),
+    (45, "%.10f", &[Arg::Float(42.8952)], "42.8952000000"),
+    (46, "%1.2f", &[Arg::Float(42.8952)], "42.90"),
+    (47, "%6.2f", &[Arg::Float(42.8952)], " 42.90"),
+    (49, "%+6.2f", &[Arg::Float(42.8952)], "+42.90"),
+    (50, "%5.10f", &[Arg::Float(42.8952)], "42.8952000000"),
+    (
+        55,
+        "%1$s %2$s",
+        &[Arg::Str("Hot"), Arg::Str("Pocket")],
+        "Hot Pocket",
+    ),
+    (
+        56,
+        "%1$.1f %2$s %3$ss",
+        &[Arg::Float(12.0), Arg::Str("Hot"), Arg::Str("Pocket")],
+        "12.0 Hot Pockets",
+    ),
+    (60, "%*s", &[Arg::Int(4), Arg::Str("foo")], " foo"),
+    (
+        61,
+        "%*.*f",
+        &[Arg::Int(10), Arg::Int(2), Arg::Float(3.14159265)],
+        "      3.14",
+    ),
+    (
+        63,
+        "%-*.*f",
+        &[Arg::Int(10), Arg::Int(2), Arg::Float(3.14159265)],
+        "3.14      ",
+    ),
+    (66, "+%s+", &[Arg::Str("hello")], "+hello+"),
+    (67, "+%d+", &[Arg::Int(10)], "+10+"),
+    (68, "%c", &[Arg::Char('a')], "a"),
+    (69, "%c", &[Arg::Int(32)], " "),
+    (70, "%c", &[Arg::Int(36)], "$"),
+    (71, "%d", &[Arg::Int(10)], "10"),
+    (81, "%+8lld", &[Arg::Int(100)], "    +100"),
+    (82, "%+.8lld", &[Arg::Int(100)], "+00000100"),
+    (83, "%+10.8lld", &[Arg::Int(100)], " +00000100"),
+    (85, "%-1.5lld", &[Arg::Int(-100)], "-00100"),
+    (86, "%5lld", &[Arg::Int(100)], "  100"),
+    (87, "%5lld", &[Arg::Int(-100)], " -100"),
+    (88, "%-5lld", &[Arg::Int(100)], "100  "),
+    (89, "%-5lld", &[Arg::Int(-100)], "-100 "),
+    (90, "%-.5lld", &[Arg::Int(100)], "00100"),
+    (91, "%-.5lld", &[Arg::Int(-100)], "-00100"),
+    (92, "%-8.5lld", &[Arg::Int(100)], "00100   "),
+    (93, "%-8.5lld", &[Arg::Int(-100)], "-00100  "),
+    (94, "%05lld", &[Arg::Int(100)], "00100"),
+    (95, "%05lld", &[Arg::Int(-100)], "-0100"),
+    (96, "% lld", &[Arg::Int(100)], " 100"),
+    (97, "% lld", &[Arg::Int(-100)], "-100"),
+    (98, "% 5lld", &[Arg::Int(100)], "  100"),
+    (99, "% 5lld", &[Arg::Int(-100)], " -100"),
+    (100, "% .5lld", &[Arg::Int(100)], " 00100"),
+    (101, "% .5lld", &[Arg::Int(-100)], "-00100"),
+    (102, "% 8.5lld", &[Arg::Int(100)], "   00100"),
+    (103, "% 8.5lld", &[Arg::Int(-100)], "  -00100"),
+    (104, "%.0lld", &[Arg::Int(0)], ""),
+    (
+        105,
+        "%#+21.18llx",
+        &[Arg::Int(-100)],
+        " 0x00ffffffffffffff9c",
+    ),
+    (
+        106,
+        "%#.25llo",
+        &[Arg::Int(-100)],
+        "0001777777777777777777634",
+    ),
+    (
+        107,
+        "%#+24.20llo",
+        &[Arg::Int(-100)],
+        " 01777777777777777777634",
+    ),
+    (
+        108,
+        "%#+18.21llX",
+        &[Arg::Int(-100)],
+        "0X00000FFFFFFFFFFFFFF9C",
+    ),
+    (
+        109,
+        "%#+20.24llo",
+        &[Arg::Int(-100)],
+        "001777777777777777777634",
+    ),
+    (
+        113,
+        "%+#25.22lld",
+        &[Arg::Int(-1)],
+        "  -0000000000000000000001",
+    ),
+    (114, "%#-8.5llo", &[Arg::Int(100)], "00144   "),
+    (115, "%#-+ 08.5lld", &[Arg::Int(100)], "+00100  "),
+    (116, "%#-+ 08.5lld", &[Arg::Int(100)], "+00100  "),
+    (
+        117,
+        "%.40lld",
+        &[Arg::Int(1)],
+        "0000000000000000000000000000000000000001",
+    ),
+    (
+        118,
+        "% .40lld",
+        &[Arg::Int(1)],
+        " 0000000000000000000000000000000000000001",
+    ),
+    (
+        119,
+        "% .40d",
+        &[Arg::Int(1)],
+        " 0000000000000000000000000000000000000001",
+    ),
+    (125, "% d", &[Arg::Int(1)], " 1"),
+    (126, "%+ d", &[Arg::Int(1)], "+1"),
+    (129, "%#012x", &[Arg::Int(1)], "0x0000000001"),
+    (130, "%#04.8x", &[Arg::Int(1)], "0x00000001"),
+    (131, "%#-08.2x", &[Arg::Int(1)], "0x01    "),
+    (132, "%#08o", &[Arg::Int(1)], "00000001"),
+    (142, "%.1s", &[Arg::Str("foo")], "f"),
+    (143, "%.*s", &[Arg::Int(1), Arg::Str("foo")], "f"),
+    (144, "%*s", &[Arg::Int(-5), Arg::Str("foo")], "foo  "),
+    (148, "%3c", &[Arg::Char('a')], "  a"),
+    (149, "%3d", &[Arg::Int(1234)], "1234"),
+    (152, "%-1d", &[Arg::Int(2)], "2"),
+    (153, "%2.4f", &[Arg::Float(8.6)], "8.6000"),
+    (154, "%0f", &[Arg::Float(0.6)], "0.600000"),
+    (155, "%.0f", &[Arg::Float(0.6)], "1"),
+    (161, "%2.4g", &[Arg::Float(8.6)], "8.6"),
+    (162, "%-i", &[Arg::Int(-1)], "-1"),
+    (163, "%-i", &[Arg::Int(1)], "1"),
+    (164, "%+i", &[Arg::Int(1)], "+1"),
+    (165, "%o", &[Arg::Int(10)], "12"),
+    (169, "%s", &[Arg::Str("%%%%")], "%%%%"),
+    (179, "%hhx", &[Arg::Char('a')], "61"),
+    (182, "%s", &[Arg::Str("Hallo heimur")], "Hallo heimur"),
+    (183, "%d", &[Arg::Int(1024)], "1024"),
+    (184, "%d", &[Arg::Int(-1024)], "-1024"),
+    (185, "%i", &[Arg::Int(1024)], "1024"),
+    (186, "%i", &[Arg::Int(-1024)], "-1024"),
+    (187, "%u", &[Arg::Int(1024)], "1024"),
+    (188, "%u", &[Arg::Int(4294966272)], "4294966272"),
+    (189, "%o", &[Arg::Int(511)], "777"),
+    (190, "%o", &[Arg::Int(4294966785)], "37777777001"),
+    (191, "%x", &[Arg::Int(305441741)], "1234abcd"),
+    (192, "%x", &[Arg::Int(3989525555)], "edcb5433"),
+    (193, "%X", &[Arg::Int(305441741)], "1234ABCD"),
+    (194, "%X", &[Arg::Int(3989525555)], "EDCB5433"),
+    (195, "%c", &[Arg::Char('x')], "x"),
+    (197, "%+s", &[Arg::Str("Hallo heimur")], "Hallo heimur"),
+    (198, "%+d", &[Arg::Int(1024)], "+1024"),
+    (199, "%+d", &[Arg::Int(-1024)], "-1024"),
+    (200, "%+i", &[Arg::Int(1024)], "+1024"),
+    (201, "%+i", &[Arg::Int(-1024)], "-1024"),
+    (204, "%+o", &[Arg::Int(511)], "777"),
+    (205, "%+o", &[Arg::Int(4294966785)], "37777777001"),
+    (206, "%+x", &[Arg::Int(305441741)], "1234abcd"),
+    (207, "%+x", &[Arg::Int(3989525555)], "edcb5433"),
+    (208, "%+X", &[Arg::Int(305441741)], "1234ABCD"),
+    (209, "%+X", &[Arg::Int(3989525555)], "EDCB5433"),
+    (210, "%+c", &[Arg::Char('x')], "x"),
+    (211, "% s", &[Arg::Str("Hallo heimur")], "Hallo heimur"),
+    (212, "% d", &[Arg::Int(1024)], " 1024"),
+    (213, "% d", &[Arg::Int(-1024)], "-1024"),
+    (214, "% i", &[Arg::Int(1024)], " 1024"),
+    (215, "% i", &[Arg::Int(-1024)], "-1024"),
+    (218, "% o", &[Arg::Int(511)], "777"),
+    (219, "% o", &[Arg::Int(4294966785)], "37777777001"),
+    (220, "% x", &[Arg::Int(305441741)], "1234abcd"),
+    (221, "% x", &[Arg::Int(3989525555)], "edcb5433"),
+    (222, "% X", &[Arg::Int(305441741)], "1234ABCD"),
+    (223, "% X", &[Arg::Int(3989525555)], "EDCB5433"),
+    (224, "% c", &[Arg::Char('x')], "x"),
+    (225, "%+ s", &[Arg::Str("Hallo heimur")], "Hallo heimur"),
+    (226, "%+ d", &[Arg::Int(1024)], "+1024"),
+    (227, "%+ d", &[Arg::Int(-1024)], "-1024"),
+    (228, "%+ i", &[Arg::Int(1024)], "+1024"),
+    (229, "%+ i", &[Arg::Int(-1024)], "-1024"),
+    (232, "%+ o", &[Arg::Int(511)], "777"),
+    (233, "%+ o", &[Arg::Int(4294966785)], "37777777001"),
+    (234, "%+ x", &[Arg::Int(305441741)], "1234abcd"),
+    (235, "%+ x", &[Arg::Int(3989525555)], "edcb5433"),
+    (236, "%+ X", &[Arg::Int(305441741)], "1234ABCD"),
+    (237, "%+ X", &[Arg::Int(3989525555)], "EDCB5433"),
+    (238, "%+ c", &[Arg::Char('x')], "x"),
+    (239, "%#o", &[Arg::Int(511)], "0777"),
+    (240, "%#o", &[Arg::Int(4294966785)], "037777777001"),
+    (241, "%#x", &[Arg::Int(305441741)], "0x1234abcd"),
+    (242, "%#x", &[Arg::Int(3989525555)], "0xedcb5433"),
+    (243, "%#X", &[Arg::Int(305441741)], "0X1234ABCD"),
+    (244, "%#X", &[Arg::Int(3989525555)], "0XEDCB5433"),
+    (245, "%#o", &[Arg::Int(0)], "0"),
+    (246, "%#x", &[Arg::Int(0)], "0"),
+    (247, "%#X", &[Arg::Int(0)], "0"),
+    (248, "%1s", &[Arg::Str("Hallo heimur")], "Hallo heimur"),
+    (249, "%1d", &[Arg::Int(1024)], "1024"),
+    (250, "%1d", &[Arg::Int(-1024)], "-1024"),
+    (251, "%1i", &[Arg::Int(1024)], "1024"),
+    (252, "%1i", &[Arg::Int(-1024)], "-1024"),
+    (253, "%1u", &[Arg::Int(1024)], "1024"),
+    (254, "%1u", &[Arg::Int(4294966272)], "4294966272"),
+    (255, "%1o", &[Arg::Int(511)], "777"),
+    (256, "%1o", &[Arg::Int(4294966785)], "37777777001"),
+    (257, "%1x", &[Arg::Int(305441741)], "1234abcd"),
+    (258, "%1x", &[Arg::Int(3989525555)], "edcb5433"),
+    (259, "%1X", &[Arg::Int(305441741)], "1234ABCD"),
+    (260, "%1X", &[Arg::Int(3989525555)], "EDCB5433"),
+    (261, "%1c", &[Arg::Char('x')], "x"),
+    (262, "%20s", &[Arg::Str("Hallo")], "               Hallo"),
+    (263, "%20d", &[Arg::Int(1024)], "                1024"),
+    (264, "%20d", &[Arg::Int(-1024)], "               -1024"),
+    (265, "%20i", &[Arg::Int(1024)], "                1024"),
+    (266, "%20i", &[Arg::Int(-1024)], "               -1024"),
+    (267, "%20u", &[Arg::Int(1024)], "                1024"),
+    (268, "%20u", &[Arg::Int(4294966272)], "          4294966272"),
+    (269, "%20o", &[Arg::Int(511)], "                 777"),
+    (270, "%20o", &[Arg::Int(4294966785)], "         37777777001"),
+    (271, "%20x", &[Arg::Int(305441741)], "            1234abcd"),
+    (272, "%20x", &[Arg::Int(3989525555)], "            edcb5433"),
+    (273, "%20X", &[Arg::Int(305441741)], "            1234ABCD"),
+    (274, "%20X", &[Arg::Int(3989525555)], "            EDCB5433"),
+    (275, "%20c", &[Arg::Char('x')], "                   x"),
+    (276, "%-20s", &[Arg::Str("Hallo")], "Hallo               "),
+    (277, "%-20d", &[Arg::Int(1024)], "1024                "),
+    (278, "%-20d", &[Arg::Int(-1024)], "-1024               "),
+    (279, "%-20i", &[Arg::Int(1024)], "1024                "),
+    (280, "%-20i", &[Arg::Int(-1024)], "-1024               "),
+    (281, "%-20u", &[Arg::Int(1024)], "1024                "),
+    (
+        282,
+        "%-20u",
+        &[Arg::Int(4294966272)],
+        "4294966272          ",
+    ),
+    (283, "%-20o", &[Arg::Int(511)], "777                 "),
+    (
+        284,
+        "%-20o",
+        &[Arg::Int(4294966785)],
+        "37777777001         ",
+    ),
+    (285, "%-20x", &[Arg::Int(305441741)], "1234abcd            "),
+    (
+        286,
+        "%-20x",
+        &[Arg::Int(3989525555)],
+        "edcb5433            ",
+    ),
+    (287, "%-20X", &[Arg::Int(305441741)], "1234ABCD            "),
+    (
+        288,
+        "%-20X",
+        &[Arg::Int(3989525555)],
+        "EDCB5433            ",
+    ),
+    (289, "%-20c", &[Arg::Char('x')], "x                   "),
+    (290, "%020d", &[Arg::Int(1024)], "00000000000000001024"),
+    (291, "%020d", &[Arg::Int(-1024)], "-0000000000000001024"),
+    (292, "%020i", &[Arg::Int(1024)], "00000000000000001024"),
+    (293, "%020i", &[Arg::Int(-1024)], "-0000000000000001024"),
+    (294, "%020u", &[Arg::Int(1024)], "00000000000000001024"),
+    (
+        295,
+        "%020u",
+        &[Arg::Int(4294966272)],
+        "00000000004294966272",
+    ),
+    (296, "%020o", &[Arg::Int(511)], "00000000000000000777"),
+    (
+        297,
+        "%020o",
+        &[Arg::Int(4294966785)],
+        "00000000037777777001",
+    ),
+    (298, "%020x", &[Arg::Int(305441741)], "0000000000001234abcd"),
+    (
+        299,
+        "%020x",
+        &[Arg::Int(3989525555)],
+        "000000000000edcb5433",
+    ),
+    (300, "%020X", &[Arg::Int(305441741)], "0000000000001234ABCD"),
+    (
+        301,
+        "%020X",
+        &[Arg::Int(3989525555)],
+        "000000000000EDCB5433",
+    ),
+    (302, "%#20o", &[Arg::Int(511)], "                0777"),
+    (
+        303,
+        "%#20o",
+        &[Arg::Int(4294966785)],
+        "        037777777001",
+    ),
+    (304, "%#20x", &[Arg::Int(305441741)], "          0x1234abcd"),
+    (
+        305,
+        "%#20x",
+        &[Arg::Int(3989525555)],
+        "          0xedcb5433",
+    ),
+    (306, "%#20X", &[Arg::Int(305441741)], "          0X1234ABCD"),
+    (
+        307,
+        "%#20X",
+        &[Arg::Int(3989525555)],
+        "          0XEDCB5433",
+    ),
+    (308, "%#020o", &[Arg::Int(511)], "00000000000000000777"),
+    (
+        309,
+        "%#020o",
+        &[Arg::Int(4294966785)],
+        "00000000037777777001",
+    ),
+    (
+        310,
+        "%#020x",
+        &[Arg::Int(305441741)],
+        "0x00000000001234abcd",
+    ),
+    (
+        311,
+        "%#020x",
+        &[Arg::Int(3989525555)],
+        "0x0000000000edcb5433",
+    ),
+    (
+        312,
+        "%#020X",
+        &[Arg::Int(305441741)],
+        "0X00000000001234ABCD",
+    ),
+    (
+        313,
+        "%#020X",
+        &[Arg::Int(3989525555)],
+        "0X0000000000EDCB5433",
+    ),
+    (314, "%0-20s", &[Arg::Str("Hallo")], "Hallo               "),
+    (315, "%0-20d", &[Arg::Int(1024)], "1024                "),
+    (316, "%0-20d", &[Arg::Int(-1024)], "-1024               "),
+    (317, "%0-20i", &[Arg::Int(1024)], "1024                "),
+    (318, "%0-20i", &[Arg::Int(-1024)], "-1024               "),
+    (319, "%0-20u", &[Arg::Int(1024)], "1024                "),
+    (
+        320,
+        "%0-20u",
+        &[Arg::Int(4294966272)],
+        "4294966272          ",
+    ),
+    (321, "%-020o", &[Arg::Int(511)], "777                 "),
+    (
+        322,
+        "%-020o",
+        &[Arg::Int(4294966785)],
+        "37777777001         ",
+    ),
+    (
+        323,
+        "%-020x",
+        &[Arg::Int(305441741)],
+        "1234abcd            ",
+    ),
+    (
+        324,
+        "%-020x",
+        &[Arg::Int(3989525555)],
+        "edcb5433            ",
+    ),
+    (
+        325,
+        "%-020X",
+        &[Arg::Int(305441741)],
+        "1234ABCD            ",
+    ),
+    (
+        326,
+        "%-020X",
+        &[Arg::Int(3989525555)],
+        "EDCB5433            ",
+    ),
+    (327, "%-020c", &[Arg::Char('x')], "x                   "),
+    (
+        328,
+        "%*s",
+        &[Arg::Int(20), Arg::Str("Hallo")],
+        "               Hallo",
+    ),
+    (
+        329,
+        "%*d",
+        &[Arg::Int(20), Arg::Int(1024)],
+        "                1024",
+    ),
+    (
+        330,
+        "%*d",
+        &[Arg::Int(20), Arg::Int(-1024)],
+        "               -1024",
+    ),
+    (
+        331,
+        "%*i",
+        &[Arg::Int(20), Arg::Int(1024)],
+        "                1024",
+    ),
+    (
+        332,
+        "%*i",
+        &[Arg::Int(20), Arg::Int(-1024)],
+        "               -1024",
+    ),
+    (
+        333,
+        "%*u",
+        &[Arg::Int(20), Arg::Int(1024)],
+        "                1024",
+    ),
+    (
+        334,
+        "%*u",
+        &[Arg::Int(20), Arg::Int(4294966272)],
+        "          4294966272",
+    ),
+    (
+        335,
+        "%*o",
+        &[Arg::Int(20), Arg::Int(511)],
+        "                 777",
+    ),
+    (
+        336,
+        "%*o",
+        &[Arg::Int(20), Arg::Int(4294966785)],
+        "         37777777001",
+    ),
+    (
+        337,
+        "%*x",
+        &[Arg::Int(20), Arg::Int(305441741)],
+        "            1234abcd",
+    ),
+    (
+        338,
+        "%*x",
+        &[Arg::Int(20), Arg::Int(3989525555)],
+        "            edcb5433",
+    ),
+    (
+        339,
+        "%*X",
+        &[Arg::Int(20), Arg::Int(305441741)],
+        "            1234ABCD",
+    ),
+    (
+        340,
+        "%*X",
+        &[Arg::Int(20), Arg::Int(3989525555)],
+        "            EDCB5433",
+    ),
+    (
+        341,
+        "%*c",
+        &[Arg::Int(20), Arg::Char('x')],
+        "                   x",
+    ),
+    (342, "%.20s", &[Arg::Str("Hallo heimur")], "Hallo heimur"),
+    (343, "%.20d", &[Arg::Int(1024)], "00000000000000001024"),
+    (344, "%.20d", &[Arg::Int(-1024)], "-00000000000000001024"),
+    (345, "%.20i", &[Arg::Int(1024)], "00000000000000001024"),
+    (346, "%.20i", &[Arg::Int(-1024)], "-00000000000000001024"),
+    (347, "%.20u", &[Arg::Int(1024)], "00000000000000001024"),
+    (
+        348,
+        "%.20u",
+        &[Arg::Int(4294966272)],
+        "00000000004294966272",
+    ),
+    (349, "%.20o", &[Arg::Int(511)], "00000000000000000777"),
+    (
+        350,
+        "%.20o",
+        &[Arg::Int(4294966785)],
+        "00000000037777777001",
+    ),
+    (351, "%.20x", &[Arg::Int(305441741)], "0000000000001234abcd"),
+    (
+        352,
+        "%.20x",
+        &[Arg::Int(3989525555)],
+        "000000000000edcb5433",
+    ),
+    (353, "%.20X", &[Arg::Int(305441741)], "0000000000001234ABCD"),
+    (
+        354,
+        "%.20X",
+        &[Arg::Int(3989525555)],
+        "000000000000EDCB5433",
+    ),
+    (
+        355,
+        "%20.5s",
+        &[Arg::Str("Hallo heimur")],
+        "               Hallo",
+    ),
+    (356, "%20.5d", &[Arg::Int(1024)], "               01024"),
+    (357, "%20.5d", &[Arg::Int(-1024)], "              -01024"),
+    (358, "%20.5i", &[Arg::Int(1024)], "               01024"),
+    (359, "%20.5i", &[Arg::Int(-1024)], "              -01024"),
+    (360, "%20.5u", &[Arg::Int(1024)], "               01024"),
+    (
+        361,
+        "%20.5u",
+        &[Arg::Int(4294966272)],
+        "          4294966272",
+    ),
+    (362, "%20.5o", &[Arg::Int(511)], "               00777"),
+    (
+        363,
+        "%20.5o",
+        &[Arg::Int(4294966785)],
+        "         37777777001",
+    ),
+    (
+        364,
+        "%20.5x",
+        &[Arg::Int(305441741)],
+        "            1234abcd",
+    ),
+    (
+        365,
+        "%20.10x",
+        &[Arg::Int(3989525555)],
+        "          00edcb5433",
+    ),
+    (
+        366,
+        "%20.5X",
+        &[Arg::Int(305441741)],
+        "            1234ABCD",
+    ),
+    (
+        367,
+        "%20.10X",
+        &[Arg::Int(3989525555)],
+        "          00EDCB5433",
+    ),
+    (369, "%020.5d", &[Arg::Int(1024)], "               01024"),
+    (370, "%020.5d", &[Arg::Int(-1024)], "              -01024"),
+    (371, "%020.5i", &[Arg::Int(1024)], "               01024"),
+    (372, "%020.5i", &[Arg::Int(-1024)], "              -01024"),
+    (373, "%020.5u", &[Arg::Int(1024)], "               01024"),
+    (
+        374,
+        "%020.5u",
+        &[Arg::Int(4294966272)],
+        "          4294966272",
+    ),
+    (375, "%020.5o", &[Arg::Int(511)], "               00777"),
+    (
+        376,
+        "%020.5o",
+        &[Arg::Int(4294966785)],
+        "         37777777001",
+    ),
+    (
+        377,
+        "%020.5x",
+        &[Arg::Int(305441741)],
+        "            1234abcd",
+    ),
+    (
+        378,
+        "%020.10x",
+        &[Arg::Int(3989525555)],
+        "          00edcb5433",
+    ),
+    (
+        379,
+        "%020.5X",
+        &[Arg::Int(305441741)],
+        "            1234ABCD",
+    ),
+    (
+        380,
+        "%020.10X",
+        &[Arg::Int(3989525555)],
+        "          00EDCB5433",
+    ),
+    (381, "%.0s", &[Arg::Str("Hallo heimur")], ""),
+    (
+        382,
+        "%20.0s",
+        &[Arg::Str("Hallo heimur")],
+        "                    ",
+    ),
+    (383, "%.s", &[Arg::Str("Hallo heimur")], ""),
+    (
+        384,
+        "%20.s",
+        &[Arg::Str("Hallo heimur")],
+        "                    ",
+    ),
+    (385, "%20.0d", &[Arg::Int(1024)], "                1024"),
+    (386, "%20.d", &[Arg::Int(-1024)], "               -1024"),
+    (387, "%20.d", &[Arg::Int(0)], "                    "),
+    (388, "%20.0i", &[Arg::Int(1024)], "                1024"),
+    (389, "%20.i", &[Arg::Int(-1024)], "               -1024"),
+    (390, "%20.i", &[Arg::Int(0)], "                    "),
+    (391, "%20.u", &[Arg::Int(1024)], "                1024"),
+    (
+        392,
+        "%20.0u",
+        &[Arg::Int(4294966272)],
+        "          4294966272",
+    ),
+    (393, "%20.u", &[Arg::Int(0)], "                    "),
+    (394, "%20.o", &[Arg::Int(511)], "                 777"),
+    (
+        395,
+        "%20.0o",
+        &[Arg::Int(4294966785)],
+        "         37777777001",
+    ),
+    (396, "%20.o", &[Arg::Int(0)], "                    "),
+    (397, "%20.x", &[Arg::Int(305441741)], "            1234abcd"),
+    (
+        398,
+        "%20.0x",
+        &[Arg::Int(3989525555)],
+        "            edcb5433",
+    ),
+    (399, "%20.x", &[Arg::Int(0)], "                    "),
+    (400, "%20.X", &[Arg::Int(305441741)], "            1234ABCD"),
+    (
+        401,
+        "%20.0X",
+        &[Arg::Int(3989525555)],
+        "            EDCB5433",
+    ),
+    (402, "%20.X", &[Arg::Int(0)], "                    "),
+    (
+        403,
+        "% -0+*.*s",
+        &[Arg::Int(20), Arg::Int(5), Arg::Str("Hallo heimur")],
+        "Hallo               ",
+    ),
+    (
+        404,
+        "% -0+*.*d",
+        &[Arg::Int(20), Arg::Int(5), Arg::Int(1024)],
+        "+01024              ",
+    ),
+    (
+        405,
+        "% -0+*.*d",
+        &[Arg::Int(20), Arg::Int(5), Arg::Int(-1024)],
+        "-01024              ",
+    ),
+    (
+        406,
+        "% -0+*.*i",
+        &[Arg::Int(20), Arg::Int(5), Arg::Int(1024)],
+        "+01024              ",
+    ),
+    (
+        407,
+        "% 0-+*.*i",
+        &[Arg::Int(20), Arg::Int(5), Arg::Int(-1024)],
+        "-01024              ",
+    ),
+    (
+        410,
+        "%+ -0*.*o",
+        &[Arg::Int(20), Arg::Int(5), Arg::Int(511)],
+        "00777               ",
+    ),
+    (
+        411,
+        "%+ -0*.*o",
+        &[Arg::Int(20), Arg::Int(5), Arg::Int(4294966785)],
+        "37777777001         ",
+    ),
+    (
+        412,
+        "%+ -0*.*x",
+        &[Arg::Int(20), Arg::Int(5), Arg::Int(305441741)],
+        "1234abcd            ",
+    ),
+    (
+        413,
+        "%+ -0*.*x",
+        &[Arg::Int(20), Arg::Int(10), Arg::Int(3989525555)],
+        "00edcb5433          ",
+    ),
+    (
+        414,
+        "% -+0*.*X",
+        &[Arg::Int(20), Arg::Int(5), Arg::Int(305441741)],
+        "1234ABCD            ",
+    ),
+    (
+        415,
+        "% -+0*.*X",
+        &[Arg::Int(20), Arg::Int(10), Arg::Int(3989525555)],
+        "00EDCB5433          ",
+    ),
+];
+
+#[test]
+fn every_row_of_the_reference_table_still_holds() {
+    let mut checked = 0_usize;
+    for (serial, format_string, args, expected) in REFERENCE_TABLE {
+        assert_eq!(
+            format(format_string, args),
+            *expected,
+            "reference serial {serial}: {format_string:?}"
+        );
+        checked += 1;
+    }
+    assert_eq!(checked, 339);
+}
+
+#[test]
+fn length_modifiers_are_accepted_and_ignored() {
+    // `test_typed_printf` (reference lines 125-151) fits every width and
+    // signedness into the one integer conversion: the modifier is dropped and
+    // "ll" is added back for all of them (`src/string_formatter.h:274-287`),
+    // so `%hhi` and `%i` must print the same value without truncating it.
+    let rows: &[(&str, &str, i64, &str)] = &[
+        ("%hhi", "%i", i64::from(i8::MIN), "-128"),
+        ("%hhi", "%i", i64::from(i8::MAX), "127"),
+        ("%hhu", "%u", i64::from(u8::MAX), "255"),
+        ("%hi", "%i", i64::from(i16::MIN), "-32768"),
+        ("%hi", "%i", i64::from(i16::MAX), "32767"),
+        ("%hu", "%u", i64::from(u16::MAX), "65535"),
+        ("%i", "%i", i64::from(i32::MIN), "-2147483648"),
+        ("%u", "%u", i64::from(u32::MAX), "4294967295"),
+        ("%li", "%i", i64::MIN, "-9223372036854775808"),
+        ("%lli", "%i", i64::MAX, "9223372036854775807"),
+        ("%td", "%d", i64::MIN, "-9223372036854775808"),
+        // `size_t`'s maximum is 2^64 - 1, which travels as the same bit pattern.
+        ("%zu", "%u", -1, "18446744073709551615"),
+        ("%lu", "%u", -1, "18446744073709551615"),
+        ("%llu", "%u", -1, "18446744073709551615"),
+    ];
+    for &(modified, plain, value, expected) in rows {
+        assert_eq!(
+            format(modified, &[Arg::Int(value)]),
+            expected,
+            "{modified} of {value}"
+        );
+        assert_eq!(
+            format(plain, &[Arg::Int(value)]),
+            expected,
+            "{plain} of {value}"
+        );
+    }
 }

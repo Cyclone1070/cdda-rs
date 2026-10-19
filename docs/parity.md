@@ -20,11 +20,11 @@ Nothing is `gated` without a link to the run that proved it.
 | Units and quantities | done (P0 scope) | M0 | 23 tests; 83 of the reference's 202 assertions reproduced, the rest being time/JSON/option-driven conversions that belong to later tasks. Rounding truncation rules pinned from the source |
 | Calendar and time | done (P0 scope) | M0 | 28 tests = every assertion in `tests/calendar_test.cpp`; sun and moonlight cross-checked against the reference's own formulas over 309 configurations (max deviation 2e-16 rad) |
 | Random numbers | in progress | M0 | Engine stream matches the reference draw for draw over 4 seeds ([corpus/rng/engine.csv](../corpus/rng/engine.csv)); the library distributions are being transcribed from libc++ and checked against the same corpus |
-| Identifiers (string, int, type) | not started | M0 | Integer ids are caches, never identity |
+| Identifiers (string, int, type) | done (P0 scope) | M0 | 17 tests, 88 assertions: interned string identity, integer ids as ordinal caches with version invalidation, invalid use returns the dummy rather than panicking; misuse of an int id without its registry fails to compile |
 | JSON reading | in progress | M0 | Reader matches the reference on all 6,220 data files (accept/reject and structural digest); duplicate keys are a hard error, member order is sorted, trailing content is ignored |
 | JSON writing | in progress | M0 | Writer matches the reference byte for byte on 127 sample files, including its fixed 6-decimal float format |
 | JSON parse cache | not started | M0 | |
-| Options table | not started | M0 | 234 declarations to move (03-decisions.md) |
+| Options table | in progress | M0 | 276 options extracted mechanically: 188 from `options.cpp`, 88 from JSON. Four are broken in the reference itself (see 03-decisions.md) |
 | Paths and filesystem roots | not started | M0 | Seven logical roots |
 | Text lookup and formatting | not started | M0 | Message ids are frozen (B4) |
 | Colours | not started | M0 | |

@@ -51,17 +51,22 @@
         "SEASON_LENGTH"
       ]
     },
-    "no_statically_known_start_value": [
+    "options_starting_unset": [
       "DISPLAY",
       "DISTANCE_UNITS",
+      "RENDERER",
+      "SOUNDPACKS",
+      "USE_METRIC_SPEEDS",
+      "USE_METRIC_WEIGHTS"
+    ],
+    "options_with_runtime_item_lists": [
+      "DISPLAY",
       "DISTANT_TILES",
       "OVERMAP_TILES",
       "RENDERER",
       "SOUNDPACKS",
       "TILES",
-      "USE_LANG",
-      "USE_METRIC_SPEEDS",
-      "USE_METRIC_WEIGHTS"
+      "USE_LANG"
     ],
     "runtime_expressions": [
       {

@@ -90,12 +90,13 @@ class Failure(Exception):
 class Tok:
     """One lexical token: kind is 'id', 'str', 'punct' or 'other'."""
 
-    __slots__ = ("kind", "text", "line")
+    __slots__ = ("kind", "text", "line", "wide")
 
-    def __init__(self, kind, text, line):
+    def __init__(self, kind, text, line, wide=False):
         self.kind = kind
         self.text = text
         self.line = line
+        self.wide = wide
 
     def __repr__(self):
         return "Tok(%s,%r,%d)" % (self.kind, self.text, self.line)
@@ -127,29 +128,23 @@ def strip_comments_and_directives(src, path):
             i += 1
             continue
         if ch == "#" and at_line_start:
-            # whole preprocessor directive, including continuations
-            directive_start = i
-            body = []
+            # A preprocessor line is only special when it defines one of the
+            # translation macros: that definition is not a call site and is
+            # blanked whole, continuations included. Any other directive is
+            # scanned like ordinary text, so a "//" comment on a directive line
+            # is still blanked and cannot leak an apostrophe into a token.
             j = i
             while j < n:
-                ch2 = src[j]
-                if ch2 == "\n" and not (j > 0 and src[j - 1] == "\\"):
-                    body.append("\n")
-                    j += 1
+                if src[j] == "\n" and src[j - 1] != "\\":
                     break
-                body.append(ch2)
                 j += 1
-            text = "".join(body)
+            text = src[i:j]
             if MACRO_DEFINE.match(text):
-                out.append("\n" * text.count("\n"))
+                out.append("".join("\n" if c == "\n" else " " for c in text))
                 line += text.count("\n")
-            else:
-                out.append(text)
-                line += text.count("\n")
-            i = j
-            at_line_start = True
-            del directive_start
-            continue
+                i = j
+                at_line_start = True
+                continue
         at_line_start = False
         # A raw string literal is copied verbatim before any comment handling:
         # "//" inside R"( ... )" is literal text, not a comment.
@@ -230,8 +225,8 @@ def tokenize(src, path):
             if body_end < 0:
                 raise Failure("%s:%d: unterminated raw string" % (path, line))
             body = src[body_start:body_end]
-            line += body.count("\n")
             toks.append(Tok("str", body, line))
+            line += body.count("\n")
             i = body_end + len(terminator)
             continue
         # ordinary literal with optional encoding prefix
@@ -289,12 +284,9 @@ def tokenize(src, path):
                     raise Failure("%s:%d: newline inside string literal" % (path, start_line))
                 buf.append(c)
                 j += 1
-            if prefix not in (None, "u8"):
-                raise Failure("%s:%d: wide literal %s\"...\" is not a UTF-8 message id"
-                              % (path, start_line, prefix))
             value = "".join(buf)
-            line += value.count("\n")
-            toks.append(Tok("str", value, start_line))
+            toks.append(Tok("str", value, start_line, wide=prefix not in (None, "u8")))
+            line += src[i:j].count("\n")
             i = j
             continue
         if ch == "'":
@@ -354,6 +346,10 @@ def literal_value(arg, path, line):
     """Return the joined value of a run of adjacent string literals, or None."""
     if not arg or any(t.kind != "str" for t in arg):
         return None
+    wide = [t for t in arg if t.wide]
+    if wide:
+        raise Failure("%s:%d: wide literal %r is used as a message id; the corpus "
+                      "keys are UTF-8" % (path, wide[0].line, wide[0].text))
     return "".join(t.text for t in arg)
 
 
@@ -398,15 +394,15 @@ def main():
             if idx + 1 >= len(toks) or toks[idx + 1].text != "(":
                 continue
             ctx_index, msgid_indices = FAMILIES[tok.text]
-            args, _ = split_args(toks, idx + 1, rel)
+            macro_args, _ = split_args(toks, idx + 1, rel)
             needed = 1 + max(idx2 for idx2 in msgid_indices + ([ctx_index] if ctx_index is not None else []))
-            if len(args) < needed:
+            if len(macro_args) < needed:
                 raise Failure("%s:%d: %s takes at least %d arguments, saw %d"
-                              % (rel, tok.line, tok.text, needed, len(args)))
+                              % (rel, tok.line, tok.text, needed, len(macro_args)))
             values = []
             missing = False
             for k in msgid_indices:
-                value = literal_value(args[k], rel, tok.line)
+                value = literal_value(macro_args[k], rel, tok.line)
                 if value is None:
                     missing = True
                     break
@@ -416,7 +412,7 @@ def main():
                 continue
             context = None
             if ctx_index is not None:
-                context = literal_value(args[ctx_index], rel, tok.line)
+                context = literal_value(macro_args[ctx_index], rel, tok.line)
                 if context is None:
                     nonliteral[tok.text] += 1
                     continue

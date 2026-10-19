@@ -137,7 +137,7 @@ before this phase and everything after it depends on the harness. <!-- inference
 - **`int_id` is explicitly unstable across reloads** (`string_id.h:59-73`) — which confirms the design's
   rule that entities reference prototypes by string id and that any integer index is a rebuildable cache.
 - **Save format** — see blocker B2.
-- **Options are C++, not data**: 234 `add(...)` declarations (`options.cpp:1458-2905`). Decide once
+- **Options are C++, not data**: 188 `add(...)` declarations (`options.cpp`) plus 88 JSON options. Decide once
   whether they become a data table or stay code; either way it is 4,206 lines to move. <!-- verified -->
 
 **Exit gate (M1).** Prototype digest equality across the full data set and all 42 in-repo mods; mod load-order

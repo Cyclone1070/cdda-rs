@@ -31,8 +31,9 @@ import struct
 import subprocess
 import sys
 
-DEFAULT_REF = pathlib.Path("references/Cataclysm-DDA")
-DEFAULT_OUT = pathlib.Path("corpus/options/table.json")
+REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
+DEFAULT_REF = REPO_ROOT / "references/Cataclysm-DDA"
+DEFAULT_OUT = REPO_ROOT / "corpus/options/table.json"
 
 # --------------------------------------------------------------------------
 # Build profile.
@@ -1240,8 +1241,13 @@ def build_table(ref):
         )
         if node is not None and node.get("kind") == "runtime"
     ]
-    unresolved_start = [item["option"] for item in runtime
-                        if item["slot"] in ("items", "default", "initial")]
+    # Two different facts, kept apart: an option can have a literal start value
+    # and still have a runtime *item* list, and only the former starts unset.
+    start_unset = sorted({entry["name"] for entry in entries
+                          if entry["initial"]["kind"] == "runtime"})
+    items_runtime = sorted({entry["name"] for entry in entries
+                            if entry["items"] is not None
+                            and entry["items"]["kind"] == "runtime"})
     migrations, removed = extract_migrations(source)
 
     meta = {
@@ -1263,7 +1269,8 @@ def build_table(ref):
             "external_registrations": len(external),
             "external_stubs_skipped": sorted(skipped),
         },
-        "no_statically_known_start_value": sorted(set(unresolved_start)),
+        "options_starting_unset": start_unset,
+        "options_with_runtime_item_lists": items_runtime,
         "runtime_expressions": runtime,
         "findings": findings,
         "excluded_by_profile": excluded,

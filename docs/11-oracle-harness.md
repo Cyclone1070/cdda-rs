@@ -19,6 +19,7 @@ produces is worthless.
 | `--replay <file>` | Nothing; feeds recorded input instead of the keyboard | Differential replay, both builds |
 | `--dump-state <file>` | A normalised fingerprint of the world, plus a full dump when asked | Every replay gate |
 | `--dump-frame <file>` | Per cell: character, foreground, background, for each frame | Visual gate |
+| `--dump-env <file>` | RNG position, calendar, and the options the simulation reads | Environment gate: needs an explicit `--seed` |
 | `--dump-prototype-digest <file>` | Sorted digest of every loaded prototype | Content gate |
 | `--dump-system-trace <file>` | Per-system fingerprints inside one turn | Localising a divergence |
 
@@ -228,6 +229,22 @@ port can pass first, which is what makes it worth having before the per-type wor
 Both flags are read-only: they load data, write the file, and exit without touching
 a save. They take a **path**, not stdout, because of the constraint in the next
 paragraph.
+
+### The environment dump, and why it needs a seed
+
+`--dump-env` prints the state that exists before any world does: the next four
+draws of the random engine (taken from a copy, so measuring does not advance the
+game's own stream), the calendar, and the five options the calendar and spawning
+read. Two runs agree only when `--seed` is passed; without it the engine is seeded
+from the clock, which is exactly the trap the old build had. Verified:
+
+```
+--seed 12345  -> rng_next [2139136712, 1446984157, 1357908071, 1052232628]
+--seed 999    -> rng_next [2107762373,271962099,1021797077,2064231727]
+```
+
+That is the smallest useful fingerprint in the harness: before comparing worlds,
+the two implementations must agree on where the random stream stands.
 
 ### First result (verified)
 

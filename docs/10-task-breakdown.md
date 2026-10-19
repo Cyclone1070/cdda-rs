@@ -24,7 +24,7 @@ ready to start.
 | P0-T9 | JSON reader | Strict reader matching acceptance rules | Accept/reject corpus |
 | P0-T10 | JSON writer | Byte-stable writer | Golden output tests |
 | P0-T11 | Parse cache | Cached parse artefacts | Cache-hit and staleness tests |
-| P0-T12 | Options table | All 234 options declared once | Reference option list compared item by item |
+| P0-T12 | Options table | All 276 options declared once (188 in C++, 88 in JSON) | Reference option list compared item by item |
 | P0-T13 | Paths and roots | Seven logical roots, platform rules | Table-driven path tests |
 | P0-T14 | Text lookup and formatting | Message lookup and string formatting | Message-id and formatting parity corpus |
 | P0-T15 | Colours | Colour definitions and themes | Rendered-value parity |
