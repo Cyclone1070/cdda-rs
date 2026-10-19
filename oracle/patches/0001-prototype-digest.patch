@@ -85,8 +85,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-20 05:06:48
-@@ -0,0 +1,517 @@
++++ oracle/src/src/harness.cpp	2026-10-20 06:18:49
+@@ -0,0 +1,540 @@
 +#include "harness.h"
 +
 +#include <algorithm>
@@ -482,6 +482,29 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +                          harness_escape( entry.first.str() ).c_str(), entry.second );
 +            first_material = false;
 +        }
++        std::fprintf( out, "],\"armor_data\":[" );
++        if( proto->armor ) {
++            bool first_row = true;
++            for( const armor_portion_data &row : proto->armor->data ) {
++                std::fprintf( out, "%s{\"covers\":[", first_row ? "" : "," );
++                bool first_cover = true;
++                for( const bodypart_str_id &bp : row.covers.value() ) {
++                    std::fprintf( out, "%s\"%s\"", first_cover ? "" : ",",
++                                  harness_escape( bp.str() ).c_str() );
++                    first_cover = false;
++                }
++                std::fprintf( out, "],\"materials\":[" );
++                bool first_row_mat = true;
++                for( const part_material &mat : row.materials ) {
++                    std::fprintf( out, "%s[\"%s\",%.4f,%d]", first_row_mat ? "" : ",",
++                                  harness_escape( mat.id.str() ).c_str(),
++                                  static_cast<double>( mat.thickness ), mat.cover );
++                    first_row_mat = false;
++                }
++                std::fprintf( out, "]}" );
++                first_row = false;
++            }
++        }
 +        std::fprintf( out, "],\"flags\":[" );
 +        bool first_flag = true;
 +        for( const flag_id &flag : proto->get_flags() ) {
@@ -606,7 +629,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +} // namespace harness
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-20 05:06:48
++++ oracle/src/src/harness.h	2026-10-20 06:18:49
 @@ -0,0 +1,127 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H

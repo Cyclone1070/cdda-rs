@@ -326,6 +326,10 @@ rather than stated:
   light emission and then dropped. The order matters: comestibles replace their
   materials with the primary one *before* the table is consulted, so a wine whose
   fruit material is replaced by alcohol is not flagged as fruit.
+* The dump carries the reference's own consolidated armour rows (`armor_data`),
+  which turned the derivation from guesswork into a comparison: one row per body
+  part, the first entry copied whole, later entries merged with weights measured
+  before the row grows.
 * Armour portions are accumulated in single precision. A 1.05 mm layer over two
   body parts is 209 hundredths of a unit in the reference, not 210, and the
   difference survives all the way to the dump.

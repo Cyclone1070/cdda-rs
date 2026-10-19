@@ -143,48 +143,57 @@ impl ItemType {
             materials: Vec<(String, f32)>,
         }
         let mut merged: Vec<Merged> = Vec::new();
-        for part in &self.armor_parts {
-            let Some(sub_coverage) = self.armor_entries.get(part.entry) else {
+        for (index, sub_coverage) in self.armor_entries.iter().enumerate() {
+            let materials: Vec<&ArmorPart> = self
+                .armor_parts
+                .iter()
+                .filter(|part| part.entry == index)
+                .collect();
+            let Some(first) = materials.first() else {
                 continue;
             };
-            for body_part in &part.covers {
-                // The weights are measured before the row grows, so two
-                // materials of the same entry on the same body part average
-                // evenly - a sandal with wood at 2 mm and 4 mm ends at 3 mm.
+            for body_part in &first.covers {
+                // The weight of an entry is how much of the body part its
+                // sub-locations cover; the weight it meets is the coverage the row
+                // has accumulated from the entries before it. A row is created by
+                // copying its first entry whole, so materials that entry names
+                // twice stay apart - a helmet padded twice lists two shares.
                 #[allow(clippy::cast_precision_loss)]
                 let new_weight = anatomy.coverage(body_part, sub_coverage) as f32;
-                let index = merged
-                    .iter()
-                    .position(|entry| &entry.part == body_part)
-                    .unwrap_or_else(|| {
-                        merged.push(Merged {
-                            part: body_part.clone(),
-                            sub_coverage: BTreeSet::new(),
-                            materials: Vec::new(),
-                        });
-                        merged.len() - 1
+                let position = merged.iter().position(|entry| &entry.part == body_part);
+                let Some(index) = position else {
+                    merged.push(Merged {
+                        part: body_part.clone(),
+                        sub_coverage: sub_coverage.clone(),
+                        materials: materials
+                            .iter()
+                            .map(|part| (part.material.clone(), part.thickness))
+                            .collect(),
                     });
-                let Some(existing) = merged.get_mut(index) else {
+                    continue;
+                };
+                let Some(row) = merged.get_mut(index) else {
                     continue;
                 };
                 #[allow(clippy::cast_precision_loss)]
-                let old_weight = anatomy.coverage(body_part, &existing.sub_coverage) as f32;
-                match existing
-                    .materials
-                    .iter_mut()
-                    .find(|(name, _)| name == &part.material)
-                {
-                    Some((_, thickness)) => {
-                        if new_weight + old_weight > 0.0 {
-                            *thickness = (new_weight * part.thickness + old_weight * *thickness)
-                                / (old_weight + new_weight);
-                        }
-                    }
-                    None => existing
+                let old_weight = anatomy.coverage(body_part, &row.sub_coverage) as f32;
+                for part in &materials {
+                    match row
                         .materials
-                        .push((part.material.clone(), part.thickness)),
+                        .iter_mut()
+                        .find(|(name, _)| name == &part.material)
+                    {
+                        Some((_, thickness)) => {
+                            if new_weight + old_weight > 0.0 {
+                                *thickness = (new_weight * part.thickness
+                                    + old_weight * *thickness)
+                                    / (old_weight + new_weight);
+                            }
+                        }
+                        None => row.materials.push((part.material.clone(), part.thickness)),
+                    }
                 }
-                existing.sub_coverage.extend(sub_coverage.iter().cloned());
+                row.sub_coverage.extend(sub_coverage.iter().cloned());
             }
         }
         // The thicknesses add up first and are turned into portions once, in

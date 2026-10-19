@@ -393,6 +393,29 @@ void dump_items( const std::string &path )
                           harness_escape( entry.first.str() ).c_str(), entry.second );
             first_material = false;
         }
+        std::fprintf( out, "],\"armor_data\":[" );
+        if( proto->armor ) {
+            bool first_row = true;
+            for( const armor_portion_data &row : proto->armor->data ) {
+                std::fprintf( out, "%s{\"covers\":[", first_row ? "" : "," );
+                bool first_cover = true;
+                for( const bodypart_str_id &bp : row.covers.value() ) {
+                    std::fprintf( out, "%s\"%s\"", first_cover ? "" : ",",
+                                  harness_escape( bp.str() ).c_str() );
+                    first_cover = false;
+                }
+                std::fprintf( out, "],\"materials\":[" );
+                bool first_row_mat = true;
+                for( const part_material &mat : row.materials ) {
+                    std::fprintf( out, "%s[\"%s\",%.4f,%d]", first_row_mat ? "" : ",",
+                                  harness_escape( mat.id.str() ).c_str(),
+                                  static_cast<double>( mat.thickness ), mat.cover );
+                    first_row_mat = false;
+                }
+                std::fprintf( out, "]}" );
+                first_row = false;
+            }
+        }
         std::fprintf( out, "],\"flags\":[" );
         bool first_flag = true;
         for( const flag_id &flag : proto->get_flags() ) {

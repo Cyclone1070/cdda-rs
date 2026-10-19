@@ -203,33 +203,30 @@ architecture and should be copied.
 - String-keyed behaviour dispatch in per-turn paths.
 - Virtual-heavy interfaces on types that only ever have two or three implementations.
 
-### Armour materials are derived, and 12 items still differ
+### Armour materials are derived, and four items still differ
 
-An armour that lists no materials takes them from its per-part entries: each
-entry names materials with a thickness, entries covering the same body part merge
-by averaging thickness weighted by how much of the part their sub-locations cover
-(`item_factory.cpp:1124-1150`), and the merged thicknesses become hundredths of a
-unit per body part (`item_factory.cpp:1452-1463`). The port does this with the
-body-part and sub-location registries loaded.
+An armour that lists no materials takes them from its per-part entries. The port
+does this with the body-part and sub-location registries loaded, and the reference
+now dumps its own consolidated rows (`--dump-items`, field `armor_data`) so the
+model can be checked rather than inferred.
 
-Three things the data settled, each of which a reasonable-looking implementation
-gets wrong:
+What the rows settled:
 
-* The weighting is real: boots whose leather is 2.5 mm everywhere but the sole and
-  0.1 mm over the sole merge to 1.9 mm per foot, exactly the 380 the reference
-  reports.
-* The thicknesses add up **before** being turned into portions, in single
-  precision, truncated once. Truncating per body part loses half a unit on a
-  1.05 mm layer over two arms - 208 where the reference says 209.
-* A `replace_materials` entry for a material the item does not have leaves that
-  material behind with a portion of **zero**, because the reference reads the old
-  share through `materials[ old ]`, which inserts it (`item_factory.cpp:4007`).
+* One row per body part. Entries covering the same part merge into it: a material
+  both name keeps a thickness averaged by how much of the part each entry covers,
+  a material only the new entry names is appended unchanged, and the row's own
+  coverage only grows *after* an entry has been merged into it.
+* The first entry makes the row, and its materials are copied **whole** - so a
+  helmet that pads the same material twice lists two shares, not one average.
+* Thicknesses add up before being turned into portions, in single precision, and
+  are truncated once. Truncating per body part gives 208 where the reference says
+  209 on a 1.05 mm layer over two arms.
+* `replace_materials` for a material the item does not have leaves that material
+  behind with a share of zero, because the reference reads the old share through
+  `materials[ old ]`, which inserts it (`item_factory.cpp:4007`).
 
-Twelve item types out of 9,912 still differ, and they are not a rounding story:
-a sandal whose wood reads 533 against 600, an exoskeleton arm 190 hundredths high
-on Kevlar, a tanker helmet at half the canvas, and three boots off by one to
-twenty. Two rules have been ruled out against them - one row per body part, and
-one row per distinct set of sub-locations - because each fits some items and
-breaks the boots. Until the shape of `islot_armor::data` is settled from the code
-rather than from the numbers, the derivation stays as it is and these twelve are
-reported as pending.
+Four item types of 9,912 still differ, all by one or two hundredths of a unit on a
+thickness that lands on a float boundary (1.525 mm, 0.54 mm), plus one item whose
+materials come from `replace_materials`. At that point the values depend on the
+exact float rounding of the reference's accumulator, which the port does not
+reproduce bit for bit. It is reported as pending rather than tuned to fit.
