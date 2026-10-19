@@ -11,7 +11,8 @@ generator is committed next to its output.
 | `prototypes/digest.json` | `cataclysm --dump-prototype-digest` (see [11-oracle-harness.md](../docs/11-oracle-harness.md)) | Every loaded prototype registry: 90 registries, 54,925 prototypes, each as a count plus an FNV-1a digest of its sorted ids |
 | `prototypes/ids.json` | `cataclysm --dump-prototype-ids` | The same registries with every id spelled out, so a difference can be read rather than hunted |
 | `env/env-seed12345.json` | `cataclysm --seed 12345 --dump-env` | The state before any world: RNG position, calendar, and the five options the simulation reads. Only reproducible with an explicit seed |
-| `options/table.json` | [`gen_options.py`](../tools/gen_options.py) | Every option the reference declares: name, type, default, range, page |
+| `options/table.json` | [`gen_options.py`](../tools/gen_options.py) | Every option the reference declares: name, type, default, range, page (276) |
+| `text/msgids.txt` | [`gen_msgids.py`](../tools/gen_msgids.py) | Every message id the C++ marks for translation (11,058 keys), so the port can prove its lookup returns them unchanged |
 
 ## Rules
 

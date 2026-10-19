@@ -26,7 +26,7 @@ Nothing is `gated` without a link to the run that proved it.
 | JSON parse cache | not started | M0 | |
 | Options table | in progress | M0 | 276 options extracted mechanically: 188 from `options.cpp`, 88 from JSON. Four are broken in the reference itself (see 03-decisions.md) |
 | Paths and filesystem roots | not started | M0 | Seven logical roots |
-| Text lookup and formatting | not started | M0 | Message ids are frozen (B4) |
+| Text lookup and formatting | done (P0 scope) | M0 | Formatter agrees with all 339 reference format rows and its error cases; 71/71 reference string assertions; 11,058 message ids extracted and the lookup returns each unchanged with no catalogue. Byte/column width and C-locale quirks recorded rather than fixed (B4) |
 | Colours | not started | M0 | |
 | Containers and hashing | not started | M0 | Stable-address pools, dense bit sets |
 | Diagnostics and debug levels | not started | M0 | |
