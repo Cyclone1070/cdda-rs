@@ -45,9 +45,9 @@ Nothing is `gated` without a link to the run that proved it.
 
 | System | Status | Gate | Notes |
 |---|---|---|---|
-| Prototype registry machinery | not started | Prototype digest (M1) | Load, inherit, finalise, consistency-check |
-| Content type loaders (160 types) | not started | M1 | See [06-inventory.md](06-inventory.md) for the full list |
-| Inheritance and merge operators | not started | M1 | `copy-from`, `extend`, `delete`, `relative`, `proportional` |
+| Prototype registry machinery | done (P1-T1 core) | Prototype digest (M1) | Load, inherit, finalise: abstracts kept apart but usable as bases, `copy-from` retried at finalisation, cycles reported rather than recursed, duplicate ids keeping their position, the factories' null prototypes created. 8 tests ([factory.rs](../crates/content/tests/factory.rs), [rules.rs](../crates/content/tests/rules.rs)) |
+| Content type loaders (160 types) | in progress, 7 families | M1 | Terrain and furniture, traps, materials, field types, item types, monster types, plus the generated-prototype families. Each is held to a field-by-field corpus dumped by the reference. See [06-inventory.md](06-inventory.md) for the rest |
+| Inheritance and merge operators | done | M1 | `copy-from`, `extend`, `delete`, `relative` and `proportional`, with the two orders the reference uses: readers check proportional before relative, `assign` checks relative first. All 8,743 `copy-from` chains in the core content resolve. [inheritance_corpus.rs](../crates/content/tests/inheritance_corpus.rs) |
 | Mod discovery and load order | not started | M1 | User-ordered list, not a topological sort |
 | Mod dependency graph and cycles | not started | M1 | |
 | Save reading and writing | not started | M1 | Scope depends on blocker B2 |
