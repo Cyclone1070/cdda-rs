@@ -44,6 +44,7 @@ ready to start.
 | P1-T2 | Inheritance and merge operators | `copy-from`, `extend`, `delete`, `relative`, `proportional` | Operator-by-operator parity corpus | in progress: `copy-from` and its deferral rule done; the four operators are per-loader (`mapdata.cpp:1072`, `assign.cpp:60-75`) and arrive with the loaders |
 | P1-T3 | Loader families (items, monsters, terrain, vehicles, recipes) | The five largest content families | Per-family digest | not started |
 | P1-T4 | Loader families (remaining 155 types) | Everything else | Full digest equality (M1) | not started |
+| P1-T5b | Loader family: monsters | Monster types, first slice | Monster parity corpus | done: 1,154 of 1,154 on the dumped fields |
 | P1-T5 | Mod discovery and ordering | Discovery, duplicate detection, user order | 42 in-repo mods load in the same order | not started |
 | P1-T6 | Dependency graph and cycles | Tarjan-style cycle detection | Synthetic cycle fixtures | not started |
 | P1-T7 | Save format decision | Written decision (blocker B2) | Recorded in [03-decisions.md](03-decisions.md) | not started |

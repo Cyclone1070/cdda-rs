@@ -85,8 +85,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-20 06:18:49
-@@ -0,0 +1,540 @@
++++ oracle/src/src/harness.cpp	2026-10-20 06:45:33
+@@ -0,0 +1,598 @@
 +#include "harness.h"
 +
 +#include <algorithm>
@@ -100,6 +100,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +#include "item_factory.h"
 +#include "itype.h"
 +#include "field_type.h"
++#include "mtype.h"
++#include "monstergenerator.h"
 +#include "generic_factory.h"
 +#include "filesystem.h"
 +#include "options.h"
@@ -627,10 +629,66 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +}
 +
 +} // namespace harness
++
++namespace harness
++{
++
++// Every resolved monster type, with the fields the port loads first.
++void dump_monsters( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot open %s\n", path.c_str() );
++        return;
++    }
++    std::fprintf( out, "{\"harness\":\"monsters\",\"version\":1,\n\"prototypes\":[\n" );
++    bool first = true;
++    for( const mtype &proto : MonsterGenerator::generator().get_all_mtypes() ) {
++        std::fprintf( out, "%s\n{\"id\":\"%s\",\"name\":\"%s\",\"symbol\":\"%s\",\"color\":\"%s\","
++                      "\"bodytype\":\"%s\",\"hp\":%d,\"speed\":%d,\"diff\":%d,\"melee_skill\":%d,"
++                      "\"dodge\":%d,\"morale\":%d,\"aggression\":%d,\"weight\":%lld,\"volume\":%lld,"
++                      "\"species\":[",
++                      first ? "" : ",", harness_escape( proto.id.str() ).c_str(),
++                      harness_escape( proto.nname( 1 ) ).c_str(),
++                      harness_escape( proto.sym ).c_str(),
++                      string_from_color( proto.color ).c_str(),
++                      harness_escape( proto.bodytype ).c_str(),
++                      proto.hp, proto.speed, proto.difficulty_base, proto.melee_skill,
++                      proto.sk_dodge, proto.morale, proto.agro,
++                      static_cast<long long>( units::to_gram( proto.weight ) ),
++                      static_cast<long long>( units::to_milliliter( proto.volume ) ) );
++        bool first_species = true;
++        for( const species_id &entry : proto.species ) {
++            std::fprintf( out, "%s\"%s\"", first_species ? "" : ",",
++                          harness_escape( entry.str() ).c_str() );
++            first_species = false;
++        }
++        std::fprintf( out, "],\"categories\":[" );
++        bool first_category = true;
++        for( const std::string &entry : proto.categories ) {
++            std::fprintf( out, "%s\"%s\"", first_category ? "" : ",",
++                          harness_escape( entry ).c_str() );
++            first_category = false;
++        }
++        std::fprintf( out, "],\"materials\":[" );
++        bool first_material = true;
++        for( const std::pair<const material_id, int> &entry : proto.mat ) {
++            std::fprintf( out, "%s[\"%s\",%d]", first_material ? "" : ",",
++                          harness_escape( entry.first.str() ).c_str(), entry.second );
++            first_material = false;
++        }
++        std::fprintf( out, "]}" );
++        first = false;
++    }
++    std::fprintf( out, "\n]}\n" );
++    std::fclose( out );
++}
++
++}  // namespace harness
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-20 06:18:49
-@@ -0,0 +1,127 @@
++++ oracle/src/src/harness.h	2026-10-20 06:45:33
+@@ -0,0 +1,129 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -741,6 +799,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +
 +// `--dump-items <file>`: every item type's basic resolved fields.
 +void dump_items( const std::string &path );
++// Writes every resolved monster type.
++void dump_monsters( const std::string &path );
 +
 +// `--dump-state <file>`: the world the reference actually produced — random
 +// stream position, calendar, avatar, and a tile-level digest of the reality
@@ -780,7 +840,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-20 04:33:15
++++ oracle/src/src/main.cpp	2026-10-20 06:33:44
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -791,7 +851,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,26 @@
+@@ -272,6 +275,28 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -812,13 +872,15 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_fields;
 +    // Harness: resolved item types.
 +    std::string dump_items;
++    // Harness: resolved monster types.
++    std::string dump_monsters;
 +    std::string replay;
 +    std::string world_name;
 +    std::string start_location;
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +323,126 @@
+@@ -300,6 +325,136 @@
                  }
              },
              {
@@ -892,6 +954,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                }
 +            },
 +            {
++                "--dump-monsters", "<file>",
++                "Writes every resolved monster type to <file>",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_monsters = params[0];
++                    return 1;
++                }
++            },
++            {
 +                "--dump-terrain", "<file>",
 +                "Writes every resolved terrain and furniture prototype to <file>",
 +                section_default,
@@ -945,7 +1017,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +929,93 @@
+@@ -786,6 +941,99 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -1005,6 +1077,12 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            test_mode = true;
 +            g->check_mod_data( { mod_id( "dda" ) } );
 +            harness::dump_items( cli.dump_items );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_monsters.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_monsters( cli.dump_monsters );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_terrain.empty() ) {
@@ -1097,6 +1175,22 @@ diff -ruN references/Cataclysm-DDA/src/mapdata.cpp oracle/src/src/mapdata.cpp
  
  /** @relates int_id */
  template<>
+diff -ruN references/Cataclysm-DDA/src/mtype.h oracle/src/src/mtype.h
+--- references/Cataclysm-DDA/src/mtype.h	2026-10-19 18:15:05
++++ oracle/src/src/mtype.h	2026-10-20 06:33:44
+@@ -566,6 +566,12 @@
+         bool has_flag( const mon_flag_id &flag ) const {
+             return flags.contains( flag );
+         }
++
++#ifdef CATA_HARNESS
++        const mon_flag_id_set &harness_flags() const {
++            return flags;
++        }
++#endif
+         void set_flag( const mon_flag_id &flag, bool state = true );
+         bool made_of( const material_id &material ) const;
+         bool made_of_any( const std::set<material_id> &materials ) const;
 diff -ruN references/Cataclysm-DDA/src/ncurses_def.cpp oracle/src/src/ncurses_def.cpp
 --- references/Cataclysm-DDA/src/ncurses_def.cpp	2026-10-19 18:15:05
 +++ oracle/src/src/ncurses_def.cpp	2026-10-20 03:33:37

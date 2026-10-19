@@ -339,6 +339,26 @@ rather than stated:
   reference never uses; a port that prints the stated plural disagrees on all of
   them.
 
+### Monster types: 1,154, and three rules that differ from items
+
+`--dump-monsters` writes every monster type with its id, name, glyph, colour,
+body type, the numeric stats, weight, volume, species, categories and materials.
+The whole set matches, and three things came out of it:
+
+* Numbers go through `assign`, not through a reader, so **`relative` beats
+  `proportional`** here (`assign.cpp:60-88`) - the opposite of items. A port that
+  uses one order everywhere is wrong on exactly one of the two families.
+* A monster that states no weight or volume is not zero: the type's own defaults
+  are 81.499 kg and 62.499 litres, which is what makes the null type look like a
+  person.
+* The reference makes two kinds of monster that no file contains: `mon_null`,
+  and one dormant twin per monster flagged `GEN_DORMANT`, which is the flag set
+  rewritten, hp 5, speed 1 and no dodge. The id set only matches once both are
+  generated.
+
+Species, categories and materials are ordered by registration in the reference
+and sorted in the port, so the comparison is by contents.
+
 ### Replay runs without a terminal, and is reproducible
 
 `--replay <file> --dump-state <file>` plays a recorded session: one key per line,

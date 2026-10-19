@@ -891,7 +891,7 @@ fn category_of(
 }
 
 /// A number, from an integer or a float member.
-fn numeric(value: &Value) -> Option<f64> {
+pub(crate) fn numeric(value: &Value) -> Option<f64> {
     match value {
         Value::Int(number) =>
         {
@@ -904,7 +904,7 @@ fn numeric(value: &Value) -> Option<f64> {
 }
 
 /// A number, from an integer or a float member.
-fn number(object: &Object, member: &str) -> Option<f64> {
+pub(crate) fn number(object: &Object, member: &str) -> Option<f64> {
     match object.get(member) {
         Some(Value::Int(value)) =>
         {
@@ -1019,35 +1019,35 @@ fn materials_of(entries: &Value) -> Result<BTreeMap<String, i32>, LoadError> {
     Ok(out)
 }
 
-fn string(object: &Object, member: &str) -> Option<String> {
+pub(crate) fn string(object: &Object, member: &str) -> Option<String> {
     match object.get(member) {
         Some(Value::Str(text)) => Some(text.clone()),
         _ => None,
     }
 }
 
-fn integer(object: &Object, member: &str) -> Option<i32> {
+pub(crate) fn integer(object: &Object, member: &str) -> Option<i32> {
     match object.get(member) {
         Some(Value::Int(value)) => i32::try_from(*value).ok(),
         _ => None,
     }
 }
 
-fn boolean(object: &Object, member: &str) -> Option<bool> {
+pub(crate) fn boolean(object: &Object, member: &str) -> Option<bool> {
     match object.get(member) {
         Some(Value::Bool(value)) => Some(*value),
         _ => None,
     }
 }
 
-fn sub_object<'a>(object: &'a Object, member: &str) -> Option<&'a Object> {
+pub(crate) fn sub_object<'a>(object: &'a Object, member: &str) -> Option<&'a Object> {
     match object.get(member) {
         Some(Value::Object(inner)) => Some(inner),
         _ => None,
     }
 }
 
-fn strings(object: &Object, member: &str) -> Vec<String> {
+pub(crate) fn strings(object: &Object, member: &str) -> Vec<String> {
     match object.get(member) {
         // One value may be written instead of a list, which the reference's
         // flag reader accepts (`generic_factory.h:1099-1105`).

@@ -16,6 +16,7 @@ pub mod fields;
 pub mod items;
 pub mod mapdata;
 pub mod materials;
+pub mod monsters;
 mod rules;
 mod scan;
 pub mod traps;

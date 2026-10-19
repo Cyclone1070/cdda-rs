@@ -108,6 +108,8 @@ void dump_fields( const std::string &path );
 
 // `--dump-items <file>`: every item type's basic resolved fields.
 void dump_items( const std::string &path );
+// Writes every resolved monster type.
+void dump_monsters( const std::string &path );
 
 // `--dump-state <file>`: the world the reference actually produced — random
 // stream position, calendar, avatar, and a tile-level digest of the reality

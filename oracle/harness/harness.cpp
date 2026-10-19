@@ -11,6 +11,8 @@
 #include "item_factory.h"
 #include "itype.h"
 #include "field_type.h"
+#include "mtype.h"
+#include "monstergenerator.h"
 #include "generic_factory.h"
 #include "filesystem.h"
 #include "options.h"
@@ -538,3 +540,59 @@ void dump_state( const std::string &path )
 }
 
 } // namespace harness
+
+namespace harness
+{
+
+// Every resolved monster type, with the fields the port loads first.
+void dump_monsters( const std::string &path )
+{
+    std::FILE *out = std::fopen( path.c_str(), "wb" );
+    if( out == nullptr ) {
+        std::fprintf( stderr, "harness: cannot open %s\n", path.c_str() );
+        return;
+    }
+    std::fprintf( out, "{\"harness\":\"monsters\",\"version\":1,\n\"prototypes\":[\n" );
+    bool first = true;
+    for( const mtype &proto : MonsterGenerator::generator().get_all_mtypes() ) {
+        std::fprintf( out, "%s\n{\"id\":\"%s\",\"name\":\"%s\",\"symbol\":\"%s\",\"color\":\"%s\","
+                      "\"bodytype\":\"%s\",\"hp\":%d,\"speed\":%d,\"diff\":%d,\"melee_skill\":%d,"
+                      "\"dodge\":%d,\"morale\":%d,\"aggression\":%d,\"weight\":%lld,\"volume\":%lld,"
+                      "\"species\":[",
+                      first ? "" : ",", harness_escape( proto.id.str() ).c_str(),
+                      harness_escape( proto.nname( 1 ) ).c_str(),
+                      harness_escape( proto.sym ).c_str(),
+                      string_from_color( proto.color ).c_str(),
+                      harness_escape( proto.bodytype ).c_str(),
+                      proto.hp, proto.speed, proto.difficulty_base, proto.melee_skill,
+                      proto.sk_dodge, proto.morale, proto.agro,
+                      static_cast<long long>( units::to_gram( proto.weight ) ),
+                      static_cast<long long>( units::to_milliliter( proto.volume ) ) );
+        bool first_species = true;
+        for( const species_id &entry : proto.species ) {
+            std::fprintf( out, "%s\"%s\"", first_species ? "" : ",",
+                          harness_escape( entry.str() ).c_str() );
+            first_species = false;
+        }
+        std::fprintf( out, "],\"categories\":[" );
+        bool first_category = true;
+        for( const std::string &entry : proto.categories ) {
+            std::fprintf( out, "%s\"%s\"", first_category ? "" : ",",
+                          harness_escape( entry ).c_str() );
+            first_category = false;
+        }
+        std::fprintf( out, "],\"materials\":[" );
+        bool first_material = true;
+        for( const std::pair<const material_id, int> &entry : proto.mat ) {
+            std::fprintf( out, "%s[\"%s\",%d]", first_material ? "" : ",",
+                          harness_escape( entry.first.str() ).c_str(), entry.second );
+            first_material = false;
+        }
+        std::fprintf( out, "]}" );
+        first = false;
+    }
+    std::fprintf( out, "\n]}\n" );
+    std::fclose( out );
+}
+
+}  // namespace harness
