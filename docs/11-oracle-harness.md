@@ -242,6 +242,25 @@ exist; its oracle pin has been corrected to the commit this repository actually
 mirrors, and every job in it is behind the `PORT_CI` variable so it cannot fail a
 build by accident.
 
+### Resolved content, not just ids
+
+`--dump-terrain` writes every terrain and furniture prototype *after* loading:
+name, symbol per season, colour, move cost, light emitted, coverage and the flag
+set. 1,769 prototypes in 26 seconds, byte-identical across runs.
+
+This is the first oracle artifact that can prove a loader rather than a list of
+names. Inheritance, `extend`/`delete` on flags, and the null prototypes all show
+up in these fields, so a port that reads the files but merges them wrongly fails
+here even with every id correct.
+
+The dump is written from `mapdata.cpp` itself because the factories there are
+file-static; one file-static walker inside its anonymous namespace, one exported
+entry point after it closes.
+
+The JSON is a list of lines rather than one object per prototype, deliberately:
+a diff between two runs names the prototype that changed instead of reflowing a
+thousand lines.
+
 ### Replay runs without a terminal, and is reproducible
 
 `--replay <file> --dump-state <file>` plays a recorded session: one key per line,

@@ -85,8 +85,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-20 01:54:10
-@@ -0,0 +1,384 @@
++++ oracle/src/src/harness.cpp	2026-10-20 03:19:46
+@@ -0,0 +1,397 @@
 +#include "harness.h"
 +
 +#include <algorithm>
@@ -363,6 +363,19 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    }
 +}
 +
++void dump_terrain( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    std::fprintf( out, "{\"harness\":\"terrain\",\"version\":1,\n\"prototypes\":[\n" );
++    harness_dump_terrain_prototypes( out );
++    std::fprintf( out, "]}\n" );
++    std::fclose( out );
++}
++
 +bool start_headless_game( const std::string &world_name, const std::string &start_loc,
 +                          std::string &error )
 +{
@@ -473,8 +486,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +} // namespace harness
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-20 01:54:10
-@@ -0,0 +1,100 @@
++++ oracle/src/src/harness.h	2026-10-20 03:19:46
+@@ -0,0 +1,112 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -487,6 +500,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +// docs/11-oracle-harness.md for the modes and their contract.
 +
 +#include <cstdint>
++#include <cstdio>
 +#include <string>
 +#include <vector>
 +
@@ -567,6 +581,12 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +// Runs turns until the recording is exhausted.
 +void run_replay();
 +
++// `--dump-terrain <file>`: every terrain and furniture prototype's resolved
++// fields, which is what a loader port has to reproduce. Filled in by mapdata.cpp
++// because the factories there are file-static; this is the entry point.
++void dump_terrain( const std::string &path );
++
++
 +// `--dump-state <file>`: the world the reference actually produced — random
 +// stream position, calendar, avatar, and a tile-level digest of the reality
 +// bubble. Requires start_headless_game first.
@@ -575,6 +595,11 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +} // namespace harness
 +
 +#endif // CATA_SRC_HARNESS_H
++
++// Provided by mapdata.cpp, which owns the terrain factories: writes the dump
++// body for both prototype lists. Declared outside the namespace because the
++// definition sits outside mapdata.cpp's anonymous namespace.
++void harness_dump_terrain_prototypes( std::FILE *out );
 diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.cpp
 --- references/Cataclysm-DDA/src/loading_ui.cpp	2026-10-19 18:15:04
 +++ oracle/src/src/loading_ui.cpp	2026-10-20 01:03:36
@@ -597,7 +622,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-20 01:39:47
++++ oracle/src/src/main.cpp	2026-10-20 02:56:12
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -608,7 +633,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,17 @@
+@@ -272,6 +275,19 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -620,13 +645,15 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_env;
 +    // Harness: the state of a freshly started game.
 +    std::string dump_state;
++    // Harness: resolved terrain and furniture prototypes.
++    std::string dump_terrain;
 +    std::string replay;
 +    std::string world_name;
 +    std::string start_location;
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +314,76 @@
+@@ -300,6 +316,86 @@
                  }
              },
              {
@@ -656,6 +683,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.replay = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-terrain", "<file>",
++                "Writes every resolved terrain and furniture prototype to <file>",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_terrain = params[0];
 +                    return 1;
 +                }
 +            },
@@ -703,7 +740,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +870,63 @@
+@@ -786,6 +882,69 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -741,6 +778,12 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            harness::dump_state( cli.dump_state );
 +            exit_handler( 0 );
 +        }
++        if( !cli.dump_terrain.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_terrain( cli.dump_terrain );
++            exit_handler( 0 );
++        }
 +        if( !cli.dump_env.empty() ) {
 +            harness::dump_environment( cli.dump_env );
 +            exit_handler( 0 );
@@ -767,6 +810,64 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
          if( cli.verifyexit ) {
              exit_handler( 0 );
          }
+diff -ruN references/Cataclysm-DDA/src/mapdata.cpp oracle/src/src/mapdata.cpp
+--- references/Cataclysm-DDA/src/mapdata.cpp	2026-10-19 18:15:04
++++ oracle/src/src/mapdata.cpp	2026-10-20 03:19:46
+@@ -1,4 +1,8 @@
+ #include "mapdata.h"
++#ifdef CATA_HARNESS
++#include "color.h"
++#include "harness.h"
++#endif
+ 
+ #include <algorithm>
+ #include <exception>
+@@ -45,7 +49,45 @@
+ generic_factory<ter_t> terrain_data( "terrain" );
+ generic_factory<furn_t> furniture_data( "furniture" );
+ 
++#ifdef CATA_HARNESS
++template<typename T>
++void write_one_prototype( std::FILE *out, const T &proto, const char *kind, bool &first )
++{
++    std::fprintf( out, "%s\n{\"kind\":\"%s\",\"id\":\"%s\",\"name\":\"%s\",",
++                  first ? "" : ",", kind, proto.id.str().c_str(), proto.name().c_str() );
++    std::fprintf( out, "\"symbol\":[%d,%d,%d,%d],\"color\":\"%s\",\"move_cost\":%d,"
++                  "\"light\":%d,\"coverage\":%d,\"flags\":[",
++                  proto.symbol_[0], proto.symbol_[1], proto.symbol_[2], proto.symbol_[3],
++                  string_from_color( proto.color() ).c_str(), proto.movecost,
++                  proto.light_emitted, proto.coverage );
++    bool first_flag = true;
++    for( const std::string &flag : proto.get_flags() ) {
++        std::fprintf( out, "%s\"%s\"", first_flag ? "" : ",", flag.c_str() );
++        first_flag = false;
++    }
++    std::fprintf( out, "]}" );
++    first = false;
++}
++
++void write_terrain_prototypes_impl( std::FILE *out )
++{
++    bool first = true;
++    for( const ter_t &proto : terrain_data.get_all() ) {
++        write_one_prototype( out, proto, "terrain", first );
++    }
++    for( const furn_t &proto : furniture_data.get_all() ) {
++        write_one_prototype( out, proto, "furniture", first );
++    }
++}
++#endif
+ } // namespace
++
++#ifdef CATA_HARNESS
++void harness_dump_terrain_prototypes( std::FILE *out )
++{
++    write_terrain_prototypes_impl( out );
++}
++#endif
+ 
+ /** @relates int_id */
+ template<>
 diff -ruN references/Cataclysm-DDA/src/ncurses_def.cpp oracle/src/src/ncurses_def.cpp
 --- references/Cataclysm-DDA/src/ncurses_def.cpp	2026-10-19 18:15:05
 +++ oracle/src/src/ncurses_def.cpp	2026-10-20 01:03:36

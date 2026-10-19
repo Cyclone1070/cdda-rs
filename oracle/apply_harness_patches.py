@@ -111,6 +111,66 @@ def patch_game_header(src: pathlib.Path) -> None:
     )
 
 
+def patch_mapdata(src: pathlib.Path) -> None:
+    """Adds the terrain and furniture dump.
+
+    The factories are file-static inside `mapdata.cpp`'s anonymous namespace, so
+    the walker has to live in that namespace. The exported entry point sits after
+    the namespace closes, which is also where it becomes visible to the harness.
+    """
+    path = src / "mapdata.cpp"
+    patch(
+        path,
+        '#include "mapdata.h"',
+        '#include "mapdata.h"\n#ifdef CATA_HARNESS\n#include "color.h"\n#include "harness.h"\n#endif',
+        "mapdata include",
+    )
+    anchor = 'generic_factory<ter_t> terrain_data( "terrain" );\ngeneric_factory<furn_t> furniture_data( "furniture" );\n\n} // namespace'
+    replacement = r'''generic_factory<ter_t> terrain_data( "terrain" );
+generic_factory<furn_t> furniture_data( "furniture" );
+
+#ifdef CATA_HARNESS
+template<typename T>
+void write_one_prototype( std::FILE *out, const T &proto, const char *kind, bool &first )
+{
+    std::fprintf( out, "%s\n{\"kind\":\"%s\",\"id\":\"%s\",\"name\":\"%s\",",
+                  first ? "" : ",", kind, proto.id.str().c_str(), proto.name().c_str() );
+    std::fprintf( out, "\"symbol\":[%d,%d,%d,%d],\"color\":\"%s\",\"move_cost\":%d,"
+                  "\"light\":%d,\"coverage\":%d,\"flags\":[",
+                  proto.symbol_[0], proto.symbol_[1], proto.symbol_[2], proto.symbol_[3],
+                  string_from_color( proto.color() ).c_str(), proto.movecost,
+                  proto.light_emitted, proto.coverage );
+    bool first_flag = true;
+    for( const std::string &flag : proto.get_flags() ) {
+        std::fprintf( out, "%s\"%s\"", first_flag ? "" : ",", flag.c_str() );
+        first_flag = false;
+    }
+    std::fprintf( out, "]}" );
+    first = false;
+}
+
+void write_terrain_prototypes_impl( std::FILE *out )
+{
+    bool first = true;
+    for( const ter_t &proto : terrain_data.get_all() ) {
+        write_one_prototype( out, proto, "terrain", first );
+    }
+    for( const furn_t &proto : furniture_data.get_all() ) {
+        write_one_prototype( out, proto, "furniture", first );
+    }
+}
+#endif
+} // namespace
+
+#ifdef CATA_HARNESS
+void harness_dump_terrain_prototypes( std::FILE *out )
+{
+    write_terrain_prototypes_impl( out );
+}
+#endif'''
+    patch(path, anchor, replacement, "terrain dump")
+
+
 def patch_main(src: pathlib.Path) -> None:
     path = src / "main.cpp"
 
@@ -126,6 +186,8 @@ def patch_main(src: pathlib.Path) -> None:
     std::string dump_env;
     // Harness: the state of a freshly started game.
     std::string dump_state;
+    // Harness: resolved terrain and furniture prototypes.
+    std::string dump_terrain;
     std::string replay;
     std::string world_name;
     std::string start_location;""",
@@ -163,6 +225,16 @@ def patch_main(src: pathlib.Path) -> None:
                 1,
                 [&result]( int, const char **params ) -> int {
                     result.replay = params[0];
+                    return 1;
+                }
+            },
+            {
+                "--dump-terrain", "<file>",
+                "Writes every resolved terrain and furniture prototype to <file>",
+                section_default,
+                1,
+                [&result]( int, const char **params ) -> int {
+                    result.dump_terrain = params[0];
                     return 1;
                 }
             },
@@ -248,6 +320,12 @@ def patch_main(src: pathlib.Path) -> None:
                 exit_handler( 3 );
             }
             harness::dump_state( cli.dump_state );
+            exit_handler( 0 );
+        }
+        if( !cli.dump_terrain.empty() ) {
+            test_mode = true;
+            g->check_mod_data( { mod_id( "dda" ) } );
+            harness::dump_terrain( cli.dump_terrain );
             exit_handler( 0 );
         }
         if( !cli.dump_env.empty() ) {
@@ -427,6 +505,7 @@ def main() -> None:
     patch_generic_factory(SRC)
     patch_game_header(SRC)
     patch_ncurses(SRC)
+    patch_mapdata(SRC)
     patch_main(SRC)
     print("harness patches applied")
 
@@ -443,18 +522,19 @@ def verify() -> None:
         shutil.rmtree(scratch)
     scratch.mkdir()
     for name in ("generic_factory.h", "main.cpp", "game.h", "ncurses_def.cpp",
-                 "loading_ui.cpp", "debug.cpp", "popup.cpp"):
+                 "loading_ui.cpp", "debug.cpp", "popup.cpp", "mapdata.cpp"):
         (scratch / name).write_text((ref / name).read_text())
     copy_harness_sources(scratch)
     patch_generic_factory(scratch)
     patch_game_header(scratch)
     patch_ncurses(scratch)
+    patch_mapdata(scratch)
     patch_main(scratch)
 
     failed = False
     for name in ("generic_factory.h", "main.cpp", "game.h", "ncurses_def.cpp",
-                 "loading_ui.cpp", "debug.cpp", "popup.cpp", "harness.h",
-                 "harness.cpp"):
+                 "loading_ui.cpp", "debug.cpp", "popup.cpp", "mapdata.cpp",
+                 "harness.h", "harness.cpp"):
         expected = (SRC / name).read_text()
         got = (scratch / name).read_text()
         if expected != got:

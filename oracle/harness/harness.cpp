@@ -274,6 +274,19 @@ void run_replay()
     }
 }
 
+void dump_terrain( const std::string &path )
+{
+    std::FILE *out = std::fopen( path.c_str(), "wb" );
+    if( out == nullptr ) {
+        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
+        return;
+    }
+    std::fprintf( out, "{\"harness\":\"terrain\",\"version\":1,\n\"prototypes\":[\n" );
+    harness_dump_terrain_prototypes( out );
+    std::fprintf( out, "]}\n" );
+    std::fclose( out );
+}
+
 bool start_headless_game( const std::string &world_name, const std::string &start_loc,
                           std::string &error )
 {

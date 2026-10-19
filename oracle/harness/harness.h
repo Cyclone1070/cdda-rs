@@ -10,6 +10,7 @@
 // docs/11-oracle-harness.md for the modes and their contract.
 
 #include <cstdint>
+#include <cstdio>
 #include <string>
 #include <vector>
 
@@ -90,6 +91,12 @@ std::vector<std::string> read_key_file( const std::string &path, std::string &er
 // Runs turns until the recording is exhausted.
 void run_replay();
 
+// `--dump-terrain <file>`: every terrain and furniture prototype's resolved
+// fields, which is what a loader port has to reproduce. Filled in by mapdata.cpp
+// because the factories there are file-static; this is the entry point.
+void dump_terrain( const std::string &path );
+
+
 // `--dump-state <file>`: the world the reference actually produced — random
 // stream position, calendar, avatar, and a tile-level digest of the reality
 // bubble. Requires start_headless_game first.
@@ -98,3 +105,8 @@ void dump_state( const std::string &path );
 } // namespace harness
 
 #endif // CATA_SRC_HARNESS_H
+
+// Provided by mapdata.cpp, which owns the terrain factories: writes the dump
+// body for both prototype lists. Declared outside the namespace because the
+// definition sits outside mapdata.cpp's anonymous namespace.
+void harness_dump_terrain_prototypes( std::FILE *out );
