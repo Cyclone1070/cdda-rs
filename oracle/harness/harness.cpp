@@ -287,6 +287,46 @@ void dump_terrain( const std::string &path )
     std::fclose( out );
 }
 
+void dump_traps( const std::string &path )
+{
+    std::FILE *out = std::fopen( path.c_str(), "wb" );
+    if( out == nullptr ) {
+        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
+        return;
+    }
+    std::fprintf( out, "{\"harness\":\"traps\",\"version\":1,\n\"prototypes\":[\n" );
+    harness_dump_trap_prototypes( out );
+    std::fprintf( out, "]}\n" );
+    std::fclose( out );
+}
+
+void dump_materials( const std::string &path )
+{
+    std::FILE *out = std::fopen( path.c_str(), "wb" );
+    if( out == nullptr ) {
+        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
+        return;
+    }
+    std::fprintf( out, "{\"harness\":\"materials\",\"version\":1,\n\"prototypes\":[\n" );
+    bool first = true;
+    for( const material_type &material : materials::get_all() ) {
+        std::fprintf( out,
+                      "%s\n{\"id\":\"%s\",\"name\":\"%s\",\"density\":%.6g,"
+                      "\"chip_resist\":%d,\"breathability\":%d,"
+                      "\"specific_heat_liquid\":%.6g,\"specific_heat_solid\":%.6g,"
+                      "\"latent_heat\":%.6g}",
+                      first ? "" : ",", material.id.str().c_str(), material.name().c_str(),
+                      static_cast<double>( material.density() ), material.chip_resist(),
+                      material.breathability(),
+                      static_cast<double>( material.specific_heat_liquid() ),
+                      static_cast<double>( material.specific_heat_solid() ),
+                      static_cast<double>( material.latent_heat() ) );
+        first = false;
+    }
+    std::fprintf( out, "]}\n" );
+    std::fclose( out );
+}
+
 bool start_headless_game( const std::string &world_name, const std::string &start_loc,
                           std::string &error )
 {

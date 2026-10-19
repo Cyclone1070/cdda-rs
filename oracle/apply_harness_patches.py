@@ -140,6 +140,74 @@ def patch_ncurses_256(src: pathlib.Path) -> None:
     )
 
 
+def patch_trap_header(src: pathlib.Path) -> None:
+    """Exposes the three trap fields the dump needs that have no getter."""
+    path = src / "trap.h"
+    patch(
+        path,
+        "        std::optional<itype_id> trap_item_type;",
+        """        std::optional<itype_id> trap_item_type;
+
+#ifdef CATA_HARNESS
+        int harness_visibility() const {
+            return visibility;
+        }
+        int harness_difficulty() const {
+            return difficulty;
+        }
+        const cata::flat_set<flag_id> &harness_flags() const {
+            return _flags;
+        }
+#endif""",
+        "trap header accessors",
+    )
+
+
+def patch_trap(src: pathlib.Path) -> None:
+    """Adds the trap dump.
+
+    The trap factory is file-static inside `trap.cpp`'s anonymous namespace, so
+    the dump is written there: a walker inside the namespace, and an exported
+    entry point after it closes.
+    """
+    path = src / "trap.cpp"
+    anchor = 'generic_factory<trap> trap_factory( "trap" );\n\n} // namespace'
+    replacement = r'''generic_factory<trap> trap_factory( "trap" );
+
+#ifdef CATA_HARNESS
+void write_trap_prototypes_impl( std::FILE *out )
+{
+    bool first = true;
+    for( const trap &proto : trap_factory.get_all() ) {
+        std::fprintf( out, "%s\n{\"id\":\"%s\",\"name\":\"%s\",\"symbol\":%d,\"color\":\"%s\","
+                      "\"visibility\":%d,\"avoidance\":%d,\"difficulty\":%d,\"radius\":%d,"
+                      "\"benign\":%s,\"always_invisible\":%s,\"flags\":[",
+                      first ? "" : ",", proto.id.str().c_str(), proto.name().c_str(), proto.sym,
+                      string_from_color( proto.color ).c_str(), proto.harness_visibility(),
+                      proto.get_avoidance(), proto.harness_difficulty(),
+                      proto.get_trap_radius(), proto.is_benign() ? "true" : "false",
+                      proto.is_always_invisible() ? "true" : "false" );
+        bool first_flag = true;
+        for( const flag_id &flag : proto.harness_flags() ) {
+            std::fprintf( out, "%s\"%s\"", first_flag ? "" : ",", flag.str().c_str() );
+            first_flag = false;
+        }
+        std::fprintf( out, "]}" );
+        first = false;
+    }
+}
+#endif
+} // namespace
+
+#ifdef CATA_HARNESS
+void harness_dump_trap_prototypes( std::FILE *out )
+{
+    write_trap_prototypes_impl( out );
+}
+#endif'''
+    patch(path, anchor, replacement, "trap dump")
+
+
 def patch_mapdata(src: pathlib.Path) -> None:
     """Adds the terrain and furniture dump.
 
@@ -217,6 +285,9 @@ def patch_main(src: pathlib.Path) -> None:
     std::string dump_state;
     // Harness: resolved terrain and furniture prototypes.
     std::string dump_terrain;
+    // Harness: resolved traps and materials.
+    std::string dump_traps;
+    std::string dump_materials;
     std::string replay;
     std::string world_name;
     std::string start_location;""",
@@ -254,6 +325,26 @@ def patch_main(src: pathlib.Path) -> None:
                 1,
                 [&result]( int, const char **params ) -> int {
                     result.replay = params[0];
+                    return 1;
+                }
+            },
+            {
+                "--dump-traps", "<file>",
+                "Writes every resolved trap prototype to <file>",
+                section_default,
+                1,
+                [&result]( int, const char **params ) -> int {
+                    result.dump_traps = params[0];
+                    return 1;
+                }
+            },
+            {
+                "--dump-materials", "<file>",
+                "Writes every resolved material prototype to <file>",
+                section_default,
+                1,
+                [&result]( int, const char **params ) -> int {
+                    result.dump_materials = params[0];
                     return 1;
                 }
             },
@@ -349,6 +440,18 @@ def patch_main(src: pathlib.Path) -> None:
                 exit_handler( 3 );
             }
             harness::dump_state( cli.dump_state );
+            exit_handler( 0 );
+        }
+        if( !cli.dump_traps.empty() ) {
+            test_mode = true;
+            g->check_mod_data( { mod_id( "dda" ) } );
+            harness::dump_traps( cli.dump_traps );
+            exit_handler( 0 );
+        }
+        if( !cli.dump_materials.empty() ) {
+            test_mode = true;
+            g->check_mod_data( { mod_id( "dda" ) } );
+            harness::dump_materials( cli.dump_materials );
             exit_handler( 0 );
         }
         if( !cli.dump_terrain.empty() ) {
@@ -534,6 +637,8 @@ def main() -> None:
     patch_generic_factory(SRC)
     patch_game_header(SRC)
     patch_ncurses(SRC)
+    patch_trap_header(SRC)
+    patch_trap(SRC)
     patch_mapdata(SRC)
     patch_ncurses_256(SRC)
     patch_main(SRC)
@@ -552,12 +657,15 @@ def verify() -> None:
         shutil.rmtree(scratch)
     scratch.mkdir()
     for name in ("generic_factory.h", "main.cpp", "game.h", "ncurses_def.cpp",
-                 "loading_ui.cpp", "debug.cpp", "popup.cpp", "mapdata.cpp"):
+                 "loading_ui.cpp", "debug.cpp", "popup.cpp", "mapdata.cpp",
+                 "trap.cpp", "trap.h"):
         (scratch / name).write_text((ref / name).read_text())
     copy_harness_sources(scratch)
     patch_generic_factory(scratch)
     patch_game_header(scratch)
     patch_ncurses(scratch)
+    patch_trap_header(scratch)
+    patch_trap(scratch)
     patch_mapdata(scratch)
     patch_ncurses_256(scratch)
     patch_main(scratch)

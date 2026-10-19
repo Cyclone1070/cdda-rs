@@ -97,6 +97,12 @@ void run_replay();
 void dump_terrain( const std::string &path );
 
 
+// `--dump-traps <file>`: every trap's resolved fields.
+void dump_traps( const std::string &path );
+
+// `--dump-materials <file>`: every material's resolved fields.
+void dump_materials( const std::string &path );
+
 // `--dump-state <file>`: the world the reference actually produced — random
 // stream position, calendar, avatar, and a tile-level digest of the reality
 // bubble. Requires start_headless_game first.
@@ -110,3 +116,6 @@ void dump_state( const std::string &path );
 // body for both prototype lists. Declared outside the namespace because the
 // definition sits outside mapdata.cpp's anonymous namespace.
 void harness_dump_terrain_prototypes( std::FILE *out );
+
+// Provided by trap.cpp, for the same reason.
+void harness_dump_trap_prototypes( std::FILE *out );

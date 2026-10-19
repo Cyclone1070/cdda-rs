@@ -268,6 +268,20 @@ fallback names — the harness now pins the 256-colour table, which is what a
 player sees. Found by the field comparison, not by inspection: 23 prototypes
 disagreed only on colour before the pin.
 
+### The other two map-data lists
+
+`--dump-traps` and `--dump-materials` add 125 traps and 193 materials. The traps
+need two small patches because their factory and three fields are private
+(`trap.cpp`, `trap.h`); materials are reachable through `materials::get_all()`.
+
+They paid for themselves immediately. Bronze and pseudo fuel report a specific
+heat of **zero**, not water's 4.186, because every heat field is read through
+`optional` without an explicit default argument and that overload assigns the
+template default when a fresh object omits the member (`material.cpp:103-105`).
+The member initialisers in `material.h:90-92` never reach a loaded material.
+A port that copied the header would have been wrong for 10 materials and right
+for the 12 that state 4.186 in JSON.
+
 ### Replay runs without a terminal, and is reproducible
 
 `--replay <file> --dump-state <file>` plays a recorded session: one key per line,

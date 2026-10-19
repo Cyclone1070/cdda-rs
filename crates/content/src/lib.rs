@@ -13,8 +13,10 @@ use std::path::{Path, PathBuf};
 
 pub mod factory;
 pub mod mapdata;
+pub mod materials;
 mod rules;
 mod scan;
+pub mod traps;
 
 pub use rules::{id_member, null_prototype, registry_for};
 pub use scan::{Registry, ScanError, scan};

@@ -85,8 +85,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-20 03:33:37
-@@ -0,0 +1,397 @@
++++ oracle/src/src/harness.cpp	2026-10-20 03:51:56
+@@ -0,0 +1,437 @@
 +#include "harness.h"
 +
 +#include <algorithm>
@@ -376,6 +376,46 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    std::fclose( out );
 +}
 +
++void dump_traps( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    std::fprintf( out, "{\"harness\":\"traps\",\"version\":1,\n\"prototypes\":[\n" );
++    harness_dump_trap_prototypes( out );
++    std::fprintf( out, "]}\n" );
++    std::fclose( out );
++}
++
++void dump_materials( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    std::fprintf( out, "{\"harness\":\"materials\",\"version\":1,\n\"prototypes\":[\n" );
++    bool first = true;
++    for( const material_type &material : materials::get_all() ) {
++        std::fprintf( out,
++                      "%s\n{\"id\":\"%s\",\"name\":\"%s\",\"density\":%.6g,"
++                      "\"chip_resist\":%d,\"breathability\":%d,"
++                      "\"specific_heat_liquid\":%.6g,\"specific_heat_solid\":%.6g,"
++                      "\"latent_heat\":%.6g}",
++                      first ? "" : ",", material.id.str().c_str(), material.name().c_str(),
++                      static_cast<double>( material.density() ), material.chip_resist(),
++                      material.breathability(),
++                      static_cast<double>( material.specific_heat_liquid() ),
++                      static_cast<double>( material.specific_heat_solid() ),
++                      static_cast<double>( material.latent_heat() ) );
++        first = false;
++    }
++    std::fprintf( out, "]}\n" );
++    std::fclose( out );
++}
++
 +bool start_headless_game( const std::string &world_name, const std::string &start_loc,
 +                          std::string &error )
 +{
@@ -486,8 +526,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +} // namespace harness
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-20 03:33:37
-@@ -0,0 +1,112 @@
++++ oracle/src/src/harness.h	2026-10-20 03:51:56
+@@ -0,0 +1,121 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -587,6 +627,12 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +void dump_terrain( const std::string &path );
 +
 +
++// `--dump-traps <file>`: every trap's resolved fields.
++void dump_traps( const std::string &path );
++
++// `--dump-materials <file>`: every material's resolved fields.
++void dump_materials( const std::string &path );
++
 +// `--dump-state <file>`: the world the reference actually produced — random
 +// stream position, calendar, avatar, and a tile-level digest of the reality
 +// bubble. Requires start_headless_game first.
@@ -600,6 +646,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +// body for both prototype lists. Declared outside the namespace because the
 +// definition sits outside mapdata.cpp's anonymous namespace.
 +void harness_dump_terrain_prototypes( std::FILE *out );
++
++// Provided by trap.cpp, for the same reason.
++void harness_dump_trap_prototypes( std::FILE *out );
 diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.cpp
 --- references/Cataclysm-DDA/src/loading_ui.cpp	2026-10-19 18:15:04
 +++ oracle/src/src/loading_ui.cpp	2026-10-20 01:03:36
@@ -622,7 +671,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-20 02:56:12
++++ oracle/src/src/main.cpp	2026-10-20 03:47:07
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -633,7 +682,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,19 @@
+@@ -272,6 +275,22 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -647,13 +696,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_state;
 +    // Harness: resolved terrain and furniture prototypes.
 +    std::string dump_terrain;
++    // Harness: resolved traps and materials.
++    std::string dump_traps;
++    std::string dump_materials;
 +    std::string replay;
 +    std::string world_name;
 +    std::string start_location;
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +316,86 @@
+@@ -300,6 +319,106 @@
                  }
              },
              {
@@ -683,6 +735,26 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.replay = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-traps", "<file>",
++                "Writes every resolved trap prototype to <file>",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_traps = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-materials", "<file>",
++                "Writes every resolved material prototype to <file>",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_materials = params[0];
 +                    return 1;
 +                }
 +            },
@@ -740,7 +812,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +882,69 @@
+@@ -786,6 +905,81 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -776,6 +848,18 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                exit_handler( 3 );
 +            }
 +            harness::dump_state( cli.dump_state );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_traps.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_traps( cli.dump_traps );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_materials.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_materials( cli.dump_materials );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_terrain.empty() ) {
@@ -958,6 +1042,69 @@ diff -ruN references/Cataclysm-DDA/src/prefix.h oracle/src/src/prefix.h
 +++ oracle/src/src/prefix.h	2026-10-19 21:25:11
 @@ -0,0 +1 @@
 +#define PREFIX "/usr/local"
+diff -ruN references/Cataclysm-DDA/src/trap.cpp oracle/src/src/trap.cpp
+--- references/Cataclysm-DDA/src/trap.cpp	2026-10-19 18:15:06
++++ oracle/src/src/trap.cpp	2026-10-20 03:46:50
+@@ -40,7 +40,37 @@
+ 
+ generic_factory<trap> trap_factory( "trap" );
+ 
++#ifdef CATA_HARNESS
++void write_trap_prototypes_impl( std::FILE *out )
++{
++    bool first = true;
++    for( const trap &proto : trap_factory.get_all() ) {
++        std::fprintf( out, "%s\n{\"id\":\"%s\",\"name\":\"%s\",\"symbol\":%d,\"color\":\"%s\","
++                      "\"visibility\":%d,\"avoidance\":%d,\"difficulty\":%d,\"radius\":%d,"
++                      "\"benign\":%s,\"always_invisible\":%s,\"flags\":[",
++                      first ? "" : ",", proto.id.str().c_str(), proto.name().c_str(), proto.sym,
++                      string_from_color( proto.color ).c_str(), proto.harness_visibility(),
++                      proto.get_avoidance(), proto.harness_difficulty(),
++                      proto.get_trap_radius(), proto.is_benign() ? "true" : "false",
++                      proto.is_always_invisible() ? "true" : "false" );
++        bool first_flag = true;
++        for( const flag_id &flag : proto.harness_flags() ) {
++            std::fprintf( out, "%s\"%s\"", first_flag ? "" : ",", flag.str().c_str() );
++            first_flag = false;
++        }
++        std::fprintf( out, "]}" );
++        first = false;
++    }
++}
++#endif
+ } // namespace
++
++#ifdef CATA_HARNESS
++void harness_dump_trap_prototypes( std::FILE *out )
++{
++    write_trap_prototypes_impl( out );
++}
++#endif
+ 
+ /** @relates string_id */
+ template<>
+diff -ruN references/Cataclysm-DDA/src/trap.h oracle/src/src/trap.h
+--- references/Cataclysm-DDA/src/trap.h	2026-10-19 18:15:06
++++ oracle/src/src/trap.h	2026-10-20 03:46:50
+@@ -161,6 +161,18 @@
+         std::vector<std::tuple<itype_id, int, int>> components;
+     public:
+         std::optional<itype_id> trap_item_type;
++
++#ifdef CATA_HARNESS
++        int harness_visibility() const {
++            return visibility;
++        }
++        int harness_difficulty() const {
++            return difficulty;
++        }
++        const cata::flat_set<flag_id> &harness_flags() const {
++            return _flags;
++        }
++#endif
+         // data required for trapfunc::spell()
+         fake_spell spell_data;
+         std::vector<effect_on_condition_id> eocs;
 diff -ruN references/Cataclysm-DDA/src/version.h oracle/src/src/version.h
 --- references/Cataclysm-DDA/src/version.h	1970-01-01 10:00:00
 +++ oracle/src/src/version.h	2026-10-19 21:44:59
