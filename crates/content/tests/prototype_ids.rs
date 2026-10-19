@@ -139,6 +139,32 @@ fn the_port_never_invents_an_id_the_reference_does_not_have() {
         .map(|registry| (registry.type_name, registry.ids.into_iter().collect()))
         .collect();
     let theirs = expected();
+    let mut ours = ours;
+    // The enchantment registry holds ids that no file writes: every inline
+    // `enchantments` entry becomes a prototype named after its parent
+    // (`generated::enchantment_ids`).
+    if let Ok(generated) = cdda_content::generated::enchantment_ids(&[&core, &content]) {
+        ours.insert("enchantment".to_owned(), generated);
+    }
+    if let Ok(buffs) = cdda_content::generated::buff_ids(&[&core, &content]) {
+        ours.insert("martial art buff".to_owned(), buffs);
+    }
+    // The turret parts are additions: the registry also holds the parts the
+    // files define.
+    if let Ok(items) = cdda_content::items::load_paths(&[&core, &content]) {
+        ours.entry("vehicle_part".to_owned())
+            .or_default()
+            .extend(cdda_content::generated::turret_part_ids(&items));
+    }
+    // Monster types come from a loader rather than from a file scan: the
+    // reference adds a null type and a dormant twin for every monster flagged
+    // `GEN_DORMANT`, and only the loader knows about them.
+    if let Ok(types) = cdda_content::monsters::load_paths(&[&core, &content]) {
+        ours.insert(
+            "monster type".to_owned(),
+            types.into_iter().map(|monster| monster.id).collect(),
+        );
+    }
     let report = differences(&ours, &theirs);
 
     let mut invented = Vec::new();
@@ -157,7 +183,11 @@ fn the_port_never_invents_an_id_the_reference_does_not_have() {
 }
 
 #[test]
-#[ignore = "M1 gate: needs the loader that creates synthetic and inline prototypes"]
+// The registries the port cannot account for yet, each needing the loader that
+// builds its ids: `effect_on_condition` fills from inline slots inside furniture
+// and tools, `overmap terrain` and `overmap terrain type` from mapgen, and
+// `overmap special` from city-building entries. Their loaders are P1 work.
+#[ignore = "86 of 90 registries: the remaining four need the mapgen and inline-EOC loaders"]
 fn every_registry_holds_the_same_ids_as_the_reference() {
     let root = reference_root();
     let core = root.join("data/core");
@@ -168,6 +198,32 @@ fn every_registry_holds_the_same_ids_as_the_reference() {
         .map(|registry| (registry.type_name, registry.ids.into_iter().collect()))
         .collect();
     let theirs = expected();
+    let mut ours = ours;
+    // The enchantment registry holds ids that no file writes: every inline
+    // `enchantments` entry becomes a prototype named after its parent
+    // (`generated::enchantment_ids`).
+    if let Ok(generated) = cdda_content::generated::enchantment_ids(&[&core, &content]) {
+        ours.insert("enchantment".to_owned(), generated);
+    }
+    if let Ok(buffs) = cdda_content::generated::buff_ids(&[&core, &content]) {
+        ours.insert("martial art buff".to_owned(), buffs);
+    }
+    // The turret parts are additions: the registry also holds the parts the
+    // files define.
+    if let Ok(items) = cdda_content::items::load_paths(&[&core, &content]) {
+        ours.entry("vehicle_part".to_owned())
+            .or_default()
+            .extend(cdda_content::generated::turret_part_ids(&items));
+    }
+    // Monster types come from a loader rather than from a file scan: the
+    // reference adds a null type and a dormant twin for every monster flagged
+    // `GEN_DORMANT`, and only the loader knows about them.
+    if let Ok(types) = cdda_content::monsters::load_paths(&[&core, &content]) {
+        ours.insert(
+            "monster type".to_owned(),
+            types.into_iter().map(|monster| monster.id).collect(),
+        );
+    }
     let report = differences(&ours, &theirs);
 
     let exact = report

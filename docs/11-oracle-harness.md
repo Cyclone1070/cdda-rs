@@ -359,6 +359,32 @@ The whole set matches, and three things came out of it:
 Species, categories and materials are ordered by registration in the reference
 and sorted in the port, so the comparison is by contents.
 
+### About a sixth of the ids in the reference are not in any file
+
+The id gate compares every registry against `--dump-prototype-ids`. Four
+families came out of the comparison, and three of them are now reproduced
+exactly:
+
+* **Inline enchantments.** A mutation, bionic, effect or vehicle part may carry
+  an `enchantments` array; each object in it becomes a prototype named
+  `INLINE_ENCH_<parent>_<position>`. The position counts every entry, so a
+  written id in the array still advances it. Bionics are the exception: they
+  name their inline enchantments after the *text the player sees*, so a bionic
+  called "Alarm System" produces `INLINE_ENCH_Alarm System_0`.
+* **Martial-art buffs.** A style carries its buffs inline, one array per
+  trigger. The member names are not fixed - `onhit_buffs`, `oncrit_buffs`,
+  `onmiss_buffs` and others - so any member ending in `_buffs` is read.
+* **Turret parts.** Every item that is a gun and not a gun modification becomes
+  a vehicle part named `turret_<item>`, unless it carries one of the flags that
+  make it unusable in a mount.
+* **Inline effect-on-conditions** are the one family left: they are objects with
+  their own id sitting in a slot inside furniture, tools and other prototypes.
+  The slot names are per-type, so this needs the loaders that own those slots
+  rather than a guess at which nested objects are conditions.
+
+The remaining registries - overmap terrain, overmap terrain types and overmap
+specials - are built from mapgen, which has no loader yet.
+
 ### Replay runs without a terminal, and is reproducible
 
 `--replay <file> --dump-state <file>` plays a recorded session: one key per line,
