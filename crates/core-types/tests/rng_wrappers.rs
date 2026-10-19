@@ -35,8 +35,13 @@ fn corpus() -> Vec<(String, f64)> {
 
 #[test]
 fn every_wrapper_draws_the_same_value_the_reference_does() {
-    let rows = corpus();
-    assert!(rows.len() > 70, "the corpus covers every wrapper");
+    // The chance rows make no draws, so they have their own test; every other
+    // row is one call in the stream and must be claimed exactly once.
+    let rows: Vec<(String, f64)> = corpus()
+        .into_iter()
+        .filter(|(name, _)| !name.starts_with("normal_roll_chance"))
+        .collect();
+    assert!(rows.len() > 90, "the corpus covers every wrapper");
 
     let mut rolls = Rolls::new(12_345);
     let mut mismatches = Vec::new();
@@ -233,6 +238,51 @@ fn a_bound_that_is_not_finite_returns_zero_without_drawing() {
 
     let mut fresh = Rolls::new(12_345);
     assert_eq!(rolls.rng(0, 100), fresh.rng(0, 100));
+}
+
+#[test]
+fn the_normal_chance_matches_to_the_precision_of_its_error_function() {
+    // Five rows of `normal_roll_chance` are in the corpus. The arithmetic around
+    // the error function is reproduced exactly; the function itself comes from
+    // the platform's libm in the reference, so the port's own approximation is
+    // held to a bound instead of to equality - 4e-8, which is the largest gap
+    // measured across these rows. The two degenerate rows are exact, because
+    // they never reach the approximation at all.
+    let rows: Vec<(String, f64)> = corpus();
+    let looked_up = |name: &str| {
+        rows.iter()
+            .find(|(row, _)| row == name)
+            .map(|(_, value)| *value)
+            .expect("row in corpus")
+    };
+    for (name, center, stddev, difficulty) in [
+        ("normal_roll_chance.0.1.0", 0.0, 1.0, 0.0),
+        ("normal_roll_chance.0.1.1", 0.0, 1.0, 1.0),
+        ("normal_roll_chance.10.2.11", 10.0, 2.0, 11.0),
+        ("normal_roll_chance.10.2.20", 10.0, 2.0, 20.0),
+    ] {
+        let ours = f64::from(cdda_core_types::rng::normal_roll_chance(
+            center, stddev, difficulty,
+        ));
+        let reference = looked_up(name);
+        assert!(
+            (ours - reference).abs() <= 4e-8,
+            "{name}: {ours:.20} against {reference:.20}"
+        );
+    }
+    // A centre on the difficulty is exactly one half, and a curve with no
+    // spread has no error function in it at all.
+    assert_eq!(
+        cdda_core_types::rng::normal_roll_chance(0.0, 1.0, 0.0),
+        0.5,
+        "the centre is exactly half"
+    );
+    let no_spread = f64::from(cdda_core_types::rng::normal_roll_chance(5.0, 0.0, 5.0));
+    assert_eq!(
+        no_spread,
+        looked_up("normal_roll_chance.zero_sd"),
+        "no spread, no draw"
+    );
 }
 
 #[test]

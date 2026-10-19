@@ -57,6 +57,19 @@ static double rng_exponential( double min, double mean )
     return min + exponential_roll( 1.0 / adjusted_mean );
 }
 
+// Pure arithmetic, no engine: the chance a normal roll on this curve returns the
+// difficulty or more.
+static float normal_roll_chance( float center, float stddev, float difficulty )
+{
+    if( stddev == 0.f ) {
+        return ( center > difficulty ) ? 1.f : 0.f;
+    }
+    const float numerator = difficulty - center;
+    const float denominator = std::sqrt( 2 ) * stddev;
+    const float compl_erf = 1.f - std::erf( numerator / denominator );
+    return 0.5f * compl_erf;
+}
+
 static double normal_roll( double mean, double stddev )
 {
     static std::normal_distribution<double> dist;
@@ -200,5 +213,11 @@ int main()
     print_real( "rng_exponential.0.5", rng_exponential( 0.0, 5.0 ) );
     print_real( "rng_exponential.2.6", rng_exponential( 2.0, 6.0 ) );
     print_real( "rng_exponential.degenerate", rng_exponential( 4.0, 4.0 ) );
+    // No engine involved, so these rows can be reproduced without a stream.
+    print_real( "normal_roll_chance.0.1.0", normal_roll_chance( 0.f, 1.f, 0.f ) );
+    print_real( "normal_roll_chance.0.1.1", normal_roll_chance( 0.f, 1.f, 1.f ) );
+    print_real( "normal_roll_chance.10.2.11", normal_roll_chance( 10.f, 2.f, 11.f ) );
+    print_real( "normal_roll_chance.10.2.20", normal_roll_chance( 10.f, 2.f, 20.f ) );
+    print_real( "normal_roll_chance.zero_sd", normal_roll_chance( 5.f, 0.f, 5.f ) );
     return 0;
 }

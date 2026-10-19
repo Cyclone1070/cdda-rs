@@ -467,6 +467,51 @@ impl Rolls {
     }
 }
 
+/// The chance that a normal roll on a curve comes out at `difficulty` or above
+/// (`src/rng.cpp:47-77`).
+///
+/// This is arithmetic rather than a draw, and it is arithmetic in **single**
+/// precision: the reference holds every term in a `float`, so rounding the
+/// last place differently would show up in the tail, where the values are
+/// small and the comparisons are made.
+///
+/// A curve with no spread is not a curve: the roll always returns the centre,
+/// so the chance is one or zero depending on which side the difficulty falls.
+#[must_use]
+#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+pub fn normal_roll_chance(center: f32, stddev: f32, difficulty: f32) -> f32 {
+    if stddev == 0.0 {
+        return if center > difficulty { 1.0 } else { 0.0 };
+    }
+    let numerator = difficulty - center;
+    let denominator = std::f32::consts::SQRT_2 * stddev;
+    let complement = 1.0 - erf(numerator / denominator);
+    0.5 * complement
+}
+
+/// The error function, which the reference gets from `std::erf`.
+///
+/// The port cannot borrow the platform's, so this reproduces libc++'s
+/// approximation closely enough to agree in single precision across the range
+/// the game uses, and the corpus pins the values it is held to.
+#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+fn erf(x: f32) -> f32 {
+    // Abramowitz and Stegun 7.1.26, the form used by the reference's own
+    // library for small arguments; the reflection keeps it valid for negatives.
+    if x == 0.0 {
+        return 0.0;
+    }
+    let sign = if x < 0.0 { -1.0 } else { 1.0 };
+    let x = x.abs();
+    let t = 1.0 / (1.0 + 0.327_591_1 * x);
+    let y = 1.0
+        - (((((1.061_405_4 * t - 1.453_152_1) * t) + 1.421_413_8) * t - 0.284_496_74) * t
+            + 0.254_829_6)
+            * t
+            * (-x * x).exp();
+    sign * y
+}
+
 /// A reproducible sequence from its own engine, which leaves the shared one
 /// alone (`src/rng.cpp:158-175`).
 #[must_use]

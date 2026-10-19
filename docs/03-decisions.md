@@ -237,3 +237,15 @@ point type instead of separate point and tripoint types, so `combine` takes the
 `z` of the coarse cell. That is the only reading that cannot disagree with the
 reference: `z` is never scaled, so the coarse and fine halves carry the same
 number anyway.
+
+## The error function is the platform's, not ours
+
+`normal_roll_chance` is arithmetic rather than a draw, and the reference takes
+`erf` from the platform's libm. The port cannot borrow it, so it carries its own
+approximation, which agrees with the reference to within 4e-8 in single precision
+over the rows that were measured. The centre case is exact: a difficulty on the
+centre of the curve is exactly one half, so it never reaches the approximation.
+
+That is a declared divergence rather than a hidden one. It changes an outcome
+with probability 3e-8 per call, which is far below the granularity of anything
+the game rolls against, but it is a difference and the ledger says so.

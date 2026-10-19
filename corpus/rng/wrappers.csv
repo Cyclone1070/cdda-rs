@@ -91,3 +91,8 @@ exponential_roll.2,0.17472615637360633389
 rng_exponential.0.5,4.9917910538791856467
 rng_exponential.2.6,4.9522645634129141001
 rng_exponential.degenerate,0
+normal_roll_chance.0.1.0,0.5
+normal_roll_chance.0.1.1,0.15865525603294372559
+normal_roll_chance.10.2.11,0.30853754281997680664
+normal_roll_chance.10.2.20,2.98023223876953125e-07
+normal_roll_chance.zero_sd,0
