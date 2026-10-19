@@ -8,6 +8,8 @@
 #include "game.h"
 #include "map.h"
 #include "enums.h"
+#include "item_factory.h"
+#include "itype.h"
 #include "field_type.h"
 #include "generic_factory.h"
 #include "filesystem.h"
@@ -39,7 +41,7 @@ std::vector<prototype_source> &registry()
     return sources;
 }
 
-std::string json_escape( const std::string &value )
+std::string harness_escape( const std::string &value )
 {
     std::string out;
     out.reserve( value.size() + 2 );
@@ -128,7 +130,7 @@ void dump_prototype_digest( const std::string &path )
     bool first = true;
     for( const auto &entry : collected ) {
         std::fprintf( out, "%s{\"type\":\"%s\",\"count\":%zu,\"digest\":\"%016llx\"}",
-                      first ? "" : ",\n", json_escape( entry.first ).c_str(),
+                      first ? "" : ",\n", harness_escape( entry.first ).c_str(),
                       entry.second.size(),
                       static_cast<unsigned long long>( digest_strings( entry.second ) ) );
         first = false;
@@ -149,10 +151,10 @@ void dump_prototype_ids( const std::string &path )
     bool first_registry = true;
     for( const auto &entry : collected ) {
         std::fprintf( out, "%s{\"type\":\"%s\",\"ids\":[", first_registry ? "" : ",\n",
-                      json_escape( entry.first ).c_str() );
+                      harness_escape( entry.first ).c_str() );
         bool first_id = true;
         for( const std::string &id : entry.second ) {
-            std::fprintf( out, "%s\"%s\"", first_id ? "" : ",", json_escape( id ).c_str() );
+            std::fprintf( out, "%s\"%s\"", first_id ? "" : ",", harness_escape( id ).c_str() );
             first_id = false;
         }
         std::fprintf( out, "]}" );
@@ -317,7 +319,8 @@ void dump_materials( const std::string &path )
                       "\"chip_resist\":%d,\"breathability\":%d,"
                       "\"specific_heat_liquid\":%.6g,\"specific_heat_solid\":%.6g,"
                       "\"latent_heat\":%.6g}",
-                      first ? "" : ",", material.id.str().c_str(), material.name().c_str(),
+                      first ? "" : ",", harness_escape( material.id.str() ).c_str(),
+                      harness_escape( material.name() ).c_str(),
                       static_cast<double>( material.density() ), material.chip_resist(),
                       material.breathability(),
                       static_cast<double>( material.specific_heat_liquid() ),
@@ -340,18 +343,62 @@ void dump_fields( const std::string &path )
     bool first = true;
     for( const field_type &field : get_all_field_types().get_all() ) {
         std::fprintf( out, "%s\n{\"id\":\"%s\",\"priority\":%d,\"levels\":[",
-                      first ? "" : ",", field.id.str().c_str(), field.priority );
+                      first ? "" : ",", harness_escape( field.id.str() ).c_str(), field.priority );
         bool first_level = true;
         for( const field_intensity_level &level : field.intensity_levels ) {
             std::fprintf( out, "%s\n{\"name\":\"%s\",\"sym\":%u,\"color\":\"%s\","
                           "\"dangerous\":%s,\"transparent\":%s,\"move_cost\":%d,"
                           "\"concentration\":%d,\"light\":%.6g}",
-                          first_level ? "" : ",", level.name.translated().c_str(),
+                          first_level ? "" : ",", harness_escape( level.name.translated() ).c_str(),
                           level.symbol, string_from_color( level.color ).c_str(),
                           level.dangerous ? "true" : "false",
                           level.transparent ? "true" : "false", level.move_cost,
                           level.concentration, static_cast<double>( level.light_emitted ) );
             first_level = false;
+        }
+        std::fprintf( out, "]}" );
+        first = false;
+    }
+    std::fprintf( out, "]}\n" );
+    std::fclose( out );
+}
+
+void dump_items( const std::string &path )
+{
+    std::FILE *out = std::fopen( path.c_str(), "wb" );
+    if( out == nullptr ) {
+        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
+        return;
+    }
+    std::fprintf( out, "{\"harness\":\"items\",\"version\":1,\n\"prototypes\":[\n" );
+    bool first = true;
+    for( const itype *proto : item_controller->all() ) {
+        std::fprintf( out, "%s\n{\"id\":\"%s\",\"name\":\"%s\",\"name_plural\":\"%s\","
+                      "\"symbol\":\"%s\",\"color\":\"%s\",\"weight\":%lld,\"volume\":%lld,"
+                      "\"price\":%lld,\"category\":\"%s\",\"materials\":[",
+                      first ? "" : ",", harness_escape( proto->id.str() ).c_str(),
+                      harness_escape( proto->nname( 1 ) ).c_str(),
+                      harness_escape( proto->nname( 2 ) ).c_str(),
+                      // The glyph is UTF-8 text, not a byte: a multi-byte symbol
+                      // would otherwise be dumped as its first signed byte.
+                      harness_escape( proto->sym ).c_str(),
+                      string_from_color( proto->color ).c_str(),
+                      static_cast<long long>( units::to_gram( proto->weight ) ),
+                      static_cast<long long>( units::to_milliliter( proto->volume ) ),
+                      static_cast<long long>( units::to_cent( proto->price ) ),
+                      harness_escape( proto->category_force.str() ).c_str() );
+        bool first_material = true;
+        for( const std::pair<const material_id, int> &entry : proto->materials ) {
+            std::fprintf( out, "%s[\"%s\",%d]", first_material ? "" : ",",
+                          harness_escape( entry.first.str() ).c_str(), entry.second );
+            first_material = false;
+        }
+        std::fprintf( out, "],\"flags\":[" );
+        bool first_flag = true;
+        for( const flag_id &flag : proto->get_flags() ) {
+            std::fprintf( out, "%s\"%s\"", first_flag ? "" : ",",
+                          harness_escape( flag.str() ).c_str() );
+            first_flag = false;
         }
         std::fprintf( out, "]}" );
         first = false;

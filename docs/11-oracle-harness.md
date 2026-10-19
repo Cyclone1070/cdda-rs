@@ -294,6 +294,24 @@ a default of its own rather than the inherited value, except that fog states
 `0.5` and the reference's integer reader truncates it to `0`. Both rules are now
 pinned in code rather than assumed.
 
+### Items: 9,912 types, and the fields they expose
+
+`--dump-items` writes every item type with its id, name and plural, glyph,
+colour, weight in grams, volume in millilitres, price in cents, category,
+materials and flags. 2.5 MB in 27 seconds.
+
+Three findings came out of comparing it, none of which inspection had produced:
+
+* A bare number in `weight` means **grams**, not the milligram the field is
+  stored in. The reference's reader scales it; a port that treats it as the base
+  unit is off by a thousand for every item that states a number.
+* `proportional` beats `relative`, because items are read through the *reader*
+  path (`generic_factory.h:1236-1241`), not through `assign` (`assign.cpp:58-75`).
+  The one item in the content that states both wins by 500 grams either way.
+* `replace_materials` rescales weight by the density ratio of the swapped
+  material's share, so a steel sabre renamed to aluminium weighs a third as much
+  (`item_factory.cpp:4001-4035`).
+
 ### Replay runs without a terminal, and is reproducible
 
 `--replay <file> --dump-state <file>` plays a recorded session: one key per line,

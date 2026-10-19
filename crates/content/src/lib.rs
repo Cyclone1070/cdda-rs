@@ -13,6 +13,7 @@ use std::path::{Path, PathBuf};
 
 pub mod factory;
 pub mod fields;
+pub mod items;
 pub mod mapdata;
 pub mod materials;
 mod rules;

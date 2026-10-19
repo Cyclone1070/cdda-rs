@@ -1257,3 +1257,135 @@ macro_rules! kilogram {
         $crate::units::Literal::kilogram($value)
     };
 }
+
+/// Why a quantity written as text could not be read.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum UnitError {
+    /// The string was empty or all spaces.
+    Empty,
+    /// A term ended without a unit.
+    MissingUnit,
+    /// A term named a unit the table does not have.
+    UnknownUnit,
+    /// A term did not start with a number.
+    NumberExpected,
+}
+
+impl std::fmt::Display for UnitError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UnitError::Empty => f.write_str("invalid quantity string: empty string"),
+            UnitError::MissingUnit => f.write_str("invalid quantity string: missing unit"),
+            UnitError::UnknownUnit => f.write_str("invalid quantity string: unknown unit"),
+            UnitError::NumberExpected => f.write_str("invalid quantity string: number expected"),
+        }
+    }
+}
+
+impl std::error::Error for UnitError {}
+
+/// Reads a quantity: whole numbers, each followed by a unit, summed.
+///
+/// Reference: `read_from_json_string_common` (`units.h:1207-1265`). There is no
+/// decimal point in the grammar because every unit table is integer-valued, so
+/// `"1.5 L"` fails at the `.` rather than rounding.
+///
+/// # Errors
+///
+/// Reports which part of the string did not parse.
+pub fn read_quantity(text: &str, units: &[(&str, i64)]) -> Result<i64, UnitError> {
+    let bytes = text.as_bytes();
+    let mut at = 0usize;
+    let skip_spaces = |at: &mut usize| -> bool {
+        while bytes.get(*at) == Some(&b' ') {
+            *at += 1;
+        }
+        *at >= bytes.len()
+    };
+    if skip_spaces(&mut at) {
+        return Err(UnitError::Empty);
+    }
+    let mut total = 0i64;
+    loop {
+        let mut sign = 1i64;
+        match bytes.get(at) {
+            Some(b'-') => {
+                sign = -1;
+                at += 1;
+            }
+            Some(b'+') => at += 1,
+            _ => {}
+        }
+        let mut value = 0i64;
+        let mut digits = 0usize;
+        while let Some(byte) = bytes.get(at).filter(|byte| byte.is_ascii_digit()) {
+            value = value * 10 + i64::from(byte - b'0');
+            at += 1;
+            digits += 1;
+        }
+        if digits == 0 {
+            return Err(UnitError::NumberExpected);
+        }
+        if skip_spaces(&mut at) {
+            return Err(UnitError::MissingUnit);
+        }
+        let mut found = None;
+        for (unit, scale) in units {
+            if text.get(at..).is_some_and(|rest| rest.starts_with(unit)) {
+                at += unit.len();
+                found = Some(*scale);
+                break;
+            }
+        }
+        let Some(scale) = found else {
+            return Err(UnitError::UnknownUnit);
+        };
+        total += sign * value * scale;
+        if skip_spaces(&mut at) {
+            return Ok(total);
+        }
+    }
+}
+
+/// The mass table (`units.h:1130-1134`), in milligrams.
+const MASS_UNITS: &[(&str, i64)] = &[("mg", 1), ("g", 1_000), ("kg", 1_000_000)];
+
+/// The volume table (`units.h:1152-1155`), in millilitres.
+const VOLUME_UNITS: &[(&str, i64)] = &[("ml", 1), ("L", 1_000)];
+
+/// The money table (`units.h:1136-1143`), in cents.
+const MONEY_UNITS: &[(&str, i64)] = &[
+    ("cents", 1),
+    ("cent", 1),
+    ("dollars", 100),
+    ("dollar", 100),
+    ("USD", 100),
+    ("kUSD", 100_000),
+];
+
+/// Reads a mass in milligrams.
+///
+/// # Errors
+///
+/// See [`read_quantity`].
+pub fn read_mass(text: &str) -> Result<i64, UnitError> {
+    read_quantity(text, MASS_UNITS)
+}
+
+/// Reads a volume in millilitres.
+///
+/// # Errors
+///
+/// See [`read_quantity`].
+pub fn read_volume(text: &str) -> Result<i64, UnitError> {
+    read_quantity(text, VOLUME_UNITS)
+}
+
+/// Reads money in cents.
+///
+/// # Errors
+///
+/// See [`read_quantity`].
+pub fn read_money(text: &str) -> Result<i64, UnitError> {
+    read_quantity(text, MONEY_UNITS)
+}
