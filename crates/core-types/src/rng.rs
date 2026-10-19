@@ -360,13 +360,15 @@ impl Rolls {
 
     /// A real in `[lo, hi)`, swapping reversed bounds (`src/rng.cpp:30-42`).
     ///
-    /// # Panics
-    ///
-    /// The reference reports a debug message and returns zero for a bound that
-    /// is not finite; a caller that can produce one must check first.
+    /// A bound that is not finite is reported and the call returns zero
+    /// (`src/rng.cpp:36-41`) - and, because the reference checks before it
+    /// draws, the engine does **not** advance. A caller relying on that stream
+    /// position keeps it.
     pub fn rng_float(&mut self, lo: f64, hi: f64) -> f64 {
         let (lo, hi) = if lo > hi { (hi, lo) } else { (lo, hi) };
-        assert!(lo.is_finite() && hi.is_finite(), "rng_float with nan/inf");
+        if !lo.is_finite() || !hi.is_finite() {
+            return 0.0;
+        }
         self.engine.uniform_real_in(lo, hi)
     }
 

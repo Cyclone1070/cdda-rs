@@ -222,6 +222,20 @@ fn the_corpus_can_fail() {
 }
 
 #[test]
+fn a_bound_that_is_not_finite_returns_zero_without_drawing() {
+    // Reference: `rng_float` (`src/rng.cpp:30-42`) checks the bounds before it
+    // touches the engine, so a bad bound costs nothing from the stream. The
+    // port must land in the same place: the draw after it has to be the draw a
+    // fresh engine would have made.
+    let mut rolls = Rolls::new(12_345);
+    assert_eq!(rolls.rng_float(f64::NAN, 1.0), 0.0);
+    assert_eq!(rolls.rng_float(0.0, f64::INFINITY), 0.0);
+
+    let mut fresh = Rolls::new(12_345);
+    assert_eq!(rolls.rng(0, 100), fresh.rng(0, 100));
+}
+
+#[test]
 fn the_world_seed_hash_is_djb2() {
     // Reference: `djb2_hash` (`src/rng.cpp:152-165`) - hash * 33 + byte, from
     // 5381, over the bytes up to the terminator.
