@@ -82,3 +82,12 @@ rng_sequence.7.reversed,3
 rng_sequence.7.reversed,-3
 rng_sequence.7.reversed,0
 rng_sequence.7.reversed,3
+exponential_roll.2,0.60013149391054587678
+exponential_roll.2,0.012955715745279514778
+exponential_roll.2,0.54603428057584524336
+exponential_roll.2,0.12359575998473741609
+exponential_roll.2,0.31676674718024655508
+exponential_roll.2,0.17472615637360633389
+rng_exponential.0.5,4.9917910538791856467
+rng_exponential.2.6,4.9522645634129141001
+rng_exponential.degenerate,0

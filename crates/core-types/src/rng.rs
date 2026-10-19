@@ -259,7 +259,7 @@ impl MinStdRand0 {
     /// (`__random/generate_canonical.h`): builds one real from a fixed number of
     /// engine draws by summing `(draw - min) * range^i`, then dividing by
     /// `range^k`.
-    fn generate_canonical(&mut self) -> f64 {
+    pub fn generate_canonical(&mut self) -> f64 {
         /// `numeric_limits<double>::digits`: `__dt`, and also the `__bits`
         /// argument `uniform_real_distribution` passes, so `__b` is 53.
         const DIGITS: u32 = 53;
@@ -388,6 +388,30 @@ impl Rolls {
         }
         let value = self.normal_roll(f64::midpoint(hi, lo), range);
         value.clamp(lo, hi)
+    }
+
+    /// An exponentially distributed value with the given rate
+    /// (`src/rng.cpp:88-92`).
+    ///
+    /// Reference: `exponential_distribution::operator()` in
+    /// `__random/exponential_distribution.h`, which is `-log(1 - u) / lambda`
+    /// over one canonical real.
+    pub fn exponential_roll(&mut self, lambda: f64) -> f64 {
+        let drawn = self.engine.generate_canonical();
+        -(1.0 - drawn).ln() / lambda
+    }
+
+    /// An exponential value measured from `min`, with `mean` as its average
+    /// (`src/rng.cpp:104-113`).
+    ///
+    /// A mean at or below the minimum has no room to draw in, so the reference
+    /// returns zero rather than dividing by it.
+    pub fn rng_exponential(&mut self, min: f64, mean: f64) -> f64 {
+        let adjusted_mean = mean - min;
+        if adjusted_mean <= 0.0 {
+            return 0.0;
+        }
+        min + self.exponential_roll(1.0 / adjusted_mean)
     }
 
     /// A whole unsigned word (`src/rng.cpp:13-18`).

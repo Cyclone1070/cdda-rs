@@ -179,6 +179,31 @@ fn every_wrapper_draws_the_same_value_the_reference_does() {
         );
     }
 
+    // Appended to the corpus after everything else, so the rows above keep
+    // their order and their stream.
+    for _ in 0..6 {
+        expect(
+            "exponential_roll.2",
+            rolls.exponential_roll(2.0),
+            &mut mismatches,
+        );
+    }
+    expect(
+        "rng_exponential.0.5",
+        rolls.rng_exponential(0.0, 5.0),
+        &mut mismatches,
+    );
+    expect(
+        "rng_exponential.2.6",
+        rolls.rng_exponential(2.0, 6.0),
+        &mut mismatches,
+    );
+    expect(
+        "rng_exponential.degenerate",
+        rolls.rng_exponential(4.0, 4.0),
+        &mut mismatches,
+    );
+
     for line in mismatches.iter().take(10) {
         println!("  {line}");
     }

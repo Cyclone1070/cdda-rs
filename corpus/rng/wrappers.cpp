@@ -42,6 +42,21 @@ static double rng_float( double lo, double hi )
     return dist( rng_get_engine(), std::uniform_real_distribution<>::param_type( lo, hi ) );
 }
 
+static double exponential_roll( double lambda )
+{
+    static std::exponential_distribution<double> dist;
+    return dist( rng_get_engine(), std::exponential_distribution<>::param_type( lambda ) );
+}
+
+static double rng_exponential( double min, double mean )
+{
+    const double adjusted_mean = mean - min;
+    if( adjusted_mean <= 0.0 ) {
+        return 0.0;
+    }
+    return min + exponential_roll( 1.0 / adjusted_mean );
+}
+
 static double normal_roll( double mean, double stddev )
 {
     static std::normal_distribution<double> dist;
@@ -178,5 +193,12 @@ int main()
     for( int value : rng_sequence( 4, -3, 3, 7 ) ) {
         print( "rng_sequence.7.reversed", -value );
     }
+    // Appended after everything else so the rows above keep their order.
+    for( int i = 0; i < 6; i++ ) {
+        print_real( "exponential_roll.2", exponential_roll( 2.0 ) );
+    }
+    print_real( "rng_exponential.0.5", rng_exponential( 0.0, 5.0 ) );
+    print_real( "rng_exponential.2.6", rng_exponential( 2.0, 6.0 ) );
+    print_real( "rng_exponential.degenerate", rng_exponential( 4.0, 4.0 ) );
     return 0;
 }
