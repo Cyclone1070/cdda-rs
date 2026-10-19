@@ -76,6 +76,21 @@ inherits its mistakes.
 
 M1 is the first milestone that proves anything. Everything before it is scaffolding.
 
+**Where the work stands.** M0 is passed. M1 is part-passed: seven loader families
+carry field-level corpora from the reference's own dumps (terrain and furniture,
+traps, materials, field types, item types, monster types, and the generated
+prototypes those loaders create), the registry gate holds 86 of 90 id sets exactly
+with the four gaps named and counted, and JSON reading and writing match over all
+6,220 data files. What M1 still waits on is the mapgen loader: three of the four
+remaining id gaps are overmap terrain, its types and its specials, all of which the
+map generator creates rather than reads. The fourth is the inline
+effect-on-conditions, whose slots belong to the furniture and tool loaders.
+
+Resume at the mapgen loader: start from `load_and_add_mapgen_function`
+(`src/mapgen.cpp:1400-1480`), reproduce the terrain ids it derives from
+`om_terrain` arrays - chunked per position and per rotation - and hold them to
+`corpus/prototypes/ids.json`, which already names every one of them.
+
 ---
 
 ## 4. Phase detail
