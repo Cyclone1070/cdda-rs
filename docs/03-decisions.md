@@ -6,6 +6,15 @@ about what works at this scale, not as a constraint.
 
 ---
 
+### Colour names are pinned to the 256-colour table
+
+The reference builds two colour tables and chooses on `COLORS >= 256`, which
+ncurses only answers once a terminal exists. The tables disagree on names, not
+values: in the fallback table `c_dark_gray_red` and `c_black_red` are the same
+colour. The port targets the table a player with a modern terminal sees, and the
+harness pins it (`ncurses_def.cpp`, under `CATA_HARNESS`), so a dump never
+describes a table no player has.
+
 ## Decisions
 
 | # | Decision | Rationale |
