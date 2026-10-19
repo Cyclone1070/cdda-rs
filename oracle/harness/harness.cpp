@@ -8,6 +8,8 @@
 #include "game.h"
 #include "map.h"
 #include "enums.h"
+#include "field_type.h"
+#include "generic_factory.h"
 #include "filesystem.h"
 #include "options.h"
 #include "path_info.h"
@@ -321,6 +323,37 @@ void dump_materials( const std::string &path )
                       static_cast<double>( material.specific_heat_liquid() ),
                       static_cast<double>( material.specific_heat_solid() ),
                       static_cast<double>( material.latent_heat() ) );
+        first = false;
+    }
+    std::fprintf( out, "]}\n" );
+    std::fclose( out );
+}
+
+void dump_fields( const std::string &path )
+{
+    std::FILE *out = std::fopen( path.c_str(), "wb" );
+    if( out == nullptr ) {
+        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
+        return;
+    }
+    std::fprintf( out, "{\"harness\":\"fields\",\"version\":1,\n\"prototypes\":[\n" );
+    bool first = true;
+    for( const field_type &field : get_all_field_types().get_all() ) {
+        std::fprintf( out, "%s\n{\"id\":\"%s\",\"priority\":%d,\"levels\":[",
+                      first ? "" : ",", field.id.str().c_str(), field.priority );
+        bool first_level = true;
+        for( const field_intensity_level &level : field.intensity_levels ) {
+            std::fprintf( out, "%s\n{\"name\":\"%s\",\"sym\":%u,\"color\":\"%s\","
+                          "\"dangerous\":%s,\"transparent\":%s,\"move_cost\":%d,"
+                          "\"concentration\":%d,\"light\":%.6g}",
+                          first_level ? "" : ",", level.name.translated().c_str(),
+                          level.symbol, string_from_color( level.color ).c_str(),
+                          level.dangerous ? "true" : "false",
+                          level.transparent ? "true" : "false", level.move_cost,
+                          level.concentration, static_cast<double>( level.light_emitted ) );
+            first_level = false;
+        }
+        std::fprintf( out, "]}" );
         first = false;
     }
     std::fprintf( out, "]}\n" );

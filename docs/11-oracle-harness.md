@@ -282,6 +282,18 @@ The member initialisers in `material.h:90-92` never reach a loaded material.
 A port that copied the header would have been wrong for 10 materials and right
 for the 12 that state 4.186 in JSON.
 
+### Field types, where inheritance runs inside an object
+
+`--dump-fields` adds 145 field types with every intensity level: name, glyph,
+colour, danger, transparency, move cost, concentration, light.
+
+They earned their place by breaking two assumptions at once. A level inherits the
+level *before it in the same object*, not another prototype - so a field's third
+level is its second plus its own members. And concentration is the one field with
+a default of its own rather than the inherited value, except that fog states
+`0.5` and the reference's integer reader truncates it to `0`. Both rules are now
+pinned in code rather than assumed.
+
 ### Replay runs without a terminal, and is reproducible
 
 `--replay <file> --dump-state <file>` plays a recorded session: one key per line,

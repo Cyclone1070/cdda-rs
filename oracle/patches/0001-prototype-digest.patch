@@ -85,8 +85,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-20 03:51:56
-@@ -0,0 +1,437 @@
++++ oracle/src/src/harness.cpp	2026-10-20 04:18:34
+@@ -0,0 +1,470 @@
 +#include "harness.h"
 +
 +#include <algorithm>
@@ -97,6 +97,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +#include "game.h"
 +#include "map.h"
 +#include "enums.h"
++#include "field_type.h"
++#include "generic_factory.h"
 +#include "filesystem.h"
 +#include "options.h"
 +#include "path_info.h"
@@ -416,6 +418,37 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    std::fclose( out );
 +}
 +
++void dump_fields( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    std::fprintf( out, "{\"harness\":\"fields\",\"version\":1,\n\"prototypes\":[\n" );
++    bool first = true;
++    for( const field_type &field : get_all_field_types().get_all() ) {
++        std::fprintf( out, "%s\n{\"id\":\"%s\",\"priority\":%d,\"levels\":[",
++                      first ? "" : ",", field.id.str().c_str(), field.priority );
++        bool first_level = true;
++        for( const field_intensity_level &level : field.intensity_levels ) {
++            std::fprintf( out, "%s\n{\"name\":\"%s\",\"sym\":%u,\"color\":\"%s\","
++                          "\"dangerous\":%s,\"transparent\":%s,\"move_cost\":%d,"
++                          "\"concentration\":%d,\"light\":%.6g}",
++                          first_level ? "" : ",", level.name.translated().c_str(),
++                          level.symbol, string_from_color( level.color ).c_str(),
++                          level.dangerous ? "true" : "false",
++                          level.transparent ? "true" : "false", level.move_cost,
++                          level.concentration, static_cast<double>( level.light_emitted ) );
++            first_level = false;
++        }
++        std::fprintf( out, "]}" );
++        first = false;
++    }
++    std::fprintf( out, "]}\n" );
++    std::fclose( out );
++}
++
 +bool start_headless_game( const std::string &world_name, const std::string &start_loc,
 +                          std::string &error )
 +{
@@ -526,8 +559,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +} // namespace harness
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-20 03:51:56
-@@ -0,0 +1,121 @@
++++ oracle/src/src/harness.h	2026-10-20 04:18:34
+@@ -0,0 +1,124 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -633,6 +666,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +// `--dump-materials <file>`: every material's resolved fields.
 +void dump_materials( const std::string &path );
 +
++// `--dump-fields <file>`: every field type's resolved intensity levels.
++void dump_fields( const std::string &path );
++
 +// `--dump-state <file>`: the world the reference actually produced — random
 +// stream position, calendar, avatar, and a tile-level digest of the reality
 +// bubble. Requires start_headless_game first.
@@ -671,7 +707,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-20 03:47:07
++++ oracle/src/src/main.cpp	2026-10-20 04:12:37
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -682,7 +718,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,22 @@
+@@ -272,6 +275,24 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -699,13 +735,15 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    // Harness: resolved traps and materials.
 +    std::string dump_traps;
 +    std::string dump_materials;
++    // Harness: resolved field types.
++    std::string dump_fields;
 +    std::string replay;
 +    std::string world_name;
 +    std::string start_location;
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +319,106 @@
+@@ -300,6 +321,116 @@
                  }
              },
              {
@@ -755,6 +793,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_materials = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-fields", "<file>",
++                "Writes every resolved field type to <file>",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_fields = params[0];
 +                    return 1;
 +                }
 +            },
@@ -812,7 +860,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +905,81 @@
+@@ -786,6 +917,87 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -860,6 +908,12 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            test_mode = true;
 +            g->check_mod_data( { mod_id( "dda" ) } );
 +            harness::dump_materials( cli.dump_materials );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_fields.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_fields( cli.dump_fields );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_terrain.empty() ) {

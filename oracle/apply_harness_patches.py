@@ -288,6 +288,8 @@ def patch_main(src: pathlib.Path) -> None:
     // Harness: resolved traps and materials.
     std::string dump_traps;
     std::string dump_materials;
+    // Harness: resolved field types.
+    std::string dump_fields;
     std::string replay;
     std::string world_name;
     std::string start_location;""",
@@ -345,6 +347,16 @@ def patch_main(src: pathlib.Path) -> None:
                 1,
                 [&result]( int, const char **params ) -> int {
                     result.dump_materials = params[0];
+                    return 1;
+                }
+            },
+            {
+                "--dump-fields", "<file>",
+                "Writes every resolved field type to <file>",
+                section_default,
+                1,
+                [&result]( int, const char **params ) -> int {
+                    result.dump_fields = params[0];
                     return 1;
                 }
             },
@@ -452,6 +464,12 @@ def patch_main(src: pathlib.Path) -> None:
             test_mode = true;
             g->check_mod_data( { mod_id( "dda" ) } );
             harness::dump_materials( cli.dump_materials );
+            exit_handler( 0 );
+        }
+        if( !cli.dump_fields.empty() ) {
+            test_mode = true;
+            g->check_mod_data( { mod_id( "dda" ) } );
+            harness::dump_fields( cli.dump_fields );
             exit_handler( 0 );
         }
         if( !cli.dump_terrain.empty() ) {
