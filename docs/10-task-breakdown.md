@@ -40,8 +40,8 @@ ready to start.
 
 | ID | Task | Produces | Proven by | Status |
 |---|---|---|---|---|
-| P1-T1 | Registry machinery | Load, inherit, finalise, consistency-check | Fixture types load in both builds | in progress (82 of 90 registries exact; load order, dispatch, id members and null prototypes done) |
-| P1-T2 | Inheritance and merge operators | `copy-from`, `extend`, `delete`, `relative`, `proportional` | Operator-by-operator parity corpus | not started |
+| P1-T1 | Registry machinery | Load, inherit, finalise, consistency-check | Fixture types load in both builds | in progress (machinery done and exercised on the whole corpus; per-type loaders next) |
+| P1-T2 | Inheritance and merge operators | `copy-from`, `extend`, `delete`, `relative`, `proportional` | Operator-by-operator parity corpus | in progress: `copy-from` and its deferral rule done; the four operators are per-loader (`mapdata.cpp:1072`, `assign.cpp:60-75`) and arrive with the loaders |
 | P1-T3 | Loader families (items, monsters, terrain, vehicles, recipes) | The five largest content families | Per-family digest | not started |
 | P1-T4 | Loader families (remaining 155 types) | Everything else | Full digest equality (M1) | not started |
 | P1-T5 | Mod discovery and ordering | Discovery, duplicate detection, user order | 42 in-repo mods load in the same order | not started |
