@@ -148,36 +148,43 @@ impl ItemType {
                 continue;
             };
             for body_part in &part.covers {
-                match merged.iter_mut().find(|entry| &entry.part == body_part) {
-                    Some(existing) => {
-                        #[allow(clippy::cast_precision_loss)]
-                        let new_weight = anatomy.coverage(body_part, sub_coverage) as f32;
-                        #[allow(clippy::cast_precision_loss)]
-                        let old_weight = anatomy.coverage(body_part, &existing.sub_coverage) as f32;
-                        match existing
-                            .materials
-                            .iter_mut()
-                            .find(|(name, _)| name == &part.material)
-                        {
-                            Some((_, thickness)) => {
-                                if new_weight + old_weight > 0.0 {
-                                    *thickness = (new_weight * part.thickness
-                                        + old_weight * *thickness)
-                                        / (old_weight + new_weight);
-                                }
-                            }
-                            None => existing
-                                .materials
-                                .push((part.material.clone(), part.thickness)),
+                // The weights are measured before the row grows, so two
+                // materials of the same entry on the same body part average
+                // evenly - a sandal with wood at 2 mm and 4 mm ends at 3 mm.
+                #[allow(clippy::cast_precision_loss)]
+                let new_weight = anatomy.coverage(body_part, sub_coverage) as f32;
+                let index = merged
+                    .iter()
+                    .position(|entry| &entry.part == body_part)
+                    .unwrap_or_else(|| {
+                        merged.push(Merged {
+                            part: body_part.clone(),
+                            sub_coverage: BTreeSet::new(),
+                            materials: Vec::new(),
+                        });
+                        merged.len() - 1
+                    });
+                let Some(existing) = merged.get_mut(index) else {
+                    continue;
+                };
+                #[allow(clippy::cast_precision_loss)]
+                let old_weight = anatomy.coverage(body_part, &existing.sub_coverage) as f32;
+                match existing
+                    .materials
+                    .iter_mut()
+                    .find(|(name, _)| name == &part.material)
+                {
+                    Some((_, thickness)) => {
+                        if new_weight + old_weight > 0.0 {
+                            *thickness = (new_weight * part.thickness + old_weight * *thickness)
+                                / (old_weight + new_weight);
                         }
-                        existing.sub_coverage.extend(sub_coverage.iter().cloned());
                     }
-                    None => merged.push(Merged {
-                        part: body_part.clone(),
-                        sub_coverage: sub_coverage.clone(),
-                        materials: vec![(part.material.clone(), part.thickness)],
-                    }),
+                    None => existing
+                        .materials
+                        .push((part.material.clone(), part.thickness)),
                 }
+                existing.sub_coverage.extend(sub_coverage.iter().cloned());
             }
         }
         // The thicknesses add up first and are turned into portions once, in
@@ -768,7 +775,11 @@ fn replace_materials(
         let Value::Str(new_name) = new else {
             continue;
         };
-        let portion = item.materials.get(old).copied().unwrap_or(0);
+        // The reference reads the old portion through `materials[ old ]`, which
+        // inserts the material with a portion of zero when it is not there. That
+        // zero survives: an item that swaps a material it never had ends up
+        // listing it with no share (`item_factory.cpp:4007`)。
+        let portion = *item.materials.entry(old.clone()).or_insert(0);
         if portion != 0
             && total != 0
             && let (Some(old_density), Some(new_density)) =
@@ -781,7 +792,8 @@ fn replace_materials(
             let scaled = (share as f64 * (new_density / old_density)) as i64;
             item.weight += scaled - share;
         }
-        if let Some(portion) = item.materials.remove(old) {
+        if portion != 0 {
+            let portion = item.materials.remove(old).unwrap_or(0);
             *item.materials.entry(new_name.clone()).or_insert(0) += portion;
         }
     }
