@@ -251,7 +251,7 @@ impl MinStdRand0 {
 
     /// `uniform_real_distribution<double>(a, b)`: `(b - a) * canonical + a`.
     /// `normal_distribution` draws its `[-1, 1)` values this way.
-    fn uniform_real_in(&mut self, a: f64, b: f64) -> f64 {
+    pub fn uniform_real_in(&mut self, a: f64, b: f64) -> f64 {
         (b - a) * self.generate_canonical() + a
     }
 
@@ -282,6 +282,7 @@ impl MinStdRand0 {
 }
 
 /// `std::normal_distribution<>` (`src/rng.cpp:80-83`).
+#[derive(Debug)]
 pub struct NormalDistribution {
     /// libc++'s `__v_` / `__v_hot_`: the polar method produces two values per
     /// accepted pair, so the second one is stored and returned next time.
@@ -320,4 +321,141 @@ impl NormalDistribution {
         // default `normal_distribution<>()`.
         u * factor
     }
+}
+
+/// The reference's random-number facade: one engine, plus the distribution
+/// objects it keeps in function-local statics (`src/rng.cpp`).
+///
+/// The wrappers are worth reproducing exactly because everything that rolls
+/// anything goes through them, so a wrapper that drew one extra value would
+/// shift every later draw. The distributions share one cache of the second
+/// normal value, exactly as the reference's statics do.
+#[derive(Debug)]
+pub struct Rolls {
+    engine: MinStdRand0,
+    normal: NormalDistribution,
+}
+
+impl Rolls {
+    /// Seeds the engine and clears the caches.
+    #[must_use]
+    pub const fn new(seed: u32) -> Self {
+        Self {
+            engine: MinStdRand0::seeded(seed),
+            normal: NormalDistribution::standard(),
+        }
+    }
+
+    /// The engine itself, for the code that draws directly.
+    pub const fn engine(&mut self) -> &mut MinStdRand0 {
+        &mut self.engine
+    }
+
+    /// A whole number in `lo..=hi`, swapping reversed bounds rather than
+    /// refusing them (`src/rng.cpp:20-28`).
+    pub fn rng(&mut self, lo: i32, hi: i32) -> i32 {
+        let (lo, hi) = if lo > hi { (hi, lo) } else { (lo, hi) };
+        self.engine.uniform_int(lo, hi)
+    }
+
+    /// A real in `[lo, hi)`, swapping reversed bounds (`src/rng.cpp:30-42`).
+    ///
+    /// # Panics
+    ///
+    /// The reference reports a debug message and returns zero for a bound that
+    /// is not finite; a caller that can produce one must check first.
+    pub fn rng_float(&mut self, lo: f64, hi: f64) -> f64 {
+        let (lo, hi) = if lo > hi { (hi, lo) } else { (lo, hi) };
+        assert!(lo.is_finite() && hi.is_finite(), "rng_float with nan/inf");
+        self.engine.uniform_real_in(lo, hi)
+    }
+
+    /// A normally distributed value (`src/rng.cpp:80-84`).
+    pub fn normal_roll(&mut self, mean: f64, stddev: f64) -> f64 {
+        // `normal_distribution::operator()` ends with `value * stddev + mean`.
+        self.normal.next(&mut self.engine) * stddev + mean
+    }
+
+    /// A normal value in `lo..=hi`, clamped to the range (`src/rng.cpp:180-192`).
+    ///
+    /// The standard deviation is a quarter of the range, so the range is four
+    /// deviations wide and the clamp only ever clips the far tail.
+    pub fn rng_normal(&mut self, lo: f64, hi: f64) -> f64 {
+        let (lo, hi) = if lo > hi { (hi, lo) } else { (lo, hi) };
+        let range = (hi - lo) / 4.0;
+        if range == 0.0 {
+            return hi;
+        }
+        let value = self.normal_roll(f64::midpoint(hi, lo), range);
+        value.clamp(lo, hi)
+    }
+
+    /// A whole unsigned word (`src/rng.cpp:13-18`).
+    pub fn rng_bits(&mut self) -> u32 {
+        self.engine.uniform_uint()
+    }
+
+    /// True with probability `1/chance`, and always for a chance of one or less
+    /// (`src/rng.cpp:111-114`).
+    pub fn one_in(&mut self, chance: i32) -> bool {
+        chance <= 1 || self.rng(0, chance - 1) == 0
+    }
+
+    /// True with probability `x/y` (`src/rng.cpp:120-123`).
+    pub fn x_in_y(&mut self, x: f64, y: f64) -> bool {
+        self.rng_float(0.0, 1.0) <= x / y
+    }
+
+    /// The sum of `number` rolls of `1..=sides` (`src/rng.cpp:125-133`).
+    pub fn dice(&mut self, number: i32, sides: i32) -> i32 {
+        (0..number).map(|_| self.rng(1, sides)).sum()
+    }
+
+    /// Rounds probabilistically: the fraction is the chance of rounding away
+    /// from zero (`src/rng.cpp:137-150`).
+    pub fn roll_remainder(&mut self, value: f64) -> i32 {
+        let whole = value.trunc();
+        let fraction = value - whole;
+        let mut out = whole;
+        if value > 0.0 && value > whole && self.x_in_y(fraction, 1.0) {
+            out += 1.0;
+        } else if value < 0.0 && value < whole && self.x_in_y(-fraction, 1.0) {
+            out -= 1.0;
+        }
+        #[allow(clippy::cast_possible_truncation)]
+        let out = out as i32;
+        out
+    }
+
+    /// One entry of a container, or nothing when it is empty
+    /// (`src/rng.h:106-115`).
+    pub fn random_entry<'a, T>(&mut self, container: &'a [T]) -> Option<&'a T> {
+        if container.is_empty() {
+            return None;
+        }
+        #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+        let last = (container.len() - 1) as i32;
+        let index = self.rng(0, last);
+        #[allow(clippy::cast_sign_loss)]
+        container.get(index as usize)
+    }
+}
+
+/// A reproducible sequence from its own engine, which leaves the shared one
+/// alone (`src/rng.cpp:158-175`).
+#[must_use]
+pub fn rng_sequence(count: usize, lo: i32, hi: i32, seed: u32) -> Vec<i32> {
+    let (lo, hi) = if lo > hi { (hi, lo) } else { (lo, hi) };
+    let mut engine = MinStdRand0::seeded(seed);
+    (0..count).map(|_| engine.uniform_int(lo, hi)).collect()
+}
+
+/// `djb2`, the world-seeding hash (`src/rng.cpp:152-165`).
+#[must_use]
+pub fn djb2_hash(input: &str) -> i32 {
+    let mut hash: u32 = 5381;
+    for byte in input.bytes() {
+        hash = hash.wrapping_mul(33).wrapping_add(u32::from(byte));
+    }
+    i32::from_ne_bytes(hash.to_ne_bytes())
 }

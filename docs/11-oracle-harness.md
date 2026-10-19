@@ -385,6 +385,26 @@ exactly:
 The remaining registries - overmap terrain, overmap terrain types and overmap
 specials - are built from mapgen, which has no loader yet.
 
+### The random-number corpus is the standard library, not the game
+
+The engine and its distributions are implementation-defined, so "match the
+reference" means "match libc++". `corpus/rng/wrappers.cpp` is a small program that
+calls the reference's own wrapper layer - `rng`, `rng_float`, `normal_roll`,
+`rng_normal`, `rng_bits`, `one_in`, `x_in_y`, `dice`, `roll_remainder`,
+`rng_sequence` - against one engine seeded with 12345, in a fixed order, and
+prints every value at full precision. Compiling it with the platform's libc++ and
+running it once produces `corpus/rng/wrappers.csv`; the port must reproduce all
+84 rows **exactly**, and a guard test proves a different seed does not.
+
+Two things this pins that reading the wrappers alone would not:
+
+* `rng_float` and `rng` swap reversed bounds rather than refusing them, so a
+  call with the arguments the wrong way round consumes the same stream.
+* The normal distribution caches the second value of each polar pair, so the
+  engine advances in a pattern that depends on the *history* of calls: a wrapper
+  that re-created the distribution each time would still look plausible and be
+  wrong from the second call onwards.
+
 ### Replay runs without a terminal, and is reproducible
 
 `--replay <file> --dump-state <file>` plays a recorded session: one key per line,
