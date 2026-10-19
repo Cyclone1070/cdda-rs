@@ -40,7 +40,7 @@ ready to start.
 
 | ID | Task | Produces | Proven by | Status |
 |---|---|---|---|---|
-| P1-T1 | Registry machinery | Load, inherit, finalise, consistency-check | Fixture types load in both builds | in progress (ids scanned: 66 of 90 registries exact) |
+| P1-T1 | Registry machinery | Load, inherit, finalise, consistency-check | Fixture types load in both builds | in progress (82 of 90 registries exact; load order, dispatch, id members and null prototypes done) |
 | P1-T2 | Inheritance and merge operators | `copy-from`, `extend`, `delete`, `relative`, `proportional` | Operator-by-operator parity corpus | not started |
 | P1-T3 | Loader families (items, monsters, terrain, vehicles, recipes) | The five largest content families | Per-family digest | not started |
 | P1-T4 | Loader families (remaining 155 types) | Everything else | Full digest equality (M1) | not started |

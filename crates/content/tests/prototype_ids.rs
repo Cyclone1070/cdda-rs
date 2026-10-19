@@ -62,6 +62,12 @@ fn pair<'a>(
 ) -> Option<(&'a String, &'a BTreeSet<String>, usize)> {
     let mut best: Option<(&String, &BTreeSet<String>, usize)> = None;
     for (name, theirs) in candidates {
+        // An exact match wins outright; a tie between two types that merely
+        // share one id is decided by the first name, which is arbitrary, so it
+        // must not be allowed to hide an exact match further down.
+        if theirs == ids {
+            return Some((name, theirs, ids.len()));
+        }
         let shared = ids.intersection(theirs).count();
         if best.is_none_or(|(_, _, best_shared)| shared > best_shared) {
             best = Some((name, theirs, shared));
@@ -124,8 +130,10 @@ struct Difference {
 
 #[test]
 fn the_port_never_invents_an_id_the_reference_does_not_have() {
-    let data = reference_root().join("data/json");
-    let ours: BTreeMap<String, BTreeSet<String>> = scan(&data)
+    let root = reference_root();
+    let core = root.join("data/core");
+    let content = root.join("data/json");
+    let ours: BTreeMap<String, BTreeSet<String>> = scan(&[&core, &content])
         .expect("scan")
         .into_iter()
         .map(|registry| (registry.type_name, registry.ids.into_iter().collect()))
@@ -151,8 +159,10 @@ fn the_port_never_invents_an_id_the_reference_does_not_have() {
 #[test]
 #[ignore = "M1 gate: needs the loader that creates synthetic and inline prototypes"]
 fn every_registry_holds_the_same_ids_as_the_reference() {
-    let data = reference_root().join("data/json");
-    let ours: BTreeMap<String, BTreeSet<String>> = scan(&data)
+    let root = reference_root();
+    let core = root.join("data/core");
+    let content = root.join("data/json");
+    let ours: BTreeMap<String, BTreeSet<String>> = scan(&[&core, &content])
         .expect("scan")
         .into_iter()
         .map(|registry| (registry.type_name, registry.ids.into_iter().collect()))

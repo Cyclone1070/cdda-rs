@@ -11,11 +11,18 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+mod rules;
 mod scan;
 
+pub use rules::{id_member, null_prototype, registry_for};
 pub use scan::{Registry, ScanError, scan};
 
 /// Every `*.json` file under `dir`, in the reference's load order.
+///
+/// # Errors
+///
+/// Returns an error only if the starting directory itself cannot be read; a
+/// subdirectory that cannot be opened is skipped, as the reference skips it.
 ///
 /// The reference walks a directory level by level, sorting the entries of each
 /// level (`filesystem.cpp:332,372-374`), so directories and files interleave by
