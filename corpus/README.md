@@ -12,6 +12,7 @@ generator is committed next to its output.
 | `prototypes/ids.json` | `cataclysm --dump-prototype-ids` | The same registries with every id spelled out, so a difference can be read rather than hunted |
 | `env/env-seed12345.json` | `cataclysm --seed 12345 --dump-env` | The state before any world: RNG position, calendar, and the five options the simulation reads. Only reproducible with an explicit seed |
 | `options/table.json` | [`gen_options.py`](../tools/gen_options.py) | Every option the reference declares: name, type, default, range, page (276) |
+| `replay/walk-east.key` + `state/replay-walk-east.json` | `cataclysm --replay --dump-state` | A recorded session and the state it reaches: five inputs, four turns, byte-identical across runs. This is the artifact a port is compared against, because the replay path is the one a player takes |
 | `state/state-seed12345.json` | `cataclysm --seed 12345 --dump-state` | A game started headlessly: RNG position, calendar, avatar, and a tile-level digest of the reality bubble. Byte-identical across runs |
 | `text/msgids.txt` | [`gen_msgids.py`](../tools/gen_msgids.py) | Every message id the C++ marks for translation (11,058 keys), so the port can prove its lookup returns them unchanged |
 

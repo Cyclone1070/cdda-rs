@@ -44,7 +44,7 @@ Nothing is `gated` without a link to the run that proved it.
 | Save migrations | not started | M1 | 14 content-level migration types plus per-field fix-ups |
 | Compression and archives | not started | M1 | Dictionary content must match bit-for-bit |
 | Map memory and seen-tile persistence | not started | M1 | |
-| Oracle harness modes | not started | Gate 0 | See [11-oracle-harness.md](11-oracle-harness.md) |
+| Oracle harness modes | done (record/replay/state/digest) | Gate 0 | Replays a recorded session with no terminal and reaches a byte-identical state; see [11-oracle-harness.md](11-oracle-harness.md) |
 
 ## P2 — World and environment
 

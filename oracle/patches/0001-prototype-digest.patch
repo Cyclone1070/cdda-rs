@@ -1,3 +1,24 @@
+diff -ruN references/Cataclysm-DDA/src/debug.cpp oracle/src/src/debug.cpp
+--- references/Cataclysm-DDA/src/debug.cpp	2026-10-19 18:15:04
++++ oracle/src/src/debug.cpp	2026-10-20 01:39:47
+@@ -1,4 +1,7 @@
+ #include "debug.h"
++#ifdef CATA_HARNESS
++#include "harness.h"
++#endif
+ 
+ #include <cctype>
+ // IWYU pragma: no_include <sys/errno.h>
+@@ -561,6 +564,9 @@
+         return;
+     }
+ 
++    if( harness::terminal_is_simulated() ) {
++        throw std::runtime_error( "reference error: " + text );
++    }
+     debug_error_prompt( filename, line, funcname, text.c_str(), false );
+ 
+     if( excess_repetition ) {
 diff -ruN references/Cataclysm-DDA/src/game.h oracle/src/src/game.h
 --- references/Cataclysm-DDA/src/game.h	2026-10-19 18:15:04
 +++ oracle/src/src/game.h	2026-10-19 23:49:11
@@ -64,23 +85,29 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-19 23:49:11
-@@ -0,0 +1,301 @@
++++ oracle/src/src/harness.cpp	2026-10-20 01:54:10
+@@ -0,0 +1,384 @@
 +#include "harness.h"
 +
 +#include <algorithm>
 +
 +#include "avatar.h"
 +#include "calendar.h"
++#include "do_turn.h"
 +#include "game.h"
 +#include "map.h"
 +#include "enums.h"
++#include "filesystem.h"
 +#include "options.h"
++#include "path_info.h"
 +#include "rng.h"
 +#include "start_location.h"
 +#include "string_id.h"
 +#include "worldfactory.h"
 +#include <cstdio>
++#include <fstream>
++#include <stdexcept>
++#include <utility>
 +#include <string>
 +#include <vector>
 +
@@ -265,12 +292,88 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    std::fclose( out );
 +}
 +
++namespace
++{
++bool simulated_terminal = false;
++std::vector<std::string> recorded_keys;
++std::size_t next_key = 0;
++} // namespace
++
++void arm_recorded_input( std::vector<std::string> keys )
++{
++    recorded_keys = std::move( keys );
++    next_key = 0;
++    simulated_terminal = true;
++}
++
++bool terminal_is_simulated()
++{
++    return simulated_terminal;
++}
++
++bool has_recorded_input()
++{
++    return simulated_terminal && next_key < recorded_keys.size();
++}
++
++input_event next_input_event()
++{
++    // A recorded key is one byte; the reference's keyboard_char event carries
++    // exactly that in its sequence.
++    const std::string &key = recorded_keys[next_key++];
++    return input_event( static_cast<int>( key.empty() ? 0 : key[0] ),
++                        input_event_t::keyboard_char );
++}
++
++[[noreturn]] void note_blocked_input( const char *where )
++{
++    throw std::runtime_error( std::string( "harness: input requested outside the "
++                                           "recorded stream at " ) + where );
++}
++
++std::vector<std::string> read_key_file( const std::string &path, std::string &error )
++{
++    std::vector<std::string> keys;
++    std::ifstream in( path );
++    if( !in ) {
++        error = "cannot read " + path;
++        return keys;
++    }
++    std::string line;
++    while( std::getline( in, line ) ) {
++        if( line.empty() || line[0] == '#' ) {
++            continue;
++        }
++        keys.push_back( line );
++    }
++    return keys;
++}
++
++void run_replay()
++{
++    // One turn per recorded key. `do_turn` consumes exactly one action, so the
++    // loop stops when the recording does; the guard is a runaway check, not a
++    // turn limit.
++    std::size_t guard = 0;
++    while( has_recorded_input() ) {
++        if( ++guard > 100000 ) {
++            throw std::runtime_error( "harness: replay exceeded 100000 turns" );
++        }
++        do_turn();
++    }
++}
++
 +bool start_headless_game( const std::string &world_name, const std::string &start_loc,
 +                          std::string &error )
 +{
 +    // The reference's own tests stop before this point and build a flat synthetic
 +    // world instead (tests/test_main.cpp:88-168), so this follows the real new-game
 +    // path as far as it can go without input; see docs/parts/headless-start.md.
++    // `avatar::create` writes a character template, so the directory has to
++    // exist before it runs; without it the reference fails writing the file and
++    // opens an error prompt (newcharacter.cpp:870 -> save_template).
++    assure_dir_exist( PATH_INFO::templatedir() );
++
 +    world_generator->set_active_world( nullptr );
 +    world_generator->init();
 +    std::vector<mod_id> mods;
@@ -289,7 +392,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    g->setup();
 +    get_avatar() = avatar();
 +    get_avatar().create( character_type::NOW );
-+    get_avatar().setID( g->assign_npc_id(), false );
++    // The id is assigned by start_game itself; assigning one here makes the
++    // reference complain that the character already has one.
 +
 +    // Fixed start location, so the avatar's birth square is not a random draw.
 +    if( !start_loc.empty() ) {
@@ -369,8 +473,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +} // namespace harness
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-19 23:41:59
-@@ -0,0 +1,70 @@
++++ oracle/src/src/harness.h	2026-10-20 01:54:10
+@@ -0,0 +1,100 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -385,6 +489,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +#include <cstdint>
 +#include <string>
 +#include <vector>
++
++#include "input_enums.h"
 +
 +namespace harness
 +{
@@ -433,6 +539,34 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +bool start_headless_game( const std::string &world_name, const std::string &start_loc,
 +                          std::string &error );
 +
++// --- Replay -----------------------------------------------------------------
++
++// Arms the recorded input. While armed, the input layer serves these events
++// instead of reading a terminal, the terminal-size and encoding loops are
++// skipped, and reaching a popup is an error rather than a wait.
++void arm_recorded_input( std::vector<std::string> keys );
++
++// True while the recorded input is armed.
++bool terminal_is_simulated();
++
++// True while recorded keys remain.
++bool has_recorded_input();
++
++// The next recorded key as the reference's input event. Never called when
++// `has_recorded_input()` is false.
++input_event next_input_event();
++
++// Called by the input layer when something wants a raw key while the terminal is
++// simulated: that is a popup or a menu, which a replay must not enter.
++[[noreturn]] void note_blocked_input( const char *where );
++
++// Reads a recording: one key per line, `#` for comments. The first byte of each
++// line is the key the reference will see.
++std::vector<std::string> read_key_file( const std::string &path, std::string &error );
++
++// Runs turns until the recording is exhausted.
++void run_replay();
++
 +// `--dump-state <file>`: the world the reference actually produced — random
 +// stream position, calendar, avatar, and a tile-level digest of the reality
 +// bubble. Requires start_headless_game first.
@@ -441,9 +575,29 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +} // namespace harness
 +
 +#endif // CATA_SRC_HARNESS_H
+diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.cpp
+--- references/Cataclysm-DDA/src/loading_ui.cpp	2026-10-19 18:15:04
++++ oracle/src/src/loading_ui.cpp	2026-10-20 01:03:36
+@@ -1,4 +1,7 @@
+ #include "loading_ui.h"
++#ifdef CATA_HARNESS
++#include "harness.h"
++#endif
+ 
+ #include "cached_options.h"
+ #include "options.h"
+@@ -151,7 +154,7 @@
+ 
+ void loading_ui::show( const std::string &context, const std::string &step )
+ {
+-    if( test_mode ) {
++    if( test_mode || harness::terminal_is_simulated() ) {
+         return;
+     }
+     update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-20 00:25:15
++++ oracle/src/src/main.cpp	2026-10-20 01:39:47
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -454,7 +608,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,16 @@
+@@ -272,6 +275,17 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -466,12 +620,13 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_env;
 +    // Harness: the state of a freshly started game.
 +    std::string dump_state;
++    std::string replay;
 +    std::string world_name;
 +    std::string start_location;
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +313,66 @@
+@@ -300,6 +314,76 @@
                  }
              },
              {
@@ -491,6 +646,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_prototype_ids = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--replay", "<file>",
++                "Replays recorded keys instead of reading a terminal (needs --dump-state)",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.replay = params[0];
 +                    return 1;
 +                }
 +            },
@@ -538,22 +703,40 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +859,45 @@
+@@ -786,6 +870,63 @@
      // depend on the mods.
      try {
          g->load_static_data();
-+        if( !cli.dump_state.empty() ) {
-+            // Test mode keeps the loading screen and popups from trying to draw to
-+            // a terminal the harness does not have. It also means the reference's
-+            // input layer throws on any read, which is why this mode must never
-+            // be used for replay.
-+            test_mode = true;
-+            std::string error;
++        if( !cli.dump_state.empty() || !cli.replay.empty() ) {
 +            const std::string world_name =
 +                cli.world_name.empty() ? "harness-fixed" : cli.world_name;
-+            if( !harness::start_headless_game( world_name, cli.start_location, error ) ) {
-+                std::fprintf( stderr, "harness: %s\n", error.c_str() );
-+                exit_handler( 2 );
++            std::string error;
++            try {
++                if( cli.replay.empty() ) {
++                    // A plain dump reads nothing, so test mode is safe and keeps the
++                    // interface out of the way entirely.
++                    test_mode = true;
++                } else {
++                    // A replay must run the simulation exactly as a player's would,
++                    // so test mode stays off; the interface layer is taught to run
++                    // without a terminal instead (see apply_harness_patches.py).
++                    std::vector<std::string> keys = harness::read_key_file( cli.replay, error );
++                    if( keys.empty() ) {
++                        std::fprintf( stderr, "harness: %s\n", error.c_str() );
++                        exit_handler( 2 );
++                    }
++                    harness::arm_recorded_input( keys );
++                }
++                if( !harness::start_headless_game( world_name, cli.start_location, error ) ) {
++                    std::fprintf( stderr, "harness: %s\n", error.c_str() );
++                    exit_handler( 2 );
++                }
++                if( !cli.replay.empty() ) {
++                    harness::run_replay();
++                }
++            } catch( const std::exception &e ) {
++                std::fprintf( stderr, "harness: %s\n", e.what() );
++                exit_handler( 3 );
 +            }
 +            harness::dump_state( cli.dump_state );
 +            exit_handler( 0 );
@@ -584,6 +767,81 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
          if( cli.verifyexit ) {
              exit_handler( 0 );
          }
+diff -ruN references/Cataclysm-DDA/src/ncurses_def.cpp oracle/src/src/ncurses_def.cpp
+--- references/Cataclysm-DDA/src/ncurses_def.cpp	2026-10-19 18:15:05
++++ oracle/src/src/ncurses_def.cpp	2026-10-20 01:03:36
+@@ -30,6 +30,9 @@
+ #include "catacharset.h"
+ #include "color.h"
+ #include "cursesdef.h"
++#ifdef CATA_HARNESS
++#include "harness.h"
++#endif
+ #include "game_constants.h"
+ #include "game_ui.h"
+ #include "output.h"
+@@ -382,6 +385,9 @@
+ 
+ void input_manager::pump_events()
+ {
++    if( harness::terminal_is_simulated() ) {
++        return;
++    }
+     if( test_mode ) {
+         return;
+     }
+@@ -409,6 +415,9 @@
+ // ignoring preferred keyboard mode
+ input_event input_manager::get_input_event( const keyboard_mode /*preferred_keyboard_mode*/ )
+ {
++    if( harness::has_recorded_input() ) {
++        return harness::next_input_event();
++    }
+     if( test_mode ) {
+         // input should be skipped in caller's code
+         throw std::runtime_error( "input_manager::get_input_event called in test mode" );
+@@ -562,6 +571,9 @@
+ 
+ void ensure_term_size()
+ {
++    if( harness::terminal_is_simulated() ) {
++        return;
++    }
+     // do not use ui_adaptor here to avoid re-entry
+     const int minHeight = EVEN_MINIMUM_TERM_HEIGHT;
+     const int minWidth = EVEN_MINIMUM_TERM_WIDTH;
+@@ -597,6 +609,9 @@
+ // NOLINTNEXTLINE(cata-static-declarations)
+ void check_encoding()
+ {
++    if( harness::terminal_is_simulated() ) {
++        return;
++    }
+     // Check whether LC_CTYPE supports the UTF-8 encoding
+     // and show a warning if it doesn't
+ #if defined(_WIN32)
+diff -ruN references/Cataclysm-DDA/src/popup.cpp oracle/src/src/popup.cpp
+--- references/Cataclysm-DDA/src/popup.cpp	2026-10-19 16:28:49
++++ oracle/src/src/popup.cpp	2026-10-20 02:02:30
+@@ -1,4 +1,7 @@
+ #include "popup.h"
++#ifdef CATA_HARNESS
++#include "harness.h"
++#endif
+ 
+ #include <algorithm>
+ #include <array>
+@@ -398,6 +401,10 @@
+ }
+ query_popup::result query_popup::query()
+ {
++    if( harness::terminal_is_simulated() ) {
++        std::fprintf( stderr, "harness: declined a popup: %s\n", text.c_str() );
++        return { false, "ERROR", {} };
++    }
+     std::shared_ptr<query_popup_impl> ui = create_or_get_impl();
+ 
+     result res;
 diff -ruN references/Cataclysm-DDA/src/prefix.h oracle/src/src/prefix.h
 --- references/Cataclysm-DDA/src/prefix.h	1970-01-01 10:00:00
 +++ oracle/src/src/prefix.h	2026-10-19 21:25:11

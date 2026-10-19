@@ -14,7 +14,7 @@ ready to start.
 | ID | Task | Produces | Proven by | Status |
 |---|---|---|---|---|
 | P0-T1 | Instrumented reference build | Oracle binary with harness modes behind a flag | Builds; modes documented in [11-oracle-harness.md](11-oracle-harness.md) | done |
-| P0-T2 | State fingerprint + full dump | `--dump-state` in the reference | Two runs of the same session agree | done (state dump) |
+| P0-T2 | State fingerprint + full dump | `--dump-state` in the reference | Two runs of the same session agree | done |
 | P0-T3 | Prototype digest | `--dump-prototype-digest` | Digest is stable across runs and rebuilds | done |
 | P0-T4 | Coordinate and scale types | Origin/scale-safe point types | Illegal arithmetic fails to compile; exhaustive conversion tests | done |
 | P0-T5 | Units and quantities | Typed physical quantities | Round-trip and overflow tests | done |
@@ -28,7 +28,7 @@ ready to start.
 | P0-T13 | Paths and roots | Seven logical roots, platform rules | Table-driven path tests | done |
 | P0-T14 | Text lookup and formatting | Message lookup and string formatting | Message-id and formatting parity corpus | done |
 | P0-T15 | Colours | Colour definitions and themes | Rendered-value parity | done |
-| P0-T16 | Containers and hashing | Stable pools, dense bit sets, hashing | Behavioural tests against reference container semantics | in progress |
+| P0-T16 | Containers and hashing | Stable pools, dense bit sets, hashing | Behavioural tests against reference container semantics | done |
 | P0-T17 | Diagnostics | Debug levels, assertions, error reporting | Error-path tests | done |
 | P0-T18 | CI skeleton | Jobs for T0–T2 wired to the port | Runs green on an empty port | not started |
 

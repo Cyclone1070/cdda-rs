@@ -13,6 +13,8 @@
 #include <string>
 #include <vector>
 
+#include "input_enums.h"
+
 namespace harness
 {
 
@@ -59,6 +61,34 @@ void dump_environment( const std::string &path );
 // `error` if the reference refuses.
 bool start_headless_game( const std::string &world_name, const std::string &start_loc,
                           std::string &error );
+
+// --- Replay -----------------------------------------------------------------
+
+// Arms the recorded input. While armed, the input layer serves these events
+// instead of reading a terminal, the terminal-size and encoding loops are
+// skipped, and reaching a popup is an error rather than a wait.
+void arm_recorded_input( std::vector<std::string> keys );
+
+// True while the recorded input is armed.
+bool terminal_is_simulated();
+
+// True while recorded keys remain.
+bool has_recorded_input();
+
+// The next recorded key as the reference's input event. Never called when
+// `has_recorded_input()` is false.
+input_event next_input_event();
+
+// Called by the input layer when something wants a raw key while the terminal is
+// simulated: that is a popup or a menu, which a replay must not enter.
+[[noreturn]] void note_blocked_input( const char *where );
+
+// Reads a recording: one key per line, `#` for comments. The first byte of each
+// line is the key the reference will see.
+std::vector<std::string> read_key_file( const std::string &path, std::string &error );
+
+// Runs turns until the recording is exhausted.
+void run_replay();
 
 // `--dump-state <file>`: the world the reference actually produced — random
 // stream position, calendar, avatar, and a tile-level digest of the reality

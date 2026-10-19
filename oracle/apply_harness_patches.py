@@ -126,6 +126,7 @@ def patch_main(src: pathlib.Path) -> None:
     std::string dump_env;
     // Harness: the state of a freshly started game.
     std::string dump_state;
+    std::string replay;
     std::string world_name;
     std::string start_location;""",
         "cli fields",
@@ -152,6 +153,16 @@ def patch_main(src: pathlib.Path) -> None:
                 1,
                 [&result]( int, const char **params ) -> int {
                     result.dump_prototype_ids = params[0];
+                    return 1;
+                }
+            },
+            {
+                "--replay", "<file>",
+                "Replays recorded keys instead of reading a terminal (needs --dump-state)",
+                section_default,
+                1,
+                [&result]( int, const char **params ) -> int {
+                    result.replay = params[0];
                     return 1;
                 }
             },
@@ -204,19 +215,37 @@ def patch_main(src: pathlib.Path) -> None:
         path,
         """        g->load_static_data();
         if( cli.verifyexit ) {""",
-        """        g->load_static_data();
-        if( !cli.dump_state.empty() ) {
-            // Test mode keeps the loading screen and popups from trying to draw to
-            // a terminal the harness does not have. It also means the reference's
-            // input layer throws on any read, which is why this mode must never
-            // be used for replay.
-            test_mode = true;
-            std::string error;
+        r"""        g->load_static_data();
+        if( !cli.dump_state.empty() || !cli.replay.empty() ) {
             const std::string world_name =
                 cli.world_name.empty() ? "harness-fixed" : cli.world_name;
-            if( !harness::start_headless_game( world_name, cli.start_location, error ) ) {
-                std::fprintf( stderr, "harness: %s\\n", error.c_str() );
-                exit_handler( 2 );
+            std::string error;
+            try {
+                if( cli.replay.empty() ) {
+                    // A plain dump reads nothing, so test mode is safe and keeps the
+                    // interface out of the way entirely.
+                    test_mode = true;
+                } else {
+                    // A replay must run the simulation exactly as a player's would,
+                    // so test mode stays off; the interface layer is taught to run
+                    // without a terminal instead (see apply_harness_patches.py).
+                    std::vector<std::string> keys = harness::read_key_file( cli.replay, error );
+                    if( keys.empty() ) {
+                        std::fprintf( stderr, "harness: %s\n", error.c_str() );
+                        exit_handler( 2 );
+                    }
+                    harness::arm_recorded_input( keys );
+                }
+                if( !harness::start_headless_game( world_name, cli.start_location, error ) ) {
+                    std::fprintf( stderr, "harness: %s\n", error.c_str() );
+                    exit_handler( 2 );
+                }
+                if( !cli.replay.empty() ) {
+                    harness::run_replay();
+                }
+            } catch( const std::exception &e ) {
+                std::fprintf( stderr, "harness: %s\n", e.what() );
+                exit_handler( 3 );
             }
             harness::dump_state( cli.dump_state );
             exit_handler( 0 );
@@ -256,6 +285,131 @@ def patch_main(src: pathlib.Path) -> None:
     )
 
 
+def patch_ncurses(src: pathlib.Path) -> None:
+    """Teaches the interface layer to run without a terminal.
+
+    A replay serves recorded keys instead of reading the screen, so the pieces
+    that wait for a real terminal have to be bypassed. Each hook is inert unless
+    the harness has armed a recording, and each is narrow on purpose:
+
+    * the loading screen is not drawn (it is the one thing that blocks with no
+      terminal, and it has no effect on simulation),
+    * the terminal-size and encoding loops do not run,
+    * the event pump does not drain input,
+    * the event source serves the recording,
+    * a popup returns "no" instead of waiting for a key it will never get.
+    """
+    def add_include( path: pathlib.Path, after: str, label: str ) -> None:
+        patch(
+            path,
+            after,
+            after + '\n#ifdef CATA_HARNESS\n#include "harness.h"\n#endif',
+            label,
+        )
+
+    ncurses = src / "ncurses_def.cpp"
+    add_include( ncurses, '#include "cursesdef.h"', "ncurses include" )
+    patch(
+        ncurses,
+        """void ensure_term_size()
+{""",
+        """void ensure_term_size()
+{
+    if( harness::terminal_is_simulated() ) {
+        return;
+    }""",
+        "terminal size loop",
+    )
+    patch(
+        ncurses,
+        """void check_encoding()
+{""",
+        """void check_encoding()
+{
+    if( harness::terminal_is_simulated() ) {
+        return;
+    }""",
+        "encoding loop",
+    )
+    patch(
+        ncurses,
+        """void input_manager::pump_events()
+{
+    if( test_mode ) {""",
+        """void input_manager::pump_events()
+{
+    if( harness::terminal_is_simulated() ) {
+        return;
+    }
+    if( test_mode ) {""",
+        "event pump",
+    )
+    patch(
+        ncurses,
+        """    if( test_mode ) {
+        // input should be skipped in caller's code
+        throw std::runtime_error( "input_manager::get_input_event called in test mode" );""",
+        """    if( harness::has_recorded_input() ) {
+        return harness::next_input_event();
+    }
+    if( test_mode ) {
+        // input should be skipped in caller's code
+        throw std::runtime_error( "input_manager::get_input_event called in test mode" );""",
+        "recorded events",
+    )
+
+    loading = src / "loading_ui.cpp"
+    add_include( loading, '#include "loading_ui.h"', "loading include" )
+    patch(
+        loading,
+        """void loading_ui::show( const std::string &context, const std::string &step )
+{
+    if( test_mode ) {
+        return;
+    }""",
+        """void loading_ui::show( const std::string &context, const std::string &step )
+{
+    if( test_mode || harness::terminal_is_simulated() ) {
+        return;
+    }""",
+        "loading screen",
+    )
+
+    # A modal prompt waits for a key that a replay will never provide. Decline
+    # it, and say so: a replay that silently took the "no" branch would be worse
+    # than one that says which prompt it declined.
+    popup = src / "popup.cpp"
+    add_include( popup, '#include "popup.h"', "popup include" )
+    patch(
+        popup,
+        """query_popup::result query_popup::query()
+{""",
+        """query_popup::result query_popup::query()
+{
+    if( harness::terminal_is_simulated() ) {
+        std::fprintf( stderr, "harness: declined a popup: %s\\n", text.c_str() );
+        return { false, "ERROR", {} };
+    }""",
+        "declined popup",
+    )
+
+    # An error in the reference opens a modal prompt and waits for a key. A
+    # replay has no keyboard, so turn it into a failure with the message in it -
+    # that is far more useful than a hang, and it is the same information the
+    # prompt would have shown.
+    debug = src / "debug.cpp"
+    add_include( debug, '#include "debug.h"', "debug include" )
+    patch(
+        debug,
+        """    debug_error_prompt( filename, line, funcname, text.c_str(), false );""",
+        """    if( harness::terminal_is_simulated() ) {
+        throw std::runtime_error( "reference error: " + text );
+    }
+    debug_error_prompt( filename, line, funcname, text.c_str(), false );""",
+        "error prompt without a keyboard",
+    )
+
+
 def copy_harness_sources(src: pathlib.Path) -> None:
     """Puts the harness translation units into the working copy.
 
@@ -272,6 +426,7 @@ def main() -> None:
     copy_harness_sources(SRC)
     patch_generic_factory(SRC)
     patch_game_header(SRC)
+    patch_ncurses(SRC)
     patch_main(SRC)
     print("harness patches applied")
 
@@ -287,15 +442,19 @@ def verify() -> None:
 
         shutil.rmtree(scratch)
     scratch.mkdir()
-    for name in ("generic_factory.h", "main.cpp", "game.h"):
+    for name in ("generic_factory.h", "main.cpp", "game.h", "ncurses_def.cpp",
+                 "loading_ui.cpp", "debug.cpp", "popup.cpp"):
         (scratch / name).write_text((ref / name).read_text())
     copy_harness_sources(scratch)
     patch_generic_factory(scratch)
     patch_game_header(scratch)
+    patch_ncurses(scratch)
     patch_main(scratch)
 
     failed = False
-    for name in ("generic_factory.h", "main.cpp", "game.h", "harness.h", "harness.cpp"):
+    for name in ("generic_factory.h", "main.cpp", "game.h", "ncurses_def.cpp",
+                 "loading_ui.cpp", "debug.cpp", "popup.cpp", "harness.h",
+                 "harness.cpp"):
         expected = (SRC / name).read_text()
         got = (scratch / name).read_text()
         if expected != got:

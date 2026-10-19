@@ -1,0 +1,6 @@
+{"harness":"state","version":1,
+"rng_next":[1996547068,1534587501,533528837,1274937234],
+"turn":5212804,"season":0,"day_of_season":60,"hour":8,
+"avatar":{"pos_abs":[7740,12180,0],"str":5,"dex":10,"int":6,"per":6,"hp":924,"moves":100},
+"bubble":{"radius":60,"tiles":14641,"digest":"539ac2a129658606"},
+"creatures":6}

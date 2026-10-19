@@ -230,6 +230,39 @@ Both flags are read-only: they load data, write the file, and exit without touch
 a save. They take a **path**, not stdout, because of the constraint in the next
 paragraph.
 
+### Replay runs without a terminal, and is reproducible
+
+`--replay <file> --dump-state <file>` plays a recorded session: one key per line,
+one turn per key, and writes the state at the end. No terminal, no
+pseudo-terminal, no human.
+
+Verified: `corpus/replay/walk-east.key` (walk east three times, wait twice)
+reaches turn 5212804 from 5212800 — five inputs, four turns, because the first
+turn does not advance the calendar — and two runs produce **byte-identical
+state**. The frozen result is `corpus/state/replay-walk-east.json`.
+
+Getting there needed four small hooks in the interface layer, all inert unless a
+recording is armed (`oracle/apply_harness_patches.py`, `patch_ncurses`):
+
+| Hook | Why |
+|---|---|
+| The loading screen is not drawn | Without a terminal it blocked for thirteen minutes on the first attempt |
+| The terminal-size and encoding loops do not run | They spin on a keypress waiting for a screen that is never going to be the right size |
+| The event source serves the recording | This is the input itself |
+| A popup is declined, and reported on standard error | It would otherwise wait for a key forever. A replay that silently took the "no" branch would be worse than one that says which prompt it declined |
+
+Test mode stays **off** for a replay, because it changes simulation, not just
+presentation: the map (`map.cpp:6788`, `:9595`), map memory, crafting and
+proficiency caches, and `do_turn` all branch on it. A state produced under test
+mode is therefore a *different artifact* from a replayed one — both are
+reproducible, but the port must be compared against the replay, which is the path
+a player takes. The cheaper dump remains useful for environment checks.
+
+One reference defect surfaced here: `avatar::create` always writes a character
+template (`newcharacter.cpp:870`), and if the template directory does not exist the
+write fails and the game opens an error prompt. The harness creates the directory
+first, which is what a player's installation has.
+
 ### The state dump works, and needs test mode to exist at all here
 
 `--dump-state` starts a real game by the path in

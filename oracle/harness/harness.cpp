@@ -4,15 +4,21 @@
 
 #include "avatar.h"
 #include "calendar.h"
+#include "do_turn.h"
 #include "game.h"
 #include "map.h"
 #include "enums.h"
+#include "filesystem.h"
 #include "options.h"
+#include "path_info.h"
 #include "rng.h"
 #include "start_location.h"
 #include "string_id.h"
 #include "worldfactory.h"
 #include <cstdio>
+#include <fstream>
+#include <stdexcept>
+#include <utility>
 #include <string>
 #include <vector>
 
@@ -197,12 +203,88 @@ void dump_environment( const std::string &path )
     std::fclose( out );
 }
 
+namespace
+{
+bool simulated_terminal = false;
+std::vector<std::string> recorded_keys;
+std::size_t next_key = 0;
+} // namespace
+
+void arm_recorded_input( std::vector<std::string> keys )
+{
+    recorded_keys = std::move( keys );
+    next_key = 0;
+    simulated_terminal = true;
+}
+
+bool terminal_is_simulated()
+{
+    return simulated_terminal;
+}
+
+bool has_recorded_input()
+{
+    return simulated_terminal && next_key < recorded_keys.size();
+}
+
+input_event next_input_event()
+{
+    // A recorded key is one byte; the reference's keyboard_char event carries
+    // exactly that in its sequence.
+    const std::string &key = recorded_keys[next_key++];
+    return input_event( static_cast<int>( key.empty() ? 0 : key[0] ),
+                        input_event_t::keyboard_char );
+}
+
+[[noreturn]] void note_blocked_input( const char *where )
+{
+    throw std::runtime_error( std::string( "harness: input requested outside the "
+                                           "recorded stream at " ) + where );
+}
+
+std::vector<std::string> read_key_file( const std::string &path, std::string &error )
+{
+    std::vector<std::string> keys;
+    std::ifstream in( path );
+    if( !in ) {
+        error = "cannot read " + path;
+        return keys;
+    }
+    std::string line;
+    while( std::getline( in, line ) ) {
+        if( line.empty() || line[0] == '#' ) {
+            continue;
+        }
+        keys.push_back( line );
+    }
+    return keys;
+}
+
+void run_replay()
+{
+    // One turn per recorded key. `do_turn` consumes exactly one action, so the
+    // loop stops when the recording does; the guard is a runaway check, not a
+    // turn limit.
+    std::size_t guard = 0;
+    while( has_recorded_input() ) {
+        if( ++guard > 100000 ) {
+            throw std::runtime_error( "harness: replay exceeded 100000 turns" );
+        }
+        do_turn();
+    }
+}
+
 bool start_headless_game( const std::string &world_name, const std::string &start_loc,
                           std::string &error )
 {
     // The reference's own tests stop before this point and build a flat synthetic
     // world instead (tests/test_main.cpp:88-168), so this follows the real new-game
     // path as far as it can go without input; see docs/parts/headless-start.md.
+    // `avatar::create` writes a character template, so the directory has to
+    // exist before it runs; without it the reference fails writing the file and
+    // opens an error prompt (newcharacter.cpp:870 -> save_template).
+    assure_dir_exist( PATH_INFO::templatedir() );
+
     world_generator->set_active_world( nullptr );
     world_generator->init();
     std::vector<mod_id> mods;
@@ -221,7 +303,8 @@ bool start_headless_game( const std::string &world_name, const std::string &star
     g->setup();
     get_avatar() = avatar();
     get_avatar().create( character_type::NOW );
-    get_avatar().setID( g->assign_npc_id(), false );
+    // The id is assigned by start_game itself; assigning one here makes the
+    // reference complain that the character already has one.
 
     // Fixed start location, so the avatar's birth square is not a random draw.
     if( !start_loc.empty() ) {
