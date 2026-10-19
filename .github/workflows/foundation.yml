@@ -1,0 +1,49 @@
+name: foundation
+
+# What runs today, on every push and pull request. The jobs here need nothing
+# that the repository does not already contain: no oracle build, no reference
+# checkout, no network beyond the toolchain. They exist so that a regression in
+# the foundation cannot be merged unnoticed, and so that the larger validation in
+# port-validation.yml has something green to build on.
+#
+# Everything here is a command that was run by hand first.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+
+concurrency:
+  group: foundation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: formatting
+        run: cargo fmt --all -- --check
+      - name: lints
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: tests
+        run: cargo test --workspace
+
+  documents:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: documents agree with each other and with the sources
+        run: python3 tools/check_docs.py
+      - name: the generated inventory is up to date
+        run: python3 tools/gen_inventory.py --out docs/06-inventory.md && git diff --exit-code docs/06-inventory.md

@@ -30,7 +30,7 @@ ready to start.
 | P0-T15 | Colours | Colour definitions and themes | Rendered-value parity | done |
 | P0-T16 | Containers and hashing | Stable pools, dense bit sets, hashing | Behavioural tests against reference container semantics | done |
 | P0-T17 | Diagnostics | Debug levels, assertions, error reporting | Error-path tests | done |
-| P0-T18 | CI skeleton | Jobs for T0–T2 wired to the port | Runs green on an empty port | not started |
+| P0-T18 | CI skeleton | Jobs for T0–T2 wired to the port | Runs green on an empty port | done (foundation.yml; every command run by hand first) |
 
 **Gate M0:** RNG, text and JSON parity; harness modes exist; acceptance corpus passes.
 

@@ -230,6 +230,18 @@ Both flags are read-only: they load data, write the file, and exit without touch
 a save. They take a **path**, not stdout, because of the constraint in the next
 paragraph.
 
+### What runs in CI today
+
+`.github/workflows/foundation.yml` runs on every push and pull request with no
+reference checkout and no oracle build: formatting, lints as errors, the whole
+test suite, the document checker, and a regeneration check on the inventory.
+Every command in it was run by hand first.
+
+The larger `port-validation.yml` stays aspirational until the crates it names
+exist; its oracle pin has been corrected to the commit this repository actually
+mirrors, and every job in it is behind the `PORT_CI` variable so it cannot fail a
+build by accident.
+
 ### Replay runs without a terminal, and is reproducible
 
 `--replay <file> --dump-state <file>` plays a recorded session: one key per line,
