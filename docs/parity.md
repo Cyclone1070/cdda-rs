@@ -16,7 +16,7 @@ Nothing is `gated` without a link to the run that proved it.
 
 | System | Status | Gate | Notes |
 |---|---|---|---|
-| Coordinates, origins and scales | in progress | RNG + text parity (M0) | Projection green: floor-toward-negative-infinity confirmed against `coordinates.h:601-644`, vertical axis unscaled. Legality matrix still to come |
+| Coordinates, origins and scales | done (P0 scope) | M0 | 13 tests. Projection floors toward negative infinity (`coordinates.h:601-644`) and the vertical axis is never scaled. The origin/scale legality matrix is in the type system: six origins, four legal `project_remain` targets, `combine` only where the fine origin is the one the coarse scale names, and a segment that divides terrain tiles but not overmaps. Distances, midpoint and hashing match `coordinate_test.cpp` |
 | Units and quantities | done (P0 scope) | M0 | 23 tests; 83 of the reference's 202 assertions reproduced, the rest being time/JSON/option-driven conversions that belong to later tasks. Rounding truncation rules pinned from the source |
 | Calendar and time | done (P0 scope) | M0 | 28 tests = every assertion in `tests/calendar_test.cpp`; sun and moonlight cross-checked against the reference's own formulas over 309 configurations (max deviation 2e-16 rad) |
 | Random numbers | in progress | M0 | Engine stream matches the reference draw for draw over 4 seeds ([corpus/rng/engine.csv](../corpus/rng/engine.csv)); the library distributions are being transcribed from libc++ and checked against the same corpus |

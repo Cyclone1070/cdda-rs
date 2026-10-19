@@ -225,8 +225,15 @@ What the rows settled:
   behind with a share of zero, because the reference reads the old share through
   `materials[ old ]`, which inserts it (`item_factory.cpp:4007`).
 
-Four item types of 9,912 still differ, all by one or two hundredths of a unit on a
-thickness that lands on a float boundary (1.525 mm, 0.54 mm), plus one item whose
-materials come from `replace_materials`. At that point the values depend on the
-exact float rounding of the reference's accumulator, which the port does not
-reproduce bit for bit. It is reported as pending rather than tuned to fit.
+That closed the last four differences. They were not float boundaries as first
+recorded: two were the per-row truncation above, one was `extend` reaching the
+material list, and one was the order in which allergen flags are read.
+
+## Combining two halves of a split coordinate
+
+The reference refuses to combine two three-dimensional points because it cannot
+say which `z` wins (`coordinates.h:837`). The port keeps one three-dimensional
+point type instead of separate point and tripoint types, so `combine` takes the
+`z` of the coarse cell. That is the only reading that cannot disagree with the
+reference: `z` is never scaled, so the coarse and fine halves carry the same
+number anyway.
