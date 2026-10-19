@@ -54,6 +54,17 @@ void dump_prototype_ids( const std::string &path );
 // with the same seed must agree on every field.
 void dump_environment( const std::string &path );
 
+// Starts a new game by the real path (world creation, avatar birth, start game)
+// and stops where the first input would be needed. Returns false and fills
+// `error` if the reference refuses.
+bool start_headless_game( const std::string &world_name, const std::string &start_loc,
+                          std::string &error );
+
+// `--dump-state <file>`: the world the reference actually produced — random
+// stream position, calendar, avatar, and a tile-level digest of the reality
+// bubble. Requires start_headless_game first.
+void dump_state( const std::string &path );
+
 } // namespace harness
 
 #endif // CATA_SRC_HARNESS_H

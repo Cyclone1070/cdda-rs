@@ -25,11 +25,11 @@ Nothing is `gated` without a link to the run that proved it.
 | JSON writing | in progress | M0 | Writer matches the reference byte for byte on 127 sample files, including its fixed 6-decimal float format |
 | JSON parse cache | not started | M0 | |
 | Options table | in progress | M0 | 276 options extracted mechanically: 188 from `options.cpp`, 88 from JSON. Four are broken in the reference itself (see 03-decisions.md) |
-| Paths and filesystem roots | not started | M0 | Seven logical roots |
+| Paths and filesystem roots | done (P0 scope) | M0 | Seven logical roots, 12 tests over the platform x build-option matrix; the trailing-separator bug that bit us earlier is now a pinned behaviour |
 | Text lookup and formatting | done (P0 scope) | M0 | Formatter agrees with all 339 reference format rows and its error cases; 71/71 reference string assertions; 11,058 message ids extracted and the lookup returns each unchanged with no catalogue. Byte/column width and C-locale quirks recorded rather than fixed (B4) |
-| Colours | not started | M0 | |
+| Colours | done (P0 scope) | M0 | 23 tests: packed attribute layout, the 145-name table, pair table, name parsing, highlights and inversion. RGB exists only in the graphics build and is ported from there |
 | Containers and hashing | not started | M0 | Stable-address pools, dense bit sets |
-| Diagnostics and debug levels | not started | M0 | |
+| Diagnostics and debug levels | done (P0 scope) | M0 | 10 tests: level and class filtering, log formatting, the error-observed flag, prompt as a caller decision, assertion policy |
 
 ## P1 — Content and persistence
 

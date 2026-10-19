@@ -230,6 +230,27 @@ Both flags are read-only: they load data, write the file, and exit without touch
 a save. They take a **path**, not stdout, because of the constraint in the next
 paragraph.
 
+### The state dump works, and needs test mode to exist at all here
+
+`--dump-state` starts a real game by the path in
+[parts/headless-start.md](parts/headless-start.md), stops where the first input
+would be needed, and writes the random stream position, the calendar, the avatar
+and a tile-level digest of the reality bubble (14,641 tiles: terrain, furniture and
+item count per square).
+
+Verified: with `--seed 12345`, two runs from a clean save directory produce
+**byte-identical output**, so the world the reference generates is reproducible and
+the digest is a usable gate. The frozen artifact is
+`corpus/state/state-seed12345.json`.
+
+The run needs test mode, for a reason that matters for the replay design: without a
+terminal, the loading screen blocks (the first attempt sat at "Loading files" for
+thirteen minutes with no progress). Test mode suppresses that drawing
+(`loading_ui.cpp:154`) and is safe for a dump, which reads nothing. A replay cannot
+do this, because the input layer throws in test mode — so replay needs a null
+terminal backend rather than a real one. That is the next piece of harness work,
+and it is what makes replay possible on a machine with no terminal at all.
+
 ### Reaching the first turn without a human
 
 Investigated in detail in [parts/headless-start.md](parts/headless-start.md); the

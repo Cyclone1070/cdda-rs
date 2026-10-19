@@ -11,9 +11,13 @@
 #![forbid(unsafe_code)]
 
 pub mod calendar;
+pub mod colors;
+pub mod containers;
 pub mod coords;
+pub mod diagnostics;
 pub mod ids;
 pub mod options;
+pub mod paths;
 pub mod rng;
 pub mod strings;
 pub mod text;

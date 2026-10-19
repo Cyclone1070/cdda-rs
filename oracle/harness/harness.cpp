@@ -2,9 +2,16 @@
 
 #include <algorithm>
 
+#include "avatar.h"
 #include "calendar.h"
+#include "game.h"
+#include "map.h"
+#include "enums.h"
 #include "options.h"
 #include "rng.h"
+#include "start_location.h"
+#include "string_id.h"
+#include "worldfactory.h"
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -187,6 +194,107 @@ void dump_environment( const std::string &path )
                   get_option<int>( "MONSTER_SPEED" ),
                   get_option<float>( "SPAWN_DENSITY" ) );
 
+    std::fclose( out );
+}
+
+bool start_headless_game( const std::string &world_name, const std::string &start_loc,
+                          std::string &error )
+{
+    // The reference's own tests stop before this point and build a flat synthetic
+    // world instead (tests/test_main.cpp:88-168), so this follows the real new-game
+    // path as far as it can go without input; see docs/parts/headless-start.md.
+    world_generator->set_active_world( nullptr );
+    world_generator->init();
+    std::vector<mod_id> mods;
+    mods.emplace_back( "dda" );
+    WORLD *world = world_generator->make_new_world( world_name, mods );
+    if( world == nullptr ) {
+        error = "could not create world " + world_name;
+        return false;
+    }
+    world_generator->set_active_world( world );
+
+    // Calendar settings must follow the options before any turn happens.
+    calendar::set_eternal_season( get_option<bool>( "ETERNAL_SEASON" ) );
+    calendar::set_season_length( get_option<int>( "SEASON_LENGTH" ) );
+
+    g->setup();
+    get_avatar() = avatar();
+    get_avatar().create( character_type::NOW );
+    get_avatar().setID( g->assign_npc_id(), false );
+
+    // Fixed start location, so the avatar's birth square is not a random draw.
+    if( !start_loc.empty() ) {
+        const start_location_id loc( start_loc );
+        if( loc.is_valid() ) {
+            get_avatar().random_start_location = false;
+            get_avatar().start_location = loc;
+        } else {
+            error = "unknown start location " + start_loc;
+            return false;
+        }
+    }
+
+    if( !g->harness_start_game() ) {
+        error = "start_game refused";
+        return false;
+    }
+    return true;
+}
+
+void dump_state( const std::string &path )
+{
+    std::FILE *out = std::fopen( path.c_str(), "wb" );
+    if( out == nullptr ) {
+        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
+        return;
+    }
+    const avatar &u = get_avatar();
+    const time_point now = calendar::turn;
+
+    cata_default_random_engine probe = rng_get_engine();
+    std::fprintf( out, "{\"harness\":\"state\",\"version\":1,\n" );
+    std::fprintf( out, "\"rng_next\":[" );
+    for( int i = 0; i < 4; i++ ) {
+        std::fprintf( out, "%s%llu", i == 0 ? "" : ",",
+                      static_cast<unsigned long long>( probe() ) );
+    }
+    std::fprintf( out, "],\n" );
+
+    std::fprintf( out,
+                  "\"turn\":%d,\"season\":%d,\"day_of_season\":%d,\"hour\":%d,\n",
+                  to_turn<int>( now ), static_cast<int>( season_of_year( now ) ),
+                  day_of_season<int>( now ), hour_of_day<int>( now ) );
+
+    const tripoint_abs_ms pos = u.pos_abs();
+    std::fprintf( out,
+                  "\"avatar\":{\"pos_abs\":[%d,%d,%d],\"str\":%d,\"dex\":%d,\"int\":%d,"
+                  "\"per\":%d,\"hp\":%d,\"moves\":%d},\n",
+                  pos.x(), pos.y(), pos.z(), u.str_max, u.dex_max, u.int_max, u.per_max,
+                  static_cast<int>( u.get_hp() ), static_cast<int>( u.get_moves() ) );
+
+    // The reality bubble, hashed tile by tile: terrain, furniture, and how many
+    // items lie on the square. This is the first digest that compares worlds
+    // rather than environments.
+    std::vector<std::string> rows;
+    const tripoint_bub_ms center = u.pos_bub();
+    for( const tripoint_bub_ms &p : g->harness_map().points_in_radius( center, 60 ) ) {
+        std::string row = string_format( "%d,%d,%d|%s|%s|%zu", p.x(), p.y(), p.z(),
+                                         g->harness_map().ter( p ).id().str(), g->harness_map().furn( p ).id().str(),
+                                         g->harness_map().i_at( p ).size() );
+        rows.push_back( std::move( row ) );
+    }
+    std::fprintf( out,
+                  "\"bubble\":{\"radius\":60,\"tiles\":%zu,\"digest\":\"%016llx\"},\n",
+                  rows.size(),
+                  static_cast<unsigned long long>( digest_strings( rows ) ) );
+
+    std::size_t creatures = 0;
+    for( Creature &critter : g->all_creatures() ) {
+        static_cast<void>( critter );
+        creatures++;
+    }
+    std::fprintf( out, "\"creatures\":%zu}\n", creatures );
     std::fclose( out );
 }
 
