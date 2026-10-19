@@ -203,27 +203,25 @@ architecture and should be copied.
 - String-keyed behaviour dispatch in per-turn paths.
 - Virtual-heavy interfaces on types that only ever have two or three implementations.
 
-### Armour materials are derived, and the derivation is open
+### Armour materials are derived, and mostly ported
 
 An armour that lists no materials takes them from its per-part entries: each
-entry names materials with a thickness, and the reference merges entries that
-cover the same body part by averaging thickness weighted by how much of the part
-each entry's sub-locations cover (`item_factory.cpp:1124-1150`), then turns each
-thickness into a hundredth of a unit per covered body part
-(`item_factory.cpp:1452-1463`).
+entry names materials with a thickness, entries covering the same body part merge
+by averaging thickness weighted by how much of the part their sub-locations cover
+(`item_factory.cpp:1124-1150`), and the merged thicknesses become hundredths of a
+unit per body part (`item_factory.cpp:1452-1463`).
 
-Most of this is settled against the data: for a pair of boots, leather at 2.5 mm
-over everything but the sole and 0.1 mm over the sole merges to 1.9 mm per foot
-and 380 hundredths for the pair, which is exactly what the reference reports, and
-it only comes out that way in single precision.
+The port now does this with the body-part and sub-location registries loaded, and
+it settles two things that reading the code alone did not:
 
-Two things are still open, and the port therefore leaves 69 of 9,912 item types
-unverified rather than guessing:
+* The weighting is real and visible: a pair of boots whose leather is 2.5 mm thick
+  over everything but the sole and 0.1 mm over the sole merges to 1.9 mm per foot,
+  which is exactly the 380 the reference reports.
+* The thicknesses add up **before** being turned into portions, in single
+  precision, and are truncated once. Truncating per body part loses half a unit on
+  a 1.05 mm layer over two arms - 208 where the reference says 209.
 
-* The weighting needs each body part's sub-location table (`body_part` and
-  `sub_body_part` registries, the latter carrying `max_coverage` and `parent`),
-  which the port does not load yet.
-* One family reports a value the weighted average does not explain: a 1.05 mm
-  layer over two arms comes out as 209 hundredths, where every ordering of the
-  arithmetic the port has tried gives 208 or 210. Until that is explained the
-  rule is not ported.
+52 of 9,912 item types still differ, in three shapes that are recorded rather than
+guessed at: a pair of boots that is 20 hundredths high on one material, two items
+off by one unit, and a sandal whose wood comes out at 533 where the reference says
+600 - the last one looks like a merge that should not have happened at all.

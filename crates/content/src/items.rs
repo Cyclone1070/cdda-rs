@@ -55,8 +55,11 @@ pub struct ItemType {
     /// The material a comestible is mostly made of, which replaces its list.
     pub primary_material: String,
     /// The per-part armour entries: each material with the thickness it is laid
-    /// on with, and how many body parts that entry covers.
+    /// on with, which body parts it covers, and which entry it belongs to.
     pub armor_parts: Vec<ArmorPart>,
+    /// The sub-locations each armour entry covers, which weight its thickness
+    /// against other entries on the same body part.
+    pub armor_entries: Vec<BTreeSet<String>>,
 }
 
 /// One material of one armour entry.
@@ -67,9 +70,10 @@ pub struct ArmorPart {
     /// Its thickness in millimetres, at the single precision the reference
     /// carries it in.
     pub thickness: f32,
-    /// How many body parts the entry covers, which is how often the portion is
-    /// counted.
-    pub covers: usize,
+    /// The body parts the entry covers.
+    pub covers: Vec<String>,
+    /// The sub-locations it covers on each of them, as entry indices.
+    pub entry: usize,
 }
 
 impl ItemType {
@@ -122,6 +126,77 @@ impl ItemType {
         self.stackable
             || self.subtypes.contains("AMMO")
             || (!self.comestible_type.is_empty() && self.phase_is_liquid())
+    }
+
+    /// The materials an armour derives from its per-part entries.
+    ///
+    /// Entries covering the same body part merge: a material both entries name
+    /// keeps a thickness averaged by how much of the part each entry covers, and
+    /// a material only the new entry names keeps its own thickness
+    /// (`item_factory.cpp:1124-1150`). Each merged thickness then becomes a
+    /// hundredth of a unit per body part (`item_factory.cpp:1452-1463`).
+    fn armor_materials(&self, anatomy: &Anatomy) -> BTreeMap<String, i32> {
+        /// One body part's worth of merged armour.
+        struct Merged {
+            part: String,
+            sub_coverage: BTreeSet<String>,
+            materials: Vec<(String, f32)>,
+        }
+        let mut merged: Vec<Merged> = Vec::new();
+        for part in &self.armor_parts {
+            let Some(sub_coverage) = self.armor_entries.get(part.entry) else {
+                continue;
+            };
+            for body_part in &part.covers {
+                match merged.iter_mut().find(|entry| &entry.part == body_part) {
+                    Some(existing) => {
+                        #[allow(clippy::cast_precision_loss)]
+                        let new_weight = anatomy.coverage(body_part, sub_coverage) as f32;
+                        #[allow(clippy::cast_precision_loss)]
+                        let old_weight = anatomy.coverage(body_part, &existing.sub_coverage) as f32;
+                        match existing
+                            .materials
+                            .iter_mut()
+                            .find(|(name, _)| name == &part.material)
+                        {
+                            Some((_, thickness)) => {
+                                if new_weight + old_weight > 0.0 {
+                                    *thickness = (new_weight * part.thickness
+                                        + old_weight * *thickness)
+                                        / (old_weight + new_weight);
+                                }
+                            }
+                            None => existing
+                                .materials
+                                .push((part.material.clone(), part.thickness)),
+                        }
+                        existing.sub_coverage.extend(sub_coverage.iter().cloned());
+                    }
+                    None => merged.push(Merged {
+                        part: body_part.clone(),
+                        sub_coverage: sub_coverage.clone(),
+                        materials: vec![(part.material.clone(), part.thickness)],
+                    }),
+                }
+            }
+        }
+        // The thicknesses add up first and are turned into portions once, in
+        // single precision. Truncating per body part instead loses half a unit on
+        // a 1.05 mm layer over two arms - 208 where the reference says 209.
+        let mut totals: BTreeMap<String, f32> = BTreeMap::new();
+        for entry in &merged {
+            for (name, thickness) in &entry.materials {
+                *totals.entry(name.clone()).or_insert(0.0) += thickness;
+            }
+        }
+        totals
+            .into_iter()
+            .map(|(name, thickness)| {
+                #[allow(clippy::cast_possible_truncation)]
+                let portion = (thickness * 100.0) as i32;
+                (name, portion)
+            })
+            .collect()
     }
 
     /// The name for more than one of the item, as the reference prints it.
@@ -181,6 +256,7 @@ pub fn load_paths(dirs: &[&std::path::Path]) -> Result<Vec<ItemType>, LoadError>
     }
     let densities = densities_of(dirs)?;
     let categories = categories_of(categories);
+    let anatomy = anatomy_of(dirs)?;
     let mut out = Vec::new();
     for id in &order {
         let mut seen = Vec::new();
@@ -206,25 +282,8 @@ pub fn load_paths(dirs: &[&std::path::Path]) -> Result<Vec<ItemType>, LoadError>
                 item.materials.clear();
                 item.materials.insert(item.primary_material.clone(), 1);
             }
-            // An armour that lists no materials of its own takes them from the
-            // per-part entries, at a hundredth of a unit per millimetre of
-            // thickness, counted once per covered body part
-            // (`item_factory.cpp:1452-1463`).
             if item.materials.is_empty() && !item.armor_parts.is_empty() {
-                // The reference adds these in single precision, and the rounding
-                // is visible: a 1.05 mm layer over two body parts becomes 209
-                // hundredths of a unit rather than 210.
-                let mut totals: BTreeMap<String, f32> = BTreeMap::new();
-                for part in &item.armor_parts {
-                    let thickness = part.thickness;
-                    #[allow(clippy::cast_precision_loss)]
-                    let covers = part.covers as f32;
-                    *totals.entry(part.material.clone()).or_insert(0.0) += thickness * covers;
-                }
-                for (material, total) in totals {
-                    #[allow(clippy::cast_possible_truncation)]
-                    item.materials.insert(material, (total * 100.0) as i32);
-                }
+                item.materials = item.armor_materials(&anatomy);
             }
             item.add_material_flags();
             item.add_implied_flags();
@@ -349,6 +408,90 @@ const MATERIAL_FLAGS: &[(&str, &str)] = &[
     ("hblood", "HEMOVORE_FUN"),
 ];
 
+/// The body parts and their sub-locations, which decide how much of a part an
+/// armour entry covers and therefore how its materials merge.
+#[derive(Debug, Default)]
+struct Anatomy {
+    /// Sub-location ids per body part.
+    parts: BTreeMap<String, Vec<String>>,
+    /// Each sub-location's weight and parent, and whether it hangs.
+    sub_parts: BTreeMap<String, (i32, String, bool)>,
+}
+
+impl Anatomy {
+    /// How much of a body part a set of sub-locations covers
+    /// (`itype.cpp:323-352`): the sum of their weights, or all of it when the
+    /// part has no sub-locations at all.
+    fn coverage(&self, part: &str, sub_coverage: &BTreeSet<String>) -> i32 {
+        if self.parts.get(part).is_none_or(Vec::is_empty) {
+            return 100;
+        }
+        let mut primary = 0;
+        let mut secondary = 0;
+        for id in sub_coverage {
+            let Some((weight, parent, hangs)) = self.sub_parts.get(id) else {
+                continue;
+            };
+            if parent != part {
+                continue;
+            }
+            if *hangs {
+                secondary += weight;
+            } else {
+                primary += weight;
+            }
+        }
+        primary.max(secondary)
+    }
+}
+
+/// Reads the body-part registries.
+fn anatomy_of(dirs: &[&std::path::Path]) -> Result<Anatomy, LoadError> {
+    let mut anatomy = Anatomy::default();
+    for dir in dirs {
+        let files = crate::json_files_in_load_order(dir).map_err(|error| LoadError {
+            message: format!("{}: {error}", dir.display()),
+        })?;
+        for path in files {
+            let bytes = std::fs::read(&path).map_err(|error| LoadError {
+                message: format!("{}: {error}", path.display()),
+            })?;
+            let Ok(value) = cdda_json::parse(&bytes) else {
+                continue;
+            };
+            collect_anatomy(&value, &mut anatomy);
+        }
+    }
+    Ok(anatomy)
+}
+
+fn collect_anatomy(value: &Value, anatomy: &mut Anatomy) {
+    match value {
+        Value::Array(items) => {
+            for item in items {
+                collect_anatomy(item, anatomy);
+            }
+        }
+        Value::Object(object) => {
+            let Some(Value::Str(kind)) = object.get("type") else {
+                return;
+            };
+            let Some(id) = string(object, "id") else {
+                return;
+            };
+            if kind.eq_ignore_ascii_case("body_part") {
+                anatomy.parts.insert(id, strings(object, "sub_parts"));
+            } else if kind.eq_ignore_ascii_case("sub_body_part") {
+                let weight = integer(object, "max_coverage").unwrap_or(0);
+                let parent = string(object, "parent").unwrap_or_default();
+                let hangs = boolean(object, "secondary").unwrap_or(false);
+                anatomy.sub_parts.insert(id, (weight, parent, hangs));
+            }
+        }
+        _ => {}
+    }
+}
+
 /// The categories the content registers, plus the ones the reference creates.
 ///
 /// `calc_category` only derives a category when the current one is invalid
@@ -432,6 +575,7 @@ fn resolve(
         phase: "SOLID".to_owned(),
         primary_material: String::new(),
         armor_parts: Vec::new(),
+        armor_entries: Vec::new(),
     });
     id.clone_into(&mut item.id);
     apply(&mut item, object, inherited, densities)?;
@@ -537,11 +681,14 @@ fn apply_slots(item: &mut ItemType, object: &Object) {
     }
     if let Some(Value::Array(entries)) = object.get("armor") {
         item.armor_parts.clear();
-        for entry in entries {
+        item.armor_entries.clear();
+        for (index, entry) in entries.iter().enumerate() {
             let Value::Object(entry) = entry else {
                 continue;
             };
-            let covers = strings(entry, "covers").len();
+            let covers = strings(entry, "covers");
+            item.armor_entries
+                .push(strings(entry, "specifically_covers").into_iter().collect());
             let Some(Value::Array(materials)) = entry.get("material") else {
                 continue;
             };
@@ -557,7 +704,8 @@ fn apply_slots(item: &mut ItemType, object: &Object) {
                 item.armor_parts.push(ArmorPart {
                     material: name.clone(),
                     thickness,
-                    covers,
+                    covers: covers.clone(),
+                    entry: index,
                 });
             }
         }
@@ -853,6 +1001,13 @@ fn materials_of(entries: &Value) -> Result<BTreeMap<String, i32>, LoadError> {
 fn string(object: &Object, member: &str) -> Option<String> {
     match object.get(member) {
         Some(Value::Str(text)) => Some(text.clone()),
+        _ => None,
+    }
+}
+
+fn integer(object: &Object, member: &str) -> Option<i32> {
+    match object.get(member) {
+        Some(Value::Int(value)) => i32::try_from(*value).ok(),
         _ => None,
     }
 }
