@@ -41,9 +41,98 @@ pub struct ItemType {
     pub materials: BTreeMap<String, i32>,
     /// Its flag set.
     pub flags: BTreeSet<String>,
+    /// The subtypes it declares, or the legacy type it was written as, carried
+    /// so the category can be derived the way `calc_category` does.
+    pub subtypes: BTreeSet<String>,
+    /// Damage types and their amounts, from `melee_damage`.
+    pub melee: BTreeMap<String, f64>,
+    /// `comestible_type` for food and drink, which separates drugs from food.
+    pub comestible_type: String,
+    /// `stackable` as stated, which decides charge counting.
+    pub stackable: bool,
+    /// `phase`, which separates liquids from solids.
+    pub phase: String,
+    /// The material a comestible is mostly made of, which replaces its list.
+    pub primary_material: String,
+    /// The per-part armour entries: each material with the thickness it is laid
+    /// on with, and how many body parts that entry covers.
+    pub armor_parts: Vec<ArmorPart>,
+}
+
+/// One material of one armour entry.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ArmorPart {
+    /// The material's name.
+    pub material: String,
+    /// Its thickness in millimetres, at the single precision the reference
+    /// carries it in.
+    pub thickness: f32,
+    /// How many body parts the entry covers, which is how often the portion is
+    /// counted.
+    pub covers: usize,
 }
 
 impl ItemType {
+    /// Whether the item carries the comestible slot.
+    fn uses_comestible(&self) -> bool {
+        self.subtypes.contains("COMESTIBLE")
+    }
+
+    /// Adds the flags a material brings with it, even in trace amounts
+    /// (`item_factory.cpp:3550-3591`).
+    fn add_material_flags(&mut self) {
+        for (material, flag) in MATERIAL_FLAGS {
+            if self.materials.contains_key(*material) {
+                self.flags.insert((*flag).to_owned());
+            }
+        }
+    }
+
+    /// Adds the flags the non-player side needs in order to act sensibly with
+    /// the item (`item_factory.cpp:3619-3646`). The chain matters: a dangerous
+    /// item makes the NPC throw it, a thrown item is an alternative attack, and
+    /// anything dangerous, fake or built in is something traders refuse.
+    fn add_implied_flags(&mut self) {
+        let has = |flags: &BTreeSet<String>, flag: &str| flags.contains(flag);
+        if has(&self.flags, "DANGEROUS") {
+            self.flags.insert("NPC_THROW_NOW".to_owned());
+        }
+        if has(&self.flags, "BOMB") {
+            self.flags.insert("NPC_ACTIVATE".to_owned());
+        }
+        if has(&self.flags, "NPC_THROW_NOW") {
+            self.flags.insert("NPC_THROWN".to_owned());
+        }
+        if has(&self.flags, "NPC_ACTIVATE") || has(&self.flags, "NPC_THROWN") {
+            self.flags.insert("NPC_ALT_ATTACK".to_owned());
+        }
+        if has(&self.flags, "DANGEROUS")
+            || has(&self.flags, "PSEUDO")
+            || has(&self.flags, "INTEGRATED")
+        {
+            self.flags.insert("TRADER_AVOID".to_owned());
+        }
+    }
+
+    /// Whether the item is counted in charges rather than as objects
+    /// (`itype.h:1602-1604`): it stacks, or it is ammunition, or it is a
+    /// non-solid comestible.
+    #[must_use]
+    pub fn counts_by_charge(&self) -> bool {
+        self.stackable
+            || self.subtypes.contains("AMMO")
+            || (!self.comestible_type.is_empty() && self.phase_is_liquid())
+    }
+
+    /// Whether the item's phase is anything but solid.
+    ///
+    /// The phase is compared without regard to case: the content writes both
+    /// `"liquid"` and `"solid"` in lower case, and the reference reads them as
+    /// the same phases the rest of the code spells in capitals.
+    fn phase_is_liquid(&self) -> bool {
+        !self.phase.eq_ignore_ascii_case("SOLID")
+    }
+
     /// The name the reference prints for the item's colour.
     #[must_use]
     pub fn color_name(&self) -> &'static str {
@@ -60,6 +149,7 @@ impl ItemType {
 pub fn load_paths(dirs: &[&std::path::Path]) -> Result<Vec<ItemType>, LoadError> {
     let mut objects: BTreeMap<String, Object> = BTreeMap::new();
     let mut order: Vec<String> = Vec::new();
+    let mut categories: BTreeSet<String> = BTreeSet::new();
     for dir in dirs {
         let files = crate::json_files_in_load_order(dir).map_err(|error| LoadError {
             message: format!("{}: {error}", dir.display()),
@@ -71,14 +161,61 @@ pub fn load_paths(dirs: &[&std::path::Path]) -> Result<Vec<ItemType>, LoadError>
             let Ok(value) = cdda_json::parse(&bytes) else {
                 continue;
             };
-            collect(&value, &mut objects, &mut order);
+            collect(&value, &mut objects, &mut order, &mut categories);
         }
     }
     let densities = densities_of(dirs)?;
+    let categories = categories_of(categories);
     let mut out = Vec::new();
     for id in &order {
         let mut seen = Vec::new();
-        for item in resolve(id, &objects, &mut seen, &densities)? {
+        for mut item in resolve(id, &objects, &mut seen, &densities)? {
+            // The category is derived once, here, and only for a prototype: an
+            // abstract that states none stays without one, so a child that
+            // inherits from it derives from its own slots (`item_factory.cpp:385-388`).
+            // A stated category that names nothing is as good as none: the
+            // reference derives when the id is not registered.
+            if !categories.contains(&item.category) {
+                item.category = category_of(&item.subtypes, &item.melee, &item.comestible_type);
+            }
+            // Things that stack by charge cannot be repaired, and the reference
+            // adds the flag rather than asking the content to
+            // (`item_factory.cpp:319-321`).
+            if item.counts_by_charge() {
+                item.flags.insert("NO_REPAIR".to_owned());
+            }
+            // A comestible made mostly of one thing lists only that thing
+            // (`item_factory.cpp:459-464`), and it happens before the allergen
+            // flags are read off the materials.
+            if item.uses_comestible() && !item.primary_material.is_empty() {
+                item.materials.clear();
+                item.materials.insert(item.primary_material.clone(), 1);
+            }
+            // An armour that lists no materials of its own takes them from the
+            // per-part entries, at a hundredth of a unit per millimetre of
+            // thickness, counted once per covered body part
+            // (`item_factory.cpp:1452-1463`).
+            if item.materials.is_empty() && !item.armor_parts.is_empty() {
+                // The reference adds these in single precision, and the rounding
+                // is visible: a 1.05 mm layer over two body parts becomes 209
+                // hundredths of a unit rather than 210.
+                let mut totals: BTreeMap<String, f32> = BTreeMap::new();
+                for part in &item.armor_parts {
+                    let thickness = part.thickness;
+                    #[allow(clippy::cast_precision_loss)]
+                    let covers = part.covers as f32;
+                    *totals.entry(part.material.clone()).or_insert(0.0) += thickness * covers;
+                }
+                for (material, total) in totals {
+                    #[allow(clippy::cast_possible_truncation)]
+                    item.materials.insert(material, (total * 100.0) as i32);
+                }
+            }
+            item.add_material_flags();
+            item.add_implied_flags();
+            // `LIGHT_7` and friends are read into the item's light emission and
+            // then dropped from the flag set (`item_factory.cpp:434-456`).
+            item.flags.retain(|flag| !flag.starts_with("LIGHT_"));
             out.push(item);
         }
     }
@@ -100,14 +237,29 @@ impl std::fmt::Display for LoadError {
 
 impl std::error::Error for LoadError {}
 
-fn collect(value: &Value, out: &mut BTreeMap<String, Object>, order: &mut Vec<String>) {
+fn collect(
+    value: &Value,
+    out: &mut BTreeMap<String, Object>,
+    order: &mut Vec<String>,
+    categories: &mut BTreeSet<String>,
+) {
     match value {
         Value::Array(items) => {
             for item in items {
-                collect(item, out, order);
+                collect(item, out, order, categories);
             }
         }
         Value::Object(object) => {
+            // The dispatcher registers categories as `ITEM_CATEGORY`
+            // (`init.cpp:352`); a category the content registers is a valid
+            // category for `calc_category` purposes.
+            if matches!(object.get("type"), Some(Value::Str(text)) if text.eq_ignore_ascii_case("item_category"))
+            {
+                if let Some(id) = string(object, "id") {
+                    categories.insert(id);
+                }
+                return;
+            }
             if !matches!(object.get("type"), Some(Value::Str(text)) if text == "GENERIC" || text == "ITEM")
             {
                 return;
@@ -143,6 +295,73 @@ fn ids_of(object: &Object) -> Vec<String> {
             .collect(),
         _ => Vec::new(),
     }
+}
+
+/// Materials that make their item an allergen, or that only some eaters like.
+///
+/// One table in the reference covers both (`item_factory.cpp:3550-3591`): the
+/// allergen half applies even to trace amounts, and the second half marks what
+/// a carnivore, a bear or a hemovore is happy to eat.
+const MATERIAL_FLAGS: &[(&str, &str)] = &[
+    ("hflesh", "ALLERGEN_MEAT"),
+    ("iflesh", "ALLERGEN_MEAT"),
+    ("bread", "ALLERGEN_BREAD"),
+    ("flesh", "ALLERGEN_MEAT"),
+    ("cheese", "ALLERGEN_CHEESE"),
+    ("blood", "ALLERGEN_MEAT"),
+    ("hblood", "ALLERGEN_MEAT"),
+    ("bone", "ALLERGEN_MEAT"),
+    ("wheat", "ALLERGEN_WHEAT"),
+    ("fruit", "ALLERGEN_FRUIT"),
+    ("veggy", "ALLERGEN_VEGGY"),
+    ("dried_vegetable", "ALLERGEN_DRIED_VEGETABLE"),
+    ("bean", "ALLERGEN_VEGGY"),
+    ("tomato", "ALLERGEN_VEGGY"),
+    ("garlic", "ALLERGEN_VEGGY"),
+    ("nut", "ALLERGEN_NUT"),
+    ("mushroom", "ALLERGEN_VEGGY"),
+    ("milk", "ALLERGEN_MILK"),
+    ("egg", "ALLERGEN_EGG"),
+    ("junk", "ALLERGEN_JUNK"),
+    ("wool", "ALLERGEN_WOOL"),
+    ("flesh", "CARNIVORE_OK"),
+    ("hflesh", "CARNIVORE_OK"),
+    ("iflesh", "CARNIVORE_OK"),
+    ("blood", "CARNIVORE_OK"),
+    ("hblood", "CARNIVORE_OK"),
+    ("honey", "URSINE_HONEY"),
+    ("blood", "HEMOVORE_FUN"),
+    ("hblood", "HEMOVORE_FUN"),
+];
+
+/// The categories the content registers, plus the ones the reference creates.
+///
+/// `calc_category` only derives a category when the current one is invalid
+/// (`item_factory.cpp:385`), and an unregistered id is invalid. Items that name
+/// a category the content never defines - "tool", "TOOL" - therefore land in a
+/// derived one.
+fn categories_of(mut categories: BTreeSet<String>) -> BTreeSet<String> {
+    for built_in in [
+        "guns",
+        "magazines",
+        "ammo",
+        "tools",
+        "clothing",
+        "food",
+        "books",
+        "mods",
+        "bionics",
+        "weapons",
+        "other",
+        "drugs",
+        "spare_parts",
+        "container",
+        "armor",
+        "tool_armor",
+    ] {
+        categories.insert(built_in.to_owned());
+    }
+    categories
 }
 
 /// The density of every material, which the weight adjustment needs.
@@ -191,6 +410,13 @@ fn resolve(
         category: String::new(),
         materials: BTreeMap::new(),
         flags: BTreeSet::new(),
+        subtypes: BTreeSet::new(),
+        melee: BTreeMap::new(),
+        comestible_type: String::new(),
+        stackable: false,
+        phase: "SOLID".to_owned(),
+        primary_material: String::new(),
+        armor_parts: Vec::new(),
     });
     id.clone_into(&mut item.id);
     apply(&mut item, object, inherited, densities)?;
@@ -243,6 +469,7 @@ fn apply(
     if let Some(category) = string(object, "category") {
         item.category = category;
     }
+    apply_slots(item, object);
     if let Some(entries) = object.get("material") {
         item.materials = materials_of(entries)?;
     }
@@ -273,6 +500,92 @@ fn apply(
         }
     }
     Ok(())
+}
+
+/// Reads everything that names a slot: the subtypes, the legacy type, the
+/// armour entries, the comestible fields and the melee damage.
+fn apply_slots(item: &mut ItemType, object: &Object) {
+    // Slots are inherited: an object that copies and states no subtypes of its
+    // own keeps the base's, and the category is derived from them.
+    if let Some(Value::Array(subtypes)) = object.get("subtypes") {
+        for subtype in subtypes {
+            if let Value::Str(name) = subtype {
+                item.subtypes.insert(name.clone());
+            }
+        }
+    }
+    if let Some(Value::Str(json_type)) = object.get("type")
+        && json_type != "ITEM"
+        && json_type != "GENERIC"
+    {
+        item.subtypes.insert(json_type.clone());
+    }
+    if let Some(Value::Array(entries)) = object.get("armor") {
+        item.armor_parts.clear();
+        for entry in entries {
+            let Value::Object(entry) = entry else {
+                continue;
+            };
+            let covers = strings(entry, "covers").len();
+            let Some(Value::Array(materials)) = entry.get("material") else {
+                continue;
+            };
+            for material in materials {
+                let Value::Object(material) = material else {
+                    continue;
+                };
+                let Some(Value::Str(name)) = material.get("type") else {
+                    continue;
+                };
+                #[allow(clippy::cast_possible_truncation)]
+                let thickness = material.get("thickness").and_then(numeric).unwrap_or(0.0) as f32;
+                item.armor_parts.push(ArmorPart {
+                    material: name.clone(),
+                    thickness,
+                    covers,
+                });
+            }
+        }
+    }
+    if let Some(material) = string(object, "primary_material") {
+        item.primary_material = material;
+    }
+    if let Some(phase) = string(object, "phase") {
+        item.phase = phase;
+    }
+    if let Some(stackable) = boolean(object, "stackable") {
+        item.stackable = stackable;
+    }
+    if let Some(kind) = string(object, "comestible_type") {
+        item.comestible_type = kind;
+    }
+    if let Some(melee) = sub_object(object, "melee_damage") {
+        for (damage_type, amount) in melee.members() {
+            if let Some(value) = numeric(amount) {
+                item.melee.insert(damage_type.clone(), value);
+            }
+        }
+    }
+    if let Some(relative) =
+        sub_object(object, "relative").and_then(|inner| sub_object(inner, "melee_damage"))
+    {
+        for (damage_type, amount) in relative.members() {
+            if let Some(value) = numeric(amount) {
+                *item.melee.entry(damage_type.clone()).or_insert(0.0) += value;
+            }
+        }
+    }
+    if let Some(proportional) =
+        sub_object(object, "proportional").and_then(|inner| sub_object(inner, "melee_damage"))
+    {
+        for (damage_type, amount) in proportional.members() {
+            if let Some(value) = numeric(amount)
+                && let Some(current) = item.melee.get_mut(damage_type)
+            {
+                *current *= value;
+            }
+        }
+    }
 }
 
 /// Swaps one material for another, and adjusts the weight by the density ratio
@@ -349,6 +662,61 @@ fn adjusted(
         return Ok(current + value);
     }
     Ok(current)
+}
+
+/// The category the reference derives when the object states none.
+///
+/// Reference: `calc_category` (`item_factory.cpp:4827-4865`). The order matters:
+/// the first slot that applies wins, and an item with no slot at all is a weapon
+/// only if one of its damage types exceeds the melee threshold of five.
+fn category_of(
+    subtypes: &BTreeSet<String>,
+    melee: &BTreeMap<String, f64>,
+    comestible_type: &str,
+) -> String {
+    let has = |name: &str| subtypes.contains(name);
+    let category = if has("GUN") && !has("GUNMOD") {
+        "guns"
+    } else if has("MAGAZINE") {
+        "magazines"
+    } else if has("AMMO") {
+        "ammo"
+    } else if has("TOOL") && !has("TOOLMOD") {
+        "tools"
+    } else if has("ARMOR") {
+        "clothing"
+    } else if has("COMESTIBLE") {
+        // A medicinal comestible is a drug; everything else is food.
+        if comestible_type == "MED" {
+            "drugs"
+        } else {
+            "food"
+        }
+    } else if has("BOOK") {
+        "books"
+    } else if has("GUNMOD") || has("TOOLMOD") {
+        "mods"
+    } else if has("BIONIC") {
+        "bionics"
+    } else if melee.values().any(|amount| *amount > 5.0) {
+        "weapons"
+    } else {
+        "other"
+    };
+    category.to_owned()
+}
+
+/// A number, from an integer or a float member.
+fn numeric(value: &Value) -> Option<f64> {
+    match value {
+        Value::Int(number) =>
+        {
+            #[allow(clippy::cast_precision_loss)]
+            Some(*number as f64)
+        }
+        Value::Float(number) => Some(*number),
+        _ => None,
+    }
 }
 
 /// A number, from an integer or a float member.
@@ -474,6 +842,13 @@ fn string(object: &Object, member: &str) -> Option<String> {
     }
 }
 
+fn boolean(object: &Object, member: &str) -> Option<bool> {
+    match object.get(member) {
+        Some(Value::Bool(value)) => Some(*value),
+        _ => None,
+    }
+}
+
 fn sub_object<'a>(object: &'a Object, member: &str) -> Option<&'a Object> {
     match object.get(member) {
         Some(Value::Object(inner)) => Some(inner),
@@ -483,6 +858,9 @@ fn sub_object<'a>(object: &'a Object, member: &str) -> Option<&'a Object> {
 
 fn strings(object: &Object, member: &str) -> Vec<String> {
     match object.get(member) {
+        // One value may be written instead of a list, which the reference's
+        // flag reader accepts (`generic_factory.h:1099-1105`).
+        Some(Value::Str(text)) => vec![text.clone()],
         Some(Value::Array(items)) => items
             .iter()
             .filter_map(|item| match item {

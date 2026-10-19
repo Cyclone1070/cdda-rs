@@ -312,6 +312,24 @@ Three findings came out of comparing it, none of which inspection had produced:
   material's share, so a steel sabre renamed to aluminium weighs a third as much
   (`item_factory.cpp:4001-4035`).
 
+Category and flags came out of the same dump, and both were mostly derived
+rather than stated:
+
+* The category is derived **once, per prototype, after inheritance**, and only
+  when the stated one names nothing the content registers. An item that copies a
+  base which states none inherits the empty id and therefore gets a derived one -
+  a port that derives at load time hands the base's answer to its children.
+* Flags arrive from four places besides the file: a material table
+  (`item_factory.cpp:3550-3591`), the charge-counting rule that makes anything
+  stackable unrepairable, the non-player action chain
+  (`item_factory.cpp:3619-3646`), and the `LIGHT_n` flags that are read into the
+  light emission and then dropped. The order matters: comestibles replace their
+  materials with the primary one *before* the table is consulted, so a wine whose
+  fruit material is replaced by alcohol is not flagged as fruit.
+* Armour portions are accumulated in single precision. A 1.05 mm layer over two
+  body parts is 209 hundredths of a unit in the reference, not 210, and the
+  difference survives all the way to the dump.
+
 ### Replay runs without a terminal, and is reproducible
 
 `--replay <file> --dump-state <file>` plays a recorded session: one key per line,

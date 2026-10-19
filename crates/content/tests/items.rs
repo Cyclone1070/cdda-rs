@@ -97,6 +97,7 @@ fn every_item_type_matches_the_reference() {
         loaded.iter().map(|item| (item.id.as_str(), item)).collect();
     let mut mismatches = Vec::new();
     let mut pending = Pending::default();
+    let mut notes: Vec<String> = Vec::new();
     for entry in entries {
         let Value::Object(object) = entry else {
             continue;
@@ -110,7 +111,10 @@ fn every_item_type_matches_the_reference() {
             mismatches.push(format!("{id}: missing"));
             continue;
         };
-        compare_item(&id, object, ours, &mut mismatches, &mut pending);
+        compare_item(&id, object, ours, &mut mismatches, &mut notes, &mut pending);
+    }
+    for note in &notes {
+        println!("  {note}");
     }
     println!(
         "{} mismatches; pending: {} category, {} flags, {} materials, {} plural",
@@ -140,6 +144,7 @@ fn compare_item(
     theirs: &cdda_json::Object,
     ours: &items::ItemType,
     mismatches: &mut Vec<String>,
+    notes: &mut Vec<String>,
     pending: &mut Pending,
 ) {
     let text_of = |member: &str| match theirs.get(member) {
@@ -198,6 +203,12 @@ fn compare_item(
         // Armour states its materials per body part, and the loader aggregates
         // them; that derivation belongs to the armour loader, not to this slice.
         pending.materials += 1;
+        if pending.materials <= 8 {
+            notes.push(format!(
+                "{id}: materials {:?} != {theirs_materials:?}",
+                ours.materials
+            ));
+        }
     }
     // Category and flags are set partly by the per-type loaders rather than by
     // the fields an object states, so they are counted separately: this slice
@@ -210,6 +221,14 @@ fn compare_item(
     }
     if ours.category != text_of("category") {
         pending.category += 1;
+        if pending.category <= 12 {
+            notes.push(format!(
+                "{id}: category {:?} != {:?} (subtypes {:?})",
+                ours.category,
+                text_of("category"),
+                ours.subtypes
+            ));
+        }
     }
     let ours_flags: Vec<String> = ours.flags.iter().cloned().collect();
     let mut theirs_flags: Vec<String> = match theirs.get("flags") {
@@ -225,5 +244,99 @@ fn compare_item(
     theirs_flags.sort();
     if ours_flags != theirs_flags {
         pending.flags += 1;
+        if pending.flags <= 12 {
+            let missing: Vec<&String> = theirs_flags
+                .iter()
+                .filter(|f| !ours_flags.contains(f))
+                .collect();
+            let extra: Vec<&String> = ours_flags
+                .iter()
+                .filter(|f| !theirs_flags.contains(f))
+                .collect();
+            notes.push(format!("{id}: flags missing {missing:?} extra {extra:?}"));
+        }
     }
+}
+
+#[test]
+fn a_category_comes_from_the_slots_a_stated_one_that_names_nothing_does_not() {
+    let loaded = fixture(
+        r#"[
+        { "type": "ITEM", "subtypes": [ "TOOL" ], "id": "test_wrench",
+          "name": { "str": "wrench" }, "symbol": ";", "color": "light_gray",
+          "weight": "300 g", "volume": "250 ml" },
+        { "type": "ITEM", "subtypes": [ "COMESTIBLE" ], "id": "test_pill",
+          "name": { "str": "pill" }, "symbol": "!", "color": "white",
+          "weight": "1 g", "volume": "1 ml", "comestible_type": "MED" },
+        { "type": "ITEM", "subtypes": [ "ARMOR" ], "id": "test_coat",
+          "name": { "str": "coat" }, "symbol": "[", "color": "brown",
+          "weight": "1 kg", "volume": "2 L", "category": "clothing" },
+        { "type": "ITEM", "subtypes": [ "TOOL" ], "id": "test_odd",
+          "name": { "str": "odd" }, "symbol": ";", "color": "black",
+          "weight": "300 g", "volume": "250 ml", "category": "tool" },
+        { "type": "ITEM_CATEGORY", "id": "clothing", "name_header": { "str": "Clothing" },
+          "name_noun": { "str": "item" }, "sort_rank": 1 }
+        ]"#,
+        "cdda-item-fixture-category",
+    );
+    let by_id = |id: &str| {
+        loaded
+            .iter()
+            .find(|item| item.id == id)
+            .expect("prototype")
+            .clone()
+    };
+    assert_eq!(by_id("test_wrench").category, "tools");
+    // A medicinal comestible is a drug, not food.
+    assert_eq!(by_id("test_pill").category, "drugs");
+    // A category the content registers is kept as written.
+    assert_eq!(by_id("test_coat").category, "clothing");
+    // A category that names nothing is replaced by the derived one.
+    assert_eq!(by_id("test_odd").category, "tools");
+}
+
+#[test]
+fn stacking_ammunition_cannot_be_repaired_and_materials_bring_their_flags() {
+    let loaded = fixture(
+        r#"[
+        { "type": "ITEM", "subtypes": [ "AMMO" ], "id": "test_round",
+          "name": { "str": "round" }, "symbol": "=", "color": "yellow",
+          "weight": "10 g", "volume": "10 ml", "material": [ "flesh" ],
+          "flags": [ "NPC_THROWN", "LIGHT_2" ] }
+        ]"#,
+        "cdda-item-fixture-flags",
+    );
+    let round = loaded
+        .iter()
+        .find(|item| item.id == "test_round")
+        .expect("prototype");
+    // Ammunition counts by charges, so the reference makes it unrepairable.
+    assert!(round.flags.contains("NO_REPAIR"));
+    // Flesh is an allergen and a carnivore's food.
+    assert!(round.flags.contains("ALLERGEN_MEAT"));
+    assert!(round.flags.contains("CARNIVORE_OK"));
+    // A thrown item becomes an alternative attack, and both are trader-avoided.
+    assert!(round.flags.contains("NPC_ALT_ATTACK"));
+    // A light level is read into the emission and dropped from the flags.
+    assert!(!round.flags.iter().any(|flag| flag.starts_with("LIGHT_")));
+}
+
+#[test]
+fn a_proportional_weight_beats_a_relative_one() {
+    let loaded = fixture(
+        r#"[
+        { "type": "GENERIC", "id": "test_base", "name": { "str": "thing" },
+          "symbol": "x", "color": "white", "weight": "3600 g", "volume": "1 L" },
+        { "type": "GENERIC", "id": "test_both", "copy-from": "test_base",
+          "name": { "str": "thing" }, "proportional": { "weight": 1.25 },
+          "relative": { "weight": "400 g" } }
+        ]"#,
+        "cdda-item-fixture-operators",
+    );
+    let both = loaded
+        .iter()
+        .find(|item| item.id == "test_both")
+        .expect("prototype");
+    // 3600 g * 1.25, not 3600 g + 400 g: the reader checks proportional first.
+    assert_eq!(both.weight, 4_500_000);
 }
