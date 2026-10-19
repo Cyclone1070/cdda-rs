@@ -85,7 +85,7 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-20 03:19:46
++++ oracle/src/src/harness.cpp	2026-10-20 03:33:37
 @@ -0,0 +1,397 @@
 +#include "harness.h"
 +
@@ -486,7 +486,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +} // namespace harness
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-20 03:19:46
++++ oracle/src/src/harness.h	2026-10-20 03:33:37
 @@ -0,0 +1,112 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
@@ -812,7 +812,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
          }
 diff -ruN references/Cataclysm-DDA/src/mapdata.cpp oracle/src/src/mapdata.cpp
 --- references/Cataclysm-DDA/src/mapdata.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/mapdata.cpp	2026-10-20 03:19:46
++++ oracle/src/src/mapdata.cpp	2026-10-20 03:33:37
 @@ -1,4 +1,8 @@
  #include "mapdata.h"
 +#ifdef CATA_HARNESS
@@ -870,7 +870,7 @@ diff -ruN references/Cataclysm-DDA/src/mapdata.cpp oracle/src/src/mapdata.cpp
  template<>
 diff -ruN references/Cataclysm-DDA/src/ncurses_def.cpp oracle/src/src/ncurses_def.cpp
 --- references/Cataclysm-DDA/src/ncurses_def.cpp	2026-10-19 18:15:05
-+++ oracle/src/src/ncurses_def.cpp	2026-10-20 01:03:36
++++ oracle/src/src/ncurses_def.cpp	2026-10-20 03:33:37
 @@ -30,6 +30,9 @@
  #include "catacharset.h"
  #include "color.h"
@@ -881,7 +881,17 @@ diff -ruN references/Cataclysm-DDA/src/ncurses_def.cpp oracle/src/src/ncurses_de
  #include "game_constants.h"
  #include "game_ui.h"
  #include "output.h"
-@@ -382,6 +385,9 @@
+@@ -377,11 +380,19 @@
+ 
+ bool catacurses::supports_256_colors()
+ {
++#ifdef CATA_HARNESS
++    // No terminal in a headless run, so COLORS is zero. The port targets a
++    // 256-colour terminal, so the harness reports one.
++    return true;
++#endif
+     return COLORS >= 256;
+ }
  
  void input_manager::pump_events()
  {
@@ -891,7 +901,7 @@ diff -ruN references/Cataclysm-DDA/src/ncurses_def.cpp oracle/src/src/ncurses_de
      if( test_mode ) {
          return;
      }
-@@ -409,6 +415,9 @@
+@@ -409,6 +420,9 @@
  // ignoring preferred keyboard mode
  input_event input_manager::get_input_event( const keyboard_mode /*preferred_keyboard_mode*/ )
  {
@@ -901,7 +911,7 @@ diff -ruN references/Cataclysm-DDA/src/ncurses_def.cpp oracle/src/src/ncurses_de
      if( test_mode ) {
          // input should be skipped in caller's code
          throw std::runtime_error( "input_manager::get_input_event called in test mode" );
-@@ -562,6 +571,9 @@
+@@ -562,6 +576,9 @@
  
  void ensure_term_size()
  {
@@ -911,7 +921,7 @@ diff -ruN references/Cataclysm-DDA/src/ncurses_def.cpp oracle/src/src/ncurses_de
      // do not use ui_adaptor here to avoid re-entry
      const int minHeight = EVEN_MINIMUM_TERM_HEIGHT;
      const int minWidth = EVEN_MINIMUM_TERM_WIDTH;
-@@ -597,6 +609,9 @@
+@@ -597,6 +614,9 @@
  // NOLINTNEXTLINE(cata-static-declarations)
  void check_encoding()
  {

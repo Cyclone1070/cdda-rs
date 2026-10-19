@@ -1649,7 +1649,7 @@
 {"kind":"furniture","id":"f_planer","name":"planer","symbol":[55,55,55,55],"color":"c_yellow_white","move_cost":-1,"light":0,"coverage":40,"flags":["BLOCKSDOOR","EASY_DECONSTRUCT"]},
 {"kind":"furniture","id":"f_jointer","name":"jointer","symbol":[55,55,55,55],"color":"c_yellow_magenta","move_cost":8,"light":0,"coverage":40,"flags":["BLOCKSDOOR","EASY_DECONSTRUCT","MOUNTABLE","TRANSPARENT"]},
 {"kind":"furniture","id":"f_catalytic_cracking_reactor","name":"disconnected catalytic cracking reactor","symbol":[89,89,89,89],"color":"c_light_cyan","move_cost":-1,"light":0,"coverage":55,"flags":["BLOCKSDOOR","EASY_DECONSTRUCT"]},
-{"kind":"furniture","id":"f_hydraulic_press","name":"hydraulic press","symbol":[57,57,57,57],"color":"c_dark_gray_red","move_cost":-1,"light":0,"coverage":55,"flags":["BLOCKSDOOR","EASY_DECONSTRUCT"]},
+{"kind":"furniture","id":"f_hydraulic_press","name":"hydraulic press","symbol":[57,57,57,57],"color":"c_black_red","move_cost":-1,"light":0,"coverage":55,"flags":["BLOCKSDOOR","EASY_DECONSTRUCT"]},
 {"kind":"furniture","id":"f_heavy_lathe","name":"power lathe","symbol":[52,52,52,52],"color":"c_cyan_red","move_cost":-1,"light":0,"coverage":40,"flags":["BLOCKSDOOR"]},
 {"kind":"furniture","id":"f_air_compressor","name":"air compressor","symbol":[56,56,56,56],"color":"c_black_yellow","move_cost":-1,"light":0,"coverage":80,"flags":["BLOCKSDOOR","EASY_DECONSTRUCT"]},
 {"kind":"furniture","id":"f_manual_tire_changer","name":"manual tire changer","symbol":[55,55,55,55],"color":"c_black_yellow","move_cost":-1,"light":0,"coverage":30,"flags":["BLOCKSDOOR","EASY_DECONSTRUCT"]},

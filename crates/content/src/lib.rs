@@ -12,6 +12,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 pub mod factory;
+pub mod mapdata;
 mod rules;
 mod scan;
 

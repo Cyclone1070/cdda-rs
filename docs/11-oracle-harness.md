@@ -261,6 +261,13 @@ The JSON is a list of lines rather than one object per prototype, deliberately:
 a diff between two runs names the prototype that changed instead of reflowing a
 thousand lines.
 
+**A colour name is not a colour.** `color.cpp` builds two tables and picks one on
+the terminal's colour count, and in the fallback table `c_dark_gray_red` is an
+alias of `c_black_red`. A headless run has no terminal, so it reported the
+fallback names — the harness now pins the 256-colour table, which is what a
+player sees. Found by the field comparison, not by inspection: 23 prototypes
+disagreed only on colour before the pin.
+
 ### Replay runs without a terminal, and is reproducible
 
 `--replay <file> --dump-state <file>` plays a recorded session: one key per line,

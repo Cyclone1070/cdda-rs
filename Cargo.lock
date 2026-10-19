@@ -6,6 +6,7 @@ version = 4
 name = "cdda-content"
 version = "0.1.0"
 dependencies = [
+ "cdda-core-types",
  "cdda-json",
 ]
 

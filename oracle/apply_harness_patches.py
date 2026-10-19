@@ -111,6 +111,35 @@ def patch_game_header(src: pathlib.Path) -> None:
     )
 
 
+def patch_ncurses_256(src: pathlib.Path) -> None:
+    """Pins the colour table to the 256-colour branch.
+
+    `color.cpp` builds two different tables and picks one on
+    `COLORS >= 256`, which ncurses only knows once a terminal exists. A headless
+    run therefore gets the fallback table, where `c_dark_gray_red` is an alias of
+    `c_black_red` - and every colour name in a dump would then describe the
+    fallback, not the game a player sees. The harness pins the modern table.
+    """
+    path = src / "ncurses_def.cpp"
+    patch(
+        path,
+        """bool catacurses::supports_256_colors()
+{
+    return COLORS >= 256;
+}""",
+        """bool catacurses::supports_256_colors()
+{
+#ifdef CATA_HARNESS
+    // No terminal in a headless run, so COLORS is zero. The port targets a
+    // 256-colour terminal, so the harness reports one.
+    return true;
+#endif
+    return COLORS >= 256;
+}""",
+        "colour capability",
+    )
+
+
 def patch_mapdata(src: pathlib.Path) -> None:
     """Adds the terrain and furniture dump.
 
@@ -506,6 +535,7 @@ def main() -> None:
     patch_game_header(SRC)
     patch_ncurses(SRC)
     patch_mapdata(SRC)
+    patch_ncurses_256(SRC)
     patch_main(SRC)
     print("harness patches applied")
 
@@ -529,6 +559,7 @@ def verify() -> None:
     patch_game_header(scratch)
     patch_ncurses(scratch)
     patch_mapdata(scratch)
+    patch_ncurses_256(scratch)
     patch_main(scratch)
 
     failed = False

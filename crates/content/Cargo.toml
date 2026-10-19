@@ -11,4 +11,5 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+cdda-core-types = { path = "../core-types" }
 cdda-json = { path = "../json" }
