@@ -1,0 +1,416 @@
+name: port validation
+
+# Every job here treats the C++ game as a permanent oracle.
+# Nothing in this file proves the port correct; it makes divergence impossible to
+# merge unnoticed.
+#
+# Activation: set repository variable PORT_CI=on once the Rust crates and the
+# replay harness exist. Until then every job is skipped, so merging this early
+# cannot break anything.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 4 * * *"   # nightly: long replays, fuzzing, visuals
+  workflow_dispatch:
+    inputs:
+      fuzz_hours:
+        description: "Hours of action-stream fuzzing"
+        default: "2"
+      session_filter:
+        description: "Only replay sessions matching this substring"
+        default: ""
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+  CARGO_INCREMENTAL: "0"
+  # Determinism: the harness refuses to run unless all of these are set.
+  CDDA_EQUIV_MODE: "1"
+  CDDA_FIXED_TIME: "2026-01-01T00:00:00Z"
+  CDDA_FRAME_DUMP: "semantic"
+
+concurrency:
+  group: port-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------- oracle ----
+  # Build the reference implementation. Cached aggressively: every other job
+  # depends on it and it changes only when the reference commit is bumped.
+  oracle:
+    if: vars.PORT_CI == 'on'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    outputs:
+      ref: ${{ steps.ref.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: port
+      - uses: actions/checkout@v7
+        with:
+          repository: CleverRaven/Cataclysm-DDA
+          ref: ec32143ad86e7c654862dd6702d6e4a73db1ba66   # pinned oracle
+          path: oracle-src
+          fetch-depth: 1
+      - id: ref
+        run: echo "sha=$(git -C oracle-src rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build g++ libncursesw5-dev gettext ccache zstd libzstd-dev
+      - uses: actions/cache@v6
+        with:
+          path: ~/.ccache
+          key: oracle-ccache-${{ steps.ref.outputs.sha }}-${{ hashFiles('oracle-src/src/**') }}
+          restore-keys: oracle-ccache-${{ steps.ref.outputs.sha }}-
+      - name: build oracle
+        run: |
+          cmake -S oracle-src -B oracle-build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DTILES=OFF -DCURSES=ON -DSOUND=OFF -DLOCALIZE=OFF \
+            -DTESTS=ON -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          ninja -C oracle-build -j"$(nproc)"
+      - name: smoke test
+        run: ./oracle-build/tests/cata_test "[.]" --list-tests | head -5
+      - uses: actions/upload-artifact@v7
+        with:
+          name: oracle-bin
+          retention-days: 7
+          path: |
+            oracle-build/cataclysm
+            oracle-build/tests/cata_test
+
+  # ------------------------------------------------------------ data layer ----
+  # Cheapest possible divergence check, catches content-layer drift before any
+  # simulation runs. Prototype digests must be byte-identical.
+  data-digest:
+    if: vars.PORT_CI == 'on'
+    needs: oracle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with: { path: port }
+      - uses: actions/download-artifact@v8
+        with: { name: oracle-bin, path: oracle-bin }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: port }
+      - name: oracle data digest
+        run: |
+          chmod +x oracle-bin/cataclysm
+          ./oracle-bin/cataclysm --jsonverify --basepath port/reference-data \
+            --dump-prototype-digest oracle-digest.txt
+      - name: port data digest
+        working-directory: port
+        run: cargo run --release -p tools -- digest --data reference-data --out ../port-digest.txt
+      - name: compare
+        run: |
+          diff -u oracle-digest.txt port-digest.txt && echo "data layer identical"
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: data-digest-diff
+          path: |
+            oracle-digest.txt
+            port-digest.txt
+
+  # ---------------------------------------------------------------- build ------
+  rust-checks:
+    if: vars.PORT_CI == 'on'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with: { path: port }
+      - uses: dtolnay/rust-toolchain@stable
+        with: { components: clippy, rustfmt }
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: port }
+      - working-directory: port
+        run: cargo fmt --all --check
+      - working-directory: port
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - working-directory: port
+        run: cargo test --workspace --release
+      - working-directory: port
+        run: cargo build --release --workspace
+
+  # ---------------------------------------------------------- conformance ------
+  # The translated test corpus: every behaviour the reference asserts is a spec
+  # the port must satisfy. Deterministic, single-threaded where simulation state
+  # is shared.
+  conformance:
+    if: vars.PORT_CI == 'on'
+    needs: rust-checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with: { path: port }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: port }
+      - name: run conformance corpus
+        working-directory: port
+        env:
+          RUST_TEST_THREADS: "1"
+        run: cargo test --release --workspace --features conformance -- --test-threads=1
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: conformance-failures
+          path: port/target/conformance-report.txt
+
+  # -------------------------------------------------------- differential -------
+  # THE gate. Same save, same seed, same action stream, both binaries, one
+  # canonical state hash per turn. A mismatch names the first divergent turn.
+  replay:
+    if: vars.PORT_CI == 'on'
+    needs: [oracle, rust-checks]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    steps:
+      - uses: actions/checkout@v7
+        with: { path: port }
+      - uses: actions/download-artifact@v8
+        with: { name: oracle-bin, path: oracle-bin }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: port }
+      - name: build replay harness
+        working-directory: port
+        run: cargo build --release -p replay
+      - name: replay shard ${{ matrix.shard }}
+        working-directory: port
+        env:
+          SHARD: ${{ matrix.shard }}
+          SHARDS: "4"
+          FILTER: ${{ github.event.inputs.session_filter }}
+        run: |
+          ./target/release/replay run \
+            --sessions sessions/ \
+            --shard "$SHARD" --shards "$SHARDS" \
+            --filter "${FILTER:-}" \
+            --oracle ../oracle-bin/cataclysm \
+            --port ./target/release/cdda-port \
+            --out ../replay-out \
+            --fail-fast-first-divergence
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: replay-hashes-${{ matrix.shard }}
+          path: replay-out/
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: replay-divergence-${{ matrix.shard }}
+          path: replay-out/divergence-*.json
+
+  # ------------------------------------------------------------- invariants ----
+  # Correctness that does not need the oracle: properties that must hold no
+  # matter what. Catches whole classes of divergence the hash chain cannot name.
+  invariants:
+    if: vars.PORT_CI == 'on'
+    needs: rust-checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with: { path: port }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: port }
+      - name: property tests and invariant checks
+        working-directory: port
+        env:
+          PROPTEST_CASES: "4096"
+        run: |
+          cargo test --release -p sim --features proptest
+          cargo run --release -p replay -- invariants --scenarios scenarios/ --turns 5000
+
+  # -------------------------------------------------------------- fuzzing ------
+  # Random action streams against both binaries. Deterministic replay means every
+  # failure is a regression test: the seed and action list are saved as a session.
+  fuzz:
+    if: vars.PORT_CI == 'on' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    needs: [oracle, rust-checks]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v7
+        with: { path: port }
+      - uses: actions/download-artifact@v8
+        with: { name: oracle-bin, path: oracle-bin }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: port }
+      - name: fuzz action streams
+        working-directory: port
+        run: |
+          cargo run --release -p replay -- fuzz \
+            --hours "${{ github.event.inputs.fuzz_hours || '2' }}" \
+            --oracle ../oracle-bin/cataclysm \
+            --port ./target/release/cdda-port \
+            --corpus sessions/fuzz/ --minimize-on-failure
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: fuzz-regressions
+          path: sessions/fuzz/regressions/
+
+  # ---------------------------------------------------------- visual: text -----
+  # The UI is half of this game. Compare the LOGICAL frame, not pixels: one cell
+  # per square, each holding glyph and colours. Stable across renderers and fonts.
+  visual-semantic:
+    if: vars.PORT_CI == 'on'
+    needs: [oracle, rust-checks]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with: { path: port }
+      - uses: actions/download-artifact@v8
+        with: { name: oracle-bin, path: oracle-bin }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: port }
+      - name: capture frames
+        working-directory: port
+        run: |
+          cargo build --release -p replay
+          ./target/release/replay frames \
+            --scenarios scenarios/visual/ \
+            --oracle ../oracle-bin/cataclysm \
+            --port ./target/release/cdda-port \
+            --out ../frames \
+            --cells glyph,fg,bg \
+            --turns 1,10,50
+      - name: diff frames
+        run: |
+          pip install --quiet pillow
+          python3 port/tools/frame_diff.py --a frames/oracle --b frames/port \
+            --report frames/report.html --threshold 0
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: visual-semantic
+          path: frames/
+
+  # --------------------------------------------------------- visual: pixels -----
+  # Tileset rendering only: same scene, same tileset, same resolution. Tolerance
+  # is a small per-pixel distance to absorb driver differences, nothing more.
+  visual-pixels:
+    if: vars.PORT_CI == 'on' && github.event_name == 'schedule'
+    needs: [oracle, rust-checks]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+        with: { path: port }
+      - uses: actions/download-artifact@v8
+        with: { name: oracle-bin, path: oracle-bin }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: port }
+      - name: install odiff
+        run: |
+          curl -sSL https://github.com/dmtrKovalenko/odiff/releases/latest/download/odiff-linux.zip -o odiff.zip
+          unzip -o odiff.zip -d /usr/local/bin && chmod +x /usr/local/bin/odiff
+      - name: capture screenshots
+        env:
+          SDL_VIDEODRIVER: dummy
+          SDL_AUDIODRIVER: dummy
+        working-directory: port
+        run: |
+          ./target/release/replay shots --scenarios scenarios/visual-tiles/ \
+            --oracle ../oracle-bin/cataclysm --port ./target/release/cdda-port \
+            --out ../shots --size 1280x720
+      - name: compare
+        run: |
+          rc=0
+          for f in shots/oracle/*.png; do
+            n=$(basename "$f")
+            odiff --antialiasing --fail-on-layout \
+              --diff-color '#ff00ff' "shots/oracle/$n" "shots/port/$n" \
+              "shots/diff/$n" || rc=1
+          done
+          exit $rc
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: visual-pixels
+          path: shots/
+
+  # ---------------------------------------------------------------- perf -------
+  # A regression gate, not a benchmark contest. Fixed scene, medians, and a hard
+  # ceiling. Also records turn time against entity count so scaling is visible.
+  perf:
+    if: vars.PORT_CI == 'on'
+    needs: [oracle, rust-checks, replay]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with: { path: port }
+      - uses: actions/download-artifact@v8
+        with: { name: oracle-bin, path: oracle-bin }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: port }
+      - name: measure
+        working-directory: port
+        run: |
+          cargo build --release -p replay
+          ./target/release/replay perf \
+            --scenario scenarios/perf/late-game.json \
+            --runs 5 --warmup 1 \
+            --oracle ../oracle-bin/cataclysm --port ./target/release/cdda-port \
+            --baseline validation/perf-baseline.json \
+            --max-regression 10
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: perf
+          path: port/perf-report.json
+
+  # -------------------------------------------------------------- summary ------
+  report:
+    if: vars.PORT_CI == 'on' && always()
+    needs: [data-digest, conformance, replay, invariants, visual-semantic, perf]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v8
+        with: { path: artifacts }
+      - name: write job summary
+        env:
+          RESULT_DATA: ${{ needs.data-digest.result }}
+          RESULT_CONF: ${{ needs.conformance.result }}
+          RESULT_REPLAY: ${{ needs.replay.result }}
+          RESULT_INVAR: ${{ needs.invariants.result }}
+          RESULT_VISUAL: ${{ needs.visual-semantic.result }}
+          RESULT_PERF: ${{ needs.perf.result }}
+        run: |
+          {
+            echo "## Port validation"
+            echo ""
+            echo "| Gate | Result |"
+            echo "|---|---|"
+            echo "| data digest | $RESULT_DATA |"
+            echo "| conformance | $RESULT_CONF |"
+            echo "| differential replay | $RESULT_REPLAY |"
+            echo "| invariants | $RESULT_INVAR |"
+            echo "| visual semantic | $RESULT_VISUAL |"
+            echo "| performance | $RESULT_PERF |"
+            echo ""
+            echo "Artifacts: divergence reports, frame diffs, perf medians."
+          } >> "$GITHUB_STEP_SUMMARY"

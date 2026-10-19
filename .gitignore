@@ -1,0 +1,17 @@
+# Rust build output
+/target/
+
+# The oracle's disposable working copy and build tree
+/oracle/src/
+/oracle/build/
+/oracle/userdir/
+/oracle/.verify/
+
+# The pinned reference checkout is fetched, not committed
+/references/
+
+# Editor and OS noise
+.DS_Store
+
+# TDD enforcer state is its own repository
+/.tdd/

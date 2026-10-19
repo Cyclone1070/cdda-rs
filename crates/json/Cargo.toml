@@ -1,0 +1,13 @@
+[package]
+name = "cdda-json"
+version = "0.1.0"
+description = "JSON reader/writer matching the reference loader's acceptance rules"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]

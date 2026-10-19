@@ -1,0 +1,14 @@
+[package]
+name = "cdda-core-types"
+version = "0.1.0"
+description = "Coordinates, units, time, identifiers and randomness for the port"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+cdda-json = { path = "../json" }

@@ -1,0 +1,189 @@
+# Parity ledger
+
+The single place where port status lives. One row per system: what it is, which
+phase it belongs to, and the gate that proves it matches the reference. Update it
+in the same change that ports the system.
+
+Legend for **Status**: `not started` · `porting` · `ported` (gates red) ·
+`gated` (gate green, evidence linked) · `declared divergence` (differs on purpose,
+reason recorded in [04-validation.md](04-validation.md)).
+
+Nothing is `gated` without a link to the run that proved it.
+
+---
+
+## P0 — Foundation
+
+| System | Status | Gate | Notes |
+|---|---|---|---|
+| Coordinates, origins and scales | in progress | RNG + text parity (M0) | Projection green: floor-toward-negative-infinity confirmed against `coordinates.h:601-644`, vertical axis unscaled. Legality matrix still to come |
+| Units and quantities | done (P0 scope) | M0 | 23 tests; 83 of the reference's 202 assertions reproduced, the rest being time/JSON/option-driven conversions that belong to later tasks. Rounding truncation rules pinned from the source |
+| Calendar and time | done (P0 scope) | M0 | 28 tests = every assertion in `tests/calendar_test.cpp`; sun and moonlight cross-checked against the reference's own formulas over 309 configurations (max deviation 2e-16 rad) |
+| Random numbers | in progress | M0 | Engine stream matches the reference draw for draw over 4 seeds ([corpus/rng/engine.csv](../corpus/rng/engine.csv)); the library distributions are being transcribed from libc++ and checked against the same corpus |
+| Identifiers (string, int, type) | not started | M0 | Integer ids are caches, never identity |
+| JSON reading | in progress | M0 | Reader matches the reference on all 6,220 data files (accept/reject and structural digest); duplicate keys are a hard error, member order is sorted, trailing content is ignored |
+| JSON writing | in progress | M0 | Writer matches the reference byte for byte on 127 sample files, including its fixed 6-decimal float format |
+| JSON parse cache | not started | M0 | |
+| Options table | not started | M0 | 234 declarations to move (03-decisions.md) |
+| Paths and filesystem roots | not started | M0 | Seven logical roots |
+| Text lookup and formatting | not started | M0 | Message ids are frozen (B4) |
+| Colours | not started | M0 | |
+| Containers and hashing | not started | M0 | Stable-address pools, dense bit sets |
+| Diagnostics and debug levels | not started | M0 | |
+
+## P1 — Content and persistence
+
+| System | Status | Gate | Notes |
+|---|---|---|---|
+| Prototype registry machinery | not started | Prototype digest (M1) | Load, inherit, finalise, consistency-check |
+| Content type loaders (160 types) | not started | M1 | See [06-inventory.md](06-inventory.md) for the full list |
+| Inheritance and merge operators | not started | M1 | `copy-from`, `extend`, `delete`, `relative`, `proportional` |
+| Mod discovery and load order | not started | M1 | User-ordered list, not a topological sort |
+| Mod dependency graph and cycles | not started | M1 | |
+| Save reading and writing | not started | M1 | Scope depends on blocker B2 |
+| Save migrations | not started | M1 | 14 content-level migration types plus per-field fix-ups |
+| Compression and archives | not started | M1 | Dictionary content must match bit-for-bit |
+| Map memory and seen-tile persistence | not started | M1 | |
+| Oracle harness modes | not started | Gate 0 | See [11-oracle-harness.md](11-oracle-harness.md) |
+
+## P2 — World and environment
+
+| System | Status | Gate | Notes |
+|---|---|---|---|
+| Tile storage and uniform regions | not started | Environment replay (M2) | |
+| World submap owner and bubble view | not started | M2 | Ownership decided once |
+| Per-level caches and dirty flags | not started | M2 | |
+| Light and illumination | not started | M2 | Four quadrants per square, 21 levels |
+| Vision and visibility | not started | M2 | |
+| Fields and field processors | not started | M2 | 21 data-gated processors |
+| Scent | not started | M2 | Already a dense grid |
+| Sound events | not started | M2 | Transient, no world storage |
+| Temperature | not started | M2 | Per-turn cache |
+| Weather | not started | M2 | Tuning constants transcribed exactly |
+| Traps | not started | M2 | |
+| Zones | not started | M2 | |
+| Falling and explosions | not started | M2 | |
+
+## P3 — Items
+
+| System | Status | Gate | Notes |
+|---|---|---|---|
+| Item state | not started | Item replay (M3a) | |
+| Contents, pockets and containment | not started | M3a | |
+| Item location and references | not started | M3a | Replaced by generational handles |
+| Item groups and spawn tables | not started | M3a | Recursive polymorphic tree |
+| Item prototypes | not started | M3a | |
+| Inventory | not started | M3a | |
+| Crafting and recipes | not started | M3a | |
+| Requirements and qualities | not started | M3a | |
+| Constructions | not started | M3a | Named special functions |
+| Use actions | not started | M3a | 195 functions |
+| Examine actions | not started | M3a | 108 functions |
+| Consumption, butchery, liquids | not started | M3a | |
+| Auto-pickup | not started | M3a | |
+
+## P4 — Creatures
+
+| System | Status | Gate | Notes |
+|---|---|---|---|
+| Creature base state | not started | Combat replay (M3b) | |
+| Character state | not started | M3b | The largest single object in the game |
+| Monster state | not started | M3b | |
+| NPC state | not started | M3b | |
+| Creature tracking and lookup | not started | M3b | Four parallel indexes today |
+| Effects | not started | M3b | |
+| Body parts and anatomy | not started | M3b | |
+| Mutations | not started | M3b | |
+| Bionics | not started | M3b | |
+| Morale, needs, wounds, disease | not started | M3b | |
+| Melee, ranged, projectiles, dispersion | not started | M3b | |
+| Martial arts | not started | M3b | |
+| Weakpoints, harvest, death | not started | M3b | |
+
+## P5 — Spells and enchantments
+
+| System | Status | Gate | Notes |
+|---|---|---|---|
+| Spell types and casting | not started | Spell replay (M3c) | Five cost kinds; mana is one |
+| Spell effects, shapes and targeting | not started | M3c | |
+| Enchantments | not started | M3c | Feeds creature and item stats |
+| Terrain and furniture transforms | not started | M3c | |
+| Teleporter lists | not started | M3c | |
+| Relic generation | not started | M3c | |
+
+## P6 — Activities
+
+| System | Status | Gate | Notes |
+|---|---|---|---|
+| Activity actors | not started | Activity replay (M3d) | 69 classes |
+| Activity handlers | not started | M3d | |
+| Activity record and suspension | not started | M3d | Three concurrent slots today |
+| Pickup and movement modes | not started | M3d | |
+| Action pipeline | not started | M3d | |
+
+## P7 — AI and scripting
+
+| System | Status | Gate | Notes |
+|---|---|---|---|
+| Monster planning and movement | not started | Decision traces (M4a) | Highest divergence risk in the port |
+| Behaviour trees | not started | M4a | Data over a pointer graph today |
+| NPC decision making | not started | M4a | 28 actions, ~30 tuned scorers |
+| Pathfinding | not started | M4a | Includes load-bearing tuning constants |
+| Dialogue | not started | M4a | |
+| Conditions and effect-on-condition | not started | M4a | Content is code in a mini-language |
+| Missions | not started | M4a | |
+| Factions runtime and trading | not started | M4a | |
+
+## P8 — Vehicles
+
+| System | Status | Gate | Notes |
+|---|---|---|---|
+| Vehicle identity and model | not started | Vehicle replay (M4b) | No identity exists today |
+| Parts and derived indexes | not started | M4b | |
+| Movement and collision | not started | M4b | Pointer-order ties today (B1) |
+| Vehicle interaction and use | not started | M4b | |
+| Turrets and vehicle groups | not started | M4b | |
+
+## P9 — World generation
+
+| System | Status | Gate | Notes |
+|---|---|---|---|
+| Overmap storage | not started | Seed corpus digest (M5) | |
+| Overmap generation | not started | M5 | Order-dependent today |
+| Map generation interpreter | not started | M5 | 845 files of DSL |
+| Built-in map generators | not started | M5 | 12 functions |
+| Regional settings | not started | M5 | |
+| World factory and world options | not started | M5 | |
+| Hordes | not started | M5 | |
+| Cities and map extras | not started | M5 | |
+| Basecamps and faction camps | not started | M5 | |
+
+## P10 — Interface
+
+| System | Status | Gate | Notes |
+|---|---|---|---|
+| Text layout and output | not started | Frame parity (M6) | |
+| UI stack and window abstraction | not started | M6 | |
+| Menus (254 sites) | not started | M6 | |
+| HUD widgets and panels | not started | M6 | Specification is JSON |
+| Input and keybindings | not started | M6 | 620 rebindable actions |
+| Fonts and colour themes | not started | M6 | |
+| Tiles renderer | not started | M6 | Pixel gate nightly |
+| Terminal renderer | not started | M6 | |
+| Sound and music | not started | M6 | Not part of the state digest |
+| Individual screens | not started | M6 | Full list in ui-screen-inventory |
+
+## P11 — Runtime, platform, tooling
+
+| System | Status | Gate | Notes |
+|---|---|---|---|
+| Game object and schedule | not started | Perf and packaging (M7) | |
+| Main entry and command line | not started | M7 | Harness flags must survive |
+| Input-to-action handling | not started | M7 | |
+| Game mode and UI state | not started | M7 | |
+| Event bus | not started | M7 | |
+| Debug menu and editors | not started | M7 | ~309 actions; handy, hazardous |
+| Screenshots and capture | not started | M7 | |
+| Crash handling and diagnostics | not started | M7 | |
+| Platform shims | not started | M7 | macOS, Linux, Windows; Android and web deferred ([12-platforms.md](12-platforms.md)) |
+| Packaging | not started | M7 | Three desktop pipelines; the reference ships nine artifacts across five |

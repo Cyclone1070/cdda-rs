@@ -1,0 +1,328 @@
+diff -ruN -x version.h -x prefix.h -x .verify references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_factory.h
+--- references/Cataclysm-DDA/src/generic_factory.h	2026-10-19 18:15:04
++++ oracle/src/src/generic_factory.h	2026-10-19 21:44:56
+@@ -19,6 +19,9 @@
+ #include <utility>
+ #include <vector>
+ 
++#ifdef CATA_HARNESS
++#include "harness.h"
++#endif
+ #include "cached_options.h"
+ #include "calendar.h"
+ #include "cata_scope_helpers.h"
+@@ -190,6 +193,11 @@
+               id_member_name( id_member_name ),
+               dummy_obj(),
+               initialized( true ) {
++#ifdef CATA_HARNESS
++            harness::register_prototype_source( type_name, []( void *self ) {
++                return static_cast<generic_factory<T> *>( self )->debug_prototype_ids();
++            }, this );
++#endif
+         }
+ 
+         // Begin template magic for T::handle_inheritance; if T has handle_inheritance function
+@@ -447,6 +455,18 @@
+         const std::vector<T> &get_all() const {
+             return list;
+         }
++#ifdef CATA_HARNESS
++        // Harness only: every id this factory currently holds, for the
++        // prototype digest. Never called by the game.
++        std::vector<std::string> debug_prototype_ids() const {
++            std::vector<std::string> result;
++            result.reserve( list.size() );
++            for( const T &obj : list ) {
++                result.push_back( obj.id.str() );
++            }
++            return result;
++        }
++#endif
+         /**
+          * Returns all the loaded objects. It can be used to iterate over them.
+          * Getting modifiable objects should be done sparingly!
+diff -ruN -x version.h -x prefix.h -x .verify references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
+--- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
++++ oracle/src/src/harness.cpp	2026-10-19 22:22:59
+@@ -0,0 +1,146 @@
++#include "harness.h"
++
++#include <algorithm>
++#include <cstdio>
++#include <string>
++#include <vector>
++
++namespace harness
++{
++
++namespace
++{
++
++// Function-local static: generic_factory instances are static globals, and the
++// order in which they are constructed is not defined, so the registry must not
++// be a namespace-scope global itself.
++std::vector<prototype_source> &registry()
++{
++    static std::vector<prototype_source> sources;
++    return sources;
++}
++
++std::string json_escape( const std::string &value )
++{
++    std::string out;
++    out.reserve( value.size() + 2 );
++    for( const char c : value ) {
++        switch( c ) {
++            case '"':
++                out += "\\\"";
++                break;
++            case '\\':
++                out += "\\\\";
++                break;
++            case '\n':
++                out += "\\n";
++                break;
++            case '\t':
++                out += "\\t";
++                break;
++            case '\r':
++                out += "\\r";
++                break;
++            default:
++                out += c;
++        }
++    }
++    return out;
++}
++
++} // namespace
++
++void register_prototype_source( const std::string &type_name,
++                                std::vector<std::string>( *list_ids )( void * ),
++                                void *factory )
++{
++    registry().push_back( prototype_source{ type_name, list_ids, factory } );
++}
++
++uint64_t digest_strings( const std::vector<std::string> &values )
++{
++    constexpr uint64_t offset_basis = 14695981039346656037ULL;
++    constexpr uint64_t prime = 1099511628211ULL;
++    uint64_t hash = offset_basis;
++    for( const std::string &value : values ) {
++        for( const char c : value ) {
++            hash ^= static_cast<unsigned char>( c );
++            hash *= prime;
++        }
++        // Separator, so that {"ab","c"} and {"a","bc"} differ.
++        hash ^= 0x00;
++        hash *= prime;
++    }
++    return hash;
++}
++
++namespace
++{
++
++// Every registry's ids, sorted and deduplicated, with the registry name.
++std::vector<std::pair<std::string, std::vector<std::string>>> collect()
++{
++    std::vector<std::pair<std::string, std::vector<std::string>>> out;
++    out.reserve( registry().size() );
++    for( const prototype_source &source : registry() ) {
++        std::vector<std::string> ids = source.list_ids( source.factory );
++        std::sort( ids.begin(), ids.end() );
++        ids.erase( std::unique( ids.begin(), ids.end() ), ids.end() );
++        out.emplace_back( source.type_name, std::move( ids ) );
++    }
++    std::sort( out.begin(), out.end(),
++    []( const auto & l, const auto & r ) {
++        return l.first < r.first;
++    } );
++    return out;
++}
++
++} // namespace
++
++void dump_prototype_digest( const std::string &path )
++{
++    const auto collected = collect();
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    std::fprintf( out, "{\"harness\":\"prototype-digest\",\"version\":1,\"registries\":[\n" );
++    bool first = true;
++    for( const auto &entry : collected ) {
++        std::fprintf( out, "%s{\"type\":\"%s\",\"count\":%zu,\"digest\":\"%016llx\"}",
++                      first ? "" : ",\n", json_escape( entry.first ).c_str(),
++                      entry.second.size(),
++                      static_cast<unsigned long long>( digest_strings( entry.second ) ) );
++        first = false;
++    }
++    std::fprintf( out, "\n]}\n" );
++    std::fclose( out );
++}
++
++void dump_prototype_ids( const std::string &path )
++{
++    const auto collected = collect();
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    std::fprintf( out, "{\"harness\":\"prototype-ids\",\"version\":1,\"registries\":[\n" );
++    bool first_registry = true;
++    for( const auto &entry : collected ) {
++        std::fprintf( out, "%s{\"type\":\"%s\",\"ids\":[", first_registry ? "" : ",\n",
++                      json_escape( entry.first ).c_str() );
++        bool first_id = true;
++        for( const std::string &id : entry.second ) {
++            std::fprintf( out, "%s\"%s\"", first_id ? "" : ",", json_escape( id ).c_str() );
++            first_id = false;
++        }
++        std::fprintf( out, "]}" );
++        first_registry = false;
++    }
++    std::fprintf( out, "\n]}\n" );
++    std::fclose( out );
++}
++
++} // namespace harness
+diff -ruN -x version.h -x prefix.h -x .verify references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
+--- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
++++ oracle/src/src/harness.h	2026-10-19 22:22:59
+@@ -0,0 +1,53 @@
++#pragma once
++#ifndef CATA_SRC_HARNESS_H
++#define CATA_SRC_HARNESS_H
++
++// Instrumentation for comparing this implementation against the port.
++//
++// Everything here is compiled out entirely unless CATA_HARNESS is defined at
++// build time, and no function in this file changes game behaviour when the
++// harness flags are not passed on the command line. See
++// docs/11-oracle-harness.md for the modes and their contract.
++
++#include <cstdint>
++#include <string>
++#include <vector>
++
++namespace harness
++{
++
++// A prototype registry that can list its own ids.
++//
++// Every generic_factory instance registers itself here at construction, which is
++// what makes a digest of all loaded definitions possible without listing the
++// eightysomething registries by hand.
++struct prototype_source {
++    std::string type_name;
++    std::vector<std::string> ( *list_ids )( void *factory );
++    void *factory;
++};
++
++// Called by generic_factory's constructor. Safe before main().
++void register_prototype_source( const std::string &type_name,
++                                std::vector<std::string>( *list_ids )( void * ),
++                                void *factory );
++
++// FNV-1a, 64 bit, over each value's bytes followed by a single zero byte. The
++// definition is part of the contract: the port has to compute the same number,
++// so it is spelled out here rather than left to a library.
++uint64_t digest_strings( const std::vector<std::string> &values );
++
++// `--dump-prototype-digest <file>`: one JSON object per registry, sorted by type
++// name, each with a count and a digest of its sorted ids. Written to `path`.
++//
++// A file rather than stdout on purpose: the curses build initializes the
++// terminal before the data load, so stdout carries escape sequences.
++void dump_prototype_digest( const std::string &path );
++
++// `--dump-prototype-ids <file>`: the same registries, but with every id listed,
++// so a difference can be read directly instead of hunted for.
++void dump_prototype_ids( const std::string &path );
++
++} // namespace harness
++
++#endif // CATA_SRC_HARNESS_H
+diff -ruN -x version.h -x prefix.h -x .verify references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
+--- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
++++ oracle/src/src/main.cpp	2026-10-19 22:49:47
+@@ -45,6 +45,9 @@
+ #include "game_constants.h"
+ #include "game_ui.h"
+ #include "get_version.h"
++#ifdef CATA_HARNESS
++#include "harness.h"
++#endif
+ #include "help.h"
+ #include "input.h"
+ #include "main_menu.h"
+@@ -272,6 +275,10 @@
+ struct cli_opts {
+     int seed = time( nullptr );
+     bool verifyexit = false;
++    // Harness: write a digest of every loaded prototype (or the ids themselves)
++    // to this file and exit. See docs/11-oracle-harness.md.
++    std::string dump_prototype_digest;
++    std::string dump_prototype_ids;
+     bool noverify = false;
+     bool check_mods = false;
+     std::vector<std::string> opts;
+@@ -300,6 +307,26 @@
+                 }
+             },
+             {
++                "--dump-prototype-digest", "<file>",
++                "Writes a digest of every loaded prototype to <file> and exits",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_prototype_digest = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-prototype-ids", "<file>",
++                "Writes every loaded prototype id to <file> and exits",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_prototype_ids = params[0];
++                    return 1;
++                }
++            },
++            {
+                 "--jsonverify", {},
+                 "Checks the CDDA json files and exits",
+                 section_default,
+@@ -786,6 +813,25 @@
+     // depend on the mods.
+     try {
+         g->load_static_data();
++        if( !cli.dump_prototype_digest.empty() || !cli.dump_prototype_ids.empty() ) {
++            // Load exactly what a player's game loads: the core data, then the
++            // content pack. `check_mod_data` is the reference's own path for
++            // that (it is what --check-mods uses), so the digest cannot drift
++            // from the real loading order.
++            //
++            // Test mode, as --check-mods sets it, so that a data error is
++            // reported instead of opening a popup that waits for input and hangs
++            // an unattended run. This is the one mode where that is safe: no
++            // menu is built. The replay harness must not do this.
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            if( !cli.dump_prototype_ids.empty() ) {
++                harness::dump_prototype_ids( cli.dump_prototype_ids );
++            } else {
++                harness::dump_prototype_digest( cli.dump_prototype_digest );
++            }
++            exit_handler( 0 );
++        }
+         if( cli.verifyexit ) {
+             exit_handler( 0 );
+         }

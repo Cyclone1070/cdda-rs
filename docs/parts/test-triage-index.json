@@ -1,0 +1,2483 @@
+[
+{
+"file": "act_build_test.cpp",
+"loc": 329,
+"cases": 2,
+"tags": [
+"zones",
+"activities",
+"construction",
+"npc"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "active_item_cache_test.cpp",
+"loc": 46,
+"cases": 1,
+"tags": [
+"item"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "active_item_test.cpp",
+"loc": 114,
+"cases": 3,
+"tags": [
+"active_item"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "activity_scheduling_helper.cpp",
+"loc": 248,
+"cases": 0,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "activity_tracker_test.cpp",
+"loc": 115,
+"cases": 5,
+"tags": [
+"activity_tracker"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "addiction_test.cpp",
+"loc": 749,
+"cases": 12,
+"tags": [
+"addiction"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "advanced_inventory_test.cpp",
+"loc": 408,
+"cases": 1,
+"tags": [
+"items",
+"advanced_inv"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "algo_test.cpp",
+"loc": 51,
+"cases": 2,
+"tags": [
+"nogame"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "ammo_set_test.cpp",
+"loc": 405,
+"cases": 4,
+"tags": [
+"ammo_set",
+"magazine",
+"ammo"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "ammo_test.cpp",
+"loc": 320,
+"cases": 4,
+"tags": [
+"ammo",
+"ammo_types",
+"ammo_default",
+"weapon",
+"energy",
+"item"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "archery_damage_test.cpp",
+"loc": 148,
+"cases": 1,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "battery_density_test.cpp",
+"loc": 149,
+"cases": 1,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "battery_mod_test.cpp",
+"loc": 366,
+"cases": 3,
+"tags": [
+"battery",
+"tool",
+"mod",
+"properties",
+"install"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "behavior_test.cpp",
+"loc": 425,
+"cases": 6,
+"tags": [
+"behavior",
+"monster",
+"npc"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "bionics_test.cpp",
+"loc": 599,
+"cases": 5,
+"tags": [
+"bionics"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "calendar_test.cpp",
+"loc": 44,
+"cases": 2,
+"tags": [
+"calendar",
+"nogame"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "cardio_test.cpp",
+"loc": 356,
+"cases": 9,
+"tags": [
+"cardio",
+"base",
+"traits",
+"stamina",
+"weariness",
+"activity",
+"height",
+"weight"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "cartesian_product_test.cpp",
+"loc": 21,
+"cases": 1,
+"tags": [
+"nogame"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "cata_generators.cpp",
+"loc": 70,
+"cases": 0,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "cata_utility_test.cpp",
+"loc": 410,
+"cases": 12,
+"tags": [
+"nogame",
+"utility",
+"map",
+"filter",
+".",
+"benchmark",
+"debug_menu"
+],
+"ui": false,
+"bench": true
+},
+{
+"file": "cata_variant_test.cpp",
+"loc": 142,
+"cases": 9,
+"tags": [
+"variant",
+"nogame"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "catacharset_test.cpp",
+"loc": 158,
+"cases": 9,
+"tags": [
+"catacharset",
+"nogame"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "char_biometrics_test.cpp",
+"loc": 662,
+"cases": 11,
+"tags": [
+"biometrics",
+"bmi",
+"bodyweight",
+"mutation",
+"avatar",
+"weight",
+"kcal",
+"max"
+],
+"ui": true,
+"bench": false
+},
+{
+"file": "char_edible_rating_test.cpp",
+"loc": 552,
+"cases": 13,
+"tags": [
+"edible_rating",
+"can_eat",
+"will_eat",
+"nonfood",
+"dirty",
+"underwater",
+"frozen",
+"inedible"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "char_exposure_test.cpp",
+"loc": 121,
+"cases": 1,
+"tags": [
+"char",
+"bodypart",
+"exposure"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "char_healing_test.cpp",
+"loc": 408,
+"cases": 4,
+"tags": [
+"heal",
+"baseline",
+"trait",
+"mutation",
+"health",
+"bandage",
+"disinfect"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "char_sight_test.cpp",
+"loc": 364,
+"cases": 4,
+"tags": [
+"character",
+"vision",
+"sight",
+"light",
+"npc",
+"ursine"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "char_stamina_test.cpp",
+"loc": 532,
+"cases": 7,
+"tags": [
+"stamina",
+"update",
+"regen",
+"burn",
+"cost",
+"modify",
+"move",
+"pain"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "char_suffer_test.cpp",
+"loc": 531,
+"cases": 3,
+"tags": [
+"char",
+"suffer",
+"albino",
+"sunburn",
+"oxygen",
+"grab"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "char_validity_check_test.cpp",
+"loc": 25,
+"cases": 1,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "char_volume_test.cpp",
+"loc": 51,
+"cases": 1,
+"tags": [
+"volume"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "character_modifier_test.cpp",
+"loc": 602,
+"cases": 7,
+"tags": [
+"character",
+"limb",
+"encumbrance",
+"mutation"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "clzones_test.cpp",
+"loc": 335,
+"cases": 2,
+"tags": [
+"zones",
+"items",
+"activities",
+"ammo_belt",
+"unload",
+"food"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "colony_test.cpp",
+"loc": 1173,
+"cases": 9,
+"tags": [
+"colony"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "comestible_test.cpp",
+"loc": 421,
+"cases": 7,
+"tags": [
+"recipe",
+"character",
+"food",
+"satiety",
+"item",
+"comestible"
+],
+"ui": true,
+"bench": false
+},
+{
+"file": "connect_rotate_test.cpp",
+"loc": 537,
+"cases": 7,
+"tags": [
+"multitile",
+"connects",
+"rotates"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "consumption_time_test.cpp",
+"loc": 28,
+"cases": 1,
+"tags": [
+"character",
+"item",
+"food",
+"time"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "coordinate_test.cpp",
+"loc": 584,
+"cases": 8,
+"tags": [
+"point",
+"coords",
+"nogame"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "coverage_test.cpp",
+"loc": 331,
+"cases": 8,
+"tags": [
+"coverage",
+"material"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "crafting_test.cpp",
+"loc": 2476,
+"cases": 25,
+"tags": [
+"crafting",
+"proficiency",
+"recipes",
+".",
+"ups",
+"random",
+"charge",
+"tool"
+],
+"ui": true,
+"bench": false
+},
+{
+"file": "creature_effect_test.cpp",
+"loc": 554,
+"cases": 8,
+"tags": [
+"creature",
+"effect",
+"character",
+"add",
+"monster",
+"has",
+"immune",
+"remove"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "creature_in_field_test.cpp",
+"loc": 40,
+"cases": 1,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "creature_test.cpp",
+"loc": 139,
+"cases": 5,
+"tags": [
+"anatomy",
+"bodypart",
+"monster"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "cube_direction_test.cpp",
+"loc": 38,
+"cases": 3,
+"tags": [
+"cube_direction"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "degradation_test.cpp",
+"loc": 713,
+"cases": 8,
+"tags": [
+"item",
+"degradation",
+"damage_level",
+"repair",
+"container"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "distribution_test.cpp",
+"loc": 17,
+"cases": 1,
+"tags": [
+"distribution"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "effect_test.cpp",
+"loc": 812,
+"cases": 14,
+"tags": [
+"effect",
+"intensity",
+"init",
+"duration",
+"max",
+"decay",
+"desc",
+"disp_name"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "effective_dps_test.cpp",
+"loc": 324,
+"cases": 4,
+"tags": [
+"dps",
+"effective",
+"actual",
+"!mayfail",
+"accuracy",
+"expected"
+],
+"ui": true,
+"bench": false
+},
+{
+"file": "enchantments_test.cpp",
+"loc": 464,
+"cases": 10,
+"tags": [
+"enchantments",
+"magic",
+"worn",
+"items",
+"bionics",
+"mutations"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "encumbrance_test.cpp",
+"loc": 191,
+"cases": 10,
+"tags": [
+"encumbrance"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "eoc_test.cpp",
+"loc": 1551,
+"cases": 44,
+"tags": [
+"eoc",
+"math_parser",
+"timed_event",
+"mutations"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "event_test.cpp",
+"loc": 99,
+"cases": 6,
+"tags": [
+"event"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "explosion_balance_test.cpp",
+"loc": 275,
+"cases": 3,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "faction_camp_test.cpp",
+"loc": 159,
+"cases": 1,
+"tags": [
+"camp"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "faction_price_rules_test.cpp",
+"loc": 190,
+"cases": 2,
+"tags": [
+"npc",
+"trade",
+"factions"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "fake_messages.cpp",
+"loc": 89,
+"cases": 0,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "field_test.cpp",
+"loc": 583,
+"cases": 15,
+"tags": [
+"field",
+"player",
+"!mayfail"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "firstaid_test.cpp",
+"loc": 155,
+"cases": 2,
+"tags": [
+"activity",
+"firstaid",
+"avatar",
+"npc"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "flat_set_test.cpp",
+"loc": 141,
+"cases": 6,
+"tags": [
+"flat_set"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "focus_test.cpp",
+"loc": 124,
+"cases": 1,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "fold_string_test.cpp",
+"loc": 108,
+"cases": 1,
+"tags": [],
+"ui": true,
+"bench": false
+},
+{
+"file": "food_fun_for_test.cpp",
+"loc": 469,
+"cases": 10,
+"tags": [
+"fun_for",
+"food",
+"nonfood",
+"sick",
+"rotten",
+"cold",
+"melted",
+"cat"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "force_load_game_test.cpp",
+"loc": 9,
+"cases": 1,
+"tags": [
+"force_load_game"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "fuel_test.cpp",
+"loc": 35,
+"cases": 1,
+"tags": [
+"energy"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "gates_test.cpp",
+"loc": 240,
+"cases": 4,
+"tags": [
+"gates"
+],
+"ui": true,
+"bench": false
+},
+{
+"file": "generic_factory_test.cpp",
+"loc": 463,
+"cases": 9,
+"tags": [
+"generic_factory",
+"string_id",
+".",
+"benchmark",
+"int_id"
+],
+"ui": false,
+"bench": true
+},
+{
+"file": "ground_destroy_test.cpp",
+"loc": 235,
+"cases": 4,
+"tags": [
+"."
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "harvest_test.cpp",
+"loc": 91,
+"cases": 1,
+"tags": [
+"harvest"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "hash_test.cpp",
+"loc": 59,
+"cases": 2,
+"tags": [
+"hash"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "health_test.cpp",
+"loc": 88,
+"cases": 2,
+"tags": [
+"health"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "iexamine_test.cpp",
+"loc": 49,
+"cases": 2,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "invlet_test.cpp",
+"loc": 829,
+"cases": 4,
+"tags": [
+".invlet"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "item_autopickup_test.cpp",
+"loc": 639,
+"cases": 6,
+"tags": [
+"autopickup",
+"item"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "item_contents_test.cpp",
+"loc": 157,
+"cases": 4,
+"tags": [
+"item"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "item_countdown_test.cpp",
+"loc": 97,
+"cases": 2,
+"tags": [
+"item"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "item_group_test.cpp",
+"loc": 271,
+"cases": 7,
+"tags": [
+"item_group"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "item_location_test.cpp",
+"loc": 100,
+"cases": 3,
+"tags": [
+"item",
+"item_location"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "item_pickup_test.cpp",
+"loc": 202,
+"cases": 2,
+"tags": [
+"pickup",
+"inventory",
+"container"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "item_pocket_test.cpp",
+"loc": 2995,
+"cases": 29,
+"tags": [
+"pocket",
+"item",
+"liquid",
+"best",
+"favorite",
+"gunmod",
+"max_item_length",
+"max_item_volume"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "item_spawn_test.cpp",
+"loc": 114,
+"cases": 1,
+"tags": [
+"item_spawn"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "item_stackable_test.cpp",
+"loc": 18,
+"cases": 1,
+"tags": [
+"item"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "item_test.cpp",
+"loc": 1100,
+"cases": 21,
+"tags": [
+"item",
+"armor",
+"temperature",
+"stack",
+"combine",
+"water",
+"swimming"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "item_tick_action_test.cpp",
+"loc": 20,
+"cases": 1,
+"tags": [
+"item"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "item_tname_test.cpp",
+"loc": 984,
+"cases": 11,
+"tags": [
+"item",
+"tname",
+"hidden",
+"temperature",
+"wet",
+"filthy",
+"diamond",
+"wheel"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "item_type_name_test.cpp",
+"loc": 181,
+"cases": 4,
+"tags": [
+"item",
+"type_name",
+"plural",
+"named",
+"blood",
+"corpse"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "iteminfo_test.cpp",
+"loc": 3322,
+"cases": 46,
+"tags": [
+"iteminfo",
+"armor",
+"food",
+"protection",
+"weapon",
+"pocket",
+"volume",
+"weight"
+],
+"ui": true,
+"bench": false
+},
+{
+"file": "itemname_test.cpp",
+"loc": 201,
+"cases": 3,
+"tags": [
+"item",
+"display_name",
+"contents",
+"iteminfo",
+"sizing"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "iuse_actor_test.cpp",
+"loc": 242,
+"cases": 3,
+"tags": [
+"iuse_actor",
+"manhack",
+"iuse",
+"tool",
+"transform"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "iuse_test.cpp",
+"loc": 1079,
+"cases": 14,
+"tags": [
+"iuse",
+"pur_tablets",
+"eyedrops",
+"antifungal",
+"antiparasitic",
+"anticonvulsant",
+"oxygen_bottle",
+"caff"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "json_load_test.cpp",
+"loc": 61,
+"cases": 2,
+"tags": [
+"json",
+"load",
+"damage",
+"monster"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "json_test.cpp",
+"loc": 983,
+"cases": 14,
+"tags": [
+"json",
+"translation",
+"item"
+],
+"ui": true,
+"bench": false
+},
+{
+"file": "limb_test.cpp",
+"loc": 312,
+"cases": 7,
+"tags": [
+"limb",
+"character",
+"encumbrance",
+"npc",
+"armor"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "line_test.cpp",
+"loc": 465,
+"cases": 10,
+"tags": [
+"line",
+"point",
+"coords",
+"."
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "list_test.cpp",
+"loc": 1177,
+"cases": 15,
+"tags": [
+"list"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "magic_spell_effect_test.cpp",
+"loc": 209,
+"cases": 2,
+"tags": [
+"magic"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "magic_spell_test.cpp",
+"loc": 881,
+"cases": 12,
+"tags": [
+"magic",
+"spell",
+"effect",
+"level",
+"name",
+"invlet",
+"xp",
+"damage"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "make_static_test.cpp",
+"loc": 71,
+"cases": 2,
+"tags": [
+"make_static_macro",
+".",
+"benchmark"
+],
+"ui": false,
+"bench": true
+},
+{
+"file": "map_bash_test.cpp",
+"loc": 329,
+"cases": 3,
+"tags": [
+"map",
+"bash",
+"rng",
+"ranged"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "map_helpers.cpp",
+"loc": 276,
+"cases": 0,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "map_iterator_test.cpp",
+"loc": 297,
+"cases": 10,
+"tags": [
+"tripoint_range"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "map_memory_test.cpp",
+"loc": 263,
+"cases": 7,
+"tags": [
+"map_memory",
+"."
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "map_path_test.cpp",
+"loc": 649,
+"cases": 8,
+"tags": [
+"map",
+"pathfinding"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "map_test.cpp",
+"loc": 330,
+"cases": 8,
+"tags": [
+"active_item",
+"map"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "map_test_case.cpp",
+"loc": 374,
+"cases": 0,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "map_test_case_test.cpp",
+"loc": 144,
+"cases": 3,
+"tags": [
+"map_test_case"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "mapgen_function_test.cpp",
+"loc": 142,
+"cases": 1,
+"tags": [
+"mapgen",
+"connects"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "mapgen_helpers.cpp",
+"loc": 41,
+"cases": 0,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "mapgen_place_vehicles_test.cpp",
+"loc": 48,
+"cases": 1,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "mapgen_remove_npcs_test.cpp",
+"loc": 114,
+"cases": 1,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "mapgen_remove_vehicles_test.cpp",
+"loc": 145,
+"cases": 1,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "martial_art_test.cpp",
+"loc": 259,
+"cases": 4,
+"tags": [
+"martial_arts",
+"limb"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "materials_test.cpp",
+"loc": 140,
+"cases": 4,
+"tags": [
+"material"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "math_parser_test.cpp",
+"loc": 437,
+"cases": 2,
+"tags": [
+"math_parser"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "mdarray_test.cpp",
+"loc": 17,
+"cases": 1,
+"tags": [
+"mdarray"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "melee_dodge_hit_test.cpp",
+"loc": 349,
+"cases": 8,
+"tags": [
+"melee",
+"dodge",
+"monster",
+"player",
+"hit",
+"character",
+"dex",
+"effect"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "melee_test.cpp",
+"loc": 498,
+"cases": 10,
+"tags": [
+".melee",
+"damage",
+"eoc",
+"melee"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "memorial_test.cpp",
+"loc": 346,
+"cases": 3,
+"tags": [
+"memorial"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "mission_test.cpp",
+"loc": 192,
+"cases": 1,
+"tags": [
+"mission"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "modify_morale_test.cpp",
+"loc": 666,
+"cases": 10,
+"tags": [
+"modify_morale",
+"food",
+"junk",
+"fun",
+"table",
+"chair",
+"hot",
+"drug"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "mondefense_test.cpp",
+"loc": 123,
+"cases": 10,
+"tags": [
+"mondefense"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "monfactions_test.cpp",
+"loc": 172,
+"cases": 4,
+"tags": [
+"monster",
+"monfactions",
+"."
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "mongroup_test.cpp",
+"loc": 431,
+"cases": 8,
+"tags": [
+"mongroup",
+"monster"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "monster_attack_test.cpp",
+"loc": 624,
+"cases": 7,
+"tags": [
+"mattack",
+"grab",
+"vision",
+"reachability",
+"drag"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "monster_helpers.cpp",
+"loc": 12,
+"cases": 0,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "monster_test.cpp",
+"loc": 727,
+"cases": 13,
+"tags": [
+"monster",
+"reproduction",
+"speed",
+"."
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "monster_vision_test.cpp",
+"loc": 76,
+"cases": 1,
+"tags": [
+"vision"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "moon_test.cpp",
+"loc": 331,
+"cases": 6,
+"tags": [
+"calendar",
+"moon",
+"phase",
+"moonlight",
+"synodic",
+"month",
+"season",
+"change"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "morale_test.cpp",
+"loc": 789,
+"cases": 16,
+"tags": [
+"player_morale"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "move_cost_test.cpp",
+"loc": 501,
+"cases": 4,
+"tags": [
+"move_cost",
+"downed",
+"shoes",
+"mutation"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "mutation_test.cpp",
+"loc": 773,
+"cases": 10,
+"tags": [
+"mutations",
+"category",
+"strongest",
+"breach",
+"overmap",
+"purifier",
+"instability",
+"flags"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "name_test.cpp",
+"loc": 85,
+"cases": 1,
+"tags": [
+"name"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "nest_conditional_placement_test.cpp",
+"loc": 97,
+"cases": 1,
+"tags": [
+"map",
+"nest"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "new_character_test.cpp",
+"loc": 230,
+"cases": 2,
+"tags": [
+"slow",
+"mutation"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "normalized_test_names_test.cpp",
+"loc": 34,
+"cases": 1,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "npc_attack_test.cpp",
+"loc": 333,
+"cases": 1,
+"tags": [
+"npc_attack"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "npc_behavior_rules_test.cpp",
+"loc": 254,
+"cases": 3,
+"tags": [
+"npc_rules"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "npc_blacklist_test.cpp",
+"loc": 20,
+"cases": 1,
+"tags": [
+"npc",
+"trade"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "npc_shop_cons_rates_test.cpp",
+"loc": 59,
+"cases": 1,
+"tags": [
+"npc",
+"trade"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "npc_shopkeeper_item_groups_test.cpp",
+"loc": 165,
+"cases": 1,
+"tags": [
+"npc",
+"trade"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "npc_talk_test.cpp",
+"loc": 1552,
+"cases": 35,
+"tags": [
+"npc_talk"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "npc_test.cpp",
+"loc": 684,
+"cases": 8,
+"tags": [
+".",
+"npc_ai"
+],
+"ui": true,
+"bench": false
+},
+{
+"file": "options_helpers.cpp",
+"loc": 41,
+"cases": 0,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "options_test.cpp",
+"loc": 93,
+"cases": 1,
+"tags": [
+"option"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "overmap_noise_test.cpp",
+"loc": 71,
+"cases": 3,
+"tags": [
+"."
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "overmap_test.cpp",
+"loc": 651,
+"cases": 7,
+"tags": [
+"overmap",
+"slow",
+"terrain",
+"."
+],
+"ui": true,
+"bench": false
+},
+{
+"file": "player_activities_test.cpp",
+"loc": 2138,
+"cases": 8,
+"tags": [
+"activity",
+"safecracking",
+"shearing",
+"animals",
+"boltcut",
+"hacksaw",
+"oxytorch",
+"prying"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "player_helpers.cpp",
+"loc": 313,
+"cases": 0,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "player_test.cpp",
+"loc": 217,
+"cases": 2,
+"tags": [
+".bodytemp",
+"char",
+"suffer"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "point_test.cpp",
+"loc": 273,
+"cases": 9,
+"tags": [
+"point"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "projectile_test.cpp",
+"loc": 83,
+"cases": 1,
+"tags": [
+"projectile"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "pulping_test.cpp",
+"loc": 57,
+"cases": 1,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "ranged_balance_test.cpp",
+"loc": 1339,
+"cases": 13,
+"tags": [
+"targeting_graph",
+"random",
+"gun",
+".",
+"anatomy"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "reading_test.cpp",
+"loc": 596,
+"cases": 9,
+"tags": [
+"reading",
+"book",
+"identify",
+"clear",
+"fun",
+"character",
+"speed",
+"time"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "recipe_test.cpp",
+"loc": 100,
+"cases": 2,
+"tags": [
+"recipe",
+"blueprint"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "reload_magazine_test.cpp",
+"loc": 477,
+"cases": 2,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "reload_option_test.cpp",
+"loc": 125,
+"cases": 4,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "reload_time_test.cpp",
+"loc": 125,
+"cases": 1,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "reloading_test.cpp",
+"loc": 1232,
+"cases": 11,
+"tags": [
+"reload"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "requirements_test.cpp",
+"loc": 186,
+"cases": 9,
+"tags": [
+"requirement"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "rewrite_vsnprintf_test.cpp",
+"loc": 40,
+"cases": 1,
+"tags": [],
+"ui": true,
+"bench": false
+},
+{
+"file": "rng_test.cpp",
+"loc": 80,
+"cases": 3,
+"tags": [
+"rng"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "rot_test.cpp",
+"loc": 142,
+"cases": 3,
+"tags": [
+"rot"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "safe_reference_test.cpp",
+"loc": 53,
+"cases": 4,
+"tags": [
+"safe_reference"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "shadowcasting_test.cpp",
+"loc": 1143,
+"cases": 16,
+"tags": [
+"shadowcasting",
+"."
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "simple_pathfinding_test.cpp",
+"loc": 142,
+"cases": 4,
+"tags": [
+"pathfinding"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "skill_test.cpp",
+"loc": 47,
+"cases": 1,
+"tags": [
+"character",
+"skill"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "speed_description_test.cpp",
+"loc": 106,
+"cases": 1,
+"tags": [
+"monster",
+"speed_description"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "start_date_test.cpp",
+"loc": 85,
+"cases": 1,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "stats_tracker_test.cpp",
+"loc": 1005,
+"cases": 11,
+"tags": [
+"stats"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "stomach_contents_test.cpp",
+"loc": 489,
+"cases": 9,
+"tags": [
+"vitamins",
+"starve",
+"slow"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "string_formatter_test.cpp",
+"loc": 610,
+"cases": 2,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "string_ids_test.cpp",
+"loc": 182,
+"cases": 6,
+"tags": [
+"string_id",
+".",
+"int_id",
+"benchmark"
+],
+"ui": false,
+"bench": true
+},
+{
+"file": "string_test.cpp",
+"loc": 150,
+"cases": 5,
+"tags": [
+".string_trimming",
+"string_trimming"
+],
+"ui": true,
+"bench": false
+},
+{
+"file": "stringmaker.cpp",
+"loc": 52,
+"cases": 0,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "submap_load_test.cpp",
+"loc": 1543,
+"cases": 16,
+"tags": [
+"submap",
+"load"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "submap_test.cpp",
+"loc": 117,
+"cases": 2,
+"tags": [
+"submap"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "sun_test.cpp",
+"loc": 725,
+"cases": 12,
+"tags": [
+"sun",
+"equinox",
+"solstice",
+"night",
+"dawn",
+"day",
+"dusk",
+"sunlight"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "temp_crafting_inv_test.cpp",
+"loc": 50,
+"cases": 2,
+"tags": [
+"crafting",
+"inventory"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "temperature_test.cpp",
+"loc": 298,
+"cases": 3,
+"tags": [
+"temperature"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "test_main.cpp",
+"loc": 492,
+"cases": 0,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "test_statistics.cpp",
+"loc": 28,
+"cases": 0,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "text_snippets_test.cpp",
+"loc": 32,
+"cases": 2,
+"tags": [
+"text_snippets",
+"rng"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "throw_activation_test.cpp",
+"loc": 22,
+"cases": 1,
+"tags": [
+"item"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "throwing_test.cpp",
+"loc": 335,
+"cases": 5,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "tool_quality_test.cpp",
+"loc": 228,
+"cases": 2,
+"tags": [
+"tool",
+"quality",
+"battery"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "translation_system_test.cpp",
+"loc": 265,
+"cases": 14,
+"tags": [
+"translations",
+".",
+"benchmark"
+],
+"ui": false,
+"bench": true
+},
+{
+"file": "translations_test.cpp",
+"loc": 91,
+"cases": 4,
+"tags": [
+"translations",
+"."
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "try_parse_integer_test.cpp",
+"loc": 150,
+"cases": 2,
+"tags": [
+"try_parse_integer"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "uncraft_test.cpp",
+"loc": 220,
+"cases": 2,
+"tags": [
+"uncraft",
+"difficulty",
+"skill",
+"damage"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "units_test.cpp",
+"loc": 413,
+"cases": 15,
+"tags": [
+"units",
+"convert",
+"temperature",
+"length",
+"volume",
+"weight",
+"velocity",
+"nogame"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "unload_naked_test.cpp",
+"loc": 93,
+"cases": 2,
+"tags": [
+"unload",
+"nonmagzine"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "unseal_and_spill_test.cpp",
+"loc": 895,
+"cases": 1,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "value_ptr_test.cpp",
+"loc": 47,
+"cases": 4,
+"tags": [
+"value_ptr"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "vehicle_drag_test.cpp",
+"loc": 169,
+"cases": 2,
+"tags": [
+"."
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "vehicle_efficiency_test.cpp",
+"loc": 433,
+"cases": 3,
+"tags": [
+"."
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "vehicle_export_test.cpp",
+"loc": 79,
+"cases": 1,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "vehicle_fake_part_test.cpp",
+"loc": 450,
+"cases": 9,
+"tags": [
+"vehicle",
+"vehicle_fake"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "vehicle_interact_test.cpp",
+"loc": 183,
+"cases": 1,
+"tags": [
+"vehicle"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "vehicle_part_test.cpp",
+"loc": 345,
+"cases": 8,
+"tags": [
+"vehicle",
+"vehicle_parts",
+"vehicle_craft"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "vehicle_power_test.cpp",
+"loc": 342,
+"cases": 4,
+"tags": [
+"vehicle",
+"power",
+"reverse"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "vehicle_ramp_test.cpp",
+"loc": 335,
+"cases": 4,
+"tags": [
+"vehicle",
+"ramp"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "vehicle_split_test.cpp",
+"loc": 137,
+"cases": 4,
+"tags": [
+"vehicle"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "vehicle_test.cpp",
+"loc": 884,
+"cases": 11,
+"tags": [
+"vehicle",
+"item",
+"degradation",
+"bikerack",
+"autopilot",
+"enchantments",
+"effects"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "vehicle_turrets_test.cpp",
+"loc": 119,
+"cases": 1,
+"tags": [
+"vehicle",
+"gun",
+"magazine"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "vision_test.cpp",
+"loc": 1188,
+"cases": 23,
+"tags": [
+"vision",
+"shadowcasting",
+"moncam",
+"vehicle",
+"reciprocity",
+"vehicle_fake"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "visitable_remove_test.cpp",
+"loc": 520,
+"cases": 2,
+"tags": [
+"visitable",
+"inventory"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "visitable_test.cpp",
+"loc": 27,
+"cases": 1,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "visitable_zone_test.cpp",
+"loc": 208,
+"cases": 1,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "water_movement_test.cpp",
+"loc": 1056,
+"cases": 6,
+"tags": [
+".",
+"diving",
+"swimming",
+"slow"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "weakpoint_test.cpp",
+"loc": 273,
+"cases": 6,
+"tags": [
+"monster",
+"weakpoint"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "weary_test.cpp",
+"loc": 397,
+"cases": 4,
+"tags": [
+"weary",
+"activities",
+"mutations"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "weather_test.cpp",
+"loc": 478,
+"cases": 3,
+"tags": [
+"weather",
+"wind_chill"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "weighted_list_test.cpp",
+"loc": 311,
+"cases": 4,
+"tags": [
+"weighted_list"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "widget_test.cpp",
+"loc": 2993,
+"cases": 34,
+"tags": [
+"widget",
+"color",
+"graph",
+"avatar",
+"bp_status",
+"value",
+"string",
+"text"
+],
+"ui": true,
+"bench": false
+},
+{
+"file": "wield_test.cpp",
+"loc": 417,
+"cases": 2,
+"tags": [
+"wield"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "worldfactory_test.cpp",
+"loc": 17,
+"cases": 1,
+"tags": [],
+"ui": false,
+"bench": false
+},
+{
+"file": "zones_custom_test.cpp",
+"loc": 119,
+"cases": 1,
+"tags": [
+"zones"
+],
+"ui": false,
+"bench": false
+},
+{
+"file": "zzip_test.cpp",
+"loc": 358,
+"cases": 4,
+"tags": [
+".",
+"zzip"
+],
+"ui": false,
+"bench": false
+}
+]

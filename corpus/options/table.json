@@ -1,0 +1,8450 @@
+{
+  "meta": {
+    "generated_by": "tools/gen_options.py",
+    "reference": {
+      "checkout": "references/Cataclysm-DDA",
+      "commit": "7b2efa5cea38e4d4d97dd0e63b28b9148623da59",
+      "options_cpp": "src/options.cpp",
+      "options_h": "src/options.h",
+      "external_options_json": "data/core/external_options.json",
+      "constants": [
+        "src/map_scale_constants.h"
+      ]
+    },
+    "build_profile": {
+      "name": "linux-tiles",
+      "defined": [
+        "TILES",
+        "LOCALIZE",
+        "SDL_SOUND",
+        "SDL_HINT_RENDER_BATCHING"
+      ],
+      "undefined": [
+        "__ANDROID__",
+        "EMSCRIPTEN",
+        "__EMSCRIPTEN__",
+        "_MSC_VER",
+        "_WIN32",
+        "TUI"
+      ]
+    },
+    "counts": {
+      "total": 276,
+      "by_type": {
+        "bool": 119,
+        "float": 35,
+        "int": 69,
+        "int_map": 2,
+        "string_input": 8,
+        "string_select": 43
+      },
+      "by_source": {
+        "external_options.json": 88,
+        "options.cpp": 188
+      },
+      "cpp_registrations": 188,
+      "external_registrations": 88,
+      "external_stubs_skipped": [
+        "CONSTRUCTION_SCALING",
+        "ETERNAL_SEASON",
+        "ETERNAL_TIME_OF_DAY",
+        "SEASON_LENGTH"
+      ]
+    },
+    "no_statically_known_start_value": [
+      "DISPLAY",
+      "DISTANCE_UNITS",
+      "DISTANT_TILES",
+      "OVERMAP_TILES",
+      "RENDERER",
+      "SOUNDPACKS",
+      "TILES",
+      "USE_LANG",
+      "USE_METRIC_SPEEDS",
+      "USE_METRIC_WEIGHTS"
+    ],
+    "runtime_expressions": [
+      {
+        "option": "DISPLAY",
+        "slot": "items",
+        "expr": "display_list",
+        "note": "cata_tiles::build_display_list() probes SDL video displays (options.cpp:2650)"
+      },
+      {
+        "option": "DISPLAY",
+        "slot": "default",
+        "expr": "display_list.front().first",
+        "note": "first detected display (options.cpp:2654)"
+      },
+      {
+        "option": "DISPLAY",
+        "slot": "initial",
+        "expr": "display_list.front().first",
+        "note": "first detected display (options.cpp:2654)"
+      },
+      {
+        "option": "DISTANCE_UNITS",
+        "slot": "default",
+        "expr": "( SystemLocale::UseMetricSystem().value_or( false ) ? \"metric\" : \"imperial\" )",
+        "note": "reads the OS locale (options.cpp:1826)"
+      },
+      {
+        "option": "DISTANCE_UNITS",
+        "slot": "initial",
+        "expr": "( SystemLocale::UseMetricSystem().value_or( false ) ? \"metric\" : \"imperial\" )",
+        "note": "reads the OS locale (options.cpp:1826)"
+      },
+      {
+        "option": "DISTANT_TILES",
+        "slot": "items",
+        "expr": "build_tilesets_list()",
+        "note": "gfx directory scan (options.cpp:1290,2460)"
+      },
+      {
+        "option": "OVERMAP_TILES",
+        "slot": "items",
+        "expr": "om_tilesets",
+        "note": "filtered gfx directory scan (options.cpp:2486-2497)"
+      },
+      {
+        "option": "RENDERER",
+        "slot": "items",
+        "expr": "renderer_list",
+        "note": "cata_tiles::build_renderer_list() (options.cpp:2677)"
+      },
+      {
+        "option": "RENDERER",
+        "slot": "default",
+        "expr": "default_renderer",
+        "note": "first renderer, or direct3d11 on Windows (options.cpp:2678-2685)"
+      },
+      {
+        "option": "RENDERER",
+        "slot": "initial",
+        "expr": "default_renderer",
+        "note": "first renderer, or direct3d11 on Windows (options.cpp:2678-2685)"
+      },
+      {
+        "option": "SOUNDPACKS",
+        "slot": "items",
+        "expr": "soundpacks",
+        "note": "build_soundpacks_list() scans the soundpacks directory (options.cpp:1306,1740)"
+      },
+      {
+        "option": "SOUNDPACKS",
+        "slot": "default",
+        "expr": "std::any_of( soundpacks.begin(), soundpacks.end(), []( const id_and_option & option ) { return option.first == \"CC-Sounds\"; } ) ? \"CC-Sounds\" : \"basic\"",
+        "note": "depends on which soundpacks are installed (options.cpp:1743-1746)"
+      },
+      {
+        "option": "SOUNDPACKS",
+        "slot": "initial",
+        "expr": "std::any_of( soundpacks.begin(), soundpacks.end(), []( const id_and_option & option ) { return option.first == \"CC-Sounds\"; } ) ? \"CC-Sounds\" : \"basic\"",
+        "note": "depends on which soundpacks are installed (options.cpp:1743-1746)"
+      },
+      {
+        "option": "TILES",
+        "slot": "items",
+        "expr": "build_tilesets_list()",
+        "note": "gfx directory scan (options.cpp:1290,2450)"
+      },
+      {
+        "option": "USE_LANG",
+        "slot": "items",
+        "expr": "options_manager::get_lang_options()",
+        "note": "locale scan of the language files (options.cpp:1337)"
+      },
+      {
+        "option": "USE_METRIC_SPEEDS",
+        "slot": "default",
+        "expr": "( SystemLocale::UseMetricSystem().value_or( false ) ? \"km/h\" : \"mph\" )",
+        "note": "reads the OS locale (options.cpp:1809)"
+      },
+      {
+        "option": "USE_METRIC_SPEEDS",
+        "slot": "initial",
+        "expr": "( SystemLocale::UseMetricSystem().value_or( false ) ? \"km/h\" : \"mph\" )",
+        "note": "reads the OS locale (options.cpp:1809)"
+      },
+      {
+        "option": "USE_METRIC_WEIGHTS",
+        "slot": "default",
+        "expr": "( SystemLocale::UseMetricSystem().value_or( false ) ? \"kg\" : \"lbs\" )",
+        "note": "reads the OS locale (options.cpp:1815)"
+      },
+      {
+        "option": "USE_METRIC_WEIGHTS",
+        "slot": "initial",
+        "expr": "( SystemLocale::UseMetricSystem().value_or( false ) ? \"kg\" : \"lbs\" )",
+        "note": "reads the OS locale (options.cpp:1815)"
+      }
+    ],
+    "findings": [
+      {
+        "kind": "default_not_an_item",
+        "option": "MORALE_STYLE",
+        "detail": "default 'Vertical' not in items; add() uses items[0]"
+      },
+      {
+        "kind": "default_not_an_item",
+        "option": "ASTERISK_POSITION",
+        "detail": "default 'right' not in items; add() uses items[0]"
+      },
+      {
+        "kind": "add_value_target_is_not_a_string_select",
+        "option": "DEFAULT_REGION",
+        "detail": "enable_json() + add_value() only extend a string_select, but this option is registered as string_input (external_options.json:564), so add_value() silently does nothing (options.cpp:257-272)"
+      }
+    ],
+    "excluded_by_profile": [
+      {
+        "name": "SOFTWARE_RENDERING",
+        "line": 2693,
+        "condition": "(!(!defined(__ANDROID__)))"
+      },
+      {
+        "name": "ANDROID_QUICKSAVE",
+        "line": 2912,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_TRAP_BACK_BUTTON",
+        "line": 2923,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_NATIVE_UI",
+        "line": 2929,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_AUTO_KEYBOARD",
+        "line": 2935,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_KEYBOARD_SCREEN_SCALE",
+        "line": 2940,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_VIBRATION",
+        "line": 2949,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_SHOW_VIRTUAL_JOYSTICK",
+        "line": 2960,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_VIRTUAL_JOYSTICK_OPACITY",
+        "line": 2965,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_DEADZONE_RANGE",
+        "line": 2970,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_REPEAT_DELAY_RANGE",
+        "line": 2975,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_VIRTUAL_JOYSTICK_FOLLOW",
+        "line": 2980,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_REPEAT_DELAY_MAX",
+        "line": 2986,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_REPEAT_DELAY_MIN",
+        "line": 2992,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_SENSITIVITY_POWER",
+        "line": 2998,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_INITIAL_DELAY",
+        "line": 3004,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_HIDE_HOLDS",
+        "line": 3009,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_SHORTCUT_DEFAULTS",
+        "line": 3021,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_ACTIONMENU_AUTOADD",
+        "line": 3026,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_INVENTORY_AUTOADD",
+        "line": 3032,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_TAP_KEY",
+        "line": 3045,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_2_TAP_KEY",
+        "line": 3050,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_2_SWIPE_UP_KEY",
+        "line": 3055,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_2_SWIPE_DOWN_KEY",
+        "line": 3060,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_2_SWIPE_LEFT_KEY",
+        "line": 3066,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_2_SWIPE_RIGHT_KEY",
+        "line": 3072,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_PINCH_IN_KEY",
+        "line": 3078,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_PINCH_OUT_KEY",
+        "line": 3083,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_SHORTCUT_AUTOADD",
+        "line": 3095,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_SHORTCUT_AUTOADD_FRONT",
+        "line": 3101,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_SHORTCUT_MOVE_FRONT",
+        "line": 3107,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_SHORTCUT_ZONE",
+        "line": 3112,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_SHORTCUT_REMOVE_TURNS",
+        "line": 3118,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_SHORTCUT_PERSISTENCE",
+        "line": 3124,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_SHORTCUT_POSITION",
+        "line": 3136,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_SHORTCUT_SCREEN_PERCENTAGE",
+        "line": 3141,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_SHORTCUT_OVERLAP",
+        "line": 3147,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_SHORTCUT_OPACITY_BG",
+        "line": 3152,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_SHORTCUT_OPACITY_SHADOW",
+        "line": 3157,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_SHORTCUT_OPACITY_FG",
+        "line": 3162,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_SHORTCUT_COLOR",
+        "line": 3167,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_SHORTCUT_BORDER",
+        "line": 3172,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_SHORTCUT_WIDTH_MIN",
+        "line": 3177,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_SHORTCUT_WIDTH_MAX",
+        "line": 3182,
+        "condition": "(defined(__ANDROID__))"
+      },
+      {
+        "name": "ANDROID_SHORTCUT_HEIGHT",
+        "line": 3187,
+        "condition": "(defined(__ANDROID__))"
+      }
+    ],
+    "profile_variants": [
+      {
+        "name": "RENDERER",
+        "sites": [
+          {
+            "line": 2673,
+            "in_profile": false
+          },
+          {
+            "line": 2687,
+            "in_profile": true
+          }
+        ]
+      }
+    ],
+    "enable_json": [
+      "DEFAULT_REGION"
+    ],
+    "external_shadowed_by_cpp": [],
+    "migrations": [
+      {
+        "old": "DELETE_WORLD",
+        "new": "WORLD_END",
+        "values": {
+          "no": "keep",
+          "yes": "delete"
+        }
+      },
+      {
+        "old": "MONSTER_UPGRADE_FACTOR",
+        "new": "EVOLUTION_INVERSE_MULTIPLIER",
+        "values": {}
+      }
+    ],
+    "removed_options": [
+      "DISTANCE_INITIAL_VISIBILITY",
+      "FOV_3D_Z_RANGE",
+      "INITIAL_STAT_POINTS",
+      "INITIAL_TRAIT_POINTS",
+      "INITIAL_SKILL_POINTS",
+      "MAX_TRAIT_POINTS",
+      "SKILL_TRAINING_SPEED",
+      "PROFICIENCY_TRAINING_SPEED"
+    ],
+    "notes": [
+      "float values are the reference's 32-bit floats, widened exactly (0.01f is 0.009999999776482582)",
+      "`initial` is the value a fresh install starts with, `default` is what setValue() falls back to when it rejects an input; they differ for external_options.json entries (options.cpp:311-348, worldfactory.cpp:2080-2088)",
+      "string_select item *texts* are translations and are not recorded; only the item values are, which is what membership checks need"
+    ]
+  },
+  "options": [
+    {
+      "name": "24_HOUR",
+      "source": "options.cpp",
+      "line": 1828,
+      "page": "interface",
+      "type": "string_select",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "12h"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "12h"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "12h"
+          },
+          {
+            "value": "military"
+          },
+          {
+            "value": "24h"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ACCURACY_DISPLAY",
+      "source": "options.cpp",
+      "line": 2145,
+      "page": "interface",
+      "type": "string_select",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "bars"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "bars"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "numbers"
+          },
+          {
+            "value": "bars"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ACHIEVEMENT_COMPLETED_POPUP",
+      "source": "options.cpp",
+      "line": 2128,
+      "page": "interface",
+      "type": "string_select",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "first"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "first"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "never"
+          },
+          {
+            "value": "always"
+          },
+          {
+            "value": "first"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AIM_AFTER_FIRING",
+      "source": "options.cpp",
+      "line": 1927,
+      "page": "interface",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "AIM_WIDTH",
+      "source": "options.cpp",
+      "line": 2157,
+      "page": "interface",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "ALT_TITLE",
+      "source": "options.cpp",
+      "line": 2339,
+      "page": "graphics",
+      "type": "int",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 10
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 10
+      },
+      "min": {
+        "kind": "literal",
+        "value": 0
+      },
+      "max": {
+        "kind": "literal",
+        "value": 100
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "AMBIENT_SOUND_VOLUME",
+      "source": "options.cpp",
+      "line": 1766,
+      "page": "general",
+      "type": "int",
+      "hide": "no_sound_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 100
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 100
+      },
+      "min": {
+        "kind": "literal",
+        "value": 0
+      },
+      "max": {
+        "kind": "literal",
+        "value": 128
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "AMMO_IN_NAMES",
+      "source": "options.cpp",
+      "line": 1882,
+      "page": "interface",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "ANIMATIONS",
+      "source": "options.cpp",
+      "line": 2270,
+      "page": "graphics",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "ANIMATION_DELAY",
+      "source": "options.cpp",
+      "line": 2303,
+      "page": "graphics",
+      "type": "int",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 10
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 10
+      },
+      "min": {
+        "kind": "literal",
+        "value": 0
+      },
+      "max": {
+        "kind": "literal",
+        "value": 100
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "ANIMATION_PROJECTILES",
+      "source": "options.cpp",
+      "line": 2282,
+      "page": "graphics",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "ANIMATION_RAIN",
+      "source": "options.cpp",
+      "line": 2275,
+      "page": "graphics",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "ANIMATION_SCT",
+      "source": "options.cpp",
+      "line": 2289,
+      "page": "graphics",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "ANIMATION_SCT_USE_FONT",
+      "source": "options.cpp",
+      "line": 2296,
+      "page": "graphics",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "ASTERISK_POSITION",
+      "source": "options.cpp",
+      "line": 2216,
+      "page": "interface",
+      "type": "string_select",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "prefix"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "prefix"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "prefix"
+          },
+          {
+            "value": "suffix"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AUTOSAFEMODE",
+      "source": "options.cpp",
+      "line": 1621,
+      "page": "general",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "AUTOSAFEMODETURNS",
+      "source": "options.cpp",
+      "line": 1626,
+      "page": "general",
+      "type": "int",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 50
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 50
+      },
+      "min": {
+        "kind": "literal",
+        "value": 1
+      },
+      "max": {
+        "kind": "literal",
+        "value": 600
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "AUTOSAVE",
+      "source": "options.cpp",
+      "line": 1649,
+      "page": "general",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "AUTOSAVE_MINUTES",
+      "source": "options.cpp",
+      "line": 1661,
+      "page": "general",
+      "type": "int",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 5
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 5
+      },
+      "min": {
+        "kind": "literal",
+        "value": 0
+      },
+      "max": {
+        "kind": "literal",
+        "value": 127
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "AUTOSAVE_TURNS",
+      "source": "options.cpp",
+      "line": 1654,
+      "page": "general",
+      "type": "int",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 50
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 50
+      },
+      "min": {
+        "kind": "literal",
+        "value": 10
+      },
+      "max": {
+        "kind": "literal",
+        "value": 1000
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "AUTOSELECT_SINGLE_VALID_TARGET",
+      "source": "options.cpp",
+      "line": 1969,
+      "page": "interface",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "AUTO_FEATURES",
+      "source": "options.cpp",
+      "line": 1527,
+      "page": "general",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "AUTO_FORAGING",
+      "source": "options.cpp",
+      "line": 1565,
+      "page": "general",
+      "type": "string_select",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "off"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "off"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "off"
+          },
+          {
+            "value": "bushes"
+          },
+          {
+            "value": "trees"
+          },
+          {
+            "value": "crops"
+          },
+          {
+            "value": "all"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AUTO_INV_ASSIGN",
+      "source": "options.cpp",
+      "line": 2188,
+      "page": "interface",
+      "type": "string_select",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "favorites"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "favorites"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "disabled"
+          },
+          {
+            "value": "enabled"
+          },
+          {
+            "value": "favorites"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AUTO_MINING",
+      "source": "options.cpp",
+      "line": 1551,
+      "page": "general",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "AUTO_MOPPING",
+      "source": "options.cpp",
+      "line": 1558,
+      "page": "general",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "AUTO_NOTES",
+      "source": "options.cpp",
+      "line": 1674,
+      "page": "general",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "AUTO_NOTES_DROPPED_FAVORITES",
+      "source": "options.cpp",
+      "line": 1693,
+      "page": "general",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "AUTO_NOTES_MAP_EXTRAS",
+      "source": "options.cpp",
+      "line": 1686,
+      "page": "general",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "AUTO_NOTES_STAIRS",
+      "source": "options.cpp",
+      "line": 1679,
+      "page": "general",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "AUTO_PICKUP",
+      "source": "options.cpp",
+      "line": 1473,
+      "page": "general",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "AUTO_PICKUP_ADJACENT",
+      "source": "options.cpp",
+      "line": 1478,
+      "page": "general",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "AUTO_PICKUP_OWNED",
+      "source": "options.cpp",
+      "line": 1485,
+      "page": "general",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "AUTO_PICKUP_SAFEMODE",
+      "source": "options.cpp",
+      "line": 1506,
+      "page": "general",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "AUTO_PICKUP_VOLUME_LIMIT",
+      "source": "options.cpp",
+      "line": 1499,
+      "page": "general",
+      "type": "int",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 0
+      },
+      "min": {
+        "kind": "literal",
+        "value": 0
+      },
+      "max": {
+        "kind": "literal",
+        "value": 100
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "AUTO_PICKUP_WEIGHT_LIMIT",
+      "source": "options.cpp",
+      "line": 1492,
+      "page": "general",
+      "type": "int",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 0
+      },
+      "min": {
+        "kind": "literal",
+        "value": 0
+      },
+      "max": {
+        "kind": "literal",
+        "value": 100
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "AUTO_PULP_BUTCHER",
+      "source": "options.cpp",
+      "line": 1532,
+      "page": "general",
+      "type": "string_select",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "off"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "off"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "off"
+          },
+          {
+            "value": "pulp"
+          },
+          {
+            "value": "pulp_zombie_only"
+          },
+          {
+            "value": "pulp_adjacent"
+          },
+          {
+            "value": "pulp_adjacent_zombie_only"
+          },
+          {
+            "value": "pulp_or_dismember"
+          },
+          {
+            "value": "pulp_or_dismember_adjacent"
+          },
+          {
+            "value": "pulp_or_dismember_zombies_only"
+          },
+          {
+            "value": "pulp_or_dismember_zombies_only_adjacent"
+          },
+          {
+            "value": "butcher"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BLACK_ROAD",
+      "source": "options.cpp",
+      "line": 2813,
+      "page": "world_default",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "BLINK_SPEED",
+      "source": "options.cpp",
+      "line": 2310,
+      "page": "graphics",
+      "type": "int",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 300
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 300
+      },
+      "min": {
+        "kind": "literal",
+        "value": 100
+      },
+      "max": {
+        "kind": "literal",
+        "value": 5000
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "CAPITALISM",
+      "source": "external_options.json",
+      "line": 494,
+      "page": "external_options",
+      "type": "bool",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "CBM_SLOTS_ENABLED",
+      "source": "external_options.json",
+      "line": 102,
+      "page": "external_options",
+      "type": "bool",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "CHARACTER_POINT_POOLS",
+      "source": "options.cpp",
+      "line": 2821,
+      "page": "world_default",
+      "type": "string_select",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "story_teller"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "story_teller"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "any"
+          },
+          {
+            "value": "multi_pool"
+          },
+          {
+            "value": "story_teller"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CIRCLEDIST",
+      "source": "options.cpp",
+      "line": 1706,
+      "page": "general",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "CITY_SIZE",
+      "source": "options.cpp",
+      "line": 2764,
+      "page": "world_default",
+      "type": "int",
+      "hide": "always_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 8
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 8
+      },
+      "min": {
+        "kind": "literal",
+        "value": 0
+      },
+      "max": {
+        "kind": "literal",
+        "value": 16
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "CITY_SPACING",
+      "source": "options.cpp",
+      "line": 2767,
+      "page": "world_default",
+      "type": "int",
+      "hide": "always_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 4
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 4
+      },
+      "min": {
+        "kind": "literal",
+        "value": 0
+      },
+      "max": {
+        "kind": "literal",
+        "value": 8
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "CLOSE_ADV_INV",
+      "source": "options.cpp",
+      "line": 1952,
+      "page": "interface",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "CONSTRUCTION_SCALING",
+      "source": "options.cpp",
+      "line": 2797,
+      "page": "world_default",
+      "type": "int",
+      "hide": "always_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 100
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 100
+      },
+      "min": {
+        "kind": "literal",
+        "value": 0
+      },
+      "max": {
+        "kind": "literal",
+        "value": 1000
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "CRAZY",
+      "source": "external_options.json",
+      "line": 193,
+      "page": "external_options",
+      "type": "bool",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "CREATURE_OVERLAY_ICONS",
+      "source": "options.cpp",
+      "line": 2463,
+      "page": "graphics",
+      "type": "bool",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "DANGEROUS_PICKUPS",
+      "source": "options.cpp",
+      "line": 1578,
+      "page": "general",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "DANGEROUS_TERRAIN_WARNING_PROMPT",
+      "source": "options.cpp",
+      "line": 1583,
+      "page": "general",
+      "type": "string_select",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "ALWAYS"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "ALWAYS"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "ALWAYS"
+          },
+          {
+            "value": "RUNNING"
+          },
+          {
+            "value": "CROUCHING"
+          },
+          {
+            "value": "NEVER"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DEATHCAM",
+      "source": "options.cpp",
+      "line": 1717,
+      "page": "general",
+      "type": "string_select",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "ask"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "ask"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "always"
+          },
+          {
+            "value": "ask"
+          },
+          {
+            "value": "never"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DEBUG_DIFFICULTIES",
+      "source": "options.cpp",
+      "line": 2847,
+      "page": "debug",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "DEFAULT_REGION",
+      "source": "external_options.json",
+      "line": 564,
+      "page": "external_options",
+      "type": "string_input",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": ""
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "default"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "DEF_CHAR_NAME",
+      "source": "options.cpp",
+      "line": 1464,
+      "page": "general",
+      "type": "string_input",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": ""
+      },
+      "initial": {
+        "kind": "literal",
+        "value": ""
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": {
+        "kind": "literal",
+        "value": 30
+      },
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "DESCRIBE_MUSIC_FREQUENCY",
+      "source": "external_options.json",
+      "line": 508,
+      "page": "external_options",
+      "type": "int",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 5
+      },
+      "min": {
+        "kind": "literal",
+        "value": -2147483648
+      },
+      "max": {
+        "kind": "literal",
+        "value": 2147483647
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "DETAILED_CONTAINERS",
+      "source": "options.cpp",
+      "line": 1886,
+      "page": "interface",
+      "type": "string_select",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "WORN"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "WORN"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "ALL"
+          },
+          {
+            "value": "WORN"
+          },
+          {
+            "value": "NONE"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DIAG_MOVE_WITH_MODIFIERS_MODE",
+      "source": "options.cpp",
+      "line": 2008,
+      "page": "interface",
+      "type": "string_select",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "none"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "none"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "none"
+          },
+          {
+            "value": "mode1"
+          },
+          {
+            "value": "mode2"
+          },
+          {
+            "value": "mode3"
+          },
+          {
+            "value": "mode4"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DISABLE_ANIMAL_CLASH",
+      "source": "external_options.json",
+      "line": 172,
+      "page": "external_options",
+      "type": "bool",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "DISABLE_ROBOT_RESPONSE",
+      "source": "external_options.json",
+      "line": 179,
+      "page": "external_options",
+      "type": "bool",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "DISPERSION_PER_GUN_DAMAGE",
+      "source": "external_options.json",
+      "line": 4,
+      "page": "external_options",
+      "type": "int",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 30
+      },
+      "min": {
+        "kind": "literal",
+        "value": -2147483648
+      },
+      "max": {
+        "kind": "literal",
+        "value": 2147483647
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "DISPLAY",
+      "source": "options.cpp",
+      "line": 2651,
+      "page": "graphics",
+      "type": "string_select",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "runtime",
+        "expr": "display_list.front().first",
+        "class": "string",
+        "note": "first detected display (options.cpp:2654)"
+      },
+      "initial": {
+        "kind": "runtime",
+        "expr": "display_list.front().first",
+        "class": "string",
+        "note": "first detected display (options.cpp:2654)"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "runtime",
+        "expr": "display_list",
+        "class": "items",
+        "note": "cata_tiles::build_display_list() probes SDL video displays (options.cpp:2650)"
+      }
+    },
+    {
+      "name": "DISTANCE_UNITS",
+      "source": "options.cpp",
+      "line": 1823,
+      "page": "interface",
+      "type": "string_select",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "runtime",
+        "expr": "( SystemLocale::UseMetricSystem().value_or( false ) ? \"metric\" : \"imperial\" )",
+        "class": "string",
+        "note": "reads the OS locale (options.cpp:1826)"
+      },
+      "initial": {
+        "kind": "runtime",
+        "expr": "( SystemLocale::UseMetricSystem().value_or( false ) ? \"metric\" : \"imperial\" )",
+        "class": "string",
+        "note": "reads the OS locale (options.cpp:1826)"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "metric"
+          },
+          {
+            "value": "imperial"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DISTANT_TILES",
+      "source": "options.cpp",
+      "line": 2458,
+      "page": "graphics",
+      "type": "string_select",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "UltimateCataclysm"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "UltimateCataclysm"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "runtime",
+        "expr": "build_tilesets_list()",
+        "class": "items",
+        "note": "gfx directory scan (options.cpp:1290,2460)"
+      }
+    },
+    {
+      "name": "DRIVING_VIEW_OFFSET",
+      "source": "options.cpp",
+      "line": 2068,
+      "page": "interface",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "DROP_EMPTY",
+      "source": "options.cpp",
+      "line": 1711,
+      "page": "general",
+      "type": "string_select",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "no"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "no"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "no"
+          },
+          {
+            "value": "watertight"
+          },
+          {
+            "value": "all"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EDGE_SCROLL",
+      "source": "options.cpp",
+      "line": 2248,
+      "page": "interface",
+      "type": "int_map",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 30
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 30
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": -1
+          },
+          {
+            "value": 100
+          },
+          {
+            "value": 30
+          },
+          {
+            "value": 10
+          }
+        ]
+      }
+    },
+    {
+      "name": "ENABLE_ASCII_ART",
+      "source": "options.cpp",
+      "line": 2432,
+      "page": "graphics",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "ENABLE_ASCII_TITLE",
+      "source": "options.cpp",
+      "line": 2326,
+      "page": "graphics",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "ENABLE_JOYSTICK",
+      "source": "options.cpp",
+      "line": 2231,
+      "page": "interface",
+      "type": "bool",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "ENABLE_MOUSE",
+      "source": "options.cpp",
+      "line": 2227,
+      "page": "interface",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "ETERNAL_SEASON",
+      "source": "options.cpp",
+      "line": 2800,
+      "page": "world_default",
+      "type": "bool",
+      "hide": "always_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "ETERNAL_TIME_OF_DAY",
+      "source": "options.cpp",
+      "line": 2802,
+      "page": "world_default",
+      "type": "string_input",
+      "hide": "always_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "normal"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "normal"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": {
+        "kind": "literal",
+        "value": 8
+      },
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "ETERNAL_WEATHER",
+      "source": "external_options.json",
+      "line": 536,
+      "page": "external_options",
+      "type": "string_input",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": ""
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "normal"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "EVENT_SPAWNS",
+      "source": "options.cpp",
+      "line": 1723,
+      "page": "general",
+      "type": "string_select",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "off"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "off"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "off"
+          },
+          {
+            "value": "items"
+          },
+          {
+            "value": "monsters"
+          },
+          {
+            "value": "both"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EVOLUTION_INVERSE_MULTIPLIER",
+      "source": "options.cpp",
+      "line": 2790,
+      "page": "world_default",
+      "type": "float",
+      "hide": "always_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "min": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "max": {
+        "kind": "literal",
+        "value": 100.0
+      },
+      "step": {
+        "kind": "literal",
+        "value": 0.009999999776482582
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "EXTRA_NPC_SKILL_LEVEL_CAP",
+      "source": "external_options.json",
+      "line": 529,
+      "page": "external_options",
+      "type": "int",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 7
+      },
+      "min": {
+        "kind": "literal",
+        "value": -2147483648
+      },
+      "max": {
+        "kind": "literal",
+        "value": 2147483647
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "FAST_SCROLL_OFFSET",
+      "source": "options.cpp",
+      "line": 2172,
+      "page": "interface",
+      "type": "int",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 5
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 5
+      },
+      "min": {
+        "kind": "literal",
+        "value": 1
+      },
+      "max": {
+        "kind": "literal",
+        "value": 50
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "FONT_BLENDING",
+      "source": "options.cpp",
+      "line": 2368,
+      "page": "graphics",
+      "type": "bool",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "FONT_HEIGHT",
+      "source": "options.cpp",
+      "line": 2378,
+      "page": "graphics",
+      "type": "int",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 16
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 16
+      },
+      "min": {
+        "kind": "literal",
+        "value": 8
+      },
+      "max": {
+        "kind": "literal",
+        "value": 100
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "FONT_SIZE",
+      "source": "options.cpp",
+      "line": 2383,
+      "page": "graphics",
+      "type": "int",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 16
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 16
+      },
+      "min": {
+        "kind": "literal",
+        "value": 8
+      },
+      "max": {
+        "kind": "literal",
+        "value": 100
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "FONT_WIDTH",
+      "source": "options.cpp",
+      "line": 2373,
+      "page": "graphics",
+      "type": "int",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 8
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 8
+      },
+      "min": {
+        "kind": "literal",
+        "value": 6
+      },
+      "max": {
+        "kind": "literal",
+        "value": 100
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "FORCE_CAPITAL_YN",
+      "source": "options.cpp",
+      "line": 1915,
+      "page": "interface",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "FORCE_REDRAW",
+      "source": "options.cpp",
+      "line": 2315,
+      "page": "graphics",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "FORCE_SMART_CONTROLLER_OFF_ON_ENGINE_STOP",
+      "source": "options.cpp",
+      "line": 1590,
+      "page": "general",
+      "type": "string_select",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "ask"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "ask"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "disabled"
+          },
+          {
+            "value": "enabled"
+          },
+          {
+            "value": "ask"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FRAMEBUFFER_ACCEL",
+      "source": "options.cpp",
+      "line": 2707,
+      "page": "graphics",
+      "type": "bool",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "FULLSCREEN",
+      "source": "options.cpp",
+      "line": 2658,
+      "page": "graphics",
+      "type": "string_select",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "windowedbl"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "windowedbl"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "no"
+          },
+          {
+            "value": "maximized"
+          },
+          {
+            "value": "fullscreen"
+          },
+          {
+            "value": "windowedbl"
+          }
+        ]
+      }
+    },
+    {
+      "name": "GAME_EMP",
+      "source": "external_options.json",
+      "line": 487,
+      "page": "external_options",
+      "type": "bool",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "GENERIC_PROFESSION_ID",
+      "source": "external_options.json",
+      "line": 249,
+      "page": "external_options",
+      "type": "string_input",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": ""
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "unemployed"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "GENERIC_SCENARIO_ID",
+      "source": "external_options.json",
+      "line": 256,
+      "page": "external_options",
+      "type": "string_input",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": ""
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "evacuee"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "GUN_DISPERSION_DIVIDER",
+      "source": "external_options.json",
+      "line": 11,
+      "page": "external_options",
+      "type": "float",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 18.0
+      },
+      "min": {
+        "kind": "literal",
+        "value": -3.4028234663852886e+38
+      },
+      "max": {
+        "kind": "literal",
+        "value": 3.4028234663852886e+38
+      },
+      "step": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "HIDE_CURSOR",
+      "source": "options.cpp",
+      "line": 2236,
+      "page": "interface",
+      "type": "string_select",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "show"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "show"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "show"
+          },
+          {
+            "value": "hide"
+          },
+          {
+            "value": "hidekb"
+          }
+        ]
+      }
+    },
+    {
+      "name": "HIGHLIGHT_UNREAD_ITEMS",
+      "source": "options.cpp",
+      "line": 1993,
+      "page": "interface",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "HIGHLIGHT_UNREAD_RECIPES",
+      "source": "options.cpp",
+      "line": 1987,
+      "page": "interface",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "IMGUI_LOAD_CHINESE",
+      "source": "options.cpp",
+      "line": 2423,
+      "page": "graphics",
+      "type": "bool",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "INITIAL_SKILL_POINTS",
+      "source": "external_options.json",
+      "line": 592,
+      "page": "external_options",
+      "type": "int",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 2
+      },
+      "min": {
+        "kind": "literal",
+        "value": -2147483648
+      },
+      "max": {
+        "kind": "literal",
+        "value": 2147483647
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "INITIAL_STAT_POINTS",
+      "source": "external_options.json",
+      "line": 578,
+      "page": "external_options",
+      "type": "int",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 6
+      },
+      "min": {
+        "kind": "literal",
+        "value": -2147483648
+      },
+      "max": {
+        "kind": "literal",
+        "value": 2147483647
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "INITIAL_TRAIT_POINTS",
+      "source": "external_options.json",
+      "line": 585,
+      "page": "external_options",
+      "type": "int",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 0
+      },
+      "min": {
+        "kind": "literal",
+        "value": -2147483648
+      },
+      "max": {
+        "kind": "literal",
+        "value": 2147483647
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "INT_BASED_LEARNING_BASE_VALUE",
+      "source": "external_options.json",
+      "line": 235,
+      "page": "external_options",
+      "type": "int",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 8
+      },
+      "min": {
+        "kind": "literal",
+        "value": -2147483648
+      },
+      "max": {
+        "kind": "literal",
+        "value": 2147483647
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "INT_BASED_LEARNING_FOCUS_ADJUSTMENT",
+      "source": "external_options.json",
+      "line": 242,
+      "page": "external_options",
+      "type": "int",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 5
+      },
+      "min": {
+        "kind": "literal",
+        "value": -2147483648
+      },
+      "max": {
+        "kind": "literal",
+        "value": 2147483647
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "INVENTORY_HIGHLIGHT",
+      "source": "options.cpp",
+      "line": 1976,
+      "page": "interface",
+      "type": "string_select",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "symbol"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "symbol"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "symbol"
+          },
+          {
+            "value": "highlight"
+          },
+          {
+            "value": "disable"
+          }
+        ]
+      }
+    },
+    {
+      "name": "INV_USE_ACTION_NAMES",
+      "source": "options.cpp",
+      "line": 1963,
+      "page": "interface",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "ITEM_BODYGRAPH",
+      "source": "options.cpp",
+      "line": 2211,
+      "page": "interface",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "ITEM_HEALTH",
+      "source": "options.cpp",
+      "line": 2197,
+      "page": "interface",
+      "type": "string_select",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "bars"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "bars"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "bars"
+          },
+          {
+            "value": "descriptions"
+          },
+          {
+            "value": "both"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ITEM_SPAWNRATE",
+      "source": "options.cpp",
+      "line": 2774,
+      "page": "world_default",
+      "type": "float",
+      "hide": "always_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "min": {
+        "kind": "literal",
+        "value": 0.009999999776482582
+      },
+      "max": {
+        "kind": "literal",
+        "value": 10.0
+      },
+      "step": {
+        "kind": "literal",
+        "value": 0.009999999776482582
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "ITEM_SYMBOLS",
+      "source": "options.cpp",
+      "line": 2206,
+      "page": "interface",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "LATITUDE",
+      "source": "external_options.json",
+      "line": 550,
+      "page": "external_options",
+      "type": "float",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 42.36000061035156
+      },
+      "min": {
+        "kind": "literal",
+        "value": -3.4028234663852886e+38
+      },
+      "max": {
+        "kind": "literal",
+        "value": 3.4028234663852886e+38
+      },
+      "step": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "LOG_FLOW",
+      "source": "options.cpp",
+      "line": 2100,
+      "page": "interface",
+      "type": "string_select",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "new_bottom"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "new_bottom"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "new_top"
+          },
+          {
+            "value": "new_bottom"
+          }
+        ]
+      }
+    },
+    {
+      "name": "LOG_ITEMS_ON_THE_GROUND",
+      "source": "options.cpp",
+      "line": 1850,
+      "page": "interface",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "LOG_MONSTER_ATTACK_MONSTER",
+      "source": "options.cpp",
+      "line": 1865,
+      "page": "interface",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "LOG_MONSTER_MOVEMENT",
+      "source": "options.cpp",
+      "line": 1855,
+      "page": "interface",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "LOG_MONSTER_MOVE_EFFECTS",
+      "source": "options.cpp",
+      "line": 1860,
+      "page": "interface",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "LONGITUDE",
+      "source": "external_options.json",
+      "line": 557,
+      "page": "external_options",
+      "type": "float",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": -71.05999755859375
+      },
+      "min": {
+        "kind": "literal",
+        "value": -3.4028234663852886e+38
+      },
+      "max": {
+        "kind": "literal",
+        "value": 3.4028234663852886e+38
+      },
+      "step": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "LOOKAROUND_POSITION",
+      "source": "options.cpp",
+      "line": 2139,
+      "page": "interface",
+      "type": "string_select",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "right"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "right"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "left"
+          },
+          {
+            "value": "right"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MAP_FONT_HEIGHT",
+      "source": "options.cpp",
+      "line": 2393,
+      "page": "graphics",
+      "type": "int",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 16
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 16
+      },
+      "min": {
+        "kind": "literal",
+        "value": 8
+      },
+      "max": {
+        "kind": "literal",
+        "value": 100
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "MAP_FONT_SIZE",
+      "source": "options.cpp",
+      "line": 2398,
+      "page": "graphics",
+      "type": "int",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 16
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 16
+      },
+      "min": {
+        "kind": "literal",
+        "value": 8
+      },
+      "max": {
+        "kind": "literal",
+        "value": 100
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "MAP_FONT_WIDTH",
+      "source": "options.cpp",
+      "line": 2388,
+      "page": "graphics",
+      "type": "int",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 16
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 16
+      },
+      "min": {
+        "kind": "literal",
+        "value": 6
+      },
+      "max": {
+        "kind": "literal",
+        "value": 100
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "MAX_CATCHUP_EXP_PER_POST_CATA_DAY",
+      "source": "external_options.json",
+      "line": 522,
+      "page": "external_options",
+      "type": "int",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 150
+      },
+      "min": {
+        "kind": "literal",
+        "value": -2147483648
+      },
+      "max": {
+        "kind": "literal",
+        "value": 2147483647
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "MAX_TRAIT_POINTS",
+      "source": "external_options.json",
+      "line": 599,
+      "page": "external_options",
+      "type": "int",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 12
+      },
+      "min": {
+        "kind": "literal",
+        "value": -2147483648
+      },
+      "max": {
+        "kind": "literal",
+        "value": 2147483647
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "MEMORY_GAMMA",
+      "source": "options.cpp",
+      "line": 2563,
+      "page": "graphics",
+      "type": "float",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 1.600000023841858
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 1.600000023841858
+      },
+      "min": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "max": {
+        "kind": "literal",
+        "value": 3.0
+      },
+      "step": {
+        "kind": "literal",
+        "value": 0.10000000149011612
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "MEMORY_MAP_MODE",
+      "source": "options.cpp",
+      "line": 2513,
+      "page": "graphics",
+      "type": "string_select",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "color_pixel_sepia_light"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "color_pixel_sepia_light"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "color_pixel_darken"
+          },
+          {
+            "value": "color_pixel_sepia_light"
+          },
+          {
+            "value": "color_pixel_sepia_dark"
+          },
+          {
+            "value": "color_pixel_blue_dark"
+          },
+          {
+            "value": "color_pixel_custom"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MEMORY_RGB_BRIGHT_BLUE",
+      "source": "options.cpp",
+      "line": 2556,
+      "page": "graphics",
+      "type": "int",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 163
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 163
+      },
+      "min": {
+        "kind": "literal",
+        "value": 0
+      },
+      "max": {
+        "kind": "literal",
+        "value": 255
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "MEMORY_RGB_BRIGHT_GREEN",
+      "source": "options.cpp",
+      "line": 2549,
+      "page": "graphics",
+      "type": "int",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 220
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 220
+      },
+      "min": {
+        "kind": "literal",
+        "value": 0
+      },
+      "max": {
+        "kind": "literal",
+        "value": 255
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "MEMORY_RGB_BRIGHT_RED",
+      "source": "options.cpp",
+      "line": 2542,
+      "page": "graphics",
+      "type": "int",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 241
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 241
+      },
+      "min": {
+        "kind": "literal",
+        "value": 0
+      },
+      "max": {
+        "kind": "literal",
+        "value": 255
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "MEMORY_RGB_DARK_BLUE",
+      "source": "options.cpp",
+      "line": 2536,
+      "page": "graphics",
+      "type": "int",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 19
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 19
+      },
+      "min": {
+        "kind": "literal",
+        "value": 0
+      },
+      "max": {
+        "kind": "literal",
+        "value": 255
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "MEMORY_RGB_DARK_GREEN",
+      "source": "options.cpp",
+      "line": 2529,
+      "page": "graphics",
+      "type": "int",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 23
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 23
+      },
+      "min": {
+        "kind": "literal",
+        "value": 0
+      },
+      "max": {
+        "kind": "literal",
+        "value": 255
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "MEMORY_RGB_DARK_RED",
+      "source": "options.cpp",
+      "line": 2523,
+      "page": "graphics",
+      "type": "int",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 39
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 39
+      },
+      "min": {
+        "kind": "literal",
+        "value": 0
+      },
+      "max": {
+        "kind": "literal",
+        "value": 255
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "MENU_SCROLL",
+      "source": "options.cpp",
+      "line": 2177,
+      "page": "interface",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "MESSAGE_COOLDOWN",
+      "source": "options.cpp",
+      "line": 2112,
+      "page": "interface",
+      "type": "int",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 0
+      },
+      "min": {
+        "kind": "literal",
+        "value": 0
+      },
+      "max": {
+        "kind": "literal",
+        "value": 1000
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "MESSAGE_LIMIT",
+      "source": "options.cpp",
+      "line": 2117,
+      "page": "interface",
+      "type": "int",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 255
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 255
+      },
+      "min": {
+        "kind": "literal",
+        "value": 1
+      },
+      "max": {
+        "kind": "literal",
+        "value": 10000
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "MESSAGE_TTL",
+      "source": "options.cpp",
+      "line": 2107,
+      "page": "interface",
+      "type": "int",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 0
+      },
+      "min": {
+        "kind": "literal",
+        "value": 0
+      },
+      "max": {
+        "kind": "literal",
+        "value": 1000
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "META_PROGRESS",
+      "source": "options.cpp",
+      "line": 2829,
+      "page": "world_default",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "MIN_CATCHUP_EXP_PER_POST_CATA_DAY",
+      "source": "external_options.json",
+      "line": 515,
+      "page": "external_options",
+      "type": "int",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 50
+      },
+      "min": {
+        "kind": "literal",
+        "value": -2147483648
+      },
+      "max": {
+        "kind": "literal",
+        "value": 2147483647
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "MONSTER_RESILIENCE",
+      "source": "options.cpp",
+      "line": 2786,
+      "page": "world_default",
+      "type": "int",
+      "hide": "always_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 100
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 100
+      },
+      "min": {
+        "kind": "literal",
+        "value": 1
+      },
+      "max": {
+        "kind": "literal",
+        "value": 1000
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i%%"
+      },
+      "items": null
+    },
+    {
+      "name": "MONSTER_SPEED",
+      "source": "options.cpp",
+      "line": 2782,
+      "page": "world_default",
+      "type": "int",
+      "hide": "always_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 100
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 100
+      },
+      "min": {
+        "kind": "literal",
+        "value": 1
+      },
+      "max": {
+        "kind": "literal",
+        "value": 1000
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i%%"
+      },
+      "items": null
+    },
+    {
+      "name": "MORALE_STYLE",
+      "source": "options.cpp",
+      "line": 2151,
+      "page": "interface",
+      "type": "string_select",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "vertical"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "vertical"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "vertical"
+          },
+          {
+            "value": "horizontal"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MOVE_VIEW_OFFSET",
+      "source": "options.cpp",
+      "line": 2167,
+      "page": "interface",
+      "type": "int",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 1
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 1
+      },
+      "min": {
+        "kind": "literal",
+        "value": 1
+      },
+      "max": {
+        "kind": "literal",
+        "value": 50
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "MUSIC_VOLUME",
+      "source": "options.cpp",
+      "line": 1752,
+      "page": "general",
+      "type": "int",
+      "hide": "no_sound_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 100
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 100
+      },
+      "min": {
+        "kind": "literal",
+        "value": 0
+      },
+      "max": {
+        "kind": "literal",
+        "value": 128
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "NO_AUTO_PICKUP_ZONES_LIST_ITEMS",
+      "source": "options.cpp",
+      "line": 1513,
+      "page": "general",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "NO_FAULTS",
+      "source": "external_options.json",
+      "line": 81,
+      "page": "external_options",
+      "type": "bool",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "NO_NPC_FOOD",
+      "source": "external_options.json",
+      "line": 88,
+      "page": "external_options",
+      "type": "bool",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "NO_UNKNOWN_COMMAND_MSG",
+      "source": "options.cpp",
+      "line": 2122,
+      "page": "interface",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "NO_VITAMINS",
+      "source": "external_options.json",
+      "line": 95,
+      "page": "external_options",
+      "type": "bool",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "NPC_HEALING_RATE",
+      "source": "external_options.json",
+      "line": 74,
+      "page": "external_options",
+      "type": "float",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 9.999999747378752e-05
+      },
+      "min": {
+        "kind": "literal",
+        "value": -3.4028234663852886e+38
+      },
+      "max": {
+        "kind": "literal",
+        "value": 3.4028234663852886e+38
+      },
+      "step": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "NPC_SPAWNTIME",
+      "source": "options.cpp",
+      "line": 2778,
+      "page": "world_default",
+      "type": "float",
+      "hide": "always_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 4.0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 4.0
+      },
+      "min": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "max": {
+        "kind": "literal",
+        "value": 100.0
+      },
+      "step": {
+        "kind": "literal",
+        "value": 0.009999999776482582
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "NV_GREEN_TOGGLE",
+      "source": "options.cpp",
+      "line": 2508,
+      "page": "graphics",
+      "type": "bool",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "OPEN_DEFAULT_ADV_INV",
+      "source": "options.cpp",
+      "line": 1957,
+      "page": "interface",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "OUTSIDE_DEFINED_OMAP_OMT",
+      "source": "external_options.json",
+      "line": 480,
+      "page": "external_options",
+      "type": "string_input",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": ""
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "lake_surface"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "OVERMAP_FONT_HEIGHT",
+      "source": "options.cpp",
+      "line": 2408,
+      "page": "graphics",
+      "type": "int",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 16
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 16
+      },
+      "min": {
+        "kind": "literal",
+        "value": 8
+      },
+      "max": {
+        "kind": "literal",
+        "value": 100
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "OVERMAP_FONT_SIZE",
+      "source": "options.cpp",
+      "line": 2413,
+      "page": "graphics",
+      "type": "int",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 16
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 16
+      },
+      "min": {
+        "kind": "literal",
+        "value": 8
+      },
+      "max": {
+        "kind": "literal",
+        "value": 100
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "OVERMAP_FONT_WIDTH",
+      "source": "options.cpp",
+      "line": 2403,
+      "page": "graphics",
+      "type": "int",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 16
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 16
+      },
+      "min": {
+        "kind": "literal",
+        "value": 6
+      },
+      "max": {
+        "kind": "literal",
+        "value": 100
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "OVERMAP_FOREST_INCREASE_EAST",
+      "source": "external_options.json",
+      "line": 326,
+      "page": "external_options",
+      "type": "float",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "min": {
+        "kind": "literal",
+        "value": -3.4028234663852886e+38
+      },
+      "max": {
+        "kind": "literal",
+        "value": 3.4028234663852886e+38
+      },
+      "step": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "OVERMAP_FOREST_INCREASE_NORTH",
+      "source": "external_options.json",
+      "line": 319,
+      "page": "external_options",
+      "type": "float",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 0.03999999910593033
+      },
+      "min": {
+        "kind": "literal",
+        "value": -3.4028234663852886e+38
+      },
+      "max": {
+        "kind": "literal",
+        "value": 3.4028234663852886e+38
+      },
+      "step": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "OVERMAP_FOREST_INCREASE_SOUTH",
+      "source": "external_options.json",
+      "line": 340,
+      "page": "external_options",
+      "type": "float",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "min": {
+        "kind": "literal",
+        "value": -3.4028234663852886e+38
+      },
+      "max": {
+        "kind": "literal",
+        "value": 3.4028234663852886e+38
+      },
+      "step": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "OVERMAP_FOREST_INCREASE_WEST",
+      "source": "external_options.json",
+      "line": 333,
+      "page": "external_options",
+      "type": "float",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 0.019999999552965164
+      },
+      "min": {
+        "kind": "literal",
+        "value": -3.4028234663852886e+38
+      },
+      "max": {
+        "kind": "literal",
+        "value": 3.4028234663852886e+38
+      },
+      "step": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "OVERMAP_FOREST_LIMIT",
+      "source": "external_options.json",
+      "line": 347,
+      "page": "external_options",
+      "type": "float",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 0.39500001072883606
+      },
+      "min": {
+        "kind": "literal",
+        "value": -3.4028234663852886e+38
+      },
+      "max": {
+        "kind": "literal",
+        "value": 3.4028234663852886e+38
+      },
+      "step": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "OVERMAP_MAXIMUM_URBANITY",
+      "source": "external_options.json",
+      "line": 452,
+      "page": "external_options",
+      "type": "int",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 8
+      },
+      "min": {
+        "kind": "literal",
+        "value": -2147483648
+      },
+      "max": {
+        "kind": "literal",
+        "value": 2147483647
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "OVERMAP_PLACE_CITIES",
+      "source": "external_options.json",
+      "line": 368,
+      "page": "external_options",
+      "type": "bool",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "OVERMAP_PLACE_FORESTS",
+      "source": "external_options.json",
+      "line": 312,
+      "page": "external_options",
+      "type": "bool",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "OVERMAP_PLACE_FOREST_TRAILHEADS",
+      "source": "external_options.json",
+      "line": 417,
+      "page": "external_options",
+      "type": "bool",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "OVERMAP_PLACE_FOREST_TRAILS",
+      "source": "external_options.json",
+      "line": 375,
+      "page": "external_options",
+      "type": "bool",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "OVERMAP_PLACE_HIGHWAYS",
+      "source": "external_options.json",
+      "line": 382,
+      "page": "external_options",
+      "type": "bool",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "OVERMAP_PLACE_LAKES",
+      "source": "external_options.json",
+      "line": 298,
+      "page": "external_options",
+      "type": "bool",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "OVERMAP_PLACE_OCEANS",
+      "source": "external_options.json",
+      "line": 305,
+      "page": "external_options",
+      "type": "bool",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "OVERMAP_PLACE_RAILROADS",
+      "source": "external_options.json",
+      "line": 396,
+      "page": "external_options",
+      "type": "bool",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "OVERMAP_PLACE_RAILROADS_BEFORE_ROADS",
+      "source": "external_options.json",
+      "line": 403,
+      "page": "external_options",
+      "type": "bool",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "OVERMAP_PLACE_RAVINES",
+      "source": "external_options.json",
+      "line": 361,
+      "page": "external_options",
+      "type": "bool",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "OVERMAP_PLACE_RIVERS",
+      "source": "external_options.json",
+      "line": 291,
+      "page": "external_options",
+      "type": "bool",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "OVERMAP_PLACE_ROADS",
+      "source": "external_options.json",
+      "line": 389,
+      "page": "external_options",
+      "type": "bool",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "OVERMAP_PLACE_SPECIALS",
+      "source": "external_options.json",
+      "line": 410,
+      "page": "external_options",
+      "type": "bool",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "OVERMAP_PLACE_SWAMPS",
+      "source": "external_options.json",
+      "line": 354,
+      "page": "external_options",
+      "type": "bool",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "OVERMAP_POPULATE_OUTSIDE_CONNECTIONS_FROM_NEIGHBORS",
+      "source": "external_options.json",
+      "line": 284,
+      "page": "external_options",
+      "type": "bool",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "OVERMAP_PREGENERATED_PATH",
+      "source": "external_options.json",
+      "line": 277,
+      "page": "external_options",
+      "type": "string_input",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": ""
+      },
+      "initial": {
+        "kind": "literal",
+        "value": ""
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "OVERMAP_TILES",
+      "source": "options.cpp",
+      "line": 2495,
+      "page": "graphics",
+      "type": "string_select",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "Larwick Overmap"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "Larwick Overmap"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "runtime",
+        "expr": "om_tilesets",
+        "class": "items",
+        "note": "filtered gfx directory scan (options.cpp:2486-2497)"
+      }
+    },
+    {
+      "name": "OVERMAP_URBAN_INCREASE_EAST",
+      "source": "external_options.json",
+      "line": 431,
+      "page": "external_options",
+      "type": "int",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 10
+      },
+      "min": {
+        "kind": "literal",
+        "value": -2147483648
+      },
+      "max": {
+        "kind": "literal",
+        "value": 2147483647
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "OVERMAP_URBAN_INCREASE_NORTH",
+      "source": "external_options.json",
+      "line": 424,
+      "page": "external_options",
+      "type": "int",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 0
+      },
+      "min": {
+        "kind": "literal",
+        "value": -2147483648
+      },
+      "max": {
+        "kind": "literal",
+        "value": 2147483647
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "OVERMAP_URBAN_INCREASE_SOUTH",
+      "source": "external_options.json",
+      "line": 445,
+      "page": "external_options",
+      "type": "int",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 5
+      },
+      "min": {
+        "kind": "literal",
+        "value": -2147483648
+      },
+      "max": {
+        "kind": "literal",
+        "value": 2147483647
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "OVERMAP_URBAN_INCREASE_WEST",
+      "source": "external_options.json",
+      "line": 438,
+      "page": "external_options",
+      "type": "int",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 0
+      },
+      "min": {
+        "kind": "literal",
+        "value": -2147483648
+      },
+      "max": {
+        "kind": "literal",
+        "value": 2147483647
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "OVERRIDE_VEHICLE_INIT_STATE",
+      "source": "external_options.json",
+      "line": 459,
+      "page": "external_options",
+      "type": "bool",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "PAIN_PENALTY_MOD_DEX",
+      "source": "external_options.json",
+      "line": 116,
+      "page": "external_options",
+      "type": "float",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 0.007499999832361937
+      },
+      "min": {
+        "kind": "literal",
+        "value": -3.4028234663852886e+38
+      },
+      "max": {
+        "kind": "literal",
+        "value": 3.4028234663852886e+38
+      },
+      "step": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "PAIN_PENALTY_MOD_INT",
+      "source": "external_options.json",
+      "line": 123,
+      "page": "external_options",
+      "type": "float",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 0.009999999776482582
+      },
+      "min": {
+        "kind": "literal",
+        "value": -3.4028234663852886e+38
+      },
+      "max": {
+        "kind": "literal",
+        "value": 3.4028234663852886e+38
+      },
+      "step": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "PAIN_PENALTY_MOD_PER",
+      "source": "external_options.json",
+      "line": 130,
+      "page": "external_options",
+      "type": "float",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 0.009999999776482582
+      },
+      "min": {
+        "kind": "literal",
+        "value": -3.4028234663852886e+38
+      },
+      "max": {
+        "kind": "literal",
+        "value": 3.4028234663852886e+38
+      },
+      "step": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "PAIN_PENALTY_MOD_STR",
+      "source": "external_options.json",
+      "line": 109,
+      "page": "external_options",
+      "type": "float",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 0.004999999888241291
+      },
+      "min": {
+        "kind": "literal",
+        "value": -3.4028234663852886e+38
+      },
+      "max": {
+        "kind": "literal",
+        "value": 3.4028234663852886e+38
+      },
+      "step": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "PIXEL_MINIMAP",
+      "source": "options.cpp",
+      "line": 2574,
+      "page": "graphics",
+      "type": "bool",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "PIXEL_MINIMAP_BEACON_SIZE",
+      "source": "options.cpp",
+      "line": 2617,
+      "page": "graphics",
+      "type": "int",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 2
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 2
+      },
+      "min": {
+        "kind": "literal",
+        "value": 1
+      },
+      "max": {
+        "kind": "literal",
+        "value": 4
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "PIXEL_MINIMAP_BG",
+      "source": "options.cpp",
+      "line": 2632,
+      "page": "graphics",
+      "type": "string_select",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "black"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "black"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "theme"
+          },
+          {
+            "value": "black"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PIXEL_MINIMAP_BLINK",
+      "source": "options.cpp",
+      "line": 2625,
+      "page": "graphics",
+      "type": "int",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 10
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 10
+      },
+      "min": {
+        "kind": "literal",
+        "value": 0
+      },
+      "max": {
+        "kind": "literal",
+        "value": 50
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "PIXEL_MINIMAP_BRIGHTNESS",
+      "source": "options.cpp",
+      "line": 2589,
+      "page": "graphics",
+      "type": "int",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 100
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 100
+      },
+      "min": {
+        "kind": "literal",
+        "value": 10
+      },
+      "max": {
+        "kind": "literal",
+        "value": 300
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "PIXEL_MINIMAP_HEIGHT",
+      "source": "options.cpp",
+      "line": 2596,
+      "page": "graphics",
+      "type": "int",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 0
+      },
+      "min": {
+        "kind": "literal",
+        "value": 0
+      },
+      "max": {
+        "kind": "literal",
+        "value": 100
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "PIXEL_MINIMAP_MODE",
+      "source": "options.cpp",
+      "line": 2579,
+      "page": "graphics",
+      "type": "string_select",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "dots"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "dots"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "solid"
+          },
+          {
+            "value": "squares"
+          },
+          {
+            "value": "dots"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PIXEL_MINIMAP_RATIO",
+      "source": "options.cpp",
+      "line": 2610,
+      "page": "graphics",
+      "type": "bool",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "PIXEL_MINIMAP_SCALE_TO_FIT",
+      "source": "options.cpp",
+      "line": 2603,
+      "page": "graphics",
+      "type": "bool",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "PLAYER_BASE_STAMINA_BURN_RATE",
+      "source": "external_options.json",
+      "line": 39,
+      "page": "external_options",
+      "type": "int",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 15
+      },
+      "min": {
+        "kind": "literal",
+        "value": -2147483648
+      },
+      "max": {
+        "kind": "literal",
+        "value": 2147483647
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "PLAYER_BASE_STAMINA_REGEN_RATE",
+      "source": "external_options.json",
+      "line": 32,
+      "page": "external_options",
+      "type": "float",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 20.0
+      },
+      "min": {
+        "kind": "literal",
+        "value": -3.4028234663852886e+38
+      },
+      "max": {
+        "kind": "literal",
+        "value": 3.4028234663852886e+38
+      },
+      "step": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "PLAYER_CARDIOFIT_STAMINA_SCALING",
+      "source": "external_options.json",
+      "line": 25,
+      "page": "external_options",
+      "type": "int",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 5
+      },
+      "min": {
+        "kind": "literal",
+        "value": -2147483648
+      },
+      "max": {
+        "kind": "literal",
+        "value": 2147483647
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "PLAYER_HEALING_RATE",
+      "source": "external_options.json",
+      "line": 67,
+      "page": "external_options",
+      "type": "float",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 9.999999747378752e-05
+      },
+      "min": {
+        "kind": "literal",
+        "value": -3.4028234663852886e+38
+      },
+      "max": {
+        "kind": "literal",
+        "value": 3.4028234663852886e+38
+      },
+      "step": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "PLAYER_HUNGER_RATE",
+      "source": "external_options.json",
+      "line": 46,
+      "page": "external_options",
+      "type": "float",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "min": {
+        "kind": "literal",
+        "value": -3.4028234663852886e+38
+      },
+      "max": {
+        "kind": "literal",
+        "value": 3.4028234663852886e+38
+      },
+      "step": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "PLAYER_MAX_STAMINA_BASE",
+      "source": "external_options.json",
+      "line": 18,
+      "page": "external_options",
+      "type": "int",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 3500
+      },
+      "min": {
+        "kind": "literal",
+        "value": -2147483648
+      },
+      "max": {
+        "kind": "literal",
+        "value": 2147483647
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "PLAYER_SLEEPINESS_RATE",
+      "source": "external_options.json",
+      "line": 60,
+      "page": "external_options",
+      "type": "float",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "min": {
+        "kind": "literal",
+        "value": -3.4028234663852886e+38
+      },
+      "max": {
+        "kind": "literal",
+        "value": 3.4028234663852886e+38
+      },
+      "step": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "PLAYER_THIRST_RATE",
+      "source": "external_options.json",
+      "line": 53,
+      "page": "external_options",
+      "type": "float",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "min": {
+        "kind": "literal",
+        "value": -3.4028234663852886e+38
+      },
+      "max": {
+        "kind": "literal",
+        "value": 3.4028234663852886e+38
+      },
+      "step": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "PORTAL_STORM_IGNORE_NPC",
+      "source": "external_options.json",
+      "line": 186,
+      "page": "external_options",
+      "type": "bool",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "PREVENT_OCCLUSION",
+      "source": "options.cpp",
+      "line": 2857,
+      "page": "debug",
+      "type": "int_map",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 2
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 2
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": 0
+          },
+          {
+            "value": 1
+          },
+          {
+            "value": 2
+          }
+        ]
+      }
+    },
+    {
+      "name": "PREVENT_OCCLUSION_MAX_DIST",
+      "source": "options.cpp",
+      "line": 2880,
+      "page": "debug",
+      "type": "float",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "min": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "max": {
+        "kind": "literal",
+        "value": 60.0
+      },
+      "step": {
+        "kind": "literal",
+        "value": 0.10000000149011612
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "PREVENT_OCCLUSION_MIN_DIST",
+      "source": "options.cpp",
+      "line": 2874,
+      "page": "debug",
+      "type": "float",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "min": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "max": {
+        "kind": "literal",
+        "value": 60.0
+      },
+      "step": {
+        "kind": "literal",
+        "value": 0.10000000149011612
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "PREVENT_OCCLUSION_RETRACT",
+      "source": "options.cpp",
+      "line": 2869,
+      "page": "debug",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "PREVENT_OCCLUSION_TRANSP",
+      "source": "options.cpp",
+      "line": 2864,
+      "page": "debug",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "PROFICIENCY_TRAINING_SPEED",
+      "source": "external_options.json",
+      "line": 613,
+      "page": "external_options",
+      "type": "float",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "min": {
+        "kind": "literal",
+        "value": -3.4028234663852886e+38
+      },
+      "max": {
+        "kind": "literal",
+        "value": 3.4028234663852886e+38
+      },
+      "step": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "QUERY_DECONSTRUCT",
+      "source": "options.cpp",
+      "line": 1942,
+      "page": "interface",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "QUERY_DISASSEMBLE",
+      "source": "options.cpp",
+      "line": 1937,
+      "page": "interface",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "QUERY_KEYBIND_REMOVAL",
+      "source": "options.cpp",
+      "line": 1947,
+      "page": "interface",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "RAD_MUTATION",
+      "source": "external_options.json",
+      "line": 571,
+      "page": "external_options",
+      "type": "bool",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "RENDERER",
+      "source": "options.cpp",
+      "line": 2687,
+      "page": "graphics",
+      "type": "string_select",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "runtime",
+        "expr": "default_renderer",
+        "class": "string",
+        "note": "first renderer, or direct3d11 on Windows (options.cpp:2678-2685)"
+      },
+      "initial": {
+        "kind": "runtime",
+        "expr": "default_renderer",
+        "class": "string",
+        "note": "first renderer, or direct3d11 on Windows (options.cpp:2678-2685)"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "runtime",
+        "expr": "renderer_list",
+        "class": "items",
+        "note": "cata_tiles::build_renderer_list() (options.cpp:2677)"
+      }
+    },
+    {
+      "name": "RENDER_BATCHING",
+      "source": "options.cpp",
+      "line": 2702,
+      "page": "graphics",
+      "type": "bool",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "REVERSE_STEERING",
+      "source": "options.cpp",
+      "line": 2078,
+      "page": "interface",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "SAFEMODE",
+      "source": "options.cpp",
+      "line": 1606,
+      "page": "general",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "SAFEMODEIGNORETURNS",
+      "source": "options.cpp",
+      "line": 1631,
+      "page": "general",
+      "type": "int",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 200
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 200
+      },
+      "min": {
+        "kind": "literal",
+        "value": 0
+      },
+      "max": {
+        "kind": "literal",
+        "value": 3600
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "SAFEMODEPROXIMITY",
+      "source": "options.cpp",
+      "line": 1611,
+      "page": "general",
+      "type": "int",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 0
+      },
+      "min": {
+        "kind": "literal",
+        "value": 0
+      },
+      "max": {
+        "kind": "literal",
+        "value": 60
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "SAFEMODEVEH",
+      "source": "options.cpp",
+      "line": 1616,
+      "page": "general",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "SCALING_FACTOR",
+      "source": "options.cpp",
+      "line": 2735,
+      "page": "graphics",
+      "type": "string_select",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "1"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "1"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "1"
+          },
+          {
+            "value": "2"
+          },
+          {
+            "value": "4"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SCALING_MODE",
+      "source": "options.cpp",
+      "line": 2723,
+      "page": "graphics",
+      "type": "string_select",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "none"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "none"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "none"
+          },
+          {
+            "value": "nearest"
+          },
+          {
+            "value": "linear"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SCREEN_READER_MODE",
+      "source": "options.cpp",
+      "line": 1999,
+      "page": "interface",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "SDL_KEYBOARD_MODE",
+      "source": "options.cpp",
+      "line": 1901,
+      "page": "interface",
+      "type": "string_select",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "keychar"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "keychar"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "keychar"
+          },
+          {
+            "value": "keycode"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SEASONAL_TITLE",
+      "source": "options.cpp",
+      "line": 2332,
+      "page": "graphics",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "SEASON_LENGTH",
+      "source": "options.cpp",
+      "line": 2794,
+      "page": "world_default",
+      "type": "int",
+      "hide": "always_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 91
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 91
+      },
+      "min": {
+        "kind": "literal",
+        "value": 14
+      },
+      "max": {
+        "kind": "literal",
+        "value": 127
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "SELECT_STARTING_CITY",
+      "source": "external_options.json",
+      "line": 270,
+      "page": "external_options",
+      "type": "bool",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "SHIFT_LIST_ITEM_VIEW",
+      "source": "options.cpp",
+      "line": 2182,
+      "page": "interface",
+      "type": "string_select",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "centered"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "centered"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "false"
+          },
+          {
+            "value": "centered"
+          },
+          {
+            "value": "edge"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SHOW_DRUG_VARIANTS",
+      "source": "options.cpp",
+      "line": 1876,
+      "page": "interface",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "SHOW_GUN_VARIANTS",
+      "source": "options.cpp",
+      "line": 1879,
+      "page": "interface",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "SHOW_MUTATION_SELECTOR",
+      "source": "external_options.json",
+      "line": 543,
+      "page": "external_options",
+      "type": "bool",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "SHOW_VITAMIN_MASS",
+      "source": "options.cpp",
+      "line": 1838,
+      "page": "interface",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "SIDEBAR_POSITION",
+      "source": "options.cpp",
+      "line": 2089,
+      "page": "interface",
+      "type": "string_select",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "right"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "right"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "left"
+          },
+          {
+            "value": "right"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SIDEBAR_SPACERS",
+      "source": "options.cpp",
+      "line": 2095,
+      "page": "interface",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "SKILL_TRAINING_SPEED",
+      "source": "external_options.json",
+      "line": 606,
+      "page": "external_options",
+      "type": "float",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "min": {
+        "kind": "literal",
+        "value": -3.4028234663852886e+38
+      },
+      "max": {
+        "kind": "literal",
+        "value": 3.4028234663852886e+38
+      },
+      "step": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "SKIP_VERIFICATION",
+      "source": "options.cpp",
+      "line": 2895,
+      "page": "debug",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "SNAP_TO_TARGET",
+      "source": "options.cpp",
+      "line": 1922,
+      "page": "interface",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "SOUNDPACKS",
+      "source": "options.cpp",
+      "line": 1741,
+      "page": "general",
+      "type": "string_select",
+      "hide": "no_sound_hide",
+      "in_page": true,
+      "default": {
+        "kind": "runtime",
+        "expr": "std::any_of( soundpacks.begin(), soundpacks.end(), []( const id_and_option & option ) { return option.first == \"CC-Sounds\"; } ) ? \"CC-Sounds\" : \"basic\"",
+        "class": "string",
+        "note": "depends on which soundpacks are installed (options.cpp:1743-1746)"
+      },
+      "initial": {
+        "kind": "runtime",
+        "expr": "std::any_of( soundpacks.begin(), soundpacks.end(), []( const id_and_option & option ) { return option.first == \"CC-Sounds\"; } ) ? \"CC-Sounds\" : \"basic\"",
+        "class": "string",
+        "note": "depends on which soundpacks are installed (options.cpp:1743-1746)"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "runtime",
+        "expr": "soundpacks",
+        "class": "items",
+        "note": "build_soundpacks_list() scans the soundpacks directory (options.cpp:1306,1740)"
+      }
+    },
+    {
+      "name": "SOUND_EFFECT_VOLUME",
+      "source": "options.cpp",
+      "line": 1759,
+      "page": "general",
+      "type": "int",
+      "hide": "no_sound_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 100
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 100
+      },
+      "min": {
+        "kind": "literal",
+        "value": 0
+      },
+      "max": {
+        "kind": "literal",
+        "value": 128
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "SOUND_ENABLED",
+      "source": "options.cpp",
+      "line": 1734,
+      "page": "general",
+      "type": "bool",
+      "hide": "no_sound_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "SPAWN_ANIMAL_DENSITY",
+      "source": "external_options.json",
+      "line": 165,
+      "page": "external_options",
+      "type": "float",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "min": {
+        "kind": "literal",
+        "value": -3.4028234663852886e+38
+      },
+      "max": {
+        "kind": "literal",
+        "value": 3.4028234663852886e+38
+      },
+      "step": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "SPAWN_CITY_HORDE_SCALAR",
+      "source": "external_options.json",
+      "line": 158,
+      "page": "external_options",
+      "type": "float",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 80.0
+      },
+      "min": {
+        "kind": "literal",
+        "value": -3.4028234663852886e+38
+      },
+      "max": {
+        "kind": "literal",
+        "value": 3.4028234663852886e+38
+      },
+      "step": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "SPAWN_CITY_HORDE_SMALL_CITY_CHANCE",
+      "source": "external_options.json",
+      "line": 144,
+      "page": "external_options",
+      "type": "int",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 16
+      },
+      "min": {
+        "kind": "literal",
+        "value": -2147483648
+      },
+      "max": {
+        "kind": "literal",
+        "value": 2147483647
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "SPAWN_CITY_HORDE_SPREAD",
+      "source": "external_options.json",
+      "line": 151,
+      "page": "external_options",
+      "type": "float",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 1.5
+      },
+      "min": {
+        "kind": "literal",
+        "value": -3.4028234663852886e+38
+      },
+      "max": {
+        "kind": "literal",
+        "value": 3.4028234663852886e+38
+      },
+      "step": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "SPAWN_CITY_HORDE_THRESHOLD",
+      "source": "external_options.json",
+      "line": 137,
+      "page": "external_options",
+      "type": "int",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 4
+      },
+      "min": {
+        "kind": "literal",
+        "value": -2147483648
+      },
+      "max": {
+        "kind": "literal",
+        "value": 2147483647
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "SPAWN_DENSITY",
+      "source": "options.cpp",
+      "line": 2770,
+      "page": "world_default",
+      "type": "float",
+      "hide": "always_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "min": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "max": {
+        "kind": "literal",
+        "value": 50.0
+      },
+      "step": {
+        "kind": "literal",
+        "value": 0.10000000149011612
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "STATS_THROUGH_KILLS",
+      "source": "external_options.json",
+      "line": 200,
+      "page": "external_options",
+      "type": "bool",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "SWAP_ZOOM",
+      "source": "options.cpp",
+      "line": 2468,
+      "page": "graphics",
+      "type": "int",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 2
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 2
+      },
+      "min": {
+        "kind": "literal",
+        "value": 1
+      },
+      "max": {
+        "kind": "literal",
+        "value": 4
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "TERMINAL_X",
+      "source": "options.cpp",
+      "line": 2351,
+      "page": "graphics",
+      "type": "int",
+      "hide": "posix_curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 80
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 80
+      },
+      "min": {
+        "kind": "literal",
+        "value": 80
+      },
+      "max": {
+        "kind": "literal",
+        "value": 960
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "TERMINAL_Y",
+      "source": "options.cpp",
+      "line": 2356,
+      "page": "graphics",
+      "type": "int",
+      "hide": "posix_curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 24
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 24
+      },
+      "min": {
+        "kind": "literal",
+        "value": 24
+      },
+      "max": {
+        "kind": "literal",
+        "value": 270
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "TILES",
+      "source": "options.cpp",
+      "line": 2448,
+      "page": "graphics",
+      "type": "string_select",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "UltimateCataclysm"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "UltimateCataclysm"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "runtime",
+        "expr": "build_tilesets_list()",
+        "class": "items",
+        "note": "gfx directory scan (options.cpp:1290,2450)"
+      }
+    },
+    {
+      "name": "TURN_DURATION",
+      "source": "options.cpp",
+      "line": 1639,
+      "page": "general",
+      "type": "float",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "min": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "max": {
+        "kind": "literal",
+        "value": 10.0
+      },
+      "step": {
+        "kind": "literal",
+        "value": 0.05000000074505806
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "UNLOAD_RAS_WEAPON",
+      "source": "options.cpp",
+      "line": 1931,
+      "page": "interface",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "USE_CELSIUS",
+      "source": "options.cpp",
+      "line": 1800,
+      "page": "interface",
+      "type": "string_select",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "fahrenheit"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "fahrenheit"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "fahrenheit"
+          },
+          {
+            "value": "celsius"
+          },
+          {
+            "value": "kelvin"
+          }
+        ]
+      }
+    },
+    {
+      "name": "USE_COLOR_MODULATED_TEXTURES",
+      "source": "options.cpp",
+      "line": 2718,
+      "page": "graphics",
+      "type": "bool",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "USE_DISTANT_TILES",
+      "source": "options.cpp",
+      "line": 2453,
+      "page": "graphics",
+      "type": "bool",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "USE_DRAW_ASCII_LINES_ROUTINE",
+      "source": "options.cpp",
+      "line": 2418,
+      "page": "graphics",
+      "type": "bool",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "USE_LANG",
+      "source": "options.cpp",
+      "line": 1790,
+      "page": "interface",
+      "type": "string_select",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": ""
+      },
+      "initial": {
+        "kind": "literal",
+        "value": ""
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "runtime",
+        "expr": "options_manager::get_lang_options()",
+        "class": "items",
+        "note": "locale scan of the language files (options.cpp:1337)"
+      }
+    },
+    {
+      "name": "USE_METRIC_SPEEDS",
+      "source": "options.cpp",
+      "line": 1806,
+      "page": "interface",
+      "type": "string_select",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "runtime",
+        "expr": "( SystemLocale::UseMetricSystem().value_or( false ) ? \"km/h\" : \"mph\" )",
+        "class": "string",
+        "note": "reads the OS locale (options.cpp:1809)"
+      },
+      "initial": {
+        "kind": "runtime",
+        "expr": "( SystemLocale::UseMetricSystem().value_or( false ) ? \"km/h\" : \"mph\" )",
+        "class": "string",
+        "note": "reads the OS locale (options.cpp:1809)"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "mph"
+          },
+          {
+            "value": "km/h"
+          },
+          {
+            "value": "t/t"
+          }
+        ]
+      }
+    },
+    {
+      "name": "USE_METRIC_WEIGHTS",
+      "source": "options.cpp",
+      "line": 1812,
+      "page": "interface",
+      "type": "string_select",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "runtime",
+        "expr": "( SystemLocale::UseMetricSystem().value_or( false ) ? \"kg\" : \"lbs\" )",
+        "class": "string",
+        "note": "reads the OS locale (options.cpp:1815)"
+      },
+      "initial": {
+        "kind": "runtime",
+        "expr": "( SystemLocale::UseMetricSystem().value_or( false ) ? \"kg\" : \"lbs\" )",
+        "class": "string",
+        "note": "reads the OS locale (options.cpp:1815)"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "lbs"
+          },
+          {
+            "value": "kg"
+          }
+        ]
+      }
+    },
+    {
+      "name": "USE_OVERMAP_TILES",
+      "source": "options.cpp",
+      "line": 2479,
+      "page": "graphics",
+      "type": "bool",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "USE_PINYIN_SEARCH",
+      "source": "options.cpp",
+      "line": 1909,
+      "page": "interface",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "USE_TILES",
+      "source": "options.cpp",
+      "line": 2443,
+      "page": "graphics",
+      "type": "bool",
+      "hide": "curses_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "VEHICLE_ARMOR_COLOR",
+      "source": "options.cpp",
+      "line": 2063,
+      "page": "interface",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "VEHICLE_DIR_INDICATOR",
+      "source": "options.cpp",
+      "line": 2073,
+      "page": "interface",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "VEHICLE_FUEL_AT_SPAWN",
+      "source": "external_options.json",
+      "line": 473,
+      "page": "external_options",
+      "type": "int",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": -1
+      },
+      "min": {
+        "kind": "literal",
+        "value": -2147483648
+      },
+      "max": {
+        "kind": "literal",
+        "value": 2147483647
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "VEHICLE_STATUS_AT_SPAWN",
+      "source": "external_options.json",
+      "line": 466,
+      "page": "external_options",
+      "type": "int",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": -1
+      },
+      "min": {
+        "kind": "literal",
+        "value": -2147483648
+      },
+      "max": {
+        "kind": "literal",
+        "value": 2147483647
+      },
+      "step": null,
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%i"
+      },
+      "items": null
+    },
+    {
+      "name": "VOLUME_UNITS",
+      "source": "options.cpp",
+      "line": 1818,
+      "page": "interface",
+      "type": "string_select",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "l"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "l"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "c"
+          },
+          {
+            "value": "l"
+          },
+          {
+            "value": "qt"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WANDER_SPAWNS",
+      "source": "options.cpp",
+      "line": 2808,
+      "page": "world_default",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": false
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "WARN_ON_MODIFIED",
+      "source": "options.cpp",
+      "line": 2889,
+      "page": "debug",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "WEARY_BMR_MULT",
+      "source": "external_options.json",
+      "line": 207,
+      "page": "external_options",
+      "type": "float",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 0.5400000214576721
+      },
+      "min": {
+        "kind": "literal",
+        "value": -3.4028234663852886e+38
+      },
+      "max": {
+        "kind": "literal",
+        "value": 3.4028234663852886e+38
+      },
+      "step": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "WEARY_INITIAL_STEP",
+      "source": "external_options.json",
+      "line": 221,
+      "page": "external_options",
+      "type": "float",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "min": {
+        "kind": "literal",
+        "value": -3.4028234663852886e+38
+      },
+      "max": {
+        "kind": "literal",
+        "value": 3.4028234663852886e+38
+      },
+      "step": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "WEARY_RECOVERY_MULT",
+      "source": "external_options.json",
+      "line": 228,
+      "page": "external_options",
+      "type": "float",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 0.05000000074505806
+      },
+      "min": {
+        "kind": "literal",
+        "value": -3.4028234663852886e+38
+      },
+      "max": {
+        "kind": "literal",
+        "value": 3.4028234663852886e+38
+      },
+      "step": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "WEARY_THRESH_SCALING",
+      "source": "external_options.json",
+      "line": 214,
+      "page": "external_options",
+      "type": "float",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": 0.0
+      },
+      "initial": {
+        "kind": "literal",
+        "value": 0.75
+      },
+      "min": {
+        "kind": "literal",
+        "value": -3.4028234663852886e+38
+      },
+      "max": {
+        "kind": "literal",
+        "value": 3.4028234663852886e+38
+      },
+      "step": {
+        "kind": "literal",
+        "value": 1.0
+      },
+      "max_length": null,
+      "format": {
+        "kind": "literal",
+        "value": "%.2f"
+      },
+      "items": null
+    },
+    {
+      "name": "WORKBENCH_ALL_OPTIONS",
+      "source": "external_options.json",
+      "line": 263,
+      "page": "external_options",
+      "type": "bool",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "WORLD_COMPRESSION2",
+      "source": "options.cpp",
+      "line": 1776,
+      "page": "general",
+      "type": "bool",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": true
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    },
+    {
+      "name": "WORLD_END",
+      "source": "options.cpp",
+      "line": 2753,
+      "page": "world_default",
+      "type": "string_select",
+      "hide": "no_hide",
+      "in_page": true,
+      "default": {
+        "kind": "literal",
+        "value": "reset"
+      },
+      "initial": {
+        "kind": "literal",
+        "value": "reset"
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": {
+        "kind": "literal",
+        "items": [
+          {
+            "value": "reset"
+          },
+          {
+            "value": "delete"
+          },
+          {
+            "value": "query"
+          },
+          {
+            "value": "keep"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ZOMBIFY_INTO_ENABLED",
+      "source": "external_options.json",
+      "line": 501,
+      "page": "external_options",
+      "type": "bool",
+      "hide": "always_hide",
+      "in_page": false,
+      "default": {
+        "kind": "literal",
+        "value": false
+      },
+      "initial": {
+        "kind": "literal",
+        "value": true
+      },
+      "min": null,
+      "max": null,
+      "step": null,
+      "max_length": null,
+      "format": null,
+      "items": null
+    }
+  ]
+}
