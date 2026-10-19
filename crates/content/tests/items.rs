@@ -96,8 +96,6 @@ fn every_item_type_matches_the_reference() {
     let by_id: std::collections::BTreeMap<&str, &items::ItemType> =
         loaded.iter().map(|item| (item.id.as_str(), item)).collect();
     let mut mismatches = Vec::new();
-    let mut pending = Pending::default();
-    let mut notes: Vec<String> = Vec::new();
     for entry in entries {
         let Value::Object(object) = entry else {
             continue;
@@ -111,32 +109,13 @@ fn every_item_type_matches_the_reference() {
             mismatches.push(format!("{id}: missing"));
             continue;
         };
-        compare_item(&id, object, ours, &mut mismatches, &mut notes, &mut pending);
+        compare_item(&id, object, ours, &mut mismatches);
     }
-    for note in &notes {
-        println!("  {note}");
-    }
-    println!(
-        "{} mismatches; pending: {} category, {} flags, {} materials, {} plural",
-        mismatches.len(),
-        pending.category,
-        pending.flags,
-        pending.materials,
-        pending.plural
-    );
+    println!("{} mismatches", mismatches.len());
     for line in mismatches.iter().take(20) {
         println!("  {line}");
     }
     assert!(mismatches.is_empty(), "{} mismatches", mismatches.len());
-}
-
-/// What is still unverifiable because it belongs to a per-type loader.
-#[derive(Default)]
-struct Pending {
-    category: usize,
-    flags: usize,
-    materials: usize,
-    plural: usize,
 }
 
 fn compare_item(
@@ -144,8 +123,6 @@ fn compare_item(
     theirs: &cdda_json::Object,
     ours: &items::ItemType,
     mismatches: &mut Vec<String>,
-    notes: &mut Vec<String>,
-    pending: &mut Pending,
 ) {
     let text_of = |member: &str| match theirs.get(member) {
         Some(Value::Str(value)) => value.clone(),
@@ -200,33 +177,25 @@ fn compare_item(
         }
     }
     if ours.materials != theirs_materials {
-        // Armour states its materials per body part, and the loader aggregates
-        // them; that derivation belongs to the armour loader, not to this slice.
-        pending.materials += 1;
-        if pending.materials <= 8 {
-            notes.push(format!(
-                "{id}: materials {:?} != {theirs_materials:?}",
-                ours.materials
-            ));
-        }
+        mismatches.push(format!(
+            "{id}: materials {:?} != {theirs_materials:?}",
+            ours.materials
+        ));
     }
-    // Category and flags are set partly by the per-type loaders rather than by
-    // the fields an object states, so they are counted separately: this slice
-    // covers what the JSON says, not what a type implies.
-
     if ours.plural_name() != text_of("name_plural") {
-        pending.plural += 1;
+        mismatches.push(format!(
+            "{id}: plural {:?} != {:?}",
+            ours.plural_name(),
+            text_of("name_plural")
+        ));
     }
     if ours.category != text_of("category") {
-        pending.category += 1;
-        if pending.category <= 12 {
-            notes.push(format!(
-                "{id}: category {:?} != {:?} (subtypes {:?})",
-                ours.category,
-                text_of("category"),
-                ours.subtypes
-            ));
-        }
+        mismatches.push(format!(
+            "{id}: category {:?} != {:?} (subtypes {:?})",
+            ours.category,
+            text_of("category"),
+            ours.subtypes
+        ));
     }
     let ours_flags: Vec<String> = ours.flags.iter().cloned().collect();
     let mut theirs_flags: Vec<String> = match theirs.get("flags") {
@@ -241,18 +210,15 @@ fn compare_item(
     };
     theirs_flags.sort();
     if ours_flags != theirs_flags {
-        pending.flags += 1;
-        if pending.flags <= 12 {
-            let missing: Vec<&String> = theirs_flags
-                .iter()
-                .filter(|f| !ours_flags.contains(f))
-                .collect();
-            let extra: Vec<&String> = ours_flags
-                .iter()
-                .filter(|f| !theirs_flags.contains(f))
-                .collect();
-            notes.push(format!("{id}: flags missing {missing:?} extra {extra:?}"));
-        }
+        let missing: Vec<&String> = theirs_flags
+            .iter()
+            .filter(|flag| !ours_flags.contains(flag))
+            .collect();
+        let extra: Vec<&String> = ours_flags
+            .iter()
+            .filter(|flag| !theirs_flags.contains(flag))
+            .collect();
+        mismatches.push(format!("{id}: flags missing {missing:?} extra {extra:?}"));
     }
 }
 

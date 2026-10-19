@@ -196,23 +196,20 @@ impl ItemType {
                 row.sub_coverage.extend(sub_coverage.iter().cloned());
             }
         }
-        // The thicknesses add up first and are turned into portions once, in
-        // single precision. Truncating per body part instead loses half a unit on
-        // a 1.05 mm layer over two arms - 208 where the reference says 209.
-        let mut totals: BTreeMap<String, f32> = BTreeMap::new();
+        // Each row adds its own hundredths to a whole-number total, so the
+        // fraction is dropped once per row rather than once at the end: two
+        // 1.525 mm layers make 304, not 305 (`item_factory.cpp:1452-1463`,
+        // where the total is an `int` and the addition is a float).
+        let mut totals: BTreeMap<String, i32> = BTreeMap::new();
         for entry in &merged {
             for (name, thickness) in &entry.materials {
-                *totals.entry(name.clone()).or_insert(0.0) += thickness;
+                let running = totals.get(name).copied().unwrap_or(0);
+                #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+                let updated = (running as f32 + thickness * 100.0) as i32;
+                totals.insert(name.clone(), updated);
             }
         }
         totals
-            .into_iter()
-            .map(|(name, thickness)| {
-                #[allow(clippy::cast_possible_truncation)]
-                let portion = (thickness * 100.0) as i32;
-                (name, portion)
-            })
-            .collect()
     }
 
     /// The name for more than one of the item, as the reference prints it.
@@ -298,11 +295,16 @@ pub fn load_paths(dirs: &[&std::path::Path]) -> Result<Vec<ItemType>, LoadError>
                 item.materials.clear();
                 item.materials.insert(item.primary_material.clone(), 1);
             }
+            // Allergen and implied flags are read from the materials the object
+            // states, and they are read *before* the armour entries fill the
+            // material list in - so an armour that declares no `material` never
+            // acquires an allergen flag (`item_factory.cpp:752-754` against
+            // `item_factory.cpp:1452-1463`).
+            item.add_material_flags();
+            item.add_implied_flags();
             if item.materials.is_empty() && !item.armor_parts.is_empty() {
                 item.materials = item.armor_materials(&anatomy);
             }
-            item.add_material_flags();
-            item.add_implied_flags();
             // `LIGHT_7` and friends are read into the item's light emission and
             // then dropped from the flag set (`item_factory.cpp:434-456`).
             item.flags.retain(|flag| !flag.starts_with("LIGHT_"));
@@ -647,6 +649,24 @@ fn apply(
     apply_slots(item, object);
     if let Some(entries) = object.get("material") {
         item.materials = materials_of(entries)?;
+    }
+    // `material` is a container, so the merge operators reach it: an object may
+    // add a material to the list it inherited, or drop one.
+    if let Some(extend) = sub_object(object, "extend")
+        && let Some(entries) = extend.get("material")
+    {
+        for (material, portion) in materials_of(entries)? {
+            item.materials.insert(material, portion);
+        }
+    }
+    if let Some(delete) = sub_object(object, "delete")
+        && let Some(Value::Array(entries)) = delete.get("material")
+    {
+        for entry in entries {
+            if let Value::Str(name) = entry {
+                item.materials.remove(name);
+            }
+        }
     }
     if let Some(replacements) = sub_object(object, "replace_materials") {
         replace_materials(item, replacements, densities);
