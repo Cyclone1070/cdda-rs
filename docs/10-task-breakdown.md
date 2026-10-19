@@ -38,21 +38,21 @@ ready to start.
 
 ## P1 — Content and persistence
 
-| ID | Task | Produces | Proven by |
-|---|---|---|---|
-| P1-T1 | Registry machinery | Load, inherit, finalise, consistency-check | Fixture types load in both builds |
-| P1-T2 | Inheritance and merge operators | `copy-from`, `extend`, `delete`, `relative`, `proportional` | Operator-by-operator parity corpus |
-| P1-T3 | Loader families (items, monsters, terrain, vehicles, recipes) | The five largest content families | Per-family digest |
-| P1-T4 | Loader families (remaining 155 types) | Everything else | Full digest equality (M1) |
-| P1-T5 | Mod discovery and ordering | Discovery, duplicate detection, user order | 42 in-repo mods load in the same order |
-| P1-T6 | Dependency graph and cycles | Tarjan-style cycle detection | Synthetic cycle fixtures |
-| P1-T7 | Save format decision | Written decision (blocker B2) | Recorded in [03-decisions.md](03-decisions.md) |
-| P1-T8 | Save reading | Load reference saves or refuse explicitly | Round-trip digest |
-| P1-T9 | Save writing | Write the port's saves | Round-trip identity (I9) |
-| P1-T10 | Migrations | Content and per-field legacy paths | Old-format fixtures |
-| P1-T11 | Compression and archives | Container format, dictionaries | Byte-compatible archives |
-| P1-T12 | Map memory and seen tiles | Persistence for map memory | Digest parity |
-| P1-T13 | Gate 0 runner | Self-consistency, allocator and stdlib checks | Report published |
+| ID | Task | Produces | Proven by | Status |
+|---|---|---|---|---|
+| P1-T1 | Registry machinery | Load, inherit, finalise, consistency-check | Fixture types load in both builds | in progress (ids scanned: 66 of 90 registries exact) |
+| P1-T2 | Inheritance and merge operators | `copy-from`, `extend`, `delete`, `relative`, `proportional` | Operator-by-operator parity corpus | not started |
+| P1-T3 | Loader families (items, monsters, terrain, vehicles, recipes) | The five largest content families | Per-family digest | not started |
+| P1-T4 | Loader families (remaining 155 types) | Everything else | Full digest equality (M1) | not started |
+| P1-T5 | Mod discovery and ordering | Discovery, duplicate detection, user order | 42 in-repo mods load in the same order | not started |
+| P1-T6 | Dependency graph and cycles | Tarjan-style cycle detection | Synthetic cycle fixtures | not started |
+| P1-T7 | Save format decision | Written decision (blocker B2) | Recorded in [03-decisions.md](03-decisions.md) | not started |
+| P1-T8 | Save reading | Load reference saves or refuse explicitly | Round-trip digest | not started |
+| P1-T9 | Save writing | Write the port's saves | Round-trip identity (I9) | not started |
+| P1-T10 | Migrations | Content and per-field legacy paths | Old-format fixtures | not started |
+| P1-T11 | Compression and archives | Container format, dictionaries | Byte-compatible archives | not started |
+| P1-T12 | Map memory and seen tiles | Persistence for map memory | Digest parity | not started |
+| P1-T13 | Gate 0 runner | Self-consistency, allocator and stdlib checks | Report published | not started |
 
 **Gate M1:** prototype digest equal over 6,220 files and 42 mods; Gate 0 report clean.
 
@@ -215,8 +215,8 @@ ready to start.
 
 ## P10 — Interface
 
-| ID | Task | Produces | Proven by |
-|---|---|---|---|
+| ID | Task | Produces | Proven by | Status |
+|---|---|---|---|---|
 | P10-T1 | Text layout | Wrapping, folding, markup | Layout parity tests |
 | P10-T2 | Window abstraction | Cells, colours, frames | Rendering primitives tests |
 | P10-T3 | UI stack and redraw | Frame boundaries and invalidation | Frame-count parity |
@@ -236,8 +236,8 @@ ready to start.
 
 ## P11 — Runtime, platform, tooling
 
-| ID | Task | Produces | Proven by |
-|---|---|---|---|
+| ID | Task | Produces | Proven by | Status |
+|---|---|---|---|---|
 | P11-T1 | Schedule | Ordered system list as data | Order parity test |
 | P11-T2 | Main and command line | Flags, including harness modes | CLI parity test |
 | P11-T3 | Action handling | Key to action to simulation | Input sessions |

@@ -3,6 +3,13 @@
 version = 4
 
 [[package]]
+name = "cdda-content"
+version = "0.1.0"
+dependencies = [
+ "cdda-json",
+]
+
+[[package]]
 name = "cdda-core-types"
 version = "0.1.0"
 dependencies = [
