@@ -91,6 +91,11 @@ Resume at the mapgen loader: start from `load_and_add_mapgen_function`
 `om_terrain` arrays - chunked per position and per rotation - and hold them to
 `corpus/prototypes/ids.json`, which already names every one of them.
 
+Two smaller gaps are recorded rather than forgotten: the chi-squared roll, which
+needs libc++'s gamma sampler and drives NPC mutation timing (`src/npc.cpp:663`),
+and `normal_roll_chance`'s error function, which agrees to 4e-8 rather than
+exactly. Neither is dead code; both are named where they are used.
+
 ---
 
 ## 4. Phase detail
