@@ -90,7 +90,6 @@ fn differences(
             out.push(Difference {
                 registry: registry.clone(),
                 type_name: None,
-                shared: 0,
                 missing: expected_ids.clone(),
                 extra: BTreeSet::new(),
             });
@@ -103,7 +102,6 @@ fn differences(
             out.push(Difference {
                 registry: registry.clone(),
                 type_name: None,
-                shared,
                 missing: expected_ids.clone(),
                 extra: BTreeSet::new(),
             });
@@ -112,7 +110,6 @@ fn differences(
         out.push(Difference {
             registry: registry.clone(),
             type_name: Some(type_name.clone()),
-            shared,
             missing: expected_ids.difference(found).cloned().collect(),
             extra: found.difference(expected_ids).cloned().collect(),
         });
@@ -123,7 +120,6 @@ fn differences(
 struct Difference {
     registry: String,
     type_name: Option<String>,
-    shared: usize,
     missing: BTreeSet<String>,
     extra: BTreeSet<String>,
 }
@@ -182,13 +178,25 @@ fn the_port_never_invents_an_id_the_reference_does_not_have() {
     assert!(invented.is_empty(), "{}", invented.join("\n"));
 }
 
+/// The registries the port cannot account for yet, and how many ids each is
+/// short of the reference.
+///
+/// Every one of them is a family whose ids the reference *builds* while loading
+/// rather than reads from a file, and each needs the loader that owns the slots:
+/// inline effect-on-conditions live inside furniture, tools and other
+/// prototypes; overmap terrain, its types and the specials all come out of the
+/// map generator. Listing them here means the test runs instead of being
+/// skipped: a regression anywhere in the other 86 fails it, and finishing one of
+/// these four means editing this list, which is the point.
+const KNOWN_GAPS: [(&str, usize); 4] = [
+    ("effect_on_condition", 221),
+    ("overmap special", 327),
+    ("overmap terrain", 24_218),
+    ("overmap terrain type", 6_269),
+];
+
 #[test]
-// The registries the port cannot account for yet, each needing the loader that
-// builds its ids: `effect_on_condition` fills from inline slots inside furniture
-// and tools, `overmap terrain` and `overmap terrain type` from mapgen, and
-// `overmap special` from city-building entries. Their loaders are P1 work.
-#[ignore = "86 of 90 registries: the remaining four need the mapgen and inline-EOC loaders"]
-fn every_registry_holds_the_same_ids_as_the_reference() {
+fn every_registry_holds_the_same_ids_as_the_reference_except_the_named_gaps() {
     let root = reference_root();
     let core = root.join("data/core");
     let content = root.join("data/json");
@@ -226,28 +234,38 @@ fn every_registry_holds_the_same_ids_as_the_reference() {
     }
     let report = differences(&ours, &theirs);
 
-    let exact = report
-        .iter()
-        .filter(|difference| difference.missing.is_empty() && difference.extra.is_empty())
-        .count();
+    let mut unexplained = Vec::new();
     for difference in &report {
         if difference.missing.is_empty() && difference.extra.is_empty() {
             continue;
         }
-        println!(
-            "{} <- {}: {} shared, {} missing, {} extra",
-            difference.registry,
-            difference.type_name.as_deref().unwrap_or("(unpaired)"),
-            difference.shared,
-            difference.missing.len(),
-            difference.extra.len()
-        );
+        let known = KNOWN_GAPS
+            .iter()
+            .find(|(name, _)| *name == difference.registry);
+        match known {
+            Some((_, expected))
+                if *expected == difference.missing.len() && difference.extra.is_empty() => {}
+            Some((_, expected)) => unexplained.push(format!(
+                "{}: {} missing (known gap is {expected}), {} invented",
+                difference.registry,
+                difference.missing.len(),
+                difference.extra.len()
+            )),
+            None => unexplained.push(format!(
+                "{} <- {}: {} missing, {} invented",
+                difference.registry,
+                difference.type_name.as_deref().unwrap_or("(unpaired)"),
+                difference.missing.len(),
+                difference.extra.len()
+            )),
+        }
     }
-    assert_eq!(
-        exact,
-        theirs.len(),
-        "{} of {} registries match",
-        exact,
-        theirs.len()
+    for line in &unexplained {
+        println!("  {line}");
+    }
+    assert!(
+        unexplained.is_empty(),
+        "{} registries differ for a reason that is not in the known-gap list",
+        unexplained.len()
     );
 }
