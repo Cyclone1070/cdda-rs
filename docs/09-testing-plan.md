@@ -100,7 +100,13 @@ becomes a session forever.
 
 Because reference saves are out of scope (decision recorded in
 [03-decisions.md](03-decisions.md)), the starting state travels as a **state dump
-produced by the reference and loaded by the port**, not as a save file. That makes
+produced by the reference and loaded by the port**, not as a save file.
+
+Replay itself runs with test mode **off** and a fixed 80x24 UTF-8 terminal:
+the input layer throws in test mode, so a replay in test mode could not read the
+recorded keys at all. The harness therefore starts the game by the real path,
+stops at the last point before input is required, and takes over the input layer
+from there (see [parts/headless-start.md](parts/headless-start.md)). That makes
 the dump an input format with its own loader tests, and it keeps the two games
 sharing exactly one definition of "the world at turn zero".
 

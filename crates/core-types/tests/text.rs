@@ -268,6 +268,8 @@ fn string_conversions_apply_width_and_precision() {
     assert_eq!(format("%s", &[Arg::Str("55")]), "55"); // reference line 178
     assert_eq!(format("%s", &[Arg::Str("%%%%")]), "%%%%"); // serial 169
     assert_eq!(format("%s", &[Arg::Str("foo")]), "foo"); // reference line 181
+    assert_eq!(format("%s", &[Arg::Str("bar")]), "bar"); // reference line 182
+    assert_eq!(format("%i", &[Arg::Int(0)]), "0"); // reference line 183
     // Strings are cut, never expanded (serials 142, 381-384, 196-199).
     assert_eq!(format("%.1s", &[Arg::Str("foo")]), "f"); // serial 142
     assert_eq!(format("%.3s", &[Arg::Str("foobar")]), "foo"); // serial 2
@@ -303,6 +305,12 @@ fn string_conversions_apply_width_and_precision() {
     assert_eq!(format("%+s", &[Arg::Str("Hallo heimur")]), "Hallo heimur"); // serial 197
     assert_eq!(format("% s", &[Arg::Str("Hallo heimur")]), "Hallo heimur"); // serial 211
     assert_eq!(format("%+ s", &[Arg::Str("Hallo heimur")]), "Hallo heimur"); // serial 225
+    // Formatting borrows its arguments: the reference moves a 100000-character
+    // string in and checks that it was not consumed (reference lines 185-192).
+    let long_string = "a".repeat(100_000);
+    let expected = format!("b{long_string}b");
+    assert_eq!(format("b%sb", &[Arg::Str(&long_string)]), expected);
+    assert_eq!(long_string.len(), 100_000);
 }
 
 #[test]
@@ -568,6 +576,10 @@ fn positional_conversions_name_their_argument() {
         error_of("%19$s", &[Arg::Str("a")]).kind(),
         &FormatErrorKind::UnsupportedConversion('$')
     );
+    // Naming an argument does not advance the sequence: the next unnamed
+    // conversion still takes the first argument (`current_argument_index` only
+    // moves for unnamed conversions, `src/string_formatter.h:367`).
+    assert_eq!(format("%2$s %s", &[Arg::Str("a"), Arg::Str("b")]), "b a");
     // A positional index past the end is the usual missing-argument error.
     assert_eq!(
         error_of("%2$s", &[Arg::Str("a")]).to_string(),

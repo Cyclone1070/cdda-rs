@@ -320,21 +320,27 @@ def split_args(toks, start, path):
     """
     if toks[start].text != "(":
         raise Failure("%s:%d: expected '('" % (path, toks[start].line))
-    depth = 0
+    CLOSER = {"(": ")", "[": "]", "{": "}"}
+    stack = []
     args = [[]]
     i = start
     while i < len(toks):
         t = toks[i]
-        if t.kind == "punct" and t.text in "([{":
-            depth += 1
-            if depth > 1:
+        if t.kind == "punct" and t.text in CLOSER:
+            stack.append(CLOSER[t.text])
+            if len(stack) > 1:
                 args[-1].append(t)
         elif t.kind == "punct" and t.text in ")]}":
-            depth -= 1
-            if depth == 0:
+            if not stack or stack[-1] != t.text:
+                # A mismatched bracket means the call does not close where it
+                # looks like it does: refuse rather than guess.
+                raise Failure("%s:%d: unbalanced '%s' inside a macro call"
+                              % (path, t.line, t.text))
+            stack.pop()
+            if not stack:
                 return args, i
             args[-1].append(t)
-        elif t.kind == "punct" and t.text == "," and depth == 1:
+        elif t.kind == "punct" and t.text == "," and len(stack) == 1:
             args.append([])
         else:
             args[-1].append(t)

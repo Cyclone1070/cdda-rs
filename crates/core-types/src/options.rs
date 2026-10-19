@@ -10,6 +10,24 @@
 //! Only the parts of `options_manager` that affect values are ported: the type
 //! of each option, the value it starts with, the value `setValue()` falls back to
 //! when it rejects an input, and the per-type validation rules.
+//!
+//! What is deliberately not here, and why:
+//!
+//! * The UI, the `setNext`/`setPrev` sliders, prerequisites and option groups all
+//!   move values through the same `setValue()` this module ports, and need
+//!   translation and drawing the port does not have yet.
+//! * `debugmsg()` is not reproduced. Where the reference logs and keeps or resets
+//!   a value, this module keeps or resets it and reports the rejection through a
+//!   `bool` or a [`LoadReport`] count instead.
+//! * A `"string_input"` is cut to `max_length` *bytes* by `std::string::substr`
+//!   (`options.cpp:1074-1076`); this module stops at a character boundary, so a
+//!   limit that lands inside a multi-byte character cuts one character earlier.
+//! * [`Options::save`] writes the two members `deserialize()` reads. The reference
+//!   also writes `"info"` and `"default"`, whose contents are a translated tooltip
+//!   and the default rendered through the UI's translated item names; the table
+//!   carries neither and `deserialize()` ignores both.
+//! * An option whose start value the reference computes at startup
+//!   ([`Assigned::Runtime`]) starts unset here, because no table can hold it.
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -629,6 +647,10 @@ impl Options {
         };
         let name = spec.name.clone();
         match (spec.opt_type, value) {
+            (OptionType::Bool, Value::Bool(flag)) => {
+                self.values.insert(name, Value::Bool(flag));
+                true
+            }
             (OptionType::Int | OptionType::IntMap, Value::Int(number)) => {
                 let accepted = clamp_int(spec, number);
                 self.values.insert(name, Value::Int(accepted));

@@ -230,6 +230,27 @@ Both flags are read-only: they load data, write the file, and exit without touch
 a save. They take a **path**, not stdout, because of the constraint in the next
 paragraph.
 
+### Reaching the first turn without a human
+
+Investigated in detail in [parts/headless-start.md](parts/headless-start.md); the
+conclusions that shape the harness:
+
+| Fact | Consequence |
+|---|---|
+| `start_game()` returning is the last point before input is required — the first `do_turn()` immediately reads a key | The state dump for "turn 0" is taken at that boundary |
+| Test mode and turn driving are mutually exclusive: the input layer **throws** in test mode (`ncurses_def.cpp:410-415`) | The digest modes may use test mode; replay must not, which is why it needs its own binary path |
+| Test mode is what makes the whole interface a no-op (`ui_manager.cpp:360`, `loading_ui.cpp:154`, `popup.cpp:288`) | Everything the harness skips under test mode is code the replay path will actually run |
+| Two unbounded `getch()` loops in interface init (`ncurses_def.cpp:563-594`, `::607-619`) | The harness needs a terminal of at least 80x24 and a UTF-8 locale, or it hangs at startup |
+| World or character names beginning `Test`, `Debug`, `Sandbox`… trigger a debug quick-setup inside `start_game()` (`game.cpp:1176-1179`) | Harness worlds must not use those names |
+| `game::setup()` unloads and reloads all data | A harness step cannot keep data loaded across it |
+| The reference's own tests never start a game — they build a flat synthetic world (`tests/test_main.cpp:88-168`) | The tests are a precedent for loading, not for playing; replay has to use the real path |
+
+The minimal call sequence, and what it deliberately skips, are listed in the report.
+The open question it raises is fidelity, not plumbing: `avatar::create` draws a
+background and hobbies before a scenario can be installed, so an overridden
+scenario is close to a normal one but not proven identical. That needs a
+measurement, and it is the first experiment for the replay work.
+
 ### The environment dump, and why it needs a seed
 
 `--dump-env` prints the state that exists before any world does: the next four

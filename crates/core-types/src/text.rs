@@ -699,6 +699,13 @@ pub fn string_format(format: &str, args: &[Arg<'_>]) -> Result<String, FormatErr
     Formatter::new(format, args).parse()
 }
 
+/// `string_format` (`src/string_formatter.h:426-436`): the formatter whose
+/// failures come back *as* the result string.
+#[must_use]
+pub fn string_format_or_error(format: &str, args: &[Arg<'_>]) -> String {
+    string_format(format, args).unwrap_or_else(|error| error.to_string())
+}
+
 /// Where a field width or precision comes from.
 ///
 /// Reference: `read_number_or_argument_index` (`src/string_formatter.cpp:72-88`),
@@ -1252,6 +1259,11 @@ impl<'f, 'a> Formatter<'f, 'a> {
     /// `get_nth_arg_as<int>`: any integer, including `char`. Used by `%c` and by
     /// a `*` width or precision, which the reference reads with the same call
     /// (`src/string_formatter.h:360`, `364`).
+    ///
+    /// `%c` takes the argument's low byte, as `printf` does. A byte above 0x7f
+    /// cannot stand alone in a Rust string, so it becomes the character with that
+    /// code point instead of a raw byte — the one place where the output is not
+    /// byte-for-byte what the reference writes.
     fn int_value(&self, index: usize) -> Result<i64, FormatError> {
         match self.argument(index)? {
             Arg::Int(value) => Ok(*value),
@@ -1279,11 +1291,4 @@ impl<'f, 'a> Formatter<'f, 'a> {
     fn error(&self, kind: FormatErrorKind) -> FormatError {
         FormatError::new(kind, self.format, self.cursor.position())
     }
-}
-
-/// `string_format` (`src/string_formatter.h:426-436`): the formatter whose
-/// failures come back *as* the result string.
-#[must_use]
-pub fn string_format_or_error(format: &str, args: &[Arg<'_>]) -> String {
-    string_format(format, args).unwrap_or_else(|error| error.to_string())
 }
