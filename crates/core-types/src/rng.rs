@@ -453,6 +453,15 @@ impl Rolls {
         out
     }
 
+    /// One entry of a container, or `default` when it is empty
+    /// (`src/rng.h:106-115`).
+    ///
+    /// Nothing is drawn for an empty container: the reference returns before it
+    /// rolls, so asking for an entry that cannot exist does not move the stream.
+    pub fn random_entry_or<'a, T>(&mut self, container: &'a [T], default: &'a T) -> &'a T {
+        self.random_entry(container).unwrap_or(default)
+    }
+
     /// One entry of a container, or nothing when it is empty
     /// (`src/rng.h:106-115`).
     pub fn random_entry<'a, T>(&mut self, container: &'a [T]) -> Option<&'a T> {

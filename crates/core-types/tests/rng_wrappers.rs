@@ -286,6 +286,33 @@ fn the_normal_chance_matches_to_the_precision_of_its_error_function() {
 }
 
 #[test]
+fn picking_an_entry_matches_the_reference_and_an_empty_one_costs_nothing() {
+    use cdda_core_types::rng::Rolls;
+
+    // A non-empty container takes the entry at the index `rng(0, n - 1)` picks,
+    // which is what the reference's `std::advance` amounts to.
+    let entries = ["a", "b", "c", "d"];
+    let mut rolls = Rolls::new(12_345);
+    let mut index_source = Rolls::new(12_345);
+    let picked = rolls.random_entry_or(&entries, &"none");
+    let index = index_source.rng(0, 3);
+    let expected = entries
+        .get(usize::try_from(index).expect("index fits"))
+        .expect("the index is inside the container");
+    assert_eq!(picked, expected);
+
+    // An empty one returns the default and draws nothing, so the next draw is
+    // the one a fresh engine would make.
+    let empty: [&str; 0] = [];
+    let mut rolls = Rolls::new(12_345);
+    assert_eq!(rolls.random_entry_or(&empty, &"none"), &"none");
+    assert!(rolls.random_entry(&empty).is_none());
+
+    let mut fresh = Rolls::new(12_345);
+    assert_eq!(rolls.rng(0, 100), fresh.rng(0, 100));
+}
+
+#[test]
 fn the_world_seed_hash_is_djb2() {
     // Reference: `djb2_hash` (`src/rng.cpp:152-165`) - hash * 33 + byte, from
     // 5381, over the bytes up to the terminator.
