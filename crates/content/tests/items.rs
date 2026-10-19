@@ -213,10 +213,8 @@ fn compare_item(
     // Category and flags are set partly by the per-type loaders rather than by
     // the fields an object states, so they are counted separately: this slice
     // covers what the JSON says, not what a type implies.
-    // The plural is pending: the reference reports the singular for some names
-    // whose JSON states a `str_pl`, so the rule behind `nname( 2 )` needs its
-    // own investigation rather than a guess.
-    if ours.name_plural != text_of("name_plural") {
+
+    if ours.plural_name() != text_of("name_plural") {
         pending.plural += 1;
     }
     if ours.category != text_of("category") {

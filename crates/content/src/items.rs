@@ -124,6 +124,21 @@ impl ItemType {
             || (!self.comestible_type.is_empty() && self.phase_is_liquid())
     }
 
+    /// The name for more than one of the item, as the reference prints it.
+    ///
+    /// `nname` forces the singular for liquids (`itype.cpp:107-114`): you do not
+    /// say "two puddings", you say "two pudding". Soups, ice cream and every
+    /// drink in the content rely on this, so a port that prints the stated
+    /// plural is wrong for all of them.
+    #[must_use]
+    pub fn plural_name(&self) -> &str {
+        if self.phase_is_liquid() {
+            &self.name
+        } else {
+            &self.name_plural
+        }
+    }
+
     /// Whether the item's phase is anything but solid.
     ///
     /// The phase is compared without regard to case: the content writes both

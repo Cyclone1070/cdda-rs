@@ -202,3 +202,28 @@ architecture and should be copied.
 - A turn function that hardcodes the order of twenty subsystems.
 - String-keyed behaviour dispatch in per-turn paths.
 - Virtual-heavy interfaces on types that only ever have two or three implementations.
+
+### Armour materials are derived, and the derivation is open
+
+An armour that lists no materials takes them from its per-part entries: each
+entry names materials with a thickness, and the reference merges entries that
+cover the same body part by averaging thickness weighted by how much of the part
+each entry's sub-locations cover (`item_factory.cpp:1124-1150`), then turns each
+thickness into a hundredth of a unit per covered body part
+(`item_factory.cpp:1452-1463`).
+
+Most of this is settled against the data: for a pair of boots, leather at 2.5 mm
+over everything but the sole and 0.1 mm over the sole merges to 1.9 mm per foot
+and 380 hundredths for the pair, which is exactly what the reference reports, and
+it only comes out that way in single precision.
+
+Two things are still open, and the port therefore leaves 69 of 9,912 item types
+unverified rather than guessing:
+
+* The weighting needs each body part's sub-location table (`body_part` and
+  `sub_body_part` registries, the latter carrying `max_coverage` and `parent`),
+  which the port does not load yet.
+* One family reports a value the weighted average does not explain: a 1.05 mm
+  layer over two arms comes out as 209 hundredths, where every ordering of the
+  arithmetic the port has tried gives 208 or 210. Until that is explained the
+  rule is not ported.

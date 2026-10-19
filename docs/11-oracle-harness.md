@@ -329,6 +329,11 @@ rather than stated:
 * Armour portions are accumulated in single precision. A 1.05 mm layer over two
   body parts is 209 hundredths of a unit in the reference, not 210, and the
   difference survives all the way to the dump.
+* Liquids have no plural. `nname` forces the singular for anything whose phase is
+  liquid (`itype.cpp:107-114`), so a soup, a drink or an ice cream prints its
+  singular for any count. Fifteen items in the content state a plural that the
+  reference never uses; a port that prints the stated plural disagrees on all of
+  them.
 
 ### Replay runs without a terminal, and is reproducible
 
