@@ -11,26 +11,26 @@ ready to start.
 
 ## P0 — Foundation
 
-| ID | Task | Produces | Proven by |
-|---|---|---|---|
-| P0-T1 | Instrumented reference build | Oracle binary with harness modes behind a flag | Builds; modes documented in [11-oracle-harness.md](11-oracle-harness.md) |
-| P0-T2 | State fingerprint + full dump | `--dump-state` in the reference | Two runs of the same session agree |
-| P0-T3 | Prototype digest | `--dump-prototype-digest` | Digest is stable across runs and rebuilds |
-| P0-T4 | Coordinate and scale types | Origin/scale-safe point types | Illegal arithmetic fails to compile; exhaustive conversion tests |
-| P0-T5 | Units and quantities | Typed physical quantities | Round-trip and overflow tests |
-| P0-T6 | Calendar and time | Dates, durations, turn time | Reference date arithmetic re-expressed |
-| P0-T7 | Random numbers | One stream, reference-identical draws | 10M-draw comparison across every wrapper |
-| P0-T8 | Identifiers | Typed string/int ids, caches only | Reload-safety tests |
-| P0-T9 | JSON reader | Strict reader matching acceptance rules | Accept/reject corpus |
-| P0-T10 | JSON writer | Byte-stable writer | Golden output tests |
-| P0-T11 | Parse cache | Cached parse artefacts | Cache-hit and staleness tests |
-| P0-T12 | Options table | All 276 options declared once (188 in C++, 88 in JSON) | Reference option list compared item by item |
-| P0-T13 | Paths and roots | Seven logical roots, platform rules | Table-driven path tests |
-| P0-T14 | Text lookup and formatting | Message lookup and string formatting | Message-id and formatting parity corpus |
-| P0-T15 | Colours | Colour definitions and themes | Rendered-value parity |
-| P0-T16 | Containers and hashing | Stable pools, dense bit sets, hashing | Behavioural tests against reference container semantics |
-| P0-T17 | Diagnostics | Debug levels, assertions, error reporting | Error-path tests |
-| P0-T18 | CI skeleton | Jobs for T0–T2 wired to the port | Runs green on an empty port |
+| ID | Task | Produces | Proven by | Status |
+|---|---|---|---|---|
+| P0-T1 | Instrumented reference build | Oracle binary with harness modes behind a flag | Builds; modes documented in [11-oracle-harness.md](11-oracle-harness.md) | done |
+| P0-T2 | State fingerprint + full dump | `--dump-state` in the reference | Two runs of the same session agree | done (state dump) |
+| P0-T3 | Prototype digest | `--dump-prototype-digest` | Digest is stable across runs and rebuilds | done |
+| P0-T4 | Coordinate and scale types | Origin/scale-safe point types | Illegal arithmetic fails to compile; exhaustive conversion tests | done |
+| P0-T5 | Units and quantities | Typed physical quantities | Round-trip and overflow tests | done |
+| P0-T6 | Calendar and time | Dates, durations, turn time | Reference date arithmetic re-expressed | done |
+| P0-T7 | Random numbers | One stream, reference-identical draws | 10M-draw comparison across every wrapper | done |
+| P0-T8 | Identifiers | Typed string/int ids, caches only | Reload-safety tests | done |
+| P0-T9 | JSON reader | Strict reader matching acceptance rules | Accept/reject corpus | done |
+| P0-T10 | JSON writer | Byte-stable writer | Golden output tests | done |
+| P0-T11 | Parse cache | Cached parse artefacts | Cache-hit and staleness tests | not started |
+| P0-T12 | Options table | All 276 options declared once (188 in C++, 88 in JSON) | Reference option list compared item by item | done |
+| P0-T13 | Paths and roots | Seven logical roots, platform rules | Table-driven path tests | done |
+| P0-T14 | Text lookup and formatting | Message lookup and string formatting | Message-id and formatting parity corpus | done |
+| P0-T15 | Colours | Colour definitions and themes | Rendered-value parity | done |
+| P0-T16 | Containers and hashing | Stable pools, dense bit sets, hashing | Behavioural tests against reference container semantics | in progress |
+| P0-T17 | Diagnostics | Debug levels, assertions, error reporting | Error-path tests | done |
+| P0-T18 | CI skeleton | Jobs for T0–T2 wired to the port | Runs green on an empty port | not started |
 
 **Gate M0:** RNG, text and JSON parity; harness modes exist; acceptance corpus passes.
 
