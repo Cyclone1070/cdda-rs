@@ -84,6 +84,33 @@ def patch_generic_factory(src: pathlib.Path) -> None:
     )
 
 
+def patch_game_header(src: pathlib.Path) -> None:
+    """Adds the two accessors the harness needs on `game`.
+
+    `start_game()` and the map member are private; rather than make the harness a
+    friend of everything, expose exactly the two things it uses, under the same
+    compile flag as the rest of the instrumentation.
+    """
+    patch(
+        src / "game.h",
+        """        void setup();
+        /** Saving and loading functions. */""",
+        """        void setup();
+#ifdef CATA_HARNESS
+        // Harness hooks. Compiled only when CATA_HARNESS is defined, and never
+        // called by the game itself. See docs/11-oracle-harness.md.
+        bool harness_start_game() {
+            return start_game();
+        }
+        map &harness_map() {
+            return m;
+        }
+#endif
+        /** Saving and loading functions. */""",
+        "game accessors",
+    )
+
+
 def patch_main(src: pathlib.Path) -> None:
     path = src / "main.cpp"
 
@@ -94,7 +121,13 @@ def patch_main(src: pathlib.Path) -> None:
     // Harness: write a digest of every loaded prototype (or the ids themselves)
     // to this file and exit. See docs/11-oracle-harness.md.
     std::string dump_prototype_digest;
-    std::string dump_prototype_ids;""",
+    std::string dump_prototype_ids;
+    // Harness: the state that exists before any world does.
+    std::string dump_env;
+    // Harness: the state of a freshly started game.
+    std::string dump_state;
+    std::string world_name;
+    std::string start_location;""",
         "cli fields",
     )
 
@@ -123,6 +156,46 @@ def patch_main(src: pathlib.Path) -> None:
                 }
             },
             {
+                "--dump-state", "<file>",
+                "Starts a new game headlessly and writes its state to <file>",
+                section_default,
+                1,
+                [&result]( int, const char **params ) -> int {
+                    result.dump_state = params[0];
+                    return 1;
+                }
+            },
+            {
+                "--world-name", "<name>",
+                "World name used by --dump-state (default: harness-fixed)",
+                section_default,
+                1,
+                [&result]( int, const char **params ) -> int {
+                    result.world_name = params[0];
+                    return 1;
+                }
+            },
+            {
+                "--start-location", "<id>",
+                "Start location used by --dump-state (default: none, scenario decides)",
+                section_default,
+                1,
+                [&result]( int, const char **params ) -> int {
+                    result.start_location = params[0];
+                    return 1;
+                }
+            },
+            {
+                "--dump-env", "<file>",
+                "Writes the pre-world state (rng, calendar, options) to <file> and exits",
+                section_default,
+                1,
+                [&result]( int, const char **params ) -> int {
+                    result.dump_env = params[0];
+                    return 1;
+                }
+            },
+            {
                 "--jsonverify", {},""",
         "cli handlers",
     )
@@ -132,6 +205,26 @@ def patch_main(src: pathlib.Path) -> None:
         """        g->load_static_data();
         if( cli.verifyexit ) {""",
         """        g->load_static_data();
+        if( !cli.dump_state.empty() ) {
+            // Test mode keeps the loading screen and popups from trying to draw to
+            // a terminal the harness does not have. It also means the reference's
+            // input layer throws on any read, which is why this mode must never
+            // be used for replay.
+            test_mode = true;
+            std::string error;
+            const std::string world_name =
+                cli.world_name.empty() ? "harness-fixed" : cli.world_name;
+            if( !harness::start_headless_game( world_name, cli.start_location, error ) ) {
+                std::fprintf( stderr, "harness: %s\\n", error.c_str() );
+                exit_handler( 2 );
+            }
+            harness::dump_state( cli.dump_state );
+            exit_handler( 0 );
+        }
+        if( !cli.dump_env.empty() ) {
+            harness::dump_environment( cli.dump_env );
+            exit_handler( 0 );
+        }
         if( !cli.dump_prototype_digest.empty() || !cli.dump_prototype_ids.empty() ) {
             // Load exactly what a player's game loads: the core data, then the
             // content pack. `check_mod_data` is the reference's own path for
@@ -178,6 +271,7 @@ def main() -> None:
         sys.exit(f"oracle working copy missing at {SRC}; run oracle/build.sh first")
     copy_harness_sources(SRC)
     patch_generic_factory(SRC)
+    patch_game_header(SRC)
     patch_main(SRC)
     print("harness patches applied")
 
@@ -193,14 +287,15 @@ def verify() -> None:
 
         shutil.rmtree(scratch)
     scratch.mkdir()
-    for name in ("generic_factory.h", "main.cpp"):
+    for name in ("generic_factory.h", "main.cpp", "game.h"):
         (scratch / name).write_text((ref / name).read_text())
     copy_harness_sources(scratch)
     patch_generic_factory(scratch)
+    patch_game_header(scratch)
     patch_main(scratch)
 
     failed = False
-    for name in ("generic_factory.h", "main.cpp", "harness.h", "harness.cpp"):
+    for name in ("generic_factory.h", "main.cpp", "game.h", "harness.h", "harness.cpp"):
         expected = (SRC / name).read_text()
         got = (scratch / name).read_text()
         if expected != got:
