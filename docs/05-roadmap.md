@@ -65,7 +65,7 @@ inherits its mistakes.
 
 | # | After | Meaning | Proof |
 |---|---|---|---|
-| M0 | P0 | Harness exists; no gameplay yet | RNG draw-for-draw equality; JSON accept/reject parity |
+| M0 | P0 | Harness exists; no gameplay yet | RNG draw-for-draw equality; JSON accept/reject parity — **passed**; see [parity.md](parity.md) |
 | M1 | P1 | The game's *content* loads identically | Prototype digest equal over 6,220 files, 42 mods, 160 types |
 | M2 | P2 | The world ticks identically for environment-only sessions | Replay hash per turn over weather/light/field sessions |
 | M3 | P3–P6 | A character can act, craft, fight and cast identically | Replay hash over recorded gameplay sessions |

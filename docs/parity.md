@@ -21,6 +21,7 @@ Nothing is `gated` without a link to the run that proved it.
 | Calendar and time | done (P0 scope) | M0 | 28 tests = every assertion in `tests/calendar_test.cpp`; sun and moonlight cross-checked against the reference's own formulas over 309 configurations (max deviation 2e-16 rad) |
 | Random numbers | in progress | M0 | Engine stream matches the reference draw for draw over 4 seeds ([corpus/rng/engine.csv](../corpus/rng/engine.csv)); the library distributions are being transcribed from libc++ and checked against the same corpus |
 | Identifiers (string, int, type) | done (P0 scope) | M0 | 17 tests, 88 assertions: interned string identity, integer ids as ordinal caches with version invalidation, invalid use returns the dummy rather than panicking; misuse of an int id without its registry fails to compile |
+| Parse cache | done (P0 scope) | M0 | 5 tests: a hit avoids the parse, a changed source is a miss, a damaged entry is a miss and never an error, unused entries are pruned at open. All 6,220 files read identically cold and warm; cold 11.0 s, warm 3.5 s |
 | JSON reading | in progress | M0 | Reader matches the reference on all 6,220 data files (accept/reject and structural digest); duplicate keys are a hard error, member order is sorted, trailing content is ignored |
 | JSON writing | in progress | M0 | Writer matches the reference byte for byte on 127 sample files, including its fixed 6-decimal float format |
 | JSON parse cache | not started | M0 | |
@@ -187,3 +188,15 @@ Nothing is `gated` without a link to the run that proved it.
 | Crash handling and diagnostics | not started | M7 | |
 | Platform shims | not started | M7 | macOS, Linux, Windows; Android and web deferred ([12-platforms.md](12-platforms.md)) |
 | Packaging | not started | M7 | Three desktop pipelines; the reference ships nine artifacts across five |
+
+## M0 evidence
+
+The gate is written as "harness exists; no gameplay yet — RNG draw-for-draw
+equality; JSON accept/reject parity". Each part, and where it is proven:
+
+| Claim | Proof |
+|---|---|
+| The harness exists | Five modes: environment, state, prototype digest, prototype ids, replay. Replay reaches a byte-identical state twice from one recorded session |
+| RNG draws are identical | The engine is compared draw for draw against the reference for every composite case in the corpus; the distributions are transcribed from this build's standard library and compared the same way |
+| JSON acceptance is identical | All 6,220 shipped files: same accept/reject verdict and same structural digest as the reference; the writer is compared byte for byte on 127 of them |
+| The cache changes nothing | All 6,220 files read identically cold and warm |

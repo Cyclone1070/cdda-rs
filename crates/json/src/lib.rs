@@ -10,6 +10,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod cache;
 mod error;
 mod parser;
 mod value;

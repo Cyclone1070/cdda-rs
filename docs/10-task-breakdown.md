@@ -23,7 +23,7 @@ ready to start.
 | P0-T8 | Identifiers | Typed string/int ids, caches only | Reload-safety tests | done |
 | P0-T9 | JSON reader | Strict reader matching acceptance rules | Accept/reject corpus | done |
 | P0-T10 | JSON writer | Byte-stable writer | Golden output tests | done |
-| P0-T11 | Parse cache | Cached parse artefacts | Cache-hit and staleness tests | not started |
+| P0-T11 | Parse cache | Cached parse artefacts | Cache-hit and staleness tests | done (5 tests; all 6,220 files identical cold vs warm) |
 | P0-T12 | Options table | All 276 options declared once (188 in C++, 88 in JSON) | Reference option list compared item by item | done |
 | P0-T13 | Paths and roots | Seven logical roots, platform rules | Table-driven path tests | done |
 | P0-T14 | Text lookup and formatting | Message lookup and string formatting | Message-id and formatting parity corpus | done |

@@ -98,6 +98,12 @@ stamps (format in [11-oracle-harness.md](11-oracle-harness.md)). The corpus is
 committed, reviewed in diffs, and grows monotonically: a divergence found once
 becomes a session forever.
 
+The parse cache has its own rule, and it is the only one that is about time
+rather than behaviour: a value read from the cache must be identical to a value
+parsed from the source, on every file, member for member and bit for bit. That is
+tested over the whole content set, so the cache cannot quietly become a second
+parser.
+
 Because reference saves are out of scope (decision recorded in
 [03-decisions.md](03-decisions.md)), the starting state travels as a **state dump
 produced by the reference and loaded by the port**, not as a save file.
