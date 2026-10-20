@@ -24,6 +24,7 @@ pub mod overmap;
 pub mod recipes;
 mod rules;
 mod scan;
+pub mod starting_kit;
 pub mod traps;
 
 pub use rules::{id_member, null_prototype, registry_for};
