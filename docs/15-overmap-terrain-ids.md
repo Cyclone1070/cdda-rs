@@ -97,9 +97,23 @@ Written and gated (`crates/content/src/overmap.rs`, `crates/content/tests/overma
 That is the honest state: one registry closed, one 264 ids short with the shortfall
 named to the id.
 
+## Overmap specials are one namespace, not two
+
+742 special ids, and only 292 come from `type: overmap_special` entries. Another
+415 come from `type: city_building` - which is not a separate registry at all:
+`city_buildings::load` is literally `overmap_specials::load`
+(`src/overmap.cpp:540-544`), so an id defined either way is the same id.
+
+Loading both puts the port at 707 of 742. The missing 35 are all named
+`FakeSpecial_<oter>`: the reference mints one for every single-tile city building
+that a region's list names but no special defines
+(`src/regional_settings.cpp:1242-1262` calling `src/overmap.cpp:8048-8065`). That
+is the next thing to write, and it is a small one.
+
 ## What remains
 
 1. The two outliers' rotation, once whatever makes them rotate is understood.
+2. The 35 generated `FakeSpecial_` ids, from the region's city building lists.
 
 That is the whole of it. The id gate now counts these eight ids and nothing else:
 **87 of 90 registries exact**, with three named gaps - the effects, the overmap

@@ -84,13 +84,20 @@ impl TerrainType {
     }
 }
 
-/// What a load produced: the types and every terrain id they register.
+/// What a load produced: the types, every terrain id they register, and the
+/// overmap specials.
 #[derive(Debug, Clone, Default)]
 pub struct Loaded {
     /// The types, in the order their first definition was read.
     pub types: Vec<TerrainType>,
     /// Every terrain id, sorted.
     pub terrains: BTreeSet<String>,
+    /// Every overmap special id, sorted.
+    ///
+    /// A `city_building` is an alias for an overmap special - the reference's
+    /// `city_buildings::load` is literally `overmap_specials::load`
+    /// (`src/overmap.cpp:540-544`) - so both types land in one namespace here.
+    pub specials: BTreeSet<String>,
 }
 
 /// One raw definition, before inheritance is resolved.
@@ -111,6 +118,7 @@ struct Raw {
 pub fn load_paths(roots: &[&Path]) -> Result<Loaded, String> {
     let mut raw: BTreeMap<String, Raw> = BTreeMap::new();
     let mut order: Vec<String> = Vec::new();
+    let mut specials: BTreeSet<String> = BTreeSet::new();
 
     for root in roots {
         let files = crate::json_files_in_load_order(root).map_err(|error| error.to_string())?;
@@ -126,17 +134,49 @@ pub fn load_paths(roots: &[&Path]) -> Result<Loaded, String> {
                 let Value::Object(object) = &entry else {
                     continue;
                 };
-                if object.get("type") != Some(&Value::Str("overmap_terrain".to_owned())) {
-                    continue;
+                match object.get("type") {
+                    Some(Value::Str(kind)) if kind == "overmap_terrain" => {
+                        collect(object, &mut raw, &mut order);
+                    }
+                    Some(Value::Str(kind))
+                        if kind == "overmap_special" || kind == "city_building" =>
+                    {
+                        collect_special(object, &mut specials);
+                    }
+                    _ => {}
                 }
-                collect(object, &mut raw, &mut order);
             }
         }
     }
 
     let types = resolve(&raw, &order);
     let terrains = register_terrains(&types);
-    Ok(Loaded { types, terrains })
+    Ok(Loaded {
+        types,
+        terrains,
+        specials,
+    })
+}
+
+/// Records the ids of one overmap special or city building.
+///
+/// The reference reads both through the same loader (`city_buildings::load` is an
+/// alias for `overmap_specials::load`, `src/overmap.cpp:540-544`), so an id
+/// defined as either is the same id here.
+fn collect_special(object: &cdda_json::Object, specials: &mut BTreeSet<String>) {
+    match object.get("id") {
+        Some(Value::Str(id)) => {
+            specials.insert(id.clone());
+        }
+        Some(Value::Array(ids)) => {
+            for id in ids {
+                if let Value::Str(text) = id {
+                    specials.insert(text.clone());
+                }
+            }
+        }
+        _ => {}
+    }
 }
 
 fn collect(object: &cdda_json::Object, raw: &mut BTreeMap<String, Raw>, order: &mut Vec<String>) {

@@ -177,6 +177,10 @@ fn the_port_never_invents_an_id_the_reference_does_not_have() {
             "microlab_ratkin_surface_connector",
             "microlab_ratkin_vent_shaft_connector",
         ];
+        // `city_building` is an alias for `overmap_special` in the reference, so
+        // the scan's special set is short by the 415 city buildings; the loader
+        // reads both and is the honest source here.
+        ours.insert("overmap special".to_owned(), loaded.specials.clone());
         ours.insert(
             "overmap terrain".to_owned(),
             loaded
@@ -216,7 +220,7 @@ fn the_port_never_invents_an_id_the_reference_does_not_have() {
 /// these four means editing this list, which is the point.
 const KNOWN_GAPS: [(&str, usize); 3] = [
     ("effect_on_condition", 221),
-    ("overmap special", 327),
+    ("overmap special", 35),
     // The two outlier types whose NO_ROTATE inheritance the reference ignores:
     // four variants each. Named in tests/overmap.rs as well.
     ("overmap terrain", 8),
@@ -276,6 +280,10 @@ fn every_registry_holds_the_same_ids_as_the_reference_except_the_named_gaps() {
             "microlab_ratkin_surface_connector",
             "microlab_ratkin_vent_shaft_connector",
         ];
+        // `city_building` is an alias for `overmap_special` in the reference, so
+        // the scan's special set is short by the 415 city buildings; the loader
+        // reads both and is the honest source here.
+        ours.insert("overmap special".to_owned(), loaded.specials.clone());
         ours.insert(
             "overmap terrain".to_owned(),
             loaded
