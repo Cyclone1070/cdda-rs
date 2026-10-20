@@ -371,3 +371,91 @@ impl Level {
         lit
     }
 }
+
+impl Level {
+    /// Adds one light source's light to a map of quarters.
+    ///
+    /// Reference: `map::apply_light_source` (`src/lightmap.cpp`), which casts from the source
+    /// with the shadow caster and raises the quarters it reaches by `sight_calc` of the
+    /// luminance at that distance.
+    ///
+    /// **Known divergence, deliberate and declared:** the reference accumulates transparency
+    /// along each ray and passes that to `sight_calc`; this uses open-air transparency and the
+    /// straight-line distance, so a source behind smoke is currently as bright as one in clear
+    /// air. It is not gated against reference output yet - the ledger says so - and the ray
+    /// accumulation is the next step.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the radius is negative, as [`Level::visibility`] does.
+    pub fn add_light_source(
+        &mut self,
+        origin: (i32, i32),
+        luminance: f32,
+        blocks_light: impl Fn(u32) -> bool,
+        light: &mut BTreeMap<(i32, i32), crate::shadowcasting::FourQuadrants>,
+    ) {
+        use crate::shadowcasting::{FourQuadrants, sight_calc, update_light_quadrants};
+        let radius = crate::light::light_range(luminance);
+        if radius <= 0 {
+            return;
+        }
+        let rows = self.visibility(origin, radius, blocks_light);
+        let side = radius * 2 + 1;
+        for grid_y in 0..side {
+            for grid_x in 0..side {
+                let index_x = usize::try_from(grid_x).unwrap_or(0);
+                let index_y = usize::try_from(grid_y).unwrap_or(0);
+                if !rows
+                    .get(index_y)
+                    .and_then(|row| row.get(index_x))
+                    .copied()
+                    .unwrap_or(false)
+                {
+                    continue;
+                }
+                let offset_x = grid_x - radius;
+                let offset_y = grid_y - radius;
+                #[allow(clippy::cast_precision_loss)]
+                #[allow(clippy::cast_precision_loss)]
+                let distance = offset_x.abs().max(offset_y.abs()) as f32;
+                #[allow(clippy::cast_precision_loss)]
+                let falloff = (1.0 - distance / (radius as f32 + 1.0)).max(0.0);
+                // The source's own tile is not lit by its own ray; the reference seeds it
+                // separately, and so does the caller.
+                if distance == 0.0 {
+                    continue;
+                }
+                let value = sight_calc(
+                    luminance,
+                    crate::light::TRANSPARENCY_OPEN_AIR,
+                    radius.max(1),
+                )
+                .max(0.0)
+                    * falloff;
+                // The quadrant is the tile's corner facing *back* at the source, so the
+                // direction is reversed: a tile north-west of the lamp has its south-east
+                // corner lit.
+                let quadrant = quadrant_facing(-offset_x, -offset_y);
+                let entry = light
+                    .entry((origin.0 + offset_x, origin.1 + offset_y))
+                    .or_insert_with(|| FourQuadrants::uniform(0.0));
+                update_light_quadrants(entry, value, quadrant);
+            }
+        }
+    }
+}
+
+/// Which quarter of a tile faces a source `(dx, dy)` away from it.
+///
+/// The quarter is named by the corner it sits in, so a source to the north-east lights the
+/// tile's north-east quarter first.
+fn quadrant_facing(dx: i32, dy: i32) -> crate::shadowcasting::Quadrant {
+    use crate::shadowcasting::Quadrant;
+    match (dx >= 0, dy >= 0) {
+        (false, false) => Quadrant::NorthWest,
+        (true, false) => Quadrant::NorthEast,
+        (false, true) => Quadrant::SouthWest,
+        (true, true) => Quadrant::SouthEast,
+    }
+}
