@@ -16,6 +16,7 @@ pub mod containers;
 pub mod coords;
 pub mod diagnostics;
 pub mod ids;
+pub mod light;
 pub mod line;
 pub mod map_cache;
 pub mod options;
