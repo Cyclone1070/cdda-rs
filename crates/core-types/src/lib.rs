@@ -15,6 +15,7 @@ pub mod colors;
 pub mod containers;
 pub mod coords;
 pub mod diagnostics;
+pub mod field;
 pub mod ids;
 pub mod level;
 pub mod light;
