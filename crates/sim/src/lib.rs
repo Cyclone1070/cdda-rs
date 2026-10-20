@@ -976,6 +976,7 @@ pub fn process_fire_spread<F>(
 /// of fuel age (-500 minutes) can reach 3 outright. Otherwise its ceiling comes from neighbours -
 /// three adjacent fires allow 2, seven allow 3 - and a fire with more than fifty minutes of fuel
 /// age gets 2 even when it is alone.
+#[must_use]
 pub fn growth_ceiling(age: i64, adjacent_fires: usize) -> i32 {
     if age < -30_000 {
         return 3;

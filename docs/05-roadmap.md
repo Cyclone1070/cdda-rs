@@ -130,7 +130,12 @@ fast loop is `python3 tools/test_fast.py`, which runs the test binaries concurre
 (43 s for the whole suite against 156 s serial) and reports what each one cost.
 
 P2 has begun with its first task: tile storage, the uniform page that costs nothing
-until it diverges ([parity.md](parity.md)). Run long oracle commands in the
+until it diverges ([parity.md](parity.md)). **A gate that is piped is not a gate.** Clippy has been run every round and twice committed over
+since the output went through `grep` for the word "error": the exit status was never read, and a
+`-D warnings` failure lists `error:` lines that a grep for something else does not show. The gate is
+`cargo clippy ... | grep -cE "^error"` returning **0**, not "I looked and saw nothing".
+
+Run long oracle commands in the
 foreground, never backgrounded - a cancelled background dump keeps parsing for
 ever, and two of them once held this machine above a load average of eleven. Killing the job
 does not kill the process: last round a cancelled dump's child kept generating a map for minutes
