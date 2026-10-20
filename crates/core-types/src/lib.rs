@@ -16,6 +16,7 @@ pub mod containers;
 pub mod coords;
 pub mod diagnostics;
 pub mod ids;
+pub mod line;
 pub mod options;
 pub mod paths;
 pub mod rng;

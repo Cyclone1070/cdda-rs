@@ -15,6 +15,7 @@ OUT = ROOT / "docs/13-test-inventory.md"
 # Where the port has already taken something from a file. Kept here rather than
 # in the generated table so the table stays mechanical and this stays reviewable.
 PORTED = {
+    "line_test.cpp": "partly (the walk itself: endpoints, tie-breaking, degenerate line)",
     "calendar_test.cpp": "ported (28 assertions, all of them)",
     "coordinate_test.cpp": "ported (strings, operations, comparison, hash, distances, midpoint, combine/remain)",
     "units_test.cpp": "partly (83 of 202 assertions; the rest need time, JSON or options)",

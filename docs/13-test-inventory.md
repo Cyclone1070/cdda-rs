@@ -124,7 +124,7 @@ for why, and for the rules that turn a case here into a test in the port.
 | `json_load_test.cpp` | 2 | 61 | no | [damage], [json], [load], [monster] | — |
 | `json_test.cpp` | 14 | 983 | no | [item], [json], [translation] | — |
 | `limb_test.cpp` | 7 | 312 | yes | [armor], [character], [encumbrance], [limb], [npc] | — |
-| `line_test.cpp` | 10 | 465 | no | [.], [coords], [line], [point] | — |
+| `line_test.cpp` | 10 | 465 | no | [.], [coords], [line], [point] | partly (the walk itself: endpoints, tie-breaking, degenerate line) |
 | `list_test.cpp` | 15 | 1,177 | no | [list] | — |
 | `magic_spell_effect_test.cpp` | 2 | 209 | yes | [magic] | — |
 | `magic_spell_test.cpp` | 12 | 881 | yes | [aoe], [damage], [duration], [effect], [invlet], [level], [magic], [name], [permanent], [range], [recover_energy], [spell], [summon], [target_attack], [xp] | — |
