@@ -471,6 +471,15 @@ on the frame and turn benchmarks) is green.
 
 ---
 
+## 5b. Open questions found while porting
+
+**Mapgen registry hook - open.** `mapgen::has_mapgen_for` reads `oter_mapgen`, and at the point
+the harness can run it the registry holds only **325** keys - `house` and `road` are absent while
+733 data files declare `om_terrain`. So the JSON mapgen set is registered later than
+`check_mod_data`, and a dump taken there is a subset that would look authoritative. No fixture was
+committed: a misleading oracle is worse than a missing one. The next attempt has to find the
+hook that runs after `calculate_mapgen_weights()`, or force mapgen loading explicitly.
+
 ## 6. Hard blockers
 
 These are the findings that need a decision or an experiment before the phases that depend on them.

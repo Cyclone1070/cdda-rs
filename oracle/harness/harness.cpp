@@ -12,6 +12,8 @@
 #include "enums.h"
 #include "item_factory.h"
 #include "item_group.h"
+#include "mapgen.h"
+#include "omdata.h"
 #include "itype.h"
 #include "field_type.h"
 #include "mtype.h"
@@ -344,6 +346,30 @@ void dump_traps( const std::string &path )
     std::fprintf( out, "{\"harness\":\"traps\",\"version\":1,\n\"prototypes\":[\n" );
     harness_dump_trap_prototypes( out );
     std::fprintf( out, "]}\n" );
+    std::fclose( out );
+}
+
+void dump_mapgens( const std::string &path )
+{
+    std::FILE *out = std::fopen( path.c_str(), "wb" );
+    if( out == nullptr ) {
+        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
+        return;
+    }
+    std::vector<std::string> keys;
+    for( const oter_t &oter : overmap_terrains::get_all() ) {
+        if( has_mapgen_for( oter.id.str() ) ) {
+            keys.push_back( oter.id.str() );
+        }
+    }
+    std::sort( keys.begin(), keys.end() );
+    std::fprintf( out, "{\"harness\":\"mapgens\",\"version\":1,\n\"keys\":[\n" );
+    bool first = true;
+    for( const std::string &key : keys ) {
+        std::fprintf( out, "%s\"%s\"", first ? "" : ",\n", key.c_str() );
+        first = false;
+    }
+    std::fprintf( out, "\n],\"count\":%zu}\n", keys.size() );
     std::fclose( out );
 }
 

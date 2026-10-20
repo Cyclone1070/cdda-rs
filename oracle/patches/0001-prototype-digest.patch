@@ -129,8 +129,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-21 04:40:10
-@@ -0,0 +1,737 @@
++++ oracle/src/src/harness.cpp	2026-10-21 04:55:05
+@@ -0,0 +1,763 @@
 +#include "harness.h"
 +#include "recipe_dictionary.h"
 +#include "requirements.h"
@@ -145,6 +145,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +#include "enums.h"
 +#include "item_factory.h"
 +#include "item_group.h"
++#include "mapgen.h"
++#include "omdata.h"
 +#include "itype.h"
 +#include "field_type.h"
 +#include "mtype.h"
@@ -477,6 +479,30 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    std::fprintf( out, "{\"harness\":\"traps\",\"version\":1,\n\"prototypes\":[\n" );
 +    harness_dump_trap_prototypes( out );
 +    std::fprintf( out, "]}\n" );
++    std::fclose( out );
++}
++
++void dump_mapgens( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    std::vector<std::string> keys;
++    for( const oter_t &oter : overmap_terrains::get_all() ) {
++        if( has_mapgen_for( oter.id.str() ) ) {
++            keys.push_back( oter.id.str() );
++        }
++    }
++    std::sort( keys.begin(), keys.end() );
++    std::fprintf( out, "{\"harness\":\"mapgens\",\"version\":1,\n\"keys\":[\n" );
++    bool first = true;
++    for( const std::string &key : keys ) {
++        std::fprintf( out, "%s\"%s\"", first ? "" : ",\n", key.c_str() );
++        first = false;
++    }
++    std::fprintf( out, "\n],\"count\":%zu}\n", keys.size() );
 +    std::fclose( out );
 +}
 +
@@ -870,8 +896,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +}  // namespace harness
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-21 04:25:46
-@@ -0,0 +1,137 @@
++++ oracle/src/src/harness.h	2026-10-21 04:51:09
+@@ -0,0 +1,140 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -982,6 +1008,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +/** Writes every item group id to a JSON file. */
 +void dump_item_groups( const std::string &path );
 +
++/** Writes every overmap terrain id that has a map generator. */
++void dump_mapgens( const std::string &path );
++
 +// `--dump-materials <file>`: every material's resolved fields.
 +void dump_materials( const std::string &path );
 +
@@ -1031,7 +1060,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-21 04:25:46
++++ oracle/src/src/main.cpp	2026-10-21 05:00:16
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -1042,7 +1071,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,31 @@
+@@ -272,6 +275,32 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -1062,6 +1091,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_materials;
 +    std::string dump_recipes;
 +    std::string dump_item_groups;
++    std::string dump_mapgens;
 +    // Harness: resolved field types.
 +    std::string dump_fields;
 +    // Harness: resolved item types.
@@ -1074,7 +1104,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +328,166 @@
+@@ -300,6 +329,176 @@
                  }
              },
              {
@@ -1124,6 +1154,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_traps = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-mapgens", "<file>",
++                "Writes the map generator keys registered at load time to <file>. WARNING: incomplete - the JSON mapgen set is not registered yet, so this is a subset (325 keys, house absent)",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_mapgens = params[0];
 +                    return 1;
 +                }
 +            },
@@ -1241,7 +1281,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +974,119 @@
+@@ -786,6 +985,125 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -1291,6 +1331,12 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            test_mode = true;
 +            g->check_mod_data( { mod_id( "dda" ) } );
 +            harness::dump_traps( cli.dump_traps );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_mapgens.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_mapgens( cli.dump_mapgens );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_item_groups.empty() ) {

@@ -108,6 +108,9 @@ void dump_recipes( const std::string &path );
 /** Writes every item group id to a JSON file. */
 void dump_item_groups( const std::string &path );
 
+/** Writes every overmap terrain id that has a map generator. */
+void dump_mapgens( const std::string &path );
+
 // `--dump-materials <file>`: every material's resolved fields.
 void dump_materials( const std::string &path );
 
