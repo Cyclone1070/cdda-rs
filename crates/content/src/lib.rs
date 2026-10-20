@@ -26,6 +26,7 @@ pub mod recipes;
 mod rules;
 mod scan;
 pub mod starting_kit;
+pub mod terrain;
 pub mod traps;
 pub mod vehicles;
 
