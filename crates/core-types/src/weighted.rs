@@ -155,3 +155,105 @@ impl<T: PartialEq> WeightedIntList<T> {
         self.pick_with(draw)
     }
 }
+
+/// A list whose entries are weighted by fractions.
+///
+/// Reference: `weighted_float_list<T>` in `src/weighted_list.h:277-296`. It shares
+/// the storage and the refusal rules with the whole-number list and differs only
+/// in how a draw becomes a position: the draw is scaled across the whole 32-bit
+/// range instead of being taken modulo the total.
+#[derive(Debug, Clone)]
+pub struct WeightedFloatList<T> {
+    entries: Vec<EntryFloat<T>>,
+    total_weight: f64,
+}
+
+#[derive(Debug, Clone)]
+struct EntryFloat<T> {
+    value: T,
+    weight: f64,
+}
+
+impl<T> Default for WeightedFloatList<T> {
+    fn default() -> Self {
+        Self {
+            entries: Vec::new(),
+            total_weight: 0.0,
+        }
+    }
+}
+
+impl<T: PartialEq> WeightedFloatList<T> {
+    /// Builds an empty list.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Adds an entry, returning whether it was stored. A weight of zero or less
+    /// is refused, as in the whole-number list.
+    pub fn add(&mut self, value: T, weight: f64) -> bool {
+        if weight <= 0.0 {
+            return false;
+        }
+        self.entries.push(EntryFloat { value, weight });
+        self.total_weight += weight;
+        true
+    }
+
+    /// Empties the list.
+    pub fn clear(&mut self) {
+        self.entries.clear();
+        self.total_weight = 0.0;
+    }
+
+    /// The weight of everything in the list.
+    #[must_use]
+    pub fn total_weight(&self) -> f64 {
+        self.total_weight
+    }
+
+    /// How many entries the list holds.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    /// Whether the list holds nothing.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    /// Picks an entry using a given draw.
+    ///
+    /// Reference: `weighted_list.h:281-292`. The draw is divided by the maximum
+    /// word and multiplied by the total, so the range of draws maps onto the run
+    /// of weights without any modulo wraparound. Note there is no one-entry
+    /// shortcut here: the reference's float list does not have one, and adding a
+    /// shortcut would change which floating comparison decides the answer.
+    #[must_use]
+    pub fn pick_with(&self, draw: u32) -> Option<&T> {
+        if self.entries.is_empty() || self.total_weight <= 0.0 {
+            return None;
+        }
+        let picked = (f64::from(draw) / f64::from(u32::MAX)) * self.total_weight;
+        let mut accumulated = 0.0;
+        for entry in &self.entries {
+            accumulated += entry.weight;
+            if accumulated >= picked {
+                return Some(&entry.value);
+            }
+        }
+        self.entries.last().map(|entry| &entry.value)
+    }
+
+    /// Picks an entry, drawing from the stream.
+    ///
+    /// As with the whole-number list, the draw happens even when there is nothing
+    /// to pick (`weighted_list.h:144-146`).
+    pub fn pick(&mut self, rolls: &mut Rolls) -> Option<&T> {
+        let draw = rolls.rng_bits();
+        self.pick_with(draw)
+    }
+}

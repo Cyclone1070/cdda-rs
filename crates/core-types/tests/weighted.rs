@@ -8,7 +8,7 @@
 //! rule is pinned exactly and the test cannot flake.
 
 use cdda_core_types::rng::Rolls;
-use cdda_core_types::weighted::WeightedIntList;
+use cdda_core_types::weighted::{WeightedFloatList, WeightedIntList};
 
 const A: i32 = 1;
 const B: i32 = 2;
@@ -127,4 +127,42 @@ fn picking_from_an_empty_list_still_costs_a_draw() {
     let mut fresh = Rolls::new(12_345);
     let _ = fresh.rng_bits();
     assert_eq!(rolls.rng(0, 100), fresh.rng(0, 100));
+}
+
+#[test]
+fn a_fractional_list_weights_its_draw_against_the_total() {
+    // Reference: `weighted_list.h:277-296`. The whole-number list picks with
+    // `draw % total`; this one scales the draw across the whole 32-bit range, so
+    // a draw of zero selects the very front and the maximum draw selects the very
+    // back. Weights 0.5, 0.25, 0.25 over a total of 1.0.
+    let mut list: WeightedFloatList<char> = WeightedFloatList::new();
+    assert!(list.add('a', 0.5));
+    assert!(list.add('b', 0.25));
+    assert!(list.add('c', 0.25));
+    assert!((list.total_weight() - 1.0).abs() < f64::EPSILON);
+
+    let max = u32::MAX;
+    // The bands are [0, 0.5) for a, [0.5, 0.75) for b, [0.75, 1.0] for c, and the
+    // draw is scaled onto that, so "a quarter of the way in" is still inside a.
+    assert_eq!(list.pick_with(0), Some(&'a'), "the front of the range");
+    assert_eq!(list.pick_with(max / 4), Some(&'a'));
+    assert_eq!(
+        list.pick_with(max / 2),
+        Some(&'a'),
+        "half is just short of a's end"
+    );
+    assert_eq!(list.pick_with((max / 4) * 3), Some(&'b'));
+    assert_eq!(list.pick_with(max - 1), Some(&'c'));
+    assert_eq!(list.pick_with(max), Some(&'c'), "the back of the range");
+}
+
+#[test]
+fn a_fractional_list_refuses_an_empty_weight_too() {
+    // Same refusal as the whole-number list (`weighted_list.h:41-49`), because
+    // both inherit it from the same base.
+    let mut list: WeightedFloatList<char> = WeightedFloatList::new();
+    assert!(!list.add('a', 0.0));
+    assert!(!list.add('a', -0.5));
+    assert_eq!(list.len(), 0);
+    assert_eq!(list.pick_with(0), None);
 }

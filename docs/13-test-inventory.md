@@ -235,7 +235,7 @@ for why, and for the rules that turn a case here into a test in the port.
 | `weakpoint_test.cpp` | 6 | 273 | yes | [monster], [weakpoint] | — |
 | `weary_test.cpp` | 4 | 397 | yes | [activities], [mutations], [weary] | — |
 | `weather_test.cpp` | 3 | 478 | no | [weather], [wind_chill] | — |
-| `weighted_list_test.cpp` | 4 | 311 | no | [weighted_list] | ported (4 cases: rejection, clear, remove, add-or-replace, draw rule, empty-list stream cost) |
+| `weighted_list_test.cpp` | 4 | 311 | no | [weighted_list] | ported (both lists: rejection, clear, remove, add-or-replace, draw rules, empty-list stream cost) |
 | `widget_test.cpp` | 34 | 2,993 | yes | [activity], [armor], [avatar], [bp_status], [clause], [color], [columns], [compass], [condition], [graph], [health], [layout], [move_cost], [move_mode], [number], [overmap], [radiation], [stamina], [stats], [string], [text], [value], [weather], [weight], [widget] | — |
 | `wield_test.cpp` | 2 | 417 | yes | [wield] | — |
 | `worldfactory_test.cpp` | 1 | 17 | no |  | — |
