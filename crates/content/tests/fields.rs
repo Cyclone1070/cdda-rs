@@ -65,3 +65,27 @@ fn a_field_with_no_levels_is_refused() {
         "a field with no levels cannot be drawn"
     );
 }
+
+#[test]
+fn the_processor_data_arrives_with_each_field() {
+    // These three are what the remaining processors read: gas spread, underwater aging, and the
+    // slow self-upgrade that only one field in the data uses.
+    let all = dump();
+    let smoke = fields::find(&all, "fd_smoke").expect("smoke exists");
+    assert_eq!(smoke.percent_spread, 10, "smoke spreads one turn in ten");
+    let underwater = all
+        .iter()
+        .find(|field| field.underwater_age_speedup > 0)
+        .expect("something ages faster in water");
+    assert!(underwater.underwater_age_speedup > 0);
+    let upgrades: Vec<&str> = all
+        .iter()
+        .filter(|field| field.levels.iter().any(|level| level.upgrade_chance > 0))
+        .map(|field| field.id.as_str())
+        .collect();
+    assert_eq!(
+        upgrades,
+        vec!["fd_fatigue"],
+        "exactly one field can upgrade itself"
+    );
+}

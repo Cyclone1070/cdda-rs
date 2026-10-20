@@ -591,18 +591,26 @@ void dump_fields( const std::string &path )
     std::fprintf( out, "{\"harness\":\"fields\",\"version\":1,\n\"prototypes\":[\n" );
     bool first = true;
     for( const field_type &field : get_all_field_types().get_all() ) {
-        std::fprintf( out, "%s\n{\"id\":\"%s\",\"priority\":%d,\"levels\":[",
-                      first ? "" : ",", harness_escape( field.id.str() ).c_str(), field.priority );
+        std::fprintf( out, "%s\n{\"id\":\"%s\",\"priority\":%d,"
+                      "\"underwater_age_speedup\":%d,\"outdoor_age_speedup\":%d,"
+                      "\"percent_spread\":%d,\"levels\":[",
+                      first ? "" : ",", harness_escape( field.id.str() ).c_str(), field.priority,
+                      to_turns<int>( field.underwater_age_speedup ),
+                      to_turns<int>( field.outdoor_age_speedup ),
+                      field.percent_spread );
         bool first_level = true;
         for( const field_intensity_level &level : field.intensity_levels ) {
             std::fprintf( out, "%s\n{\"name\":\"%s\",\"sym\":%u,\"color\":\"%s\","
                           "\"dangerous\":%s,\"transparent\":%s,\"move_cost\":%d,"
-                          "\"concentration\":%d,\"light\":%.6g}",
+                          "\"concentration\":%d,\"light\":%.6g,"
+                          "\"upgrade_chance\":%d,\"upgrade_duration\":%d}",
                           first_level ? "" : ",", harness_escape( level.name.translated() ).c_str(),
                           level.symbol, string_from_color( level.color ).c_str(),
                           level.dangerous ? "true" : "false",
                           level.transparent ? "true" : "false", level.move_cost,
-                          level.concentration, static_cast<double>( level.light_emitted ) );
+                          level.concentration, static_cast<double>( level.light_emitted ),
+                          level.intensity_upgrade_chance,
+                          to_turns<int>( level.intensity_upgrade_duration ) );
             first_level = false;
         }
         std::fprintf( out, "]}" );
