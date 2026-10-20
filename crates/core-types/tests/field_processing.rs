@@ -97,3 +97,36 @@ fn an_empty_level_costs_nothing_to_process() {
     assert_eq!(receipt, cdda_core_types::level::FieldProcessing::default());
     assert_eq!(level.fielded_tiles(), 0);
 }
+
+#[test]
+fn the_order_fields_were_added_does_not_change_the_turn() {
+    // The reference walks a submap x outer, y inner (`src/map_field.cpp:168-170`), so the
+    // order fields are visited is a property of the map, not of the order things were
+    // built. Two levels with the same fields, added in opposite orders, must produce the
+    // same turn - including the same draws from the shared stream.
+    let positions = [(0, 0), (5, 1), (2, 9), (11, 4), (7, 7)];
+    let mut ascending = Level::new();
+    let mut descending = Level::new();
+    ascending.ensure(0, 0, 1);
+    descending.ensure(0, 0, 1);
+    for (x, y) in positions {
+        ascending.add_field(x, y, FieldId(1), field(2, 40), 1);
+    }
+    for (x, y) in positions.iter().rev() {
+        descending.add_field(*x, *y, FieldId(1), field(2, 40), 1);
+    }
+
+    let mut first = Rolls::new(99);
+    let mut second = Rolls::new(99);
+    let a = ascending.process_fields(1_000, &mut first);
+    let b = descending.process_fields(1_000, &mut second);
+    assert_eq!(a, b, "same fields, same turn");
+
+    // The stream has to be in the same state afterwards, which is the part a comparison
+    // of intensities would miss if two visits happened to draw the same values.
+    assert_eq!(
+        first.engine().next_u32(),
+        second.engine().next_u32(),
+        "the draws were taken in the same order"
+    );
+}
