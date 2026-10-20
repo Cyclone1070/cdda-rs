@@ -598,6 +598,9 @@ pub const HOT_AIR_3: FieldId = FieldId(60);
 /// See [`HOT_AIR_1`].
 pub const HOT_AIR_4: FieldId = FieldId(61);
 
+/// Smoke, as the field registry numbers it.
+pub const SMOKE: FieldId = FieldId(19);
+
 /// Fire, as the field registry numbers it.
 pub const FIRE: FieldId = FieldId(14);
 /// An extinguisher's cloud, as the field registry numbers it.
@@ -1084,4 +1087,74 @@ pub fn process_flashpoint(
         }
     }
     adjacent
+}
+
+/// What a fire leaves behind: smoke, and heat.
+///
+/// Reference: `field_processor_fd_fire` (`src/map_field.cpp:1400-1425`). Smoke is made only when the
+/// terrain does not suppress it, when `rng(0, 100 - windpower) <= smoke` passes - so wind makes
+/// smoke rarer - and when `rng(3, 35)` comes in under the fire's intensity times ten. Hot air is
+/// made when fewer than five fires are adjacent, on a `rng(0, 4 - adjacent)` that must be non-zero,
+/// which is the reference's way of thinning it out as the neighbouring fires multiply.
+///
+/// The reference prefers to put smoke on the square above and falls back to its own square. The port
+/// has no levels yet, so it always takes the fallback: smoke at the fire's square, at full intensity
+/// of the fire. When levels land, this is the function that grows a branch.
+pub fn process_fire_residue(
+    world: &mut World,
+    entity: Entity,
+    smoke: i32,
+    windpower: i32,
+    suppressed: bool,
+    adjacent_fires: usize,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) {
+    let Some(position) = world.get::<Position>(entity).copied() else {
+        return;
+    };
+    let Some(intensity) = world
+        .get::<Field>(entity)
+        .map(|field| field.entry.intensity())
+    else {
+        return;
+    };
+    if !suppressed && rolls.rng(0, 100 - windpower) <= smoke && rolls.rng(3, 35) < intensity * 10 {
+        add_field_at(world, (position.x, position.y), SMOKE, intensity);
+    }
+    let ceiling = 4 - i32::try_from(adjacent_fires).unwrap_or(4);
+    if adjacent_fires < 5 && ceiling > 0 && rolls.rng(0, ceiling) != 0 {
+        create_hot_air(world, (position.x, position.y), intensity, rolls);
+    }
+}
+
+/// Adds or strengthens a field on a square, keeping the stronger of what is there and what arrives.
+fn add_field_at(world: &mut World, square: (i32, i32), id: FieldId, strength: i32) {
+    let existing = {
+        let mut query = world.query::<(Entity, &Position, &Field)>();
+        query
+            .iter(world)
+            .find(|(_, at, field)| at.x == square.0 && at.y == square.1 && field.id == id)
+            .map(|(entity, _, field)| (entity, field.entry.intensity()))
+    };
+    if let Some((entity, already)) = existing {
+        if strength > already
+            && let Some(mut field) = world.get_mut::<Field>(entity)
+        {
+            field.entry.set_intensity(strength);
+        }
+        return;
+    }
+    let mut entry = FieldEntry::new(3, 100, true, false);
+    entry.set_intensity(strength);
+    world.spawn((
+        Position {
+            x: square.0,
+            y: square.1,
+        },
+        Field {
+            id,
+            entry,
+            priority: 0,
+        },
+    ));
 }
