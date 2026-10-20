@@ -218,9 +218,8 @@ fn the_port_never_invents_an_id_the_reference_does_not_have() {
 /// map generator. Listing them here means the test runs instead of being
 /// skipped: a regression anywhere in the other 86 fails it, and finishing one of
 /// these four means editing this list, which is the point.
-const KNOWN_GAPS: [(&str, usize); 3] = [
+const KNOWN_GAPS: [(&str, usize); 2] = [
     ("effect_on_condition", 221),
-    ("overmap special", 35),
     // The two outlier types whose NO_ROTATE inheritance the reference ignores:
     // four variants each. Named in tests/overmap.rs as well.
     ("overmap terrain", 8),

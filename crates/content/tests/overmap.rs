@@ -127,12 +127,6 @@ fn the_terrain_registry_is_the_types_plus_their_variants() {
     );
 }
 
-/// The reference also mints a `FakeSpecial_<oter>` for every single-tile city
-/// building named in a region's building list but not defined as a special
-/// (`src/regional_settings.cpp:1242-1262`, `src/overmap.cpp:8048-8065`). Those are
-/// not written yet; the count is asserted so the gap cannot drift.
-const FAKE_SPECIAL_GAP: usize = 35;
-
 #[allow(clippy::expect_used, clippy::panic)]
 #[test]
 fn the_special_registry_is_specials_plus_city_buildings() {
@@ -145,21 +139,16 @@ fn the_special_registry_is_specials_plus_city_buildings() {
     assert!(invented.is_empty(), "invented specials: {invented:?}");
 
     let missing: Vec<&String> = theirs.difference(&loaded.specials).collect();
-    let fake: Vec<&&String> = missing
-        .iter()
-        .filter(|id| id.starts_with("FakeSpecial_"))
-        .collect();
+    let invented_again: Vec<&String> = loaded.specials.difference(&theirs).take(5).collect();
     println!(
-        "overmap specials: {} ours, {} reference, {} missing of which {} are generated",
+        "overmap specials: {} ours, {} reference, {} missing, {} invented",
         loaded.specials.len(),
         theirs.len(),
         missing.len(),
-        fake.len()
+        invented_again.len()
     );
-    assert_eq!(missing.len(), FAKE_SPECIAL_GAP);
-    assert_eq!(
-        fake.len(),
-        FAKE_SPECIAL_GAP,
-        "every id still missing should be a generated FakeSpecial"
+    assert!(
+        missing.is_empty() && invented_again.is_empty(),
+        "missing {missing:?}, invented {invented_again:?}"
     );
 }

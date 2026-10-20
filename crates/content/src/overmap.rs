@@ -119,6 +119,7 @@ pub fn load_paths(roots: &[&Path]) -> Result<Loaded, String> {
     let mut raw: BTreeMap<String, Raw> = BTreeMap::new();
     let mut order: Vec<String> = Vec::new();
     let mut specials: BTreeSet<String> = BTreeSet::new();
+    let mut city_buildings: BTreeSet<String> = BTreeSet::new();
 
     for root in roots {
         let files = crate::json_files_in_load_order(root).map_err(|error| error.to_string())?;
@@ -143,6 +144,9 @@ pub fn load_paths(roots: &[&Path]) -> Result<Loaded, String> {
                     {
                         collect_special(object, &mut specials);
                     }
+                    Some(Value::Str(kind)) if kind == "region_settings" => {
+                        collect_city_buildings(object, &mut city_buildings);
+                    }
                     _ => {}
                 }
             }
@@ -151,11 +155,51 @@ pub fn load_paths(roots: &[&Path]) -> Result<Loaded, String> {
 
     let types = resolve(&raw, &order);
     let terrains = register_terrains(&types);
+    mint_fake_specials(&types, &city_buildings, &mut specials);
     Ok(Loaded {
         types,
         terrains,
         specials,
     })
+}
+
+/// Records every building a region names, from the lists under `city`.
+///
+/// Reference: `region_settings::load` fills its building lists from these maps and
+/// `finalize_city_buildings` (`src/regional_settings.cpp:1242-1262`) turns each id
+/// that is not a special into one.
+fn collect_city_buildings(object: &cdda_json::Object, into: &mut BTreeSet<String>) {
+    let Some(Value::Object(city)) = object.get("city") else {
+        return;
+    };
+    for (key, value) in city.members() {
+        let _ = key;
+        if let Value::Object(list) = value {
+            for (id, _) in list.members() {
+                into.insert(id.clone());
+            }
+        }
+    }
+}
+
+/// Mints the `FakeSpecial_` id for every named building that has no special.
+///
+/// Reference: `overmap_specials::create_building_from` (`src/overmap.cpp:8048-8065`)
+/// called from `regional_settings.cpp:1255`. A building that is neither a special
+/// nor a terrain type is a data error the reference reports and skips, so it is
+/// skipped here too - there is nothing to name.
+fn mint_fake_specials(
+    types: &[TerrainType],
+    city_buildings: &BTreeSet<String>,
+    specials: &mut BTreeSet<String>,
+) {
+    let known: BTreeSet<&str> = types.iter().map(|kind| kind.id.as_str()).collect();
+    for building in city_buildings {
+        if specials.contains(building) || !known.contains(building.as_str()) {
+            continue;
+        }
+        specials.insert(format!("FakeSpecial_{building}"));
+    }
 }
 
 /// Records the ids of one overmap special or city building.
