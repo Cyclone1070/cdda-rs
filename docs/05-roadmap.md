@@ -477,7 +477,9 @@ on the frame and turn benchmarks) is green.
 the harness can run it the registry holds only **325** keys - `house` and `road` are absent while
 733 data files declare `om_terrain`. So the JSON mapgen set is registered later than
 `check_mod_data`, and a dump taken there is a subset that would look authoritative. No fixture was
-committed: a misleading oracle is worse than a missing one. Forcing `calculate_mapgen_weights()` first does not help - the count stays at 325 - so the
+committed: a misleading oracle is worse than a missing one. A probe with `--check-mods dda` was inconclusive: that path validates the whole dataset and takes
+many minutes before the dump branch is reached, so it was stopped rather than left running. Forcing
+`calculate_mapgen_weights()` first does not help - the count stays at 325 - so the
 registry is being filled somewhere later, most likely during world or overmap creation. The next
 attempt has to initialise enough of a world for mapgens to load, and the professions/scenarios
 dump shows the difference: those registries are complete after the normal load (320 and 60 ids loaded; kits pending), which
