@@ -6,6 +6,7 @@
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::{FieldEntry, FieldId};
+use cdda_core_types::shadowcasting::FourQuadrants;
 use std::collections::BTreeMap;
 
 /// Where a thing stands. The only authoritative position, because it lives on the thing.
@@ -92,4 +93,112 @@ pub fn process_fields(world: &mut World, now: i64, rolls: &mut cdda_core_types::
             world.despawn(entity);
         }
     }
+}
+
+/// A thing that gives off light: a torch, a fire, a lamp.
+#[derive(Debug, Clone, Copy, Component)]
+pub struct LightSource {
+    /// How bright it is, in the reference's luminance units.
+    pub luminance: f32,
+}
+
+/// The brightness of each square, in the reference's four quarters.
+///
+/// An answer, not a thing: written by the lighting system whenever something that casts light
+/// has moved or died, and thrown away when it is stale.
+#[derive(Debug, Default, Resource)]
+pub struct Light {
+    squares: BTreeMap<(i32, i32), FourQuadrants>,
+}
+
+impl Light {
+    /// The quarters of a square, if anything lights it.
+    #[must_use]
+    pub fn at(&self, x: i32, y: i32) -> Option<FourQuadrants> {
+        self.squares.get(&(x, y)).copied()
+    }
+
+    /// How bright a square is at its brightest corner.
+    #[must_use]
+    pub fn max_at(&self, x: i32, y: i32) -> f32 {
+        self.squares.get(&(x, y)).map_or(0.0, FourQuadrants::max)
+    }
+
+    /// How many squares anything lights.
+    #[must_use]
+    pub fn lit_squares(&self) -> usize {
+        self.squares.len()
+    }
+}
+
+/// Reference: `map::generate_lightmap` (`src/lightmap.cpp:443-560`), which clears the map,
+/// casts every source and applies the sun. The store is the authority for what is where: the
+/// terrain comes from the level resource, and smoke dims a square by being an entity standing
+/// on it, not by being a copy of the level's own map.
+#[derive(Debug, Resource)]
+pub struct Map(pub cdda_core_types::level::Level);
+
+impl std::ops::Deref for Map {
+    type Target = cdda_core_types::level::Level;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Map {
+    /// The terrain transparency rule the lighting system asks about.
+    #[must_use]
+    pub fn terrain_transparency(terrain: u32) -> f32 {
+        // Solid terrain blocks; everything else is open air. The reference's per-terrain
+        // transparency (`src/mapdata.cpp`) is not ported yet, so this is the honest default and
+        // the ledger says so.
+        if terrain == SOLID_TERRAIN {
+            0.0
+        } else {
+            cdda_core_types::light::TRANSPARENCY_OPEN_AIR
+        }
+    }
+}
+
+/// Terrain that light cannot pass.
+pub const SOLID_TERRAIN: u32 = 0;
+
+/// Works out the light every source on the level casts, and writes it to the [`Light`] resource.
+pub fn cast_lights(
+    world: &mut World,
+    terrain_transparency: impl Fn(u32) -> f32,
+    field_opacity: impl Fn(FieldId, i32) -> f32,
+) {
+    // Fields dim a square: the most opaque thing on it wins, as the reference's transparency
+    // cache does when it folds fields into terrain.
+    let mut dimming: BTreeMap<(i32, i32), f32> = BTreeMap::new();
+    let mut field_query = world.query::<(&Position, &Field)>();
+    for (position, field) in field_query.iter(world) {
+        let value = field_opacity(field.id, field.entry.intensity());
+        let entry = dimming.entry((position.x, position.y)).or_insert(0.0);
+        if value > *entry {
+            *entry = value;
+        }
+    }
+
+    let mut sources: Vec<(i32, i32, f32)> = Vec::new();
+    let mut source_query = world.query::<(&Position, &LightSource)>();
+    for (position, source) in source_query.iter(world) {
+        sources.push((position.x, position.y, source.luminance));
+    }
+
+    let mut light = BTreeMap::new();
+    if let Some(mut map) = world.get_resource_mut::<Map>() {
+        let level = &mut map.0;
+        for (x, y, luminance) in sources {
+            level.add_light_source(
+                (x, y),
+                luminance,
+                &terrain_transparency,
+                |field_x, field_y| dimming.get(&(field_x, field_y)).copied().unwrap_or(0.0),
+                &mut light,
+            );
+        }
+    }
+    world.insert_resource(Light { squares: light });
 }

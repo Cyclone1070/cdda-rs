@@ -4,8 +4,6 @@
 //! division of labour - submaps own the tiles, the level owns the submaps and turns a
 //! world coordinate into the cell inside one - and drops the pointers.
 
-use crate::field::{FieldEntry, FieldId, FieldLayer};
-use crate::rng::Rolls;
 use crate::shadowcasting::{TransparencyGrid, cast_light};
 use crate::submap::{SubmapId, SubmapStore};
 use std::collections::BTreeMap;
@@ -43,9 +41,6 @@ pub struct Level {
     /// cast. Keyed by tile, so moving the light reuses what it already knows.
     transparency: BTreeMap<(i32, i32), bool>,
     transparency_builds: u32,
-    /// Fields on the tiles that have any. A tile with no fields has no entry, so a turn
-    /// costs what the fields cost and nothing for the empty map.
-    fields: BTreeMap<(i32, i32), FieldLayer>,
 }
 
 /// What one turn of field processing did.
@@ -233,83 +228,7 @@ impl Level {
     }
 }
 
-impl Level {
-    /// Puts a field on a tile, merging it with any of the same type already there.
-    ///
-    /// Returns whether the type was new to the tile, which is the reference's own signal
-    /// that something just started rather than grew.
-    pub fn add_field(
-        &mut self,
-        x: i32,
-        y: i32,
-        id: FieldId,
-        entry: FieldEntry,
-        priority: i32,
-    ) -> bool {
-        let layer = self.fields.entry((x, y)).or_default();
-        let is_new = layer.add(id, entry, priority);
-        if layer.is_empty() {
-            self.fields.remove(&(x, y));
-        }
-        is_new
-    }
-
-    /// The fields on a tile, if it has any.
-    #[must_use]
-    pub fn fields_at(&self, x: i32, y: i32) -> Option<&FieldLayer> {
-        self.fields.get(&(x, y))
-    }
-
-    /// Ages every field on the level by one turn, removing the ones that die.
-    ///
-    /// Reference: `map::process_fields_in_submap` (`src/map_field.cpp`), which walks the
-    /// tiles of a submap and asks each field to decay. Removal happens here and only
-    /// here: a field that is dead but still sitting on a tile is a state the rest of the
-    /// map should never see.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the clock goes backwards between calls, which would make a field's age
-    /// meaningless.
-    pub fn process_fields(&mut self, now: i64, rolls: &mut Rolls) -> FieldProcessing {
-        let mut receipt = FieldProcessing::default();
-        let mut empty = Vec::new();
-        for (position, layer) in &mut self.fields {
-            for (_id, entry) in layer.iter_mut() {
-                entry.do_decay(now, rolls);
-                receipt.ticked += 1;
-            }
-            receipt.removed += layer.remove_dead();
-            if layer.is_empty() {
-                empty.push(*position);
-            }
-        }
-        for position in empty {
-            self.fields.remove(&position);
-        }
-        receipt
-    }
-
-    /// Advances the level by one turn.
-    ///
-    /// This is where the level's per-turn work will accumulate. Today it is fields, but
-    /// the shape matters: one entry point that takes the clock and the rolls, so a replay
-    /// has a single place to stand and every processor added later inherits the same
-    /// ordering and the same receipt.
-    ///
-    /// Light is *not* rebuilt here. It is rebuilt on the next read, because a turn that
-    /// nobody looks at should not pay for a light map - which is also the reference's
-    /// behaviour, its caches being rebuilt on demand from a dirty flag.
-    pub fn tick(&mut self, now: i64, rolls: &mut Rolls) -> FieldProcessing {
-        self.process_fields(now, rolls)
-    }
-
-    /// How many tiles hold at least one field.
-    #[must_use]
-    pub fn fielded_tiles(&self) -> usize {
-        self.fields.len()
-    }
-}
+impl Level {}
 
 impl Level {
     /// Daylight on the level: every made tile's four quarters.
@@ -393,7 +312,7 @@ impl Level {
         origin: (i32, i32),
         luminance: f32,
         terrain_transparency: impl Fn(u32) -> f32,
-        field_transparency: impl Fn(FieldId, i32) -> f32,
+        field_transparency: impl Fn(i32, i32) -> f32,
         light: &mut BTreeMap<(i32, i32), crate::shadowcasting::FourQuadrants>,
     ) {
         use crate::shadowcasting::{FourQuadrants, cast_light_values, update_light_quadrants};
@@ -448,7 +367,7 @@ impl Level {
         origin: (i32, i32),
         radius: i32,
         terrain_transparency: impl Fn(u32) -> f32,
-        field_transparency: impl Fn(FieldId, i32) -> f32,
+        field_transparency: impl Fn(i32, i32) -> f32,
     ) -> crate::shadowcasting::TransparencyGrid {
         let side = usize::try_from(radius * 2 + 1).unwrap_or(1);
         let mut cells = vec![0.0_f32; side * side];
@@ -467,13 +386,9 @@ impl Level {
                 let mut value = self
                     .terrain_at(world_x, world_y)
                     .map_or(0.0, &terrain_transparency);
-                if let Some(layer) = self.fields_at(world_x, world_y) {
-                    for (id, entry) in layer.entries() {
-                        let field_value = field_transparency(*id, entry.intensity());
-                        if field_value > 0.0 && (value <= 0.0 || field_value > value) {
-                            value = field_value;
-                        }
-                    }
+                let field_value = field_transparency(world_x, world_y);
+                if field_value > 0.0 && (value <= 0.0 || field_value > value) {
+                    value = field_value;
                 }
                 if let Some(cell) = cells.get_mut(grid_x * side + grid_y) {
                     *cell = value;
