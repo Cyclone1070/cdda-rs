@@ -97,7 +97,11 @@ components are the columns, and the schedule is data. The register (P2-T0b) is d
 smoke has begun to move onto it (P2-T0c): a field is an entity with a square, a strength and an
 age, and the field system walks it. The old per-square container is **deleted**: the map
 layer no longer stores fields, and the lighting system reads smoke from the store instead of a
-copy. Two sources of truth became one. Every
+copy. Two sources of truth became one.
+
+The rest of P2-T0c is done too: the sun writes into the same `Light` answer as the torches
+(`cast_sunlight`), so daylight and lamps meet in one place instead of two that a reader has to
+reconcile. The ground is still a per-square store, which the decision explicitly allows. Every
 map-shaped structure that exists today was written before that task existed, which is how the
 plan and the decision drifted apart: the register is what makes "adding a kind of thing" not
 mean "writing a container for it".

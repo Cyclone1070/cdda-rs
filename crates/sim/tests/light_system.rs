@@ -5,7 +5,7 @@
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::{FieldEntry, FieldId};
 use cdda_core_types::level::Level;
-use cdda_sim::{Field, Light, LightSource, Map, Position, SOLID_TERRAIN, cast_lights};
+use cdda_sim::{Field, Light, LightSource, Map, Position, SOLID_TERRAIN, cast_lights, clear_light};
 
 fn world_with_floor() -> World {
     let mut world = World::new();
@@ -54,6 +54,9 @@ fn smoke_standing_on_a_square_dims_the_light_that_crosses_it() {
             priority: 0,
         },
     ));
+    // A turn clears the answer before recomputing it: a stale brighter value would survive a
+    // merge by maximum and hide the dimming entirely, which is what this test caught.
+    clear_light(&mut world);
     cast_lights(&mut world, Map::terrain_transparency, |_id, _intensity| {
         0.38
     });

@@ -129,6 +129,25 @@ impl Light {
     pub fn lit_squares(&self) -> usize {
         self.squares.len()
     }
+
+    /// Raises every square by what another answer says, taking the brighter corner.
+    ///
+    /// Light sources and the sun do not add up into something brighter than either: the
+    /// reference keeps the maximum per quarter (`update_light_quadrants`,
+    /// `src/shadowcasting.h:56-62`), so a torch in daylight does not make a square "more than
+    /// daytime".
+    fn merge(&mut self, other: BTreeMap<(i32, i32), FourQuadrants>) {
+        for (square, quarters) in other {
+            match self.squares.get(&square) {
+                Some(existing) => {
+                    self.squares.insert(square, existing.max_with(quarters));
+                }
+                None => {
+                    self.squares.insert(square, quarters);
+                }
+            }
+        }
+    }
 }
 
 /// Reference: `map::generate_lightmap` (`src/lightmap.cpp:443-560`), which clears the map,
@@ -200,5 +219,45 @@ pub fn cast_lights(
             );
         }
     }
-    world.insert_resource(Light { squares: light });
+    // Sources merge rather than replace: the sun may already have written an answer this
+    // turn, and a torch does not undo the daylight.
+    if let Some(mut existing) = world.get_resource_mut::<Light>() {
+        existing.merge(light);
+    } else {
+        let mut answer = Light::default();
+        answer.merge(light);
+        world.insert_resource(answer);
+    }
+}
+
+/// Works out the sunlight on the level and raises [`Light`] by it.
+///
+/// Reference: the sun half of `map::generate_lightmap` (`src/lightmap.cpp:443-470`) calling
+/// `build_sunlight_cache`, and the ambient pass that lifts the quarters of a tile facing open
+/// sky. Daylight and torches meet here, in one answer, rather than in two that have to be
+/// reconciled by whoever reads them.
+pub fn cast_sunlight(
+    world: &mut World,
+    turns: f64,
+    indoors: f32,
+    outside: impl Fn(i32, i32) -> bool,
+) {
+    let daylight = match world.get_resource::<Map>() {
+        Some(map) => map.0.daylight(turns, indoors, outside),
+        None => BTreeMap::new(),
+    };
+    if let Some(mut light) = world.get_resource_mut::<Light>() {
+        light.merge(daylight);
+    } else {
+        let mut light = Light::default();
+        light.merge(daylight);
+        world.insert_resource(light);
+    }
+}
+
+/// Clears the answer before a turn recomputes it, so nothing survives from the last turn.
+pub fn clear_light(world: &mut World) {
+    if let Some(mut light) = world.get_resource_mut::<Light>() {
+        *light = Light::default();
+    }
 }
