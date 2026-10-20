@@ -496,7 +496,7 @@ pub const FIRE_VENT: FieldId = FieldId(901);
 pub fn process_flame_burst(
     world: &mut World,
     entity: Entity,
-    _rolls: &mut cdda_core_types::rng::Rolls,
+    rolls: &mut cdda_core_types::rng::Rolls,
 ) {
     let Some(field) = world.get::<Field>(entity) else {
         return;
@@ -506,6 +506,10 @@ pub fn process_flame_burst(
     if intensity > 1 {
         if let Some(mut field) = world.get_mut::<Field>(entity) {
             field.entry.set_intensity(intensity - 1);
+        }
+        // The reference makes hot air on the step that thins it, at the new intensity.
+        if let Some(position) = world.get::<Position>(entity).copied() {
+            create_hot_air(world, (position.x, position.y), intensity - 1, rolls);
         }
     } else {
         transform_field(world, entity, FIRE_VENT, 3, age, true);
@@ -533,7 +537,59 @@ pub fn process_fire_vent(
         {
             field.entry.set_intensity(intensity - 1);
         }
+        if let Some(position) = world.get::<Position>(entity).copied() {
+            create_hot_air(world, (position.x, position.y), intensity - 1, rolls);
+        }
     } else {
         transform_field(world, entity, FLAME_BURST, 3, age, true);
     }
 }
+
+/// Places five thin wisps of hot air around a square.
+///
+/// Reference: `map::create_hot_air` (`src/map_field.cpp:375-400`). The intensity argument picks
+/// *which* hot air this is - four different field types, not four strengths - and each of the
+/// five attempts lands on the square itself or one of its eight neighbours, drawing the offset
+/// from the shared dice.
+///
+/// The reference's switch has no case for anything outside one to four and falls through to a
+/// debug message: that path draws no dice and creates nothing, which the tests hold onto because
+/// a port that rolled there would shift every later roll for a case that never happens in play.
+pub fn create_hot_air(
+    world: &mut World,
+    square: (i32, i32),
+    intensity: i32,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) {
+    let id = match intensity {
+        1 => HOT_AIR_1,
+        2 => HOT_AIR_2,
+        3 => HOT_AIR_3,
+        4 => HOT_AIR_4,
+        _ => return,
+    };
+    for _ in 0..5 {
+        let dx = rolls.rng(-1, 1);
+        let dy = rolls.rng(-1, 1);
+        let (x, y) = (square.0 + dx, square.1 + dy);
+        let mut entry = FieldEntry::new(3, 100, true, false);
+        entry.set_intensity(1);
+        world.spawn((
+            Position { x, y },
+            Field {
+                id,
+                entry,
+                priority: 0,
+            },
+        ));
+    }
+}
+
+/// The four hot air field ids, placeholders until the field loader is wired in.
+pub const HOT_AIR_1: FieldId = FieldId(910);
+/// See [`HOT_AIR_1`].
+pub const HOT_AIR_2: FieldId = FieldId(911);
+/// See [`HOT_AIR_1`].
+pub const HOT_AIR_3: FieldId = FieldId(912);
+/// See [`HOT_AIR_1`].
+pub const HOT_AIR_4: FieldId = FieldId(913);

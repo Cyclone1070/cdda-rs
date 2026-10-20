@@ -30,10 +30,13 @@ fn spawn(world: &mut World, id: FieldId, intensity: i32, age: i64) -> Entity {
         .id()
 }
 
+/// Only the fire pair: the processors also scatter hot air, which is another field on the
+/// same map and would otherwise drown the assertion.
 fn fields(world: &mut World) -> Vec<(u32, i32, i64)> {
     let mut query = world.query::<&Field>();
     query
         .iter(world)
+        .filter(|f| f.id.0 >= 900 && f.id.0 <= 901)
         .map(|f| (f.id.0, f.entry.intensity(), f.entry.age()))
         .collect()
 }
@@ -94,4 +97,20 @@ fn a_strong_fire_vent_thins_only_one_time_in_three() {
         thinned > 0 && stayed > 0,
         "both outcomes over 30 seeds: {thinned} thinned, {stayed} stayed"
     );
+}
+
+#[test]
+fn a_burning_burst_leaves_hot_air_over_the_square() {
+    let mut world = World::new();
+    let entity = spawn(&mut world, FLAME_BURST, 3, 12);
+    let mut rolls = Rolls::new(1);
+    process_flame_burst(&mut world, entity, &mut rolls);
+    let mut query = world.query::<&Field>();
+    let hot: Vec<i32> = query
+        .iter(&world)
+        .filter(|f| (910..=913).contains(&f.id.0))
+        .map(|f| f.entry.intensity())
+        .collect();
+    assert_eq!(hot.len(), 5, "five wisps, as create_hot_air makes");
+    assert!(hot.iter().all(|&i| i == 1), "all thin");
 }
