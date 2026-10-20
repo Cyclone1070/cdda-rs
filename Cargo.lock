@@ -180,7 +180,9 @@ name = "cdda-sim"
 version = "0.1.0"
 dependencies = [
  "bevy_ecs",
+ "cdda-content",
  "cdda-core-types",
+ "cdda-json",
 ]
 
 [[package]]

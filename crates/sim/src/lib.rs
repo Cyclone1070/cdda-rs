@@ -482,11 +482,14 @@ fn transform_field(
 
 /// Field ids used by the two processors below.
 ///
-/// Placeholders until the field loader's ids are wired in; the behaviour that matters - the
-/// pair taking turns - does not depend on which numbers they are.
-pub const FLAME_BURST: FieldId = FieldId(900);
+/// These are the loader's ids, not placeholders: `fd_flame_burst` is the 28th field in the
+/// reference's dump (plus one, so zero stays free for the null field), and `crates/sim/tests/
+/// field_ids.rs` checks every constant here against the registry the data produces. The previous
+/// values were 900 and up, and moving them exposed two tests that had quietly assumed the
+/// placeholders' *ordering* - one filtering an inclusive range, one filtering a numeric span.
+pub const FLAME_BURST: FieldId = FieldId(28);
 /// See [`FLAME_BURST`].
-pub const FIRE_VENT: FieldId = FieldId(901);
+pub const FIRE_VENT: FieldId = FieldId(26);
 
 /// A flame burst burns down, and when it has burnt out it becomes a fire vent.
 ///
@@ -586,10 +589,10 @@ pub fn create_hot_air(
 }
 
 /// The four hot air field ids, placeholders until the field loader is wired in.
-pub const HOT_AIR_1: FieldId = FieldId(910);
+pub const HOT_AIR_1: FieldId = FieldId(58);
 /// See [`HOT_AIR_1`].
-pub const HOT_AIR_2: FieldId = FieldId(911);
+pub const HOT_AIR_2: FieldId = FieldId(59);
 /// See [`HOT_AIR_1`].
-pub const HOT_AIR_3: FieldId = FieldId(912);
+pub const HOT_AIR_3: FieldId = FieldId(60);
 /// See [`HOT_AIR_1`].
-pub const HOT_AIR_4: FieldId = FieldId(913);
+pub const HOT_AIR_4: FieldId = FieldId(61);

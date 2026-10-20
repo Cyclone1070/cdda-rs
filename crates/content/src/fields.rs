@@ -126,3 +126,37 @@ pub fn from_dump(value: &Value) -> Result<Vec<FieldType>, String> {
 pub fn find<'a>(fields: &'a [FieldType], id: &str) -> Option<&'a FieldType> {
     fields.iter().find(|field| field.id == id)
 }
+
+/// The field ids the runtime uses, built from the dump.
+///
+/// An id is the field's position in the dump plus one, so zero stays free for the null field that
+/// `add_field` refuses. The numbering is the port's own: the reference keys fields by string, and
+/// a number is what lets a tile store one in a byte.
+#[derive(Debug, Clone, Default)]
+pub struct FieldRegistry {
+    ids: std::collections::HashMap<String, u32>,
+}
+
+impl FieldRegistry {
+    /// Builds the registry from a loaded field list.
+    #[must_use]
+    pub fn new(fields: &[FieldType]) -> Self {
+        let mut ids = std::collections::HashMap::with_capacity(fields.len());
+        for (index, field) in fields.iter().enumerate() {
+            let Ok(id) = u32::try_from(index + 1) else {
+                continue;
+            };
+            ids.insert(field.id.clone(), id);
+        }
+        Self { ids }
+    }
+
+    /// The id for a field name, if the reference defines it.
+    #[must_use]
+    pub fn id_of(&self, name: &str) -> Option<cdda_core_types::field::FieldId> {
+        self.ids
+            .get(name)
+            .copied()
+            .map(cdda_core_types::field::FieldId)
+    }
+}

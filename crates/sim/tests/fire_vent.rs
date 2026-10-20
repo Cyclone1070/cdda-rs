@@ -1,8 +1,9 @@
 //! The flame burst and the fire vent, which take turns being each other.
 //!
 //! Transcribed from `field_processor_fd_flame_burst` and `field_processor_fd_fire_vent`
-//! (`src/map_field.cpp:626-650`). The field ids here are placeholders: the real ones come from
-//! the field loader, and the behaviour being tested is the pair swapping, not the identity.
+//! (`src/map_field.cpp:626-650`). The ids are the loader's, not placeholders - and the tests now
+//! name the constants instead of numbers, which is how this file caught that its own filter
+//! depended on the placeholders' ordering.
 
 #![allow(clippy::panic, clippy::expect_used)]
 
@@ -11,8 +12,7 @@ use cdda_core_types::field::{FieldEntry, FieldId};
 use cdda_core_types::rng::Rolls;
 use cdda_sim::{Field, Position, process_fire_vent, process_flame_burst};
 
-const FLAME_BURST: FieldId = FieldId(900);
-const FIRE_VENT: FieldId = FieldId(901);
+use cdda_sim::{FIRE_VENT, FLAME_BURST, HOT_AIR_1, HOT_AIR_2, HOT_AIR_3, HOT_AIR_4};
 
 fn spawn(world: &mut World, id: FieldId, intensity: i32, age: i64) -> Entity {
     let mut entry = FieldEntry::new(3, 100, true, true);
@@ -36,7 +36,7 @@ fn fields(world: &mut World) -> Vec<(u32, i32, i64)> {
     let mut query = world.query::<&Field>();
     query
         .iter(world)
-        .filter(|f| f.id.0 >= 900 && f.id.0 <= 901)
+        .filter(|f| f.id == FLAME_BURST || f.id == FIRE_VENT)
         .map(|f| (f.id.0, f.entry.intensity(), f.entry.age()))
         .collect()
 }
@@ -49,7 +49,7 @@ fn a_strong_flame_burst_just_burns_down() {
     process_flame_burst(&mut world, entity, &mut rolls);
     assert_eq!(
         fields(&mut world),
-        vec![(900, 2, 12)],
+        vec![(FLAME_BURST.0, 2, 12)],
         "one weaker, same age"
     );
 }
@@ -62,7 +62,7 @@ fn a_spent_flame_burst_becomes_a_fire_vent_carrying_its_age() {
     process_flame_burst(&mut world, entity, &mut rolls);
     assert_eq!(
         fields(&mut world),
-        vec![(901, 3, 12)],
+        vec![(FIRE_VENT.0, 3, 12)],
         "the burst is replaced by a vent at full strength, and the old one is gone"
     );
 }
@@ -73,7 +73,7 @@ fn a_spent_fire_vent_becomes_a_flame_burst() {
     let entity = spawn(&mut world, FIRE_VENT, 1, 7);
     let mut rolls = Rolls::new(1);
     process_fire_vent(&mut world, entity, &mut rolls);
-    assert_eq!(fields(&mut world), vec![(900, 3, 7)]);
+    assert_eq!(fields(&mut world), vec![(FLAME_BURST.0, 3, 7)]);
 }
 
 #[test]
@@ -88,8 +88,8 @@ fn a_strong_fire_vent_thins_only_one_time_in_three() {
         let mut rolls = Rolls::new(seed);
         process_fire_vent(&mut world, entity, &mut rolls);
         match fields(&mut world).as_slice() {
-            [(901, 3, 5)] => stayed += 1,
-            [(901, 2, 5)] => thinned += 1,
+            [(id, 3, 5)] if *id == FIRE_VENT.0 => stayed += 1,
+            [(id, 2, 5)] if *id == FIRE_VENT.0 => thinned += 1,
             other => panic!("seed {seed} produced {other:?}"),
         }
     }
@@ -108,7 +108,7 @@ fn a_burning_burst_leaves_hot_air_over_the_square() {
     let mut query = world.query::<&Field>();
     let hot: Vec<i32> = query
         .iter(&world)
-        .filter(|f| (910..=913).contains(&f.id.0))
+        .filter(|f| [HOT_AIR_1, HOT_AIR_2, HOT_AIR_3, HOT_AIR_4].contains(&f.id))
         .map(|f| f.entry.intensity())
         .collect();
     assert_eq!(hot.len(), 5, "five wisps, as create_hot_air makes");
