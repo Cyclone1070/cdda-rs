@@ -215,7 +215,8 @@ before this phase and everything after it depends on the harness. <!-- inference
 - **Options are C++, not data**: 188 `add(...)` declarations (`options.cpp`) plus 88 JSON options. Decide once
   whether they become a data table or stay code; either way it is 4,206 lines to move. <!-- verified -->
 
-**Exit gate (M1).** Prototype digest equality across the full data set and all 42 in-repo mods; mod load-order
+**Exit gate (M1).** Prototype digest equality across the full data set and all 42 in-repo mods
+(the digest is now ported and two registries pass: `material` and `trap`, out of 90); mod load-order
 and duplicate-detection parity; oracle self-consistency gate green (see B1); a reference state dump loads
 into the port and reproduces the same digest.
 

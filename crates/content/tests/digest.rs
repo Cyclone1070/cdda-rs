@@ -1,0 +1,109 @@
+//! The prototype digest, checked two ways: the algorithm against the reference's own ids, and the
+//! port's loaded registries against the reference's digests.
+
+#![allow(clippy::expect_used, clippy::panic)]
+
+use cdda_content::{digest, materials, traps};
+use cdda_json::{Value, parse};
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
+
+fn root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
+}
+
+fn read(name: &str) -> BTreeMap<String, Value> {
+    let text = std::fs::read_to_string(root().join(name)).expect("artifact");
+    let value = parse(text.as_bytes()).expect("parses");
+    let Value::Object(object) = value else {
+        panic!("root")
+    };
+    let Some(Value::Array(entries)) = object.get("registries") else {
+        panic!("registries")
+    };
+    let mut out = BTreeMap::new();
+    for entry in entries {
+        let Value::Object(fields) = entry else {
+            panic!("entry")
+        };
+        let Some(Value::Str(name)) = fields.get("type") else {
+            panic!("type")
+        };
+        out.insert(name.clone(), entry.clone());
+    }
+    out
+}
+
+fn ids_of(entry: &Value) -> Vec<String> {
+    let Value::Object(fields) = entry else {
+        panic!("entry")
+    };
+    let Some(Value::Array(ids)) = fields.get("ids") else {
+        panic!("ids")
+    };
+    ids.iter()
+        .map(|id| match id {
+            Value::Str(text) => text.clone(),
+            other => panic!("an id that is not a string: {other:?}"),
+        })
+        .collect()
+}
+
+fn digest_of(entry: &Value) -> String {
+    let Value::Object(fields) = entry else {
+        panic!("entry")
+    };
+    let Some(Value::Str(text)) = fields.get("digest") else {
+        panic!("digest")
+    };
+    text.clone()
+}
+
+#[test]
+fn the_algorithm_reproduces_every_digest_the_reference_wrote() {
+    let ids = read("corpus/prototypes/ids.json");
+    let digests = read("corpus/prototypes/digest.json");
+    let mut checked = 0;
+    for (name, entry) in &ids {
+        let Some(reference) = digests.get(name) else {
+            continue;
+        };
+        let ours = digest::digest_hex(digest::digest_ids(ids_of(entry)));
+        assert_eq!(&ours, &digest_of(reference), "registry {name}");
+        checked += 1;
+    }
+    assert_eq!(checked, 90, "every registry in the artifact was checked");
+}
+
+#[test]
+fn the_order_and_repeats_of_the_input_do_not_matter() {
+    let forward = digest::digest_ids(["b", "a", "c", "a"]);
+    let backward = digest::digest_ids(["c", "b", "a"]);
+    assert_eq!(forward, backward, "sorted and deduplicated first");
+    assert_ne!(
+        digest::digest_ids(["ab", "c"]),
+        digest::digest_ids(["a", "bc"]),
+        "the separator is what keeps these apart"
+    );
+}
+
+#[test]
+fn the_ports_own_material_and_trap_ids_match_the_reference_digest() {
+    let digests = read("corpus/prototypes/digest.json");
+    let core = root().join("references/Cataclysm-DDA/data/core");
+    let json = root().join("references/Cataclysm-DDA/data/json");
+    let dirs: [&Path; 2] = [core.as_path(), json.as_path()];
+    let loaded_materials = materials::load_paths(&dirs).expect("materials load");
+    let ours = digest::digest_hex(digest::digest_ids(
+        loaded_materials.iter().map(|material| material.id.as_str()),
+    ));
+    let reference = digests.get("material").expect("material digest");
+    assert_eq!(ours, digest_of(reference), "material ids");
+
+    let loaded_traps = traps::load_paths(&dirs).expect("traps load");
+    let ours = digest::digest_hex(digest::digest_ids(
+        loaded_traps.iter().map(|trap| trap.id.as_str()),
+    ));
+    let reference = digests.get("trap").expect("trap digest");
+    assert_eq!(ours, digest_of(reference), "trap ids");
+}
