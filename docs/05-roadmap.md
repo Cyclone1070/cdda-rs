@@ -93,8 +93,10 @@ and answers are neither. T1 (the ground of a square), T2 (positions come from th
 grid is rebuilt from it) and T3 (answers and their caches) are done.
 
 **`bevy_ecs` is now the backbone** (P2-T0a): the World is the store, entities are the ids,
-components are the columns, and the schedule is data. The register (P2-T0b) and the port of the
-map layer onto it (P2-T0c) follow. Every
+components are the columns, and the schedule is data. The register (P2-T0b) is done and
+smoke has begun to move onto it (P2-T0c): a field is an entity with a square, a strength and an
+age, and the field system walks it. The old per-square container still exists beside it and
+still feeds the light, so the two disagree until the next cut removes it. Every
 map-shaped structure that exists today was written before that task existed, which is how the
 plan and the decision drifted apart: the register is what makes "adding a kind of thing" not
 mean "writing a container for it".

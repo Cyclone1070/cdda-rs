@@ -5,6 +5,7 @@
 //! grid resource rebuilt from the World, never kept as a second authority.
 
 use bevy_ecs::prelude::*;
+use cdda_core_types::field::{FieldEntry, FieldId};
 use std::collections::BTreeMap;
 
 /// Where a thing stands. The only authoritative position, because it lives on the thing.
@@ -49,5 +50,46 @@ impl PositionIndex {
     #[must_use]
     pub fn occupied_squares(&self) -> usize {
         self.squares.len()
+    }
+}
+
+/// A patch of something lying on a square: smoke, fire, blood, acid.
+///
+/// A field is a thing, not a property of the ground: it has a square, a strength and an age,
+/// and the field system acts on it every turn. The entry keeps the reference's decay rules
+/// (`src/field.cpp`), which were ported and gated before the storage moved here.
+#[derive(Debug, Clone, Component)]
+pub struct Field {
+    /// Which kind of field this is.
+    pub id: FieldId,
+    /// Its strength and age, with the reference's decay semantics.
+    pub entry: FieldEntry,
+    /// Draw and merge priority among the fields on one square.
+    pub priority: i32,
+}
+
+/// Ages every field by one turn and removes the ones that are gone.
+///
+/// Reference: `map::process_fields_in_submap` (`src/map_field.cpp:160-460`), whose per-field
+/// work lives in [`cdda_core_types::field::FieldEntry::do_decay`]. Fields are processed in a
+/// fixed order - the reference walks submaps, then squares in x-then-y order, then each
+/// square's fields in insertion order - and that order is observable, because a decaying field
+/// draws from the same dice as everything else.
+pub fn process_fields(world: &mut World, now: i64, rolls: &mut cdda_core_types::rng::Rolls) {
+    let mut order: Vec<(i32, i32, Entity)> = Vec::new();
+    let mut query = world.query::<(Entity, &Position)>();
+    for (entity, position) in query.iter(world) {
+        order.push((position.x, position.y, entity));
+    }
+    // x outer, y inner: the reference's walk over a submap.
+    order.sort_by_key(|&(x, y, entity)| (x, y, entity.to_bits()));
+    for (_, _, entity) in order {
+        let Some(mut field) = world.get_mut::<Field>(entity) else {
+            continue;
+        };
+        field.entry.do_decay(now, rolls);
+        if !field.entry.is_alive() {
+            world.despawn(entity);
+        }
     }
 }
