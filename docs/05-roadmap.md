@@ -88,16 +88,20 @@ exactly, with no named gaps at all**, and JSON reading and writing match over al
 inherited flags while `extend.flags` adds to them - treating the two the same way is
 what kept two overmap terrain types wrong.
 
-**P2 stands here.** T1 tile storage, T2 submap ownership and T3 per-level caches are
-done. T4 fields is half done: an entry with the reference's decay rules, a tile layer
-that merges several fields, a per-turn pass that ages and removes them, and one tick
-entry point - but no processors, so fire does not spread and smoke does not drift. T5
-illumination is half done too: an eight-segment caster gated against fixtures the
-reference printed, the light thresholds and `LIGHT_RANGE`, cached light keyed by where it
-is cast from, and a per-tile transparency memo. What is missing there is the
-four-quadrant intensity accumulation that turns a caster into a light map. T6 vision and
-T7 scent are not started. Fields come before vision for a reason: smoke is both a field
-and a thing that blocks sight.
+**P2 stands here.** T1 tile storage, T2 submap ownership and T3 per-level caches are done.
+T4 fields is half done: an entry with the reference's decay rules, a tile layer that merges
+several fields, a per-turn pass that ages and removes them, and one tick entry point - but no
+processors, so fire does not spread and smoke does not drift.
+
+T5 illumination is **complete end to end**: the astronomy gated on 424 samples of the
+reference's own output, the sun's curve, the thresholds, the four quarters, the eight-segment
+caster gated on grids the reference printed, the per-tile transparency memo, cached light
+keyed by where it is cast from, and `Level::daylight`, which turns a moment into four numbers
+per tile. What it does *not* have is the point-source accumulation loop, which is the next
+step. T6 vision and T7 scent are not started.
+
+Fields come before vision for a reason: smoke is both a field and a thing that blocks sight,
+and the light model is now good enough to notice the difference.
 
 Every porting task follows [14-test-porting.md](14-test-porting.md): dump first, write
 the failing gate, port the smallest thing that clears it, then tighten the gate. The
