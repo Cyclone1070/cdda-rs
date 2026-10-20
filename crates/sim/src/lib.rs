@@ -969,3 +969,34 @@ pub fn process_fire_spread<F>(
         }
     }
 }
+
+/// How big a fire can get, given how long it has burned and what is next to it.
+///
+/// Reference: `field_processor_fd_fire` (`src/map_field.cpp:1240-1262`). A fire under half an hour
+/// of fuel age (-500 minutes) can reach 3 outright. Otherwise its ceiling comes from neighbours -
+/// three adjacent fires allow 2, seven allow 3 - and a fire with more than fifty minutes of fuel
+/// age gets 2 even when it is alone.
+pub fn growth_ceiling(age: i64, adjacent_fires: usize) -> i32 {
+    if age < -30_000 {
+        return 3;
+    }
+    let by_neighbours = 1 + i32::from(adjacent_fires >= 3) + i32::from(adjacent_fires >= 7);
+    if by_neighbours < 2 && age < -3_000 {
+        return 2;
+    }
+    by_neighbours
+}
+
+/// Grows a fire one step when it has fuel to spare, and weakens what it gained.
+///
+/// Reference: `src/map_field.cpp:1255-1262`. A fire only grows while its age is negative - fuel in
+/// the bank - and growing costs it: ten minutes of age per point of intensity it ends up with, so a
+/// fire that jumps to 3 pays half an hour for the privilege.
+#[must_use]
+pub fn grow_fire(intensity: i32, age: i64, adjacent_fires: usize) -> Option<(i32, i64)> {
+    if age >= 0 || intensity >= growth_ceiling(age, adjacent_fires) {
+        return None;
+    }
+    let grown = intensity + 1;
+    Some((grown, age + 600 * i64::from(grown)))
+}
