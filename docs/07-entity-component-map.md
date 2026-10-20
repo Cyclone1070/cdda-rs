@@ -11,6 +11,11 @@ Full per-class tables:
 | [entity-map-world-items.md](parts/entity-map-world-items.md) | Map, world, environment, items, crafting | 136 |
 | [entity-map-actors-world.md](parts/entity-map-actors-world.md) | Creatures, vehicles, overmap, factions, scripting | 182 |
 
+Read [03-decisions.md](03-decisions.md) first, section "What the ECS decision means, in
+plain words". The three sentences that matter: **things are nouns, systems are verbs, answers
+are neither.** Smoke, fire, blood, acid, people, items and walls are things. Brightness and
+visibility are answers a system computes. A cache that disagrees with the store is wrong.
+
 Method: for each stateful class, read its data members and classify. Verdicts are
 per class, and mixed classes are split rather than forced into one bucket.
 

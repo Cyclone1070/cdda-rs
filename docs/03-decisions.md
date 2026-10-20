@@ -31,6 +31,41 @@ describes a table no player has.
 
 ---
 
+## What the ECS decision means, in plain words
+
+This section exists because the table above was read wrongly by the person who wrote it. If
+you take one thing from this document, take this.
+
+**Things are nouns. Systems are verbs.**
+
+* **A thing** exists in the world: it can be created, moved, damaged, seen, picked up, burnt.
+  Smoke, fire, blood, acid, a person, an item, a wall. **Every one of them is one thing in one
+  register** (D1), and the register says where each stands (D2).
+* **A system** is a step that does a job each turn: move things, spread fire, work out light,
+  work out what a person can see. Systems are scheduled in a readable order (D5).
+* **An answer** is what a system produces: how bright this square is, whether this square is
+  visible. Answers are recomputed and cached; they are not inhabitants of the world.
+
+The test for "is it a thing": *does anything act on it, and does it keep an identity over
+time?* Nothing burns light, carries it, waits for it or puts it down. A torch is a thing; the
+bright patch it throws is an answer produced by the lighting system.
+
+### What this does not mean
+
+* **It does not mean every square is an entity.** Air holding nothing is not a thing to
+  create: an empty square is a gap in the register, and the grid can say "nothing here" (D3).
+* **It does not mean separate containers per kind.** A container for creatures, another for
+  items, another for fire is exactly the shape this decision rejects (see B below). Adding a
+  kind of thing must not mean writing a container for it.
+* **It does not mean answers must be stored as things.** Brightness, visibility, "is this
+  square under a roof" are computed by systems and kept only as scratch that a later turn
+  overwrites.
+* **It does not mean the ground is exempt.** The ground of a square is a thing like any
+  other; it simply never moves, which makes where it is stored a plain storage question rather
+  than an architectural one.
+
+---
+
 ## Rejected alternatives
 
 **A. Keep the current object-oriented-plus-grid design.**

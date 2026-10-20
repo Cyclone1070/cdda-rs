@@ -88,16 +88,20 @@ exactly, with no named gaps at all**, and JSON reading and writing match over al
 inherited flags while `extend.flags` adds to them - treating the two the same way is
 what kept two overmap terrain types wrong.
 
-**P2 stands here.** T1 tile storage, T2 submap ownership and T3 per-level caches are done.
-T4 fields is half done: an entry with the reference's decay rules, a tile layer that merges
-several fields, a per-turn pass that ages and removes them, and one tick entry point - but no
-processors, so fire does not spread and smoke does not drift.
+**P2 stands here.** Read this against `03-decisions.md`: things are nouns, systems are verbs,
+and answers are neither. T1 (the ground of a square), T2 (positions come from the register, the
+grid is rebuilt from it) and T3 (answers and their caches) are done.
 
-T5 illumination is **complete end to end**: the astronomy gated on 424 samples of the
-reference's own output, the sun's curve, the thresholds, the four quarters, the eight-segment
-caster gated on grids the reference printed, the per-tile transparency memo, cached light
-keyed by where it is cast from, and `Level::daylight`, which turns a moment into four numbers
-per tile. What it does *not* have is the point-source accumulation loop, which is the next
+**The register itself - P2-T0 - is not started**, and it is the first thing to build. Every
+map-shaped structure that exists today was written before that task existed, which is how the
+plan and the decision drifted apart: the register is what makes "adding a kind of thing" not
+mean "writing a container for it".
+
+T4 is half done: smoke, fire and the rest decay correctly, several can share a square, a turn
+ages and removes them, and one tick entry point runs the pass - but no processors, so fire does
+not spread and smoke does not drift. T5 illumination is complete end to end, including point
+sources and smoke dimming what is behind it.
+
 step. T6 vision and T7 scent are not started.
 
 Fields come before vision for a reason: smoke is both a field and a thing that blocks sight,

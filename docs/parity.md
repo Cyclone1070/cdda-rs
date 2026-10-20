@@ -101,9 +101,7 @@ Nothing is `gated` without a link to the run that proved it.
 
 | System | Status | Gate | Notes |
 |---|---|---|---|
-| Tile storage and uniform regions | not started | Environment replay (M2) | |
 | World submap owner and bubble view | not started | M2 | Ownership decided once |
-| Per-level caches and dirty flags | not started | M2 | |
 | Light and illumination | not started | M2 | Four quadrants per square, 21 levels |
 | Vision and visibility | not started | M2 | |
 | Fields and field processors | not started | M2 | 21 data-gated processors |
