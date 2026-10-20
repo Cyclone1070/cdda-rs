@@ -6,7 +6,7 @@
 //!
 //! Gated on `--dump-terrain`: **1,769** terrains, of which **643** are flammable.
 
-use cdda_json::{Object, Value};
+use cdda_json::Value;
 
 /// One piece of terrain.
 #[derive(Debug, Clone, PartialEq, Eq)]
