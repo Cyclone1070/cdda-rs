@@ -71,6 +71,13 @@ impl FieldEntry {
         self.intensity = intensity.min(self.max_intensity).max(1);
     }
 
+    /// Sets how long the field has been at this intensity, clearing any decay in
+    /// progress - the reference's `set_field_age`.
+    pub fn set_age(&mut self, age: i64) {
+        self.age = age;
+        self.decay_time = None;
+    }
+
     /// Ages the field by one turn and drops its intensity when its time is up.
     ///
     /// Fire is not handled here: the reference branches on it before anything else
@@ -124,5 +131,112 @@ impl FieldEntry {
         #[allow(clippy::cast_possible_truncation)]
         let drawn_turns = drawn as i64;
         now - self.age + drawn_turns
+    }
+}
+
+/// A field type's name, as the registry knows it.
+///
+/// Zero is the reference's null id, which `add_field` refuses to store.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FieldId(pub u32);
+
+impl FieldId {
+    /// The null field type.
+    pub const NULL: Self = Self(0);
+}
+
+/// The fields sitting on one map tile.
+///
+/// Reference: `field` (`src/field.cpp:158-200`). A tile holds at most one entry per type,
+/// and at most one of them is the type the map draws - the one with the highest
+/// priority, with ties going to the later arrival.
+#[derive(Debug, Clone, Default)]
+pub struct FieldLayer {
+    fields: std::collections::BTreeMap<FieldId, FieldEntry>,
+    displayed: Option<FieldId>,
+    priorities: std::collections::BTreeMap<FieldId, i32>,
+}
+
+impl FieldLayer {
+    /// Builds an empty tile.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Adds a field, or merges it into the one already there.
+    ///
+    /// Returns whether a new type was stored: merging an existing type returns false,
+    /// which the reference's callers use to tell "this tile just caught fire" from "the
+    /// fire got stronger".
+    ///
+    /// Merging sums the intensities, and a *dead* entry is treated as zero first, so
+    /// reviving a spent field gives it the new strength rather than adding to the one it
+    /// died with.
+    pub fn add(&mut self, id: FieldId, mut entry: FieldEntry, priority: i32) -> bool {
+        if id == FieldId::NULL {
+            return false;
+        }
+        if let Some(existing) = self.fields.get_mut(&id) {
+            let mut previous = existing.intensity();
+            if !existing.is_alive() {
+                existing.set_age(entry.age());
+                previous = 0;
+            }
+            existing.set_intensity(previous + entry.intensity());
+            return false;
+        }
+        if self
+            .displayed
+            .is_none_or(|shown| priority >= self.priority_of(shown))
+        {
+            self.displayed = Some(id);
+        }
+        entry.set_age(entry.age());
+        self.priorities.insert(id, priority);
+        self.fields.insert(id, entry);
+        true
+    }
+
+    /// How many field types the tile holds.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.fields.len()
+    }
+
+    /// Whether the tile holds no fields.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.fields.is_empty()
+    }
+
+    /// One field entry.
+    #[must_use]
+    pub fn get(&self, id: FieldId) -> Option<&FieldEntry> {
+        self.fields.get(&id)
+    }
+
+    /// One field entry, for changing it in place.
+    ///
+    /// The reference's `find_field` hands out an iterator for the same purpose: decay
+    /// and spread work on the entry where it sits rather than taking it out and putting
+    /// it back.
+    pub fn get_mut(&mut self, id: FieldId) -> Option<&mut FieldEntry> {
+        self.fields.get_mut(&id)
+    }
+
+    /// The type the map should draw.
+    #[must_use]
+    pub fn displayed(&self) -> Option<FieldId> {
+        self.displayed
+    }
+
+    /// The priority of a stored type.
+    ///
+    /// The layer does not carry the registry, so priorities are kept beside the entries
+    /// rather than looked up. Zero for a type that is not there, which cannot happen
+    /// because only stored types are asked about.
+    fn priority_of(&self, id: FieldId) -> i32 {
+        self.priorities.get(&id).copied().unwrap_or(0)
     }
 }
