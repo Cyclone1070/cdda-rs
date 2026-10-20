@@ -17,6 +17,7 @@ pub mod coords;
 pub mod diagnostics;
 pub mod ids;
 pub mod line;
+pub mod map_cache;
 pub mod options;
 pub mod paths;
 pub mod rng;
