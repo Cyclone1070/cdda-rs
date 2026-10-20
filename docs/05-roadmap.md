@@ -94,6 +94,11 @@ the failing gate, port the smallest thing that clears it, then tighten the gate.
 fast loop is `python3 tools/test_fast.py`, which runs the test binaries concurrently
 (43 s for the whole suite against 156 s serial) and reports what each one cost.
 
+P2 has begun with its first task: tile storage, the uniform page that costs nothing
+until it diverges ([parity.md](parity.md)). Run long oracle commands in the
+foreground, never backgrounded - a cancelled background dump keeps parsing for
+ever, and two of them once held this machine above a load average of eleven.
+
 Resume at the mapgen loader: start from `load_and_add_mapgen_function`
 (`src/mapgen.cpp:1400-1480`), reproduce the terrain ids it derives from
 `om_terrain` arrays - chunked per position and per rotation - and hold them to

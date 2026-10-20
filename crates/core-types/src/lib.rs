@@ -22,6 +22,7 @@ pub mod paths;
 pub mod rng;
 pub mod strings;
 pub mod text;
+pub mod tiles;
 pub mod units;
 pub mod weighted;
 
