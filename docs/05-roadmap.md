@@ -110,7 +110,8 @@ T4 has its first processor: smoke and the rest decay, and gas now spreads to a n
 the reference's thinning rule - the fraction of age that moves is the age divided by the
 intensity, and a square already holding the gas gets thicker rather than a second field. What is
 missing from the processor is the *direction*: the reference picks it with wind power and a
-dice roll, and neither is ported yet. T5 illumination is complete end to end, including point
+dice roll. The wind half of that now exists - shelter, forest, height and an upwind wall, in the
+reference's order - so the direction is a matter of wiring, not of unknowns. T5 illumination is complete end to end, including point
 sources and smoke dimming what is behind it.
 
 step. T6 vision and T7 scent are not started.
