@@ -569,3 +569,12 @@ total. 6,291 recipes in the pinned data.
 
 The count matters more than it sounds: several documents in this repository quoted 5,632, a
 number that had no dump behind it. A loader gated on a remembered figure is gated on nothing.
+
+### `--dump-item-groups <file>`
+
+Writes every item group id the reference defines, sorted, with the total: **8,230** in the
+pinned data.
+
+This replaced a remembered 5,031, the third figure in these documents that a dump has corrected.
+The pattern is worth naming: counts written from memory are wrong by about ten per cent, and a
+loader gated on one is gated on nothing.

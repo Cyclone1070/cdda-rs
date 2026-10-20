@@ -346,6 +346,28 @@ void dump_traps( const std::string &path )
     std::fclose( out );
 }
 
+void dump_item_groups( const std::string &path )
+{
+    std::FILE *out = std::fopen( path.c_str(), "wb" );
+    if( out == nullptr ) {
+        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
+        return;
+    }
+    std::vector<item_group_id> groups = item_controller->get_all_group_names();
+    std::sort( groups.begin(), groups.end(),
+    []( const item_group_id & a, const item_group_id & b ) {
+        return a.str() < b.str();
+    } );
+    std::fprintf( out, "{\"harness\":\"item_groups\",\"version\":1,\n\"groups\":[\n" );
+    bool first = true;
+    for( const item_group_id &group : groups ) {
+        std::fprintf( out, "%s\"%s\"", first ? "" : ",\n", group.str().c_str() );
+        first = false;
+    }
+    std::fprintf( out, "\n],\"count\":%zu}\n", groups.size() );
+    std::fclose( out );
+}
+
 void dump_recipes( const std::string &path )
 {
     std::FILE *out = std::fopen( path.c_str(), "wb" );

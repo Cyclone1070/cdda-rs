@@ -15,6 +15,7 @@ pub mod eocs;
 pub mod factory;
 pub mod fields;
 pub mod generated;
+pub mod item_groups;
 pub mod items;
 pub mod mapdata;
 pub mod materials;
