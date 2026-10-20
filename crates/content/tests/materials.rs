@@ -138,3 +138,60 @@ fn every_material_matches_the_reference() {
     }
     assert!(mismatches.is_empty(), "{} mismatches", mismatches.len());
 }
+
+fn load() -> Vec<materials::Material> {
+    materials::load_paths(&[
+        &root().join("references/Cataclysm-DDA/data/core"),
+        &root().join("references/Cataclysm-DDA/data/json"),
+    ])
+    .expect("loads")
+}
+
+#[test]
+fn materials_carry_what_a_fire_needs_at_each_intensity() {
+    // Every material describes three intensities of burning, and the numbers climb with intensity
+    // for anything that actually burns - which is the shape the fire processor relies on.
+    let all = load();
+    assert_eq!(all.len(), 193, "materials");
+    // 109 of 193 materials carry `burn_data` in the data; the rest are filled with defaults by the
+    // reference at load time, which the port does not reproduce yet - recorded in the ledger.
+    let with_burn = all
+        .iter()
+        .filter(|material| !material.burn.is_empty())
+        .count();
+    assert_eq!(with_burn, 109, "materials that describe burning");
+    for material in all.iter().filter(|material| !material.burn.is_empty()) {
+        assert_eq!(
+            material.burn.len(),
+            3,
+            "{} must describe three intensities",
+            material.id
+        );
+        assert!(
+            material
+                .burn
+                .iter()
+                .all(|burn| (1..=3).contains(&burn.intensity)),
+            "{}: intensities are 1, 2, 3",
+            material.id
+        );
+    }
+    let wood = all.iter().find(|m| m.id == "wood").expect("wood exists");
+    let fuel: Vec<f64> = wood.burn.iter().map(|burn| burn.fuel).collect();
+    assert_eq!(fuel, vec![1.0, 2.0, 3.0], "wood fuels harder fires");
+    assert!(
+        wood.burn.iter().all(|burn| !burn.immune),
+        "and always burns"
+    );
+}
+
+#[test]
+fn exactly_one_material_refuses_to_burn_at_all() {
+    let all = load();
+    let immune: Vec<&str> = all
+        .iter()
+        .filter(|m| !m.burn.is_empty() && m.burn.iter().all(|burn| burn.immune))
+        .map(|m| m.id.as_str())
+        .collect();
+    assert_eq!(immune, vec!["nomex"], "only nomex is fireproof throughout");
+}

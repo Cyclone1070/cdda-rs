@@ -27,6 +27,25 @@ pub struct Material {
     pub specific_heat_solid: f64,
     /// Latent heat of fusion or vaporisation.
     pub latent_heat: f64,
+    /// How this material behaves in fire, per intensity (`src/fire.h:45-56`).
+    pub burn: Vec<BurnData>,
+}
+
+/// One material's behaviour in a fire of a given intensity.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BurnData {
+    /// The intensity this describes.
+    pub intensity: i32,
+    /// Nothing burns or is destroyed, whatever the fire.
+    pub immune: bool,
+    /// Volume destroyed per turn, in millilitres; zero means no ceiling.
+    pub volume_per_turn: f64,
+    /// Fuel contributed to the fire.
+    pub fuel: f64,
+    /// Smoke produced.
+    pub smoke: f64,
+    /// Fraction of the material destroyed per turn.
+    pub burn: f64,
 }
 
 /// What a material starts as.
@@ -46,6 +65,7 @@ fn defaults(id: &str) -> Material {
         specific_heat_liquid: 0.0,
         specific_heat_solid: 0.0,
         latent_heat: 0.0,
+        burn: Vec::new(),
     }
 }
 
@@ -174,6 +194,34 @@ fn apply(material: &mut Material, object: &Object) -> Result<(), LoadError> {
     if let Some(heat) = number(object, "latent_heat") {
         material.latent_heat = heat;
     }
+    let burn_key = if object.get("burn_data").is_some() {
+        "burn_data"
+    } else {
+        "burn"
+    };
+    if let Some(Value::Array(burns)) = object.get(burn_key) {
+        material.burn.clear();
+        for entry in burns {
+            let Value::Object(fields) = entry else {
+                return Err(LoadError {
+                    message: format!("material {}: a burn entry is not an object", material.id),
+                });
+            };
+            let intensity = i32::try_from(material.burn.len() + 1).unwrap_or(1);
+            let volume = match fields.get("volume_per_turn") {
+                Some(Value::Str(text)) => volume_in_ml(text),
+                _ => number(fields, "volume_per_turn"),
+            };
+            material.burn.push(BurnData {
+                intensity,
+                immune: matches!(fields.get("immune"), Some(Value::Bool(true))),
+                volume_per_turn: volume.unwrap_or(0.0),
+                fuel: number(fields, "fuel").unwrap_or(0.0),
+                smoke: number(fields, "smoke").unwrap_or(0.0),
+                burn: number(fields, "burn").unwrap_or(0.0),
+            });
+        }
+    }
     Ok(())
 }
 
@@ -224,6 +272,18 @@ fn number(object: &Object, member: &str) -> Option<f64> {
         #[allow(clippy::cast_precision_loss)]
         Some(Value::Int(value)) => Some(*value as f64),
         Some(Value::Float(value)) => Some(*value),
+        _ => None,
+    }
+}
+
+/// Reads a volume written as the data writes it, e.g. `"200 ml"`.
+fn volume_in_ml(text: &str) -> Option<f64> {
+    let trimmed = text.trim();
+    let (number_text, unit) = trimmed.split_once(' ')?;
+    let value: f64 = number_text.parse().ok()?;
+    match unit {
+        "ml" => Some(value),
+        "L" => Some(value * 1000.0),
         _ => None,
     }
 }
