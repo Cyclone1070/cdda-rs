@@ -1158,3 +1158,75 @@ fn add_field_at(world: &mut World, square: (i32, i32), id: FieldId, strength: i3
         },
     ));
 }
+
+/// What a square's terrain has to offer a fire.
+#[derive(Debug, Clone, Copy, Default)]
+#[allow(clippy::struct_excessive_bools)]
+pub struct TerrainFuel {
+    /// `FLAMMABLE`: burns every turn.
+    pub flammable: bool,
+    /// `FLAMMABLE_HARD`: burns only when `one_in(3)` allows.
+    pub flammable_hard: bool,
+    /// `FLAMMABLE_ASH`: burns and leaves ash behind.
+    pub flammable_ash: bool,
+}
+
+/// What one turn of burning terrain gives the fire.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerrainBurn {
+    /// Turns of life added to the fire.
+    pub time_added: i64,
+    /// Smoke contribution.
+    pub smoke: i32,
+    /// Whether the terrain is wrecked this turn.
+    pub bashes: bool,
+    /// Ash left behind, as charges, when the terrain was of the ashy kind.
+    pub ash_charges: Option<i32>,
+}
+
+/// Consuming the ground a fire is standing on.
+///
+/// Reference: `field_processor_fd_fire` (`src/map_field.cpp:1051-1090`). `FLAMMABLE` ground feeds the
+/// fire `5 - intensity` turns and always burns. `FLAMMABLE_HARD` needs `one_in(3)` first and gives
+/// `4 - intensity`. `FLAMMABLE_ASH` always burns, gives `5 - intensity`, and leaves ash when the
+/// ground is wrecked. Every burning kind adds two smoke plus one per five points of wind power, and
+/// a fire above intensity 1 wrecks the terrain on `one_in(200 - intensity * 50)`; the ashy kind then
+/// leaves 10 to 1000 charges of ash.
+///
+/// The dice order is the reference's: the hard-ground check first, then the wrecking check, then the
+/// ash. A square that is merely `FLAMMABLE_HARD` and fails its `one_in(3)` burns nothing at all.
+#[must_use]
+pub fn burn_terrain(
+    fuel: TerrainFuel,
+    intensity: i32,
+    windpower: i32,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) -> Option<TerrainBurn> {
+    let (time_added, ashy) = if fuel.flammable {
+        (i64::from(5 - intensity), false)
+    } else if fuel.flammable_hard && rolls.one_in(3) {
+        (i64::from(4 - intensity), false)
+    } else if fuel.flammable_ash {
+        (i64::from(5 - intensity), true)
+    } else {
+        return None;
+    };
+    let mut smoke = 2 + windpower / 5;
+    let mut bashes = false;
+    let mut ash_charges = None;
+    if intensity > 1 && rolls.one_in(200 - intensity * 50) {
+        bashes = true;
+        if ashy {
+            ash_charges = Some(rolls.rng(10, 1000));
+        }
+    }
+    if smoke < 0 {
+        smoke = 0;
+    }
+    Some(TerrainBurn {
+        time_added,
+        smoke,
+        bashes,
+        ash_charges,
+    })
+}
