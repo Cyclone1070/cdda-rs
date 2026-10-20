@@ -1555,3 +1555,74 @@ pub fn process_upgrade_intensity(
         field.entry.set_intensity(intensity + 1);
     }
 }
+
+/// A monster type, as the monster registry numbers it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct MonsterKindId(pub u32);
+
+/// A creature standing on a square.
+///
+/// Reference: `monster` and `Creature` (`src/monster.h`). The port keeps the smallest thing a field
+/// processor can touch: what it is, how much health it has left, and where it stands. Speed, moves,
+/// armour and behaviour come as the systems that need them arrive.
+#[derive(Debug, Clone, Copy, Component)]
+pub struct Monster {
+    /// What kind of creature it is.
+    pub kind: MonsterKindId,
+    /// Hit points left.
+    pub hp: i32,
+}
+
+/// Puts a creature on a square.
+pub fn spawn_monster(
+    world: &mut World,
+    square: (i32, i32),
+    kind: MonsterKindId,
+    hp: i32,
+) -> Entity {
+    world
+        .spawn((
+            Position {
+                x: square.0,
+                y: square.1,
+            },
+            Monster { kind, hp },
+        ))
+        .id()
+}
+
+/// Every creature standing on one square, in spawn order.
+#[must_use]
+pub fn monsters_at(world: &mut World, square: (i32, i32)) -> Vec<Entity> {
+    let mut found = Vec::new();
+    {
+        let mut query = world.query::<(Entity, &Position, &Monster)>();
+        for (entity, at, _) in query.iter(world) {
+            if at.x == square.0 && at.y == square.1 {
+                found.push(entity);
+            }
+        }
+    }
+    found.sort_by_key(|entity| entity.index());
+    found
+}
+
+/// Hurts a creature, and takes it off the map when it has nothing left.
+///
+/// Returns whether the creature died. Reference: `Creature::deal_damage` and the death check that
+/// follows it (`src/monster.cpp`); the port keeps the part a field needs - damage goes in, and a
+/// creature at zero or below leaves the world.
+pub fn damage_monster(world: &mut World, entity: Entity, amount: i32) -> bool {
+    let Some(hp) = world.get::<Monster>(entity).map(|monster| monster.hp) else {
+        return false;
+    };
+    let left = hp - amount.max(0);
+    if left <= 0 {
+        world.despawn(entity);
+        return true;
+    }
+    if let Some(mut monster) = world.get_mut::<Monster>(entity) {
+        monster.hp = left;
+    }
+    false
+}
