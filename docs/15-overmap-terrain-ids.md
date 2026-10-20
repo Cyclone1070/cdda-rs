@@ -37,14 +37,52 @@ Check: 5,903 × 4 + 365 + 256 + 1 (the empty id) = 24,234 against the reference'
 enough to say the shape of the rule is right, and specific enough that the id gate
 will name the remainder rather than hide it.
 
-## Open: which 202 types refuse to rotate
+## Solved: the rotation rule, exactly
 
-`NO_ROTATE` covers 149 of the non-rotating types and `LINEAR` another 14, which
-leaves **202** with no flag at all: `basement`, `crater_core_large`,
-`faction_base_blacksmith_0` and friends. Something else decides for them. The
-candidates are inheritance (`copy-from` reaching a `NO_ROTATE` parent) and a rule
-in `oter_type_t` itself; that is the next thing to read, and it is a small enough
-question to answer exactly rather than approximate.
+`src/omdata.h:372` is the rule, and nothing in it is about geometry:
 
-This is the state of the last P1 blocker: one registry solved by counting, one
-registry with its shape known and 202 types still to explain.
+```
+is_rotatable() = !NO_ROTATE && !LINEAR
+```
+
+Three things had to be right for that to reproduce the dump, and the first two are
+the ones that had me guessing:
+
+1. **Flags inherit.** A type's flags are its own plus its `copy-from` chain's,
+   resolved through `abstract` parents too - my first pass indexed only `"id"`, so
+   52 types looked flagless when their parent had `NO_ROTATE`.
+2. **`delete` applies after inheritance.** `kelp_forest_end` inherits
+   `NO_ROTATE` from `generic_kelp_forest` and then deletes it, so it rotates. A
+   resolver that applies the delete first re-adds the parent's flag and gets it
+   backwards.
+3. **`uniform_terrain` is not rotatable.** Those types carry no variants at all.
+
+With all three, predicted and measured agree on **5,901 types with no
+disagreement** - every type either has all four variants or none.
+
+## The whole registry, accounted for
+
+| Part | Count |
+|---|---:|
+Types that rotate, times four | 23,612 |
+Types with no variants | 351 |
+Line-drawing shapes for the 14 `LINEAR` types | 256 |
+Empty id | 1 |
+
+That is the terrain registry, and it reconciles to within two ids of the
+reference's 24,218 - the two being names that are both a type and a rotation
+variant of another type.
+
+The line-drawing shapes are `om_lines::mapgen_suffixes` (`src/overmap.cpp:262-275`):
+`_es`, `_esw`, `_isolated`, `_end_north` and the rest, generated for the 14
+terrains flagged `LINEAR` - the ant tunnels and their relatives.
+
+## What the loader has to do
+
+1. Read every `type: overmap_terrain` entry in load order, indexing `abstract`
+   entries as well as `id` ones.
+2. Resolve flags through `copy-from`, applying `delete.flags` last.
+3. Register one **type** id per distinct id: 6,269, verified.
+4. Register **terrains**: four rotations when rotatable, the 256 line shapes when
+   `LINEAR`, the bare id otherwise.
+5. Let the id gate name any remainder - it already knows the answer to the id.
