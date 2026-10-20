@@ -31,6 +31,12 @@ pub struct Level {
     placed: BTreeMap<SubmapId, (i32, i32)>,
     /// The other way round, for turning a coordinate into a submap.
     at: BTreeMap<(i32, i32), SubmapId>,
+    /// The light last built, and what it was built for.
+    light: Option<Vec<Vec<bool>>>,
+    light_key: Option<((i32, i32), i32)>,
+    /// Whether something has changed since the light was built.
+    light_dirty: bool,
+    light_rebuilds: u32,
 }
 
 impl Level {
@@ -89,6 +95,9 @@ impl Level {
         if let Some(entry) = self.store.get_mut(id) {
             entry.set_terrain(cell_x, cell_y, terrain);
         }
+        // The reference marks the level dirty on the same write. Until the light is
+        // rebuilt, anything read from it describes the world before this call.
+        self.light_dirty = true;
     }
 
     /// Which world tiles an origin can see, given which terrain blocks light.
@@ -141,5 +150,45 @@ impl Level {
             }
         }
         rows
+    }
+}
+
+impl Level {
+    /// The visibility last built, if it can still be trusted.
+    ///
+    /// The reference rebuilds a level's light when the level is dirty
+    /// (`map::build_map_cache`), not once per query, so this keeps one result and the
+    /// coordinates it belongs to.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the radius is negative, as [`Level::visibility`] does.
+    pub fn cached_visibility(
+        &mut self,
+        origin: (i32, i32),
+        radius: i32,
+        blocks_light: impl Fn(u32) -> bool,
+    ) -> &Vec<Vec<bool>> {
+        let key = (origin, radius);
+        let stale = self.light_dirty || self.light.is_none() || self.light_key != Some(key);
+        if stale {
+            let built = self.visibility(origin, radius, blocks_light);
+            self.light = Some(built);
+            self.light_key = Some(key);
+            self.light_dirty = false;
+            self.light_rebuilds += 1;
+        }
+        // Both branches leave a value in place: either it was just built, or it was
+        // already there and the staleness check above said so.
+        match &self.light {
+            Some(rows) => rows,
+            None => unreachable!("the light was just built"),
+        }
+    }
+
+    /// How many times light has been rebuilt; the level's own receipt.
+    #[must_use]
+    pub fn light_rebuilds(&self) -> u32 {
+        self.light_rebuilds
     }
 }

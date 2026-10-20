@@ -91,3 +91,54 @@ fn light_does_not_pass_through_a_place_the_world_has_not_made() {
     assert!(at(2, 0), "the edge of the world is itself something to see");
     assert!(!at(3, 0), "nothing exists behind it to light");
 }
+
+#[test]
+fn light_is_built_once_and_rebuilt_after_a_change() {
+    // The reference rebuilds a level's light when the level is dirty, not once per
+    // query: a hundred reads of an unchanged room cost one build.
+    let mut level = Level::new();
+    level.ensure(0, 0, FLOOR);
+    let radius = 3;
+    let first = level
+        .cached_visibility((5, 5), radius, blocks_light)
+        .clone();
+    let second = level
+        .cached_visibility((5, 5), radius, blocks_light)
+        .clone();
+    assert_eq!(first, second);
+    assert_eq!(level.light_rebuilds(), 1, "the second read costs nothing");
+
+    // A wall goes up two tiles east of the light.
+    level.set_terrain(7, 5, WALL, FLOOR);
+    let after = level
+        .cached_visibility((5, 5), radius, blocks_light)
+        .clone();
+    assert_eq!(level.light_rebuilds(), 2, "the change cost one rebuild");
+    let at = |rows: &Vec<Vec<bool>>, dx: i32, dy: i32| {
+        rows[(dy + radius) as usize][(dx + radius) as usize]
+    };
+    // The wall tile itself is visible either way - it is the floor past it that
+    // changes from open ground to shadow.
+    assert!(
+        at(&first, 2, 0) && at(&after, 2, 0),
+        "the tile is visible both times"
+    );
+    assert!(at(&first, 3, 0), "nothing was in the way before");
+    assert!(!at(&after, 3, 0), "the new wall casts a shadow now");
+}
+
+#[test]
+fn moving_the_light_rebuilds_even_when_nothing_changed() {
+    // The cache is keyed by where the light is as well as by whether the level moved:
+    // same world, different viewer, different answer.
+    let mut level = Level::new();
+    level.ensure(0, 0, FLOOR);
+    level.set_terrain(8, 5, WALL, FLOOR);
+    let radius = 3;
+    let _ = level.cached_visibility((5, 5), radius, blocks_light);
+    let from_elsewhere = level
+        .cached_visibility((5, 6), radius, blocks_light)
+        .clone();
+    assert_eq!(level.light_rebuilds(), 2);
+    assert!(!from_elsewhere[3][3], "the origin does not light itself");
+}
