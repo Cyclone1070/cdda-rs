@@ -129,8 +129,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-21 05:47:47
-@@ -0,0 +1,835 @@
++++ oracle/src/src/harness.cpp	2026-10-21 06:16:46
+@@ -0,0 +1,836 @@
 +#include "harness.h"
 +#include "recipe_dictionary.h"
 +#include "requirements.h"
@@ -558,8 +558,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
 +        return;
 +    }
-+    // The JSON mapgens are registered lazily; calculating the weights is what forces the
-+    // registry to become complete.
++    // Forcing the weights does not make the JSON mapgens appear: the registry holds only the
++    // built-in C++ ones (325 keys) at this point, and finalising here aborts, because the data
++    // was already finalised by check_mod_data. Both are recorded in the roadmap.
 +    calculate_mapgen_weights();
 +    std::vector<std::string> keys;
 +    for( const oter_t &oter : overmap_terrains::get_all() ) {

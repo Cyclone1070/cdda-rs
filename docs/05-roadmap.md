@@ -481,8 +481,12 @@ the harness can run it the registry holds only **325** keys - `house` and `road`
 `check_mod_data`, and a dump taken there is a subset that would look authoritative. No fixture was
 committed: a misleading oracle is worse than a missing one. A probe with `--check-mods dda` was inconclusive: that path validates the whole dataset and takes
 many minutes before the dump branch is reached, so it was stopped rather than left running. Forcing
-`calculate_mapgen_weights()` first does not help - the count stays at 325 - so the
-registry is being filled somewhere later, most likely during world or overmap creation. The next
+`calculate_mapgen_weights()` first does not help - the count stays at 325 - and calling
+`finalize_loaded_data()` aborts, because `check_mod_data` has already finalised. Nor is it a key
+mismatch: neither `house` nor `house_north` is present, while the 325 that are look like the
+built-in C++ mapgens (`LIXA_*`, `field`, `forest`). So the JSON mapgen set is never loaded on this
+path at all, and the dump needs either a load that skips finalisation until mapgens are in, or the
+world-initialisation path. The next
 attempt has to initialise enough of a world for mapgens to load, and the professions/scenarios
 dump shows the difference: those registries are complete after the normal load (320 and 60 ids loaded; kits pending), which
 is why that one was trusted on its first run and the mapgen one was not.

@@ -425,8 +425,9 @@ void dump_mapgens( const std::string &path )
         std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
         return;
     }
-    // The JSON mapgens are registered lazily; calculating the weights is what forces the
-    // registry to become complete.
+    // Forcing the weights does not make the JSON mapgens appear: the registry holds only the
+    // built-in C++ ones (325 keys) at this point, and finalising here aborts, because the data
+    // was already finalised by check_mod_data. Both are recorded in the roadmap.
     calculate_mapgen_weights();
     std::vector<std::string> keys;
     for( const oter_t &oter : overmap_terrains::get_all() ) {
