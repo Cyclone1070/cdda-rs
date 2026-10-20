@@ -1865,3 +1865,66 @@ pub fn simulate_burn(
     }
     BurnResult { fuel, smoke, burn }
 }
+
+/// Rounds a value down, and up with the probability of its fraction.
+///
+/// Reference: `roll_remainder` (`src/rng.cpp`). A whole value draws nothing; a fractional one draws
+/// once. The order of these draws is part of the contract for anything that burns.
+#[must_use]
+pub fn roll_remainder(value: f64, rolls: &mut cdda_core_types::rng::Rolls) -> i32 {
+    let whole = value.trunc();
+    let fraction = value - whole;
+    let bumped = if fraction > 0.0 {
+        rolls.rng_float(0.0, 1.0) < fraction
+    } else {
+        false
+    };
+    #[allow(clippy::cast_possible_truncation)]
+    let result = whole as i32;
+    if bumped { result + 1 } else { result }
+}
+
+/// What a burning item remembers between turns.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BurnState {
+    /// Whether it is a stack counted in charges.
+    pub by_charges: bool,
+    /// Charges left, for a stack.
+    pub charges: i32,
+    /// Charges in one stack.
+    pub stack_size: i32,
+    /// Its base volume, in millilitres.
+    pub volume_ml: f64,
+    /// How much of a solid item has burned away so far.
+    pub burnt: i32,
+}
+
+/// Applies a turn of burning to one item, and says whether it is gone.
+///
+/// Reference: the bookkeeping half of `item::burn` (`src/item.cpp:12609-12643`). A stack loses
+/// `roll_remainder(burn * 250ml * stack_size / (3 * volume))` charges, and a stack with no volume
+/// loses them all at once. A solid item accumulates `roll_remainder(burn)` and is gone once it has
+/// burned `volume / 250ml * 3`.
+pub fn burn_item(
+    state: &mut BurnState,
+    burn_added: f64,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) -> bool {
+    if state.by_charges {
+        if state.volume_ml <= 0.0 {
+            state.charges = 0;
+        } else {
+            let lost = roll_remainder(
+                burn_added * 250.0 * f64::from(state.stack_size) / (3.0 * state.volume_ml),
+                rolls,
+            );
+            state.charges -= lost;
+        }
+        return state.charges <= 0;
+    }
+    state.burnt += roll_remainder(burn_added, rolls);
+    let threshold = (state.volume_ml / 250.0 * 3.0).trunc();
+    #[allow(clippy::cast_possible_truncation)]
+    let limit = threshold as i32;
+    state.burnt >= limit
+}
