@@ -21,6 +21,7 @@ pub mod options;
 pub mod paths;
 pub mod rng;
 pub mod strings;
+pub mod submap;
 pub mod text;
 pub mod tiles;
 pub mod units;
