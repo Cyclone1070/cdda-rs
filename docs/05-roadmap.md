@@ -86,6 +86,11 @@ remaining id gaps are overmap terrain, its types and its specials, all of which 
 map generator creates rather than reads. The fourth is the inline
 effect-on-conditions, whose slots belong to the furniture and tool loaders.
 
+Every porting task follows [14-test-porting.md](14-test-porting.md): dump first, write
+the failing gate, port the smallest thing that clears it, then tighten the gate. The
+fast loop is `python3 tools/test_fast.py`, which runs the test binaries concurrently
+(43 s for the whole suite against 156 s serial) and reports what each one cost.
+
 Resume at the mapgen loader: start from `load_and_add_mapgen_function`
 (`src/mapgen.cpp:1400-1480`), reproduce the terrain ids it derives from
 `om_terrain` arrays - chunked per position and per rotation - and hold them to

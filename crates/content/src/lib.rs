@@ -69,3 +69,41 @@ pub fn json_files_in_load_order(dir: &Path) -> std::io::Result<Vec<PathBuf>> {
 
 /// The concrete ids a registry holds, keyed by the registry's type name.
 pub type IdsByType = BTreeMap<String, Vec<String>>;
+
+/// Reads and parses one JSON file, remembering the result for this process.
+///
+/// Every loader walks the same 6,220 files, so a gate that loads items and then
+/// monsters parses the 107 MB tree twice for nothing. The memo makes the second
+/// pass free. It is keyed by path because the content a run sees cannot change
+/// underneath it; a caller that needs to see a modified file starts a new process,
+/// which is what every gate does anyway.
+///
+/// The memory is the point: the whole tree costs a few hundred megabytes once,
+/// where re-parsing costs seconds every time. `CDDA_NO_PARSE_MEMO=1` turns it off
+/// for anyone measuring the parser itself.
+pub fn read_json(path: &Path) -> Option<std::sync::Arc<cdda_json::Value>> {
+    use std::cell::RefCell;
+    use std::collections::HashMap;
+    use std::sync::{Arc, OnceLock};
+
+    static DISABLED: OnceLock<bool> = OnceLock::new();
+    let disabled = *DISABLED.get_or_init(|| std::env::var_os("CDDA_NO_PARSE_MEMO").is_some());
+
+    thread_local! {
+        static MEMO: RefCell<HashMap<PathBuf, Option<Arc<cdda_json::Value>>>> =
+            RefCell::new(HashMap::new());
+    }
+
+    let bytes = std::fs::read(path).ok()?;
+    if disabled {
+        return cdda_json::parse(&bytes).ok().map(Arc::new);
+    }
+    MEMO.with(|memo| {
+        if let Some(hit) = memo.borrow().get(path) {
+            return hit.clone();
+        }
+        let parsed = cdda_json::parse(&bytes).ok().map(Arc::new);
+        memo.borrow_mut().insert(path.to_path_buf(), parsed.clone());
+        parsed
+    })
+}

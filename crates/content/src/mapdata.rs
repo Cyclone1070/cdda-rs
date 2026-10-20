@@ -85,10 +85,7 @@ pub fn load_paths(dirs: &[&std::path::Path]) -> Result<Vec<MapData>, LoadError> 
             message: format!("{}: {error}", dir.display()),
         })?;
         for path in files {
-            let bytes = std::fs::read(&path).map_err(|error| LoadError {
-                message: format!("{}: {error}", path.display()),
-            })?;
-            if let Ok(value) = cdda_json::parse(&bytes) {
+            if let Some(value) = crate::read_json(&path) {
                 collect(&value, &mut loaded);
             }
         }

@@ -258,10 +258,7 @@ pub fn load_paths(dirs: &[&std::path::Path]) -> Result<Vec<ItemType>, LoadError>
             message: format!("{}: {error}", dir.display()),
         })?;
         for path in files {
-            let bytes = std::fs::read(&path).map_err(|error| LoadError {
-                message: format!("{}: {error}", path.display()),
-            })?;
-            let Ok(value) = cdda_json::parse(&bytes) else {
+            let Some(value) = crate::read_json(&path) else {
                 continue;
             };
             collect(&value, &mut objects, &mut order, &mut categories);
@@ -471,10 +468,7 @@ fn anatomy_of(dirs: &[&std::path::Path]) -> Result<Anatomy, LoadError> {
             message: format!("{}: {error}", dir.display()),
         })?;
         for path in files {
-            let bytes = std::fs::read(&path).map_err(|error| LoadError {
-                message: format!("{}: {error}", path.display()),
-            })?;
-            let Ok(value) = cdda_json::parse(&bytes) else {
+            let Some(value) = crate::read_json(&path) else {
                 continue;
             };
             collect_anatomy(&value, &mut anatomy);

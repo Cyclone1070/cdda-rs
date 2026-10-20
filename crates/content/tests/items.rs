@@ -13,6 +13,9 @@
 )]
 
 use cdda_content::items;
+
+/// How many fields this gate compares, for the receipt it prints.
+const FIELDS: usize = 11;
 use cdda_json::{Value, parse};
 use std::path::{Path, PathBuf};
 
@@ -74,6 +77,7 @@ fn a_weighted_material_and_a_plain_name_both_load() {
 
 #[test]
 fn every_item_type_matches_the_reference() {
+    let started = std::time::Instant::now();
     let text =
         std::fs::read_to_string(root().join("corpus/prototypes/items.json")).expect("artifact");
     let value = parse(text.as_bytes()).expect("parses");
@@ -111,7 +115,13 @@ fn every_item_type_matches_the_reference() {
         };
         compare_item(&id, object, ours, &mut mismatches);
     }
-    println!("{} mismatches", mismatches.len());
+    println!(
+        "items: {} prototypes, {} fields, {} mismatches in {:.1}s",
+        entries.len(),
+        FIELDS,
+        mismatches.len(),
+        started.elapsed().as_secs_f64()
+    );
     for line in mismatches.iter().take(20) {
         println!("  {line}");
     }

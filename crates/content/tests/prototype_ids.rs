@@ -197,6 +197,7 @@ const KNOWN_GAPS: [(&str, usize); 4] = [
 
 #[test]
 fn every_registry_holds_the_same_ids_as_the_reference_except_the_named_gaps() {
+    let started = std::time::Instant::now();
     let root = reference_root();
     let core = root.join("data/core");
     let content = root.join("data/json");
@@ -263,6 +264,14 @@ fn every_registry_holds_the_same_ids_as_the_reference_except_the_named_gaps() {
     for line in &unexplained {
         println!("  {line}");
     }
+    let exact = theirs.len() - KNOWN_GAPS.len();
+    println!(
+        "registries: {exact} of {} exact, {} named gaps ({} ids missing, none invented) in {:.1}s",
+        theirs.len(),
+        KNOWN_GAPS.len(),
+        KNOWN_GAPS.iter().map(|(_, missing)| missing).sum::<usize>(),
+        started.elapsed().as_secs_f64()
+    );
     assert!(
         unexplained.is_empty(),
         "{} registries differ for a reason that is not in the known-gap list",

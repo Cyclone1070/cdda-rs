@@ -68,6 +68,12 @@ Two sources of test material, kept separate:
   as a test, convert into a scripted session, convert into an invariant, or drop
   (with a reason). The triage table lives in `docs/parts/test-triage.md`.
 
+The mechanical inventory behind that triage is
+[13-test-inventory.md](13-test-inventory.md), regenerated from the reference by
+`tools/test_inventory.py` so it can never drift; the rules for taking a case -
+what to keep, what to rewrite, how to cite, how to triage a wart - are in
+[14-test-porting.md](14-test-porting.md).
+
 T2 is the higher-value source: it encodes the original's behaviour, including the
 parts nobody would think to re-derive. The triage is done — all 218 files, 1,217
 cases, 85,073 lines, classified one file at a time in

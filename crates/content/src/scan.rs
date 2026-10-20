@@ -69,10 +69,9 @@ pub fn scan(dirs: &[&Path]) -> Result<Vec<Registry>, ScanError> {
 /// Scans one directory into a registry set.
 fn scan_one(dir: &Path, registries: &mut IdsByType) -> Result<(), ScanError> {
     for path in json_files_in_load_order(dir).map_err(ScanError::Io)? {
-        let bytes = std::fs::read(&path).map_err(ScanError::Io)?;
-        let value = cdda_json::parse(&bytes).map_err(|error| ScanError::Parse {
+        let value = crate::read_json(&path).ok_or_else(|| ScanError::Parse {
             path: path.display().to_string(),
-            message: error.to_string(),
+            message: "file did not parse".to_owned(),
         })?;
         collect(&value, registries);
     }
