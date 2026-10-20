@@ -10,15 +10,6 @@ use cdda_json::Value;
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
-/// Two types that carry `NO_ROTATE` by inheritance and rotate anyway in the
-/// reference's registry. The flag rule explains 5,901 of 5,903 rotatable types;
-/// these are the two it does not, and they are named here rather than papered
-/// over by weakening the rule for everyone. See docs/15-overmap-terrain-ids.md.
-const ROTATION_OUTLIERS: [&str; 2] = [
-    "microlab_ratkin_surface_connector",
-    "microlab_ratkin_vent_shaft_connector",
-];
-
 fn reference_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA")
 }
@@ -94,19 +85,10 @@ fn the_terrain_registry_is_the_types_plus_their_variants() {
     let ours: BTreeSet<String> = loaded.terrains.iter().cloned().collect();
     let theirs = reference_ids("overmap terrain");
 
-    let invented: BTreeSet<&String> = ours.difference(&theirs).collect();
-    let unexpected: Vec<&&String> = invented
-        .iter()
-        .filter(|id| !ROTATION_OUTLIERS.contains(&id.as_str()))
-        .collect();
+    let invented: Vec<&String> = ours.difference(&theirs).take(8).collect();
     assert!(
-        unexpected.is_empty(),
-        "the port made up ids the reference does not have: {unexpected:?}"
-    );
-    assert_eq!(
-        invented.len(),
-        ROTATION_OUTLIERS.len(),
-        "the outlier list should describe every id the rule cannot explain"
+        invented.is_empty(),
+        "the port made up ids the reference does not have: {invented:?}"
     );
 
     let missing: BTreeSet<&String> = theirs.difference(&ours).collect();
@@ -116,13 +98,9 @@ fn the_terrain_registry_is_the_types_plus_their_variants() {
         theirs.len(),
         missing.len()
     );
-    // Each outlier registers four variants in the reference and one bare id here,
-    // so its eight variants are the whole of what is left.
-    assert_eq!(
-        missing.len(),
-        ROTATION_OUTLIERS.len() * 4,
-        "the only ids still missing should be the four variants of each outlier; \
-         first: {:?}",
+    assert!(
+        missing.is_empty(),
+        "missing ids: {:?}",
         missing.iter().take(8).collect::<Vec<_>>()
     );
 }

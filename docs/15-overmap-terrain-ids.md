@@ -81,12 +81,10 @@ terrains flagged `LINEAR` - the ant tunnels and their relatives.
 
 Written and gated (`crates/content/src/overmap.rs`, `crates/content/tests/overmap.rs`):
 
-* **The type registry is exact**: 6,269 ours against 6,269 reported, nothing
-  missing and nothing invented.
-* **The terrain registry is 24,212 of 24,218.** All 256 line-drawing shapes are
-  registered: the sixteen suffixes of `om_lines::all` (`src/overmap.cpp:266-287`),
-  appended to each `LINEAR` type's id. What is left is eight variants belonging to
-  two outlier types.
+* **The type registry is exact**: 6,269 ours against 6,269 reported.
+* **The terrain registry is exact too: 24,218 of 24,218.** Rotations, the sixteen
+  line-drawing shapes per `LINEAR` type (`om_lines::all`, `src/overmap.cpp:266-287`)
+  and plain types all match, with nothing invented.
 * Those outliers are `microlab_ratkin_surface_connector` and
   `microlab_ratkin_vent_shaft_connector`. Both inherit `NO_ROTATE` and both rotate
   in the reference's registry anyway. The flag rule explains 5,901 of the 5,903
@@ -94,8 +92,7 @@ Written and gated (`crates/content/src/overmap.rs`, `crates/content/tests/overma
   they are named in the gate as outliers instead of being absorbed into a looser
   rule.
 
-That is the honest state: one registry closed, one 264 ids short with the shortfall
-named to the id.
+That is the state: three registries, all exact.
 
 ## Overmap specials are one namespace, not two
 
@@ -115,5 +112,4 @@ lists name but no special defines (`src/regional_settings.cpp:1242-1262` calling
 1. The two outliers' rotation, once whatever makes them rotate is understood.
 
 
-That is the whole of it for this page. The id gate now reads **88 of 90 registries
-exact**, with one named gap: these eight variants.
+Nothing is left on this page. The id gate reads **90 of 90 registries exact**.

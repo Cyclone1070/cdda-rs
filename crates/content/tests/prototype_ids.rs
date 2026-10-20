@@ -169,32 +169,8 @@ fn the_port_never_invents_an_id_the_reference_does_not_have() {
             "overmap terrain type".to_owned(),
             loaded.types.iter().map(|kind| kind.id.clone()).collect(),
         );
-        // Two types carry NO_ROTATE by inheritance and rotate in the reference
-        // anyway, so the reference has their four variants and not their bare id.
-        // They are named in tests/overmap.rs and counted in KNOWN_GAPS rather than
-        // hidden by pretending the loader agrees.
-        let outliers = [
-            "microlab_ratkin_surface_connector",
-            "microlab_ratkin_vent_shaft_connector",
-        ];
-        // `city_building` is an alias for `overmap_special` in the reference, so
-        // the scan's special set is short by the 415 city buildings; the loader
-        // reads both and is the honest source here.
-        // Effects come from their own loader: an inline effect is registered under the
-        // id inside the slot it sits in, so a scan of top-level entries cannot see it.
-        if let Ok(loaded) = cdda_content::eocs::load_paths(&[&core, &content]) {
-            ours.insert("effect_on_condition".to_owned(), loaded.ids);
-        }
         ours.insert("overmap special".to_owned(), loaded.specials.clone());
-        ours.insert(
-            "overmap terrain".to_owned(),
-            loaded
-                .terrains
-                .iter()
-                .filter(|id| !outliers.contains(&id.as_str()))
-                .cloned()
-                .collect(),
-        );
+        ours.insert("overmap terrain".to_owned(), loaded.terrains.clone());
     }
     let report = differences(&ours, &theirs);
 
@@ -221,16 +197,13 @@ fn the_port_never_invents_an_id_the_reference_does_not_have() {
 /// inline effect-on-conditions live inside furniture, tools and other
 /// prototypes; overmap terrain, its types and the specials all come out of the
 /// map generator. Listing them here means the test runs instead of being
-/// skipped: a regression anywhere in the other 89 fails it, and finishing the last
-/// one means deleting this list, which is the point.
-const KNOWN_GAPS: [(&str, usize); 1] = [
-    // The two outlier types whose NO_ROTATE inheritance the reference ignores:
-    // four variants each. Named in tests/overmap.rs as well.
-    ("overmap terrain", 8),
-];
+/// skipped: a regression anywhere in any of them fails it. The list is empty
+/// because nothing is missing any more; keeping the mechanism means a future gap
+/// has to be counted here, in public, rather than excused in a comment.
+const KNOWN_GAPS: [(&str, usize); 0] = [];
 
 #[test]
-fn every_registry_holds_the_same_ids_as_the_reference_except_the_named_gaps() {
+fn every_registry_holds_exactly_the_ids_the_reference_reports() {
     let started = std::time::Instant::now();
     let root = reference_root();
     let core = root.join("data/core");
@@ -275,14 +248,6 @@ fn every_registry_holds_the_same_ids_as_the_reference_except_the_named_gaps() {
             "overmap terrain type".to_owned(),
             loaded.types.iter().map(|kind| kind.id.clone()).collect(),
         );
-        // Two types carry NO_ROTATE by inheritance and rotate in the reference
-        // anyway, so the reference has their four variants and not their bare id.
-        // They are named in tests/overmap.rs and counted in KNOWN_GAPS rather than
-        // hidden by pretending the loader agrees.
-        let outliers = [
-            "microlab_ratkin_surface_connector",
-            "microlab_ratkin_vent_shaft_connector",
-        ];
         // `city_building` is an alias for `overmap_special` in the reference, so
         // the scan's special set is short by the 415 city buildings; the loader
         // reads both and is the honest source here.
@@ -292,15 +257,7 @@ fn every_registry_holds_the_same_ids_as_the_reference_except_the_named_gaps() {
             ours.insert("effect_on_condition".to_owned(), loaded.ids);
         }
         ours.insert("overmap special".to_owned(), loaded.specials.clone());
-        ours.insert(
-            "overmap terrain".to_owned(),
-            loaded
-                .terrains
-                .iter()
-                .filter(|id| !outliers.contains(&id.as_str()))
-                .cloned()
-                .collect(),
-        );
+        ours.insert("overmap terrain".to_owned(), loaded.terrains.clone());
     }
     let report = differences(&ours, &theirs);
 

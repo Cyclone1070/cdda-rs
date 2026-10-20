@@ -103,7 +103,11 @@ pub struct Loaded {
 /// One raw definition, before inheritance is resolved.
 #[derive(Debug, Default)]
 struct Raw {
-    own_flags: BTreeSet<String>,
+    /// The flags a plain `flags` member sets, replacing whatever was inherited.
+    replace_flags: Option<BTreeSet<String>>,
+    /// The flags `extend.flags` adds on top.
+    extend_flags: BTreeSet<String>,
+    /// The flags `delete.flags` removes last.
     deleted_flags: BTreeSet<String>,
     copied_from: Option<String>,
     uniform: bool,
@@ -242,14 +246,19 @@ fn collect(object: &cdda_json::Object, raw: &mut BTreeMap<String, Raw>, order: &
         _ => None,
     };
 
-    let mut own = BTreeSet::new();
-    if let Some(Value::Array(flags)) = object.get("flags") {
-        for flag in flags {
-            if let Value::Str(text) = flag {
-                own.insert(text.clone());
-            }
-        }
-    }
+    let replace_flags = match object.get("flags") {
+        Some(Value::Array(flags)) => Some(
+            flags
+                .iter()
+                .filter_map(|flag| match flag {
+                    Value::Str(text) => Some(text.clone()),
+                    _ => None,
+                })
+                .collect::<BTreeSet<String>>(),
+        ),
+        _ => None,
+    };
+    let mut extended = BTreeSet::new();
     let mut deleted = BTreeSet::new();
     if let Some(Value::Object(delete)) = object.get("delete")
         && let Some(Value::Array(flags)) = delete.get("flags")
@@ -265,7 +274,7 @@ fn collect(object: &cdda_json::Object, raw: &mut BTreeMap<String, Raw>, order: &
     {
         for flag in flags {
             if let Value::Str(text) = flag {
-                own.insert(text.clone());
+                extended.insert(text.clone());
             }
         }
     }
@@ -286,7 +295,10 @@ fn collect(object: &cdda_json::Object, raw: &mut BTreeMap<String, Raw>, order: &
             order.push(id.clone());
         }
         let entry = raw.entry(id).or_default();
-        entry.own_flags.extend(own.iter().cloned());
+        if let Some(flags) = &replace_flags {
+            entry.replace_flags = Some(flags.clone());
+        }
+        entry.extend_flags.extend(extended.iter().cloned());
         entry.deleted_flags.extend(deleted.iter().cloned());
         entry.uniform = entry.uniform || uniform;
         if copied_from.is_some() {
@@ -325,13 +337,19 @@ fn resolve(raw: &BTreeMap<String, Raw>, order: &[String]) -> Vec<TerrainType> {
                 stack.push(parent.to_owned());
                 continue;
             }
-            let mut flags = BTreeSet::new();
-            if let Some(parent) = entry.copied_from.as_deref()
-                && let Some(inherited) = resolved.get(parent)
-            {
-                flags.clone_from(inherited);
-            }
-            flags.extend(entry.own_flags.iter().cloned());
+            let inherited = entry
+                .copied_from
+                .as_deref()
+                .and_then(|parent| resolved.get(parent))
+                .cloned()
+                .unwrap_or_default();
+            // A plain `flags` member replaces what was inherited; `extend.flags`
+            // adds to it; `delete.flags` takes away last. That is the reference's
+            // read order, and it decides whether a type rotates: the microlab
+            // connectors replace their parent's NO_ROTATE and so rotate, while
+            // their neighbours extend the same parent's flags and so do not.
+            let mut flags = entry.replace_flags.clone().unwrap_or(inherited);
+            flags.extend(entry.extend_flags.iter().cloned());
             for flag in &entry.deleted_flags {
                 flags.remove(flag);
             }

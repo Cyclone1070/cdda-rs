@@ -76,7 +76,10 @@ inherits its mistakes.
 
 M1 is the first milestone that proves anything. Everything before it is scaffolding.
 
-**Where the work stands.** M0 is passed. M1 is part-passed: seven loader families
+**Where the work stands.** M0 is passed. The id half of M1 is **finished**: all 90
+registries the reference reports are now reproduced exactly, with nothing invented
+- terrain and its types, overmap specials, effect-on-conditions, items, monsters,
+materials, fields, traps and the rest. Seven loader families
 carry field-level corpora from the reference's own dumps (terrain and furniture,
 traps, materials, field types, item types, monster types, and the generated
 prototypes those loaders create), the registry gate holds 86 of 90 id sets exactly
