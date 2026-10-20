@@ -1571,6 +1571,8 @@ pub struct Monster {
     pub kind: MonsterKindId,
     /// Hit points left.
     pub hp: i32,
+    /// Moves left this turn; the reference's action points.
+    pub moves: f64,
 }
 
 /// Puts a creature on a square.
@@ -1586,7 +1588,11 @@ pub fn spawn_monster(
                 x: square.0,
                 y: square.1,
             },
-            Monster { kind, hp },
+            Monster {
+                kind,
+                hp,
+                moves: 100.0,
+            },
         ))
         .id()
 }
@@ -1607,6 +1613,18 @@ pub fn monsters_at(world: &mut World, square: (i32, i32)) -> Vec<Entity> {
     found
 }
 
+/// Applies a gas effect to one creature.
+///
+/// Returns whether the creature died. Reference: the per-creature part of
+/// `map_field::process_fields_in_submap` (`src/map_field.cpp:1900-1990`), which deals damage and
+/// takes moves in the same pass.
+pub fn breathe_gas(world: &mut World, entity: Entity, effect: &GasEffect) -> bool {
+    if let Some(mut monster) = world.get_mut::<Monster>(entity) {
+        monster.moves -= effect.moves_penalty;
+    }
+    damage_monster(world, entity, effect.damage)
+}
+
 /// Hurts a creature, and takes it off the map when it has nothing left.
 ///
 /// Returns whether the creature died. Reference: `Creature::deal_damage` and the death check that
@@ -1625,4 +1643,66 @@ pub fn damage_monster(world: &mut World, entity: Entity, amount: i32) -> bool {
         monster.hp = left;
     }
     false
+}
+
+/// What breathing a gas does to a creature this turn.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GasEffect {
+    /// Hit points lost, before armour.
+    pub damage: i32,
+    /// Moves taken away, in raw move units.
+    pub moves_penalty: f64,
+}
+
+/// Toxic gas: a little damage, a little slowness, per point of intensity.
+///
+/// Reference: `field_processor_fd_toxic_gas` (`src/map_field.cpp:1966-1971`). A creature that
+/// breathes takes damage equal to the intensity and loses that many moves. Nothing is drawn.
+#[must_use]
+pub fn toxic_gas_effect(intensity: i32, no_breathe: bool) -> GasEffect {
+    if no_breathe {
+        return GasEffect {
+            damage: 0,
+            moves_penalty: 0.0,
+        };
+    }
+    GasEffect {
+        damage: intensity,
+        moves_penalty: f64::from(intensity),
+    }
+}
+
+/// Nuke gas: worse with intensity, and much worse for plants.
+///
+/// Reference: `field_processor_fd_nuke_gas` (`src/map_field.cpp:1972-1990`). Each intensity draws its
+/// own move penalty and damage; a plant takes a second move penalty on top, drawn from the intensity,
+/// and then has its damage multiplied by the intensity.
+///
+/// The draw order matters: the move penalty first, the damage second, and the plant's penalty last.
+#[must_use]
+pub fn nuke_gas_effect(
+    intensity: i32,
+    no_breathe: bool,
+    veggy: bool,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) -> GasEffect {
+    if no_breathe {
+        return GasEffect {
+            damage: 0,
+            moves_penalty: 0.0,
+        };
+    }
+    let (mut moves_penalty, mut damage) = match intensity {
+        3 => (rolls.rng_float(0.6, 1.2), rolls.rng(30, 50)),
+        2 => (rolls.rng_float(0.2, 0.5), rolls.rng(10, 25)),
+        _ => (rolls.rng_float(0.0, 0.15), rolls.rng(0, 12)),
+    };
+    if veggy {
+        moves_penalty += rolls.rng_float(f64::from(intensity) * 0.05, f64::from(intensity) * 0.12);
+        damage *= intensity;
+    }
+    GasEffect {
+        damage,
+        moves_penalty,
+    }
 }
