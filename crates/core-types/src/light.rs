@@ -81,3 +81,43 @@ pub fn lit_level(in_bounds: bool, light_source: f32, ambient: f32) -> LitLevel {
     }
     LitLevel::Dark
 }
+
+/// The sun's altitude at which it stops being fully night: -18 degrees.
+pub const ASTRONOMICAL_DAWN: f32 = -18.0;
+/// -12 degrees: the horizon is just distinguishable.
+pub const NAUTICAL_DAWN: f32 = -12.0;
+/// -6 degrees: colours in the sky.
+pub const CIVIL_DAWN: f32 = -6.0;
+/// -1 degree: the sun's disc is up.
+pub const SUNRISE: f32 = -1.0;
+/// How bright full daylight is.
+pub const FULL_DAYLIGHT: f32 = 125.0;
+
+/// How bright the sky is for a given solar altitude, in degrees.
+///
+/// Reference: `sun_light_at` (`src/calendar.cpp:381-402`), which is a piecewise curve
+/// rather than a cosine: exponential from nothing to the low ambient over the three dawns,
+/// exponential again up to the horizon, then linear to full daylight and flat after. The
+/// split matters at the edges of the day, which is when players are looking.
+#[must_use]
+pub fn sun_light_from_altitude(altitude: f32) -> f32 {
+    if altitude < ASTRONOMICAL_DAWN {
+        0.0
+    } else if altitude <= NAUTICAL_DAWN {
+        // 0 to 3.7 as the sun climbs from -18 to -12.
+        3.7 * ((altitude - ASTRONOMICAL_DAWN) / 6.0)
+            .exp2()
+            .mul_add(1.0, -1.0)
+    } else if altitude <= CIVIL_DAWN {
+        // 3.7 to 5.0 from -12 to -6.
+        (5.0 - 3.7) * ((altitude - NAUTICAL_DAWN) / 6.0).exp2().mul_add(1.0, -1.0) + 3.7
+    } else if altitude <= SUNRISE {
+        // 5.0 to 60 from -6 to -1, and this is the steep one: sunrise happens fast.
+        (60.0 - 5.0) * ((altitude - CIVIL_DAWN) / 5.0).exp2().mul_add(1.0, -1.0) + 5.0
+    } else if altitude <= 60.0 {
+        // Linear from 60 to 125 as the sun climbs to 60 degrees.
+        (65.0 / 61.0) * altitude + 65.0 / 61.0 + 60.0
+    } else {
+        FULL_DAYLIGHT
+    }
+}
