@@ -473,6 +473,12 @@ on the frame and turn benchmarks) is green.
 
 ## 5b. Open questions found while porting
 
+**Vehicle parts accessor - open.** `vpart_info`'s registry is reached through a free
+`get_all()` declared in `src/veh_type.h:52`, and it does not resolve from the harness: the
+declaration is not visible where I used it, and I could not find which header or namespace
+publishes it without guessing. The half-written dump was reverted rather than left in place.
+One grep in the right header settles it, and it is the same shape of work the mapgen hook needs.
+
 **Mapgen registry hook - open.** `mapgen::has_mapgen_for` reads `oter_mapgen`, and at the point
 the harness can run it the registry holds only **325** keys - `house` and `road` are absent while
 733 data files declare `om_terrain`. So the JSON mapgen set is registered later than
