@@ -775,3 +775,60 @@ fn lay_electricity(world: &mut World, square: (i32, i32), strength: i32) {
         },
     ));
 }
+
+/// An item type, as the item registry numbers it.
+///
+/// Zero is reserved for "no item", as with fields, so a stack entry can be cleared without
+/// carrying an `Option` in every tile.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ItemTypeId(pub u32);
+
+/// An item lying on the ground.
+///
+/// Reference: `map_stack` / `map::i_at` (`src/map.cpp`), which keeps a per-tile stack in the order
+/// things were added. The port keeps the same order by entity index, which is spawn order: a fire
+/// that burns a pile must consume things in the same sequence the reference would, or the same seed
+/// gives different results.
+#[derive(Debug, Clone, Copy, Component)]
+pub struct GroundItem {
+    /// What it is.
+    pub kind: ItemTypeId,
+    /// How much of it: charges for a stack, 1 for a single object.
+    pub charges: i32,
+}
+
+/// Puts an item on a square.
+pub fn drop_item(world: &mut World, square: (i32, i32), kind: ItemTypeId, charges: i32) -> Entity {
+    world
+        .spawn((
+            Position {
+                x: square.0,
+                y: square.1,
+            },
+            GroundItem { kind, charges },
+        ))
+        .id()
+}
+
+/// Everything lying on one square, in the order it was put there.
+#[must_use]
+pub fn items_at(world: &mut World, square: (i32, i32)) -> Vec<Entity> {
+    let mut found = Vec::new();
+    {
+        let mut query = world.query::<(Entity, &Position, &GroundItem)>();
+        for (entity, at, _) in query.iter(world) {
+            if at.x == square.0 && at.y == square.1 {
+                found.push(entity);
+            }
+        }
+    }
+    found.sort_by_key(|entity| entity.index());
+    found
+}
+
+/// Takes an item off the ground, if it is still there.
+pub fn take_item(world: &mut World, entity: Entity) {
+    if world.get::<GroundItem>(entity).is_some() {
+        world.despawn(entity);
+    }
+}

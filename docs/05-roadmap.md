@@ -478,6 +478,10 @@ on the frame and turn benchmarks) is green.
 **Vehicle parts accessor - closed.** `vehicles::parts::get_all()` and
 `vehicles::get_all_prototypes()`; 701 parts and 249 prototypes dumped and loaded.
 
+**Items on the ground - unblocked.** The pile is now part of the store: items are entities with a
+square, a type and charges, returned in drop order, which is what the fire processor needs to
+consume a pile front to back the way the reference does. Next: terrain flammability, then `fd_fire`.
+
 **Mapgen: explicit directory load - tried, no effect.** Loading `jsondir/mapgen` by path and then
 finalising still leaves 325 keys, so the files either were already loaded or the registration is
 deferred further. Combined with the game-order result, the picture is now: mapgens register per
