@@ -1500,3 +1500,58 @@ pub fn process_spread_gas(
     }
     spread_gas(world, source, context, can_enter, rolls);
 }
+
+/// A field under water ages away faster.
+///
+/// Reference: `field_processor_underwater_dissipation` (`src/map_field.cpp:516-523`). If the terrain
+/// carries the swimmable flag the field's age advances by the field type's
+/// `underwater_age_speedup`; nothing else happens and no dice are drawn.
+pub fn process_underwater_dissipation(
+    world: &mut World,
+    entity: Entity,
+    swimmable: bool,
+    speedup: i64,
+) {
+    if !swimmable || speedup == 0 {
+        return;
+    }
+    let Some(age) = world.get::<Field>(entity).map(|field| field.entry.age()) else {
+        return;
+    };
+    if let Some(mut field) = world.get_mut::<Field>(entity) {
+        field.entry.set_age(age + speedup);
+    }
+}
+
+/// A field that grows one intensity on its own, once in a while.
+///
+/// Reference: `field_processor_upgrade_intensity` (`src/map_field.cpp:503-514`). The level's
+/// `upgrade_chance` and `upgrade_duration` must both be positive, the calendar must land on the
+/// period (`calendar::once_every`), and only then is `one_in(chance)` drawn.
+///
+/// The data says exactly one field in the corpus can do this at all (`fd_fatigue`), which is worth
+/// knowing before wondering why a processor never seems to fire.
+pub fn process_upgrade_intensity(
+    world: &mut World,
+    entity: Entity,
+    now: i64,
+    chance: i32,
+    duration: i64,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) {
+    if chance <= 0 || duration <= 0 || now.rem_euclid(duration) != 0 {
+        return;
+    }
+    if !rolls.one_in(chance) {
+        return;
+    }
+    let Some(intensity) = world
+        .get::<Field>(entity)
+        .map(|field| field.entry.intensity())
+    else {
+        return;
+    };
+    if let Some(mut field) = world.get_mut::<Field>(entity) {
+        field.entry.set_intensity(intensity + 1);
+    }
+}
