@@ -353,7 +353,8 @@ pub fn wind_blocker_offsets(angle: i32) -> [(i32, i32); 3] {
 
 /// The eight neighbours in the reference's order: north-west first, then clockwise to
 /// south-east (`eight_horizontal_neighbors`, `src/point.h:450-460`).
-const NEIGHBOURS: [(i32, i32); 8] = [
+/// The eight neighbours, in the reference's order: north first, clockwise.
+pub const NEIGHBOURS: [(i32, i32); 8] = [
     (-1, -1),
     (0, -1),
     (1, -1),
@@ -857,5 +858,114 @@ pub fn process_fire_burnout(world: &mut World, entity: Entity, has_fuel: bool) {
     if let Some(mut field) = world.get_mut::<Field>(entity) {
         let age = field.entry.age();
         field.entry.set_age(age + i64::from(intensity) * 10);
+    }
+}
+
+/// What the fire needs to know about a neighbouring square.
+///
+/// Five independent facts, so it is deliberately a bag of bools rather than an enum: the fuel flags
+/// are not exclusive (terrain can carry more than one), and they are checked in the reference's
+/// order rather than by kind.
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Debug, Clone, Copy, Default)]
+pub struct NeighbourFacts {
+    /// Something there is already burning.
+    pub fire: bool,
+    /// The terrain carries `FLAMMABLE`.
+    pub flammable: bool,
+    /// The terrain carries `FLAMMABLE_ASH`.
+    pub flammable_ash: bool,
+    /// The terrain carries `FLAMMABLE_HARD`.
+    pub flammable_hard: bool,
+    /// There are items lying there.
+    pub items: bool,
+}
+
+/// Whether the fire sets one neighbour alight, drawing in the reference's order.
+///
+/// Reference: `field_processor_fd_fire` (`src/map_field.cpp:1290-1345`). The dice come in this
+/// order and only when reached: `power = intensity + one_in(5)`, then `rng(1, 100)` against a
+/// spread chance of 25 per point of intensity above one, then the fuel checks in flag order -
+/// `FLAMMABLE` and `FLAMMABLE_ASH` each on `one_in(2)`, `FLAMMABLE_HARD` on `one_in(5)` and only
+/// when power is at least 3 - then `one_in(5)` for a pile of items. A square already on fire is
+/// skipped before any dice are drawn.
+pub fn should_ignite(
+    intensity: i32,
+    facts: &NeighbourFacts,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) -> bool {
+    if facts.fire {
+        return false;
+    }
+    let spread_chance = 25 * (intensity - 1);
+    let power = intensity + i32::from(rolls.one_in(5));
+    if rolls.rng(1, 100) >= spread_chance {
+        return false;
+    }
+    if power >= 2 && facts.flammable && rolls.one_in(2) {
+        return true;
+    }
+    if power >= 2 && facts.flammable_ash && rolls.one_in(2) {
+        return true;
+    }
+    if power >= 3 && facts.flammable_hard && rolls.one_in(5) {
+        return true;
+    }
+    rolls.one_in(5) && facts.items
+}
+
+/// Starts a fire of strength 1, two minutes old, on a neighbouring square if the dice allow.
+///
+/// Reference: `add_field( dst, fd_fire, 1, 2_minutes, false )` followed by the burning square
+/// spending a minute of its own life (`src/map_field.cpp:1330-1336`). The neighbours are visited
+/// from a random starting point and wrap around, as the reference does, so the same seed picks the
+/// same squares in the same order.
+///
+/// The caller supplies the fuel facts, because they come from terrain and item data the sim does
+/// not own.
+pub fn process_fire_spread<F>(
+    world: &mut World,
+    entity: Entity,
+    facts: F,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) where
+    F: Fn((i32, i32)) -> NeighbourFacts,
+{
+    let Some(position) = world.get::<Position>(entity).copied() else {
+        return;
+    };
+    let Some(intensity) = world
+        .get::<Field>(entity)
+        .map(|field| field.entry.intensity())
+    else {
+        return;
+    };
+    let start = rolls.rng(0, 7);
+    for step in 0..8 {
+        let index = usize::try_from((start + 1 + step).rem_euclid(8)).unwrap_or(0);
+        let Some((dx, dy)) = NEIGHBOURS.get(index).copied() else {
+            continue;
+        };
+        let square = (position.x + dx, position.y + dy);
+        if should_ignite(intensity, &facts(square), rolls) {
+            let mut entry = FieldEntry::new(3, 100, true, true);
+            entry.set_intensity(1);
+            entry.set_age(-120);
+            world.spawn((
+                Position {
+                    x: square.0,
+                    y: square.1,
+                },
+                Field {
+                    id: FIRE,
+                    entry,
+                    priority: 0,
+                },
+            ));
+            if let Some(mut field) = world.get_mut::<Field>(entity) {
+                let age = field.entry.age();
+                field.entry.set_age(age + 60);
+            }
+        }
     }
 }
