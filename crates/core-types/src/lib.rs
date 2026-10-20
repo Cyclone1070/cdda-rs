@@ -10,6 +10,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod astronomy;
 pub mod calendar;
 pub mod colors;
 pub mod containers;

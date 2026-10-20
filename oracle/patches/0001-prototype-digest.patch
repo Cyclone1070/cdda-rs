@@ -1,3 +1,47 @@
+diff -ruN references/Cataclysm-DDA/src/calendar.cpp oracle/src/src/calendar.cpp
+--- references/Cataclysm-DDA/src/calendar.cpp	2026-10-19 18:15:04
++++ oracle/src/src/calendar.cpp	2026-10-21 01:01:53
+@@ -183,6 +183,26 @@
+     return L0 + L1 * days_since_epoch + longitude;
+ }
+ 
++#ifdef CATA_HARNESS
++// Harness hook: the intermediate values `sun_azimuth_altitude` works from. Compiled only
++// for the oracle; the game never calls it. Without this the port can only be compared at
++// the end of a six-step chain, which is how a plausible wrong curve survives.
++std::array<double, 6> harness_sun_internals( time_point ti )
++{
++    const season_effective_time t = season_effective_time( ti );
++    const time_duration timezone = angle_to_time( location.longitude );
++    units::angle right_ascension;
++    units::angle declination;
++    std::tie( right_ascension, declination ) = sun_ra_declination( t, timezone );
++    const units::angle sidereal_time = sidereal_time_at( t, location.longitude, timezone );
++    const units::angle hour_angle = sidereal_time - right_ascension;
++    return { to_degrees( right_ascension ), to_degrees( declination ),
++             to_degrees( sidereal_time ), to_degrees( hour_angle ),
++             to_days<double>( t.t - calendar::turn_zero - timezone ),
++             to_degrees( location.latitude ) };
++}
++#endif
++
+ std::pair<units::angle, units::angle> sun_azimuth_altitude(
+     time_point ti )
+ {
+diff -ruN references/Cataclysm-DDA/src/calendar.h oracle/src/src/calendar.h
+--- references/Cataclysm-DDA/src/calendar.h	2026-10-19 18:15:04
++++ oracle/src/src/calendar.h	2026-10-21 01:01:53
+@@ -629,6 +629,10 @@
+ float default_daylight_level();
+ /* Irradiance (W/m2) on clear day when sun is at 90 degrees */
+ float max_sun_irradiance();
++#ifdef CATA_HARNESS
++// Harness hook; see src/calendar.cpp. Compiled only for the oracle.
++std::array<double, 6> harness_sun_internals( time_point p );
++#endif
+ /** Returns the current sunlight.
+  *  Based entirely on astronomical circumstances; does not account for e.g.
+  *  weather.
 diff -ruN references/Cataclysm-DDA/src/debug.cpp oracle/src/src/debug.cpp
 --- references/Cataclysm-DDA/src/debug.cpp	2026-10-19 18:15:04
 +++ oracle/src/src/debug.cpp	2026-10-20 01:39:47
@@ -85,8 +129,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-21 00:50:07
-@@ -0,0 +1,625 @@
++++ oracle/src/src/harness.cpp	2026-10-21 01:20:45
+@@ -0,0 +1,636 @@
 +#include "harness.h"
 +
 +#include <algorithm>
@@ -263,6 +307,12 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        return;
 +    }
 +    std::fprintf( out, "{\"harness\":\"astronomy\",\"version\":1,\n" );
++    // The calendar the samples were taken under, because a season length other than the
++    // default changes the year length and the whole curve with it. A dump that does not say
++    // which calendar it used cannot be gated against.
++    std::fprintf( out, "\"year_length_days\":%d,\"season_length_days\":%d,\n",
++                  to_days<int>( calendar::year_length() ),
++                  to_days<int>( calendar::season_length() ) );
 +    std::fprintf( out, "\"samples\":[\n" );
 +    // A leap year's worth of days at three-hour intervals: every season, every hour,
 +    // including the ones where the sun never rises.
@@ -272,9 +322,14 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +            const time_point t = calendar::turn_zero + time_duration::from_days( day )
 +                                 + time_duration::from_hours( hour );
 +            const units::angle altitude = sun_azimuth_altitude( t ).second;
-+            std::fprintf( out, "%s{\"day\":%d,\"hour\":%d,\"altitude\":%.9f,\"light\":%.9f}",
++            const std::array<double, 6> internals = harness_sun_internals( t );
++            std::fprintf( out,
++                          "%s{\"day\":%d,\"hour\":%d,\"altitude\":%.9f,\"light\":%.9f,"
++                          "\"ra\":%.9f,\"dec\":%.9f,\"sidereal\":%.9f,\"hour_angle\":%.9f,"
++                          "\"days\":%.9f}",
 +                          first ? "" : ",\n", day, hour, to_degrees( altitude ),
-+                          sun_light_at( t ) );
++                          sun_light_at( t ), internals[0], internals[1], internals[2],
++                          internals[3], internals[4] );
 +            first = false;
 +        }
 +    }
@@ -869,7 +924,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-21 00:45:00
++++ oracle/src/src/main.cpp	2026-10-21 01:21:45
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -1057,7 +1112,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +952,103 @@
+@@ -786,6 +952,107 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -1096,6 +1151,10 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_astronomy.empty() ) {
++            // The season length is an option and the year length follows from it, so the
++            // options have to be read before any date is computed. Without this the dump
++            // is taken under a default that makes the year four days long.
++            get_options().load();
 +            harness::dump_astronomy( cli.dump_astronomy );
 +            exit_handler( 0 );
 +        }

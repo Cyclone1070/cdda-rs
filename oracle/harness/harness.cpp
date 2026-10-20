@@ -174,6 +174,12 @@ void dump_astronomy( const std::string &path )
         return;
     }
     std::fprintf( out, "{\"harness\":\"astronomy\",\"version\":1,\n" );
+    // The calendar the samples were taken under, because a season length other than the
+    // default changes the year length and the whole curve with it. A dump that does not say
+    // which calendar it used cannot be gated against.
+    std::fprintf( out, "\"year_length_days\":%d,\"season_length_days\":%d,\n",
+                  to_days<int>( calendar::year_length() ),
+                  to_days<int>( calendar::season_length() ) );
     std::fprintf( out, "\"samples\":[\n" );
     // A leap year's worth of days at three-hour intervals: every season, every hour,
     // including the ones where the sun never rises.
@@ -183,9 +189,14 @@ void dump_astronomy( const std::string &path )
             const time_point t = calendar::turn_zero + time_duration::from_days( day )
                                  + time_duration::from_hours( hour );
             const units::angle altitude = sun_azimuth_altitude( t ).second;
-            std::fprintf( out, "%s{\"day\":%d,\"hour\":%d,\"altitude\":%.9f,\"light\":%.9f}",
+            const std::array<double, 6> internals = harness_sun_internals( t );
+            std::fprintf( out,
+                          "%s{\"day\":%d,\"hour\":%d,\"altitude\":%.9f,\"light\":%.9f,"
+                          "\"ra\":%.9f,\"dec\":%.9f,\"sidereal\":%.9f,\"hour_angle\":%.9f,"
+                          "\"days\":%.9f}",
                           first ? "" : ",\n", day, hour, to_degrees( altitude ),
-                          sun_light_at( t ) );
+                          sun_light_at( t ), internals[0], internals[1], internals[2],
+                          internals[3], internals[4] );
             first = false;
         }
     }
