@@ -129,8 +129,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-21 09:33:27
-@@ -0,0 +1,873 @@
++++ oracle/src/src/harness.cpp	2026-10-21 10:35:36
+@@ -0,0 +1,927 @@
 +#include "harness.h"
 +#include "recipe_dictionary.h"
 +#include "requirements.h"
@@ -560,6 +560,57 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    DynamicDataLoader::get_instance().finalize_loaded_data();
 +}
 +
++void load_core_data_only()
++{
++    // Everything but the final consistency sweep. `finalize_loaded_data` crashes in
++    // `MonsterGenerator::check_monster_definitions` under the harness, and the mapgen registry is
++    // already filled by this point, which is what the mapgen probe needs to see.
++    g->load_core_data();
++}
++
++
++void dump_load_probe( const std::string &path )
++{
++    // What is actually in memory at this point: how much data loaded at all, and whether the
++    // mapgen registry knows any real overmap terrain ids.
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    size_t terrains = 0;
++    for( const oter_t &oter : overmap_terrains::get_all() ) {
++        ( void )oter;
++        terrains++;
++    }
++    size_t by_mapgen_id = 0;
++    size_t by_oter_id = 0;
++    for( const oter_t &oter : overmap_terrains::get_all() ) {
++        if( has_mapgen_for( oter.get_mapgen_id() ) ) {
++            by_mapgen_id++;
++        }
++        if( has_mapgen_for( oter.id.str() ) ) {
++            by_oter_id++;
++        }
++    }
++    const char *probes[] = { "house", "field", "forest", "road", "house_north", "shelter",
++                             "apartments_mod_tower_110", "farm_field" };
++    std::fprintf( out, "{\"harness\":\"load_probe\",\"version\":1,\"overmap_terrains\":%zu,"
++                  "\"with_mapgen_by_mapgen_id\":%zu,\"with_mapgen_by_oter_id\":%zu,"
++                  "\"items\":%zu,\"monsters\":%zu,\"materials\":%zu,\"mapgens\":{",
++                  terrains, by_mapgen_id, by_oter_id, item_controller->all().size(),
++                  MonsterGenerator::generator().get_all_mtypes().size(),
++                  materials::get_all().size() );
++    bool first = true;
++    for( const char *name : probes ) {
++        std::fprintf( out, "%s\"%s\":%s", first ? "" : ",", name,
++                      has_mapgen_for( name ) ? "true" : "false" );
++        first = false;
++    }
++    std::fprintf( out, "}}\n" );
++    std::fclose( out );
++}
++
 +void dump_mapgens( const std::string &path )
 +{
 +    std::FILE *out = std::fopen( path.c_str(), "wb" );
@@ -570,14 +621,17 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    // Forcing the weights does not make the JSON mapgens appear: the registry holds only the
 +    // built-in C++ ones (325 keys) at this point, and finalising here aborts, because the data
 +    // was already finalised by check_mod_data. Both are recorded in the roadmap.
-+    calculate_mapgen_weights();
 +    std::vector<std::string> keys;
 +    for( const oter_t &oter : overmap_terrains::get_all() ) {
-+        if( has_mapgen_for( oter.id.str() ) ) {
-+            keys.push_back( oter.id.str() );
++        // The reference looks mapgen up by the terrain's *mapgen id*, not its own id: 24,191 of
++        // 24,218 terrains have one under that key, and only 325 match the terrain id.
++        if( has_mapgen_for( oter.get_mapgen_id() ) ) {
++            keys.push_back( oter.get_mapgen_id() );
 +        }
 +    }
 +    std::sort( keys.begin(), keys.end() );
++    // Several terrains can share one mapgen, so the raw list repeats keys; the artifact is a set.
++    keys.erase( std::unique( keys.begin(), keys.end() ), keys.end() );
 +    std::fprintf( out, "{\"harness\":\"mapgens\",\"version\":1,\n\"keys\":[\n" );
 +    bool first = true;
 +    for( const std::string &key : keys ) {
@@ -1006,8 +1060,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +}  // namespace harness
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-21 07:03:41
-@@ -0,0 +1,149 @@
++++ oracle/src/src/harness.h	2026-10-21 10:19:15
+@@ -0,0 +1,151 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -1119,6 +1173,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +void dump_item_groups( const std::string &path );
 +
 +/** Writes every overmap terrain id that has a map generator. */
++void load_core_data_only();
++void dump_load_probe( const std::string &path );
 +void dump_mapgens( const std::string &path );
 +
 +/** Loads the core data the way the game does, then finalises it. */
@@ -1179,7 +1235,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-21 07:03:41
++++ oracle/src/src/main.cpp	2026-10-21 10:27:21
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -1422,7 +1478,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +1007,137 @@
+@@ -786,6 +1007,138 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -1488,7 +1544,8 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +        }
 +        if( !cli.dump_mapgens.empty() ) {
 +            test_mode = true;
-+            harness::load_game_data();
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_load_probe( cli.dump_mapgens + ".probe" );
 +            harness::dump_mapgens( cli.dump_mapgens );
 +            exit_handler( 0 );
 +        }

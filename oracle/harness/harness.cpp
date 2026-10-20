@@ -427,6 +427,57 @@ void load_game_data()
     DynamicDataLoader::get_instance().finalize_loaded_data();
 }
 
+void load_core_data_only()
+{
+    // Everything but the final consistency sweep. `finalize_loaded_data` crashes in
+    // `MonsterGenerator::check_monster_definitions` under the harness, and the mapgen registry is
+    // already filled by this point, which is what the mapgen probe needs to see.
+    g->load_core_data();
+}
+
+
+void dump_load_probe( const std::string &path )
+{
+    // What is actually in memory at this point: how much data loaded at all, and whether the
+    // mapgen registry knows any real overmap terrain ids.
+    std::FILE *out = std::fopen( path.c_str(), "wb" );
+    if( out == nullptr ) {
+        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
+        return;
+    }
+    size_t terrains = 0;
+    for( const oter_t &oter : overmap_terrains::get_all() ) {
+        ( void )oter;
+        terrains++;
+    }
+    size_t by_mapgen_id = 0;
+    size_t by_oter_id = 0;
+    for( const oter_t &oter : overmap_terrains::get_all() ) {
+        if( has_mapgen_for( oter.get_mapgen_id() ) ) {
+            by_mapgen_id++;
+        }
+        if( has_mapgen_for( oter.id.str() ) ) {
+            by_oter_id++;
+        }
+    }
+    const char *probes[] = { "house", "field", "forest", "road", "house_north", "shelter",
+                             "apartments_mod_tower_110", "farm_field" };
+    std::fprintf( out, "{\"harness\":\"load_probe\",\"version\":1,\"overmap_terrains\":%zu,"
+                  "\"with_mapgen_by_mapgen_id\":%zu,\"with_mapgen_by_oter_id\":%zu,"
+                  "\"items\":%zu,\"monsters\":%zu,\"materials\":%zu,\"mapgens\":{",
+                  terrains, by_mapgen_id, by_oter_id, item_controller->all().size(),
+                  MonsterGenerator::generator().get_all_mtypes().size(),
+                  materials::get_all().size() );
+    bool first = true;
+    for( const char *name : probes ) {
+        std::fprintf( out, "%s\"%s\":%s", first ? "" : ",", name,
+                      has_mapgen_for( name ) ? "true" : "false" );
+        first = false;
+    }
+    std::fprintf( out, "}}\n" );
+    std::fclose( out );
+}
+
 void dump_mapgens( const std::string &path )
 {
     std::FILE *out = std::fopen( path.c_str(), "wb" );
@@ -437,14 +488,17 @@ void dump_mapgens( const std::string &path )
     // Forcing the weights does not make the JSON mapgens appear: the registry holds only the
     // built-in C++ ones (325 keys) at this point, and finalising here aborts, because the data
     // was already finalised by check_mod_data. Both are recorded in the roadmap.
-    calculate_mapgen_weights();
     std::vector<std::string> keys;
     for( const oter_t &oter : overmap_terrains::get_all() ) {
-        if( has_mapgen_for( oter.id.str() ) ) {
-            keys.push_back( oter.id.str() );
+        // The reference looks mapgen up by the terrain's *mapgen id*, not its own id: 24,191 of
+        // 24,218 terrains have one under that key, and only 325 match the terrain id.
+        if( has_mapgen_for( oter.get_mapgen_id() ) ) {
+            keys.push_back( oter.get_mapgen_id() );
         }
     }
     std::sort( keys.begin(), keys.end() );
+    // Several terrains can share one mapgen, so the raw list repeats keys; the artifact is a set.
+    keys.erase( std::unique( keys.begin(), keys.end() ), keys.end() );
     std::fprintf( out, "{\"harness\":\"mapgens\",\"version\":1,\n\"keys\":[\n" );
     bool first = true;
     for( const std::string &key : keys ) {

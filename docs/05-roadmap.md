@@ -610,7 +610,15 @@ and tuning constants include values with in-source admissions that they are wron
 thresholds (`weather.h:59-74`). These must be copied exactly and marked as such; "improving" any of them
 silently breaks replay equality. <!-- verified -->
 
-### B9 — The mapgen registry cannot be reached from the harness
+### B9 — resolved, and it was my bug
+
+The blocker was never the reference. `mapgen::has_mapgen_for` is a plain lookup, the data loads, and the registry is full: **24,191 of 24,218** overmap terrains have a map. My dump asked for `oter.id.str()`; the game asks for `oter.get_mapgen_id()`. Those agree for exactly 325 terrains, which is the number I mistook for "only the built-ins".
+
+The lesson is the same one the vehicle-parts round taught: when a registry "looks empty", check the key before the loader. A dump that cannot see the data is not evidence that the data is missing.
+
+### Original notes, kept
+
+## B9 — The mapgen registry cannot be reached from the harness
 
 Three explanations ruled out by experiment: forcing `calculate_mapgen_weights()` leaves the count
 at 325; forcing `finalize_loaded_data()` aborts because `check_mod_data` already finalised; and it

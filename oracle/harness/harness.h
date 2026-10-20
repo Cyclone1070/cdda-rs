@@ -109,6 +109,8 @@ void dump_recipes( const std::string &path );
 void dump_item_groups( const std::string &path );
 
 /** Writes every overmap terrain id that has a map generator. */
+void load_core_data_only();
+void dump_load_probe( const std::string &path );
 void dump_mapgens( const std::string &path );
 
 /** Loads the core data the way the game does, then finalises it. */

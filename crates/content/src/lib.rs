@@ -18,6 +18,7 @@ pub mod generated;
 pub mod item_groups;
 pub mod items;
 pub mod mapdata;
+pub mod mapgen;
 pub mod materials;
 pub mod mods;
 pub mod monsters;
