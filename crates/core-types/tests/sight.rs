@@ -3,7 +3,7 @@
 //! Source: `src/shadowcasting.h:92-116` - `sight_calc`, `sight_check`,
 //! `accumulate_transparency`, `update_light_quadrants`.
 
-#![allow(clippy::panic, clippy::float_cmp)]
+#![allow(clippy::panic, clippy::float_cmp, clippy::indexing_slicing)]
 
 use cdda_core_types::shadowcasting::{
     FourQuadrants, Quadrant, accumulate_transparency, sight_calc, sight_check,
@@ -70,4 +70,39 @@ fn the_brighter_ray_wins_a_corner_and_both_are_lit() {
     );
     assert_eq!(light.get(Quadrant::SouthWest), 7.0);
     assert_eq!(light.max(), 7.0);
+}
+
+#[test]
+fn smoke_dims_what_is_behind_it() {
+    // A band of half-transparent air between a lamp and a wall. The reference averages the
+    // transparency along each ray, so the wall behind the smoke is dimmer than the same wall in
+    // clear air - which is the whole reason the accumulation exists.
+    use cdda_core_types::shadowcasting::{TransparencyGrid, cast_light_values};
+
+    // Open air is 2.3/72 by the reference's own note, and smoke is 0.38 - *higher*, because the
+    // value is attenuation per tile, not clarity. Solid is zero and special-cased as blocking,
+    // which is why a lower number is not automatically darker.
+    const OPEN_AIR: f32 = 2.3 / 72.0;
+    const SMOKE: f32 = 0.38;
+    let side = 11;
+    let clear = TransparencyGrid::new(side, vec![OPEN_AIR; side * side]);
+    let mut smoked_cells = vec![OPEN_AIR; side * side];
+    for y in 0..side {
+        smoked_cells[7 * side + y] = SMOKE;
+    }
+    let smoked = TransparencyGrid::new(side, smoked_cells);
+
+    let clear_values = cast_light_values(&clear, (5, 5), 5, 10.0);
+    let smoked_values = cast_light_values(&smoked, (5, 5), 5, 10.0);
+    let behind = 9 * side + 5;
+    assert!(clear_values[behind] > 0.0, "the wall is lit in clear air");
+    assert!(
+        smoked_values[behind] < clear_values[behind],
+        "and dimmer through smoke: {} against {}",
+        smoked_values[behind],
+        clear_values[behind]
+    );
+    // The smoke does not make the tile in front of it darker, only what is behind.
+    let in_front = 6 * side + 5;
+    assert!((smoked_values[in_front] - clear_values[in_front]).abs() < 1e-6);
 }

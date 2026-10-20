@@ -66,10 +66,13 @@ const TRANSFORMS: [[i32; 4]; 8] = [
     [-1, 0, 0, -1],
 ];
 
+/// The per-cell work a cast does: grid coordinate, distance, and the transparency
+/// accumulated along the ray that reached it.
+type Visit<'a> = &'a mut dyn FnMut(i32, i32, i32, f32);
+
 #[allow(clippy::too_many_arguments, clippy::cast_precision_loss)]
-#[allow(clippy::indexing_slicing)]
 fn cast_segment(
-    visible: &mut [bool],
+    visit: Visit<'_>,
     grid: &TransparencyGrid,
     transform: [i32; 4],
     offset: (i32, i32),
@@ -78,6 +81,7 @@ fn cast_segment(
     start: f32,
     end: f32,
     radius: i32,
+    cumulative: f32,
 ) {
     let [xx, xy, yx, yy] = transform;
     let mut new_start = 0.0_f32;
@@ -87,6 +91,10 @@ fn cast_segment(
     }
     let mut blocked = false;
     let mut start = start;
+    // The ray's running average, carried across the cells of a row as well as into the
+    // recursion: the reference updates it in place as it walks, which is what makes a band of
+    // smoke dim the cells beyond it and not merely the cells it recursed from.
+    let mut cumulative = cumulative;
     let mut distance = row;
     while (distance as f32) <= limit && !blocked {
         let dy = -distance;
@@ -106,11 +114,13 @@ fn cast_segment(
             // grid, not a large index.
             let inside = usize::try_from(cx).is_ok_and(|x| x < grid.side)
                 && usize::try_from(cy).is_ok_and(|y| y < grid.side);
-            if inside
-                && dx.abs().max(dy.abs()) <= radius
-                && let (Ok(x), Ok(y)) = (usize::try_from(cx), usize::try_from(cy))
-            {
-                visible[x * grid.side + y] = true;
+            // The reference accumulates the ray's transparency as it travels and gives each
+            // cell the running average, so what arrives there is `sight_calc` of that
+            // average rather than of open air.
+            let here = accumulate_transparency(cumulative, grid.at(cx, cy), distance);
+            cumulative = here;
+            if inside && dx.abs().max(dy.abs()) <= radius {
+                visit(cx, cy, distance, here);
             }
             if blocked {
                 if grid.at(cx, cy) == SOLID {
@@ -122,7 +132,7 @@ fn cast_segment(
             } else if grid.at(cx, cy) == SOLID && distance < radius {
                 blocked = true;
                 cast_segment(
-                    visible,
+                    visit,
                     grid,
                     transform,
                     offset,
@@ -131,6 +141,7 @@ fn cast_segment(
                     start,
                     left_slope,
                     radius,
+                    here,
                 );
                 new_start = right_slope;
             }
@@ -147,19 +158,20 @@ fn cast_segment(
 /// out.
 #[must_use]
 pub fn cast_light(grid: &TransparencyGrid, origin: (i32, i32), radius: i32) -> Vec<bool> {
-    let mut visible = vec![false; grid.side * grid.side];
-    for transform in TRANSFORMS {
-        cast_segment(
-            &mut visible,
-            grid,
-            transform,
-            origin,
-            0,
-            1,
-            1.0,
-            0.0,
-            radius,
-        );
+    let side = grid.side;
+    let mut visible = vec![false; side * side];
+    {
+        #[allow(clippy::indexing_slicing)]
+        let mut visit = |cx: i32, cy: i32, _distance: i32, _transparency: f32| {
+            if let (Ok(x), Ok(y)) = (usize::try_from(cx), usize::try_from(cy)) {
+                visible[x * side + y] = true;
+            }
+        };
+        for transform in TRANSFORMS {
+            cast_segment(
+                &mut visit, grid, transform, origin, 0, 1, 1.0, 0.0, radius, 1.0,
+            );
+        }
     }
     visible
 }
@@ -371,4 +383,42 @@ pub fn light_in_from_outside(
         }
     }
     tile
+}
+
+/// How brightly a source of `luminance` lights each cell it reaches.
+///
+/// Reference: `cast_zlight` with `sight_calc` as its accumulator (`src/shadowcasting.h:96-99`,
+/// `src/shadowcasting.cpp:530-580`). The transparency a ray crosses is averaged as it travels,
+/// so smoke dims what is behind it instead of being treated as if it were not there - which is
+/// the difference between a lamp in a fog and a lamp in a void.
+#[must_use]
+pub fn cast_light_values(
+    grid: &TransparencyGrid,
+    origin: (i32, i32),
+    radius: i32,
+    luminance: f32,
+) -> Vec<f32> {
+    let side = grid.side;
+    let mut values = vec![0.0_f32; side * side];
+    {
+        #[allow(clippy::indexing_slicing, clippy::cast_precision_loss)]
+        let mut visit = |cx: i32, cy: i32, distance: i32, transparency: f32| {
+            if distance == 0 {
+                return;
+            }
+            let value = sight_calc(luminance, transparency, distance);
+            if let (Ok(x), Ok(y)) = (usize::try_from(cx), usize::try_from(cy)) {
+                let index = x * side + y;
+                if value > values[index] {
+                    values[index] = value;
+                }
+            }
+        };
+        for transform in TRANSFORMS {
+            cast_segment(
+                &mut visit, grid, transform, origin, 0, 1, 1.0, 0.0, radius, 1.0,
+            );
+        }
+    }
+    values
 }
