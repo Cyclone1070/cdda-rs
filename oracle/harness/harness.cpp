@@ -1,5 +1,6 @@
 #include "harness.h"
 #include "recipe_dictionary.h"
+#include "requirements.h"
 
 #include <algorithm>
 
@@ -356,9 +357,24 @@ void dump_recipes( const std::string &path )
     bool first = true;
     for( auto it = recipe_dict.begin(); it != recipe_dict.end(); ++it ) {
         const recipe &r = it->second;
-        std::fprintf( out, "%s{\"id\":\"%s\",\"result\":\"%s\",\"blacklisted\":%s}",
+        std::fprintf( out, "%s{\"id\":\"%s\",\"result\":\"%s\",\"blacklisted\":%s,\"components\":[",
                       first ? "" : ",\n", r.ident().str().c_str(), r.result().str().c_str(),
                       r.is_blacklisted() ? "true" : "false" );
+        // Alternatives are the structure that matters: each inner list is a set of things any
+        // one of which satisfies that requirement, so flattening them would change the recipe.
+        bool first_group = true;
+        for( const auto &group : r.simple_requirements().get_components() ) {
+            std::fprintf( out, "%s[", first_group ? "" : "," );
+            first_group = false;
+            bool first_alt = true;
+            for( const item_comp &comp : group ) {
+                std::fprintf( out, "%s{\"item\":\"%s\",\"count\":%d}",
+                              first_alt ? "" : ",", comp.type.str().c_str(), comp.count );
+                first_alt = false;
+            }
+            std::fprintf( out, "]" );
+        }
+        std::fprintf( out, "]}" );
         first = false;
     }
     std::fprintf( out, "\n],\"count\":%zu}\n", recipe_dict.size() );

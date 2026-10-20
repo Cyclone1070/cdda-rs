@@ -50,6 +50,53 @@ fn no_recipe_is_missing_and_none_is_invented() {
 }
 
 #[test]
+fn the_nesting_of_a_recipe_s_s_needs_is_kept() {
+    // Flattening either level would be invisible in a count and wrong in play: a group is a
+    // choice, and the recipe needs one of each group.
+    let (loaded, _) = dump();
+    let multi_group = loaded.iter().filter(|r| r.components.len() > 1).count();
+    let with_choices = loaded
+        .iter()
+        .filter(|r| r.components.iter().any(|group| group.len() > 1))
+        .count();
+    assert_eq!(multi_group, 4_061, "recipes needing more than one group");
+    assert_eq!(
+        with_choices, 3_656,
+        "recipes where at least one need has alternatives"
+    );
+    assert!(
+        loaded
+            .iter()
+            .all(|r| r.components.iter().all(|group| !group.is_empty())),
+        "no empty group: an empty group would mean a free recipe"
+    );
+}
+
+#[test]
+fn a_known_recipe_keeps_its_exact_alternatives_and_counts() {
+    let (loaded, _) = dump();
+    let swim_fins = loaded
+        .iter()
+        .find(|r| r.id == "swim_fins")
+        .expect("the recipe exists");
+    assert_eq!(swim_fins.components.len(), 3, "three groups");
+    let first = &swim_fins.components[0];
+    assert_eq!(first.len(), 3, "three glues");
+    assert_eq!(first[0].item, "duct_tape");
+    assert_eq!(first[0].count, 50);
+    assert_eq!(first[2].item, "bone_glue");
+    assert_eq!(first[2].count, 2);
+    let last = swim_fins.components[2]
+        .first()
+        .expect("the third group has its sheet");
+    assert_eq!(
+        last.item, "polycarbonate_sheet",
+        "a group with no choice at all"
+    );
+    assert_eq!(last.count, 8);
+}
+
+#[test]
 fn every_recipe_keeps_the_result_the_reference_gave_it() {
     let (loaded, _) = dump();
     let swim_fins = loaded

@@ -8,6 +8,15 @@
 
 use cdda_json::{Object, Value};
 
+/// One alternative within a requirement group: an item and how many of it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Component {
+    /// The item that satisfies this alternative.
+    pub item: String,
+    /// How many are needed.
+    pub count: i32,
+}
+
 /// One crafting recipe, as far as this loader reads it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Recipe {
@@ -17,6 +26,13 @@ pub struct Recipe {
     pub result: String,
     /// Whether the reference has blacklisted it, which removes it from play without deleting it.
     pub blacklisted: bool,
+    /// What the recipe needs, as groups of alternatives.
+    ///
+    /// The nesting is the meaning: each inner list is a set of items *any one of which*
+    /// satisfies that requirement, and the outer list must all be satisfied. Flattening either
+    /// level changes the recipe - the difference between "a rag or a leather patch" and "a rag
+    /// and a leather patch" is one vector deep.
+    pub components: Vec<Vec<Component>>,
 }
 
 fn member<'a>(object: &'a Object, key: &str) -> Option<&'a Value> {
@@ -28,6 +44,33 @@ fn string_of(object: &Object, key: &str) -> Option<String> {
         Value::Str(text) => Some(text.clone()),
         _ => None,
     }
+}
+
+fn components_of(object: &Object) -> Option<Vec<Vec<Component>>> {
+    let Value::Array(groups) = member(object, "components")? else {
+        return None;
+    };
+    let mut out = Vec::with_capacity(groups.len());
+    for group in groups {
+        let Value::Array(alternatives) = group else {
+            return None;
+        };
+        let mut inner = Vec::with_capacity(alternatives.len());
+        for alternative in alternatives {
+            let Value::Object(component) = alternative else {
+                return None;
+            };
+            let Value::Int(count) = member(component, "count")? else {
+                return None;
+            };
+            inner.push(Component {
+                item: string_of(component, "item")?,
+                count: i32::try_from(*count).ok()?,
+            });
+        }
+        out.push(inner);
+    }
+    Some(out)
 }
 
 /// Reads the recipe dump.
@@ -56,6 +99,7 @@ pub fn from_dump(value: &Value) -> Option<(Vec<Recipe>, usize)> {
             id: string_of(object, "id")?,
             result: string_of(object, "result")?,
             blacklisted: matches!(member(object, "blacklisted"), Some(Value::Bool(true))),
+            components: components_of(object)?,
         });
     }
     Some((recipes, count))
