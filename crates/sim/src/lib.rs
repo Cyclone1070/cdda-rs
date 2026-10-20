@@ -1731,3 +1731,137 @@ pub fn monster_spawn_attempts(
         0
     }
 }
+
+/// One material in an item: its portions, and its behaviour at each intensity.
+#[derive(Debug, Clone, Copy)]
+pub struct MaterialPortion {
+    /// How many portions of it the item has.
+    pub portions: i32,
+    /// Its behaviour at intensity 1, 2 and 3, in that order.
+    pub levels: [BurnDataView; 3],
+}
+
+impl MaterialPortion {
+    /// The material's behaviour at an intensity, clamped to the three the data describes.
+    #[must_use]
+    pub fn at(&self, intensity: i32) -> &BurnDataView {
+        // The data describes exactly three intensities, so the clamp above always lands inside it.
+        self.levels
+            .get(usize::try_from(intensity.clamp(1, 3) - 1).unwrap_or(0))
+            .unwrap_or(&self.levels[0])
+    }
+}
+
+/// What a material contributes at one intensity, as the item sees it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BurnDataView {
+    /// Nothing burns.
+    pub immune: bool,
+    /// Volume the material can burn per turn, in millilitres. Zero means unconstrained.
+    pub volume_per_turn: f64,
+    /// Fuel contributed.
+    pub fuel: f64,
+    /// Smoke produced.
+    pub smoke: f64,
+    /// Fraction destroyed per turn.
+    pub burn: f64,
+}
+
+/// An item as the fire sees it.
+#[derive(Debug, Clone)]
+pub struct Burnable {
+    /// Its materials and their portions.
+    pub materials: Vec<MaterialPortion>,
+    /// Its base volume, in millilitres.
+    pub volume_ml: f64,
+    /// Whether it is a liquid, which smothers weak fires.
+    pub liquid: bool,
+    /// The sum of material portions the item type declares, one when it declares none.
+    pub material_total: i32,
+    /// Whether it is counted by charges (a stack rather than one object).
+    pub by_charges: bool,
+    /// How many charges it has.
+    pub charges: i32,
+    /// How many charges make one stack.
+    pub stack_size: i32,
+}
+
+/// What one turn of burning does to an item.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BurnResult {
+    /// Fuel added to the fire.
+    pub fuel: f64,
+    /// Smoke produced.
+    pub smoke: f64,
+    /// Fraction of the item destroyed, which the caller turns into charges.
+    pub burn: f64,
+}
+
+/// How much of an item a fire consumes in one turn.
+///
+/// Reference: `item::simulate_burn` (`src/item.cpp:12543-12592`). A contained fire burns at intensity
+/// 3 whatever its real intensity. A material that is immune stops the whole item burning. Each
+/// material contributes fuel, smoke and burn, scaled by the volume it can burn per turn against the
+/// item's volume unless the fire is contained or the material has no volume limit. A liquid that
+/// would give the fire less than 200 draws `rng(400 * litres, 1200 * litres)` to *subtract*, because
+/// a wet thing smothers a small fire. Several materials are averaged by the item's declared portions,
+/// and an item with no materials at all burns at a flat rate of one. A stack multiplies all three by
+/// its number of stacks.
+#[must_use]
+pub fn simulate_burn(
+    item: &Burnable,
+    fire_intensity: i32,
+    contained: bool,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) -> BurnResult {
+    let intensity = if contained { 3 } else { fire_intensity };
+    let mut fuel = 0.0;
+    let mut smoke = 0.0;
+    let mut burn = 0.0;
+    for material in &item.materials {
+        let burn_data = material.at(intensity);
+        if burn_data.immune {
+            return BurnResult {
+                fuel: 0.0,
+                smoke: 0.0,
+                burn: 0.0,
+            };
+        }
+        let scale = f64::from(material.portions);
+        if contained || burn_data.volume_per_turn <= 0.0 {
+            fuel += burn_data.fuel * scale;
+            smoke += burn_data.smoke * scale;
+            burn += burn_data.burn * scale;
+        } else {
+            let litres = item.volume_ml / 1000.0;
+            let rate = if litres > 0.0 {
+                (burn_data.volume_per_turn / 1000.0) / litres
+            } else {
+                0.0
+            };
+            fuel += burn_data.fuel * rate * scale;
+            smoke += burn_data.smoke * rate * scale;
+            burn += burn_data.burn * rate * scale;
+        }
+    }
+    let materials = i32::try_from(item.materials.len()).unwrap_or(0);
+    if item.liquid && fuel < 200.0 {
+        let litres = item.volume_ml / 1000.0;
+        fuel -= rolls.rng_float(400.0 * litres, 1200.0 * litres);
+    } else if materials > 1 {
+        let total = f64::from(item.material_total.max(1));
+        fuel /= total;
+        smoke /= total;
+        burn /= total;
+    } else if materials == 0 {
+        burn = 1.0;
+    }
+    if item.by_charges {
+        let stacks = (item.charges / item.stack_size.max(1)).max(1);
+        let scale = f64::from(stacks);
+        fuel *= scale;
+        smoke *= scale;
+        burn *= scale;
+    }
+    BurnResult { fuel, smoke, burn }
+}
