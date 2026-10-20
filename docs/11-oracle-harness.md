@@ -482,7 +482,9 @@ measurement, and it is the first experiment for the replay work.
 
 ### The environment dump, and why it needs a seed
 
-`--dump-env` prints the state that exists before any world does: the next four
+`--dump-astronomy <file>` writes the sun's altitude and light over a year (424 samples),
+which is what the astronomy port is gated against - a table from the reference rather than
+trigonometry from memory. `--dump-env` prints the state that exists before any world does: the next four
 draws of the random engine (taken from a copy, so measuring does not advance the
 game's own stream), the calendar, and the five options the calendar and spawning
 read. Two runs agree only when `--seed` is passed; without it the engine is seeded

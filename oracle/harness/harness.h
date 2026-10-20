@@ -56,6 +56,8 @@ void dump_prototype_ids( const std::string &path );
 // on. This is the first, smallest state fingerprint: two runs of the same build
 // with the same seed must agree on every field.
 void dump_environment( const std::string &path );
+/// `--dump-astronomy <file>`: the sun's altitude and the light it gives, over a year.
+void dump_astronomy( const std::string &path );
 
 // Starts a new game by the real path (world creation, avatar birth, start game)
 // and stops where the first input would be needed. Returns false and fills

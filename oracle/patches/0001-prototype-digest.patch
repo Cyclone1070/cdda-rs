@@ -85,8 +85,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-20 06:45:33
-@@ -0,0 +1,598 @@
++++ oracle/src/src/harness.cpp	2026-10-21 00:50:07
+@@ -0,0 +1,625 @@
 +#include "harness.h"
 +
 +#include <algorithm>
@@ -252,6 +252,33 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        first_registry = false;
 +    }
 +    std::fprintf( out, "\n]}\n" );
++    std::fclose( out );
++}
++
++void dump_astronomy( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    std::fprintf( out, "{\"harness\":\"astronomy\",\"version\":1,\n" );
++    std::fprintf( out, "\"samples\":[\n" );
++    // A leap year's worth of days at three-hour intervals: every season, every hour,
++    // including the ones where the sun never rises.
++    bool first = true;
++    for( int day = 0; day < 365; day += 7 ) {
++        for( int hour = 0; hour < 24; hour += 3 ) {
++            const time_point t = calendar::turn_zero + time_duration::from_days( day )
++                                 + time_duration::from_hours( hour );
++            const units::angle altitude = sun_azimuth_altitude( t ).second;
++            std::fprintf( out, "%s{\"day\":%d,\"hour\":%d,\"altitude\":%.9f,\"light\":%.9f}",
++                          first ? "" : ",\n", day, hour, to_degrees( altitude ),
++                          sun_light_at( t ) );
++            first = false;
++        }
++    }
++    std::fprintf( out, "]}\n" );
 +    std::fclose( out );
 +}
 +
@@ -687,8 +714,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +}  // namespace harness
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-20 06:45:33
-@@ -0,0 +1,129 @@
++++ oracle/src/src/harness.h	2026-10-21 00:45:10
+@@ -0,0 +1,131 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -747,6 +774,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +// on. This is the first, smallest state fingerprint: two runs of the same build
 +// with the same seed must agree on every field.
 +void dump_environment( const std::string &path );
++/// `--dump-astronomy <file>`: the sun's altitude and the light it gives, over a year.
++void dump_astronomy( const std::string &path );
 +
 +// Starts a new game by the real path (world creation, avatar birth, start game)
 +// and stops where the first input would be needed. Returns false and fills
@@ -840,7 +869,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-20 06:33:44
++++ oracle/src/src/main.cpp	2026-10-21 00:45:00
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -851,7 +880,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,28 @@
+@@ -272,6 +275,29 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -867,6 +896,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_terrain;
 +    // Harness: resolved traps and materials.
 +    std::string dump_traps;
++    std::string dump_astronomy;
 +    std::string dump_materials;
 +    // Harness: resolved field types.
 +    std::string dump_fields;
@@ -880,7 +910,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +325,136 @@
+@@ -300,6 +326,146 @@
                  }
              },
              {
@@ -910,6 +940,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.replay = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-astronomy", "<file>",
++                "Writes the sun's altitude and light over a year",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_astronomy = params[0];
 +                    return 1;
 +                }
 +            },
@@ -1017,7 +1057,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +941,99 @@
+@@ -786,6 +952,103 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -1053,6 +1093,10 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                exit_handler( 3 );
 +            }
 +            harness::dump_state( cli.dump_state );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_astronomy.empty() ) {
++            harness::dump_astronomy( cli.dump_astronomy );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_traps.empty() ) {

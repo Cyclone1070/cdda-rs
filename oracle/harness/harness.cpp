@@ -166,6 +166,33 @@ void dump_prototype_ids( const std::string &path )
     std::fclose( out );
 }
 
+void dump_astronomy( const std::string &path )
+{
+    std::FILE *out = std::fopen( path.c_str(), "wb" );
+    if( out == nullptr ) {
+        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
+        return;
+    }
+    std::fprintf( out, "{\"harness\":\"astronomy\",\"version\":1,\n" );
+    std::fprintf( out, "\"samples\":[\n" );
+    // A leap year's worth of days at three-hour intervals: every season, every hour,
+    // including the ones where the sun never rises.
+    bool first = true;
+    for( int day = 0; day < 365; day += 7 ) {
+        for( int hour = 0; hour < 24; hour += 3 ) {
+            const time_point t = calendar::turn_zero + time_duration::from_days( day )
+                                 + time_duration::from_hours( hour );
+            const units::angle altitude = sun_azimuth_altitude( t ).second;
+            std::fprintf( out, "%s{\"day\":%d,\"hour\":%d,\"altitude\":%.9f,\"light\":%.9f}",
+                          first ? "" : ",\n", day, hour, to_degrees( altitude ),
+                          sun_light_at( t ) );
+            first = false;
+        }
+    }
+    std::fprintf( out, "]}\n" );
+    std::fclose( out );
+}
+
 void dump_environment( const std::string &path )
 {
     std::FILE *out = std::fopen( path.c_str(), "wb" );
