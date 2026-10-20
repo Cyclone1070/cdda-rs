@@ -71,6 +71,7 @@ fn the_constants_are_the_ids_the_registry_assigns() {
         ("fd_hot_air4", cdda_sim::HOT_AIR_4),
         ("fd_fire", cdda_sim::FIRE),
         ("fd_extinguisher", cdda_sim::EXTINGUISHER),
+        ("fd_acid_vent", cdda_sim::ACID_VENT),
     ] {
         assert_eq!(
             registry.id_of(name),

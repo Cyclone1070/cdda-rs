@@ -645,3 +645,39 @@ pub fn process_extinguisher(world: &mut World, entity: Entity) {
         }
     }
 }
+
+/// An acid vent, as the field registry numbers it.
+pub const ACID_VENT: FieldId = FieldId(33);
+
+/// A vent that is at full strength thins once its age passes a minute; a spent one refills.
+///
+/// Reference: `field_processor_fd_acid_vent` (`src/map_field.cpp:877-901`). A vent stronger than 1
+/// thins by one and resets its age once it is at least a minute old, drawing nothing. A vent at 1
+/// goes back to 3.
+///
+/// The reference's second half then walks a radius of 5 looking for acid fields **whose intensity
+/// is zero** and gives them strength. That branch is dead in the reference as well: `set_intensity`
+/// floors a field at 1, so a zero-intensity field cannot exist, and no acid is ever revived by it.
+/// The port therefore does not reproduce it - a divergence recorded in the ledger, not an omission
+/// - and the observable half, the refill, is what the tests pin.
+pub fn process_acid_vent(
+    world: &mut World,
+    entity: Entity,
+    _rolls: &mut cdda_core_types::rng::Rolls,
+) {
+    let Some(field) = world.get::<Field>(entity) else {
+        return;
+    };
+    let intensity = field.entry.intensity();
+    let age = field.entry.age();
+    if intensity > 1 {
+        if age >= 60
+            && let Some(mut field) = world.get_mut::<Field>(entity)
+        {
+            field.entry.set_intensity(intensity - 1);
+            field.entry.set_age(0);
+        }
+    } else if let Some(mut field) = world.get_mut::<Field>(entity) {
+        field.entry.set_intensity(3);
+    }
+}
