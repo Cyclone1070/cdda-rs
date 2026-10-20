@@ -13,7 +13,6 @@
 #include "item_factory.h"
 #include "item_group.h"
 #include "mapgen.h"
-#include "npc_class.h"
 #include "veh_type.h"
 #include "scenario.h"
 #include "profession.h"
@@ -353,30 +352,6 @@ void dump_traps( const std::string &path )
     std::fclose( out );
 }
 
-void dump_npc_classes( const std::string &path )
-{
-    std::FILE *out = std::fopen( path.c_str(), "wb" );
-    if( out == nullptr ) {
-        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
-        return;
-    }
-    // Ids only: the earlier version also asked is_common() and the run hung, so the first
-    // question is whether the registry itself can be walked at all.
-    std::vector<std::string> ids;
-    for( const npc_class &cls : npc_class::get_all() ) {
-        ids.push_back( cls.id.str() );
-    }
-    std::sort( ids.begin(), ids.end() );
-    std::fprintf( out, "{\"harness\":\"npc_classes\",\"version\":1,\n\"classes\":[\n" );
-    bool first = true;
-    for( const std::string &id : ids ) {
-        std::fprintf( out, "%s\"%s\"", first ? "" : ",\n", id.c_str() );
-        first = false;
-    }
-    std::fprintf( out, "\n],\"count\":%zu}\n", ids.size() );
-    std::fclose( out );
-}
-
 void dump_vehicle_parts( const std::string &path )
 {
     std::FILE *out = std::fopen( path.c_str(), "wb" );
@@ -441,6 +416,15 @@ void dump_starting_kit( const std::string &path )
     }
     std::fprintf( out, "\n],\"scenario_count\":%zu}\n", scenarios.size() );
     std::fclose( out );
+}
+
+void load_game_data()
+{
+    // The game's own startup order (game::load_core_data then finalize_loaded_data). The dump
+    // paths use check_mod_data, which leaves some registries unreadable - mapgens empty, npc
+    // classes hanging - so this exists to test whether the difference is the load, not the dump.
+    g->load_core_data();
+    DynamicDataLoader::get_instance().finalize_loaded_data();
 }
 
 void dump_mapgens( const std::string &path )

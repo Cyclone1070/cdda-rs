@@ -478,18 +478,12 @@ on the frame and turn benchmarks) is green.
 **Vehicle parts accessor - closed.** `vehicles::parts::get_all()` and
 `vehicles::get_all_prototypes()`; 701 parts and 249 prototypes dumped and loaded.
 
-**NPC classes - open, and the hang is in the registry walk itself.** The ids-only version hangs
-too, so it is not `is_common()`: the bounded run sat for 120 seconds and was killed by pid, as the
-new rule requires. Other dumps on the same path finish in under a minute, so the difference is
-`npc_class::get_all()`. Same shape as mapgen and likely the same cause - a registry that is only
-valid at a different point in the load - so it is tracked with B9 rather than separately:
-**two registries (mapgen, npc_class) cannot be read where the harness reads them.**
-
-**NPC classes (earlier note).** `npc_class::get_all()` is public and the id member is `cls.id`, but the
-dump **hangs** rather than failing: the process sat with no output for ten minutes and produced no
-file. Other dumps on the same path complete in about thirty seconds, so it is this call or
-something it reaches - `is_common()` is the next suspect. Killed and reverted rather than left
-running. Next attempt: dump ids only, then add `is_common` once the bare list works.
+**NPC classes - open, and it now falls through into a normal run.** Three attempts: ids plus
+`is_common()` hung; ids only hung; ids only on the *game's own* load path (`load_core_data` then
+`finalize_loaded_data`) hung, and its log shows the game's title art - so that branch does not dump
+at all, it falls through and starts the game waiting for input. The dump was removed rather than
+left in the tree. Next attempt: prove the branch is reached (print one line first), before asking
+anything of `npc_class::get_all()`.
 
 **Mapgen registry - promoted to B9 below.** Three explanations were tried and ruled out, and the
 harness has no world-initialisation path to fall back on, so this is no longer an open question
