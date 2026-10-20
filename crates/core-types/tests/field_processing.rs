@@ -130,3 +130,49 @@ fn the_order_fields_were_added_does_not_change_the_turn() {
         "the draws were taken in the same order"
     );
 }
+
+#[test]
+fn a_turn_is_one_entry_point_and_repeats_exactly() {
+    // The same level, the same seed, the same turn: the same result. This is the
+    // property every later processor inherits by being called from here rather than
+    // from wherever its caller happens to be.
+    let build = || {
+        let mut level = Level::new();
+        level.ensure(0, 0, 1);
+        for x in 0..4 {
+            level.add_field(x, 2, FieldId(1), field(2, 5), 1);
+        }
+        level
+    };
+    let mut one = build();
+    let mut two = build();
+    let mut first = Rolls::new(4242);
+    let mut second = Rolls::new(4242);
+    for turn in 0..25 {
+        assert_eq!(
+            one.tick(turn, &mut first),
+            two.tick(turn, &mut second),
+            "turn {turn} differed between two identical levels"
+        );
+    }
+    assert_eq!(
+        one.fielded_tiles(),
+        two.fielded_tiles(),
+        "the levels ended up the same shape"
+    );
+}
+
+#[test]
+fn a_tick_does_not_rebuild_light_that_nobody_asks_for() {
+    let mut level = Level::new();
+    level.ensure(0, 0, 1);
+    level.add_field(1, 1, FieldId(1), field(2, 5), 1);
+    let _ = level.tick(0, &mut rolls());
+    assert_eq!(
+        level.light_rebuilds(),
+        0,
+        "a turn nobody looks at costs no light map"
+    );
+    let _ = level.cached_visibility((5, 5), 3, |_| false);
+    assert_eq!(level.light_rebuilds(), 1, "the first look pays for it");
+}

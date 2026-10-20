@@ -290,6 +290,20 @@ impl Level {
         receipt
     }
 
+    /// Advances the level by one turn.
+    ///
+    /// This is where the level's per-turn work will accumulate. Today it is fields, but
+    /// the shape matters: one entry point that takes the clock and the rolls, so a replay
+    /// has a single place to stand and every processor added later inherits the same
+    /// ordering and the same receipt.
+    ///
+    /// Light is *not* rebuilt here. It is rebuilt on the next read, because a turn that
+    /// nobody looks at should not pay for a light map - which is also the reference's
+    /// behaviour, its caches being rebuilt on demand from a dirty flag.
+    pub fn tick(&mut self, now: i64, rolls: &mut Rolls) -> FieldProcessing {
+        self.process_fields(now, rolls)
+    }
+
     /// How many tiles hold at least one field.
     #[must_use]
     pub fn fielded_tiles(&self) -> usize {
