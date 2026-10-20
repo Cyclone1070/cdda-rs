@@ -828,6 +828,8 @@ pub struct GroundItem {
     pub charges: i32,
     /// How long it has been lying there, in turns.
     pub age: i64,
+    /// How much of a solid item has burned away so far.
+    pub burnt: i32,
 }
 
 /// Puts an item on a square.
@@ -839,6 +841,7 @@ pub fn drop_item(world: &mut World, square: (i32, i32), kind: ItemTypeId, charge
                 y: square.1,
             },
             GroundItem {
+                burnt: 0,
                 kind,
                 charges,
                 age: 0,
@@ -1927,4 +1930,100 @@ pub fn burn_item(
     #[allow(clippy::cast_possible_truncation)]
     let limit = threshold as i32;
     state.burnt >= limit
+}
+
+/// How to build the fire's view of one kind of item.
+#[derive(Debug, Clone)]
+pub struct ItemBurnPlan {
+    /// Its materials and their portions.
+    pub materials: Vec<MaterialPortion>,
+    /// Its base volume, in millilitres.
+    pub volume_ml: f64,
+    /// Whether it is a liquid.
+    pub liquid: bool,
+    /// The item type's declared material portions, one when it declares none.
+    pub material_total: i32,
+    /// Whether it is counted in charges.
+    pub by_charges: bool,
+    /// How many charges make one stack.
+    pub stack_size: i32,
+}
+
+/// What one square's worth of burning produced.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ItemBurnTotals {
+    /// Smoke produced, before rounding.
+    pub smoke: f64,
+    /// Fuel produced, before rounding.
+    pub fuel: f64,
+    /// How many items the fire finished off.
+    pub consumed: i32,
+}
+
+/// Burns what is lying on one square.
+///
+/// Reference: the item loop inside `field_processor_fd_fire` (`src/map_field.cpp:980-1031`). A fire
+/// consumes at most `intensity * 2` items a turn and stops as soon as it has. Each item's contribution
+/// comes from [`simulate_burn`] and its bookkeeping from [`burn_item`]; something the fire finishes
+/// leaves the map. Smoke and fuel are summed for the caller, which rounds them the way the reference
+/// does.
+///
+/// Not ported, and declared: items that explode in fire (`will_explode_in_fire`), the contents of a
+/// destroyed container, and burn products spawned by lost weight. All three need item contents, which
+/// the port does not carry yet.
+pub fn burn_items_in_fire(
+    world: &mut World,
+    square: (i32, i32),
+    intensity: i32,
+    contained: bool,
+    plan_of: impl Fn(ItemTypeId) -> Option<ItemBurnPlan>,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) -> ItemBurnTotals {
+    let max_consume = intensity * 2;
+    let mut totals = ItemBurnTotals {
+        smoke: 0.0,
+        fuel: 0.0,
+        consumed: 0,
+    };
+    let here = items_at(world, square);
+    for entity in here {
+        if totals.consumed >= max_consume {
+            break;
+        }
+        let (kind, charges, burnt) = match world.get::<GroundItem>(entity) {
+            Some(item) => (item.kind, item.charges, item.burnt),
+            None => continue,
+        };
+        let Some(plan) = plan_of(kind) else {
+            continue;
+        };
+        let burnable = Burnable {
+            materials: plan.materials,
+            volume_ml: plan.volume_ml,
+            liquid: plan.liquid,
+            material_total: plan.material_total,
+            by_charges: plan.by_charges,
+            charges,
+            stack_size: plan.stack_size,
+        };
+        let burn = simulate_burn(&burnable, intensity, contained, rolls);
+        totals.smoke += burn.smoke;
+        totals.fuel += burn.fuel;
+        let mut state = BurnState {
+            by_charges: plan.by_charges,
+            charges,
+            stack_size: plan.stack_size,
+            volume_ml: plan.volume_ml,
+            burnt,
+        };
+        let destroyed = burn_item(&mut state, burn.burn, rolls);
+        if destroyed {
+            world.despawn(entity);
+            totals.consumed += 1;
+        } else if let Some(mut item) = world.get_mut::<GroundItem>(entity) {
+            item.charges = state.charges;
+            item.burnt = state.burnt;
+        }
+    }
+    totals
 }
