@@ -603,14 +603,19 @@ void dump_fields( const std::string &path )
             std::fprintf( out, "%s\n{\"name\":\"%s\",\"sym\":%u,\"color\":\"%s\","
                           "\"dangerous\":%s,\"transparent\":%s,\"move_cost\":%d,"
                           "\"concentration\":%d,\"light\":%.6g,"
-                          "\"upgrade_chance\":%d,\"upgrade_duration\":%d}",
+                          "\"upgrade_chance\":%d,\"upgrade_duration\":%d,"
+                          "\"spawn_chance\":%d,\"spawn_count\":%d,\"spawn_radius\":%d,"
+                          "\"spawn_group\":\"%s\"}",
                           first_level ? "" : ",", harness_escape( level.name.translated() ).c_str(),
                           level.symbol, string_from_color( level.color ).c_str(),
                           level.dangerous ? "true" : "false",
                           level.transparent ? "true" : "false", level.move_cost,
                           level.concentration, static_cast<double>( level.light_emitted ),
                           level.intensity_upgrade_chance,
-                          to_turns<int>( level.intensity_upgrade_duration ) );
+                          to_turns<int>( level.intensity_upgrade_duration ),
+                          level.monster_spawn_chance, level.monster_spawn_count,
+                          level.monster_spawn_radius,
+                          harness_escape( level.monster_spawn_group.str() ).c_str() );
             first_level = false;
         }
         std::fprintf( out, "]}" );

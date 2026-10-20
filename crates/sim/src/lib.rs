@@ -1706,3 +1706,28 @@ pub fn nuke_gas_effect(
         moves_penalty,
     }
 }
+
+/// How many spawn attempts a field asks for this turn, and whether it is allowed any at all.
+///
+/// Reference: `field_processor_monster_spawn` (`src/map_field.cpp:763-787`). A level needs a positive
+/// count and a positive chance, and then a single `one_in(chance)` decides; the count is how many
+/// monsters the group will be asked for, not how many separate rolls happen.
+///
+/// The port stops here, at the gate, and says so: turning a monster group into actual creatures needs
+/// the group loader and a deferred spawn list, and neither exists yet. What is ported is the part the
+/// data decides - 15 for the Tindalos rift, 600 for the fatigue tear.
+#[must_use]
+pub fn monster_spawn_attempts(
+    spawn_chance: i32,
+    spawn_count: i32,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) -> i32 {
+    if spawn_chance <= 0 || spawn_count <= 0 {
+        return 0;
+    }
+    if rolls.one_in(spawn_chance) {
+        spawn_count
+    } else {
+        0
+    }
+}

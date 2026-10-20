@@ -25,6 +25,14 @@ pub struct FieldLevel {
     pub upgrade_chance: i32,
     /// How often the upgrade chance is rolled, in turns.
     pub upgrade_duration: i64,
+    /// The chance in a hundred that this intensity spawns a monster group.
+    pub spawn_chance: i32,
+    /// How many spawns to attempt.
+    pub spawn_count: i32,
+    /// How far from the field they appear.
+    pub spawn_radius: i32,
+    /// The monster group to draw from, empty when it spawns nothing.
+    pub spawn_group: String,
 }
 
 /// One kind of field, with its levels in order (index 0 is intensity 1).
@@ -126,6 +134,12 @@ pub fn from_dump(value: &Value) -> Result<Vec<FieldType>, String> {
                 upgrade_chance: i32::try_from(int_of(level, "upgrade_chance").unwrap_or(0))
                     .unwrap_or(0),
                 upgrade_duration: int_of(level, "upgrade_duration").unwrap_or(0),
+                spawn_chance: i32::try_from(int_of(level, "spawn_chance").unwrap_or(0))
+                    .unwrap_or(0),
+                spawn_count: i32::try_from(int_of(level, "spawn_count").unwrap_or(0)).unwrap_or(0),
+                spawn_radius: i32::try_from(int_of(level, "spawn_radius").unwrap_or(0))
+                    .unwrap_or(0),
+                spawn_group: str_of(level, "spawn_group").unwrap_or_default(),
             });
         }
         fields.push(FieldType {

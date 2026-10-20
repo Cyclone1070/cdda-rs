@@ -89,3 +89,35 @@ fn the_processor_data_arrives_with_each_field() {
         "exactly one field can upgrade itself"
     );
 }
+
+#[test]
+fn only_two_fields_in_the_data_can_spawn_anything() {
+    let all = dump();
+    let spawners: Vec<(&str, i32, String)> = all
+        .iter()
+        .flat_map(|field| {
+            field
+                .levels
+                .iter()
+                .filter(|level| level.spawn_chance > 0)
+                .map(move |level| {
+                    (
+                        field.id.as_str(),
+                        level.spawn_chance,
+                        level.spawn_group.clone(),
+                    )
+                })
+        })
+        .collect();
+    assert_eq!(spawners.len(), 2, "spawning levels: {spawners:?}");
+    assert!(
+        spawners
+            .iter()
+            .any(|(id, _, group)| *id == "fd_tindalos_rift" && group == "GROUP_TINDALOS")
+    );
+    assert!(
+        spawners
+            .iter()
+            .all(|(_, chance, group)| *chance > 0 && !group.is_empty())
+    );
+}
