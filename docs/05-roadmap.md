@@ -106,9 +106,11 @@ map-shaped structure that exists today was written before that task existed, whi
 plan and the decision drifted apart: the register is what makes "adding a kind of thing" not
 mean "writing a container for it".
 
-T4 is half done: smoke, fire and the rest decay correctly, several can share a square, a turn
-ages and removes them, and one tick entry point runs the pass - but no processors, so fire does
-not spread and smoke does not drift. T5 illumination is complete end to end, including point
+T4 has its first processor: smoke and the rest decay, and gas now spreads to a neighbour with
+the reference's thinning rule - the fraction of age that moves is the age divided by the
+intensity, and a square already holding the gas gets thicker rather than a second field. What is
+missing from the processor is the *direction*: the reference picks it with wind power and a
+dice roll, and neither is ported yet. T5 illumination is complete end to end, including point
 sources and smoke dimming what is behind it.
 
 step. T6 vision and T7 scent are not started.

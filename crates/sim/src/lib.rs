@@ -261,3 +261,69 @@ pub fn clear_light(world: &mut World) {
         *light = Light::default();
     }
 }
+
+/// Moves part of a field onto a neighbouring square: the arithmetic of `map::gas_spread_to`
+/// (`src/map_field.cpp:250-273`).
+///
+/// Gas thins as it spreads and gives up its share of the age: the fraction moved is the age
+/// divided by the intensity. A square that already holds the same gas gets thicker by one, so a
+/// fire's smoke accumulates downwind instead of sitting in a single tile.
+///
+/// The direction is the caller's decision. In the reference it comes from wind and a dice roll
+/// (`map::spread_gas`), neither of which is ported yet, so this is the arithmetic that the
+/// roll feeds into - tested on its own so that wiring the wind in later cannot quietly change
+/// it.
+pub fn gas_spread_to(world: &mut World, source: Entity, target: (i32, i32)) {
+    let Some(source_field) = world.get::<Field>(source) else {
+        return;
+    };
+    let intensity = source_field.entry.intensity();
+    // The reference bails below two on the *caller's* side; keeping the guard here as well
+    // means a single unit of gas cannot be squeezed into nothing by a second caller.
+    if intensity <= 1 {
+        return;
+    }
+    let age = source_field.entry.age();
+    let age_fraction = age / i64::from(intensity);
+    let id = source_field.id;
+    let priority = source_field.priority;
+
+    // Find the square's existing field of the same kind, if any.
+    let mut existing = None;
+    let mut query = world.query::<(Entity, &Position, &Field)>();
+    for (entity, position, field) in query.iter(world) {
+        if position.x == target.0 && position.y == target.1 && field.id == id {
+            existing = Some(entity);
+            break;
+        }
+    }
+
+    if let Some(entity) = existing {
+        if let Some(mut field) = world.get_mut::<Field>(entity) {
+            let raised = field.entry.intensity() + 1;
+            field.entry.set_intensity(raised);
+            let share = field.entry.age() + age_fraction;
+            field.entry.set_age(share);
+        }
+    } else {
+        let mut entry = FieldEntry::new(3, 100, true, false);
+        entry.set_intensity(1);
+        entry.set_age(age_fraction);
+        world.spawn((
+            Position {
+                x: target.0,
+                y: target.1,
+            },
+            Field {
+                id,
+                entry,
+                priority,
+            },
+        ));
+    }
+
+    if let Some(mut field) = world.get_mut::<Field>(source) {
+        field.entry.set_intensity(intensity - 1);
+        field.entry.set_age(age - age_fraction);
+    }
+}
