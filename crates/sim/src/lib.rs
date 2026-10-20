@@ -596,3 +596,52 @@ pub const HOT_AIR_2: FieldId = FieldId(59);
 pub const HOT_AIR_3: FieldId = FieldId(60);
 /// See [`HOT_AIR_1`].
 pub const HOT_AIR_4: FieldId = FieldId(61);
+
+/// Fire, as the field registry numbers it.
+pub const FIRE: FieldId = FieldId(14);
+/// An extinguisher's cloud, as the field registry numbers it.
+pub const EXTINGUISHER: FieldId = FieldId(16);
+
+/// An extinguisher cloud fights fire on its own square, one intensity for one intensity.
+///
+/// Reference: `field_processor_fd_extinguisher` (`src/map_field.cpp:559-569`). The reference takes
+/// the smaller of the two strengths and removes that much from both, so a cloud that is weaker
+/// than the fire is spent entirely and leaves the fire burning lower; a cloud that is stronger
+/// puts the fire out and survives with what is left. Neither side draws dice.
+pub fn process_extinguisher(world: &mut World, entity: Entity) {
+    let Some(position) = world.get::<Position>(entity).copied() else {
+        return;
+    };
+    let Some(cloud) = world
+        .get::<Field>(entity)
+        .map(|field| field.entry.intensity())
+    else {
+        return;
+    };
+    let fire = {
+        let mut query = world.query::<(Entity, &Position, &Field)>();
+        query
+            .iter(world)
+            .filter(|(_, at, field)| at.x == position.x && at.y == position.y && field.id == FIRE)
+            .map(|(fire_entity, _, _)| fire_entity)
+            .next()
+    };
+    let Some(fire_entity) = fire else {
+        return;
+    };
+    let Some(burning) = world
+        .get::<Field>(fire_entity)
+        .map(|field| field.entry.intensity())
+    else {
+        return;
+    };
+    let fought = cloud.min(burning);
+    for (target, intensity) in [(fire_entity, burning), (entity, cloud)] {
+        let left = intensity - fought;
+        if left <= 0 {
+            world.despawn(target);
+        } else if let Some(mut field) = world.get_mut::<Field>(target) {
+            field.entry.set_intensity(left);
+        }
+    }
+}
