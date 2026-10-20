@@ -114,6 +114,9 @@ void dump_mapgens( const std::string &path );
 /** Writes every profession and scenario id. */
 void dump_starting_kit( const std::string &path );
 
+/** Writes every vehicle part id and every vehicle prototype id. */
+void dump_vehicle_parts( const std::string &path );
+
 // `--dump-materials <file>`: every material's resolved fields.
 void dump_materials( const std::string &path );
 

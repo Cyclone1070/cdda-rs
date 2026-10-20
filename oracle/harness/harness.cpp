@@ -13,6 +13,7 @@
 #include "item_factory.h"
 #include "item_group.h"
 #include "mapgen.h"
+#include "veh_type.h"
 #include "scenario.h"
 #include "profession.h"
 #include "omdata.h"
@@ -348,6 +349,39 @@ void dump_traps( const std::string &path )
     std::fprintf( out, "{\"harness\":\"traps\",\"version\":1,\n\"prototypes\":[\n" );
     harness_dump_trap_prototypes( out );
     std::fprintf( out, "]}\n" );
+    std::fclose( out );
+}
+
+void dump_vehicle_parts( const std::string &path )
+{
+    std::FILE *out = std::fopen( path.c_str(), "wb" );
+    if( out == nullptr ) {
+        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
+        return;
+    }
+    std::vector<std::string> parts;
+    for( const vpart_info &part : vehicles::parts::get_all() ) {
+        parts.push_back( part.id.str() );
+    }
+    std::vector<std::string> prototypes;
+    for( const vehicle_prototype &proto : vehicles::get_all_prototypes() ) {
+        prototypes.push_back( proto.id.str() );
+    }
+    std::sort( parts.begin(), parts.end() );
+    std::sort( prototypes.begin(), prototypes.end() );
+    std::fprintf( out, "{\"harness\":\"vehicles\",\"version\":1,\n\"parts\":[\n" );
+    bool first = true;
+    for( const std::string &id : parts ) {
+        std::fprintf( out, "%s\"%s\"", first ? "" : ",\n", id.c_str() );
+        first = false;
+    }
+    std::fprintf( out, "\n],\"part_count\":%zu,\n\"prototypes\":[\n", parts.size() );
+    first = true;
+    for( const std::string &id : prototypes ) {
+        std::fprintf( out, "%s\"%s\"", first ? "" : ",\n", id.c_str() );
+        first = false;
+    }
+    std::fprintf( out, "\n],\"prototype_count\":%zu}\n", prototypes.size() );
     std::fclose( out );
 }
 

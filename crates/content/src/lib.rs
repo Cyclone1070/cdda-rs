@@ -26,6 +26,7 @@ mod rules;
 mod scan;
 pub mod starting_kit;
 pub mod traps;
+pub mod vehicles;
 
 pub use rules::{id_member, null_prototype, registry_for};
 pub use scan::{Registry, ScanError, scan};

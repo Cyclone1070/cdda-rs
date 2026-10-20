@@ -129,8 +129,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-21 05:32:10
-@@ -0,0 +1,801 @@
++++ oracle/src/src/harness.cpp	2026-10-21 05:47:47
+@@ -0,0 +1,835 @@
 +#include "harness.h"
 +#include "recipe_dictionary.h"
 +#include "requirements.h"
@@ -146,6 +146,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +#include "item_factory.h"
 +#include "item_group.h"
 +#include "mapgen.h"
++#include "veh_type.h"
 +#include "scenario.h"
 +#include "profession.h"
 +#include "omdata.h"
@@ -481,6 +482,39 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    std::fprintf( out, "{\"harness\":\"traps\",\"version\":1,\n\"prototypes\":[\n" );
 +    harness_dump_trap_prototypes( out );
 +    std::fprintf( out, "]}\n" );
++    std::fclose( out );
++}
++
++void dump_vehicle_parts( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    std::vector<std::string> parts;
++    for( const vpart_info &part : vehicles::parts::get_all() ) {
++        parts.push_back( part.id.str() );
++    }
++    std::vector<std::string> prototypes;
++    for( const vehicle_prototype &proto : vehicles::get_all_prototypes() ) {
++        prototypes.push_back( proto.id.str() );
++    }
++    std::sort( parts.begin(), parts.end() );
++    std::sort( prototypes.begin(), prototypes.end() );
++    std::fprintf( out, "{\"harness\":\"vehicles\",\"version\":1,\n\"parts\":[\n" );
++    bool first = true;
++    for( const std::string &id : parts ) {
++        std::fprintf( out, "%s\"%s\"", first ? "" : ",\n", id.c_str() );
++        first = false;
++    }
++    std::fprintf( out, "\n],\"part_count\":%zu,\n\"prototypes\":[\n", parts.size() );
++    first = true;
++    for( const std::string &id : prototypes ) {
++        std::fprintf( out, "%s\"%s\"", first ? "" : ",\n", id.c_str() );
++        first = false;
++    }
++    std::fprintf( out, "\n],\"prototype_count\":%zu}\n", prototypes.size() );
 +    std::fclose( out );
 +}
 +
@@ -934,8 +968,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +}  // namespace harness
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-21 05:32:10
-@@ -0,0 +1,143 @@
++++ oracle/src/src/harness.h	2026-10-21 05:47:47
+@@ -0,0 +1,146 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -1052,6 +1086,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +/** Writes every profession and scenario id. */
 +void dump_starting_kit( const std::string &path );
 +
++/** Writes every vehicle part id and every vehicle prototype id. */
++void dump_vehicle_parts( const std::string &path );
++
 +// `--dump-materials <file>`: every material's resolved fields.
 +void dump_materials( const std::string &path );
 +
@@ -1101,7 +1138,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-21 05:32:10
++++ oracle/src/src/main.cpp	2026-10-21 05:47:47
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -1112,7 +1149,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,33 @@
+@@ -272,6 +275,34 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -1134,6 +1171,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_item_groups;
 +    std::string dump_mapgens;
 +    std::string dump_starting_kit;
++    std::string dump_vehicle_parts;
 +    // Harness: resolved field types.
 +    std::string dump_fields;
 +    // Harness: resolved item types.
@@ -1146,7 +1184,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +330,186 @@
+@@ -300,6 +331,196 @@
                  }
              },
              {
@@ -1196,6 +1234,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_traps = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-vehicles", "<file>",
++                "Writes every vehicle part id and every vehicle prototype id to <file>",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_vehicle_parts = params[0];
 +                    return 1;
 +                }
 +            },
@@ -1333,7 +1381,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +996,131 @@
+@@ -786,6 +1007,137 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -1383,6 +1431,12 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            test_mode = true;
 +            g->check_mod_data( { mod_id( "dda" ) } );
 +            harness::dump_traps( cli.dump_traps );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_vehicle_parts.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_vehicle_parts( cli.dump_vehicle_parts );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_starting_kit.empty() ) {
