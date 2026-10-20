@@ -1001,3 +1001,87 @@ pub fn grow_fire(intensity: i32, age: i64, adjacent_fires: usize) -> Option<(i32
     let grown = intensity + 1;
     Some((grown, age + 600 * i64::from(grown)))
 }
+
+/// Whether a fire hands five minutes of its life to a neighbouring fire.
+///
+/// Reference: `field_processor_fd_fire` (`src/map_field.cpp:1178-1181`). The neighbour is boosted
+/// when it is no stronger than this fire, or when it is older - "older" here means a larger age,
+/// which is a shorter life left. Either way the fire that gives up the time is the one that could
+/// spare it.
+#[must_use]
+pub fn should_boost(
+    self_intensity: i32,
+    self_age: i64,
+    other_intensity: i32,
+    other_age: i64,
+) -> bool {
+    other_intensity <= self_intensity || other_age > self_age
+}
+
+/// A strong fire spends its excess age making its neighbours bigger: the reference's flashpoint.
+///
+/// Reference: `field_processor_fd_fire` (`src/map_field.cpp:1164-1215`). Only a fire above intensity
+/// 1 takes part, and only when `one_in(3)` fires. It then visits the eight neighbours from a random
+/// start, wrapping around, and stops as soon as its own age is no longer negative - each neighbour
+/// it feeds costs it five minutes. A fed neighbour under intensity 2 grows to 2 and always gains
+/// five minutes of life (its age drops by 300).
+///
+/// Returns how many neighbours were on fire, which the caller uses for the growth ceiling. The
+/// reference counts that in the same pass; so does this.
+pub fn process_flashpoint(
+    world: &mut World,
+    entity: Entity,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) -> usize {
+    let Some(position) = world.get::<Position>(entity).copied() else {
+        return 0;
+    };
+    let Some(field) = world.get::<Field>(entity) else {
+        return 0;
+    };
+    let intensity = field.entry.intensity();
+    if intensity <= 1 || !rolls.one_in(3) {
+        return 0;
+    }
+    let start = rolls.rng(0, 7);
+    let mut adjacent = 0;
+    for step in 0..8 {
+        let age = world
+            .get::<Field>(entity)
+            .map_or(0, |field| field.entry.age());
+        if age >= 0 {
+            break;
+        }
+        let index = usize::try_from((start + 1 + step).rem_euclid(8)).unwrap_or(0);
+        let Some((dx, dy)) = NEIGHBOURS.get(index).copied() else {
+            continue;
+        };
+        let square = (position.x + dx, position.y + dy);
+        let neighbour = {
+            let mut query = world.query::<(Entity, &Position, &Field)>();
+            query
+                .iter(world)
+                .find(|(_, at, field)| at.x == square.0 && at.y == square.1 && field.id == FIRE)
+                .map(|(other, _, field)| (other, field.entry.intensity(), field.entry.age()))
+        };
+        let Some((other, other_intensity, other_age)) = neighbour else {
+            continue;
+        };
+        adjacent += 1;
+        if !should_boost(intensity, age, other_intensity, other_age) {
+            continue;
+        }
+        if other_intensity < 2
+            && let Some(mut field) = world.get_mut::<Field>(other)
+        {
+            field.entry.set_intensity(2);
+        }
+        if let Some(mut field) = world.get_mut::<Field>(other) {
+            field.entry.set_age(other_age - 300);
+        }
+        if let Some(mut field) = world.get_mut::<Field>(entity) {
+            field.entry.set_age(age + 300);
+        }
+    }
+    adjacent
+}
