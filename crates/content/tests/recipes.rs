@@ -117,3 +117,60 @@ fn every_recipe_keeps_the_result_the_reference_gave_it() {
         "every recipe names a result: {mismatched:?}"
     );
 }
+
+#[test]
+fn tools_and_qualities_are_read_with_their_counts_and_levels() {
+    // A tool's count is charges spent, a quality's is how many of them, and the level is a
+    // floor. Getting any of the three wrong gives a recipe that looks right and cannot be
+    // crafted, or one that can be crafted with the wrong kit.
+    let (loaded, _) = dump();
+    let with_tools = loaded.iter().filter(|r| !r.tools.is_empty()).count();
+    let with_qualities = loaded.iter().filter(|r| !r.qualities.is_empty()).count();
+    assert_eq!(with_tools, 3_040, "recipes that need a tool");
+    assert_eq!(with_qualities, 4_024, "recipes that need a quality");
+
+    let fins = loaded.iter().find(|r| r.id == "swim_fins").expect("exists");
+    let tool_group = fins.tools.first().expect("a tool group");
+    assert_eq!(tool_group.len(), 2, "two moulds, either one works");
+    assert_eq!(tool_group[0].item, "makeshift_vacuum_mold");
+    assert_eq!(tool_group[0].count, 32);
+    assert_eq!(
+        tool_group[1].count, 16,
+        "the better mould costs fewer charges"
+    );
+    let quality = fins
+        .qualities
+        .first()
+        .and_then(|g| g.first())
+        .expect("a quality");
+    assert_eq!(quality.quality, "SEW");
+    assert_eq!(quality.level, 1);
+    assert_eq!(quality.count, 1);
+}
+
+#[test]
+fn a_tool_that_is_only_held_is_marked_with_minus_one() {
+    // The reference encodes "required but not consumed" as -1. It is not a count, and a port
+    // that treated it as one would either spend negative charges or require none of the tool -
+    // which would let a recipe be crafted bare-handed.
+    let (loaded, _) = dump();
+    let held = loaded
+        .iter()
+        .flat_map(|recipe| recipe.tools.iter().flatten())
+        .filter(|tool| tool.count == -1)
+        .count();
+    let spent = loaded
+        .iter()
+        .flat_map(|recipe| recipe.tools.iter().flatten())
+        .filter(|tool| tool.count > 0)
+        .count();
+    assert!(held > 0, "the data marks some tools as held-only");
+    assert!(spent > held, "and most tools do spend charges");
+    assert!(
+        loaded
+            .iter()
+            .flat_map(|recipe| recipe.tools.iter().flatten())
+            .all(|tool| tool.count == -1 || tool.count > 0),
+        "no tool has a zero count: the encoding has no other meaning"
+    );
+}

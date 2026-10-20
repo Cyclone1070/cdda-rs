@@ -374,6 +374,33 @@ void dump_recipes( const std::string &path )
             }
             std::fprintf( out, "]" );
         }
+        std::fprintf( out, "],\"tools\":[" );
+        bool first_tool_group = true;
+        for( const auto &group : r.simple_requirements().get_tools() ) {
+            std::fprintf( out, "%s[", first_tool_group ? "" : "," );
+            first_tool_group = false;
+            bool first_tool = true;
+            for( const tool_comp &tool : group ) {
+                std::fprintf( out, "%s{\"item\":\"%s\",\"count\":%d}",
+                              first_tool ? "" : ",", tool.type.str().c_str(), tool.count );
+                first_tool = false;
+            }
+            std::fprintf( out, "]" );
+        }
+        std::fprintf( out, "],\"qualities\":[" );
+        bool first_quality_group = true;
+        for( const auto &group : r.simple_requirements().get_qualities() ) {
+            std::fprintf( out, "%s[", first_quality_group ? "" : "," );
+            first_quality_group = false;
+            bool first_quality = true;
+            for( const quality_requirement &quality : group ) {
+                std::fprintf( out, "%s{\"quality\":\"%s\",\"level\":%d,\"count\":%d}",
+                              first_quality ? "" : ",", quality.type.str().c_str(), quality.level,
+                              quality.count );
+                first_quality = false;
+            }
+            std::fprintf( out, "]" );
+        }
         std::fprintf( out, "]}" );
         first = false;
     }

@@ -129,8 +129,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-21 04:11:26
-@@ -0,0 +1,673 @@
++++ oracle/src/src/harness.cpp	2026-10-21 04:18:18
+@@ -0,0 +1,700 @@
 +#include "harness.h"
 +#include "recipe_dictionary.h"
 +#include "requirements.h"
@@ -504,6 +504,33 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +                std::fprintf( out, "%s{\"item\":\"%s\",\"count\":%d}",
 +                              first_alt ? "" : ",", comp.type.str().c_str(), comp.count );
 +                first_alt = false;
++            }
++            std::fprintf( out, "]" );
++        }
++        std::fprintf( out, "],\"tools\":[" );
++        bool first_tool_group = true;
++        for( const auto &group : r.simple_requirements().get_tools() ) {
++            std::fprintf( out, "%s[", first_tool_group ? "" : "," );
++            first_tool_group = false;
++            bool first_tool = true;
++            for( const tool_comp &tool : group ) {
++                std::fprintf( out, "%s{\"item\":\"%s\",\"count\":%d}",
++                              first_tool ? "" : ",", tool.type.str().c_str(), tool.count );
++                first_tool = false;
++            }
++            std::fprintf( out, "]" );
++        }
++        std::fprintf( out, "],\"qualities\":[" );
++        bool first_quality_group = true;
++        for( const auto &group : r.simple_requirements().get_qualities() ) {
++            std::fprintf( out, "%s[", first_quality_group ? "" : "," );
++            first_quality_group = false;
++            bool first_quality = true;
++            for( const quality_requirement &quality : group ) {
++                std::fprintf( out, "%s{\"quality\":\"%s\",\"level\":%d,\"count\":%d}",
++                              first_quality ? "" : ",", quality.type.str().c_str(), quality.level,
++                              quality.count );
++                first_quality = false;
 +            }
 +            std::fprintf( out, "]" );
 +        }
