@@ -82,12 +82,22 @@ registries the reference reports are now reproduced exactly, with nothing invent
 materials, fields, traps and the rest. Seven loader families
 carry field-level corpora from the reference's own dumps (terrain and furniture,
 traps, materials, field types, item types, monster types, and the generated
-prototypes those loaders create), the registry gate holds 86 of 90 id sets exactly
-with the four gaps named and counted, and JSON reading and writing match over all
-6,220 data files. What M1 still waits on is the mapgen loader: three of the four
-remaining id gaps are overmap terrain, its types and its specials, all of which the
-map generator creates rather than reads. The fourth is the inline
-effect-on-conditions, whose slots belong to the furniture and tool loaders.
+prototypes those loaders create), the registry gate is **90 of 90 id sets
+exactly, with no named gaps at all**, and JSON reading and writing match over all
+6,220 data files. The last eight ids closed because a plain `flags` member *replaces*
+inherited flags while `extend.flags` adds to them - treating the two the same way is
+what kept two overmap terrain types wrong.
+
+**P2 stands here.** T1 tile storage, T2 submap ownership and T3 per-level caches are
+done. T4 fields is half done: an entry with the reference's decay rules, a tile layer
+that merges several fields, a per-turn pass that ages and removes them, and one tick
+entry point - but no processors, so fire does not spread and smoke does not drift. T5
+illumination is half done too: an eight-segment caster gated against fixtures the
+reference printed, the light thresholds and `LIGHT_RANGE`, cached light keyed by where it
+is cast from, and a per-tile transparency memo. What is missing there is the
+four-quadrant intensity accumulation that turns a caster into a light map. T6 vision and
+T7 scent are not started. Fields come before vision for a reason: smoke is both a field
+and a thing that blocks sight.
 
 Every porting task follows [14-test-porting.md](14-test-porting.md): dump first, write
 the failing gate, port the smallest thing that clears it, then tighten the gate. The
