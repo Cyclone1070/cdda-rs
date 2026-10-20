@@ -37,6 +37,10 @@ pub struct Level {
     /// Whether something has changed since the light was built.
     light_dirty: bool,
     light_rebuilds: u32,
+    /// Whether each tile blocks light, worked out once per tile rather than once per
+    /// cast. Keyed by tile, so moving the light reuses what it already knows.
+    transparency: BTreeMap<(i32, i32), bool>,
+    transparency_builds: u32,
 }
 
 impl Level {
@@ -65,6 +69,28 @@ impl Level {
         let cell_x = usize::try_from(x.rem_euclid(side())).ok()?;
         let cell_y = usize::try_from(y.rem_euclid(side())).ok()?;
         Some((id, cell_x, cell_y))
+    }
+
+    /// Whether a tile blocks light, remembering the answer.
+    ///
+    /// The reference keeps a transparency cache per level and rebuilds it when the
+    /// level is dirty; a per-tile memo is the same idea at a finer grain, and it means
+    /// two casts from different places pay once for the tiles they share.
+    fn blocks_at(&mut self, x: i32, y: i32, blocks_light: &impl Fn(u32) -> bool) -> bool {
+        if let Some(known) = self.transparency.get(&(x, y)) {
+            return *known;
+        }
+        // A tile the world has not made blocks light: there is nothing to see through.
+        let blocks = self.terrain_at(x, y).is_none_or(&blocks_light);
+        self.transparency.insert((x, y), blocks);
+        self.transparency_builds += 1;
+        blocks
+    }
+
+    /// How many tiles have had their transparency worked out.
+    #[must_use]
+    pub fn transparency_builds(&self) -> u32 {
+        self.transparency_builds
     }
 
     /// The terrain at a world tile, if the tile's submap has been made.
@@ -98,6 +124,8 @@ impl Level {
         // The reference marks the level dirty on the same write. Until the light is
         // rebuilt, anything read from it describes the world before this call.
         self.light_dirty = true;
+        // Only the tile that changed can have changed what is there to see through.
+        self.transparency.remove(&(x, y));
     }
 
     /// Which world tiles an origin can see, given which terrain blocks light.
@@ -113,9 +141,9 @@ impl Level {
     /// solid: light does not pass through a place the world has not made.
     // The loops below run over the grid's own dimensions, so every index is inside it.
     #[must_use]
-    #[allow(clippy::indexing_slicing)]
+    #[allow(clippy::indexing_slicing, clippy::needless_pass_by_value)]
     pub fn visibility(
-        &self,
+        &mut self,
         origin: (i32, i32),
         radius: i32,
         blocks_light: impl Fn(u32) -> bool,
@@ -135,9 +163,7 @@ impl Level {
                 let (offset_x, offset_y) = (offset_x - radius, offset_y - radius);
                 let world_x = origin.0 + offset_x;
                 let world_y = origin.1 + offset_y;
-                let transparent = self
-                    .terrain_at(world_x, world_y)
-                    .is_some_and(|terrain| !blocks_light(terrain));
+                let transparent = !self.blocks_at(world_x, world_y, &blocks_light);
                 cells[grid_x * side + grid_y] = if transparent { 1.0 } else { 0.0 };
             }
         }

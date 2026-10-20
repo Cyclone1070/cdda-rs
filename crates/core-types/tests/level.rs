@@ -142,3 +142,50 @@ fn moving_the_light_rebuilds_even_when_nothing_changed() {
     assert_eq!(level.light_rebuilds(), 2);
     assert!(!from_elsewhere[3][3], "the origin does not light itself");
 }
+
+#[test]
+fn a_tiles_transparency_is_worked_out_once() {
+    // A cast asks about every tile in its window, and two casts from nearby tiles share
+    // most of that window. Reading the terrain again for each is waste the reference
+    // does not commit either - it caches transparency per level.
+    let mut level = Level::new();
+    level.ensure(0, 0, FLOOR);
+    let radius = 3;
+    let window = ((radius * 2 + 1) * (radius * 2 + 1)) as u32;
+    let _ = level.visibility((5, 5), radius, blocks_light);
+    assert_eq!(
+        level.transparency_builds(),
+        window,
+        "the first cast has to look at every tile it covers"
+    );
+    // Same window, one tile over: only the new column and row are unknown.
+    let _ = level.visibility((5, 6), radius, blocks_light);
+    assert_eq!(
+        level.transparency_builds(),
+        window + 2 * radius as u32 + 1,
+        "the second cast only pays for the tiles the first never saw"
+    );
+}
+
+#[test]
+fn a_tile_that_changed_is_looked_at_again_and_no_other() {
+    let mut level = Level::new();
+    level.ensure(0, 0, FLOOR);
+    let radius = 3;
+    let _ = level.visibility((5, 5), radius, blocks_light);
+    let before = level.transparency_builds();
+    level.set_terrain(7, 5, WALL, FLOOR);
+    assert_eq!(
+        level.transparency_builds(),
+        before,
+        "the memo is dropped by the write, not rebuilt by it"
+    );
+    let rows = level.visibility((5, 5), radius, blocks_light);
+    assert_eq!(
+        level.transparency_builds(),
+        before + 1,
+        "one changed tile costs one look, not a whole window"
+    );
+    let at = |dx: i32, dy: i32| rows[(dy + radius) as usize][(dx + radius) as usize];
+    assert!(!at(3, 0), "the new wall shadows what is behind it");
+}
