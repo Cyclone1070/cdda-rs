@@ -1,6 +1,6 @@
 diff -ruN references/Cataclysm-DDA/src/calendar.cpp oracle/src/src/calendar.cpp
 --- references/Cataclysm-DDA/src/calendar.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/calendar.cpp	2026-10-21 05:32:10
++++ oracle/src/src/calendar.cpp	2026-10-21 06:53:22
 @@ -183,6 +183,26 @@
      return L0 + L1 * days_since_epoch + longitude;
  }
@@ -30,7 +30,7 @@ diff -ruN references/Cataclysm-DDA/src/calendar.cpp oracle/src/src/calendar.cpp
  {
 diff -ruN references/Cataclysm-DDA/src/calendar.h oracle/src/src/calendar.h
 --- references/Cataclysm-DDA/src/calendar.h	2026-10-19 18:15:04
-+++ oracle/src/src/calendar.h	2026-10-21 05:32:10
++++ oracle/src/src/calendar.h	2026-10-21 06:53:22
 @@ -629,6 +629,10 @@
  float default_daylight_level();
  /* Irradiance (W/m2) on clear day when sun is at 90 degrees */
@@ -44,7 +44,7 @@ diff -ruN references/Cataclysm-DDA/src/calendar.h oracle/src/src/calendar.h
   *  weather.
 diff -ruN references/Cataclysm-DDA/src/debug.cpp oracle/src/src/debug.cpp
 --- references/Cataclysm-DDA/src/debug.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/debug.cpp	2026-10-21 05:32:10
++++ oracle/src/src/debug.cpp	2026-10-21 06:53:22
 @@ -1,4 +1,7 @@
  #include "debug.h"
 +#ifdef CATA_HARNESS
@@ -65,7 +65,7 @@ diff -ruN references/Cataclysm-DDA/src/debug.cpp oracle/src/src/debug.cpp
      if( excess_repetition ) {
 diff -ruN references/Cataclysm-DDA/src/game.h oracle/src/src/game.h
 --- references/Cataclysm-DDA/src/game.h	2026-10-19 18:15:04
-+++ oracle/src/src/game.h	2026-10-21 05:32:10
++++ oracle/src/src/game.h	2026-10-21 06:53:22
 @@ -236,6 +236,16 @@
          void load_mod_interaction_data_from_dir( const cata_path &path, const std::string &src );
      public:
@@ -85,7 +85,7 @@ diff -ruN references/Cataclysm-DDA/src/game.h oracle/src/src/game.h
          void unserialize( std::istream &fin, const cata_path &path ); // for load
 diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_factory.h
 --- references/Cataclysm-DDA/src/generic_factory.h	2026-10-19 18:15:04
-+++ oracle/src/src/generic_factory.h	2026-10-21 05:32:10
++++ oracle/src/src/generic_factory.h	2026-10-21 06:53:22
 @@ -19,6 +19,9 @@
  #include <utility>
  #include <vector>
@@ -129,7 +129,7 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-21 06:16:46
++++ oracle/src/src/harness.cpp	2026-10-21 06:53:22
 @@ -0,0 +1,836 @@
 +#include "harness.h"
 +#include "recipe_dictionary.h"
@@ -969,7 +969,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +}  // namespace harness
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-21 05:47:47
++++ oracle/src/src/harness.h	2026-10-21 06:53:22
 @@ -0,0 +1,146 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
@@ -1119,7 +1119,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +void harness_dump_trap_prototypes( std::FILE *out );
 diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.cpp
 --- references/Cataclysm-DDA/src/loading_ui.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/loading_ui.cpp	2026-10-21 05:32:10
++++ oracle/src/src/loading_ui.cpp	2026-10-21 06:53:22
 @@ -1,4 +1,7 @@
  #include "loading_ui.h"
 +#ifdef CATA_HARNESS
@@ -1139,7 +1139,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-21 05:47:47
++++ oracle/src/src/main.cpp	2026-10-21 06:53:22
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -1522,7 +1522,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
          }
 diff -ruN references/Cataclysm-DDA/src/mapdata.cpp oracle/src/src/mapdata.cpp
 --- references/Cataclysm-DDA/src/mapdata.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/mapdata.cpp	2026-10-21 05:32:10
++++ oracle/src/src/mapdata.cpp	2026-10-21 06:53:22
 @@ -1,4 +1,8 @@
  #include "mapdata.h"
 +#ifdef CATA_HARNESS
@@ -1580,7 +1580,7 @@ diff -ruN references/Cataclysm-DDA/src/mapdata.cpp oracle/src/src/mapdata.cpp
  template<>
 diff -ruN references/Cataclysm-DDA/src/mtype.h oracle/src/src/mtype.h
 --- references/Cataclysm-DDA/src/mtype.h	2026-10-19 18:15:05
-+++ oracle/src/src/mtype.h	2026-10-21 05:32:10
++++ oracle/src/src/mtype.h	2026-10-21 06:53:22
 @@ -566,6 +566,12 @@
          bool has_flag( const mon_flag_id &flag ) const {
              return flags.contains( flag );
@@ -1596,7 +1596,7 @@ diff -ruN references/Cataclysm-DDA/src/mtype.h oracle/src/src/mtype.h
          bool made_of_any( const std::set<material_id> &materials ) const;
 diff -ruN references/Cataclysm-DDA/src/ncurses_def.cpp oracle/src/src/ncurses_def.cpp
 --- references/Cataclysm-DDA/src/ncurses_def.cpp	2026-10-19 18:15:05
-+++ oracle/src/src/ncurses_def.cpp	2026-10-21 05:32:10
++++ oracle/src/src/ncurses_def.cpp	2026-10-21 06:53:22
 @@ -30,6 +30,9 @@
  #include "catacharset.h"
  #include "color.h"
@@ -1659,7 +1659,7 @@ diff -ruN references/Cataclysm-DDA/src/ncurses_def.cpp oracle/src/src/ncurses_de
  #if defined(_WIN32)
 diff -ruN references/Cataclysm-DDA/src/popup.cpp oracle/src/src/popup.cpp
 --- references/Cataclysm-DDA/src/popup.cpp	2026-10-19 16:28:49
-+++ oracle/src/src/popup.cpp	2026-10-21 05:32:10
++++ oracle/src/src/popup.cpp	2026-10-21 06:53:22
 @@ -1,4 +1,7 @@
  #include "popup.h"
 +#ifdef CATA_HARNESS
@@ -1681,12 +1681,12 @@ diff -ruN references/Cataclysm-DDA/src/popup.cpp oracle/src/src/popup.cpp
      result res;
 diff -ruN references/Cataclysm-DDA/src/prefix.h oracle/src/src/prefix.h
 --- references/Cataclysm-DDA/src/prefix.h	1970-01-01 10:00:00
-+++ oracle/src/src/prefix.h	2026-10-21 05:32:10
++++ oracle/src/src/prefix.h	2026-10-21 06:53:22
 @@ -0,0 +1 @@
 +#define PREFIX "/usr/local"
 diff -ruN references/Cataclysm-DDA/src/src/harness.cpp oracle/src/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/src/harness.cpp	2026-10-21 05:31:38
++++ oracle/src/src/src/harness.cpp	2026-10-21 06:53:22
 @@ -0,0 +1,801 @@
 +#include "harness.h"
 +#include "recipe_dictionary.h"
@@ -2491,7 +2491,7 @@ diff -ruN references/Cataclysm-DDA/src/src/harness.cpp oracle/src/src/src/harnes
 +}  // namespace harness
 diff -ruN references/Cataclysm-DDA/src/src/harness.h oracle/src/src/src/harness.h
 --- references/Cataclysm-DDA/src/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/src/harness.h	2026-10-21 05:31:38
++++ oracle/src/src/src/harness.h	2026-10-21 06:53:22
 @@ -0,0 +1,143 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
@@ -2638,7 +2638,7 @@ diff -ruN references/Cataclysm-DDA/src/src/harness.h oracle/src/src/src/harness.
 +void harness_dump_trap_prototypes( std::FILE *out );
 diff -ruN references/Cataclysm-DDA/src/src/loading_ui.cpp.rej oracle/src/src/src/loading_ui.cpp.rej
 --- references/Cataclysm-DDA/src/src/loading_ui.cpp.rej	1970-01-01 10:00:00
-+++ oracle/src/src/src/loading_ui.cpp.rej	2026-10-21 05:31:38
++++ oracle/src/src/src/loading_ui.cpp.rej	2026-10-21 06:53:22
 @@ -0,0 +1,17 @@
 +@@ -1,4 +1,7 @@
 + #include "loading_ui.h"
@@ -2659,7 +2659,7 @@ diff -ruN references/Cataclysm-DDA/src/src/loading_ui.cpp.rej oracle/src/src/src
 +     update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/src/main.cpp.rej oracle/src/src/src/main.cpp.rej
 --- references/Cataclysm-DDA/src/src/main.cpp.rej	1970-01-01 10:00:00
-+++ oracle/src/src/src/main.cpp.rej	2026-10-21 05:31:38
++++ oracle/src/src/src/main.cpp.rej	2026-10-21 06:53:22
 @@ -0,0 +1,363 @@
 +@@ -45,6 +45,9 @@
 + #include "game_constants.h"
@@ -3026,7 +3026,7 @@ diff -ruN references/Cataclysm-DDA/src/src/main.cpp.rej oracle/src/src/src/main.
 +         }
 diff -ruN references/Cataclysm-DDA/src/src/mapdata.cpp.rej oracle/src/src/src/mapdata.cpp.rej
 --- references/Cataclysm-DDA/src/src/mapdata.cpp.rej	1970-01-01 10:00:00
-+++ oracle/src/src/src/mapdata.cpp.rej	2026-10-21 05:31:38
++++ oracle/src/src/src/mapdata.cpp.rej	2026-10-21 06:53:22
 @@ -0,0 +1,55 @@
 +@@ -1,4 +1,8 @@
 + #include "mapdata.h"
@@ -3085,7 +3085,7 @@ diff -ruN references/Cataclysm-DDA/src/src/mapdata.cpp.rej oracle/src/src/src/ma
 + template<>
 diff -ruN references/Cataclysm-DDA/src/src/mtype.h.rej oracle/src/src/src/mtype.h.rej
 --- references/Cataclysm-DDA/src/src/mtype.h.rej	1970-01-01 10:00:00
-+++ oracle/src/src/src/mtype.h.rej	2026-10-21 05:31:38
++++ oracle/src/src/src/mtype.h.rej	2026-10-21 06:53:22
 @@ -0,0 +1,13 @@
 +@@ -566,6 +566,12 @@
 +         bool has_flag( const mon_flag_id &flag ) const {
@@ -3102,7 +3102,7 @@ diff -ruN references/Cataclysm-DDA/src/src/mtype.h.rej oracle/src/src/src/mtype.
 +         bool made_of_any( const std::set<material_id> &materials ) const;
 diff -ruN references/Cataclysm-DDA/src/src/ncurses_def.cpp.rej oracle/src/src/src/ncurses_def.cpp.rej
 --- references/Cataclysm-DDA/src/src/ncurses_def.cpp.rej	1970-01-01 10:00:00
-+++ oracle/src/src/src/ncurses_def.cpp.rej	2026-10-21 05:31:38
++++ oracle/src/src/src/ncurses_def.cpp.rej	2026-10-21 06:53:22
 @@ -0,0 +1,60 @@
 +@@ -30,6 +30,9 @@
 + #include "catacharset.h"
@@ -3166,7 +3166,7 @@ diff -ruN references/Cataclysm-DDA/src/src/ncurses_def.cpp.rej oracle/src/src/sr
 + #if defined(_WIN32)
 diff -ruN references/Cataclysm-DDA/src/src/popup.cpp.rej oracle/src/src/src/popup.cpp.rej
 --- references/Cataclysm-DDA/src/src/popup.cpp.rej	1970-01-01 10:00:00
-+++ oracle/src/src/src/popup.cpp.rej	2026-10-21 05:31:38
++++ oracle/src/src/src/popup.cpp.rej	2026-10-21 06:53:22
 @@ -0,0 +1,19 @@
 +@@ -1,4 +1,7 @@
 + #include "popup.h"
@@ -3189,12 +3189,12 @@ diff -ruN references/Cataclysm-DDA/src/src/popup.cpp.rej oracle/src/src/src/popu
 +     result res;
 diff -ruN references/Cataclysm-DDA/src/src/prefix.h oracle/src/src/src/prefix.h
 --- references/Cataclysm-DDA/src/src/prefix.h	1970-01-01 10:00:00
-+++ oracle/src/src/src/prefix.h	2026-10-21 05:31:38
++++ oracle/src/src/src/prefix.h	2026-10-21 06:53:22
 @@ -0,0 +1 @@
 +#define PREFIX "/usr/local"
 diff -ruN references/Cataclysm-DDA/src/src/trap.cpp.rej oracle/src/src/src/trap.cpp.rej
 --- references/Cataclysm-DDA/src/src/trap.cpp.rej	1970-01-01 10:00:00
-+++ oracle/src/src/src/trap.cpp.rej	2026-10-21 05:31:38
++++ oracle/src/src/src/trap.cpp.rej	2026-10-21 06:53:22
 @@ -0,0 +1,38 @@
 +@@ -40,7 +40,37 @@
 + 
@@ -3236,7 +3236,7 @@ diff -ruN references/Cataclysm-DDA/src/src/trap.cpp.rej oracle/src/src/src/trap.
 + template<>
 diff -ruN references/Cataclysm-DDA/src/src/trap.h.rej oracle/src/src/src/trap.h.rej
 --- references/Cataclysm-DDA/src/src/trap.h.rej	1970-01-01 10:00:00
-+++ oracle/src/src/src/trap.h.rej	2026-10-21 05:31:38
++++ oracle/src/src/src/trap.h.rej	2026-10-21 06:53:22
 @@ -0,0 +1,19 @@
 +@@ -161,6 +161,18 @@
 +         std::vector<std::tuple<itype_id, int, int>> components;
@@ -3259,13 +3259,13 @@ diff -ruN references/Cataclysm-DDA/src/src/trap.h.rej oracle/src/src/src/trap.h.
 +         std::vector<effect_on_condition_id> eocs;
 diff -ruN references/Cataclysm-DDA/src/src/version.h oracle/src/src/src/version.h
 --- references/Cataclysm-DDA/src/src/version.h	1970-01-01 10:00:00
-+++ oracle/src/src/src/version.h	2026-10-21 05:31:38
++++ oracle/src/src/src/version.h	2026-10-21 06:53:22
 @@ -0,0 +1,2 @@
 +// NOLINT(cata-header-guard)
 +#define VERSION "HEAD-HASH-dirty"
 diff -ruN references/Cataclysm-DDA/src/trap.cpp oracle/src/src/trap.cpp
 --- references/Cataclysm-DDA/src/trap.cpp	2026-10-19 18:15:06
-+++ oracle/src/src/trap.cpp	2026-10-21 05:32:10
++++ oracle/src/src/trap.cpp	2026-10-21 06:53:22
 @@ -40,7 +40,37 @@
  
  generic_factory<trap> trap_factory( "trap" );
@@ -3306,7 +3306,7 @@ diff -ruN references/Cataclysm-DDA/src/trap.cpp oracle/src/src/trap.cpp
  template<>
 diff -ruN references/Cataclysm-DDA/src/trap.h oracle/src/src/trap.h
 --- references/Cataclysm-DDA/src/trap.h	2026-10-19 18:15:06
-+++ oracle/src/src/trap.h	2026-10-21 05:32:10
++++ oracle/src/src/trap.h	2026-10-21 06:53:22
 @@ -161,6 +161,18 @@
          std::vector<std::tuple<itype_id, int, int>> components;
      public:
@@ -3328,7 +3328,7 @@ diff -ruN references/Cataclysm-DDA/src/trap.h oracle/src/src/trap.h
          std::vector<effect_on_condition_id> eocs;
 diff -ruN references/Cataclysm-DDA/src/version.h oracle/src/src/version.h
 --- references/Cataclysm-DDA/src/version.h	1970-01-01 10:00:00
-+++ oracle/src/src/version.h	2026-10-21 05:32:10
++++ oracle/src/src/version.h	2026-10-21 06:53:22
 @@ -0,0 +1,2 @@
 +// NOLINT(cata-header-guard)
 +#define VERSION "ab52ac4-dirty"

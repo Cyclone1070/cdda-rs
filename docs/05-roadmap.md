@@ -478,6 +478,12 @@ on the frame and turn benchmarks) is green.
 **Vehicle parts accessor - closed.** `vehicles::parts::get_all()` and
 `vehicles::get_all_prototypes()`; 701 parts and 249 prototypes dumped and loaded.
 
+**NPC classes - open.** `npc_class::get_all()` is public and the id member is `cls.id`, but the
+dump **hangs** rather than failing: the process sat with no output for ten minutes and produced no
+file. Other dumps on the same path complete in about thirty seconds, so it is this call or
+something it reaches - `is_common()` is the next suspect. Killed and reverted rather than left
+running. Next attempt: dump ids only, then add `is_common` once the bare list works.
+
 **Mapgen registry - promoted to B9 below.** Three explanations were tried and ruled out, and the
 harness has no world-initialisation path to fall back on, so this is no longer an open question
 worth spending rounds on. It is a blocker with a work item behind it.
