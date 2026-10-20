@@ -98,3 +98,16 @@ correct because a test was written, only because both builds agreed.
   separately in [03-decisions.md](03-decisions.md).
 - Not complete. 120+ game mechanics are out of scope; see the open questions at the
   end of [03-decisions.md](03-decisions.md).
+
+## Building with `bevy_ecs`
+
+The workspace depends on `bevy_ecs`, the first third-party dependency. Under the current
+sandbox `~/.cargo` is not writable, so the registry lives inside the repo:
+
+```sh
+export CARGO_HOME="$PWD/.cargo-home"   # git-ignored
+cargo test --workspace
+```
+
+Without it, cargo fails with "Operation not permitted" while unpacking a crate, which reads
+like a network error and is not one.

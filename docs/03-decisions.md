@@ -26,7 +26,7 @@ describes a table no player has.
 | D5 | System order is data | A readable, diffable schedule instead of subsystem calls buried in one large function. Ordering becomes reviewable and testable. |
 | D6 | Structural changes only at sync points | Iteration stays valid; behaviour becomes reproducible. A turn is already atomic, so batching is natural here in a way it is not in a 60 Hz action game. |
 | D7 | IDs, never pointers | Removes the ownership graph that makes large C++ simulations hard to refactor. Also the reason Rust is tractable for this design. |
-| D8 | Rust, ECS crate, no game engine | Safety and refactorability at this size, plus a future parallel path. Speed is **not** the reason — see the evidence section. |
+| D8 | Rust, **`bevy_ecs`**, no game engine | Safety and refactorability at this size, plus a future parallel path. Speed is **not** the reason — see the evidence section. |
 | D9 | JSON prototypes, immutable at runtime | The content layer stays data, so mods never have to understand storage. This is the one part of the reference implementation to copy as-is. |
 
 ---
@@ -35,6 +35,31 @@ describes a table no player has.
 
 This section exists because the table above was read wrongly by the person who wrote it. If
 you take one thing from this document, take this.
+
+### The framework is `bevy_ecs`
+
+Not "an ECS crate": **`bevy_ecs`**, added to the workspace as `cdda-sim`'s dependency. It is the
+first third-party dependency in the project and it is the backbone of everything below - the
+register, every component, every system, and the schedule itself.
+
+Why this one, in its own terms:
+
+| Decision | What `bevy_ecs` gives |
+|---|---|
+| D1 one store | a `World` is the store; `Entity` is the id |
+| D2 derived index | a `Resource` holding the grid, rebuilt from the World |
+| D5 schedule is data | its `Schedule` is data: built in one place, inspectable, reorderable |
+| D6 structural changes at sync points | commands are applied at defined boundaries, not mid-iteration |
+| D8 no engine | a plain library: no renderer, no window, no application loop |
+
+`hecs` was the alternative: smaller, but no scheduler, and D5 says the schedule must be
+readable data rather than hand-written calls. `shipyard` buys parallelism that the turn loop
+does not need yet.
+
+**This is what slipped.** D8 said "an ECS crate" and no phase task said "adopt one", so every
+task was satisfiable without a framework and nine rounds of hand-rolled storage were built
+instead. The rule that comes out of it: *an abstract decision with no named artefact and no
+task that adopts it is a wish, and wishes do not show up in a diff.*
 
 **Things are nouns. Systems are verbs.**
 

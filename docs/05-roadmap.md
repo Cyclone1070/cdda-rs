@@ -92,7 +92,9 @@ what kept two overmap terrain types wrong.
 and answers are neither. T1 (the ground of a square), T2 (positions come from the register, the
 grid is rebuilt from it) and T3 (answers and their caches) are done.
 
-**The register itself - P2-T0 - is not started**, and it is the first thing to build. Every
+**`bevy_ecs` is now the backbone** (P2-T0a): the World is the store, entities are the ids,
+components are the columns, and the schedule is data. The register (P2-T0b) and the port of the
+map layer onto it (P2-T0c) follow. Every
 map-shaped structure that exists today was written before that task existed, which is how the
 plan and the decision drifted apart: the register is what makes "adding a kind of thing" not
 mean "writing a container for it".

@@ -15,3 +15,6 @@
 
 # TDD enforcer state is its own repository
 /.tdd/
+
+# Local cargo home: the sandbox cannot write ~/.cargo, so the registry lives here.
+/.cargo-home/
