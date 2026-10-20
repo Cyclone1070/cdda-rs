@@ -132,7 +132,9 @@ fast loop is `python3 tools/test_fast.py`, which runs the test binaries concurre
 P2 has begun with its first task: tile storage, the uniform page that costs nothing
 until it diverges ([parity.md](parity.md)). Run long oracle commands in the
 foreground, never backgrounded - a cancelled background dump keeps parsing for
-ever, and two of them once held this machine above a load average of eleven.
+ever, and two of them once held this machine above a load average of eleven. Killing the job
+does not kill the process: last round a cancelled dump's child kept generating a map for minutes
+after its shell was killed. The check after every long run is `pgrep -fl cataclysm`.
 
 Resume at the mapgen loader: start from `load_and_add_mapgen_function`
 (`src/mapgen.cpp:1400-1480`), reproduce the terrain ids it derives from
