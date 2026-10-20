@@ -478,7 +478,14 @@ on the frame and turn benchmarks) is green.
 **Vehicle parts accessor - closed.** `vehicles::parts::get_all()` and
 `vehicles::get_all_prototypes()`; 701 parts and 249 prototypes dumped and loaded.
 
-**NPC classes - open.** `npc_class::get_all()` is public and the id member is `cls.id`, but the
+**NPC classes - open, and the hang is in the registry walk itself.** The ids-only version hangs
+too, so it is not `is_common()`: the bounded run sat for 120 seconds and was killed by pid, as the
+new rule requires. Other dumps on the same path finish in under a minute, so the difference is
+`npc_class::get_all()`. Same shape as mapgen and likely the same cause - a registry that is only
+valid at a different point in the load - so it is tracked with B9 rather than separately:
+**two registries (mapgen, npc_class) cannot be read where the harness reads them.**
+
+**NPC classes (earlier note).** `npc_class::get_all()` is public and the id member is `cls.id`, but the
 dump **hangs** rather than failing: the process sat with no output for ten minutes and produced no
 file. Other dumps on the same path complete in about thirty seconds, so it is this call or
 something it reaches - `is_common()` is the next suspect. Killed and reverted rather than left
