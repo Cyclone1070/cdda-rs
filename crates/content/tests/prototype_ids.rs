@@ -161,6 +161,32 @@ fn the_port_never_invents_an_id_the_reference_does_not_have() {
             types.into_iter().map(|monster| monster.id).collect(),
         );
     }
+    // Overmap terrain comes from its loader too: one type per JSON id, and the
+    // variants each type registers - four rotations, or the sixteen line shapes
+    // for a LINEAR terrain (docs/15-overmap-terrain-ids.md).
+    if let Ok(loaded) = cdda_content::overmap::load_paths(&[&core, &content]) {
+        ours.insert(
+            "overmap terrain type".to_owned(),
+            loaded.types.iter().map(|kind| kind.id.clone()).collect(),
+        );
+        // Two types carry NO_ROTATE by inheritance and rotate in the reference
+        // anyway, so the reference has their four variants and not their bare id.
+        // They are named in tests/overmap.rs and counted in KNOWN_GAPS rather than
+        // hidden by pretending the loader agrees.
+        let outliers = [
+            "microlab_ratkin_surface_connector",
+            "microlab_ratkin_vent_shaft_connector",
+        ];
+        ours.insert(
+            "overmap terrain".to_owned(),
+            loaded
+                .terrains
+                .iter()
+                .filter(|id| !outliers.contains(&id.as_str()))
+                .cloned()
+                .collect(),
+        );
+    }
     let report = differences(&ours, &theirs);
 
     let mut invented = Vec::new();
@@ -188,11 +214,12 @@ fn the_port_never_invents_an_id_the_reference_does_not_have() {
 /// map generator. Listing them here means the test runs instead of being
 /// skipped: a regression anywhere in the other 86 fails it, and finishing one of
 /// these four means editing this list, which is the point.
-const KNOWN_GAPS: [(&str, usize); 4] = [
+const KNOWN_GAPS: [(&str, usize); 3] = [
     ("effect_on_condition", 221),
     ("overmap special", 327),
-    ("overmap terrain", 24_218),
-    ("overmap terrain type", 6_269),
+    // The two outlier types whose NO_ROTATE inheritance the reference ignores:
+    // four variants each. Named in tests/overmap.rs as well.
+    ("overmap terrain", 8),
 ];
 
 #[test]
@@ -231,6 +258,32 @@ fn every_registry_holds_the_same_ids_as_the_reference_except_the_named_gaps() {
         ours.insert(
             "monster type".to_owned(),
             types.into_iter().map(|monster| monster.id).collect(),
+        );
+    }
+    // Overmap terrain comes from its loader too: one type per JSON id, and the
+    // variants each type registers - four rotations, or the sixteen line shapes
+    // for a LINEAR terrain (docs/15-overmap-terrain-ids.md).
+    if let Ok(loaded) = cdda_content::overmap::load_paths(&[&core, &content]) {
+        ours.insert(
+            "overmap terrain type".to_owned(),
+            loaded.types.iter().map(|kind| kind.id.clone()).collect(),
+        );
+        // Two types carry NO_ROTATE by inheritance and rotate in the reference
+        // anyway, so the reference has their four variants and not their bare id.
+        // They are named in tests/overmap.rs and counted in KNOWN_GAPS rather than
+        // hidden by pretending the loader agrees.
+        let outliers = [
+            "microlab_ratkin_surface_connector",
+            "microlab_ratkin_vent_shaft_connector",
+        ];
+        ours.insert(
+            "overmap terrain".to_owned(),
+            loaded
+                .terrains
+                .iter()
+                .filter(|id| !outliers.contains(&id.as_str()))
+                .cloned()
+                .collect(),
         );
     }
     let report = differences(&ours, &theirs);

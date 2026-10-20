@@ -22,6 +22,33 @@ use std::path::Path;
 /// (`om_direction::all`, `src/omdata.h`).
 pub const DIRECTIONS: [&str; 4] = ["north", "east", "south", "west"];
 
+/// The sixteen shapes a line-drawing terrain registers, in the reference's order.
+///
+/// Reference: `om_lines::all` (`src/overmap.cpp:266-287`). Each entry is the shape
+/// a tile takes for one combination of neighbours that connect to it - isolated,
+/// a dead end in each of the four directions, straight runs, corners, tees and the
+/// four-way - and the suffix is appended to the type's id. The order is the
+/// reference's because the index is also the shape's identity when a tile is asked
+/// for its connected variant.
+pub const LINE_SUFFIXES: [&str; 16] = [
+    "_isolated",
+    "_end_south",
+    "_end_west",
+    "_ne",
+    "_end_north",
+    "_ns",
+    "_es",
+    "_nes",
+    "_end_east",
+    "_wn",
+    "_ew",
+    "_new",
+    "_sw",
+    "_nsw",
+    "_esw",
+    "_nesw",
+];
+
 /// The flags that decide whether a type rotates
 /// (`src/omdata.h:372`, `src/omdata.h:377`).
 const NO_ROTATE: &str = "NO_ROTATE";
@@ -259,10 +286,11 @@ fn register_terrains(types: &[TerrainType]) -> BTreeSet<String> {
             }
         } else if kind.linear() {
             // A line-drawing type registers only its connected shapes, never the
-            // bare id: the reference's `finalize` returns from the rotation branch
-            // and registers the `om_lines` variants instead
-            // (`src/overmap.cpp:992-1000`). Those shapes are not written yet, and
-            // the gate counts them rather than pretending they exist.
+            // bare id: the reference's `finalize` takes this branch instead of the
+            // rotation one (`src/overmap.cpp:992-1000`).
+            for suffix in LINE_SUFFIXES {
+                terrains.insert(format!("{}{suffix}", kind.id));
+            }
         } else {
             terrains.insert(kind.id.clone());
         }

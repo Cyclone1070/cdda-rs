@@ -10,10 +10,6 @@ use cdda_json::Value;
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
-/// The line-drawing shapes are not written yet. Their count is asserted rather
-/// than skipped, so this gate fails if the gap grows or shrinks silently.
-const LINE_DRAWING_GAP: usize = 256;
-
 /// Two types that carry `NO_ROTATE` by inheritance and rotate anyway in the
 /// reference's registry. The flag rule explains 5,901 of 5,903 rotatable types;
 /// these are the two it does not, and they are named here rather than papered
@@ -114,36 +110,19 @@ fn the_terrain_registry_is_the_types_plus_their_variants() {
     );
 
     let missing: BTreeSet<&String> = theirs.difference(&ours).collect();
-    let drawn: Vec<&String> = missing
-        .iter()
-        .copied()
-        .filter(|id| {
-            [
-                "_es",
-                "_esw",
-                "_nesw",
-                "_isolated",
-                "_end_north",
-                "_end_east",
-            ]
-            .iter()
-            .any(|suffix| id.ends_with(suffix))
-        })
-        .collect();
     println!(
-        "overmap terrains: {} ours, {} reference, {} missing of which {} are line shapes",
+        "overmap terrains: {} ours, {} reference, {} missing",
         ours.len(),
         theirs.len(),
-        missing.len(),
-        drawn.len()
+        missing.len()
     );
-    // Each outlier type registers four variants in the reference and one bare id
-    // here, so the eight variants count against the gap as well.
+    // Each outlier registers four variants in the reference and one bare id here,
+    // so its eight variants are the whole of what is left.
     assert_eq!(
         missing.len(),
-        LINE_DRAWING_GAP + ROTATION_OUTLIERS.len() * 4,
-        "the only ids still missing should be the line-drawing shapes and the four \
-         variants of each outlier; first: {:?}",
+        ROTATION_OUTLIERS.len() * 4,
+        "the only ids still missing should be the four variants of each outlier; \
+         first: {:?}",
         missing.iter().take(8).collect::<Vec<_>>()
     );
 }

@@ -83,8 +83,10 @@ Written and gated (`crates/content/src/overmap.rs`, `crates/content/tests/overma
 
 * **The type registry is exact**: 6,269 ours against 6,269 reported, nothing
   missing and nothing invented.
-* **The terrain registry is 23,956 of 24,218.** What is missing is exactly the 256
-  line-drawing shapes plus eight variants belonging to two outlier types.
+* **The terrain registry is 24,212 of 24,218.** All 256 line-drawing shapes are
+  registered: the sixteen suffixes of `om_lines::all` (`src/overmap.cpp:266-287`),
+  appended to each `LINEAR` type's id. What is left is eight variants belonging to
+  two outlier types.
 * Those outliers are `microlab_ratkin_surface_connector` and
   `microlab_ratkin_vent_shaft_connector`. Both inherit `NO_ROTATE` and both rotate
   in the reference's registry anyway. The flag rule explains 5,901 of the 5,903
@@ -97,10 +99,8 @@ named to the id.
 
 ## What remains
 
-1. The 256 line-drawing shapes for `LINEAR` terrains: `om_lines::mapgen_suffixes`
-   (`src/overmap.cpp:262-275`) generates a shape per connection mask, so this needs
-   the suffix table and the mask order, not just a list.
-2. The two outliers' rotation, once whatever makes them rotate is understood.
+1. The two outliers' rotation, once whatever makes them rotate is understood.
 
-Neither is a blocker for anything else: the type registry - the ids a map
-generator names - is closed.
+That is the whole of it. The id gate now counts these eight ids and nothing else:
+**87 of 90 registries exact**, with three named gaps - the effects, the overmap
+specials, and these eight variants.
