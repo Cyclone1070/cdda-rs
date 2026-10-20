@@ -799,6 +799,8 @@ pub struct GroundItem {
     pub kind: ItemTypeId,
     /// How much of it: charges for a stack, 1 for a single object.
     pub charges: i32,
+    /// How long it has been lying there, in turns.
+    pub age: i64,
 }
 
 /// Puts an item on a square.
@@ -809,9 +811,28 @@ pub fn drop_item(world: &mut World, square: (i32, i32), kind: ItemTypeId, charge
                 x: square.0,
                 y: square.1,
             },
-            GroundItem { kind, charges },
+            GroundItem {
+                kind,
+                charges,
+                age: 0,
+            },
         ))
         .id()
+}
+
+/// Puts an item on a square with an age, for things that have already been lying there a while.
+pub fn drop_item_aged(
+    world: &mut World,
+    square: (i32, i32),
+    kind: ItemTypeId,
+    charges: i32,
+    age: i64,
+) -> Entity {
+    let entity = drop_item(world, square, kind, charges);
+    if let Some(mut item) = world.get_mut::<GroundItem>(entity) {
+        item.age = age;
+    }
+    entity
 }
 
 /// Everything lying on one square, in the order it was put there.
@@ -1360,4 +1381,74 @@ pub fn process_fire(
         adjacent,
         rolls,
     );
+}
+
+/// A field that throws rocks around.
+pub const PUSH_ITEMS: FieldId = FieldId(31);
+
+/// A push-items field hurls aged rocks at its neighbours that also hold one.
+///
+/// Reference: `field_processor_fd_push_items` (`src/map_field.cpp:790-836`). Only rocks count, and
+/// only rocks that have lain there at least one turn; a rock is thrown to a random one of the
+/// neighbouring squares that has a push-items field of its own, losing its age on the way. A square
+/// with no such neighbour keeps its rocks. The reference also hurts whatever is standing where a
+/// rock lands - the port has no creatures yet, so that part is named in the ledger rather than
+/// guessed at.
+///
+/// The caller supplies the item id for a rock, because item ids come from the item registry.
+pub fn process_push_items(
+    world: &mut World,
+    square: (i32, i32),
+    rock: ItemTypeId,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) -> usize {
+    let rocks: Vec<Entity> = items_at(world, square)
+        .into_iter()
+        .filter(|entity| {
+            world
+                .get::<GroundItem>(*entity)
+                .is_some_and(|item| item.kind == rock && item.age >= 1)
+        })
+        .collect();
+    if rocks.is_empty() {
+        return 0;
+    }
+    let destinations: Vec<(i32, i32)> = {
+        let mut found = Vec::new();
+        for dy in -1..=1 {
+            for dx in -1..=1 {
+                if dx == 0 && dy == 0 {
+                    continue;
+                }
+                let candidate = (square.0 + dx, square.1 + dy);
+                let mut query = world.query::<(&Position, &Field)>();
+                if query.iter(world).any(|(at, field)| {
+                    field.id == PUSH_ITEMS && at.x == candidate.0 && at.y == candidate.1
+                }) {
+                    found.push(candidate);
+                }
+            }
+        }
+        found
+    };
+    if destinations.is_empty() {
+        return 0;
+    }
+    let mut moved = 0;
+    for entity in rocks {
+        let Some(item) = world.get::<GroundItem>(entity).copied() else {
+            continue;
+        };
+        let pick = rolls.rng(0, i32::try_from(destinations.len() - 1).unwrap_or(0));
+        let Some(destination) = destinations
+            .get(usize::try_from(pick).unwrap_or(0))
+            .copied()
+        else {
+            continue;
+        };
+        take_item(world, entity);
+        drop_item_aged(world, destination, item.kind, item.charges, 0);
+        moved += 1;
+    }
+    moved
 }
