@@ -327,3 +327,121 @@ pub fn gas_spread_to(world: &mut World, source: Entity, target: (i32, i32)) {
         field.entry.set_age(age - age_fraction);
     }
 }
+
+/// The squares a wind direction makes spread-resistant, as the reference's table has them.
+///
+/// Reference: `map::get_wind_blockers` (`src/map_field.cpp:2081-2105`). Matched by descending
+/// threshold like every other wind table in the reference, which is why 330 and 0 agree.
+#[must_use]
+pub fn wind_blocker_offsets(angle: i32) -> [(i32, i32); 3] {
+    const TABLE: [(i32, [(i32, i32); 3]); 9] = [
+        (330, [(1, 0), (1, -1), (1, 1)]),
+        (301, [(1, 1), (1, 0), (0, 1)]),
+        (240, [(0, 1), (-1, 1), (1, 1)]),
+        (211, [(-1, 1), (-1, 0), (0, 1)]),
+        (150, [(-1, 0), (-1, -1), (-1, 1)]),
+        (121, [(-1, -1), (0, -1), (-1, 0)]),
+        (60, [(0, -1), (-1, -1), (1, -1)]),
+        (31, [(1, -1), (1, 0), (0, -1)]),
+        (0, [(1, 0), (1, -1), (1, 1)]),
+    ];
+    TABLE
+        .iter()
+        .find(|(threshold, _)| angle >= *threshold)
+        .map_or([(0, 0); 3], |(_, offsets)| *offsets)
+}
+
+/// The eight neighbours in the reference's order: north-west first, then clockwise to
+/// south-east (`eight_horizontal_neighbors`, `src/point.h:450-460`).
+const NEIGHBOURS: [(i32, i32); 8] = [
+    (-1, -1),
+    (0, -1),
+    (1, -1),
+    (-1, 0),
+    (1, 0),
+    (-1, 1),
+    (0, 1),
+    (1, 1),
+];
+
+/// Chooses where a gas spreads to and moves it there.
+///
+/// Reference: `map::spread_gas` (`src/map_field.cpp:276-368`). The order of the dice is the
+/// order the reference uses, because every roll advances one shared stream:
+/// the chance to spread, then the starting neighbour, then the coin for a plain spread.
+/// A square that cannot be entered is skipped; when the wind is strong, the squares facing it
+/// are only taken on a `x_in_y(1, max(2, windpower))` chance.
+///
+/// Not ported, and declared: the reference first tries *down*, then a neighbour, then *up*.
+/// The port has no z-levels here, so only the neighbour branch runs.
+pub fn spread_gas(
+    world: &mut World,
+    source: Entity,
+    percent_spread: i32,
+    windpower: i32,
+    wind_angle: i32,
+    can_enter: impl Fn(i32, i32) -> bool,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) {
+    let Some(field) = world.get::<Field>(source) else {
+        return;
+    };
+    let intensity = field.entry.intensity();
+    if intensity <= 1 {
+        return;
+    }
+    let Some(position) = world.get::<Position>(source).copied() else {
+        return;
+    };
+    let id = field.id;
+    let ceiling = 100 - windpower;
+    if ceiling < 1 || rolls.rng(1, ceiling) > percent_spread {
+        return;
+    }
+
+    let end_it = rolls.rng(0, 7);
+    let mut spread: Vec<(i32, i32)> = Vec::new();
+    for step in 1..=8 {
+        let Some(&(dx, dy)) =
+            NEIGHBOURS.get(usize::from(u8::try_from((end_it + step) % 8).unwrap_or(0)))
+        else {
+            continue;
+        };
+        let (x, y) = (position.x + dx, position.y + dy);
+        if !can_enter(x, y) {
+            continue;
+        }
+        // A neighbour already holding thicker gas cannot take any of this one.
+        let mut query = world.query::<(&Position, &Field)>();
+        let thicker = query
+            .iter(world)
+            .any(|(p, f)| p.x == x && p.y == y && f.id == id && f.entry.intensity() >= intensity);
+        if !thicker {
+            spread.push((x, y));
+        }
+    }
+    if spread.is_empty() {
+        return;
+    }
+
+    let target = if rolls.one_in(i32::try_from(spread.len()).unwrap_or(1)) {
+        rolls.random_entry(&spread).copied()
+    } else {
+        let blockers = wind_blocker_offsets(wind_angle);
+        let mut candidates: Vec<(i32, i32)> = Vec::new();
+        for &(x, y) in &spread {
+            let blocked = blockers
+                .iter()
+                .any(|&(dx, dy)| position.x + dx == x && position.y + dy == y);
+            let chance = f64::from(windpower.max(2));
+            if !blocked || rolls.x_in_y(1.0, chance) {
+                candidates.push((x, y));
+            }
+        }
+        rolls.random_entry(&candidates).copied()
+    };
+
+    if let Some(target) = target {
+        gas_spread_to(world, source, target);
+    }
+}

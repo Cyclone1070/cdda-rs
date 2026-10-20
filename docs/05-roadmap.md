@@ -111,7 +111,9 @@ the reference's thinning rule - the fraction of age that moves is the age divide
 intensity, and a square already holding the gas gets thicker rather than a second field. What is
 missing from the processor is the *direction*: the reference picks it with wind power and a
 dice roll. The wind half of that now exists - shelter, forest, height and an upwind wall, in the
-reference's order - so the direction is a matter of wiring, not of unknowns. T5 illumination is complete end to end, including point
+reference's order - and it is now wired: `spread_gas` rolls for the chance, picks a starting neighbour, walks
+clockwise from it and moves one unit, with wind-facing squares resisted by a dice roll. What is
+still missing is vertical movement - the reference tries down, then a neighbour, then up. T5 illumination is complete end to end, including point
 sources and smoke dimming what is behind it.
 
 step. T6 vision and T7 scent are not started.
