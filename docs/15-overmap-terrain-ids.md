@@ -116,5 +116,4 @@ lists name but no special defines (`src/regional_settings.cpp:1242-1262` calling
 
 
 That is the whole of it for this page. The id gate now reads **88 of 90 registries
-exact**, with two named gaps: these eight variants and the 221 inline
-effect-on-conditions.
+exact**, with one named gap: these eight variants.

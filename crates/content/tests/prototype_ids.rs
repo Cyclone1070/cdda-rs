@@ -180,6 +180,11 @@ fn the_port_never_invents_an_id_the_reference_does_not_have() {
         // `city_building` is an alias for `overmap_special` in the reference, so
         // the scan's special set is short by the 415 city buildings; the loader
         // reads both and is the honest source here.
+        // Effects come from their own loader: an inline effect is registered under the
+        // id inside the slot it sits in, so a scan of top-level entries cannot see it.
+        if let Ok(loaded) = cdda_content::eocs::load_paths(&[&core, &content]) {
+            ours.insert("effect_on_condition".to_owned(), loaded.ids);
+        }
         ours.insert("overmap special".to_owned(), loaded.specials.clone());
         ours.insert(
             "overmap terrain".to_owned(),
@@ -216,10 +221,9 @@ fn the_port_never_invents_an_id_the_reference_does_not_have() {
 /// inline effect-on-conditions live inside furniture, tools and other
 /// prototypes; overmap terrain, its types and the specials all come out of the
 /// map generator. Listing them here means the test runs instead of being
-/// skipped: a regression anywhere in the other 86 fails it, and finishing one of
-/// these four means editing this list, which is the point.
-const KNOWN_GAPS: [(&str, usize); 2] = [
-    ("effect_on_condition", 221),
+/// skipped: a regression anywhere in the other 89 fails it, and finishing the last
+/// one means deleting this list, which is the point.
+const KNOWN_GAPS: [(&str, usize); 1] = [
     // The two outlier types whose NO_ROTATE inheritance the reference ignores:
     // four variants each. Named in tests/overmap.rs as well.
     ("overmap terrain", 8),
@@ -282,6 +286,11 @@ fn every_registry_holds_the_same_ids_as_the_reference_except_the_named_gaps() {
         // `city_building` is an alias for `overmap_special` in the reference, so
         // the scan's special set is short by the 415 city buildings; the loader
         // reads both and is the honest source here.
+        // Effects come from their own loader: an inline effect is registered under the
+        // id inside the slot it sits in, so a scan of top-level entries cannot see it.
+        if let Ok(loaded) = cdda_content::eocs::load_paths(&[&core, &content]) {
+            ours.insert("effect_on_condition".to_owned(), loaded.ids);
+        }
         ours.insert("overmap special".to_owned(), loaded.specials.clone());
         ours.insert(
             "overmap terrain".to_owned(),
