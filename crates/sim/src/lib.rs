@@ -1260,3 +1260,104 @@ pub fn wind_reach(
         || differs(blockers[2])
         || rolls.x_in_y(1.0, f64::from(windpower.max(2)))
 }
+
+/// How many of the eight neighbours are on fire.
+fn count_adjacent_fires(world: &mut World, entity: Entity) -> usize {
+    let Some(position) = world.get::<Position>(entity).copied() else {
+        return 0;
+    };
+    let mut query = world.query::<(&Position, &Field)>();
+    query
+        .iter(world)
+        .filter(|(at, field)| {
+            field.id == FIRE
+                && (at.x != position.x || at.y != position.y)
+                && (at.x - position.x).abs() <= 1
+                && (at.y - position.y).abs() <= 1
+        })
+        .count()
+}
+
+/// Everything one turn of burning needs from the world around the fire.
+pub struct FireContext<'a> {
+    /// What the fire is standing on.
+    pub fuel: TerrainFuel,
+    /// What a neighbouring square offers, asked once per neighbour.
+    pub neighbour: &'a dyn Fn((i32, i32)) -> NeighbourFacts,
+    /// Wind strength at the fire.
+    pub windpower: i32,
+    /// Items consumed this turn, which gate smoke.
+    pub consumed: i32,
+    /// Whether the terrain suppresses smoke.
+    pub smoke_suppressed: bool,
+}
+
+/// One turn of a fire, in the reference's order.
+///
+/// Reference: `field_processor_fd_fire` (`src/map_field.cpp:945-1425`), which runs its steps in this
+/// sequence and draws dice in this sequence:
+///
+/// 1. eat the ground (terrain fuel decides the time and smoke gained);
+/// 2. age: gained time is subtracted, otherwise a fire with fuel ages ten seconds per intensity;
+/// 3. a strong fire's `one_in(3)` flashpoint, or the growth check for the others - never both;
+/// 4. spreading to neighbours;
+/// 5. smoke and hot air.
+///
+/// What is not here yet, and is named rather than implied: items burning, vehicles, zero-level
+/// fall-through, webs, pits, and the effects a fire has on creatures.
+pub fn process_fire(
+    world: &mut World,
+    entity: Entity,
+    context: &FireContext<'_>,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) {
+    let Some(intensity) = world
+        .get::<Field>(entity)
+        .map(|field| field.entry.intensity())
+    else {
+        return;
+    };
+    let terrain_burn = burn_terrain(context.fuel, intensity, context.windpower, rolls);
+    let mut smoke = context.consumed;
+    if let Some(burn) = terrain_burn {
+        smoke += burn.smoke;
+    }
+    // Age: gained time is spent first; a fire with nothing to eat starves.
+    if let Some(burn) = terrain_burn
+        && burn.time_added != 0
+    {
+        if let Some(mut field) = world.get_mut::<Field>(entity) {
+            let age = field.entry.age();
+            field.entry.set_age(age - burn.time_added);
+        }
+    } else {
+        let has_fuel = terrain_burn.is_some();
+        process_fire_burnout(world, entity, has_fuel);
+    }
+    // A strong fire spends its extra life on neighbours, or else grows itself.
+    let adjacent = if intensity > 1 {
+        process_flashpoint(world, entity, rolls)
+    } else {
+        let age = world
+            .get::<Field>(entity)
+            .map_or(0, |field| field.entry.age());
+        let adjacent = count_adjacent_fires(world, entity);
+        if let Some((grown, age)) = grow_fire(intensity, age, adjacent)
+            && let Some(mut field) = world.get_mut::<Field>(entity)
+        {
+            field.entry.set_intensity(grown);
+            field.entry.set_age(age);
+        }
+        adjacent
+    };
+    process_fire_spread(world, entity, |square| (context.neighbour)(square), rolls);
+    process_fire_residue(
+        world,
+        entity,
+        smoke,
+        context.windpower,
+        context.smoke_suppressed,
+        adjacent,
+        rolls,
+    );
+}
