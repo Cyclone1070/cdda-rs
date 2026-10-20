@@ -76,3 +76,22 @@ fn night_is_black_and_noon_is_flat() {
         "above sixty degrees nothing changes"
     );
 }
+
+#[test]
+fn the_sky_becomes_a_light_level_at_the_thresholds_the_rest_of_the_game_uses() {
+    use cdda_core_types::light::{LitLevel, open_sky_lit_level};
+
+    // Full daylight is far past the lit threshold.
+    assert_eq!(open_sky_lit_level(30.0), LitLevel::Lit);
+    // A bright dawn is still lit.
+    assert_eq!(open_sky_lit_level(-3.0), LitLevel::Lit);
+    // Just before nautical dawn the curve gives 1.53, which is under AMBIENT_LOW: dark.
+    assert_eq!(open_sky_lit_level(-15.0), LitLevel::Dark);
+    // Deep night is dark, and there is a band between that is merely hard to see by.
+    assert_eq!(open_sky_lit_level(-40.0), LitLevel::Dark);
+    assert_eq!(
+        open_sky_lit_level(-9.0),
+        LitLevel::Low,
+        "4.24 is above AMBIENT_LOW and below full daylight"
+    );
+}

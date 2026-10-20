@@ -121,3 +121,15 @@ pub fn sun_light_from_altitude(altitude: f32) -> f32 {
         FULL_DAYLIGHT
     }
 }
+
+/// What the sky alone makes a tile, given the sun's altitude.
+///
+/// This joins the two halves of the light model that are ported: the sun's curve
+/// (`src/calendar.cpp:381-402`) and the thresholds that turn a number into a level
+/// (`src/lightmap.cpp:674-696`). It answers the outdoors; a tile under a roof gets its
+/// quarters from the outside-light pass instead, because the sun does not reach it.
+#[must_use]
+pub fn open_sky_lit_level(altitude: f32) -> LitLevel {
+    // No source in the tile: the sky is ambient light, not something burning underfoot.
+    lit_level(true, 0.0, sun_light_from_altitude(altitude))
+}
