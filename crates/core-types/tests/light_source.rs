@@ -34,7 +34,13 @@ fn light_from(
     luminance: f32,
 ) -> BTreeMap<(i32, i32), FourQuadrants> {
     let mut light = BTreeMap::new();
-    level.add_light_source(origin, luminance, |terrain| terrain == 2, &mut light);
+    level.add_light_source(
+        origin,
+        luminance,
+        |terrain| if terrain == 2 { 0.0 } else { 2.3 / 72.0 },
+        |_id, _intensity| 0.0,
+        &mut light,
+    );
     light
 }
 
@@ -91,10 +97,69 @@ fn a_dim_source_lights_nothing_at_all() {
 fn two_sources_take_the_brighter_corner_rather_than_summing() {
     let mut level = level();
     let mut light = BTreeMap::new();
-    level.add_light_source((5, 5), 10.0, |terrain| terrain == 2, &mut light);
+    level.add_light_source(
+        (5, 5),
+        10.0,
+        |terrain| if terrain == 2 { 0.0 } else { 2.3 / 72.0 },
+        |_id, _intensity| 0.0,
+        &mut light,
+    );
     let first = light[&(6, 5)].max();
-    level.add_light_source((6, 5), 10.0, |terrain| terrain == 2, &mut light);
+    level.add_light_source(
+        (6, 5),
+        10.0,
+        |terrain| if terrain == 2 { 0.0 } else { 2.3 / 72.0 },
+        |_id, _intensity| 0.0,
+        &mut light,
+    );
     let second = light[&(6, 5)].max();
     assert!(second >= first, "adding a lamp does not dim the tile");
     assert!(second < first * 2.0, "and does not double it either");
+}
+
+#[test]
+fn smoke_on_a_tile_dims_what_is_behind_it() {
+    // The whole point of putting fields into the transparency grid: a lamp in clear air lights
+    // the far wall, and the same lamp with smoke in the doorway does not light it as much.
+    const OPEN_AIR: f32 = 2.3 / 72.0;
+    const SMOKE: f32 = 0.38;
+    let mut level = level();
+    let mut clear = BTreeMap::new();
+    level.add_light_source(
+        (3, 5),
+        10.0,
+        |_terrain| OPEN_AIR,
+        |_id, _intensity| 0.0,
+        &mut clear,
+    );
+
+    // The same level with a field on the tile between the lamp and the target.
+    level.add_field(
+        5,
+        5,
+        cdda_core_types::field::FieldId(1),
+        {
+            let mut entry = cdda_core_types::field::FieldEntry::new(3, 100, true, false);
+            entry.set_intensity(2);
+            entry
+        },
+        1,
+    );
+    let mut smoked = BTreeMap::new();
+    level.add_light_source(
+        (3, 5),
+        10.0,
+        |_terrain| OPEN_AIR,
+        |_id, _intensity| SMOKE,
+        &mut smoked,
+    );
+
+    let target = (6, 5);
+    assert!(clear.contains_key(&target), "the tile is lit in clear air");
+    let before = clear[&target].max();
+    let after = smoked.get(&target).map_or(0.0, FourQuadrants::max);
+    assert!(
+        after < before && after > 0.0,
+        "smoke dims it without blacking it out: {after} against {before}"
+    );
 }

@@ -225,6 +225,11 @@ impl FieldLayer {
         self.fields.get_mut(&id)
     }
 
+    /// Every field on the tile, by type.
+    pub fn entries(&self) -> impl Iterator<Item = (&FieldId, &FieldEntry)> {
+        self.fields.iter()
+    }
+
     /// Every field on the tile, for aging them all.
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (&FieldId, &mut FieldEntry)> {
         self.fields.iter_mut()

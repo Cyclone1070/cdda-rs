@@ -392,47 +392,39 @@ impl Level {
         &mut self,
         origin: (i32, i32),
         luminance: f32,
-        blocks_light: impl Fn(u32) -> bool,
+        terrain_transparency: impl Fn(u32) -> f32,
+        field_transparency: impl Fn(FieldId, i32) -> f32,
         light: &mut BTreeMap<(i32, i32), crate::shadowcasting::FourQuadrants>,
     ) {
-        use crate::shadowcasting::{FourQuadrants, sight_calc, update_light_quadrants};
+        use crate::shadowcasting::{FourQuadrants, cast_light_values, update_light_quadrants};
         let radius = crate::light::light_range(luminance);
         if radius <= 0 {
             return;
         }
-        let rows = self.visibility(origin, radius, blocks_light);
-        let side = radius * 2 + 1;
+        let grid =
+            self.transparency_grid(origin, radius, &terrain_transparency, &field_transparency);
+        let side = usize::try_from(radius * 2 + 1).unwrap_or(1);
+        let values = cast_light_values(&grid, (radius, radius), radius, luminance);
         for grid_y in 0..side {
             for grid_x in 0..side {
-                let index_x = usize::try_from(grid_x).unwrap_or(0);
-                let index_y = usize::try_from(grid_y).unwrap_or(0);
-                if !rows
-                    .get(index_y)
-                    .and_then(|row| row.get(index_x))
-                    .copied()
-                    .unwrap_or(false)
-                {
+                let index = grid_x * side + grid_y;
+                let Some(&value) = values.get(index) else {
+                    continue;
+                };
+                if value <= 0.0 {
                     continue;
                 }
-                let offset_x = grid_x - radius;
-                let offset_y = grid_y - radius;
-                #[allow(clippy::cast_precision_loss)]
-                #[allow(clippy::cast_precision_loss)]
-                let distance = offset_x.abs().max(offset_y.abs()) as f32;
-                #[allow(clippy::cast_precision_loss)]
-                let falloff = (1.0 - distance / (radius as f32 + 1.0)).max(0.0);
-                // The source's own tile is not lit by its own ray; the reference seeds it
-                // separately, and so does the caller.
-                if distance == 0.0 {
+                let Ok(offset_x) = i32::try_from(grid_x) else {
+                    continue;
+                };
+                let Ok(offset_y) = i32::try_from(grid_y) else {
+                    continue;
+                };
+                let offset_x = offset_x - radius;
+                let offset_y = offset_y - radius;
+                if offset_x == 0 && offset_y == 0 {
                     continue;
                 }
-                let value = sight_calc(
-                    luminance,
-                    crate::light::TRANSPARENCY_OPEN_AIR,
-                    radius.max(1),
-                )
-                .max(0.0)
-                    * falloff;
                 // The quadrant is the tile's corner facing *back* at the source, so the
                 // direction is reversed: a tile north-west of the lamp has its south-east
                 // corner lit.
@@ -443,6 +435,52 @@ impl Level {
                 update_light_quadrants(entry, value, quadrant);
             }
         }
+    }
+
+    /// The transparency of a window of tiles, for the caster.
+    ///
+    /// Reference: `map::build_transparency_cache` (`src/lightmap.cpp:100-205`), which fills a
+    /// grid from terrain and then from fields. The tile's value is its terrain's, dimmed by
+    /// whichever field on it is the most opaque: smoke in a doorway dims the doorway.
+    #[must_use]
+    pub fn transparency_grid(
+        &self,
+        origin: (i32, i32),
+        radius: i32,
+        terrain_transparency: impl Fn(u32) -> f32,
+        field_transparency: impl Fn(FieldId, i32) -> f32,
+    ) -> crate::shadowcasting::TransparencyGrid {
+        let side = usize::try_from(radius * 2 + 1).unwrap_or(1);
+        let mut cells = vec![0.0_f32; side * side];
+        for grid_y in 0..side {
+            for grid_x in 0..side {
+                let Ok(offset_x) = i32::try_from(grid_x) else {
+                    continue;
+                };
+                let Ok(offset_y) = i32::try_from(grid_y) else {
+                    continue;
+                };
+                let world_x = origin.0 + offset_x - radius;
+                let world_y = origin.1 + offset_y - radius;
+                // A tile the world has not made is solid: light does not pass through a place
+                // that does not exist.
+                let mut value = self
+                    .terrain_at(world_x, world_y)
+                    .map_or(0.0, &terrain_transparency);
+                if let Some(layer) = self.fields_at(world_x, world_y) {
+                    for (id, entry) in layer.entries() {
+                        let field_value = field_transparency(*id, entry.intensity());
+                        if field_value > 0.0 && (value <= 0.0 || field_value > value) {
+                            value = field_value;
+                        }
+                    }
+                }
+                if let Some(cell) = cells.get_mut(grid_x * side + grid_y) {
+                    *cell = value;
+                }
+            }
+        }
+        crate::shadowcasting::TransparencyGrid::new(side, cells)
     }
 }
 
