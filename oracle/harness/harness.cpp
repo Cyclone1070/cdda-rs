@@ -1,4 +1,5 @@
 #include "harness.h"
+#include "recipe_dictionary.h"
 
 #include <algorithm>
 
@@ -341,6 +342,26 @@ void dump_traps( const std::string &path )
     std::fprintf( out, "{\"harness\":\"traps\",\"version\":1,\n\"prototypes\":[\n" );
     harness_dump_trap_prototypes( out );
     std::fprintf( out, "]}\n" );
+    std::fclose( out );
+}
+
+void dump_recipes( const std::string &path )
+{
+    std::FILE *out = std::fopen( path.c_str(), "wb" );
+    if( out == nullptr ) {
+        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
+        return;
+    }
+    std::fprintf( out, "{\"harness\":\"recipes\",\"version\":1,\n\"recipes\":[\n" );
+    bool first = true;
+    for( auto it = recipe_dict.begin(); it != recipe_dict.end(); ++it ) {
+        const recipe &r = it->second;
+        std::fprintf( out, "%s{\"id\":\"%s\",\"result\":\"%s\",\"blacklisted\":%s}",
+                      first ? "" : ",\n", r.ident().str().c_str(), r.result().str().c_str(),
+                      r.is_blacklisted() ? "true" : "false" );
+        first = false;
+    }
+    std::fprintf( out, "\n],\"count\":%zu}\n", recipe_dict.size() );
     std::fclose( out );
 }
 

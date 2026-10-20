@@ -561,3 +561,11 @@ this order:
 
 Each step is verified against the reference alone — no port required — which is
 why this work can start immediately and in parallel with the first phases.
+
+### `--dump-recipes <file>`
+
+Writes every crafting recipe: its id, the item it makes, and whether it is blacklisted, plus the
+total. 6,291 recipes in the pinned data.
+
+The count matters more than it sounds: several documents in this repository quoted 5,632, a
+number that had no dump behind it. A loader gated on a remembered figure is gated on nothing.

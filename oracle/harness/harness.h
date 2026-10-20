@@ -102,6 +102,9 @@ void dump_terrain( const std::string &path );
 // `--dump-traps <file>`: every trap's resolved fields.
 void dump_traps( const std::string &path );
 
+/** Writes every crafting recipe id and result to a JSON file. */
+void dump_recipes( const std::string &path );
+
 // `--dump-materials <file>`: every material's resolved fields.
 void dump_materials( const std::string &path );
 
