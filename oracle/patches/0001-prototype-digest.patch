@@ -129,8 +129,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-21 04:25:46
-@@ -0,0 +1,722 @@
++++ oracle/src/src/harness.cpp	2026-10-21 04:40:10
+@@ -0,0 +1,737 @@
 +#include "harness.h"
 +#include "recipe_dictionary.h"
 +#include "requirements.h"
@@ -144,6 +144,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +#include "map.h"
 +#include "enums.h"
 +#include "item_factory.h"
++#include "item_group.h"
 +#include "itype.h"
 +#include "field_type.h"
 +#include "mtype.h"
@@ -494,8 +495,22 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    std::fprintf( out, "{\"harness\":\"item_groups\",\"version\":1,\n\"groups\":[\n" );
 +    bool first = true;
 +    for( const item_group_id &group : groups ) {
-+        std::fprintf( out, "%s\"%s\"", first ? "" : ",\n", group.str().c_str() );
++        std::fprintf( out, "%s{\"id\":\"%s\",\"items\":[", first ? "" : ",\n",
++                      group.str().c_str() );
 +        first = false;
++        // every_item_min_max walks the whole tree, so nested groups are already expanded and
++        // the numbers are what a spawn can produce rather than what the JSON literally says.
++        Item_spawn_data *data = item_group::spawn_data_from_group( group );
++        bool first_item = true;
++        if( data != nullptr ) {
++            for( const auto &entry : data->every_item_min_max() ) {
++                std::fprintf( out, "%s{\"item\":\"%s\",\"min\":%d,\"max\":%d}",
++                              first_item ? "" : ",", entry.first->get_id().str().c_str(),
++                              entry.second.first, entry.second.second );
++                first_item = false;
++            }
++        }
++        std::fprintf( out, "]}" );
 +    }
 +    std::fprintf( out, "\n],\"count\":%zu}\n", groups.size() );
 +    std::fclose( out );

@@ -572,8 +572,8 @@ number that had no dump behind it. A loader gated on a remembered figure is gate
 
 ### `--dump-item-groups <file>`
 
-Writes every item group id the reference defines, sorted, with the total: **8,230** in the
-pinned data.
+Writes every item group the reference defines: its id, and every item it can produce with the
+reference's own lower and upper figures. **8,230** groups, **281,546** spawn entries.
 
 This replaced a remembered 5,031, the third figure in these documents that a dump has corrected.
 The pattern is worth naming: counts written from memory are wrong by about ten per cent, and a

@@ -11,6 +11,7 @@
 #include "map.h"
 #include "enums.h"
 #include "item_factory.h"
+#include "item_group.h"
 #include "itype.h"
 #include "field_type.h"
 #include "mtype.h"
@@ -361,8 +362,22 @@ void dump_item_groups( const std::string &path )
     std::fprintf( out, "{\"harness\":\"item_groups\",\"version\":1,\n\"groups\":[\n" );
     bool first = true;
     for( const item_group_id &group : groups ) {
-        std::fprintf( out, "%s\"%s\"", first ? "" : ",\n", group.str().c_str() );
+        std::fprintf( out, "%s{\"id\":\"%s\",\"items\":[", first ? "" : ",\n",
+                      group.str().c_str() );
         first = false;
+        // every_item_min_max walks the whole tree, so nested groups are already expanded and
+        // the numbers are what a spawn can produce rather than what the JSON literally says.
+        Item_spawn_data *data = item_group::spawn_data_from_group( group );
+        bool first_item = true;
+        if( data != nullptr ) {
+            for( const auto &entry : data->every_item_min_max() ) {
+                std::fprintf( out, "%s{\"item\":\"%s\",\"min\":%d,\"max\":%d}",
+                              first_item ? "" : ",", entry.first->get_id().str().c_str(),
+                              entry.second.first, entry.second.second );
+                first_item = false;
+            }
+        }
+        std::fprintf( out, "]}" );
     }
     std::fprintf( out, "\n],\"count\":%zu}\n", groups.size() );
     std::fclose( out );
