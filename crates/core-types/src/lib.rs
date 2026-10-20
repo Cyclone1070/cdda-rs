@@ -21,6 +21,7 @@ pub mod map_cache;
 pub mod options;
 pub mod paths;
 pub mod rng;
+pub mod shadowcasting;
 pub mod strings;
 pub mod submap;
 pub mod text;

@@ -1,30 +1,27 @@
-# Shadow-casting fixtures: not yet usable
+# Shadow-casting fixtures
 
-`expected.txt` was produced by extracting the reference's own caster
-(`tests/shadowcasting_test.cpp:33-90`, `oldCastLight`) and printing four 11x11 grids.
-**Do not gate anything against it yet.** It is wrong, and the reason is worth keeping.
+`expected.txt` is printed by the reference's own implementation and is safe to gate
+against. It is the output of `extract.cpp` in this directory, which is
+`tests/shadowcasting_test.cpp:33-90` (`oldCastLight`) - the copy the reference keeps of
+its own caster so it can check the newer one against it - driven over five 11x11 grids.
 
-## What went wrong
+Three things had to be right, and the first attempt got two of them wrong:
 
-The reference's loop runs to `radius = 60 - offsetDistance`, and its real map is
-larger than that radius, so the cast never leaves the buffer. My extraction used an
-11x11 grid - far smaller than 60 cells - and the C++ side wrote past the end of the
-array. C++ does not complain about that; it overwrites whatever is next, and the
-printed grids show light where the algorithm never put it.
+1. **The radius is a parameter.** The reference casts 60 cells and its real map is
+   wider than that, so the cast never leaves the buffer. An 11x11 grid is not, so the
+   extraction uses 5 and every write is bounds-checked: an overrun aborts the run
+   instead of overwriting whatever is next in memory. The first attempt printed light
+   the algorithm never placed, and the output still looked plausible.
+2. **Eight segments, not four.** `src/shadowcasting.cpp:545-580` casts four for one
+   level and four mirrored (`cast_horizontal_zlight_segment`). Four leaves two
+   quadrants dark, which is what the first fixtures showed.
+3. **The origin does not light itself.** The walk starts one step out, so the centre
+   cell is dark. That is the reference's behaviour, not a gap in the port.
 
-I caught it because a faithful Rust port disagreed with the fixtures on the simplest
-possible case: an empty grid, where the reference's output says every cell is lit and
-the port lights only the quadrant that stays inside the buffer. When a fixture
-disagrees with a line-by-line port, the fixture is at least as likely to be wrong as
-the port, and here it was.
+The Rust port reads `expected.txt` instead of restating it, so there is one copy of
+the expected output and a typo cannot pass as a fixture. It agrees on all five
+scenarios: empty field, single pillar, two walls, and a five-cell block.
 
-## What to do next time
+Regenerate with:
 
-* Make the radius a parameter, not the reference's 60, and keep it smaller than the
-  grid so no cast can leave it.
-* Add bounds checking to the extraction program and make it *refuse to write* out of
-  range, so an overrun fails loudly instead of inventing light.
-* Regenerate `expected.txt`, then port.
-
-The extraction recipe stays in this directory's history; the corrected one should
-replace `expected.txt` wholesale rather than patch it.
+    clang++ -std=c++17 -O0 extract.cpp -o extract && ./extract > expected.txt
