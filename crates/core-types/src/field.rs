@@ -225,6 +225,36 @@ impl FieldLayer {
         self.fields.get_mut(&id)
     }
 
+    /// Every field on the tile, for aging them all.
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (&FieldId, &mut FieldEntry)> {
+        self.fields.iter_mut()
+    }
+
+    /// Takes the dead fields off the tile, the way the reference's field processing does
+    /// once it has finished with a tile.
+    ///
+    /// Returns how many went.
+    pub fn remove_dead(&mut self) -> u32 {
+        let dead: Vec<FieldId> = self
+            .fields
+            .iter()
+            .filter(|(_, entry)| !entry.is_alive())
+            .map(|(id, _)| *id)
+            .collect();
+        let removed = u32::try_from(dead.len()).unwrap_or(u32::MAX);
+        for id in dead {
+            self.fields.remove(&id);
+            self.priorities.remove(&id);
+        }
+        if self
+            .displayed
+            .is_some_and(|shown| !self.fields.contains_key(&shown))
+        {
+            self.displayed = self.fields.keys().copied().next_back();
+        }
+        removed
+    }
+
     /// The type the map should draw.
     #[must_use]
     pub fn displayed(&self) -> Option<FieldId> {

@@ -4,6 +4,8 @@
 //! division of labour - submaps own the tiles, the level owns the submaps and turns a
 //! world coordinate into the cell inside one - and drops the pointers.
 
+use crate::field::{FieldEntry, FieldId, FieldLayer};
+use crate::rng::Rolls;
 use crate::shadowcasting::{TransparencyGrid, cast_light};
 use crate::submap::{SubmapId, SubmapStore};
 use std::collections::BTreeMap;
@@ -41,6 +43,18 @@ pub struct Level {
     /// cast. Keyed by tile, so moving the light reuses what it already knows.
     transparency: BTreeMap<(i32, i32), bool>,
     transparency_builds: u32,
+    /// Fields on the tiles that have any. A tile with no fields has no entry, so a turn
+    /// costs what the fields cost and nothing for the empty map.
+    fields: BTreeMap<(i32, i32), FieldLayer>,
+}
+
+/// What one turn of field processing did.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct FieldProcessing {
+    /// Fields that were aged.
+    pub ticked: u32,
+    /// Fields that died and were taken off their tile.
+    pub removed: u32,
 }
 
 impl Level {
@@ -216,5 +230,69 @@ impl Level {
     #[must_use]
     pub fn light_rebuilds(&self) -> u32 {
         self.light_rebuilds
+    }
+}
+
+impl Level {
+    /// Puts a field on a tile, merging it with any of the same type already there.
+    ///
+    /// Returns whether the type was new to the tile, which is the reference's own signal
+    /// that something just started rather than grew.
+    pub fn add_field(
+        &mut self,
+        x: i32,
+        y: i32,
+        id: FieldId,
+        entry: FieldEntry,
+        priority: i32,
+    ) -> bool {
+        let layer = self.fields.entry((x, y)).or_default();
+        let is_new = layer.add(id, entry, priority);
+        if layer.is_empty() {
+            self.fields.remove(&(x, y));
+        }
+        is_new
+    }
+
+    /// The fields on a tile, if it has any.
+    #[must_use]
+    pub fn fields_at(&self, x: i32, y: i32) -> Option<&FieldLayer> {
+        self.fields.get(&(x, y))
+    }
+
+    /// Ages every field on the level by one turn, removing the ones that die.
+    ///
+    /// Reference: `map::process_fields_in_submap` (`src/map_field.cpp`), which walks the
+    /// tiles of a submap and asks each field to decay. Removal happens here and only
+    /// here: a field that is dead but still sitting on a tile is a state the rest of the
+    /// map should never see.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the clock goes backwards between calls, which would make a field's age
+    /// meaningless.
+    pub fn process_fields(&mut self, now: i64, rolls: &mut Rolls) -> FieldProcessing {
+        let mut receipt = FieldProcessing::default();
+        let mut empty = Vec::new();
+        for (position, layer) in &mut self.fields {
+            for (_id, entry) in layer.iter_mut() {
+                entry.do_decay(now, rolls);
+                receipt.ticked += 1;
+            }
+            receipt.removed += layer.remove_dead();
+            if layer.is_empty() {
+                empty.push(*position);
+            }
+        }
+        for position in empty {
+            self.fields.remove(&position);
+        }
+        receipt
+    }
+
+    /// How many tiles hold at least one field.
+    #[must_use]
+    pub fn fielded_tiles(&self) -> usize {
+        self.fields.len()
     }
 }
