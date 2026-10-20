@@ -282,3 +282,47 @@ impl FourQuadrants {
         }
     }
 }
+
+/// How much light survives a stretch of air.
+///
+/// Reference: `sight_calc` (`src/shadowcasting.h:96-99`), which is the Beer-Lambert law
+/// with the absorption coefficients merged into a running average: what arrives is the
+/// light divided by `e^(transparency * distance)`.
+#[must_use]
+pub fn sight_calc(numerator: f32, transparency: f32, distance: i32) -> f32 {
+    #[allow(clippy::cast_precision_loss)]
+    let distance = distance as f32;
+    numerator / (transparency * distance).exp()
+}
+
+/// Whether light goes through a cell at all.
+///
+/// Reference: `sight_check` (`src/shadowcasting.h:100-103`). Solid is the only thing that
+/// stops light outright; everything else merely dims it, however much.
+#[must_use]
+pub fn sight_check(transparency: f32) -> bool {
+    transparency > SOLID
+}
+
+/// Folds one cell's transparency into the running average a ray carries.
+///
+/// Reference: `accumulate_transparency` (`src/shadowcasting.h:112-116`). The average is
+/// weighted by distance travelled, so a ray crossing one dense cell is dimmed less than a
+/// ray crossing ten of them.
+#[must_use]
+pub fn accumulate_transparency(cumulative: f32, current: f32, distance: i32) -> f32 {
+    #[allow(clippy::cast_precision_loss)]
+    let distance = distance as f32;
+    ((distance - 1.0) * cumulative + current) / distance
+}
+
+/// Raises one quarter of a tile's light to at least `value`.
+///
+/// Reference: `update_light_quadrants` (`src/shadowcasting.h:108-111`). Two rays reaching
+/// the same corner do not add: the brighter one wins, because the light from a source is
+/// the same light however many ways it is computed.
+pub fn update_light_quadrants(update: &mut FourQuadrants, value: f32, quadrant: Quadrant) {
+    if value > update.get(quadrant) {
+        update.set(quadrant, value);
+    }
+}
