@@ -589,6 +589,21 @@ and tuning constants include values with in-source admissions that they are wron
 thresholds (`weather.h:59-74`). These must be copied exactly and marked as such; "improving" any of them
 silently breaks replay equality. <!-- verified -->
 
+### B9 — The mapgen registry cannot be reached from the harness
+
+Three explanations ruled out by experiment: forcing `calculate_mapgen_weights()` leaves the count
+at 325; forcing `finalize_loaded_data()` aborts because `check_mod_data` already finalised; and it
+is not a key-space mismatch, since `house` and `house_north` are both absent while `LIXA_*`,
+`field` and `forest` are present - the signature of the built-in C++ mapgens alone. Every dump
+path in the harness runs through `check_mod_data`, and there is no world-initialisation path to
+fall back on.
+
+**Work item:** give the harness a path that initialises a world, or a loader hook that registers
+JSON mapgens without finalising twice, then gate the mapgen loader on the dump.
+
+**What it does not block:** the rest of P1 and all of P2. The mapgen loader family simply has no
+gate yet, which is written here so it cannot later be mistaken for done.
+
 ### B8 — Divergences we intend to accept
 
 Two reference behaviours should *not* be reproduced, and each needs a written exception in the
