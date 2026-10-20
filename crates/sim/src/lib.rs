@@ -445,3 +445,95 @@ pub fn spread_gas(
         gas_spread_to(world, source, target);
     }
 }
+
+/// Replaces one field on a square with another kind, carrying the age across.
+///
+/// The reference does this by setting the old field's intensity to zero and adding the new one
+/// on the same square; the store hands out ids, so "replace" is a spawn and a despawn. Doing it
+/// here keeps the two processors below readable and makes the age rule impossible to forget.
+fn transform_field(
+    world: &mut World,
+    entity: Entity,
+    new_id: FieldId,
+    new_intensity: i32,
+    age: i64,
+    is_fire: bool,
+) {
+    let Some(position) = world.get::<Position>(entity).copied() else {
+        return;
+    };
+    let priority = world.get::<Field>(entity).map_or(0, |field| field.priority);
+    let mut entry = FieldEntry::new(3, 100, true, is_fire);
+    entry.set_intensity(new_intensity);
+    entry.set_age(age);
+    world.despawn(entity);
+    world.spawn((
+        Position {
+            x: position.x,
+            y: position.y,
+        },
+        Field {
+            id: new_id,
+            entry,
+            priority,
+        },
+    ));
+}
+
+/// Field ids used by the two processors below.
+///
+/// Placeholders until the field loader's ids are wired in; the behaviour that matters - the
+/// pair taking turns - does not depend on which numbers they are.
+pub const FLAME_BURST: FieldId = FieldId(900);
+/// See [`FLAME_BURST`].
+pub const FIRE_VENT: FieldId = FieldId(901);
+
+/// A flame burst burns down, and when it has burnt out it becomes a fire vent.
+///
+/// Reference: `field_processor_fd_flame_burst` (`src/map_field.cpp:640-650`). The reference also
+/// makes hot air on every step that thins it; hot air is not ported, so that is missing rather
+/// than forgotten.
+pub fn process_flame_burst(
+    world: &mut World,
+    entity: Entity,
+    _rolls: &mut cdda_core_types::rng::Rolls,
+) {
+    let Some(field) = world.get::<Field>(entity) else {
+        return;
+    };
+    let intensity = field.entry.intensity();
+    let age = field.entry.age();
+    if intensity > 1 {
+        if let Some(mut field) = world.get_mut::<Field>(entity) {
+            field.entry.set_intensity(intensity - 1);
+        }
+    } else {
+        transform_field(world, entity, FIRE_VENT, 3, age, true);
+    }
+}
+
+/// A fire vent thins one step in three, and when it is spent it becomes a flame burst.
+///
+/// Reference: `field_processor_fd_fire_vent` (`src/map_field.cpp:626-637`). The dice are drawn
+/// only when the field is strong, exactly as the reference does - a spent vent draws nothing,
+/// so a replay does not shift.
+pub fn process_fire_vent(
+    world: &mut World,
+    entity: Entity,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) {
+    let Some(field) = world.get::<Field>(entity) else {
+        return;
+    };
+    let intensity = field.entry.intensity();
+    let age = field.entry.age();
+    if intensity > 1 {
+        if rolls.one_in(3)
+            && let Some(mut field) = world.get_mut::<Field>(entity)
+        {
+            field.entry.set_intensity(intensity - 1);
+        }
+    } else {
+        transform_field(world, entity, FLAME_BURST, 3, age, true);
+    }
+}
