@@ -163,3 +163,122 @@ pub fn cast_light(grid: &TransparencyGrid, origin: (i32, i32), radius: i32) -> V
     }
     visible
 }
+
+/// Which quarter of a tile a light value belongs to.
+///
+/// Reference: `enum class quadrant` (`src/shadowcasting.h:24-30`), in its order: north-east,
+/// south-east, south-west, north-west. The order is load-bearing - values are indexed by it
+/// everywhere - so it is written down here rather than left to whatever an array happens to
+/// be filled with.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Quadrant {
+    /// North-east of the tile's centre.
+    NorthEast,
+    /// South-east.
+    SouthEast,
+    /// South-west.
+    SouthWest,
+    /// North-west.
+    NorthWest,
+}
+
+impl Quadrant {
+    /// The index this quadrant is stored at.
+    #[must_use]
+    pub const fn index(self) -> usize {
+        match self {
+            Self::NorthEast => 0,
+            Self::SouthEast => 1,
+            Self::SouthWest => 2,
+            Self::NorthWest => 3,
+        }
+    }
+}
+
+/// Four light values per tile, one per quarter.
+///
+/// Reference: `four_quadrants` (`src/shadowcasting.h:38-90`). A tile's light is not one
+/// number: a torch in a corner lights one quarter of the floor much more than the opposite
+/// one, and the reference keeps all four so that drawing and seeing agree.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct FourQuadrants {
+    values: [f32; 4],
+}
+
+impl FourQuadrants {
+    /// Four copies of one value.
+    #[must_use]
+    pub const fn uniform(value: f32) -> Self {
+        Self { values: [value; 4] }
+    }
+
+    /// Fills all four with one value.
+    pub fn fill(&mut self, value: f32) {
+        self.values = [value; 4];
+    }
+
+    // The index comes from the quadrant enum, whose four values are 0..=3 and which is
+    // the array's own length; clippy cannot see that through the method call.
+    /// The value for one quarter.
+    #[must_use]
+    #[allow(clippy::indexing_slicing)]
+    pub fn get(&self, quadrant: Quadrant) -> f32 {
+        self.values[quadrant.index()]
+    }
+
+    /// Sets one quarter.
+    #[allow(clippy::indexing_slicing)]
+    pub fn set(&mut self, quadrant: Quadrant, value: f32) {
+        self.values[quadrant.index()] = value;
+    }
+
+    /// The brightest quarter.
+    ///
+    /// This is what `lit_level` reads: a tile is as bright as its brightest corner, which
+    /// is why a lamp around a corner still lights the floor you can see.
+    #[must_use]
+    pub fn max(&self) -> f32 {
+        self.values
+            .iter()
+            .copied()
+            .fold(f32::NEG_INFINITY, f32::max)
+    }
+
+    /// Every quarter multiplied by the same quarter of another tile.
+    #[must_use]
+    pub fn multiplied(self, other: Self) -> Self {
+        Self {
+            values: [
+                self.values[0] * other.values[0],
+                self.values[1] * other.values[1],
+                self.values[2] * other.values[2],
+                self.values[3] * other.values[3],
+            ],
+        }
+    }
+
+    /// The brighter of two tiles, quarter by quarter.
+    ///
+    /// Two lights in the same room add where they overlap and do not where they do not;
+    /// this is the per-quarter half of that, and it is why a corridor can be bright on one
+    /// side of the corner.
+    #[must_use]
+    pub fn max_with(self, other: Self) -> Self {
+        Self {
+            values: [
+                self.values[0].max(other.values[0]),
+                self.values[1].max(other.values[1]),
+                self.values[2].max(other.values[2]),
+                self.values[3].max(other.values[3]),
+            ],
+        }
+    }
+
+    /// The brighter of each quarter and a value.
+    #[must_use]
+    pub fn max_with_value(self, value: f32) -> Self {
+        Self {
+            values: self.values.map(|own| own.max(value)),
+        }
+    }
+}
