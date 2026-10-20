@@ -23,7 +23,7 @@ fn the_three_blockers_are_the_only_neighbours_the_wind_can_stop() {
             }
             let mut rolls = Rolls::new(1);
             let mut control = Rolls::new(1);
-            wind_reach((dx, dy), BLOCKERS, 30, &mut rolls);
+            let _kept = wind_reach((dx, dy), BLOCKERS, 30, &mut rolls);
             if rolls.rng(1, 1000) != control.rng(1, 1000) {
                 drawn_for.push((dx, dy));
             }
