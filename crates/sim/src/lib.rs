@@ -681,3 +681,97 @@ pub fn process_acid_vent(
         field.entry.set_intensity(3);
     }
 }
+
+/// Electricity, as the field registry numbers it.
+pub const ELECTRICITY: FieldId = FieldId(29);
+/// A shock vent, as the field registry numbers it.
+pub const SHOCK_VENT: FieldId = FieldId(32);
+
+/// A shock vent thins one time in five, and when spent erupts into lightning bolts.
+///
+/// Reference: `field_processor_fd_shock_vent` (`src/map_field.cpp:838-876`). A vent stronger than 1
+/// draws `one_in(5)` and thins if it fires. A vent at 1 goes back to 3, draws 3 to 6 bolts, and for
+/// each one picks a direction by drawing twice from -1..1 until the pair is not both zero, a length
+/// from 4 to 12, then walks that many steps: every step lays electricity of strength 2 or 3, and
+/// after each step two `one_in(4)` draws may turn the bolt - the x draw turns x on or off, the y
+/// draw turns y on or off, and a direction that is already zero is given a fresh 0-or-1 sign.
+///
+/// The dice order is the contract here: a replay that drew in a different order would light a
+/// different corridor with the same seed.
+pub fn process_shock_vent(
+    world: &mut World,
+    entity: Entity,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) {
+    let Some(position) = world.get::<Position>(entity).copied() else {
+        return;
+    };
+    let Some(field) = world.get::<Field>(entity) else {
+        return;
+    };
+    let intensity = field.entry.intensity();
+    if intensity > 1 {
+        if rolls.one_in(5)
+            && let Some(mut field) = world.get_mut::<Field>(entity)
+        {
+            field.entry.set_intensity(intensity - 1);
+        }
+        return;
+    }
+    if let Some(mut field) = world.get_mut::<Field>(entity) {
+        field.entry.set_intensity(3);
+    }
+    let bolts = rolls.rng(3, 6);
+    for _ in 0..bolts {
+        let (mut dx, mut dy) = (0, 0);
+        while dx == 0 && dy == 0 {
+            dx = rolls.rng(-1, 1);
+            dy = rolls.rng(-1, 1);
+        }
+        let length = rolls.rng(4, 12);
+        let (mut x, mut y) = (position.x, position.y);
+        for _ in 0..length {
+            x += dx;
+            y += dy;
+            lay_electricity(world, (x, y), rolls.rng(2, 3));
+            if rolls.one_in(4) {
+                dx = if dx == 0 { rolls.rng(0, 1) * 2 - 1 } else { 0 };
+            }
+            if rolls.one_in(4) {
+                dy = if dy == 0 { rolls.rng(0, 1) * 2 - 1 } else { 0 };
+            }
+        }
+    }
+}
+
+/// Adds electricity to a square, keeping the stronger of what was there and what arrives.
+fn lay_electricity(world: &mut World, square: (i32, i32), strength: i32) {
+    let existing = {
+        let mut query = world.query::<(Entity, &Position, &Field)>();
+        query
+            .iter(world)
+            .find(|(_, at, field)| at.x == square.0 && at.y == square.1 && field.id == ELECTRICITY)
+            .map(|(entity, _, field)| (entity, field.entry.intensity()))
+    };
+    if let Some((entity, already)) = existing {
+        if strength > already
+            && let Some(mut field) = world.get_mut::<Field>(entity)
+        {
+            field.entry.set_intensity(strength);
+        }
+        return;
+    }
+    let mut entry = FieldEntry::new(3, 100, true, false);
+    entry.set_intensity(strength);
+    world.spawn((
+        Position {
+            x: square.0,
+            y: square.1,
+        },
+        Field {
+            id: ELECTRICITY,
+            entry,
+            priority: 0,
+        },
+    ));
+}
