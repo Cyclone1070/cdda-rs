@@ -832,3 +832,30 @@ pub fn take_item(world: &mut World, entity: Entity) {
         world.despawn(entity);
     }
 }
+
+/// Fire with nothing to eat burns out faster.
+///
+/// Reference: `field_processor_fd_fire` (`src/map_field.cpp:1128-1132`). When a fire did not gain
+/// time from consuming something, and its tile has nothing burnable on it, the fire's age advances
+/// by ten seconds per point of intensity - so a strong fire over bare ground dies sooner than a
+/// weak one, which is the reference's own comment: "Drain more power from big fires, so that they
+/// stop raging over nothing".
+///
+/// This is the first slice of the fire processor, and it is the one that needs no wind, no
+/// neighbours and no items: the caller says whether the tile has fuel, because what counts as fuel
+/// is terrain and furniture data the caller holds.
+pub fn process_fire_burnout(world: &mut World, entity: Entity, has_fuel: bool) {
+    if has_fuel {
+        return;
+    }
+    let Some(intensity) = world
+        .get::<Field>(entity)
+        .map(|field| field.entry.intensity())
+    else {
+        return;
+    };
+    if let Some(mut field) = world.get_mut::<Field>(entity) {
+        let age = field.entry.age();
+        field.entry.set_age(age + i64::from(intensity) * 10);
+    }
+}
