@@ -129,8 +129,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-21 04:55:05
-@@ -0,0 +1,763 @@
++++ oracle/src/src/harness.cpp	2026-10-21 05:04:02
+@@ -0,0 +1,801 @@
 +#include "harness.h"
 +#include "recipe_dictionary.h"
 +#include "requirements.h"
@@ -146,6 +146,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +#include "item_factory.h"
 +#include "item_group.h"
 +#include "mapgen.h"
++#include "scenario.h"
++#include "profession.h"
 +#include "omdata.h"
 +#include "itype.h"
 +#include "field_type.h"
@@ -482,6 +484,39 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    std::fclose( out );
 +}
 +
++void dump_starting_kit( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    std::vector<std::string> professions;
++    for( const profession &prof : profession::get_all() ) {
++        professions.push_back( prof.ident().str() );
++    }
++    std::vector<std::string> scenarios;
++    for( const scenario &scen : scenario::get_all() ) {
++        scenarios.push_back( scen.ident().str() );
++    }
++    std::sort( professions.begin(), professions.end() );
++    std::sort( scenarios.begin(), scenarios.end() );
++    std::fprintf( out, "{\"harness\":\"starting_kit\",\"version\":1,\n\"professions\":[\n" );
++    bool first = true;
++    for( const std::string &id : professions ) {
++        std::fprintf( out, "%s\"%s\"", first ? "" : ",\n", id.c_str() );
++        first = false;
++    }
++    std::fprintf( out, "\n],\"profession_count\":%zu,\n\"scenarios\":[\n", professions.size() );
++    first = true;
++    for( const std::string &id : scenarios ) {
++        std::fprintf( out, "%s\"%s\"", first ? "" : ",\n", id.c_str() );
++        first = false;
++    }
++    std::fprintf( out, "\n],\"scenario_count\":%zu}\n", scenarios.size() );
++    std::fclose( out );
++}
++
 +void dump_mapgens( const std::string &path )
 +{
 +    std::FILE *out = std::fopen( path.c_str(), "wb" );
@@ -489,6 +524,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
 +        return;
 +    }
++    // The JSON mapgens are registered lazily; calculating the weights is what forces the
++    // registry to become complete.
++    calculate_mapgen_weights();
 +    std::vector<std::string> keys;
 +    for( const oter_t &oter : overmap_terrains::get_all() ) {
 +        if( has_mapgen_for( oter.id.str() ) ) {
@@ -896,8 +934,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +}  // namespace harness
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-21 04:51:09
-@@ -0,0 +1,140 @@
++++ oracle/src/src/harness.h	2026-10-21 05:04:02
+@@ -0,0 +1,143 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -1011,6 +1049,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +/** Writes every overmap terrain id that has a map generator. */
 +void dump_mapgens( const std::string &path );
 +
++/** Writes every profession and scenario id. */
++void dump_starting_kit( const std::string &path );
++
 +// `--dump-materials <file>`: every material's resolved fields.
 +void dump_materials( const std::string &path );
 +
@@ -1060,7 +1101,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-21 05:00:16
++++ oracle/src/src/main.cpp	2026-10-21 05:04:02
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -1071,7 +1112,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,32 @@
+@@ -272,6 +275,33 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -1092,6 +1133,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_recipes;
 +    std::string dump_item_groups;
 +    std::string dump_mapgens;
++    std::string dump_starting_kit;
 +    // Harness: resolved field types.
 +    std::string dump_fields;
 +    // Harness: resolved item types.
@@ -1104,7 +1146,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +329,176 @@
+@@ -300,6 +330,186 @@
                  }
              },
              {
@@ -1154,6 +1196,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_traps = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-starting-kit", "<file>",
++                "Writes every profession and scenario id to <file>",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_starting_kit = params[0];
 +                    return 1;
 +                }
 +            },
@@ -1281,7 +1333,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +985,125 @@
+@@ -786,6 +996,131 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -1331,6 +1383,12 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            test_mode = true;
 +            g->check_mod_data( { mod_id( "dda" ) } );
 +            harness::dump_traps( cli.dump_traps );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_starting_kit.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_starting_kit( cli.dump_starting_kit );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_mapgens.empty() ) {

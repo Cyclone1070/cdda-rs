@@ -13,6 +13,8 @@
 #include "item_factory.h"
 #include "item_group.h"
 #include "mapgen.h"
+#include "scenario.h"
+#include "profession.h"
 #include "omdata.h"
 #include "itype.h"
 #include "field_type.h"
@@ -349,6 +351,39 @@ void dump_traps( const std::string &path )
     std::fclose( out );
 }
 
+void dump_starting_kit( const std::string &path )
+{
+    std::FILE *out = std::fopen( path.c_str(), "wb" );
+    if( out == nullptr ) {
+        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
+        return;
+    }
+    std::vector<std::string> professions;
+    for( const profession &prof : profession::get_all() ) {
+        professions.push_back( prof.ident().str() );
+    }
+    std::vector<std::string> scenarios;
+    for( const scenario &scen : scenario::get_all() ) {
+        scenarios.push_back( scen.ident().str() );
+    }
+    std::sort( professions.begin(), professions.end() );
+    std::sort( scenarios.begin(), scenarios.end() );
+    std::fprintf( out, "{\"harness\":\"starting_kit\",\"version\":1,\n\"professions\":[\n" );
+    bool first = true;
+    for( const std::string &id : professions ) {
+        std::fprintf( out, "%s\"%s\"", first ? "" : ",\n", id.c_str() );
+        first = false;
+    }
+    std::fprintf( out, "\n],\"profession_count\":%zu,\n\"scenarios\":[\n", professions.size() );
+    first = true;
+    for( const std::string &id : scenarios ) {
+        std::fprintf( out, "%s\"%s\"", first ? "" : ",\n", id.c_str() );
+        first = false;
+    }
+    std::fprintf( out, "\n],\"scenario_count\":%zu}\n", scenarios.size() );
+    std::fclose( out );
+}
+
 void dump_mapgens( const std::string &path )
 {
     std::FILE *out = std::fopen( path.c_str(), "wb" );
@@ -356,6 +391,9 @@ void dump_mapgens( const std::string &path )
         std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
         return;
     }
+    // The JSON mapgens are registered lazily; calculating the weights is what forces the
+    // registry to become complete.
+    calculate_mapgen_weights();
     std::vector<std::string> keys;
     for( const oter_t &oter : overmap_terrains::get_all() ) {
         if( has_mapgen_for( oter.id.str() ) ) {
