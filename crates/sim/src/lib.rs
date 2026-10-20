@@ -375,26 +375,53 @@ pub const NEIGHBOURS: [(i32, i32); 8] = [
 ///
 /// Not ported, and declared: the reference first tries *down*, then a neighbour, then *up*.
 /// The port has no z-levels here, so only the neighbour branch runs.
+/// Everything a gas needs to know about the wind and the sky.
+pub struct GasContext {
+    /// The chance in a hundred that this gas spreads on a windless turn.
+    pub percent_spread: i32,
+    /// Wind strength where the gas is.
+    pub windpower: i32,
+    /// Wind direction, in degrees, for the blockers.
+    pub wind_angle: i32,
+    /// Whether the square is outdoors, which makes the gas dissipate faster.
+    pub outdoors: bool,
+    /// How much faster, in turns.
+    pub outdoor_age_speedup: i64,
+}
+
+/// Chooses where a gas spreads to and moves it there, aging it first if it is outdoors.
 pub fn spread_gas(
     world: &mut World,
     source: Entity,
-    percent_spread: i32,
-    windpower: i32,
-    wind_angle: i32,
+    context: &GasContext,
     can_enter: impl Fn(i32, i32) -> bool,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) {
+    let percent_spread = context.percent_spread;
+    let (windpower, wind_angle) = (context.windpower, context.wind_angle);
+    let outdoors = context.outdoors;
+    let outdoor_age_speedup = context.outdoor_age_speedup;
     let Some(field) = world.get::<Field>(source) else {
         return;
     };
     let intensity = field.entry.intensity();
+    let id = field.id;
+    // Dissipate faster outdoors, before any of the spread dice - and before the intensity bail,
+    // which is what the reference does: a thin gas outdoors still ages away faster.
+    if outdoors && outdoor_age_speedup != 0 {
+        let age = world
+            .get::<Field>(source)
+            .map_or(0, |field| field.entry.age());
+        if let Some(mut field) = world.get_mut::<Field>(source) {
+            field.entry.set_age(age + outdoor_age_speedup);
+        }
+    }
     if intensity <= 1 {
         return;
     }
     let Some(position) = world.get::<Position>(source).copied() else {
         return;
     };
-    let id = field.id;
     let ceiling = 100 - windpower;
     if ceiling < 1 || rolls.rng(1, ceiling) > percent_spread {
         return;
@@ -1451,4 +1478,25 @@ pub fn process_push_items(
         moved += 1;
     }
     moved
+}
+
+/// The gas processor: fields whose data says they spread do so every turn.
+///
+/// Reference: `field_processor_spread_gas` (`src/map_field.cpp:579-585`), which runs for any field
+/// with a non-zero spread chance (`field_type::gas_can_spread`). Everything else about the turn -
+/// the chance, the damping by wind, where the gas goes - is [`spread_gas`].
+///
+/// The caller supplies the spread chance, the wind and the outdoor speedup, because those come from
+/// the field's prototype, which the sim does not own.
+pub fn process_spread_gas(
+    world: &mut World,
+    source: Entity,
+    context: &GasContext,
+    can_enter: impl Fn(i32, i32) -> bool,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) {
+    if context.percent_spread <= 0 {
+        return;
+    }
+    spread_gas(world, source, context, can_enter, rolls);
 }
