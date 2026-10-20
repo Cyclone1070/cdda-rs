@@ -171,7 +171,7 @@ for why, and for the rules that turn a case here into a test in the port.
 | `npc_test.cpp` | 8 | 684 | yes | [.], [npc_ai] | — |
 | `options_test.cpp` | 1 | 93 | no | [option] | ported (21 tests, table and behaviour) |
 | `overmap_noise_test.cpp` | 3 | 71 | no | [.] | — |
-| `overmap_test.cpp` | 7 | 651 | yes | [.], [overmap], [slow], [terrain] | — |
+| `overmap_test.cpp` | 7 | 651 | yes | [.], [overmap], [slow], [terrain] | partly (noise, city placement; terrains need the loader) |
 | `player_activities_test.cpp` | 8 | 2,138 | yes | [activity], [animals], [boltcut], [edevice], [hacksaw], [interruption], [oxytorch], [prying], [safecracking], [shearing] | — |
 | `player_test.cpp` | 2 | 217 | yes | [.bodytemp], [char], [suffer] | — |
 | `point_test.cpp` | 9 | 273 | no | [point] | — |

@@ -77,12 +77,30 @@ The line-drawing shapes are `om_lines::mapgen_suffixes` (`src/overmap.cpp:262-27
 `_es`, `_esw`, `_isolated`, `_end_north` and the rest, generated for the 14
 terrains flagged `LINEAR` - the ant tunnels and their relatives.
 
-## What the loader has to do
+## What the loader now does
 
-1. Read every `type: overmap_terrain` entry in load order, indexing `abstract`
-   entries as well as `id` ones.
-2. Resolve flags through `copy-from`, applying `delete.flags` last.
-3. Register one **type** id per distinct id: 6,269, verified.
-4. Register **terrains**: four rotations when rotatable, the 256 line shapes when
-   `LINEAR`, the bare id otherwise.
-5. Let the id gate name any remainder - it already knows the answer to the id.
+Written and gated (`crates/content/src/overmap.rs`, `crates/content/tests/overmap.rs`):
+
+* **The type registry is exact**: 6,269 ours against 6,269 reported, nothing
+  missing and nothing invented.
+* **The terrain registry is 23,956 of 24,218.** What is missing is exactly the 256
+  line-drawing shapes plus eight variants belonging to two outlier types.
+* Those outliers are `microlab_ratkin_surface_connector` and
+  `microlab_ratkin_vent_shaft_connector`. Both inherit `NO_ROTATE` and both rotate
+  in the reference's registry anyway. The flag rule explains 5,901 of the 5,903
+  rotatable types; making it explain these two as well costs nine other types, so
+  they are named in the gate as outliers instead of being absorbed into a looser
+  rule.
+
+That is the honest state: one registry closed, one 264 ids short with the shortfall
+named to the id.
+
+## What remains
+
+1. The 256 line-drawing shapes for `LINEAR` terrains: `om_lines::mapgen_suffixes`
+   (`src/overmap.cpp:262-275`) generates a shape per connection mask, so this needs
+   the suffix table and the mask order, not just a list.
+2. The two outliers' rotation, once whatever makes them rotate is understood.
+
+Neither is a blocker for anything else: the type registry - the ids a map
+generator names - is closed.
