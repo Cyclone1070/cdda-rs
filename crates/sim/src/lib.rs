@@ -1230,3 +1230,33 @@ pub fn burn_terrain(
         ash_charges,
     })
 }
+
+/// Which neighbours a fire may reach through the wind, and which the wind shields.
+///
+/// Reference: `field_processor_fd_fire` (`src/map_field.cpp:1136-1152`). The reference caches three
+/// wind-blocking neighbours for the wind direction and then keeps a neighbour when
+///
+/// ```text
+/// (x != b1.x && y != b1.y) || (x != b2.x && y != b2.y) || (x != b3.x && y != b3.y)
+///     || x_in_y( 1, max( 2, windpower ) )
+/// ```
+///
+/// The "differs" test is `x != b.x && y != b.y`, so a neighbour that shares **either** coordinate
+/// with a blocker counts as not differing from it. Only a neighbour that shares coordinates with all
+/// three blockers reaches the `x_in_y` and can be shielded; every other neighbour is kept without
+/// drawing. For the usual three distinct blockers that means exactly those blockers are the ones the
+/// wind can stop, and only sometimes. The port reproduces the expression as written - dice included,
+/// because a replay has to draw the same numbers.
+#[must_use]
+pub fn wind_reach(
+    neighbour: (i32, i32),
+    blockers: [(i32, i32); 3],
+    windpower: i32,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) -> bool {
+    let differs = |blocker: (i32, i32)| neighbour.0 != blocker.0 && neighbour.1 != blocker.1;
+    differs(blockers[0])
+        || differs(blockers[1])
+        || differs(blockers[2])
+        || rolls.x_in_y(1.0, f64::from(windpower.max(2)))
+}
