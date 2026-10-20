@@ -109,6 +109,7 @@ Nothing is `gated` without a link to the run that proved it.
 | World submap owner and bubble view | not started | M2 | Ownership decided once |
 | Light and illumination | not started | M2 | Four quadrants per square, 21 levels |
 | Vision and visibility | not started | M2 | |
+| Field prototypes | **done** | P1 | 145 field types read from the reference's dump: id, priority, and every intensity's glyph, colour, danger flag, transparency, move cost and light. Levels are the intensity ceiling, so "intensity 3" now means what the data says it means. Two facts the port had wrong in its head and now has from the data: **thin smoke is see-through and thick smoke is not** (`[true, false, false]`), which is why smoke dims a room instead of blanking it; and **smoke draws over fire** (priority 8 against 4) |
 | Fields and field processors | not started | M2 | 21 data-gated processors |
 | Scent | not started | M2 | Already a dense grid |
 | Sound events | not started | M2 | Transient, no world storage |

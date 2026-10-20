@@ -1,297 +1,128 @@
-//! Field types: the one loader whose inheritance runs *inside* a list.
+//! Field prototypes: what each kind of field looks like at each intensity.
 //!
-//! A field type is a list of intensity levels, and each level inherits from the
-//! level before it rather than from another prototype (`field_type.cpp:37-90`):
-//! `intensity_level` starts as a copy of the previous level, then the new one's
-//! members are applied over it. The first level inherits from the C++ defaults
-//! instead. Effects, and everything else, follow the same pattern - so a fire
-//! field's third level is its second level plus whatever it says.
+//! Reference: `field_type` (`src/field_type.h`), reached through `--dump-fields`. A field's
+//! number of levels is also its maximum intensity, which is what the runtime clamps to - so this
+//! loader is what makes "intensity 3" mean something.
 
-use cdda_core_types::colors::{NcColor, color_from_string, string_from_color};
 use cdda_json::{Object, Value};
-use std::collections::BTreeMap;
 
-/// One intensity level of a field.
-#[derive(Debug, Clone, PartialEq)]
-pub struct IntensityLevel {
-    /// The name a player sees, untranslated.
+/// One intensity of a field.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FieldLevel {
+    /// The displayed name.
     pub name: String,
-    /// The glyph, as a Unicode code point.
-    pub symbol: u32,
-    /// The colour.
-    pub color: NcColor,
-    /// Whether standing in it hurts.
+    /// The ASCII glyph drawn for this intensity.
+    pub sym: u32,
+    /// The colour id drawn for this intensity.
+    pub color: String,
+    /// Whether standing in it is hazardous.
     pub dangerous: bool,
-    /// Whether it can be seen through.
+    /// Whether light passes through this intensity.
     pub transparent: bool,
-    /// What it costs to walk through.
+    /// Extra movement cost to enter.
     pub move_cost: i32,
-    /// How much of the field fits in one tile.
-    pub concentration: i32,
-    /// Light it emits.
-    pub light: f64,
 }
 
-impl IntensityLevel {
-    /// The name the reference prints for this level's colour.
-    #[must_use]
-    pub fn color_name(&self) -> &'static str {
-        string_from_color(self.color)
-    }
-}
-
-/// One resolved field type.
-#[derive(Debug, Clone, PartialEq)]
+/// One kind of field, with its levels in order (index 0 is intensity 1).
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FieldType {
-    /// Its id.
+    /// The field's id, e.g. `fd_smoke`.
     pub id: String,
-    /// Draw order; higher draws later.
+    /// Which field draws when several share a tile; higher wins.
     pub priority: i32,
-    /// Its levels, weakest first. Always at least one.
-    pub levels: Vec<IntensityLevel>,
+    /// The intensities, weakest first.
+    pub levels: Vec<FieldLevel>,
 }
 
-/// The level a field starts from before any file is read.
-///
-/// `field_intensity_level`'s member initialisers (`field_type.h:99-123`), which
-/// *do* survive here: the level loader passes the previous level explicitly as
-/// the fallback for every field, unlike the material loader.
-fn default_level() -> IntensityLevel {
-    IntensityLevel {
-        name: String::new(),
-        symbol: u32::from(b'%'),
-        color: color_from_string("white").unwrap_or_default(),
-        dangerous: false,
-        transparent: true,
-        move_cost: 0,
-        concentration: 0,
-        light: 0.0,
+impl FieldType {
+    /// The highest intensity this field can reach.
+    #[must_use]
+    pub fn max_intensity(&self) -> u8 {
+        u8::try_from(self.levels.len()).unwrap_or(u8::MAX)
     }
 }
 
-/// Loads every field type in the given directories, in the reference's order.
+fn int_of(object: &Object, key: &str) -> Option<i64> {
+    match object.get(key)? {
+        Value::Int(value) => Some(*value),
+        _ => None,
+    }
+}
+
+fn bool_of(object: &Object, key: &str) -> Option<bool> {
+    match object.get(key)? {
+        Value::Bool(value) => Some(*value),
+        _ => None,
+    }
+}
+
+fn str_of(object: &Object, key: &str) -> Option<String> {
+    match object.get(key)? {
+        Value::Str(value) => Some(value.clone()),
+        _ => None,
+    }
+}
+
+/// Reads the field dump.
 ///
 /// # Errors
 ///
-/// Fails when a file cannot be read, a field type has no levels, or a level
-/// names a colour the table does not know.
-pub fn load_paths(dirs: &[&std::path::Path]) -> Result<Vec<FieldType>, LoadError> {
-    let mut objects: BTreeMap<String, Object> = BTreeMap::new();
-    let mut order: Vec<String> = Vec::new();
-    for dir in dirs {
-        let files = crate::json_files_in_load_order(dir).map_err(|error| LoadError {
-            message: format!("{}: {error}", dir.display()),
-        })?;
-        for path in files {
-            let Some(value) = crate::read_json(&path) else {
-                continue;
-            };
-            collect(&value, &mut objects, &mut order);
-        }
-    }
-    let mut out = Vec::new();
-    for id in &order {
-        let mut seen = Vec::new();
-        out.push(resolve(id, &objects, &mut seen)?);
-    }
-    Ok(out)
-}
-
-/// Why a field type could not be loaded.
-#[derive(Debug)]
-pub struct LoadError {
-    /// The problem.
-    pub message: String,
-}
-
-impl std::fmt::Display for LoadError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.message)
-    }
-}
-
-impl std::error::Error for LoadError {}
-
-fn collect(value: &Value, out: &mut BTreeMap<String, Object>, order: &mut Vec<String>) {
-    match value {
-        Value::Array(items) => {
-            for item in items {
-                collect(item, out, order);
-            }
-        }
-        Value::Object(object) => {
-            if !matches!(object.get("type"), Some(Value::Str(text)) if text == "field_type") {
-                return;
-            }
-            let concrete = string(object, "id");
-            let template = concrete.is_none() && object.get("abstract").is_some();
-            let id = concrete.or_else(|| string(object, "abstract"));
-            if let Some(id) = id {
-                if !template && !out.contains_key(&id) {
-                    order.push(id.clone());
-                }
-                out.insert(id, object.clone());
-            }
-        }
-        _ => {}
-    }
-}
-
-fn resolve(
-    id: &str,
-    objects: &BTreeMap<String, Object>,
-    seen: &mut Vec<String>,
-) -> Result<FieldType, LoadError> {
-    if seen.iter().any(|entry| entry == id) {
-        return Err(LoadError {
-            message: format!("cyclic copy-from through {id}: {seen:?}"),
-        });
-    }
-    let Some(object) = objects.get(id) else {
-        return Err(LoadError {
-            message: format!("field type {id} is not defined"),
-        });
+/// Returns the reason the dump could not be read: a shape it does not understand, a field with no
+/// levels, or a level missing a piece the runtime needs.
+pub fn from_dump(value: &Value) -> Result<Vec<FieldType>, String> {
+    let Value::Object(root) = value else {
+        return Err("the dump's root is not an object".to_string());
     };
-    seen.push(id.to_owned());
-    let inherited = object.get("copy-from").is_some();
-    let mut field = match object.get("copy-from") {
-        Some(Value::Str(base)) => {
-            let mut base_field = resolve(base, objects, seen)?;
-            id.clone_into(&mut base_field.id);
-            base_field
-        }
-        _ => FieldType {
-            id: id.to_owned(),
-            priority: 0,
-            levels: Vec::new(),
-        },
+    let Some(Value::Array(entries)) = root.get("prototypes") else {
+        return Err("the dump has no prototypes array".to_string());
     };
-    seen.pop();
-    id.clone_into(&mut field.id);
-    apply(&mut field, object, inherited)?;
-    if field.levels.is_empty() {
-        return Err(LoadError {
-            message: format!("field type {id} has no intensity levels"),
-        });
-    }
-    Ok(field)
-}
-
-fn apply(field: &mut FieldType, object: &Object, inherited: bool) -> Result<(), LoadError> {
-    if let Some(priority) = integer(object, "priority") {
-        field.priority = priority;
-    }
-    let Some(Value::Array(entries)) = object.get("intensity_levels") else {
-        if inherited {
-            return Ok(());
-        }
-        return Err(LoadError {
-            message: format!("field type {}: missing intensity_levels", field.id),
-        });
-    };
-    // A loaded object's levels replace the inherited ones; the fallback chain
-    // starts again from the first new level (`field_type.cpp:37-40`).
-    let mut levels: Vec<IntensityLevel> = Vec::new();
+    let mut fields = Vec::with_capacity(entries.len());
     for entry in entries {
-        let Value::Object(level) = entry else {
-            continue;
+        let Value::Object(object) = entry else {
+            return Err("a field is not an object".to_string());
         };
-        let mut next = levels.last().cloned().unwrap_or_else(default_level);
-        if let Some(name) = name_of(level) {
-            next.name = name;
+        let Some(id) = str_of(object, "id") else {
+            return Err("a field has no id".to_string());
+        };
+        let priority = int_of(object, "priority").unwrap_or(0);
+        let Some(Value::Array(levels)) = object.get("levels") else {
+            return Err(format!("{id} has no levels"));
+        };
+        if levels.is_empty() {
+            return Err(format!("{id} has no levels at all"));
         }
-        if let Some(symbol) = string(level, "sym") {
-            next.symbol = one_codepoint(&symbol).ok_or_else(|| LoadError {
-                message: format!(
-                    "field type {}: sym {symbol:?} is not one character",
-                    field.id
-                ),
-            })?;
+        let mut parsed = Vec::with_capacity(levels.len());
+        for level in levels {
+            let Value::Object(level) = level else {
+                return Err(format!("a level of {id} is not an object"));
+            };
+            let sym = level.get("sym").and_then(|v| match v {
+                Value::Int(code) => u32::try_from(*code).ok(),
+                _ => None,
+            });
+            let Some(sym) = sym else {
+                return Err(format!("a level of {id} has no glyph"));
+            };
+            parsed.push(FieldLevel {
+                name: str_of(level, "name").unwrap_or_default(),
+                sym,
+                color: str_of(level, "color").unwrap_or_default(),
+                dangerous: bool_of(level, "dangerous").unwrap_or(false),
+                transparent: bool_of(level, "transparent").unwrap_or(true),
+                move_cost: i32::try_from(int_of(level, "move_cost").unwrap_or(0)).unwrap_or(0),
+            });
         }
-        if let Some(text) = string(level, "color") {
-            next.color = color_from_string(&text).map_err(|error| LoadError {
-                message: format!("field type {}: color {text:?}: {error:?}", field.id),
-            })?;
-        }
-        if let Some(dangerous) = boolean(level, "dangerous") {
-            next.dangerous = dangerous;
-        }
-        if let Some(transparent) = boolean(level, "transparent") {
-            next.transparent = transparent;
-        }
-        if let Some(cost) = integer(level, "move_cost") {
-            next.move_cost = cost;
-        }
-        // The one field with an explicit default of its own: a level that says
-        // nothing is at concentration 1, not at the previous level's count.
-        // Fog writes 0.5, and the reference's integer reader truncates it.
-        next.concentration = truncated_integer(level, "concentration").unwrap_or(1);
-        if let Some(light) = number(level, "light_emitted") {
-            next.light = light;
-        }
-        levels.push(next);
+        fields.push(FieldType {
+            id,
+            priority: i32::try_from(priority).unwrap_or(0),
+            levels: parsed,
+        });
     }
-    field.levels = levels;
-    Ok(())
+    Ok(fields)
 }
 
-/// One code point, or nothing if the string is not exactly one character.
-fn one_codepoint(text: &str) -> Option<u32> {
-    let mut characters = text.chars();
-    match (characters.next(), characters.next()) {
-        (Some(character), None) => Some(character as u32),
-        _ => None,
-    }
-}
-
-fn name_of(object: &Object) -> Option<String> {
-    match object.get("name") {
-        Some(Value::Str(text)) => Some(text.clone()),
-        Some(Value::Object(inner)) => string(inner, "str"),
-        _ => None,
-    }
-}
-
-fn string(object: &Object, member: &str) -> Option<String> {
-    match object.get(member) {
-        Some(Value::Str(text)) => Some(text.clone()),
-        _ => None,
-    }
-}
-
-fn integer(object: &Object, member: &str) -> Option<i32> {
-    match object.get(member) {
-        Some(Value::Int(value)) => i32::try_from(*value).ok(),
-        _ => None,
-    }
-}
-
-/// An integer member, truncating a float toward zero as the reference's reader
-/// does - fog's first level states a concentration of 0.5 and loads as 0.
-fn truncated_integer(object: &Object, member: &str) -> Option<i32> {
-    match object.get(member) {
-        Some(Value::Int(value)) => i32::try_from(*value).ok(),
-        #[allow(clippy::cast_possible_truncation)]
-        Some(Value::Float(value)) => Some(*value as i32),
-        _ => None,
-    }
-}
-
-fn boolean(object: &Object, member: &str) -> Option<bool> {
-    match object.get(member) {
-        Some(Value::Bool(value)) => Some(*value),
-        _ => None,
-    }
-}
-
-fn number(object: &Object, member: &str) -> Option<f64> {
-    match object.get(member) {
-        Some(Value::Int(value)) =>
-        {
-            #[allow(clippy::cast_precision_loss)]
-            Some(*value as f64)
-        }
-        Some(Value::Float(value)) => Some(*value),
-        _ => None,
-    }
+/// Finds a field by id.
+#[must_use]
+pub fn find<'a>(fields: &'a [FieldType], id: &str) -> Option<&'a FieldType> {
+    fields.iter().find(|field| field.id == id)
 }

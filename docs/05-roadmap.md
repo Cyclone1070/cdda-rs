@@ -478,6 +478,11 @@ on the frame and turn benchmarks) is green.
 **Vehicle parts accessor - closed.** `vehicles::parts::get_all()` and
 `vehicles::get_all_prototypes()`; 701 parts and 249 prototypes dumped and loaded.
 
+**Mapgen: explicit directory load - tried, no effect.** Loading `jsondir/mapgen` by path and then
+finalising still leaves 325 keys, so the files either were already loaded or the registration is
+deferred further. Combined with the game-order result, the picture is now: mapgens register per
+overmap terrain, on demand, when a chunk is generated - not during data load at all.
+
 **NPC classes - open, and it now falls through into a normal run.** Three attempts: ids plus
 `is_common()` hung; ids only hung; ids only on the *game's own* load path (`load_core_data` then
 `finalize_loaded_data`) hung, and its log shows the game's title art - so that branch does not dump

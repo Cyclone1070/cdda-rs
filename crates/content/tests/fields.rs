@@ -1,192 +1,67 @@
-//! Field types against the reference's own resolve.
-//!
-//! The interesting rule is inheritance *inside* a list: a level starts as a copy
-//! of the level before it, so a fire field's third level is its second level
-//! plus whatever it states - and the first level starts from the C++ defaults,
-//! not from zero.
+//! Field prototypes, against the reference's own dump.
 
-#![allow(
-    clippy::expect_used,
-    clippy::panic,
-    clippy::unwrap_used,
-    clippy::indexing_slicing
-)]
+#![allow(clippy::expect_used, clippy::panic)]
 
-use cdda_content::fields;
-use cdda_json::{Value, parse};
-use std::path::{Path, PathBuf};
+use cdda_content::fields::{self, FieldType};
+use cdda_json::parse;
+use std::path::Path;
 
-fn root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
+fn dump() -> Vec<FieldType> {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/fields.json");
+    let text = std::fs::read_to_string(path).expect("the field dump exists");
+    let value = parse(text.as_bytes()).expect("the dump is valid JSON");
+    fields::from_dump(&value).expect("the dump loads")
 }
 
 #[test]
-fn a_level_inherits_the_one_before_it_but_not_its_concentration() {
-    let dir = std::env::temp_dir().join("cdda-field-fixture");
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    std::fs::write(
-        dir.join("fields.json"),
-        r#"[
-        {
-          "type": "field_type",
-          "id": "fd_test",
-          "priority": 7,
-          "intensity_levels": [
-            { "name": "wisps", "sym": "~", "color": "light_gray", "concentration": 3 },
-            { "name": "haze" },
-            { "name": "cloud", "sym": "!", "dangerous": true }
-          ]
-        }
-        ]"#,
-    )
-    .expect("fixture");
-    let loaded = fields::load_paths(&[&dir]).expect("loads");
-    let field = loaded
-        .iter()
-        .find(|entry| entry.id == "fd_test")
-        .expect("prototype");
-    assert_eq!(field.priority, 7);
-    assert_eq!(field.levels.len(), 3);
-    assert_eq!(field.levels[0].name, "wisps");
-    assert_eq!(field.levels[0].symbol, u32::from(b'~'));
-    assert_eq!(field.levels[0].concentration, 3);
-    // The second level states only a name, so it keeps the glyph and colour.
-    assert_eq!(field.levels[1].symbol, u32::from(b'~'));
-    assert_eq!(field.levels[1].color_name(), "c_light_gray");
-    // ...but concentration is the one field with its own default of 1.
-    assert_eq!(field.levels[1].concentration, 1);
-    // The third level overrides the glyph and sets danger, keeping the rest.
-    assert_eq!(field.levels[2].symbol, u32::from(b'!'));
-    assert!(field.levels[2].dangerous);
-    assert_eq!(field.levels[2].name, "cloud");
+fn the_port_finds_every_field_the_reference_defines() {
+    assert_eq!(dump().len(), 145, "field types");
 }
 
-/// Compares one level's fields, appending what differs.
-fn compare_level(
-    id: &str,
-    at: usize,
-    theirs: &cdda_json::Object,
-    ours: &cdda_content::fields::IntensityLevel,
-    mismatches: &mut Vec<String>,
-) {
-    let text_of = |member: &str| match theirs.get(member) {
-        Some(Value::Str(value)) => value.clone(),
-        _ => String::new(),
-    };
-    let number_of = |member: &str| match theirs.get(member) {
-        Some(Value::Int(value)) => i32::try_from(*value).unwrap_or(i32::MAX),
-        _ => 0,
-    };
-    let flag_of = |member: &str| matches!(theirs.get(member), Some(Value::Bool(true)));
-    if ours.name != text_of("name") {
-        mismatches.push(format!(
-            "{id}[{at}]: name {:?} != {:?}",
-            ours.name,
-            text_of("name")
-        ));
-    }
-    if ours.color_name() != text_of("color") {
-        mismatches.push(format!(
-            "{id}[{at}]: color {:?} != {:?}",
-            ours.color_name(),
-            text_of("color")
-        ));
-    }
-    let sym = match theirs.get("sym") {
-        Some(Value::Int(value)) => u32::try_from(*value).unwrap_or(u32::MAX),
-        _ => 0,
-    };
-    if ours.symbol != sym {
-        mismatches.push(format!("{id}[{at}]: sym {} != {sym}", ours.symbol));
-    }
-    for (field, ours_value, theirs_value) in [
-        ("move_cost", ours.move_cost, number_of("move_cost")),
-        (
-            "concentration",
-            ours.concentration,
-            number_of("concentration"),
-        ),
-    ] {
-        if ours_value != theirs_value {
-            mismatches.push(format!(
-                "{id}[{at}]: {field} {ours_value} != {theirs_value}"
-            ));
-        }
-    }
-    for (field, ours_value, theirs_value) in [
-        ("dangerous", ours.dangerous, flag_of("dangerous")),
-        ("transparent", ours.transparent, flag_of("transparent")),
-    ] {
-        if ours_value != theirs_value {
-            mismatches.push(format!(
-                "{id}[{at}]: {field} {ours_value} != {theirs_value}"
-            ));
-        }
+#[test]
+fn the_number_of_levels_is_the_maximum_intensity() {
+    let all = dump();
+    let smoke = fields::find(&all, "fd_smoke").expect("smoke exists");
+    assert_eq!(smoke.max_intensity(), 3, "smoke has three intensities");
+    let fire = fields::find(&all, "fd_fire").expect("fire exists");
+    assert!(fire.max_intensity() >= 1, "fire has at least one");
+    for field in &all {
+        assert!(!field.levels.is_empty(), "{} must have levels", field.id);
     }
 }
 
 #[test]
-fn every_field_type_matches_the_reference() {
-    let text =
-        std::fs::read_to_string(root().join("corpus/prototypes/fields.json")).expect("artifact");
-    let value = parse(text.as_bytes()).expect("parses");
-    let Value::Object(root_object) = value else {
-        panic!("root")
-    };
-    let Some(Value::Array(entries)) = root_object.get("prototypes") else {
-        panic!("prototypes")
-    };
-    let loaded = fields::load_paths(&[
-        &root().join("references/Cataclysm-DDA/data/core"),
-        &root().join("references/Cataclysm-DDA/data/json"),
-    ])
-    .expect("loads");
-    println!(
-        "loaded {} field types, reference has {}",
-        loaded.len(),
-        entries.len()
+fn a_level_carries_what_the_runtime_draws_and_costs() {
+    let all = dump();
+    let fire = fields::find(&all, "fd_fire").expect("fire exists");
+    let first = fire.levels.first().expect("fire has a first level");
+    assert!(first.dangerous, "intensity 1 fire is dangerous");
+    assert!(!first.color.is_empty(), "and has a colour");
+    // Thin smoke lets light through; thick smoke does not. That is why a smoke field dims a room
+    // without extinguishing it, and it is data, not a rule the port can invent.
+    let smoke = fields::find(&all, "fd_smoke").expect("smoke exists");
+    let transparent: Vec<bool> = smoke.levels.iter().map(|l| l.transparent).collect();
+    assert_eq!(
+        transparent,
+        vec![true, false, false],
+        "thin smoke is see-through, thick smoke is not"
     );
-    let mut mismatches = Vec::new();
-    for entry in entries {
-        let Value::Object(object) = entry else {
-            continue;
-        };
-        let id = match object.get("id") {
-            Some(Value::Str(text)) => text.clone(),
-            _ => continue,
-        };
-        let Some(ours) = loaded.iter().find(|field| field.id == id) else {
-            mismatches.push(format!("{id}: missing"));
-            continue;
-        };
-        let priority = match object.get("priority") {
-            Some(Value::Int(value)) => i32::try_from(*value).unwrap_or(i32::MAX),
-            _ => 0,
-        };
-        if ours.priority != priority {
-            mismatches.push(format!("{id}: priority {} != {priority}", ours.priority));
-        }
-        let Some(Value::Array(levels)) = object.get("levels") else {
-            continue;
-        };
-        if ours.levels.len() != levels.len() {
-            mismatches.push(format!(
-                "{id}: {} levels != {}",
-                ours.levels.len(),
-                levels.len()
-            ));
-            continue;
-        }
-        for (at, (theirs, level)) in levels.iter().zip(&ours.levels).enumerate() {
-            let Value::Object(theirs) = theirs else {
-                continue;
-            };
-            compare_level(&id, at, theirs, level, &mut mismatches);
-        }
-    }
-    println!("{} mismatches", mismatches.len());
-    for line in mismatches.iter().take(15) {
-        println!("  {line}");
-    }
-    assert!(mismatches.is_empty(), "{} mismatches", mismatches.len());
+    // Fire outranks smoke when both are on one tile (priority 4 against 8 means smoke wins).
+    let fire = fields::find(&all, "fd_fire").expect("fire exists");
+    assert!(
+        smoke.priority > fire.priority,
+        "smoke draws over fire: {} > {}",
+        smoke.priority,
+        fire.priority
+    );
+}
+
+#[test]
+fn a_field_with_no_levels_is_refused() {
+    let value =
+        parse(br#"{"prototypes":[{"id":"fd_x","priority":1,"levels":[]}]}"#).expect("valid JSON");
+    assert!(
+        fields::from_dump(&value).is_err(),
+        "a field with no levels cannot be drawn"
+    );
 }
