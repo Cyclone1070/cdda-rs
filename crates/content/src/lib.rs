@@ -19,6 +19,7 @@ pub mod item_groups;
 pub mod items;
 pub mod mapdata;
 pub mod materials;
+pub mod mods;
 pub mod monsters;
 pub mod overmap;
 pub mod recipes;
