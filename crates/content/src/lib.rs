@@ -20,6 +20,7 @@ pub mod mapdata;
 pub mod materials;
 pub mod monsters;
 pub mod overmap;
+pub mod recipes;
 mod rules;
 mod scan;
 pub mod traps;
