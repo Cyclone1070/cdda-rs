@@ -2047,6 +2047,47 @@ pub struct FieldTurnData {
     pub swimmable: bool,
 }
 
+/// The part of the world a turn touches: the reference's reality bubble.
+///
+/// The reference keeps 11 by 11 submaps loaded around the player (`MAPSIZE` in
+/// `src/map_scale.h`), each 12 by 12, which is 132 squares on a side and a radius of 66 from the
+/// player's square. Anything further away is not simulated at all, which is why a fire two
+/// overmap tiles away does not burn on its own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Bubble {
+    /// The square the bubble is centred on, usually the player's.
+    pub center: (i32, i32),
+    /// How far from the centre the bubble reaches, in squares.
+    pub radius: i32,
+}
+
+impl Bubble {
+    /// The bubble the reference uses, centred on a square.
+    #[must_use]
+    pub fn around(center: (i32, i32)) -> Self {
+        Self { center, radius: 66 }
+    }
+
+    /// Whether a square is inside it. The edge counts.
+    #[must_use]
+    pub fn contains(&self, x: i32, y: i32) -> bool {
+        (x - self.center.0).abs() <= self.radius && (y - self.center.1).abs() <= self.radius
+    }
+}
+
+/// What a turn needs to know about the world rather than about a field.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TurnContext {
+    /// The turn number, in turns since the start.
+    pub now: i64,
+    /// Wind strength where the fields are.
+    pub windpower: i32,
+    /// Wind direction, in degrees.
+    pub wind_angle: i32,
+    /// The part of the world that is simulated.
+    pub bubble: Bubble,
+}
+
 /// What the map says about one square.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CellFacts {
@@ -2093,13 +2134,12 @@ pub struct FieldTurnSummary {
 /// check does.
 pub fn process_field_turn(
     world: &mut World,
-    now: i64,
-    windpower: i32,
-    wind_angle: i32,
+    context: &TurnContext,
     data_of: impl Fn(FieldId) -> FieldTurnData,
     cell_of: impl Fn(i32, i32) -> CellFacts,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) -> FieldTurnSummary {
+    let now = context.now;
     let mut summary = FieldTurnSummary::default();
     let mut order: Vec<(i32, i32, Entity)> = Vec::new();
     {
@@ -2110,6 +2150,11 @@ pub fn process_field_turn(
     }
     order.sort_by_key(|&(x, y, entity)| (x, y, entity.to_bits()));
     for (x, y, entity) in order {
+        // Outside the bubble nothing happens at all: not even aging. A field out there keeps the
+        // age it had, which is what the reference means by leaving it unloaded.
+        if !context.bubble.contains(x, y) {
+            continue;
+        }
         let Some(field) = world.get::<Field>(entity) else {
             continue;
         };
@@ -2144,15 +2189,15 @@ pub fn process_field_turn(
         // 4. The spread attempt, which also ages an outdoor gas.
         if data.percent_spread > 0 {
             summary.spread_attempts += 1;
-            let context = GasContext {
+            let gas = GasContext {
                 percent_spread: data.percent_spread,
-                windpower,
-                wind_angle,
+                windpower: context.windpower,
+                wind_angle: context.wind_angle,
                 outdoors: data.outdoors,
                 outdoor_age_speedup: data.outdoor_age_speedup,
             };
             let enter = |x: i32, y: i32| cell_of(x, y).can_enter;
-            spread_gas(world, entity, &context, enter, rolls);
+            spread_gas(world, entity, &gas, enter, rolls);
         }
         if !field_is_alive(world, entity) {
             world.despawn(entity);

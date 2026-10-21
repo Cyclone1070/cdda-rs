@@ -8,7 +8,18 @@
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::{FieldEntry, FieldId};
 use cdda_core_types::rng::Rolls;
-use cdda_sim::{CellFacts, Field, FieldTurnData, Position, process_field_turn};
+use cdda_sim::{
+    Bubble, CellFacts, Field, FieldTurnData, Position, TurnContext, process_field_turn,
+};
+
+fn ctx() -> TurnContext {
+    TurnContext {
+        now: 0,
+        windpower: 0,
+        wind_angle: 0,
+        bubble: Bubble::around((5, 5)),
+    }
+}
 
 fn field_at(world: &mut World, square: (i32, i32), id: u32, intensity: i32) -> Entity {
     let mut entry = FieldEntry::new(intensity, 100, true, false);
@@ -35,9 +46,7 @@ fn a_field_with_no_processor_data_just_ages() {
     let mut rolls = Rolls::new(1);
     let summary = process_field_turn(
         &mut world,
-        0,
-        0,
-        0,
+        &ctx(),
         |_| FieldTurnData::default(),
         |_x, _y| CellFacts::open(),
         &mut rolls,
@@ -56,9 +65,7 @@ fn the_walk_is_in_square_order_so_two_runs_agree() {
     let mut control = Rolls::new(1);
     let summary = process_field_turn(
         &mut world,
-        0,
-        0,
-        0,
+        &ctx(),
         |_| FieldTurnData::default(),
         |_x, _y| CellFacts::open(),
         &mut rolls,
@@ -80,9 +87,7 @@ fn a_spreading_gas_is_attempted_once_per_turn() {
         let mut rolls = Rolls::new(seed);
         let summary = process_field_turn(
             &mut world,
-            0,
-            0,
-            0,
+            &ctx(),
             |_| FieldTurnData {
                 percent_spread: 100,
                 ..FieldTurnData::default()
@@ -105,9 +110,12 @@ fn a_gas_that_aged_away_is_not_attempted() {
     let mut rolls = Rolls::new(1);
     let summary = process_field_turn(
         &mut world,
-        10_000_000,
-        0,
-        0,
+        &TurnContext {
+            now: 10_000_000,
+            windpower: 0,
+            wind_angle: 0,
+            bubble: Bubble::around((5, 5)),
+        },
         |_| FieldTurnData {
             percent_spread: 100,
             ..FieldTurnData::default()
@@ -128,9 +136,7 @@ fn the_map_decides_what_water_and_sky_do_to_a_field() {
         let mut rolls = Rolls::new(1);
         process_field_turn(
             &mut world,
-            0,
-            0,
-            0,
+            &ctx(),
             |_| FieldTurnData {
                 underwater_age_speedup: 40,
                 ..FieldTurnData::default()
@@ -156,4 +162,46 @@ fn the_map_decides_what_water_and_sky_do_to_a_field() {
         1,
         "on dry land only the turn of decay"
     );
+}
+
+#[test]
+fn a_field_outside_the_bubble_is_left_exactly_as_it_was() {
+    let mut world = World::new();
+    let inside = field_at(&mut world, (5, 5), 1, 2);
+    let outside = field_at(&mut world, (200, 200), 1, 2);
+    let mut rolls = Rolls::new(1);
+    let mut control = Rolls::new(1);
+    let summary = process_field_turn(
+        &mut world,
+        &ctx(),
+        |_| FieldTurnData::default(),
+        |_x, _y| CellFacts::open(),
+        &mut rolls,
+    );
+    assert_eq!(
+        summary.processed, 1,
+        "only the field in the bubble was touched"
+    );
+    assert_eq!(
+        rolls.rng(1, 1000),
+        control.rng(1, 1000),
+        "and nothing was drawn for the other"
+    );
+    assert_eq!(world.get::<Field>(inside).map_or(-1, |f| f.entry.age()), 1);
+    assert_eq!(
+        world.get::<Field>(outside).map_or(-1, |f| f.entry.age()),
+        0,
+        "untouched"
+    );
+}
+
+#[test]
+fn the_bubble_edge_counts_and_one_square_past_it_does_not() {
+    let bubble = Bubble::around((0, 0));
+    assert!(
+        bubble.contains(66, 0),
+        "sixty-six squares out is still inside"
+    );
+    assert!(bubble.contains(-66, 66), "corner of the edge too");
+    assert!(!bubble.contains(67, 0), "one past is out");
 }
