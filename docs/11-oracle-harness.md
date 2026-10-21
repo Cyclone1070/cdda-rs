@@ -24,6 +24,16 @@ dummy context, so a named-map dump needs a real `mapgendata` - one built from an
 That is a small, concrete answer to a question that would otherwise have cost a round of guessing, and it is
 why the probe is worth keeping: it is the tool for the assumption, not for the feature.
 
+**Third look, and a decision.** `oter_mapgen`, the factory that builds JSON maps, is a **file-static inside
+`mapgen.cpp`** - there is no public entry to build a named map on demand. The only path that builds maps is the
+game's own generation, which needs an overmap and a map load. That is the same work as P9 world generation, so
+the frame comparison is **not one flag away**: it waits on the port having a world, and the oracle having a way
+to be asked.
+
+The decision, recorded here so it is not rediscovered: **stop probing for a map dump now**. The frame gate has
+both halves built and tested; what it lacks is a world to compare, and building one is P9's job rather than a
+harness flag. The probes stay, because they answered the question in three rounds instead of thirty.
+
 **Second probe, second answer.** Built with a real `mapgendata` from the player's overmap position instead of
 a dummy, it **still returns false**. So the obstacle is not the context: `run_mapgen_func` is the reference's
 path for **code** mapgens, and the JSON maps go through the mapgen factory's own builder. The next probe is the
