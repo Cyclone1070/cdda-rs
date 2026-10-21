@@ -2326,3 +2326,93 @@ pub fn damage_level(damage: i32, damage_max: i32, by_charges: bool) -> i32 {
     }
     (1 + 4 * damage / damage_max).clamp(0, 5)
 }
+
+/// A thing that holds other things: a box, a bottle, a backpack.
+///
+/// Reference: `item::is_container` and the pocket capacity check in `item::can_contain`
+/// (`src/item.cpp`). The reference's pockets each have their own volume, weight and length limits
+/// and an allow-list of what they accept; the port keeps one capacity per container and grows
+/// pockets when something needs them.
+#[derive(Debug, Clone, Copy, Component)]
+pub struct Container {
+    /// How much volume it can hold, in millilitres.
+    pub capacity_ml: i64,
+}
+
+/// Marks an item as being inside a container.
+#[derive(Debug, Clone, Copy, Component)]
+pub struct Inside(pub Entity);
+
+/// Why something could not be put in a container.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InsertError {
+    /// The container has no room for it.
+    TooBig {
+        /// Room it had left, in millilitres.
+        remaining_ml: i64,
+        /// What it was asked to take, in millilitres.
+        wanted_ml: i64,
+    },
+    /// The item has already been put somewhere else.
+    AlreadyInside,
+}
+
+/// Puts an item into a container, if there is room.
+///
+/// The volume of what is already inside is asked of `volume_of`, because an item's volume belongs to
+/// its prototype and the sim does not own prototypes.
+///
+/// # Errors
+///
+/// Returns [`InsertError::TooBig`] when the contents would exceed the capacity, and
+/// [`InsertError::AlreadyInside`] when the item is already in a container.
+pub fn insert_into(
+    world: &mut World,
+    container: Entity,
+    item: Entity,
+    volume_of: impl Fn(Entity) -> i64,
+) -> Result<(), InsertError> {
+    if world.get::<Inside>(item).is_some() {
+        return Err(InsertError::AlreadyInside);
+    }
+    let Some(capacity) = world.get::<Container>(container).map(|c| c.capacity_ml) else {
+        return Err(InsertError::TooBig {
+            remaining_ml: 0,
+            wanted_ml: volume_of(item),
+        });
+    };
+    let mut used = 0;
+    for (entity, inside) in world.query::<(Entity, &Inside)>().iter(world) {
+        if inside.0 == container {
+            used += volume_of(entity);
+        }
+    }
+    let wanted = volume_of(item);
+    let remaining = capacity - used;
+    if wanted > remaining {
+        return Err(InsertError::TooBig {
+            remaining_ml: remaining,
+            wanted_ml: wanted,
+        });
+    }
+    world.entity_mut(item).insert(Inside(container));
+    Ok(())
+}
+
+/// Everything inside a container, in insertion order.
+#[must_use]
+pub fn contents(world: &mut World, container: Entity) -> Vec<Entity> {
+    let mut found = Vec::new();
+    for (entity, inside) in world.query::<(Entity, &Inside)>().iter(world) {
+        if inside.0 == container {
+            found.push(entity);
+        }
+    }
+    found.sort_by_key(|entity| entity.index());
+    found
+}
+
+/// Takes an item out of whatever holds it.
+pub fn take_out(world: &mut World, item: Entity) {
+    world.entity_mut(item).remove::<Inside>();
+}
