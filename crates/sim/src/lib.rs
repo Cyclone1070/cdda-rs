@@ -2027,3 +2027,116 @@ pub fn burn_items_in_fire(
     }
     totals
 }
+
+/// What a turn needs to know about one kind of field.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct FieldTurnData {
+    /// The chance in a hundred that this gas spreads to a neighbour.
+    pub percent_spread: i32,
+    /// How much faster it ages away outdoors, in turns.
+    pub outdoor_age_speedup: i64,
+    /// How much faster it ages away under water, in turns.
+    pub underwater_age_speedup: i64,
+    /// The self-upgrade chance and period for the intensity it is at, zero when it cannot grow.
+    pub upgrade_chance: i32,
+    /// How often the upgrade chance is rolled, in turns.
+    pub upgrade_duration: i64,
+    /// Whether the square it stands on is outdoors.
+    pub outdoors: bool,
+    /// Whether the square it stands on is swimmable.
+    pub swimmable: bool,
+}
+
+/// What one turn of field processing did.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct FieldTurnSummary {
+    /// Fields that were looked at.
+    pub processed: u32,
+    /// Fields that aged away and were removed.
+    pub removed: u32,
+    /// Gases that got the chance to spread.
+    pub spread_attempts: u32,
+}
+
+/// Runs one turn over every field in the world.
+///
+/// This is the assembly `docs/05-roadmap.md` calls for in P2: a field's own aging first, then the
+/// processors the port has, in the order the reference runs them inside
+/// `map::process_fields_in_submap` (`src/map_field.cpp:160-460`).
+///
+/// The order matters and is deliberate: decay, then outdoor dissipation (which is part of spreading),
+/// then underwater dissipation, then the self-upgrade, then the spread attempt itself. A field that
+/// aged away is gone before any of the later steps run, which is what the reference's `!is_alive()`
+/// check does.
+pub fn process_field_turn(
+    world: &mut World,
+    now: i64,
+    windpower: i32,
+    wind_angle: i32,
+    data_of: impl Fn(FieldId) -> FieldTurnData,
+    can_enter: impl Fn(i32, i32) -> bool,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) -> FieldTurnSummary {
+    let mut summary = FieldTurnSummary::default();
+    let mut order: Vec<(i32, i32, Entity)> = Vec::new();
+    {
+        let mut query = world.query::<(Entity, &Position)>();
+        for (entity, position) in query.iter(world) {
+            order.push((position.x, position.y, entity));
+        }
+    }
+    order.sort_by_key(|&(x, y, entity)| (x, y, entity.to_bits()));
+    for (x, y, entity) in order {
+        let Some(field) = world.get::<Field>(entity) else {
+            continue;
+        };
+        let id = field.id;
+        let data = data_of(id);
+        summary.processed += 1;
+        // 1. The field's own clock.
+        if let Some(mut field) = world.get_mut::<Field>(entity) {
+            field.entry.do_decay(now, rolls);
+        }
+        // 2. Dissipation, both kinds, before anything else.
+        process_underwater_dissipation(world, entity, data.swimmable, data.underwater_age_speedup);
+        if !field_is_alive(world, entity) {
+            world.despawn(entity);
+            summary.removed += 1;
+            continue;
+        }
+        // 3. A field that grows on its own.
+        process_upgrade_intensity(
+            world,
+            entity,
+            now,
+            data.upgrade_chance,
+            data.upgrade_duration,
+            rolls,
+        );
+        // 4. The spread attempt, which also ages an outdoor gas.
+        if data.percent_spread > 0 {
+            summary.spread_attempts += 1;
+            let context = GasContext {
+                percent_spread: data.percent_spread,
+                windpower,
+                wind_angle,
+                outdoors: data.outdoors,
+                outdoor_age_speedup: data.outdoor_age_speedup,
+            };
+            spread_gas(world, entity, &context, &can_enter, rolls);
+        }
+        let _ = (x, y);
+        if !field_is_alive(world, entity) {
+            world.despawn(entity);
+            summary.removed += 1;
+        }
+    }
+    summary
+}
+
+/// Whether a field entity still exists and still holds a living field.
+fn field_is_alive(world: &World, entity: Entity) -> bool {
+    world
+        .get::<Field>(entity)
+        .is_some_and(|field| field.entry.is_alive())
+}
