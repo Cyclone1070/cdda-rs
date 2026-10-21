@@ -2528,3 +2528,56 @@ pub fn burn_products(
     }
     out
 }
+
+/// What came of asking a square for some items.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Consumed {
+    /// How much was taken: charges for a stack, objects otherwise.
+    pub taken: i32,
+    /// Whether the request was met in full.
+    pub satisfied: bool,
+}
+
+/// Takes up to `quantity` of one kind of item from a square.
+///
+/// Reference: `map::use_amount_square` with `use_amount_stack` and `item::use_charges`
+/// (`src/map.cpp:5863-5897`, `src/item.cpp:13135-13180`). Items are taken in the order they lie there -
+/// which is spawn order, and therefore part of the deterministic contract - and a stack that runs out is
+/// removed. The request can come up short: the caller learns both how much it got and whether that was
+/// everything it asked for, because crafting needs to put back what it took when it fails.
+pub fn consume_items(
+    world: &mut World,
+    square: (i32, i32),
+    kind: ItemTypeId,
+    quantity: i32,
+) -> Consumed {
+    let mut remaining = quantity.max(0);
+    let mut taken = 0;
+    for entity in items_at(world, square) {
+        if remaining == 0 {
+            break;
+        }
+        let Some(item) = world.get::<GroundItem>(entity).copied() else {
+            continue;
+        };
+        if item.kind != kind {
+            continue;
+        }
+        let available = item.charges.max(0);
+        let take = available.min(remaining);
+        if take == 0 {
+            continue;
+        }
+        remaining -= take;
+        taken += take;
+        if take == available {
+            world.despawn(entity);
+        } else if let Some(mut item) = world.get_mut::<GroundItem>(entity) {
+            item.charges = available - take;
+        }
+    }
+    Consumed {
+        taken,
+        satisfied: remaining == 0,
+    }
+}
