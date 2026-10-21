@@ -397,3 +397,117 @@ pub fn straight_path(source: (i32, i32), direction: Direction, length: usize) ->
     nodes.push((x, y));
     nodes
 }
+
+/// What a street needs to know about the map it is crossing.
+///
+/// Reference: the `overmap_connection` and the terrain itself. The port keeps them as two questions rather than a
+/// connection object, because those two questions are all the rule asks: **is this tile already a road**, and **may
+/// a road be laid here at all** (a river, a ravine, or anything the connection cannot serve says no).
+pub struct StreetView<'a> {
+    /// How many tiles the map is across.
+    pub width: i32,
+    /// How many tiles the map is down.
+    pub height: i32,
+    /// Whether a terrain is a road.
+    pub is_road: &'a dyn Fn(&str) -> bool,
+    /// Whether a road may be laid on a terrain.
+    pub can_serve: &'a dyn Fn(&str) -> bool,
+}
+
+/// How many tiles from the edge a street keeps away.
+///
+/// Reference: `inbounds( pos, 1 )` in `lay_out_street` - streets do not approach the overmap's edge, because the
+/// map that would continue them is a different overmap.
+const STREET_MARGIN: i32 = 1;
+
+fn inside_with_margin(x: i32, y: i32, width: i32, height: i32) -> bool {
+    x >= STREET_MARGIN
+        && y >= STREET_MARGIN
+        && x < width - STREET_MARGIN
+        && y < height - STREET_MARGIN
+}
+
+/// Lays out a street from a point in a direction, as far as the map allows.
+///
+/// Reference: `lay_out_street` (`overmap.cpp`). The order of the checks is the rule, so it is kept:
+///
+/// 1. If the tile **one past** the requested end could carry a road, the street is made one longer.
+/// 2. Then it walks outwards, and stops at the first tile that is out of bounds (with a margin), that a road cannot
+///    be laid on, that would run **alongside an existing road** (three road tiles among the eight around it, not
+///    counting the tile it came from or the tile it is going to), or that **already is a road** once it has moved at
+///    least one tile - a street that reaches an existing road joins it instead of crossing it.
+///
+/// Returns the tiles the street runs through, including the one it starts on. A run of one tile or less means the
+/// street was not worth building, which the caller checks rather than this function deciding.
+#[must_use]
+pub fn lay_out_street(
+    map: &Overmap,
+    source: (i32, i32),
+    direction: Direction,
+    length: usize,
+    view: &StreetView<'_>,
+) -> Vec<(i32, i32)> {
+    let mut wanted = length;
+    let (sx, sy) = source;
+    let (dx, dy) = direction.displace(1);
+    let reach = i32::try_from(wanted).unwrap_or(i32::MAX);
+    let (ex, ey) = (sx + dx * (reach + 1), sy + dy * (reach + 1));
+    if inside_with_margin(ex, ey, view.width, view.height)
+        && map
+            .terrain(ex, ey)
+            .is_some_and(|terrain| (view.can_serve)(terrain))
+    {
+        wanted += 1;
+    }
+
+    let mut laid = 0_usize;
+    while laid < wanted {
+        let step = i32::try_from(laid).unwrap_or(i32::MAX);
+        let (x, y) = (sx + dx * step, sy + dy * step);
+        if !inside_with_margin(x, y, view.width, view.height) {
+            break;
+        }
+        let Some(terrain) = map.terrain(x, y) else {
+            break;
+        };
+        if !(view.can_serve)(terrain) {
+            break;
+        }
+
+        // A street that would run alongside another road is stopped before it makes a corridor.
+        let mut collisions = 0;
+        let mut collided = false;
+        for i in -1..=1 {
+            for j in -1..=1 {
+                let (cx, cy) = (x + i, y + j);
+                let ahead = (x + dx, y + dy);
+                let behind = (x - dx, y - dy);
+                if (cx, cy) == ahead || (cx, cy) == behind || (cx, cy) == (x, y) {
+                    continue;
+                }
+                if map
+                    .terrain(cx, cy)
+                    .is_some_and(|there| (view.is_road)(there))
+                {
+                    collisions += 1;
+                }
+            }
+            if collisions >= 3 {
+                collided = true;
+                break;
+            }
+        }
+        if collided {
+            break;
+        }
+
+        laid += 1;
+
+        // Reaching a road that is already there: stop on it rather than beside it.
+        if laid > 1 && (view.is_road)(terrain) {
+            break;
+        }
+    }
+
+    straight_path(source, direction, laid)
+}

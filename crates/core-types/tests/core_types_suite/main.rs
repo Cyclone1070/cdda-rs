@@ -28,6 +28,7 @@ mod outside_light;
 mod overmap;
 mod overmap_cities;
 mod overmap_placement;
+mod overmap_street_layout;
 mod overmap_streets;
 mod paths;
 mod projection;
