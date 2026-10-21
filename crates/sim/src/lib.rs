@@ -2213,3 +2213,59 @@ fn field_is_alive(world: &World, entity: Entity) -> bool {
         .get::<Field>(entity)
         .is_some_and(|field| field.entry.is_alive())
 }
+
+/// What decides whether two items on the ground become one stack.
+///
+/// Reference: `item::stacks_with` (`src/item.cpp:1693-1760`). The full rule also compares relics,
+/// variants, contents, degradation, temperature, filth and activity; the port compares what its
+/// ground items actually carry and the ledger names the rest.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StackFacts {
+    /// What kind of item it is.
+    pub kind: ItemTypeId,
+    /// How many charges it holds.
+    pub charges: i32,
+    /// How much of it has burned away.
+    pub burnt: i32,
+    /// Whether the type is counted in charges rather than as separate objects.
+    pub by_charges: bool,
+}
+
+/// Whether two of these would merge into one stack.
+///
+/// Two things of the same kind stack. Charges are ignored for a type counted in charges - that is
+/// what makes a pile of rocks a pile - and must match exactly otherwise, so two partly-used
+/// batteries never merge. Burnt amounts must agree.
+#[must_use]
+pub fn stacks_with(left: &StackFacts, right: &StackFacts) -> bool {
+    left.kind == right.kind
+        && left.burnt == right.burnt
+        && (left.by_charges || left.charges == right.charges)
+}
+
+/// Drops items on a square, merging into an existing stack when the rule allows it.
+///
+/// Returns the entity that now holds them: the existing stack when the new charges joined it, or a
+/// new one. Reference: `map::add_item` and the merge it performs through `item::stacks_with`.
+pub fn drop_and_merge(world: &mut World, square: (i32, i32), facts: StackFacts) -> Entity {
+    let here = items_at(world, square);
+    for entity in here {
+        let Some(existing) = world.get::<GroundItem>(entity) else {
+            continue;
+        };
+        let existing_facts = StackFacts {
+            kind: existing.kind,
+            charges: existing.charges,
+            burnt: existing.burnt,
+            by_charges: facts.by_charges,
+        };
+        if stacks_with(&existing_facts, &facts) {
+            let charges = existing.charges + facts.charges;
+            if let Some(mut item) = world.get_mut::<GroundItem>(entity) {
+                item.charges = charges;
+            }
+            return entity;
+        }
+    }
+    drop_item(world, square, facts.kind, facts.charges)
+}
