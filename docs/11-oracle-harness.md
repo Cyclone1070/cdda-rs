@@ -642,3 +642,23 @@ next: run the frame dump alone again with the same budget and confirm it still p
 call back with a longer budget and a check for the save directory appearing.
 
 Reverted again in full. The oracle rebuilds with no errors and the patch file still describes it exactly.
+
+### Probe: the frame dump alone (round 199) - the assumption was wrong
+
+Last round's note said the frame dump is known to work, so the failure had to be the second flag. That was an
+assumption and this round tested it: the frame dump **alone**, same invocation as before, save directory removed,
+watched for **600 seconds**.
+
+It produced **no file**, and the process was still alive when the watch gave up. The only evidence of progress is the
+world directory, which now holds `Colonial Village` - a world was created, and the run never reached the dump.
+
+So the frame dump is **not** known to work any more, and the thing that changed is not the flag. Two candidates
+remain and they are both cheap to separate:
+
+* the run needs longer than ten minutes, because a fresh world is generated first;
+* the headless start no longer reaches the point the dump is taken from, and the world's creation is as far as it
+  gets - the earlier crash's `centre [0,0]` points the same way.
+
+The next probe watches the **save directory and the process**, not just the output file, and gives the run a longer
+budget before concluding anything. A dump that takes eleven minutes is still a usable gate; a dump that never
+happens is a different problem, and the difference is visible in what the save directory contains while it runs.
