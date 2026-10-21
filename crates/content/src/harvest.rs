@@ -55,6 +55,8 @@ pub struct HarvestEntry {
     pub scale_num: Option<(f64, f64)>,
     /// A proportion of the corpse's mass, for things measured in bulk.
     pub mass_ratio: Option<f64>,
+    /// A ceiling on the count, as the reference writes `max`.
+    pub max: Option<i32>,
     /// Any flags the entry carries, sorted.
     pub flags: Vec<String>,
 }
@@ -131,6 +133,7 @@ fn pair(object: &Object, key: &str) -> Option<(f64, f64)> {
     }
 }
 
+#[allow(clippy::cast_precision_loss)]
 fn read_entry(value: &Value) -> Option<HarvestEntry> {
     let Value::Object(object) = value else {
         return None;
@@ -145,6 +148,10 @@ fn read_entry(value: &Value) -> Option<HarvestEntry> {
     let base = pair(object, "base_num");
     let scale = pair(object, "scale_num");
     #[allow(clippy::cast_precision_loss)]
+    let max = match object.get("max") {
+        Some(Value::Int(value)) => i32::try_from(*value).ok(),
+        _ => None,
+    };
     let mass = match object.get("mass_ratio") {
         Some(Value::Int(value)) => Some(*value as f64),
         Some(Value::Float(value)) => Some(*value),
@@ -168,6 +175,7 @@ fn read_entry(value: &Value) -> Option<HarvestEntry> {
         }),
         scale_num: scale,
         mass_ratio: mass,
+        max,
         flags,
     })
 }

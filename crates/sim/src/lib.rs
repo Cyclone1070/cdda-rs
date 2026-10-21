@@ -3908,6 +3908,10 @@ pub enum HarvestEntry {
     Skin,
     /// Bones.
     Bone,
+    /// Blood, which damage leaves alone.
+    Blood,
+    /// Anything the reference knows that this port does not, which damage also leaves alone.
+    Other,
 }
 
 /// How badly the corpse was damaged, in the reference's own levels.
@@ -3945,21 +3949,113 @@ pub fn harvest_after_damage(weight: i32, entry: HarvestEntry, damage: CorpseDama
     let exact = f64::from(weight);
     match damage {
         CorpseDamage::Light => weight,
+        // Blood and unknown parts are not reduced by damage in the reference's switch.
+        _ if matches!(entry, HarvestEntry::Blood | HarvestEntry::Other) => weight,
         CorpseDamage::Damaged => match entry {
             HarvestEntry::Offal | HarvestEntry::Skin => round(exact * 0.75),
             HarvestEntry::Flesh => round(exact * 0.9),
-            HarvestEntry::Bone => weight,
+            HarvestEntry::Bone | HarvestEntry::Blood | HarvestEntry::Other => weight,
         },
         CorpseDamage::Mangled => match entry {
             HarvestEntry::Offal => 0,
             HarvestEntry::Skin => round(exact * 0.5),
             HarvestEntry::Bone => round(exact * 0.9),
             HarvestEntry::Flesh => round(exact * 0.75),
+            HarvestEntry::Blood | HarvestEntry::Other => weight,
         },
         CorpseDamage::Pulped => match entry {
             HarvestEntry::Offal | HarvestEntry::Skin => 0,
             HarvestEntry::Bone => round(exact * 0.75),
             HarvestEntry::Flesh => round(exact * 0.5),
+            HarvestEntry::Blood | HarvestEntry::Other => weight,
         },
     }
+}
+
+/// One harvest entry, as the rule needs it: what it is and how much.
+///
+/// The sim does not depend on the content crate, so the numbers arrive here rather than being looked up: the
+/// caller reads them from a harvest definition and hands them over.
+#[derive(Debug, Clone, Copy)]
+pub struct HarvestSpec {
+    /// What part of the body it is, when the reference says.
+    pub part: Option<HarvestEntry>,
+    /// A count of items, low and high, before scaling.
+    pub base_num: (i32, i32),
+    /// How the count grows with the butcher's skill, low and high.
+    pub scale_num: (f64, f64),
+    /// A share of the corpse's mass, which overrides the count when set.
+    pub mass_ratio: Option<f64>,
+    /// A ceiling on the count.
+    pub max: Option<i32>,
+}
+
+/// How much of one harvest entry a butchered corpse gives, before the proficiency adjustments.
+///
+/// Reference: `butchery.cpp`, in the loop that walks a monster's harvest entries. Two paths, and they are not
+/// symmetrical:
+///
+/// - a **bulk** entry (`mass_ratio`) is a share of the corpse's weight, rounded, and then damaged;
+/// - a **count** entry rolls between `base_num + butchery * scale_num` at each end, is capped by `max`, is damaged,
+///   and then **cannot fall below `base_num.first`** - the floor is applied after the damage, so a mangled corpse
+///   still gives the minimum the JSON promises.
+///
+/// On top of that, a **gibbed** corpse halves its flesh and bone, and a **skinned** one yields no skin at all.
+/// `draw` is the caller's uniform roll in `[0, 1]`, for the same reason every other rule takes its dice from the
+/// caller: one stream, one replay.
+#[must_use]
+#[allow(clippy::cast_possible_truncation)]
+pub fn harvest_yield(
+    entry: HarvestSpec,
+    butchery: i32,
+    corpse_weight: f64,
+    damage: CorpseDamage,
+    gibbed: bool,
+    skinned: bool,
+    draw: f64,
+) -> i32 {
+    let part = entry.part;
+    let damages_anything = matches!(
+        part,
+        Some(HarvestEntry::Flesh | HarvestEntry::Offal | HarvestEntry::Skin | HarvestEntry::Bone)
+    );
+    let apply_damage = |count: i32| -> i32 {
+        if damages_anything {
+            harvest_after_damage(count, part.unwrap_or(HarvestEntry::Other), damage)
+        } else {
+            count
+        }
+    };
+    let mut roll = match entry.mass_ratio {
+        Some(ratio) if ratio != 0.0 => {
+            let exact = ratio * corpse_weight;
+            let rounded = if exact < 0.0 {
+                -(-exact + 0.5).floor() as i32
+            } else {
+                (exact + 0.5).floor() as i32
+            };
+            apply_damage(rounded)
+        }
+        _ => {
+            let (low, high) = entry.base_num;
+            let (scale_low, scale_high) = entry.scale_num;
+            let min_num = f64::from(low) + f64::from(butchery) * scale_low;
+            let max_num = f64::from(high) + f64::from(butchery) * scale_high;
+            let between = min_num + (max_num - min_num) * draw.clamp(0.0, 1.0);
+            let rolled = (between + 0.5).floor() as i32;
+            let capped = match entry.max {
+                Some(max) => rolled.min(max),
+                None => rolled,
+            };
+            apply_damage(capped).max(low)
+        }
+    };
+    // A body that was smashed apart has less of the parts that scatter.
+    if gibbed && matches!(part, Some(HarvestEntry::Flesh | HarvestEntry::Bone)) {
+        roll /= 2;
+    }
+    if skinned && part == Some(HarvestEntry::Skin) {
+        roll = 0;
+    }
+    roll
 }
