@@ -2729,3 +2729,68 @@ pub fn batch_time_moves(
     let total = total as i64;
     total
 }
+
+/// A craft in progress: how much work it needs and how much has been done.
+///
+/// Reference: `craft_activity_actor::do_turn` (`src/activity_actor.cpp:4163-4240`). The reference stores
+/// progress as a percentage of the *base* batch time in a fixed-point field and scales each turn's moves by
+/// `base_total / current_total`, so a slow crafter accrues less progress per turn rather than needing a
+/// different denominator. The port keeps the same relationship in plain moves, which is easier to read and
+/// identical in behaviour.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CraftingWork {
+    /// Moves the craft needs with no speed modifier, as `recipe::batch_time` reports for full speed.
+    pub base_total_moves: f64,
+    /// Moves it needs at the current speed and with the current assistants.
+    pub current_total_moves: f64,
+    /// Moves of base work done so far.
+    pub progress: f64,
+}
+
+/// How a craft turn went.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WorkOutcome {
+    /// Still going.
+    Working,
+    /// It is done this turn.
+    Finished,
+    /// The crafter cannot work here at all, so the craft is abandoned.
+    Cancelled,
+}
+
+impl CraftingWork {
+    /// A craft of `base_total_moves`, starting at the same speed.
+    #[must_use]
+    pub fn new(base_total_moves: f64) -> Self {
+        Self {
+            base_total_moves: base_total_moves.max(1.0),
+            current_total_moves: base_total_moves.max(1.0),
+            progress: 0.0,
+        }
+    }
+
+    /// How far along it is, from zero to one.
+    #[must_use]
+    pub fn fraction(&self) -> f64 {
+        (self.progress / self.base_total_moves).clamp(0.0, 1.0)
+    }
+}
+
+/// Spends one turn of work on a craft.
+///
+/// A speed of zero or less cancels it, which is the reference's own answer when nothing about the place
+/// allows crafting. Progress never passes the total, so a slow turn at the end does not overshoot.
+pub fn craft_turn(work: &mut CraftingWork, moves: i64, speed: f64) -> WorkOutcome {
+    if speed <= 0.0 {
+        return WorkOutcome::Cancelled;
+    }
+    #[allow(clippy::cast_precision_loss)]
+    let spent = moves.max(0) as f64;
+    let delta = spent * work.base_total_moves / work.current_total_moves.max(1.0);
+    work.progress = (work.progress + delta).min(work.base_total_moves);
+    if work.progress >= work.base_total_moves {
+        WorkOutcome::Finished
+    } else {
+        WorkOutcome::Working
+    }
+}
