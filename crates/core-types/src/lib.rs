@@ -26,6 +26,7 @@ pub mod memory;
 pub mod options;
 pub mod paths;
 pub mod rng;
+pub mod scent;
 pub mod shadowcasting;
 pub mod strings;
 pub mod submap;
