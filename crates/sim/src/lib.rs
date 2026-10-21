@@ -3472,23 +3472,39 @@ pub fn monster_turns_striking(
         // Every hit the turn produced lands on whoever stands on the target square.
         for _ in 0..turn.hits {
             let victim = {
-                let mut query = world.query::<(Entity, &Position, &Monster)>();
-                query
+                let mut monsters = world.query::<(Entity, &Position, &Monster)>();
+                let found = monsters
                     .iter(world)
                     .find(|(_, position, monster)| {
                         (position.x, position.y) == target && monster.hp > 0
                     })
-                    .map(|(victim, _, _)| victim)
+                    .map(|(victim, _, _)| victim);
+                found.map_or_else(
+                    || {
+                        let mut players = world.query::<(Entity, &Position, &Player)>();
+                        players
+                            .iter(world)
+                            .find(|(_, position, player)| {
+                                (position.x, position.y) == target && player.hp > 0
+                            })
+                            .map(|(victim, _, _)| (victim, true))
+                    },
+                    |entity| Some((entity, false)),
+                )
             };
-            let Some(victim) = victim else {
+            let Some((victim, is_player)) = victim else {
                 break;
             };
             let (dice, sides, bonus) = (rules.blow_of)(kind);
-            let armour = world
-                .get::<Monster>(victim)
-                .map_or(0, |monster| (rules.armour_of)(monster.kind));
             let blow = melee_blow(rolls, dice, sides, bonus);
-            strike(world, victim, blow, armour);
+            if is_player {
+                strike_player(world, victim, blow);
+            } else {
+                let armour = world
+                    .get::<Monster>(victim)
+                    .map_or(0, |monster| (rules.armour_of)(monster.kind));
+                strike(world, victim, blow, armour);
+            }
             landed += 1;
         }
         if let Some(mut monster) = world.get_mut::<Monster>(entity) {
@@ -3504,4 +3520,53 @@ pub fn monster_turns_striking(
         }
     }
     landed
+}
+
+/// The player, as a thing in the world rather than a pair of coordinates.
+///
+/// Reference: `avatar` (`src/avatar.h`) is a `Character`, which is a `Creature`: it has hit points and armour and
+/// can be struck like anything else. The port gives it the two facts the striking rules need now, and adds the
+/// rest as rules arrive that ask for them.
+#[derive(Debug, Clone, Copy, Component)]
+pub struct Player {
+    /// Hit points left.
+    pub hp: i32,
+    /// Hit points at full health.
+    pub hp_max: i32,
+    /// What armour takes off every blow.
+    pub armour: i32,
+}
+
+/// Puts the player in the world.
+pub fn spawn_player(world: &mut World, square: (i32, i32), hp_max: i32, armour: i32) -> Entity {
+    world
+        .spawn((
+            Position {
+                x: square.0,
+                y: square.1,
+            },
+            Player {
+                hp: hp_max,
+                hp_max,
+                armour,
+            },
+        ))
+        .id()
+}
+
+/// Whether the player is dead, which is the moment the reference ends the game.
+#[must_use]
+pub fn player_dead(world: &mut World) -> bool {
+    let mut query = world.query::<&Player>();
+    query.iter(world).any(|player| player.hp <= 0)
+}
+
+/// Applies a blow to the player.
+pub fn strike_player(world: &mut World, target: Entity, blow: i32) -> bool {
+    let Some(mut player) = world.get_mut::<Player>(target) else {
+        return false;
+    };
+    let dealt = through_armour(blow, player.armour);
+    player.hp = player.hp.saturating_sub(dealt);
+    player.hp <= 0
 }
