@@ -19,6 +19,7 @@ pub mod fields;
 pub mod frames;
 pub mod generated;
 pub mod harvest;
+pub mod item_group_draw;
 pub mod item_groups;
 pub mod items;
 pub mod mapdata;
