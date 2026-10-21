@@ -231,3 +231,70 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
     }
     out
 }
+
+/// What placing a map produced.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Placed {
+    /// How many squares were filled with a terrain.
+    pub squares: usize,
+    /// The symbols that had no meaning, which the reference treats as an error in the data.
+    pub unknown_symbols: Vec<char>,
+    /// The furniture standing on each square, by position, as the map declares it.
+    pub furniture: Vec<(i32, i32, String)>,
+}
+
+impl MapgenObject {
+    /// Writes this map into a level at an origin, resolving each glyph through its own symbol table.
+    ///
+    /// Reference: `mapgen::load` for the JSON method (`src/mapgen.cpp`), which walks the rows and resolves
+    /// every symbol through `terrain` (then `furniture` for what stands on it). A symbol the map does not
+    /// explain is a data error in the reference rather than a blank square, so it is collected here and
+    /// left as the level's blank rather than silently becoming floor.
+    ///
+    /// `terrain_id_of` turns an id the content uses into the number the level stores; it is the terrain
+    /// loader's job, not this one's.
+    pub fn place(
+        &self,
+        level: &mut cdda_core_types::level::Level,
+        origin: (i32, i32),
+        blank: u32,
+        terrain_id_of: impl Fn(&str) -> Option<u32>,
+    ) -> Placed {
+        let mut placed = Placed::default();
+        for (row_index, row) in self.rows.iter().enumerate() {
+            for (column, symbol) in row.chars().enumerate() {
+                let Ok(dx) = i32::try_from(column) else {
+                    continue;
+                };
+                let Ok(dy) = i32::try_from(row_index) else {
+                    continue;
+                };
+                let (x, y) = (origin.0 + dx, origin.1 + dy);
+                let terrain = match self.terrain.get(&symbol) {
+                    Some(id) => {
+                        let resolved = terrain_id_of(id);
+                        if resolved.is_none() {
+                            placed.unknown_symbols.push(symbol);
+                        }
+                        resolved.unwrap_or(blank)
+                    }
+                    None => {
+                        // Furniture-only squares have no terrain of their own; they are floor under it.
+                        if self.furniture.contains_key(&symbol) {
+                            blank
+                        } else {
+                            placed.unknown_symbols.push(symbol);
+                            blank
+                        }
+                    }
+                };
+                level.set_terrain(x, y, terrain, blank);
+                placed.squares += 1;
+                if let Some(furniture) = self.furniture.get(&symbol) {
+                    placed.furniture.push((x, y, furniture.clone()));
+                }
+            }
+        }
+        placed
+    }
+}
