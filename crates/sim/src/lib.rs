@@ -3357,3 +3357,48 @@ pub fn monster_turns(
         }
     }
 }
+
+/// What a creature's blow does before armour: its dice, rolled.
+///
+/// Reference: `monster::melee_attack` (`monster.cpp`), which adds bash damage of
+/// `dice( type->melee_dice, type->melee_sides )` when the kind has any dice at all. The roll comes from the
+/// stream, so its order matters: a port that rolls at a different moment produces a different fight from the
+/// same seed.
+pub fn melee_blow(
+    rolls: &mut cdda_core_types::rng::Rolls,
+    dice: i32,
+    sides: i32,
+    bonus: i32,
+) -> i32 {
+    if dice <= 0 || sides <= 0 {
+        return bonus.max(0);
+    }
+    let mut total = bonus;
+    for _ in 0..dice {
+        total += rolls.rng(1, sides);
+    }
+    total.max(0)
+}
+
+/// What gets through: the blow, less armour, never below nothing.
+///
+/// Reference: armour reduces each damage type before it lands (`Creature::deal_damage`/`absorb_hit`); a blow
+/// smaller than the armour does nothing rather than healing the target.
+#[must_use]
+pub fn through_armour(blow: i32, armour: i32) -> i32 {
+    (blow - armour).max(0)
+}
+
+/// Applies a blow to a creature, and says whether that killed it.
+///
+/// Reference: hit points reach zero and the creature dies (`monster::die`). The port keeps the death as a
+/// property of the state rather than removing the entity here, because removal is a system's decision and a
+/// caller may want the corpse's square.
+pub fn strike(world: &mut World, target: Entity, blow: i32, armour: i32) -> bool {
+    let dealt = through_armour(blow, armour);
+    let Some(mut monster) = world.get_mut::<Monster>(target) else {
+        return false;
+    };
+    monster.hp = monster.hp.saturating_sub(dealt);
+    monster.hp <= 0
+}
