@@ -8,7 +8,7 @@
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::{FieldEntry, FieldId};
 use cdda_core_types::rng::Rolls;
-use cdda_sim::{Field, FieldTurnData, Position, process_field_turn};
+use cdda_sim::{CellFacts, Field, FieldTurnData, Position, process_field_turn};
 
 fn field_at(world: &mut World, square: (i32, i32), id: u32, intensity: i32) -> Entity {
     let mut entry = FieldEntry::new(intensity, 100, true, false);
@@ -39,7 +39,7 @@ fn a_field_with_no_processor_data_just_ages() {
         0,
         0,
         |_| FieldTurnData::default(),
-        |_x, _y| true,
+        |_x, _y| CellFacts::open(),
         &mut rolls,
     );
     assert_eq!(summary.processed, 1);
@@ -60,7 +60,7 @@ fn the_walk_is_in_square_order_so_two_runs_agree() {
         0,
         0,
         |_| FieldTurnData::default(),
-        |_x, _y| true,
+        |_x, _y| CellFacts::open(),
         &mut rolls,
     );
     assert_eq!(summary.processed, 3);
@@ -87,7 +87,7 @@ fn a_spreading_gas_is_attempted_once_per_turn() {
                 percent_spread: 100,
                 ..FieldTurnData::default()
             },
-            |_x, _y| true,
+            |_x, _y| CellFacts::open(),
             &mut rolls,
         );
         spread += summary.spread_attempts;
@@ -112,8 +112,48 @@ fn a_gas_that_aged_away_is_not_attempted() {
             percent_spread: 100,
             ..FieldTurnData::default()
         },
-        |_x, _y| true,
+        |_x, _y| CellFacts::open(),
         &mut rolls,
     );
     assert_eq!(summary.spread_attempts, 0, "gone before spreading");
+}
+
+#[test]
+fn the_map_decides_what_water_and_sky_do_to_a_field() {
+    // The same field, the same prototype data, two different squares: under water it ages, on dry
+    // land it does not. The prototype only says how much faster; the terrain says whether.
+    let run = |facts: CellFacts| {
+        let mut world = World::new();
+        let entity = field_at(&mut world, (5, 5), 1, 2);
+        let mut rolls = Rolls::new(1);
+        process_field_turn(
+            &mut world,
+            0,
+            0,
+            0,
+            |_| FieldTurnData {
+                underwater_age_speedup: 40,
+                ..FieldTurnData::default()
+            },
+            |_x, _y| facts,
+            &mut rolls,
+        );
+        world
+            .get::<Field>(entity)
+            .map_or(0, |field| field.entry.age())
+    };
+    assert_eq!(
+        run(CellFacts {
+            can_enter: true,
+            swimmable: true,
+            outdoors: false
+        }),
+        41,
+        "one turn of decay plus the forty it ages under water"
+    );
+    assert_eq!(
+        run(CellFacts::open()),
+        1,
+        "on dry land only the turn of decay"
+    );
 }

@@ -2047,6 +2047,29 @@ pub struct FieldTurnData {
     pub swimmable: bool,
 }
 
+/// What the map says about one square.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CellFacts {
+    /// Whether a gas may spread into it.
+    pub can_enter: bool,
+    /// Whether it is under water, which makes fields age faster.
+    pub swimmable: bool,
+    /// Whether it is outdoors, which makes gases dissipate faster.
+    pub outdoors: bool,
+}
+
+impl CellFacts {
+    /// A square of open ground with nothing special about it.
+    #[must_use]
+    pub fn open() -> Self {
+        Self {
+            can_enter: true,
+            swimmable: false,
+            outdoors: false,
+        }
+    }
+}
+
 /// What one turn of field processing did.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct FieldTurnSummary {
@@ -2074,7 +2097,7 @@ pub fn process_field_turn(
     windpower: i32,
     wind_angle: i32,
     data_of: impl Fn(FieldId) -> FieldTurnData,
-    can_enter: impl Fn(i32, i32) -> bool,
+    cell_of: impl Fn(i32, i32) -> CellFacts,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) -> FieldTurnSummary {
     let mut summary = FieldTurnSummary::default();
@@ -2091,7 +2114,12 @@ pub fn process_field_turn(
             continue;
         };
         let id = field.id;
-        let data = data_of(id);
+        // The map has the last word on water and sky: the prototype says how much faster a field
+        // ages in each, the terrain says whether it is there at all.
+        let cell = cell_of(x, y);
+        let mut data = data_of(id);
+        data.swimmable = cell.swimmable;
+        data.outdoors = cell.outdoors;
         summary.processed += 1;
         // 1. The field's own clock.
         if let Some(mut field) = world.get_mut::<Field>(entity) {
@@ -2123,9 +2151,9 @@ pub fn process_field_turn(
                 outdoors: data.outdoors,
                 outdoor_age_speedup: data.outdoor_age_speedup,
             };
-            spread_gas(world, entity, &context, &can_enter, rolls);
+            let enter = |x: i32, y: i32| cell_of(x, y).can_enter;
+            spread_gas(world, entity, &context, enter, rolls);
         }
-        let _ = (x, y);
         if !field_is_alive(world, entity) {
             world.despawn(entity);
             summary.removed += 1;
