@@ -138,7 +138,9 @@ impl MapgenObject {
     /// How wide the rows are, which is the map's own width when the rows agree.
     #[must_use]
     pub fn width(&self) -> usize {
-        self.rows.first().map_or(0, String::len)
+        // Characters, not bytes: a map may use a non-ASCII glyph, and counting bytes would call every
+        // row of such a map ragged.
+        self.rows.first().map_or(0, |row| row.chars().count())
     }
 
     /// How many rows there are.
@@ -151,7 +153,7 @@ impl MapgenObject {
     #[must_use]
     pub fn rows_agree(&self) -> bool {
         let width = self.width();
-        self.rows.iter().all(|row| row.len() == width)
+        self.rows.iter().all(|row| row.chars().count() == width)
     }
 
     /// The terrain id at a square, if the rows cover it.
@@ -187,7 +189,13 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
         let Some(cdda_json::Value::Str(om_terrain)) = object.get("om_terrain") else {
             continue;
         };
-        let Some(cdda_json::Value::Array(rows)) = object.get("rows") else {
+        // The rows live under `object`, not beside `om_terrain`: a mapgen entry looks like
+        // {"type":"mapgen","method":"json","om_terrain":"shelter","object":{"rows":[...]}}.
+        // Reading the top level instead finds nothing and looks like a broken loader.
+        let Some(cdda_json::Value::Object(inner)) = object.get("object") else {
+            continue;
+        };
+        let Some(cdda_json::Value::Array(rows)) = inner.get("rows") else {
             continue;
         };
         let rows: Vec<String> = rows
@@ -199,7 +207,7 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
             .collect();
         let symbols = |key: &str| {
             let mut table = BTreeMap::new();
-            if let Some(cdda_json::Value::Object(map)) = object.get(key) {
+            if let Some(cdda_json::Value::Object(map)) = inner.get(key) {
                 for (symbol, id) in map.members() {
                     if let (Some(character), cdda_json::Value::Str(id)) =
                         (symbol.chars().next(), id)

@@ -3,6 +3,7 @@
 #![allow(clippy::expect_used, clippy::panic)]
 
 use cdda_content::mapgen::{MapgenObject, load_objects};
+use std::path::Path;
 
 fn one(symbols: &[(&str, &str)], rows: &[&str]) -> MapgenObject {
     let terrain = symbols
@@ -15,8 +16,10 @@ fn one(symbols: &[(&str, &str)], rows: &[&str]) -> MapgenObject {
         .map(|row| format!("\"{row}\""))
         .collect::<Vec<_>>()
         .join(",");
+    // The shape the reference actually uses: the rows and the symbol tables live under `object`.
     let text = format!(
-        "[{{\"method\":\"json\",\"om_terrain\":\"test\",\"rows\":[{rows}],\"terrain\":{{{terrain}}}}}]"
+        "[{{\"type\":\"mapgen\",\"method\":\"json\",\"om_terrain\":\"test\",\
+          \"object\":{{\"rows\":[{rows}],\"terrain\":{{{terrain}}}}}}}]"
     );
     let value = cdda_json::parse(text.as_bytes()).expect("valid json");
     let mut loaded = load_objects(&value);
@@ -53,8 +56,50 @@ fn the_only_way_to_build_is_code() {
     assert!(load_objects(&value).is_empty());
 }
 
-// The corpus gate for this loader is deliberately absent: walking the reference's mapgen
-// directory through `json_files_in_load_order` + `read_json` returned zero objects, while the files
-// themselves are plainly arrays of mapgen objects. Until that read path is understood, a green gate
-// here would be a gate over nothing - so the loader is tested against hand-written objects and the
-// corpus gate waits for the next round rather than passing vacuously.
+#[test]
+fn a_mapgen_whose_rows_are_at_the_top_level_is_not_one() {
+    // The bug this test exists for: rows live under `object`, and a flat object is not a mapgen.
+    let text = "[{\"method\":\"json\",\"om_terrain\":\"test\",\"rows\":[\".\"]}]";
+    let value = cdda_json::parse(text.as_bytes()).expect("valid json");
+    assert!(
+        load_objects(&value).is_empty(),
+        "flat rows are not a mapgen"
+    );
+}
+
+#[test]
+fn the_reference_tree_holds_the_maps_it_says_it_does() {
+    // 845 files, 1,071 mapgen objects: the count the loader finds when it reads the right key.
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let files = cdda_content::json_files_in_load_order(
+        &root.join("references/Cataclysm-DDA/data/json/mapgen"),
+    )
+    .expect("the mapgen directory");
+    assert_eq!(files.len(), 845);
+    let mut total = 0;
+    let mut ragged = Vec::new();
+    for path in &files {
+        let Some(value) = cdda_content::read_json(path) else {
+            continue;
+        };
+        for map in load_objects(&value) {
+            total += 1;
+            if !map.rows_agree() {
+                ragged.push(map.om_terrain);
+            }
+        }
+    }
+    assert_eq!(total, 1_071, "mapgen objects in the reference tree");
+    // Three maps in the reference tree are not rectangular by character count. The reference loads them
+    // anyway, so this is a fact about the content rather than a fault in the loader - pinned here so it
+    // cannot quietly grow.
+    assert_eq!(
+        ragged,
+        vec![
+            "lighthouse_small_z1".to_owned(),
+            "lighthouse_small_z2".to_owned(),
+            "lighthouse_small_z3".to_owned()
+        ],
+        "maps whose rows do not all measure the same"
+    );
+}
