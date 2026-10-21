@@ -643,6 +643,16 @@ void dump_materials( const std::string &path )
                           static_cast<double>( burn.burn ) );
             first_burn = false;
         }
+        // What burning this material leaves behind (`material.h:115-116`), which the fire loop
+        // spawns by weight when an item loses mass without being destroyed.
+        std::fprintf( out, "],\"burn_products\":[" );
+        bool first_product = true;
+        for( const std::pair<itype_id, float> &product : material.burn_products() ) {
+            std::fprintf( out, "%s[\"%s\",%.6g]", first_product ? "" : ",",
+                          harness_escape( product.first.str() ).c_str(),
+                          static_cast<double>( product.second ) );
+            first_product = false;
+        }
         std::fprintf( out, "]}" );
         first = false;
     }

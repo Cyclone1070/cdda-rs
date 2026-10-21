@@ -2489,3 +2489,42 @@ fn weight_with(world: &mut World, entity: Entity, base_grams: &dyn Fn(ItemTypeId
     }
     total
 }
+
+/// What burning a portion of an item leaves behind.
+///
+/// Reference: `map::create_burnproducts` (`src/map_field.cpp:116-143`). For each material the item is
+/// made of, each of that material's burn products is spawned at
+/// `floor(efficiency * burned / product_weight * portion / total_portions)`, skipping a product that is
+/// the item itself - the reference notes that would recurse forever. A count of zero or less leaves
+/// nothing behind.
+#[must_use]
+pub fn burn_products(
+    portions: &[(String, f64)],
+    burned_grams: i64,
+    material_total: i32,
+    product_weight_grams: impl Fn(&str) -> i64,
+    fuel_kind: &str,
+) -> Vec<(String, i32)> {
+    let mut out = Vec::new();
+    for (product, efficiency) in portions {
+        if product == fuel_kind {
+            continue;
+        }
+        let weight = product_weight_grams(product);
+        if weight <= 0 {
+            continue;
+        }
+        #[allow(clippy::cast_precision_loss)]
+        let share = f64::from(material_total.max(1));
+        #[allow(clippy::cast_precision_loss)]
+        let burned = burned_grams as f64;
+        #[allow(clippy::cast_precision_loss)]
+        let per_item = weight as f64;
+        #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+        let count = (efficiency * (burned / per_item) * (1.0 / share)).floor() as i32;
+        if count > 0 {
+            out.push((product.clone(), count));
+        }
+    }
+    out
+}

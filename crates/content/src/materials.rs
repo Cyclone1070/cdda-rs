@@ -29,6 +29,8 @@ pub struct Material {
     pub latent_heat: f64,
     /// How this material behaves in fire, per intensity (`src/fire.h:45-56`).
     pub burn: Vec<BurnData>,
+    /// What burning it leaves behind, as an item id and an efficiency (`material.h:115-116`).
+    pub burn_products: Vec<(String, f64)>,
 }
 
 /// One material's behaviour in a fire of a given intensity.
@@ -66,6 +68,7 @@ fn defaults(id: &str) -> Material {
         specific_heat_solid: 0.0,
         latent_heat: 0.0,
         burn: Vec::new(),
+        burn_products: Vec::new(),
     }
 }
 
@@ -220,6 +223,23 @@ fn apply(material: &mut Material, object: &Object) -> Result<(), LoadError> {
                 smoke: number(fields, "smoke").unwrap_or(0.0),
                 burn: number(fields, "burn").unwrap_or(0.0),
             });
+        }
+    }
+    if let Some(Value::Array(products)) = object.get("burn_products") {
+        material.burn_products.clear();
+        for entry in products {
+            let Value::Array(pair) = entry else {
+                continue;
+            };
+            let (Some(Value::Str(id)), Some(weight)) = (pair.first(), pair.get(1)) else {
+                continue;
+            };
+            let efficiency = match weight {
+                Value::Int(value) => f64::from(i32::try_from(*value).unwrap_or(0)),
+                Value::Float(value) => *value,
+                _ => 0.0,
+            };
+            material.burn_products.push((id.clone(), efficiency));
         }
     }
     Ok(())

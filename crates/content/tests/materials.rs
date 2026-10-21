@@ -195,3 +195,19 @@ fn exactly_one_material_refuses_to_burn_at_all() {
         .collect();
     assert_eq!(immune, vec!["nomex"], "only nomex is fireproof throughout");
 }
+
+#[test]
+fn burn_products_are_read_for_the_materials_that_have_them() {
+    let all = load();
+    let with_products: Vec<&str> = all
+        .iter()
+        .filter(|material| !material.burn_products.is_empty())
+        .map(|material| material.id.as_str())
+        .collect();
+    assert_eq!(with_products.len(), 64, "the reference dumps 64 of 193");
+    let wood = all
+        .iter()
+        .find(|material| material.id == "wood")
+        .expect("wood");
+    assert_eq!(wood.burn_products.first(), Some(&("ash".to_owned(), 0.018)));
+}
