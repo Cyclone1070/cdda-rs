@@ -3713,3 +3713,48 @@ pub fn corpse_kind_at(world: &mut World, square: (i32, i32)) -> Option<MonsterKi
         .find(|(position, _)| (position.x, position.y) == square)
         .map(|(_, corpse)| corpse.kind)
 }
+
+/// Whether an item is the body of a creature.
+///
+/// Reference: `item::is_corpse` (`item.cpp`), which asks whether the item names a monster **and** carries the
+/// `CORPSE` flag. The port's corpse item carries the first fact as `CorpseOf`; the flag comes with the item type
+/// the caller supplies, so both halves are asked here rather than one of them being assumed.
+#[must_use]
+pub fn is_corpse(
+    world: &mut World,
+    item: Entity,
+    type_has_corpse_flag: impl Fn(ItemTypeId) -> bool,
+) -> bool {
+    let Some(corpse) = world.get::<CorpseOf>(item) else {
+        return false;
+    };
+    let kind = world.get::<GroundItem>(item).map(|item| item.kind);
+    let _ = corpse;
+    kind.is_some_and(type_has_corpse_flag)
+}
+
+/// A day, in turns, which is the unit the reference measures rot in.
+pub const TURNS_PER_DAY: i64 = 24 * 60 * 60 / 6;
+
+/// How long a corpse has been lying there, in turns.
+#[must_use]
+pub fn corpse_age(world: &mut World, item: Entity) -> Option<i64> {
+    world.get::<CorpseOf>(item)?;
+    world.get::<GroundItem>(item).map(|item| item.age)
+}
+
+/// Whether a corpse has rotted away entirely and can no longer be butchered.
+///
+/// Reference: `item::has_rotten_away` (`item.cpp`) is special-cased for corpses - `get_rot() > 10_days` when the
+/// corpse cannot revive - rather than using the relative rot that other food uses. Ten days is long, and getting it
+/// wrong would either delete butchering entirely or leave a permanent wall of rotten bodies.
+#[must_use]
+pub fn corpse_rotten_away(world: &mut World, item: Entity, can_revive: bool) -> bool {
+    let Some(age) = corpse_age(world, item) else {
+        return false;
+    };
+    if can_revive {
+        return false;
+    }
+    age > 10 * TURNS_PER_DAY
+}
