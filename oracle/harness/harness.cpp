@@ -769,7 +769,12 @@ void dump_items( const std::string &path )
         }
         // What a fire needs to know beyond materials: whether it goes off, and whether its ammo
         // cooks off, which is `item::will_explode_in_fire` (`src/item.cpp:13314-13325`).
-        std::fprintf( out, "],\"explode_in_fire\":%s,\"cookoff\":%s,\"special_cookoff\":%s}",
+        // What eating it does, for the comestibles (`itype.cpp:151-159` and the ingest rules).
+        std::fprintf( out, "],\"nutr\":%d,\"quench\":%d,\"charges_to_use\":%d,"
+                      "\"explode_in_fire\":%s,\"cookoff\":%s,\"special_cookoff\":%s}",
+                      proto->comestible ? proto->comestible->get_default_nutr() : 0,
+                      proto->comestible ? proto->comestible->quench : 0,
+                      proto->charges_to_use(),
                       proto->explode_in_fire ? "true" : "false",
                       proto->ammo && proto->ammo->cookoff ? "true" : "false",
                       proto->ammo && proto->ammo->special_cookoff ? "true" : "false" );

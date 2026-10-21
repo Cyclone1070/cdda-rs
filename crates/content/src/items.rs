@@ -47,6 +47,12 @@ pub struct ItemType {
     pub flags: BTreeSet<String>,
     /// Whether it blows up when a fire reaches it.
     pub explode_in_fire: bool,
+    /// Nutrition, in the reference's own units, for a comestible; zero for anything else.
+    pub nutr: i32,
+    /// How much thirst it quenches.
+    pub quench: i32,
+    /// How many charges one use spends: one for food, the tool's own rate for tools.
+    pub charges_to_use: i32,
     /// The ammo effects it declares, which decide whether its ammunition cooks off.
     pub ammo_effects: BTreeSet<String>,
     /// Whether its ammo cooks off in a fire.
@@ -102,6 +108,12 @@ impl ItemType {
         self.cookoff =
             self.ammo_effects.contains("INCENDIARY") || self.ammo_effects.contains("COOKOFF");
         self.special_cookoff = self.ammo_effects.contains("SPECIAL_COOKOFF");
+    }
+
+    /// Whether it can be eaten or drunk at all.
+    #[must_use]
+    pub fn is_comestible(&self) -> bool {
+        !self.comestible_type.is_empty()
     }
 
     /// Whether a fire makes it go off.
@@ -637,6 +649,9 @@ fn resolve(
         materials: BTreeMap::new(),
         flags: BTreeSet::new(),
         explode_in_fire: false,
+        nutr: 0,
+        quench: 0,
+        charges_to_use: 0,
         ammo_effects: BTreeSet::new(),
         cookoff: false,
         special_cookoff: false,
@@ -1149,4 +1164,39 @@ pub(crate) fn strings(object: &Object, member: &str) -> Vec<String> {
             .collect(),
         _ => Vec::new(),
     }
+}
+
+/// What the reference says about eating each item, read from its own dump.
+///
+/// The nutr value is the reference's `get_default_nutr()` - kilocalories divided by its own
+/// `kcal_per_nutr` - which is why it is read from the dump rather than recomputed here: the constant is
+/// internal to the reference and reproducing it would be inventing a number.
+#[must_use]
+pub fn nutrition_from_dump(
+    value: &cdda_json::Value,
+) -> std::collections::BTreeMap<String, (i32, i32, i32)> {
+    let mut out = std::collections::BTreeMap::new();
+    let Value::Object(root) = value else {
+        return out;
+    };
+    let Some(Value::Array(entries)) = root.get("prototypes") else {
+        return out;
+    };
+    for entry in entries {
+        let Value::Object(object) = entry else {
+            continue;
+        };
+        let Some(Value::Str(id)) = object.get("id") else {
+            continue;
+        };
+        let number = |key: &str| match object.get(key) {
+            Some(Value::Int(value)) => i32::try_from(*value).unwrap_or(0),
+            _ => 0,
+        };
+        out.insert(
+            id.clone(),
+            (number("nutr"), number("quench"), number("charges_to_use")),
+        );
+    }
+    out
 }
