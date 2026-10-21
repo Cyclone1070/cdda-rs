@@ -3402,3 +3402,106 @@ pub fn strike(world: &mut World, target: Entity, blow: i32, armour: i32) -> bool
     monster.hp = monster.hp.saturating_sub(dealt);
     monster.hp <= 0
 }
+
+/// The rules a creature's turn needs, gathered so the turn functions do not grow a parameter per fact.
+pub struct TurnRules<'a> {
+    /// How fast a kind is, which decides what an action costs it.
+    pub speed_of: &'a dyn Fn(MonsterKindId) -> i32,
+    /// A kind's blow: its dice, its sides and its bonus.
+    pub blow_of: &'a dyn Fn(MonsterKindId) -> (i32, i32, i32),
+    /// A kind's armour, which reduces what lands on it.
+    pub armour_of: &'a dyn Fn(MonsterKindId) -> i32,
+    /// Whether the terrain lets a creature through.
+    pub passable: &'a dyn Fn(u32) -> bool,
+}
+
+/// Gives every creature a turn, and lets its attacks land on whoever is standing where it strikes.
+///
+/// This is where two rules meet: the turn loop decides that a creature attacks, and the damage rule decides what
+/// that costs the target. Keeping the dice in the caller's hands matters - the reference rolls from one stream, so
+/// a port that gave each system its own dice would produce a different fight from the same seed.
+///
+/// Returns how many blows landed.
+pub fn monster_turns_striking(
+    world: &mut World,
+    target: (i32, i32),
+    rules: &TurnRules<'_>,
+    rolls: &mut cdda_core_types::rng::Rolls,
+    level: &cdda_core_types::level::Level,
+) -> i32 {
+    let mut occupied_squares: std::collections::BTreeSet<(i32, i32)> = {
+        let mut query = world.query::<(&Position, &Monster)>();
+        query
+            .iter(world)
+            .filter(|(_, monster)| monster.hp > 0)
+            .map(|(position, _)| (position.x, position.y))
+            .collect()
+    };
+    let creatures: Vec<CreatureTurn> = {
+        let mut query = world.query::<(Entity, &Position, &Monster)>();
+        query
+            .iter(world)
+            .filter(|(_, _, monster)| monster.hp > 0)
+            .map(|(entity, position, monster)| CreatureTurn {
+                entity,
+                start: (position.x, position.y),
+                moves: whole_moves(monster.moves),
+                kind: monster.kind,
+            })
+            .collect()
+    };
+    let mut landed = 0;
+    for CreatureTurn {
+        entity,
+        start,
+        moves,
+        kind,
+    } in creatures
+    {
+        let speed = (rules.speed_of)(kind);
+        let can_enter = |square: (i32, i32)| {
+            if square == start {
+                return true;
+            }
+            let terrain_ok = level
+                .terrain_at(square.0, square.1)
+                .is_some_and(rules.passable);
+            terrain_ok && !occupied_squares.contains(&square)
+        };
+        let turn = take_turn_blocked(start, target, moves, speed, can_enter);
+        // Every hit the turn produced lands on whoever stands on the target square.
+        for _ in 0..turn.hits {
+            let victim = {
+                let mut query = world.query::<(Entity, &Position, &Monster)>();
+                query
+                    .iter(world)
+                    .find(|(_, position, monster)| {
+                        (position.x, position.y) == target && monster.hp > 0
+                    })
+                    .map(|(victim, _, _)| victim)
+            };
+            let Some(victim) = victim else {
+                break;
+            };
+            let (dice, sides, bonus) = (rules.blow_of)(kind);
+            let armour = world
+                .get::<Monster>(victim)
+                .map_or(0, |monster| (rules.armour_of)(monster.kind));
+            let blow = melee_blow(rolls, dice, sides, bonus);
+            strike(world, victim, blow, armour);
+            landed += 1;
+        }
+        if let Some(mut monster) = world.get_mut::<Monster>(entity) {
+            monster.moves = f64::from(turn.moves);
+        }
+        if turn.position != start {
+            occupied_squares.remove(&start);
+            occupied_squares.insert(turn.position);
+            if let Some(mut position) = world.get_mut::<Position>(entity) {
+                position.x = turn.position.0;
+                position.y = turn.position.1;
+            }
+        }
+    }
+    landed
+}
