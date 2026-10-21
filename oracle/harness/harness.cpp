@@ -1008,7 +1008,21 @@ void dump_monsters( const std::string &path )
                           harness_escape( entry.first.str() ).c_str(), entry.second );
             first_material = false;
         }
-        std::fprintf( out, "]}" );
+        // `creature_size` has no `enum_to_string` specialisation linked into this build, so the size is named
+        // here rather than guessed at with a cast.
+        const char *size_name = "medium";
+        switch( proto.size ) {
+            case creature_size::tiny:  size_name = "tiny";  break;
+            case creature_size::small: size_name = "small"; break;
+            case creature_size::medium: size_name = "medium"; break;
+            case creature_size::large: size_name = "large"; break;
+            case creature_size::huge:  size_name = "huge";  break;
+            default: break;
+        }
+        std::fprintf( out, "],\"harvest\":\"%s\",\"dissect\":\"%s\",\"size\":\"%s\"}",
+                      harness_escape( proto.harvest.str() ).c_str(),
+                      harness_escape( proto.dissect.str() ).c_str(),
+                      size_name );
         first = false;
     }
     std::fprintf( out, "\n]}\n" );

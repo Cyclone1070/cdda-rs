@@ -129,8 +129,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-22 01:43:47
-@@ -0,0 +1,1018 @@
++++ oracle/src/src/harness.cpp	2026-10-22 04:42:42
+@@ -0,0 +1,1032 @@
 +#include "harness.h"
 +#include "recipe_dictionary.h"
 +#include "requirements.h"
@@ -1141,7 +1141,21 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +                          harness_escape( entry.first.str() ).c_str(), entry.second );
 +            first_material = false;
 +        }
-+        std::fprintf( out, "]}" );
++        // `creature_size` has no `enum_to_string` specialisation linked into this build, so the size is named
++        // here rather than guessed at with a cast.
++        const char *size_name = "medium";
++        switch( proto.size ) {
++            case creature_size::tiny:  size_name = "tiny";  break;
++            case creature_size::small: size_name = "small"; break;
++            case creature_size::medium: size_name = "medium"; break;
++            case creature_size::large: size_name = "large"; break;
++            case creature_size::huge:  size_name = "huge";  break;
++            default: break;
++        }
++        std::fprintf( out, "],\"harvest\":\"%s\",\"dissect\":\"%s\",\"size\":\"%s\"}",
++                      harness_escape( proto.harvest.str() ).c_str(),
++                      harness_escape( proto.dissect.str() ).c_str(),
++                      size_name );
 +        first = false;
 +    }
 +    std::fprintf( out, "\n]}\n" );

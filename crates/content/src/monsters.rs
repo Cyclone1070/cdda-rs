@@ -51,6 +51,15 @@ pub struct MonsterType {
     pub materials: BTreeMap<String, i32>,
     /// Its flags, which the dump does not carry but spawning rules read.
     pub flags: BTreeSet<String>,
+    /// The harvest definition a corpse of this kind butchers into.
+    ///
+    /// Reference: `mtype::harvest` (`mtype.h`), a `harvest_id`. The dump now carries it, because the port cannot
+    /// guess which of the 247 definitions a monster uses and a guess here would be silently wrong meat.
+    pub harvest: String,
+    /// The definition a dissection yields, which is a different list from butchery.
+    pub dissect: String,
+    /// How big it is, which decides the base cost of cutting its corpse up.
+    pub size: String,
 }
 
 /// Why a monster type could not be loaded.
@@ -92,6 +101,11 @@ pub fn load_paths(dirs: &[&std::path::Path]) -> Result<Vec<MonsterType>, LoadErr
     for id in &order {
         let mut seen = Vec::new();
         out.extend(resolve(id, &objects, &mut seen)?);
+    }
+    // The reference derives a creature's size from its volume after loading (`monstergenerator.cpp`), so the
+    // size a monster reports is not the size its JSON states, and often its JSON states none at all.
+    for monster in &mut out {
+        monster.size = size_from_volume(monster.volume);
     }
     out.push(null_monster());
     // A monster flagged `GEN_DORMANT` gets a fake twin that spawns dormant and
@@ -220,6 +234,15 @@ fn apply(monster: &mut MonsterType, object: &Object, inherited: bool) -> Result<
     }
     monster.hp = count(object, "hp", monster.hp)?;
     monster.speed = count(object, "speed", monster.speed)?;
+    if let Some(harvest) = string(object, "harvest") {
+        monster.harvest = harvest;
+    }
+    if let Some(dissect) = string(object, "dissect") {
+        monster.dissect = dissect;
+    }
+    // `size` is not read from JSON at all: the reference overwrites it from the creature's volume once every
+    // type is loaded (`monstergenerator.cpp`, `mon.size = volume_to_size( mon.volume )`). Reading the field here
+    // would be reading something the reference ignores.
     monster.diff = count(object, "diff", monster.diff)?;
     monster.melee_skill = count(object, "melee_skill", monster.melee_skill)?;
     monster.dodge = count(object, "dodge", monster.dodge)?;
@@ -381,6 +404,26 @@ fn materials(monster: &mut MonsterType, object: &Object) {
 ///
 /// It is a default-constructed type, which is why its numbers look arbitrary:
 /// they are the field initialisers, and the dump is where they were read from.
+/// How big a creature is, from how much space it takes up.
+///
+/// Reference: `volume_to_size` (`monstergenerator.cpp`), whose thresholds are inclusive on the lower side:
+/// 7,500 ml is still tiny, 46,250 still small, 108,000 still medium, 483,750 still large, anything more is huge.
+#[must_use]
+pub fn size_from_volume(volume_ml: i64) -> String {
+    let name = if volume_ml <= 7_500 {
+        "tiny"
+    } else if volume_ml <= 46_250 {
+        "small"
+    } else if volume_ml <= 108_000 {
+        "medium"
+    } else if volume_ml <= 483_750 {
+        "large"
+    } else {
+        "huge"
+    };
+    name.to_owned()
+}
+
 fn null_monster() -> MonsterType {
     let mut monster = MonsterType::new();
     "mon_null".clone_into(&mut monster.id);
@@ -416,6 +459,10 @@ impl MonsterType {
             categories: BTreeSet::new(),
             materials: BTreeMap::new(),
             flags: BTreeSet::new(),
+            // The reference's own defaults (`mtype::mtype()`): a human harvest, no dissection, medium sized.
+            harvest: "human".to_owned(),
+            dissect: String::new(),
+            size: "medium".to_owned(),
         }
     }
 }
