@@ -2581,3 +2581,98 @@ pub fn consume_items(
         satisfied: remaining == 0,
     }
 }
+
+/// Why a craft did not happen.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CraftError {
+    /// A requirement group could not be met; nothing was taken.
+    Missing {
+        /// Which group failed, counting from zero.
+        group: usize,
+    },
+}
+
+/// What a craft produced.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Crafted {
+    /// The item that appeared on the square.
+    pub result: Entity,
+    /// How many of it.
+    pub count: i32,
+}
+
+/// How many of one kind lie on a square.
+#[must_use]
+pub fn count_on_square(world: &mut World, square: (i32, i32), kind: ItemTypeId) -> i32 {
+    items_at(world, square)
+        .into_iter()
+        .filter_map(|entity| world.get::<GroundItem>(entity).copied())
+        .filter(|item| item.kind == kind)
+        .map(|item| item.charges.max(0))
+        .sum()
+}
+
+/// Makes something from what is lying on a square, all or nothing.
+///
+/// Reference: `Character::craft` and the consumption it performs (`src/craft.cpp`, the component
+/// handling around `consume_components`). Three things the port keeps: **availability is checked before
+/// anything is taken** - the reference's `has_comps` only asks - alternatives are tried in the order the
+/// recipe lists them, and components are consumed before the result appears, so a failure leaves the
+/// square exactly as it was.
+///
+/// # Errors
+///
+/// Returns [`CraftError::Missing`] naming the first group that could not be met. Nothing has been consumed
+/// when that happens.
+pub fn craft_on_square(
+    world: &mut World,
+    square: (i32, i32),
+    components: &[Vec<(ItemTypeId, i32)>],
+    batch: i32,
+    result_kind: ItemTypeId,
+) -> Result<Crafted, CraftError> {
+    let batch = batch.max(1);
+    let mut chosen: Vec<(ItemTypeId, i32)> = Vec::new();
+    for (group, alternatives) in components.iter().enumerate() {
+        let mut taken = None;
+        for (kind, count) in alternatives {
+            let wanted = count.saturating_mul(batch);
+            if count_on_square(world, square, *kind) >= wanted {
+                taken = Some((*kind, wanted));
+                break;
+            }
+        }
+        match taken {
+            Some(choice) => chosen.push(choice),
+            None => return Err(CraftError::Missing { group }),
+        }
+    }
+    // Everything is known to be there, so this cannot come up short; if it ever does, the parts are put
+    // back rather than the craft half happening.
+    let mut spent: Vec<(ItemTypeId, i32)> = Vec::new();
+    for (kind, wanted) in &chosen {
+        let consumed = consume_items(world, square, *kind, *wanted);
+        spent.push((*kind, consumed.taken));
+        if !consumed.satisfied {
+            for (kind, count) in spent.iter().rev() {
+                drop_item(world, square, *kind, *count);
+            }
+            return Err(CraftError::Missing {
+                group: cost_group(components, *kind),
+            });
+        }
+    }
+    let entity = drop_item(world, square, result_kind, batch);
+    Ok(Crafted {
+        result: entity,
+        count: batch,
+    })
+}
+
+/// Which requirement group names a kind, for the error path above.
+fn cost_group(components: &[Vec<(ItemTypeId, i32)>], kind: ItemTypeId) -> usize {
+    components
+        .iter()
+        .position(|alternatives| alternatives.iter().any(|(candidate, _)| *candidate == kind))
+        .unwrap_or(0)
+}
