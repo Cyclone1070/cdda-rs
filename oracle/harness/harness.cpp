@@ -835,6 +835,49 @@ bool start_headless_game( const std::string &world_name, const std::string &star
     return true;
 }
 
+void dump_frame( const std::string &path, int radius )
+{
+    std::FILE *out = std::fopen( path.c_str(), "wb" );
+    if( out == nullptr ) {
+        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
+        return;
+    }
+    const avatar &u = get_avatar();
+    const tripoint_bub_ms centre = u.pos_bub();
+    map &here = get_map();
+    std::fprintf( out, "{\"harness\":\"frame\",\"version\":1,\"radius\":%d,\n", radius );
+    std::fprintf( out, "\"centre\":[%d,%d],\"squares\":[\n", centre.x(), centre.y() );
+    bool first = true;
+    for( int dy = -radius; dy <= radius; dy++ ) {
+        for( int dx = -radius; dx <= radius; dx++ ) {
+            const tripoint_bub_ms p( centre.x() + dx, centre.y() + dy, centre.z() );
+            const ter_t &terrain = here.ter( p ).obj();
+            const furn_t &furniture = here.furn( p ).obj();
+            // What a player sees is the terrain, or the furniture standing on it, or the item lying
+            // there, or the field - in that order, which is the order the interface draws them.
+            std::string glyph = utf32_to_utf8( terrain.symbol() );
+            if( !furniture.id.is_null() && furniture.symbol() != 0 ) {
+                glyph = furniture.symbol();
+            }
+            const map_stack items = here.i_at( p );
+            if( !items.empty() && !items.begin()->symbol().empty() ) {
+                glyph = items.begin()->symbol();
+            }
+            std::fprintf( out,
+                          "%s{\"x\":%d,\"y\":%d,\"glyph\":\"%s\",\"ter\":\"%s\","
+                          "\"furn\":\"%s\",\"items\":%d,\"light\":%.6f}",
+                          first ? "" : ",\n", p.x(), p.y(), harness_escape( glyph ).c_str(),
+                          harness_escape( terrain.id.str() ).c_str(),
+                          harness_escape( furniture.id.str() ).c_str(),
+                          static_cast<int>( items.size() ),
+                          static_cast<double>( here.ambient_light_at( p ) ) );
+            first = false;
+        }
+    }
+    std::fprintf( out, "\n]}\n" );
+    std::fclose( out );
+}
+
 void dump_state( const std::string &path )
 {
     std::FILE *out = std::fopen( path.c_str(), "wb" );

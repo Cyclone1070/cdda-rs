@@ -138,6 +138,9 @@ void dump_monsters( const std::string &path );
 // bubble. Requires start_headless_game first.
 void dump_state( const std::string &path );
 
+/** Writes the glyphs and light of the squares around the player. */
+void dump_frame( const std::string &path, int radius );
+
 } // namespace harness
 
 #endif // CATA_SRC_HARNESS_H
