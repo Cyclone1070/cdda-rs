@@ -212,3 +212,91 @@ impl Recipe {
         })
     }
 }
+
+/// What a recipe's tools ask of the inventory.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ToolNeed {
+    /// It must be present but is not spent, in this many copies.
+    Held(i32),
+    /// It must be present and this many charges are spent per batch.
+    Charges(i32),
+}
+
+impl Recipe {
+    /// What each tool group wants, with the reference's encoding resolved.
+    ///
+    /// Reference: `tool_comp::by_charges` and `tool_comp::has` (`src/requirements.cpp:952-990`). A count
+    /// of `-1` is not "minus one charge": it means the tool is needed and not consumed, which is why the
+    /// encoding is resolved here rather than left for a caller to read as a number.
+    #[must_use]
+    pub fn tool_needs(&self) -> Vec<Vec<(String, ToolNeed)>> {
+        self.tools
+            .iter()
+            .map(|alternatives| {
+                alternatives
+                    .iter()
+                    .map(|tool| {
+                        // A negative count and a zero both mean "held, not spent": the reference
+                        // uses -1 for a tool that is only needed, and a zero would spend nothing.
+                        let need = match tool.count {
+                            count if count <= 0 => ToolNeed::Held(1),
+                            charges => ToolNeed::Charges(charges),
+                        };
+                        (tool.item.clone(), need)
+                    })
+                    .collect()
+            })
+            .collect()
+    }
+
+    /// Whether the tools are on hand for a given batch.
+    ///
+    /// One alternative of each group satisfies it. A held tool needs that many copies; a tool that spends
+    /// charges needs `count * batch` of them.
+    #[must_use]
+    pub fn tools_available(
+        &self,
+        batch: i32,
+        held_count: impl Fn(&str) -> i32,
+        charges_of: impl Fn(&str) -> i32,
+    ) -> bool {
+        let batch = batch.max(1);
+        self.tool_needs().iter().all(|alternatives| {
+            alternatives.iter().any(|(item, need)| match need {
+                ToolNeed::Held(count) => held_count(item) >= *count,
+                ToolNeed::Charges(count) => charges_of(item) >= count.saturating_mul(batch),
+            })
+        })
+    }
+
+    /// Whether the qualities are on hand for a given batch.
+    ///
+    /// Reference: `quality_requirement::has` (`src/requirements.cpp:932-940`), which asks the inventory
+    /// for `has_quality( type, level, count )`: an item whose quality is **at least** the required level
+    /// counts, and there must be that many items. Qualities are not spent, so the batch does not change
+    /// the requirement.
+    #[must_use]
+    pub fn qualities_available(&self, batch: i32, items_with: impl Fn(&str, i32) -> i32) -> bool {
+        let _ = batch;
+        self.qualities.iter().all(|alternatives| {
+            alternatives
+                .iter()
+                .any(|quality| items_with(&quality.quality, quality.level) >= quality.count)
+        })
+    }
+
+    /// Whether everything the recipe needs is on hand: components, tools and qualities.
+    #[must_use]
+    pub fn can_make(
+        &self,
+        batch: i32,
+        available: impl Fn(&str) -> i32,
+        held_count: impl Fn(&str) -> i32,
+        charges_of: impl Fn(&str) -> i32,
+        items_with: impl Fn(&str, i32) -> i32,
+    ) -> bool {
+        self.components_available(batch, available)
+            && self.tools_available(batch, held_count, charges_of)
+            && self.qualities_available(batch, items_with)
+    }
+}
