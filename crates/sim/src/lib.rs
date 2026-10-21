@@ -4127,3 +4127,71 @@ pub fn butchery_turn(world: &mut World, corpse: Entity, moves: i32) -> ButcheryS
 pub fn butchery_moves_left(world: &World, corpse: Entity) -> Option<i32> {
     world.get::<Butchery>(corpse).map(|work| work.moves_left)
 }
+
+/// What a harvest is drawn from: the entries, the ids their drops name, and the corpse's weight.
+#[derive(Debug, Clone, Copy)]
+pub struct HarvestTable<'a> {
+    /// What the corpse yields, in the definition's order.
+    pub entries: &'a [HarvestSpec],
+    /// The item ids the entries name, in the same order.
+    pub ids: &'a [&'a str],
+    /// How much the creature weighed, in grams.
+    pub weight: f64,
+}
+
+/// The facts a finished butchery needs that are not in the entries themselves.
+#[derive(Debug, Clone, Copy)]
+pub struct ButcherFinish {
+    /// The butcher's effective skill, which scales counts.
+    pub butchery: i32,
+    /// How badly the corpse was damaged.
+    pub damage: CorpseDamage,
+    /// Whether the body was smashed apart before it was cut up.
+    pub gibbed: bool,
+    /// Whether the hide has already been taken.
+    pub skinned: bool,
+}
+
+/// Takes a finished butchery's yields and puts them on the ground.
+///
+/// Reference: the loop in `butchery.cpp` after the cuts are done - each entry is rolled, damaged, and turned into
+/// items on the corpse's square, and the corpse itself is consumed. The port does the same in that order and
+/// returns what it dropped, so a test can ask what a player would find rather than what the rule computed.
+///
+/// The uniform draw comes from `rolls`, one per entry, in entry order: a different order is a different harvest
+/// from the same seed, which is why the order is the definition's own.
+pub fn butcher_finish(
+    world: &mut World,
+    corpse: Entity,
+    table: HarvestTable<'_>,
+    state: ButcherFinish,
+    drop_of: impl Fn(&str) -> ItemTypeId,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) -> Vec<(ItemTypeId, i32)> {
+    let Some(position) = world.get::<Position>(corpse).copied() else {
+        return Vec::new();
+    };
+    let square = (position.x, position.y);
+    let mut dropped = Vec::new();
+    for (entry, id) in table.entries.iter().zip(table.ids.iter()) {
+        let draw = f64::from(rolls.rng(0, 10_000)) / 10_000.0;
+        let count = harvest_yield(
+            *entry,
+            state.butchery,
+            table.weight,
+            state.damage,
+            state.gibbed,
+            state.skinned,
+            draw,
+        );
+        if count <= 0 {
+            continue;
+        }
+        let kind = drop_of(id);
+        drop_item(world, square, kind, count);
+        dropped.push((kind, count));
+    }
+    // The body has been used up.
+    world.despawn(corpse);
+    dropped
+}
