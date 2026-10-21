@@ -3206,3 +3206,47 @@ pub fn take_turn(
         hits,
     }
 }
+
+/// A turn taken in a world that can refuse a step.
+///
+/// Reference: `monster::move_to` (`monmove.cpp`) returns **false and charges nothing** when the destination is
+/// blocked by terrain or by another creature - the moves are only taken after the checks
+/// (`mod_moves( -ceil( cost ) )` sits below them). So a monster that walks into a wall wastes nothing; it simply
+/// does not move, which is why a blocked monster still has its moves next turn.
+#[must_use]
+pub fn take_turn_blocked(
+    position: (i32, i32),
+    target: (i32, i32),
+    mut moves: i32,
+    speed: i32,
+    passable: impl Fn((i32, i32)) -> bool,
+) -> TurnOutcome {
+    let mut actions = Vec::new();
+    let mut at = position;
+    let mut hits = 0;
+    while speed > 0 && moves >= speed {
+        match choose_action(at, target) {
+            Action::Wait => break,
+            Action::Attack => {
+                hits += 1;
+                actions.push(Action::Attack);
+                moves -= speed;
+            }
+            Action::Step(to) => {
+                if !passable(to) {
+                    // Blocked: the step never happens and costs nothing, so the turn ends here.
+                    break;
+                }
+                at = to;
+                actions.push(Action::Step(to));
+                moves -= speed;
+            }
+        }
+    }
+    TurnOutcome {
+        actions,
+        position: at,
+        moves,
+        hits,
+    }
+}
