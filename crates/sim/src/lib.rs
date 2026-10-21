@@ -3077,3 +3077,29 @@ pub fn render_frame(
     }
     squares
 }
+
+/// What stepping onto a square costs, in moves.
+///
+/// Reference: `monmove.cpp` uses `50 * here.move_cost( p )` for the cost of leaving a square. Default
+/// terrain has a move cost of 2, so an ordinary step costs 100 moves - one turn at normal speed.
+#[must_use]
+pub fn step_cost(terrain_move_cost: i32) -> i32 {
+    50 * terrain_move_cost
+}
+
+/// A creature's moves at the start of its turn: what it had, plus its speed.
+///
+/// Reference: `Creature::get_speed` is what a turn grants (`monster::process_turn`, `mod_moves( get_speed() )`).
+/// Saturating because a pathological speed should slow a creature down, not wrap it into negative moves.
+#[must_use]
+pub fn regen_moves(moves: i32, speed: i32) -> i32 {
+    moves.saturating_add(speed)
+}
+
+/// Whether a creature has moves left to act.
+///
+/// Reference: an action is taken while moves remain (`monster::move`), so zero moves means waiting.
+#[must_use]
+pub fn can_act(moves: i32) -> bool {
+    moves > 0
+}
