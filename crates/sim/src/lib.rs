@@ -3657,3 +3657,53 @@ pub fn player_turn(
     }
     landed
 }
+
+/// What a creature leaves behind.
+///
+/// Reference: `monster::die` drops a corpse on the square (`m.add_item_or_charges( pos, item::make_corpse( ... ) )`).
+/// The port keeps the corpse as its own entity rather than an item, because the item layer has no notion of a
+/// creature yet, and a corpse that claims to be an item it is not would be worse than an honest separate thing.
+#[derive(Debug, Clone, Copy, Component)]
+pub struct Corpse {
+    /// What kind of creature this was.
+    pub kind: MonsterKindId,
+}
+
+/// Takes the dead off the field and leaves what they were standing on.
+///
+/// Reference: `monster::die` then the creature's removal (`game::remove_zombie` and friends). The order matters for
+/// a replay: a corpse appears on the square the creature occupied, and the square becomes walkable again in the same
+/// step, so a creature behind it can move through on its next turn.
+///
+/// Returns how many bodies were cleared.
+pub fn reap_dead_monsters(world: &mut World) -> usize {
+    let dead: Vec<(Entity, (i32, i32), MonsterKindId)> = {
+        let mut query = world.query::<(Entity, &Position, &Monster)>();
+        query
+            .iter(world)
+            .filter(|(_, _, monster)| monster.hp <= 0)
+            .map(|(entity, position, monster)| (entity, (position.x, position.y), monster.kind))
+            .collect()
+    };
+    for (entity, square, kind) in &dead {
+        world.despawn(*entity);
+        world.spawn((
+            Position {
+                x: square.0,
+                y: square.1,
+            },
+            Corpse { kind: *kind },
+        ));
+    }
+    dead.len()
+}
+
+/// How many corpses lie on a square.
+#[must_use]
+pub fn corpses_at(world: &mut World, square: (i32, i32)) -> usize {
+    let mut query = world.query::<(&Position, &Corpse)>();
+    query
+        .iter(world)
+        .filter(|(position, _)| (position.x, position.y) == square)
+        .count()
+}
