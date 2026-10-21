@@ -61,13 +61,43 @@ fn the_port_finds_the_items_a_fire_sets_off() {
 }
 
 #[test]
-fn ammunition_cookoff_is_not_ported_yet_and_says_so() {
-    // `cookoff` is derived from ammo effects (`src/item_factory.cpp:512-522`), which the port does
-    // not read: 387 items cook off in the reference and none of them do here yet.
+fn ammunition_cooks_off_the_way_the_reference_derives_it() {
+    // `cookoff` comes from the ammo effects, not from a field (`item_factory.cpp:512-522`): 387 of
+    // 9,912 items cook off and 8 do it in their own way.
     let all = load();
-    assert!(
-        all.iter()
-            .all(|item| !item.cookoff && !item.special_cookoff),
-        "the fields exist but nothing sets them"
+    let cooking: Vec<&str> = all
+        .iter()
+        .filter(|item| item.cookoff)
+        .map(|item| item.id.as_str())
+        .collect();
+    let special: Vec<&str> = all
+        .iter()
+        .filter(|item| item.special_cookoff)
+        .map(|item| item.id.as_str())
+        .collect();
+    assert_eq!(
+        cooking.len(),
+        387,
+        "cook-off items, first few: {:?}",
+        cooking.iter().take(5).collect::<Vec<_>>()
     );
+    assert_eq!(special.len(), 8, "special cook-offs: {special:?}");
+    let battery = all
+        .iter()
+        .find(|item| item.id == "battery")
+        .expect("a battery");
+    assert!(battery.cookoff, "a battery cooks off");
+    let rock = all.iter().find(|item| item.id == "rock").expect("a rock");
+    assert!(!rock.cookoff && !rock.special_cookoff);
+}
+
+#[test]
+fn something_made_of_oil_never_cooks_off_however_its_effects_read() {
+    // The reference exempts hydrocarbon and oil items outright (`item_factory.cpp:513-521`).
+    let all = load();
+    for item in &all {
+        if item.materials.contains_key("hydrocarbons") || item.materials.contains_key("oil") {
+            assert!(!item.cookoff, "{} is oily and must not cook off", item.id);
+        }
+    }
 }

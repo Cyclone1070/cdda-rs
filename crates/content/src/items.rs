@@ -47,6 +47,8 @@ pub struct ItemType {
     pub flags: BTreeSet<String>,
     /// Whether it blows up when a fire reaches it.
     pub explode_in_fire: bool,
+    /// The ammo effects it declares, which decide whether its ammunition cooks off.
+    pub ammo_effects: BTreeSet<String>,
     /// Whether its ammo cooks off in a fire.
     pub cookoff: bool,
     /// Whether its ammo cooks off in a special way.
@@ -81,6 +83,25 @@ impl ItemType {
     #[must_use]
     pub fn is_irremovable(&self) -> bool {
         self.flags.contains("IRREMOVABLE")
+    }
+
+    /// Derives the two cookoff fields from the ammo effects, the way `item_factory.cpp:512-522` does.
+    ///
+    /// Ammunition whose effects include incendiary or cook-off cooks off in a fire, unless it is made
+    /// of hydrocarbons or oil, which the reference exempts. A special cook-off is its own effect.
+    pub fn derive_cookoff(&mut self) {
+        let oily =
+            self.materials.contains_key("hydrocarbons") || self.materials.contains_key("oil");
+        // Only ammunition cooks off: the reference derives these inside its ammo loader, so an item
+        // with no ammunition data never gets the flags (`item_factory.cpp:512`).
+        if oily || !self.subtypes.contains("AMMO") || self.ammo_effects.is_empty() {
+            self.cookoff = false;
+            self.special_cookoff = false;
+            return;
+        }
+        self.cookoff =
+            self.ammo_effects.contains("INCENDIARY") || self.ammo_effects.contains("COOKOFF");
+        self.special_cookoff = self.ammo_effects.contains("SPECIAL_COOKOFF");
     }
 
     /// Whether a fire makes it go off.
@@ -337,6 +358,9 @@ pub fn load_paths(dirs: &[&std::path::Path]) -> Result<Vec<ItemType>, LoadError>
             // `LIGHT_7` and friends are read into the item's light emission and
             // then dropped from the flag set (`item_factory.cpp:434-456`).
             item.flags.retain(|flag| !flag.starts_with("LIGHT_"));
+            // Whether the ammunition cooks off is derived last, from the effects and the
+            // materials both, which is why it cannot be read off the object directly.
+            item.derive_cookoff();
             out.push(item);
         }
     }
@@ -613,6 +637,7 @@ fn resolve(
         materials: BTreeMap::new(),
         flags: BTreeSet::new(),
         explode_in_fire: false,
+        ammo_effects: BTreeSet::new(),
         cookoff: false,
         special_cookoff: false,
         subtypes: BTreeSet::new(),
@@ -786,6 +811,17 @@ fn apply_slots(item: &mut ItemType, object: &Object) {
     }
     if let Some(explodes) = boolean(object, "explode_in_fire") {
         item.explode_in_fire = explodes;
+    }
+    // Ammunition states its effects as `effects` (`item_factory.cpp:2990`), not `ammo_effects`,
+    // which is only the name the reference gives the field once read.
+    let is_ammo_now = strings(object, "subtypes")
+        .iter()
+        .any(|kind| kind == "AMMO");
+    if is_ammo_now && object.get("effects").is_some() {
+        item.ammo_effects.clear();
+        for effect in strings(object, "effects") {
+            item.ammo_effects.insert(effect);
+        }
     }
     if let Some(kind) = string(object, "comestible_type") {
         item.comestible_type = kind;
