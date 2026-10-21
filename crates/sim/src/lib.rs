@@ -875,7 +875,9 @@ pub fn items_at(world: &mut World, square: (i32, i32)) -> Vec<Entity> {
     {
         let mut query = world.query::<(Entity, &Position, &GroundItem)>();
         for (entity, at, _) in query.iter(world) {
-            if at.x == square.0 && at.y == square.1 {
+            // Something inside a container is not lying on the square, whatever square its container is
+            // standing on. Without this, a craft that holds its own parts looks like it left them there.
+            if at.x == square.0 && at.y == square.1 && world.get::<Inside>(entity).is_none() {
                 found.push(entity);
             }
         }
@@ -2793,4 +2795,127 @@ pub fn craft_turn(work: &mut CraftingWork, moves: i64, speed: f64) -> WorkOutcom
     } else {
         WorkOutcome::Working
     }
+}
+
+/// The kind an unfinished craft carries until it becomes its result.
+pub const UNFINISHED_CRAFT: ItemTypeId = ItemTypeId(u32::MAX);
+
+/// Marks the item that holds a craft in progress, together with what it will become.
+///
+/// Reference: `craft_activity_actor` (`src/activity_actor.cpp:4163-4335`). The reference's in-progress craft
+/// is an item: it **holds the components from the moment they are taken**, which is why cancelling a craft
+/// loses nothing - the unfinished item stays where it is with its contents inside, and only an empty
+/// componentless recipe item is removed outright.
+#[derive(Debug, Clone, Copy, Component)]
+pub struct CraftInProgress {
+    /// What it will become.
+    pub result_kind: ItemTypeId,
+    /// How many at once.
+    pub batch: i32,
+    /// Where the work stands.
+    pub work: CraftingWork,
+}
+
+/// How a craft ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CraftEnd {
+    /// Still working.
+    Working,
+    /// Finished: the result is on the square and this is it.
+    Made(Entity),
+    /// Cancelled: the parts are still inside the unfinished craft.
+    Cancelled,
+}
+
+/// Starts a craft, taking the parts into an unfinished item on the square.
+///
+/// # Errors
+///
+/// Returns [`CraftError::Missing`] when a requirement group cannot be met; nothing is taken then.
+pub fn start_craft(
+    world: &mut World,
+    square: (i32, i32),
+    components: &[Vec<(ItemTypeId, i32)>],
+    batch: i32,
+    result_kind: ItemTypeId,
+    base_total_moves: f64,
+) -> Result<Entity, CraftError> {
+    // Take the parts first, exactly as `craft_on_square` does, and keep them where they came from.
+    let mut parts: Vec<(ItemTypeId, i32)> = Vec::new();
+    for (group, alternatives) in components.iter().enumerate() {
+        let mut chosen = None;
+        for (kind, count) in alternatives {
+            let wanted = count.saturating_mul(batch.max(1));
+            if count_on_square(world, square, *kind) >= wanted {
+                chosen = Some((*kind, wanted));
+                break;
+            }
+        }
+        if let Some(part) = chosen {
+            parts.push(part);
+        } else {
+            for (kind, count) in parts.iter().rev() {
+                drop_item(world, square, *kind, *count);
+            }
+            return Err(CraftError::Missing { group });
+        }
+    }
+    for (kind, wanted) in &parts {
+        consume_items(world, square, *kind, *wanted);
+    }
+    // An unfinished craft is an item that holds its parts, so nothing can be lost by cancelling it. It
+    // carries a sentinel kind until it is finished, so nothing can mistake it for the result.
+    let craft = drop_item(world, square, UNFINISHED_CRAFT, 1);
+    world
+        .entity_mut(craft)
+        .insert(Container {
+            capacity_ml: i64::MAX,
+        })
+        .insert(CraftInProgress {
+            result_kind,
+            batch: batch.max(1),
+            work: CraftingWork::new(base_total_moves),
+        });
+    for (kind, count) in parts {
+        let part = drop_item(world, square, kind, count);
+        // Capacity is unbounded, so this cannot fail.
+        let _ = insert_into(world, craft, part, |_| 0);
+    }
+    Ok(craft)
+}
+
+/// Spends one turn on a craft.
+pub fn craft_turn_on(world: &mut World, craft: Entity, moves: i64, speed: f64) -> CraftEnd {
+    let Some(mut in_progress) = world.get::<CraftInProgress>(craft).copied() else {
+        return CraftEnd::Cancelled;
+    };
+    let outcome = craft_turn(&mut in_progress.work, moves, speed);
+    if let Some(mut component) = world.get_mut::<CraftInProgress>(craft) {
+        component.work = in_progress.work;
+    }
+    match outcome {
+        WorkOutcome::Working => CraftEnd::Working,
+        WorkOutcome::Cancelled => CraftEnd::Cancelled,
+        WorkOutcome::Finished => {
+            let square = world
+                .get::<Position>(craft)
+                .map_or((0, 0), |position| (position.x, position.y));
+            // The parts are consumed and the unfinished item becomes the result.
+            for held in contents(world, craft) {
+                world.despawn(held);
+            }
+            world.despawn(craft);
+            CraftEnd::Made(drop_item(
+                world,
+                square,
+                in_progress.result_kind,
+                in_progress.batch,
+            ))
+        }
+    }
+}
+
+/// Cancels a craft. The unfinished item stays where it is with its parts inside it.
+pub fn cancel_craft(world: &mut World, craft: Entity) {
+    world.entity_mut(craft).remove::<CraftInProgress>();
 }
