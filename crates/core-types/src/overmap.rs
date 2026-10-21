@@ -511,3 +511,150 @@ pub fn lay_out_street(
 
     straight_path(source, direction, laid)
 }
+
+/// What a street tile turned out to be.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StreetTile {
+    /// Plain road.
+    Road,
+    /// A road tile that a sub-street leaves from, so a four-way junction.
+    Junction,
+    /// A junction that also carries a manhole.
+    Manhole,
+}
+
+/// Everything a growing town carries with it.
+///
+/// The reference passes the map, the connection, the city, the rolls and the set of placed buildings as five
+/// separate arguments through every recursive call; the port gathers them once so the recursion says what it is
+/// doing rather than repeating itself.
+pub struct Town<'a> {
+    /// The map being built on.
+    pub map: &'a Overmap,
+    /// What the street rule asks about the terrain.
+    pub view: &'a StreetView<'a>,
+    /// The dice, in one stream.
+    pub rolls: &'a mut Rolls,
+    /// The tiles the town has grown, in the order they were laid.
+    pub tiles: &'a mut Vec<((i32, i32), StreetTile)>,
+}
+
+/// Grows a street, and the streets that leave it, across a map.
+///
+/// Reference: `build_city_street` (`overmap.cpp`). The shape is kept exactly:
+///
+/// * lay the street out with `lay_out_street` and give up if it is one tile or less;
+/// * walk the tiles after the first, counting down a length `c` from the city's size;
+/// * every `block_width` tiles - and only while `c` is at least two and past the last block - sprout a street
+///   **left** and **right**, each `size - rng(1, 3)` long, where a length of one is bumped to two so no street is a
+///   single-tile nub; those sub-streets alternate wide and thin blocks of their own;
+/// * at a tile where a sub-street leaves, a junction may carry a manhole, one time in two;
+/// * at the far end, if the city is still big and nothing was sprouted, turn a random way and grow again, and one
+///   time in five grow the other way as well.
+///
+/// The tiles are reported rather than written, so a test can read the shape of a town without a terrain table.
+pub fn build_city_street(
+    town: &mut Town<'_>,
+    source: (i32, i32),
+    direction: Direction,
+    size: i32,
+    block_width: i32,
+    depth: usize,
+) {
+    let map = town.map;
+    let view = town.view;
+    // A town that grew into itself would otherwise recurse until the stack runs out; the reference relies on the
+    // shrinking `size` to terminate, and this is the same guard the group drawing uses.
+    if depth > 6 || size < 2 {
+        return;
+    }
+
+    let path = lay_out_street(
+        map,
+        source,
+        direction,
+        usize::try_from(size + 1).unwrap_or(1),
+        view,
+    );
+    if path.len() <= 1 {
+        return;
+    }
+    for tile in &path {
+        town.tiles.push((*tile, StreetTile::Road));
+    }
+
+    let mut c = size;
+    let mut croad = size;
+    let new_width = if block_width == 2 {
+        town.rolls.rng(3, 5)
+    } else {
+        2
+    };
+
+    for (index, tile) in path.iter().enumerate().skip(1) {
+        c -= 1;
+        if c >= 2 && c < croad - block_width {
+            croad = c;
+            let mut left = size - town.rolls.rng(1, 3);
+            let mut right = size - town.rolls.rng(1, 3);
+            if left == 1 {
+                left += 1;
+            }
+            if right == 1 {
+                right += 1;
+            }
+            build_city_street(
+                town,
+                *tile,
+                direction.turn_left(),
+                left,
+                new_width,
+                depth + 1,
+            );
+            build_city_street(
+                town,
+                *tile,
+                direction.turn_right(),
+                right,
+                new_width,
+                depth + 1,
+            );
+            // A junction is where the sub-streets leave, and one in two of them carries a manhole.
+            let kind = if town.rolls.rng(1, 2) == 1 {
+                StreetTile::Manhole
+            } else {
+                StreetTile::Junction
+            };
+            if let Some(entry) = town
+                .tiles
+                .iter_mut()
+                .rev()
+                .find(|(position, _)| position == tile && index > 0)
+            {
+                entry.1 = kind;
+            }
+        }
+    }
+
+    // At the edge of town, turn and grow again: small neighbourhoods rather than one long road.
+    let shorter = size - town.rolls.rng(1, 3);
+    let last = path.last().copied().unwrap_or(source);
+    if shorter >= 2 && c == 0 {
+        let turn = if town.rolls.rng(1, 2) == 1 {
+            direction.turn_left()
+        } else {
+            direction.turn_right()
+        };
+        build_city_street(town, last, turn, shorter, block_width, depth + 1);
+        if town.rolls.rng(1, 5) == 1 {
+            build_city_street(
+                town,
+                last,
+                turn.turn_right().turn_right(),
+                shorter,
+                block_width,
+                depth + 1,
+            );
+        }
+    }
+}
