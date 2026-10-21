@@ -1961,6 +1961,18 @@ pub struct ItemBurnTotals {
     pub fuel: f64,
     /// How many items the fire finished off.
     pub consumed: i32,
+    /// How many items went off instead of burning.
+    pub detonated: i32,
+}
+
+/// What the burning loop needs to ask about an item, bundled so the signature stays readable.
+pub struct ItemFireRules<F, I, E> {
+    /// How it burns, or `None` when it does not.
+    pub plan_of: F,
+    /// Whether it cannot be taken out of its container.
+    pub irremovable: I,
+    /// Whether a fire sets it off rather than burning it.
+    pub explodes: E,
 }
 
 /// Burns what is lying on one square.
@@ -1979,8 +1991,11 @@ pub fn burn_items_in_fire(
     square: (i32, i32),
     intensity: i32,
     contained: bool,
-    plan_of: impl Fn(ItemTypeId) -> Option<ItemBurnPlan>,
-    irremovable: impl Fn(Entity) -> bool,
+    rules: &ItemFireRules<
+        impl Fn(ItemTypeId) -> Option<ItemBurnPlan>,
+        impl Fn(Entity) -> bool,
+        impl Fn(Entity) -> bool,
+    >,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) -> ItemBurnTotals {
     let max_consume = intensity * 2;
@@ -1988,7 +2003,24 @@ pub fn burn_items_in_fire(
         smoke: 0.0,
         fuel: 0.0,
         consumed: 0,
+        detonated: 0,
     };
+    // Items that go off in a fire are removed before anything burns (`src/map_field.cpp:982-993`):
+    // the reference detonates them and swallows whatever they throw out. The port removes them and
+    // spills what they held; the explosion itself needs blast damage, which is declared not ported.
+    for entity in items_at(world, square) {
+        if !(rules.explodes)(entity) {
+            continue;
+        }
+        for held in contents(world, entity) {
+            take_out(world, held);
+            if (rules.irremovable)(held) {
+                world.despawn(held);
+            }
+        }
+        world.despawn(entity);
+        totals.detonated += 1;
+    }
     let here = items_at(world, square);
     for entity in here {
         if totals.consumed >= max_consume {
@@ -1998,7 +2030,7 @@ pub fn burn_items_in_fire(
             Some(item) => (item.kind, item.charges, item.burnt),
             None => continue,
         };
-        let Some(plan) = plan_of(kind) else {
+        let Some(plan) = (rules.plan_of)(kind) else {
             continue;
         };
         let burnable = Burnable {
@@ -2029,7 +2061,7 @@ pub fn burn_items_in_fire(
                 take_out(world, held);
                 // The reference collects only contents without `NO_UNLOAD` into `new_content`;
                 // anything irremovable is erased along with the container rather than spilling.
-                if irremovable(held) {
+                if (rules.irremovable)(held) {
                     world.despawn(held);
                 }
             }

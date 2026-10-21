@@ -7,8 +7,8 @@
 use bevy_ecs::prelude::*;
 use cdda_core_types::rng::Rolls;
 use cdda_sim::{
-    BurnDataView, Container, GroundItem, ItemBurnPlan, ItemBurnTotals, ItemTypeId, MaterialPortion,
-    burn_items_in_fire, contents, drop_item, insert_into, items_at,
+    BurnDataView, Container, GroundItem, ItemBurnPlan, ItemBurnTotals, ItemFireRules, ItemTypeId,
+    MaterialPortion, burn_items_in_fire, contents, drop_item, insert_into, items_at,
 };
 
 fn level(fuel: f64, burn: f64) -> BurnDataView {
@@ -45,8 +45,11 @@ fn a_small_item_is_finished_and_leaves_the_square() {
         (5, 5),
         3,
         false,
-        |_| Some(wooden(250.0, false)),
-        |_| false,
+        &ItemFireRules {
+            plan_of: |_| Some(wooden(250.0, false)),
+            irremovable: |_| false,
+            explodes: |_| false,
+        },
         &mut rolls,
     );
     assert_eq!(totals.consumed, 1, "one item gone");
@@ -66,8 +69,11 @@ fn a_fire_eats_at_most_two_items_per_point_of_intensity() {
         (5, 5),
         2,
         false,
-        |_| Some(wooden(250.0, false)),
-        |_| false,
+        &ItemFireRules {
+            plan_of: |_| Some(wooden(250.0, false)),
+            irremovable: |_| false,
+            explodes: |_| false,
+        },
         &mut rolls,
     );
     assert_eq!(totals.consumed, 4, "intensity 2 eats four");
@@ -84,8 +90,11 @@ fn a_big_item_survives_the_turn_but_remembers_burning() {
         (5, 5),
         1,
         false,
-        |_| Some(wooden(10_000.0, false)),
-        |_| false,
+        &ItemFireRules {
+            plan_of: |_| Some(wooden(10_000.0, false)),
+            irremovable: |_| false,
+            explodes: |_| false,
+        },
         &mut rolls,
     );
     assert_eq!(totals.consumed, 0, "ten litres does not vanish in one turn");
@@ -107,8 +116,11 @@ fn an_item_with_no_burn_plan_is_left_alone() {
         (5, 5),
         3,
         false,
-        |_| None,
-        |_| false,
+        &ItemFireRules {
+            plan_of: |_| None,
+            irremovable: |_| false,
+            explodes: |_| false,
+        },
         &mut rolls,
     );
     assert_eq!(
@@ -116,7 +128,8 @@ fn an_item_with_no_burn_plan_is_left_alone() {
         ItemBurnTotals {
             smoke: 0.0,
             fuel: 0.0,
-            consumed: 0
+            consumed: 0,
+            detonated: 0
         }
     );
     assert_eq!(
@@ -140,20 +153,23 @@ fn a_stack_loses_charges_rather_than_vanishing() {
         (5, 5),
         1,
         false,
-        |_| {
-            Some(ItemBurnPlan {
-                materials: vec![MaterialPortion {
-                    portions: 1,
-                    levels: [level(1.0, 0.03); 3],
-                }],
-                volume_ml: 250.0,
-                liquid: false,
-                material_total: 1,
-                by_charges: true,
-                stack_size: 1,
-            })
+        &ItemFireRules {
+            plan_of: |_| {
+                Some(ItemBurnPlan {
+                    materials: vec![MaterialPortion {
+                        portions: 1,
+                        levels: [level(1.0, 0.03); 3],
+                    }],
+                    volume_ml: 250.0,
+                    liquid: false,
+                    material_total: 1,
+                    by_charges: true,
+                    stack_size: 1,
+                })
+            },
+            irremovable: |_| false,
+            explodes: |_| false,
         },
-        |_| false,
         &mut rolls,
     );
     assert_eq!(totals.consumed, 0);
@@ -182,8 +198,11 @@ fn a_fireproof_item_sits_there_through_the_whole_thing() {
         (5, 5),
         3,
         false,
-        |_| Some(plan.clone()),
-        |_| false,
+        &ItemFireRules {
+            plan_of: |_| Some(plan.clone()),
+            irremovable: |_| false,
+            explodes: |_| false,
+        },
         &mut rolls,
     );
     assert_eq!(
@@ -191,7 +210,8 @@ fn a_fireproof_item_sits_there_through_the_whole_thing() {
         ItemBurnTotals {
             smoke: 0.0,
             fuel: 0.0,
-            consumed: 0
+            consumed: 0,
+            detonated: 0
         }
     );
     assert_eq!(
@@ -216,14 +236,17 @@ fn a_container_that_burns_away_spills_what_was_inside_it() {
         (5, 5),
         3,
         false,
-        |kind| {
-            if kind == ItemTypeId(7) {
-                Some(wooden(250.0, false))
-            } else {
-                None
-            }
+        &ItemFireRules {
+            plan_of: |kind| {
+                if kind == ItemTypeId(7) {
+                    Some(wooden(250.0, false))
+                } else {
+                    None
+                }
+            },
+            irremovable: |_| false,
+            explodes: |_| false,
         },
-        |_| false,
         &mut rolls,
     );
     assert_eq!(totals.consumed, 1, "the box is gone");
@@ -249,14 +272,17 @@ fn an_irremovable_item_stays_inside_a_container_that_burns_away() {
         (5, 5),
         3,
         false,
-        |kind| {
-            if kind == ItemTypeId(7) {
-                Some(wooden(250.0, false))
-            } else {
-                None
-            }
+        &ItemFireRules {
+            plan_of: |kind| {
+                if kind == ItemTypeId(7) {
+                    Some(wooden(250.0, false))
+                } else {
+                    None
+                }
+            },
+            irremovable: |held| held == tablet,
+            explodes: |_| false,
         },
-        |held| held == tablet,
         &mut rolls,
     );
     assert_eq!(totals.consumed, 1, "the box burned");
@@ -267,5 +293,70 @@ fn an_irremovable_item_stays_inside_a_container_that_burns_away() {
     assert!(
         world.get::<GroundItem>(tablet).is_none(),
         "an irremovable item is erased with its container, as the reference does"
+    );
+}
+
+#[test]
+fn something_that_goes_off_in_a_fire_never_burns() {
+    let mut world = World::new();
+    let bomb = drop_item(&mut world, (5, 5), ItemTypeId(11), 1);
+    let mut rolls = Rolls::new(1);
+    let mut control = Rolls::new(1);
+    let totals = burn_items_in_fire(
+        &mut world,
+        (5, 5),
+        3,
+        false,
+        &ItemFireRules {
+            // Even with a plan that would burn it to nothing, detonation wins.
+            plan_of: |_| Some(wooden(1.0, false)),
+            irremovable: |_| false,
+            explodes: |held| held == bomb,
+        },
+        &mut rolls,
+    );
+    assert_eq!(totals.detonated, 1, "it went off");
+    assert_eq!(totals.consumed, 0, "and did not burn");
+    assert!(
+        totals.smoke.abs() < f64::EPSILON,
+        "a detonation is not a fire"
+    );
+    assert!(
+        items_at(&mut world, (5, 5)).is_empty(),
+        "it left the square"
+    );
+    assert_eq!(
+        rolls.rng(0, 1_000),
+        control.rng(0, 1_000),
+        "no dice were drawn: nothing burned"
+    );
+}
+
+#[test]
+fn a_detonation_spills_what_the_item_held() {
+    let mut world = World::new();
+    let bomb = drop_item(&mut world, (5, 5), ItemTypeId(11), 1);
+    world
+        .entity_mut(bomb)
+        .insert(Container { capacity_ml: 1000 });
+    let shrapnel = drop_item(&mut world, (5, 5), ItemTypeId(4), 1);
+    insert_into(&mut world, bomb, shrapnel, |_| 10).expect("it fits");
+    let mut rolls = Rolls::new(1);
+    let totals = burn_items_in_fire(
+        &mut world,
+        (5, 5),
+        1,
+        false,
+        &ItemFireRules {
+            plan_of: |_| None,
+            irremovable: |_| false,
+            explodes: |held| held == bomb,
+        },
+        &mut rolls,
+    );
+    assert_eq!(totals.detonated, 1);
+    assert!(
+        items_at(&mut world, (5, 5)).contains(&shrapnel),
+        "the contents are on the floor"
     );
 }
