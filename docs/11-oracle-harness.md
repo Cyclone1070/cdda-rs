@@ -662,3 +662,27 @@ remain and they are both cheap to separate:
 The next probe watches the **save directory and the process**, not just the output file, and gives the run a longer
 budget before concluding anything. A dump that takes eleven minutes is still a usable gate; a dump that never
 happens is a different problem, and the difference is visible in what the save directory contains while it runs.
+
+### Probe: does the oracle work at all? (round 200) - it loads for over fifteen minutes
+
+The cheapest possible check, chosen because it needs no world and no map: `--dump-prototype-digest`, the dump the
+corpus gates already depend on and which this same binary produced in an earlier round.
+
+It never finished. The process was alive for **more than fifteen minutes** and `/tmp/digest.json` was never created.
+Its log holds one loading-screen tip, which is printed while content is being read - so it is loading, not crashed and
+not blocked on input.
+
+That reframes the last three probes. The frame dump was never the suspect and neither was the overmap read: **this
+binary takes minutes to load the reference's content on this machine, and the earlier dumps were taken when it did
+not**. The machine has been carrying a load average of four to twenty for most of this session, which is the
+difference between a dump that takes ninety seconds and one that takes a quarter of an hour.
+
+What to do about it, in order:
+
+1. **Measure the load, not the dump.** Run `--dump-prototype-digest` on an idle machine with a long budget and time
+   it. If it finishes in a couple of minutes, every earlier probe was a timeout and the dumps work.
+2. **Only then retry the frame and overmap dumps**, with a budget derived from that measurement rather than guessed.
+3. If it does not finish even when idle, the binary is the problem and the oracle build needs looking at before any
+   more dumping is attempted.
+
+This is the check that should have come first, and it is written down here so the next attempt starts with it.
