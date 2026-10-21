@@ -3658,25 +3658,26 @@ pub fn player_turn(
     landed
 }
 
-/// What a creature leaves behind.
+/// Marks an item as the body of a particular kind of creature.
 ///
-/// Reference: `monster::die` drops a corpse on the square (`m.add_item_or_charges( pos, item::make_corpse( ... ) )`).
-/// The port keeps the corpse as its own entity rather than an item, because the item layer has no notion of a
-/// creature yet, and a corpse that claims to be an item it is not would be worse than an honest separate thing.
-#[derive(Debug, Clone, Copy, Component)]
-pub struct Corpse {
+/// Reference: `item::make_corpse` (`src/item.cpp`) does not make a new kind of item - it makes an item of the
+/// `corpse` type and sets its `corpse` field to the monster's id, which is how butchering later knows what it is
+/// looking at. The port attaches the same fact as a component on the corpse item, so the item keeps being an item
+/// and gains the monster it used to be.
+#[derive(Debug, Clone, Copy, Component, PartialEq, Eq)]
+pub struct CorpseOf {
     /// What kind of creature this was.
     pub kind: MonsterKindId,
 }
 
-/// Takes the dead off the field and leaves what they were standing on.
+/// Takes the dead off the field and leaves what they were standing on, as the reference leaves it: an item.
 ///
-/// Reference: `monster::die` then the creature's removal (`game::remove_zombie` and friends). The order matters for
-/// a replay: a corpse appears on the square the creature occupied, and the square becomes walkable again in the same
-/// step, so a creature behind it can move through on its next turn.
+/// Reference: `monster::die` calls `m.add_item_or_charges( pos, item::make_corpse( ... ) )`, so a corpse is a
+/// **corpse item** rather than a creature-shaped thing the world has to know about. `corpse_kind` is the item type
+/// the content calls `corpse`, supplied by the caller because the item layer numbers types rather than naming them.
 ///
 /// Returns how many bodies were cleared.
-pub fn reap_dead_monsters(world: &mut World) -> usize {
+pub fn reap_dead_monsters(world: &mut World, corpse_kind: ItemTypeId) -> usize {
     let dead: Vec<(Entity, (i32, i32), MonsterKindId)> = {
         let mut query = world.query::<(Entity, &Position, &Monster)>();
         query
@@ -3687,13 +3688,8 @@ pub fn reap_dead_monsters(world: &mut World) -> usize {
     };
     for (entity, square, kind) in &dead {
         world.despawn(*entity);
-        world.spawn((
-            Position {
-                x: square.0,
-                y: square.1,
-            },
-            Corpse { kind: *kind },
-        ));
+        let corpse = drop_item(world, *square, corpse_kind, 1);
+        world.entity_mut(corpse).insert(CorpseOf { kind: *kind });
     }
     dead.len()
 }
@@ -3701,9 +3697,19 @@ pub fn reap_dead_monsters(world: &mut World) -> usize {
 /// How many corpses lie on a square.
 #[must_use]
 pub fn corpses_at(world: &mut World, square: (i32, i32)) -> usize {
-    let mut query = world.query::<(&Position, &Corpse)>();
+    let mut query = world.query::<(&Position, &CorpseOf)>();
     query
         .iter(world)
         .filter(|(position, _)| (position.x, position.y) == square)
         .count()
+}
+
+/// What kind of creature a corpse was, if the square holds one.
+#[must_use]
+pub fn corpse_kind_at(world: &mut World, square: (i32, i32)) -> Option<MonsterKindId> {
+    let mut query = world.query::<(&Position, &CorpseOf)>();
+    query
+        .iter(world)
+        .find(|(position, _)| (position.x, position.y) == square)
+        .map(|(_, corpse)| corpse.kind)
 }
