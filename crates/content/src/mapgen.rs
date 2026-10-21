@@ -9,7 +9,7 @@
 //! what made this family look blocked for several rounds, so it is written down here.
 
 use cdda_json::{Object, Value};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// The keys one mapgen object registers, split by the registry they belong to.
 #[derive(Debug, Default, Clone)]
@@ -113,4 +113,113 @@ pub fn keys_of(object: &Object) -> MapgenKeys {
         keys.update.push(id.clone());
     }
     keys
+}
+
+/// One mapgen object as the JSON states it: the rows of glyphs and what each glyph means.
+///
+/// Reference: `mapgen::load` for `method: "json"` (`src/mapgen.cpp`), which reads `rows` and resolves each
+/// character through `terrain` or `furniture`. The port keeps the raw rows and the symbol table, because
+/// resolving a symbol to an id is the terrain loader's job and doing it twice is how two loaders drift.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MapgenObject {
+    /// The overmap terrain this builds, or the nested id it is filed under.
+    pub om_terrain: String,
+    /// The rows, top to bottom.
+    pub rows: Vec<String>,
+    /// What each character means, as terrain ids.
+    pub terrain: BTreeMap<char, String>,
+    /// What each character means, as furniture ids.
+    pub furniture: BTreeMap<char, String>,
+    /// How likely this one is when several build the same terrain.
+    pub weight: i32,
+}
+
+impl MapgenObject {
+    /// How wide the rows are, which is the map's own width when the rows agree.
+    #[must_use]
+    pub fn width(&self) -> usize {
+        self.rows.first().map_or(0, String::len)
+    }
+
+    /// How many rows there are.
+    #[must_use]
+    pub fn height(&self) -> usize {
+        self.rows.len()
+    }
+
+    /// Whether every row is the same width, which the reference requires.
+    #[must_use]
+    pub fn rows_agree(&self) -> bool {
+        let width = self.width();
+        self.rows.iter().all(|row| row.len() == width)
+    }
+
+    /// The terrain id at a square, if the rows cover it.
+    #[must_use]
+    pub fn terrain_at(&self, x: usize, y: usize) -> Option<&str> {
+        let symbol = self.rows.get(y)?.chars().nth(x)?;
+        self.terrain.get(&symbol).map(String::as_str)
+    }
+}
+
+/// Reads every JSON mapgen in load order.
+#[must_use]
+pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
+    let mut out = Vec::new();
+    // A file may hold one object or a list of them; the reference accepts both.
+    let single = [value.clone()];
+    let entries: &[cdda_json::Value] = match value {
+        cdda_json::Value::Array(entries) => entries,
+        cdda_json::Value::Object(_) => &single,
+        _ => &[],
+    };
+    for entry in entries {
+        let cdda_json::Value::Object(object) = entry else {
+            continue;
+        };
+        // Only the JSON method builds from rows; the others are code.
+        // Only the JSON method builds from rows; the others are code (`src/mapgen.cpp`).
+        if let Some(cdda_json::Value::Str(method)) = object.get("method")
+            && method != "json"
+        {
+            continue;
+        }
+        let Some(cdda_json::Value::Str(om_terrain)) = object.get("om_terrain") else {
+            continue;
+        };
+        let Some(cdda_json::Value::Array(rows)) = object.get("rows") else {
+            continue;
+        };
+        let rows: Vec<String> = rows
+            .iter()
+            .filter_map(|row| match row {
+                cdda_json::Value::Str(text) => Some(text.clone()),
+                _ => None,
+            })
+            .collect();
+        let symbols = |key: &str| {
+            let mut table = BTreeMap::new();
+            if let Some(cdda_json::Value::Object(map)) = object.get(key) {
+                for (symbol, id) in map.members() {
+                    if let (Some(character), cdda_json::Value::Str(id)) =
+                        (symbol.chars().next(), id)
+                    {
+                        table.insert(character, id.clone());
+                    }
+                }
+            }
+            table
+        };
+        out.push(MapgenObject {
+            om_terrain: om_terrain.clone(),
+            rows,
+            terrain: symbols("terrain"),
+            furniture: symbols("furniture"),
+            weight: match object.get("weight") {
+                Some(cdda_json::Value::Int(value)) => i32::try_from(*value).unwrap_or(1000),
+                _ => 1000,
+            },
+        });
+    }
+    out
 }
