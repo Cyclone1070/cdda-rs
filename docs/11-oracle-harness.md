@@ -11,6 +11,19 @@ produces is worthless.
 
 ---
 
+## `--probe-mapgen`: asking instead of guessing
+
+`--probe-mapgen <oter_id>` runs one mapgen against a dummy `mapgendata` and prints the first row of what it
+produced. It exists because the plan for a `--dump-map` flag assumed that a dummy mapgendata would do, and
+that assumption had not been tested.
+
+**What it found:** `run_mapgen_func( "shelter", dummy_dat )` **returns false**. A map cannot be built from a
+dummy context, so a named-map dump needs a real `mapgendata` - one built from an overmap position
+(`mapgendata( tripoint_abs_omt, map&, density, when, mission )`), which means the overmap has to exist first.
+
+That is a small, concrete answer to a question that would otherwise have cost a round of guessing, and it is
+why the probe is worth keeping: it is the tool for the assumption, not for the feature.
+
 ## 1. Modes
 
 | Mode | Writes | Used by |

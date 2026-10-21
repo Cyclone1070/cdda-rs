@@ -9,6 +9,8 @@
 #include "do_turn.h"
 #include "game.h"
 #include "map.h"
+#include "mapgendata.h"
+#include "mapgen_functions.h"
 #include "enums.h"
 #include "item_factory.h"
 #include "item_group.h"
@@ -833,6 +835,24 @@ bool start_headless_game( const std::string &world_name, const std::string &star
         return false;
     }
     return true;
+}
+
+void probe_mapgen( const std::string &oter_id )
+{
+    map &here = get_map();
+    const string_id<oter_t> oter( oter_id );
+    const std::string mapgen_id = oter->get_mapgen_id();
+    std::fprintf( stderr, "probe: oter=%s mapgen=%s\n", oter_id.c_str(), mapgen_id.c_str() );
+    mapgendata dat( here, mapgendata::dummy_settings );
+    if( !run_mapgen_func( mapgen_id, dat ) ) {
+        std::fprintf( stderr, "probe: run_mapgen_func returned false\n" );
+        return;
+    }
+    std::fprintf( stderr, "probe: row 0:" );
+    for( int x = 0; x < 24; x++ ) {
+        std::fprintf( stderr, " %s", here.ter( tripoint_bub_ms( x, 0, 0 ) ).id().str().c_str() );
+    }
+    std::fprintf( stderr, "\n" );
 }
 
 void dump_frame( const std::string &path, int radius )

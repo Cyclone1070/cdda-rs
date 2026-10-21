@@ -141,6 +141,9 @@ void dump_state( const std::string &path );
 /** Writes the glyphs and light of the squares around the player. */
 void dump_frame( const std::string &path, int radius );
 
+/** Runs one named mapgen and prints its first row, to see whether the call works at all. */
+void probe_mapgen( const std::string &oter_id );
+
 } // namespace harness
 
 #endif // CATA_SRC_HARNESS_H

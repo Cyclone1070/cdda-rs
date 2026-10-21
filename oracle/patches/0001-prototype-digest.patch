@@ -129,8 +129,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-21 23:59:42
-@@ -0,0 +1,993 @@
++++ oracle/src/src/harness.cpp	2026-10-22 01:35:29
+@@ -0,0 +1,1013 @@
 +#include "harness.h"
 +#include "recipe_dictionary.h"
 +#include "requirements.h"
@@ -142,6 +142,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +#include "do_turn.h"
 +#include "game.h"
 +#include "map.h"
++#include "mapgendata.h"
++#include "mapgen_functions.h"
 +#include "enums.h"
 +#include "item_factory.h"
 +#include "item_group.h"
@@ -968,6 +970,24 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    return true;
 +}
 +
++void probe_mapgen( const std::string &oter_id )
++{
++    map &here = get_map();
++    const string_id<oter_t> oter( oter_id );
++    const std::string mapgen_id = oter->get_mapgen_id();
++    std::fprintf( stderr, "probe: oter=%s mapgen=%s\n", oter_id.c_str(), mapgen_id.c_str() );
++    mapgendata dat( here, mapgendata::dummy_settings );
++    if( !run_mapgen_func( mapgen_id, dat ) ) {
++        std::fprintf( stderr, "probe: run_mapgen_func returned false\n" );
++        return;
++    }
++    std::fprintf( stderr, "probe: row 0:" );
++    for( int x = 0; x < 24; x++ ) {
++        std::fprintf( stderr, " %s", here.ter( tripoint_bub_ms( x, 0, 0 ) ).id().str().c_str() );
++    }
++    std::fprintf( stderr, "\n" );
++}
++
 +void dump_frame( const std::string &path, int radius )
 +{
 +    std::FILE *out = std::fopen( path.c_str(), "wb" );
@@ -1126,8 +1146,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +}  // namespace harness
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-21 23:51:15
-@@ -0,0 +1,154 @@
++++ oracle/src/src/harness.h	2026-10-22 01:30:23
+@@ -0,0 +1,157 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -1271,6 +1291,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +/** Writes the glyphs and light of the squares around the player. */
 +void dump_frame( const std::string &path, int radius );
 +
++/** Runs one named mapgen and prints its first row, to see whether the call works at all. */
++void probe_mapgen( const std::string &oter_id );
++
 +} // namespace harness
 +
 +#endif // CATA_SRC_HARNESS_H
@@ -1304,7 +1327,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-21 23:51:22
++++ oracle/src/src/main.cpp	2026-10-22 01:30:23
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -1315,7 +1338,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,36 @@
+@@ -272,6 +275,37 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -1328,6 +1351,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    // Harness: the state of a freshly started game.
 +    std::string dump_state;
 +    std::string dump_frame;
++    std::string probe_mapgen;
 +    int dump_frame_radius = 20;
 +    // Harness: resolved terrain and furniture prototypes.
 +    std::string dump_terrain;
@@ -1352,7 +1376,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +333,206 @@
+@@ -300,6 +334,216 @@
                  }
              },
              {
@@ -1506,6 +1530,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                }
 +            },
 +            {
++                "--probe-mapgen", "<oter_id>",
++                "Runs one mapgen and prints its first row (a diagnostic, not a dump)",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.probe_mapgen = params[0];
++                    return 1;
++                }
++            },
++            {
 +                "--dump-frame", "<file>",
 +                "Starts a new game headlessly and writes the glyphs around the player to <file>",
 +                section_default,
@@ -1559,10 +1593,20 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +1019,155 @@
+@@ -786,6 +1030,165 @@
      // depend on the mods.
      try {
          g->load_static_data();
++        if( !cli.probe_mapgen.empty() ) {
++            std::string error;
++            test_mode = true;
++            if( !harness::start_headless_game( "harness-fixed", "", error ) ) {
++                std::fprintf( stderr, "harness: %s\n", error.c_str() );
++                exit_handler( 2 );
++            }
++            harness::probe_mapgen( cli.probe_mapgen );
++            exit_handler( 0 );
++        }
 +        if( !cli.dump_frame.empty() ) {
 +            const std::string world_name =
 +                cli.world_name.empty() ? "harness-fixed" : cli.world_name;
