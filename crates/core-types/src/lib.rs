@@ -28,6 +28,7 @@ pub mod paths;
 pub mod rng;
 pub mod scent;
 pub mod shadowcasting;
+pub mod sound;
 pub mod strings;
 pub mod submap;
 pub mod text;
