@@ -141,8 +141,18 @@ Two changes fixed it, and both are structural rather than a tweak:
   `content_suite` went from **185 s to 23 s** on its own and the suite from **185 s
   to 96 s** wall.
 
-  What is left is `json_suite` at 57 s, which parses the reference tree directly
-  rather than through a loader, and the same treatment applies there next.
+* **Cases inside a binary run in parallel.** `--test-threads=1` was hiding the
+  machine: `json_suite` takes 51 s of work and 16 s of wall when its four heavy
+  gates overlap. With the harness left to decide, the whole suite went from
+  **96 s to 33 s** and nothing failed. Four binaries at a time, not eight: measured
+  on twelve cores, four and eight both finish in 33 s, and eight leaves the load
+  average at 16 instead of 14. Same speed, more pressure on everything else.
+* **`json_suite`'s two tree walks share one parse per file.** `data/json` is
+  inside `data/`, so the wider gate was parsing the narrower gate's 3,013 files a
+  second time; `tests/json_suite/parsed.rs` remembers each file's answer, taking
+  that gate from 11.7 s to 8.0 s.
+
+The suite is now **33 s** for 873 cases, from 283 s at the start of this work.
 
 Builds run at `CARGO_BUILD_JOBS=8` and the oracle at `JOBS=8`. Compiling on all twelve cores
 makes every other shell command on the machine wait minutes for a turn while the browser stays

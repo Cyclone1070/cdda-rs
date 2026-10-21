@@ -56,10 +56,11 @@ def children_cpu() -> float:
     return usage.ru_utime + usage.ru_stime
 
 
-def run(binary: pathlib.Path) -> tuple[str, int, float, str]:
+def run(binary: pathlib.Path, threads: int) -> tuple[str, int, float, str]:
     began = time.monotonic()
+    command = [str(binary)] if threads == 0 else [str(binary), f"--test-threads={threads}"]
     finished = subprocess.run(
-        [str(binary), "--test-threads=1"], capture_output=True, text=True, check=False
+        command, capture_output=True, text=True, check=False
     )
     return (
         binary.name,
@@ -72,11 +73,13 @@ def run(binary: pathlib.Path) -> tuple[str, int, float, str]:
 def default_jobs() -> int:
     """How many binaries to run at once.
 
-    Capped at eight, and at two fewer than the machine has cores, so a test run never takes the whole
-    machine: a suite that makes everything else on the desktop stutter is a suite that gets skipped.
+    Four, or half the cores when there are fewer. Measured on a twelve-core machine: four at a time and
+    eight at a time both finish in 33 seconds, and eight leaves the load average at 16 instead of 14 -
+    the same speed for more pressure on everything else running. Cases inside a binary run in parallel
+    by default, so the machine is busy enough already.
     """
     cores = os.cpu_count() or 4
-    return max(1, min(8, cores - 2))
+    return max(1, min(4, cores // 2))
 
 
 def load_average() -> float:
@@ -90,6 +93,12 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--jobs", type=int, default=default_jobs())
     parser.add_argument("--filter", default="")
+    parser.add_argument(
+        "--threads",
+        type=int,
+        default=0,
+        help="cases to run at once inside each binary; 0 lets the test harness decide",
+    )
     arguments = parser.parse_args()
 
     selected = [path for path in binaries() if arguments.filter in path.name]
@@ -99,7 +108,7 @@ def main() -> int:
     cpu_before = children_cpu()
     results = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=arguments.jobs) as pool:
-        for result in pool.map(run, selected):
+        for result in pool.map(lambda path: run(path, arguments.threads), selected):
             results.append(result)
     elapsed = time.monotonic() - started
 
