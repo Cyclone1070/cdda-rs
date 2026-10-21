@@ -15,6 +15,7 @@ pub mod digest;
 pub mod eocs;
 pub mod factory;
 pub mod fields;
+pub mod frames;
 pub mod generated;
 pub mod item_groups;
 pub mod items;
