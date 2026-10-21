@@ -189,6 +189,40 @@ impl Level {
 }
 
 impl Level {
+    /// Whether a square can be seen from an origin, using the cached cast.
+    ///
+    /// Reference: `map::seen` reading `seen_cache`, which `map::build_seen_cache` fills with the
+    /// cast around the player (`src/lightmap.cpp:1039-1100`). A square with no submap is never
+    /// seen, because the world has not made it.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the radius is negative, as [`Level::visibility`] does.
+    pub fn seen_at(
+        &mut self,
+        origin: (i32, i32),
+        radius: i32,
+        blocks_light: impl Fn(u32) -> bool,
+        square: (i32, i32),
+    ) -> bool {
+        let dx = square.0 - origin.0;
+        let dy = square.1 - origin.1;
+        if dx.abs() > radius || dy.abs() > radius {
+            return false;
+        }
+        let rows = self.cached_visibility(origin, radius, blocks_light);
+        let Ok(row) = usize::try_from(dy + radius) else {
+            return false;
+        };
+        let Ok(column) = usize::try_from(dx + radius) else {
+            return false;
+        };
+        rows.get(row)
+            .and_then(|row| row.get(column))
+            .copied()
+            .unwrap_or(false)
+    }
+
     /// The visibility last built, if it can still be trusted.
     ///
     /// The reference rebuilds a level's light when the level is dirty
