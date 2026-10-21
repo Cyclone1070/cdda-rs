@@ -2676,3 +2676,56 @@ fn cost_group(components: &[Vec<(ItemTypeId, i32)>], kind: ItemTypeId) -> usize 
         .position(|alternatives| alternatives.iter().any(|(candidate, _)| *candidate == kind))
         .unwrap_or(0)
 }
+
+/// How many moves a batch takes to craft, once the crafter's speed is known.
+///
+/// Reference: `recipe::batch_time` (`src/recipe.cpp:108-149`). Everything about this is fiddly and every
+/// part of it is load-bearing:
+///
+/// * a speed multiplier of zero means "cannot craft here", and the reference reports the time as if the
+///   crafter were at full speed rather than dividing by zero;
+/// * a recipe that does not benefit from batching takes the whole time per unit;
+/// * one that does follows a scaled logistic curve, which is why a batch of twenty is far less than twenty
+///   times one - the per-unit saving deepens with the batch and flattens out at `batch_rscale`;
+/// * assistants take a fixed cut, one giving three quarters and two or more giving three fifths;
+/// * and no arrangement ever makes a batch faster than a single unit.
+#[must_use]
+pub fn batch_time_moves(
+    time_moves: i64,
+    batch: i32,
+    batch_rscale: f64,
+    batch_rsize: f64,
+    multiplier: f64,
+    assistants: usize,
+) -> i64 {
+    let multiplier = if multiplier == 0.0 { 1.0 } else { multiplier };
+    #[allow(clippy::cast_precision_loss)]
+    let local_time = time_moves as f64 / multiplier;
+    if batch_rscale == 0.0 && assistants == 0 {
+        #[allow(clippy::cast_possible_truncation)]
+        return (local_time as i64) * i64::from(batch.max(1));
+    }
+    let mut total = 0.0;
+    if batch_rscale == 0.0 {
+        total = local_time * f64::from(batch.max(1));
+    } else {
+        let scale = batch_rsize / 6.0;
+        for unit in 0..batch.max(1) {
+            #[allow(clippy::cast_precision_loss)]
+            let step = f64::from(unit) / scale;
+            let logf = (2.0 / (1.0 + (-step).exp())) - 1.0;
+            total += local_time * (1.0 - (batch_rscale * logf));
+        }
+    }
+    match assistants {
+        1 => total *= 0.75,
+        count if count >= 2 => total *= 0.60,
+        _ => {}
+    }
+    if total < local_time {
+        total = local_time;
+    }
+    #[allow(clippy::cast_possible_truncation)]
+    let total = total as i64;
+    total
+}
