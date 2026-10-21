@@ -121,3 +121,100 @@ impl Overmap {
         self.tiles.iter().filter(|tile| **tile == id).count()
     }
 }
+
+/// The world settings that decide how many cities an overmap holds.
+///
+/// Reference: the `CITY_SIZE`, `CITY_SPACING`, `OVERMAP_MAXIMUM_URBANITY` and forestosity settings
+/// (`options.cpp`, whose defaults are 8, 4 and 0). Kept as a plain struct so a test can state a world instead of
+/// reaching for global options.
+#[derive(Debug, Clone, Copy)]
+pub struct CitySettings {
+    /// `CITY_SIZE`: how big a city is, where zero means no cities at all.
+    pub size: i32,
+    /// `CITY_SPACING`: how far apart they are kept.
+    pub spacing: i32,
+    /// How built up the world is, which raises the largest city.
+    pub urbanity: i32,
+    /// How wooded the world is, which lowers it.
+    pub forestosity: i32,
+    /// The ceiling on how far urbanity may grow a city.
+    pub maximum_urbanity: i32,
+}
+
+impl Default for CitySettings {
+    fn default() -> Self {
+        // The reference's own defaults.
+        Self {
+            size: 8,
+            spacing: 4,
+            urbanity: 0,
+            forestosity: 0,
+            maximum_urbanity: 0,
+        }
+    }
+}
+
+/// The largest a city may grow under these settings.
+///
+/// Reference: `place_cities` (`overmap.cpp`). The adjustment may not push the size below two, and the result may
+/// not fall below `CITY_SIZE` - the reference says in a comment that "funny things happen" otherwise, which is the
+/// kind of note worth keeping rather than rediscovering.
+#[must_use]
+pub fn max_city_size(settings: CitySettings) -> i32 {
+    let size_adjust = settings
+        .urbanity
+        .saturating_sub(settings.forestosity / 2)
+        .min(-settings.size + 2);
+    let grown = settings
+        .size
+        .saturating_add(size_adjust)
+        .min(settings.size.saturating_mul(settings.maximum_urbanity));
+    grown.max(settings.size)
+}
+
+/// How much of the overmap cities cover, from the spacing.
+///
+/// Reference: `1.0 / 2^spacing` - each step of spacing halves the share of the map that is urban.
+#[must_use]
+pub fn city_coverage_ratio(spacing: i32) -> f64 {
+    1.0 / 2.0_f64.powi(spacing.clamp(0, 30))
+}
+
+/// How many tiles one city and its surroundings take up.
+#[must_use]
+pub fn tiles_per_city(size: i32, largest: i32) -> f64 {
+    let across = f64::from(size * 2 + 1);
+    let down = f64::from(largest * 2 + 1);
+    across * down * 3.0 / 4.0
+}
+
+/// How many cities belong on an overmap, before the remainder roll.
+///
+/// Reference: `omts_per_overmap * city_map_coverage_ratio / omts_per_city`, with the fraction then decided by
+/// `roll_remainder`. `draw` is that decision, a uniform value in `[0, 1)`, supplied by the caller for the same
+/// reason every other rule takes its dice from the caller.
+#[must_use]
+pub fn cities_for(settings: CitySettings, draw: f64) -> i32 {
+    if settings.size <= 0 {
+        return 0;
+    }
+    let largest = max_city_size(settings);
+    let coverage = city_coverage_ratio(settings.spacing);
+    let per_city = tiles_per_city(settings.size, largest);
+    if per_city <= 0.0 {
+        return 0;
+    }
+    let exact = f64::from(OMAPX * OMAPX) * coverage / per_city;
+    let whole = exact.floor();
+    let fraction = exact - whole;
+    let count = if fraction > 0.0 && draw < fraction {
+        whole + 1.0
+    } else {
+        whole
+    };
+    // The count is a whole number by construction; the clamp keeps a wild setting from wrapping it.
+    let bounded = count.clamp(0.0, f64::from(i32::MAX));
+    #[allow(clippy::cast_possible_truncation)]
+    let cities = bounded as i32;
+    cities
+}
