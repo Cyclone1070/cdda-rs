@@ -24,6 +24,11 @@ dummy context, so a named-map dump needs a real `mapgendata` - one built from an
 That is a small, concrete answer to a question that would otherwise have cost a round of guessing, and it is
 why the probe is worth keeping: it is the tool for the assumption, not for the feature.
 
+**Second probe, second answer.** Built with a real `mapgendata` from the player's overmap position instead of
+a dummy, it **still returns false**. So the obstacle is not the context: `run_mapgen_func` is the reference's
+path for **code** mapgens, and the JSON maps go through the mapgen factory's own builder. The next probe is the
+one to write - a single call to that builder with the same id - before any dump flag exists.
+
 ## 1. Modes
 
 | Mode | Writes | Used by |

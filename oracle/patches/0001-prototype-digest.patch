@@ -129,8 +129,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-22 01:35:29
-@@ -0,0 +1,1013 @@
++++ oracle/src/src/harness.cpp	2026-10-22 01:43:47
+@@ -0,0 +1,1018 @@
 +#include "harness.h"
 +#include "recipe_dictionary.h"
 +#include "requirements.h"
@@ -152,6 +152,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +#include "scenario.h"
 +#include "profession.h"
 +#include "omdata.h"
++#include "overmapbuffer.h"
 +#include "itype.h"
 +#include "field_type.h"
 +#include "mtype.h"
@@ -973,10 +974,14 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +void probe_mapgen( const std::string &oter_id )
 +{
 +    map &here = get_map();
-+    const string_id<oter_t> oter( oter_id );
-+    const std::string mapgen_id = oter->get_mapgen_id();
-+    std::fprintf( stderr, "probe: oter=%s mapgen=%s\n", oter_id.c_str(), mapgen_id.c_str() );
-+    mapgendata dat( here, mapgendata::dummy_settings );
++    const string_id<oter_t> wanted( oter_id );
++    const std::string mapgen_id = wanted->get_mapgen_id();
++    // A real overmap position, because a dummy mapgendata builds nothing (see docs/11).
++    const tripoint_abs_omt omt = project_to<coords::omt>( get_player_character().pos_abs() );
++    const auto actual = overmap_buffer.ter( omt );
++    std::fprintf( stderr, "probe: oter=%s mapgen=%s at_omt=%s\n", oter_id.c_str(),
++                  mapgen_id.c_str(), actual->get_mapgen_id().c_str() );
++    mapgendata dat( omt, here, 0.0f, calendar::turn, nullptr );
 +    if( !run_mapgen_func( mapgen_id, dat ) ) {
 +        std::fprintf( stderr, "probe: run_mapgen_func returned false\n" );
 +        return;
