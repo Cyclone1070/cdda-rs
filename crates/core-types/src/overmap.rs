@@ -658,3 +658,76 @@ pub fn build_city_street(
         }
     }
 }
+
+/// Grows cities and their streets onto an overmap.
+///
+/// Reference: `place_cities` and the `build_city_street` calls it makes. Cities are placed first, then each grows
+/// four streets from its crossroads - one in each direction, in the reference's own order of turning - and the tiles
+/// they lay are written to the map as roads, junctions and manholes.
+///
+/// Returns how many cities were grown.
+pub fn grow_town(
+    overmap: &mut Overmap,
+    settings: CitySettings,
+    wanted: i32,
+    rolls: &mut Rolls,
+) -> usize {
+    let is_road = |terrain: &str| terrain.starts_with("road");
+    let can_serve =
+        |terrain: &str| terrain != "river" && terrain != "ravine" && terrain != "ravine_edge";
+    let placed = place_cities(overmap, settings, rolls, wanted);
+    for city in &placed {
+        let view = StreetView {
+            width: overmap.width(),
+            height: overmap.height(),
+            is_road: &is_road,
+            can_serve: &can_serve,
+        };
+        let mut grown = Vec::new();
+        {
+            let mut town = Town {
+                map: overmap,
+                view: &view,
+                rolls,
+                tiles: &mut grown,
+            };
+            for direction in Direction::ALL {
+                build_city_street(&mut town, (city.x, city.y), direction, city.size, 2, 0);
+            }
+        }
+        for (position, kind) in grown {
+            let terrain = match kind {
+                StreetTile::Road => "road",
+                StreetTile::Junction => "road_nesw",
+                StreetTile::Manhole => "road_nesw_manhole",
+            };
+            overmap.set_terrain(position.0, position.1, terrain);
+        }
+    }
+    placed.len()
+}
+
+/// Draws part of an overmap as text, one character per tile.
+///
+/// Not the game's view of anything - it is for looking at: a generated world is easier to judge as a picture than as
+/// a count, and this is what makes a town's shape something a person can check.
+#[must_use]
+pub fn render(overmap: &Overmap, origin: (i32, i32), width: i32, height: i32) -> String {
+    let mut out = String::new();
+    for y in origin.1..origin.1 + height {
+        for x in origin.0..origin.0 + width {
+            let glyph = match overmap.terrain(x, y) {
+                Some("road") => '#',
+                Some("road_nesw") => '+',
+                Some("road_nesw_manhole") => 'M',
+                Some("forest") => 'f',
+                Some("river") => '~',
+                Some(_) => '.',
+                None => ' ',
+            };
+            out.push(glyph);
+        }
+        out.push('\n');
+    }
+    out
+}
