@@ -3896,3 +3896,70 @@ pub fn butcher_time_to_cut(state: ButcherState) -> i32 {
     // Truncating the fraction to zero first would delete the work instead of shortening it.
     (f64::from(time) * (1.0 - f64::from(state.helpers.clamp(0, 3)) / 10.0)) as i32
 }
+
+/// What a butcher can take from a corpse.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HarvestEntry {
+    /// Meat.
+    Flesh,
+    /// Organs and guts.
+    Offal,
+    /// Hide.
+    Skin,
+    /// Bones.
+    Bone,
+}
+
+/// How badly the corpse was damaged, in the reference's own levels.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CorpseDamage {
+    /// Hardly marked, or not at all.
+    Light,
+    /// "damaged".
+    Damaged,
+    /// "mangled".
+    Mangled,
+    /// "pulped".
+    Pulped,
+}
+
+/// What a damaged corpse still gives up, as a weight.
+///
+/// Reference: `corpse_damage_effect` (`src/butchery.cpp`). The interesting part is how differently it treats the
+/// parts: a damaged corpse loses flesh before it loses hide, a mangled one loses **all** of its offal, and a pulped
+/// one keeps only bone - so pulping a body is not a small penalty, it is a different set of products. Rounding is
+/// `std::round`, not truncation, which matters at the halves.
+#[must_use]
+pub fn harvest_after_damage(weight: i32, entry: HarvestEntry, damage: CorpseDamage) -> i32 {
+    let round = |value: f64| -> i32 {
+        // Round half away from zero, as std::round does.
+        let rounded = if value < 0.0 {
+            -(-value + 0.5).floor()
+        } else {
+            (value + 0.5).floor()
+        };
+        #[allow(clippy::cast_possible_truncation)]
+        let whole = rounded as i32;
+        whole
+    };
+    let exact = f64::from(weight);
+    match damage {
+        CorpseDamage::Light => weight,
+        CorpseDamage::Damaged => match entry {
+            HarvestEntry::Offal | HarvestEntry::Skin => round(exact * 0.75),
+            HarvestEntry::Flesh => round(exact * 0.9),
+            HarvestEntry::Bone => weight,
+        },
+        CorpseDamage::Mangled => match entry {
+            HarvestEntry::Offal => 0,
+            HarvestEntry::Skin => round(exact * 0.5),
+            HarvestEntry::Bone => round(exact * 0.9),
+            HarvestEntry::Flesh => round(exact * 0.75),
+        },
+        CorpseDamage::Pulped => match entry {
+            HarvestEntry::Offal | HarvestEntry::Skin => 0,
+            HarvestEntry::Bone => round(exact * 0.75),
+            HarvestEntry::Flesh => round(exact * 0.5),
+        },
+    }
+}
