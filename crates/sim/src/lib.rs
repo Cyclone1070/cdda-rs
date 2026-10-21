@@ -4059,3 +4059,71 @@ pub fn harvest_yield(
     }
     roll
 }
+
+/// Cutting up a corpse, over several turns.
+///
+/// Reference: `butchery_activity_actor` (`activity_actor_definitions.h`) holds the corpse, the kind of butchery and
+/// the time to cut, and each turn of the activity spends moves against that time. The port keeps the same three
+/// facts on the corpse itself: only one activity can be working on a body at a time, and putting them on the body
+/// says so without a second index to keep in step.
+#[derive(Debug, Clone, Copy, Component)]
+pub struct Butchery {
+    /// The corpse being cut up.
+    pub corpse: Entity,
+    /// What kind of butchery this is.
+    pub action: ButcherAction,
+    /// Moves still to spend.
+    pub moves_left: i32,
+}
+
+/// How far a turn of butchery got.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ButcheryStep {
+    /// Work was done and there is more to do.
+    Working,
+    /// The work is done; the caller should now take the yields.
+    Finished,
+    /// Nothing to do, or nothing moved.
+    Idle,
+}
+
+/// Starts cutting up a corpse, and says how many moves it will take.
+///
+/// Returns `None` when the square holds nothing that names a creature, which is the reference's refusal to butcher
+/// something that is not a corpse.
+pub fn start_butchery(world: &mut World, corpse: Entity, butchery: ButcherState) -> Option<i32> {
+    world.get::<CorpseOf>(corpse)?;
+    let moves = butcher_time_to_cut(butchery);
+    world.entity_mut(corpse).insert(Butchery {
+        corpse,
+        action: butchery.action,
+        moves_left: moves,
+    });
+    Some(moves)
+}
+
+/// Spends one turn's moves on a butchery, and reports whether that finished it.
+pub fn butchery_turn(world: &mut World, corpse: Entity, moves: i32) -> ButcheryStep {
+    let left = {
+        let Some(mut work) = world.get_mut::<Butchery>(corpse) else {
+            return ButcheryStep::Idle;
+        };
+        if moves <= 0 || work.moves_left <= 0 {
+            return ButcheryStep::Idle;
+        }
+        work.moves_left -= moves;
+        work.moves_left
+    };
+    if left > 0 {
+        return ButcheryStep::Working;
+    }
+    // Done: the activity comes off the body, and the caller takes the yields.
+    world.entity_mut(corpse).remove::<Butchery>();
+    ButcheryStep::Finished
+}
+
+/// How much work is left on a butchery, in moves.
+#[must_use]
+pub fn butchery_moves_left(world: &World, corpse: Entity) -> Option<i32> {
+    world.get::<Butchery>(corpse).map(|work| work.moves_left)
+}
