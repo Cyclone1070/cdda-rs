@@ -11,6 +11,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+pub mod catalog;
 pub mod digest;
 pub mod eocs;
 pub mod factory;
