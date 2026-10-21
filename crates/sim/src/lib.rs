@@ -3006,3 +3006,74 @@ impl MealTally {
         self.quench = self.quench.saturating_add(meal.quench);
     }
 }
+
+/// One square of what a player would see.
+///
+/// The shape mirrors `--dump-frame` in the oracle (`oracle/harness/harness.cpp`, `dump_frame`), so the two
+/// can be compared square by square: the glyph the interface would draw, the terrain under it, how many
+/// items lie there, and the light.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FrameSquare {
+    /// Where it is.
+    pub x: i32,
+    /// Where it is.
+    pub y: i32,
+    /// What the interface draws: an item over furniture over terrain, which is the reference's order.
+    pub glyph: char,
+    /// The terrain's id.
+    pub terrain: u32,
+    /// How many items lie there.
+    pub items: i32,
+    /// Ambient light at the square.
+    pub light: f32,
+}
+
+/// What a square looks like before anything is drawn on it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SquareAppearance {
+    /// The terrain's own glyph.
+    pub glyph: char,
+    /// The furniture's glyph, when something is standing there.
+    pub furniture: Option<char>,
+}
+
+/// Draws the view around a centre.
+///
+/// This is the port's half of the frame gate: nothing here is a game rule, and everything here is a choice
+/// about what a player is shown. The order is the reference's - an item hides furniture, furniture hides the
+/// floor - because a diff against the oracle is worthless if the two disagree about precedence.
+#[must_use]
+pub fn render_frame(
+    world: &mut World,
+    level: &cdda_core_types::level::Level,
+    centre: (i32, i32),
+    radius: i32,
+    appearance_of: impl Fn(u32) -> SquareAppearance,
+    light_at: impl Fn(i32, i32) -> f32,
+) -> Vec<FrameSquare> {
+    let mut squares = Vec::new();
+    for dy in -radius..=radius {
+        for dx in -radius..=radius {
+            let (x, y) = (centre.0 + dx, centre.1 + dy);
+            let terrain = level.terrain_at(x, y).unwrap_or(0);
+            let appearance = appearance_of(terrain);
+            let here = items_at(world, (x, y));
+            let mut glyph = appearance.furniture.unwrap_or(appearance.glyph);
+            if !here.is_empty() {
+                // An item on the floor covers whatever is under it. Its glyph belongs to its prototype,
+                // which the caller owns, so the renderer marks the square and the caller draws it.
+                glyph = '*';
+            }
+            squares.push(FrameSquare {
+                x,
+                y,
+                glyph,
+                terrain,
+                items: i32::try_from(here.len()).unwrap_or(i32::MAX),
+                // Light comes from the lighting system, which owns it; the renderer only asks.
+                light: light_at(x, y),
+            });
+        }
+    }
+    squares
+}
