@@ -62,6 +62,18 @@ pub struct ItemType {
     pub armor_entries: Vec<BTreeSet<String>>,
 }
 
+impl ItemType {
+    /// Whether the item cannot be taken out of whatever holds it.
+    ///
+    /// Reference: `item::is_irremovable` (`src/item.cpp:10356-10359`), which is the `IRREMOVABLE`
+    /// flag and nothing else. It matters when a container is destroyed: an irremovable item stays
+    /// where it was, which is the rule the burning loop was missing.
+    #[must_use]
+    pub fn is_irremovable(&self) -> bool {
+        self.flags.contains("IRREMOVABLE")
+    }
+}
+
 /// One material of one armour entry.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ArmorPart {

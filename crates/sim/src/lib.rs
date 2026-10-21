@@ -1980,6 +1980,7 @@ pub fn burn_items_in_fire(
     intensity: i32,
     contained: bool,
     plan_of: impl Fn(ItemTypeId) -> Option<ItemBurnPlan>,
+    irremovable: impl Fn(Entity) -> bool,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) -> ItemBurnTotals {
     let max_consume = intensity * 2;
@@ -2022,10 +2023,15 @@ pub fn burn_items_in_fire(
         let destroyed = burn_item(&mut state, burn.burn, rolls);
         if destroyed {
             // A container that burns away spills what was inside it onto the square, which is the
-            // reference's `new_content` list (`src/map_field.cpp:1015-1028`) - minus its rule that
-            // an irremovable item stays put, which needs item flags the port does not read yet.
+            // reference's `new_content` list (`src/map_field.cpp:1015-1028`). An irremovable item
+            // stays where it was, so it does not spill.
             for held in contents(world, entity) {
                 take_out(world, held);
+                // The reference collects only contents without `NO_UNLOAD` into `new_content`;
+                // anything irremovable is erased along with the container rather than spilling.
+                if irremovable(held) {
+                    world.despawn(held);
+                }
             }
             world.despawn(entity);
             totals.consumed += 1;

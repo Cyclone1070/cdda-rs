@@ -46,6 +46,7 @@ fn a_small_item_is_finished_and_leaves_the_square() {
         3,
         false,
         |_| Some(wooden(250.0, false)),
+        |_| false,
         &mut rolls,
     );
     assert_eq!(totals.consumed, 1, "one item gone");
@@ -66,6 +67,7 @@ fn a_fire_eats_at_most_two_items_per_point_of_intensity() {
         2,
         false,
         |_| Some(wooden(250.0, false)),
+        |_| false,
         &mut rolls,
     );
     assert_eq!(totals.consumed, 4, "intensity 2 eats four");
@@ -83,6 +85,7 @@ fn a_big_item_survives_the_turn_but_remembers_burning() {
         1,
         false,
         |_| Some(wooden(10_000.0, false)),
+        |_| false,
         &mut rolls,
     );
     assert_eq!(totals.consumed, 0, "ten litres does not vanish in one turn");
@@ -99,7 +102,15 @@ fn an_item_with_no_burn_plan_is_left_alone() {
     let entity = drop_item(&mut world, (5, 5), ItemTypeId(7), 5);
     let mut rolls = Rolls::new(1);
     let mut control = Rolls::new(1);
-    let totals = burn_items_in_fire(&mut world, (5, 5), 3, false, |_| None, &mut rolls);
+    let totals = burn_items_in_fire(
+        &mut world,
+        (5, 5),
+        3,
+        false,
+        |_| None,
+        |_| false,
+        &mut rolls,
+    );
     assert_eq!(
         totals,
         ItemBurnTotals {
@@ -142,6 +153,7 @@ fn a_stack_loses_charges_rather_than_vanishing() {
                 stack_size: 1,
             })
         },
+        |_| false,
         &mut rolls,
     );
     assert_eq!(totals.consumed, 0);
@@ -171,6 +183,7 @@ fn a_fireproof_item_sits_there_through_the_whole_thing() {
         3,
         false,
         |_| Some(plan.clone()),
+        |_| false,
         &mut rolls,
     );
     assert_eq!(
@@ -210,6 +223,7 @@ fn a_container_that_burns_away_spills_what_was_inside_it() {
                 None
             }
         },
+        |_| false,
         &mut rolls,
     );
     assert_eq!(totals.consumed, 1, "the box is gone");
@@ -218,4 +232,40 @@ fn a_container_that_burns_away_spills_what_was_inside_it() {
         "the rock is on the floor"
     );
     assert!(contents(&mut world, wooden_box).is_empty());
+}
+
+#[test]
+fn an_irremovable_item_stays_inside_a_container_that_burns_away() {
+    let mut world = World::new();
+    let box_entity = drop_item(&mut world, (5, 5), ItemTypeId(7), 1);
+    world
+        .entity_mut(box_entity)
+        .insert(Container { capacity_ml: 1000 });
+    let tablet = drop_item(&mut world, (5, 5), ItemTypeId(8), 1);
+    insert_into(&mut world, box_entity, tablet, |_| 100).expect("it fits");
+    let mut rolls = Rolls::new(1);
+    let totals = burn_items_in_fire(
+        &mut world,
+        (5, 5),
+        3,
+        false,
+        |kind| {
+            if kind == ItemTypeId(7) {
+                Some(wooden(250.0, false))
+            } else {
+                None
+            }
+        },
+        |held| held == tablet,
+        &mut rolls,
+    );
+    assert_eq!(totals.consumed, 1, "the box burned");
+    assert!(
+        !items_at(&mut world, (5, 5)).contains(&tablet),
+        "the tablet did not spill"
+    );
+    assert!(
+        world.get::<GroundItem>(tablet).is_none(),
+        "an irremovable item is erased with its container, as the reference does"
+    );
 }
