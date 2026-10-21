@@ -15,14 +15,14 @@ fn dump() -> Vec<Terrain> {
 
 #[test]
 fn the_port_finds_every_terrain_the_reference_defines() {
-    assert_eq!(dump().len(), 1769, "terrains");
+    assert_eq!(dump().len(), 1109, "terrains, without the furniture the dump also carries");
 }
 
 #[test]
 fn flammability_comes_from_the_three_flags_the_reference_uses() {
     let all = dump();
     let flammable = all.iter().filter(|t| t.is_flammable()).count();
-    assert_eq!(flammable, 643, "terrains that burn");
+    assert_eq!(flammable, 431, "terrains that burn");
     let door = terrain::find(&all, "t_door_c").expect("a wooden door");
     assert!(door.is_flammable(), "a wooden door burns: {:?}", door.flags);
     let stone = all

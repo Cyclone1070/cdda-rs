@@ -48,6 +48,27 @@ impl Terrain {
 /// Returns the reason the dump could not be read: a shape it does not understand, or a terrain with
 /// no id.
 pub fn from_dump(value: &Value) -> Result<Vec<Terrain>, String> {
+    from_dump_by_kind(value, "terrain")
+}
+
+/// Reads only the furniture entries of the terrain dump.
+///
+/// # Errors
+///
+/// The same reasons as [`from_dump`].
+pub fn furniture_from_dump(value: &Value) -> Result<Vec<Terrain>, String> {
+    from_dump_by_kind(value, "furniture")
+}
+
+/// Reads the entries of one kind from the terrain dump.
+///
+/// The dump holds both terrains and furniture in one list, each tagged with a `kind`; the reference
+/// keeps them in two registries, so they are split here rather than being counted together.
+///
+/// # Errors
+///
+/// Returns the reason the dump could not be read.
+pub fn from_dump_by_kind(value: &Value, kind: &str) -> Result<Vec<Terrain>, String> {
     let Value::Object(root) = value else {
         return Err("the dump's root is not an object".to_string());
     };
@@ -59,6 +80,10 @@ pub fn from_dump(value: &Value) -> Result<Vec<Terrain>, String> {
         let Value::Object(object) = entry else {
             return Err("a terrain is not an object".to_string());
         };
+        if matches!(object.get("kind"), Some(Value::Str(entry_kind)) if entry_kind != kind) {
+            continue;
+        }
+
         let Some(Value::Str(id)) = object.get("id") else {
             return Err("a terrain has no id".to_string());
         };

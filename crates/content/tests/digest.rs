@@ -3,7 +3,7 @@
 
 #![allow(clippy::expect_used, clippy::panic)]
 
-use cdda_content::{digest, materials, traps};
+use cdda_content::{digest, fields, items, materials, monsters, overmap, terrain, traps};
 use cdda_json::{Value, parse};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -106,4 +106,88 @@ fn the_ports_own_material_and_trap_ids_match_the_reference_digest() {
     ));
     let reference = digests.get("trap").expect("trap digest");
     assert_eq!(ours, digest_of(reference), "trap ids");
+}
+
+#[test]
+fn the_bigger_registries_match_too() {
+    let digests = read("corpus/prototypes/digest.json");
+    let core = root().join("references/Cataclysm-DDA/data/core");
+    let json = root().join("references/Cataclysm-DDA/data/json");
+    let dirs: [&Path; 2] = [core.as_path(), json.as_path()];
+
+    let loaded_items = items::load_paths(&dirs).expect("items load");
+    let ours = digest::digest_hex(digest::digest_ids(
+        loaded_items.iter().map(|item| item.id.as_str()),
+    ));
+    assert_eq!(
+        ours,
+        digest_of(digests.get("ITEM").expect("ITEM digest")),
+        "item ids"
+    );
+
+    let loaded_monsters = monsters::load_paths(&dirs).expect("monsters load");
+    let ours = digest::digest_hex(digest::digest_ids(
+        loaded_monsters.iter().map(|monster| monster.id.as_str()),
+    ));
+    assert_eq!(
+        ours,
+        digest_of(digests.get("monster type").expect("monster digest")),
+        "monster ids"
+    );
+
+    let loaded_overmap = overmap::load_paths(&dirs).expect("overmap loads");
+    let ours = digest::digest_hex(digest::digest_ids(loaded_overmap.terrains.iter()));
+    assert_eq!(
+        ours,
+        digest_of(
+            digests
+                .get("overmap terrain")
+                .expect("overmap terrain digest")
+        ),
+        "overmap terrain ids"
+    );
+    let ours = digest::digest_hex(digest::digest_ids(
+        loaded_overmap.types.iter().map(|kind| kind.id.as_str()),
+    ));
+    assert_eq!(
+        ours,
+        digest_of(
+            digests
+                .get("overmap terrain type")
+                .expect("overmap terrain type digest")
+        ),
+        "overmap terrain type ids"
+    );
+}
+
+#[test]
+fn the_registries_that_come_from_dumps_match_as_well() {
+    // These two load from an artifact rather than the data files, so a match here says the dump
+    // captured the same id set the reference's registry held.
+    let digests = read("corpus/prototypes/digest.json");
+    let fields_artifact =
+        std::fs::read_to_string(root().join("corpus/prototypes/fields.json")).expect("artifact");
+    let value = parse(fields_artifact.as_bytes()).expect("parses");
+    let loaded = fields::from_dump(&value).expect("fields load");
+    let ours = digest::digest_hex(digest::digest_ids(
+        loaded.iter().map(|field| field.id.as_str()),
+    ));
+    assert_eq!(
+        ours,
+        digest_of(digests.get("field types").expect("field digest")),
+        "field ids"
+    );
+
+    let terrain_artifact =
+        std::fs::read_to_string(root().join("corpus/prototypes/terrain.json")).expect("artifact");
+    let value = parse(terrain_artifact.as_bytes()).expect("parses");
+    let loaded = terrain::from_dump(&value).expect("terrains load");
+    let ours = digest::digest_hex(digest::digest_ids(
+        loaded.iter().map(|kind| kind.id.as_str()),
+    ));
+    assert_eq!(
+        ours,
+        digest_of(digests.get("terrain").expect("terrain digest")),
+        "terrain ids"
+    );
 }
