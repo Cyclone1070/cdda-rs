@@ -1,0 +1,69 @@
+//! Every sim test, in one binary.
+//!
+//! Cargo gives each file in `tests/` its own binary, and every binary pays the same process startup
+//! before a single test runs - measured at about 1.7 seconds each on this machine, which is the
+//! dominant cost of the whole suite once there are a hundred and fifty of them. The files are
+//! unchanged; this one lists them so the suite runs as a handful of binaries instead of one per file.
+//!
+//! A case is still named after its file: `frame_diff::the_same_frame_diffs_to_nothing`.
+
+mod acid_vent;
+mod burn_bookkeeping;
+mod burn_products;
+mod butcher_finish;
+mod butchery;
+mod butchery_activity;
+mod consume_items;
+mod containers;
+mod corpse_rules;
+mod craft_activity;
+mod craft_progress;
+mod craft_time;
+mod crafting;
+mod creatures;
+mod death;
+mod eating;
+mod extinguisher;
+mod field_growth;
+mod field_ids;
+mod field_turn;
+mod fields;
+mod fire_burnout;
+mod fire_flashpoint;
+mod fire_growth;
+mod fire_items;
+mod fire_process;
+mod fire_residue;
+mod fire_spread;
+mod fire_terrain;
+mod fire_vent;
+mod frame;
+mod gas_effects;
+mod gas_spread;
+mod ground_items;
+mod harvest_damage;
+mod harvest_yield;
+mod hot_air;
+mod item_burn;
+mod item_damage;
+mod item_stacking;
+mod item_volume;
+mod item_weight;
+mod kill_to_loot;
+mod light_system;
+mod monster_action;
+mod monster_blocked;
+mod monster_damage;
+mod monster_moves;
+mod monster_spawn;
+mod monster_strike_world;
+mod monster_turn;
+mod monster_world;
+mod player_body;
+mod player_turn;
+mod push_items;
+mod register;
+mod shock_vent;
+mod spread_gas;
+mod sunlight_system;
+mod wind_reach;

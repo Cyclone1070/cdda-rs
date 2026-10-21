@@ -117,8 +117,22 @@ Two changes fixed it, and both are structural rather than a tweak:
   `prototype_ids` went from 32 s to 10 s and `items` from 15 s to 8 s. Set
   `CDDA_NO_PARSE_MEMO=1` to measure the parser itself.
 * **`tools/test_fast.py`.** Cargo runs one test binary at a time; this builds once
-  and runs them concurrently, printing what each cost. The suite is now **44 s**
-  end to end, and the table says which gate is slow the moment it becomes slow.
+  and runs them concurrently, printing what each cost, how much processor time the
+  run used, and the machine's load. The table says which gate is slow the moment it
+  becomes slow.
+* **One test binary per crate, not per file.** Cargo gives every file in `tests/`
+  its own binary, and every binary pays the same startup before a single case runs:
+  measured at **1.7 s each**, and unchanged by what the binary contains - a
+  `--list` that runs no tests at all costs the same. At 153 files that was
+  **250 s of the suite's 283 s**, and the cost could not be parallelised away,
+  because concurrent starts on this machine serialise. The files are unchanged;
+  each crate now has one `tests/<crate>_suite/main.rs` that lists them as modules.
+  **283 s to 185 s**, with the same 873 cases, and a case is still named after its
+  file: `frame_diff::the_same_frame_diffs_to_nothing`.
+
+  What is left is honest work rather than overhead: `content_suite` is 185 s of the
+  185 s wall time, because the corpus gates read the reference tree. That is the
+  next thing to make faster, and the table now says so in one line.
 
 Builds run at `CARGO_BUILD_JOBS=8` and the oracle at `JOBS=8`. Compiling on all twelve cores
 makes every other shell command on the machine wait minutes for a turn while the browser stays
@@ -126,8 +140,11 @@ responsive, which reads as a mystery and is only the job count.
 
 Rules:
 
-* **Iterate on the fast suite.** `cargo test -p cdda-core-types` is 8 s and covers
-  every P0 algorithm. Reach for the corpus gates when a change touches loading.
+* **Iterate on the fast suite.** `cargo test -p cdda-core-types` covers every P0
+  algorithm in seconds. Reach for the corpus gates when a change touches loading.
+* **Read the footer, not just the table.** `kept N of 8 workers busy` separates "the
+  gates got slower" from "the machine was busy"; anything over ten seconds is
+  marked with a `*`.
 * **Watch the table.** A gate that climbs the timing table is a gate that will
   soon be skipped "just this once".
 * **Never let a gate be skipped.** If a gate cannot pass yet, it asserts the exact

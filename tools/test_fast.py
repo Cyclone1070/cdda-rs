@@ -13,7 +13,9 @@ Usage: python3 tools/test_fast.py [--jobs N] [--filter substring]
 import argparse
 import concurrent.futures
 import json
+import os
 import pathlib
+import resource
 import subprocess
 import sys
 import time
@@ -44,6 +46,16 @@ def binaries() -> list[pathlib.Path]:
     return found
 
 
+def children_cpu() -> float:
+    """Processor time spent by finished child processes, in seconds.
+
+    The wall clock alone cannot tell a slow gate from a busy machine, so the run also reports how much
+    processor time the binaries actually used.
+    """
+    usage = resource.getrusage(resource.RUSAGE_CHILDREN)
+    return usage.ru_utime + usage.ru_stime
+
+
 def run(binary: pathlib.Path) -> tuple[str, int, float, str]:
     began = time.monotonic()
     finished = subprocess.run(
@@ -57,9 +69,26 @@ def run(binary: pathlib.Path) -> tuple[str, int, float, str]:
     )
 
 
+def default_jobs() -> int:
+    """How many binaries to run at once.
+
+    Capped at eight, and at two fewer than the machine has cores, so a test run never takes the whole
+    machine: a suite that makes everything else on the desktop stutter is a suite that gets skipped.
+    """
+    cores = os.cpu_count() or 4
+    return max(1, min(8, cores - 2))
+
+
+def load_average() -> float:
+    try:
+        return os.getloadavg()[0]
+    except OSError:
+        return 0.0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--jobs", type=int, default=8)
+    parser.add_argument("--jobs", type=int, default=default_jobs())
     parser.add_argument("--filter", default="")
     arguments = parser.parse_args()
 
@@ -67,6 +96,7 @@ def main() -> int:
     print(f"running {len(selected)} test binaries, {arguments.jobs} at a time")
 
     started = time.monotonic()
+    cpu_before = children_cpu()
     results = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=arguments.jobs) as pool:
         for result in pool.map(run, selected):
@@ -83,14 +113,27 @@ def main() -> int:
             "no result line",
         )
         status = "ok  " if code == 0 else "FAIL"
-        print(f"{seconds:6.1f}s  {status}  {name:28} {cases.strip()}")
+        # A gate this slow is one to watch; the marker is here so the table can be read at a glance.
+        slow = " *" if seconds >= 10.0 else "  "
+        print(f"{seconds:6.1f}s  {status}  {name:28} {cases.strip()}{slow}")
 
     failures = [result for result in results if result[1] != 0]
     for name, _, _, output in failures:
         print(f"\n=== {name}")
         print("\n".join(output.splitlines()[-25:]))
 
-    print(f"\ntotal {elapsed:.1f}s, {len(failures)} failing binaries")
+    cpu_total = children_cpu() - cpu_before
+    cores = os.cpu_count() or 1
+    print(
+        f"\ntotal {elapsed:.1f}s wall, {cpu_total:.1f}s cpu over {len(results)} binaries, "
+        f"{arguments.jobs} at a time on {cores} cores, load {load_average():.2f}"
+    )
+    if cpu_total > 0 and elapsed > 0:
+        # How many workers were busy on average. Well below the number asked for means either there was
+        # little to run or the machine was busy elsewhere - not that the gates got slower.
+        busy = cpu_total / elapsed
+        print(f"kept {busy:.1f} of {arguments.jobs} workers busy on average")
+    print(f"{len(failures)} failing binaries")
     return 1 if failures else 0
 
 

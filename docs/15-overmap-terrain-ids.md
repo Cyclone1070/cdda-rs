@@ -79,7 +79,7 @@ terrains flagged `LINEAR` - the ant tunnels and their relatives.
 
 ## What the loader now does
 
-Written and gated (`crates/content/src/overmap.rs`, `crates/content/tests/overmap.rs`):
+Written and gated (`crates/content/src/overmap.rs`, `crates/content/tests/content_suite/overmap.rs`):
 
 * **The type registry is exact**: 6,269 ours against 6,269 reported.
 * **The terrain registry is exact too: 24,218 of 24,218.** Rotations, the sixteen
