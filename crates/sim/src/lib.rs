@@ -3155,3 +3155,54 @@ pub fn choose_action(from: (i32, i32), target: (i32, i32)) -> Action {
     }
     Action::Step(step_toward(from, target))
 }
+
+/// What one creature did with its turn.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TurnOutcome {
+    /// Every action taken, in order.
+    pub actions: Vec<Action>,
+    /// Where the creature ended up.
+    pub position: (i32, i32),
+    /// Moves left over, which a faster creature can keep for later.
+    pub moves: i32,
+    /// How many times it hit the target.
+    pub hits: i32,
+}
+
+/// Gives a creature its turn: it acts while it can pay for acting, and stops when it cannot.
+///
+/// Reference: `monster::move` (`monmove.cpp`) charges **the creature's own speed** for an action
+/// (`mod_moves( -get_speed() )`), not a flat 100 - so a slow creature pays less per action and acts more often
+/// within the same number of moves, and a fast one pays more. That is easy to get backwards, so it is written
+/// down here and pinned by a test.
+#[must_use]
+pub fn take_turn(
+    position: (i32, i32),
+    target: (i32, i32),
+    mut moves: i32,
+    speed: i32,
+) -> TurnOutcome {
+    let mut actions = Vec::new();
+    let mut at = position;
+    let mut hits = 0;
+    // A creature that cannot pay for an action does not get a free one, and speed <= 0 would loop forever.
+    while speed > 0 && moves >= speed {
+        let action = choose_action(at, target);
+        if action == Action::Wait {
+            break;
+        }
+        match action {
+            Action::Attack => hits += 1,
+            Action::Step(to) => at = to,
+            Action::Wait => break,
+        }
+        actions.push(action);
+        moves -= speed;
+    }
+    TurnOutcome {
+        actions,
+        position: at,
+        moves,
+        hits,
+    }
+}
