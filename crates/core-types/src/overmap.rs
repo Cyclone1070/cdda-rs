@@ -8,6 +8,8 @@
 //! no wrapping - because everything above this layer (mapgen lookup, submap addressing) converts through these
 //! numbers, and a wrap that exists nowhere in the reference would be a source of quiet wrongness.
 
+use crate::rng::Rolls;
+
 /// The tile at a position, as an index into the flat list.
 ///
 /// Only called for positions already known to be inside the grid; the saturating arithmetic keeps a mistake from
@@ -218,3 +220,86 @@ pub fn cities_for(settings: CitySettings, draw: f64) -> i32 {
     let cities = bounded as i32;
     cities
 }
+
+/// A city on the overmap.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct City {
+    /// Where its crossroads are.
+    pub x: i32,
+    /// Where its crossroads are.
+    pub y: i32,
+    /// How far it reaches.
+    pub size: i32,
+}
+
+/// How big a city turns out to be.
+///
+/// Reference: `place_cities` (`overmap.cpp`). The order of the rolls is the rule: first a size between one below the
+/// setting and the largest allowed, then **one roll that decides which of four shapes it is** - a third tiny (a
+/// third of the size), a third small (two thirds), then a half of what is left large (one and a half), and the rest
+/// huge (double). The result is clamped to at least two, because a city of one is a crossroads with no buildings.
+pub fn roll_city_size(rolls: &mut Rolls, settings: CitySettings) -> i32 {
+    let largest = max_city_size(settings);
+    let mut size = rolls.rng(settings.size - 1, largest);
+    // The branch decides a fraction, and the fractions are applied in the order the reference rolls them.
+    let shape = if rolls.rng(1, 3) == 1 {
+        (1, 3) // tiny
+    } else if rolls.rng(1, 2) == 1 {
+        (2, 3) // small
+    } else {
+        // The third roll happens only when the first two said no, which is the reference's own order.
+        if rolls.rng(1, 2) == 1 {
+            (3, 2) // large
+        } else {
+            (2, 1) // huge
+        }
+    };
+    size = size * shape.0 / shape.1;
+    size.clamp(2, 55)
+}
+
+/// Where a city's crossroads land.
+///
+/// Reference: `rng( size - 1, OMAPX - size )` on each axis, which keeps a city from being drawn across the edge of
+/// the map where it would be clipped.
+#[must_use]
+pub fn roll_city_position(rolls: &mut Rolls, size: i32, width: i32, height: i32) -> (i32, i32) {
+    let x = rolls.rng(size - 1, width - size);
+    let y = rolls.rng(size - 1, height - size);
+    (x, y)
+}
+
+/// Places cities on an overmap, up to the number the settings ask for.
+///
+/// Reference: the placement loop in `place_cities`. A candidate is only taken if its square is still the default
+/// terrain, which is how the reference avoids stacking cities; it gives up after fifty attempts, and each success
+/// resets the count - so the loop is bounded by failures rather than by cities. The city's crossroads become a road
+/// intersection, which is what the rest of generation looks for when it draws streets outward.
+///
+/// Returns the cities that were placed.
+pub fn place_cities(
+    overmap: &mut Overmap,
+    settings: CitySettings,
+    rolls: &mut Rolls,
+    wanted: i32,
+) -> Vec<City> {
+    /// Reference: `MAX_PLACEMENT_ATTEMPTS`, fifty attempts without a success.
+    const MAX_ATTEMPTS: i32 = 50;
+    let mut placed = Vec::new();
+    let mut attempts = 0;
+    while placed.len() < usize::try_from(wanted.max(0)).unwrap_or(0) && attempts < MAX_ATTEMPTS {
+        attempts += 1;
+        let size = roll_city_size(rolls, settings);
+        let (x, y) = roll_city_position(rolls, size, overmap.width(), overmap.height());
+        if overmap.terrain(x, y) != Some(DEFAULT_OTER) {
+            continue;
+        }
+        overmap.set_terrain(x, y, "road_nesw");
+        placed.push(City { x, y, size });
+        attempts = 0;
+    }
+    placed
+}
+
+/// The terrain a fresh overmap is filled with, which a city may only be placed on.
+pub const DEFAULT_OTER: &str = "field";
