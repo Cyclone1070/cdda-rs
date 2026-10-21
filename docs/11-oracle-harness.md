@@ -606,3 +606,24 @@ reference's own lower and upper figures. **8,230** groups, **281,546** spawn ent
 This replaced a remembered 5,031, the third figure in these documents that a dump has corrected.
 The pattern is worth naming: counts written from memory are wrong by about ten per cent, and a
 loader gated on one is gated on nothing.
+
+### Probe: dumping the overmap directly (round 197, failed, reverted)
+
+The frame gate needs a generated world, and the overmap decides what that world is, so the obvious next dump is the
+overmap itself rather than the map. `--dump-overmap <file>` was written into the harness and it does not work yet.
+
+What was tried: `overmap_buffer.get_existing()` at the player's overmap position, and - when that crashed - the
+buffer's own `ter()` lookup, which is what the frame dump's terrain read goes through anyway.
+
+What happened, both times: **SIGSEGV**, once inside `WORLD::has_compression_enabled()` reached from
+`overmapbuffer::get_existing`, and once inside the buffer's terrain lookup. Before the crash the dump had already
+written its header, and the header says the useful thing: **`"centre":[0,0]`**. The avatar's overmap position is the
+origin, which means the headless start under this flag does not place the avatar the way the frame path does - and the
+frame path is the one that passes `cli.start_location` and generates a map.
+
+So the finding is not "the overmap cannot be dumped"; it is **"the overmap dump inherits the same setup the frame
+dump needed, and this attempt skipped it"**. The next probe is to take the dump from inside the frame path, after the
+map has been generated in the same run, rather than from a start of its own.
+
+The change was reverted in full - the flag, the handler and the function - so the oracle is exactly what the patch
+file says it is, and it rebuilds with no errors.
