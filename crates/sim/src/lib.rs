@@ -3250,3 +3250,110 @@ pub fn take_turn_blocked(
         hits,
     }
 }
+
+/// Whether anything alive stands on a square.
+///
+/// This is the occupancy question a moving creature asks, and it is answered from the World rather than from a
+/// list kept alongside it: a second copy of where things are is a copy that can disagree.
+#[must_use]
+pub fn occupied(world: &mut World, square: (i32, i32)) -> bool {
+    let mut query = world.query::<(&Position, &Monster)>();
+    query
+        .iter(world)
+        .any(|(position, monster)| (position.x, position.y) == square && monster.hp > 0)
+}
+
+/// Rounds a creature's moves to the whole number the turn loop works in.
+fn whole_moves(moves: f64) -> i32 {
+    let rounded = moves.round();
+    if rounded >= f64::from(i32::MAX) {
+        i32::MAX
+    } else if rounded <= f64::from(i32::MIN) {
+        i32::MIN
+    } else {
+        // Inside the range above, so the cast cannot lose anything the caller would notice.
+        #[allow(clippy::cast_possible_truncation)]
+        let whole = rounded as i32;
+        whole
+    }
+}
+
+/// One creature's state when its turn starts, gathered before anything moves.
+struct CreatureTurn {
+    /// Which thing it is.
+    entity: Entity,
+    /// Where it stands.
+    start: (i32, i32),
+    /// Moves it has this turn.
+    moves: i32,
+    /// What kind it is, which decides its speed.
+    kind: MonsterKindId,
+}
+
+/// Gives every creature in the world a turn, in the order the world lists them.
+///
+/// Reference: the reference asks each creature to act in turn and a creature may not step onto a square another
+/// creature occupies (`monster::move_to`, which refuses when `creature_at( destination )` is not null). Order
+/// matters and is therefore the World's own order rather than a hash order, so a replay is a replay.
+///
+/// `speed_of` supplies a creature's speed because speed belongs to its kind, which the content owns.
+pub fn monster_turns(
+    world: &mut World,
+    target: (i32, i32),
+    speed_of: impl Fn(MonsterKindId) -> i32,
+    passable: impl Fn(u32) -> bool,
+    level: &cdda_core_types::level::Level,
+) {
+    let mut occupied_squares: std::collections::BTreeSet<(i32, i32)> = {
+        let mut query = world.query::<(&Position, &Monster)>();
+        query
+            .iter(world)
+            .filter(|(_, monster)| monster.hp > 0)
+            .map(|(position, _)| (position.x, position.y))
+            .collect()
+    };
+    let creatures: Vec<CreatureTurn> = {
+        let mut query = world.query::<(Entity, &Position, &Monster)>();
+        query
+            .iter(world)
+            .filter(|(_, _, monster)| monster.hp > 0)
+            .map(|(entity, position, monster)| CreatureTurn {
+                entity,
+                start: (position.x, position.y),
+                // Moves are whole in practice. The conversion is explicit about what happens at the ends
+                // rather than letting a cast decide.
+                moves: whole_moves(monster.moves),
+                kind: monster.kind,
+            })
+            .collect()
+    };
+    for CreatureTurn {
+        entity,
+        start,
+        moves,
+        kind,
+    } in creatures
+    {
+        let speed = speed_of(kind);
+        // The creature's own square is passable to itself, and another creature's is not.
+        let can_enter = |square: (i32, i32)| {
+            if square == start {
+                return true;
+            }
+            let terrain_ok = level.terrain_at(square.0, square.1).is_some_and(&passable);
+            terrain_ok && !occupied_squares.contains(&square)
+        };
+        let turn = take_turn_blocked(start, target, moves, speed, can_enter);
+        if let Some(mut monster) = world.get_mut::<Monster>(entity) {
+            monster.moves = f64::from(turn.moves);
+        }
+        if turn.position != start {
+            occupied_squares.remove(&start);
+            occupied_squares.insert(turn.position);
+            if let Some(mut position) = world.get_mut::<Position>(entity) {
+                position.x = turn.position.0;
+                position.y = turn.position.1;
+            }
+        }
+    }
+}
