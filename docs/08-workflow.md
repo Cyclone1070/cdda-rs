@@ -170,6 +170,7 @@ python3 tools/gen_inventory.py
 python3 tools/check_docs.py            # links, citations, coverage
 
 # build the instrumented reference (patches applied to a build dir, not the tree)
+# Eight jobs by default: all cores makes every other shell command wait for minutes.
 ./oracle/build.sh
 
 # record a session by playing, then prove the recording is complete

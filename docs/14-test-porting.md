@@ -120,6 +120,10 @@ Two changes fixed it, and both are structural rather than a tweak:
   and runs them concurrently, printing what each cost. The suite is now **44 s**
   end to end, and the table says which gate is slow the moment it becomes slow.
 
+Builds run at `CARGO_BUILD_JOBS=8` and the oracle at `JOBS=8`. Compiling on all twelve cores
+makes every other shell command on the machine wait minutes for a turn while the browser stays
+responsive, which reads as a mystery and is only the job count.
+
 Rules:
 
 * **Iterate on the fast suite.** `cargo test -p cdda-core-types` is 8 s and covers

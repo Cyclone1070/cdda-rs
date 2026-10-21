@@ -191,3 +191,24 @@ pub fn from_dump(value: &Value) -> Option<(Vec<Recipe>, usize)> {
     }
     Some((recipes, count))
 }
+
+impl Recipe {
+    /// Whether what is on hand satisfies this recipe's components for a given batch.
+    ///
+    /// Reference: `requirement_data::has_comps` (`src/requirements.cpp:895-940`), which is the part of
+    /// `can_make_with_inventory` about items. Each group is a set of **alternatives**: one of them being
+    /// present in sufficient number satisfies the group, and every group must be satisfied. Quantities
+    /// scale with the batch, and an item counted in charges is asked for in charges by the caller.
+    ///
+    /// Not modelled: the reference's check that one pile cannot satisfy two overlapping groups
+    /// (`check_enough_materials`), which needs the inventory modelled rather than asked.
+    #[must_use]
+    pub fn components_available(&self, batch: i32, available: impl Fn(&str) -> i32) -> bool {
+        let batch = batch.max(1);
+        self.components.iter().all(|alternatives| {
+            alternatives.iter().any(|component| {
+                available(&component.item) >= component.count.saturating_mul(batch)
+            })
+        })
+    }
+}

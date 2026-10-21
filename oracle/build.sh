@@ -45,6 +45,10 @@ cmake -S "$ORACLE/src" -B "$ORACLE/build" -G Ninja \
     -DCURSES_INCLUDE_PATH=/usr/local/opt/ncurses/include \
     -DCURSES_LIBRARY=/usr/local/opt/ncurses/lib/libncursesw.dylib
 
-cmake --build "$ORACLE/build" --target cataclysm -j "$(sysctl -n hw.ncpu 2>/dev/null || nproc)"
+# Leave cores free. Building on every core makes the machine's shell unresponsive for minutes at a
+# time while the browser stays fine, which reads as a mystery and is just this line. Eight jobs keeps
+# the build quick and the machine usable. Override with JOBS=12 when nothing else is running.
+JOBS="${JOBS:-8}"
+cmake --build "$ORACLE/build" --target cataclysm -j "$JOBS"
 
 echo "oracle: $ORACLE/build/src/cataclysm"
