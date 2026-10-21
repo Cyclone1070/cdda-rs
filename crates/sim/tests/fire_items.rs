@@ -7,8 +7,8 @@
 use bevy_ecs::prelude::*;
 use cdda_core_types::rng::Rolls;
 use cdda_sim::{
-    BurnDataView, GroundItem, ItemBurnPlan, ItemBurnTotals, ItemTypeId, MaterialPortion,
-    burn_items_in_fire, drop_item, items_at,
+    BurnDataView, Container, GroundItem, ItemBurnPlan, ItemBurnTotals, ItemTypeId, MaterialPortion,
+    burn_items_in_fire, contents, drop_item, insert_into, items_at,
 };
 
 fn level(fuel: f64, burn: f64) -> BurnDataView {
@@ -185,4 +185,37 @@ fn a_fireproof_item_sits_there_through_the_whole_thing() {
         world.get::<GroundItem>(entity).map(|item| item.charges),
         Some(3)
     );
+}
+
+#[test]
+fn a_container_that_burns_away_spills_what_was_inside_it() {
+    let mut world = World::new();
+    let wooden_box = drop_item(&mut world, (5, 5), ItemTypeId(7), 1);
+    world
+        .entity_mut(wooden_box)
+        .insert(Container { capacity_ml: 1000 });
+    let rock = drop_item(&mut world, (5, 5), ItemTypeId(3), 1);
+    insert_into(&mut world, wooden_box, rock, |_| 100).expect("the rock fits");
+    let mut rolls = Rolls::new(1);
+    // Only the box burns: the rock's plan is unknown, so it is left alone.
+    let totals = burn_items_in_fire(
+        &mut world,
+        (5, 5),
+        3,
+        false,
+        |kind| {
+            if kind == ItemTypeId(7) {
+                Some(wooden(250.0, false))
+            } else {
+                None
+            }
+        },
+        &mut rolls,
+    );
+    assert_eq!(totals.consumed, 1, "the box is gone");
+    assert!(
+        items_at(&mut world, (5, 5)).contains(&rock),
+        "the rock is on the floor"
+    );
+    assert!(contents(&mut world, wooden_box).is_empty());
 }

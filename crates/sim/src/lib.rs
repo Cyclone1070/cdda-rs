@@ -2021,6 +2021,12 @@ pub fn burn_items_in_fire(
         };
         let destroyed = burn_item(&mut state, burn.burn, rolls);
         if destroyed {
+            // A container that burns away spills what was inside it onto the square, which is the
+            // reference's `new_content` list (`src/map_field.cpp:1015-1028`) - minus its rule that
+            // an irremovable item stays put, which needs item flags the port does not read yet.
+            for held in contents(world, entity) {
+                take_out(world, held);
+            }
             world.despawn(entity);
             totals.consumed += 1;
         } else if let Some(mut item) = world.get_mut::<GroundItem>(entity) {
