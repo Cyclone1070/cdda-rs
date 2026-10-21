@@ -1,0 +1,123 @@
+//! The overmap: the level above the map, one tile per 24 squares.
+//!
+//! Reference: `overmap` (`src/overmap.h`), a square grid `OMAPX` tiles on a side (`map_scale_constants.h`). The port
+//! keeps the grid and its contents and nothing else yet: terrain placement, cities, roads and specials each arrive
+//! as the rules that decide them are ported.
+//!
+//! A tile is addressed the way the reference addresses it - by its own coordinates, with the origin at a corner and
+//! no wrapping - because everything above this layer (mapgen lookup, submap addressing) converts through these
+//! numbers, and a wrap that exists nowhere in the reference would be a source of quiet wrongness.
+
+/// The tile at a position, as an index into the flat list.
+///
+/// Only called for positions already known to be inside the grid; the saturating arithmetic keeps a mistake from
+/// becoming a wrapped index rather than a wrong tile.
+fn index_of(x: i32, y: i32, width: i32) -> usize {
+    let at = y.saturating_mul(width).saturating_add(x).max(0);
+    usize::try_from(at).unwrap_or(0)
+}
+
+/// How many tiles an overmap is on a side.
+///
+/// Reference: `OMAPX` in `map_scale_constants.h`, with the reference asserting that the grid is square.
+pub const OMAPX: i32 = 180;
+
+/// What a square of the overmap holds.
+///
+/// The port stores the terrain as a number and keeps the names in a table beside it, for the same reason items are
+/// numbered: the world is asked about a tile far more often than it is asked what a tile is called.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Overmap {
+    width: i32,
+    height: i32,
+    tiles: Vec<u32>,
+    names: Vec<String>,
+    by_name: std::collections::BTreeMap<String, u32>,
+}
+
+impl Overmap {
+    /// A new overmap filled with one terrain, which the reference fills with `field`.
+    #[must_use]
+    pub fn filled(terrain: &str) -> Self {
+        let width = OMAPX;
+        let height = OMAPX;
+        let mut overmap = Self {
+            width,
+            height,
+            tiles: Vec::new(),
+            names: Vec::new(),
+            by_name: std::collections::BTreeMap::new(),
+        };
+        let id = overmap.intern(terrain);
+        let tiles = usize::try_from(width.saturating_mul(height).max(0)).unwrap_or(0);
+        overmap.tiles = vec![id; tiles];
+        overmap
+    }
+
+    /// The number for a terrain name, adding it to the table when it is new.
+    fn intern(&mut self, name: &str) -> u32 {
+        if let Some(id) = self.by_name.get(name) {
+            return *id;
+        }
+        #[allow(clippy::cast_possible_truncation)]
+        let id = self.names.len() as u32;
+        self.names.push(name.to_owned());
+        self.by_name.insert(name.to_owned(), id);
+        id
+    }
+
+    /// How many tiles across.
+    #[must_use]
+    pub fn width(&self) -> i32 {
+        self.width
+    }
+
+    /// How many tiles down.
+    #[must_use]
+    pub fn height(&self) -> i32 {
+        self.height
+    }
+
+    /// Whether a tile is inside the grid.
+    #[must_use]
+    pub fn contains(&self, x: i32, y: i32) -> bool {
+        x >= 0 && y >= 0 && x < self.width && y < self.height
+    }
+
+    /// The terrain on a tile, if the tile is inside the grid.
+    #[must_use]
+    pub fn terrain_id(&self, x: i32, y: i32) -> Option<u32> {
+        if !self.contains(x, y) {
+            return None;
+        }
+        self.tiles.get(index_of(x, y, self.width)).copied()
+    }
+
+    /// The terrain's name on a tile.
+    #[must_use]
+    pub fn terrain(&self, x: i32, y: i32) -> Option<&str> {
+        let id = self.terrain_id(x, y)?;
+        self.names.get(id as usize).map(String::as_str)
+    }
+
+    /// Puts a terrain on a tile, naming it if the table has never seen it.
+    pub fn set_terrain(&mut self, x: i32, y: i32, terrain: &str) {
+        if !self.contains(x, y) {
+            return;
+        }
+        let id = self.intern(terrain);
+        let at = index_of(x, y, self.width);
+        if let Some(slot) = self.tiles.get_mut(at) {
+            *slot = id;
+        }
+    }
+
+    /// How many tiles hold a given terrain.
+    #[must_use]
+    pub fn count(&self, terrain: &str) -> usize {
+        let Some(id) = self.by_name.get(terrain).copied() else {
+            return 0;
+        };
+        self.tiles.iter().filter(|tile| **tile == id).count()
+    }
+}

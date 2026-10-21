@@ -24,6 +24,7 @@ pub mod line;
 pub mod map_cache;
 pub mod memory;
 pub mod options;
+pub mod overmap;
 pub mod paths;
 pub mod rng;
 pub mod scent;
