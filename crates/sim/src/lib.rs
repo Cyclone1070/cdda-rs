@@ -3758,3 +3758,141 @@ pub fn corpse_rotten_away(world: &mut World, item: Entity, can_revive: bool) -> 
     }
     age > 10 * TURNS_PER_DAY
 }
+
+/// How big a creature was, which decides the base cost of cutting it up.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CreatureSize {
+    /// A cat.
+    Tiny,
+    /// A dog.
+    Small,
+    /// A person.
+    Medium,
+    /// A cow.
+    Large,
+    /// Something you need a ladder for.
+    Huge,
+}
+
+/// What kind of butchery is being done.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ButcherAction {
+    /// Cut it up roughly, where it lies.
+    Quick,
+    /// Drain it first.
+    Bleed,
+    /// Remove the organs.
+    FieldDress,
+    /// Take the hide.
+    Skin,
+    /// Quarter it into pieces.
+    Quarter,
+    /// Take it apart for parts.
+    Dismember,
+    /// Learn something from its anatomy.
+    Dissect,
+    /// The whole job, in a workshop.
+    Full,
+}
+
+/// What is known about the corpse and the person cutting it.
+///
+/// The bools are the corpse's own flags - dressed, failed dressing, quartered - plus one for a butcher who bleeds
+/// instantly. Four separate facts, mirroring the reference's item flags rather than a bitfield of our own.
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Debug, Clone, Copy)]
+pub struct ButcherState {
+    /// The creature's size.
+    pub size: CreatureSize,
+    /// What is being done.
+    pub action: ButcherAction,
+    /// The best cutting tool's quality, which shortens the work.
+    pub tool_factor: i32,
+    /// Whether the corpse has already been field dressed.
+    pub field_dressed: bool,
+    /// Whether field dressing went wrong.
+    pub field_dress_failed: bool,
+    /// Whether the corpse has already been quartered.
+    pub quartered: bool,
+    /// Whether the butcher bleeds things instantly.
+    pub instant_bleed: bool,
+    /// Practice with butchering, from nothing to certain.
+    pub butchering_basic: f64,
+    /// Practice with butchery beyond the basics.
+    pub butchering_advanced: f64,
+    /// Practice with skinning.
+    pub skinning_basic: f64,
+    /// How many helpers are lending a hand, at most three counting.
+    pub helpers: i32,
+}
+
+/// How many moves cutting up a corpse takes.
+///
+/// Reference: `butcher_time_to_cut` (`src/butchery.cpp`), transcribed in its own order of operations, because the
+/// order is what the numbers depend on: the size gives a base, the tool shortens it with a **floor of a quarter**,
+/// the action multiplies it, and the proficiency and helper adjustments come last as floating point. Rounding
+/// differently at any step produces a different number of turns for the same corpse.
+///
+/// The conversions below are the reference's own: it holds these values in `int` and truncates the same way.
+#[must_use]
+#[allow(clippy::cast_possible_truncation)]
+pub fn butcher_time_to_cut(state: ButcherState) -> i32 {
+    let mut time: i32 = match state.size {
+        CreatureSize::Tiny => 150,
+        CreatureSize::Small => 300,
+        CreatureSize::Medium => 450,
+        CreatureSize::Large => 600,
+        CreatureSize::Huge => 1800,
+    };
+    // A good tool cannot save more than three quarters of the work, however fine it is.
+    time *= (100 - state.tool_factor).max(25);
+    time = match state.action {
+        ButcherAction::Quick => time,
+        ButcherAction::Bleed => {
+            if state.instant_bleed {
+                1
+            } else {
+                time
+            }
+        }
+        ButcherAction::Full => {
+            if state.field_dressed && !state.field_dress_failed {
+                time * 4
+            } else {
+                time * 6
+            }
+        }
+        ButcherAction::FieldDress | ButcherAction::Skin => time * 2,
+        ButcherAction::Quarter => (time / 4).max(1200),
+        ButcherAction::Dismember => (time / 10).max(600),
+        ButcherAction::Dissect => time * 6,
+    };
+    if state.quartered {
+        time /= 4;
+    }
+    // Proficiency penalties are whole numbers in the reference, truncated from the sum.
+    let butcher_penalty =
+        (1.5 * (1.0 - state.butchering_basic) + 0.5 * (1.0 - state.butchering_advanced)) as i32;
+    let skin_penalty = (0.5 * (1.0 - state.skinning_basic)) as i32;
+    if state.action == ButcherAction::Full {
+        time = (f64::from(time)
+            * (0.4 * (1.0 + f64::from(butcher_penalty))
+                + 0.4 * (1.0 + f64::from(skin_penalty))
+                + 0.2)) as i32;
+    }
+    if state.action == ButcherAction::Quick {
+        time = (f64::from(time)
+            * (0.7 * (1.0 + f64::from(butcher_penalty))
+                + 0.15 * (1.0 + f64::from(skin_penalty))
+                + 0.15)) as i32;
+    }
+    if state.action == ButcherAction::FieldDress {
+        time = (f64::from(time) * (1.0 + f64::from(butcher_penalty))) as i32;
+    }
+    if state.action == ButcherAction::Skin {
+        time = (f64::from(time) * (1.0 + f64::from(skin_penalty))) as i32;
+    }
+    // Helpers: the reference multiplies the time by a fraction, not by a whole number of them.
+    // Truncating the fraction to zero first would delete the work instead of shortening it.
+    (f64::from(time) * (1.0 - f64::from(state.helpers.clamp(0, 3)) / 10.0)) as i32
+}
