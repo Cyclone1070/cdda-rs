@@ -36,3 +36,38 @@ fn irremovable_is_the_flag_and_nothing_else() {
     let rock = all.iter().find(|item| item.id == "rock").expect("a rock");
     assert!(!rock.is_irremovable(), "a rock can be picked up");
 }
+
+#[test]
+fn the_port_finds_the_items_a_fire_sets_off() {
+    // The reference's dump says 41 of 9,912 items carry `explode_in_fire`.
+    let all = load();
+    let explodes: Vec<&str> = all
+        .iter()
+        .filter(|item| item.explode_in_fire)
+        .map(|item| item.id.as_str())
+        .collect();
+    assert_eq!(
+        explodes.len(),
+        41,
+        "items that go off in a fire: {explodes:?}"
+    );
+    let acetylene = all
+        .iter()
+        .find(|item| item.id == "acetylene")
+        .expect("acetylene");
+    assert!(acetylene.will_explode_in_fire());
+    let rock = all.iter().find(|item| item.id == "rock").expect("a rock");
+    assert!(!rock.will_explode_in_fire());
+}
+
+#[test]
+fn ammunition_cookoff_is_not_ported_yet_and_says_so() {
+    // `cookoff` is derived from ammo effects (`src/item_factory.cpp:512-522`), which the port does
+    // not read: 387 items cook off in the reference and none of them do here yet.
+    let all = load();
+    assert!(
+        all.iter()
+            .all(|item| !item.cookoff && !item.special_cookoff),
+        "the fields exist but nothing sets them"
+    );
+}

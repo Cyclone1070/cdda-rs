@@ -18,6 +18,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 /// One resolved item type, as far as this slice reads it.
 #[derive(Debug, Clone, PartialEq)]
+// This mirrors the reference's `itype`, which is a flat bag of about forty booleans. Grouping ours
+// would read better and drift from the thing it is transcribed from, so the shape stays and the lint
+// is answered here once instead of at every use.
+#[allow(clippy::struct_excessive_bools)]
 pub struct ItemType {
     /// Its id.
     pub id: String,
@@ -41,6 +45,12 @@ pub struct ItemType {
     pub materials: BTreeMap<String, i32>,
     /// Its flag set.
     pub flags: BTreeSet<String>,
+    /// Whether it blows up when a fire reaches it.
+    pub explode_in_fire: bool,
+    /// Whether its ammo cooks off in a fire.
+    pub cookoff: bool,
+    /// Whether its ammo cooks off in a special way.
+    pub special_cookoff: bool,
     /// The subtypes it declares, or the legacy type it was written as, carried
     /// so the category can be derived the way `calc_category` does.
     pub subtypes: BTreeSet<String>,
@@ -71,6 +81,16 @@ impl ItemType {
     #[must_use]
     pub fn is_irremovable(&self) -> bool {
         self.flags.contains("IRREMOVABLE")
+    }
+
+    /// Whether a fire makes it go off.
+    ///
+    /// Reference: `item::will_explode_in_fire` (`src/item.cpp:13314-13325`): the type's own
+    /// `explode_in_fire`, or ammunition that cooks off. A fire that reaches one of these detonates
+    /// it rather than burning it, which is why the burning loop asks first.
+    #[must_use]
+    pub fn will_explode_in_fire(&self) -> bool {
+        self.explode_in_fire || self.cookoff || self.special_cookoff
     }
 }
 
@@ -592,6 +612,9 @@ fn resolve(
         category: String::new(),
         materials: BTreeMap::new(),
         flags: BTreeSet::new(),
+        explode_in_fire: false,
+        cookoff: false,
+        special_cookoff: false,
         subtypes: BTreeSet::new(),
         melee: BTreeMap::new(),
         comestible_type: String::new(),
@@ -760,6 +783,9 @@ fn apply_slots(item: &mut ItemType, object: &Object) {
     }
     if let Some(stackable) = boolean(object, "stackable") {
         item.stackable = stackable;
+    }
+    if let Some(explodes) = boolean(object, "explode_in_fire") {
+        item.explode_in_fire = explodes;
     }
     if let Some(kind) = string(object, "comestible_type") {
         item.comestible_type = kind;

@@ -754,7 +754,12 @@ void dump_items( const std::string &path )
                           harness_escape( flag.str() ).c_str() );
             first_flag = false;
         }
-        std::fprintf( out, "]}" );
+        // What a fire needs to know beyond materials: whether it goes off, and whether its ammo
+        // cooks off, which is `item::will_explode_in_fire` (`src/item.cpp:13314-13325`).
+        std::fprintf( out, "],\"explode_in_fire\":%s,\"cookoff\":%s,\"special_cookoff\":%s}",
+                      proto->explode_in_fire ? "true" : "false",
+                      proto->ammo && proto->ammo->cookoff ? "true" : "false",
+                      proto->ammo && proto->ammo->special_cookoff ? "true" : "false" );
         first = false;
     }
     std::fprintf( out, "]}\n" );
