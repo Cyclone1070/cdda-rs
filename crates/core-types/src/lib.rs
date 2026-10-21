@@ -22,6 +22,7 @@ pub mod level;
 pub mod light;
 pub mod line;
 pub mod map_cache;
+pub mod memory;
 pub mod options;
 pub mod paths;
 pub mod rng;
