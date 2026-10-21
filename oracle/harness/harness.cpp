@@ -600,7 +600,10 @@ void dump_recipes( const std::string &path )
             }
             std::fprintf( out, "]" );
         }
-        std::fprintf( out, "]}" );
+        // What the recipe asks of the crafter: the skill it trains and how hard it is
+        // (`recipe.h:133-137` and `:188`).
+        std::fprintf( out, "],\"skill\":\"%s\",\"difficulty\":%d}",
+                      harness_escape( r.skill_used.str() ).c_str(), r.difficulty );
         first = false;
     }
     std::fprintf( out, "\n],\"count\":%zu}\n", recipe_dict.size() );

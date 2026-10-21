@@ -129,8 +129,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-21 21:39:57
-@@ -0,0 +1,942 @@
++++ oracle/src/src/harness.cpp	2026-10-21 22:38:09
+@@ -0,0 +1,945 @@
 +#include "harness.h"
 +#include "recipe_dictionary.h"
 +#include "requirements.h"
@@ -733,7 +733,10 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +            }
 +            std::fprintf( out, "]" );
 +        }
-+        std::fprintf( out, "]}" );
++        // What the recipe asks of the crafter: the skill it trains and how hard it is
++        // (`recipe.h:133-137` and `:188`).
++        std::fprintf( out, "],\"skill\":\"%s\",\"difficulty\":%d}",
++                      harness_escape( r.skill_used.str() ).c_str(), r.difficulty );
 +        first = false;
 +    }
 +    std::fprintf( out, "\n],\"count\":%zu}\n", recipe_dict.size() );

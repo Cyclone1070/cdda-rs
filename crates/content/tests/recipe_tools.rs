@@ -19,6 +19,8 @@ fn recipe(
         components,
         tools,
         qualities,
+        skill: String::new(),
+        difficulty: 0,
     }
 }
 

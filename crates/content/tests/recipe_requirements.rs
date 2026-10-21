@@ -15,6 +15,8 @@ fn recipe(components: Vec<Vec<Component>>) -> Recipe {
         components,
         tools: Vec::new(),
         qualities: Vec::new(),
+        skill: String::new(),
+        difficulty: 0,
     }
 }
 

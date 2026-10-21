@@ -59,6 +59,10 @@ pub struct Recipe {
     pub tools: Vec<Vec<Tool>>,
     /// Qualities the recipe needs, as groups of alternatives.
     pub qualities: Vec<Vec<Quality>>,
+    /// The skill it trains, which is also the skill that gates it.
+    pub skill: String,
+    /// How skilled the crafter must be, on the reference's own scale.
+    pub difficulty: i32,
 }
 
 fn member<'a>(object: &'a Object, key: &str) -> Option<&'a Value> {
@@ -187,6 +191,11 @@ pub fn from_dump(value: &Value) -> Option<(Vec<Recipe>, usize)> {
             components: components_of(object)?,
             tools: tools_of(object)?,
             qualities: qualities_of(object)?,
+            skill: string_of(object, "skill").unwrap_or_default(),
+            difficulty: match member(object, "difficulty") {
+                Some(Value::Int(value)) => i32::try_from(*value).unwrap_or(0),
+                _ => 0,
+            },
         });
     }
     Some((recipes, count))
@@ -283,6 +292,18 @@ impl Recipe {
                 .iter()
                 .any(|quality| items_with(&quality.quality, quality.level) >= quality.count)
         })
+    }
+
+    /// Whether a crafter at this skill level can make the recipe at all.
+    ///
+    /// Reference: `Character::has_recipe_requirements` and the difficulty check in
+    /// `Character::can_craft` (`src/crafting.cpp`): the crafter's level in the recipe's skill must reach
+    /// the recipe's difficulty. Knowing the recipe is a separate question, so it is a separate argument -
+    /// the reference keeps the two apart and a character can be skilled enough for a recipe it has never
+    /// learned.
+    #[must_use]
+    pub fn skilled_enough(&self, knows: bool, level: i32) -> bool {
+        knows && level >= self.difficulty
     }
 
     /// Whether everything the recipe needs is on hand: components, tools and qualities.
