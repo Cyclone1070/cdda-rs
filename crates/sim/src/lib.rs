@@ -3103,3 +3103,55 @@ pub fn regen_moves(moves: i32, speed: i32) -> i32 {
 pub fn can_act(moves: i32) -> bool {
     moves > 0
 }
+
+/// Whether a creature is next to a square, which is where it can reach to attack.
+///
+/// Reference: `Creature::is_adjacent` (`creature.cpp`), which asks `rl_dist( pos, target ) != 1` - so the four
+/// sides and the four diagonals count, and a creature standing on the square does not.
+#[must_use]
+pub fn is_adjacent(from: (i32, i32), to: (i32, i32)) -> bool {
+    let dx = (from.0 - to.0).abs();
+    let dy = (from.1 - to.1).abs();
+    dx.max(dy) == 1
+}
+
+/// One step toward a square, which is where an idle creature walks.
+///
+/// Reference: `monster::move` falls back to stepping at the player when there is nothing better to do; the step
+/// is one square in each axis that is not already aligned.
+#[must_use]
+pub fn step_toward(from: (i32, i32), to: (i32, i32)) -> (i32, i32) {
+    let step = |delta: i32| match delta.cmp(&0) {
+        std::cmp::Ordering::Less => -1,
+        std::cmp::Ordering::Equal => 0,
+        std::cmp::Ordering::Greater => 1,
+    };
+    (from.0 + step(to.0 - from.0), from.1 + step(to.1 - from.1))
+}
+
+/// What a creature does with its turn.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Action {
+    /// Hit what is next to it.
+    Attack,
+    /// Walk one square toward the target.
+    Step((i32, i32)),
+    /// Nothing to do.
+    Wait,
+}
+
+/// Chooses an action: attack what is next to it, otherwise close the distance, otherwise wait.
+///
+/// Reference: `monster::move` (`monmove.cpp`), whose first branch is a melee attack on an adjacent target and
+/// whose fallback is a step toward the player. This is the ladder without the refinements - no pathfinding, no
+/// fleeing, no special attacks - because those are separate rules with separate tests.
+#[must_use]
+pub fn choose_action(from: (i32, i32), target: (i32, i32)) -> Action {
+    if from == target {
+        return Action::Wait;
+    }
+    if is_adjacent(from, target) {
+        return Action::Attack;
+    }
+    Action::Step(step_toward(from, target))
+}
