@@ -3,7 +3,9 @@
 
 #![allow(clippy::expect_used, clippy::panic)]
 
-use cdda_content::{digest, fields, items, materials, monsters, overmap, terrain, traps};
+use cdda_content::{
+    digest, fields, items, materials, monsters, overmap, starting_kit, terrain, traps, vehicles,
+};
 use cdda_json::{Value, parse};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -189,5 +191,66 @@ fn the_registries_that_come_from_dumps_match_as_well() {
         ours,
         digest_of(digests.get("terrain").expect("terrain digest")),
         "terrain ids"
+    );
+}
+
+#[test]
+fn furniture_specials_vehicles_and_the_starting_kit_match() {
+    let digests = read("corpus/prototypes/digest.json");
+
+    let artifact =
+        std::fs::read_to_string(root().join("corpus/prototypes/terrain.json")).expect("artifact");
+    let value = parse(artifact.as_bytes()).expect("parses");
+    let furniture = terrain::furniture_from_dump(&value).expect("furniture loads");
+    let ours = digest::digest_hex(digest::digest_ids(
+        furniture.iter().map(|kind| kind.id.as_str()),
+    ));
+    assert_eq!(
+        ours,
+        digest_of(digests.get("furniture").expect("furniture digest"))
+    );
+
+    let artifact = std::fs::read_to_string(root().join("corpus/vehicles.json")).expect("artifact");
+    let value = parse(artifact.as_bytes()).expect("parses");
+    let loaded = vehicles::from_dump(&value).expect("vehicles load");
+    let ours = digest::digest_hex(digest::digest_ids(loaded.prototypes.iter()));
+    assert_eq!(
+        ours,
+        digest_of(digests.get("vehicle").expect("vehicle digest")),
+        "vehicles"
+    );
+    let ours = digest::digest_hex(digest::digest_ids(loaded.parts.iter()));
+    assert_eq!(
+        ours,
+        digest_of(digests.get("vehicle_part").expect("vehicle part digest")),
+        "vehicle parts"
+    );
+
+    let artifact =
+        std::fs::read_to_string(root().join("corpus/starting_kit.json")).expect("artifact");
+    let value = parse(artifact.as_bytes()).expect("parses");
+    let kit = starting_kit::from_dump(&value).expect("kit loads");
+    let ours = digest::digest_hex(digest::digest_ids(kit.professions.iter()));
+    assert_eq!(
+        ours,
+        digest_of(digests.get("profession").expect("profession digest")),
+        "professions"
+    );
+    let ours = digest::digest_hex(digest::digest_ids(kit.scenarios.iter()));
+    assert_eq!(
+        ours,
+        digest_of(digests.get("scenario").expect("scenario digest")),
+        "scenarios"
+    );
+
+    let core = root().join("references/Cataclysm-DDA/data/core");
+    let json = root().join("references/Cataclysm-DDA/data/json");
+    let dirs: [&Path; 2] = [core.as_path(), json.as_path()];
+    let loaded = overmap::load_paths(&dirs).expect("overmap loads");
+    let ours = digest::digest_hex(digest::digest_ids(loaded.specials.iter()));
+    assert_eq!(
+        ours,
+        digest_of(digests.get("overmap special").expect("special digest")),
+        "overmap specials"
     );
 }

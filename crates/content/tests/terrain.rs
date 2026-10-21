@@ -15,7 +15,11 @@ fn dump() -> Vec<Terrain> {
 
 #[test]
 fn the_port_finds_every_terrain_the_reference_defines() {
-    assert_eq!(dump().len(), 1109, "terrains, without the furniture the dump also carries");
+    assert_eq!(
+        dump().len(),
+        1109,
+        "terrains, without the furniture the dump also carries"
+    );
 }
 
 #[test]
