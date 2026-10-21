@@ -627,3 +627,18 @@ map has been generated in the same run, rather than from a start of its own.
 
 The change was reverted in full - the flag, the handler and the function - so the oracle is exactly what the patch
 file says it is, and it rebuilds with no errors.
+
+### Probe: the overmap dump from inside the frame path (round 198, failed, reverted)
+
+The diagnosis from round 197 said the overmap read inherits the setup the frame dump needed, so this attempt did the
+dump in the **same run** as the frame dump, after the map exists, with the centre taken from the map's absolute
+position (`project_to<coords::omt>( get_map().get_abs_sub() )`) rather than from the avatar's overmap position - the
+one that reported `[0,0]`.
+
+It compiled and it ran, and it produced **nothing at all**: no frame file, no overmap file, within a 450 second
+budget, with a save directory removed first. The log holds only the start screen's own text. The frame dump alone is
+known to work, so the difference is the second flag or the run's length, and those are the two things to separate
+next: run the frame dump alone again with the same budget and confirm it still produces a file, then add the overmap
+call back with a longer budget and a check for the save directory appearing.
+
+Reverted again in full. The oracle rebuilds with no errors and the patch file still describes it exactly.
