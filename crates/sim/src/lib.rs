@@ -2460,3 +2460,32 @@ pub fn contents(world: &mut World, container: Entity) -> Vec<Entity> {
 pub fn take_out(world: &mut World, item: Entity) {
     world.entity_mut(item).remove::<Inside>();
 }
+
+/// What an item weighs, contents included.
+///
+/// Reference: `item::weight` (`src/item.cpp:7229-7300`). The base weight comes from the prototype, an
+/// item counted in charges weighs that much per charge, and **what is inside a container counts** -
+/// that is why the reference takes `include_contents` and why a full box is heavier than an empty one.
+/// The recursion is bounded by the tree of contents, which cannot be cyclic because an item can only be
+/// in one place at once.
+#[must_use]
+pub fn item_weight(
+    world: &mut World,
+    entity: Entity,
+    base_grams: impl Fn(ItemTypeId) -> i64,
+) -> i64 {
+    weight_with(world, entity, &base_grams)
+}
+
+/// The recursion itself, taking the lookup as a trait object so it does not monomorphise per depth.
+fn weight_with(world: &mut World, entity: Entity, base_grams: &dyn Fn(ItemTypeId) -> i64) -> i64 {
+    let Some(item) = world.get::<GroundItem>(entity).copied() else {
+        return 0;
+    };
+    let charges = i64::from(item.charges.max(1));
+    let mut total = base_grams(item.kind).saturating_mul(charges);
+    for held in contents(world, entity) {
+        total = total.saturating_add(weight_with(world, held, base_grams));
+    }
+    total
+}
