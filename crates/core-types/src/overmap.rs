@@ -303,3 +303,97 @@ pub fn place_cities(
 
 /// The terrain a fresh overmap is filled with, which a city may only be placed on.
 pub const DEFAULT_OTER: &str = "field";
+
+/// Which way a street runs.
+///
+/// Reference: `om_direction::type` (`omdata.h`), whose four values are north, east, south and west **in that order**,
+/// because the order is what rotation counts in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Direction {
+    /// Towards the top of the map.
+    North,
+    /// Towards the right.
+    East,
+    /// Towards the bottom.
+    South,
+    /// Towards the left.
+    West,
+}
+
+impl Direction {
+    /// All four, in the reference's order.
+    pub const ALL: [Self; 4] = [Self::North, Self::East, Self::South, Self::West];
+
+    /// Where this direction sits in that order.
+    #[must_use]
+    pub fn index(self) -> i32 {
+        match self {
+            Self::North => 0,
+            Self::East => 1,
+            Self::South => 2,
+            Self::West => 3,
+        }
+    }
+
+    /// How far one step in this direction moves, in tiles.
+    ///
+    /// Reference: `om_direction::displace`, which rotates `(0, -dist)` - north is written first and is therefore
+    /// the direction of decreasing y.
+    #[must_use]
+    pub fn displace(self, distance: i32) -> (i32, i32) {
+        match self {
+            Self::North => (0, -distance),
+            Self::East => (distance, 0),
+            Self::South => (0, distance),
+            Self::West => (-distance, 0),
+        }
+    }
+
+    /// The direction a quarter turn from this one, counted in the reference's order.
+    #[must_use]
+    fn rotate(self, steps: i32) -> Self {
+        let turned = (self.index() + steps).rem_euclid(4);
+        match turned {
+            1 => Self::East,
+            2 => Self::South,
+            3 => Self::West,
+            _ => Self::North,
+        }
+    }
+
+    /// The direction a quarter turn to the left.
+    ///
+    /// Reference: `turn_left`, which is a rotation by **minus** a quarter of the four.
+    #[must_use]
+    pub fn turn_left(self) -> Self {
+        self.rotate(-1)
+    }
+
+    /// The direction a quarter turn to the right.
+    #[must_use]
+    pub fn turn_right(self) -> Self {
+        self.rotate(1)
+    }
+}
+
+/// A straight run of tiles, from a starting point towards a direction.
+///
+/// Reference: `straight_path` (`overmap.cpp`). A run of `length` tiles **including the one it starts on**, each step
+/// moving one tile in the direction. Nothing here checks the map: the caller that lays out a street decides where it
+/// may go, and this is only the shape of the line once that is settled.
+#[must_use]
+pub fn straight_path(source: (i32, i32), direction: Direction, length: usize) -> Vec<(i32, i32)> {
+    if length == 0 {
+        return Vec::new();
+    }
+    let mut nodes = Vec::with_capacity(length);
+    let (mut x, mut y) = source;
+    for _ in 0..length - 1 {
+        nodes.push((x, y));
+        let (dx, dy) = direction.displace(1);
+        x += dx;
+        y += dy;
+    }
+    nodes.push((x, y));
+    nodes
+}
