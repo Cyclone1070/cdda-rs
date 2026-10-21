@@ -2919,3 +2919,90 @@ pub fn craft_turn_on(world: &mut World, craft: Entity, moves: i64, speed: f64) -
 pub fn cancel_craft(world: &mut World, craft: Entity) {
     world.entity_mut(craft).remove::<CraftInProgress>();
 }
+
+/// Why something could not be eaten.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EatError {
+    /// Nothing of that kind is on the square.
+    NotThere,
+    /// It is not food: the reference's comestibles are the only things with a nutrition value.
+    NotFood,
+    /// There is some, but not a full serving.
+    NotEnoughCharges {
+        /// What was there.
+        available: i32,
+        /// What one serving costs.
+        needed: i32,
+    },
+}
+
+/// What is left of a meal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Meal {
+    /// Nutrition gained, in the reference's own units.
+    pub nutr: i32,
+    /// Thirst quenched.
+    pub quench: i32,
+    /// Charges spent.
+    pub charges: i32,
+}
+
+/// Eats one serving of something on a square.
+///
+/// Reference: the comestible path of `Character::consume` and `itype::charges_to_use`
+/// (`src/itype.cpp:151-159`): **one serving spends `charges_to_use` charges** - which is one for food, so
+/// the rule only shows when it is not - and the nutrition gained is the type's per serving. The port keeps
+/// the spending and the accounting and leaves hunger, thirst and the eating time to the systems that own
+/// them.
+///
+/// `nutrition_of` answers with `(nutr, quench, charges_to_use)` for a kind.
+///
+/// # Errors
+///
+/// Returns [`EatError`] when there is nothing there, it is not food, or there are not enough charges for a
+/// full serving. Nothing is consumed when it fails.
+pub fn eat(
+    world: &mut World,
+    square: (i32, i32),
+    kind: ItemTypeId,
+    nutrition_of: impl Fn(ItemTypeId) -> (i32, i32, i32),
+) -> Result<Meal, EatError> {
+    let (nutr, quench, charges_to_use) = nutrition_of(kind);
+    if nutr == 0 && quench == 0 {
+        return Err(EatError::NotFood);
+    }
+    let charges_to_use = charges_to_use.max(1);
+    let available = count_on_square(world, square, kind);
+    if available == 0 {
+        return Err(EatError::NotThere);
+    }
+    if available < charges_to_use {
+        return Err(EatError::NotEnoughCharges {
+            available,
+            needed: charges_to_use,
+        });
+    }
+    consume_items(world, square, kind, charges_to_use);
+    Ok(Meal {
+        nutr,
+        quench,
+        charges: charges_to_use,
+    })
+}
+
+/// What a character has eaten and drunk, in the reference's units.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Component)]
+pub struct MealTally {
+    /// Nutrition taken in.
+    pub nutr: i32,
+    /// Thirst quenched.
+    pub quench: i32,
+}
+
+impl MealTally {
+    /// Adds a meal to the tally.
+    pub fn eat(&mut self, meal: Meal) {
+        self.nutr = self.nutr.saturating_add(meal.nutr);
+        self.quench = self.quench.saturating_add(meal.quench);
+    }
+}
