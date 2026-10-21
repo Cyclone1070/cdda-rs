@@ -31,6 +31,7 @@ pub mod submap;
 pub mod text;
 pub mod tiles;
 pub mod units;
+pub mod vision;
 pub mod weather;
 pub mod weighted;
 
