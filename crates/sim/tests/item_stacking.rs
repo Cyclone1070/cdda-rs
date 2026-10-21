@@ -14,6 +14,7 @@ fn rocks(charges: i32) -> StackFacts {
         charges,
         burnt: 0,
         by_charges: true,
+        damage_level: 0,
     }
 }
 
@@ -23,6 +24,7 @@ fn batteries(charges: i32) -> StackFacts {
         charges,
         burnt: 0,
         by_charges: false,
+        damage_level: 0,
     }
 }
 
@@ -78,5 +80,15 @@ fn dropping_something_that_does_not_match_makes_its_own_pile() {
         items_at(&mut world, (5, 5)).len(),
         2,
         "a rock pile and a battery"
+    );
+}
+
+#[test]
+fn a_dented_item_never_stacks_with_a_sound_one() {
+    let mut dented = rocks(3);
+    dented.damage_level = 2;
+    assert!(
+        !stacks_with(&dented, &rocks(3)),
+        "the reference compares damage levels"
     );
 }

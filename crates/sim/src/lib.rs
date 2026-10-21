@@ -830,6 +830,8 @@ pub struct GroundItem {
     pub age: i64,
     /// How much of a solid item has burned away so far.
     pub burnt: i32,
+    /// How damaged it is, in the reference's own units.
+    pub damage: i32,
 }
 
 /// Puts an item on a square.
@@ -842,6 +844,7 @@ pub fn drop_item(world: &mut World, square: (i32, i32), kind: ItemTypeId, charge
             },
             GroundItem {
                 burnt: 0,
+                damage: 0,
                 kind,
                 charges,
                 age: 0,
@@ -2229,6 +2232,8 @@ pub struct StackFacts {
     pub burnt: i32,
     /// Whether the type is counted in charges rather than as separate objects.
     pub by_charges: bool,
+    /// How damaged it is, as the reference's level.
+    pub damage_level: i32,
 }
 
 /// Whether two of these would merge into one stack.
@@ -2240,6 +2245,7 @@ pub struct StackFacts {
 pub fn stacks_with(left: &StackFacts, right: &StackFacts) -> bool {
     left.kind == right.kind
         && left.burnt == right.burnt
+        && left.damage_level == right.damage_level
         && (left.by_charges || left.charges == right.charges)
 }
 
@@ -2257,6 +2263,7 @@ pub fn drop_and_merge(world: &mut World, square: (i32, i32), facts: StackFacts) 
             kind: existing.kind,
             charges: existing.charges,
             burnt: existing.burnt,
+            damage_level: existing.damage,
             by_charges: facts.by_charges,
         };
         if stacks_with(&existing_facts, &facts) {
@@ -2297,4 +2304,25 @@ pub fn charges_per_volume(
         wanted_ml / item_volume_ml
     };
     i32::try_from(fits).unwrap_or(i32::MAX)
+}
+
+/// How damaged an item is, as one of six levels.
+///
+/// Reference: `itype::damage_level` (`src/itype.cpp:117-126`) and `item::damage_level` above it. An
+/// undamaged item is level 0. A type counted in charges has no partial damage at all - any damage
+/// puts it at level 5, which is how a leaking bottle reads as ruined rather than scratched. Anything
+/// else is scaled against the type's own maximum: a quarter of the way through its damage is level 2,
+/// and the scale saturates at 5.
+#[must_use]
+pub fn damage_level(damage: i32, damage_max: i32, by_charges: bool) -> i32 {
+    if damage == 0 {
+        return 0;
+    }
+    if by_charges {
+        return 5;
+    }
+    if damage_max <= 0 {
+        return 5;
+    }
+    (1 + 4 * damage / damage_max).clamp(0, 5)
 }
