@@ -13,8 +13,8 @@ fn root() -> PathBuf {
 }
 
 fn loaded() -> Vec<monsters::MonsterType> {
-    let data = root().join("references/Cataclysm-DDA/data");
-    monsters::load_paths(&[&data.join("core"), &data.join("json")]).expect("monsters load")
+    let _data = root().join("references/Cataclysm-DDA/data");
+    crate::corpus::monsters_loaded()
 }
 
 fn dump() -> Vec<Object> {

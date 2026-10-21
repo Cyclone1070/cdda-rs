@@ -5,7 +5,6 @@
 //! answer. The rule itself was measured and written down before this test existed:
 //! [docs/15-overmap-terrain-ids.md](../../docs/15-overmap-terrain-ids.md).
 
-use cdda_content::overmap;
 use cdda_json::Value;
 use std::collections::BTreeSet;
 use std::path::PathBuf;
@@ -51,10 +50,9 @@ fn reference_ids(registry: &str) -> BTreeSet<String> {
 #[allow(clippy::expect_used, clippy::panic)]
 #[test]
 fn the_type_registry_is_the_json_ids_and_nothing_else() {
-    let root = reference_root();
+    let _root = reference_root();
     let started = std::time::Instant::now();
-    let loaded = overmap::load_paths(&[&root.join("data/core"), &root.join("data/json")])
-        .expect("the overmap terrain files load");
+    let loaded = crate::corpus::overmap_loaded();
 
     let ours: BTreeSet<String> = loaded.types.iter().map(|kind| kind.id.clone()).collect();
     let theirs = reference_ids("overmap terrain type");
@@ -78,9 +76,8 @@ fn the_type_registry_is_the_json_ids_and_nothing_else() {
 #[allow(clippy::expect_used, clippy::panic)]
 #[test]
 fn the_terrain_registry_is_the_types_plus_their_variants() {
-    let root = reference_root();
-    let loaded = overmap::load_paths(&[&root.join("data/core"), &root.join("data/json")])
-        .expect("the overmap terrain files load");
+    let _root = reference_root();
+    let loaded = crate::corpus::overmap_loaded();
 
     let ours: BTreeSet<String> = loaded.terrains.iter().cloned().collect();
     let theirs = reference_ids("overmap terrain");
@@ -108,9 +105,8 @@ fn the_terrain_registry_is_the_types_plus_their_variants() {
 #[allow(clippy::expect_used, clippy::panic)]
 #[test]
 fn the_special_registry_is_specials_plus_city_buildings() {
-    let root = reference_root();
-    let loaded = overmap::load_paths(&[&root.join("data/core"), &root.join("data/json")])
-        .expect("the overmap files load");
+    let _root = reference_root();
+    let loaded = crate::corpus::overmap_loaded();
 
     let theirs = reference_ids("overmap special");
     let invented: Vec<&String> = loaded.specials.difference(&theirs).take(5).collect();

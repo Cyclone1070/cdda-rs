@@ -155,23 +155,21 @@ fn the_port_never_invents_an_id_the_reference_does_not_have() {
     // Monster types come from a loader rather than from a file scan: the
     // reference adds a null type and a dormant twin for every monster flagged
     // `GEN_DORMANT`, and only the loader knows about them.
-    if let Ok(types) = cdda_content::monsters::load_paths(&[&core, &content]) {
-        ours.insert(
-            "monster type".to_owned(),
-            types.into_iter().map(|monster| monster.id).collect(),
-        );
-    }
+    let types = crate::corpus::monsters_loaded();
+    ours.insert(
+        "monster type".to_owned(),
+        types.into_iter().map(|monster| monster.id).collect(),
+    );
     // Overmap terrain comes from its loader too: one type per JSON id, and the
     // variants each type registers - four rotations, or the sixteen line shapes
     // for a LINEAR terrain (docs/15-overmap-terrain-ids.md).
-    if let Ok(loaded) = cdda_content::overmap::load_paths(&[&core, &content]) {
-        ours.insert(
-            "overmap terrain type".to_owned(),
-            loaded.types.iter().map(|kind| kind.id.clone()).collect(),
-        );
-        ours.insert("overmap special".to_owned(), loaded.specials.clone());
-        ours.insert("overmap terrain".to_owned(), loaded.terrains.clone());
-    }
+    let loaded = crate::corpus::overmap_loaded();
+    ours.insert(
+        "overmap terrain type".to_owned(),
+        loaded.types.iter().map(|kind| kind.id.clone()).collect(),
+    );
+    ours.insert("overmap special".to_owned(), loaded.specials.clone());
+    ours.insert("overmap terrain".to_owned(), loaded.terrains.clone());
     let report = differences(&ours, &theirs);
 
     let mut invented = Vec::new();
@@ -234,31 +232,30 @@ fn every_registry_holds_exactly_the_ids_the_reference_reports() {
     // Monster types come from a loader rather than from a file scan: the
     // reference adds a null type and a dormant twin for every monster flagged
     // `GEN_DORMANT`, and only the loader knows about them.
-    if let Ok(types) = cdda_content::monsters::load_paths(&[&core, &content]) {
-        ours.insert(
-            "monster type".to_owned(),
-            types.into_iter().map(|monster| monster.id).collect(),
-        );
-    }
+    let types = crate::corpus::monsters_loaded();
+    ours.insert(
+        "monster type".to_owned(),
+        types.into_iter().map(|monster| monster.id).collect(),
+    );
     // Overmap terrain comes from its loader too: one type per JSON id, and the
     // variants each type registers - four rotations, or the sixteen line shapes
     // for a LINEAR terrain (docs/15-overmap-terrain-ids.md).
-    if let Ok(loaded) = cdda_content::overmap::load_paths(&[&core, &content]) {
-        ours.insert(
-            "overmap terrain type".to_owned(),
-            loaded.types.iter().map(|kind| kind.id.clone()).collect(),
-        );
-        // `city_building` is an alias for `overmap_special` in the reference, so
-        // the scan's special set is short by the 415 city buildings; the loader
-        // reads both and is the honest source here.
-        // Effects come from their own loader: an inline effect is registered under the
-        // id inside the slot it sits in, so a scan of top-level entries cannot see it.
-        if let Ok(loaded) = cdda_content::eocs::load_paths(&[&core, &content]) {
-            ours.insert("effect_on_condition".to_owned(), loaded.ids);
-        }
-        ours.insert("overmap special".to_owned(), loaded.specials.clone());
-        ours.insert("overmap terrain".to_owned(), loaded.terrains.clone());
-    }
+    let loaded = crate::corpus::overmap_loaded();
+    ours.insert(
+        "overmap terrain type".to_owned(),
+        loaded.types.iter().map(|kind| kind.id.clone()).collect(),
+    );
+    // `city_building` is an alias for `overmap_special` in the reference, so
+    // the scan's special set is short by the 415 city buildings; the loader
+    // reads both and is the honest source here.
+    ours.insert("overmap special".to_owned(), loaded.specials.clone());
+    ours.insert("overmap terrain".to_owned(), loaded.terrains.clone());
+    // Effects come from their own loader: an inline effect is registered under the
+    // id inside the slot it sits in, so a scan of top-level entries cannot see it.
+    ours.insert(
+        "effect_on_condition".to_owned(),
+        crate::corpus::eocs_loaded().ids,
+    );
     let report = differences(&ours, &theirs);
 
     let mut unexplained = Vec::new();

@@ -3,9 +3,7 @@
 
 #![allow(clippy::expect_used, clippy::panic)]
 
-use cdda_content::{
-    digest, fields, items, materials, monsters, overmap, starting_kit, terrain, traps, vehicles,
-};
+use cdda_content::{digest, fields, starting_kit, terrain, vehicles};
 use cdda_json::{Value, parse};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -92,17 +90,14 @@ fn the_order_and_repeats_of_the_input_do_not_matter() {
 #[test]
 fn the_ports_own_material_and_trap_ids_match_the_reference_digest() {
     let digests = read("corpus/prototypes/digest.json");
-    let core = root().join("references/Cataclysm-DDA/data/core");
-    let json = root().join("references/Cataclysm-DDA/data/json");
-    let dirs: [&Path; 2] = [core.as_path(), json.as_path()];
-    let loaded_materials = materials::load_paths(&dirs).expect("materials load");
+    let loaded_materials = crate::corpus::materials_loaded();
     let ours = digest::digest_hex(digest::digest_ids(
         loaded_materials.iter().map(|material| material.id.as_str()),
     ));
     let reference = digests.get("material").expect("material digest");
     assert_eq!(ours, digest_of(reference), "material ids");
 
-    let loaded_traps = traps::load_paths(&dirs).expect("traps load");
+    let loaded_traps = crate::corpus::traps_loaded();
     let ours = digest::digest_hex(digest::digest_ids(
         loaded_traps.iter().map(|trap| trap.id.as_str()),
     ));
@@ -113,11 +108,8 @@ fn the_ports_own_material_and_trap_ids_match_the_reference_digest() {
 #[test]
 fn the_bigger_registries_match_too() {
     let digests = read("corpus/prototypes/digest.json");
-    let core = root().join("references/Cataclysm-DDA/data/core");
-    let json = root().join("references/Cataclysm-DDA/data/json");
-    let dirs: [&Path; 2] = [core.as_path(), json.as_path()];
 
-    let loaded_items = items::load_paths(&dirs).expect("items load");
+    let loaded_items = crate::corpus::items_loaded();
     let ours = digest::digest_hex(digest::digest_ids(
         loaded_items.iter().map(|item| item.id.as_str()),
     ));
@@ -127,7 +119,7 @@ fn the_bigger_registries_match_too() {
         "item ids"
     );
 
-    let loaded_monsters = monsters::load_paths(&dirs).expect("monsters load");
+    let loaded_monsters = crate::corpus::monsters_loaded();
     let ours = digest::digest_hex(digest::digest_ids(
         loaded_monsters.iter().map(|monster| monster.id.as_str()),
     ));
@@ -137,7 +129,7 @@ fn the_bigger_registries_match_too() {
         "monster ids"
     );
 
-    let loaded_overmap = overmap::load_paths(&dirs).expect("overmap loads");
+    let loaded_overmap = crate::corpus::overmap_loaded();
     let ours = digest::digest_hex(digest::digest_ids(loaded_overmap.terrains.iter()));
     assert_eq!(
         ours,
@@ -243,10 +235,7 @@ fn furniture_specials_vehicles_and_the_starting_kit_match() {
         "scenarios"
     );
 
-    let core = root().join("references/Cataclysm-DDA/data/core");
-    let json = root().join("references/Cataclysm-DDA/data/json");
-    let dirs: [&Path; 2] = [core.as_path(), json.as_path()];
-    let loaded = overmap::load_paths(&dirs).expect("overmap loads");
+    let loaded = crate::corpus::overmap_loaded();
     let ours = digest::digest_hex(digest::digest_ids(loaded.specials.iter()));
     assert_eq!(
         ours,

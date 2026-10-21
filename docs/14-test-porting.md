@@ -130,9 +130,19 @@ Two changes fixed it, and both are structural rather than a tweak:
   **283 s to 185 s**, with the same 873 cases, and a case is still named after its
   file: `frame_diff::the_same_frame_diffs_to_nothing`.
 
-  What is left is honest work rather than overhead: `content_suite` is 185 s of the
-  185 s wall time, because the corpus gates read the reference tree. That is the
-  next thing to make faster, and the table now says so in one line.
+* **One load per corpus per process.** Merging the files exposed what the real cost
+  had been all along: each case loaded the reference content for itself, and loading
+  the item registry takes about seven seconds. `tests/content_suite/corpus.rs`
+  remembers each registry behind a `OnceLock` and hands back a copy - a copy of nine
+  thousand items costs a fraction of a second, loading them costs seven. Nothing
+  bypasses a loader: every accessor calls exactly the loader a case would have
+  called, with the same directories. Cases that read a **fixture** directory keep
+  loading their own tree, because that is what those cases are about.
+  `content_suite` went from **185 s to 23 s** on its own and the suite from **185 s
+  to 96 s** wall.
+
+  What is left is `json_suite` at 57 s, which parses the reference tree directly
+  rather than through a loader, and the same treatment applies there next.
 
 Builds run at `CARGO_BUILD_JOBS=8` and the oracle at `JOBS=8`. Compiling on all twelve cores
 makes every other shell command on the machine wait minutes for a turn while the browser stays

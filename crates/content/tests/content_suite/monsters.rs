@@ -20,8 +20,8 @@ fn root() -> PathBuf {
 
 #[test]
 fn every_monster_type_matches_the_reference() {
-    let data = root().join("references/Cataclysm-DDA/data");
-    let loaded = monsters::load_paths(&[&data.join("core"), &data.join("json")]).expect("loads");
+    let _data = root().join("references/Cataclysm-DDA/data");
+    let loaded = crate::corpus::monsters_loaded();
     let bytes = std::fs::read(root().join("corpus/prototypes/monsters.json")).expect("corpus");
     let dump = parse(&bytes).expect("parses");
     let Value::Object(dump) = dump else {

@@ -6,13 +6,8 @@
 //! in a slot such as `activated_eocs` or `true_eocs`, and the reference registers
 //! it under its own `id` as it loads. Both kinds are the same registry.
 
-use cdda_content::eocs;
 use std::collections::BTreeSet;
 use std::path::PathBuf;
-
-fn reference_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA")
-}
 
 #[allow(clippy::expect_used, clippy::panic)]
 fn reference_ids(registry: &str) -> BTreeSet<String> {
@@ -48,10 +43,8 @@ fn reference_ids(registry: &str) -> BTreeSet<String> {
 #[allow(clippy::expect_used, clippy::panic)]
 #[test]
 fn every_effect_on_condition_is_known_by_name() {
-    let root = reference_root();
     let started = std::time::Instant::now();
-    let loaded = eocs::load_paths(&[&root.join("data/core"), &root.join("data/json")])
-        .expect("the effect files load");
+    let loaded = crate::corpus::eocs_loaded();
     let theirs = reference_ids("effect_on_condition");
 
     let missing: Vec<&String> = theirs.difference(&loaded.ids).take(8).collect();

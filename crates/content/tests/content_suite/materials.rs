@@ -41,7 +41,7 @@ fn a_material_takes_its_numbers_and_its_breathability_rating() {
         ]"#,
     )
     .expect("fixture");
-    let loaded = materials::load_paths(&[&dir]).expect("loads");
+    let loaded = materials::load_paths(&[&dir]).expect("fixture loads");
     let cloth = loaded
         .iter()
         .find(|entry| entry.id == "test_cloth")
@@ -66,11 +66,7 @@ fn every_material_matches_the_reference() {
     let Some(Value::Array(entries)) = root_object.get("prototypes") else {
         panic!("prototypes")
     };
-    let loaded = materials::load_paths(&[
-        &root().join("references/Cataclysm-DDA/data/core"),
-        &root().join("references/Cataclysm-DDA/data/json"),
-    ])
-    .expect("loads");
+    let loaded = crate::corpus::materials_loaded();
     println!(
         "loaded {} materials, reference has {}",
         loaded.len(),
@@ -140,11 +136,7 @@ fn every_material_matches_the_reference() {
 }
 
 fn load() -> Vec<materials::Material> {
-    materials::load_paths(&[
-        &root().join("references/Cataclysm-DDA/data/core"),
-        &root().join("references/Cataclysm-DDA/data/json"),
-    ])
-    .expect("loads")
+    crate::corpus::materials_loaded()
 }
 
 #[test]

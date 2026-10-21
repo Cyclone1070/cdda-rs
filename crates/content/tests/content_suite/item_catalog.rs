@@ -14,8 +14,8 @@ fn root() -> PathBuf {
 }
 
 fn items_loaded() -> Vec<items::ItemType> {
-    let data = root().join("references/Cataclysm-DDA/data");
-    items::load_paths(&[&data.join("core"), &data.join("json")]).expect("items load")
+    let _data = root().join("references/Cataclysm-DDA/data");
+    crate::corpus::items_loaded()
 }
 
 fn dump_ids() -> BTreeSet<String> {

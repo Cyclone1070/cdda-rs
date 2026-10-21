@@ -46,7 +46,7 @@ fn an_inline_enchantment_is_named_after_its_parent_and_position() {
 
 #[test]
 fn every_mountable_gun_gets_a_turret_part() {
-    let dir = fixture(
+    let _dir = fixture(
         r#"[
         { "type": "GENERIC", "subtypes": [ "GUN" ], "id": "test_rifle", "name": "rifle", "symbol": "(", "color": "black",
           "weight": "3 kg", "volume": "2 L", "price": "100 USD", "material": [ "steel" ] },
@@ -58,7 +58,10 @@ fn every_mountable_gun_gets_a_turret_part() {
         ]"#,
         "cdda-generated-turrets",
     );
-    let loaded: Vec<items::ItemType> = items::load_paths(&[&dir]).expect("loads");
+    // The fixture above is what this test is about, so it loads its own copy.
+    let loaded: Vec<items::ItemType> =
+        items::load_paths(&[&std::env::temp_dir().join("cdda-generated-turrets")])
+            .expect("fixture loads");
     let parts = generated::turret_part_ids(&loaded);
     assert_eq!(parts.len(), 1);
     assert!(parts.contains("turret_test_rifle"));

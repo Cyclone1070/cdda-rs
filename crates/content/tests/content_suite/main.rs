@@ -7,6 +7,7 @@
 //!
 //! A case is still named after its file: `frame_diff::the_same_frame_diffs_to_nothing`.
 
+mod corpus;
 mod digest;
 mod eocs;
 mod factory;

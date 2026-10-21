@@ -27,7 +27,8 @@ fn fixture(text: &str, name: &str) -> Vec<items::ItemType> {
     let dir = std::env::temp_dir().join(name);
     std::fs::create_dir_all(&dir).expect("temp dir");
     std::fs::write(dir.join("items.json"), text).expect("fixture");
-    items::load_paths(&[&dir]).expect("loads")
+    // A fixture is its own little tree, so it cannot come from the shared corpus.
+    items::load_paths(&[&dir]).expect("fixture loads")
 }
 
 #[test]
@@ -87,11 +88,7 @@ fn every_item_type_matches_the_reference() {
     let Some(Value::Array(entries)) = root_object.get("prototypes") else {
         panic!("prototypes")
     };
-    let loaded = items::load_paths(&[
-        &root().join("references/Cataclysm-DDA/data/core"),
-        &root().join("references/Cataclysm-DDA/data/json"),
-    ])
-    .expect("loads");
+    let loaded = crate::corpus::items_loaded();
     println!(
         "loaded {} items, reference has {}",
         loaded.len(),

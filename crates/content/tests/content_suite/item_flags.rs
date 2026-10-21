@@ -12,8 +12,8 @@ fn root() -> PathBuf {
 fn load() -> Vec<items::ItemType> {
     let core = root().join("references/Cataclysm-DDA/data/core");
     let json = root().join("references/Cataclysm-DDA/data/json");
-    let dirs: [&Path; 2] = [core.as_path(), json.as_path()];
-    items::load_paths(&dirs).expect("items load")
+    let _dirs: [&Path; 2] = [core.as_path(), json.as_path()];
+    crate::corpus::items_loaded()
 }
 
 #[test]
