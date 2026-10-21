@@ -2269,3 +2269,32 @@ pub fn drop_and_merge(world: &mut World, square: (i32, i32), facts: StackFacts) 
     }
     drop_item(world, square, facts.kind, facts.charges)
 }
+
+/// How many charges of an item fit in a given volume.
+///
+/// Reference: `item::charges_per_volume` (`src/item.cpp:1391-1420`). For a type counted in charges,
+/// one charge takes `volume / stack_size`, so the answer is `wanted * stack_size / volume`. For
+/// anything else the answer is how many whole items fit. A type with no volume at all reports
+/// `INT_MAX`, which is the reference's way of saying "no limit" without a sentinel of its own.
+#[must_use]
+pub fn charges_per_volume(
+    wanted_ml: i64,
+    item_volume_ml: i64,
+    stack_size: i32,
+    by_charges: bool,
+) -> i32 {
+    // The reference only reports "no limit" when the item has no volume. A wanted volume of zero
+    // simply holds nothing, which is what its arithmetic says and what this returns.
+    if item_volume_ml <= 0 {
+        return i32::MAX;
+    }
+    if wanted_ml <= 0 {
+        return 0;
+    }
+    let fits = if by_charges {
+        wanted_ml.saturating_mul(i64::from(stack_size.max(1))) / item_volume_ml
+    } else {
+        wanted_ml / item_volume_ml
+    };
+    i32::try_from(fits).unwrap_or(i32::MAX)
+}
