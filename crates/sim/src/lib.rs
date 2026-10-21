@@ -3535,6 +3535,8 @@ pub struct Player {
     pub hp_max: i32,
     /// What armour takes off every blow.
     pub armour: i32,
+    /// Moves left this turn; the reference's action points, like a monster's.
+    pub moves: i32,
 }
 
 /// Puts the player in the world.
@@ -3549,6 +3551,7 @@ pub fn spawn_player(world: &mut World, square: (i32, i32), hp_max: i32, armour: 
                 hp: hp_max,
                 hp_max,
                 armour,
+                moves: 0,
             },
         ))
         .id()
@@ -3569,4 +3572,88 @@ pub fn strike_player(world: &mut World, target: Entity, blow: i32) -> bool {
     let dealt = through_armour(blow, player.armour);
     player.hp = player.hp.saturating_sub(dealt);
     player.hp <= 0
+}
+
+/// Gives the player its turn, by the same ladder a monster uses: strike what is next to it, otherwise step
+/// toward the target.
+///
+/// The player's blow is a parameter rather than a lookup, because the player has no kind to look one up from -
+/// what it is holding decides that, and equipment is a later rule.
+///
+/// Returns how many blows landed.
+pub fn player_turn(
+    world: &mut World,
+    target: (i32, i32),
+    blow: (i32, i32, i32),
+    speed: i32,
+    rules: &TurnRules<'_>,
+    rolls: &mut cdda_core_types::rng::Rolls,
+    level: &cdda_core_types::level::Level,
+) -> i32 {
+    let Some((entity, start, moves)) = ({
+        let mut query = world.query::<(Entity, &Position, &Player)>();
+        query.iter(world).find_map(|(entity, position, player)| {
+            (player.hp > 0).then_some((entity, (position.x, position.y), player.moves))
+        })
+    }) else {
+        return 0;
+    };
+    // Occupancy is read once, because the turn loop asks its question many times and may not borrow the World.
+    let mut taken: std::collections::BTreeSet<(i32, i32)> = {
+        let mut query = world.query::<(&Position, &Monster)>();
+        query
+            .iter(world)
+            .filter(|(_, monster)| monster.hp > 0)
+            .map(|(position, _)| (position.x, position.y))
+            .collect()
+    };
+    let mut players: std::collections::BTreeSet<(i32, i32)> = {
+        let mut query = world.query::<(&Position, &Player)>();
+        query
+            .iter(world)
+            .filter(|(_, player)| player.hp > 0)
+            .map(|(position, _)| (position.x, position.y))
+            .collect()
+    };
+    taken.append(&mut players);
+    let can_enter = |square: (i32, i32)| {
+        if square == start {
+            return true;
+        }
+        level
+            .terrain_at(square.0, square.1)
+            .is_some_and(rules.passable)
+            && !taken.contains(&square)
+    };
+    let turn = take_turn_blocked(start, target, moves, speed, can_enter);
+    let mut landed = 0;
+    for _ in 0..turn.hits {
+        let victim = {
+            let mut query = world.query::<(Entity, &Position, &Monster)>();
+            query
+                .iter(world)
+                .find(|(_, position, monster)| (position.x, position.y) == target && monster.hp > 0)
+                .map(|(victim, _, _)| victim)
+        };
+        let Some(victim) = victim else {
+            break;
+        };
+        let armour = world
+            .get::<Monster>(victim)
+            .map_or(0, |monster| (rules.armour_of)(monster.kind));
+        let (dice, sides, bonus) = blow;
+        let damage = melee_blow(rolls, dice, sides, bonus);
+        strike(world, victim, damage, armour);
+        landed += 1;
+    }
+    if let Some(mut player) = world.get_mut::<Player>(entity) {
+        player.moves = turn.moves;
+    }
+    if turn.position != start
+        && let Some(mut position) = world.get_mut::<Position>(entity)
+    {
+        position.x = turn.position.0;
+        position.y = turn.position.1;
+    }
+    landed
 }
