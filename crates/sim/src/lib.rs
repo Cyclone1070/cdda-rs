@@ -401,6 +401,38 @@ impl FireMap for MapFacts {
 ///
 /// A fire whose turn leaves it dead - intensity gone, or its age run out - is taken off the store, which is what the sweep does to any
 /// field that does not survive its turn.
+/// Lights the fires the spread rule asked for.
+///
+/// One fire per square - a square is a column **and** a floor - and each is born with two minutes of burning already behind it, which is what makes a
+/// newborn weak and short-lived rather than fuelled (`map_field.cpp:1122`, "Lower age is a longer lasting fire").
+fn light_the_newborn(world: &mut World, newborn: Vec<(i32, i32, i32)>) {
+    for (x, y, z) in newborn {
+        let mut query = world.query::<(&Field, &Position)>();
+        let taken = query.iter(world).any(|(field, position)| {
+            (position.x, position.y, position.z) == (x, y, z) && field.id == FIRE
+        });
+        if taken {
+            continue;
+        }
+        let mut entry = cdda_core_types::field::FieldEntry::new(3, 1_000_000, false, true);
+        entry.set_age(120);
+        entry.set_intensity(1);
+        world.spawn((
+            Field {
+                id: FIRE,
+                entry,
+                priority: 0,
+            },
+            Position { x, y, z },
+        ));
+    }
+}
+
+/// One turn of every fire in the store, in the reference's order.
+///
+/// The order is the rule: the fires are visited in the sweep's own order (x, then y, then z), each one burns the **items on its square** before it eats the
+/// ground (`map_field.cpp:976` then `:1050`), and the fires its turn lights are only added after the whole sweep has finished - a newborn is spared the
+/// processors of the turn that made it, and the turn after that too, because it is listed before it exists.
 pub fn process_fires(
     world: &mut World,
     map: &impl FireMap,
@@ -418,33 +450,48 @@ pub fn process_fires(
     let mut newborn: Vec<(i32, i32, i32)> = Vec::new();
     for (x, y, z, entity) in order {
         let square = (x, y, z);
-        let Some(field) = world.get::<Field>(entity) else {
+        let Some((alive, age, field_intensity)) = world.get::<Field>(entity).map(|field| {
+            (
+                field.entry.is_alive(),
+                field.entry.age(),
+                field.entry.intensity(),
+            )
+        }) else {
             continue;
         };
         // A fire whose turn begins with nothing left is gone before the rules run, which is the sweep's own order for any field.
-        if !field.entry.is_alive() {
+        if !alive {
             world.despawn(entity);
             continue;
         }
         // A field that has just been created is **spared its processors** and only decays (`map_field.cpp:445-499`). For a fire that means
         // its first turn on the map costs it a turn of age and nothing else - no fuel, no growth, no smoke. The recording caught this: the
         // reference's own trace goes 0, 1, 22, and a port that ran the rules on the first turn went 0, 21.
-        if field.entry.age() == 0 {
+        if age == 0 {
             continue;
         }
+        // **The items on the square are burned first** (`map_field.cpp:976-1048`): the block assigns `time_added` and `smoke` before the ground block adds to
+        // them, so a fire standing on a plank and a tiled floor gets the plank's fraction of a turn *plus* what the floor gives.
+        let burned = burn_items_at(
+            world,
+            square,
+            field_intensity,
+            !map.can_spread(square),
+            rolls,
+        );
         let fuel = cdda_core_types::fire::ground_fuel(
             map.ground(square),
-            field.entry.intensity(),
+            field_intensity,
             map.can_burn(square),
             windpower,
             rolls,
         );
         let turn = cdda_core_types::fire::fire_turn(
-            field.entry.age(),
-            field.entry.intensity(),
+            age,
+            field_intensity,
             map.adjacent_fires(square),
             map.can_burn(square),
-            fuel.time_added,
+            fuel.time_added + burned.time_added,
         );
         let intensity = turn.intensity;
         let age = turn.age;
@@ -481,37 +528,14 @@ pub fn process_fires(
             &Discharging {
                 intensity,
                 adjacent_fires: adjacent,
-                smoke_made: fuel.smoke,
+                smoke_made: fuel.smoke + burned.smoke,
                 windpower,
             },
             map,
             rolls,
         );
     }
-    for (x, y, z) in newborn {
-        // One fire per square: a square that already has one is not re-lit, and a square is a column **and** a floor.
-        let mut query = world.query::<(&Field, &Position)>();
-        let taken = query.iter(world).any(|(field, position)| {
-            (position.x, position.y, position.z) == (x, y, z) && field.id == FIRE
-        });
-        if taken {
-            continue;
-        }
-        let mut entry = cdda_core_types::field::FieldEntry::new(3, 1_000_000, false, true);
-        // `add_field( dst_p, fd_fire, 1, 2_minutes )` - two minutes of burning *already behind it*, which makes the
-        // newborn a weak, short-lived fire rather than a fuelled one. The reference says it plainly ("Lower age is a
-        // longer lasting fire", `map_field.cpp:1122`) and my first version had the sign the other way round.
-        entry.set_age(120);
-        entry.set_intensity(1);
-        world.spawn((
-            Field {
-                id: FIRE,
-                entry,
-                priority: 0,
-            },
-            Position { x, y, z },
-        ));
-    }
+    light_the_newborn(world, newborn);
 }
 
 /// The spread phase and the spread loop, in the reference's order, for one fire.
@@ -1271,6 +1295,56 @@ struct Discharging {
 ///
 /// Split out of [`process_fires`] only because the system had grown past the point where a reader can hold it: the order is the rule, and the order is
 /// smoke (`map_field.cpp:1407`) then hot air (`:1429`).
+/// Burns whatever is lying on a square and writes back what is left of it.
+///
+/// The items are entities with their own state, so this has to read them out, let the rule decide what was destroyed, and then write the survivors back -
+/// a fire eats a plank over many turns and the arithmetic only works if each turn starts from where the last one left it.
+fn burn_items_at(
+    world: &mut World,
+    square: (i32, i32, i32),
+    intensity: i32,
+    contained: bool,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) -> cdda_core_types::fire::ItemBurn {
+    let mut entities: Vec<(i32, Entity)> = Vec::new();
+    let mut query = world.query::<(Entity, &Position, &GroundItem)>();
+    for (entity, position, item) in query.iter(world) {
+        if (position.x, position.y, position.z) == square && item.burn.is_some() {
+            entities.push((item.kind.0.cast_signed(), entity));
+        }
+    }
+    if entities.is_empty() {
+        return cdda_core_types::fire::ItemBurn::default();
+    }
+    // The reference burns a square's items in the order they were dropped, which is spawn order for the port.
+    entities.sort_by_key(|&(kind, entity)| (kind, entity.to_bits()));
+    let mut burning: Vec<cdda_core_types::fire::BurningItem> = Vec::new();
+    for (_, entity) in &entities {
+        if let Some(item) = world.get::<GroundItem>(*entity)
+            && let Some(burn) = item.burn.clone()
+        {
+            burning.push(burn);
+        }
+    }
+    let before = burning.len();
+    let outcome = cdda_core_types::fire::burn_the_items(&mut burning, intensity, contained, rolls);
+    // Whatever the rule removed is gone from the ground; the rest keep the burnt they reached, which is how a plank lasts several turns.
+    let destroyed = before.saturating_sub(burning.len());
+    let mut kept = burning.into_iter();
+    for (_, entity) in &entities {
+        let Some(state) = kept.next() else {
+            break;
+        };
+        if let Some(mut item) = world.get_mut::<GroundItem>(*entity) {
+            item.burn = Some(state);
+        }
+    }
+    for (_, entity) in entities.iter().rev().take(destroyed) {
+        world.despawn(*entity);
+    }
+    outcome
+}
+
 fn fire_discharge(
     world: &mut World,
     square: (i32, i32, i32),
@@ -1576,7 +1650,7 @@ pub struct ItemTypeId(pub u32);
 /// things were added. The port keeps the same order by entity index, which is spawn order: a fire
 /// that burns a pile must consume things in the same sequence the reference would, or the same seed
 /// gives different results.
-#[derive(Debug, Clone, Copy, Component)]
+#[derive(Debug, Clone, Component)]
 pub struct GroundItem {
     /// What it is.
     pub kind: ItemTypeId,
@@ -1588,6 +1662,9 @@ pub struct GroundItem {
     pub burnt: i32,
     /// How damaged it is, in the reference's own units.
     pub damage: i32,
+    /// What a fire would make of it, once its type is known: the material tables are resolved when the item is put down, so the burning rule never needs a
+    /// content catalogue in the room. `None` until an item's type has been looked up.
+    pub burn: Option<cdda_core_types::fire::BurningItem>,
 }
 
 /// Puts an item on a square.
@@ -1605,6 +1682,7 @@ pub fn drop_item(world: &mut World, square: (i32, i32), kind: ItemTypeId, charge
                 kind,
                 charges,
                 age: 0,
+                burn: None,
             },
         ))
         .id()
@@ -2235,7 +2313,7 @@ pub fn process_push_items(
     }
     let mut moved = 0;
     for entity in rocks {
-        let Some(item) = world.get::<GroundItem>(entity).copied() else {
+        let Some(item) = world.get::<GroundItem>(entity).cloned() else {
             continue;
         };
         let pick = rolls.rng(0, i32::try_from(destinations.len() - 1).unwrap_or(0));
@@ -3246,7 +3324,7 @@ pub fn item_weight(
 
 /// The recursion itself, taking the lookup as a trait object so it does not monomorphise per depth.
 fn weight_with(world: &mut World, entity: Entity, base_grams: &dyn Fn(ItemTypeId) -> i64) -> i64 {
-    let Some(item) = world.get::<GroundItem>(entity).copied() else {
+    let Some(item) = world.get::<GroundItem>(entity).cloned() else {
         return 0;
     };
     let charges = i64::from(item.charges.max(1));
@@ -3324,7 +3402,7 @@ pub fn consume_items(
         if remaining == 0 {
             break;
         }
-        let Some(item) = world.get::<GroundItem>(entity).copied() else {
+        let Some(item) = world.get::<GroundItem>(entity).cloned() else {
             continue;
         };
         if item.kind != kind {
@@ -3373,7 +3451,7 @@ pub struct Crafted {
 pub fn count_on_square(world: &mut World, square: (i32, i32), kind: ItemTypeId) -> i32 {
     items_at(world, square)
         .into_iter()
-        .filter_map(|entity| world.get::<GroundItem>(entity).copied())
+        .filter_map(|entity| world.get::<GroundItem>(entity).cloned())
         .filter(|item| item.kind == kind)
         .map(|item| item.charges.max(0))
         .sum()

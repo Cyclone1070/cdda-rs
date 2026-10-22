@@ -406,6 +406,25 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Items burn now, and the reals they roll are recorded - on request (round 332)
+
+The item block is wired: before a fire eats its ground it eats what is lying on it (`map_field.cpp:976-1048`), so `time_added` and `smoke` are **assigned** by
+the items and then added to by the ground. Items on the ground are entities with their own `burnt`, because a fire eats a plank a forty-eighth at a time and
+the arithmetic only works if each turn starts where the last one left it.
+
+**The trace learned a third kind of die: `real`.** `rng_float` is the only door to a non-integer draw, and every probabilistic rounding goes through it -
+`roll_remainder`, `x_in_y`, `rng_normal`. It was not recorded at all, so a session that made one was silently unreplayable: the port would take the next whole
+number the reference had drawn for something else, and nothing said a die was missing.
+
+It is recorded **only with `CDDA_RNG_TRACE_REALS` set**, and that is a deliberate refusal rather than laziness. A trace with reals in it is strictly better -
+the replay can then reproduce `roll_remainder` exactly - but it is also a trace no port can finish until **every** float draw is modelled in the same order.
+Turning it on today made all three fixtures fail at the first `real` in the spread loop, which is real work not yet done (bash, rubble, item spawning), not a
+bug. So the machinery is ported and tested (`recording_real`, four cases), the oracle can emit the kind, and the default remains the strict-integer trace that
+the corpus can actually spend.
+
+**The echo is honest both ways:** with reals off, `fire-plank` replays to its last die and its spread still depends on the item branch (checked by mutation
+last round); with reals on, it stops at the first draw the port cannot yet make. Both statements are in `corpus/fields/README.md`.
+
 ## The rule behind the plank's one turn of fuel (round 331)
 
 The gap declared last round now has its rule ported, though not yet its wiring: `simulate_burn` (`item.cpp:12543-12596`), the arithmetic that decides what a

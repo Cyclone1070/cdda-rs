@@ -643,3 +643,80 @@ pub fn simulate_burn(
     }
     out
 }
+
+/// One item lying on the ground under a fire, as far as burning is concerned.
+///
+/// The material tables are resolved once, when the item is put there, so the burning rule never needs a content catalogue in the room - which is also why
+/// this can be a component: a thing on the ground with state of its own is a thing, not a fact about a square.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BurningItem {
+    /// The item's own volume in millilitres, which decides how fast its material burns.
+    pub volume_ml: f64,
+    /// Each material it is made of, with the three intensity levels the reference lists, and how many portions of it there are.
+    pub materials: Vec<(Vec<MaterialBurn>, i32)>,
+    /// How much of it the fire has already destroyed, before this turn's rounding.
+    pub burnt: f64,
+}
+
+/// What burning the items on one square gave the fire this turn.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct ItemBurn {
+    /// Whole turns of a fire's life, after `roll_remainder`.
+    pub time_added: i64,
+    /// Whole smoke, after `roll_remainder`.
+    pub smoke: i32,
+}
+
+/// Burns the items on a square, destroying what a fire of this intensity can, and says what they gave.
+///
+/// Reference: the item block of the fire processor (`map_field.cpp:976-1048`) plus `item::burn` (`item.cpp:12598-12640`).
+///
+/// The order of the dice is the rule, again: each surviving item spends one die rounding how much of itself it lost, and then the two totals spend one die
+/// each - **smoke first, then fuel**, because that is the order the reference assigns them in.
+pub fn burn_the_items(
+    items: &mut Vec<BurningItem>,
+    intensity: i32,
+    contained: bool,
+    rolls: &mut crate::rng::Rolls,
+) -> ItemBurn {
+    let max_consume = intensity * 2;
+    let mut consumed = 0;
+    let mut fuel_total = 0.0;
+    let mut smoke_total = 0.0;
+    let mut index = 0;
+    while index < items.len() && consumed < max_consume {
+        let Some(item) = items.get_mut(index) else {
+            break;
+        };
+        let borrowed: Vec<(&[MaterialBurn], i32)> = item
+            .materials
+            .iter()
+            .map(|(levels, count)| (levels.as_slice(), *count))
+            .collect();
+        let simulated = simulate_burn(&borrowed, item.volume_ml, intensity, contained);
+        if simulated.burn <= 0.0 {
+            // `item::burn` returns false before touching anything: `burn_added <= 0` means this item is not being consumed at all.
+            index += 1;
+            continue;
+        }
+        fuel_total += simulated.fuel;
+        smoke_total += simulated.smoke;
+        // A whole item is destroyed once it has lost `base_volume / 250ml * 3` - integer division of the volume, as the reference does it.
+        let volume_units = (item.volume_ml / 250.0).floor();
+        item.burnt += f64::from(rolls.roll_remainder(simulated.burn));
+        let destroyed = item.burnt >= volume_units * 3.0;
+        if destroyed {
+            items.remove(index);
+            consumed += 1;
+        } else {
+            index += 1;
+        }
+    }
+    // The reference assigns smoke first and fuel second (`map_field.cpp:1046-1047`), so the reals come out in that order.
+    let smoke = rolls.roll_remainder(smoke_total);
+    let time_added = rolls.roll_remainder(fuel_total);
+    ItemBurn {
+        time_added: i64::from(time_added),
+        smoke,
+    }
+}

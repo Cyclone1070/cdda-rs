@@ -2690,17 +2690,21 @@ diff -ruN references/Cataclysm-DDA/src/prefix.h oracle/src/src/prefix.h
 +#define PREFIX "/usr/local"
 diff -ruN references/Cataclysm-DDA/src/rng.cpp oracle/src/src/rng.cpp
 --- references/Cataclysm-DDA/src/rng.cpp	2026-10-19 18:15:05
-+++ oracle/src/src/rng.cpp	2026-10-23 01:13:17
-@@ -3,6 +3,8 @@
++++ oracle/src/src/rng.cpp	2026-10-23 07:46:42
+@@ -1,8 +1,12 @@
+ #include "rng.h"
+ 
  #include <algorithm>
++#include <cstdint>
  #include <chrono>
  #include <cmath>
++#include <cstdio>
 +#include <cstdlib>
 +#include <fstream>
  
  #include "calendar.h"
  #include "cata_assert.h"
-@@ -10,11 +12,58 @@
+@@ -10,11 +14,58 @@
  #include "debug.h"
  #include "units.h"
  
@@ -2760,7 +2764,7 @@ diff -ruN references/Cataclysm-DDA/src/rng.cpp oracle/src/src/rng.cpp
  }
  
  int rng( int lo, int hi )
-@@ -23,7 +72,13 @@
+@@ -23,7 +74,13 @@
      if( lo > hi ) {
          std::swap( lo, hi );
      }
@@ -2775,6 +2779,32 @@ diff -ruN references/Cataclysm-DDA/src/rng.cpp oracle/src/src/rng.cpp
  }
  
  double rng_float( double lo, double hi )
+@@ -33,7 +90,24 @@
+         std::swap( lo, hi );
+     }
+     if( std::isfinite( lo ) && std::isfinite( hi ) ) {
+-        return rng_real_dist( rng_get_engine(), std::uniform_real_distribution<>::param_type( lo, hi ) );
++        const double drawn = rng_real_dist( rng_get_engine(),
++                                             std::uniform_real_distribution<>::param_type( lo, hi ) );
++        // Real draws are recorded only on request. A trace that holds them is strictly better - a replay can then reproduce `roll_remainder` and every
++        // other probabilistic rounding exactly - but it is also unreplayable until the port makes **every** float draw the reference makes, in the same
++        // order. Until the rules that draw them (bash, rubble, item burn) are all ported, a session recorded with reals would be a session no port could
++        // finish, so the switch is deliberate rather than automatic.
++        const bool trace_reals = std::getenv( "CDDA_RNG_TRACE_REALS" ) != nullptr;
++        if( trace_reals ) {
++            ++draw_count;
++        }
++        if( trace_reals && recording() ) {
++            // Full precision on purpose: `roll_remainder` decides on whether this exact fraction landed, so a replayed value that is merely inside the
++            // range would answer a different question.
++            char text[64];
++            std::snprintf( text, sizeof( text ), "real %.17g %.17g %.17g", lo, hi, drawn );
++            rng_trace() << text << '\n';
++        }
++        return drawn;
+     }
+     debugmsg( "rng_float called with nan/inf" );
+     return 0;
 diff -ruN references/Cataclysm-DDA/src/rng.h oracle/src/src/rng.h
 --- references/Cataclysm-DDA/src/rng.h	2026-10-19 18:15:05
 +++ oracle/src/src/rng.h	2026-10-23 01:13:17

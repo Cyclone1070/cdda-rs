@@ -45,10 +45,29 @@ impl Placed {
     }
 }
 
+/// One square of the dump: where it is, what it is made of, and what is lying on it.
+#[derive(Debug, Clone)]
+pub struct Square {
+    /// Where.
+    pub x: i32,
+    /// Where.
+    pub y: i32,
+    /// Which floor.
+    pub z: i32,
+    /// The terrain's id.
+    pub terrain: String,
+    /// The furniture's id.
+    pub furniture: String,
+    /// Whether anything on it would burn.
+    pub burns: bool,
+    /// The ids of the items lying on it, in the order they were dropped.
+    pub items: Vec<String>,
+}
+
 /// A recorded scene: its terrain, its turns, and its dice.
 pub struct Session {
-    /// Every square in the radius, with the terrain and the furniture it held, and whether anything burnable was lying on it.
-    pub grid: Vec<(i32, i32, i32, String, String, bool)>,
+    /// Every square in the radius, as the dump describes it.
+    pub grid: Vec<Square>,
     /// The fields after each turn, starting with the state before anything ran.
     pub turns: Vec<Vec<Placed>>,
     /// The dice the reference rolled inside its field processors, in order.
@@ -68,14 +87,20 @@ impl Session {
             .iter()
             .map(|square| {
                 let square = object(square);
-                (
-                    i32::try_from(integer(square.get("x").expect("x"))).expect("x fits"),
-                    i32::try_from(integer(square.get("y").expect("y"))).expect("y fits"),
-                    i32::try_from(integer(square.get("z").expect("z"))).expect("z fits"),
-                    string(square.get("ter").expect("terrain")).to_string(),
-                    square.get("furn").map_or("f_null", string).to_string(),
-                    integer(square.get("items_burn").expect("items_burn")) != 0,
-                )
+                Square {
+                    x: i32::try_from(integer(square.get("x").expect("x"))).expect("x fits"),
+                    y: i32::try_from(integer(square.get("y").expect("y"))).expect("y fits"),
+                    z: i32::try_from(integer(square.get("z").expect("z"))).expect("z fits"),
+                    terrain: string(square.get("ter").expect("terrain")).to_string(),
+                    furniture: square.get("furn").map_or("f_null", string).to_string(),
+                    burns: integer(square.get("items_burn").expect("items_burn")) != 0,
+                    items: match square.get("items_at") {
+                        Some(Value::Array(list)) => {
+                            list.iter().map(string).map(str::to_string).collect()
+                        }
+                        _ => Vec::new(),
+                    },
+                }
             })
             .collect();
         let turns = array(object(&fixture).get("turns").expect("turns"))
@@ -113,13 +138,44 @@ impl Session {
     pub fn map(&self) -> cdda_sim::MapFacts {
         let flags = terrain_flags();
         let mut map = cdda_sim::MapFacts::new();
-        for (x, y, z, terrain, furniture, items) in &self.grid {
+        for square in &self.grid {
             // `ter_furn_has_flag` reads both, so the square's answers are its terrain's and its furniture's together - a bench on a tiled floor burns.
-            map.set_terrain((*x, *y, *z), facts_for(terrain, &flags));
-            map.set_furniture((*x, *y, *z), facts_for(furniture, &flags));
-            map.set_items((*x, *y, *z), *items);
+            let at = (square.x, square.y, square.z);
+            map.set_terrain(at, facts_for(&square.terrain, &flags));
+            map.set_furniture(at, facts_for(&square.furniture, &flags));
+            map.set_items(at, square.burns);
         }
         map
+    }
+
+    /// Puts every item the dump names on the ground, resolved against the prototype dumps.
+    ///
+    /// A fire eats items a fraction at a time, and the fraction depends on the item's own volume and its materials' burn tables - so an item on the ground is
+    /// an entity with state, and a replay that did not spawn them would not draw the reals the reference drew.
+    pub fn spawn_items(&self, world: &mut bevy_ecs::prelude::World) {
+        let catalogue = Catalogue::load();
+        for square in &self.grid {
+            for (index, id) in square.items.iter().enumerate() {
+                let Some(burn) = catalogue.burning_item(id) else {
+                    continue;
+                };
+                world.spawn((
+                    cdda_sim::Position {
+                        x: square.x,
+                        y: square.y,
+                        z: square.z,
+                    },
+                    cdda_sim::GroundItem {
+                        kind: cdda_sim::ItemTypeId(u32::try_from(index).unwrap_or(0)),
+                        charges: 1,
+                        age: 0,
+                        burnt: 0,
+                        damage: 0,
+                        burn: Some(burn),
+                    },
+                ));
+            }
+        }
     }
 
     /// The fires the reference held after `turn`, as `(x, y, intensity, age)` in a stable order.
@@ -152,6 +208,7 @@ impl Session {
             spawn_fire(&mut world, field);
             map.note_fire((field.x, field.y, field.z), field.intensity, field.age);
         }
+        self.spawn_items(&mut world);
         let mut rolls = Rolls::replaying(self.dice.clone());
         let mut answers = Vec::new();
         for _ in 1..self.turns.len() {
@@ -318,4 +375,101 @@ fn processor_dice(text: &str) -> Recording {
         }
     }
     Recording::parse(&lines.join("\n")).expect("the processors' dice parse")
+}
+
+/// The two prototype dumps a fire needs in order to eat something: what an item is made of, and how each material burns.
+pub struct Catalogue {
+    materials: BTreeMap<String, Vec<cdda_core_types::fire::MaterialBurn>>,
+    items: BTreeMap<String, (f64, Vec<(String, i32)>)>,
+}
+
+impl Catalogue {
+    /// Reads `corpus/prototypes/{materials,items}.json`.
+    #[must_use]
+    pub fn load() -> Self {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes");
+        let materials_value = value(&root.join("materials.json"));
+        let items_value = value(&root.join("items.json"));
+        let mut materials = BTreeMap::new();
+        for entry in array(
+            object(&materials_value)
+                .get("prototypes")
+                .expect("materials"),
+        ) {
+            let material = object(entry);
+            let Some(id) = material.get("id").map(string) else {
+                continue;
+            };
+            let mut levels = Vec::new();
+            for level in array(material.get("burn").expect("burn data")) {
+                let row = object(level);
+                levels.push(cdda_core_types::fire::MaterialBurn {
+                    immune: match row.get("immune") {
+                        Some(Value::Bool(flag)) => *flag,
+                        _ => false,
+                    },
+                    volume_per_turn_ml: match row.get("volume_per_turn") {
+                        Some(Value::Float(volume)) => *volume,
+                        Some(Value::Int(volume)) => f64::from(i32::try_from(*volume).unwrap_or(0)),
+                        _ => 0.0,
+                    },
+                    fuel: number(row.get("fuel")),
+                    smoke: number(row.get("smoke")),
+                    burn: number(row.get("burn")),
+                });
+            }
+            materials.insert(id.to_string(), levels);
+        }
+        let mut items = BTreeMap::new();
+        for entry in array(object(&items_value).get("prototypes").expect("items")) {
+            let item = object(entry);
+            let Some(id) = item.get("id").map(string) else {
+                continue;
+            };
+            let volume = number(item.get("volume"));
+            let mut portions = Vec::new();
+            if let Some(Value::Array(list)) = item.get("materials") {
+                for pair in list {
+                    if let Value::Array(pair) = pair
+                        && let (Some(material), Some(count)) = (pair.first(), pair.get(1))
+                    {
+                        portions.push((
+                            string(material).to_string(),
+                            i32::try_from(integer(count)).unwrap_or(1),
+                        ));
+                    }
+                }
+            }
+            items.insert(id.to_string(), (volume, portions));
+        }
+        Self { materials, items }
+    }
+
+    /// What a fire would make of one of these, or `None` when the item or one of its materials is unknown.
+    #[must_use]
+    pub fn burning_item(&self, id: &str) -> Option<cdda_core_types::fire::BurningItem> {
+        let (volume_ml, portions) = self.items.get(id)?;
+        let mut materials = Vec::new();
+        for (material, count) in portions {
+            let levels = self.materials.get(material)?;
+            materials.push((levels.clone(), *count));
+        }
+        if materials.is_empty() {
+            return None;
+        }
+        Some(cdda_core_types::fire::BurningItem {
+            volume_ml: *volume_ml,
+            materials,
+            burnt: 0.0,
+        })
+    }
+}
+
+/// A number that the dump may hold as an integer or a real.
+fn number(value: Option<&Value>) -> f64 {
+    match value {
+        Some(Value::Int(number)) => f64::from(i32::try_from(*number).unwrap_or(0)),
+        Some(Value::Float(number)) => *number,
+        _ => 0.0,
+    }
 }

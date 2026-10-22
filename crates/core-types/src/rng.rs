@@ -345,13 +345,14 @@ pub struct Rolls {
 /// is the only way a chunk can be compared square by square.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Recording {
-    draws: Vec<Draw>,
+    /// Every die, in the order the reference rolled them, readable so a test can say what a file actually holds.
+    pub draws: Vec<Draw>,
     /// How far into the recording the replay has got.
     pub position: usize,
 }
 
 /// One recorded die.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Draw {
     /// A raw 32-bit value (`rng_bits`).
     Bits(u32),
@@ -364,6 +365,16 @@ pub enum Draw {
         high: i32,
         /// What came out.
         drawn: i32,
+    },
+    /// A real drawn between two bounds (`rng_float`), kept at full precision: a replay has to reach the reference's **value**, not a value in its range,
+    /// because what a rule like `roll_remainder( 0.0484 )` decides is whether that particular number landed.
+    Real {
+        /// The low bound the reference asked for.
+        low: f64,
+        /// The high bound.
+        high: f64,
+        /// What came out.
+        drawn: f64,
     },
 }
 
@@ -399,6 +410,20 @@ impl Recording {
                         drawn: number(3)?,
                     });
                 }
+                Some("real") => {
+                    let number = |index: usize| -> Result<f64, String> {
+                        fields
+                            .get(index)
+                            .ok_or_else(|| format!("a real line with too few fields: {line}"))?
+                            .parse()
+                            .map_err(|_| format!("a real field that is not a number: {line}"))
+                    };
+                    draws.push(Draw::Real {
+                        low: number(1)?,
+                        high: number(2)?,
+                        drawn: number(3)?,
+                    });
+                }
                 other => return Err(format!("unknown draw kind {other:?} on line {line}")),
             }
         }
@@ -425,12 +450,6 @@ impl Recording {
 
     #[allow(clippy::panic)]
     fn next_int(&mut self, low: i32, high: i32) -> i32 {
-        if std::env::var_os("CDDA_TRACE_REPLAY").is_some() {
-            eprintln!(
-                "port asked int {low} {high} (recorded {:?})",
-                self.draws.get(self.position)
-            );
-        }
         let draw = self.draws.get(self.position).copied();
         self.position += 1;
         match draw {
@@ -448,6 +467,30 @@ impl Recording {
                 drawn
             }
             other => panic!("expected an int draw, found {other:?}"),
+        }
+    }
+
+    /// A replayed real. A mismatch is a bug in the port, not a condition a caller can handle: the whole point of replaying is that the reference's dice
+    /// are the only dice, so asking a question the reference did not ask has to stop the run and say which draw it happened on.
+    #[allow(clippy::panic)]
+    fn next_real(&mut self, low: f64, high: f64) -> f64 {
+        let draw = self.draws.get(self.position).copied();
+        self.position += 1;
+        match draw {
+            Some(Draw::Real {
+                low: recorded_low,
+                high: recorded_high,
+                drawn,
+            }) => {
+                assert_eq!(
+                    (recorded_low, recorded_high),
+                    (low, high),
+                    "the reference asked for a different real range here (draw {})",
+                    self.position - 1
+                );
+                drawn
+            }
+            other => panic!("expected a real draw, found {other:?}"),
         }
     }
 }
@@ -517,6 +560,9 @@ impl Rolls {
         let (lo, hi) = if lo > hi { (hi, lo) } else { (lo, hi) };
         if !lo.is_finite() || !hi.is_finite() {
             return 0.0;
+        }
+        if let Some(recording) = self.recording.as_mut() {
+            return recording.next_real(lo, hi);
         }
         self.engine.uniform_real_in(lo, hi)
     }

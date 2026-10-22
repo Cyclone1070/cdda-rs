@@ -114,3 +114,10 @@ cannot fail.
 The session stops at the spread on purpose. From the next turn the newborn starts **eating the plank**: over sixty turns the reference's own state shows the
 newborn's age going 120 then 119 then 120 - one turn of fuel from the item, then nothing - and the port has no `item::burn` and no `fire_data` fuel to
 produce that. That is a rule to port, not a fixture to cut: the cut is recorded here so the next session can extend this same file.
+
+## What the dice stream leaves out (`CDDA_RNG_TRACE_REALS`)
+
+`rng_float` draws are **not** in these files. The trace records them only when `CDDA_RNG_TRACE_REALS` is set, because a replay can only spend a real if the
+port makes every real the reference makes, in the same order - and today it does not: bash and rubble draw reals the port has no rule for. With the switch on,
+`fire-plank` fails at the first real inside the spread loop; with it off, the same file replays to its last integer die. The opt-in exists so that the day the
+remaining float rules land, the corpus can be recorded strictly without touching the harness again.
