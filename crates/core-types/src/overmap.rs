@@ -1334,3 +1334,82 @@ pub fn feather_pool(
     pool[5] = (net + self_weight) * max_factor - claimed;
     pool
 }
+
+/// Stops a biome poking into a corner it does not own.
+///
+/// Reference: `unify_continuous_border` in `mapgen_forest`. When a square's corner is one biome and both of its sides
+/// are another, the side that matches the corner gives up part of its influence to the side that matches this square,
+/// so a forest will not outcropping into the shared corner of two adjacent forests of a different kind.
+///
+/// **The reference's second branch subtracts the wrong weight** - it takes `cw_weight` away from the self weight where
+/// the first branch takes `ccw_weight` - and the port reproduces that rather than fixing it: the difference changes the
+/// arithmetic on every mixed corner, so an honest port keeps the arithmetic it is replacing.
+#[allow(clippy::too_many_arguments)]
+pub fn unify_continuous_border(
+    counter_clockwise: Option<&str>,
+    corner: Option<&str>,
+    clockwise: Option<&str>,
+    self_id: Option<&str>,
+    counter_clockwise_weight: &mut f32,
+    clockwise_weight: &mut f32,
+    self_weight: &mut f32,
+) {
+    if counter_clockwise == clockwise {
+        return;
+    }
+    if counter_clockwise == corner && clockwise == self_id {
+        *clockwise_weight /= *self_weight + *clockwise_weight;
+        *self_weight -= *clockwise_weight;
+    } else if clockwise == corner && counter_clockwise == self_id {
+        *counter_clockwise_weight /= *self_weight + *counter_clockwise_weight;
+        *self_weight -= *clockwise_weight;
+    }
+}
+
+/// Applies the corner rule to one square, picking the corner from the square's quadrant.
+///
+/// Reference: `unify_all_borders`. The square's quadrant decides which three biome slots are involved, and the weights
+/// are the cardinally-adjacent ones in the order north, east, south, west - the corner slots only lend their identity,
+/// never their weight.
+#[allow(
+    clippy::too_many_arguments,
+    clippy::indexing_slicing,
+    // The names follow the reference's own vocabulary: counter-clockwise, corner, clockwise.
+    clippy::similar_names
+)]
+pub fn unify_all_borders(
+    point: (i32, i32),
+    width: i32,
+    neighbours: [Option<&str>; 8],
+    cardinal_weights: &mut [f32; 4],
+    self_id: Option<&str>,
+    self_weight: &mut f32,
+) {
+    let half = width / 2;
+    let (ccw, corner, cw, ccw_index, cw_index) = if point.0 < half && point.1 < half {
+        // North-west: west, north-west, north.
+        (3, 7, 0, 3, 0)
+    } else if point.0 >= half && point.1 < half {
+        // North-east: north, north-east, east.
+        (0, 4, 1, 0, 1)
+    } else if point.0 >= half {
+        // South-east: east, south-east, south.
+        (1, 5, 2, 1, 2)
+    } else {
+        // South-west: south, south-west, west.
+        (2, 6, 3, 2, 3)
+    };
+    let mut ccw_weight = cardinal_weights[ccw_index];
+    let mut cw_weight = cardinal_weights[cw_index];
+    unify_continuous_border(
+        neighbours[ccw],
+        neighbours[corner],
+        neighbours[cw],
+        self_id,
+        &mut ccw_weight,
+        &mut cw_weight,
+        self_weight,
+    );
+    cardinal_weights[ccw_index] = ccw_weight;
+    cardinal_weights[cw_index] = cw_weight;
+}
