@@ -308,6 +308,25 @@ equality; JSON accept/reject parity". Each part, and where it is proven:
 | JSON acceptance is identical | All 6,220 shipped files: same accept/reject verdict and same structural digest as the reference; the writer is compared byte for byte on 127 of them |
 | The cache changes nothing | All 6,220 files read identically cold and warm |
 
+## The corner, answered (round 239)
+
+The ground raffle is instrumented too (`CDDA_MAP_TRACE_GROUND`), and it answers the question the last four rounds were
+arguing about. `corpus/overmap/reference-forest-ground-trace.txt` holds **1,138 lines** - the ground raffle only runs
+where the feature raffle left a square without a feature, which is one square in sixteen - across the **two** chunks in
+this world that are generated as forest.
+
+There are **two corners** in that file. The first chunk's corner draws **plain ground**; the measured chunk's corner draws
+its **west neighbour**. West is woodland, so the corner takes the **west neighbour's own palette** - the forest palette,
+which prefers forest floor ten to one - and that is precisely why the reference's chunk has forest floor at `(0,0)` while
+the port, drawing plain ground there, has grass.
+
+So the port's weights are not the disagreement: its west ticket is worth about three against the empty ticket's fifteen,
+and the reference drew a one-in-six outcome. **The disagreement is the dice.** Something upstream consumes a different
+number of draws, and the strongest candidate is visible in the reference's own loop: after setting the terrain of every
+square it calls `set_terrain_dependent_furniture`, which rolls `one_in(tdf.chance)` - **one draw per square that the port
+does not make at all.** A single missing draw per square would put every later square on different dice while leaving the
+kinds and their shares close, which is exactly the shape this comparison has had since round 224.
+
 ## The map-chunk trace, taken (round 238)
 
 **The blocker from the last round is gone, and it was my invocation, not the world.** The harness only enters its dump
