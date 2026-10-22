@@ -406,6 +406,27 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The other four layers, and the asymmetries between them (round 343)
+
+A submap now carries terrain, furniture, luminance, traps and radiation, each a page that costs nothing until it is written. The reference's `maptile_soa` also
+holds items and fields; those arrive with the systems that store them.
+
+Three asymmetries in the reference are preserved rather than tidied, and each is now a test:
+
+| Layer | Filling the whole submap | Why |
+|---|---|---|
+terrain | `set_all_ter( terr, uniform_ok )` - **can** stay uniform | it is the layer a whole submap usually shares (`submap.h:157-165`) |
+furniture | `set_all_furn` - always materialises | no `uniform_ok` flag (`:119-123`) |
+traps | `set_all_traps` - always materialises | no `uniform_ok` flag (`:107-111`) |
+
+**Light has three branches and one of them is the reference's own arithmetic.** `update_lum_rem` (`submap.cpp:364-388`): a non-emissive item changes nothing (but
+it materialises the array first); a count that is neither zero nor saturated decrements; a **saturated** count is recounted from the emissive items left on the
+square and written as `count - 1`. At `count == 0` that subtraction underflows and the cast takes the low byte, giving 255. It looks like a bug in the reference
+and may be one; the port reproduces it and says so at the call site, because silently "fixing" it would be a divergence nobody could see.
+
+**`is_uniform` had to change meaning.** In the reference it is `!m` - one array shared by all seven layers, so a write to any layer materialises all of them. The
+port keeps a page per layer, so `is_uniform()` now asks every layer. A submap is uniform exactly when nothing has ever been written to it.
+
 ## Two tile rules the port had backwards (round 342)
 
 Porting submap storage meant reading `submap.h` line by line, and the port's `TilePage` disagreed with it twice. Both disagreements were invisible because every
