@@ -406,6 +406,23 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The hundred draws were a person, not a fire (round 327)
+
+Last round's replay carved out **104 draws** per hot-air creation, on the theory that they were what `add_field` costs. They were not. Marking each statement
+of `map::add_field` and re-recording showed the draws landing between the fifth square's insertion and `on_field_modified` - that is, inside the `hit_player`
+branch, which `add_field`'s default argument turns **on** and `create_hot_air` does not turn off:
+
+| What I thought | What it was |
+|---|---|
+the cost of adding a hot-air field | `creature_in_field( player )` - the player standing in the square the hot air lands on |
+field bookkeeping the port lacks | creature bookkeeping the port lacks: body parts, saving rolls, a hundred dice |
+
+The fixture had put the fire **on the player's own square** (`--place-fire 0 0 2`), so the fifth hot-air square always landed under them. The fix is not a
+port of the creature layer, it is the right scene: `fire-floor-offset.json` places the fire one square east, and the whole session now replays - five turns,
+six processors, **nothing carved out**, `recording_remaining()` asserted at zero.
+
+Both fixtures stay: the first is the ready-made case for the creature layer, the second is the one that proves the field rules.
+
 ## Five turns, and the two rules that only a longer replay could show (round 326)
 
 The replay now covers the **whole session**: five turns, six fire processors, one recording, one world carried from turn to turn. It passes, and it caught

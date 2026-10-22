@@ -75,3 +75,14 @@ rise all read terrain, and a port that reads "nothing" everywhere looks plausibl
 
 The dump is 49 squares (`radius 3`), seven by seven, and the session's fire sits at `(69, 60)`: the room is `t_floor`, the walls are `t_wall_w`, and the
 fixture is regenerated with the command at the top of this file.
+
+## Two fixtures, and why (round 327)
+
+`fire-floor.json` puts the fire on the **player's own square** (`--place-fire 0 0 2`). That is a legitimate scene - a person standing in a fire - but it is
+not a fixture about fields: every `add_field` the hot-air rule makes lands under them, and the reference spends a hundred draws rolling their body parts.
+Those draws belong to the creature layer, which the port has no entities for in this session.
+
+`fire-floor-offset.json` moves the fire one square east (`--place-fire 1 0 2`). Nothing changes but the scene: same room, same fire, same five turns, and now
+the session's dice are the fields' own from the first draw to the last, which is what `fire_session_parity` replays with nothing carved out.
+
+Keep both. The first is the better fixture for the creature layer the day it is ported; the second is the one that proves the field rules.

@@ -1,6 +1,6 @@
 //! One turn of the reference's own session, replayed by the port.
 //!
-//! `corpus/fields/fire-floor.json` is a five-turn recording of a fire on `t_floor`, and `fire-floor.rolls.txt` is the dice the reference rolled while it
+//! `corpus/fields/fire-floor-offset.json` is a five-turn recording of a fire on `t_floor`, and `fire-floor-offset.rolls.txt` is the dice the reference rolled while it
 //! happened, labelled by phase. This test takes the first *processed* turn of that session - the newborn's first turn is spared its processors - hands the
 //! port the whole terrain grid, the fire's state before the turn, and the reference's dice, and asks for the reference's state after it.
 
@@ -13,7 +13,7 @@ use std::collections::BTreeMap;
 
 fn fixture() -> Value {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../corpus/fields/fire-floor.json");
+        .join("../../corpus/fields/fire-floor-offset.json");
     let text = std::fs::read_to_string(&path)
         .unwrap_or_else(|error| panic!("the fixture at {}: {error}", path.display()));
     parse(text.as_bytes()).expect("the fixture parses")
@@ -91,54 +91,29 @@ fn facts_for(id: &str, flags: &BTreeMap<String, Vec<String>>) -> TerrainFacts {
 /// Every die the reference rolled **inside a fire processor**, in order, for the whole session.
 ///
 /// The marks bound each processor: `fire.begin` opens one and `fire.done` closes it, so the draws in between belong to the fire's own rules rather than to
-/// the sweep's other squares.
-///
-/// One block is still taken out, and it is the honest shape of a known gap: when the fire asks for **hot air**, the reference creates five fields, and
-/// everything it spends afterwards in the same processor - a `rng( 2, 9 )`, a bit draw, twelve `rng( 0, 99 )` and a `rng( 0, 100 )` per new square - is
-/// the cost of adding a field to that square, which the port does not model yet. Those draws are counted, asserted below, and are the next round's work
-/// rather than something quietly replayed as if it were fire dice.
+/// the sweep's other squares. Nothing is left out - and that took a second fixture to achieve. The first one put the fire on the player's own square,
+/// where every `add_field` the hot-air rule makes lands under them and the reference spends a hundred draws rolling their body parts, which is the creature
+/// layer and not the fire's. The fire now starts one square east, and the session's dice are the fields' own from beginning to end.
 fn fire_processor_dice() -> Recording {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../corpus/fields/fire-floor.rolls.txt");
+        .join("../../corpus/fields/fire-floor-offset.rolls.txt");
     let text = std::fs::read_to_string(&path)
         .unwrap_or_else(|error| panic!("the recording at {}: {error}", path.display()));
-    let mut processors: Vec<Vec<String>> = Vec::new();
+    let mut lines = Vec::new();
     let mut inside = false;
     for line in text.lines() {
         if let Some(label) = line.strip_prefix("mark ") {
             match label {
-                "fire.begin" => {
-                    processors.push(Vec::new());
-                    inside = true;
-                }
+                "fire.begin" => inside = true,
                 "fire.done" => inside = false,
                 _ => {}
             }
             continue;
         }
-        if inside && let Some(last) = processors.last_mut() {
-            last.push(line.to_string());
+        if inside {
+            lines.push(line.to_string());
         }
     }
-    let mut stripped = 0usize;
-    let mut lines = Vec::new();
-    for mut processor in processors {
-        let squares: Vec<usize> = processor
-            .iter()
-            .enumerate()
-            .filter(|(_, line)| line.starts_with("int -1 1 "))
-            .map(|(index, _)| index)
-            .collect();
-        if let Some(tenth) = squares.get(9) {
-            stripped += processor.len() - tenth - 1;
-            processor.truncate(tenth + 1);
-        }
-        lines.extend(processor);
-    }
-    assert_eq!(
-        stripped, 104,
-        "the size of the hot-air creation gap: the draws the reference spends after it makes the fields, which the port does not model yet"
-    );
     Recording::parse(&lines.join("\n")).expect("the processors' dice parse")
 }
 

@@ -2238,7 +2238,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
          }
 diff -ruN references/Cataclysm-DDA/src/map_field.cpp oracle/src/src/map_field.cpp
 --- references/Cataclysm-DDA/src/map_field.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/map_field.cpp	2026-10-23 04:19:34
++++ oracle/src/src/map_field.cpp	2026-10-23 04:37:54
 @@ -950,6 +950,9 @@
      const oter_id om_ter = pd.om_ter;
  
@@ -2299,7 +2299,7 @@ diff -ruN references/Cataclysm-DDA/src/map_field.cpp oracle/src/src/map_field.cp
      // Create smoke once - above us if possible, at us otherwise
      if( !ter_furn_has_flag( ter, frn, ter_furn_flag::TFLAG_SUPPRESS_SMOKE ) &&
          rng( 0, 100 - windpower ) <= smoke &&
-@@ -1418,12 +1436,18 @@
+@@ -1418,12 +1436,24 @@
          }
      }
  
@@ -2310,7 +2310,13 @@ diff -ruN references/Cataclysm-DDA/src/map_field.cpp oracle/src/src/map_field.cp
      // Don't produce too much of it if we have a lot fires nearby, they produce
      // radiant heat which does what hot air would do anyway
      if( adjacent_fires < 5 && rng( 0, 4 - adjacent_fires ) ) {
++#ifdef CATA_HARNESS
++        rng_mark( "hot_air.begin" );
++#endif
          here.create_hot_air( p, cur.get_field_intensity() );
++#ifdef CATA_HARNESS
++        rng_mark( "hot_air.end" );
++#endif
      }
 +#ifdef CATA_HARNESS
 +    rng_mark( "fire.done" );
