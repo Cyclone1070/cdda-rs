@@ -128,3 +128,110 @@ impl SoundQueue {
         self.noises.is_empty()
     }
 }
+
+/// A group of noises close enough together to be read as one.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Centroid {
+    /// Where it is, as the average of its noises weighted by volume.
+    pub x: f32,
+    /// See [`Centroid::x`].
+    pub y: f32,
+    /// The loudest noise in it - **not** the sum, because a monster hears the loudest thing.
+    pub volume: f32,
+    /// The sum of its noises' volumes, which is what the position is averaged by.
+    pub weight: f32,
+    /// Whether any noise in it should stir a monster.
+    pub provokes: bool,
+}
+
+/// Groups a turn's noises into at most ten, the way the reference does before any monster reads them.
+///
+/// Reference: `cluster_sounds` (`src/sounds.cpp:365-431`). Three things are worth knowing before reading this:
+///
+/// * **A list of at most ten noises is never clustered**: `num_seed_clusters` is `max( min( n, 10 ), log( n ) )` and every seeded
+///   cluster is a single noise, so small lists come out exactly as they went in.
+/// * **Seeding draws from the dice** and removes the chosen noise by swapping the last one into its place, so the draw order *and*
+///   the swap are both part of the answer, and the port has to reproduce both to be the same world.
+/// * The position is a **volume-weighted average**, the volume is the **maximum** rather than the sum, and provocation is kept if
+///   **any** noise in the group provoked.
+// The reference works in `float` throughout, so the port's casts are its own arithmetic.
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss
+)]
+#[must_use]
+pub fn cluster_sounds(
+    rolls: &mut crate::rng::Rolls,
+    noises: &[((i32, i32), i32, bool)],
+) -> Vec<Centroid> {
+    if noises.is_empty() {
+        return Vec::new();
+    }
+    let count = noises.len();
+    // `max( min( n, 10 ), log( n ) )`, the reference's `std::log`: the natural log, truncated the way an integer conversion truncates it.
+    // For any list a turn can plausibly hold the minimum dominates, so the log only matters for lists past twenty thousand noises - but
+    // it is written the way the reference writes it rather than simplified into something that is only equal in practice.
+    #[allow(
+        clippy::cast_precision_loss,
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss
+    )]
+    let logged = f64::from(u32::try_from(count).unwrap_or(u32::MAX)).ln() as usize;
+    let seeds = usize::min(count, 10).max(logged);
+    let stopping_point = count.saturating_sub(seeds);
+    let mut remaining: Vec<((i32, i32), i32, bool)> = noises.to_vec();
+    let mut clusters: Vec<Centroid> = Vec::new();
+    let mut taken = count;
+    while taken > stopping_point {
+        let index = rolls.rng(0, i32::try_from(taken).unwrap_or(1) - 1);
+        let Ok(index) = usize::try_from(index) else {
+            break;
+        };
+        let Some(noise) = remaining.get(index).copied() else {
+            break;
+        };
+        clusters.push(Centroid {
+            x: i32_to_f32(noise.0.0),
+            y: i32_to_f32(noise.0.1),
+            volume: i32_to_f32(noise.1),
+            weight: i32_to_f32(noise.1),
+            provokes: noise.2,
+        });
+        // `vector_quick_remove`: the last element takes the hole, which is why the order the rest are read in is not the order they
+        // were recorded in.
+        let last = taken - 1;
+        if index != last {
+            remaining.swap(index, last);
+        }
+        remaining.truncate(last);
+        taken -= 1;
+    }
+    for noise in remaining {
+        let Some(nearest) = clusters.iter_mut().min_by_key(|cluster| {
+            #[allow(clippy::cast_possible_truncation)]
+            let position = (cluster.x as i32, cluster.y as i32);
+            let distance = crate::sound::sound_distance(noise.0, position);
+            distance * distance
+        }) else {
+            continue;
+        };
+        let volume = i32_to_f32(noise.1);
+        let weight_sum = volume + nearest.weight;
+        if weight_sum != 0.0 {
+            nearest.x =
+                (f64::from(noise.0.0) as f32 * volume + nearest.x * nearest.weight) / weight_sum;
+            nearest.y =
+                (f64::from(noise.0.1) as f32 * volume + nearest.y * nearest.weight) / weight_sum;
+        }
+        nearest.volume = nearest.volume.max(volume);
+        nearest.weight = weight_sum;
+        nearest.provokes |= noise.2;
+    }
+    clusters
+}
+
+#[allow(clippy::cast_precision_loss)]
+fn i32_to_f32(value: i32) -> f32 {
+    value as f32
+}
