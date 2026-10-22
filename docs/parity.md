@@ -377,6 +377,16 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The sweep reads the level it sweeps (round 286)
+
+`run_level_field_turns` replaces the caller-supplied map with the level itself: `Level::field_squares` already hands the squares
+back column by column, so the sweep never sorts and the dice are spent in the reference's sequence. Each field is **taken off**
+the level, given its turn, and put back **only if it survived** - which is how the reference's removal of a decayed field falls
+out of the same pass rather than needing a second one.
+
+Four tests, one of them new: a field aged past its half-life with an intensity of one **leaves the level** during its own turn and
+is not restored.
+
 ## The level holds the fields (round 285)
 
 A field has to live somewhere between turns. `Level` now keeps one entry per square, with `add_field`, `field_at`, `take_field` and

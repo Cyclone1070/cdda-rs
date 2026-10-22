@@ -411,47 +411,43 @@ pub fn run_field_turn<'a>(
     spawned
 }
 
-/// One turn of every field in a submap, in the reference's sweep order.
+/// One turn of every field on the level, in the reference's sweep order.
 ///
-/// Reference: `map::process_fields_in_submap` (`map_field.cpp:445-499`) loops `locx` **outside** and `locy` inside, so a submap is
-/// visited column by column. The order is not cosmetic: every die a field spends lands in that sequence, and the same trap cost
-/// this port six rounds in map generation.
+/// Reference: `map::process_fields_in_submap` (`map_field.cpp:445-499`) loops `locx` **outside** and `locy` inside, so the map is
+/// visited column by column. `Level::field_squares` hands the squares back in exactly that order, so the sweep never sorts and the
+/// dice are spent in the reference's sequence - the same trap that cost this port six rounds in map generation.
 ///
-/// Squares with no field are skipped without touching the dice, as the reference's `displayed_field_type()` test does.
-///
-/// Returns every monster spawned, with its square, in the order the sweep produced them. The visitor is called once per
-/// processed square, which is what lets a test state the order rather than infer it.
+/// Each field is taken off the level, given its turn, and put back **only if it survived**, which is how the reference's removal of
+/// a decayed field falls out of the same pass. The visitor is called once per processed square, which lets a test state the order
+/// rather than infer it.
 #[allow(clippy::too_many_arguments)]
-pub fn run_submap_field_turns<'a>(
-    fields: &mut std::collections::BTreeMap<(i32, i32), cdda_core_types::field::FieldEntry>,
+pub fn run_level_field_turns<'a>(
+    level: &mut cdda_core_types::level::Level,
     turn: &FieldTurn,
-    level: &cdda_core_types::level::Level,
     takes_creature: impl Fn(u32) -> bool + Copy,
     groups: &'a [crate::monster_groups::MonsterGroup],
     rolls: &mut Rolls,
     now: i64,
     mut visited: impl FnMut((i32, i32)),
 ) -> Vec<(&'a str, (i32, i32))> {
-    let side = i32::try_from(cdda_core_types::submap::SUBMAP_SIDE).unwrap_or(12);
     let mut spawned = Vec::new();
-    // One submap, walked the reference's way: x outside, y inside.
-    for x in 0..side {
-        for y in 0..side {
-            let square = (x, y);
-            let Some(field) = fields.get_mut(&square) else {
-                continue;
-            };
-            visited(square);
-            spawned.extend(run_field_turn(
-                field,
-                turn,
-                square,
-                level,
-                takes_creature,
-                groups,
-                rolls,
-                now,
-            ));
+    for square in level.field_squares() {
+        let Some(mut field) = level.take_field(square.0, square.1) else {
+            continue;
+        };
+        visited(square);
+        spawned.extend(run_field_turn(
+            &mut field,
+            turn,
+            square,
+            level,
+            takes_creature,
+            groups,
+            rolls,
+            now,
+        ));
+        if field.is_alive() {
+            level.add_field(square.0, square.1, field);
         }
     }
     spawned

@@ -6,9 +6,7 @@
 
 #![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
-use std::collections::BTreeMap;
-
-use cdda_content::fields::{FieldTurn, run_submap_field_turns};
+use cdda_content::fields::{FieldTurn, run_level_field_turns};
 use cdda_content::monster_groups::load_paths;
 use cdda_core_types::field::FieldEntry;
 use cdda_core_types::level::Level;
@@ -47,16 +45,14 @@ fn the_sweep_visits_a_submap_column_by_column() {
     let groups = groups();
     let mut level = Level::new();
     level.ensure(0, 0, GROUND);
-    let mut fields: BTreeMap<(i32, i32), FieldEntry> = BTreeMap::new();
     for square in [(0, 0), (0, 1), (1, 0), (1, 1)] {
-        fields.insert(square, aged_field());
+        level.add_field(square.0, square.1, aged_field());
     }
     let mut visited = Vec::new();
     let mut rolls = Rolls::new(21);
-    let spawned = run_submap_field_turns(
-        &mut fields,
+    let spawned = run_level_field_turns(
+        &mut level,
         &spawning(),
-        &level,
         |terrain| terrain == GROUND,
         &groups,
         &mut rolls,
@@ -83,14 +79,12 @@ fn a_square_without_a_field_is_not_visited_and_spends_nothing() {
     let groups = groups();
     let mut level = Level::new();
     level.ensure(0, 0, GROUND);
-    let mut fields: BTreeMap<(i32, i32), FieldEntry> = BTreeMap::new();
-    fields.insert((3, 4), aged_field());
+    level.add_field(3, 4, aged_field());
     let mut visited = Vec::new();
     let mut rolls = Rolls::new(2);
-    let spawned = run_submap_field_turns(
-        &mut fields,
+    let spawned = run_level_field_turns(
+        &mut level,
         &spawning(),
-        &level,
         |terrain| terrain == GROUND,
         &groups,
         &mut rolls,
@@ -107,30 +101,29 @@ fn the_same_seed_sweeps_to_the_same_result() {
     let mut level = Level::new();
     level.ensure(0, 0, GROUND);
     let build = || {
-        let mut fields: BTreeMap<(i32, i32), FieldEntry> = BTreeMap::new();
+        let mut built = Level::new();
+        built.ensure(0, 0, GROUND);
         for square in [(0, 0), (1, 2), (5, 5)] {
-            fields.insert(square, aged_field());
+            built.add_field(square.0, square.1, aged_field());
         }
-        fields
+        built
     };
-    let mut first_fields = build();
-    let mut second_fields = build();
+    let mut first_level = build();
+    let mut second_level = build();
     let mut first = Rolls::new(77);
     let mut second = Rolls::new(77);
-    let a = run_submap_field_turns(
-        &mut first_fields,
+    let a = run_level_field_turns(
+        &mut first_level,
         &spawning(),
-        &level,
         |t| t == GROUND,
         &groups,
         &mut first,
         1,
         |_| {},
     );
-    let b = run_submap_field_turns(
-        &mut second_fields,
+    let b = run_level_field_turns(
+        &mut second_level,
         &spawning(),
-        &level,
         |t| t == GROUND,
         &groups,
         &mut second,
@@ -138,4 +131,34 @@ fn the_same_seed_sweeps_to_the_same_result() {
         |_| {},
     );
     assert_eq!(a, b);
+}
+
+#[test]
+fn a_field_that_died_during_its_turn_leaves_the_level() {
+    // The removal falls out of the same pass: the sweep takes a field off the level, gives it its turn, and puts it back only if
+    // it survived. A field that decays away must not be restored.
+    let groups = groups();
+    let mut level = Level::new();
+    level.ensure(0, 0, GROUND);
+    let mut dying = FieldEntry::new(1, 1, false, false);
+    dying.set_age(1_000_000);
+    level.add_field(2, 2, dying);
+    let mut rolls = Rolls::new(4);
+    let mut quiet = spawning();
+    quiet.spawn_chance = 0;
+    quiet.spawn_count = 0;
+    run_level_field_turns(
+        &mut level,
+        &quiet,
+        |t| t == GROUND,
+        &groups,
+        &mut rolls,
+        1_000_000,
+        |_| {},
+    );
+    assert!(
+        level.field_at(2, 2).is_none(),
+        "a decayed field is gone from the level"
+    );
+    assert_eq!(level.field_squares(), Vec::new());
 }
