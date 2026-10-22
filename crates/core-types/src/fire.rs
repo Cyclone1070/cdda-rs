@@ -563,3 +563,83 @@ pub fn spread_gas(
     }
     nowhere
 }
+
+/// One material's behaviour at one fire intensity, as `simulate_burn` needs it.
+///
+/// The reference reads these from the material data (`mat_burn_data`), which is already loaded from `corpus/prototypes/materials.json`; the shape is
+/// repeated here so the rule can be tested without a content catalogue in the room.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MaterialBurn {
+    /// Nothing burns, whatever the fire: an item made to shield from fire does not feed one.
+    pub immune: bool,
+    /// How much of the material a fire of this intensity eats per turn, in millilitres.
+    pub volume_per_turn_ml: f64,
+    /// Turns of a fire's life one portion gives.
+    pub fuel: f64,
+    /// Smoke one portion makes.
+    pub smoke: f64,
+    /// How much of the item is destroyed per turn, as a fraction of it.
+    pub burn: f64,
+}
+
+/// What burning the items on one square gave the fire this turn.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct SimulatedBurn {
+    /// Fuel, in turns of a fire's life, before the reference rounds it with `roll_remainder`.
+    pub fuel: f64,
+    /// Smoke, before rounding.
+    pub smoke: f64,
+    /// How much of the items was destroyed, before rounding into whole units of `burnt`.
+    pub burn: f64,
+}
+
+/// What one item made of these materials contributes to a fire of this intensity.
+///
+/// Reference: `item::simulate_burn` (`src/item.cpp:12543-12596`). Three things about it are easy to get wrong and all three are the reference's own
+/// arrangement, not an invention of the port:
+///
+/// - a material with a `volume_per_turn` burns **in proportion to the item's own volume**, so a plank gives a fraction of a turn's fuel per turn and a
+///   rag gives a different fraction;
+/// - a material with **no** `volume_per_turn` burns flat, and so does everything in a **contained** fire - which is what keeps a brazier alight;
+/// - a multi-material item is divided by its **portion count**, not by the number of materials, so a two-to-one mix weights accordingly.
+#[must_use]
+pub fn simulate_burn(
+    materials: &[(&[MaterialBurn], i32)],
+    volume_ml: f64,
+    intensity: i32,
+    contained: bool,
+) -> SimulatedBurn {
+    let effective = if contained { 3 } else { intensity };
+    let mut out = SimulatedBurn::default();
+    let mut portions = 0;
+    for (levels, count) in materials {
+        // `burn_data( intensity )` is `_burn_data[ min( intensity, size ) - 1 ]` (`material.cpp:350-353`): the level is the fire's, and an item whose
+        // material lists fewer levels than the fire has uses its last one rather than failing.
+        let levels_listed = i32::try_from(levels.len().max(1)).unwrap_or(1);
+        let level = usize::try_from(effective.max(1).min(levels_listed)).unwrap_or(1);
+        let Some(material) = levels.get(level - 1) else {
+            continue;
+        };
+        if material.immune {
+            return SimulatedBurn::default();
+        }
+        let multiplier = f64::from(*count);
+        portions += count;
+        let flat = contained || material.volume_per_turn_ml == 0.0;
+        let rate = if flat || volume_ml <= 0.0 {
+            1.0
+        } else {
+            material.volume_per_turn_ml / volume_ml
+        };
+        out.fuel += material.fuel * rate * multiplier;
+        out.smoke += material.smoke * rate * multiplier;
+        out.burn += material.burn * rate * multiplier;
+    }
+    if materials.len() > 1 {
+        let total = f64::from(portions.max(1));
+        out.fuel /= total;
+        out.smoke /= total;
+        out.burn /= total;
+    }
+    out
+}

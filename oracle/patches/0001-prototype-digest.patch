@@ -129,8 +129,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-23 06:00:51
-@@ -0,0 +1,1255 @@
++++ oracle/src/src/harness.cpp	2026-10-23 07:13:22
+@@ -0,0 +1,1265 @@
 +#include "harness.h"
 +#include "recipe_dictionary.h"
 +#include "requirements.h"
@@ -1263,12 +1263,22 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        // `one_in( 5 ) && get_item_count() > 0 && flammable_items_at( ... )`, so a replay has to know whether anything burnable is lying there.
 +        std::fprintf( out,
 +                      "%s{\"x\":%d,\"y\":%d,\"z\":%d,\"ter\":\"%s\",\"furn\":\"%s\","
-+                      "\"items\":%zu,\"items_burn\":%d}",
++                      "\"items\":%zu,\"items_burn\":%d",
 +                      first_square ? "" : ",", p.x(), p.y(), p.z(),
 +                      harness::harness_escape( ter.id().str() ).c_str(),
 +                      harness::harness_escape( frn.id().str() ).c_str(),
 +                      g->harness_map().i_at( p ).size(),
 +                      g->harness_map().flammable_items_at( p ) ? 1 : 0 );
++        // ...and *what* is lying there, because the fire eats the items themselves: `item::simulate_burn` divides a material's volume per turn by the
++        // item's own volume, so two squares that both say `items_burn: 1` can feed a fire by very different amounts.
++        std::fprintf( out, ",\"items_at\":[" );
++        bool first_item = true;
++        for( const item &thing : g->harness_map().i_at( p ) ) {
++            std::fprintf( out, "%s\"%s\"", first_item ? "" : ",",
++                          harness::harness_escape( thing.typeId().str() ).c_str() );
++            first_item = false;
++        }
++        std::fprintf( out, "]}" );
 +        first_square = false;
 +    }
 +    std::fprintf( out, "],\n\"turns\":[" );

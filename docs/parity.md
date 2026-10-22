@@ -406,6 +406,29 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The rule behind the plank's one turn of fuel (round 331)
+
+The gap declared last round now has its rule ported, though not yet its wiring: `simulate_burn` (`item.cpp:12543-12596`), the arithmetic that decides what a
+burning item gives the fire eating it.
+
+| Facet | The rule |
+|---|---|
+a material with a `volume_per_turn` | contributes **in proportion to the item's own volume**, so a plank gives `200 / 4130` of a turn's fuel and a rag gives its own fraction |
+a material with none | burns flat, which is how a level-three fire keeps eating an item whatever its size |
+a **contained** fire | burns flat *and* at level three (`effective_intensity = contained ? 3 : fire_intensity`) - a brazier is fed on purpose |
+an immune material | contributes nothing at all, whatever else the item is made of |
+several materials | each is scaled by its portion count and the sum is divided by the **portion count**, not by the number of materials |
+
+Six tests hold it, all transcribed from the reference's own source and wood's own numbers from `corpus/prototypes/materials.json`.
+
+**The oracle learned to say what is lying on a square.** `"items"` and `"items_burn"` said how many and whether any would burn; `"items_at"` now names them
+(`["2x4"]`, and a locker's thirteen-item contents in full), because the fire eats the items themselves and two squares that both say `items_burn: 1` can feed a
+fire by very different amounts. The three fixtures were regenerated and their dice streams are **identical** to the byte, which is what a dump-only change
+should look like.
+
+**Not yet wired:** the port does not run `simulate_burn` inside the fire processor, so the plank fixture still stops at its spread. The pieces are now in place -
+the rule, the item ids, and the volume and materials in `corpus/prototypes/items.json` - and the wiring is the next slice.
+
 ## Three rules the replay found that the unit tests could not (round 330)
 
 The plank fixture - fire on `t_floor`, all eight neighbours `t_concrete` with `f_null`, one plank - spread onto the plank's square at turn six and then held up

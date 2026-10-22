@@ -33,6 +33,7 @@ mod forest_perimeter;
 mod four_quadrants;
 mod gas_spread;
 mod ids;
+mod item_burn;
 mod level;
 mod light;
 mod light_source;
