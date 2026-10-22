@@ -27,7 +27,10 @@ fn the_perimeter_is_ninety_six_depths() {
     // Measured values: between four and ten squares, which is the average of five with a deviation of one, wandering.
     let lowest = depths.iter().copied().min().unwrap_or(0);
     let highest = depths.iter().copied().max().unwrap_or(0);
-    assert!(depths.iter().all(|depth| (4..=10).contains(depth)), "{lowest}..{highest}");
+    assert!(
+        depths.iter().all(|depth| (4..=10).contains(depth)),
+        "{lowest}..{highest}"
+    );
     assert_eq!(
         &depths[..4],
         &[9, 6, 5, 5],

@@ -1440,7 +1440,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-22 13:11:40
++++ oracle/src/src/main.cpp	2026-10-22 15:50:29
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -1451,7 +1451,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,42 @@
+@@ -272,6 +275,44 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -1467,6 +1467,8 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_overmap;
 +    std::string dump_noise;
 +    std::string dump_map;
++    int dump_map_omt_x = INT_MIN;
++    int dump_map_omt_y = INT_MIN;
 +    int dump_noise_radius = 20;
 +    int dump_overmap_radius = 20;
 +    std::string probe_mapgen;
@@ -1494,7 +1496,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +339,246 @@
+@@ -300,6 +341,257 @@
                  }
              },
              {
@@ -1688,6 +1690,17 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                }
 +            },
 +            {
++                "--dump-map-omt", "<x> <y>",
++                "Moves the reality bubble to this overmap square before --dump-map",
++                section_default,
++                2,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_map_omt_x = std::atoi( params[0] );
++                    result.dump_map_omt_y = std::atoi( params[1] );
++                    return 1;
++                }
++            },
++            {
 +                "--dump-map", "<file>",
 +                "Writes the generated map chunk the player stands in: terrain ids, 24 by 24",
 +                section_default,
@@ -1741,7 +1754,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +1065,174 @@
+@@ -786,6 +1078,180 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -1777,6 +1790,12 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                harness::dump_noise( cli.dump_noise, cli.dump_noise_radius );
 +            }
 +            if( !cli.dump_map.empty() ) {
++                // Optional: dump a chunk other than the one the player stands in. The bubble has to move there first,
++                // because the map object only holds the chunk around the player.
++                if( cli.dump_map_omt_x != INT_MIN && cli.dump_map_omt_y != INT_MIN ) {
++                    g->place_player_overmap(
++                        tripoint_abs_omt( cli.dump_map_omt_x, cli.dump_map_omt_y, 0 ) );
++                }
 +                harness::dump_map( cli.dump_map );
 +            }
 +            exit_handler( 0 );
@@ -1976,7 +1995,7 @@ diff -ruN references/Cataclysm-DDA/src/mapdata.cpp oracle/src/src/mapdata.cpp
  template<>
 diff -ruN references/Cataclysm-DDA/src/mapgen_functions.cpp oracle/src/src/mapgen_functions.cpp
 --- references/Cataclysm-DDA/src/mapgen_functions.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/mapgen_functions.cpp	2026-10-22 15:41:53
++++ oracle/src/src/mapgen_functions.cpp	2026-10-22 15:50:22
 @@ -5,6 +5,7 @@
  #include <cmath>
  #include <cstdint>
@@ -1985,14 +2004,15 @@ diff -ruN references/Cataclysm-DDA/src/mapgen_functions.cpp oracle/src/src/mapge
  #include <iterator>
  #include <map>
  #include <optional>
-@@ -859,6 +860,16 @@
+@@ -859,6 +860,17 @@
          delete[] critical_point_depths;
      }
  
 +    if( const char *trace_path = std::getenv( "CDDA_MAP_TRACE_PERIMETER" ) ) {
 +        // Harness instrumentation: the ninety-six depths the curve produced, in the order the reference indexes them.
 +        static std::ofstream trace_file( trace_path, std::ios::app );
-+        trace_file << "perimeter";
++        const tripoint_abs_omt trace_omt = project_to<coords::omt>( m->get_abs_sub() );
++        trace_file << "perimeter " << trace_omt.x() << ' ' << trace_omt.y() << ' ' << trace_omt.z();
 +        for( int depth : perimeter_depth ) {
 +            trace_file << ' ' << depth;
 +        }
@@ -2002,7 +2022,7 @@ diff -ruN references/Cataclysm-DDA/src/mapgen_functions.cpp oracle/src/src/mapge
      // Get the current biome definition for this terrain.
      const auto current_biome_def_it = dat.region.forest_composition.biomes.find(
                                            dat.terrain_type()->get_type_id() );
-@@ -1007,6 +1018,10 @@
+@@ -1007,6 +1019,10 @@
                                adj_weights[3] * dat.w_fac + self_weight * factor ) );
  
          const int feather_selection = *direction_pool.pick();
@@ -2013,7 +2033,7 @@ diff -ruN references/Cataclysm-DDA/src/mapgen_functions.cpp oracle/src/src/mapge
          switch( feather_selection ) {
              case no_dir:
                  return *self_biome.groundcover.pick();
-@@ -1062,6 +1077,13 @@
+@@ -1062,6 +1078,13 @@
          // Pick from the direction pool, and calculate + return the appropriate terrain:
          ter_furn_id feature;
          const int feather_selection = *direction_pool.pick();

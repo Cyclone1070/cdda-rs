@@ -308,6 +308,24 @@ equality; JSON accept/reject parity". Each part, and where it is proven:
 | JSON acceptance is identical | All 6,220 shipped files: same accept/reject verdict and same structural digest as the reference; the writer is compared byte for byte on 127 of them |
 | The cache changes nothing | All 6,220 files read identically cold and warm |
 
+## One chunk, described on both sides (round 243)
+
+The dump and the traces now describe the **same** chunk: `corpus/maps/reference-chunk-6049.json` is the thick woodland at
+overmap `[60,49]`, and the files beside it hold that chunk's own **ninety-six perimeter depths** and its **576 feature
+tickets**, tied together by the coordinate written at the start of the perimeter line. That is the piece the comparison
+has been missing since round 224 - before it, the port was scored against a dump taken at the player's square while the
+traces described whichever forest chunk happened to be generated nearby, so **every score was the share of squares where
+two independent draws agreed.**
+
+The chunk is `forest_thick` rather than plain forest, which is a small bonus rather than a complication: it is the denser
+biome, its curve reaches further (depths up to twelve rather than ten), and its west neighbour is the likeliest of the
+four at **84 of 576** draws - what a square whose west side is more woodland than field should draw.
+
+**A harness limit worth recording:** `--dump-map-omt` exists and moves the reality bubble, but `place_player_overmap`
+lands the player on a **nearby suitable square** rather than the one asked for - the first attempt asked for `[60,48]`
+and got `[57,45]`, an apple orchard. So the reliable route is the chunk the player is already standing in, which here is
+the traced one. Moving the bubble exactly would need a different call than the one the game provides.
+
 ## A chunk's recorded inputs (round 241/242)
 
 A fresh world, generated with all three traces on, yields **one** chunk described end to end: its **96 perimeter
