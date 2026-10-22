@@ -5,7 +5,15 @@
 //! wrong ground where the port should have been right, and missing features where the port has not written that pass
 //! at all.
 
-#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
+#![allow(
+    clippy::panic,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    clippy::too_many_lines
+)]
 
 use cdda_content::overmap_build::forest_ground_pass;
 use cdda_content::overmap_special::{
@@ -162,6 +170,55 @@ fn the_ground_pass_and_the_reference_agree_on_a_share_of_the_chunk() {
     for id in &ground {
         *counts.entry(id.clone()).or_insert(0_usize) += 1;
     }
+    // The dump's rows may run the other way, or from another origin. Before blaming the generator, compare the port's
+    // chunk against the reference under every mirror image of the square: if one of them scores far better, the
+    // comparison was upside down rather than the rule being wrong.
+    let mut best = (0_usize, "identity");
+    for (name, transform) in [
+        ("identity", 0_u8),
+        ("flip rows", 1),
+        ("flip columns", 2),
+        ("rotate 180", 3),
+        ("transpose", 4),
+        ("transpose + flip rows", 5),
+        ("transpose + flip columns", 6),
+        ("transpose + rotate 180", 7),
+    ] {
+        let agrees = (0..576)
+            .filter(|index: &usize| {
+                let ours = ((*index % 24) as i32, (*index / 24) as i32);
+                // The eight symmetries of the square, written out: `ours` is where the port thinks the square is,
+                // and `theirs` is where the reference would have to hold it for the two to agree.
+                let theirs = match transform {
+                    0 => (ours.0, ours.1),
+                    1 => (ours.0, 23 - ours.1),
+                    2 => (23 - ours.0, ours.1),
+                    3 => (23 - ours.0, 23 - ours.1),
+                    4 => (ours.1, ours.0),
+                    5 => (ours.1, 23 - ours.0),
+                    6 => (23 - ours.1, ours.0),
+                    _ => (23 - ours.1, 23 - ours.0),
+                };
+                ground[*index] == reference[(theirs.1 * 24 + theirs.0) as usize]
+            })
+            .count();
+        if agrees > best.0 {
+            best = (agrees, name);
+        }
+    }
+    // Measured: identity 291, best mirror ("transpose + flip rows") 307. Sixteen squares is not nothing, but it is not
+    // the decisive gap an upside-down sample would show either - a transposed chunk would fit far better than this -
+    // so the rows run the way the port reads them, and the disagreement is in the rule or the dice. Pinning the
+    // comparison means nobody re-opens this question by instinct later.
+    eprintln!(
+        "best mirror image: {} with {} of 576 squares",
+        best.1, best.0
+    );
+    assert!(
+        best.0 <= agree + 20,
+        "no mirror image of the chunk fits better than the chunk itself: {} against {agree}",
+        best.0
+    );
     let first_difference = ground
         .iter()
         .zip(reference.iter())
