@@ -4,6 +4,7 @@
 //! number of levels is also its maximum intensity, which is what the runtime clamps to - so this
 //! loader is what makes "intensity 3" mean something.
 
+use cdda_core_types::rng::Rolls;
 use cdda_json::{Object, Value};
 
 /// One intensity of a field.
@@ -192,4 +193,41 @@ impl FieldRegistry {
             .copied()
             .map(cdda_core_types::field::FieldId)
     }
+}
+
+/// What a monster-spawning field produces when its turn comes up.
+///
+/// Reference: `field_processor_monster_spawn` (`map_field.cpp:762-786`). The level's count and chance are tested **before any
+/// dice are spent**, so a level with either at zero is free; then **one** `one_in(chance)` decides whether anything spawns at
+/// all, and only then is the group asked, repeatedly, until the count is used up.
+///
+/// Returns the monsters' ids. The caller places them at random passable squares within the level's radius, which is the part of
+/// the reference that needs a map rather than a table.
+///
+/// **Declared gap:** the reference asks `GetResultFromGroup` for a **batch** and passes its count in by reference, so a pack
+/// entry can consume several points of the count and spawn several monsters at once. Packs are not ported, so a batch here is
+/// always one monster.
+pub fn spawn_from_field<'a>(
+    spawn_chance: i32,
+    spawn_count: i32,
+    spawn_group: &str,
+    groups: &'a [crate::monster_groups::MonsterGroup],
+    rolls: &mut Rolls,
+) -> Vec<&'a str> {
+    let mut produced = Vec::new();
+    if spawn_count <= 0 || spawn_chance <= 0 || spawn_group.is_empty() {
+        return produced;
+    }
+    if !rolls.one_in(spawn_chance) {
+        return produced;
+    }
+    let mut remaining = spawn_count;
+    while remaining > 0 {
+        match crate::monster_groups::pick_monster(spawn_group, groups, rolls) {
+            Some(monster) => produced.push(monster),
+            None => break,
+        }
+        remaining -= 1;
+    }
+    produced
 }

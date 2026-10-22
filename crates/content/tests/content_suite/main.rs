@@ -17,6 +17,7 @@ mod forest_biomes;
 mod forest_chunk_diff;
 mod forest_chunk_pair;
 
+mod field_spawn;
 mod forest_chunk_alignment;
 mod forest_edge_blend;
 mod forest_ground_trace;
