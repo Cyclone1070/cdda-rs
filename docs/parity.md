@@ -377,6 +377,17 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The sweep, column by column (round 284)
+
+`run_submap_field_turns` walks a submap the way `process_fields_in_submap` does (`map_field.cpp:445-499`): **`locx` outside, `locy`
+inside**, so a submap is visited column by column, and squares with no field are skipped without touching the dice. The order is
+not cosmetic - every die a field spends lands in that sequence - and it is the same trap that cost this port six rounds in map
+generation.
+
+The test states the order rather than inferring it: a visitor records the squares the sweep processed, and four fields in the
+corners of a two-by-two block come out `(0,0), (0,1), (1,0), (1,1)`. Three tests, including that a lone field on a square spends
+nothing on the eleven columns before it.
+
 ## What a field does on its turn (round 283)
 
 `run_field_turn` ports the three steps of `map::process_fields_in_submap` (`map_field.cpp:470-499`) in their order, which is the
