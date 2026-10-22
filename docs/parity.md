@@ -308,6 +308,23 @@ equality; JSON accept/reject parity". Each part, and where it is proven:
 | JSON acceptance is identical | All 6,220 shipped files: same accept/reject verdict and same structural digest as the reference; the writer is compared byte for byte on 127 of them |
 | The cache changes nothing | All 6,220 files read identically cold and warm |
 
+## Which block of a trace is which chunk (round 251)
+
+The previous round's 273-square discrepancy survived a harder test and changed shape. The feature trace and the perimeter
+trace are written **by different call sites** - one per generation call, one per chunk - and nothing ties them together, so
+the question "which 576-line block belongs to this chunk" has no recorded answer. Every alignment tried leaves at least
+**273 of 576** squares outside their recorded palette, and the best leaves **303 inside**; no constant offset fixes it.
+
+So two things are true at once, and the ledger says both:
+
+- **The counts are solid.** Which palette each square drew does not depend on alignment: 400 ground cover, 97 dense trees,
+  75 dense shrubs, 4 young trees. Those come straight from the raffle.
+- **The comparison is not yet trustworthy.** Whether the placed terrain follows the raffle cannot be answered until the
+  trace **names its own chunk** - the same defect that made a coordinate from the map's absolute submap unreliable in round
+  243. The fix is one field: write the chunk's identity on every line, then alignment is a lookup instead of a guess.
+
+The test states the finding as a range for that reason, rather than pinning a number that belongs to a guessed alignment.
+
 ## The raffle's choice is not what the map ends with (round 250)
 
 The feature raffle is now traced square by square - the ticket, the palette name it produced and any furniture. Comparing
