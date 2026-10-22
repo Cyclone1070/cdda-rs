@@ -52,6 +52,7 @@ mod recording;
 mod rng;
 mod rng_wrappers;
 mod scent;
+mod scent_update;
 mod seen;
 mod shadowcasting;
 mod sight;
