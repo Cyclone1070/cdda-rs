@@ -312,6 +312,100 @@ const EIGHT_NEIGHBOURS: [(i32, i32); 8] = [
     (-1, 0),
 ];
 
+/// Gives every square holding this gas its turn, moving gas to neighbours that will take it.
+///
+/// Reference: the field sweep's call to `spread_gas` (`src/map_field.cpp:582`), which runs once per gas per turn and is what makes hot air, smoke and tear
+/// gas move. Whether a field is a gas is `percent_spread` in its data, not a processor of its own, so this system takes the id and the rate rather than
+/// hard-coding either.
+///
+/// The order is the store's, square by square, and a gas that moves is recorded by [`cdda_core_types::fire::spread_gas`]'s arithmetic: the source keeps
+/// `age - age / intensity` and the destination receives `age / intensity`, thickening if it already held the gas. A square whose intensity reaches zero
+/// leaves the store, which is the sweep's behaviour for any field that does not survive its turn.
+pub fn process_gas(
+    world: &mut World,
+    id: FieldId,
+    percent_spread: i32,
+    windpower: i32,
+    can_take: impl Fn((i32, i32), (i32, i32)) -> bool,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) {
+    let mut order: Vec<(i32, i32, Entity)> = Vec::new();
+    let mut query = world.query::<(Entity, &Position, &Field)>();
+    for (entity, position, field) in query.iter(world) {
+        if field.id == id {
+            order.push((position.x, position.y, entity));
+        }
+    }
+    order.sort_by_key(|&(x, y, entity)| (x, y, entity.to_bits()));
+    for (x, y, entity) in order {
+        let Some(field) = world.get::<Field>(entity) else {
+            continue;
+        };
+        let intensity = field.entry.intensity();
+        let age = field.entry.age();
+        let mut accepts = [false; 8];
+        for (index, offset) in EIGHT_NEIGHBOURS.iter().enumerate() {
+            if let Some(slot) = accepts.get_mut(index) {
+                *slot = can_take((x, y), (x + offset.0, y + offset.1));
+            }
+        }
+        let Some(movement) = cdda_core_types::fire::spread_gas(
+            intensity,
+            age,
+            percent_spread,
+            windpower,
+            &accepts,
+            rolls,
+        ) else {
+            continue;
+        };
+        let Some(offset) = EIGHT_NEIGHBOURS.get(movement.to) else {
+            continue;
+        };
+        let destination = (x + offset.0, y + offset.1);
+        // The destination first, so a merge cannot be confused with the source's own square.
+        let existing = {
+            let mut query = world.query::<(Entity, &Position, &Field)>();
+            query
+                .iter(world)
+                .find(|(_, position, field)| {
+                    position.x == destination.0 && position.y == destination.1 && field.id == id
+                })
+                .map(|(entity, _, field)| (entity, field.entry.intensity(), field.entry.age()))
+        };
+        if let Some((taken, thick, taken_age)) = existing {
+            if let Some(mut field) = world.get_mut::<Field>(taken) {
+                field.entry.set_intensity(thick + 1);
+                field.entry.set_age(taken_age + movement.transferred_age);
+            }
+        } else {
+            let mut entry =
+                cdda_core_types::field::FieldEntry::new(intensity.max(1), 1_000_000, false, false);
+            entry.set_intensity(1);
+            entry.set_age(movement.transferred_age);
+            world.spawn((
+                Field {
+                    id,
+                    entry,
+                    priority: 0,
+                },
+                Position {
+                    x: destination.0,
+                    y: destination.1,
+                },
+            ));
+        }
+        let died = world.get_mut::<Field>(entity).is_some_and(|mut field| {
+            field.entry.set_intensity(movement.source_intensity);
+            field.entry.set_age(movement.source_age);
+            !field.entry.is_alive()
+        });
+        if died {
+            world.despawn(entity);
+        }
+    }
+}
+
 /// A thing that gives off light: a torch, a fire, a lamp.
 #[derive(Debug, Clone, Copy, Component)]
 pub struct LightSource {

@@ -45,6 +45,7 @@ mod fire_terrain;
 mod fire_vent;
 mod frame;
 mod gas_effects;
+mod gas_haze;
 mod gas_spread;
 mod ground_items;
 mod harvest_damage;

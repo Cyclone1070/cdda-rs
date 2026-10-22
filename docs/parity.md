@@ -406,6 +406,21 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Gases move in the store (round 314)
+
+`process_gas` is the join between [`spread_gas`] and the entity store: it walks every square holding the gas in the store's own order, asks the map which
+neighbours would accept it, and applies the result - the source keeps `age - age / intensity` and one less level, the destination thickens if it already
+held the gas or is created at level one with the share of age, and a source that reaches zero leaves the store.
+
+Five tests: a level-one gas spends no dice, a thick gas gives a level and the right share of its age, a square already holding the gas **thickens rather
+than becoming a second entity**, a gas with nowhere to go spends only the two dice the scan needs, and a gas giving away its last level... stays, because
+level one is still alive.
+
+**Two mistakes of mine that the recordings caught in the same round**, both about how many dice a step costs: I wrote a three-die recording where the
+`one_in( candidates )` draw makes four, and `Recording` refused the range instead of answering the wrong die; and I mapped neighbour index 1 to the east
+when this project's table puts it **north**, which changed where the gas went in every test. The second is the kind of error that a passing "the gas
+moved" test would never show.
+
 ## Gases share one rule, and it has five dice with two short-circuits (round 313)
 
 The 106 draws after a hot air creation are not a hot-air special case: hot air is a **gas**, and gases move by `map::spread_gas`
