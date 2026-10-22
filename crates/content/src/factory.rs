@@ -28,6 +28,28 @@ pub enum InsertOutcome {
     Deferred,
 }
 
+/// A definition that cannot be accepted.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DuplicateDefinition {
+    /// The id that was defined twice.
+    pub id: String,
+    /// The mod both definitions came from.
+    pub src: String,
+}
+
+impl std::fmt::Display for DuplicateDefinition {
+    /** Reference: `mod_tracker.h:79-80`, word for word. */
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "{} has two definitions from the same source ({})!",
+            self.id, self.src
+        )
+    }
+}
+
+impl std::error::Error for DuplicateDefinition {}
+
 /// One prototype, as loaded: its id, its base, the object it came from, and the
 /// content source it came from.
 #[derive(Debug, Clone)]
@@ -111,7 +133,15 @@ impl Factory {
     /// already known is inserted; one whose base is not known yet is deferred,
     /// because the reference retries it after the next file loads
     /// (`generic_factory.h:305-312`).
-    pub fn insert(&mut self, json: Object, src: &str) -> InsertOutcome {
+    /// # Errors
+    ///
+    /// Returns [`DuplicateDefinition`] when the same source defines the same id twice. An override from a **different** source is not an error: it replaces the
+    /// earlier definition, which is how a mod changes a core prototype.
+    pub fn insert(
+        &mut self,
+        json: Object,
+        src: &str,
+    ) -> Result<InsertOutcome, DuplicateDefinition> {
         if let Some(name) = string_member(&json, "abstract") {
             self.abstracts.insert(
                 name.clone(),
@@ -123,10 +153,10 @@ impl Factory {
                     resolved: true,
                 },
             );
-            return InsertOutcome::Abstract;
+            return Ok(InsertOutcome::Abstract);
         }
         let Some(id) = string_member(&json, "id") else {
-            return InsertOutcome::Deferred;
+            return Ok(InsertOutcome::Deferred);
         };
         let base = string_member(&json, "copy-from");
         let resolved = self.base_ready(base.as_deref());
@@ -138,22 +168,32 @@ impl Factory {
             resolved,
         };
         if let Some(at) = self.index.get(&id).copied() {
+            // Reference: `generic_factory::insert` (`generic_factory.h:390-397`) asks `mod_tracker::check_duplicate_entries`, which throws when both definitions
+            // come from the same source and says nothing when they do not - an override is meant to replace.
+            if let Some(existing) = self.entities.get(at)
+                && existing.src == src
+            {
+                return Err(DuplicateDefinition {
+                    id,
+                    src: src.to_owned(),
+                });
+            }
             if let Some(slot) = self.entities.get_mut(at) {
                 *slot = prototype;
             }
             if !resolved {
                 self.deferred.push(at);
             }
-            return InsertOutcome::Replaced;
+            return Ok(InsertOutcome::Replaced);
         }
         let at = self.entities.len();
         self.entities.push(prototype);
         self.index.insert(id, at);
         if !resolved {
             self.deferred.push(at);
-            return InsertOutcome::Deferred;
+            return Ok(InsertOutcome::Deferred);
         }
-        InsertOutcome::Inserted
+        Ok(InsertOutcome::Inserted)
     }
 
     /// Retries deferred objects until none can be resolved, and reports the ids

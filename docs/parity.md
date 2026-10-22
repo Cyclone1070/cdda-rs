@@ -46,7 +46,7 @@ counts, so the next receipt cannot borrow its numbers.
 | Random numbers | done (P0 scope) | M0 | Engine stream matches the reference draw for draw over 4 seeds ([corpus/rng/engine.csv](../corpus/rng/engine.csv)). The wrappers the game actually calls — `rng`, `rng_float`, `normal_roll`, `rng_normal`, `rng_bits`, `one_in`, `x_in_y`, `dice`, `roll_remainder`, `random_entry`, `rng_sequence`, the exponential rolls and the world-seed hash — reproduce 93 calls bit for bit against the same libc++ ([corpus/rng/wrappers.csv](../corpus/rng/wrappers.csv), generator recorded beside it). `normal_roll_chance` is ported and held to 4e-8 rather than to equality, because the error function is the platform's; the centre case is exact. See [03-decisions.md](03-decisions.md). Not ported: the chi-squared roll, which needs libc++'s gamma sampler - and it is not dead code, it drives NPC mutation timing (`src/npc.cpp:663`), so that path cannot be claimed until it lands |
 | Identifiers (string, int, type) | done (P0 scope) | M0 | 17 tests, 88 assertions: interned string identity, integer ids as ordinal caches with version invalidation, invalid use returns the dummy rather than panicking; misuse of an int id without its registry fails to compile |
 | Parse cache | done (P0 scope) | M0 | 5 tests: a hit avoids the parse, a changed source is a miss, a damaged entry is a miss and never an error, unused entries are pruned at open. All 6,220 files read identically cold and warm; cold 11.0 s, warm 3.5 s |
-| Registry machinery | done (P1-T1 core) | M1 | Abstracts kept apart but usable as bases, deferred `copy-from` retried at finalisation, cycles reported as unresolved ids with no recursion, duplicate ids keeping their position. All 8,743 `copy-from` chains in the core content resolve except 25 overmap-terrain objects whose base the map generator creates |
+| Registry machinery | done (P1-T1 core) | M1 | Abstracts kept apart but usable as bases, deferred `copy-from` retried at finalisation, cycles reported as unresolved ids with no recursion, duplicate ids from one source rejected (as the reference does), an override from another source replacing in place. All 8,743 `copy-from` chains in the core content resolve except 25 overmap-terrain objects whose base the map generator creates |
 | Terrain and furniture | first family done | M1 | All 1,769 prototypes match the reference on name, symbol per season, colour, move cost, light, coverage and the full flag set — including inheritance, `flags` replacement, `extend`/`delete`, and both null prototypes |
 | Traps | done | M1 | All 125 match on name, glyph, colour, visibility, avoidance, difficulty, radius, benign-ness, invisibility and flag set |
 | Materials | done | M1 | All 193 match on name, density, chip resistance, breathability rating and the three heat constants |
@@ -69,7 +69,7 @@ counts, so the next receipt cannot borrow its numbers.
 
 | System | Status | Gate | Notes |
 |---|---|---|---|
-| Prototype registry machinery | done (P1-T1 core) | Prototype digest (M1) | Load, inherit, finalise: abstracts kept apart but usable as bases, `copy-from` retried at finalisation, cycles reported rather than recursed, duplicate ids keeping their position, the factories' null prototypes created. 8 tests ([factory.rs](../crates/content/tests/content_suite/factory.rs), [rules.rs](../crates/content/tests/content_suite/rules.rs)) |
+| Prototype registry machinery | done (P1-T1 core) | Prototype digest (M1) | Load, inherit, finalise: abstracts kept apart but usable as bases, `copy-from` retried at finalisation, cycles reported rather than recursed, a same-source duplicate rejected while a cross-source override replaces in place, the factories' null prototypes created. 9 tests ([factory.rs](../crates/content/tests/content_suite/factory.rs), [rules.rs](../crates/content/tests/content_suite/rules.rs)) |
 | Content type loaders (160 types) | in progress, 7 families | M1 | Terrain and furniture, traps, materials, field types, item types, monster types, plus the generated-prototype families. Each is held to a field-by-field corpus dumped by the reference. See [06-inventory.md](06-inventory.md) for the rest |
 | Inheritance and merge operators | done | M1 | `copy-from`, `extend`, `delete`, `relative` and `proportional`, with the two orders the reference uses: readers check proportional before relative, `assign` checks relative first. All 8,743 `copy-from` chains in the core content resolve. [inheritance_corpus.rs](../crates/content/tests/content_suite/inheritance_corpus.rs) |
 | Mod discovery and load order | not started | M1 | User-ordered list, not a topological sort |
@@ -405,6 +405,22 @@ every square too.
 sparseness-adjacency factor (4 here), while the port returns the proximity fraction and scales at the call site. The two
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
+
+## Duplicates: same source is an error, another source is an override (round 340)
+
+The registry machinery had the duplicate rule **backwards**, and nothing had asked it to prove otherwise. `generic_factory::insert` (`generic_factory.h:390-397`)
+calls `mod_tracker::check_duplicate_entries`, and that function (`mod_tracker.h:75-82`) has exactly two outcomes:
+
+| Second definition comes from | Reference does | What the port used to do |
+|---|---|---|
+the **same** mod | **throws**: `"<id> (<type>) has two definitions from the same source (<src>)!"` | replaced it silently |
+a **different** mod | replaces the earlier one, in place | replaced it silently |
+
+So the port was right about overrides and wrong about mistakes: a data file that defines the same id twice would have loaded happily, and the reference refuses to
+start. `Factory::insert` now returns `Result<InsertOutcome, DuplicateDefinition>` with the reference's sentence in its `Display`.
+
+The corpus test walks every file in load order and inserts every `trap` into a real factory: **zero** same-source duplicates, which is what "the reference loads this
+data at all" means. That is a claim about the content, and it would fail loudly if the port's rule were stricter than the reference's.
 
 ## Mod load order is parity now, not a reading of the code (round 339)
 
