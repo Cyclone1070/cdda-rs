@@ -406,6 +406,24 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## A whole environment turn, and the property every comparison rests on (round 316)
+
+`run_environment_turn` runs the reference's `map::process_fields` order in one call: **fires** (growth, fuel, spread, hot air, smoke), then the **gases**
+(smoke and the four hot air kinds), then **decay** through the sweep that owns it. The port keeps those as three systems so each can be tested alone; this is
+the function that puts them back together, and it is what lets a test burn a room for twenty turns instead of calling three systems by hand.
+
+Four tests, and the two that matter are about **determinism**:
+
+| Test | What it proves |
+|---|---|
+twenty turns of a raging fire leave smoke and haze, and a fire still burning | the chain works end to end |
+the same seed burns the same room twice, field for field | every comparison in this project rests on this |
+a different seed burns it differently | the determinism test above is not passing for the wrong reason |
+an empty level stays empty | the turn invents nothing |
+
+The third test exists because of the second: a "determinism" test that would pass with a broken generator, or with the dice ignored entirely, is worthless, and
+the only way to know which one you have is to check that the seed still matters.
+
 ## The haze a fire leaves is an entity (round 315)
 
 `process_fires` now ends with `fire_discharge`: hot air first (`map_field.cpp:1429`), then smoke (`:1407`), in the reference's order. Hot air is chosen by the

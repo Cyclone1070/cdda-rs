@@ -952,6 +952,42 @@ fn fire_discharge(
     }
 }
 
+/// One whole turn of the environment: fires, then the gases they leave, then decay.
+///
+/// Reference: `map::process_fields` (`src/map_field.cpp:164-200`), which walks the submaps once a turn and, per square, runs the field's processor and then
+/// decays it. The port keeps the three parts in separate systems so each can be read and tested on its own; this is the function that runs them in the
+/// reference's order:
+///
+/// 1. [`process_fires`] - growth, fuel, spread, hot air, smoke;
+/// 2. [`process_gas`] for smoke and the four hot air kinds - the gases move after the fires that made them, which is what makes a room fill from the
+///    inside out;
+/// 3. [`process_field_turns`] - decay last, exactly as the reference does it, so a field that has just been created is spared its processors this turn.
+///
+/// `can_take` answers whether one square's gas may move onto another; the environment layer owns that question because it is about terrain and fields on
+/// the destination square.
+pub fn run_environment_turn(
+    world: &mut World,
+    map: &impl FireMap,
+    windpower: i32,
+    can_take: impl Fn((i32, i32), (i32, i32)) -> bool + Copy,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) {
+    // Fires first: everything else this turn reacts to what they left behind.
+    process_fires(world, map, windpower, rolls);
+    // Then the gases, including the haze the fires just made. `percent_spread` is `fd_smoke`'s and the hot air kinds' own data.
+    for (id, percent_spread) in [
+        (SMOKE, 10),
+        (HOT_AIR_1, 10),
+        (HOT_AIR_2, 10),
+        (HOT_AIR_3, 10),
+        (HOT_AIR_4, 10),
+    ] {
+        process_gas(world, id, percent_spread, windpower, can_take, rolls);
+    }
+    // Decay last, and through the sweep that owns it.
+    process_field_turns(world, 0, rolls, |_field| None, |_turn, _square, _rolls| {});
+}
+
 /// The hot air field for a fire of this intensity, as `create_hot_air` chooses it.
 #[must_use]
 pub fn hot_air_id(intensity: i32) -> Option<FieldId> {
