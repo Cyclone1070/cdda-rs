@@ -308,6 +308,17 @@ equality; JSON accept/reject parity". Each part, and where it is proven:
 | JSON acceptance is identical | All 6,220 shipped files: same accept/reject verdict and same structural digest as the reference; the writer is compared byte for byte on 127 of them |
 | The cache changes nothing | All 6,220 files read identically cold and warm |
 
+## From shape to mix (round 258)
+
+The comparison is now about **shares** rather than squares. Two independent sets of dice cannot agree square by square, but
+the proportions have to be close: the reference puts 258 of 576 squares on `t_region_groundcover` (0.448) and 253 on
+`t_region_groundcover_forest` (0.439). A rule that weighted the two wrongly, or a ticket pool that favoured one side of the
+chunk, moves those by whole tenths - and the port's own run sits inside a fifteenth of both.
+
+This is the strongest statement the port can make about forest generation **without sharing dice**: same inputs, same stage,
+same rules, and a mix that matches. Positional parity still needs the reference's dice replayed step by step, which is the
+next rung.
+
 ## The port generating the reference's chunk (round 257)
 
 With the four records on one key, the port now runs the reference chunk's **own perimeter** through its own rules and
