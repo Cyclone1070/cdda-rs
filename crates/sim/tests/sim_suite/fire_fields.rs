@@ -8,8 +8,45 @@
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::FieldEntry;
+use cdda_core_types::fire::Neighbour;
 use cdda_core_types::rng::Rolls;
-use cdda_sim::{FIRE, Field, Position, process_fires};
+use cdda_sim::{FIRE, Field, FireMap, Position, process_fires};
+
+/// A map that answers every question the same way everywhere, so a test varies one answer at a time.
+#[derive(Default)]
+struct FlatMap {
+    adjacent_fires: i32,
+    can_burn: bool,
+    time_added: i64,
+    can_spread: bool,
+    neighbour: Neighbour,
+    suppress_smoke: bool,
+    smoke_produced: i32,
+}
+
+impl FireMap for FlatMap {
+    fn adjacent_fires(&self, _square: (i32, i32)) -> i32 {
+        self.adjacent_fires
+    }
+    fn can_burn(&self, _square: (i32, i32)) -> bool {
+        self.can_burn
+    }
+    fn time_added(&self, _square: (i32, i32)) -> i64 {
+        self.time_added
+    }
+    fn can_spread(&self, _square: (i32, i32)) -> bool {
+        self.can_spread
+    }
+    fn neighbour(&self, _square: (i32, i32)) -> Neighbour {
+        self.neighbour
+    }
+    fn suppress_smoke(&self, _square: (i32, i32)) -> bool {
+        self.suppress_smoke
+    }
+    fn smoke_produced(&self, _square: (i32, i32)) -> i32 {
+        self.smoke_produced
+    }
+}
 
 fn fire_at(world: &mut World, x: i32, y: i32, intensity: i32, age: i64) -> Entity {
     let mut entry = FieldEntry::new(3, 1_000_000, false, true);
@@ -33,11 +70,15 @@ fn a_fed_fire_with_neighbours_grows() {
     let entity = fire_at(&mut world, 5, 5, 1, -10_000);
     process_fires(
         &mut world,
-        |_| 7,
-        |_| true,
-        |_| 0,
-        |_| true,
-        |_| cdda_core_types::fire::Neighbour::default(),
+        &FlatMap {
+            adjacent_fires: 7,
+            can_burn: true,
+            time_added: 0,
+            can_spread: true,
+            neighbour: Neighbour::default(),
+            ..FlatMap::default()
+        },
+        0,
         &mut Rolls::new(1),
     );
     let field = world.get::<Field>(entity).expect("the fire");
@@ -55,11 +96,15 @@ fn a_fire_with_nothing_to_burn_ages_toward_death() {
     let entity = fire_at(&mut world, 5, 5, 2, 0);
     process_fires(
         &mut world,
-        |_| 0,
-        |_| true,
-        |_| 0,
-        |_| true,
-        |_| cdda_core_types::fire::Neighbour::default(),
+        &FlatMap {
+            adjacent_fires: 0,
+            can_burn: true,
+            time_added: 0,
+            can_spread: true,
+            neighbour: Neighbour::default(),
+            ..FlatMap::default()
+        },
+        0,
         &mut Rolls::new(1),
     );
     let field = world.get::<Field>(entity).expect("the fire");
@@ -75,11 +120,15 @@ fn a_fire_that_ate_this_turn_spends_what_it_ate() {
     let entity = fire_at(&mut world, 5, 5, 1, -10);
     process_fires(
         &mut world,
-        |_| 0,
-        |_| true,
-        |_| 7_200,
-        |_| true,
-        |_| cdda_core_types::fire::Neighbour::default(),
+        &FlatMap {
+            adjacent_fires: 0,
+            can_burn: true,
+            time_added: 7_200,
+            can_spread: true,
+            neighbour: Neighbour::default(),
+            ..FlatMap::default()
+        },
+        0,
         &mut Rolls::new(1),
     );
     let field = world.get::<Field>(entity).expect("the fire");
@@ -116,11 +165,15 @@ fn a_fire_that_is_already_out_is_taken_off_the_store() {
         .id();
     process_fires(
         &mut world,
-        |_| 0,
-        |_| false,
-        |_| 0,
-        |_| true,
-        |_| cdda_core_types::fire::Neighbour::default(),
+        &FlatMap {
+            adjacent_fires: 0,
+            can_burn: false,
+            time_added: 0,
+            can_spread: true,
+            neighbour: Neighbour::default(),
+            ..FlatMap::default()
+        },
+        0,
         &mut Rolls::new(1),
     );
     assert!(world.get::<Field>(entity).is_none(), "an out fire is gone");
@@ -144,11 +197,15 @@ fn a_field_that_is_not_fire_is_left_alone() {
         .id();
     process_fires(
         &mut world,
-        |_| 9,
-        |_| true,
-        |_| 5_000,
-        |_| true,
-        |_| cdda_core_types::fire::Neighbour::default(),
+        &FlatMap {
+            adjacent_fires: 9,
+            can_burn: true,
+            time_added: 5_000,
+            can_spread: true,
+            neighbour: Neighbour::default(),
+            ..FlatMap::default()
+        },
+        0,
         &mut Rolls::new(1),
     );
     let field = world.get::<Field>(entity).expect("the field");

@@ -37,6 +37,7 @@ mod fire_growth;
 mod fire_items;
 mod fire_process;
 mod fire_residue;
+mod fire_smoke_store;
 mod fire_spread;
 mod fire_spreading;
 mod fire_terrain;

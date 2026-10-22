@@ -10,7 +10,43 @@ use bevy_ecs::prelude::*;
 use cdda_core_types::field::FieldEntry;
 use cdda_core_types::fire::Neighbour;
 use cdda_core_types::rng::Rolls;
-use cdda_sim::{FIRE, Field, Position, process_fires};
+use cdda_sim::{FIRE, Field, FireMap, Position, process_fires};
+
+/// A map that answers every question the same way everywhere, so a test varies one answer at a time.
+#[derive(Default)]
+struct FlatMap {
+    adjacent_fires: i32,
+    can_burn: bool,
+    time_added: i64,
+    can_spread: bool,
+    neighbour: Neighbour,
+    suppress_smoke: bool,
+    smoke_produced: i32,
+}
+
+impl FireMap for FlatMap {
+    fn adjacent_fires(&self, _square: (i32, i32)) -> i32 {
+        self.adjacent_fires
+    }
+    fn can_burn(&self, _square: (i32, i32)) -> bool {
+        self.can_burn
+    }
+    fn time_added(&self, _square: (i32, i32)) -> i64 {
+        self.time_added
+    }
+    fn can_spread(&self, _square: (i32, i32)) -> bool {
+        self.can_spread
+    }
+    fn neighbour(&self, _square: (i32, i32)) -> Neighbour {
+        self.neighbour
+    }
+    fn suppress_smoke(&self, _square: (i32, i32)) -> bool {
+        self.suppress_smoke
+    }
+    fn smoke_produced(&self, _square: (i32, i32)) -> i32 {
+        self.smoke_produced
+    }
+}
 
 fn fire(world: &mut World, x: i32, y: i32, intensity: i32, age: i64) -> Entity {
     let mut entry = FieldEntry::new(3, 1_000_000, false, true);
@@ -45,11 +81,15 @@ fn a_spreading_fire_leaves_a_weak_fuelled_fire_behind() {
         let mut rolls = Rolls::new(seed);
         process_fires(
             &mut world,
-            |_| 0,
-            |_| true,
-            |_| 0,
-            |_| true,
-            |_| ground(),
+            &FlatMap {
+                adjacent_fires: 0,
+                can_burn: true,
+                time_added: 0,
+                can_spread: true,
+                neighbour: ground(),
+                ..FlatMap::default()
+            },
+            0,
             &mut rolls,
         );
         let mut query = world.query::<&Field>();
@@ -74,11 +114,15 @@ fn a_contained_fire_leaves_no_new_fire() {
         let mut rolls = Rolls::new(seed);
         process_fires(
             &mut world,
-            |_| 0,
-            |_| false,
-            |_| 0,
-            |_| false,
-            |_| ground(),
+            &FlatMap {
+                adjacent_fires: 0,
+                can_burn: false,
+                time_added: 0,
+                can_spread: false,
+                neighbour: ground(),
+                ..FlatMap::default()
+            },
+            0,
             &mut rolls,
         );
         let mut query = world.query::<&Field>();
@@ -99,11 +143,15 @@ fn the_spreading_fire_spends_a_minute_of_its_own_life() {
         let mut rolls = Rolls::new(seed);
         process_fires(
             &mut world,
-            |_| 0,
-            |_| true,
-            |_| 0,
-            |_| true,
-            |_| ground(),
+            &FlatMap {
+                adjacent_fires: 0,
+                can_burn: true,
+                time_added: 0,
+                can_spread: true,
+                neighbour: ground(),
+                ..FlatMap::default()
+            },
+            0,
             &mut rolls,
         );
         let mut query = world.query::<&Field>();
@@ -133,11 +181,15 @@ fn each_new_fire_is_put_on_a_different_square() {
         let mut rolls = Rolls::new(seed);
         process_fires(
             &mut world,
-            |_| 0,
-            |_| true,
-            |_| 0,
-            |_| true,
-            |_| ground(),
+            &FlatMap {
+                adjacent_fires: 0,
+                can_burn: true,
+                time_added: 0,
+                can_spread: true,
+                neighbour: ground(),
+                ..FlatMap::default()
+            },
+            0,
             &mut rolls,
         );
         let mut query = world.query::<(&Field, &Position)>();

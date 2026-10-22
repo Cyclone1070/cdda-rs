@@ -155,6 +155,27 @@ pub fn process_field_turns(
     }
 }
 
+/// What the map tells a fire about the world around it.
+///
+/// The fire processor asks its surroundings seven different questions (`src/map_field.cpp:945-1425`), and they all belong to the map rather
+/// than to the fire. Gathering them behind one trait keeps the fire system readable and lets a test answer them one at a time.
+pub trait FireMap {
+    /// How many fires touch this square.
+    fn adjacent_fires(&self, square: (i32, i32)) -> i32;
+    /// Whether the ground here can burn.
+    fn can_burn(&self, square: (i32, i32)) -> bool;
+    /// How much the fire ate this turn, in turns.
+    fn time_added(&self, square: (i32, i32)) -> i64;
+    /// Whether the fire is somewhere it can spread from, rather than a brazier or an oven.
+    fn can_spread(&self, square: (i32, i32)) -> bool;
+    /// What one of the eight neighbouring squares looks like.
+    fn neighbour(&self, square: (i32, i32)) -> cdda_core_types::fire::Neighbour;
+    /// Whether smoke is suppressed here, as a sealed room does.
+    fn suppress_smoke(&self, square: (i32, i32)) -> bool;
+    /// How much smoke the fire's fuel made this turn.
+    fn smoke_produced(&self, square: (i32, i32)) -> i32;
+}
+
 /// Gives every fire on the level its turn: it spends or gains fuel, and grows if it has earned it.
 ///
 /// Reference: the fire processor inside the per-turn field sweep (`src/map_field.cpp:945-1360`), whose arithmetic is
@@ -166,11 +187,8 @@ pub fn process_field_turns(
 /// field that does not survive its turn.
 pub fn process_fires(
     world: &mut World,
-    adjacent_fires: impl Fn((i32, i32)) -> i32,
-    can_burn: impl Fn((i32, i32)) -> bool,
-    time_added: impl Fn((i32, i32)) -> i64,
-    can_spread: impl Fn((i32, i32)) -> bool,
-    neighbour_at: impl Fn((i32, i32)) -> cdda_core_types::fire::Neighbour,
+    map: &impl FireMap,
+    windpower: i32,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) {
     let mut order: Vec<(i32, i32, Entity)> = Vec::new();
@@ -183,6 +201,7 @@ pub fn process_fires(
     order.sort_by_key(|&(x, y, entity)| (x, y, entity.to_bits()));
     let mut newborn: Vec<(i32, i32)> = Vec::new();
     for (x, y, entity) in order {
+        let square = (x, y);
         let Some(field) = world.get::<Field>(entity) else {
             continue;
         };
@@ -194,13 +213,13 @@ pub fn process_fires(
         let turn = cdda_core_types::fire::fire_turn(
             field.entry.age(),
             field.entry.intensity(),
-            adjacent_fires((x, y)),
-            can_burn((x, y)),
-            time_added((x, y)),
+            map.adjacent_fires(square),
+            map.can_burn(square),
+            map.time_added(square),
         );
         let intensity = turn.intensity;
         let age = turn.age;
-        let spreads = can_spread((x, y));
+        let spreads = map.can_spread(square);
         let dead = world.get_mut::<Field>(entity).is_some_and(|mut field| {
             field.entry.set_age(age);
             field.entry.set_intensity(intensity);
@@ -213,9 +232,8 @@ pub fn process_fires(
         // The eight squares around it, in the reference's `eight_horizontal_neighbors` order, each described by what the map says.
         let mut neighbours = [cdda_core_types::fire::Neighbour::default(); 8];
         for (index, offset) in EIGHT_NEIGHBOURS.iter().enumerate() {
-            let square = (x + offset.0, y + offset.1);
             if let Some(slot) = neighbours.get_mut(index) {
-                *slot = neighbour_at(square);
+                *slot = map.neighbour((x + offset.0, y + offset.1));
             }
         }
         let caught = if spreads {
@@ -223,19 +241,31 @@ pub fn process_fires(
         } else {
             Vec::new()
         };
-        let spread = !caught.is_empty();
+        let did_spread = !caught.is_empty();
         for index in caught {
-            let Some(offset) = EIGHT_NEIGHBOURS.get(index) else {
-                continue;
-            };
-            newborn.push((x + offset.0, y + offset.1));
+            if let Some(offset) = EIGHT_NEIGHBOURS.get(index) {
+                newborn.push((x + offset.0, y + offset.1));
+            }
         }
-        if spread {
+        if did_spread {
             // Spreading costs the fire a minute of its own life.
             if let Some(mut field) = world.get_mut::<Field>(entity) {
                 let spent = field.entry.age() + 60;
                 field.entry.set_age(spent);
             }
+        }
+        // Then the smoke: above when the square overhead is open, otherwise on the fire itself and thicker. The port's store is two
+        // dimensional for now, so it takes the smoke-here branch and says so.
+        if let Some(smoke) = cdda_core_types::fire::smoke_from_fire(
+            rolls,
+            intensity,
+            map.smoke_produced(square),
+            windpower,
+            map.suppress_smoke(square),
+            false,
+            false,
+        ) {
+            add_field_strength(world, square, SMOKE, smoke.intensity);
         }
     }
     for (x, y) in newborn {

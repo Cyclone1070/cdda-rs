@@ -406,6 +406,21 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Smoke reaches the store, and the fire's questions become a trait (round 306)
+
+`process_fires` now asks the map seven questions instead of five, so they are gathered behind a `FireMap` trait: how many fires touch the square, whether
+the ground burns, how much was eaten, whether it may spread, what a neighbour looks like, whether smoke is suppressed, and how much smoke the fuel made.
+The signature went from six positional closures to `(world, map, windpower, rolls)`, and every fire test now spells out the answers it wants instead of
+passing a row of `|_| true`.
+
+**Smoke lands in the store.** A fire's smoke goes through the same merge rule as any other field, so two turns of smoke thicken rather than replace. The
+port's store is two dimensional, so the "above" branch of the reference has nowhere to go and the fire's own square is used - which is the reference's own
+fallback when the smoke cannot rise. **Declared gap:** a fire on a multi-level map will smoke its own square rather than the one above, until the store
+carries z.
+
+Three tests, and I proved them red before trusting them: with the smoke call replaced by a no-op both "eventually smokes" and "adds up" failed, and both
+went green when it came back. Writing a test after the code and calling it a gate is a lie the ledger should not tell, so the round records the check.
+
 ## Two patches of smoke add up (round 305)
 
 `field::add_field` (`src/field.cpp:158-175`) does **not** keep the stronger of two fields of the same kind on a square: it writes
