@@ -8,6 +8,7 @@
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::FieldEntry;
+use cdda_core_types::rng::Rolls;
 use cdda_sim::{FIRE, Field, Position, process_fires};
 
 fn fire_at(world: &mut World, x: i32, y: i32, intensity: i32, age: i64) -> Entity {
@@ -30,7 +31,15 @@ fn fire_at(world: &mut World, x: i32, y: i32, intensity: i32, age: i64) -> Entit
 fn a_fed_fire_with_neighbours_grows() {
     let mut world = World::new();
     let entity = fire_at(&mut world, 5, 5, 1, -10_000);
-    process_fires(&mut world, |_| 7, |_| true, |_| 0);
+    process_fires(
+        &mut world,
+        |_| 7,
+        |_| true,
+        |_| 0,
+        |_| true,
+        |_| cdda_core_types::fire::Neighbour::default(),
+        &mut Rolls::new(1),
+    );
     let field = world.get::<Field>(entity).expect("the fire");
     assert_eq!(
         field.entry.intensity(),
@@ -44,7 +53,15 @@ fn a_fed_fire_with_neighbours_grows() {
 fn a_fire_with_nothing_to_burn_ages_toward_death() {
     let mut world = World::new();
     let entity = fire_at(&mut world, 5, 5, 2, 0);
-    process_fires(&mut world, |_| 0, |_| true, |_| 0);
+    process_fires(
+        &mut world,
+        |_| 0,
+        |_| true,
+        |_| 0,
+        |_| true,
+        |_| cdda_core_types::fire::Neighbour::default(),
+        &mut Rolls::new(1),
+    );
     let field = world.get::<Field>(entity).expect("the fire");
     assert_eq!(field.entry.age(), 20, "ten seconds a level");
     assert_eq!(field.entry.intensity(), 2, "and no growth without fuel");
@@ -56,7 +73,15 @@ fn a_fire_that_ate_this_turn_spends_what_it_ate() {
     // level it climbs and leaves the fire longer-lived than it was.
     let mut world = World::new();
     let entity = fire_at(&mut world, 5, 5, 1, -10);
-    process_fires(&mut world, |_| 0, |_| true, |_| 7_200);
+    process_fires(
+        &mut world,
+        |_| 0,
+        |_| true,
+        |_| 7_200,
+        |_| true,
+        |_| cdda_core_types::fire::Neighbour::default(),
+        &mut Rolls::new(1),
+    );
     let field = world.get::<Field>(entity).expect("the fire");
     assert_eq!(
         field.entry.intensity(),
@@ -89,7 +114,15 @@ fn a_fire_that_is_already_out_is_taken_off_the_store() {
             Position { x: 1, y: 1 },
         ))
         .id();
-    process_fires(&mut world, |_| 0, |_| false, |_| 0);
+    process_fires(
+        &mut world,
+        |_| 0,
+        |_| false,
+        |_| 0,
+        |_| true,
+        |_| cdda_core_types::fire::Neighbour::default(),
+        &mut Rolls::new(1),
+    );
     assert!(world.get::<Field>(entity).is_none(), "an out fire is gone");
 }
 
@@ -109,7 +142,15 @@ fn a_field_that_is_not_fire_is_left_alone() {
             Position { x: 2, y: 2 },
         ))
         .id();
-    process_fires(&mut world, |_| 9, |_| true, |_| 5_000);
+    process_fires(
+        &mut world,
+        |_| 9,
+        |_| true,
+        |_| 5_000,
+        |_| true,
+        |_| cdda_core_types::fire::Neighbour::default(),
+        &mut Rolls::new(1),
+    );
     let field = world.get::<Field>(entity).expect("the field");
     assert_eq!(field.entry.age(), 5, "smoke does not grow or spend fuel");
     assert_eq!(field.entry.intensity(), 2);

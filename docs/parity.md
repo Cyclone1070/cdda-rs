@@ -406,6 +406,18 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## A spread fire that becomes a fire (round 303)
+
+The sim now puts the spread into the store: `process_fires` asks the map for each of the eight neighbours, runs [`spread_fire`], and spawns a
+fire on every square that caught - intensity **one** with **two minutes** of fuel (`add_field( dst_p, fd_fire, 1, 2_minutes )`), so a new fire
+does not immediately jump again, while the fire that spread pays a minute of its own life. One fire per square: the world is keyed by square
+even though the store is keyed by entity.
+
+Four tests, and one of them reproduced last round's mistake exactly: I wrote that a spreading fire ends sixty turns older, and the code said
+ninety, because the ten-second drain for standing on burnable ground comes **first**. The same ordering caught me out two rounds running, which is
+worth noting as a pattern rather than an anecdote - the fuel accounting is at the top of the processor, and every later rule is a change on top
+of it.
+
 ## Fire jumping to a neighbour (round 302)
 
 `spread_fire` ports the spread loop at `src/map_field.cpp:1285-1345`. Its **shape** is the rule and each part of the shape is a way to be wrong

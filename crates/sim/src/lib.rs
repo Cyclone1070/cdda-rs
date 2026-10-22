@@ -169,6 +169,9 @@ pub fn process_fires(
     adjacent_fires: impl Fn((i32, i32)) -> i32,
     can_burn: impl Fn((i32, i32)) -> bool,
     time_added: impl Fn((i32, i32)) -> i64,
+    can_spread: impl Fn((i32, i32)) -> bool,
+    neighbour_at: impl Fn((i32, i32)) -> cdda_core_types::fire::Neighbour,
+    rolls: &mut cdda_core_types::rng::Rolls,
 ) {
     let mut order: Vec<(i32, i32, Entity)> = Vec::new();
     let mut query = world.query::<(Entity, &Position, &Field)>();
@@ -178,6 +181,7 @@ pub fn process_fires(
         }
     }
     order.sort_by_key(|&(x, y, entity)| (x, y, entity.to_bits()));
+    let mut newborn: Vec<(i32, i32)> = Vec::new();
     for (x, y, entity) in order {
         let Some(field) = world.get::<Field>(entity) else {
             continue;
@@ -196,6 +200,7 @@ pub fn process_fires(
         );
         let intensity = turn.intensity;
         let age = turn.age;
+        let spreads = can_spread((x, y));
         let dead = world.get_mut::<Field>(entity).is_some_and(|mut field| {
             field.entry.set_age(age);
             field.entry.set_intensity(intensity);
@@ -203,9 +208,70 @@ pub fn process_fires(
         });
         if dead {
             world.despawn(entity);
+            continue;
+        }
+        // The eight squares around it, in the reference's `eight_horizontal_neighbors` order, each described by what the map says.
+        let mut neighbours = [cdda_core_types::fire::Neighbour::default(); 8];
+        for (index, offset) in EIGHT_NEIGHBOURS.iter().enumerate() {
+            let square = (x + offset.0, y + offset.1);
+            if let Some(slot) = neighbours.get_mut(index) {
+                *slot = neighbour_at(square);
+            }
+        }
+        let caught = if spreads {
+            cdda_core_types::fire::spread_fire(rolls, intensity, spreads, &neighbours)
+        } else {
+            Vec::new()
+        };
+        let spread = !caught.is_empty();
+        for index in caught {
+            let Some(offset) = EIGHT_NEIGHBOURS.get(index) else {
+                continue;
+            };
+            newborn.push((x + offset.0, y + offset.1));
+        }
+        if spread {
+            // Spreading costs the fire a minute of its own life.
+            if let Some(mut field) = world.get_mut::<Field>(entity) {
+                let spent = field.entry.age() + 60;
+                field.entry.set_age(spent);
+            }
         }
     }
+    for (x, y) in newborn {
+        // One fire per square: a square that already has one is not re-lit, and the world is keyed by square whatever the store keys by.
+        let mut query = world.query::<(&Field, &Position)>();
+        let taken = query
+            .iter(world)
+            .any(|(field, position)| position.x == x && position.y == y && field.id == FIRE);
+        if taken {
+            continue;
+        }
+        let mut entry = cdda_core_types::field::FieldEntry::new(3, 1_000_000, false, true);
+        entry.set_age(-120);
+        entry.set_intensity(1);
+        world.spawn((
+            Field {
+                id: FIRE,
+                entry,
+                priority: 0,
+            },
+            Position { x, y },
+        ));
+    }
 }
+
+/// The eight squares around one, in the reference's order.
+const EIGHT_NEIGHBOURS: [(i32, i32); 8] = [
+    (-1, -1),
+    (0, -1),
+    (1, -1),
+    (1, 0),
+    (1, 1),
+    (0, 1),
+    (-1, 1),
+    (-1, 0),
+];
 
 /// A thing that gives off light: a torch, a fire, a lamp.
 #[derive(Debug, Clone, Copy, Component)]

@@ -37,6 +37,7 @@ mod fire_items;
 mod fire_process;
 mod fire_residue;
 mod fire_spread;
+mod fire_spreading;
 mod fire_terrain;
 mod fire_vent;
 mod frame;
