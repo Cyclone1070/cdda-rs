@@ -33,6 +33,7 @@ mod mods;
 mod monster_harvest;
 mod monsters;
 mod overmap;
+mod overmap_build;
 mod overmap_locations;
 mod overmap_specials;
 mod prototype_ids;

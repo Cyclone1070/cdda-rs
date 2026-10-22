@@ -295,7 +295,16 @@ fn weighted_bin(value: Option<&Value>) -> Vec<(String, i32)> {
 /// Reads the `city` block of a region's settings.
 #[must_use]
 pub fn read_city_settings(value: &Value) -> Option<CitySettings> {
-    let Value::Object(fields) = value else {
+    // The region settings file is a **list** of regions, and the first one carrying a `city` block is the one that
+    // describes a town. Accepting both shapes keeps the caller from having to know which it was handed.
+    let entry = match value {
+        Value::Array(entries) => entries.iter().find(|entry| match entry {
+            Value::Object(fields) => matches!(fields.get("city"), Some(Value::Object(_))),
+            _ => false,
+        })?,
+        other => other,
+    };
+    let Value::Object(fields) = entry else {
         return None;
     };
     let city = match fields.get("city") {
