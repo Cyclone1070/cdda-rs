@@ -11,7 +11,7 @@
 
 use cdda_core_types::overmap::{
     BUILDING_CHANCE, BuildingKind, Direction, Overmap, Placement, building_kind, building_site,
-    can_place_shape,
+    can_place_shape, feather_pool, nesw_weights,
 };
 use cdda_core_types::rng::Rolls;
 use cdda_core_types::weighted::WeightedList;
@@ -182,4 +182,63 @@ pub fn build_town(
         }
     }
     report
+}
+
+/// The ground a forest chunk gets when only the groundcover pass runs.
+///
+/// This is the **first** of `mapgen_forest`'s passes and deliberately not all of it: the four feature layers - trees,
+/// shrubs, clutter, water - run afterwards and overwrite most of what this produces. It exists because it is the only
+/// pass whose input the port already has end to end: the edge curve, the pull of each neighbour, the six-ticket
+/// raffle, and the palettes the tickets resolve through.
+///
+/// Reference: `get_feathered_groundcover` called for every square of the chunk.
+#[allow(
+    clippy::too_many_arguments,
+    clippy::cast_sign_loss,
+    clippy::needless_range_loop,
+    clippy::indexing_slicing
+)]
+pub fn forest_ground_pass(
+    side: i32,
+    perimeter: &[i32],
+    self_palette: &[(String, i32)],
+    default_palette: &[(String, i32)],
+    max_factor: f32,
+    factor: f32,
+    rolls: &mut Rolls,
+) -> Vec<String> {
+    let mut ground = Vec::with_capacity((side * side) as usize);
+    // The reference steps the perimeter back for groundcover by half the average depth and lets the four neighbours
+    // compete with this square's own biome, which holds three tickets.
+    let margin = -2.0;
+    let self_weight = 3.0;
+    for y in 0..side {
+        for x in 0..side {
+            let weights = nesw_weights((x, y), side, perimeter, margin, [true; 4]);
+            let net: f32 = weights.iter().sum();
+            let pool = feather_pool(weights, self_weight, net, max_factor, factor, [factor; 4]);
+            let total: f32 = pool.iter().map(|weight| weight.max(0.0)).sum();
+            let mut ticket = rolls.rng_float(0.0, f64::from(total));
+            let mut chosen = 4; // this square's own biome, the fallback when the arithmetic leaves nothing else
+            for index in 0..6 {
+                ticket -= f64::from(pool[index].max(0.0));
+                if ticket <= 0.0 {
+                    chosen = index;
+                    break;
+                }
+            }
+            // Ticket 4 is this square's own biome; the four neighbour tickets and the empty one resolve through the
+            // region's default ground. That is right for the case that matters here - a forest next to open ground,
+            // where the neighbours own no forest biome - and it is the difference between a chunk that is mostly
+            // grass, as the reference's is, and one that is mostly forest floor, as my first version produced.
+            let palette = if chosen == 4 {
+                self_palette
+            } else {
+                default_palette
+            };
+            let entry = WeightedList::from_entries(palette.iter().cloned());
+            ground.push(entry.pick(rolls).cloned().unwrap_or_default());
+        }
+    }
+    ground
 }
