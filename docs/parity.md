@@ -377,6 +377,16 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The level holds the fields (round 285)
+
+A field has to live somewhere between turns. `Level` now keeps one entry per square, with `add_field`, `field_at`, `take_field` and
+- the one that matters - `field_squares`, which returns the populated squares **column by column**, exactly the order the sweep
+consumes them. Putting a field down or taking one away also marks the light dirty, because fire is a light source and the cached
+cast would otherwise be reused.
+
+Four tests: an empty level has none; a field can be placed, read and taken away leaving nothing behind; four fields at scattered
+coordinates come back `(0,0), (0,11), (3,2), (3,9)`; and placing one twice replaces rather than duplicates.
+
 ## The sweep, column by column (round 284)
 
 `run_submap_field_turns` walks a submap the way `process_fields_in_submap` does (`map_field.cpp:445-499`): **`locx` outside, `locy`

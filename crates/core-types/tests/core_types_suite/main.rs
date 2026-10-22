@@ -23,6 +23,7 @@ mod forest_perimeter;
 mod four_quadrants;
 mod ids;
 mod level;
+mod level_fields;
 mod light;
 mod light_source;
 mod line;

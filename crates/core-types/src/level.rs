@@ -4,6 +4,7 @@
 //! division of labour - submaps own the tiles, the level owns the submaps and turns a
 //! world coordinate into the cell inside one - and drops the pointers.
 
+use crate::field::FieldEntry;
 use crate::shadowcasting::{TransparencyGrid, cast_light};
 use crate::submap::{SubmapId, SubmapStore};
 use std::collections::BTreeMap;
@@ -37,6 +38,11 @@ pub struct Level {
     /// Whether something has changed since the light was built.
     light_dirty: bool,
     light_rebuilds: u32,
+    /// The fields on the level: fire, smoke and the rest, one entry per square.
+    ///
+    /// Reference: a submap keeps a `field` per square, a map from field type to entry. The port keeps one entry per square for
+    /// now, which is enough for every field that does not share a square with another.
+    fields: BTreeMap<(i32, i32), FieldEntry>,
     /// Whether each tile blocks light, worked out once per tile rather than once per
     /// cast. Keyed by tile, so moving the light reuses what it already knows.
     transparency: BTreeMap<(i32, i32), bool>,
@@ -68,6 +74,34 @@ impl Level {
         self.placed.insert(id, (submap_x, submap_y));
         self.at.insert((submap_x, submap_y), id);
         id
+    }
+
+    /// Puts a field on a square, replacing whatever was there.
+    pub fn add_field(&mut self, x: i32, y: i32, field: FieldEntry) {
+        self.fields.insert((x, y), field);
+        self.light_dirty = true;
+    }
+
+    /// The field on a square, if there is one.
+    #[must_use]
+    pub fn field_at(&self, x: i32, y: i32) -> Option<&FieldEntry> {
+        self.fields.get(&(x, y))
+    }
+
+    /// Takes the field off a square, leaving nothing behind.
+    pub fn take_field(&mut self, x: i32, y: i32) -> Option<FieldEntry> {
+        let taken = self.fields.remove(&(x, y));
+        if taken.is_some() {
+            self.light_dirty = true;
+        }
+        taken
+    }
+
+    /// Every square holding a field, **column by column** - x first, y inside - which is the order the per-turn sweep uses
+    /// (`map_field.cpp:445-449`).
+    #[must_use]
+    pub fn field_squares(&self) -> Vec<(i32, i32)> {
+        self.fields.keys().copied().collect()
     }
 
     /// The submap holding a world tile, if it has been made.
