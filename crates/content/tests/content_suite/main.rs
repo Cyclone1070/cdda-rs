@@ -18,6 +18,7 @@ mod forest_chunk_diff;
 mod forest_layers;
 mod forest_mapgen;
 mod forest_neighbours;
+mod forest_trace;
 mod frame_diff;
 mod frame_dump;
 mod generated;

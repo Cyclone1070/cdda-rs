@@ -308,7 +308,24 @@ equality; JSON accept/reject parity". Each part, and where it is proven:
 | JSON acceptance is identical | All 6,220 shipped files: same accept/reject verdict and same structural digest as the reference; the writer is compared byte for byte on 127 of them |
 | The cache changes nothing | All 6,220 files read identically cold and warm |
 
-## Blocker on the map-chunk trace (round 237)
+## The map-chunk trace, taken (round 238)
+
+**The blocker from the last round is gone, and it was my invocation, not the world.** The harness only enters its dump
+block when `--dump-frame` is present; every failed attempt passed `--dump-map` alone, so the binary fell through to the
+normal game path and sat on the loading screen. With the frame dump restored, the same command finishes in under a
+minute and writes both dumps **and** the trace.
+
+`corpus/overmap/reference-forest-trace.txt` holds the result: **17,856 lines, 31 chunks**, `x y ticket` per square. The
+tickets are the reference's six choices - `0..3` the compass neighbours, `-1` this square's own biome, `-2` plain
+regional ground. The first chunk is **400 plain ground, 83 own biome, 93 neighbours**, and **the corner draws `-2`** -
+which is exactly what the port's own arithmetic says it should draw there. So the corner's disagreement is **not in the
+feature raffle**: both sides draw the same ticket, and the difference is downstream, in what that ticket turns into.
+
+One structural fact came out of reading the file: **the generator visits columns, not rows** - it loops `x` outside and
+`y` inside - so the trace is column-major while a map dump is row-major. Comparing the two without knowing that would
+have produced a transposed comparison and a wrong conclusion about the corner.
+
+## Blocker on the map-chunk trace (round 237, resolved)
 
 The oracle can record which ticket its forest generator drew for every square it generates: `CDDA_MAP_TRACE=<path>`
 appends `x y ticket` after the pick, so a traced run and an untraced one produce the same world. That is what the last
