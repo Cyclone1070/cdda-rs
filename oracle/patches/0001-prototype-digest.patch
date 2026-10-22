@@ -129,8 +129,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-23 00:31:00
-@@ -0,0 +1,1204 @@
++++ oracle/src/src/harness.cpp	2026-10-23 00:51:11
+@@ -0,0 +1,1213 @@
 +#include "harness.h"
 +#include "recipe_dictionary.h"
 +#include "requirements.h"
@@ -1235,12 +1235,21 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        bool first = true;
 +        for( const tripoint_bub_ms &p : g->harness_map().points_in_radius( center, radius ) ) {
 +            const field &fld = g->harness_map().field_at( p );
++            // The terrain under the field is part of the answer, not decoration: the fire processor's fuel accounting
++            // branches on the terrain's flags, and two runs that differ only in the ground under a fire will disagree
++            // about its age. Without this in the dump there is no way to tell which branch ran.
++            const ter_id &ter = g->harness_map().ter( p );
++            const furn_id &frn = g->harness_map().furn( p );
 +            for( const auto &entry : fld ) {
-+                std::fprintf( out, "%s{\"x\":%d,\"y\":%d,\"z\":%d,\"type\":\"%s\",\"intensity\":%d,\"age\":%d}",
++                std::fprintf( out,
++                              "%s{\"x\":%d,\"y\":%d,\"z\":%d,\"type\":\"%s\",\"intensity\":%d,\"age\":%d,"
++                              "\"ter\":\"%s\",\"furn\":\"%s\"}",
 +                              first ? "" : ",", p.x(), p.y(), p.z(),
 +                              harness::harness_escape( entry.second.get_field_type().id().str() ).c_str(),
 +                              entry.second.get_field_intensity(),
-+                              to_turns<int>( entry.second.get_field_age() ) );
++                              to_turns<int>( entry.second.get_field_age() ),
++                              harness::harness_escape( ter.id().str() ).c_str(),
++                              harness::harness_escape( frn.id().str() ).c_str() );
 +                first = false;
 +            }
 +        }

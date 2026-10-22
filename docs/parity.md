@@ -406,6 +406,21 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The age that went down, and why it was right (round 309)
+
+Round 308 left two open questions against the first field fixture. Both are answered, and the answer needed a **seeded** run and the **terrain**
+in the dump:
+
+* The fixture had no `--seed`, so every run generated a different fixed world (`cli_opts.seed = time( nullptr )`). Two dumps that looked
+  contradictory were two different worlds. With `--seed 12345` the session is deterministic and the ages are a clean sequence.
+* The ground under the fire was invisible. With terrain and furniture in every row the trace explains itself: `t_floor` is **`FLAMMABLE_HARD`**, so
+  each turn either the ground feeds the fire (`one_in( 3 )`, `time_added = 1_turn x ( 4 - intensity ) = 2`) or it does not, and the field's own
+  `do_decay` adds one turn either way. A feeding turn therefore moves the age **down** by one - 43 to 42 - while the fire is burning hotter, not colder.
+
+That downward step is the reason the fixture exists. A port that only tested "a fire's age goes up" would pass with the wrong rule, and I had already
+written down that I would not encode numbers I could not explain. The trace is now in `corpus/fields/README.md` with the exact command that produces it,
+because the command has three traps in it - the seed, the offset being relative to the player, and the terrain being part of the answer.
+
 ## The oracle can now film a fire, and it caught a sign error in the port at once (round 308)
 
 `--dump-field-series` runs an **environment-only session**: it places a fire next to the player, runs the map's own
