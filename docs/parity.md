@@ -327,6 +327,14 @@ The second is parked as an `#[ignore]`d spec whose reason now names the missing 
 failing test in the tree is worse than a labelled one, and this one says precisely where the port stops agreeing and why.
 
 **Item spawning in forest chunks is the next piece of P9**, and it is now a named gap with a replay that will measure it.
+The reference places items **once at the end of the chunk** (`place_items( item_group, item_group_chance, whole chunk )`,
+`item_spawn_iterations` times), not per square - so the port needs that rule, and the desynchronisation it causes is a
+consequence of not placing them at all rather than of a per-square roll.
+
+Two instrumentation attempts failed and were removed rather than left behind: a phase marker written from
+`mapgen_functions.cpp` never reached the recording (the hook compiled but produced no lines, so it was unverified
+machinery), and a call-stack dump fired on every full-range draw in the process and made a run take minutes instead of
+seconds. The oracle is back to what it was: the draw recording, the per-square draw index, and nothing else.
 
 **Furniture in a forest chunk is now a declared gap:** the port detects it and routes the square to ground correctly, but does
 not place the furniture itself.
