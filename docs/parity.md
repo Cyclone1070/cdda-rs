@@ -406,6 +406,22 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The bubble is a square, and its walk order is the digest's order (round 345)
+
+The state dump fingerprints the world with `points_in_radius( center, 60 )` (`harness.cpp:1141`), and porting that window is what makes the fingerprint reproducible
+later. Three facts, all of which a port can get wrong quietly:
+
+| Fact | Reference | Consequence |
+|---|---|---|
+the window is a **square**, not a disc | `map.cpp:10237-10248` returns a range of corners | the name has been a misnomer for years; 121 by 121 is 14,641 squares, not a circle's worth |
+a window near the map's edge is **smaller** | clamped to `max(0, centre - radius)` and `min(SEEX * MAPSIZE - 1, centre + radius)` | a player at (0,0) sees 61 by 61, not 121 by 121 with half of it outside |
+the walk is **x fastest** | `map_iterator.h:44-63` increments x, wraps, then y | the digest is over a sequence, so any other order is a different number for the same world |
+
+**And the items-and-fields half of `maptile_soa` is deliberately not ported as storage.** The reference keeps a `colony<item>` and a `field` per square inside the
+submap; the port's architecture makes both **entities** with a position, queried through the ECS. The one thing that was storage in the reference and would have been
+lost - `field_count`, the counter that lets `process_fields` skip a submap with no fields - has no counterpart because the equivalent is an ECS query. That is a
+decision, not an omission, and it is recorded here so the next reader does not go looking for the array.
+
 ## Merging submaps, where two layers break the rules (round 344)
 
 `merge_submaps` (`submap.cpp:391-436`) merges one submap onto another with `copy_from_is_overlay` deciding who wins. Three layers follow the obvious rule and two do

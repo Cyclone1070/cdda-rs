@@ -71,3 +71,31 @@ pub const fn nonant(x: i32, y: i32, z: i32, zlevels: bool) -> usize {
         (x + y * MAPSIZE) as usize
     }
 }
+
+/// The squares the reference walks for `points_in_radius( center, radius )`, in the order it walks them.
+///
+/// Reference: `map::points_in_radius` (`map.cpp:10237-10248`) clamps to the map - `max( 0, centre - radius )` to `min( SEEX * MAPSIZE - 1, centre + radius )` - and
+/// the generator that walks the range (`map_iterator.h:44-63`) moves `x` first, wrapping to the next `y`. Two things follow that a caller has to know:
+///
+/// * the window is a **square**, not a disc, whatever the name says;
+/// * a window near the map's edge is smaller, because nothing outside the map exists.
+///
+/// The order is the digest's order: the state fingerprint walks this exact sequence, so a port that walks it any other way computes a different number from the same
+/// world.
+#[must_use]
+pub fn points_in_radius(center: (i32, i32), radius: i32) -> Vec<(i32, i32)> {
+    let min_x = (center.0 - radius).max(0);
+    let min_y = (center.1 - radius).max(0);
+    let max_x = (center.0 + radius).min(MAPSIZE_X - 1);
+    let max_y = (center.1 + radius).min(MAPSIZE_Y - 1);
+    let mut points = Vec::new();
+    if min_x > max_x || min_y > max_y {
+        return points;
+    }
+    for y in min_y..=max_y {
+        for x in min_x..=max_x {
+            points.push((x, y));
+        }
+    }
+    points
+}
