@@ -155,6 +155,58 @@ pub fn process_field_turns(
     }
 }
 
+/// Gives every fire on the level its turn: it spends or gains fuel, and grows if it has earned it.
+///
+/// Reference: the fire processor inside the per-turn field sweep (`src/map_field.cpp:945-1360`), whose arithmetic is
+/// [`cdda_core_types::fire::fire_turn`]. Two of its inputs belong to the map rather than to the fire - how many fires touch it and whether
+/// the ground under it can burn - so they arrive as answers the environment layer supplies, and how much the fire ate this turn arrives the
+/// same way.
+///
+/// A fire whose turn leaves it dead - intensity gone, or its age run out - is taken off the store, which is what the sweep does to any
+/// field that does not survive its turn.
+pub fn process_fires(
+    world: &mut World,
+    adjacent_fires: impl Fn((i32, i32)) -> i32,
+    can_burn: impl Fn((i32, i32)) -> bool,
+    time_added: impl Fn((i32, i32)) -> i64,
+) {
+    let mut order: Vec<(i32, i32, Entity)> = Vec::new();
+    let mut query = world.query::<(Entity, &Position, &Field)>();
+    for (entity, position, field) in query.iter(world) {
+        if field.id == FIRE {
+            order.push((position.x, position.y, entity));
+        }
+    }
+    order.sort_by_key(|&(x, y, entity)| (x, y, entity.to_bits()));
+    for (x, y, entity) in order {
+        let Some(field) = world.get::<Field>(entity) else {
+            continue;
+        };
+        // A fire whose turn begins with nothing left is gone before the rules run, which is the sweep's own order for any field.
+        if !field.entry.is_alive() {
+            world.despawn(entity);
+            continue;
+        }
+        let turn = cdda_core_types::fire::fire_turn(
+            field.entry.age(),
+            field.entry.intensity(),
+            adjacent_fires((x, y)),
+            can_burn((x, y)),
+            time_added((x, y)),
+        );
+        let intensity = turn.intensity;
+        let age = turn.age;
+        let dead = world.get_mut::<Field>(entity).is_some_and(|mut field| {
+            field.entry.set_age(age);
+            field.entry.set_intensity(intensity);
+            !field.entry.is_alive()
+        });
+        if dead {
+            world.despawn(entity);
+        }
+    }
+}
+
 /// A thing that gives off light: a torch, a fire, a lamp.
 #[derive(Debug, Clone, Copy, Component)]
 pub struct LightSource {

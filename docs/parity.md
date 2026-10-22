@@ -406,6 +406,17 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Fire in the store (round 301)
+
+`process_fires` is the join: it walks the fire entities in the sweep's order, drops any whose turn begins with nothing left, and hands each
+one [`fire_turn`] with the three answers the environment layer owns - how many fires touch it, whether the ground under it burns, and how
+much it ate this turn. Five tests: a fed fire with neighbours grows and pays, a fire on nothing ages ten seconds a level, a fire that ate
+this turn spends what it ate, an extinguished fire leaves the store, and a field that is not fire is untouched.
+
+**A test I could not make pass, and why that was the right outcome:** I first tried to age a fire to death here. `fire_turn` never lowers an
+intensity - the half-life roll in the field sweep does that - so the test could only have passed if the port had put a rule in the wrong
+place. It is now a test of the removal path instead, with the reason written down.
+
 ## Fire's arithmetic, without the burning (round 299)
 
 `field_processor_fd_fire` needs items, terrain flags, weather and vehicles, and none of those exist yet - so it is **not** ported, and the

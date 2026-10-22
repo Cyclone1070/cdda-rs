@@ -30,6 +30,7 @@ mod field_turn;
 mod field_turns;
 mod fields;
 mod fire_burnout;
+mod fire_fields;
 mod fire_flashpoint;
 mod fire_growth;
 mod fire_items;
