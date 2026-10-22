@@ -193,6 +193,12 @@ pub fn build_town(
 /// pass whose input the port already has end to end: the edge curve, the pull of each neighbour, the six-ticket
 /// raffle, and the palettes the tickets resolve through.
 ///
+/// Draws one terrain name from a weighted palette.
+fn pick_terrain(palette: &[(String, i32)], rolls: &mut Rolls) -> String {
+    let list = WeightedList::from_entries(palette.iter().cloned());
+    list.pick(rolls).cloned().unwrap_or_default()
+}
+
 /// The ground-cover margin: half the average depth of a border, in squares.
 const MARGIN: f32 = -2.0;
 
@@ -212,7 +218,7 @@ pub fn forest_ground_pass(
     palettes: &std::collections::BTreeMap<String, Vec<(String, i32)>>,
     max_factor: f32,
     factor: f32,
-    neighbour_factors: [f32; 4],
+    neighbour_biomes: [Option<&crate::overmap_special::ForestMapgen>; 4],
     rolls: &mut Rolls,
 ) -> Vec<String> {
     let mut ground = Vec::with_capacity((side * side) as usize);
@@ -221,8 +227,14 @@ pub fn forest_ground_pass(
     // One raffle. The reference runs **two** of these per square - one to pick a feature, and, when that yields no
     // terrain, a second one stepped back by the ground-cover margin to pick the ground - so the two are the same
     // arithmetic with a different offset, and the dice are spent twice.
+    let owns_biome = neighbour_biomes.map(|biome| biome.is_some());
+    let neighbour_factors = neighbour_biomes.map(|biome| {
+        biome.map_or(0.0, |biome| {
+            f32::from(i16::try_from(biome.sparseness_adjacency_factor).unwrap_or(0))
+        })
+    });
     let raffle = |rolls: &mut Rolls, square: (i32, i32), depth_offset: f32| -> usize {
-        let weights = nesw_weights(square, side, perimeter, depth_offset, [false; 4])
+        let weights = nesw_weights(square, side, perimeter, depth_offset, owns_biome)
             .map(|weight| weight * factor);
         let net: f32 = weights.iter().sum();
         let pool = feather_pool(
@@ -258,13 +270,16 @@ pub fn forest_ground_pass(
             // No terrain yet, so the ground gets its own raffle, stepped back by the ground-cover margin - half the
             // average depth - so that ground reaches further out than the features standing on it.
             let second = raffle(rolls, point, MARGIN);
-            let palette = if second == 4 {
-                self_palette
+            let picked = if second == 4 {
+                pick_terrain(self_palette, rolls)
+            } else if let Some(biome) = neighbour_biomes.get(second).copied().flatten() {
+                // A neighbour that owns a biome contributes **its own** ground. Its groundcover is a list of palette
+                // names, so it is drawn from and then resolved to a real terrain.
+                let list = WeightedList::from_entries(biome.groundcover.iter().cloned());
+                list.pick(rolls).cloned().unwrap_or_default()
             } else {
-                default_palette
+                pick_terrain(default_palette, rolls)
             };
-            let entry = WeightedList::from_entries(palette.iter().cloned());
-            let picked = entry.pick(rolls).cloned().unwrap_or_default();
             ground.push(resolve_region_terrain(palettes, &picked, rolls));
         }
     }
