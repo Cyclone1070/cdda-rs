@@ -1176,3 +1176,87 @@ pub fn forest_border_depth(
     }
     border
 }
+
+/// The depth of the forest's edge at every square along the chunk's perimeter.
+///
+/// Reference: the curve loop in `mapgen_forest`. The border depths found at the corners are the **end points**; between
+/// them the reference drops a few **critical points** at random positions with depths of their own, then interpolates
+/// with a `1/(distance+1)^2` falloff. That falloff is what makes the edge **bend** rather than step from one depth to
+/// the next, and it is why the neighbours' biomes seem to bleed into the chunk in rounded lobes.
+///
+/// The result is laid out as the reference lays it out: `[0..24]` the north edge, `[24..48]` east, `[48..72]` south and
+/// `[72..96]` west, each running from the first corner of the edge to the second.
+#[must_use]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap,
+    clippy::indexing_slicing
+)]
+pub fn forest_perimeter_depth(border: [i32; 8], average_depth: i32, rolls: &mut Rolls) -> Vec<i32> {
+    /// The reference's own map from an edge to the two corners it runs between.
+    const EDGE_CORNERS: [usize; 8] = [0, 5, 3, 4, 1, 6, 2, 7];
+    /// How pronounced the curves are: the falloff's exponent.
+    const CURVINESS: f32 = 2.0;
+    /// The spread of a critical point's position along the edge.
+    const BORDER_DEVIATION: f64 = 3.0;
+    /// The spread of a critical point's depth.
+    const DEPTH_DEVIATION: f64 = 1.0;
+    /// The most critical points a single edge may have, on average.
+    const EXTRA_CRITICAL_POINTS: f64 = 1.0;
+
+    const EDGE_LENGTH: usize = 24;
+    let mut perimeter = vec![1_i32; EDGE_LENGTH * 4];
+
+    for edge in 0..4_usize {
+        // The reference's own expression, integer division and all: north 0, east 24, south 48, west 72. Clippy
+        // suggests `div_ceil` here and that suggestion **changes the answer** - with a ceiling the north edge would
+        // start at 24 and the first edge would never be written, which the tests caught immediately.
+        #[allow(clippy::manual_div_ceil)]
+        let offset = EDGE_LENGTH * ((edge + 1) / 2) + EDGE_LENGTH * (edge / 2);
+        let between = rolls
+            .rng_normal(0.0, EXTRA_CRITICAL_POINTS * 2.0)
+            .round()
+            .max(0.0) as usize;
+
+        let mut positions = vec![0_i32; between + 2];
+        let mut depths = vec![0_i32; between + 2];
+        positions[0] = 0;
+        positions[between + 1] = EDGE_LENGTH as i32;
+        depths[0] = border[EDGE_CORNERS[edge]];
+        depths[between + 1] = border[EDGE_CORNERS[edge + 4]];
+
+        for point in 1..=between {
+            let along = EDGE_LENGTH as f64 * (point as f64 - 1.0) / (between as f64 + 2.0);
+            positions[point] = rolls.normal_roll(along, BORDER_DEVIATION).round().abs() as i32;
+            positions[point] = positions[point].clamp(1, EDGE_LENGTH as i32 - 2);
+            depths[point] = rolls
+                .normal_roll(f64::from(average_depth), DEPTH_DEVIATION)
+                .round()
+                .abs() as i32;
+            // The reference keeps the points in order by swapping a pair that came out backwards, rather than sorting:
+            // the swap keeps the depths attached to the positions that produced them.
+            if positions[point] < positions[point - 1] {
+                positions.swap(point, point - 1);
+            }
+        }
+
+        let mut upper = 1;
+        for step in 0..EDGE_LENGTH {
+            while step as i32 > positions[upper] && upper < between + 1 {
+                upper += 1;
+            }
+            let left = (positions[upper - 1] - step as i32).abs() as f32 + 1.0;
+            let right = (positions[upper] - step as i32).abs() as f32 + 1.0;
+            let weight_left = left.powf(-CURVINESS);
+            let weight_right = right.powf(-CURVINESS);
+            let blended = (weight_left * depths[upper - 1] as f32
+                + weight_right * depths[upper] as f32)
+                / (weight_left + weight_right);
+            // The reference clamps the depth to at least one so the maths downstream stays well behaved.
+            perimeter[offset + step] = (blended.round() as i32).max(1);
+        }
+    }
+    perimeter
+}

@@ -16,6 +16,7 @@ mod daylight;
 mod diagnostics;
 mod field;
 mod forest_border;
+mod forest_perimeter;
 mod four_quadrants;
 mod ids;
 mod level;
