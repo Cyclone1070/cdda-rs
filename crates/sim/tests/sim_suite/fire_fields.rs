@@ -93,7 +93,9 @@ fn a_fed_fire_with_neighbours_grows() {
 #[test]
 fn a_fire_with_nothing_to_burn_ages_toward_death() {
     let mut world = World::new();
-    let entity = fire_at(&mut world, 5, 5, 2, 0);
+    // One turn old, not brand new: a field created this turn is spared its processors entirely (`map_field.cpp:445-499`), so a fire at age
+    // zero would show none of this rule - and the reference's own five-turn trace starts 0, 1, 22 for exactly that reason.
+    let entity = fire_at(&mut world, 5, 5, 2, 1);
     process_fires(
         &mut world,
         &FlatMap {
@@ -108,7 +110,11 @@ fn a_fire_with_nothing_to_burn_ages_toward_death() {
         &mut Rolls::new(1),
     );
     let field = world.get::<Field>(entity).expect("the fire");
-    assert_eq!(field.entry.age(), 20, "ten seconds a level");
+    assert_eq!(
+        field.entry.age(),
+        21,
+        "ten seconds a level on top of the turn it had already burned"
+    );
     assert_eq!(field.entry.intensity(), 2, "and no growth without fuel");
 }
 

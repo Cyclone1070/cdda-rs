@@ -27,6 +27,7 @@ mod extinguisher;
 mod field_growth;
 mod field_ids;
 mod field_merge;
+mod field_session;
 mod field_turn;
 mod field_turns;
 mod fields;

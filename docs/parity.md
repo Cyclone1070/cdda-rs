@@ -406,6 +406,22 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The port replays the reference's fire, and the fixture found a rule I had missed (round 310)
+
+`field_session.rs` reads `corpus/fields/fire-floor.json` and replays it: for each of the five turns it feeds the port the fuel the reference's trace
+implies and asserts the port's fire ends at the **same intensity and the same age**, to the turn. It is the first test in the project that compares the
+port against a recording of the reference's own behaviour rather than against a transcription of its source.
+
+**What it caught:** the reference's trace goes ages `0, 1, 22, 43, 42`, and the port went `0, 21, 42, 63` - one turn of fuel ahead from the start. The
+missing rule is the one already written in the ledger for fields and never carried across to fire: **a field created this turn is spared its
+processors** (`map_field.cpp:445-499`) and only decays, so a fire's first turn costs it one turn of age and nothing else. `process_fires` now skips
+anything at age zero, and an older test that had a brand-new fire take its turn was corrected to start one turn old - with the reason in the test.
+
+**What the test deliberately does not claim:** that the port rolls the same dice. The reference has consumed an unknown number of rolls during world
+generation before a session starts, so a port with a fresh generator cannot be at the same place in the stream. The fuel decision - `one_in( 3 )` on hard
+ground - is therefore an **input** to this test, pinned separately by the rules' own unit tests. Saying that in the test file is the difference between a
+parity claim and a claim about parity.
+
 ## The age that went down, and why it was right (round 309)
 
 Round 308 left two open questions against the first field fixture. Both are answered, and the answer needed a **seeded** run and the **terrain**

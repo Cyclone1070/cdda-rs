@@ -210,6 +210,12 @@ pub fn process_fires(
             world.despawn(entity);
             continue;
         }
+        // A field that has just been created is **spared its processors** and only decays (`map_field.cpp:445-499`). For a fire that means
+        // its first turn on the map costs it a turn of age and nothing else - no fuel, no growth, no smoke. The recording caught this: the
+        // reference's own trace goes 0, 1, 22, and a port that ran the rules on the first turn went 0, 21.
+        if field.entry.age() == 0 {
+            continue;
+        }
         let turn = cdda_core_types::fire::fire_turn(
             field.entry.age(),
             field.entry.intensity(),
