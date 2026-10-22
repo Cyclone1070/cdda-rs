@@ -26,6 +26,7 @@ pub mod mapdata;
 pub mod mapgen;
 pub mod materials;
 pub mod mods;
+pub mod monster_groups;
 pub mod monsters;
 pub mod npc_classes;
 pub mod overmap;

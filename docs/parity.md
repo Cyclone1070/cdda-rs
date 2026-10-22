@@ -377,6 +377,20 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Monster groups: 401 groups, 2,782 entries (round 276)
+
+The table a spawn point draws from is loaded: **401 groups and every one of their 2,782 entries**, checked against a
+transcription of the reference's own data rather than against a reading of it.
+
+Two shapes the first attempt missed and the gate caught:
+
+* **Groups nest.** An entry names either a monster or **another group** (`"group": "GROUP_ZOMBIE"`). Reading only `monster`
+  dropped a third of the entries - `GROUP_FOREST` came out empty against the data's twenty-three.
+* **A group id can appear in several files**, and a mod appends rather than replaces, so entries accumulate in load order
+  instead of the later object winning.
+
+That closes the loader the monster spawn gate was waiting on, which is the piece P2's field spawning was missing.
+
 ## NPC classes, 155 of 155 (round 274)
 
 The largest remaining hole in the P1 loader families was `npc_class` - what an NPC is before they are given a personality:
