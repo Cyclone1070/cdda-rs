@@ -456,6 +456,20 @@ chunks over a corpus of seeds; basecamp and mission test parity.
 
 ---
 
+### P9 status at round 264
+
+The forest half of map generation is now measured against a traced reference rather than against a reading of the source, and
+the measurements changed the design three times:
+
+| Finding | Effect on the port |
+|---|---|
+| The corner rule never runs (it compares a biome copy's address) | not called; kept and documented as intent |
+| Generation leaves **placeholders**, resolution is a later sweep | pass split into a placeholder form and `resolve_chunk_placeholders` |
+| The reference's chunk as generated is **574 of 576** placeholders | the port now produces placeholders too, and only then resolves |
+
+Remaining for P9's exit gate: replaying the reference's dice step by step so a chunk can be compared **square by square**
+rather than by shares, then the same treatment for cities, roads, specials and map extras.
+
 ### P10 — Interface, rendering, audio (113 files, 59,329 LOC)
 
 **Contents.** Output and text layout, the UI stack and window abstraction, menus, HUD widgets and panels,
