@@ -364,3 +364,104 @@ pub fn read_forest_settings(value: &Value) -> Option<cdda_core_types::overmap::F
         threshold_thick,
     })
 }
+
+/// One layer of a forest's generation: how often it appears, and what it may put down.
+///
+/// Reference: `forest_mapgen_settings::component` in `regional_settings.h`. `sequence` is the order the layers run
+/// in, `chance` is a denominator - **one square in `chance`** gets something from this layer - and the types are a
+/// weighted list of what that something may be.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ForestComponent {
+    /// The layer's name, e.g. `trees`.
+    pub id: String,
+    /// The order the layers run in.
+    pub sequence: i32,
+    /// One square in this many gets something from the layer.
+    pub chance: i32,
+    /// The weighted list of what may be placed.
+    pub types: Vec<(String, i32)>,
+}
+
+/// How the reference generates woodland on the map level.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ForestMapgen {
+    /// The overmap terrains this applies to.
+    pub terrains: Vec<String>,
+    /// How much open ground beside a forest square makes the next one sparse.
+    pub sparseness_adjacency_factor: i32,
+    /// The layer put down first.
+    pub groundcover: Vec<(String, i32)>,
+    /// The layers after it, in the order their `sequence` gives.
+    pub components: Vec<ForestComponent>,
+    /// The item group scattered through it.
+    pub item_group: String,
+    /// A percentage chance per iteration of placing from that group.
+    pub item_group_chance: i32,
+    /// How many times to place items.
+    pub item_spawn_iterations: i32,
+    /// Scattered furniture and terrain, if any.
+    pub terrain_furniture: Vec<(String, i32)>,
+}
+
+fn ordered_weighted(value: Option<&Value>) -> Vec<(String, i32)> {
+    let mut entries = weighted_bin(value);
+    entries.sort_by(|left, right| left.0.cmp(&right.0));
+    entries
+}
+
+/// Reads one forest definition, folding in the `components` that share a name.
+///
+/// Reference: the loader walks `forest_mapgen_settings` and calls `load_forest_component` for each named layer; when
+/// two files define layers of the same forest, `clear_types` decides whether the later one replaces the earlier
+/// layer's types or adds to them. The port keeps the additive case and records the replacing one as a cleared list.
+#[must_use]
+pub fn read_forest_mapgen(value: &Value, terrain: &str) -> Option<ForestMapgen> {
+    let entry = match value {
+        Value::Array(entries) => entries.iter().find(|entry| match entry {
+            Value::Object(fields) => {
+                matches!(fields.get("forest_mapgen_settings"), Some(Value::Object(_)))
+            }
+            _ => false,
+        })?,
+        other => other,
+    };
+    let Value::Object(fields) = entry else {
+        return None;
+    };
+    let Some(Value::Object(all)) = fields.get("forest_mapgen_settings") else {
+        return None;
+    };
+    let Some(Value::Object(forest)) = all.get(terrain) else {
+        return None;
+    };
+    let components = match forest.get("components") {
+        Some(Value::Object(layers)) => layers
+            .members()
+            .iter()
+            .filter_map(|(id, layer)| {
+                let Value::Object(layer) = layer else {
+                    return None;
+                };
+                Some(ForestComponent {
+                    id: id.clone(),
+                    sequence: number(layer.get("sequence"), 0),
+                    chance: number(layer.get("chance"), 1),
+                    types: ordered_weighted(layer.get("types")),
+                })
+            })
+            .collect(),
+        _ => Vec::new(),
+    };
+    let mut components: Vec<ForestComponent> = components;
+    components.sort_by_key(|component| component.sequence);
+    Some(ForestMapgen {
+        terrains: list(forest.get("terrains")),
+        sparseness_adjacency_factor: number(forest.get("sparseness_adjacency_factor"), 0),
+        groundcover: ordered_weighted(forest.get("groundcover")),
+        components,
+        item_group: text(forest.get("item_group"), ""),
+        item_group_chance: number(forest.get("item_group_chance"), 0),
+        item_spawn_iterations: number(forest.get("item_spawn_iterations"), 0),
+        terrain_furniture: ordered_weighted(forest.get("terrain_furniture")),
+    })
+}
