@@ -23,6 +23,7 @@ pub mod light;
 pub mod line;
 pub mod map_cache;
 pub mod memory;
+pub mod noise;
 pub mod options;
 pub mod overmap;
 pub mod paths;

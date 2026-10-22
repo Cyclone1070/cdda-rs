@@ -23,6 +23,7 @@ mod light_source;
 mod line;
 mod map_cache;
 mod memory;
+mod noise_octaves;
 mod options;
 mod outside_light;
 mod overmap;
