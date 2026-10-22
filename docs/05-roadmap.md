@@ -456,6 +456,21 @@ chunks over a corpus of seeds; basecamp and mission test parity.
 
 ---
 
+### P9 status at round 271
+
+Three more rounds of replaying the reference's own dice changed the picture again, and each change is measured rather than
+argued:
+
+| Finding | Consequence |
+|---|---|
+A biome layer can yield **furniture**; the reference treats that as no terrain and still runs the ground raffle | the port was writing a furniture id where terrain belongs - fixed; placing the furniture itself is a declared gap |
+Forest items are placed **once per chunk**, not per square (`place_items` over the whole chunk, `item_spawn_iterations` times) | ported: the count comes from `roll_remainder(chance * spawn_rate / 100)`, then three draws per square attempt with up to twenty retries |
+Expanding the item group costs **589-601 dice per chunk** | the placement rule accounts for a handful, so the bulk is item construction, which the port does not do - a sized gap, not a vague one |
+
+The replay itself is the instrument: it walks the reference's 3.3-million-draw recording square by square, checks every
+bounded draw's range, and stops exactly where the port stops agreeing. It replayed **31 squares exactly** before the first
+draw the port cannot make.
+
 ### P9 status at round 264
 
 The forest half of map generation is now measured against a traced reference rather than against a reading of the source, and
