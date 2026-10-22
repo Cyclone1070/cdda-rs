@@ -308,6 +308,17 @@ equality; JSON accept/reject parity". Each part, and where it is proven:
 | JSON acceptance is identical | All 6,220 shipped files: same accept/reject verdict and same structural digest as the reference; the writer is compared byte for byte on 127 of them |
 | The cache changes nothing | All 6,220 files read identically cold and warm |
 
+## One chunk, four files, one moment (round 256)
+
+A single generated chunk is now recorded four ways that all describe the **same** moment and the **same** square: the
+perimeter the edge curve produced, its eight neighbour terrains, the placeholder every square ended up holding, and the
+per-square record of which of the six tickets drew it. **574 of 576** squares in it are placeholders; two hold a terrain the
+raffle placed directly.
+
+**A coordinate trap worth recording**, because it silently produced a comparison of two different chunks: the perimeter and
+neighbour traces name the chunk by **overmap** coordinate, while the placed and feature traces name it by **submap**
+coordinate - twice as large. `[298,59]` and `[596,118]` are the same chunk, and comparing them as strings finds nothing.
+
 ## The port stops where the reference stops (round 255)
 
 The oracle's finding changed the port's shape: generation now has a **placeholder-producing form**
