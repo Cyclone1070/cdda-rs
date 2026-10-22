@@ -13,6 +13,7 @@ mod digest;
 mod eocs;
 mod factory;
 mod fields;
+mod forest_biomes;
 mod forest_chunk_diff;
 mod forest_layers;
 mod forest_mapgen;

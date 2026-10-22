@@ -581,3 +581,31 @@ pub fn max_sparseness(value: &Value) -> i32 {
         .max()
         .unwrap_or(0)
 }
+
+/// Every forest biome the region defines, keyed by the terrain it generates.
+///
+/// Reference: `forest_composition.biomes`, filled from `forest_mapgen_settings` and keyed by **terrain type id**. The
+/// neighbouring squares of a forest are looked up here: a neighbour that is woodland owns a biome, which gives it a
+/// density and a palette of its own, and a neighbour that is not - a road, a field - owns none.
+#[must_use]
+pub fn load_forest_mapgens(value: &Value) -> std::collections::BTreeMap<String, ForestMapgen> {
+    let entry = match value {
+        Value::Array(entries) => match entries.first() {
+            Some(entry) => entry,
+            None => return std::collections::BTreeMap::new(),
+        },
+        other => other,
+    };
+    let Value::Object(fields) = entry else {
+        return std::collections::BTreeMap::new();
+    };
+    let Some(Value::Object(all)) = fields.get("forest_mapgen_settings") else {
+        return std::collections::BTreeMap::new();
+    };
+    all.members()
+        .iter()
+        .filter_map(|(terrain, _)| {
+            read_forest_mapgen(value, terrain).map(|forest| (terrain.clone(), forest))
+        })
+        .collect()
+}
