@@ -12,6 +12,16 @@ Nothing is `gated` without a link to the run that proved it.
 
 ---
 
+## A receipt error worth naming (round 293)
+
+For several rounds the round receipts quoted "1,2xx tests" from `tools/test_inventory.py` as if they were the port's own count. They
+are not: that script inventories the **reference's** C++ suite - 206 files and 1,217 upstream cases - and the port's figure is what
+`cargo test --workspace` prints. The two numbers happened to be close, which is exactly why the mistake survived: a receipt that is
+merely plausible is not a receipt.
+
+Correct as of round 293: **1,141 Rust tests pass, 1 is ignored, 0 fail**. The inventory page now says in its own header what it
+counts, so the next receipt cannot borrow its numbers.
+
 ## P0 — Foundation
 
 | System | Status | Gate | Notes |
