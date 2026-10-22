@@ -2245,6 +2245,74 @@ diff -ruN references/Cataclysm-DDA/src/prefix.h oracle/src/src/prefix.h
 +++ oracle/src/src/prefix.h	2026-10-21 06:53:22
 @@ -0,0 +1 @@
 +#define PREFIX "/usr/local"
+diff -ruN references/Cataclysm-DDA/src/rng.cpp oracle/src/src/rng.cpp
+--- references/Cataclysm-DDA/src/rng.cpp	2026-10-19 18:15:05
++++ oracle/src/src/rng.cpp	2026-10-22 18:47:09
+@@ -3,6 +3,8 @@
+ #include <algorithm>
+ #include <chrono>
+ #include <cmath>
++#include <cstdlib>
++#include <fstream>
+ 
+ #include "calendar.h"
+ #include "cata_assert.h"
+@@ -10,11 +12,41 @@
+ #include "debug.h"
+ #include "units.h"
+ 
++namespace
++{
++
++// Optional recording of every die the game rolls, in the order it rolls them. Compiled in only for the harness: when the
++// variable is unset this is a single pointer test, and it changes no draw. With it set, a port can be driven by exactly the
++// dice the reference used instead of drawing its own and hoping the two agree.
++std::ofstream &rng_trace()
++{
++    static std::ofstream file = [] {
++        const char *path = std::getenv( "CDDA_RNG_TRACE" );
++        std::ofstream out;
++        if( path != nullptr ) {
++            out.open( path, std::ios::app );
++        }
++        return out;
++    }();
++    return file;
++}
++
++bool recording()
++{
++    return rng_trace().is_open();
++}
++
++} // namespace
++
+ unsigned int rng_bits()
+ {
+     // Whole uint range.
+     static std::uniform_int_distribution<unsigned int> rng_uint_dist;
+-    return rng_uint_dist( rng_get_engine() );
++    const unsigned int drawn = rng_uint_dist( rng_get_engine() );
++    if( recording() ) {
++        rng_trace() << "bits " << drawn << '\n';
++    }
++    return drawn;
+ }
+ 
+ int rng( int lo, int hi )
+@@ -23,7 +55,11 @@
+     if( lo > hi ) {
+         std::swap( lo, hi );
+     }
+-    return rng_int_dist( rng_get_engine(), std::uniform_int_distribution<>::param_type( lo, hi ) );
++    const int drawn = rng_int_dist( rng_get_engine(), std::uniform_int_distribution<>::param_type( lo, hi ) );
++    if( recording() ) {
++        rng_trace() << "int " << lo << ' ' << hi << ' ' << drawn << '\n';
++    }
++    return drawn;
+ }
+ 
+ double rng_float( double lo, double hi )
 diff -ruN references/Cataclysm-DDA/src/src/harness.cpp oracle/src/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/src/harness.cpp	1970-01-01 10:00:00
 +++ oracle/src/src/src/harness.cpp	2026-10-21 06:53:22

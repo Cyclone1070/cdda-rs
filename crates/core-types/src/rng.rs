@@ -334,6 +334,114 @@ impl NormalDistribution {
 pub struct Rolls {
     engine: MinStdRand0,
     normal: NormalDistribution,
+    /// When a reference recording is attached, every draw comes from it instead of the engine.
+    recording: Option<Recording>,
+}
+
+/// Every die a reference run rolled, in the order it rolled them.
+///
+/// The reference records its own draws (`CDDA_RNG_TRACE`), and a port that replays them is comparing **rules on identical
+/// dice** rather than two independent draws that happen to agree. That is the difference between a score and a proof, and it
+/// is the only way a chunk can be compared square by square.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Recording {
+    draws: Vec<Draw>,
+    position: usize,
+}
+
+/// One recorded die.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Draw {
+    /// A raw 32-bit value (`rng_bits`).
+    Bits(u32),
+    /// A whole number drawn between two bounds (`rng`), with both bounds kept so a mismatched call is caught rather than
+    /// silently answered.
+    Int {
+        /// The low bound the reference asked for.
+        low: i32,
+        /// The high bound.
+        high: i32,
+        /// What came out.
+        drawn: i32,
+    },
+}
+
+impl Recording {
+    /// Reads a recording written by the reference's `CDDA_RNG_TRACE`.
+    ///
+    /// # Errors
+    /// Returns the offending line when the file holds something that is not a draw.
+    pub fn parse(text: &str) -> Result<Self, String> {
+        let mut draws = Vec::new();
+        for line in text.lines().filter(|line| !line.trim().is_empty()) {
+            let fields: Vec<&str> = line.split_whitespace().collect();
+            match fields.first().copied() {
+                Some("bits") => {
+                    let value = fields
+                        .get(1)
+                        .ok_or_else(|| format!("a bits line without a value: {line}"))?
+                        .parse()
+                        .map_err(|_| format!("a bits value that is not a number: {line}"))?;
+                    draws.push(Draw::Bits(value));
+                }
+                Some("int") => {
+                    let number = |index: usize| -> Result<i32, String> {
+                        fields
+                            .get(index)
+                            .ok_or_else(|| format!("an int line with too few fields: {line}"))?
+                            .parse()
+                            .map_err(|_| format!("an int field that is not a number: {line}"))
+                    };
+                    draws.push(Draw::Int {
+                        low: number(1)?,
+                        high: number(2)?,
+                        drawn: number(3)?,
+                    });
+                }
+                other => return Err(format!("unknown draw kind {other:?} on line {line}")),
+            }
+        }
+        Ok(Self { draws, position: 0 })
+    }
+
+    /// How many draws are left unplayed.
+    #[must_use]
+    pub fn remaining(&self) -> usize {
+        self.draws.len().saturating_sub(self.position)
+    }
+
+    #[allow(clippy::panic)]
+    fn next_bits(&mut self) -> u32 {
+        let draw = self.draws.get(self.position).copied();
+        self.position += 1;
+        match draw {
+            Some(Draw::Bits(value)) => value,
+            // A recording that runs out, or is asked for the wrong kind of die, is a bug in the caller rather than in the
+            // data: the port must roll exactly what the reference rolled, in the same order.
+            other => panic!("expected a bits draw, found {other:?}"),
+        }
+    }
+
+    #[allow(clippy::panic)]
+    fn next_int(&mut self, low: i32, high: i32) -> i32 {
+        let draw = self.draws.get(self.position).copied();
+        self.position += 1;
+        match draw {
+            Some(Draw::Int {
+                low: recorded_low,
+                high: recorded_high,
+                drawn,
+            }) => {
+                assert_eq!(
+                    (recorded_low, recorded_high),
+                    (low, high),
+                    "the reference asked for a different range here"
+                );
+                drawn
+            }
+            other => panic!("expected an int draw, found {other:?}"),
+        }
+    }
 }
 
 impl Rolls {
@@ -343,7 +451,29 @@ impl Rolls {
         Self {
             engine: MinStdRand0::seeded(seed),
             normal: NormalDistribution::standard(),
+            recording: None,
         }
+    }
+
+    /// A run driven by the reference's own dice.
+    ///
+    /// With a recording attached every `rng`, `rng_bits` and `one_in` call answers from it, keeping the same order and
+    /// ranges, so a port following the reference's rules step for step produces the reference's world rather than a
+    /// similar one. The engine is still present and still seeded, because draws that a recording does not cover - none
+    /// today - would fall through to it.
+    #[must_use]
+    pub const fn replaying(recording: Recording) -> Self {
+        Self {
+            engine: MinStdRand0::seeded(0),
+            normal: NormalDistribution::standard(),
+            recording: Some(recording),
+        }
+    }
+
+    /// How many recorded draws remain unplayed, or `None` when this run draws its own dice.
+    #[must_use]
+    pub fn recording_remaining(&self) -> Option<usize> {
+        self.recording.as_ref().map(Recording::remaining)
     }
 
     /// The engine itself, for the code that draws directly.
@@ -355,6 +485,9 @@ impl Rolls {
     /// refusing them (`src/rng.cpp:20-28`).
     pub fn rng(&mut self, lo: i32, hi: i32) -> i32 {
         let (lo, hi) = if lo > hi { (hi, lo) } else { (lo, hi) };
+        if let Some(recording) = self.recording.as_mut() {
+            return recording.next_int(lo, hi);
+        }
         self.engine.uniform_int(lo, hi)
     }
 
@@ -418,6 +551,9 @@ impl Rolls {
 
     /// A whole unsigned word (`src/rng.cpp:13-18`).
     pub fn rng_bits(&mut self) -> u32 {
+        if let Some(recording) = self.recording.as_mut() {
+            return recording.next_bits();
+        }
         self.engine.uniform_uint()
     }
 

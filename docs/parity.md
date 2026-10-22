@@ -308,6 +308,25 @@ equality; JSON accept/reject parity". Each part, and where it is proven:
 | JSON acceptance is identical | All 6,220 shipped files: same accept/reject verdict and same structural digest as the reference; the writer is compared byte for byte on 127 of them |
 | The cache changes nothing | All 6,220 files read identically cold and warm |
 
+## The reference's own dice (round 266)
+
+The reference now records **every die it rolls** - `CDDA_RNG_TRACE` writes `bits <value>` for a raw draw and
+`int <low> <high> <value>` for a bounded one, in the order they were rolled. A generation run produced **3,281,874** draws.
+
+On the port's side `Rolls` gained a replay mode: attach a `Recording` and every `rng`, `rng_bits` and `one_in` answers from
+it instead. Three decisions make it useful rather than decorative:
+
+* **The bounds are checked.** A recorded bounded draw remembers the range it was asked for, and replaying it under a
+  different range **fails** instead of answering - a port asking a different question than the reference did is exactly the
+  divergence this exists to expose.
+* **Running dry fails too.** Spending more dice than the reference did on the same rules is a divergence in the order of
+  draws, and inventing a die would hide it.
+* **The ordinary path is untouched.** With no recording attached the engine answers and nothing pretends a reference was
+  replayed; the same seed still draws the same value.
+
+This is the mechanism that turns the forest comparison from *shares that match* into *the same chunk*: the same perimeter,
+the same palettes, and the reference's own dice.
+
 ## The record is a full grid, in the reference's own order (round 259)
 
 Before any dice can be replayed, the record it will be replayed from has to be complete and ordered. The per-square feature
