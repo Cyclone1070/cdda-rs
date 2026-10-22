@@ -268,3 +268,105 @@ fn a_fire_upstairs_leaves_its_smoke_upstairs() {
         "no smoke fell through the floor"
     );
 }
+
+/// A map that makes plenty of smoke, with a ceiling that may or may not be open.
+struct Ceiling {
+    open: bool,
+}
+
+impl cdda_sim::FireMap for Ceiling {
+    fn adjacent_fires(&self, _square: (i32, i32, i32)) -> i32 {
+        9
+    }
+    fn can_burn(&self, _square: (i32, i32, i32)) -> bool {
+        false
+    }
+    fn time_added(&self, _square: (i32, i32, i32)) -> i64 {
+        0
+    }
+    fn can_spread(&self, _square: (i32, i32, i32)) -> bool {
+        false
+    }
+    fn neighbour(&self, _square: (i32, i32, i32)) -> cdda_core_types::fire::Neighbour {
+        cdda_core_types::fire::Neighbour::default()
+    }
+    fn suppress_smoke(&self, _square: (i32, i32, i32)) -> bool {
+        false
+    }
+    fn smoke_produced(&self, _square: (i32, i32, i32)) -> i32 {
+        100
+    }
+    fn smoke_ceiling_open(&self, _square: (i32, i32, i32)) -> bool {
+        self.open
+    }
+}
+
+/// A room with one fire in it, at street level.
+fn burning_room() -> World {
+    let mut world = World::new();
+    let mut entry = FieldEntry::new(4, 1_000_000, false, true);
+    entry.set_age(1);
+    entry.set_intensity(3);
+    world.spawn((
+        Field {
+            id: cdda_sim::FIRE,
+            entry,
+            priority: 0,
+        },
+        Position { x: 7, y: 7, z: 0 },
+    ));
+    world
+}
+
+fn smoke_floors(world: &mut World) -> Vec<i32> {
+    let mut query = world.query::<(&Field, &Position)>();
+    let mut floors: Vec<i32> = query
+        .iter(world)
+        .filter(|(field, _)| field.id == SMOKE)
+        .map(|(_, position)| position.z)
+        .collect();
+    floors.sort_unstable();
+    floors
+}
+
+#[test]
+fn smoke_rises_through_an_open_floor() {
+    // `has_flag_ter( TFLAG_NO_FLOOR, up )` is true, so the smoke goes to the square overhead with `rng( 1, intensity )` of thickness.
+    let mut world = burning_room();
+    let mut rolls = Rolls::replaying(
+        Recording::parse("int 0 100 1\nint 3 35 5\nint 1 3 2").expect("a recording"),
+    );
+    cdda_sim::process_fires(&mut world, &Ceiling { open: true }, 0, &mut rolls);
+    assert_eq!(smoke_floors(&mut world), vec![1], "the smoke went upstairs");
+    assert_eq!(
+        rolls.recording_remaining(),
+        Some(0),
+        "including the die that chose its thickness"
+    );
+}
+
+#[test]
+fn smoke_settles_where_it_was_made_under_a_ceiling() {
+    // The same fire with a floor above: the smoke stays on the fire's square and is as thick as the fire is strong - no thickness die is drawn.
+    let mut world = burning_room();
+    let mut rolls =
+        Rolls::replaying(Recording::parse("int 0 100 1\nint 3 35 5").expect("a recording"));
+    cdda_sim::process_fires(&mut world, &Ceiling { open: false }, 0, &mut rolls);
+    assert_eq!(
+        smoke_floors(&mut world),
+        vec![0],
+        "the smoke stayed downstairs"
+    );
+    assert_eq!(
+        rolls.recording_remaining(),
+        Some(0),
+        "and the thickness die was not drawn"
+    );
+    let mut query = world.query::<(&Field, &Position)>();
+    let thickness: Vec<i32> = query
+        .iter(&world)
+        .filter(|(field, _)| field.id == SMOKE)
+        .map(|(field, _)| field.entry.intensity())
+        .collect();
+    assert_eq!(thickness, vec![3], "the fire's own intensity");
+}

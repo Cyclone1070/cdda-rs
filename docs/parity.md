@@ -406,6 +406,23 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Smoke rises through an open floor (round 321)
+
+The last declared gap in the fire chain is closed: `FireMap` gained `smoke_ceiling_open` - is there `TFLAG_NO_FLOOR` in the square overhead - and `fire_discharge`
+now puts the smoke **upstairs** when there is, at `rng( 1, intensity )` of thickness, and on the fire's own square at full intensity when there is not
+(`map_field.cpp:1417-1432`).
+
+| Test | What it proves |
+|---|---|
+smoke under an open floor goes upstairs | the rising branch, including the die that chooses its thickness |
+smoke under a ceiling settles where it was made | the fallback, and that **no thickness die is drawn** there |
+
+The second test's last assertion is the one that matters for parity: the two branches cost different numbers of dice, so a port that always drew the thickness
+die would match the visible state of every ceilinged room and still be a draw ahead of the reference from then on.
+
+**The default is "no".** A map that has not looked upward cannot promise a way through, so the trait answers conservatively and every existing test double kept
+working unchanged - which is also how the reference behaves when there is no opening.
+
 ## Fires answer in whole squares (round 320)
 
 `FireMap` asks about a **square**, not a column: every one of its seven questions carries `z`, and `process_fires` passes the fire's own floor. A newborn

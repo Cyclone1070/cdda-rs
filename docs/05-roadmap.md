@@ -285,8 +285,8 @@ entities.** <!-- verified -->
 
 **Progress, round 316.** Fields, fire and gases now run a whole turn in the reference's order (`run_environment_turn`), the oracle can record a
 session turn by turn (fields, scent, terrain, furniture) **and** label its own dice, and one five-turn fire session is replayed by the port to the
-same age and intensity. Not yet: weather as a system, light across z-levels, and vision. The store carries `z`, gases use it (fall first, rise last) and fires answer in whole
-squares; smoke does not yet rise, because nothing knows what the ceiling overhead is made of.
+same age and intensity. Not yet: weather as a system, light across z-levels, and vision. The store carries `z`, gases use it (fall first, rise last), fires answer in whole
+squares and smoke rises through an open floor; what nothing models yet is the *terrain* those answers come from.
 
 **Exit gate (M2).** Per-turn state hash equality on environment-only sessions covering weather
 transitions, fire and gas spread, light changes across z-levels, scent diffusion, and vision.

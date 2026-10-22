@@ -197,6 +197,13 @@ pub trait FireMap {
     fn suppress_smoke(&self, square: (i32, i32, i32)) -> bool;
     /// How much smoke the fire's fuel made this turn.
     fn smoke_produced(&self, square: (i32, i32, i32)) -> i32;
+    /// Whether the smoke may rise through the square overhead - `TFLAG_NO_FLOOR` up there, an open shaft or a hole in a roof.
+    ///
+    /// The default answer is **no**, because a map that has not looked upward cannot promise a way through, and the reference's own fallback is to leave
+    /// the smoke where it was made.
+    fn smoke_ceiling_open(&self, _square: (i32, i32, i32)) -> bool {
+        false
+    }
 }
 
 /// Gives every fire on the level its turn: it spends or gains fuel, and grows if it has earned it.
@@ -981,18 +988,20 @@ fn fire_discharge(
             add_field_strength(world, (square.0 + dx, square.1 + dy, square.2), hot_air, 1);
         }
     }
-    // Smoke settles on the fire's own square rather than rising: whether the ceiling lets it through is a question about the terrain overhead, which nothing
-    // answers yet, so the rule's "no" is passed in rather than guessed.
+    // Smoke rises when the square overhead is open, and settles where it was made otherwise (`map_field.cpp:1417-1432`). Whether it is open is the map's
+    // answer, not the fire's.
     if let Some(smoke) = cdda_core_types::fire::smoke_from_fire(
         rolls,
         intensity,
         map.smoke_produced(square),
         windpower,
         map.suppress_smoke(square),
-        false,
-        false,
+        // `p.z() < OVERMAP_HEIGHT` - there is always a level above in this store, and the top of the world is not modelled.
+        true,
+        map.smoke_ceiling_open(square),
     ) {
-        add_field_strength(world, square, SMOKE, smoke.intensity);
+        let floor = if smoke.up { square.2 + 1 } else { square.2 };
+        add_field_strength(world, (square.0, square.1, floor), SMOKE, smoke.intensity);
     }
 }
 
