@@ -377,6 +377,24 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## What a field does on its turn (round 283)
+
+`run_field_turn` ports the three steps of `map::process_fields_in_submap` (`map_field.cpp:470-499`) in their order, which is the
+whole rule:
+
+1. A field with no intensity is **gone** - removed before anything runs.
+2. A field **created this turn is not processed at all**: it decays and nothing else, which is what gives a player standing in
+   freshly-lit fire a turn to step out.
+3. Otherwise the processors run - spawning among them - and the decay comes **last**, so a field that spawns this turn is still
+   at full strength while it does.
+
+Four tests: a newborn field spawns nothing, an aged one spawns and then decays, a level with no spawn data runs no spawner, and a
+dead field does nothing.
+
+**One of my assertions was wrong and the code was right.** I wrote that a newborn field's age stays at zero; it decays - that is
+the whole of what happens to it - so the age moves to one. The distinction the test now draws is between *skipped entirely* and
+*spared its processors*, which is exactly the distinction the reference makes.
+
 ## Spawning against a real level (round 282)
 
 A field processor does not have a predicate, it has a **map**: `spawn_monsters_on_level` joins the two, with the level answering

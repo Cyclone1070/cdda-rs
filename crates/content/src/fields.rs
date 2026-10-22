@@ -337,3 +337,76 @@ pub fn spawn_monsters_on_level<'a>(
         rolls,
     )
 }
+
+/// What one intensity level of a field does on its turn, as far as the port models it yet.
+///
+/// Only the two processors with rules the port can already run are here: monster spawning, and the intensity upgrade that
+/// competes with it for the same turn.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FieldTurn {
+    /// The chance in a hundred that this level spawns a group.
+    pub spawn_chance: i32,
+    /// How many spawns to attempt.
+    pub spawn_count: i32,
+    /// The group to draw from.
+    pub spawn_group: String,
+    /// How far from the field the spawns appear.
+    pub spawn_radius: i32,
+    /// The chance in a hundred that the level upgrades instead.
+    pub upgrade_chance: i32,
+    /// How often the upgrade is rolled, in turns; zero disables it.
+    pub upgrade_duration: i64,
+}
+
+/// One turn of one field: the three steps, in the reference's order.
+///
+/// Reference: `map::process_fields_in_submap` (`map_field.cpp:470-499`).
+///
+/// 1. A field with no intensity is **gone** - it is removed before anything runs.
+/// 2. A field **created this turn is not processed**: it decays and nothing else, which is what gives a player standing in
+///    freshly-lit fire a turn to step out. That is `if( cur.get_field_age() == 0_turns )`.
+/// 3. Otherwise every processor the type registered runs, spawning among them, and the decay comes **last** - so a field that
+///    spawns this turn is still at full strength while it does.
+///
+/// Returns the monsters the field spawned, with the square each landed on.
+#[allow(clippy::too_many_arguments)]
+pub fn run_field_turn<'a>(
+    field: &mut cdda_core_types::field::FieldEntry,
+    turn: &FieldTurn,
+    center: (i32, i32),
+    level: &cdda_core_types::level::Level,
+    takes_creature: impl Fn(u32) -> bool,
+    groups: &'a [crate::monster_groups::MonsterGroup],
+    rolls: &mut Rolls,
+    now: i64,
+) -> Vec<(&'a str, (i32, i32))> {
+    if !field.is_alive() {
+        return Vec::new();
+    }
+    if field.age() == 0 {
+        field.do_decay(now, rolls);
+        return Vec::new();
+    }
+    let mut spawned = Vec::new();
+    if turn.upgrade_chance > 0 && turn.upgrade_duration > 0 {
+        // `calendar::once_every( duration ) && one_in( chance )`: the calendar gate is the caller's, the roll is ours.
+        if now % turn.upgrade_duration == 0 && rolls.one_in(turn.upgrade_chance) {
+            field.set_intensity(field.intensity() + 1);
+        }
+    }
+    if turn.spawn_chance > 0 && turn.spawn_count > 0 {
+        spawned = spawn_monsters_on_level(
+            level,
+            takes_creature,
+            turn.spawn_chance,
+            turn.spawn_count,
+            &turn.spawn_group,
+            center,
+            turn.spawn_radius,
+            groups,
+            rolls,
+        );
+    }
+    field.do_decay(now, rolls);
+    spawned
+}
