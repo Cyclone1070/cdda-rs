@@ -129,7 +129,7 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-22 04:42:42
++++ oracle/src/src/harness.cpp	2026-10-22 10:58:30
 @@ -0,0 +1,1032 @@
 +#include "harness.h"
 +#include "recipe_dictionary.h"
@@ -570,7 +570,6 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    // already filled by this point, which is what the mapgen probe needs to see.
 +    g->load_core_data();
 +}
-+
 +
 +void dump_load_probe( const std::string &path )
 +{
@@ -1163,9 +1162,10 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +}
 +
 +}  // namespace harness
++
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-22 01:30:23
++++ oracle/src/src/harness.h	2026-10-22 09:53:23
 @@ -0,0 +1,157 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
@@ -1346,7 +1346,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-22 01:30:23
++++ oracle/src/src/main.cpp	2026-10-22 10:58:20
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"

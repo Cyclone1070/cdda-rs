@@ -686,3 +686,23 @@ What to do about it, in order:
    more dumping is attempted.
 
 This is the check that should have come first, and it is written down here so the next attempt starts with it.
+
+### Probe: is the oracle binary itself sound? (round 201) - no, it segfaults at startup
+
+The measurement the last round asked for, and it answered a different question than expected.
+
+First, a real fault of mine, found by checking the tree against its own patch instead of trusting it: **the oracle's
+`main.cpp` had lost the harness's flags**. The revert two rounds earlier had removed my probe and, with it, every
+`--dump-*` flag the harness adds - so the last three runs were a game starting with unknown arguments and sitting at
+a screen, which is exactly what their logs showed. The file was restored from the committed patch, and the tree now
+matches the patch apart from timestamps and blank lines.
+
+Then the digest dump, with the flags back and a rebuilt binary: **SIGSEGV**, in the first seconds, right after
+`Checking mod Dark Days Ahead [dda]` - before any content is read. That is the answer to all four probes: the binary
+does not get far enough to be asked anything, so no dump could ever appear, and the "slow loading" reading of the last
+round was wrong as well.
+
+So the oracle build is what needs fixing, and the next steps are ordinary ones: build in a clean directory, and if it
+still crashes at the mod check, bisect between the pinned reference's own build and this one. The port's side is
+unaffected - every gate that runs is green - but **no reference dump can be taken until the oracle starts again**,
+and that is the honest state of the frame gate.
