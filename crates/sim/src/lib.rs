@@ -77,22 +77,10 @@ pub struct Field {
 /// square's fields in insertion order - and that order is observable, because a decaying field
 /// draws from the same dice as everything else.
 pub fn process_fields(world: &mut World, now: i64, rolls: &mut cdda_core_types::rng::Rolls) {
-    let mut order: Vec<(i32, i32, Entity)> = Vec::new();
-    let mut query = world.query::<(Entity, &Position)>();
-    for (entity, position) in query.iter(world) {
-        order.push((position.x, position.y, entity));
-    }
-    // x outer, y inner: the reference's walk over a submap.
-    order.sort_by_key(|&(x, y, entity)| (x, y, entity.to_bits()));
-    for (_, _, entity) in order {
-        let Some(mut field) = world.get_mut::<Field>(entity) else {
-            continue;
-        };
-        field.entry.do_decay(now, rolls);
-        if !field.entry.is_alive() {
-            world.despawn(entity);
-        }
-    }
+    // The same pass as [`process_field_turns`], with no processors registered: a field ages and dies, and nothing asks it to act.
+    // Keeping one implementation rather than two is the point - the two would drift, and the drift would be invisible until a world
+    // ran twice and disagreed with itself.
+    process_field_turns(world, now, rolls, |_| None, |_, _, _| {});
 }
 
 /// Runs one turn of every field, in the reference's order, and lets each take its own turn.

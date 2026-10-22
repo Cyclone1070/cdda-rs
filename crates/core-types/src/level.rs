@@ -43,15 +43,6 @@ pub struct Level {
     transparency_builds: u32,
 }
 
-/// What one turn of field processing did.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct FieldProcessing {
-    /// Fields that were aged.
-    pub ticked: u32,
-    /// Fields that died and were taken off their tile.
-    pub removed: u32,
-}
-
 impl Level {
     /// Builds an empty level.
     #[must_use]
