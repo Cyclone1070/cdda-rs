@@ -374,6 +374,12 @@ impl Direction {
     pub fn turn_right(self) -> Self {
         self.rotate(1)
     }
+
+    /// The direction that faces back the way this one came.
+    #[must_use]
+    pub fn opposite(self) -> Self {
+        self.rotate(2)
+    }
 }
 
 /// A straight run of tiles, from a starting point towards a direction.
@@ -881,4 +887,59 @@ pub fn place_forests(
         }
     }
     planted
+}
+
+/// How often a street side goes unbuilt.
+///
+/// Reference: `BUILDINGCHANCE` in `overmap.cpp`, which is four: each side of a street tile has a **three in four**
+/// chance of a building, rolled separately.
+pub const BUILDING_CHANCE: i32 = 4;
+
+/// Puts a building beside a street tile, one square off the road and facing it.
+///
+/// Reference: `overmap::place_building`, which takes the **opposite** of the side the building is on as the building's
+/// own facing - a building on the north side of an east-west street faces south. The reference then asks the specials
+/// system for a building to place; the port has no specials yet, so this records the placement and its facing and
+/// says so, rather than inventing a building that the reference would never have chosen.
+///
+/// Returns the square the building would occupy and the direction it faces, or `None` when the square is not free.
+#[must_use]
+pub fn building_site(
+    overmap: &Overmap,
+    street: (i32, i32),
+    side: Direction,
+) -> Option<((i32, i32), Direction)> {
+    let (dx, dy) = side.displace(1);
+    let position = (street.0 + dx, street.1 + dy);
+    let terrain = overmap.terrain(position.0, position.1)?;
+    if terrain != DEFAULT_OTER {
+        return None;
+    }
+    Some((position, side.opposite()))
+}
+
+/// Rolls the two sides of every street tile and records where buildings would go.
+///
+/// Reference: `build_city_street`'s two `if( !one_in( BUILDINGCHANCE ) )` calls, one per side of the street, in the
+/// order left then right. The dice are the caller's, so a street's buildings replay with the street.
+///
+/// Returns the sites, in the order the rolls produced them.
+pub fn plan_buildings(
+    overmap: &Overmap,
+    streets: &[(i32, i32)],
+    towards: Direction,
+    rolls: &mut Rolls,
+) -> Vec<((i32, i32), Direction)> {
+    let mut sites = Vec::new();
+    for street in streets {
+        for side in [towards.turn_left(), towards.turn_right()] {
+            if rolls.one_in(BUILDING_CHANCE) {
+                continue;
+            }
+            if let Some(site) = building_site(overmap, *street, side) {
+                sites.push(site);
+            }
+        }
+    }
+    sites
 }

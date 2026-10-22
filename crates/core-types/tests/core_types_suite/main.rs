@@ -28,6 +28,7 @@ mod noise_reference;
 mod options;
 mod outside_light;
 mod overmap;
+mod overmap_buildings;
 mod overmap_cities;
 mod overmap_city_street;
 mod overmap_forests;
