@@ -129,8 +129,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-23 00:05:35
-@@ -0,0 +1,1151 @@
++++ oracle/src/src/harness.cpp	2026-10-23 00:31:00
+@@ -0,0 +1,1204 @@
 +#include "harness.h"
 +#include "recipe_dictionary.h"
 +#include "requirements.h"
@@ -141,7 +141,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +#include "calendar.h"
 +#include "do_turn.h"
 +#include "game.h"
++#include "field.h"
 +#include "map.h"
++#include "scent_map.h"
 +#include "mapgendata.h"
 +#include "overmap_noise.h"
 +#include "overmapbuffer.h"
@@ -1210,6 +1212,57 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    std::fclose( out );
 +}
 +
++// The field sweep, run one turn at a time, with every field written out.
++//
++// This is the environment-only session the P2 exit gate asks for: a fire is placed on a square, the map's own
++// `process_fields` runs a turn at a time, and after each turn every field entry within the radius is written down
++// with its type, intensity and age. There are no creatures and no items in the session, so what the port has to
++// reproduce is exactly what the field processor does - nothing else can move.
++void dump_field_series( const std::string &path, const point &offset, int intensity, int turns,
++                        int radius )
++{
++    const tripoint_bub_ms fire = get_avatar().pos_bub() + tripoint( offset, 0 );
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    g->harness_map().add_field( fire, fd_fire, intensity, 0_turns, false );
++    std::fprintf( out, "{\"harness\":\"field-series\",\"version\":1,\"radius\":%d,\"turns\":[\n", radius );
++    const tripoint_bub_ms center = get_avatar().pos_bub();
++    for( int turn = 0; turn <= turns; turn++ ) {
++        std::fprintf( out, "%s{\"turn\":%d,\"fields\":[", turn == 0 ? "" : ",\n", turn );
++        bool first = true;
++        for( const tripoint_bub_ms &p : g->harness_map().points_in_radius( center, radius ) ) {
++            const field &fld = g->harness_map().field_at( p );
++            for( const auto &entry : fld ) {
++                std::fprintf( out, "%s{\"x\":%d,\"y\":%d,\"z\":%d,\"type\":\"%s\",\"intensity\":%d,\"age\":%d}",
++                              first ? "" : ",", p.x(), p.y(), p.z(),
++                              harness::harness_escape( entry.second.get_field_type().id().str() ).c_str(),
++                              entry.second.get_field_intensity(),
++                              to_turns<int>( entry.second.get_field_age() ) );
++                first = false;
++            }
++        }
++        // Scent has nothing to do with fields, but an environment session that ignores it cannot compare one.
++        std::fprintf( out, "],\"scent\":[" );
++        first = true;
++        for( const tripoint_bub_ms &p : g->harness_map().points_in_radius( center, radius ) ) {
++            const int value = get_scent().get( p );
++            if( value != 0 ) {
++                std::fprintf( out, "%s[%d,%d,%d]", first ? "" : ",", p.x(), p.y(), value );
++                first = false;
++            }
++        }
++        std::fprintf( out, "]}" );
++        if( turn < turns ) {
++            g->harness_map().process_fields();
++        }
++    }
++    std::fprintf( out, "\n]}\n" );
++    std::fclose( out );
++}
++
 +} // namespace harness
 +
 +namespace harness
@@ -1284,8 +1337,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-23 00:05:35
-@@ -0,0 +1,162 @@
++++ oracle/src/src/harness.h	2026-10-23 00:31:00
+@@ -0,0 +1,166 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -1427,6 +1480,10 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +// bubble. Requires start_headless_game first.
 +void dump_state( const std::string &path );
 +
++/** Writes an environment-only session: a fire, the field sweep, and every field after each turn. */
++void dump_field_series( const std::string &path, const point &offset, int intensity, int turns,
++                        int radius );
++
 +/** Writes the glyphs and light of the squares around the player. */
 +void dump_frame( const std::string &path, int radius );
 +void dump_overmap( const std::string &path, int radius );
@@ -1470,7 +1527,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-23 00:04:40
++++ oracle/src/src/main.cpp	2026-10-23 00:31:00
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -1481,7 +1538,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,66 @@
+@@ -272,6 +275,46 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -1493,28 +1550,12 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_env;
 +    // Harness: the state of a freshly started game.
 +    std::string dump_state;
-+    // Harness: resolved terrain and furniture prototypes.
-+    std::string dump_terrain;
-+    // Harness: resolved traps and materials.
-+    std::string dump_traps;
-+    std::string dump_materials;
-+    // Harness: resolved field types.
-+    std::string dump_fields;
-+    // Harness: resolved item types.
-+    std::string dump_items;
-+    // Harness: resolved monster types.
-+    std::string dump_monsters;
-+    std::string replay;
-+    std::string world_name;
-+    std::string start_location;
-+    // Harness: write a digest of every loaded prototype (or the ids themselves)
-+    // to this file and exit. See docs/11-oracle-harness.md.
-+    std::string dump_prototype_digest;
-+    std::string dump_prototype_ids;
-+    // Harness: the state that exists before any world does.
-+    std::string dump_env;
-+    // Harness: the state of a freshly started game.
-+    std::string dump_state;
++    // Harness: an environment-only session - a fire, the field sweep, and every field after each turn.
++    std::string dump_field_series;
++    int place_fire_x = INT_MIN;
++    int place_fire_y = INT_MIN;
++    int place_fire_intensity = 2;
++    int field_turns = 6;
 +    std::string dump_frame;
 +    std::string dump_overmap;
 +    std::string dump_noise;
@@ -1525,9 +1566,8 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    int dump_overmap_radius = 20;
 +    std::string probe_mapgen;
 +    int dump_frame_radius = 20;
-+    // Harness: resolved terrain and furniture prototypes.
++    // Harness: resolved prototypes, one family per file.
 +    std::string dump_terrain;
-+    // Harness: resolved traps and materials.
 +    std::string dump_traps;
 +    std::string dump_astronomy;
 +    std::string dump_materials;
@@ -1536,11 +1576,8 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_mapgens;
 +    std::string dump_starting_kit;
 +    std::string dump_vehicle_parts;
-+    // Harness: resolved field types.
 +    std::string dump_fields;
-+    // Harness: resolved item types.
 +    std::string dump_items;
-+    // Harness: resolved monster types.
 +    std::string dump_monsters;
 +    std::string replay;
 +    std::string world_name;
@@ -1548,7 +1585,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +363,387 @@
+@@ -300,6 +343,419 @@
                  }
              },
              {
@@ -1763,6 +1800,38 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                }
 +            },
 +            {
++                "--place-fire", "<x> <y> <intensity>",
++                "Places a fire at this square of the reality bubble, for --dump-field-series",
++                section_default,
++                3,
++                [&result]( int, const char **params ) -> int {
++                    result.place_fire_x = std::atoi( params[0] );
++                    result.place_fire_y = std::atoi( params[1] );
++                    result.place_fire_intensity = std::atoi( params[2] );
++                    return 1;
++                }
++            },
++            {
++                "--field-turns", "<n>",
++                "How many field turns --dump-field-series runs (default 6)",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.field_turns = std::atoi( params[0] );
++                    return 1;
++                }
++            },
++            {
++                "--dump-field-series", "<file>",
++                "Writes an environment-only field session: a fire, then every field after each turn",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_field_series = params[0];
++                    return 1;
++                }
++            },
++            {
 +                "--dump-state", "<file>",
 +                "Starts a new game headlessly and writes its state to <file>",
 +                section_default,
@@ -1936,7 +2005,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +1230,181 @@
+@@ -786,6 +1242,202 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -1981,6 +2050,27 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                    harness::dump_map( cli.dump_map );
 +                }
 +            }
++            exit_handler( 0 );
++        }
++        if( !cli.dump_field_series.empty() ) {
++            const std::string world_name =
++                cli.world_name.empty() ? "harness-fixed" : cli.world_name;
++            std::string error;
++            test_mode = true;
++            try {
++                if( !harness::start_headless_game( world_name, cli.start_location, error ) ) {
++                    std::fprintf( stderr, "harness: %s\n", error.c_str() );
++                    exit_handler( 2 );
++                }
++            } catch( const std::exception &e ) {
++                std::fprintf( stderr, "harness: %s\n", e.what() );
++                exit_handler( 3 );
++            }
++            // Relative to the player, so a fixture does not depend on which square of the fixed world the
++            // player happens to start on.
++            harness::dump_field_series( cli.dump_field_series,
++                                        point( cli.place_fire_x, cli.place_fire_y ),
++                                        cli.place_fire_intensity, cli.field_turns, 3 );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_state.empty() || !cli.replay.empty() ) {

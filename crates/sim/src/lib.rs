@@ -278,7 +278,10 @@ pub fn process_fires(
             continue;
         }
         let mut entry = cdda_core_types::field::FieldEntry::new(3, 1_000_000, false, true);
-        entry.set_age(-120);
+        // `add_field( dst_p, fd_fire, 1, 2_minutes )` - two minutes of burning *already behind it*, which makes the
+        // newborn a weak, short-lived fire rather than a fuelled one. The reference says it plainly ("Lower age is a
+        // longer lasting fire", `map_field.cpp:1122`) and my first version had the sign the other way round.
+        entry.set_age(120);
         entry.set_intensity(1);
         world.spawn((
             Field {

@@ -406,6 +406,31 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The oracle can now film a fire, and it caught a sign error in the port at once (round 308)
+
+`--dump-field-series` runs an **environment-only session**: it places a fire next to the player, runs the map's own
+`process_fields` a turn at a time, and writes every field entry - square, type, intensity, age - plus the scent grid, after each turn. That is the
+shape the P2 exit gate asks for, and the first fixture is `corpus/fields/fire-floor.json` (five turns, intensity two, radius three).
+
+What the first run showed:
+
+| Turn | Fire at the player | What else |
+|---|---|---|
+0 | intensity 2, age **0** | nothing |
+1 | intensity 2, age 1 | nothing |
+2 | intensity 2, age 60, and a **new fire** at a neighbour with age **120**, intensity 1 | `fd_hot_air2` |
+3-4 | ages 59, 58 | `fd_hot_air1`, `fd_hot_air2` |
+
+**The sign error it caught.** `add_field( dst, fd_fire, 1, 2_minutes )` gives the newborn an age of **+120**, and a field's age is *time burned* - the
+reference's own comment is "Lower age is a longer lasting fire" (`map_field.cpp:1122`), and `do_decay` resets the age when the half-life roll beats it.
+The port had the newborn at **-120**, which reads as two minutes of *surplus fuel*, i.e. a long-lived fire where the reference makes a weak one. Fixed,
+with the test now asserting +120 and saying why.
+
+**Declared and not yet encoded:** the parent's age going 60, 59, 58 - one turn down per turn - is not explained by the rules I have; the fuel
+accounting at `map_field.cpp:1122` moves age by `-time_added` when the fire eats and `+10s x intensity` when it does not, and neither is minus one.
+The fixture also contains `fd_hot_air1/2`, which the port has no field type for yet. Both are written down here rather than papered over: a fixture whose
+numbers I do not understand is a fixture I must not turn into a passing test.
+
 ## The oracle had two authorities, and the stale one would have deleted eleven dump branches (round 307)
 
 `oracle/apply_harness_patches.py` edited the reference call by call, and `oracle/src` was the tree everything actually ran from. Over many rounds the working

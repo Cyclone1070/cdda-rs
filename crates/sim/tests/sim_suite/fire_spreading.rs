@@ -99,7 +99,15 @@ fn a_spreading_fire_leaves_a_weak_fuelled_fire_behind() {
                 .iter(&world)
                 .find(|field| field.id == FIRE && field.entry.intensity() == 1)
                 .expect("the new fire");
-            assert_eq!(newborn.entry.age(), -120, "two minutes of fuel, in turns");
+            // The reference adds the new fire with `add_field( dst_p, fd_fire, 1, 2_minutes )`, and a field's age is
+            // **time burned**, not fuel: "Lower age is a longer lasting fire" (`map_field.cpp:1122`). So the newborn
+            // is older and weaker than a fresh fire - it will not grow until it eats - and my first version had it at
+            // -120, which would have made it a long-lived fire instead of a short-lived one.
+            assert_eq!(
+                newborn.entry.age(),
+                120,
+                "two minutes of burning already behind it"
+            );
             return;
         }
     }
