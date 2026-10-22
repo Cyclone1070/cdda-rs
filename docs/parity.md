@@ -308,6 +308,19 @@ equality; JSON accept/reject parity". Each part, and where it is proven:
 | JSON acceptance is identical | All 6,220 shipped files: same accept/reject verdict and same structural digest as the reference; the writer is compared byte for byte on 127 of them |
 | The cache changes nothing | All 6,220 files read identically cold and warm |
 
+## The trace names its chunk, and the finding survives (round 252)
+
+Every feature-trace line now begins with the chunk it belongs to, which turns the 576 lines of a chunk into a **lookup**
+instead of a guess. The doubt of the previous round is gone and the finding underneath it is intact: even for the chunk the
+dump describes - wet woodland at `[129,206]`, its trace identifier `[258,412]` being the submap origin - **260 of 576**
+squares hold a terrain their recorded palette could not produce. The placed terrain comes from somewhere this trace does
+not record.
+
+Two things the tagged trace also settled, both of them mine to get wrong: this chunk's ground cover is mostly **swamp**
+palette (117 squares) with only seven squares of dry ground cover, because it is wet woodland - and I carried the previous
+chunk's hundred-and-three dry draws into a test of this one, which the data refused at once. And all eighteen chunks the run
+generated are present as blocks of exactly 576 lines, so the identifier is per chunk and not per call.
+
 ## Which block of a trace is which chunk (round 251)
 
 The previous round's 273-square discrepancy survived a harder test and changed shape. The feature trace and the perimeter

@@ -2026,7 +2026,7 @@ diff -ruN references/Cataclysm-DDA/src/mapdata.cpp oracle/src/src/mapdata.cpp
  template<>
 diff -ruN references/Cataclysm-DDA/src/mapgen_functions.cpp oracle/src/src/mapgen_functions.cpp
 --- references/Cataclysm-DDA/src/mapgen_functions.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/mapgen_functions.cpp	2026-10-22 16:40:35
++++ oracle/src/src/mapgen_functions.cpp	2026-10-22 16:48:30
 @@ -5,6 +5,7 @@
  #include <cmath>
  #include <cstdint>
@@ -2096,7 +2096,7 @@ diff -ruN references/Cataclysm-DDA/src/mapgen_functions.cpp oracle/src/src/mapge
          switch( feather_selection ) {
              case no_dir:
                  feature = self_biome.pick();
-@@ -1080,6 +1121,16 @@
+@@ -1080,6 +1121,21 @@
          }
          if( feature.ter == no_ter_furn.ter ) {
              feature.ter = get_feathered_groundcover( p );
@@ -2106,7 +2106,12 @@ diff -ruN references/Cataclysm-DDA/src/mapgen_functions.cpp oracle/src/src/mapge
 +        // carry furniture and ground at once and only the ground one replaces what is underneath.
 +        if( const char *trace_path = std::getenv( "CDDA_MAP_TRACE_FEATURE" ) ) {
 +            static std::ofstream trace_file( trace_path, std::ios::app );
-+            trace_file << p.x << ' ' << p.y << ' ' << feather_selection << ' '
++            // The chunk comes first on every line. Without it there is no way to tell which 576-line block belongs to
++            // which chunk - the perimeter trace counts chunks, this trace counts calls - and the comparison silently
++            // compares two different squares.
++            const tripoint_abs_sm chunk = dat.m.get_abs_sub();
++            trace_file << chunk.x() << ' ' << chunk.y() << ' ' << chunk.z() << ' '
++                       << p.x << ' ' << p.y << ' ' << feather_selection << ' '
 +                       << ( feature.ter == no_ter_furn.ter ? "none" : feature.ter.id().str() ) << ' '
 +                       << ( feature.furn == furn_str_id::NULL_ID() ? "none" : feature.furn.id().str() )
 +                       << '\n';
