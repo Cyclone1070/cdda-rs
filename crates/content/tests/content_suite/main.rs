@@ -50,6 +50,7 @@ mod generated;
 mod groundcover;
 mod harvest_defs;
 mod inheritance_corpus;
+mod inline_enchantments;
 mod item_catalog;
 mod item_flags;
 mod item_group_draw;

@@ -81,6 +81,28 @@ pub fn eocs_loaded() -> eocs::Loaded {
         .clone()
 }
 
+/// Every inline enchantment in the data tree: the ones no file names.
+#[must_use]
+pub fn inline_enchantments_loaded() -> Vec<String> {
+    static ONCE: OnceLock<Vec<String>> = OnceLock::new();
+    ONCE.get_or_init(|| {
+        let mut all = std::collections::BTreeSet::new();
+        for root in dirs() {
+            let Ok(files) = cdda_content::json_files_in_load_order(&root) else {
+                continue;
+            };
+            for path in files {
+                let Some(value) = cdda_content::read_json(&path) else {
+                    continue;
+                };
+                all.extend(cdda_content::enchantments::inline_ids(&value));
+            }
+        }
+        all.into_iter().collect()
+    })
+    .clone()
+}
+
 /// The vehicle dump, which is the only list of parts the reference ever writes down.
 #[must_use]
 pub fn vehicles_dump_loaded() -> cdda_content::vehicles::Vehicles {

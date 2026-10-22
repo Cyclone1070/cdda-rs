@@ -6,8 +6,8 @@
 
 //! - one registry's JSON type is not its registry name: `mutation` registers as `trait` (959 of them, and the reference's own dump calls the registry
 //!   `trait`, which is why a rule that trusted the type name missed every one);
-//! - a factory's **null prototype** is created by the code, not by the data, so `t_null` is the one terrain id that is in the reference's registry and not
-//!   in the files.
+//! - a factory's **null prototype** is created by the code, not by the data, so `t_null` and `f_null` are the two ids the reference's registries hold and no
+//!   file writes. That is why `terrain` and `furniture` are gated through their loaders in `digest.rs` rather than through this rule.
 //!
 //! This test is the evidence for that rule over thirty-six registries and about thirteen thousand ids. It is deliberately separate from `digest.rs`, which
 //! gates registries the port has an actual **loader** for: this one says the id set is right, not that anything consumes it yet. Where the two overlap they
@@ -21,7 +21,6 @@ use std::collections::{BTreeMap, BTreeSet};
 const GATED: [(&str, usize); 36] = [
     ("ITEM", 9912),
     ("trait", 959),
-    ("furniture", 660),
     ("ascii_art", 399),
     ("profession", 320),
     ("vehicle", 249),
@@ -55,18 +54,21 @@ const GATED: [(&str, usize); 36] = [
     ("shopkeeper_blacklist", 2),
     ("profession_group", 1),
     ("speed_description", 1),
+    ("spell", 246),
 ];
 
-/// The JSON `type` of a registry whose name differs from it.
-fn json_type(registry: &str) -> &str {
+/// The `type` spellings a registry's entries are written under. Two registries need this: a trait is a `mutation`, and a spell is a `SPELL` in modern data and a
+/// `spell` in the few files that predate the uppercase convention.
+fn json_types(registry: &str) -> Vec<&str> {
     match registry {
-        "trait" => "mutation",
-        other => other,
+        "trait" => vec!["mutation"],
+        "spell" => vec!["SPELL", "spell"],
+        other => vec![other],
     }
 }
 
-/// Collects `(registry -> ids)` by the shared rule.
-fn shared_rule() -> BTreeMap<String, BTreeSet<String>> {
+/// Collects `(JSON type -> ids)` by the shared rule, for every type in the tree.
+fn registries_in_tree() -> BTreeMap<String, BTreeSet<String>> {
     let mut by_type: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     for root in crate::corpus::dirs() {
         let Ok(files) = cdda_content::json_files_in_load_order(&root) else {
@@ -76,40 +78,54 @@ fn shared_rule() -> BTreeMap<String, BTreeSet<String>> {
             let Some(value) = cdda_content::read_json(&path) else {
                 continue;
             };
-            walk(&value, &mut by_type);
+            for entry in entries(&value) {
+                register(entry, &mut by_type);
+            }
         }
     }
+    by_type
+}
+
+/// The same, named the way the reference's registries are named.
+fn shared_rule() -> BTreeMap<String, BTreeSet<String>> {
+    let by_type = registries_in_tree();
     let mut out = BTreeMap::new();
     for registry in GATED.iter().map(|(registry, _)| *registry) {
-        if let Some(ids) = by_type.get(json_type(registry)) {
-            out.insert(registry.to_owned(), ids.clone());
+        let mut ids = BTreeSet::new();
+        for json_type in json_types(registry) {
+            if let Some(found) = by_type.get(json_type) {
+                ids.extend(found.iter().cloned());
+            }
+        }
+        if !ids.is_empty() {
+            out.insert(registry.to_owned(), ids);
         }
     }
     out
 }
 
-fn walk(value: &Value, out: &mut BTreeMap<String, BTreeSet<String>>) {
+/// The entries of one file: a data file is a list of entries, and an object on its own is one entry.
+fn entries(value: &Value) -> &[Value] {
     match value {
-        Value::Array(items) => {
-            for item in items {
-                walk(item, out);
-            }
-        }
-        Value::Object(object) => {
-            if let (Some(Value::Str(kind)), Some(Value::Str(id))) =
-                (object.get("type"), object.get("id"))
-                && object.get("abstract").is_none()
-            {
-                out.entry(kind.clone()).or_default().insert(id.clone());
-            }
-            for (name, member) in object.members() {
-                if name == "id" || name == "type" {
-                    continue;
-                }
-                walk(member, out);
-            }
-        }
-        _ => {}
+        Value::Array(items) => items,
+        single => std::slice::from_ref(single),
+    }
+}
+
+/// Registers one entry under its `id`, unless it is an abstract.
+///
+/// Nested objects are deliberately **not** entries: a monster's special attack carries `"type": "spell"` and an `id` of its own, and treating it as an entry
+/// invented three spells the reference does not have (`star_vampire_invisibility` and two of its siblings). The kinds that do register inline - an
+/// effect-on-condition in a slot, an enchantment in an `enchantments` list, a turret part from a gun - each have a loader that says so, and this rule refuses to
+/// guess.
+fn register(entry: &Value, out: &mut BTreeMap<String, BTreeSet<String>>) {
+    let Value::Object(object) = entry else {
+        return;
+    };
+    if let (Some(Value::Str(kind)), Some(Value::Str(id))) = (object.get("type"), object.get("id"))
+        && object.get("abstract").is_none()
+    {
+        out.entry(kind.clone()).or_default().insert(id.clone());
     }
 }
 
@@ -172,6 +188,27 @@ fn thirty_six_registries_hold_exactly_the_ids_the_reference_holds() {
 
 #[allow(clippy::expect_used)]
 #[test]
+fn the_enchantments_are_the_written_ones_plus_the_inline_ones() {
+    // Second registry in the corpus that a rule finishes: 42 entries name themselves, and 311 are written inline in a trait, a bionic, an effect or a vehicle
+    // part, where the reference invents a name from the owner and the slot's position (`magic_enchantment.cpp:267-285`).
+    let mut ids: BTreeSet<String> = registries_in_tree()
+        .remove("enchantment")
+        .expect("the tree defines enchantments by name");
+    let written = ids.len();
+    ids.extend(crate::corpus::inline_enchantments_loaded());
+    assert_eq!(written, 42, "the ones a file names");
+    assert_eq!(ids.len(), 353, "the reference's own enchantment registry");
+    assert_eq!(
+        cdda_content::digest::digest_hex(cdda_content::digest::digest_ids(
+            ids.iter().map(String::as_str)
+        )),
+        *digests().get("enchantment").expect("enchantment digest"),
+        "enchantment ids"
+    );
+}
+
+#[allow(clippy::expect_used)]
+#[test]
 fn the_vehicle_parts_are_the_ones_written_plus_the_turrets_the_guns_earn() {
     // The one registry in the ninety that the id-set rule cannot finish on its own: `vehicle_part` holds 462 entries that data files write and 239 that the
     // reference invents from the guns at finalisation (`veh_type.cpp:565-640`). Both halves have to be there for the digest to match, which is what makes this
@@ -205,18 +242,22 @@ fn an_abstract_registers_nothing_and_a_type_name_can_differ_from_its_registry() 
     let text = r#"[
         {"type": "mutation", "id": "BEAUTIFUL"},
         {"type": "mutation", "abstract": "BASE"},
-        {"type": "GENERIC", "id": "nested_is_collected_too"}
+        {"type": "MONSTER", "id": "zombie", "special_attacks": [
+            {"type": "spell", "id": "not_a_spell_entry"}
+        ]}
     ]"#;
     let value = cdda_json::parse(text.as_bytes()).expect("it parses");
     let mut by_type = BTreeMap::new();
-    walk(&value, &mut by_type);
+    for entry in entries(&value) {
+        register(entry, &mut by_type);
+    }
     assert_eq!(
         by_type.get("mutation"),
         Some(&BTreeSet::from(["BEAUTIFUL".to_owned()])),
         "the abstract is not a trait"
     );
-    assert_eq!(
-        by_type.get("GENERIC"),
-        Some(&BTreeSet::from(["nested_is_collected_too".to_owned()]))
+    assert!(
+        !by_type.contains_key("spell"),
+        "a monster's special attack is not an entry: three spells in the real data are exactly this and the reference has none of them"
     );
 }
