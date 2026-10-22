@@ -321,3 +321,46 @@ pub fn read_city_settings(value: &Value) -> Option<CitySettings> {
         parks: weighted_bin(city.get("parks")),
     })
 }
+
+/// Reads the `overmap_forest` block of a region's settings.
+///
+/// Reference: `overmap_forest_settings` in `regional_settings.cpp`. The file's values **override** the header's
+/// defaults, and they are not the same: the JSON asks for `0.2` and `0.25` where the header says `0.25` and `0.3`.
+#[must_use]
+#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+pub fn read_forest_settings(value: &Value) -> Option<cdda_core_types::overmap::ForestSettings> {
+    let entry = match value {
+        Value::Array(entries) => entries.iter().find(|entry| match entry {
+            Value::Object(fields) => {
+                matches!(
+                    fields.get("overmap_forest_settings"),
+                    Some(Value::Object(_))
+                )
+            }
+            _ => false,
+        })?,
+        other => other,
+    };
+    let Value::Object(fields) = entry else {
+        return None;
+    };
+    // The block is named `overmap_forest_settings` in the file, while the type it fills is `overmap_forest_settings`
+    // too - the shorter name inside the C++ code is a struct field, not a JSON key.
+    let Some(Value::Object(forest)) = fields.get("overmap_forest_settings") else {
+        return None;
+    };
+    let threshold = match forest.get("noise_threshold_forest") {
+        Some(Value::Float(n)) => *n as f32,
+        Some(Value::Int(n)) => *n as f32,
+        _ => 0.25,
+    };
+    let threshold_thick = match forest.get("noise_threshold_forest_thick") {
+        Some(Value::Float(n)) => *n as f32,
+        Some(Value::Int(n)) => *n as f32,
+        _ => 0.3,
+    };
+    Some(cdda_core_types::overmap::ForestSettings {
+        threshold,
+        threshold_thick,
+    })
+}

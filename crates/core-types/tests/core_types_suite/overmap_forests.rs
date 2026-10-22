@@ -17,9 +17,13 @@ fn a_tile_becomes_forest_exactly_where_the_field_passes_the_threshold() {
         for x in 0..overmap.width() {
             let noise = forest_noise(x, y, 31337);
             let terrain = overmap.terrain(x, y).expect("a terrain");
-            let expected = if noise > 0.35 {
+            // The thresholds the test asks about are the ones it passed in, not a second copy of the numbers: the
+            // defaults are the reference's header values, and the regional settings file overrides them with lower
+            // ones, so a test that hard-coded either would be testing the wrong thing after a settings change.
+            let settings = ForestSettings::default();
+            let expected = if noise > settings.threshold_thick {
                 "forest_thick"
-            } else if noise > 0.25 {
+            } else if noise > settings.threshold {
                 "forest"
             } else {
                 "field"

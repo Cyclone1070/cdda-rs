@@ -36,6 +36,7 @@ mod overmap;
 mod overmap_build;
 mod overmap_locations;
 mod overmap_specials;
+mod overmap_world_diff;
 mod prototype_ids;
 mod recipe_requirements;
 mod recipe_skills;

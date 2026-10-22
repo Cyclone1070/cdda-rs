@@ -847,11 +847,66 @@ pub struct ForestSettings {
 }
 
 impl Default for ForestSettings {
+    /// The reference's **header** defaults, which the regional settings file overrides: `regional_map_settings.json`
+    /// sets the thresholds to `0.2` and `0.25`, and a port that trusted the header's `0.25`/`0.3` would grow a
+    /// visibly smaller forest from the same seed. That difference was caught by comparing against the reference's own
+    /// generated world, not by reading either file on its own.
     fn default() -> Self {
         Self {
             threshold: 0.25,
-            threshold_thick: 0.35,
+            threshold_thick: 0.3,
         }
+    }
+}
+
+/// How much thicker or thinner the woodland is in a given overmap.
+///
+/// Reference: `overmap::calculate_forestosity`. Four global options say how fast coverage grows towards each edge of
+/// the world, and a map away from the origin is shifted by its own distance in that direction. The value is **added
+/// to the noise** before the threshold comparison, so a positive adjustment makes more forest.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ForestGrowth {
+    /// Growth per overmap towards the north.
+    pub north: f32,
+    /// Growth per overmap towards the east.
+    pub east: f32,
+    /// Growth per overmap towards the west.
+    pub west: f32,
+    /// Growth per overmap towards the south.
+    pub south: f32,
+}
+
+impl Default for ForestGrowth {
+    /// The reference's own option values: north `0.04`, west `0.02`, and nothing east or south.
+    fn default() -> Self {
+        Self {
+            north: 0.04,
+            east: 0.0,
+            west: 0.02,
+            south: 0.0,
+        }
+    }
+}
+
+impl ForestGrowth {
+    /// The adjustment for an overmap at `position`, in overmap units.
+    #[must_use]
+    #[allow(clippy::cast_precision_loss)]
+    pub fn adjust(self, position: (i32, i32)) -> f32 {
+        let mut adjust = 0.0_f32;
+        if self.west != 0.0 && position.0 < 0 {
+            adjust -= position.0 as f32 * self.west;
+        }
+        if self.north != 0.0 && position.1 < 0 {
+            adjust -= position.1 as f32 * self.north;
+        }
+        if self.east != 0.0 && position.0 > 0 {
+            adjust += position.0 as f32 * self.east;
+        }
+        if self.south != 0.0 && position.1 > 0 {
+            adjust += position.1 as f32 * self.south;
+        }
+        adjust
     }
 }
 
