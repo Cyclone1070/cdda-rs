@@ -96,3 +96,30 @@ fn the_perimeter_in_this_record_is_the_curve_the_chunk_was_generated_from() {
     let highest = depths.iter().copied().max().unwrap_or(0);
     assert!(highest > lowest, "the curve varies: {lowest}..{highest}");
 }
+
+#[test]
+fn the_feature_record_is_a_full_grid_in_the_reference_s_loop_order() {
+    // The reference walks `x` outside and `y` inside, so its per-square record is column-major while a map dump is
+    // row-major. Reading the file in order and rebuilding the grid by coordinate has to visit every square exactly once -
+    // a test that would fail the moment the record was truncated, duplicated or written in the other order.
+    let features = lines("reference-chunk-stage-features.txt");
+    let mut seen = vec![false; 576];
+    for line in &features {
+        let x: usize = line[3].parse().expect("x");
+        let y: usize = line[4].parse().expect("y");
+        let index = y * 24 + x;
+        assert!(!seen[index], "square ({x},{y}) appears twice");
+        seen[index] = true;
+    }
+    assert!(
+        seen.iter().all(|visited| *visited),
+        "every square is present"
+    );
+    // And the file order really is column-major: the second line's y is one more than the first's, with x unchanged.
+    assert_eq!(features[0][3], features[1][3], "same column");
+    assert_eq!(
+        features[1][4].parse::<i32>().expect("y") - features[0][4].parse::<i32>().expect("y"),
+        1,
+        "the next row of the same column"
+    );
+}

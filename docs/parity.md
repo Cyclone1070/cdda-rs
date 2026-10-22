@@ -308,6 +308,18 @@ equality; JSON accept/reject parity". Each part, and where it is proven:
 | JSON acceptance is identical | All 6,220 shipped files: same accept/reject verdict and same structural digest as the reference; the writer is compared byte for byte on 127 of them |
 | The cache changes nothing | All 6,220 files read identically cold and warm |
 
+## The record is a full grid, in the reference's own order (round 259)
+
+Before any dice can be replayed, the record it will be replayed from has to be complete and ordered. The per-square feature
+record is now checked as a **grid**: reading it in file order and rebuilding the chunk by coordinate visits all 576 squares
+exactly once, and the file order is confirmed column-major - same column, next row - which is the reference's `x` outside,
+`y` inside loop.
+
+That closes the class of failure that has cost the last six rounds in three different forms: two records of the same thing
+keyed differently (overmap against submap), written at different stages (generator against finished map), or read in the
+wrong order (column-major file, row-major dump). The record now states its chunk, its stage and its order, and each of the
+three is a gate rather than a convention.
+
 ## From shape to mix (round 258)
 
 The comparison is now about **shares** rather than squares. Two independent sets of dice cannot agree square by square, but
