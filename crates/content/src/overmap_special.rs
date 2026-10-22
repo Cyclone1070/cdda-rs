@@ -256,3 +256,59 @@ pub fn load_locations(documents: &[Value]) -> Vec<OvermapLocation> {
     }
     locations
 }
+
+/// The city's lists of buildings, and how far from the middle each kind belongs.
+///
+/// Reference: `city_settings` in `regional_settings.h` and the `city` block of `regional_map_settings.json`. Three
+/// bins - houses, shops, parks - each a weighted list, plus the two radii and their spreads that decide which bin a
+/// spot in the city draws from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CitySettings {
+    /// How far from the city's middle shops are normal.
+    pub shop_radius: i32,
+    /// How far that spreads.
+    pub shop_sigma: i32,
+    /// How far from the middle parks are normal.
+    pub park_radius: i32,
+    /// How far that spreads.
+    pub park_sigma: i32,
+    /// The houses, by weight.
+    pub houses: Vec<(String, i32)>,
+    /// The shops, by weight.
+    pub shops: Vec<(String, i32)>,
+    /// The parks, by weight.
+    pub parks: Vec<(String, i32)>,
+}
+
+fn weighted_bin(value: Option<&Value>) -> Vec<(String, i32)> {
+    let Some(Value::Object(entries)) = value else {
+        return Vec::new();
+    };
+    entries
+        .members()
+        .iter()
+        .filter(|(name, weight)| !name.starts_with("//") && matches!(weight, Value::Int(_)))
+        .map(|(name, weight)| (name.clone(), number(Some(weight), 0)))
+        .collect()
+}
+
+/// Reads the `city` block of a region's settings.
+#[must_use]
+pub fn read_city_settings(value: &Value) -> Option<CitySettings> {
+    let Value::Object(fields) = value else {
+        return None;
+    };
+    let city = match fields.get("city") {
+        Some(Value::Object(city)) => city,
+        _ => fields,
+    };
+    Some(CitySettings {
+        shop_radius: number(city.get("shop_radius"), 30),
+        shop_sigma: number(city.get("shop_sigma"), 20),
+        park_radius: number(city.get("park_radius"), 30),
+        park_sigma: number(city.get("park_sigma"), 70),
+        houses: weighted_bin(city.get("houses")),
+        shops: weighted_bin(city.get("shops")),
+        parks: weighted_bin(city.get("parks")),
+    })
+}

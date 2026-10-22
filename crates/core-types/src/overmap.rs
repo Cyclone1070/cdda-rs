@@ -1020,3 +1020,52 @@ pub fn can_place_shape(
     }
     Placement::Fits
 }
+
+/// Which of the city's lists a building is drawn from.
+///
+/// Reference: `overmap::pick_random_building_to_place` asks `pick_shop`, `pick_park` or `pick_house` depending on how
+/// far out the spot is, so the kind of building is decided by **where it stands** before any building is chosen.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildingKind {
+    /// Near the middle: shops.
+    Shop,
+    /// Further out: parks.
+    Park,
+    /// The rest of the town: houses.
+    House,
+}
+
+/// Decides which list a spot draws from, given the city's radii and spreads.
+///
+/// Reference: `pick_random_building_to_place`. Both thresholds are the radius, raised to a **normal roll** around that
+/// radius when the spread is non-zero - `max(radius, normal_roll(radius, sigma))` - and the *higher* threshold wins,
+/// which is what keeps houses out of the middle of town. The comparison is strict: a spot exactly on the threshold
+/// falls to the next list.
+#[must_use]
+#[allow(clippy::cast_possible_truncation)]
+pub fn building_kind(
+    town_dist: i32,
+    shop_radius: i32,
+    shop_sigma: i32,
+    park_radius: i32,
+    park_sigma: i32,
+    rolls: &mut Rolls,
+) -> BuildingKind {
+    let shop_normal = if shop_sigma > 0 {
+        shop_radius.max(rolls.normal_roll(f64::from(shop_radius), f64::from(shop_sigma)) as i32)
+    } else {
+        shop_radius
+    };
+    let park_normal = if park_sigma > 0 {
+        park_radius.max(rolls.normal_roll(f64::from(park_radius), f64::from(park_sigma)) as i32)
+    } else {
+        park_radius
+    };
+    if shop_normal > town_dist {
+        BuildingKind::Shop
+    } else if park_normal > town_dist {
+        BuildingKind::Park
+    } else {
+        BuildingKind::House
+    }
+}
