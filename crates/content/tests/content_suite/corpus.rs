@@ -81,6 +81,20 @@ pub fn eocs_loaded() -> eocs::Loaded {
         .clone()
 }
 
+/// The vehicle dump, which is the only list of parts the reference ever writes down.
+#[must_use]
+pub fn vehicles_dump_loaded() -> cdda_content::vehicles::Vehicles {
+    static ONCE: OnceLock<cdda_content::vehicles::Vehicles> = OnceLock::new();
+    ONCE.get_or_init(|| {
+        let path =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../corpus/vehicles.json");
+        let text = std::fs::read_to_string(&path).expect("the vehicle dump");
+        let value = cdda_json::parse(text.as_bytes()).expect("it parses");
+        cdda_content::vehicles::from_dump(&value).expect("vehicles load")
+    })
+    .clone()
+}
+
 /// Every NPC class the reference defines.
 #[must_use]
 pub fn npc_classes_loaded() -> Vec<cdda_content::npc_classes::NpcClass> {

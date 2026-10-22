@@ -45,6 +45,10 @@ pub struct ItemType {
     pub materials: BTreeMap<String, i32>,
     /// Its flag set.
     pub flags: BTreeSet<String>,
+    /// Whether it has gun data, which is what makes it a candidate for an invented turret part (`veh_type.cpp:484`).
+    pub is_gun: bool,
+    /// Whether it is a gun **mod**: those never get a turret part, whatever else is true of them.
+    pub is_gunmod: bool,
     /// Whether it blows up when a fire reaches it.
     pub explode_in_fire: bool,
     /// Nutrition, in the reference's own units, for a comestible; zero for anything else.
@@ -95,6 +99,16 @@ impl ItemType {
     ///
     /// Ammunition whose effects include incendiary or cook-off cooks off in a fire, unless it is made
     /// of hydrocarbons or oil, which the reference exempts. A special cook-off is its own effect.
+    /// Whether this is a gun, and whether it is a gun mod, read off the slots the loader filled.
+    ///
+    /// A gun is a gun because its data says so: the dump states it outright and a data file states it as a subtype. `veh_type.cpp:484` asks both questions of
+    /// every item in the game, so both paths have to end in the same answer.
+    pub fn derive_gun(&mut self) {
+        self.is_gun = self.is_gun || self.subtypes.contains("GUN");
+        self.is_gunmod = self.is_gunmod || self.subtypes.contains("GUNMOD");
+    }
+
+    /// Derives the two cookoff fields from the ammo effects, the way `item_factory.cpp:512-522` does.
     pub fn derive_cookoff(&mut self) {
         let oily =
             self.materials.contains_key("hydrocarbons") || self.materials.contains_key("oil");
@@ -350,6 +364,7 @@ pub fn load_paths(dirs: &[&std::path::Path]) -> Result<Vec<ItemType>, LoadError>
             if item.counts_by_charge() {
                 item.flags.insert("NO_REPAIR".to_owned());
             }
+            item.derive_gun();
             // A comestible made mostly of one thing lists only that thing
             // (`item_factory.cpp:459-464`), and it happens before the allergen
             // flags are read off the materials.
@@ -648,6 +663,8 @@ fn resolve(
         category: String::new(),
         materials: BTreeMap::new(),
         flags: BTreeSet::new(),
+        is_gun: false,
+        is_gunmod: false,
         explode_in_fire: false,
         nutr: 0,
         quench: 0,
@@ -784,6 +801,13 @@ fn apply_slots(item: &mut ItemType, object: &Object) {
     {
         item.subtypes.insert(json_type.clone());
     }
+    apply_armor_slots(item, object);
+    apply_flat_slots(item, object);
+    apply_melee_slots(item, object);
+}
+
+/// Reads the `armor` slot: what covers what, and in what material.
+fn apply_armor_slots(item: &mut ItemType, object: &Object) {
     if let Some(Value::Array(entries)) = object.get("armor") {
         item.armor_parts.clear();
         item.armor_entries.clear();
@@ -815,6 +839,11 @@ fn apply_slots(item: &mut ItemType, object: &Object) {
             }
         }
     }
+}
+
+/// Reads the slots that are one value each: the material the thing is mostly made of, its phase, whether it stacks, whether it goes off in a fire, whether it
+/// is a gun, and what it does when eaten.
+fn apply_flat_slots(item: &mut ItemType, object: &Object) {
     if let Some(material) = string(object, "primary_material") {
         item.primary_material = material;
     }
@@ -826,6 +855,12 @@ fn apply_slots(item: &mut ItemType, object: &Object) {
     }
     if let Some(explodes) = boolean(object, "explode_in_fire") {
         item.explode_in_fire = explodes;
+    }
+    if let Some(is_gun) = boolean(object, "is_gun") {
+        item.is_gun = is_gun;
+    }
+    if let Some(is_gunmod) = boolean(object, "is_gunmod") {
+        item.is_gunmod = is_gunmod;
     }
     // Ammunition states its effects as `effects` (`item_factory.cpp:2990`), not `ammo_effects`,
     // which is only the name the reference gives the field once read.
@@ -841,6 +876,10 @@ fn apply_slots(item: &mut ItemType, object: &Object) {
     if let Some(kind) = string(object, "comestible_type") {
         item.comestible_type = kind;
     }
+}
+
+/// Reads the `melee_damage` slot, with the `relative` and `proportional` forms the content uses to adjust it.
+fn apply_melee_slots(item: &mut ItemType, object: &Object) {
     if let Some(melee) = sub_object(object, "melee_damage") {
         for (damage_type, amount) in melee.members() {
             if let Some(value) = numeric(amount) {

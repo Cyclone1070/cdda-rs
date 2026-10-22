@@ -83,4 +83,5 @@ mod rules;
 mod starting_kit;
 mod terrain;
 mod traps;
+mod turret_parts;
 mod vehicles;

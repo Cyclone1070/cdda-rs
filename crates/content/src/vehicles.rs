@@ -15,6 +15,36 @@ pub struct Vehicles {
     pub prototypes: Vec<String>,
 }
 
+/// The flags that take a gun out of the running for a turret part.
+///
+/// Reference: `mountable_gun_filter` (`src/veh_type.cpp:473-491`). A bionic weapon is part of a person, `NO_TURRET` says so outright, something that cannot be
+/// unwielded cannot be mounted, a pseudo item is not a real thing, a reload-and-shoot weapon has no magazine to feed a turret, and a strength-drawn bow needs
+/// its archer.
+const NOT_MOUNTABLE: [&str; 6] = [
+    "BIONIC_WEAPON",
+    "NO_TURRET",
+    "NO_UNWIELD",
+    "PSEUDO",
+    "RELOAD_AND_SHOOT",
+    "STR_DRAW",
+];
+
+/// The turret parts the reference invents for the guns that could be mounted.
+///
+/// Reference: `vehicles::parts::finalize` (`src/veh_type.cpp:565-640`). This is why a port that only reads the `vehicle_part` entries has 462 parts where the
+/// reference has 701: the missing 239 are never written down, they are made from the guns.
+#[must_use]
+pub fn turret_parts(items: &[crate::items::ItemType]) -> Vec<String> {
+    let mut parts: Vec<String> = items
+        .iter()
+        .filter(|item| item.is_gun && !item.is_gunmod)
+        .filter(|item| !NOT_MOUNTABLE.iter().any(|flag| item.flags.contains(*flag)))
+        .map(|item| format!("turret_{}", item.id))
+        .collect();
+    parts.sort();
+    parts
+}
+
 fn ids_of(object: &Object, key: &str) -> Result<Vec<String>, String> {
     let Some(Value::Array(entries)) = object.get(key) else {
         return Err(format!("the dump has no {key} array"));

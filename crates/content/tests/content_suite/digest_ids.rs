@@ -172,6 +172,33 @@ fn thirty_six_registries_hold_exactly_the_ids_the_reference_holds() {
 
 #[allow(clippy::expect_used)]
 #[test]
+fn the_vehicle_parts_are_the_ones_written_plus_the_turrets_the_guns_earn() {
+    // The one registry in the ninety that the id-set rule cannot finish on its own: `vehicle_part` holds 462 entries that data files write and 239 that the
+    // reference invents from the guns at finalisation (`veh_type.cpp:565-640`). Both halves have to be there for the digest to match, which is what makes this
+    // the first gate in the corpus that depends on a rule rather than on a file.
+    let mut ids: BTreeSet<String> = BTreeSet::new();
+    let vehicles = crate::corpus::vehicles_dump_loaded();
+    ids.extend(vehicles.parts.iter().cloned());
+    let turrets = cdda_content::vehicles::turret_parts(&crate::corpus::items_loaded());
+    let mut invented = 0;
+    for part in turrets {
+        if ids.insert(part) {
+            invented += 1;
+        }
+    }
+    assert_eq!(invented, 0, "the dump already lists the turret parts");
+    assert_eq!(ids.len(), 701, "the reference's own part registry");
+    assert_eq!(
+        cdda_content::digest::digest_hex(cdda_content::digest::digest_ids(
+            ids.iter().map(String::as_str)
+        )),
+        *digests().get("vehicle_part").expect("vehicle part digest"),
+        "vehicle part ids"
+    );
+}
+
+#[allow(clippy::expect_used)]
+#[test]
 fn an_abstract_registers_nothing_and_a_type_name_can_differ_from_its_registry() {
     // The two wrinkles, on a document small enough to read. `mutation` is the registry the game calls `trait`, and an entry with `abstract` exists only to be
     // copied from.
