@@ -21,8 +21,8 @@ impl FireMap for Quiet {
     fn can_burn(&self, _square: (i32, i32, i32)) -> bool {
         false
     }
-    fn time_added(&self, _square: (i32, i32, i32)) -> i64 {
-        0
+    fn ground(&self, _square: (i32, i32, i32)) -> cdda_core_types::fire::Ground {
+        cdda_core_types::fire::Ground::Inert
     }
     fn can_spread(&self, _square: (i32, i32, i32)) -> bool {
         false

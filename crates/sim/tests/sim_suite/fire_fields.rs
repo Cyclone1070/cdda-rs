@@ -17,7 +17,7 @@ use cdda_sim::{FIRE, Field, FireMap, Position, process_fires};
 struct FlatMap {
     adjacent_fires: i32,
     can_burn: bool,
-    time_added: i64,
+    ground: cdda_core_types::fire::Ground,
     can_spread: bool,
     neighbour: Neighbour,
     suppress_smoke: bool,
@@ -31,8 +31,8 @@ impl FireMap for FlatMap {
     fn can_burn(&self, _square: (i32, i32, i32)) -> bool {
         self.can_burn
     }
-    fn time_added(&self, _square: (i32, i32, i32)) -> i64 {
-        self.time_added
+    fn ground(&self, _square: (i32, i32, i32)) -> cdda_core_types::fire::Ground {
+        self.ground
     }
     fn can_spread(&self, _square: (i32, i32, i32)) -> bool {
         self.can_spread
@@ -73,7 +73,7 @@ fn a_fed_fire_with_neighbours_grows() {
         &FlatMap {
             adjacent_fires: 7,
             can_burn: true,
-            time_added: 0,
+            ground: cdda_core_types::fire::Ground::Inert,
             can_spread: true,
             neighbour: Neighbour::default(),
             ..FlatMap::default()
@@ -101,7 +101,7 @@ fn a_fire_with_nothing_to_burn_ages_toward_death() {
         &FlatMap {
             adjacent_fires: 0,
             can_burn: true,
-            time_added: 0,
+            ground: cdda_core_types::fire::Ground::Inert,
             can_spread: true,
             neighbour: Neighbour::default(),
             ..FlatMap::default()
@@ -120,16 +120,16 @@ fn a_fire_with_nothing_to_burn_ages_toward_death() {
 
 #[test]
 fn a_fire_that_ate_this_turn_spends_what_it_ate() {
-    // What the fire consumed arrives as turns of fuel, and it is credited before the growth test: two hours of fuel both pays for the
-    // level it climbs and leaves the fire longer-lived than it was.
+    // The ground's contribution is `5 - intensity` turns on `FLAMMABLE`, credited **before** the growth test, and it costs no die: the young fire was four
+    // turns short of the map and the ground gives it exactly that, so it is neither fuelled enough to grow nor any worse off than it started.
     let mut world = World::new();
-    let entity = fire_at(&mut world, 5, 5, 1, -10);
+    let entity = fire_at(&mut world, 5, 5, 1, -4);
     process_fires(
         &mut world,
         &FlatMap {
             adjacent_fires: 0,
             can_burn: true,
-            time_added: 7_200,
+            ground: cdda_core_types::fire::Ground::Flammable,
             can_spread: true,
             neighbour: Neighbour::default(),
             ..FlatMap::default()
@@ -139,15 +139,11 @@ fn a_fire_that_ate_this_turn_spends_what_it_ate() {
     );
     let field = world.get::<Field>(entity).expect("the fire");
     assert_eq!(
-        field.entry.intensity(),
-        2,
-        "an hour of fuel reaches the cap on fuel alone"
+        field.entry.age(),
+        -8,
+        "four turns eaten, four turns of fuel banked"
     );
-    assert!(
-        field.entry.age() < 0,
-        "and it is still fuelled: {}",
-        field.entry.age()
-    );
+    assert_eq!(field.entry.intensity(), 1, "and not enough fuel to grow");
 }
 
 #[test]
@@ -174,7 +170,7 @@ fn a_fire_that_is_already_out_is_taken_off_the_store() {
         &FlatMap {
             adjacent_fires: 0,
             can_burn: false,
-            time_added: 0,
+            ground: cdda_core_types::fire::Ground::Inert,
             can_spread: true,
             neighbour: Neighbour::default(),
             ..FlatMap::default()
@@ -206,7 +202,7 @@ fn a_field_that_is_not_fire_is_left_alone() {
         &FlatMap {
             adjacent_fires: 9,
             can_burn: true,
-            time_added: 5_000,
+            ground: cdda_core_types::fire::Ground::Flammable,
             can_spread: true,
             neighbour: Neighbour::default(),
             ..FlatMap::default()

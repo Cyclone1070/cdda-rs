@@ -14,7 +14,7 @@
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::FieldEntry;
 use cdda_core_types::fire::Neighbour;
-use cdda_core_types::rng::Rolls;
+use cdda_core_types::rng::{Recording, Rolls};
 use cdda_json::{Value, parse};
 use cdda_sim::{FIRE, Field, FireMap, Position, process_fires};
 
@@ -74,12 +74,8 @@ fn trace() -> Vec<Row> {
     rows
 }
 
-/// A map that answers for `t_floor` on the turns the trace says the ground fed the fire.
-struct Floor {
-    /// Turns on which the ground fed the fire - `FLAMMABLE_HARD` and `one_in( 3 )` succeeded, which the trace shows as an age that went down.
-    feeding_turn: Option<i64>,
-    turn: i64,
-}
+/// A map that answers for `t_floor`: hard ground, no fires beside it, smoke suppressed so the only dice are the fuel's and hot air's.
+struct Floor;
 
 impl FireMap for Floor {
     fn adjacent_fires(&self, _square: (i32, i32, i32)) -> i32 {
@@ -88,13 +84,10 @@ impl FireMap for Floor {
     fn can_burn(&self, _square: (i32, i32, i32)) -> bool {
         true
     }
-    fn time_added(&self, _square: (i32, i32, i32)) -> i64 {
-        if Some(self.turn) == self.feeding_turn {
-            // `time_added += 1_turns * ( 4 - intensity )` at intensity two.
-            2
-        } else {
-            0
-        }
+    fn ground(&self, _square: (i32, i32, i32)) -> cdda_core_types::fire::Ground {
+        // `t_floor` is `FLAMMABLE_HARD` (`corpus/fields/README.md`), so the ground asks `one_in( 3 )` every turn and the recording answers: three dice of
+        // "no" and one of "yes". Which turns those are is not this double's business - the dice decide, which is the point.
+        cdda_core_types::fire::Ground::FlammableHard
     }
     fn can_spread(&self, _square: (i32, i32, i32)) -> bool {
         false
@@ -134,17 +127,20 @@ fn the_port_reproduces_the_reference_turn_for_turn() {
         ))
         .id();
 
+    // The reference's own dice for this session: three dry turns and one that fed, the order it rolled them (`corpus/fields/fire-floor.rolls.txt`, sliced
+    // down to the fuel phases). Replaying them is what makes this a parity test rather than an arithmetic one - with invented dice the age would depend on
+    // which die I had drawn.
+    // The decisions are the reference's - three dry turns and the fourth fed, then the bash die it asks afterwards - and each turn's hot-air gate is added
+    // because the port asks it too (the map has no fires beside it, so the gate is `rng( 0, 4 )`). Supplying only the fuel dice would desynchronise the
+    // stream at the first hot-air question, which is exactly the failure this arrangement makes visible.
+    let mut fuel = Rolls::replaying(
+        Recording::parse(
+            "int 0 2 1\nint 0 4 0\nint 0 2 1\nint 0 4 0\nint 0 2 0\nint 0 99 11\nint 0 4 0\nint 0 2 1\nint 0 4 0",
+        )
+        .expect("the fuel and hot air dice"),
+    );
     for row in arithmetic.iter().skip(1) {
-        // Row N is the state after processing N, so the feeding turn is the processing whose number is the row's.
-        process_fires(
-            &mut world,
-            &Floor {
-                feeding_turn: Some(4),
-                turn: row.turn,
-            },
-            0,
-            &mut Rolls::new(1),
-        );
+        process_fires(&mut world, &Floor, 0, &mut fuel);
         // The sweep's order, which `process_fires` deliberately does not duplicate: processors first, then the field's own decay.
         {
             let mut field = world

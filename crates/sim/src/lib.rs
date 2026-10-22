@@ -187,8 +187,11 @@ pub trait FireMap {
     fn adjacent_fires(&self, square: (i32, i32, i32)) -> i32;
     /// Whether the ground here can burn.
     fn can_burn(&self, square: (i32, i32, i32)) -> bool;
-    /// How much the fire ate this turn, in turns.
-    fn time_added(&self, square: (i32, i32, i32)) -> i64;
+    /// What the fire is standing on, as far as eating it goes.
+    ///
+    /// The reference reads the terrain and furniture flags here (`map_field.cpp:1050`); the fuel rule that turns those flags into turns of life rolls dice, so it
+    /// belongs to the fire's turn rather than to the map's answers.
+    fn ground(&self, square: (i32, i32, i32)) -> cdda_core_types::fire::Ground;
     /// Whether the fire is somewhere it can spread from, rather than a brazier or an oven.
     fn can_spread(&self, square: (i32, i32, i32)) -> bool;
     /// What one of the eight neighbouring squares looks like.
@@ -292,9 +295,21 @@ impl FireMap for MapFacts {
         self.terrain_at(square).can_burn()
     }
 
-    fn time_added(&self, _square: (i32, i32, i32)) -> i64 {
-        // The fuel arithmetic itself rolls dice, so it belongs to the fire's turn rather than to the map's answers; see `ground_fuel`.
-        0
+    fn ground(&self, square: (i32, i32, i32)) -> cdda_core_types::fire::Ground {
+        let facts = self.terrain_at(square);
+        if facts.fire_container {
+            // A container holds its fire and does not feed it, so as fuel it is nothing at all.
+            return cdda_core_types::fire::Ground::Inert;
+        }
+        if facts.flammable_hard {
+            cdda_core_types::fire::Ground::FlammableHard
+        } else if facts.flammable_ash {
+            cdda_core_types::fire::Ground::FlammableAsh
+        } else if facts.flammable {
+            cdda_core_types::fire::Ground::Flammable
+        } else {
+            cdda_core_types::fire::Ground::Inert
+        }
     }
 
     fn can_spread(&self, square: (i32, i32, i32)) -> bool {
@@ -366,12 +381,14 @@ pub fn process_fires(
         if field.entry.age() == 0 {
             continue;
         }
+        let fuel =
+            cdda_core_types::fire::ground_fuel(map.ground(square), field.entry.intensity(), rolls);
         let turn = cdda_core_types::fire::fire_turn(
             field.entry.age(),
             field.entry.intensity(),
             map.adjacent_fires(square),
             map.can_burn(square),
-            map.time_added(square),
+            fuel.time_added,
         );
         let intensity = turn.intensity;
         let age = turn.age;

@@ -235,9 +235,10 @@ pub fn smoke_from_fire(
 ///
 /// Reference: the four branches of the fuel accounting (`src/map_field.cpp:1050-1104`). They are not interchangeable and they do not all
 /// roll: ordinary flammable ground feeds the fire every turn, hard ground feeds it on a die, and ash-bearing ground feeds it every turn.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum Ground {
     /// Nothing here burns.
+    #[default]
     Inert,
     /// `FLAMMABLE`: feeds every turn, `5 - intensity` turns at a time.
     Flammable,

@@ -116,3 +116,40 @@ fn nearby_fires_are_counted_on_the_fires_own_floor() {
         "two beside it, one upstairs"
     );
 }
+
+#[test]
+fn the_ground_class_comes_from_the_flags_underfoot() {
+    use cdda_core_types::fire::Ground;
+    let mut facts = MapFacts::new();
+    facts.set_terrain((0, 0, 0), facts_of(&terrain("t_dirt", &["FLAMMABLE"])));
+    facts.set_terrain(
+        (1, 0, 0),
+        facts_of(&terrain("t_grass", &["FLAMMABLE", "FLAMMABLE_ASH"])),
+    );
+    facts.set_terrain(
+        (2, 0, 0),
+        facts_of(&terrain("t_floor", &["FLAMMABLE_HARD"])),
+    );
+    facts.set_terrain((3, 0, 0), facts_of(&terrain("t_concrete", &[])));
+    facts.set_terrain(
+        (4, 0, 0),
+        facts_of(&terrain("f_brazier", &["FLAMMABLE", "FIRE_CONTAINER"])),
+    );
+    assert_eq!(facts.ground((0, 0, 0)), Ground::Flammable);
+    assert_eq!(
+        facts.ground((1, 0, 0)),
+        Ground::FlammableAsh,
+        "ash-bearing ground is its own branch"
+    );
+    assert_eq!(
+        facts.ground((2, 0, 0)),
+        Ground::FlammableHard,
+        "hard ground feeds on a die"
+    );
+    assert_eq!(facts.ground((3, 0, 0)), Ground::Inert);
+    assert_eq!(
+        facts.ground((4, 0, 0)),
+        Ground::Inert,
+        "a container feeds nothing"
+    );
+}

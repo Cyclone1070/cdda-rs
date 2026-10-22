@@ -406,6 +406,22 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The fuel rule moves into the fire's turn (round 323)
+
+`FireMap::time_added` is gone. It was a value handed to the fire chain by whoever built the map, which made the one thing the fuel rule is - *a die* - invisible.
+The trait now answers `ground( square ) -> Ground`, the four branches the reference distinguishes, and `process_fires` runs `ground_fuel` itself, in the
+reference's place and order: hard ground asks `one_in( 3 )` first, then, only if it fed, `one_in( 200 - intensity x 50 )`.
+
+**The session test got stricter in the process.** It used to supply fuel as a number and replay the trace's ages with invented dice. It now supplies a
+recording of the reference's **decisions** - three dry turns, the fourth fed, then the bash die - plus each turn's hot-air gate, because the port asks that
+question too, and a stream that omits it desynchronises at the first hot-air question. That failure is the reason the gate is in the recording rather than
+left out: it is what the replay is for.
+
+**Two expectations of mine were wrong, and both were sign errors about what fuel means.** A fire at age `-4` that eats four turns is at `-8`, not `0`:
+negative age is fuel banked, which is the same convention the newborn-fire fix of round 310 turned on. And a `FLAMMABLE` ground gives `5 - intensity` turns
+where `FLAMMABLE_HARD` gives `4 - intensity`, so the fixture's `+2` at intensity two can only come from the hard branch - which is why the session's ground is
+now `t_floor`'s real class instead of a convenient one.
+
 ## A fire reading a real map (round 322)
 
 Every answer the fire chain had been receiving from a test double now has a real source. `TerrainFacts` carries the six flags the reference asks about -

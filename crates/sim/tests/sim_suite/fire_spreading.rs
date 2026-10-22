@@ -17,7 +17,7 @@ use cdda_sim::{FIRE, Field, FireMap, Position, process_fires};
 struct FlatMap {
     adjacent_fires: i32,
     can_burn: bool,
-    time_added: i64,
+    ground: cdda_core_types::fire::Ground,
     can_spread: bool,
     neighbour: Neighbour,
     suppress_smoke: bool,
@@ -31,8 +31,8 @@ impl FireMap for FlatMap {
     fn can_burn(&self, _square: (i32, i32, i32)) -> bool {
         self.can_burn
     }
-    fn time_added(&self, _square: (i32, i32, i32)) -> i64 {
-        self.time_added
+    fn ground(&self, _square: (i32, i32, i32)) -> cdda_core_types::fire::Ground {
+        self.ground
     }
     fn can_spread(&self, _square: (i32, i32, i32)) -> bool {
         self.can_spread
@@ -84,7 +84,7 @@ fn a_spreading_fire_leaves_a_weak_fuelled_fire_behind() {
             &FlatMap {
                 adjacent_fires: 0,
                 can_burn: true,
-                time_added: 0,
+                ground: cdda_core_types::fire::Ground::Inert,
                 can_spread: true,
                 neighbour: ground(),
                 ..FlatMap::default()
@@ -125,7 +125,7 @@ fn a_contained_fire_leaves_no_new_fire() {
             &FlatMap {
                 adjacent_fires: 0,
                 can_burn: false,
-                time_added: 0,
+                ground: cdda_core_types::fire::Ground::Inert,
                 can_spread: false,
                 neighbour: ground(),
                 ..FlatMap::default()
@@ -154,7 +154,7 @@ fn the_spreading_fire_spends_a_minute_of_its_own_life() {
             &FlatMap {
                 adjacent_fires: 0,
                 can_burn: true,
-                time_added: 0,
+                ground: cdda_core_types::fire::Ground::Inert,
                 can_spread: true,
                 neighbour: ground(),
                 ..FlatMap::default()
@@ -192,7 +192,7 @@ fn each_new_fire_is_put_on_a_different_square() {
             &FlatMap {
                 adjacent_fires: 0,
                 can_burn: true,
-                time_added: 0,
+                ground: cdda_core_types::fire::Ground::Inert,
                 can_spread: true,
                 neighbour: ground(),
                 ..FlatMap::default()
