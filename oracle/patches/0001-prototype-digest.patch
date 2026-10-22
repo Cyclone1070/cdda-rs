@@ -129,8 +129,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-23 00:51:11
-@@ -0,0 +1,1213 @@
++++ oracle/src/src/harness.cpp	2026-10-23 01:11:48
+@@ -0,0 +1,1217 @@
 +#include "harness.h"
 +#include "recipe_dictionary.h"
 +#include "requirements.h"
@@ -1228,7 +1228,11 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        return;
 +    }
 +    g->harness_map().add_field( fire, fd_fire, intensity, 0_turns, false );
-+    std::fprintf( out, "{\"harness\":\"field-series\",\"version\":1,\"radius\":%d,\"turns\":[\n", radius );
++    // Where in the reference's dice stream the session begins. `CDDA_RNG_TRACE` records every draw the whole run makes,
++    // world generation included, so a replay needs the offset to slice its own dice out of that file.
++    std::fprintf( out,
++                  "{\"harness\":\"field-series\",\"version\":1,\"radius\":%d,\"draw_start\":%llu,\"turns\":[\n",
++                  radius, rng_draws_so_far() );
 +    const tripoint_bub_ms center = get_avatar().pos_bub();
 +    for( int turn = 0; turn <= turns; turn++ ) {
 +        std::fprintf( out, "%s{\"turn\":%d,\"fields\":[", turn == 0 ? "" : ",\n", turn );
@@ -2217,6 +2221,79 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
          if( cli.verifyexit ) {
              exit_handler( 0 );
          }
+diff -ruN references/Cataclysm-DDA/src/map_field.cpp oracle/src/src/map_field.cpp
+--- references/Cataclysm-DDA/src/map_field.cpp	2026-10-19 18:15:04
++++ oracle/src/src/map_field.cpp	2026-10-23 01:26:39
+@@ -950,6 +950,9 @@
+     const oter_id om_ter = pd.om_ter;
+ 
+     cur.set_field_age( std::max( -24_hours, cur.get_field_age() ) );
++#ifdef CATA_HARNESS
++    rng_mark( "fire.begin" );
++#endif
+     // Entire objects for ter/frn for flags
+     bool sheltered = g->is_sheltered( p );
+     weather_manager &weather = get_weather();
+@@ -974,6 +977,9 @@
+     // they're fully contained, so skip consuming terrain
+     const bool can_burn = ( ter.is_flammable() || frn.is_flammable() ) &&
+                           !ter_furn_has_flag( ter, frn, ter_furn_flag::TFLAG_FIRE_CONTAINER );
++#ifdef CATA_HARNESS
++    rng_mark( "fire.terrain_read" );
++#endif
+     // The huge indent below should probably be somehow moved away from here
+     // without forcing the function to use i_at( p ) for fires without items
+     if( !is_sealed && map_tile.get_item_count() > 0 ) {
+@@ -1041,6 +1047,9 @@
+         veh->damage( here, part, cur.get_field_intensity() * 10, damage_heat, true );
+         // Damage the vehicle in the fire.
+     }
++#ifdef CATA_HARNESS
++    rng_mark( "fire.before_fuel" );
++#endif
+     if( can_burn ) {
+         if( ter.has_flag( ter_furn_flag::TFLAG_SWIMMABLE ) ) {
+             // Flames die quickly on water
+@@ -1121,6 +1130,9 @@
+             }
+         }
+     }
++#ifdef CATA_HARNESS
++    rng_mark( "fire.fuelled" );
++#endif
+     // Lower age is a longer lasting fire
+     if( time_added != 0_turns ) {
+         cur.set_field_age( cur.get_field_age() - time_added );
+@@ -1131,6 +1143,9 @@
+         cur.mod_field_age( 10_seconds * cur.get_field_intensity() );
+     }
+ 
++#ifdef CATA_HARNESS
++    rng_mark( "fire.before_spread" );
++#endif
+     // Below we will access our nearest 8 neighbors, so let's cache them now
+     // This should probably be done more globally, because large fires will re-do it a lot
+     auto neighs = here.get_neighbors( p );
+@@ -1397,6 +1412,9 @@
+             }
+         }
+     }
++#ifdef CATA_HARNESS
++    rng_mark( "fire.before_smoke" );
++#endif
+     // Create smoke once - above us if possible, at us otherwise
+     if( !ter_furn_has_flag( ter, frn, ter_furn_flag::TFLAG_SUPPRESS_SMOKE ) &&
+         rng( 0, 100 - windpower ) <= smoke &&
+@@ -1418,6 +1436,9 @@
+         }
+     }
+ 
++#ifdef CATA_HARNESS
++    rng_mark( "fire.before_hot_air" );
++#endif
+     // Hot air is a load on the CPU
+     // Don't produce too much of it if we have a lot fires nearby, they produce
+     // radiant heat which does what hot air would do anyway
 diff -ruN references/Cataclysm-DDA/src/mapdata.cpp oracle/src/src/mapdata.cpp
 --- references/Cataclysm-DDA/src/mapdata.cpp	2026-10-19 18:15:04
 +++ oracle/src/src/mapdata.cpp	2026-10-21 06:53:22
@@ -2502,7 +2579,7 @@ diff -ruN references/Cataclysm-DDA/src/prefix.h oracle/src/src/prefix.h
 +#define PREFIX "/usr/local"
 diff -ruN references/Cataclysm-DDA/src/rng.cpp oracle/src/src/rng.cpp
 --- references/Cataclysm-DDA/src/rng.cpp	2026-10-19 18:15:05
-+++ oracle/src/src/rng.cpp	2026-10-22 20:24:05
++++ oracle/src/src/rng.cpp	2026-10-23 01:13:17
 @@ -3,6 +3,8 @@
  #include <algorithm>
  #include <chrono>
@@ -2512,7 +2589,7 @@ diff -ruN references/Cataclysm-DDA/src/rng.cpp oracle/src/src/rng.cpp
  
  #include "calendar.h"
  #include "cata_assert.h"
-@@ -10,11 +12,49 @@
+@@ -10,11 +12,58 @@
  #include "debug.h"
  #include "units.h"
  
@@ -2544,6 +2621,15 @@ diff -ruN references/Cataclysm-DDA/src/rng.cpp oracle/src/src/rng.cpp
 +
 +} // namespace
 +
++// A label in the dice trace, so a replay can tell which draws belong to which rule. It writes only when a recording is armed, and
++// it changes no draw: the label is a line in a file, not a roll.
++void rng_mark( const char *label )
++{
++    if( recording() ) {
++        rng_trace() << "mark " << label << '\n';
++    }
++}
++
 +unsigned long long rng_draws_so_far()
 +{
 +    return draw_count;
@@ -2563,7 +2649,7 @@ diff -ruN references/Cataclysm-DDA/src/rng.cpp oracle/src/src/rng.cpp
  }
  
  int rng( int lo, int hi )
-@@ -23,7 +63,13 @@
+@@ -23,7 +72,13 @@
      if( lo > hi ) {
          std::swap( lo, hi );
      }
@@ -2580,14 +2666,17 @@ diff -ruN references/Cataclysm-DDA/src/rng.cpp oracle/src/src/rng.cpp
  double rng_float( double lo, double hi )
 diff -ruN references/Cataclysm-DDA/src/rng.h oracle/src/src/rng.h
 --- references/Cataclysm-DDA/src/rng.h	2026-10-19 18:15:05
-+++ oracle/src/src/rng.h	2026-10-22 20:24:05
-@@ -32,6 +32,10 @@
++++ oracle/src/src/rng.h	2026-10-23 01:13:17
+@@ -32,6 +32,13 @@
  cata_default_random_engine &rng_get_engine();
  unsigned int rng_bits();
  
 +// How many dice have been rolled since the process started. With CDDA_RNG_TRACE writing every draw in order, this is the
 +// index of the next one - which is what lets a record say *which* die produced it instead of leaving the port to guess.
 +unsigned long long rng_draws_so_far();
++
++/** Writes a label into the dice trace, so a replay can tell which rule rolled what. */
++void rng_mark( const char *label );
 +
  int rng( int lo, int hi );
  double rng_float( double lo, double hi );

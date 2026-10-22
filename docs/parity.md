@@ -406,6 +406,23 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The reference's dice, labelled (round 311)
+
+The oracle now **labels its own dice**. `rng_mark( "fire.before_fuel" )` and its four siblings write a line into the `CDDA_RNG_TRACE` file at the boundaries
+of the fire processor, and the session dump records `draw_start` - the draw counter when the session began - so the session's dice can be sliced out of a
+file that also holds three and a half million draws of world generation. Both are checked in: `corpus/fields/fire-floor.rolls.txt` is 277 lines and
+`core_types_suite/fire_ground.rs` reads it.
+
+**What the labels settled.** The fuel accounting asks `one_in( 3 )` on hard ground and then, *only if the ground fed*, asks `one_in( 200 - intensity x 50 )`
+about bashing it. The trace proves the order: the feeding turn shows `int 0 2 0` followed by `int 0 99 11`, and the three dry turns show a single
+`int 0 2 1` each. `ground_fuel` now performs exactly that, and the test asserts the port **asks for the same dice in the same order** and leaves none
+unplayed - which is a different claim from "gets the same answer", and a stronger one.
+
+**What the trace also showed, and what it costs to ignore.** The first processor run per session is preceded by two `rng( 1, 1 )` draws from the sweep
+itself, and creating hot air rolls dozens of dice through `emit`. A port that implements the fire rules but not those will diverge from the reference at
+the first hot air, no matter how right its fire is. That is not a reason to stop: it is the reason the trace exists, and the next gap is now named
+precisely rather than felt as a vague worry.
+
 ## The port replays the reference's fire, and the fixture found a rule I had missed (round 310)
 
 `field_session.rs` reads `corpus/fields/fire-floor.json` and replays it: for each of the five turns it feeds the port the fuel the reference's trace

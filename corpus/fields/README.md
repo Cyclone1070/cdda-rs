@@ -42,3 +42,27 @@ minutes old, which is what makes it weak. The port had that sign inverted until 
 
 That single downward step is the whole reason this file exists. An age that goes **down** while nothing is being extinguished looks like a
 bug in a port; it is the reference feeding on the ground. A test that only checked "the fire ages" would have passed with the wrong rule.
+
+## `fire-floor.rolls.txt`: the dice that made it
+
+Run the same command with `CDDA_RNG_TRACE` set and the reference writes every die it rolls:
+
+```sh
+CDDA_RNG_TRACE=/tmp/rolls.txt oracle/build/src/cataclysm ... (same arguments as above)
+```
+
+The session JSON carries `draw_start`: the reference's draw counter when the session began. Everything after that line in the trace is the
+session's own dice, and it is checked in here as `fire-floor.rolls.txt`. The file also contains **marks** - `mark fire.before_fuel`,
+`mark fire.fuelled`, and so on - written by the fire processor itself (`rng_mark`), so the dice can be attributed to a rule rather than guessed at.
+
+That is what makes dice parity testable. `core_types_suite/fire_ground.rs` reads the four `fire.before_fuel` phases and asserts that the port's
+`ground_fuel` asks for **exactly those dice, in exactly that order**, and reaches the reference's answer:
+
+| Turn | Recorded draws | What they are | Result |
+|---|---|---|---|
+1 | `int 0 2 1` | `one_in( 3 )` failed | no fuel |
+2 | `int 0 2 1` | failed | no fuel |
+3 | `int 0 2 0`, `int 0 99 11` | `one_in( 3 )` fed, then `one_in( 100 )` for bashing | two turns of fuel, no bash |
+4 | `int 0 2 1` | failed | no fuel |
+
+The order is the point: a port that rolled the bash die first would shift every later draw in the turn.

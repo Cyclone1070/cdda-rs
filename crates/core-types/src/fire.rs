@@ -230,3 +230,61 @@ pub fn smoke_from_fire(
         intensity,
     })
 }
+
+/// What the fire is standing on, as far as eating it goes.
+///
+/// Reference: the four branches of the fuel accounting (`src/map_field.cpp:1050-1104`). They are not interchangeable and they do not all
+/// roll: ordinary flammable ground feeds the fire every turn, hard ground feeds it on a die, and ash-bearing ground feeds it every turn.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Ground {
+    /// Nothing here burns.
+    Inert,
+    /// `FLAMMABLE`: feeds every turn, `5 - intensity` turns at a time.
+    Flammable,
+    /// `FLAMMABLE_ASH`: the same, and leaves ash behind.
+    FlammableAsh,
+    /// `FLAMMABLE_HARD`: feeds on `one_in( 3 )`, `4 - intensity` turns at a time.
+    FlammableHard,
+}
+
+/// What one turn of burning the ground did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GroundFuel {
+    /// Turns of life the ground gave, to be **subtracted** from the fire's age.
+    pub time_added: i64,
+    /// Whether the fire bashed the ground out from under itself this turn.
+    pub bashed: bool,
+}
+
+/// One turn of the fire eating the ground it stands on.
+///
+/// Reference: `src/map_field.cpp:1050-1104`. The **order of the two dice is the rule**: `FLAMMABLE_HARD` asks `one_in( 3 )` first and only
+/// then, if the ground did feed, asks `one_in( 200 - intensity * 50 )` about bashing it. A port that rolled the bash die first would shift every
+/// later draw in the turn by one, and the reference's own dice trace shows exactly this order - `int 0 2 0` followed by `int 0 99 11` on the turn
+/// the ground fed, and a single `int 0 2 1` on the turns it did not.
+#[must_use]
+pub fn ground_fuel(ground: Ground, intensity: i32, rolls: &mut crate::rng::Rolls) -> GroundFuel {
+    let mut fuel = GroundFuel {
+        time_added: 0,
+        bashed: false,
+    };
+    let fed = match ground {
+        Ground::Inert => return fuel,
+        Ground::Flammable | Ground::FlammableAsh => {
+            fuel.time_added = i64::from(5 - intensity);
+            true
+        }
+        Ground::FlammableHard => {
+            if rolls.one_in(3) {
+                fuel.time_added = i64::from(4 - intensity);
+                true
+            } else {
+                false
+            }
+        }
+    };
+    if fed && intensity > 1 && rolls.one_in(200 - intensity * 50) {
+        fuel.bashed = true;
+    }
+    fuel
+}
