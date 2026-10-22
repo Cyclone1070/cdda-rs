@@ -1,6 +1,6 @@
 //! Buildings beside streets: which square, and which way they face.
 
-#![allow(clippy::panic)]
+#![allow(clippy::panic, clippy::expect_used)]
 
 use cdda_core_types::overmap::{
     BUILDING_CHANCE, Direction, Overmap, building_site, plan_buildings,
