@@ -6,7 +6,7 @@
 
 #![allow(clippy::panic, clippy::expect_used)]
 
-use cdda_core_types::fire::{dying_out_cost, growth_cap, growth_cost, spread_chance};
+use cdda_core_types::fire::{dying_out_cost, fire_turn, growth_cap, growth_cost, spread_chance};
 
 #[test]
 fn a_lone_fire_can_only_reach_intensity_one() {
@@ -44,17 +44,25 @@ fn a_raging_fire_needs_more_than_five_hundred_minutes_of_fuel() {
 #[test]
 fn growing_costs_ten_minutes_per_level_of_the_new_intensity() {
     // `cur.set_field_age( age + 10_minutes * cur.get_field_intensity() )` is evaluated **after** the intensity rises, so growing to three
-    // costs thirty minutes and not twenty.
-    assert_eq!(growth_cost(2), 20, "growing to two costs twenty minutes");
-    assert_eq!(growth_cost(3), 30, "growing to three costs thirty");
+    // costs thirty minutes and not twenty. The port counts in **turns**, and a turn is a second: ten minutes is six hundred of them.
+    assert_eq!(
+        growth_cost(2),
+        1_200,
+        "growing to two costs twenty minutes, which is twelve hundred turns"
+    );
+    assert_eq!(growth_cost(3), 1_800, "growing to three costs thirty");
 }
 
 #[test]
 fn a_fire_with_nothing_to_burn_dies_ten_seconds_per_level() {
-    // `cur.mod_field_age( 10_seconds * cur.get_field_intensity() )` - a bigger fire drains faster, which is what stops a bonfire raging
-    // forever over bare stone.
-    assert_eq!(dying_out_cost(1), 10);
+    // `cur.mod_field_age( 10_seconds * cur.get_field_intensity() )` - **ten seconds**, not ten minutes. My first version of this function
+    // documented it as minutes while returning the second count, a factor of sixty out; the test now states the unit and the number.
+    assert_eq!(dying_out_cost(1), 10, "ten seconds, which is ten turns");
     assert_eq!(dying_out_cost(3), 30);
+    assert!(
+        dying_out_cost(3) * 60 <= growth_cost(3),
+        "dying is far slower than growing spends"
+    );
 }
 
 #[test]
@@ -74,4 +82,60 @@ fn a_fire_spreads_more_eagerly_the_bigger_it_is_and_eagerly_onto_a_web() {
         "fifty plus half of twenty-five, truncated"
     );
     assert_eq!(spread_chance(3, true), 75);
+}
+
+#[test]
+fn a_fire_with_fuel_and_nowhere_to_grow_stays_as_it_is() {
+    // Age is fuel, and fuel alone is not enough: with no neighbours the cap is one, so a fire already at one cannot grow no matter how
+    // much it has left. It keeps the fuel it had.
+    // Ten turns of fuel: under fifty minutes, so the cap is one and a fire at one stays there. My first version of this test used ten
+    // thousand turns, which is over five hundred minutes and reaches three on fuel alone - the case below, not this one.
+    let turn = fire_turn(-10, 1, 0, true, 0);
+    assert!(!turn.grew);
+    assert_eq!(turn.intensity, 1);
+}
+
+#[test]
+fn a_fire_with_fuel_and_neighbours_grows_and_pays_for_it() {
+    // Seven neighbours make the cap three, so a fire at one with fuel climbs a level and spends twenty minutes doing it.
+    let turn = fire_turn(-10_000, 1, 7, true, 0);
+    assert!(turn.grew);
+    assert_eq!(turn.intensity, 2);
+    // Twenty minutes paid to grow - and ten turns lost first, because a fire standing on something that can burn ages by ten seconds a
+    // level when it consumed nothing this turn. I had written the growth cost alone and the code charged both, which is the reference's
+    // order: the fuel accounting comes before the growth.
+    assert_eq!(
+        turn.age,
+        -10_000 + 10 + 1_200,
+        "ten turns lost, then twenty minutes paid"
+    );
+}
+
+#[test]
+fn burning_fuel_first_lets_a_fire_grow_in_the_same_turn() {
+    // The order matters: what the fire ate this turn is credited *before* the growth test, so a fire that consumed enough becomes hot
+    // enough in the same turn rather than the next one.
+    let cold = fire_turn(-10, 2, 0, true, 0);
+    assert!(!cold.grew, "ten turns of fuel is not fifty minutes");
+    let fed = fire_turn(-10, 2, 0, true, 3_600);
+    assert!(fed.grew, "an hour of fuel in one turn is plenty");
+    assert_eq!(
+        fed.intensity, 3,
+        "and seven neighbours are not needed for three, the fuel alone does it"
+    );
+}
+
+#[test]
+fn a_fire_on_nothing_loses_ten_seconds_a_level() {
+    let turn = fire_turn(0, 2, 0, true, 0);
+    assert_eq!(
+        turn.age, 20,
+        "twenty turns older, one per level per ten seconds"
+    );
+    assert!(!turn.grew);
+    let bare = fire_turn(0, 2, 0, false, 0);
+    assert_eq!(
+        bare.age, 0,
+        "on stone that cannot burn it does not age that way"
+    );
 }

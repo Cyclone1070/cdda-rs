@@ -416,8 +416,12 @@ the part that decides a fire's shape:
 |---|---|---|
 `growth_cap` | `map_field.cpp:1222-1257` | a lone fire reaches **1**; three neighbours reach 2, seven reach 3; more than 500 minutes of fuel reaches 3 on its own; more than 50 minutes reaches 2 |
 `growth_cost` | `:1253` | growing to *n* costs **10 minutes x n**, read after the rise, so growing to three costs thirty and not twenty |
-`dying_out_cost` | `:1131` | a fire with nothing to burn loses **10 minutes per level** a turn, so a raging fire dies faster than a small one |
+`dying_out_cost` | `:1131` | a fire with nothing to burn loses **10 seconds per level** a turn, so a raging fire dies faster than a small one |
 `spread_chance` | `:1308` | `25 x ( intensity - 1 )`, or `50 + chance / 2` onto a web - so intensity one **cannot spread at all** |
+
+**Now ported:** `fire_turn`, the two adjustments in the reference's order (`:1122-1131` then `:1222-1257`) - what the fire ate is credited first, a fire on burnable ground loses ten seconds a level when it ate nothing, and then it grows a level if its age is negative and the cap allows, paying ten minutes a level read after the rise. Ten tests.
+
+**A unit error caught by writing the tests, worth recording because it is the sort that survives review:** my first version of these functions returned the reference's *second* counts while documenting them as **minutes** - a factor of sixty - and the port counts in **turns**, one of which is a second. Two more of my expectations were wrong in the same round and the code was right both times: ten thousand turns of fuel is over five hundred minutes and reaches three on fuel alone, and a fire that grows also pays the ten-turn drain for standing on something burnable.
 
 Six tests, and two of them are the reference's own comments being wrong about its own code: it says "2 for at least 1 neighbor, 3 for at
 least 2 neighbors" where it checks **three** and **seven**, and its worked example calls fifty minutes of fuel "2 (medium)" where the test
