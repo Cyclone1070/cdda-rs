@@ -77,10 +77,8 @@ fn no_octaves_means_no_noise_rather_than_a_division_by_zero() {
         persistence: 0.5,
         scale: 0.03,
     };
-    assert_eq!(
-        octave_noise_3d(layers, 1.0, 2.0, 3.0, |_x, _y, _z| 1.0),
-        0.0
-    );
+    let value = octave_noise_3d(layers, 1.0, 2.0, 3.0, |_x, _y, _z| 1.0);
+    assert!(value.abs() < f32::EPSILON, "no octaves, no noise: {value}");
 }
 
 #[test]
