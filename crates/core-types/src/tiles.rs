@@ -73,20 +73,20 @@ impl<T: Copy + PartialEq> TilePage<T> {
     #[allow(clippy::indexing_slicing)]
     pub fn set(&mut self, x: usize, y: usize, value: T) {
         assert!(x < SIDE && y < SIDE, "cell {x},{y} is outside the page");
+        // Reference: every setter calls `ensure_nonuniform()` first (`submap.h:152-158`). Writing the value a uniform page already holds therefore allocates the
+        // whole page - the reference's rule is "has anything been written", not "do the squares differ". Skipping the allocation here would be a nicer data
+        // structure and a different one, and the difference is invisible until something counts allocated pages or saves a submap.
         if self.dense.is_empty() {
-            if value == self.uniform {
-                return;
-            }
             self.dense = vec![self.uniform; SIDE * SIDE];
         }
         let index = index_of(x, y);
         self.dense[index] = value;
     }
 
-    /// Every value, row by row.
+    /// Every value in the reference's dense order.
     ///
-    /// This is the order the reference's dense array is stored in - `ter[y][x]` -
-    /// so code that walks a page sees the same sequence it would there.
+    /// `maptile_soa` holds `mdarray<T, point_sm_ms>`, and `mdarray_impl_2d` is a `std::array` of columns indexed by **x** (`mdarray.h:45,64`), so the flat order is
+    /// `x * SIDE + y`: every `y` for `x = 0`, then every `y` for `x = 1`. Anything that saves, digests or replays a page has to see that sequence.
     pub fn iter(&self) -> impl Iterator<Item = T> + '_ {
         PageIter {
             page: self,
@@ -95,9 +95,9 @@ impl<T: Copy + PartialEq> TilePage<T> {
     }
 }
 
-/// Where a cell lives in the dense array, row by row (`ter[y][x]`).
+/// Where a cell lives in the dense array: `x` outer, `y` inner, as `mdarray` stores it.
 fn index_of(x: usize, y: usize) -> usize {
-    y * SIDE + x
+    x * SIDE + y
 }
 
 /// Walks a page, answering from the uniform value until the page is dense.

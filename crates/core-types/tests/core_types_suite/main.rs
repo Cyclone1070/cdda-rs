@@ -78,6 +78,7 @@ mod sound_queue;
 mod sound_vertical;
 mod sound_weather;
 mod strings;
+mod submap;
 mod submap_store;
 mod sunlight;
 mod text;

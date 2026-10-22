@@ -59,16 +59,17 @@ fn writing_the_uniform_value_back_does_not_make_it_uniform_again() {
 
 #[allow(clippy::indexing_slicing)]
 #[test]
-fn cells_are_stored_row_by_row() {
-    // The dense array is `ter[y][x]` in the reference, so walking it in order is
-    // walking the rows; anything that iterates a submap relies on that.
+fn cells_are_stored_column_by_column() {
+    // This test used to assert `ter[y][x]` and it was wrong: `maptile_soa` holds `mdarray<T, point_sm_ms>`, and `mdarray_impl_2d` is a `std::array` of columns
+    // indexed by **x** (`mdarray.h:45,64`). So the dense order is `x * SIDE + y`: all twelve `y` for `x = 0`, then all twelve for `x = 1`. Anything that
+    // iterates, saves or digests a submap sees this sequence, so getting it wrong is a transposed world.`
     let mut page = TilePage::new(0);
     page.set(1, 0, 11);
     page.set(0, 1, 22);
     page.set(11, 11, 33);
     let walked: Vec<i32> = page.iter().collect();
     assert_eq!(walked.len(), TILES * TILES);
-    assert_eq!(walked[1], 11);
-    assert_eq!(walked[TILES], 22);
+    assert_eq!(walked[TILES], 11, "(1,0) is a whole column in");
+    assert_eq!(walked[1], 22, "(0,1) is one slot in");
     assert_eq!(walked[TILES * TILES - 1], 33);
 }

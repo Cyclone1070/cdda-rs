@@ -406,6 +406,22 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Two tile rules the port had backwards (round 342)
+
+Porting submap storage meant reading `submap.h` line by line, and the port's `TilePage` disagreed with it twice. Both disagreements were invisible because every
+read and every write went through the same belief:
+
+| Rule | Reference | Port (before) |
+|---|---|---|
+when does a uniform page allocate? | every setter calls `ensure_nonuniform()` **first**, so writing the value it already holds still allocates (`submap.h:152-158`) | skipped the allocation when the value matched - a nicer data structure and a different one |
+what order is the dense array in? | `mdarray<T, point_sm_ms>` is a `std::array` of columns indexed by **x** (`mdarray.h:45,64`), so `x * SIDE + y` | `y * SIDE + x` - the transpose |
+
+The order one is the interesting failure. A transposed SoA reads back correctly through the same transposed index, so nothing complains until something walks the
+page in its own order: a save file, a digest, a replay. The test that caught it sets `(1,0)` and looks for the value twelve slots in.
+
+**The old test was the lie.** `tiles.rs` had a test named `cells_are_stored_row_by_row` asserting the transpose, with a comment citing the reference. The comment
+was wrong: it said `ter[y][x]` while `submap.h:150` says `m->ter[p.x()][p.y()]`. It is now `cells_are_stored_column_by_column`, and its history is written into it.
+
 ## P2 starts with the sizes of the world (round 341)
 
 `--dump-geometry` is the seventh harness dump, and it exists because the map's geometry is the one thing every later system divides by. It states, from the
