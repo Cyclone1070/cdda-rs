@@ -135,7 +135,7 @@ fn the_port_reproduces_the_reference_turn_for_turn() {
     // stream at the first hot-air question, which is exactly the failure this arrangement makes visible.
     let mut fuel = Rolls::replaying(
         Recording::parse(
-            "int 0 2 1\nint 0 4 0\nint 0 2 1\nint 0 4 0\nint 0 2 0\nint 0 99 11\nint 0 4 0\nint 0 2 1\nint 0 4 0",
+            "int 0 2 1\nint 0 7 0\nint 0 4 0\nint 0 2 1\nint 0 7 0\nint 0 4 0\nint 0 2 0\nint 0 99 11\nint 0 7 0\nint 0 4 0\nint 0 2 1\nint 0 7 0\nint 0 4 0",
         )
         .expect("the fuel and hot air dice"),
     );

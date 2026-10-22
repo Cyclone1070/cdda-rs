@@ -406,6 +406,28 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## A whole turn now matches, die for die (round 325)
+
+The ignored test from last round passes, and it took **six** corrections to get there. Each was found by the recording refusing a die, and each was a rule
+the port had wrong or missing:
+
+| # | What the trace said | What was wrong |
+|---|---|---|
+1 | `(0,7)` where the port wanted `(0,2)` | the flashpoint die was not being drawn at all |
+2 | `(0,3)` after the phase | the wind-blocker scan start is drawn **before** the phase, used or not |
+3 | `(0,4)` where the port wanted `(0,3)` | the last spread disjunct draws `one_in( 5 )` **before** asking whether items are there |
+4 | `(0,100)` where the port wanted `(0,4)` | smoke is processed **before** hot air, not after |
+5 | `(0,7)` before the spread loop | the spread loop draws **its own** start; the phase's start is for its own scan |
+6 | age 21 against 22 | the turn is processors **and** the field's own decay, and the test only ran the first half |
+
+**Ported this round:** `spread_phase` - the flashpoint/growth pair behind one `one_in( 3 )`, with the reference's `if / else if` nesting, the five-minute
+transfer between fires, the `10_minutes x intensity` cost of growing, and `adjacent_fires` counted inside whichever branch ran. `Neighbour` gained
+`fire_intensity` and `fire_age` so "weaker or older" can be asked at all, and `MapFacts` now remembers each fire's strength and age rather than just its
+presence.
+
+**Refactor:** `process_fires` had grown to 135 lines; the phase and the spread loop moved into `spread_and_flash`, and its nine arguments into a `Burning`
+value. The function had stopped being one thing, which is the only reason to split it.
+
 ## A whole turn against the recording, and the rule it found (round 324)
 
 `fire_session_parity` does what the last four rounds were building towards: it loads the session's **entire terrain grid** (the dump grew a `"grid"` of all 49

@@ -250,7 +250,7 @@ impl TerrainFacts {
 #[derive(Debug, Clone, Default)]
 pub struct MapFacts {
     terrain: BTreeMap<(i32, i32, i32), TerrainFacts>,
-    fires: std::collections::BTreeSet<(i32, i32, i32)>,
+    fires: BTreeMap<(i32, i32, i32), (i32, i64)>,
 }
 
 impl MapFacts {
@@ -265,9 +265,9 @@ impl MapFacts {
         self.terrain.insert(square, facts);
     }
 
-    /// Records that a square holds a fire, for [`FireMap::adjacent_fires`].
-    pub fn note_fire(&mut self, square: (i32, i32, i32)) {
-        self.fires.insert(square);
+    /// Records that a square holds a fire of this intensity and age, for [`FireMap::adjacent_fires`] and the flashpoint rule.
+    pub fn note_fire(&mut self, square: (i32, i32, i32), intensity: i32, age: i64) {
+        self.fires.insert(square, (intensity, age));
     }
 
     /// What is underfoot, or nothing at all for a square nobody described.
@@ -283,7 +283,7 @@ impl FireMap for MapFacts {
         for (index, _) in EIGHT_NEIGHBOURS.iter().enumerate() {
             if let Some(offset) = EIGHT_NEIGHBOURS.get(index) {
                 let beside = (square.0 + offset.0, square.1 + offset.1, square.2);
-                if self.fires.contains(&beside) {
+                if self.fires.contains_key(&beside) {
                     count += 1;
                 }
             }
@@ -319,8 +319,11 @@ impl FireMap for MapFacts {
 
     fn neighbour(&self, square: (i32, i32, i32)) -> cdda_core_types::fire::Neighbour {
         let facts = self.terrain_at(square);
+        let fire = self.fires.get(&square).copied().unwrap_or((0, 0));
         cdda_core_types::fire::Neighbour {
-            has_fire: self.fires.contains(&square),
+            has_fire: self.fires.contains_key(&square),
+            fire_intensity: fire.0,
+            fire_age: fire.1,
             web: false,
             flammable: facts.flammable || facts.flammable_ash,
             flammable_ash: facts.flammable_ash,
@@ -409,27 +412,17 @@ pub fn process_fires(
                 *slot = map.neighbour((x + offset.0, y + offset.1, z));
             }
         }
-        let caught = if spreads {
-            cdda_core_types::fire::spread_fire(rolls, intensity, spreads, &neighbours)
-        } else {
-            Vec::new()
+        let burning = Burning {
+            entity,
+            square,
+            intensity,
+            age,
+            spreads,
         };
-        let did_spread = !caught.is_empty();
-        for index in caught {
-            if let Some(offset) = EIGHT_NEIGHBOURS.get(index) {
-                newborn.push((x + offset.0, y + offset.1, z));
-            }
-        }
-        if did_spread {
-            // Spreading costs the fire a minute of its own life.
-            if let Some(mut field) = world.get_mut::<Field>(entity) {
-                let spent = field.entry.age() + 60;
-                field.entry.set_age(spent);
-            }
-        }
-        // Then the smoke: above when the square overhead is open, otherwise on the fire itself and thicker. The store carries the floor now; whether the
-        // smoke may rise is still answered "no", because nothing here knows what the ceiling is made of yet.
-        fire_discharge(world, square, intensity, map, windpower, rolls);
+        let adjacent = spread_and_flash(world, &burning, &neighbours, rolls, &mut newborn);
+        // The neighbour count comes from the phase, because that is where the reference counts it: a fire that may not spread never looks, and reports
+        // none.
+        fire_discharge(world, square, intensity, adjacent, map, windpower, rolls);
     }
     for (x, y, z) in newborn {
         // One fire per square: a square that already has one is not re-lit, and a square is a column **and** a floor.
@@ -455,6 +448,100 @@ pub fn process_fires(
             Position { x, y, z },
         ));
     }
+}
+
+/// The spread phase and the spread loop, in the reference's order, for one fire.
+///
+/// Reference: `map_field.cpp:1160-1400`. This is split out of [`process_fires`] only because the whole turn had grown past the point a reader can hold at
+/// once; the order below **is** the rule:
+///
+/// 1. the wind-blocker scan start is drawn even though the port does not model wind blockers - skip it and every later die of the turn is one out;
+/// 2. the flashpoint die, and whichever of its two branches it picks (see [`cdda_core_types::fire::spread_phase`]);
+/// 3. the spread loop, which draws its own start.
+///
+/// Returns the number of neighbouring fires the phase counted, which the smoke and hot air gates use.
+struct Burning {
+    entity: Entity,
+    square: (i32, i32, i32),
+    intensity: i32,
+    age: i64,
+    spreads: bool,
+}
+
+fn spread_and_flash(
+    world: &mut World,
+    fire: &Burning,
+    neighbours: &[cdda_core_types::fire::Neighbour; 8],
+    rolls: &mut cdda_core_types::rng::Rolls,
+    newborn: &mut Vec<(i32, i32, i32)>,
+) -> i32 {
+    let Burning {
+        entity,
+        square,
+        intensity,
+        age,
+        spreads,
+    } = *fire;
+    let (x, y, z) = square;
+    let _wind_scan = rolls.rng(0, 7);
+    let phase = cdda_core_types::fire::spread_phase(intensity, age, spreads, neighbours, rolls);
+    for index in &phase.boosted {
+        if let Some(offset) = EIGHT_NEIGHBOURS.get(*index) {
+            let target = (x + offset.0, y + offset.1, z);
+            let boosted = {
+                let mut query = world.query::<(Entity, &Position, &Field)>();
+                query
+                    .iter(world)
+                    .find(|(_, position, field)| {
+                        (position.x, position.y, position.z) == target && field.id == FIRE
+                    })
+                    .map(|(entity, _, _)| entity)
+            };
+            if let Some(boosted) = boosted
+                && let Some(mut field) = world.get_mut::<Field>(boosted)
+            {
+                // `mod_field_intensity( 1 )` only while it is below two: a fire that is already raging gains nothing but the fuel.
+                let hotter = if field.entry.intensity() < 2 {
+                    field.entry.intensity() + 1
+                } else {
+                    field.entry.intensity()
+                };
+                let fed = field.entry.age() - 5 * 60;
+                field.entry.set_intensity(hotter);
+                field.entry.set_age(fed);
+            }
+        }
+    }
+    if (phase.spent != 0 || phase.grown.is_some())
+        && let Some(mut field) = world.get_mut::<Field>(entity)
+    {
+        if let Some((grown, grown_age)) = phase.grown {
+            field.entry.set_intensity(grown);
+            field.entry.set_age(grown_age);
+        } else {
+            let spent = field.entry.age() + phase.spent;
+            field.entry.set_age(spent);
+        }
+    }
+    let caught = if spreads {
+        cdda_core_types::fire::spread_fire(rolls, intensity, spreads, neighbours)
+    } else {
+        Vec::new()
+    };
+    let did_spread = !caught.is_empty();
+    for index in caught {
+        if let Some(offset) = EIGHT_NEIGHBOURS.get(index) {
+            newborn.push((x + offset.0, y + offset.1, z));
+        }
+    }
+    if did_spread {
+        // Spreading costs the fire a minute of its own life.
+        if let Some(mut field) = world.get_mut::<Field>(entity) {
+            let spent = field.entry.age() + 60;
+            field.entry.set_age(spent);
+        }
+    }
+    phase.adjacent
 }
 
 /// The eight squares around one, in the reference's order.
@@ -1113,20 +1200,13 @@ fn fire_discharge(
     world: &mut World,
     square: (i32, i32, i32),
     intensity: i32,
+    adjacent_fires: i32,
     map: &impl FireMap,
     windpower: i32,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) {
-    if cdda_core_types::fire::wants_hot_air(map.adjacent_fires(square), rolls)
-        && let Some(kind) = cdda_core_types::fire::hot_air_field(intensity)
-        && let Some(hot_air) = hot_air_id(kind)
-    {
-        for (dx, dy) in cdda_core_types::fire::hot_air_squares(rolls) {
-            add_field_strength(world, (square.0 + dx, square.1 + dy, square.2), hot_air, 1);
-        }
-    }
-    // Smoke rises when the square overhead is open, and settles where it was made otherwise (`map_field.cpp:1417-1432`). Whether it is open is the map's
-    // answer, not the fire's.
+    // **Smoke first** (`map_field.cpp:1407`), then hot air (`:1429`). I had these the other way round and the recording caught it: the port asked the
+    // hot-air gate where the reference asked the smoke gate, one draw after the spread loop.
     if let Some(smoke) = cdda_core_types::fire::smoke_from_fire(
         rolls,
         intensity,
@@ -1139,6 +1219,14 @@ fn fire_discharge(
     ) {
         let floor = if smoke.up { square.2 + 1 } else { square.2 };
         add_field_strength(world, (square.0, square.1, floor), SMOKE, smoke.intensity);
+    }
+    if cdda_core_types::fire::wants_hot_air(adjacent_fires, rolls)
+        && let Some(kind) = cdda_core_types::fire::hot_air_field(intensity)
+        && let Some(hot_air) = hot_air_id(kind)
+    {
+        for (dx, dy) in cdda_core_types::fire::hot_air_squares(rolls) {
+            add_field_strength(world, (square.0 + dx, square.1 + dy, square.2), hot_air, 1);
+        }
     }
 }
 

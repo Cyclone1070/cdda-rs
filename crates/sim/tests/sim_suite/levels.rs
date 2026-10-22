@@ -334,7 +334,8 @@ fn smoke_rises_through_an_open_floor() {
     // `has_flag_ter( TFLAG_NO_FLOOR, up )` is true, so the smoke goes to the square overhead with `rng( 1, intensity )` of thickness.
     let mut world = burning_room();
     let mut rolls = Rolls::replaying(
-        Recording::parse("int 0 100 1\nint 3 35 5\nint 1 3 2").expect("a recording"),
+        Recording::parse("int 0 7 0\nint 0 100 1\nint 3 35 5\nint 1 3 2\nint 0 4 0")
+            .expect("a recording"),
     );
     cdda_sim::process_fires(&mut world, &Ceiling { open: true }, 0, &mut rolls);
     assert_eq!(smoke_floors(&mut world), vec![1], "the smoke went upstairs");
@@ -349,8 +350,9 @@ fn smoke_rises_through_an_open_floor() {
 fn smoke_settles_where_it_was_made_under_a_ceiling() {
     // The same fire with a floor above: the smoke stays on the fire's square and is as thick as the fire is strong - no thickness die is drawn.
     let mut world = burning_room();
-    let mut rolls =
-        Rolls::replaying(Recording::parse("int 0 100 1\nint 3 35 5").expect("a recording"));
+    let mut rolls = Rolls::replaying(
+        Recording::parse("int 0 7 0\nint 0 100 1\nint 3 35 5\nint 0 4 0").expect("a recording"),
+    );
     cdda_sim::process_fires(&mut world, &Ceiling { open: false }, 0, &mut rolls);
     assert_eq!(
         smoke_floors(&mut world),

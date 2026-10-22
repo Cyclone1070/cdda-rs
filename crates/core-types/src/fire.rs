@@ -119,6 +119,97 @@ pub struct Neighbour {
     pub flammable_ash: bool,
     /// The ground is `FLAMMABLE_HARD`, which needs a hotter fire.
     pub flammable_hard: bool,
+    /// How strong the fire there is, or zero when there is none.
+    pub fire_intensity: i32,
+    /// How long the fire there has burned, which the flashpoint rule compares against ours.
+    pub fire_age: i64,
+}
+
+/// What the spread phase did to a fire and its neighbours.
+///
+/// Reference: `map_field.cpp:1163-1248` - one `one_in( 3 )` decides between **flashing a neighbour over** (making an adjacent fire bigger and older) and
+/// **growing** this fire, and the two are an `if / else if` chain on the same die.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SpreadPhase {
+    /// Neighbour indices whose fire was made hotter this turn.
+    pub boosted: Vec<usize>,
+    /// Turns of age this fire spent doing it - five minutes each, paid by the one that did the boosting.
+    pub spent: i64,
+    /// The fire's own new `( intensity, age )` when it grew, which happens on the turns the die **failed**.
+    pub grown: Option<(i32, i64)>,
+    /// How many neighbours hold a fire, counted the way the reference counts it: inside whichever branch ran.
+    pub adjacent: i32,
+}
+
+/// One fire's share of the spread phase: the flashpoint die, and whichever of the two branches it chose.
+///
+/// Reference: `map_field.cpp:1163-1248`. The details that matter for parity:
+///
+/// * the die is drawn whenever the fire **may spread** and is at least intensity two, and it is drawn **before** the spread loop, so any port that skips it
+///   is one draw behind for the rest of the turn;
+/// * **flashpoint** (the die succeeds) scans the eight neighbours from a random start, gives five minutes of life to each fire there that is weaker or
+///   older than this one, and makes it one step hotter if it was below intensity two - paying for all of it out of this fire's own age;
+/// * **growth** (the die fails, and only then) can raise this fire by one level when it has fuel banked (`age < 0`) and neighbours enough, at a cost of
+///   `10_minutes * new intensity` of age;
+/// * `adjacent_fires` is counted inside whichever branch ran, which is why a fire that may not spread reports none.
+#[must_use]
+pub fn spread_phase(
+    intensity: i32,
+    age: i64,
+    can_spread: bool,
+    neighbours: &[Neighbour],
+    rolls: &mut crate::rng::Rolls,
+) -> SpreadPhase {
+    let mut phase = SpreadPhase::default();
+    if !can_spread {
+        return phase;
+    }
+    let count = i32::try_from(neighbours.len()).unwrap_or(0);
+    if count == 0 {
+        return phase;
+    }
+    if intensity > 1 && rolls.one_in(3) {
+        let scan = usize::try_from(rolls.rng(0, count - 1)).unwrap_or(0);
+        for step in 1..=count {
+            let index =
+                usize::try_from((i32::try_from(scan).unwrap_or(0) + step).rem_euclid(count))
+                    .unwrap_or(0);
+            let Some(neighbour) = neighbours.get(index) else {
+                continue;
+            };
+            if !neighbour.has_fire {
+                continue;
+            }
+            phase.adjacent += 1;
+            let weaker_or_older = neighbour.fire_intensity <= intensity || neighbour.fire_age > age;
+            if weaker_or_older {
+                phase.boosted.push(index);
+                phase.spent += 5 * 60;
+            }
+        }
+        return phase;
+    }
+    if age >= 0 || intensity >= 3 {
+        return phase;
+    }
+    // The growth branch counts the neighbours itself, because the flashpoint scan did not run.
+    for neighbour in neighbours {
+        if neighbour.has_fire {
+            phase.adjacent += 1;
+        }
+    }
+    let mut maximum = 1 + i32::from(phase.adjacent >= 3) + i32::from(phase.adjacent >= 7);
+    if maximum < 2 && age < -50 * 60 {
+        maximum = 2;
+    }
+    if age < -500 * 60 {
+        maximum = 3;
+    }
+    if intensity < maximum {
+        let grown = intensity + 1;
+        phase.grown = Some((grown, age + 10 * 60 * i64::from(grown)));
+    }
+    phase
 }
 
 /// The squares a fire sets alight this turn.
@@ -174,6 +265,12 @@ pub fn spread_fire(
             && ((power >= 2 && neighbour.flammable && rolls.one_in(2))
                 || (power >= 2 && neighbour.flammable_ash && rolls.one_in(2))
                 || (power >= 3 && neighbour.flammable_hard && rolls.one_in(5)));
+        // The reference's last disjunct is `( one_in( 5 ) && dst.get_item_count() > 0 && flammable_items_at( ... ) )`, and C++ draws the die **before** it
+        // asks whether anything is lying there (`map_field.cpp:1343`). The port has no items on the ground yet, so the die is drawn and its answer ignored -
+        // but it must be drawn, or every turn with a square of ordinary wall beside the fire puts the rest of the turn one draw out.
+        if passes && !neighbour.web && !takes_ground {
+            let _items_might_burn = rolls.one_in(5);
+        }
         if passes && (neighbour.web || takes_ground) {
             caught.push(usize::try_from(index).unwrap_or(0));
         }

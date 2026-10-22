@@ -131,8 +131,6 @@ fn the_terrain_the_recording_names_is_the_terrain_the_port_reads() {
 }
 
 #[test]
-#[ignore = "blocked on the flashpoint rule: the reference draws one_in( 3 ) before the spread loop and grows a fire only when that die fails, so the \
-            whole turn is a die ahead of the port from the second draw onwards. See docs/parity.md, round 324."]
 fn one_whole_turn_matches_the_reference_given_the_references_own_dice() {
     let fixture = fixture();
     let flags = terrain_flags();
@@ -189,6 +187,14 @@ fn one_whole_turn_matches_the_reference_given_the_references_own_dice() {
         cdda_sim::Position { x, y, z: 0 },
     ));
     cdda_sim::process_fires(&mut world, &map, 0, &mut rolls);
+    // The sweep's second half: processors first, then the field's own decay (`map_field.cpp:445-520`). `process_fires` deliberately leaves the decay to
+    // the sweep that owns it, so a whole turn is both calls - and the one turn of age the decay adds is exactly the difference this test first reported.
+    {
+        let mut query = world.query::<&mut cdda_sim::Field>();
+        for mut field in query.iter_mut(&mut world) {
+            field.entry.do_decay(1, &mut Rolls::new(7));
+        }
+    }
     let mut query = world.query::<(&cdda_sim::Field, &cdda_sim::Position)>();
     let held: Vec<(i32, i32, i32, i64)> = query
         .iter(&world)

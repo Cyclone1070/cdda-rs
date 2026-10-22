@@ -107,9 +107,9 @@ fn a_sealed_room_suppresses_smoke() {
 fn nearby_fires_are_counted_on_the_fires_own_floor() {
     // `adjacent_fires` counts the eight squares around, and a fire one floor up is not one of them.
     let mut facts = MapFacts::new();
-    facts.note_fire((1, 0, 0));
-    facts.note_fire((0, 1, 0));
-    facts.note_fire((0, 0, 1));
+    facts.note_fire((1, 0, 0), 1, 0);
+    facts.note_fire((0, 1, 0), 1, 0);
+    facts.note_fire((0, 0, 1), 1, 0);
     assert_eq!(
         facts.adjacent_fires((0, 0, 0)),
         2,

@@ -61,7 +61,7 @@ fn a_fire_that_asks_for_hot_air_puts_it_on_the_squares_the_dice_chose() {
     fire(&mut world, 5, 5, 2);
     let mut rolls = Rolls::replaying(
         Recording::parse(
-            "int 0 4 1\nint -1 1 1\nint -1 1 1\nint -1 1 1\nint -1 1 0\nint -1 1 0\nint -1 1 -1\nint -1 1 0\nint -1 1 -1\nint -1 1 -1\nint -1 1 0",
+            "int 0 7 0\nint 0 4 1\nint -1 1 1\nint -1 1 1\nint -1 1 1\nint -1 1 0\nint -1 1 0\nint -1 1 -1\nint -1 1 0\nint -1 1 -1\nint -1 1 -1\nint -1 1 0",
         )
         .expect("a recording"),
     );
@@ -95,7 +95,7 @@ fn hot_air_takes_the_field_for_the_fires_own_intensity() {
     fire(&mut world, 2, 2, 3);
     // Spread the five squares out, so the count is five rather than the number of distinct squares.
     let mut rolls = Rolls::replaying(
-        Recording::parse("int 0 4 2\nint -1 1 1\nint -1 1 -1\nint -1 1 0\nint -1 1 0\nint -1 1 1\nint -1 1 1\nint -1 1 -1\nint -1 1 1\nint -1 1 0\nint -1 1 1")
+        Recording::parse("int 0 7 0\nint 0 4 2\nint -1 1 1\nint -1 1 -1\nint -1 1 0\nint -1 1 0\nint -1 1 1\nint -1 1 1\nint -1 1 -1\nint -1 1 1\nint -1 1 0\nint -1 1 1")
             .expect("a recording"),
     );
     process_fires(&mut world, &Quiet, 0, &mut rolls);
@@ -116,7 +116,8 @@ fn hot_air_takes_the_field_for_the_fires_own_intensity() {
 fn a_refused_gate_makes_no_hot_air_and_spends_one_die() {
     let mut world = World::new();
     fire(&mut world, 5, 5, 2);
-    let mut rolls = Rolls::replaying(Recording::parse("int 0 4 0").expect("a recording"));
+    let mut rolls =
+        Rolls::replaying(Recording::parse("int 0 7 0\nint 0 4 0").expect("a recording"));
     process_fires(&mut world, &Quiet, 0, &mut rolls);
     let mut query = world.query::<&Field>();
     assert_eq!(
