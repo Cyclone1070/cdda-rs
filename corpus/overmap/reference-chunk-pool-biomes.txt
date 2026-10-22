@@ -1,1 +1,1 @@
-biomes 12 25 0 forest_thick forest_thick forest_thick forest_thick forest_thick forest_thick forest_thick forest_thick
+biomes 264 153 0 forest_thick forest_thick forest_thick forest_thick forest_thick forest_thick forest_thick forest_thick

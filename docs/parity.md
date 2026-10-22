@@ -308,6 +308,23 @@ equality; JSON accept/reject parity". Each part, and where it is proven:
 | JSON acceptance is identical | All 6,220 shipped files: same accept/reject verdict and same structural digest as the reference; the writer is compared byte for byte on 127 of them |
 | The cache changes nothing | All 6,220 files read identically cold and warm |
 
+## The reference's die, through the port's raffle: 576 of 576 (round 268)
+
+Each square of the recorded chunk now says **which die of the whole run it spent** - a 3.25-million-draw recording, entered
+at the right index - and **which ticket that die bought**. The port recomputes the six weights from the perimeter alone and
+runs its own raffle on the reference's die.
+
+Result: **576 of 576 squares buy the same ticket.** Not a share, not a shape, not an average: every square of a generated
+chunk reaching the same decision the reference reached, from the reference's own randomness.
+
+The chunk is deliberately the hardest kind to fake - eight dense-forest neighbours, so the empty ticket's weight is zero
+everywhere and no square falls back to plain ground. All four directions are used (59, 58, 54 and 72 squares) and 333 squares
+take their own biome's ticket, so the test exercises the whole pool rather than one branch of it.
+
+That closes the loop the last twelve rounds opened: the weights are right (576/576), and the weights **plus the reference's
+dice** produce the reference's decisions (576/576). What is still unproven is everything downstream of the ticket - which
+terrain the chosen biome's layer then produces.
+
 ## The pool, square by square, against the reference's own numbers (round 267)
 
 The reference now writes, for every square of a chunk, the **four neighbour weights it computed**, the self weight and the

@@ -27,6 +27,7 @@ mod forest_palette_weights;
 mod forest_placeholders_placed;
 mod forest_pool_arithmetic;
 mod forest_pool_real_dice;
+mod forest_pool_real_tickets;
 mod forest_pool_trace;
 mod forest_recorded_inputs;
 mod forest_region_masks;
