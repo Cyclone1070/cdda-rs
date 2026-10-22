@@ -1,70 +1,158 @@
-//! The id-set gate: every registry whose ids the shared rule collects exactly right.
+//! The id-set gate: every registry whose ids a rule collects exactly right.
 //!
-//! Almost every JSON type in the reference is a `generic_factory` of something, and all of them follow one registration rule: an entry registers under its
-//! `id`, and an entry carrying an `abstract` key registers nothing at all - an abstract is a base other entries copy from, not a thing the game can name.
-//! Two wrinkles:
+//! Almost every JSON type in the reference is a `generic_factory` of something, and they all follow one registration rule: an **entry** - a top-level element of
+//! a file - registers under its `id`, and an entry carrying `abstract` registers nothing, because an abstract is a base to copy from rather than a name the game
+//! can ask for. Three wrinkles, each of which cost a mismatch before it was written down:
 
-//! - one registry's JSON type is not its registry name: `mutation` registers as `trait` (959 of them, and the reference's own dump calls the registry
-//!   `trait`, which is why a rule that trusted the type name missed every one);
-//! - a factory's **null prototype** is created by the code, not by the data, so `t_null` and `f_null` are the two ids the reference's registries hold and no
-//!   file writes. That is why `terrain` and `furniture` are gated through their loaders in `digest.rs` rather than through this rule.
+//! - **a registry's name is usually not its JSON type.** 41 of the 90 are written under some other word: `widgets` are `widget`, `json_flags` are `json_flag`, a
+//!   `mission_type` is a `mission_definition`, a `zone_type` is a `LOOT_ZONE`, a `spell` is a `SPELL`. The pairs are in `RENAMED` and each was found by asking
+//!   which JSON type's id set equals the reference's, then kept honest by the digest below;
+//! - **nesting does not make an entry.** A monster's special attack carries `"type": "spell"` and an `id`, and treating it as an entry invented three spells
+//!   the reference does not have. The kinds that do register inline - an effect-on-condition in a slot, an enchantment in an `enchantments` list, a turret part
+//!   made from a gun - each have a loader that says so, and this rule refuses to guess;
+//! - **a factory's null prototype comes from the code, not the data.** `t_null` and `f_null` are in the reference's registries and in no file, which is why
+//!   `terrain` and `furniture` are gated through their loaders in `digest.rs` instead.
 //!
-//! This test is the evidence for that rule over thirty-six registries and about thirteen thousand ids. It is deliberately separate from `digest.rs`, which
-//! gates registries the port has an actual **loader** for: this one says the id set is right, not that anything consumes it yet. Where the two overlap they
-//! must agree, and they do.
+//! This test is deliberately separate from `digest.rs`: it says the **id set** is right, not that a loader consumes it. Where the two overlap they must agree,
+//! and they do. Between them the two gates cover **83 of the 90** registries.
 
 use cdda_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
 /// The registries this rule gets exactly right, with the count each of them holds. The counts are part of the claim: a registry that quietly lost or gained
 /// entries changes a number here even if the digest check below is somehow skipped.
-const GATED: [(&str, usize); 36] = [
+const GATED: [(&str, usize); 75] = [
     ("ITEM", 9912),
+    ("widgets", 1236),
     ("trait", 959),
+    ("json_flags", 731),
+    ("construction groups", 422),
     ("ascii_art", 399),
+    ("harvest_list", 366),
     ("profession", 320),
+    ("mission_type", 306),
     ("vehicle", 249),
+    ("spell", 246),
     ("proficiency", 235),
+    ("martial art technique", 203),
     ("material", 193),
     ("event_statistic", 170),
     ("event_transformation", 158),
     ("npc_class", 155),
+    ("field types", 145),
+    ("monster flags", 133),
     ("bionic", 128),
     ("trap", 125),
+    ("start locations", 110),
+    ("morale type", 94),
+    ("tool quality", 87),
+    ("ammo effects", 82),
+    ("map extra", 66),
+    ("zone_type", 64),
+    ("recipe group type", 62),
+    ("overmap location", 61),
     ("scenario", 60),
+    ("sub body part", 57),
     ("ter_furn_transform", 55),
     ("fault", 54),
+    ("weakpoint sets", 48),
     ("fault_fix", 40),
     ("score", 40),
+    ("martial art style", 38),
+    ("item_category", 36),
+    ("body part", 35),
     ("oter_vision", 34),
+    ("overmap land use codes", 34),
+    ("character modifier", 28),
+    ("weapon category", 25),
+    ("overmap special migration", 22),
     ("weather_type", 20),
+    ("attack vector", 18),
+    ("proficiency category", 18),
     ("climbing_aid", 17),
+    ("bodygraph", 16),
     ("jmath_function", 15),
+    ("construction categories", 15),
+    ("limb score", 15),
     ("recipe_category", 14),
     ("behavior", 13),
+    ("addiction", 13),
     ("end_screen", 10),
+    ("damage info order", 10),
+    ("damage type", 10),
+    ("gate type", 10),
     ("harvest_drop_type", 9),
     ("fault_group", 8),
     ("mood_face", 8),
     ("relic_procgen_data", 7),
+    ("clothing mods", 5),
+    ("overmap connection", 5),
     ("scent_type", 4),
+    ("move_mode", 4),
     ("shopkeeper_consumption_rates", 3),
+    ("option slider", 3),
     ("anatomy", 2),
     ("disease_type", 2),
     ("shopkeeper_blacklist", 2),
     ("profession_group", 1),
     ("speed_description", 1),
-    ("spell", 246),
+    ("butchery_requirements", 1),
 ];
 
-/// The `type` spellings a registry's entries are written under. Two registries need this: a trait is a `mutation`, and a spell is a `SPELL` in modern data and a
-/// `spell` in the few files that predate the uppercase convention.
+/// The `type` spellings each registry's entries are written under.
+///
+/// Two thirds of the registries are named something other than their JSON type, and none of that is documented anywhere: `widgets` are written `widget`,
+/// `json_flags` are `json_flag`, a `mission_type` is a `mission_definition`, a `zone_type` is a `LOOT_ZONE`. Each pair here was found the only way it can be
+/// found honestly - by asking which JSON type's id set equals the reference's - and then gated by the digest, so a pair that is wrong cannot pass.
+const RENAMED: [(&str, &[&str]); 41] = [
+    ("widgets", &["widget"]),
+    ("trait", &["mutation"]),
+    ("json_flags", &["json_flag"]),
+    ("construction groups", &["construction_group"]),
+    ("harvest_list", &["harvest"]),
+    ("mission_type", &["mission_definition"]),
+    ("spell", &["SPELL"]),
+    ("martial art technique", &["technique"]),
+    ("field types", &["field_type"]),
+    ("monster flags", &["monster_flag"]),
+    ("start locations", &["start_location"]),
+    ("morale type", &["morale_type"]),
+    ("tool quality", &["tool_quality"]),
+    ("ammo effects", &["ammo_effect"]),
+    ("map extra", &["map_extra"]),
+    ("zone_type", &["LOOT_ZONE"]),
+    ("recipe group type", &["recipe_group"]),
+    ("overmap location", &["overmap_location"]),
+    ("sub body part", &["sub_body_part"]),
+    ("weakpoint sets", &["weakpoint_set"]),
+    ("martial art style", &["martial_art"]),
+    ("item_category", &["ITEM_CATEGORY"]),
+    ("body part", &["body_part"]),
+    ("overmap land use codes", &["overmap_land_use_code"]),
+    ("character modifier", &["character_mod"]),
+    ("weapon category", &["weapon_category"]),
+    ("overmap special migration", &["overmap_special_migration"]),
+    ("attack vector", &["attack_vector"]),
+    ("proficiency category", &["proficiency_category"]),
+    ("bodygraph", &["body_graph"]),
+    ("construction categories", &["construction_category"]),
+    ("limb score", &["limb_score"]),
+    ("addiction", &["addiction_type"]),
+    ("damage info order", &["damage_info_order"]),
+    ("damage type", &["damage_type"]),
+    ("gate type", &["gate"]),
+    ("clothing mods", &["clothing_mod"]),
+    ("overmap connection", &["overmap_connection"]),
+    ("move_mode", &["movement_mode"]),
+    ("option slider", &["option_slider"]),
+    ("butchery_requirements", &["butchery_requirement"]),
+];
+
 fn json_types(registry: &str) -> Vec<&str> {
-    match registry {
-        "trait" => vec!["mutation"],
-        "spell" => vec!["SPELL", "spell"],
-        other => vec![other],
+    if let Some((_, types)) = RENAMED.iter().find(|(named, _)| *named == registry) {
+        return types.to_vec();
     }
+    vec![registry]
 }
 
 /// Collects `(JSON type -> ids)` by the shared rule, for every type in the tree.
@@ -158,7 +246,7 @@ fn digests() -> BTreeMap<String, String> {
 
 #[allow(clippy::panic)]
 #[test]
-fn thirty_six_registries_hold_exactly_the_ids_the_reference_holds() {
+fn seventy_five_registries_hold_exactly_the_ids_the_reference_holds() {
     let ours = shared_rule();
     let theirs = digests();
     let mut checked = 0;
@@ -183,7 +271,7 @@ fn thirty_six_registries_hold_exactly_the_ids_the_reference_holds() {
         );
         checked += 1;
     }
-    assert_eq!(checked, 36, "every registry in the list was checked");
+    assert_eq!(checked, 75, "every registry in the list was checked");
 }
 
 #[allow(clippy::expect_used)]
