@@ -308,6 +308,27 @@ equality; JSON accept/reject parity". Each part, and where it is proven:
 | JSON acceptance is identical | All 6,220 shipped files: same accept/reject verdict and same structural digest as the reference; the writer is compared byte for byte on 127 of them |
 | The cache changes nothing | All 6,220 files read identically cold and warm |
 
+## Thirty-five chunks, and the mask read back out of each (round 245)
+
+The mask that says which of a chunk's four sides owns a biome is the same for all 576 squares of that chunk, so it can be
+read back out of the recorded weights: only one of sixteen reproduces them. Deriving it for **every chunk of a whole
+generated region** - thirty-five chunks, twenty thousand traced squares - produced **nine distinct masks**, with
+seventeen chunks wooded on all four sides and the rest split across eight other combinations. That spread matters: a
+derivation that always returned the same answer would pass while proving only that it agreed with itself.
+
+Every one of the thirty-five has **exactly one** explanation, and the neighbour weights of all 20,160 squares follow from
+the perimeter plus that mask. This is also the first gate that runs the port's `nesw_weights` across a whole region rather
+than a single chunk.
+
+**What it does not cover, stated plainly:** all thirty-five chunks fit the weights **before** corner blending, which means
+`unify_all_borders` never fired anywhere in this region - its corners are all absent or already matching. The corner rule
+is still only tested against the reference's *source*, not against a traced world. Generating a forest **edge** would fix
+that, and the trace is already in place to catch it.
+
+**One expectation corrected by the data:** I expected at least one chunk with no woodland beside it at all. There is
+none - every chunk in this region touches woodland on at least one side, which is what a chunk generated inside a forest
+should show.
+
 ## The arithmetic agrees, 576 squares at a time (round 244)
 
 Feeding the recorded weights back through the port's own functions settles two things that reading the code could not.
