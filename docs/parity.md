@@ -308,6 +308,25 @@ equality; JSON accept/reject parity". Each part, and where it is proven:
 | JSON acceptance is identical | All 6,220 shipped files: same accept/reject verdict and same structural digest as the reference; the writer is compared byte for byte on 127 of them |
 | The cache changes nothing | All 6,220 files read identically cold and warm |
 
+## The raffle's choice is not what the map ends with (round 250)
+
+The feature raffle is now traced square by square - the ticket, the palette name it produced and any furniture. Comparing
+that against the same chunk's terrain dump settled a question and refuted an assumption.
+
+**Settled:** the palette names are real and countable. Of 576 squares, **400** drew the region's ground cover, **97** dense
+trees, **75** dense shrubs and **4** a young tree directly - numbers that come from the raffle itself and not from the map.
+
+**Refuted:** that the map ends with what the raffle chose. **273 of 576** squares hold a terrain the palette they recorded
+could not have produced, and the mismatches are systematic - ground cover recorded with underbrush, a shrub or a tree
+standing there. So the final terrain comes from **another pass**, and the palette's weights cannot be checked against this
+chunk until that pass is traced. The tempting number - forest floor taking 186 of the 400 ground-cover squares against a
+weight share of 714 - is therefore **not** evidence about the weight, and recording it as though it were would have been
+the kind of plausible wrongness this ledger exists to catch.
+
+**One measurement mistake worth writing down:** the trace is written in the reference's loop order - x outside, y inside -
+while the dump is row-major. Comparing the two by position, which I did first, makes every square disagree. They line up by
+coordinate only.
+
 ## Twenty squares the tickets cannot explain (round 249)
 
 A square reaches the ground raffle when its feature ticket is empty or names a side that owns no biome - both read off the
