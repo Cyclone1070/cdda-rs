@@ -406,6 +406,20 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The vertical half of the gas rule, and a self-inflicted scare (round 317)
+
+`spread_gas` now carries all three directions the reference tries, **in the reference's order**: the square below first and *for free* (no die beyond the
+gate), the eight beside it second, the square above last and only when nothing sideways would take it. `GasDirection` names the four outcomes and `Around`
+holds the ten answers the caller has to supply. Two new tests pin the two vertical steps, and they are about **what is not rolled**: a gas over a hole never
+draws for a neighbour, and a gas with nothing sideways spends exactly the two dice the scan needs before rising.
+
+**The scare is worth recording.** Editing `crates/sim/src/lib.rs` by slicing between two doc-comment anchors cut out 60 lines of unrelated code - the light
+and level section - because the second anchor was *above* the first in the file, so the slice duplicated one region and dropped another. The tests still
+compiled and 1,223 of them passed, which is exactly why this kind of damage is dangerous: the compiler cannot miss code that no longer exists and nothing
+references the missing light resource by name yet. What caught it was `git diff | grep '^-'` showing deletions I had not made. The file was rebuilt from
+`HEAD` and the intended change re-applied by walking braces to the end of the function, with an assertion that the replaced span held exactly one
+`pub fn`. Second time in this project that a text slice has eaten code; the brace walk is now the only method used for these edits.
+
 ## A whole environment turn, and the property every comparison rests on (round 316)
 
 `run_environment_turn` runs the reference's `map::process_fields` order in one call: **fires** (growth, fuel, spread, hot air, smoke), then the **gases**

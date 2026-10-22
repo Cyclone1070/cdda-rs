@@ -301,7 +301,6 @@ const EIGHT_NEIGHBOURS: [(i32, i32); 8] = [
     (-1, 1),
     (-1, 0),
 ];
-
 /// Gives every square holding this gas its turn, moving gas to neighbours that will take it.
 ///
 /// Reference: the field sweep's call to `spread_gas` (`src/map_field.cpp:582`), which runs once per gas per turn and is what makes hot air, smoke and tear
@@ -311,6 +310,9 @@ const EIGHT_NEIGHBOURS: [(i32, i32); 8] = [
 /// The order is the store's, square by square, and a gas that moves is recorded by [`cdda_core_types::fire::spread_gas`]'s arithmetic: the source keeps
 /// `age - age / intensity` and the destination receives `age / intensity`, thickening if it already held the gas. A square whose intensity reaches zero
 /// leaves the store, which is the sweep's behaviour for any field that does not survive its turn.
+///
+/// The store is two dimensional, so the two vertical directions the rule names have nowhere to go: they are offered as `false` and skipped, which keeps the
+/// vertical half of the rule a wiring change rather than a rewrite.
 pub fn process_gas(
     world: &mut World,
     id: FieldId,
@@ -333,27 +335,28 @@ pub fn process_gas(
         };
         let intensity = field.entry.intensity();
         let age = field.entry.age();
-        let mut accepts = [false; 8];
+        // The store is flat for now, so only the eight sideways answers exist. Naming the other two as false keeps the vertical half a wiring change.
+        let mut around = cdda_core_types::fire::Around::default();
         for (index, offset) in EIGHT_NEIGHBOURS.iter().enumerate() {
-            if let Some(slot) = accepts.get_mut(index) {
+            if let Some(slot) = around.beside.get_mut(index) {
                 *slot = can_take((x, y), (x + offset.0, y + offset.1));
             }
         }
-        let Some(movement) = cdda_core_types::fire::spread_gas(
+        let movement = cdda_core_types::fire::spread_gas(
             intensity,
             age,
             percent_spread,
             windpower,
-            &accepts,
+            &around,
             rolls,
-        ) else {
+        );
+        let cdda_core_types::fire::GasDirection::Side(index) = movement.direction else {
+            // Down, up and nowhere all have no square to go to while the store is flat.
             continue;
         };
-        let Some(offset) = EIGHT_NEIGHBOURS.get(movement.to) else {
+        let Some(destination) = neighbour_of(x, y, index) else {
             continue;
         };
-        let destination = (x + offset.0, y + offset.1);
-        // The destination first, so a merge cannot be confused with the source's own square.
         let existing = {
             let mut query = world.query::<(Entity, &Position, &Field)>();
             query
@@ -394,6 +397,13 @@ pub fn process_gas(
             world.despawn(entity);
         }
     }
+}
+
+/// The square one step away at a neighbour index, in this project's neighbour order.
+fn neighbour_of(x: i32, y: i32, index: usize) -> Option<(i32, i32)> {
+    EIGHT_NEIGHBOURS
+        .get(index)
+        .map(|offset| (x + offset.0, y + offset.1))
 }
 
 /// A thing that gives off light: a torch, a fire, a lamp.

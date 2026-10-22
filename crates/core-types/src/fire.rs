@@ -327,76 +327,114 @@ pub fn hot_air_squares(rolls: &mut crate::rng::Rolls) -> [(i32, i32); HOT_AIR_SQ
     squares
 }
 
+/// Which way a gas went this turn.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GasDirection {
+    /// Straight down, which the reference tries **first** and without spending another die.
+    Down,
+    /// Sideways, onto one of the eight neighbours.
+    Side(usize),
+    /// Straight up, tried last and only when nothing sideways would take it.
+    Up,
+    /// Nowhere.
+    None,
+}
+
 /// Where a gas moved this turn, and how the two squares changed.
 ///
-/// Reference: `map::spread_gas` (`src/map_field.cpp:276-360`) and `gas_spread_to` (`:250-273`). The rule is shared by every gas - hot air, smoke, tear
-/// gas - because what makes them gases is `percent_spread` in their data, not a processor of their own.
+/// Reference: `map::spread_gas` (`src/map_field.cpp:276-360`) and `gas_spread_to` (`:250-273`). The rule is shared by every gas - hot air, smoke, tear gas -
+/// because what makes them gases is `percent_spread` in their data, not a processor of their own.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GasSpread {
-    /// The neighbour that took the gas, as an index into the eight around the gas.
-    pub to: usize,
+    /// Which way it went.
+    pub direction: GasDirection,
     /// What the source keeps: its own intensity minus one, and its age minus the share it gave away.
     pub source_intensity: i32,
     /// The age the source keeps.
     pub source_age: i64,
     /// The age the destination gains, which is the source's age divided by its intensity before the move.
     pub transferred_age: i64,
-    /// Whether the destination already had some of the same gas, in which case it thickens rather than being created.
-    pub merged: bool,
 }
 
-/// One turn of a gas trying to spread to a neighbour.
+/// What the squares around a gas would do with it.
+///
+/// The reference asks two different questions of three different places: `spread_gas` tries the square below **first**, the eight beside it second, and the
+/// square above last. Naming all ten answers in one value keeps the call readable and keeps the *order* where the rule can see it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Around {
+    /// Whether the square below would take the gas (`gas_can_spread_to` and a legal move).
+    pub below: bool,
+    /// Whether each of the eight neighbours would take it.
+    pub beside: [bool; 8],
+    /// Whether the square above would take it.
+    pub above: bool,
+}
+
+/// One turn of a gas trying to move.
 ///
 /// Reference: `spread_gas` (`src/map_field.cpp:276-360`). The dice, in order:
 ///
-/// 1. **Intensity one does not roll at all** - `cur.get_field_intensity() <= 1 ||` short-circuits before the chance. A gas with one level left is
-///    dying, and a port that rolled anyway would shift every later draw.
-/// 2. `rng( 1, 100 - windpower ) > percent_spread` - the gate, drawn **before** any neighbour is looked at. Wind narrows the range, which makes the
-///    gate *easier* to pass, the same way wind makes smoke more likely.
-/// 3. `rng( 0, 7 )` - which neighbour the scan starts on; the scan then wraps, so the order is the world's.
-/// 4. `one_in( spread.len() )` - whether it goes at all.
-/// 5. `rng( 0, spread.len() - 1 )` - which of the candidates it takes.
+/// 1. **Intensity one does not roll at all** - `cur.get_field_intensity() <= 1 ||` short-circuits before the chance. A gas with one level left is dying, and
+///    a port that rolled anyway would shift every later draw.
+/// 2. `rng( 1, 100 - windpower ) > percent_spread` - the gate, drawn **before** any neighbour is looked at. Wind narrows the range, which makes the gate
+///    *easier* to pass, the same way wind makes smoke more likely.
+/// 3. **Down first**, and for free: if the square below would take the gas and the gas can move there, it goes, with no further die spent.
+/// 4. `rng( 0, 7 )` - which neighbour the lateral scan starts on; the scan then wraps, so the order is the world's.
+/// 5. `one_in( spread.len() )` - whether it goes sideways at all.
+/// 6. `rng( 0, spread.len() - 1 )` - which of the candidates it takes.
+/// 7. **Up last**, and only when nothing sideways took it.
 ///
-/// The port passes in `can_take`, whether each of the eight neighbours would accept the gas (`gas_can_spread_to`: a weaker field of the same kind, or
-/// nothing and a walkable or permeable square). Vertical movement is not modelled: the store is two dimensional, so falling and rising are declared
-/// gaps rather than silently skipped steps.
+/// The port asks the caller whether each direction would accept the gas, because that is a question about the map (`gas_can_spread_to`: a weaker field of the
+/// same kind, on a square that is walkable or permeable), not about the gas.
 #[must_use]
 pub fn spread_gas(
     intensity: i32,
     age: i64,
     percent_spread: i32,
     windpower: i32,
-    can_take: &[bool; 8],
+    around: &Around,
     rolls: &mut crate::rng::Rolls,
-) -> Option<GasSpread> {
+) -> GasSpread {
+    let nowhere = GasSpread {
+        direction: GasDirection::None,
+        source_intensity: intensity,
+        source_age: age,
+        transferred_age: 0,
+    };
     if intensity <= 1 {
-        return None;
+        return nowhere;
     }
     if rolls.rng(1, 100 - windpower) > percent_spread {
-        return None;
+        return nowhere;
+    }
+    let share = age / i64::from(intensity);
+    let moving = |direction: GasDirection| GasSpread {
+        direction,
+        source_intensity: intensity - 1,
+        source_age: age - share,
+        transferred_age: share,
+    };
+    if around.below {
+        return moving(GasDirection::Down);
     }
     let start = rolls.rng(0, 7);
     let mut spread: Vec<usize> = Vec::new();
     for step in 1..=8 {
         let index = usize::try_from((start + step).rem_euclid(8)).unwrap_or(0);
-        if can_take.get(index).copied().unwrap_or(false) {
+        if around.beside.get(index).copied().unwrap_or(false) {
             spread.push(index);
         }
     }
-    if spread.is_empty() {
-        return None;
+    if !spread.is_empty() && rolls.one_in(i32::try_from(spread.len()).unwrap_or(i32::MAX)) {
+        let choice = rolls.rng(0, i32::try_from(spread.len()).unwrap_or(1) - 1);
+        let to = spread
+            .get(usize::try_from(choice).unwrap_or(0))
+            .copied()
+            .unwrap_or(0);
+        return moving(GasDirection::Side(to));
     }
-    if !rolls.one_in(i32::try_from(spread.len()).unwrap_or(i32::MAX)) {
-        return None;
+    if around.above {
+        return moving(GasDirection::Up);
     }
-    let choice = rolls.rng(0, i32::try_from(spread.len()).unwrap_or(1) - 1);
-    let to = spread.get(usize::try_from(choice).unwrap_or(0)).copied()?;
-    let share = age / i64::from(intensity);
-    Some(GasSpread {
-        to,
-        source_intensity: intensity - 1,
-        source_age: age - share,
-        transferred_age: share,
-        merged: false,
-    })
+    nowhere
 }
