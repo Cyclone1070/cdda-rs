@@ -1,0 +1,137 @@
+#!/usr/bin/env python3
+"""Runs the gates on the remote build machine instead of this one.
+
+The suite is fast but not free: it loads the reference's corpus several times over and it competes with everything
+else on a laptop. The desktop has more cores and nothing else to do, so this syncs the workspace there and runs the
+gates remotely.
+
+Only what the gates read is synced - the crates, the corpus, the reference data the corpus gates load, the tools and
+the docs. The build directories, the oracle's source copy and the reference's own checkout are not synced: they are
+either rebuilt on the far side or not read at all.
+
+Usage:
+    python3 tools/remote_test.py              # sync, then run the fast suite and the document check
+    python3 tools/remote_test.py --tests      # the suite only
+    python3 tools/remote_test.py --docs       # the document check only
+    python3 tools/remote_test.py --clippy     # clippy only
+    python3 tools/remote_test.py --sync       # sync without running anything
+    python3 tools/remote_test.py --jobs 8     # how many test binaries at once over there
+"""
+
+import argparse
+import pathlib
+import subprocess
+import sys
+
+REMOTE = "cyc@elitedesk"
+REMOTE_DIR = "cve-test"
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+
+# Everything the gates read, and nothing else. `references/Cataclysm-DDA` is 6 GB of checkout; only `data` is corpus.
+SYNC = [
+    "Cargo.toml",
+    "Cargo.lock",
+    "crates",
+    "corpus",
+    "docs",
+    "tools",
+    "references/Cataclysm-DDA/data",
+    # The document check counts the reference's sources and links into them, so the subset has to include them.
+    "references/Cataclysm-DDA/src",
+    "references/Cataclysm-DDA/doc",
+    ".github",
+]
+
+EXCLUDES = [
+    "*.rs.bk",
+    "__pycache__",
+    "target",
+    "*.pyc",
+]
+
+
+def sync() -> None:
+    """Copies the workspace to the remote, deleting files that no longer exist here.
+
+    `--delete` is safe because it only ever applies to the paths listed in SYNC, each of which is a directory the
+    remote copy owns outright. The remote directory itself is never the target of a delete.
+    """
+    print(f"syncing to {REMOTE}:{REMOTE_DIR}", flush=True)
+    args = ["rsync", "-az", "--delete"]
+    for pattern in EXCLUDES:
+        args.extend(["--exclude", pattern])
+    for path in SYNC:
+        source = ROOT / path
+        if not source.exists():
+            print(f"  skipping {path}: not here", flush=True)
+            continue
+        remote_path = f"{REMOTE_DIR}/{path}"
+        # Directories are synced by their *contents* into a directory made first, so the far side ends up with
+        # `crates/content` rather than `crates/crates/content`. This is the form that behaves the same on the old
+        # rsync this machine ships and the new one on the server.
+        if source.is_dir():
+            subprocess.run(["ssh", REMOTE, f"mkdir -p {remote_path}"], check=True)
+            source_arg = f"{source}/"
+            destination = f"{REMOTE}:{remote_path}/"
+        else:
+            parent = pathlib.PurePosixPath(remote_path).parent
+            subprocess.run(["ssh", REMOTE, f"mkdir -p {parent}"], check=True)
+            source_arg = str(source)
+            destination = f"{REMOTE}:{remote_path}"
+        print(f"  {path}", flush=True)
+        subprocess.run([*args, source_arg, destination], check=True)
+
+
+def run(command: str, label: str, jobs: int) -> int:
+    """Runs one command on the remote and returns its exit code."""
+    command = command.replace("{jobs}", str(jobs))
+    print(f"\n=== {label} on {REMOTE}\n$ {command}\n", flush=True)
+    # The rustup toolchain lives in the user's home and is newer than the distribution's, so it must come first.
+    return subprocess.run(
+        ["ssh", REMOTE, f"cd {REMOTE_DIR} && export PATH=$HOME/.cargo/bin:$PATH && {command}"]
+    ).returncode
+
+
+def main() -> int:
+    global REMOTE
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--tests", action="store_true", help="run the fast suite")
+    parser.add_argument("--docs", action="store_true", help="run the document check")
+    parser.add_argument("--clippy", action="store_true", help="run clippy")
+    parser.add_argument("--sync", action="store_true", help="sync only")
+    parser.add_argument("--jobs", type=int, default=0, help="test binaries at once, default the remote cores less one")
+    parser.add_argument("--remote", default=REMOTE, help="user@host to run on")
+    options = parser.parse_args()
+    REMOTE = options.remote
+
+    everything = not (options.tests or options.docs or options.clippy or options.sync)
+    sync()
+    if options.sync:
+        return 0
+
+    jobs = options.jobs
+    if jobs <= 0:
+        cores = subprocess.run(["ssh", REMOTE, "nproc"], capture_output=True, text=True, check=True)
+        jobs = max(1, min(6, int(cores.stdout.strip()) - 1))
+
+    failed = []
+    if everything or options.tests:
+        if run("python3 tools/test_fast.py --jobs {jobs}", "the fast suite", jobs) != 0:
+            failed.append("tests")
+    if everything or options.docs:
+        if run("python3 tools/check_docs.py", "the document check", jobs) != 0:
+            failed.append("docs")
+    if options.clippy:
+        if run("cargo clippy --workspace --all-targets -- -D warnings", "clippy", jobs) != 0:
+            failed.append("clippy")
+
+    print()
+    if failed:
+        print(f"FAILED: {', '.join(failed)}")
+        return 1
+    print(f"all green on {REMOTE} ({jobs} jobs)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

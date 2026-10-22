@@ -120,6 +120,18 @@ Two changes fixed it, and both are structural rather than a tweak:
   and runs them concurrently, printing what each cost, how much processor time the
   run used, and the machine's load. The table says which gate is slow the moment it
   becomes slow.
+* **`tools/remote_test.py`.** The suite loads the reference's corpus several
+  times over, which is exactly the work a laptop should not be doing while
+  someone is using it. This syncs **only what the gates read** - the crates, the
+  corpus, the reference's `data`, `src` and `doc`, the tools, the docs and the CI
+  files - to `cyc@elitedesk` and runs the gates there: the same 950 cases in
+  **19.6 s** on six Linux cores, with the laptop idle. `--tests`, `--docs`,
+  `--clippy`, `--sync`, `--jobs N` and `--remote user@host`; the default is the
+  whole gate. The far side needed three things the distribution does not provide:
+  **rustc 1.98** (Fedora ships 1.97.1, below the workspace's minimum), **clippy**
+  for that toolchain, and the reference's `src` and `doc` trees - the document
+  check counts and links into them, and syncing only `data` made it report a
+  broken link and "the reference has 0 files" rather than passing quietly.
 * **One test binary per crate, not per file.** Cargo gives every file in `tests/`
   its own binary, and every binary pays the same startup before a single case runs:
   measured at **1.7 s each**, and unchanged by what the binary contains - a
