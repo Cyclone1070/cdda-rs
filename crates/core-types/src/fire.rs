@@ -180,3 +180,53 @@ pub fn spread_fire(
     }
     caught
 }
+
+/// Smoke a fire left this turn, and where.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Smoke {
+    /// Whether it went to the square above the fire rather than the fire's own.
+    pub up: bool,
+    /// How thick it is.
+    pub intensity: i32,
+}
+
+/// The smoke a fire makes this turn, if it makes any.
+///
+/// Reference: the block at the end of `field_processor_fd_fire` (`src/map_field.cpp:1407-1425`). The conditions are chained in the reference's
+/// order, and the order is the world: `SUPPRESS_SMOKE` is tested first, so a sealed fireplace spends **no dice** and everything after it in the
+/// turn sees the same stream it otherwise would have.
+///
+/// * `rng( 0, 100 - windpower ) <= smoke` - a windier turn narrows the range, which makes smoke *more* likely for a given count, not less.
+/// * `rng( 3, 35 ) < intensity * 10` - a raging fire clears this almost always, a small one rarely.
+/// * Where it goes: **above** if the square overhead has no floor (and the fire is not already at the top), at a strength of `rng( 1, intensity )`;
+///   otherwise on the fire itself, at the fire's full intensity - thicker, because it has nowhere to rise to.
+#[must_use]
+pub fn smoke_from_fire(
+    rolls: &mut crate::rng::Rolls,
+    intensity: i32,
+    smoke_produced: i32,
+    windpower: i32,
+    suppress_smoke: bool,
+    can_rise: bool,
+    above_has_no_floor: bool,
+) -> Option<Smoke> {
+    if suppress_smoke {
+        return None;
+    }
+    if rolls.rng(0, 100 - windpower) > smoke_produced {
+        return None;
+    }
+    if rolls.rng(3, 35) >= intensity * 10 {
+        return None;
+    }
+    if can_rise && above_has_no_floor {
+        return Some(Smoke {
+            up: true,
+            intensity: rolls.rng(1, intensity),
+        });
+    }
+    Some(Smoke {
+        up: false,
+        intensity,
+    })
+}

@@ -406,6 +406,20 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The smoke a fire leaves (round 304)
+
+`smoke_from_fire` ports the block at the end of the fire processor (`src/map_field.cpp:1407-1425`). Three things in it reward being written down:
+
+* **`SUPPRESS_SMOKE` is tested first**, so a sealed fireplace spends **no dice at all** - a short-circuit that is part of the world, because every
+  later roll in the turn sees the same stream either way.
+* **Wind makes smoke more likely, not less.** `rng( 0, 100 - windpower ) <= smoke` narrows the range as the wind rises, so for a given smoke count
+  a windy turn passes more often. The reference's own comment suggests the opposite; the arithmetic is what the port follows.
+* **Where it goes depends on overhead:** above at `rng( 1, intensity )` when the square overhead has no floor, otherwise on the fire itself at its
+  **full** intensity, which is thicker because it has nowhere to rise to.
+
+Five tests, including that a weak fire smokes less often than a raging one across four hundred seeds each, and that suppression leaves the dice
+stream untouched.
+
 ## A spread fire that becomes a fire (round 303)
 
 The sim now puts the spread into the store: `process_fires` asks the map for each of the eight neighbours, runs [`spread_fire`], and spawns a
