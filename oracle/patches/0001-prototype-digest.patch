@@ -129,8 +129,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-22 13:11:40
-@@ -0,0 +1,1123 @@
++++ oracle/src/src/harness.cpp	2026-10-22 16:01:38
+@@ -0,0 +1,1151 @@
 +#include "harness.h"
 +#include "recipe_dictionary.h"
 +#include "requirements.h"
@@ -994,6 +994,34 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    std::fprintf( stderr, "\n" );
 +}
 +
++void dump_map_at( const std::string &path, const tripoint_abs_omt &omt )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    // Exactly this chunk, loaded into a scratch map. `place_player_overmap` is not used: it lands the player on a
++    // *nearby suitable square*, which is fine for playing and useless for checking a named chunk.
++    map scratch;
++    const tripoint_abs_sm corner = project_to<coords::sm>( omt );
++    scratch.load( corner, false );
++    const oter_id &oter = overmap_buffer.ter( omt );
++    std::fprintf( out, "{\"harness\":\"map\",\"version\":1,\"oter\":\"%s\",\"omt\":[%d,%d,%d],\"size\":%d,\"rows\":[\n",
++                  harness::harness_escape( oter.id().str() ).c_str(), omt.x(), omt.y(), omt.z(),
++                  SEEX * 2 );
++    for( int y = 0; y < SEEY * 2; y++ ) {
++        std::fprintf( out, "%s[", y == 0 ? "" : ",\n" );
++        for( int x = 0; x < SEEX * 2; x++ ) {
++            const ter_id &ter = scratch.ter( tripoint_bub_ms( x, y, 0 ) );
++            std::fprintf( out, "%s\"%s\"", x == 0 ? "" : ",", harness::harness_escape( ter.id().str() ).c_str() );
++        }
++        std::fprintf( out, "]" );
++    }
++    std::fprintf( out, "\n]}\n" );
++    std::fclose( out );
++}
++
 +void dump_map( const std::string &path )
 +{
 +    std::FILE *out = std::fopen( path.c_str(), "wb" );
@@ -1256,8 +1284,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-22 13:14:47
-@@ -0,0 +1,160 @@
++++ oracle/src/src/harness.h	2026-10-22 16:02:43
+@@ -0,0 +1,162 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -1274,6 +1302,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +#include <string>
 +#include <vector>
 +
++#include "coords_fwd.h"
 +#include "input_enums.h"
 +
 +namespace harness
@@ -1403,6 +1432,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +void dump_overmap( const std::string &path, int radius );
 +void dump_noise( const std::string &path, int radius );
 +void dump_map( const std::string &path );
++void dump_map_at( const std::string &path, const tripoint_abs_omt &omt );
 +
 +/** Runs one named mapgen and prints its first row, to see whether the call works at all. */
 +void probe_mapgen( const std::string &oter_id );
@@ -1440,7 +1470,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-22 15:50:29
++++ oracle/src/src/main.cpp	2026-10-22 16:01:38
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -1754,7 +1784,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +1078,180 @@
+@@ -786,6 +1078,181 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -1793,10 +1823,11 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                // Optional: dump a chunk other than the one the player stands in. The bubble has to move there first,
 +                // because the map object only holds the chunk around the player.
 +                if( cli.dump_map_omt_x != INT_MIN && cli.dump_map_omt_y != INT_MIN ) {
-+                    g->place_player_overmap(
-+                        tripoint_abs_omt( cli.dump_map_omt_x, cli.dump_map_omt_y, 0 ) );
++                    harness::dump_map_at(
++                        cli.dump_map, tripoint_abs_omt( cli.dump_map_omt_x, cli.dump_map_omt_y, 0 ) );
++                } else {
++                    harness::dump_map( cli.dump_map );
 +                }
-+                harness::dump_map( cli.dump_map );
 +            }
 +            exit_handler( 0 );
 +        }
@@ -1995,7 +2026,7 @@ diff -ruN references/Cataclysm-DDA/src/mapdata.cpp oracle/src/src/mapdata.cpp
  template<>
 diff -ruN references/Cataclysm-DDA/src/mapgen_functions.cpp oracle/src/src/mapgen_functions.cpp
 --- references/Cataclysm-DDA/src/mapgen_functions.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/mapgen_functions.cpp	2026-10-22 15:50:22
++++ oracle/src/src/mapgen_functions.cpp	2026-10-22 15:58:29
 @@ -5,6 +5,7 @@
  #include <cmath>
  #include <cstdint>
@@ -2022,18 +2053,20 @@ diff -ruN references/Cataclysm-DDA/src/mapgen_functions.cpp oracle/src/src/mapge
      // Get the current biome definition for this terrain.
      const auto current_biome_def_it = dat.region.forest_composition.biomes.find(
                                            dat.terrain_type()->get_type_id() );
-@@ -1007,6 +1019,10 @@
+@@ -1007,6 +1019,12 @@
                                adj_weights[3] * dat.w_fac + self_weight * factor ) );
  
          const int feather_selection = *direction_pool.pick();
 +        if( const char *trace_path = std::getenv( "CDDA_MAP_TRACE_GROUND" ) ) {
 +            static std::ofstream trace_file( trace_path, std::ios::app );
-+            trace_file << p.x << ' ' << p.y << ' ' << feather_selection << '\n';
++            const tripoint_abs_omt ground_omt = project_to<coords::omt>( dat.m.get_abs_sub() );
++            trace_file << p.x << ' ' << p.y << ' ' << feather_selection << ' '
++                       << ground_omt.x() << ' ' << ground_omt.y() << '\n';
 +        }
          switch( feather_selection ) {
              case no_dir:
                  return *self_biome.groundcover.pick();
-@@ -1062,6 +1078,13 @@
+@@ -1062,6 +1080,21 @@
          // Pick from the direction pool, and calculate + return the appropriate terrain:
          ter_furn_id feature;
          const int feather_selection = *direction_pool.pick();
@@ -2042,7 +2075,15 @@ diff -ruN references/Cataclysm-DDA/src/mapgen_functions.cpp oracle/src/src/mapge
 +        // untraced run produce the same world.
 +        if( const char *trace_path = std::getenv( "CDDA_MAP_TRACE" ) ) {
 +            static std::ofstream trace_file( trace_path, std::ios::app );
-+            trace_file << p.x << ' ' << p.y << ' ' << feather_selection << '\n';
++            // The pool as well as the ticket: with the six weights on disk the port's arithmetic can be compared
++            // square by square without any dice involved at all.
++            trace_file << p.x << ' ' << p.y << ' ' << feather_selection
++                       << ' ' << adj_weights[0] << ' ' << adj_weights[1] << ' ' << adj_weights[2] << ' '
++                       << adj_weights[3] << ' ' << self_weight << ' '
++                       << ( net_weight + self_weight ) * max_factor -
++                       ( adj_weights[0] * dat.n_fac + adj_weights[1] * dat.e_fac +
++                         adj_weights[2] * dat.s_fac + adj_weights[3] * dat.w_fac + self_weight * factor )
++                       << '\n';
 +        }
          switch( feather_selection ) {
              case no_dir:

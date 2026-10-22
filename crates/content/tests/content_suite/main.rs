@@ -20,6 +20,7 @@ mod forest_ground_trace;
 mod forest_layers;
 mod forest_mapgen;
 mod forest_neighbours;
+mod forest_pool_trace;
 mod forest_recorded_inputs;
 mod forest_trace;
 mod frame_diff;

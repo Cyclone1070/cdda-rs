@@ -308,6 +308,25 @@ equality; JSON accept/reject parity". Each part, and where it is proven:
 | JSON acceptance is identical | All 6,220 shipped files: same accept/reject verdict and same structural digest as the reference; the writer is compared byte for byte on 127 of them |
 | The cache changes nothing | All 6,220 files read identically cold and warm |
 
+## The weights themselves, square by square (round 244)
+
+The feature raffle now writes **six weights per square** beside the ticket it drew, so `reference-forest-pools-trace.txt`
+holds 576 lines of `x y ticket north east south west self empty`. That changes what a comparison can mean: until now the
+port could only be scored on how often two independent draws agreed, because the pool itself was never on disk. A weight
+trace can be compared with **no dice involved at all.**
+
+Three things the trace pinned that I would have guessed wrong: the empty ticket takes **306** of the 576 squares and the
+square's own biome **118** - a share of the local biome I would have put lower - every weight in every pool is
+**non-negative**, and every recorded ticket is one that **carries weight**, which is what walking a pool by accumulated
+weight has to produce.
+
+**A harness defect worth recording, because it wasted a round:** the overmap coordinate written beside a chunk comes from
+`m->get_abs_sub()` during generation, and for a chunk other than the player's own that coordinate is **not** the chunk's
+own. Dumping the "traced" square `[155,338]` returned `lake_surface` and 576 tiles of deep water. The reliable pairing is
+still the chunk the player stands in - here `forest_thick` at `[60,257]`, whose coordinate the dump and the perimeter line
+agree on. Dumping an arbitrary square works through a scratch map (`map::load`), which is now what `--dump-map-omt` does;
+what is missing is a *trustworthy* coordinate in the trace, not the ability to dump.
+
 ## One chunk, described on both sides (round 243)
 
 The dump and the traces now describe the **same** chunk: `corpus/maps/reference-chunk-6049.json` is the thick woodland at
