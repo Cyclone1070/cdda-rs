@@ -377,6 +377,15 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The sweep follows the field's live intensity (round 289)
+
+The sweep now takes the **type** rather than a constant turn and builds each field's turn from its own intensity, so a field that
+upgrades mid-turn takes the new level's numbers on its next turn. A field whose intensity the type has no level for decays without
+running anything.
+
+Five tests, one new: the same field on the same square **spawns at intensity one and does not at intensity two**, because the
+fixture's two levels differ in exactly that. A sweep that used one level's numbers for everything fails one half of that pair.
+
 ## Each intensity hands over its own numbers (round 288)
 
 `turn_at(field, intensity)` picks the level before it builds the turn, because every processor asks `cur.get_intensity_level()`

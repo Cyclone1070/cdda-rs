@@ -6,7 +6,7 @@
 
 #![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
-use cdda_content::fields::{FieldTurn, run_level_field_turns};
+use cdda_content::fields::{FieldLevel, FieldType, run_level_field_turns};
 use cdda_content::monster_groups::load_paths;
 use cdda_core_types::field::FieldEntry;
 use cdda_core_types::level::Level;
@@ -21,14 +21,36 @@ fn groups() -> Vec<cdda_content::monster_groups::MonsterGroup> {
     load_paths(&dirs).expect("the groups load")
 }
 
-fn spawning() -> FieldTurn {
-    FieldTurn {
-        spawn_chance: 1,
-        spawn_count: 1,
-        spawn_group: "GROUP_ZOMBIE".to_owned(),
-        spawn_radius: 0,
+fn field_level(spawn_chance: i32, spawn_count: i32) -> FieldLevel {
+    FieldLevel {
+        name: String::new(),
+        sym: 0,
+        color: String::new(),
+        dangerous: false,
+        transparent: true,
+        move_cost: 0,
         upgrade_chance: 0,
         upgrade_duration: 0,
+        spawn_chance,
+        spawn_count,
+        spawn_radius: 0,
+        spawn_group: if spawn_chance > 0 {
+            "GROUP_ZOMBIE".to_owned()
+        } else {
+            String::new()
+        },
+    }
+}
+
+/// The field type the sweep runs: its first level spawns, the second does not - so an intensity-two field is visibly different.
+fn spawning() -> FieldType {
+    FieldType {
+        id: "fd_probe".to_owned(),
+        priority: 0,
+        underwater_age_speedup: 0,
+        outdoor_age_speedup: 0,
+        percent_spread: 0,
+        levels: vec![field_level(1, 1), field_level(0, 0)],
     }
 }
 
@@ -145,8 +167,7 @@ fn a_field_that_died_during_its_turn_leaves_the_level() {
     level.add_field(2, 2, dying);
     let mut rolls = Rolls::new(4);
     let mut quiet = spawning();
-    quiet.spawn_chance = 0;
-    quiet.spawn_count = 0;
+    quiet.levels = vec![field_level(0, 0)];
     run_level_field_turns(
         &mut level,
         &quiet,
@@ -161,4 +182,51 @@ fn a_field_that_died_during_its_turn_leaves_the_level() {
         "a decayed field is gone from the level"
     );
     assert_eq!(level.field_squares(), Vec::new());
+}
+
+#[test]
+fn the_sweep_uses_the_fields_live_intensity() {
+    // The fixture's first level spawns and its second does not, so the same field on the same square spawns or not depending only
+    // on how strong it currently is. A sweep that used one level's numbers for everything would fail one of these two.
+    let groups = groups();
+    let mut level = Level::new();
+    level.ensure(0, 0, GROUND);
+    let mut weak = aged_field();
+    weak.set_intensity(1);
+    level.add_field(4, 4, weak);
+    let mut rolls = Rolls::new(9);
+    let spawned = run_level_field_turns(
+        &mut level,
+        &spawning(),
+        |t| t == GROUND,
+        &groups,
+        &mut rolls,
+        1,
+        |_| {},
+    );
+    assert_eq!(
+        spawned.len(),
+        1,
+        "an intensity-one field spawns: {spawned:?}"
+    );
+
+    let mut strong_level = Level::new();
+    strong_level.ensure(0, 0, GROUND);
+    let mut strong = aged_field();
+    strong.set_intensity(2);
+    strong_level.add_field(4, 4, strong);
+    let mut rolls = Rolls::new(9);
+    let spawned = run_level_field_turns(
+        &mut strong_level,
+        &spawning(),
+        |t| t == GROUND,
+        &groups,
+        &mut rolls,
+        1,
+        |_| {},
+    );
+    assert!(
+        spawned.is_empty(),
+        "an intensity-two field does not: {spawned:?}"
+    );
 }

@@ -452,15 +452,17 @@ pub fn run_field_turn<'a>(
 ///
 /// Reference: `map::process_fields_in_submap` (`map_field.cpp:445-499`) loops `locx` **outside** and `locy` inside, so the map is
 /// visited column by column. `Level::field_squares` hands the squares back in exactly that order, so the sweep never sorts and the
-/// dice are spent in the reference's sequence - the same trap that cost this port six rounds in map generation.
+/// dice are spent in the reference's sequence.
 ///
-/// Each field is taken off the level, given its turn, and put back **only if it survived**, which is how the reference's removal of
-/// a decayed field falls out of the same pass. The visitor is called once per processed square, which lets a test state the order
-/// rather than infer it.
+/// Each field is taken off the level, given the turn of **its own intensity** (`turn_at`), and put back only if it survived - which
+/// is how the reference's removal of a decayed field falls out of the same pass. A field whose intensity the type has no level for
+/// decays without running anything, which is what an intensity of zero means.
+///
+/// The visitor is called once per processed square, which lets a test state the order rather than infer it.
 #[allow(clippy::too_many_arguments)]
 pub fn run_level_field_turns<'a>(
     level: &mut cdda_core_types::level::Level,
-    turn: &FieldTurn,
+    field_type: &FieldType,
     takes_creature: impl Fn(u32) -> bool + Copy,
     groups: &'a [crate::monster_groups::MonsterGroup],
     rolls: &mut Rolls,
@@ -473,16 +475,20 @@ pub fn run_level_field_turns<'a>(
             continue;
         };
         visited(square);
-        spawned.extend(run_field_turn(
-            &mut field,
-            turn,
-            square,
-            level,
-            takes_creature,
-            groups,
-            rolls,
-            now,
-        ));
+        if let Some(turn) = turn_at(field_type, field.intensity()) {
+            spawned.extend(run_field_turn(
+                &mut field,
+                &turn,
+                square,
+                level,
+                takes_creature,
+                groups,
+                rolls,
+                now,
+            ));
+        } else {
+            field.do_decay(now, rolls);
+        }
         if field.is_alive() {
             level.add_field(square.0, square.1, field);
         }
