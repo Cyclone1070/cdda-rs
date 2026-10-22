@@ -491,3 +491,63 @@ pub fn read_groundcover(value: &Value, palette: &str) -> Option<Vec<(String, i32
     };
     Some(weighted_bin(Some(&Value::Object(members.clone()))))
 }
+
+/// Every named palette in a region, so a feature that names one can be resolved to real terrain.
+///
+/// Reference: `region_terrain_and_furniture` in `regional_settings.json`. A forest's tree layer names
+/// `t_region_tree_forest`, which is **not a terrain** - it is a name for a weighted list of terrains, and the reference
+/// expands it while loading. A port that skips the expansion produces ids like `t_region_tree_forest` that appear
+/// nowhere on a real map.
+#[must_use]
+pub fn read_region_palettes(
+    value: &Value,
+) -> std::collections::BTreeMap<String, Vec<(String, i32)>> {
+    let entry = match value {
+        Value::Array(entries) => match entries.first() {
+            Some(entry) => entry,
+            None => return std::collections::BTreeMap::new(),
+        },
+        other => other,
+    };
+    let Value::Object(fields) = entry else {
+        return std::collections::BTreeMap::new();
+    };
+    let Some(Value::Object(region)) = fields.get("region_terrain_and_furniture") else {
+        return std::collections::BTreeMap::new();
+    };
+    let Some(Value::Object(terrains)) = region.get("terrain") else {
+        return std::collections::BTreeMap::new();
+    };
+    terrains
+        .members()
+        .iter()
+        .map(|(name, members)| (name.clone(), weighted_bin(Some(members))))
+        .collect()
+}
+
+/// Resolves a name to the terrain it stands for, drawing from its weight list when it is a palette.
+#[must_use]
+pub fn resolve_region_terrain(
+    palettes: &std::collections::BTreeMap<String, Vec<(String, i32)>>,
+    name: &str,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) -> String {
+    // Palettes name other palettes - `t_region_tree_forest` lists `t_region_tree_forest_dense`, which lists real
+    // trees - so resolving once leaves placeholder ids on the map. The reference expands the whole chain at load time;
+    // the port walks it here, with a bound so a cycle in the data cannot hang the generator.
+    let mut current = name.to_string();
+    for _ in 0..16 {
+        match palettes.get(&current) {
+            Some(entries) if !entries.is_empty() => {
+                let list =
+                    cdda_core_types::weighted::WeightedList::from_entries(entries.iter().cloned());
+                match list.pick(rolls).cloned() {
+                    Some(next) => current = next,
+                    None => break,
+                }
+            }
+            _ => break,
+        }
+    }
+    current
+}

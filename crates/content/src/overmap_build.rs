@@ -16,7 +16,9 @@ use cdda_core_types::overmap::{
 use cdda_core_types::rng::Rolls;
 use cdda_core_types::weighted::WeightedList;
 
-use crate::overmap_special::{CitySettings, OvermapLocation, OvermapSpecial};
+use crate::overmap_special::{
+    CitySettings, OvermapLocation, OvermapSpecial, resolve_region_terrain,
+};
 
 /// How many times the reference retries a building that does not fit before giving up on the square.
 pub const PLACEMENT_RETRIES: usize = 10;
@@ -203,8 +205,11 @@ pub fn forest_ground_pass(
     perimeter: &[i32],
     self_palette: &[(String, i32)],
     default_palette: &[(String, i32)],
+    layers: &[crate::overmap_special::ForestComponent],
+    palettes: &std::collections::BTreeMap<String, Vec<(String, i32)>>,
     max_factor: f32,
     factor: f32,
+    neighbour_factors: [f32; 4],
     rolls: &mut Rolls,
 ) -> Vec<String> {
     let mut ground = Vec::with_capacity((side * side) as usize);
@@ -214,9 +219,20 @@ pub fn forest_ground_pass(
     let self_weight = 3.0;
     for y in 0..side {
         for x in 0..side {
-            let weights = nesw_weights((x, y), side, perimeter, margin, [true; 4]);
+            // The reference scales the four neighbours by the square's own sparseness and leaves this square's own
+            // ticket at a fixed three, so the scaling is not symmetric and cannot be dropped without letting the
+            // forest claim more of the chunk than the reference gives it.
+            let weights = nesw_weights((x, y), side, perimeter, margin, [true; 4])
+                .map(|weight| weight * factor);
             let net: f32 = weights.iter().sum();
-            let pool = feather_pool(weights, self_weight, net, max_factor, factor, [factor; 4]);
+            let pool = feather_pool(
+                weights,
+                self_weight,
+                net,
+                max_factor,
+                factor,
+                neighbour_factors,
+            );
             let total: f32 = pool.iter().map(|weight| weight.max(0.0)).sum();
             let mut ticket = rolls.rng_float(0.0, f64::from(total));
             let mut chosen = 4; // this square's own biome, the fallback when the arithmetic leaves nothing else
@@ -231,13 +247,27 @@ pub fn forest_ground_pass(
             // region's default ground. That is right for the case that matters here - a forest next to open ground,
             // where the neighbours own no forest biome - and it is the difference between a chunk that is mostly
             // grass, as the reference's is, and one that is mostly forest floor, as my first version produced.
+            if chosen == 4 {
+                // This square's own biome runs its layers and only falls back to ground when none of them rolled:
+                // the reference's `forest_biome::pick` followed by `get_feathered_groundcover`.
+                if let Some(feature) = pick_forest_feature(layers, rolls) {
+                    // A feature can be **furniture** - a boulder, or the region's own forest furniture palette - and
+                    // furniture does not replace the ground under it. Those squares keep their ground cover, which is
+                    // what the reference does by setting the terrain and the furniture separately.
+                    if !feature.starts_with('f') {
+                        ground.push(resolve_region_terrain(palettes, &feature, rolls));
+                        continue;
+                    }
+                }
+            }
             let palette = if chosen == 4 {
                 self_palette
             } else {
                 default_palette
             };
             let entry = WeightedList::from_entries(palette.iter().cloned());
-            ground.push(entry.pick(rolls).cloned().unwrap_or_default());
+            let picked = entry.pick(rolls).cloned().unwrap_or_default();
+            ground.push(resolve_region_terrain(palettes, &picked, rolls));
         }
     }
     ground

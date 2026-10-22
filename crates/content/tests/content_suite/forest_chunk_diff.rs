@@ -8,7 +8,9 @@
 #![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_content::overmap_build::forest_ground_pass;
-use cdda_content::overmap_special::{OvermapLocation, read_forest_mapgen, read_groundcover};
+use cdda_content::overmap_special::{
+    OvermapLocation, read_forest_mapgen, read_groundcover, read_region_palettes,
+};
 use cdda_core_types::overmap::{forest_border_depth, forest_perimeter_depth};
 use cdda_core_types::rng::Rolls;
 
@@ -51,6 +53,7 @@ fn the_ground_pass_produces_a_full_chunk_of_named_ground() {
     let self_palette =
         read_groundcover(&region, "t_region_groundcover_forest").expect("the palette");
     let default_palette = read_groundcover(&region, "t_region_groundcover").expect("the palette");
+    let palettes = read_region_palettes(&region);
     let border = forest_border_depth(
         [(1920, 4800), (1944, 4800), (1920, 4824), (1944, 4824)],
         5,
@@ -58,14 +61,18 @@ fn the_ground_pass_produces_a_full_chunk_of_named_ground() {
     );
     let mut rolls = Rolls::new(31337);
     let perimeter = forest_perimeter_depth(border, 5, &mut rolls);
-    let _ = &forest;
     let ground = forest_ground_pass(
         24,
         &perimeter,
         &self_palette,
         &default_palette,
+        &forest.components,
+        &palettes,
         3.0,
         3.0,
+        // The neighbours are open field: they own no forest biome, so their sparseness is zero. Passing this square's
+        // own factor for all four - which my first version did - lets the forest claim far too much of the chunk.
+        [0.0; 4],
         &mut rolls,
     );
     assert_eq!(ground.len(), 576, "twenty-four squares a side");
@@ -74,9 +81,18 @@ fn the_ground_pass_produces_a_full_chunk_of_named_ground() {
         "every square is a terrain"
     );
     let kinds: std::collections::BTreeSet<&String> = ground.iter().collect();
-    // Six kinds: the forest palette's five plus `t_dirt`, which comes from the region's default ground through the
-    // neighbour and empty tickets.
-    assert_eq!(kinds.len(), 6, "the palettes' kinds: {kinds:?}");
+    // The chunk is ground plus features now, so the vocabulary is wide: the palettes' kinds, the trees the region's
+    // tree palette resolves to, shrubs, undergrowth and the odd fern or trunk.
+    assert!(
+        kinds.len() > 20,
+        "a forest is varied: {} kinds",
+        kinds.len()
+    );
+    assert!(kinds.contains(&"t_grass".to_string()) && kinds.contains(&"t_forestfloor".to_string()));
+    assert!(
+        kinds.iter().all(|id| id.starts_with("t_")),
+        "and every id is a terrain rather than a palette name: {kinds:?}"
+    );
 }
 
 #[test]
@@ -89,6 +105,7 @@ fn the_ground_pass_and_the_reference_agree_on_a_share_of_the_chunk() {
     let self_palette =
         read_groundcover(&region, "t_region_groundcover_forest").expect("the palette");
     let default_palette = read_groundcover(&region, "t_region_groundcover").expect("the palette");
+    let palettes = read_region_palettes(&region);
     let border = forest_border_depth(
         [(1920, 4800), (1944, 4800), (1920, 4824), (1944, 4824)],
         5,
@@ -101,8 +118,13 @@ fn the_ground_pass_and_the_reference_agree_on_a_share_of_the_chunk() {
         &perimeter,
         &self_palette,
         &default_palette,
+        &forest.components,
+        &palettes,
         3.0,
         3.0,
+        // The neighbours are open field: they own no forest biome, so their sparseness is zero. Passing this square's
+        // own factor for all four - which my first version did - lets the forest claim far too much of the chunk.
+        [0.0; 4],
         &mut rolls,
     );
     let reference = chunk();
@@ -111,19 +133,25 @@ fn the_ground_pass_and_the_reference_agree_on_a_share_of_the_chunk() {
         .zip(reference.iter())
         .filter(|(ours, theirs)| ours == theirs)
         .count();
-    let _ = forest;
     let _ = OvermapLocation {
         id: String::new(),
         terrains: Vec::new(),
         flags: Vec::new(),
     };
-    // Measured at **122 of 576** with the reference's own chunk, against roughly 64 that chance alone would give - so
-    // the pass tracks the reference rather than scattering ground at random. The remaining deficit is the four feature
-    // layers, which overwrite most of what this pass lays down. Quoting the number here means a later change that makes
-    // it worse is visible in the test's own history rather than only in a diff.
-    eprintln!("the ground pass agrees on {agree} of 576 squares");
+    // Measured at **242 of 576** with the reference's own chunk, against roughly 64 that chance alone would give. The
+    // number moved 122 -> 183 -> 242 in one round, from three fixes that each came out of the measurement: resolving
+    // the region's **palette chains** rather than stopping at the first name, treating a **furniture** feature as
+    // something that does not replace the ground under it, and scaling the four neighbours by the square's own
+    // sparseness while this square's ticket stays at a fixed three - the last of which is worth the most, because the
+    // scaling is not symmetric and dropping it lets the forest claim half again as much of the chunk as it should.
+    // What is still missing is the corner rule (`unify_all_borders`) and the neighbours' own biome palettes.
+    let mut counts = std::collections::BTreeMap::new();
+    for id in &ground {
+        *counts.entry(id.clone()).or_insert(0_usize) += 1;
+    }
+    eprintln!("the ground pass agrees on {agree} of 576 squares: {counts:?}");
     assert!(
-        agree > 100,
+        agree > 200,
         "the ground pass agrees with the reference on {agree} of 576 squares - below a hundred would mean it is \
          producing ground the reference never lays down"
     );
