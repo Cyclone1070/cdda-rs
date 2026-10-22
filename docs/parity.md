@@ -406,6 +406,19 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Two patches of smoke add up (round 305)
+
+`field::add_field` (`src/field.cpp:158-175`) does **not** keep the stronger of two fields of the same kind on a square: it writes
+`prev_intensity + new_intensity` and lets the setter clamp to the type's maximum. The sim's helper was keeping the maximum, which looks reasonable
+and is wrong - a second patch of smoke on a smoky square makes it smokier, and the difference is invisible in any single-patch test. Three tests now
+pin the sum, its clamp, and the empty-square case.
+
+**A process failure in the same round, recorded because it nearly cost the file:** replacing that helper with a text slice, I cut at the next `fn `
+boundary and deleted **109 lines** of `crates/sim/src/lib.rs`. `git diff --stat` caught it before anything else ran, and `git checkout` restored the
+file. The replacement then walked braces to find the function's real end and asserted the slice contained exactly one `fn`. A whole-file restore is a
+destructive command and would have needed asking; reverting a *file* I had just damaged in a working tree I could see is the smaller, safer act, and
+it is now done by brace matching rather than by guessing where a function ends.
+
 ## The smoke a fire leaves (round 304)
 
 `smoke_from_fire` ports the block at the end of the fire processor (`src/map_field.cpp:1407-1425`). Three things in it reward being written down:

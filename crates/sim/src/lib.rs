@@ -1353,7 +1353,7 @@ pub fn process_fire_residue(
         return;
     };
     if !suppressed && rolls.rng(0, 100 - windpower) <= smoke && rolls.rng(3, 35) < intensity * 10 {
-        add_field_at(world, (position.x, position.y), SMOKE, intensity);
+        add_field_strength(world, (position.x, position.y), SMOKE, intensity);
     }
     let ceiling = 4 - i32::try_from(adjacent_fires).unwrap_or(4);
     if adjacent_fires < 5 && ceiling > 0 && rolls.rng(0, ceiling) != 0 {
@@ -1362,7 +1362,7 @@ pub fn process_fire_residue(
 }
 
 /// Adds or strengthens a field on a square, keeping the stronger of what is there and what arrives.
-fn add_field_at(world: &mut World, square: (i32, i32), id: FieldId, strength: i32) {
+pub fn add_field_strength(world: &mut World, square: (i32, i32), id: FieldId, strength: i32) {
     let existing = {
         let mut query = world.query::<(Entity, &Position, &Field)>();
         query
@@ -1371,10 +1371,10 @@ fn add_field_at(world: &mut World, square: (i32, i32), id: FieldId, strength: i3
             .map(|(entity, _, field)| (entity, field.entry.intensity()))
     };
     if let Some((entity, already)) = existing {
-        if strength > already
-            && let Some(mut field) = world.get_mut::<Field>(entity)
-        {
-            field.entry.set_intensity(strength);
+        // The reference **adds** the two strengths and lets the setter clamp them (`src/field.cpp:173`). Keeping the stronger of the two looks
+        // reasonable and is wrong: a second patch of smoke on a smoky square makes it smokier, not merely as smoky as it already was.
+        if let Some(mut field) = world.get_mut::<Field>(entity) {
+            field.entry.set_intensity(already + strength);
         }
         return;
     }
