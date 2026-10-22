@@ -308,6 +308,24 @@ equality; JSON accept/reject parity". Each part, and where it is proven:
 | JSON acceptance is identical | All 6,220 shipped files: same accept/reject verdict and same structural digest as the reference; the writer is compared byte for byte on 127 of them |
 | The cache changes nothing | All 6,220 files read identically cold and warm |
 
+## The forest's own edge, where corner blending runs (round 246)
+
+The corner rule had only ever been checked against the reference's source. A plain generated region settles that: of its
+fourteen chunks, **six** cannot be explained by any of the sixteen side masks - `[152,120]`, `[153,119]`, `[153,121]`,
+`[155,121]`, `[155,122]`, `[156,121]` - because corner blending moved weight between sides where a corner's biome differs
+from the square's. They are recorded whole in `corpus/overmap/reference-forest-edges.json`: each chunk's ninety-six
+perimeter depths and all 576 squares' four neighbour weights.
+
+What that proves and what it does not: it proves the rule **runs in a real world** and that a port without it cannot
+reproduce these six chunks. It does not yet prove the port reproduces them *with* it - that needs the corner biomes, which
+the trace does not record yet, and is the next piece of instrumentation.
+
+**A harness defect found on the way, worth recording:** the perimeter trace is only trustworthy in a run that does not
+replay turns. Sixty turns of walking produced perimeter lines whose values turn into heap addresses after a dozen
+entries (`17,602,328 42,949,676 ...`), which reads exactly like an array being printed past the part the generator filled.
+The weights beside them are fine. Until the writer is understood, edge chunks are taken from plain runs and their weights
+are the trustworthy half of the record.
+
 ## Thirty-five chunks, and the mask read back out of each (round 245)
 
 The mask that says which of a chunk's four sides owns a biome is the same for all 576 squares of that chunk, so it can be
