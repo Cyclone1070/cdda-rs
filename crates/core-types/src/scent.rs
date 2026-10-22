@@ -340,3 +340,43 @@ impl ScentWindow {
         }
     }
 }
+
+impl ScentWindow {
+    /// Moves what the window holds, as the map moves under it.
+    ///
+    /// Reference: `scent_map::shift` (`scent_map.cpp:82-99`), called when the reality bubble moves (`game.cpp:13125`). Two details
+    /// matter and both are in the reference's loop bounds: the walk starts from the side the data is moving **towards**, so a square
+    /// is always read before it is written over - walking the other way smears every value across the window - and squares the
+    /// window uncovers come back **empty**, because a stale value there would claim scent that nothing produced.
+    // The loops run over the window's own dimensions, which clippy cannot see.
+    #[allow(clippy::indexing_slicing)]
+    pub fn shift(&mut self, dx: i32, dy: i32) {
+        let side = usize::try_from(self.side).unwrap_or(0);
+        if side == 0 || self.cells.len() != side * side {
+            return;
+        }
+        let step_x: i32 = if dx >= 0 { 1 } else { -1 };
+        let step_y: i32 = if dy >= 0 { 1 } else { -1 };
+        let mut x: i32 = if dx >= 0 { 0 } else { self.side - 1 };
+        while (0..self.side).contains(&x) {
+            let mut y: i32 = if dy >= 0 { 0 } else { self.side - 1 };
+            while (0..self.side).contains(&y) {
+                let source_x = x + dx;
+                let source_y = y + dy;
+                let value =
+                    if (0..self.side).contains(&source_x) && (0..self.side).contains(&source_y) {
+                        let source = usize::try_from(source_y).unwrap_or(0) * side
+                            + usize::try_from(source_x).unwrap_or(0);
+                        self.cells.get(source).copied().unwrap_or_default()
+                    } else {
+                        ScentCell::default()
+                    };
+                let destination =
+                    usize::try_from(y).unwrap_or(0) * side + usize::try_from(x).unwrap_or(0);
+                self.cells[destination] = value;
+                y += step_y;
+            }
+            x += step_x;
+        }
+    }
+}

@@ -115,3 +115,54 @@ fn a_square_at_the_edge_of_the_window_keeps_more_because_fewer_squares_take_part
         "middle {middle}, edge {edge}"
     );
 }
+
+#[test]
+fn shifting_the_window_moves_what_it_holds_and_empties_what_it_leaves() {
+    // Reference: `scent_map::shift` (`scent_map.cpp:82-99`), called when the reality bubble moves (`game.cpp:13125`). The values
+    // travel with the map, and the squares the window uncovers are empty rather than stale.
+    let mut window = scent_window((40, 40));
+    window.set(40, 40, 1_000);
+    window.set(41, 40, 500);
+    // The convention is the reference's, and it is the opposite of the obvious one: a **positive** shift makes each destination read
+    // from a **higher** coordinate (`grscent[x][y] = grscent[x + shift][y + shift]`), so the contents travel toward lower ones - the
+    // map moved, the scent stayed where it was in the world.
+    window.shift(2, 0);
+    assert_eq!(
+        window.get(38, 40),
+        1_000,
+        "the value stayed put in the world"
+    );
+    assert_eq!(window.get(39, 40), 500);
+    assert_eq!(
+        window.get(40, 40),
+        0,
+        "and the squares it no longer covers read as no scent"
+    );
+    assert_eq!(window.get(41, 40), 0);
+}
+
+#[test]
+fn shifting_back_and_forth_returns_the_window_it_started_with() {
+    // The iteration order is what makes this work: the reference walks the window from the side the data is moving towards, so a
+    // square is always read before it is written over. Walking the other way would smear each value across the window.
+    let mut window = scent_window((40, 40));
+    for x in 30..50 {
+        window.set(x, 40, x * 10);
+    }
+    let before: Vec<i32> = (30..50).map(|x| window.get(x, 40)).collect();
+    window.shift(5, 0);
+    window.shift(-5, 0);
+    let after: Vec<i32> = (30..50).map(|x| window.get(x, 40)).collect();
+    assert_eq!(before, after);
+}
+
+#[test]
+fn a_shift_further_than_the_window_empties_it() {
+    // Nothing survives a move that takes the whole window off the map: the reference's `inbounds` test sends every square's value
+    // to zero, and a port that clamped the shift instead would leave a band of stale scent at the edge.
+    let mut window = scent_window((40, 40));
+    window.set(40, 40, 1_000);
+    window.shift(100, 0);
+    assert_eq!(window.get(42, 40), 0);
+    assert_eq!(window.get(140, 40), 0);
+}
