@@ -88,8 +88,16 @@ fn the_picture_of_a_world_can_be_written_out() {
 fn the_junctions_of_a_town_are_visible_in_the_picture() {
     let overmap = grown(7, 4);
     let picture = render(&overmap, (0, 0), 180, 180);
+    // Junctions are crossings in the reference's own vocabulary now, not a separate symbol.
+    let mut seen: std::collections::BTreeMap<char, usize> = std::collections::BTreeMap::new();
+    for glyph in picture.chars().filter(|glyph| *glyph != '\n') {
+        *seen.entry(glyph).or_insert(0) += 1;
+    }
     assert!(
-        picture.contains('+'),
-        "junctions are drawn differently from plain road"
+        picture.contains('┼')
+            || picture.contains('├')
+            || picture.contains('┤')
+            || picture.contains('┬'),
+        "junctions are drawn differently from plain road: {seen:?}"
     );
 }
