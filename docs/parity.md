@@ -406,6 +406,23 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Fires answer in whole squares (round 320)
+
+`FireMap` asks about a **square**, not a column: every one of its seven questions carries `z`, and `process_fires` passes the fire's own floor. A newborn
+fire lands on the floor it was born on, and a square that already holds a fire is checked with its floor - two fires on the same column one storey apart are
+two fires.
+
+| Test | What it proves |
+|---|---|
+the system asks the map about a whole square | every question names the fire's floor |
+a fire upstairs leaves its smoke upstairs | the product lands where the fire is |
+
+The first test is written against a map double that **records the questions it was asked**, which is the only way to see a coordinate that is missing from
+a call: a two-coordinate map answers happily and the fire looks right.
+
+**Still declared:** smoke does not rise yet. Whether the ceiling lets it through is a question about the terrain overhead, which nothing answers - so the
+rule's "no" is passed in rather than guessed at.
+
 ## Smoke falls before it drifts, and rises last (round 319)
 
 `process_gas` now answers all three of the rule's questions about the world, and the store does something with the answers: a gas over a hole **falls**

@@ -82,13 +82,13 @@ struct Floor {
 }
 
 impl FireMap for Floor {
-    fn adjacent_fires(&self, _square: (i32, i32)) -> i32 {
+    fn adjacent_fires(&self, _square: (i32, i32, i32)) -> i32 {
         0
     }
-    fn can_burn(&self, _square: (i32, i32)) -> bool {
+    fn can_burn(&self, _square: (i32, i32, i32)) -> bool {
         true
     }
-    fn time_added(&self, _square: (i32, i32)) -> i64 {
+    fn time_added(&self, _square: (i32, i32, i32)) -> i64 {
         if Some(self.turn) == self.feeding_turn {
             // `time_added += 1_turns * ( 4 - intensity )` at intensity two.
             2
@@ -96,16 +96,16 @@ impl FireMap for Floor {
             0
         }
     }
-    fn can_spread(&self, _square: (i32, i32)) -> bool {
+    fn can_spread(&self, _square: (i32, i32, i32)) -> bool {
         false
     }
-    fn neighbour(&self, _square: (i32, i32)) -> Neighbour {
+    fn neighbour(&self, _square: (i32, i32, i32)) -> Neighbour {
         Neighbour::default()
     }
-    fn suppress_smoke(&self, _square: (i32, i32)) -> bool {
+    fn suppress_smoke(&self, _square: (i32, i32, i32)) -> bool {
         true
     }
-    fn smoke_produced(&self, _square: (i32, i32)) -> i32 {
+    fn smoke_produced(&self, _square: (i32, i32, i32)) -> i32 {
         0
     }
 }

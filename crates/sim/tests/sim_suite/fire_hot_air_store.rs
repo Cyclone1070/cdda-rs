@@ -15,25 +15,25 @@ use cdda_sim::{FIRE, Field, FireMap, HOT_AIR_2, Position, process_fires};
 struct Quiet;
 
 impl FireMap for Quiet {
-    fn adjacent_fires(&self, _square: (i32, i32)) -> i32 {
+    fn adjacent_fires(&self, _square: (i32, i32, i32)) -> i32 {
         0
     }
-    fn can_burn(&self, _square: (i32, i32)) -> bool {
+    fn can_burn(&self, _square: (i32, i32, i32)) -> bool {
         false
     }
-    fn time_added(&self, _square: (i32, i32)) -> i64 {
+    fn time_added(&self, _square: (i32, i32, i32)) -> i64 {
         0
     }
-    fn can_spread(&self, _square: (i32, i32)) -> bool {
+    fn can_spread(&self, _square: (i32, i32, i32)) -> bool {
         false
     }
-    fn neighbour(&self, _square: (i32, i32)) -> Neighbour {
+    fn neighbour(&self, _square: (i32, i32, i32)) -> Neighbour {
         Neighbour::default()
     }
-    fn suppress_smoke(&self, _square: (i32, i32)) -> bool {
+    fn suppress_smoke(&self, _square: (i32, i32, i32)) -> bool {
         true
     }
-    fn smoke_produced(&self, _square: (i32, i32)) -> i32 {
+    fn smoke_produced(&self, _square: (i32, i32, i32)) -> i32 {
         0
     }
 }

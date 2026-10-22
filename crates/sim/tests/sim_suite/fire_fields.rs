@@ -25,25 +25,25 @@ struct FlatMap {
 }
 
 impl FireMap for FlatMap {
-    fn adjacent_fires(&self, _square: (i32, i32)) -> i32 {
+    fn adjacent_fires(&self, _square: (i32, i32, i32)) -> i32 {
         self.adjacent_fires
     }
-    fn can_burn(&self, _square: (i32, i32)) -> bool {
+    fn can_burn(&self, _square: (i32, i32, i32)) -> bool {
         self.can_burn
     }
-    fn time_added(&self, _square: (i32, i32)) -> i64 {
+    fn time_added(&self, _square: (i32, i32, i32)) -> i64 {
         self.time_added
     }
-    fn can_spread(&self, _square: (i32, i32)) -> bool {
+    fn can_spread(&self, _square: (i32, i32, i32)) -> bool {
         self.can_spread
     }
-    fn neighbour(&self, _square: (i32, i32)) -> Neighbour {
+    fn neighbour(&self, _square: (i32, i32, i32)) -> Neighbour {
         self.neighbour
     }
-    fn suppress_smoke(&self, _square: (i32, i32)) -> bool {
+    fn suppress_smoke(&self, _square: (i32, i32, i32)) -> bool {
         self.suppress_smoke
     }
-    fn smoke_produced(&self, _square: (i32, i32)) -> i32 {
+    fn smoke_produced(&self, _square: (i32, i32, i32)) -> i32 {
         self.smoke_produced
     }
 }

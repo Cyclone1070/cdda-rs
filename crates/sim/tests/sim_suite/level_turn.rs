@@ -19,28 +19,28 @@ use cdda_sim::{
 struct HardFloor;
 
 impl FireMap for HardFloor {
-    fn adjacent_fires(&self, _square: (i32, i32)) -> i32 {
+    fn adjacent_fires(&self, _square: (i32, i32, i32)) -> i32 {
         0
     }
-    fn can_burn(&self, _square: (i32, i32)) -> bool {
+    fn can_burn(&self, _square: (i32, i32, i32)) -> bool {
         true
     }
-    fn time_added(&self, _square: (i32, i32)) -> i64 {
+    fn time_added(&self, _square: (i32, i32, i32)) -> i64 {
         0
     }
-    fn can_spread(&self, _square: (i32, i32)) -> bool {
+    fn can_spread(&self, _square: (i32, i32, i32)) -> bool {
         true
     }
-    fn neighbour(&self, _square: (i32, i32)) -> Neighbour {
+    fn neighbour(&self, _square: (i32, i32, i32)) -> Neighbour {
         Neighbour {
             flammable_hard: true,
             ..Neighbour::default()
         }
     }
-    fn suppress_smoke(&self, _square: (i32, i32)) -> bool {
+    fn suppress_smoke(&self, _square: (i32, i32, i32)) -> bool {
         false
     }
-    fn smoke_produced(&self, _square: (i32, i32)) -> i32 {
+    fn smoke_produced(&self, _square: (i32, i32, i32)) -> i32 {
         10
     }
 }

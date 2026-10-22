@@ -155,3 +155,116 @@ fn a_gas_with_nothing_sideways_rises() {
     );
     assert_eq!(intensity_at(&mut world, 5, 5, 1), vec![2]);
 }
+
+/// A map that makes a lot of smoke and refuses nothing.
+struct Smoky;
+impl cdda_sim::FireMap for Smoky {
+    fn adjacent_fires(&self, _square: (i32, i32, i32)) -> i32 {
+        9
+    }
+    fn can_burn(&self, _square: (i32, i32, i32)) -> bool {
+        false
+    }
+    fn time_added(&self, _square: (i32, i32, i32)) -> i64 {
+        0
+    }
+    fn can_spread(&self, _square: (i32, i32, i32)) -> bool {
+        false
+    }
+    fn neighbour(&self, _square: (i32, i32, i32)) -> cdda_core_types::fire::Neighbour {
+        cdda_core_types::fire::Neighbour::default()
+    }
+    fn suppress_smoke(&self, _square: (i32, i32, i32)) -> bool {
+        false
+    }
+    fn smoke_produced(&self, _square: (i32, i32, i32)) -> i32 {
+        100
+    }
+}
+/// A map that records which square it was asked about, and burns hard.
+struct Watched(std::cell::RefCell<Vec<(i32, i32, i32)>>);
+
+impl cdda_sim::FireMap for Watched {
+    fn adjacent_fires(&self, square: (i32, i32, i32)) -> i32 {
+        self.0.borrow_mut().push(square);
+        0
+    }
+    fn can_burn(&self, _square: (i32, i32, i32)) -> bool {
+        false
+    }
+    fn time_added(&self, _square: (i32, i32, i32)) -> i64 {
+        0
+    }
+    fn can_spread(&self, _square: (i32, i32, i32)) -> bool {
+        false
+    }
+    fn neighbour(&self, _square: (i32, i32, i32)) -> cdda_core_types::fire::Neighbour {
+        cdda_core_types::fire::Neighbour::default()
+    }
+    fn suppress_smoke(&self, _square: (i32, i32, i32)) -> bool {
+        true
+    }
+    fn smoke_produced(&self, _square: (i32, i32, i32)) -> i32 {
+        0
+    }
+}
+
+#[test]
+fn the_fire_system_asks_the_map_about_a_whole_square_not_a_column() {
+    // A fire on the first floor is not the same square as a fire on the ground, so the questions the system asks the map have to carry the floor. This is
+    // the test that fails while `FireMap` still speaks in two coordinates.
+    let mut world = World::new();
+    let mut entry = FieldEntry::new(4, 1_000_000, false, true);
+    entry.set_age(1);
+    entry.set_intensity(2);
+    world.spawn((
+        Field {
+            id: cdda_sim::FIRE,
+            entry,
+            priority: 0,
+        },
+        Position { x: 5, y: 5, z: 1 },
+    ));
+    let watched = Watched(std::cell::RefCell::new(Vec::new()));
+    let mut rolls = Rolls::new(11);
+    cdda_sim::process_fires(&mut world, &watched, 0, &mut rolls);
+    let asked = watched.0.borrow();
+    assert!(!asked.is_empty(), "the map was asked something");
+    assert!(
+        asked.iter().all(|square| square.2 == 1),
+        "every question named the fire's own floor: {asked:?}"
+    );
+}
+
+#[test]
+fn a_fire_upstairs_leaves_its_smoke_upstairs() {
+    // The product lands where the fire is, not on the ground floor.
+    let mut world = World::new();
+    let mut entry = FieldEntry::new(4, 1_000_000, false, true);
+    entry.set_age(1);
+    entry.set_intensity(3);
+    world.spawn((
+        Field {
+            id: cdda_sim::FIRE,
+            entry,
+            priority: 0,
+        },
+        Position { x: 2, y: 2, z: 1 },
+    ));
+    let mut rolls = Rolls::new(3);
+    cdda_sim::process_fires(&mut world, &Smoky, 0, &mut rolls);
+    let mut query = world.query::<(&Field, &Position)>();
+    assert!(
+        query
+            .iter(&world)
+            .any(|(field, position)| field.id == SMOKE && position.z == 1),
+        "the smoke is on the fire's own floor"
+    );
+    let mut query = world.query::<(&Field, &Position)>();
+    assert!(
+        !query
+            .iter(&world)
+            .any(|(field, position)| field.id == SMOKE && position.z == 0),
+        "no smoke fell through the floor"
+    );
+}

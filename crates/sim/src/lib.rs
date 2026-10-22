@@ -184,19 +184,19 @@ pub fn process_field_turns(
 /// than to the fire. Gathering them behind one trait keeps the fire system readable and lets a test answer them one at a time.
 pub trait FireMap {
     /// How many fires touch this square.
-    fn adjacent_fires(&self, square: (i32, i32)) -> i32;
+    fn adjacent_fires(&self, square: (i32, i32, i32)) -> i32;
     /// Whether the ground here can burn.
-    fn can_burn(&self, square: (i32, i32)) -> bool;
+    fn can_burn(&self, square: (i32, i32, i32)) -> bool;
     /// How much the fire ate this turn, in turns.
-    fn time_added(&self, square: (i32, i32)) -> i64;
+    fn time_added(&self, square: (i32, i32, i32)) -> i64;
     /// Whether the fire is somewhere it can spread from, rather than a brazier or an oven.
-    fn can_spread(&self, square: (i32, i32)) -> bool;
+    fn can_spread(&self, square: (i32, i32, i32)) -> bool;
     /// What one of the eight neighbouring squares looks like.
-    fn neighbour(&self, square: (i32, i32)) -> cdda_core_types::fire::Neighbour;
+    fn neighbour(&self, square: (i32, i32, i32)) -> cdda_core_types::fire::Neighbour;
     /// Whether smoke is suppressed here, as a sealed room does.
-    fn suppress_smoke(&self, square: (i32, i32)) -> bool;
+    fn suppress_smoke(&self, square: (i32, i32, i32)) -> bool;
     /// How much smoke the fire's fuel made this turn.
-    fn smoke_produced(&self, square: (i32, i32)) -> i32;
+    fn smoke_produced(&self, square: (i32, i32, i32)) -> i32;
 }
 
 /// Gives every fire on the level its turn: it spends or gains fuel, and grows if it has earned it.
@@ -214,17 +214,17 @@ pub fn process_fires(
     windpower: i32,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) {
-    let mut order: Vec<(i32, i32, Entity)> = Vec::new();
+    let mut order: Vec<(i32, i32, i32, Entity)> = Vec::new();
     let mut query = world.query::<(Entity, &Position, &Field)>();
     for (entity, position, field) in query.iter(world) {
         if field.id == FIRE {
-            order.push((position.x, position.y, entity));
+            order.push((position.x, position.y, position.z, entity));
         }
     }
-    order.sort_by_key(|&(x, y, entity)| (x, y, entity.to_bits()));
-    let mut newborn: Vec<(i32, i32)> = Vec::new();
-    for (x, y, entity) in order {
-        let square = (x, y);
+    order.sort_by_key(|&(x, y, z, entity)| (x, y, z, entity.to_bits()));
+    let mut newborn: Vec<(i32, i32, i32)> = Vec::new();
+    for (x, y, z, entity) in order {
+        let square = (x, y, z);
         let Some(field) = world.get::<Field>(entity) else {
             continue;
         };
@@ -262,7 +262,7 @@ pub fn process_fires(
         let mut neighbours = [cdda_core_types::fire::Neighbour::default(); 8];
         for (index, offset) in EIGHT_NEIGHBOURS.iter().enumerate() {
             if let Some(slot) = neighbours.get_mut(index) {
-                *slot = map.neighbour((x + offset.0, y + offset.1));
+                *slot = map.neighbour((x + offset.0, y + offset.1, z));
             }
         }
         let caught = if spreads {
@@ -273,7 +273,7 @@ pub fn process_fires(
         let did_spread = !caught.is_empty();
         for index in caught {
             if let Some(offset) = EIGHT_NEIGHBOURS.get(index) {
-                newborn.push((x + offset.0, y + offset.1));
+                newborn.push((x + offset.0, y + offset.1, z));
             }
         }
         if did_spread {
@@ -283,16 +283,16 @@ pub fn process_fires(
                 field.entry.set_age(spent);
             }
         }
-        // Then the smoke: above when the square overhead is open, otherwise on the fire itself and thicker. The port's store is two
-        // dimensional for now, so it takes the smoke-here branch and says so.
+        // Then the smoke: above when the square overhead is open, otherwise on the fire itself and thicker. The store carries the floor now; whether the
+        // smoke may rise is still answered "no", because nothing here knows what the ceiling is made of yet.
         fire_discharge(world, square, intensity, map, windpower, rolls);
     }
-    for (x, y) in newborn {
-        // One fire per square: a square that already has one is not re-lit, and the world is keyed by square whatever the store keys by.
+    for (x, y, z) in newborn {
+        // One fire per square: a square that already has one is not re-lit, and a square is a column **and** a floor.
         let mut query = world.query::<(&Field, &Position)>();
-        let taken = query
-            .iter(world)
-            .any(|(field, position)| position.x == x && position.y == y && field.id == FIRE);
+        let taken = query.iter(world).any(|(field, position)| {
+            (position.x, position.y, position.z) == (x, y, z) && field.id == FIRE
+        });
         if taken {
             continue;
         }
@@ -308,7 +308,7 @@ pub fn process_fires(
                 entry,
                 priority: 0,
             },
-            Position { x, y, z: 0 },
+            Position { x, y, z },
         ));
     }
 }
@@ -967,7 +967,7 @@ pub fn create_hot_air(
 /// hot air first (`map_field.cpp:1429`), then smoke (`:1407`).
 fn fire_discharge(
     world: &mut World,
-    square: (i32, i32),
+    square: (i32, i32, i32),
     intensity: i32,
     map: &impl FireMap,
     windpower: i32,
@@ -978,16 +978,11 @@ fn fire_discharge(
         && let Some(hot_air) = hot_air_id(kind)
     {
         for (dx, dy) in cdda_core_types::fire::hot_air_squares(rolls) {
-            add_field_strength(
-                world,
-                (square.0 + dx, square.1 + dy, STREET_LEVEL),
-                hot_air,
-                1,
-            );
+            add_field_strength(world, (square.0 + dx, square.1 + dy, square.2), hot_air, 1);
         }
     }
-    // Fires are still described in two dimensions (`FireMap` asks about a column), so their products land at street level; smoke also settles on the
-    // fire's own square rather than rising, because the store's vertical rules are not wired into the sweep yet.
+    // Smoke settles on the fire's own square rather than rising: whether the ceiling lets it through is a question about the terrain overhead, which nothing
+    // answers yet, so the rule's "no" is passed in rather than guessed.
     if let Some(smoke) = cdda_core_types::fire::smoke_from_fire(
         rolls,
         intensity,
@@ -997,12 +992,7 @@ fn fire_discharge(
         false,
         false,
     ) {
-        add_field_strength(
-            world,
-            (square.0, square.1, STREET_LEVEL),
-            SMOKE,
-            smoke.intensity,
-        );
+        add_field_strength(world, square, SMOKE, smoke.intensity);
     }
 }
 
