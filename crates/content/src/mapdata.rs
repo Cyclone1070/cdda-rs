@@ -53,6 +53,17 @@ pub struct MapData {
 }
 
 impl MapData {
+    /// Whether a creature may stand on this square.
+    ///
+    /// Reference: `map::passable_through` (`map.cpp:2419-2422`) - `passable( p ) && ( has_floor( p ) || has_floor_or_support( p ) )`.
+    /// With no level below to ask, the floor has to be the terrain's own, so this is the rule for a single-level test: room
+    /// (`move_cost != 0`) **and** no `NO_FLOOR` flag. Open air has the room and not the floor, which is why a wall and a hole are
+    /// different refusals.
+    #[must_use]
+    pub fn passable_through(&self) -> bool {
+        self.move_cost != 0 && !self.flags.contains("NO_FLOOR")
+    }
+
     /// The name the reference prints for one season's colour.
     #[must_use]
     pub fn color_name(&self, season: usize) -> &'static str {
@@ -442,4 +453,19 @@ fn strings(object: &Object, member: &str) -> Vec<String> {
             .collect(),
         _ => Vec::new(),
     }
+}
+
+/// Whether a creature may stand here, given what is underneath.
+///
+/// The second half of the reference's disjunction: a square without a floor of its own still takes a creature when something
+/// holds it up, so a bridge over a chasm is passable and the chasm is not.
+#[must_use]
+pub fn passable_through_with_support(terrain: &MapData, has_support: bool) -> bool {
+    terrain.move_cost != 0 && (!terrain.flags.contains("NO_FLOOR") || has_support)
+}
+
+/// The single-level form of the same rule, for callers with no level below to ask.
+#[must_use]
+pub fn passable_through(terrain: &MapData) -> bool {
+    passable_through_with_support(terrain, false)
 }

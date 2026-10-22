@@ -377,6 +377,16 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Whether a square will take a creature (round 281)
+
+`map::passable_through` is two questions joined by **and** (`map.cpp:2419-2422`): room (`move_cost != 0`) and a floor (not
+`NO_FLOOR`). They are different refusals - a wall has a floor and no room, open air has room and no floor - and a port that only
+checked the move cost would let a spawned monster stand in mid-air.
+
+The port now has both forms: `passable_through` for a single level, and `passable_through_with_support` for a caller that knows
+what is underneath, which is how a bridge over a chasm passes and the chasm does not. Three tests: a wall takes nobody and a
+floor takes anybody, `NO_FLOOR` refuses a square that has room, and support below turns that same square passable.
+
 ## Gate, group, square - composed (round 280)
 
 The three pieces exist separately; `spawn_monsters_from_field` composes them, and the composition is where the **order** of the
