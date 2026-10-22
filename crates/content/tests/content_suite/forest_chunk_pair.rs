@@ -117,6 +117,61 @@ fn the_tickets_beside_it_are_that_chunk_s_own() {
 }
 
 #[test]
+fn the_ground_raffle_ran_more_often_than_any_ticket_explanation_allows() {
+    // A square reaches the ground raffle when its feature ticket is empty (-2) or names a side that owns no biome. Both
+    // are read off the tickets, so the count is bounded from above whatever the chunk's sides are. The recorded count is
+    // **higher than every one of those bounds**, which says something the tickets cannot: on at least seventy-one squares
+    // the feature pick itself produced nothing to stand on - furniture, or no layer firing - and the ground raffle ran
+    // anyway. A port that only counted tickets would put solid ground on those seventy-one squares.
+    let tickets = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../corpus/overmap/reference-chunk-tickets.txt"),
+    )
+    .expect("the tickets");
+    let drawn: Vec<i32> = tickets
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| {
+            line.split_whitespace()
+                .nth(2)
+                .expect("a ticket")
+                .parse()
+                .expect("a number")
+        })
+        .collect();
+    assert_eq!(drawn.len(), 576);
+    let ground = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../corpus/overmap/reference-chunk-ground-tickets.txt"),
+    )
+    .expect("the ground trace");
+    let calls = ground
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .count();
+
+    let empties = drawn.iter().filter(|ticket| **ticket == -2).count();
+    assert_eq!(empties, 461, "the empty feature ticket");
+    assert_eq!(calls, 573, "ground raffles");
+    // The largest possible bound: every named side owns no biome, so everything except this square's own ticket falls
+    // through. The measured count is **above** that bound, so no assignment of sides reaches it.
+    let fall_through_all_sides_open = drawn.iter().filter(|ticket| **ticket != -1).count();
+    assert_eq!(
+        fall_through_all_sides_open, 553,
+        "576 less the 23 own-biome tickets"
+    );
+    assert!(
+        calls > fall_through_all_sides_open,
+        "{calls} ground calls against a bound of {fall_through_all_sides_open}"
+    );
+    assert_eq!(
+        calls - fall_through_all_sides_open,
+        20,
+        "the squares only the feature pick can explain"
+    );
+}
+
+#[test]
 fn the_dump_and_the_traces_describe_one_chunk_rather_than_two() {
     // The reason this pair exists: before it, the port's chunk was compared against a dump taken at the player's
     // square while the traces described whichever forest chunk happened to be generated nearby. The coordinate in the

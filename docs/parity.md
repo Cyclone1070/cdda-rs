@@ -308,6 +308,17 @@ equality; JSON accept/reject parity". Each part, and where it is proven:
 | JSON acceptance is identical | All 6,220 shipped files: same accept/reject verdict and same structural digest as the reference; the writer is compared byte for byte on 127 of them |
 | The cache changes nothing | All 6,220 files read identically cold and warm |
 
+## Twenty squares the tickets cannot explain (round 249)
+
+A square reaches the ground raffle when its feature ticket is empty or names a side that owns no biome - both read off the
+tickets, so the count has an upper bound however the chunk's sides are assigned. On the recorded chunk that bound is
+**553** (every ticket but this square's own falls through) and the ground raffle ran **573** times.
+
+The twenty extra squares are the interesting ones: they drew a ticket naming a biome, and still needed ground, because the
+feature pick produced **furniture** - a boulder or a region's own furniture palette - or no layer fired at all. A port that
+counted only tickets would put solid ground on those twenty squares. Pinning the number is the first half; reproducing the
+next chunk's terrain needs the feature pick traced as well, which is the next piece of instrumentation.
+
 ## The corner rule is dead code (round 248)
 
 The gap of the previous round is closed, and it was not a subtlety in the guard - it was that **the rule never runs.**
