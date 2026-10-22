@@ -76,6 +76,7 @@ mod player_turn;
 mod push_items;
 mod register;
 mod shock_vent;
+mod spared_newborns;
 mod spread_gas;
 mod sunlight_system;
 mod wind_reach;

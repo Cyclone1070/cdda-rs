@@ -6,10 +6,9 @@
 
 #![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
-use cdda_core_types::fire::Ground;
 use cdda_core_types::rng::{Recording, Rolls};
 use cdda_json::{Value, parse};
-use cdda_sim::{FireMap, MapFacts, TerrainFacts};
+use cdda_sim::TerrainFacts;
 use std::collections::BTreeMap;
 
 fn fixture() -> Value {
@@ -89,29 +88,58 @@ fn facts_for(id: &str, flags: &BTreeMap<String, Vec<String>>) -> TerrainFacts {
     }
 }
 
-/// The dice the reference rolled during the first processed turn, from `fire.begin` to the next `fire.begin`.
-fn first_turn_dice() -> Recording {
+/// Every die the reference rolled **inside a fire processor**, in order, for the whole session.
+///
+/// The marks bound each processor: `fire.begin` opens one and `fire.done` closes it, so the draws in between belong to the fire's own rules rather than to
+/// the sweep's other squares.
+///
+/// One block is still taken out, and it is the honest shape of a known gap: when the fire asks for **hot air**, the reference creates five fields, and
+/// everything it spends afterwards in the same processor - a `rng( 2, 9 )`, a bit draw, twelve `rng( 0, 99 )` and a `rng( 0, 100 )` per new square - is
+/// the cost of adding a field to that square, which the port does not model yet. Those draws are counted, asserted below, and are the next round's work
+/// rather than something quietly replayed as if it were fire dice.
+fn fire_processor_dice() -> Recording {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../corpus/fields/fire-floor.rolls.txt");
     let text = std::fs::read_to_string(&path)
         .unwrap_or_else(|error| panic!("the recording at {}: {error}", path.display()));
-    let mut lines = Vec::new();
+    let mut processors: Vec<Vec<String>> = Vec::new();
     let mut inside = false;
     for line in text.lines() {
         if let Some(label) = line.strip_prefix("mark ") {
-            if label == "fire.begin" {
-                if inside {
-                    break;
+            match label {
+                "fire.begin" => {
+                    processors.push(Vec::new());
+                    inside = true;
                 }
-                inside = true;
+                "fire.done" => inside = false,
+                _ => {}
             }
             continue;
         }
-        if inside {
-            lines.push(line.to_string());
+        if inside && let Some(last) = processors.last_mut() {
+            last.push(line.to_string());
         }
     }
-    Recording::parse(&lines.join("\n")).expect("the turn's dice parse")
+    let mut stripped = 0usize;
+    let mut lines = Vec::new();
+    for mut processor in processors {
+        let squares: Vec<usize> = processor
+            .iter()
+            .enumerate()
+            .filter(|(_, line)| line.starts_with("int -1 1 "))
+            .map(|(index, _)| index)
+            .collect();
+        if let Some(tenth) = squares.get(9) {
+            stripped += processor.len() - tenth - 1;
+            processor.truncate(tenth + 1);
+        }
+        lines.extend(processor);
+    }
+    assert_eq!(
+        stripped, 104,
+        "the size of the hot-air creation gap: the draws the reference spends after it makes the fields, which the port does not model yet"
+    );
+    Recording::parse(&lines.join("\n")).expect("the processors' dice parse")
 }
 
 #[test]
@@ -131,53 +159,54 @@ fn the_terrain_the_recording_names_is_the_terrain_the_port_reads() {
 }
 
 #[test]
-fn one_whole_turn_matches_the_reference_given_the_references_own_dice() {
+fn the_fire_lives_the_same_five_turns_the_recording_gives_it() {
     let fixture = fixture();
     let flags = terrain_flags();
     let grid = array(object(&fixture).get("grid").expect("a grid"));
-    let mut map = MapFacts::new();
+    let mut map = cdda_sim::MapFacts::new();
     for square in grid {
-        let x = i32::try_from(integer(object(square).get("x").expect("x"))).expect("a small x");
-        let y = i32::try_from(integer(object(square).get("y").expect("y"))).expect("a small y");
-        let z = i32::try_from(integer(object(square).get("z").expect("z"))).expect("a small z");
-        let ter = string(object(square).get("ter").expect("terrain"));
-        map.set_terrain((x, y, z), facts_for(ter, &flags));
+        let square = object(square);
+        let id = string(square.get("ter").expect("terrain"));
+        let x = i32::try_from(integer(square.get("x").expect("x"))).expect("x fits");
+        let y = i32::try_from(integer(square.get("y").expect("y"))).expect("y fits");
+        let z = i32::try_from(integer(square.get("z").expect("z"))).expect("z fits");
+        map.set_terrain((x, y, z), facts_for(id, &flags));
     }
     let turns = array(object(&fixture).get("turns").expect("turns"));
-    let fire_at = |turn: usize, kind: &str| -> Vec<(i32, i32, i32, i32)> {
-        array(object(&turns[turn]).get("fields").expect("fields"))
-            .iter()
-            .filter(|field| object(field).get("type").map(string) == Some(kind))
-            .map(|field| {
-                (
-                    i32::try_from(integer(object(field).get("x").expect("x"))).expect("x"),
-                    i32::try_from(integer(object(field).get("y").expect("y"))).expect("y"),
-                    i32::try_from(integer(object(field).get("intensity").expect("intensity")))
-                        .expect("i"),
-                    i32::try_from(integer(object(field).get("age").expect("age"))).expect("age"),
-                )
-            })
-            .collect()
+    let fires_at = |index: usize| -> Vec<(i32, i32, i32, i64)> {
+        let mut fires: Vec<(i32, i32, i32, i64)> =
+            array(object(&turns[index]).get("fields").expect("fields"))
+                .iter()
+                .filter_map(|field| {
+                    let field = object(field);
+                    if string(field.get("type").expect("type")) == "fd_fire" {
+                        Some((
+                            i32::try_from(integer(field.get("x").expect("x"))).expect("x fits"),
+                            i32::try_from(integer(field.get("y").expect("y"))).expect("y fits"),
+                            i32::try_from(integer(field.get("intensity").expect("intensity")))
+                                .expect("intensity fits"),
+                            integer(field.get("age").expect("age")),
+                        ))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+        fires.sort_unstable();
+        fires
     };
-    let before = fire_at(1, "fd_fire");
-    let after = fire_at(2, "fd_fire");
-    assert_eq!(before.len(), 1, "one fire before the turn: {before:?}");
-    assert_eq!(after.len(), 1, "and one after it: {after:?}");
 
-    // The ground class is the map's answer, and the fixture's own terrain says which branch the reference ran.
-    let (x, y, _, _) = before[0];
+    let first = fires_at(1);
     assert_eq!(
-        map.ground((x, y, 0)),
-        Ground::FlammableHard,
-        "t_floor, as the prototype says"
+        first.len(),
+        1,
+        "the session starts with one fire: {first:?}"
     );
-
-    // What the port must reproduce: the same fire, one turn older, having eaten or not eaten what the dice said.
-    let mut rolls = Rolls::replaying(first_turn_dice());
+    let (x, y, intensity, age) = first[0];
     let mut world = bevy_ecs::prelude::World::new();
     let mut entry = cdda_core_types::field::FieldEntry::new(3, 1_000_000, false, true);
-    entry.set_age(i64::from(before[0].3));
-    entry.set_intensity(before[0].2);
+    entry.set_age(age);
+    entry.set_intensity(intensity);
     world.spawn((
         cdda_sim::Field {
             id: cdda_sim::FIRE,
@@ -186,31 +215,57 @@ fn one_whole_turn_matches_the_reference_given_the_references_own_dice() {
         },
         cdda_sim::Position { x, y, z: 0 },
     ));
-    cdda_sim::process_fires(&mut world, &map, 0, &mut rolls);
-    // The sweep's second half: processors first, then the field's own decay (`map_field.cpp:445-520`). `process_fires` deliberately leaves the decay to
-    // the sweep that owns it, so a whole turn is both calls - and the one turn of age the decay adds is exactly the difference this test first reported.
-    {
-        let mut query = world.query::<&mut cdda_sim::Field>();
-        for mut field in query.iter_mut(&mut world) {
-            field.entry.do_decay(1, &mut Rolls::new(7));
+    map.note_fire((x, y, 0), intensity, age);
+
+    // One replay for the **whole session**: the recording is the reference's processor dice, in the order the sweep spent them, and every turn draws
+    // from wherever the last one stopped. Splitting it per turn would hide the thing worth checking - that the port and the reference agree about how
+    // many dice each turn costs.
+    let mut rolls = Rolls::replaying(fire_processor_dice());
+    for turn in 2..turns.len() {
+        // The fields the sweep **found** when it started: only those it decays afterwards. A fire created during the pass - a newborn from a spread, or one
+        // of the hot air squares - is not revisited, which is why the reference's turn-five newborn still has the two minutes it was born with.
+        let present: Vec<bevy_ecs::prelude::Entity> = {
+            let mut query = world.query::<(bevy_ecs::prelude::Entity, &cdda_sim::Field)>();
+            query
+                .iter(&world)
+                .filter(|(_, field)| field.id == cdda_sim::FIRE)
+                .map(|(entity, _)| entity)
+                .collect()
+        };
+        cdda_sim::process_fires(&mut world, &map, 0, &mut rolls);
+        // The sweep's second half: processors first, then each field's own decay. `process_fires` leaves the decay to the sweep that owns it.
+        for entity in present {
+            if let Some(mut field) = world.get_mut::<cdda_sim::Field>(entity) {
+                field.entry.do_decay(1, &mut Rolls::new(7));
+            }
+        }
+        let mut query = world.query::<(&cdda_sim::Field, &cdda_sim::Position)>();
+        let mut held: Vec<(i32, i32, i32, i64)> = query
+            .iter(&world)
+            .filter(|(field, _)| field.id == cdda_sim::FIRE)
+            .map(|(field, position)| {
+                (
+                    position.x,
+                    position.y,
+                    field.entry.intensity(),
+                    field.entry.age(),
+                )
+            })
+            .collect();
+        held.sort_unstable();
+        assert_eq!(
+            held,
+            fires_at(turn),
+            "the fires the reference has at turn {turn}"
+        );
+        // The map the next turn reads is the world the last one left.
+        for (x, y, intensity, age) in &held {
+            map.note_fire((*x, *y, 0), *intensity, *age);
         }
     }
-    let mut query = world.query::<(&cdda_sim::Field, &cdda_sim::Position)>();
-    let held: Vec<(i32, i32, i32, i64)> = query
-        .iter(&world)
-        .filter(|(field, _)| field.id == cdda_sim::FIRE)
-        .map(|(field, position)| {
-            (
-                position.x,
-                position.y,
-                field.entry.intensity(),
-                field.entry.age(),
-            )
-        })
-        .collect();
     assert_eq!(
-        held,
-        vec![(after[0].0, after[0].1, after[0].2, i64::from(after[0].3))],
-        "the port's fire against the reference's, one turn later"
+        rolls.recording_remaining(),
+        Some(0),
+        "and the session spent exactly the dice the reference spent"
     );
 }

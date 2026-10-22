@@ -127,21 +127,43 @@ pub fn process_field_turns(
     now: i64,
     rolls: &mut cdda_core_types::rng::Rolls,
     turn_of: impl Fn(&Field) -> Option<cdda_core_types::field::FieldTurn>,
+    on_turn: impl FnMut(
+        &cdda_core_types::field::FieldTurn,
+        (i32, i32),
+        &mut cdda_core_types::rng::Rolls,
+    ),
+) {
+    let mut present: Vec<(Entity, i32, i32)> = Vec::new();
+    let mut query = world.query::<(Entity, &Position)>();
+    for (entity, position) in query.iter(world) {
+        if world.get::<Field>(entity).is_some() {
+            present.push((entity, position.x, position.y));
+        }
+    }
+    decay_the_fields_the_sweep_found(world, &present, now, rolls, turn_of, on_turn);
+}
+
+/// The decay half of the sweep, for the squares the sweep **found** when it started.
+///
+/// Reference: `map::process_fields` (`src/map_field.cpp:164-200`) builds its list of squares before it visits any of them, so a field created while it runs -
+/// a fire spreading next door, the hot air a fire leaves - waits until the next turn. That is why this takes the list rather than looking for itself: a
+/// caller that runs other systems first (the environment turn does) has to hand over the list it took **before** them, or the newborn loses a turn of its
+/// life on the turn it was born.
+pub fn decay_the_fields_the_sweep_found(
+    world: &mut World,
+    present: &[(Entity, i32, i32)],
+    now: i64,
+    rolls: &mut cdda_core_types::rng::Rolls,
+    turn_of: impl Fn(&Field) -> Option<cdda_core_types::field::FieldTurn>,
     mut on_turn: impl FnMut(
         &cdda_core_types::field::FieldTurn,
         (i32, i32),
         &mut cdda_core_types::rng::Rolls,
     ),
 ) {
-    let mut order: Vec<(i32, i32, Entity)> = Vec::new();
-    let mut query = world.query::<(Entity, &Position)>();
-    for (entity, position) in query.iter(world) {
-        if world.get::<Field>(entity).is_some() {
-            order.push((position.x, position.y, entity));
-        }
-    }
-    order.sort_by_key(|&(x, y, entity)| (x, y, entity.to_bits()));
-    for (x, y, entity) in order {
+    let mut order = present.to_vec();
+    order.sort_by_key(|&(entity, x, y)| (x, y, entity.to_bits()));
+    for (entity, x, y) in order {
         let Some(field) = world.get::<Field>(entity) else {
             continue;
         };
@@ -545,15 +567,19 @@ fn spread_and_flash(
 }
 
 /// The eight squares around one, in the reference's order.
+///
+/// The order is `eight_horizontal_neighbors` (`point.h:450`), and it is **not** a clockwise walk: west comes before east, and the southern row runs
+/// south-west, south, south-east. I had it as a plain clockwise ring for four rounds, which cost nothing while only the fire's own square mattered and cost
+/// exactly one square as soon as the parity test could see where a fire spread: the dice agreed, the square was one step round the ring.
 const EIGHT_NEIGHBOURS: [(i32, i32); 8] = [
     (-1, -1),
     (0, -1),
     (1, -1),
-    (1, 0),
-    (1, 1),
-    (0, 1),
-    (-1, 1),
     (-1, 0),
+    (1, 0),
+    (-1, 1),
+    (0, 1),
+    (1, 1),
 ];
 /// Gives every square holding this gas its turn, moving gas to neighbours that will take it.
 ///
@@ -1250,6 +1276,16 @@ pub fn run_environment_turn(
     can_take: impl Fn((i32, i32, i32), (i32, i32, i32)) -> bool + Copy,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) {
+    // The squares this sweep will visit, taken **before** any of it runs: a field born during the turn waits for the next one, and the newborn fire at the
+    // end of the reference's own session keeps the two minutes it was born with because of exactly this.
+    let present: Vec<(Entity, i32, i32)> = {
+        let mut query = world.query::<(Entity, &Position)>();
+        query
+            .iter(world)
+            .filter(|(entity, _)| world.get::<Field>(*entity).is_some())
+            .map(|(entity, position)| (entity, position.x, position.y))
+            .collect()
+    };
     // Fires first: everything else this turn reacts to what they left behind.
     process_fires(world, map, windpower, rolls);
     // Then the gases, including the haze the fires just made. `percent_spread` is `fd_smoke`'s and the hot air kinds' own data.
@@ -1262,8 +1298,15 @@ pub fn run_environment_turn(
     ] {
         process_gas(world, id, percent_spread, windpower, can_take, rolls);
     }
-    // Decay last, and through the sweep that owns it.
-    process_field_turns(world, 0, rolls, |_field| None, |_turn, _square, _rolls| {});
+    // Decay last, and only for the squares the sweep found.
+    decay_the_fields_the_sweep_found(
+        world,
+        &present,
+        0,
+        rolls,
+        |_field| None,
+        |_turn, _square, _rolls| {},
+    );
 }
 
 /// The hot air field for a fire of this intensity, as `create_hot_air` chooses it.

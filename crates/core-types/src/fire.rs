@@ -271,6 +271,18 @@ pub fn spread_fire(
         if passes && !neighbour.web && !takes_ground {
             let _items_might_burn = rolls.one_in(5);
         }
+        if std::env::var_os("CDDA_TRACE_SPREAD").is_some() {
+            eprintln!(
+                "candidate {index}: power {power} counts {} passes {passes} ground {takes_ground} web {} flags {:?}",
+                neighbour.has_fire,
+                neighbour.web,
+                (
+                    neighbour.flammable,
+                    neighbour.flammable_ash,
+                    neighbour.flammable_hard
+                )
+            );
+        }
         if passes && (neighbour.web || takes_ground) {
             caught.push(usize::try_from(index).unwrap_or(0));
         }

@@ -33,6 +33,7 @@ mark fire.before_smoke
 int 0 100 88
 mark fire.before_hot_air
 int 0 4 0
+mark fire.done
 int 1 22 18
 int 1 22 19
 mark fire.begin
@@ -189,6 +190,7 @@ int 0 99 87
 int 0 99 30
 int 0 99 66
 int 0 100 16
+mark fire.done
 int 1 43 11
 int 1 43 6
 mark fire.begin
@@ -228,6 +230,7 @@ mark fire.before_smoke
 int 0 100 75
 mark fire.before_hot_air
 int 0 4 0
+mark fire.done
 int 1 42 20
 int 1 42 31
 mark fire.begin
@@ -273,5 +276,6 @@ int -1 1 -1
 int -1 1 1
 int -1 1 -1
 int -1 1 0
+mark fire.done
 int 1 123 36
 int 1 123 24

@@ -406,6 +406,23 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Five turns, and the two rules that only a longer replay could show (round 326)
+
+The replay now covers the **whole session**: five turns, six fire processors, one recording, one world carried from turn to turn. It passes, and it caught
+two things the single-turn test could not:
+
+| Finding | How it showed | Why it mattered |
+|---|---|---|
+the neighbour ring is not clockwise | the dice matched but the fire lit `69,61` where the reference lit `68,61` | the reference's `eight_horizontal_neighbors` is NW, N, NE, **W, E**, SW, S, SE - west before east. One step round the ring, a whole square wrong |
+newborn fields were being decayed by the turn that made them | the turn-five fire had age 121 against the reference's 120 | `map::process_fields` collects its squares **before** it visits them, so a field created during the sweep waits for the next turn |
+
+The second one was live in production code, not only in the test: `run_environment_turn` ran the fires and then decayed everything in the world, so every
+spread cost its newborn a turn of life. The sweep is now split - `process_field_turns` takes the snapshot and `decay_the_fields_the_sweep_found` does the
+work - and the environment turn hands over the list it took before the fires ran. `spared_newborns` pins it with no dice and no map.
+
+**Still carved out, and counted rather than hidden:** when the fire asks for hot air the reference spends 104 more draws in the same processor - the cost of
+adding a field to each new square - which the port does not model. The test asserts that number, so the gap cannot quietly grow or be replayed as fire dice.
+
 ## A whole turn now matches, die for die (round 325)
 
 The ignored test from last round passes, and it took **six** corrections to get there. Each was found by the recording refusing a die, and each was a rule

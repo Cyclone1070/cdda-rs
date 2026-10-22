@@ -424,6 +424,12 @@ impl Recording {
 
     #[allow(clippy::panic)]
     fn next_int(&mut self, low: i32, high: i32) -> i32 {
+        if std::env::var_os("CDDA_TRACE_REPLAY").is_some() {
+            eprintln!(
+                "port asked int {low} {high} (recorded {:?})",
+                self.draws.get(self.position)
+            );
+        }
         let draw = self.draws.get(self.position).copied();
         self.position += 1;
         match draw {
