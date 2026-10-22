@@ -703,6 +703,8 @@ pub fn grow_town(
             };
             overmap.set_terrain(position.0, position.1, terrain);
         }
+        // Once a city's streets are on the map, each tile is named after the neighbours it connects to.
+        shape_roads(overmap);
     }
     placed.len()
 }
@@ -717,10 +719,14 @@ pub fn render(overmap: &Overmap, origin: (i32, i32), width: i32, height: i32) ->
     for y in origin.1..origin.1 + height {
         for x in origin.0..origin.0 + width {
             let glyph = match overmap.terrain(x, y) {
-                Some("road") => '#',
-                Some("road_nesw") => '+',
-                Some("road_nesw_manhole") => 'M',
-                Some("forest") => 'f',
+                Some(terrain) if terrain.starts_with("road") => {
+                    if terrain.contains("manhole") {
+                        'M'
+                    } else {
+                        road_glyph(terrain).unwrap_or('#')
+                    }
+                }
+                Some("forest") => 'F',
                 Some("river") => '~',
                 Some(_) => '.',
                 None => ' ',
@@ -730,4 +736,95 @@ pub fn render(overmap: &Overmap, origin: (i32, i32), width: i32, height: i32) ->
         out.push('\n');
     }
     out
+}
+
+/// Which of its four neighbours a road tile connects to.
+///
+/// The reference keeps this as a four-bit mask and names the terrain after the bits that are set - `road_nesw`,
+/// `road_ne`, `road_ns` - which is why a generated town has a different glyph for every corner. The port computed
+/// none of this before: it wrote one road glyph and a junction, so a picture of its world could not show a corner
+/// even though the street rule had made one.
+#[must_use]
+pub fn road_mask(overmap: &Overmap, x: i32, y: i32) -> u8 {
+    let mut mask = 0;
+    for direction in Direction::ALL {
+        let (dx, dy) = direction.displace(1);
+        if overmap
+            .terrain(x + dx, y + dy)
+            .is_some_and(|terrain| terrain.starts_with("road"))
+        {
+            mask |= 1 << direction.index();
+        }
+    }
+    mask
+}
+
+/// The terrain name for a mask, in the reference's own spelling.
+#[must_use]
+pub fn road_name(mask: u8) -> String {
+    let mut name = String::from("road_");
+    for (bit, letter) in [(0, 'n'), (1, 'e'), (2, 's'), (3, 'w')] {
+        if mask & (1 << bit) != 0 {
+            name.push(letter);
+        }
+    }
+    name
+}
+
+/// The glyph a road terrain is drawn with, in the reference's box-drawing vocabulary.
+#[must_use]
+pub fn road_glyph(terrain: &str) -> Option<char> {
+    let Some(bits) = terrain.strip_prefix("road_") else {
+        return if terrain == "road" { Some('#') } else { None };
+    };
+    let north = bits.contains('n');
+    let east = bits.contains('e');
+    let south = bits.contains('s');
+    let west = bits.contains('w');
+    let glyph = match (north, east, south, west) {
+        (true, false, true, false) => '│',
+        (false, true, false, true) => '─',
+        (true, true, false, false) => '└',
+        (true, false, false, true) => '┘',
+        (false, true, true, false) => '┌',
+        (false, false, true, true) => '┐',
+        (true, true, true, false) => '├',
+        (true, false, true, true) => '┤',
+        (false, true, true, true) => '┬',
+        (true, true, false, true) => '┴',
+        (true, true, true, true) => '┼',
+        _ => '#',
+    };
+    Some(glyph)
+}
+
+/// Names every road tile after the neighbours it connects to.
+///
+/// Reference: `overmap_connection::pick_subtype_for`, which derives each tile's shape from the road that reaches it.
+/// This is the shape pass over a grown town: it reads the map and renames the tiles, so a straight run becomes
+/// `road_ns` and a corner becomes `road_ne`.
+pub fn shape_roads(overmap: &mut Overmap) {
+    let mut changes = Vec::new();
+    for y in 0..overmap.height() {
+        for x in 0..overmap.width() {
+            let Some(terrain) = overmap.terrain(x, y) else {
+                continue;
+            };
+            if !terrain.starts_with("road") {
+                continue;
+            }
+            let mask = road_mask(overmap, x, y);
+            if mask == 0 {
+                continue;
+            }
+            let mut name = road_name(mask);
+            if terrain.contains("manhole") {
+                name.push_str("_manhole");
+            }
+            changes.push((x, y, name));
+        }
+    }
+    for (x, y, name) in changes {
+        overmap.set_terrain(x, y, &name);
+    }
 }

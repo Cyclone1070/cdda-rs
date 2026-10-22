@@ -31,6 +31,7 @@ mod overmap_city_street;
 mod overmap_placement;
 mod overmap_reference;
 mod overmap_render;
+mod overmap_road_shape;
 mod overmap_street_layout;
 mod overmap_streets;
 mod paths;
