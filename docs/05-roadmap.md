@@ -255,6 +255,19 @@ into the port and reproduces the same digest.
 
 ---
 
+### P1 status at round 341
+
+**M1 is green.** Both halves of the exit gate are met and evidenced:
+
+- **prototype digest equality — 88 of the 90 registries**, the other two (`city`, `magic_type`) holding no ids at all. Fifteen are checked through a real loader and
+  the rest through the id-set rule in [digest_ids.rs](../crates/content/tests/content_suite/digest_ids.rs), which carries the reference's own counterexamples as
+  comments: a registry named unlike its JSON type (41 of them), a nested object that is not an entry, a null prototype made in code, an id not called `id`.
+- **mod load order and duplicate detection — both parity.** `--dump-mods` gives the reference's own resolved order for all 43 mods and the port reproduces it
+  exactly; `Factory::insert` now rejects two definitions from one source with the reference's own sentence and lets another source override in place.
+
+What P1 does **not** claim: the loaders are gated on id sets and, for fifteen registries, on full prototype digests. Field-level equality for the other seventy
+registries comes with whatever system first reads each of those fields — that is what the rest of the plan is.
+
 ### P2 — World grid and environment (60 files, 40,200 LOC)
 
 **Contents.** Submap storage and the tile SoA, the world's submap owner, the reality bubble view,

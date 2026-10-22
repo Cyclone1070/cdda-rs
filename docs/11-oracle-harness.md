@@ -729,3 +729,8 @@ oracle/build/src/cataclysm --userdir oracle/userdir --datadir oracle/src/data --
 
 Every mod the reference knows, with the dependencies it declares and the order its own `dependency_tree` resolves for it, plus the default mod list a new world
 would load. The resolved list is the reference's answer and not a re-derivation, which is what makes it usable as a parity gate rather than as documentation.
+
+## `--dump-geometry <file>`
+
+The sizes of the world, read from the reference's own constants: a submap, the map, the vertical stack, the view distance. Cheap, needs no data, and pins the
+numbers every later system divides by - including the two that are easy to conflate, the 132-square map and the 121-square view.

@@ -32,6 +32,7 @@ mod forest_feather;
 mod forest_perimeter;
 mod four_quadrants;
 mod gas_spread;
+mod grid;
 mod ids;
 mod item_burn;
 mod item_burn_loop;

@@ -1,0 +1,8 @@
+{"harness":"geometry","version":1,
+"seex":12,"seey":12,
+"mapsize":11,"half_mapsize":5,
+"mapsize_x":132,"mapsize_y":132,
+"overmap_depth":10,"overmap_height":10,"overmap_layers":21,
+"max_view_distance":60,"range_hard_cap":60,
+"submap_elements":144,"bubble_tiles":17424,
+"zlevels":true}

@@ -406,6 +406,25 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## P2 starts with the sizes of the world (round 341)
+
+`--dump-geometry` is the seventh harness dump, and it exists because the map's geometry is the one thing every later system divides by. It states, from the
+reference's own constants: `SEEX`/`SEEY` 12, `MAPSIZE` 11, the map 132 by 132, the vertical stack 21 levels from ten below to ten above, and a view distance of 60.
+
+| Thing | Squares | Which number |
+|---|---|---|
+a submap | 144 | `SEEX * SEEY` |
+the map | 17,424 | `MAPSIZE_X * MAPSIZE_Y`, 132 by 132 |
+the view | 14,641 | `(2 * 60 + 1)^2`, 121 by 121 - what the state dump fingerprints |
+
+**The last two are not the same number, and that is the point of the dump.** The map is what is loaded; the view is what was looked at. A port that conflates them
+is eleven squares wrong at every edge and would not notice until something read the edge of the bubble.
+
+Two layout facts are **transcribed rather than oracle-backed**, and are marked as such in the code: a submap's flat index is `x * SEEY + y` because `maptile_soa`
+stores `ter[x][y]` (`submap.h:86-92`), which is the transpose of the obvious choice; and `map::get_nonant` puts the **level** in the outer dimension, so one column
+of the world is contiguous. Neither is observable from outside the reference without a dump of internal pointers, so both stay labelled transcription until a
+system that reads them can be gated end to end.
+
 ## Duplicates: same source is an error, another source is an override (round 340)
 
 The registry machinery had the duplicate rule **backwards**, and nothing had asked it to prove otherwise. `generic_factory::insert` (`generic_factory.h:390-397`)
