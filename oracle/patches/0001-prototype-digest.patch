@@ -2026,7 +2026,7 @@ diff -ruN references/Cataclysm-DDA/src/mapdata.cpp oracle/src/src/mapdata.cpp
  template<>
 diff -ruN references/Cataclysm-DDA/src/mapgen_functions.cpp oracle/src/src/mapgen_functions.cpp
 --- references/Cataclysm-DDA/src/mapgen_functions.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/mapgen_functions.cpp	2026-10-22 15:58:29
++++ oracle/src/src/mapgen_functions.cpp	2026-10-22 16:28:51
 @@ -5,6 +5,7 @@
  #include <cmath>
  #include <cstdint>
@@ -2035,7 +2035,7 @@ diff -ruN references/Cataclysm-DDA/src/mapgen_functions.cpp oracle/src/src/mapge
  #include <iterator>
  #include <map>
  #include <optional>
-@@ -859,6 +860,17 @@
+@@ -859,6 +860,25 @@
          delete[] critical_point_depths;
      }
  
@@ -2043,6 +2043,14 @@ diff -ruN references/Cataclysm-DDA/src/mapgen_functions.cpp oracle/src/src/mapge
 +        // Harness instrumentation: the ninety-six depths the curve produced, in the order the reference indexes them.
 +        static std::ofstream trace_file( trace_path, std::ios::app );
 +        const tripoint_abs_omt trace_omt = project_to<coords::omt>( m->get_abs_sub() );
++        // The chunk's own biome and its eight neighbours, in the order the corner rule uses: north, east, south, west,
++        // then north-east, south-east, south-west, north-west. Without these the weights can be checked but not the
++        // corner blending, which is the one rule that only fires on a forest's edge.
++        trace_file << "biomes " << trace_omt.x() << ' ' << trace_omt.y() << ' ' << trace_omt.z();
++        for( int index = 0; index < 8; index++ ) {
++            trace_file << ' ' << dat.t_nesw[index]->get_type_id().str();
++        }
++        trace_file << '\n';
 +        trace_file << "perimeter " << trace_omt.x() << ' ' << trace_omt.y() << ' ' << trace_omt.z();
 +        for( int depth : perimeter_depth ) {
 +            trace_file << ' ' << depth;
@@ -2053,7 +2061,7 @@ diff -ruN references/Cataclysm-DDA/src/mapgen_functions.cpp oracle/src/src/mapge
      // Get the current biome definition for this terrain.
      const auto current_biome_def_it = dat.region.forest_composition.biomes.find(
                                            dat.terrain_type()->get_type_id() );
-@@ -1007,6 +1019,12 @@
+@@ -1007,6 +1027,12 @@
                                adj_weights[3] * dat.w_fac + self_weight * factor ) );
  
          const int feather_selection = *direction_pool.pick();
@@ -2066,7 +2074,7 @@ diff -ruN references/Cataclysm-DDA/src/mapgen_functions.cpp oracle/src/src/mapge
          switch( feather_selection ) {
              case no_dir:
                  return *self_biome.groundcover.pick();
-@@ -1062,6 +1080,21 @@
+@@ -1062,6 +1088,21 @@
          // Pick from the direction pool, and calculate + return the appropriate terrain:
          ter_furn_id feature;
          const int feather_selection = *direction_pool.pick();

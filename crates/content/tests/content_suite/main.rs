@@ -16,7 +16,8 @@ mod fields;
 mod forest_biomes;
 mod forest_chunk_diff;
 mod forest_chunk_pair;
-mod forest_edge_chunks;
+
+mod forest_edge_blend;
 mod forest_ground_trace;
 mod forest_layers;
 mod forest_mapgen;

@@ -308,6 +308,27 @@ equality; JSON accept/reject parity". Each part, and where it is proven:
 | JSON acceptance is identical | All 6,220 shipped files: same accept/reject verdict and same structural digest as the reference; the writer is compared byte for byte on 127 of them |
 | The cache changes nothing | All 6,220 files read identically cold and warm |
 
+## The corner rule against a real edge, and the gap it exposed (round 247)
+
+The trace now records each chunk's **eight neighbour terrains** beside its weights, so the whole chain - perimeter to
+neighbour weights, corner blending, then the six-ticket pool - runs against a real forest edge.
+
+**What it settled.** The chunk at `[259,21]` is plain woodland, **not** dense: a north weight of 2.30769 is ten squares of
+perimeter over thirteen rows, times **three**, and the same numbers times four appear nowhere in its 576 squares. Which
+sides count as owning a biome is also settled: open ground and buildings do not, so their weight is the **undivided**
+ratio - treating a field as a biome owner made a north weight of thirty into three, and the trace said so immediately.
+
+**What it exposed, and it is a real gap.** With plain woodland the chain reproduces **288 of 576** squares of that edge
+chunk. The first disagreement is **(0,12)**: the reference leaves its south weight at **0.25** and its own weight at **3**,
+while the port divides the south weight to **0.0769** - which is exactly the arithmetic of the corner rule's **second**
+branch. The three names that branch asks for are all present there (the south side is this world's woodland, the
+south-west corner and the west side are the denser woodland, and the square's own biome is plain woodland), so either the
+branch's guard is not what the port reproduces, or the corner slot passed to it is not the one the reference passes.
+
+The second branch is also the one place I deliberately copied an arithmetic oddity from the upstream source, so this is
+precisely the rule that needed a traced world rather than a reading. It stays recorded as an **open gap** with the square
+and both numbers named, rather than being papered over by loosening the comparison.
+
 ## The forest's own edge, where corner blending runs (round 246)
 
 The corner rule had only ever been checked against the reference's source. A plain generated region settles that: of its
