@@ -77,5 +77,5 @@ pub fn scaled_octave_noise_3d(
     z: f32,
     raw: impl Fn(f32, f32, f32) -> f32,
 ) -> f32 {
-    octave_noise_3d(layers, x, y, z, raw) * (high - low) / 2.0 + (high + low) / 2.0
+    octave_noise_3d(layers, x, y, z, raw) * (high - low) / 2.0 + f32::midpoint(high, low)
 }
