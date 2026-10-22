@@ -129,9 +129,13 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-23 08:36:14
-@@ -0,0 +1,1270 @@
++++ oracle/src/src/harness.cpp	2026-10-23 09:33:05
+@@ -0,0 +1,1315 @@
 +#include "harness.h"
++
++#include "dependency_tree.h"
++#include "mod_manager.h"
++#include "worldfactory.h"
 +#include "recipe_dictionary.h"
 +#include "requirements.h"
 +
@@ -464,6 +468,47 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        }
 +        do_turn();
 +    }
++}
++
++void dump_mods( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    mod_manager &mm = world_generator->get_mod_manager();
++    dependency_tree &tree = mm.get_tree();
++    std::fprintf( out, "{\"harness\":\"mods\",\"version\":1,\n\"defaults\":[" );
++    bool first = true;
++    for( const mod_id &mod : mm.get_default_mods() ) {
++        std::fprintf( out, "%s\"%s\"", first ? "" : ",", harness_escape( mod.str() ).c_str() );
++        first = false;
++    }
++    std::fprintf( out, "],\n\"mods\":[\n" );
++    first = true;
++    for( const mod_id &mod : mm.all_mods() ) {
++        const MOD_INFORMATION &info = mod.obj();
++        std::fprintf( out, "%s{\"id\":\"%s\",\"dependencies\":[", first ? "" : ",",
++                      harness_escape( info.ident.str() ).c_str() );
++        bool first_dep = true;
++        for( const mod_id &dep : info.dependencies ) {
++            std::fprintf( out, "%s\"%s\"", first_dep ? "" : ",", harness_escape( dep.str() ).c_str() );
++            first_dep = false;
++        }
++        // What the game itself will load before this mod, which is the tree's answer and not a re-derivation of it.
++        std::fprintf( out, "],\"resolved\":[" );
++        bool first_resolved = true;
++        for( const mod_id &dep : tree.get_dependencies_of_X_as_strings( mod ) ) {
++            std::fprintf( out, "%s\"%s\"", first_resolved ? "" : ",",
++                          harness_escape( dep.str() ).c_str() );
++            first_resolved = false;
++        }
++        std::fprintf( out, "]}" );
++        first = false;
++    }
++    std::fprintf( out, "\n]}\n" );
++    std::fclose( out );
 +}
 +
 +void dump_terrain( const std::string &path )
@@ -1403,8 +1448,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-23 06:00:51
-@@ -0,0 +1,168 @@
++++ oracle/src/src/harness.h	2026-10-23 09:30:02
+@@ -0,0 +1,171 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -1506,6 +1551,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +// because the factories there are file-static; this is the entry point.
 +void dump_terrain( const std::string &path );
 +
++/// Writes every mod the reference knows, with its declared dependencies and the list the dependency tree resolves for it, plus the default mod order.
++void dump_mods( const std::string &path );
++
 +
 +// `--dump-traps <file>`: every trap's resolved fields.
 +void dump_traps( const std::string &path );
@@ -1595,7 +1643,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-23 06:00:51
++++ oracle/src/src/main.cpp	2026-10-23 09:30:02
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -1606,7 +1654,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,54 @@
+@@ -272,6 +275,55 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -1644,6 +1692,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    int dump_frame_radius = 20;
 +    // Harness: resolved prototypes, one family per file.
 +    std::string dump_terrain;
++    std::string dump_mods;
 +    std::string dump_traps;
 +    std::string dump_astronomy;
 +    std::string dump_materials;
@@ -1661,7 +1710,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +351,454 @@
+@@ -300,6 +352,474 @@
                  }
              },
              {
@@ -1811,6 +1860,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_terrain = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-mods", "<file>",
++                "Writes every mod with its dependencies and the order the reference resolves for it",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_mods = params[0];
 +                    return 1;
 +                }
 +            },
@@ -2073,6 +2132,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                }
 +            },
 +            {
++                "--dump-mods", "<file>",
++                "Writes every mod with its dependencies and the order the reference resolves for it",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_mods = params[0];
++                    return 1;
++                }
++            },
++            {
 +                "--dump-state", "<file>",
 +                "Starts a new game headlessly and writes its state to <file>",
 +                section_default,
@@ -2116,7 +2185,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +1285,205 @@
+@@ -786,6 +1306,209 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -2294,6 +2363,10 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            test_mode = true;
 +            g->check_mod_data( { mod_id( "dda" ) } );
 +            harness::dump_terrain( cli.dump_terrain );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_mods.empty() ) {
++            harness::dump_mods( cli.dump_mods );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_env.empty() ) {

@@ -724,3 +724,8 @@ Canonical invocation:
 ```
 oracle/build/src/cataclysm --userdir oracle/userdir --datadir oracle/src/data --dump-frame <file> --dump-overmap <file>
 ```
+
+## `--dump-mods <file>`
+
+Every mod the reference knows, with the dependencies it declares and the order its own `dependency_tree` resolves for it, plus the default mod list a new world
+would load. The resolved list is the reference's answer and not a re-derivation, which is what makes it usable as a parity gate rather than as documentation.

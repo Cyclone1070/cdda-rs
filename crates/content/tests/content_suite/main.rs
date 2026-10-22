@@ -62,6 +62,7 @@ mod mapgen;
 mod mapgen_objects;
 mod mapgen_place;
 mod materials;
+mod mod_graph;
 mod mods;
 mod monster_group_pick;
 mod monster_groups;

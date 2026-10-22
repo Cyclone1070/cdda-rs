@@ -106,3 +106,117 @@ pub fn dependency_order(mods: &[ModInfo]) -> Result<Vec<String>, String> {
     }
     Ok(ordered)
 }
+
+/// What the oracle's `--dump-mods` writes: every mod, its declared dependencies, and the order the reference resolves for it.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ModDump {
+    /// The mods the reference would load for a new world, in the order its default list states them.
+    pub defaults: Vec<String>,
+    /// Every mod, in the order the dump lists them.
+    pub mods: Vec<ModInfo>,
+    /// For each mod, the mods the reference loads before it, in order.
+    pub resolved: std::collections::BTreeMap<String, Vec<String>>,
+}
+
+/// Reads the mod dump.
+///
+/// # Errors
+///
+/// Returns the reason the dump could not be read.
+pub fn load_dump(value: &cdda_json::Value) -> Result<ModDump, String> {
+    let cdda_json::Value::Object(root) = value else {
+        return Err("the mod dump's root is not an object".to_string());
+    };
+    let mut dump = ModDump::default();
+    if let Some(cdda_json::Value::Array(list)) = root.get("defaults") {
+        for entry in list {
+            if let cdda_json::Value::Str(id) = entry {
+                dump.defaults.push(id.clone());
+            }
+        }
+    }
+    let Some(cdda_json::Value::Array(entries)) = root.get("mods") else {
+        return Err("the mod dump has no mods array".to_string());
+    };
+    for entry in entries {
+        let cdda_json::Value::Object(object) = entry else {
+            return Err("a dumped mod is not an object".to_string());
+        };
+        let Some(cdda_json::Value::Str(id)) = object.get("id") else {
+            return Err("a dumped mod has no id".to_string());
+        };
+        let mut dependencies = Vec::new();
+        if let Some(cdda_json::Value::Array(deps)) = object.get("dependencies") {
+            for dep in deps {
+                if let cdda_json::Value::Str(dep) = dep {
+                    dependencies.push(dep.clone());
+                }
+            }
+        }
+        let mut resolved = Vec::new();
+        if let Some(cdda_json::Value::Array(list)) = object.get("resolved") {
+            for dep in list {
+                if let cdda_json::Value::Str(dep) = dep {
+                    resolved.push(dep.clone());
+                }
+            }
+        }
+        dump.mods.push(ModInfo {
+            id: id.clone(),
+            name: id.clone(),
+            dependencies,
+        });
+        dump.resolved.insert(id.clone(), resolved);
+    }
+    Ok(dump)
+}
+
+/// Reads the dump from disk, from the corpus.
+///
+/// # Errors
+///
+/// Returns the reason the file could not be read or parsed.
+pub fn read_dump() -> Result<cdda_json::Value, String> {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/mods.json");
+    let bytes = std::fs::read(&path).map_err(|error| error.to_string())?;
+    cdda_json::parse(&bytes).map_err(|error| error.to_string())
+}
+
+/// The mods that must load before each mod, in the order the reference loads them.
+///
+/// Reference: `dependency_node::get_dependencies_as_nodes` (`src/dependency_tree.cpp:157-197`). The walk is a stack, so a mod's dependencies are visited
+/// in **reverse** the order they are declared once their own dependencies are pushed; the backwards pass then reverses the whole visit and keeps each mod the
+/// first time it appears, which is what puts a shared dependency ahead of the two mods that need it.
+#[must_use]
+pub fn resolve_all(mods: &[ModInfo]) -> std::collections::BTreeMap<String, Vec<String>> {
+    let by_id: std::collections::BTreeMap<&str, &ModInfo> =
+        mods.iter().map(|m| (m.id.as_str(), m)).collect();
+    let mut out = std::collections::BTreeMap::new();
+    for module in mods {
+        let mut visited: Vec<String> = Vec::new();
+        let mut seen: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        seen.insert(module.id.clone());
+        // A `Vec` used as a stack the way the reference's `std::stack` is: push in declared order, pop from the end, so the **last** dependency declared is
+        // visited first.
+        let mut stack: Vec<&str> = module.dependencies.iter().map(String::as_str).collect();
+        while let Some(key) = stack.pop() {
+            if !seen.insert(key.to_owned()) {
+                continue;
+            }
+            visited.push(key.to_owned());
+            if let Some(found) = by_id.get(key) {
+                for dep in &found.dependencies {
+                    stack.push(dep.as_str());
+                }
+            }
+        }
+        let mut resolved: Vec<String> = Vec::new();
+        for key in visited.into_iter().rev() {
+            if !resolved.contains(&key) {
+                resolved.push(key);
+            }
+        }
+        out.insert(module.id.clone(), resolved);
+    }
+    out
+}

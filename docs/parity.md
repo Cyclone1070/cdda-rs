@@ -406,6 +406,22 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Mod load order is parity now, not a reading of the code (round 339)
+
+The oracle learned a sixth dump: `--dump-mods` writes, for every one of the 43 mods, the dependencies it declares **and** the list the reference's own
+`dependency_tree` resolves for it. That second list is the point - it is the reference's answer, not a re-derivation - so the port is compared against it rather
+than against a reading of `dependency_tree.cpp`.
+
+The rule it reproduces (`dependency_node::get_dependencies_as_nodes`, `:157-197`) is a stack walk: push a mod's dependencies in declared order, pop from the end,
+skip what has been seen, push each one's dependencies, then walk the record **backwards** and keep each mod the first time it appears.
+
+**The backwards pass is not a topological sort, and that is worth saying out loud.** On a diamond - two mods sharing one base - the reference's answer puts the
+first mod before the base it depends on. That may well be a bug in the reference; the port's job is to answer what the reference answers, and the dump comparison
+over all 43 mods is what proves it does.
+
+Also pinned: `dev:default`'s resolved order is `no_npc_food, dda, personal_portal_storms` while the list it declares is `dda, no_npc_food,
+personal_portal_storms` - the default list is replayed in its own order, and each mod's dependencies come from the tree.
+
 ## The last four that were not empty (round 338)
 
 Four registries were still ungated after the rename table, and each needed a different kind of exception rather than a new rule:
