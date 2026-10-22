@@ -36,6 +36,26 @@ pub struct FieldLevel {
     pub spawn_group: String,
 }
 
+/// The turn one intensity level takes, read from the level's own data.
+///
+/// Reference: `field_type` registers its processors at load time (`field_type.cpp:350`), and each processor reads the numbers off
+/// the level it runs at. Building the turn here rather than at the spawner keeps one source for those numbers - a rule handed its
+/// constants by hand drifts while every test stays green.
+impl FieldLevel {
+    /// This level's turn.
+    #[must_use]
+    pub fn turn(&self) -> FieldTurn {
+        FieldTurn {
+            spawn_chance: self.spawn_chance,
+            spawn_count: self.spawn_count,
+            spawn_group: self.spawn_group.clone(),
+            spawn_radius: self.spawn_radius,
+            upgrade_chance: self.upgrade_chance,
+            upgrade_duration: self.upgrade_duration,
+        }
+    }
+}
+
 /// One kind of field, with its levels in order (index 0 is intensity 1).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FieldType {

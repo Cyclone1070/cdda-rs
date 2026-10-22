@@ -377,6 +377,16 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The turn reads the field's own numbers (round 287)
+
+`FieldLevel::turn()` builds the turn from the level's own data instead of a hand-built constant. The reference registers each
+processor at load time and reads its numbers off the level it runs at (`field_type.cpp:350`), and a rule handed its constants by
+hand drifts while every test stays green.
+
+Two tests: **every** level in the reference's field dump hands over its chance, count, group, radius and upgrade exactly as written -
+and the data has **two** spawning intensity levels, which is the count the monster spawn gate was built around; and `fd_smoke`,
+which spawns nothing, says so at every level.
+
 ## The sweep reads the level it sweeps (round 286)
 
 `run_level_field_turns` replaces the caller-supplied map with the level itself: `Level::field_squares` already hands the squares
