@@ -14,6 +14,7 @@ mod eocs;
 mod factory;
 mod fields;
 mod forest_chunk_diff;
+mod forest_layers;
 mod forest_mapgen;
 mod frame_diff;
 mod frame_dump;

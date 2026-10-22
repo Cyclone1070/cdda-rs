@@ -242,3 +242,28 @@ pub fn forest_ground_pass(
     }
     ground
 }
+
+/// What one of a forest's layers puts on a square, if anything.
+///
+/// Reference: `forest_biome::pick` in `regional_settings.cpp`. The layers run **in sequence order**, and each one gets a
+/// single `one_in(chance)` roll: the first layer that succeeds contributes **one** feature and the rest do not run at
+/// all. If no layer succeeds the square keeps its groundcover - which is how a forest ends up being mostly floor with
+/// trees standing in it rather than a solid stand of trunks.
+///
+/// The roll consumes **one** die per layer tried, in sequence order, so a wrong order here does not merely change what
+/// grows: it changes the dice the next square receives.
+#[must_use]
+pub fn pick_forest_feature(
+    layers: &[crate::overmap_special::ForestComponent],
+    rolls: &mut Rolls,
+) -> Option<String> {
+    for layer in layers {
+        if rolls.one_in(layer.chance) {
+            let entries = WeightedList::from_entries(layer.types.iter().cloned());
+            // The layer's list is `(terrain id, weight)` pairs, and the pick borrows from it, so the pair is cloned
+            // out rather than the id alone.
+            return entries.pick(rolls).cloned();
+        }
+    }
+    None
+}
