@@ -828,3 +828,57 @@ pub fn shape_roads(overmap: &mut Overmap) {
         overmap.set_terrain(x, y, &name);
     }
 }
+
+/// How much of the noise field becomes forest, and where the two kinds meet.
+///
+/// Reference: `overmap_forest_settings` - `noise_threshold_forest` and `noise_threshold_forest_thick`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ForestSettings {
+    /// Above this the field becomes forest.
+    pub threshold: f32,
+    /// Above this it becomes thick forest.
+    pub threshold_thick: f32,
+}
+
+impl Default for ForestSettings {
+    fn default() -> Self {
+        Self {
+            threshold: 0.25,
+            threshold_thick: 0.35,
+        }
+    }
+}
+
+/// Turns open ground into woodland wherever the noise field is high enough.
+///
+/// Reference: `overmap::place_forests`. Two rules matter and both are easy to get subtly wrong: only tiles that are
+/// **still the default terrain** are considered, so a forest never paints over a lake or a road, and the comparison
+/// is against the noise **plus** the regional size adjustment, which shifts the whole field up or down for a region.
+///
+/// Returns how many tiles became forest.
+#[allow(clippy::cast_precision_loss)]
+pub fn place_forests(
+    overmap: &mut Overmap,
+    settings: ForestSettings,
+    seed: u32,
+    size_adjust: f32,
+) -> usize {
+    let mut planted = 0;
+    let default = DEFAULT_OTER.to_string();
+    for y in 0..overmap.height() {
+        for x in 0..overmap.width() {
+            if overmap.terrain(x, y) != Some(default.as_str()) {
+                continue;
+            }
+            let noise = crate::noise::forest_noise(x, y, seed) + size_adjust;
+            if noise > settings.threshold_thick {
+                overmap.set_terrain(x, y, "forest_thick");
+                planted += 1;
+            } else if noise > settings.threshold {
+                overmap.set_terrain(x, y, "forest");
+                planted += 1;
+            }
+        }
+    }
+    planted
+}
