@@ -406,6 +406,27 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Gases share one rule, and it has five dice with two short-circuits (round 313)
+
+The 106 draws after a hot air creation are not a hot-air special case: hot air is a **gas**, and gases move by `map::spread_gas`
+(`src/map_field.cpp:276-360`), which every gas shares because being a gas is `"percent_spread"` in its data rather than a processor of its own.
+
+| Step | Dice | Short-circuit |
+|---|---|---|
+intensity one | **none** | `current_intensity <= 1 ||` stops before the gate |
+the gate | `rng( 1, 100 - windpower ) > percent_spread` | a failed gate returns before any neighbour is examined |
+which neighbour the scan starts on | `rng( 0, 7 )` | - |
+whether it goes | `one_in( spread.len() )` | an empty candidate list ends the turn after two dice |
+which candidate | `rng( 0, spread.len() - 1 )` | - |
+
+`spread_gas` ports all five, plus the transfer arithmetic from `gas_spread_to` (`:250-273`): the source keeps its intensity minus one and gives the
+destination `age / intensity`, so a thick young gas carries more of its age with it than a thin old one. Five tests, three of them about **what is not
+rolled** - the two short-circuits and the empty candidate list - because a port that rolls one die too many diverges from the reference at the next
+rule even when its own answer looks right.
+
+**Still declared:** falling and rising. `spread_gas` tries the square below first and the square above last, and the port's store has no third
+dimension, so both are named gaps rather than silently missing steps.
+
 ## Hot air, and the first rule ported *from the dice* rather than from the source (round 312)
 
 `create_hot_air` is small and it is the last thing the fire processor does (`src/map_field.cpp:375-399, 1429`): a gate of

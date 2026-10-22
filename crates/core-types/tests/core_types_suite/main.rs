@@ -26,6 +26,7 @@ mod forest_corners;
 mod forest_feather;
 mod forest_perimeter;
 mod four_quadrants;
+mod gas_spread;
 mod ids;
 mod level;
 mod light;
