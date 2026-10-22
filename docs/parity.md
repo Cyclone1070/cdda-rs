@@ -308,6 +308,22 @@ equality; JSON accept/reject parity". Each part, and where it is proven:
 | JSON acceptance is identical | All 6,220 shipped files: same accept/reject verdict and same structural digest as the reference; the writer is compared byte for byte on 127 of them |
 | The cache changes nothing | All 6,220 files read identically cold and warm |
 
+## A chunk's recorded inputs (round 241/242)
+
+A fresh world, generated with all three traces on, yields **one** chunk described end to end: its **96 perimeter
+depths** (`corpus/overmap/reference-chunk-perimeter.txt`, values between four and ten, the north edge starting at nine
+and settling at five), its **576 feature tickets** and its **573 ground tickets**. Together they are the inputs the port
+needs in order to be checked against the reference **given identical inputs** rather than being scored on two
+independent draws happening to agree - which, as the last round established, is what every score since round 224 has
+actually measured.
+
+**Two corrections came out of reading the files, both of them mine.** The ground raffle is called **573** times against
+**461** empty feature tickets, because a ticket that lands on a neighbour owning no biome also falls through to the
+ground - 112 squares reached it through a road or a field rather than through an empty ticket; my first version expected
+the two counts to agree. And the fresh run's dump is a **different chunk** from the one it traced: the dump follows the
+player, who stands in open field at `[192,333]`, while the traced chunk is a forest generated nearby. Comparing them
+directly would compare two unrelated squares, so the dump needs to name its own overmap coordinate instead.
+
 ## The perimeter trace needs a regenerated chunk (round 240)
 
 The perimeter depths are now written too (`CDDA_MAP_TRACE_PERIMETER`, one line of ninety-six depths per chunk), which is
