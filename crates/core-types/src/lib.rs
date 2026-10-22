@@ -17,6 +17,7 @@ pub mod containers;
 pub mod coords;
 pub mod diagnostics;
 pub mod field;
+pub mod fire;
 pub mod ids;
 pub mod level;
 pub mod light;

@@ -15,6 +15,7 @@ mod coordinate_matrix;
 mod daylight;
 mod diagnostics;
 mod field;
+mod fire_rules;
 mod forest_border;
 mod forest_corner_arithmetic;
 mod forest_corners;

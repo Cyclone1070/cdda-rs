@@ -406,6 +406,24 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Fire's arithmetic, without the burning (round 299)
+
+`field_processor_fd_fire` needs items, terrain flags, weather and vehicles, and none of those exist yet - so it is **not** ported, and the
+ledger says so rather than shipping a rule that would look like progress. What is ported is the part that needs none of them, and it is
+the part that decides a fire's shape:
+
+| Rule | Reference | What it says |
+|---|---|---|
+`growth_cap` | `map_field.cpp:1222-1257` | a lone fire reaches **1**; three neighbours reach 2, seven reach 3; more than 500 minutes of fuel reaches 3 on its own; more than 50 minutes reaches 2 |
+`growth_cost` | `:1253` | growing to *n* costs **10 minutes x n**, read after the rise, so growing to three costs thirty and not twenty |
+`dying_out_cost` | `:1131` | a fire with nothing to burn loses **10 minutes per level** a turn, so a raging fire dies faster than a small one |
+`spread_chance` | `:1308` | `25 x ( intensity - 1 )`, or `50 + chance / 2` onto a web - so intensity one **cannot spread at all** |
+
+Six tests, and two of them are the reference's own comments being wrong about its own code: it says "2 for at least 1 neighbor, 3 for at
+least 2 neighbors" where it checks **three** and **seven**, and its worked example calls fifty minutes of fuel "2 (medium)" where the test
+is `age < -50`, strictly less. Both boundaries are pinned the way the **code** has them, with the mismatch written down - a transcription
+that trusted the comments would be wrong at exactly the edges where a fire's behaviour changes.
+
 ## Correction: one authority for fields, not two (round 290)
 
 Rounds 285 to 289 built the field turn against a **container on the level** - `Level::field_squares`, `take_field`, a sweep that
