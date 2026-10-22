@@ -262,17 +262,7 @@ pub fn process_fires(
         }
         // Then the smoke: above when the square overhead is open, otherwise on the fire itself and thicker. The port's store is two
         // dimensional for now, so it takes the smoke-here branch and says so.
-        if let Some(smoke) = cdda_core_types::fire::smoke_from_fire(
-            rolls,
-            intensity,
-            map.smoke_produced(square),
-            windpower,
-            map.suppress_smoke(square),
-            false,
-            false,
-        ) {
-            add_field_strength(world, square, SMOKE, smoke.intensity);
-        }
+        fire_discharge(world, square, intensity, map, windpower, rolls);
     }
     for (x, y) in newborn {
         // One fire per square: a square that already has one is not re-lit, and the world is keyed by square whatever the store keys by.
@@ -928,12 +918,62 @@ pub fn create_hot_air(
 }
 
 /// The four hot air field ids, placeholders until the field loader is wired in.
+/// The hot air and the smoke a fire leaves behind, in the reference's order.
+///
+/// Split out of [`process_fires`] only because the system had grown past the point where a reader can hold it: the order is the rule, and the order is
+/// hot air first (`map_field.cpp:1429`), then smoke (`:1407`).
+fn fire_discharge(
+    world: &mut World,
+    square: (i32, i32),
+    intensity: i32,
+    map: &impl FireMap,
+    windpower: i32,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) {
+    if cdda_core_types::fire::wants_hot_air(map.adjacent_fires(square), rolls)
+        && let Some(kind) = cdda_core_types::fire::hot_air_field(intensity)
+        && let Some(hot_air) = hot_air_id(kind)
+    {
+        for (dx, dy) in cdda_core_types::fire::hot_air_squares(rolls) {
+            add_field_strength(world, (square.0 + dx, square.1 + dy), hot_air, 1);
+        }
+    }
+    // The port's store is two dimensional for now, so smoke settles on the fire's own square and the dump says so.
+    if let Some(smoke) = cdda_core_types::fire::smoke_from_fire(
+        rolls,
+        intensity,
+        map.smoke_produced(square),
+        windpower,
+        map.suppress_smoke(square),
+        false,
+        false,
+    ) {
+        add_field_strength(world, square, SMOKE, smoke.intensity);
+    }
+}
+
+/// The hot air field for a fire of this intensity, as `create_hot_air` chooses it.
+#[must_use]
+pub fn hot_air_id(intensity: i32) -> Option<FieldId> {
+    match intensity {
+        1 => Some(HOT_AIR_1),
+        2 => Some(HOT_AIR_2),
+        3 => Some(HOT_AIR_3),
+        4 => Some(HOT_AIR_4),
+        _ => None,
+    }
+}
+
+/// Hot air a fire of intensity 1 leaves behind (`fd_hot_air1`).
 pub const HOT_AIR_1: FieldId = FieldId(58);
 /// See [`HOT_AIR_1`].
+/// Hot air a fire of intensity 2 leaves behind (`fd_hot_air2`).
 pub const HOT_AIR_2: FieldId = FieldId(59);
 /// See [`HOT_AIR_1`].
+/// Hot air a fire of intensity 3 leaves behind (`fd_hot_air3`).
 pub const HOT_AIR_3: FieldId = FieldId(60);
 /// See [`HOT_AIR_1`].
+/// Hot air a fire of intensity 4 leaves behind (`fd_hot_air4`).
 pub const HOT_AIR_4: FieldId = FieldId(61);
 
 /// Smoke, as the field registry numbers it.

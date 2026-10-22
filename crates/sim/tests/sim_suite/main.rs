@@ -35,6 +35,7 @@ mod fire_burnout;
 mod fire_fields;
 mod fire_flashpoint;
 mod fire_growth;
+mod fire_hot_air_store;
 mod fire_items;
 mod fire_process;
 mod fire_residue;

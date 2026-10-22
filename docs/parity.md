@@ -406,6 +406,19 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The haze a fire leaves is an entity (round 315)
+
+`process_fires` now ends with `fire_discharge`: hot air first (`map_field.cpp:1429`), then smoke (`:1407`), in the reference's order. Hot air is chosen by the
+fire's own intensity (`fd_hot_air1` to `fd_hot_air4`), lands on the five squares the dice name, and goes through the same merge rule as everything else.
+
+Three tests, and the first one is a small lesson in reading a trace: the dice chose five offsets of which **two were the same square**, so the store ends
+with four squares and one of them at intensity two. A test written from expectation ("five squares, each at intensity one") failed against behaviour that
+was right - the merge rule from round 305 showing up in the wild. It is now asserted as four squares with one doubled, and the comment says which two
+offsets collided.
+
+**Refactor in the same round:** `process_fires` had grown to 103 lines and clippy refused it at 100. The tail moved to `fire_discharge` rather than the limit
+being raised, because the function had stopped being one thing. The four hot air field ids also gained the documentation they had been missing.
+
 ## Gases move in the store (round 314)
 
 `process_gas` is the join between [`spread_gas`] and the entity store: it walks every square holding the gas in the store's own order, asks the map which
