@@ -129,7 +129,7 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-22 16:01:38
++++ oracle/src/src/harness.cpp	2026-10-23 00:05:35
 @@ -0,0 +1,1151 @@
 +#include "harness.h"
 +#include "recipe_dictionary.h"
@@ -1284,7 +1284,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-22 16:02:43
++++ oracle/src/src/harness.h	2026-10-23 00:05:35
 @@ -0,0 +1,162 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
@@ -1470,7 +1470,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-22 16:01:38
++++ oracle/src/src/main.cpp	2026-10-23 00:04:40
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -1481,10 +1481,32 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,44 @@
+@@ -272,6 +275,66 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
++    // Harness: write a digest of every loaded prototype (or the ids themselves)
++    // to this file and exit. See docs/11-oracle-harness.md.
++    std::string dump_prototype_digest;
++    std::string dump_prototype_ids;
++    // Harness: the state that exists before any world does.
++    std::string dump_env;
++    // Harness: the state of a freshly started game.
++    std::string dump_state;
++    // Harness: resolved terrain and furniture prototypes.
++    std::string dump_terrain;
++    // Harness: resolved traps and materials.
++    std::string dump_traps;
++    std::string dump_materials;
++    // Harness: resolved field types.
++    std::string dump_fields;
++    // Harness: resolved item types.
++    std::string dump_items;
++    // Harness: resolved monster types.
++    std::string dump_monsters;
++    std::string replay;
++    std::string world_name;
++    std::string start_location;
 +    // Harness: write a digest of every loaded prototype (or the ids themselves)
 +    // to this file and exit. See docs/11-oracle-harness.md.
 +    std::string dump_prototype_digest;
@@ -1526,7 +1548,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +341,257 @@
+@@ -300,6 +363,387 @@
                  }
              },
              {
@@ -1781,10 +1803,140 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                }
 +            },
 +            {
++                "--dump-prototype-digest", "<file>",
++                "Writes a digest of every loaded prototype to <file> and exits",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_prototype_digest = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-prototype-ids", "<file>",
++                "Writes every loaded prototype id to <file> and exits",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_prototype_ids = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--replay", "<file>",
++                "Replays recorded keys instead of reading a terminal (needs --dump-state)",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.replay = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-traps", "<file>",
++                "Writes every resolved trap prototype to <file>",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_traps = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-materials", "<file>",
++                "Writes every resolved material prototype to <file>",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_materials = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-fields", "<file>",
++                "Writes every resolved field type to <file>",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_fields = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-items", "<file>",
++                "Writes every resolved item type to <file>",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_items = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-monsters", "<file>",
++                "Writes every resolved monster type to <file>",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_monsters = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-terrain", "<file>",
++                "Writes every resolved terrain and furniture prototype to <file>",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_terrain = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-state", "<file>",
++                "Starts a new game headlessly and writes its state to <file>",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_state = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--world-name", "<name>",
++                "World name used by --dump-state (default: harness-fixed)",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.world_name = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--start-location", "<id>",
++                "Start location used by --dump-state (default: none, scenario decides)",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.start_location = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-env", "<file>",
++                "Writes the pre-world state (rng, calendar, options) to <file> and exits",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_env = params[0];
++                    return 1;
++                }
++            },
++            {
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +1078,181 @@
+@@ -786,6 +1230,181 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -2341,1585 +2493,6 @@ diff -ruN references/Cataclysm-DDA/src/rng.h oracle/src/src/rng.h
  int rng( int lo, int hi );
  double rng_float( double lo, double hi );
  
-diff -ruN references/Cataclysm-DDA/src/src/harness.cpp oracle/src/src/src/harness.cpp
---- references/Cataclysm-DDA/src/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/src/harness.cpp	2026-10-21 06:53:22
-@@ -0,0 +1,801 @@
-+#include "harness.h"
-+#include "recipe_dictionary.h"
-+#include "requirements.h"
-+
-+#include <algorithm>
-+
-+#include "avatar.h"
-+#include "calendar.h"
-+#include "do_turn.h"
-+#include "game.h"
-+#include "map.h"
-+#include "enums.h"
-+#include "item_factory.h"
-+#include "item_group.h"
-+#include "mapgen.h"
-+#include "scenario.h"
-+#include "profession.h"
-+#include "omdata.h"
-+#include "itype.h"
-+#include "field_type.h"
-+#include "mtype.h"
-+#include "monstergenerator.h"
-+#include "generic_factory.h"
-+#include "filesystem.h"
-+#include "options.h"
-+#include "path_info.h"
-+#include "rng.h"
-+#include "start_location.h"
-+#include "string_id.h"
-+#include "worldfactory.h"
-+#include <cstdio>
-+#include <fstream>
-+#include <stdexcept>
-+#include <utility>
-+#include <string>
-+#include <vector>
-+
-+namespace harness
-+{
-+
-+namespace
-+{
-+
-+// Function-local static: generic_factory instances are static globals, and the
-+// order in which they are constructed is not defined, so the registry must not
-+// be a namespace-scope global itself.
-+std::vector<prototype_source> &registry()
-+{
-+    static std::vector<prototype_source> sources;
-+    return sources;
-+}
-+
-+std::string harness_escape( const std::string &value )
-+{
-+    std::string out;
-+    out.reserve( value.size() + 2 );
-+    for( const char c : value ) {
-+        switch( c ) {
-+            case '"':
-+                out += "\\\"";
-+                break;
-+            case '\\':
-+                out += "\\\\";
-+                break;
-+            case '\n':
-+                out += "\\n";
-+                break;
-+            case '\t':
-+                out += "\\t";
-+                break;
-+            case '\r':
-+                out += "\\r";
-+                break;
-+            default:
-+                out += c;
-+        }
-+    }
-+    return out;
-+}
-+
-+} // namespace
-+
-+void register_prototype_source( const std::string &type_name,
-+                                std::vector<std::string>( *list_ids )( void * ),
-+                                void *factory )
-+{
-+    registry().push_back( prototype_source{ type_name, list_ids, factory } );
-+}
-+
-+uint64_t digest_strings( const std::vector<std::string> &values )
-+{
-+    constexpr uint64_t offset_basis = 14695981039346656037ULL;
-+    constexpr uint64_t prime = 1099511628211ULL;
-+    uint64_t hash = offset_basis;
-+    for( const std::string &value : values ) {
-+        for( const char c : value ) {
-+            hash ^= static_cast<unsigned char>( c );
-+            hash *= prime;
-+        }
-+        // Separator, so that {"ab","c"} and {"a","bc"} differ.
-+        hash ^= 0x00;
-+        hash *= prime;
-+    }
-+    return hash;
-+}
-+
-+namespace
-+{
-+
-+// Every registry's ids, sorted and deduplicated, with the registry name.
-+std::vector<std::pair<std::string, std::vector<std::string>>> collect()
-+{
-+    std::vector<std::pair<std::string, std::vector<std::string>>> out;
-+    out.reserve( registry().size() );
-+    for( const prototype_source &source : registry() ) {
-+        std::vector<std::string> ids = source.list_ids( source.factory );
-+        std::sort( ids.begin(), ids.end() );
-+        ids.erase( std::unique( ids.begin(), ids.end() ), ids.end() );
-+        out.emplace_back( source.type_name, std::move( ids ) );
-+    }
-+    std::sort( out.begin(), out.end(),
-+    []( const auto & l, const auto & r ) {
-+        return l.first < r.first;
-+    } );
-+    return out;
-+}
-+
-+} // namespace
-+
-+void dump_prototype_digest( const std::string &path )
-+{
-+    const auto collected = collect();
-+    std::FILE *out = std::fopen( path.c_str(), "wb" );
-+    if( out == nullptr ) {
-+        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
-+        return;
-+    }
-+    std::fprintf( out, "{\"harness\":\"prototype-digest\",\"version\":1,\"registries\":[\n" );
-+    bool first = true;
-+    for( const auto &entry : collected ) {
-+        std::fprintf( out, "%s{\"type\":\"%s\",\"count\":%zu,\"digest\":\"%016llx\"}",
-+                      first ? "" : ",\n", harness_escape( entry.first ).c_str(),
-+                      entry.second.size(),
-+                      static_cast<unsigned long long>( digest_strings( entry.second ) ) );
-+        first = false;
-+    }
-+    std::fprintf( out, "\n]}\n" );
-+    std::fclose( out );
-+}
-+
-+void dump_prototype_ids( const std::string &path )
-+{
-+    const auto collected = collect();
-+    std::FILE *out = std::fopen( path.c_str(), "wb" );
-+    if( out == nullptr ) {
-+        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
-+        return;
-+    }
-+    std::fprintf( out, "{\"harness\":\"prototype-ids\",\"version\":1,\"registries\":[\n" );
-+    bool first_registry = true;
-+    for( const auto &entry : collected ) {
-+        std::fprintf( out, "%s{\"type\":\"%s\",\"ids\":[", first_registry ? "" : ",\n",
-+                      harness_escape( entry.first ).c_str() );
-+        bool first_id = true;
-+        for( const std::string &id : entry.second ) {
-+            std::fprintf( out, "%s\"%s\"", first_id ? "" : ",", harness_escape( id ).c_str() );
-+            first_id = false;
-+        }
-+        std::fprintf( out, "]}" );
-+        first_registry = false;
-+    }
-+    std::fprintf( out, "\n]}\n" );
-+    std::fclose( out );
-+}
-+
-+void dump_astronomy( const std::string &path )
-+{
-+    std::FILE *out = std::fopen( path.c_str(), "wb" );
-+    if( out == nullptr ) {
-+        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
-+        return;
-+    }
-+    std::fprintf( out, "{\"harness\":\"astronomy\",\"version\":1,\n" );
-+    // The calendar the samples were taken under, because a season length other than the
-+    // default changes the year length and the whole curve with it. A dump that does not say
-+    // which calendar it used cannot be gated against.
-+    std::fprintf( out, "\"year_length_days\":%d,\"season_length_days\":%d,\n",
-+                  to_days<int>( calendar::year_length() ),
-+                  to_days<int>( calendar::season_length() ) );
-+    std::fprintf( out, "\"samples\":[\n" );
-+    // A leap year's worth of days at three-hour intervals: every season, every hour,
-+    // including the ones where the sun never rises.
-+    bool first = true;
-+    for( int day = 0; day < 365; day += 7 ) {
-+        for( int hour = 0; hour < 24; hour += 3 ) {
-+            const time_point t = calendar::turn_zero + time_duration::from_days( day )
-+                                 + time_duration::from_hours( hour );
-+            const units::angle altitude = sun_azimuth_altitude( t ).second;
-+            const std::array<double, 6> internals = harness_sun_internals( t );
-+            std::fprintf( out,
-+                          "%s{\"day\":%d,\"hour\":%d,\"altitude\":%.9f,\"light\":%.9f,"
-+                          "\"ra\":%.9f,\"dec\":%.9f,\"sidereal\":%.9f,\"hour_angle\":%.9f,"
-+                          "\"days\":%.9f}",
-+                          first ? "" : ",\n", day, hour, to_degrees( altitude ),
-+                          sun_light_at( t ), internals[0], internals[1], internals[2],
-+                          internals[3], internals[4] );
-+            first = false;
-+        }
-+    }
-+    std::fprintf( out, "]}\n" );
-+    std::fclose( out );
-+}
-+
-+void dump_environment( const std::string &path )
-+{
-+    std::FILE *out = std::fopen( path.c_str(), "wb" );
-+    if( out == nullptr ) {
-+        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
-+        return;
-+    }
-+
-+    std::fprintf( out, "{\"harness\":\"environment\",\"version\":1,\n" );
-+
-+    // The engine's position, fingerprinted by drawing from a copy so that the
-+    // game's own stream is not advanced by measuring it.
-+    cata_default_random_engine probe = rng_get_engine();
-+    std::fprintf( out, "\"rng_next\":[" );
-+    for( int i = 0; i < 4; i++ ) {
-+        std::fprintf( out, "%s%llu", i == 0 ? "" : ",",
-+                      static_cast<unsigned long long>( probe() ) );
-+    }
-+    std::fprintf( out, "],\n" );
-+
-+    const time_point now = calendar::turn;
-+    std::fprintf( out,
-+                  "\"turn\":%d,\"season\":%d,\"day_of_season\":%d,\"hour\":%d,"
-+                  "\"sunrise\":%d,\"sunset\":%d,\n",
-+                  to_turn<int>( now ), static_cast<int>( season_of_year( now ) ),
-+                  day_of_season<int>( now ), hour_of_day<int>( now ),
-+                  to_turn<int>( sunrise( now ) ), to_turn<int>( sunset( now ) ) );
-+
-+    // The options the calendar and spawning read. The full table is a separate
-+    // task; these are the ones that change simulation behaviour, not presentation.
-+    std::fprintf( out,
-+                  "\"options\":{\"SEASON_LENGTH\":%d,\"ETERNAL_SEASON\":%s,"
-+                  "\"ETERNAL_TIME_OF_DAY\":\"%s\",\"MONSTER_SPEED\":%d,"
-+                  "\"SPAWN_DENSITY\":%.6f}\n}\n",
-+                  get_option<int>( "SEASON_LENGTH" ),
-+                  get_option<bool>( "ETERNAL_SEASON" ) ? "true" : "false",
-+                  get_option<std::string>( "ETERNAL_TIME_OF_DAY" ).c_str(),
-+                  get_option<int>( "MONSTER_SPEED" ),
-+                  get_option<float>( "SPAWN_DENSITY" ) );
-+
-+    std::fclose( out );
-+}
-+
-+namespace
-+{
-+bool simulated_terminal = false;
-+std::vector<std::string> recorded_keys;
-+std::size_t next_key = 0;
-+} // namespace
-+
-+void arm_recorded_input( std::vector<std::string> keys )
-+{
-+    recorded_keys = std::move( keys );
-+    next_key = 0;
-+    simulated_terminal = true;
-+}
-+
-+bool terminal_is_simulated()
-+{
-+    return simulated_terminal;
-+}
-+
-+bool has_recorded_input()
-+{
-+    return simulated_terminal && next_key < recorded_keys.size();
-+}
-+
-+input_event next_input_event()
-+{
-+    // A recorded key is one byte; the reference's keyboard_char event carries
-+    // exactly that in its sequence.
-+    const std::string &key = recorded_keys[next_key++];
-+    return input_event( static_cast<int>( key.empty() ? 0 : key[0] ),
-+                        input_event_t::keyboard_char );
-+}
-+
-+[[noreturn]] void note_blocked_input( const char *where )
-+{
-+    throw std::runtime_error( std::string( "harness: input requested outside the "
-+                                           "recorded stream at " ) + where );
-+}
-+
-+std::vector<std::string> read_key_file( const std::string &path, std::string &error )
-+{
-+    std::vector<std::string> keys;
-+    std::ifstream in( path );
-+    if( !in ) {
-+        error = "cannot read " + path;
-+        return keys;
-+    }
-+    std::string line;
-+    while( std::getline( in, line ) ) {
-+        if( line.empty() || line[0] == '#' ) {
-+            continue;
-+        }
-+        keys.push_back( line );
-+    }
-+    return keys;
-+}
-+
-+void run_replay()
-+{
-+    // One turn per recorded key. `do_turn` consumes exactly one action, so the
-+    // loop stops when the recording does; the guard is a runaway check, not a
-+    // turn limit.
-+    std::size_t guard = 0;
-+    while( has_recorded_input() ) {
-+        if( ++guard > 100000 ) {
-+            throw std::runtime_error( "harness: replay exceeded 100000 turns" );
-+        }
-+        do_turn();
-+    }
-+}
-+
-+void dump_terrain( const std::string &path )
-+{
-+    std::FILE *out = std::fopen( path.c_str(), "wb" );
-+    if( out == nullptr ) {
-+        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
-+        return;
-+    }
-+    std::fprintf( out, "{\"harness\":\"terrain\",\"version\":1,\n\"prototypes\":[\n" );
-+    harness_dump_terrain_prototypes( out );
-+    std::fprintf( out, "]}\n" );
-+    std::fclose( out );
-+}
-+
-+void dump_traps( const std::string &path )
-+{
-+    std::FILE *out = std::fopen( path.c_str(), "wb" );
-+    if( out == nullptr ) {
-+        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
-+        return;
-+    }
-+    std::fprintf( out, "{\"harness\":\"traps\",\"version\":1,\n\"prototypes\":[\n" );
-+    harness_dump_trap_prototypes( out );
-+    std::fprintf( out, "]}\n" );
-+    std::fclose( out );
-+}
-+
-+void dump_starting_kit( const std::string &path )
-+{
-+    std::FILE *out = std::fopen( path.c_str(), "wb" );
-+    if( out == nullptr ) {
-+        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
-+        return;
-+    }
-+    std::vector<std::string> professions;
-+    for( const profession &prof : profession::get_all() ) {
-+        professions.push_back( prof.ident().str() );
-+    }
-+    std::vector<std::string> scenarios;
-+    for( const scenario &scen : scenario::get_all() ) {
-+        scenarios.push_back( scen.ident().str() );
-+    }
-+    std::sort( professions.begin(), professions.end() );
-+    std::sort( scenarios.begin(), scenarios.end() );
-+    std::fprintf( out, "{\"harness\":\"starting_kit\",\"version\":1,\n\"professions\":[\n" );
-+    bool first = true;
-+    for( const std::string &id : professions ) {
-+        std::fprintf( out, "%s\"%s\"", first ? "" : ",\n", id.c_str() );
-+        first = false;
-+    }
-+    std::fprintf( out, "\n],\"profession_count\":%zu,\n\"scenarios\":[\n", professions.size() );
-+    first = true;
-+    for( const std::string &id : scenarios ) {
-+        std::fprintf( out, "%s\"%s\"", first ? "" : ",\n", id.c_str() );
-+        first = false;
-+    }
-+    std::fprintf( out, "\n],\"scenario_count\":%zu}\n", scenarios.size() );
-+    std::fclose( out );
-+}
-+
-+void dump_mapgens( const std::string &path )
-+{
-+    std::FILE *out = std::fopen( path.c_str(), "wb" );
-+    if( out == nullptr ) {
-+        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
-+        return;
-+    }
-+    // The JSON mapgens are registered lazily; calculating the weights is what forces the
-+    // registry to become complete.
-+    calculate_mapgen_weights();
-+    std::vector<std::string> keys;
-+    for( const oter_t &oter : overmap_terrains::get_all() ) {
-+        if( has_mapgen_for( oter.id.str() ) ) {
-+            keys.push_back( oter.id.str() );
-+        }
-+    }
-+    std::sort( keys.begin(), keys.end() );
-+    std::fprintf( out, "{\"harness\":\"mapgens\",\"version\":1,\n\"keys\":[\n" );
-+    bool first = true;
-+    for( const std::string &key : keys ) {
-+        std::fprintf( out, "%s\"%s\"", first ? "" : ",\n", key.c_str() );
-+        first = false;
-+    }
-+    std::fprintf( out, "\n],\"count\":%zu}\n", keys.size() );
-+    std::fclose( out );
-+}
-+
-+void dump_item_groups( const std::string &path )
-+{
-+    std::FILE *out = std::fopen( path.c_str(), "wb" );
-+    if( out == nullptr ) {
-+        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
-+        return;
-+    }
-+    std::vector<item_group_id> groups = item_controller->get_all_group_names();
-+    std::sort( groups.begin(), groups.end(),
-+    []( const item_group_id & a, const item_group_id & b ) {
-+        return a.str() < b.str();
-+    } );
-+    std::fprintf( out, "{\"harness\":\"item_groups\",\"version\":1,\n\"groups\":[\n" );
-+    bool first = true;
-+    for( const item_group_id &group : groups ) {
-+        std::fprintf( out, "%s{\"id\":\"%s\",\"items\":[", first ? "" : ",\n",
-+                      group.str().c_str() );
-+        first = false;
-+        // every_item_min_max walks the whole tree, so nested groups are already expanded and
-+        // the numbers are what a spawn can produce rather than what the JSON literally says.
-+        Item_spawn_data *data = item_group::spawn_data_from_group( group );
-+        bool first_item = true;
-+        if( data != nullptr ) {
-+            for( const auto &entry : data->every_item_min_max() ) {
-+                std::fprintf( out, "%s{\"item\":\"%s\",\"min\":%d,\"max\":%d}",
-+                              first_item ? "" : ",", entry.first->get_id().str().c_str(),
-+                              entry.second.first, entry.second.second );
-+                first_item = false;
-+            }
-+        }
-+        std::fprintf( out, "]}" );
-+    }
-+    std::fprintf( out, "\n],\"count\":%zu}\n", groups.size() );
-+    std::fclose( out );
-+}
-+
-+void dump_recipes( const std::string &path )
-+{
-+    std::FILE *out = std::fopen( path.c_str(), "wb" );
-+    if( out == nullptr ) {
-+        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
-+        return;
-+    }
-+    std::fprintf( out, "{\"harness\":\"recipes\",\"version\":1,\n\"recipes\":[\n" );
-+    bool first = true;
-+    for( auto it = recipe_dict.begin(); it != recipe_dict.end(); ++it ) {
-+        const recipe &r = it->second;
-+        std::fprintf( out, "%s{\"id\":\"%s\",\"result\":\"%s\",\"blacklisted\":%s,\"components\":[",
-+                      first ? "" : ",\n", r.ident().str().c_str(), r.result().str().c_str(),
-+                      r.is_blacklisted() ? "true" : "false" );
-+        // Alternatives are the structure that matters: each inner list is a set of things any
-+        // one of which satisfies that requirement, so flattening them would change the recipe.
-+        bool first_group = true;
-+        for( const auto &group : r.simple_requirements().get_components() ) {
-+            std::fprintf( out, "%s[", first_group ? "" : "," );
-+            first_group = false;
-+            bool first_alt = true;
-+            for( const item_comp &comp : group ) {
-+                std::fprintf( out, "%s{\"item\":\"%s\",\"count\":%d}",
-+                              first_alt ? "" : ",", comp.type.str().c_str(), comp.count );
-+                first_alt = false;
-+            }
-+            std::fprintf( out, "]" );
-+        }
-+        std::fprintf( out, "],\"tools\":[" );
-+        bool first_tool_group = true;
-+        for( const auto &group : r.simple_requirements().get_tools() ) {
-+            std::fprintf( out, "%s[", first_tool_group ? "" : "," );
-+            first_tool_group = false;
-+            bool first_tool = true;
-+            for( const tool_comp &tool : group ) {
-+                std::fprintf( out, "%s{\"item\":\"%s\",\"count\":%d}",
-+                              first_tool ? "" : ",", tool.type.str().c_str(), tool.count );
-+                first_tool = false;
-+            }
-+            std::fprintf( out, "]" );
-+        }
-+        std::fprintf( out, "],\"qualities\":[" );
-+        bool first_quality_group = true;
-+        for( const auto &group : r.simple_requirements().get_qualities() ) {
-+            std::fprintf( out, "%s[", first_quality_group ? "" : "," );
-+            first_quality_group = false;
-+            bool first_quality = true;
-+            for( const quality_requirement &quality : group ) {
-+                std::fprintf( out, "%s{\"quality\":\"%s\",\"level\":%d,\"count\":%d}",
-+                              first_quality ? "" : ",", quality.type.str().c_str(), quality.level,
-+                              quality.count );
-+                first_quality = false;
-+            }
-+            std::fprintf( out, "]" );
-+        }
-+        std::fprintf( out, "]}" );
-+        first = false;
-+    }
-+    std::fprintf( out, "\n],\"count\":%zu}\n", recipe_dict.size() );
-+    std::fclose( out );
-+}
-+
-+void dump_materials( const std::string &path )
-+{
-+    std::FILE *out = std::fopen( path.c_str(), "wb" );
-+    if( out == nullptr ) {
-+        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
-+        return;
-+    }
-+    std::fprintf( out, "{\"harness\":\"materials\",\"version\":1,\n\"prototypes\":[\n" );
-+    bool first = true;
-+    for( const material_type &material : materials::get_all() ) {
-+        std::fprintf( out,
-+                      "%s\n{\"id\":\"%s\",\"name\":\"%s\",\"density\":%.6g,"
-+                      "\"chip_resist\":%d,\"breathability\":%d,"
-+                      "\"specific_heat_liquid\":%.6g,\"specific_heat_solid\":%.6g,"
-+                      "\"latent_heat\":%.6g}",
-+                      first ? "" : ",", harness_escape( material.id.str() ).c_str(),
-+                      harness_escape( material.name() ).c_str(),
-+                      static_cast<double>( material.density() ), material.chip_resist(),
-+                      material.breathability(),
-+                      static_cast<double>( material.specific_heat_liquid() ),
-+                      static_cast<double>( material.specific_heat_solid() ),
-+                      static_cast<double>( material.latent_heat() ) );
-+        first = false;
-+    }
-+    std::fprintf( out, "]}\n" );
-+    std::fclose( out );
-+}
-+
-+void dump_fields( const std::string &path )
-+{
-+    std::FILE *out = std::fopen( path.c_str(), "wb" );
-+    if( out == nullptr ) {
-+        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
-+        return;
-+    }
-+    std::fprintf( out, "{\"harness\":\"fields\",\"version\":1,\n\"prototypes\":[\n" );
-+    bool first = true;
-+    for( const field_type &field : get_all_field_types().get_all() ) {
-+        std::fprintf( out, "%s\n{\"id\":\"%s\",\"priority\":%d,\"levels\":[",
-+                      first ? "" : ",", harness_escape( field.id.str() ).c_str(), field.priority );
-+        bool first_level = true;
-+        for( const field_intensity_level &level : field.intensity_levels ) {
-+            std::fprintf( out, "%s\n{\"name\":\"%s\",\"sym\":%u,\"color\":\"%s\","
-+                          "\"dangerous\":%s,\"transparent\":%s,\"move_cost\":%d,"
-+                          "\"concentration\":%d,\"light\":%.6g}",
-+                          first_level ? "" : ",", harness_escape( level.name.translated() ).c_str(),
-+                          level.symbol, string_from_color( level.color ).c_str(),
-+                          level.dangerous ? "true" : "false",
-+                          level.transparent ? "true" : "false", level.move_cost,
-+                          level.concentration, static_cast<double>( level.light_emitted ) );
-+            first_level = false;
-+        }
-+        std::fprintf( out, "]}" );
-+        first = false;
-+    }
-+    std::fprintf( out, "]}\n" );
-+    std::fclose( out );
-+}
-+
-+void dump_items( const std::string &path )
-+{
-+    std::FILE *out = std::fopen( path.c_str(), "wb" );
-+    if( out == nullptr ) {
-+        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
-+        return;
-+    }
-+    std::fprintf( out, "{\"harness\":\"items\",\"version\":1,\n\"prototypes\":[\n" );
-+    bool first = true;
-+    for( const itype *proto : item_controller->all() ) {
-+        std::fprintf( out, "%s\n{\"id\":\"%s\",\"name\":\"%s\",\"name_plural\":\"%s\","
-+                      "\"symbol\":\"%s\",\"color\":\"%s\",\"weight\":%lld,\"volume\":%lld,"
-+                      "\"price\":%lld,\"category\":\"%s\",\"materials\":[",
-+                      first ? "" : ",", harness_escape( proto->id.str() ).c_str(),
-+                      harness_escape( proto->nname( 1 ) ).c_str(),
-+                      harness_escape( proto->nname( 2 ) ).c_str(),
-+                      // The glyph is UTF-8 text, not a byte: a multi-byte symbol
-+                      // would otherwise be dumped as its first signed byte.
-+                      harness_escape( proto->sym ).c_str(),
-+                      string_from_color( proto->color ).c_str(),
-+                      static_cast<long long>( units::to_gram( proto->weight ) ),
-+                      static_cast<long long>( units::to_milliliter( proto->volume ) ),
-+                      static_cast<long long>( units::to_cent( proto->price ) ),
-+                      harness_escape( proto->category_force.str() ).c_str() );
-+        bool first_material = true;
-+        for( const std::pair<const material_id, int> &entry : proto->materials ) {
-+            std::fprintf( out, "%s[\"%s\",%d]", first_material ? "" : ",",
-+                          harness_escape( entry.first.str() ).c_str(), entry.second );
-+            first_material = false;
-+        }
-+        std::fprintf( out, "],\"armor_data\":[" );
-+        if( proto->armor ) {
-+            bool first_row = true;
-+            for( const armor_portion_data &row : proto->armor->data ) {
-+                std::fprintf( out, "%s{\"covers\":[", first_row ? "" : "," );
-+                bool first_cover = true;
-+                for( const bodypart_str_id &bp : row.covers.value() ) {
-+                    std::fprintf( out, "%s\"%s\"", first_cover ? "" : ",",
-+                                  harness_escape( bp.str() ).c_str() );
-+                    first_cover = false;
-+                }
-+                std::fprintf( out, "],\"materials\":[" );
-+                bool first_row_mat = true;
-+                for( const part_material &mat : row.materials ) {
-+                    std::fprintf( out, "%s[\"%s\",%.4f,%d]", first_row_mat ? "" : ",",
-+                                  harness_escape( mat.id.str() ).c_str(),
-+                                  static_cast<double>( mat.thickness ), mat.cover );
-+                    first_row_mat = false;
-+                }
-+                std::fprintf( out, "]}" );
-+                first_row = false;
-+            }
-+        }
-+        std::fprintf( out, "],\"flags\":[" );
-+        bool first_flag = true;
-+        for( const flag_id &flag : proto->get_flags() ) {
-+            std::fprintf( out, "%s\"%s\"", first_flag ? "" : ",",
-+                          harness_escape( flag.str() ).c_str() );
-+            first_flag = false;
-+        }
-+        std::fprintf( out, "]}" );
-+        first = false;
-+    }
-+    std::fprintf( out, "]}\n" );
-+    std::fclose( out );
-+}
-+
-+bool start_headless_game( const std::string &world_name, const std::string &start_loc,
-+                          std::string &error )
-+{
-+    // The reference's own tests stop before this point and build a flat synthetic
-+    // world instead (tests/test_main.cpp:88-168), so this follows the real new-game
-+    // path as far as it can go without input; see docs/parts/headless-start.md.
-+    // `avatar::create` writes a character template, so the directory has to
-+    // exist before it runs; without it the reference fails writing the file and
-+    // opens an error prompt (newcharacter.cpp:870 -> save_template).
-+    assure_dir_exist( PATH_INFO::templatedir() );
-+
-+    world_generator->set_active_world( nullptr );
-+    world_generator->init();
-+    std::vector<mod_id> mods;
-+    mods.emplace_back( "dda" );
-+    WORLD *world = world_generator->make_new_world( world_name, mods );
-+    if( world == nullptr ) {
-+        error = "could not create world " + world_name;
-+        return false;
-+    }
-+    world_generator->set_active_world( world );
-+
-+    // Calendar settings must follow the options before any turn happens.
-+    calendar::set_eternal_season( get_option<bool>( "ETERNAL_SEASON" ) );
-+    calendar::set_season_length( get_option<int>( "SEASON_LENGTH" ) );
-+
-+    g->setup();
-+    get_avatar() = avatar();
-+    get_avatar().create( character_type::NOW );
-+    // The id is assigned by start_game itself; assigning one here makes the
-+    // reference complain that the character already has one.
-+
-+    // Fixed start location, so the avatar's birth square is not a random draw.
-+    if( !start_loc.empty() ) {
-+        const start_location_id loc( start_loc );
-+        if( loc.is_valid() ) {
-+            get_avatar().random_start_location = false;
-+            get_avatar().start_location = loc;
-+        } else {
-+            error = "unknown start location " + start_loc;
-+            return false;
-+        }
-+    }
-+
-+    if( !g->harness_start_game() ) {
-+        error = "start_game refused";
-+        return false;
-+    }
-+    return true;
-+}
-+
-+void dump_state( const std::string &path )
-+{
-+    std::FILE *out = std::fopen( path.c_str(), "wb" );
-+    if( out == nullptr ) {
-+        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
-+        return;
-+    }
-+    const avatar &u = get_avatar();
-+    const time_point now = calendar::turn;
-+
-+    cata_default_random_engine probe = rng_get_engine();
-+    std::fprintf( out, "{\"harness\":\"state\",\"version\":1,\n" );
-+    std::fprintf( out, "\"rng_next\":[" );
-+    for( int i = 0; i < 4; i++ ) {
-+        std::fprintf( out, "%s%llu", i == 0 ? "" : ",",
-+                      static_cast<unsigned long long>( probe() ) );
-+    }
-+    std::fprintf( out, "],\n" );
-+
-+    std::fprintf( out,
-+                  "\"turn\":%d,\"season\":%d,\"day_of_season\":%d,\"hour\":%d,\n",
-+                  to_turn<int>( now ), static_cast<int>( season_of_year( now ) ),
-+                  day_of_season<int>( now ), hour_of_day<int>( now ) );
-+
-+    const tripoint_abs_ms pos = u.pos_abs();
-+    std::fprintf( out,
-+                  "\"avatar\":{\"pos_abs\":[%d,%d,%d],\"str\":%d,\"dex\":%d,\"int\":%d,"
-+                  "\"per\":%d,\"hp\":%d,\"moves\":%d},\n",
-+                  pos.x(), pos.y(), pos.z(), u.str_max, u.dex_max, u.int_max, u.per_max,
-+                  static_cast<int>( u.get_hp() ), static_cast<int>( u.get_moves() ) );
-+
-+    // The reality bubble, hashed tile by tile: terrain, furniture, and how many
-+    // items lie on the square. This is the first digest that compares worlds
-+    // rather than environments.
-+    std::vector<std::string> rows;
-+    const tripoint_bub_ms center = u.pos_bub();
-+    for( const tripoint_bub_ms &p : g->harness_map().points_in_radius( center, 60 ) ) {
-+        std::string row = string_format( "%d,%d,%d|%s|%s|%zu", p.x(), p.y(), p.z(),
-+                                         g->harness_map().ter( p ).id().str(), g->harness_map().furn( p ).id().str(),
-+                                         g->harness_map().i_at( p ).size() );
-+        rows.push_back( std::move( row ) );
-+    }
-+    std::fprintf( out,
-+                  "\"bubble\":{\"radius\":60,\"tiles\":%zu,\"digest\":\"%016llx\"},\n",
-+                  rows.size(),
-+                  static_cast<unsigned long long>( digest_strings( rows ) ) );
-+
-+    std::size_t creatures = 0;
-+    for( Creature &critter : g->all_creatures() ) {
-+        static_cast<void>( critter );
-+        creatures++;
-+    }
-+    std::fprintf( out, "\"creatures\":%zu}\n", creatures );
-+    std::fclose( out );
-+}
-+
-+} // namespace harness
-+
-+namespace harness
-+{
-+
-+// Every resolved monster type, with the fields the port loads first.
-+void dump_monsters( const std::string &path )
-+{
-+    std::FILE *out = std::fopen( path.c_str(), "wb" );
-+    if( out == nullptr ) {
-+        std::fprintf( stderr, "harness: cannot open %s\n", path.c_str() );
-+        return;
-+    }
-+    std::fprintf( out, "{\"harness\":\"monsters\",\"version\":1,\n\"prototypes\":[\n" );
-+    bool first = true;
-+    for( const mtype &proto : MonsterGenerator::generator().get_all_mtypes() ) {
-+        std::fprintf( out, "%s\n{\"id\":\"%s\",\"name\":\"%s\",\"symbol\":\"%s\",\"color\":\"%s\","
-+                      "\"bodytype\":\"%s\",\"hp\":%d,\"speed\":%d,\"diff\":%d,\"melee_skill\":%d,"
-+                      "\"dodge\":%d,\"morale\":%d,\"aggression\":%d,\"weight\":%lld,\"volume\":%lld,"
-+                      "\"species\":[",
-+                      first ? "" : ",", harness_escape( proto.id.str() ).c_str(),
-+                      harness_escape( proto.nname( 1 ) ).c_str(),
-+                      harness_escape( proto.sym ).c_str(),
-+                      string_from_color( proto.color ).c_str(),
-+                      harness_escape( proto.bodytype ).c_str(),
-+                      proto.hp, proto.speed, proto.difficulty_base, proto.melee_skill,
-+                      proto.sk_dodge, proto.morale, proto.agro,
-+                      static_cast<long long>( units::to_gram( proto.weight ) ),
-+                      static_cast<long long>( units::to_milliliter( proto.volume ) ) );
-+        bool first_species = true;
-+        for( const species_id &entry : proto.species ) {
-+            std::fprintf( out, "%s\"%s\"", first_species ? "" : ",",
-+                          harness_escape( entry.str() ).c_str() );
-+            first_species = false;
-+        }
-+        std::fprintf( out, "],\"categories\":[" );
-+        bool first_category = true;
-+        for( const std::string &entry : proto.categories ) {
-+            std::fprintf( out, "%s\"%s\"", first_category ? "" : ",",
-+                          harness_escape( entry ).c_str() );
-+            first_category = false;
-+        }
-+        std::fprintf( out, "],\"materials\":[" );
-+        bool first_material = true;
-+        for( const std::pair<const material_id, int> &entry : proto.mat ) {
-+            std::fprintf( out, "%s[\"%s\",%d]", first_material ? "" : ",",
-+                          harness_escape( entry.first.str() ).c_str(), entry.second );
-+            first_material = false;
-+        }
-+        std::fprintf( out, "]}" );
-+        first = false;
-+    }
-+    std::fprintf( out, "\n]}\n" );
-+    std::fclose( out );
-+}
-+
-+}  // namespace harness
-diff -ruN references/Cataclysm-DDA/src/src/harness.h oracle/src/src/src/harness.h
---- references/Cataclysm-DDA/src/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/src/harness.h	2026-10-21 06:53:22
-@@ -0,0 +1,143 @@
-+#pragma once
-+#ifndef CATA_SRC_HARNESS_H
-+#define CATA_SRC_HARNESS_H
-+
-+// Instrumentation for comparing this implementation against the port.
-+//
-+// Everything here is compiled out entirely unless CATA_HARNESS is defined at
-+// build time, and no function in this file changes game behaviour when the
-+// harness flags are not passed on the command line. See
-+// docs/11-oracle-harness.md for the modes and their contract.
-+
-+#include <cstdint>
-+#include <cstdio>
-+#include <string>
-+#include <vector>
-+
-+#include "input_enums.h"
-+
-+namespace harness
-+{
-+
-+// A prototype registry that can list its own ids.
-+//
-+// Every generic_factory instance registers itself here at construction, which is
-+// what makes a digest of all loaded definitions possible without listing the
-+// eightysomething registries by hand.
-+struct prototype_source {
-+    std::string type_name;
-+    std::vector<std::string> ( *list_ids )( void *factory );
-+    void *factory;
-+};
-+
-+// Called by generic_factory's constructor. Safe before main().
-+void register_prototype_source( const std::string &type_name,
-+                                std::vector<std::string>( *list_ids )( void * ),
-+                                void *factory );
-+
-+// FNV-1a, 64 bit, over each value's bytes followed by a single zero byte. The
-+// definition is part of the contract: the port has to compute the same number,
-+// so it is spelled out here rather than left to a library.
-+uint64_t digest_strings( const std::vector<std::string> &values );
-+
-+// `--dump-prototype-digest <file>`: one JSON object per registry, sorted by type
-+// name, each with a count and a digest of its sorted ids. Written to `path`.
-+//
-+// A file rather than stdout on purpose: the curses build initializes the
-+// terminal before the data load, so stdout carries escape sequences.
-+void dump_prototype_digest( const std::string &path );
-+
-+// `--dump-prototype-ids <file>`: the same registries, but with every id listed,
-+// so a difference can be read directly instead of hunted for.
-+void dump_prototype_ids( const std::string &path );
-+
-+// `--dump-env <file>`: the state that exists before any world does — the random
-+// engine's position, the calendar, and the simulation options those two depend
-+// on. This is the first, smallest state fingerprint: two runs of the same build
-+// with the same seed must agree on every field.
-+void dump_environment( const std::string &path );
-+/// `--dump-astronomy <file>`: the sun's altitude and the light it gives, over a year.
-+void dump_astronomy( const std::string &path );
-+
-+// Starts a new game by the real path (world creation, avatar birth, start game)
-+// and stops where the first input would be needed. Returns false and fills
-+// `error` if the reference refuses.
-+bool start_headless_game( const std::string &world_name, const std::string &start_loc,
-+                          std::string &error );
-+
-+// --- Replay -----------------------------------------------------------------
-+
-+// Arms the recorded input. While armed, the input layer serves these events
-+// instead of reading a terminal, the terminal-size and encoding loops are
-+// skipped, and reaching a popup is an error rather than a wait.
-+void arm_recorded_input( std::vector<std::string> keys );
-+
-+// True while the recorded input is armed.
-+bool terminal_is_simulated();
-+
-+// True while recorded keys remain.
-+bool has_recorded_input();
-+
-+// The next recorded key as the reference's input event. Never called when
-+// `has_recorded_input()` is false.
-+input_event next_input_event();
-+
-+// Called by the input layer when something wants a raw key while the terminal is
-+// simulated: that is a popup or a menu, which a replay must not enter.
-+[[noreturn]] void note_blocked_input( const char *where );
-+
-+// Reads a recording: one key per line, `#` for comments. The first byte of each
-+// line is the key the reference will see.
-+std::vector<std::string> read_key_file( const std::string &path, std::string &error );
-+
-+// Runs turns until the recording is exhausted.
-+void run_replay();
-+
-+// `--dump-terrain <file>`: every terrain and furniture prototype's resolved
-+// fields, which is what a loader port has to reproduce. Filled in by mapdata.cpp
-+// because the factories there are file-static; this is the entry point.
-+void dump_terrain( const std::string &path );
-+
-+
-+// `--dump-traps <file>`: every trap's resolved fields.
-+void dump_traps( const std::string &path );
-+
-+/** Writes every crafting recipe id and result to a JSON file. */
-+void dump_recipes( const std::string &path );
-+
-+/** Writes every item group id to a JSON file. */
-+void dump_item_groups( const std::string &path );
-+
-+/** Writes every overmap terrain id that has a map generator. */
-+void dump_mapgens( const std::string &path );
-+
-+/** Writes every profession and scenario id. */
-+void dump_starting_kit( const std::string &path );
-+
-+// `--dump-materials <file>`: every material's resolved fields.
-+void dump_materials( const std::string &path );
-+
-+// `--dump-fields <file>`: every field type's resolved intensity levels.
-+void dump_fields( const std::string &path );
-+
-+// `--dump-items <file>`: every item type's basic resolved fields.
-+void dump_items( const std::string &path );
-+// Writes every resolved monster type.
-+void dump_monsters( const std::string &path );
-+
-+// `--dump-state <file>`: the world the reference actually produced — random
-+// stream position, calendar, avatar, and a tile-level digest of the reality
-+// bubble. Requires start_headless_game first.
-+void dump_state( const std::string &path );
-+
-+} // namespace harness
-+
-+#endif // CATA_SRC_HARNESS_H
-+
-+// Provided by mapdata.cpp, which owns the terrain factories: writes the dump
-+// body for both prototype lists. Declared outside the namespace because the
-+// definition sits outside mapdata.cpp's anonymous namespace.
-+void harness_dump_terrain_prototypes( std::FILE *out );
-+
-+// Provided by trap.cpp, for the same reason.
-+void harness_dump_trap_prototypes( std::FILE *out );
-diff -ruN references/Cataclysm-DDA/src/src/loading_ui.cpp.rej oracle/src/src/src/loading_ui.cpp.rej
---- references/Cataclysm-DDA/src/src/loading_ui.cpp.rej	1970-01-01 10:00:00
-+++ oracle/src/src/src/loading_ui.cpp.rej	2026-10-21 06:53:22
-@@ -0,0 +1,17 @@
-+@@ -1,4 +1,7 @@
-+ #include "loading_ui.h"
-++#ifdef CATA_HARNESS
-++#include "harness.h"
-++#endif
-+ 
-+ #include "cached_options.h"
-+ #include "options.h"
-+@@ -151,7 +154,7 @@
-+ 
-+ void loading_ui::show( const std::string &context, const std::string &step )
-+ {
-+-    if( test_mode ) {
-++    if( test_mode || harness::terminal_is_simulated() ) {
-+         return;
-+     }
-+     update_state( context, step );
-diff -ruN references/Cataclysm-DDA/src/src/main.cpp.rej oracle/src/src/src/main.cpp.rej
---- references/Cataclysm-DDA/src/src/main.cpp.rej	1970-01-01 10:00:00
-+++ oracle/src/src/src/main.cpp.rej	2026-10-21 06:53:22
-@@ -0,0 +1,363 @@
-+@@ -45,6 +45,9 @@
-+ #include "game_constants.h"
-+ #include "game_ui.h"
-+ #include "get_version.h"
-++#ifdef CATA_HARNESS
-++#include "harness.h"
-++#endif
-+ #include "help.h"
-+ #include "input.h"
-+ #include "main_menu.h"
-+@@ -272,6 +275,33 @@
-+ struct cli_opts {
-+     int seed = time( nullptr );
-+     bool verifyexit = false;
-++    // Harness: write a digest of every loaded prototype (or the ids themselves)
-++    // to this file and exit. See docs/11-oracle-harness.md.
-++    std::string dump_prototype_digest;
-++    std::string dump_prototype_ids;
-++    // Harness: the state that exists before any world does.
-++    std::string dump_env;
-++    // Harness: the state of a freshly started game.
-++    std::string dump_state;
-++    // Harness: resolved terrain and furniture prototypes.
-++    std::string dump_terrain;
-++    // Harness: resolved traps and materials.
-++    std::string dump_traps;
-++    std::string dump_astronomy;
-++    std::string dump_materials;
-++    std::string dump_recipes;
-++    std::string dump_item_groups;
-++    std::string dump_mapgens;
-++    std::string dump_starting_kit;
-++    // Harness: resolved field types.
-++    std::string dump_fields;
-++    // Harness: resolved item types.
-++    std::string dump_items;
-++    // Harness: resolved monster types.
-++    std::string dump_monsters;
-++    std::string replay;
-++    std::string world_name;
-++    std::string start_location;
-+     bool noverify = false;
-+     bool check_mods = false;
-+     std::vector<std::string> opts;
-+@@ -300,6 +330,186 @@
-+                 }
-+             },
-+             {
-++                "--dump-prototype-digest", "<file>",
-++                "Writes a digest of every loaded prototype to <file> and exits",
-++                section_default,
-++                1,
-++                [&result]( int, const char **params ) -> int {
-++                    result.dump_prototype_digest = params[0];
-++                    return 1;
-++                }
-++            },
-++            {
-++                "--dump-prototype-ids", "<file>",
-++                "Writes every loaded prototype id to <file> and exits",
-++                section_default,
-++                1,
-++                [&result]( int, const char **params ) -> int {
-++                    result.dump_prototype_ids = params[0];
-++                    return 1;
-++                }
-++            },
-++            {
-++                "--replay", "<file>",
-++                "Replays recorded keys instead of reading a terminal (needs --dump-state)",
-++                section_default,
-++                1,
-++                [&result]( int, const char **params ) -> int {
-++                    result.replay = params[0];
-++                    return 1;
-++                }
-++            },
-++            {
-++                "--dump-astronomy", "<file>",
-++                "Writes the sun's altitude and light over a year",
-++                section_default,
-++                1,
-++                [&result]( int, const char **params ) -> int {
-++                    result.dump_astronomy = params[0];
-++                    return 1;
-++                }
-++            },
-++            {
-++                "--dump-traps", "<file>",
-++                "Writes every resolved trap prototype to <file>",
-++                section_default,
-++                1,
-++                [&result]( int, const char **params ) -> int {
-++                    result.dump_traps = params[0];
-++                    return 1;
-++                }
-++            },
-++            {
-++                "--dump-starting-kit", "<file>",
-++                "Writes every profession and scenario id to <file>",
-++                section_default,
-++                1,
-++                [&result]( int, const char **params ) -> int {
-++                    result.dump_starting_kit = params[0];
-++                    return 1;
-++                }
-++            },
-++            {
-++                "--dump-mapgens", "<file>",
-++                "Writes the map generator keys registered at load time to <file>. WARNING: incomplete - the JSON mapgen set is not registered yet, so this is a subset (325 keys, house absent)",
-++                section_default,
-++                1,
-++                [&result]( int, const char **params ) -> int {
-++                    result.dump_mapgens = params[0];
-++                    return 1;
-++                }
-++            },
-++            {
-++                "--dump-item-groups", "<file>",
-++                "Writes every item group id to <file>",
-++                section_default,
-++                1,
-++                [&result]( int, const char **params ) -> int {
-++                    result.dump_item_groups = params[0];
-++                    return 1;
-++                }
-++            },
-++            {
-++                "--dump-recipes", "<file>",
-++                "Writes every crafting recipe id and result to <file>",
-++                section_default,
-++                1,
-++                [&result]( int, const char **params ) -> int {
-++                    result.dump_recipes = params[0];
-++                    return 1;
-++                }
-++            },
-++            {
-++                "--dump-materials", "<file>",
-++                "Writes every resolved material prototype to <file>",
-++                section_default,
-++                1,
-++                [&result]( int, const char **params ) -> int {
-++                    result.dump_materials = params[0];
-++                    return 1;
-++                }
-++            },
-++            {
-++                "--dump-fields", "<file>",
-++                "Writes every resolved field type to <file>",
-++                section_default,
-++                1,
-++                [&result]( int, const char **params ) -> int {
-++                    result.dump_fields = params[0];
-++                    return 1;
-++                }
-++            },
-++            {
-++                "--dump-items", "<file>",
-++                "Writes every resolved item type to <file>",
-++                section_default,
-++                1,
-++                [&result]( int, const char **params ) -> int {
-++                    result.dump_items = params[0];
-++                    return 1;
-++                }
-++            },
-++            {
-++                "--dump-monsters", "<file>",
-++                "Writes every resolved monster type to <file>",
-++                section_default,
-++                1,
-++                [&result]( int, const char **params ) -> int {
-++                    result.dump_monsters = params[0];
-++                    return 1;
-++                }
-++            },
-++            {
-++                "--dump-terrain", "<file>",
-++                "Writes every resolved terrain and furniture prototype to <file>",
-++                section_default,
-++                1,
-++                [&result]( int, const char **params ) -> int {
-++                    result.dump_terrain = params[0];
-++                    return 1;
-++                }
-++            },
-++            {
-++                "--dump-state", "<file>",
-++                "Starts a new game headlessly and writes its state to <file>",
-++                section_default,
-++                1,
-++                [&result]( int, const char **params ) -> int {
-++                    result.dump_state = params[0];
-++                    return 1;
-++                }
-++            },
-++            {
-++                "--world-name", "<name>",
-++                "World name used by --dump-state (default: harness-fixed)",
-++                section_default,
-++                1,
-++                [&result]( int, const char **params ) -> int {
-++                    result.world_name = params[0];
-++                    return 1;
-++                }
-++            },
-++            {
-++                "--start-location", "<id>",
-++                "Start location used by --dump-state (default: none, scenario decides)",
-++                section_default,
-++                1,
-++                [&result]( int, const char **params ) -> int {
-++                    result.start_location = params[0];
-++                    return 1;
-++                }
-++            },
-++            {
-++                "--dump-env", "<file>",
-++                "Writes the pre-world state (rng, calendar, options) to <file> and exits",
-++                section_default,
-++                1,
-++                [&result]( int, const char **params ) -> int {
-++                    result.dump_env = params[0];
-++                    return 1;
-++                }
-++            },
-++            {
-+                 "--jsonverify", {},
-+                 "Checks the CDDA json files and exits",
-+                 section_default,
-+@@ -786,6 +996,131 @@
-+     // depend on the mods.
-+     try {
-+         g->load_static_data();
-++        if( !cli.dump_state.empty() || !cli.replay.empty() ) {
-++            const std::string world_name =
-++                cli.world_name.empty() ? "harness-fixed" : cli.world_name;
-++            std::string error;
-++            try {
-++                if( cli.replay.empty() ) {
-++                    // A plain dump reads nothing, so test mode is safe and keeps the
-++                    // interface out of the way entirely.
-++                    test_mode = true;
-++                } else {
-++                    // A replay must run the simulation exactly as a player's would,
-++                    // so test mode stays off; the interface layer is taught to run
-++                    // without a terminal instead (see apply_harness_patches.py).
-++                    std::vector<std::string> keys = harness::read_key_file( cli.replay, error );
-++                    if( keys.empty() ) {
-++                        std::fprintf( stderr, "harness: %s\n", error.c_str() );
-++                        exit_handler( 2 );
-++                    }
-++                    harness::arm_recorded_input( keys );
-++                }
-++                if( !harness::start_headless_game( world_name, cli.start_location, error ) ) {
-++                    std::fprintf( stderr, "harness: %s\n", error.c_str() );
-++                    exit_handler( 2 );
-++                }
-++                if( !cli.replay.empty() ) {
-++                    harness::run_replay();
-++                }
-++            } catch( const std::exception &e ) {
-++                std::fprintf( stderr, "harness: %s\n", e.what() );
-++                exit_handler( 3 );
-++            }
-++            harness::dump_state( cli.dump_state );
-++            exit_handler( 0 );
-++        }
-++        if( !cli.dump_astronomy.empty() ) {
-++            // The season length is an option and the year length follows from it, so the
-++            // options have to be read before any date is computed. Without this the dump
-++            // is taken under a default that makes the year four days long.
-++            get_options().load();
-++            harness::dump_astronomy( cli.dump_astronomy );
-++            exit_handler( 0 );
-++        }
-++        if( !cli.dump_traps.empty() ) {
-++            test_mode = true;
-++            g->check_mod_data( { mod_id( "dda" ) } );
-++            harness::dump_traps( cli.dump_traps );
-++            exit_handler( 0 );
-++        }
-++        if( !cli.dump_starting_kit.empty() ) {
-++            test_mode = true;
-++            g->check_mod_data( { mod_id( "dda" ) } );
-++            harness::dump_starting_kit( cli.dump_starting_kit );
-++            exit_handler( 0 );
-++        }
-++        if( !cli.dump_mapgens.empty() ) {
-++            test_mode = true;
-++            g->check_mod_data( { mod_id( "dda" ) } );
-++            harness::dump_mapgens( cli.dump_mapgens );
-++            exit_handler( 0 );
-++        }
-++        if( !cli.dump_item_groups.empty() ) {
-++            test_mode = true;
-++            g->check_mod_data( { mod_id( "dda" ) } );
-++            harness::dump_item_groups( cli.dump_item_groups );
-++            exit_handler( 0 );
-++        }
-++        if( !cli.dump_recipes.empty() ) {
-++            test_mode = true;
-++            g->check_mod_data( { mod_id( "dda" ) } );
-++            harness::dump_recipes( cli.dump_recipes );
-++            exit_handler( 0 );
-++        }
-++        if( !cli.dump_materials.empty() ) {
-++            test_mode = true;
-++            g->check_mod_data( { mod_id( "dda" ) } );
-++            harness::dump_materials( cli.dump_materials );
-++            exit_handler( 0 );
-++        }
-++        if( !cli.dump_fields.empty() ) {
-++            test_mode = true;
-++            g->check_mod_data( { mod_id( "dda" ) } );
-++            harness::dump_fields( cli.dump_fields );
-++            exit_handler( 0 );
-++        }
-++        if( !cli.dump_items.empty() ) {
-++            test_mode = true;
-++            g->check_mod_data( { mod_id( "dda" ) } );
-++            harness::dump_items( cli.dump_items );
-++            exit_handler( 0 );
-++        }
-++        if( !cli.dump_monsters.empty() ) {
-++            test_mode = true;
-++            g->check_mod_data( { mod_id( "dda" ) } );
-++            harness::dump_monsters( cli.dump_monsters );
-++            exit_handler( 0 );
-++        }
-++        if( !cli.dump_terrain.empty() ) {
-++            test_mode = true;
-++            g->check_mod_data( { mod_id( "dda" ) } );
-++            harness::dump_terrain( cli.dump_terrain );
-++            exit_handler( 0 );
-++        }
-++        if( !cli.dump_env.empty() ) {
-++            harness::dump_environment( cli.dump_env );
-++            exit_handler( 0 );
-++        }
-++        if( !cli.dump_prototype_digest.empty() || !cli.dump_prototype_ids.empty() ) {
-++            // Load exactly what a player's game loads: the core data, then the
-++            // content pack. `check_mod_data` is the reference's own path for
-++            // that (it is what --check-mods uses), so the digest cannot drift
-++            // from the real loading order.
-++            //
-++            // Test mode, as --check-mods sets it, so that a data error is
-++            // reported instead of opening a popup that waits for input and hangs
-++            // an unattended run. This is the one mode where that is safe: no
-++            // menu is built. The replay harness must not do this.
-++            test_mode = true;
-++            g->check_mod_data( { mod_id( "dda" ) } );
-++            if( !cli.dump_prototype_ids.empty() ) {
-++                harness::dump_prototype_ids( cli.dump_prototype_ids );
-++            } else {
-++                harness::dump_prototype_digest( cli.dump_prototype_digest );
-++            }
-++            exit_handler( 0 );
-++        }
-+         if( cli.verifyexit ) {
-+             exit_handler( 0 );
-+         }
-diff -ruN references/Cataclysm-DDA/src/src/mapdata.cpp.rej oracle/src/src/src/mapdata.cpp.rej
---- references/Cataclysm-DDA/src/src/mapdata.cpp.rej	1970-01-01 10:00:00
-+++ oracle/src/src/src/mapdata.cpp.rej	2026-10-21 06:53:22
-@@ -0,0 +1,55 @@
-+@@ -1,4 +1,8 @@
-+ #include "mapdata.h"
-++#ifdef CATA_HARNESS
-++#include "color.h"
-++#include "harness.h"
-++#endif
-+ 
-+ #include <algorithm>
-+ #include <exception>
-+@@ -45,7 +49,45 @@
-+ generic_factory<ter_t> terrain_data( "terrain" );
-+ generic_factory<furn_t> furniture_data( "furniture" );
-+ 
-++#ifdef CATA_HARNESS
-++template<typename T>
-++void write_one_prototype( std::FILE *out, const T &proto, const char *kind, bool &first )
-++{
-++    std::fprintf( out, "%s\n{\"kind\":\"%s\",\"id\":\"%s\",\"name\":\"%s\",",
-++                  first ? "" : ",", kind, proto.id.str().c_str(), proto.name().c_str() );
-++    std::fprintf( out, "\"symbol\":[%d,%d,%d,%d],\"color\":\"%s\",\"move_cost\":%d,"
-++                  "\"light\":%d,\"coverage\":%d,\"flags\":[",
-++                  proto.symbol_[0], proto.symbol_[1], proto.symbol_[2], proto.symbol_[3],
-++                  string_from_color( proto.color() ).c_str(), proto.movecost,
-++                  proto.light_emitted, proto.coverage );
-++    bool first_flag = true;
-++    for( const std::string &flag : proto.get_flags() ) {
-++        std::fprintf( out, "%s\"%s\"", first_flag ? "" : ",", flag.c_str() );
-++        first_flag = false;
-++    }
-++    std::fprintf( out, "]}" );
-++    first = false;
-++}
-++
-++void write_terrain_prototypes_impl( std::FILE *out )
-++{
-++    bool first = true;
-++    for( const ter_t &proto : terrain_data.get_all() ) {
-++        write_one_prototype( out, proto, "terrain", first );
-++    }
-++    for( const furn_t &proto : furniture_data.get_all() ) {
-++        write_one_prototype( out, proto, "furniture", first );
-++    }
-++}
-++#endif
-+ } // namespace
-++
-++#ifdef CATA_HARNESS
-++void harness_dump_terrain_prototypes( std::FILE *out )
-++{
-++    write_terrain_prototypes_impl( out );
-++}
-++#endif
-+ 
-+ /** @relates int_id */
-+ template<>
-diff -ruN references/Cataclysm-DDA/src/src/mtype.h.rej oracle/src/src/src/mtype.h.rej
---- references/Cataclysm-DDA/src/src/mtype.h.rej	1970-01-01 10:00:00
-+++ oracle/src/src/src/mtype.h.rej	2026-10-21 06:53:22
-@@ -0,0 +1,13 @@
-+@@ -566,6 +566,12 @@
-+         bool has_flag( const mon_flag_id &flag ) const {
-+             return flags.contains( flag );
-+         }
-++
-++#ifdef CATA_HARNESS
-++        const mon_flag_id_set &harness_flags() const {
-++            return flags;
-++        }
-++#endif
-+         void set_flag( const mon_flag_id &flag, bool state = true );
-+         bool made_of( const material_id &material ) const;
-+         bool made_of_any( const std::set<material_id> &materials ) const;
-diff -ruN references/Cataclysm-DDA/src/src/ncurses_def.cpp.rej oracle/src/src/src/ncurses_def.cpp.rej
---- references/Cataclysm-DDA/src/src/ncurses_def.cpp.rej	1970-01-01 10:00:00
-+++ oracle/src/src/src/ncurses_def.cpp.rej	2026-10-21 06:53:22
-@@ -0,0 +1,60 @@
-+@@ -30,6 +30,9 @@
-+ #include "catacharset.h"
-+ #include "color.h"
-+ #include "cursesdef.h"
-++#ifdef CATA_HARNESS
-++#include "harness.h"
-++#endif
-+ #include "game_constants.h"
-+ #include "game_ui.h"
-+ #include "output.h"
-+@@ -377,11 +380,19 @@
-+ 
-+ bool catacurses::supports_256_colors()
-+ {
-++#ifdef CATA_HARNESS
-++    // No terminal in a headless run, so COLORS is zero. The port targets a
-++    // 256-colour terminal, so the harness reports one.
-++    return true;
-++#endif
-+     return COLORS >= 256;
-+ }
-+ 
-+ void input_manager::pump_events()
-+ {
-++    if( harness::terminal_is_simulated() ) {
-++        return;
-++    }
-+     if( test_mode ) {
-+         return;
-+     }
-+@@ -409,6 +420,9 @@
-+ // ignoring preferred keyboard mode
-+ input_event input_manager::get_input_event( const keyboard_mode /*preferred_keyboard_mode*/ )
-+ {
-++    if( harness::has_recorded_input() ) {
-++        return harness::next_input_event();
-++    }
-+     if( test_mode ) {
-+         // input should be skipped in caller's code
-+         throw std::runtime_error( "input_manager::get_input_event called in test mode" );
-+@@ -562,6 +576,9 @@
-+ 
-+ void ensure_term_size()
-+ {
-++    if( harness::terminal_is_simulated() ) {
-++        return;
-++    }
-+     // do not use ui_adaptor here to avoid re-entry
-+     const int minHeight = EVEN_MINIMUM_TERM_HEIGHT;
-+     const int minWidth = EVEN_MINIMUM_TERM_WIDTH;
-+@@ -597,6 +614,9 @@
-+ // NOLINTNEXTLINE(cata-static-declarations)
-+ void check_encoding()
-+ {
-++    if( harness::terminal_is_simulated() ) {
-++        return;
-++    }
-+     // Check whether LC_CTYPE supports the UTF-8 encoding
-+     // and show a warning if it doesn't
-+ #if defined(_WIN32)
-diff -ruN references/Cataclysm-DDA/src/src/popup.cpp.rej oracle/src/src/src/popup.cpp.rej
---- references/Cataclysm-DDA/src/src/popup.cpp.rej	1970-01-01 10:00:00
-+++ oracle/src/src/src/popup.cpp.rej	2026-10-21 06:53:22
-@@ -0,0 +1,19 @@
-+@@ -1,4 +1,7 @@
-+ #include "popup.h"
-++#ifdef CATA_HARNESS
-++#include "harness.h"
-++#endif
-+ 
-+ #include <algorithm>
-+ #include <array>
-+@@ -398,6 +401,10 @@
-+ }
-+ query_popup::result query_popup::query()
-+ {
-++    if( harness::terminal_is_simulated() ) {
-++        std::fprintf( stderr, "harness: declined a popup: %s\n", text.c_str() );
-++        return { false, "ERROR", {} };
-++    }
-+     std::shared_ptr<query_popup_impl> ui = create_or_get_impl();
-+ 
-+     result res;
-diff -ruN references/Cataclysm-DDA/src/src/prefix.h oracle/src/src/src/prefix.h
---- references/Cataclysm-DDA/src/src/prefix.h	1970-01-01 10:00:00
-+++ oracle/src/src/src/prefix.h	2026-10-21 06:53:22
-@@ -0,0 +1 @@
-+#define PREFIX "/usr/local"
-diff -ruN references/Cataclysm-DDA/src/src/trap.cpp.rej oracle/src/src/src/trap.cpp.rej
---- references/Cataclysm-DDA/src/src/trap.cpp.rej	1970-01-01 10:00:00
-+++ oracle/src/src/src/trap.cpp.rej	2026-10-21 06:53:22
-@@ -0,0 +1,38 @@
-+@@ -40,7 +40,37 @@
-+ 
-+ generic_factory<trap> trap_factory( "trap" );
-+ 
-++#ifdef CATA_HARNESS
-++void write_trap_prototypes_impl( std::FILE *out )
-++{
-++    bool first = true;
-++    for( const trap &proto : trap_factory.get_all() ) {
-++        std::fprintf( out, "%s\n{\"id\":\"%s\",\"name\":\"%s\",\"symbol\":%d,\"color\":\"%s\","
-++                      "\"visibility\":%d,\"avoidance\":%d,\"difficulty\":%d,\"radius\":%d,"
-++                      "\"benign\":%s,\"always_invisible\":%s,\"flags\":[",
-++                      first ? "" : ",", proto.id.str().c_str(), proto.name().c_str(), proto.sym,
-++                      string_from_color( proto.color ).c_str(), proto.harness_visibility(),
-++                      proto.get_avoidance(), proto.harness_difficulty(),
-++                      proto.get_trap_radius(), proto.is_benign() ? "true" : "false",
-++                      proto.is_always_invisible() ? "true" : "false" );
-++        bool first_flag = true;
-++        for( const flag_id &flag : proto.harness_flags() ) {
-++            std::fprintf( out, "%s\"%s\"", first_flag ? "" : ",", flag.str().c_str() );
-++            first_flag = false;
-++        }
-++        std::fprintf( out, "]}" );
-++        first = false;
-++    }
-++}
-++#endif
-+ } // namespace
-++
-++#ifdef CATA_HARNESS
-++void harness_dump_trap_prototypes( std::FILE *out )
-++{
-++    write_trap_prototypes_impl( out );
-++}
-++#endif
-+ 
-+ /** @relates string_id */
-+ template<>
-diff -ruN references/Cataclysm-DDA/src/src/trap.h.rej oracle/src/src/src/trap.h.rej
---- references/Cataclysm-DDA/src/src/trap.h.rej	1970-01-01 10:00:00
-+++ oracle/src/src/src/trap.h.rej	2026-10-21 06:53:22
-@@ -0,0 +1,19 @@
-+@@ -161,6 +161,18 @@
-+         std::vector<std::tuple<itype_id, int, int>> components;
-+     public:
-+         std::optional<itype_id> trap_item_type;
-++
-++#ifdef CATA_HARNESS
-++        int harness_visibility() const {
-++            return visibility;
-++        }
-++        int harness_difficulty() const {
-++            return difficulty;
-++        }
-++        const cata::flat_set<flag_id> &harness_flags() const {
-++            return _flags;
-++        }
-++#endif
-+         // data required for trapfunc::spell()
-+         fake_spell spell_data;
-+         std::vector<effect_on_condition_id> eocs;
-diff -ruN references/Cataclysm-DDA/src/src/version.h oracle/src/src/src/version.h
---- references/Cataclysm-DDA/src/src/version.h	1970-01-01 10:00:00
-+++ oracle/src/src/src/version.h	2026-10-21 06:53:22
-@@ -0,0 +1,2 @@
-+// NOLINT(cata-header-guard)
-+#define VERSION "HEAD-HASH-dirty"
 diff -ruN references/Cataclysm-DDA/src/trap.cpp oracle/src/src/trap.cpp
 --- references/Cataclysm-DDA/src/trap.cpp	2026-10-19 18:15:06
 +++ oracle/src/src/trap.cpp	2026-10-21 06:53:22

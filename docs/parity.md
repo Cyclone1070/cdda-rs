@@ -406,6 +406,29 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The oracle had two authorities, and the stale one would have deleted eleven dump branches (round 307)
+
+`oracle/apply_harness_patches.py` edited the reference call by call, and `oracle/src` was the tree everything actually ran from. Over many rounds the working
+copy grew **eleven `--dump-*` branches** in `main.cpp` that the script never learned about, so:
+
+* the script's own `--verify` failed - it reproduced the working copy for every file except `main.cpp`;
+* re-running it, which is the first step of `oracle/build.sh`, would have **silently deleted those branches**, and with them every fixture generated since;
+* `oracle/harness/harness.cpp` was a second copy that had drifted 126 lines behind the working copy, so the "regenerate the working copy from the pinned
+  checkout" story was false in two places at once.
+
+This is the same failure I recorded for fields at round 290 - *a second authority is worse than a gap, because it looks like progress* - and I did not
+apply the lesson to the instrument itself. Fixed by removing the second authority rather than reconciling it:
+
+| Before | After |
+|---|---|
+a hundred string patches in Python | **one generated patch**, `oracle/patches/0001-prototype-digest.patch` |
+`oracle/harness/` as an editable copy | deleted; the working copy is the source and `--regen` writes the patch |
+`--verify` compared ten named files | `--verify` reproduces the **whole** source tree from the pinned checkout and diffs it |
+"already applied" guessed from an error string | a **reverse** dry run, which is the only honest way to tell apart "applied" from "drifted" |
+
+`--verify` prints `the patch reproduces the working copy from the pinned checkout, byte for byte`. There is also a glob of junk (`oracle/src/src/src/`, with
+`.rej` files and duplicate harness sources) that a bad patch run left behind and that I deleted - it was never compiled, but it made every `diff -r` lie.
+
 ## Smoke reaches the store, and the fire's questions become a trait (round 306)
 
 `process_fires` now asks the map seven questions instead of five, so they are gathered behind a `FireMap` trait: how many fires touch the square, whether

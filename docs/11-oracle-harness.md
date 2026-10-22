@@ -445,7 +445,7 @@ turn does not advance the calendar — and two runs produce **byte-identical
 state**. The frozen result is `corpus/state/replay-walk-east.json`.
 
 Getting there needed four small hooks in the interface layer, all inert unless a
-recording is armed (`oracle/apply_harness_patches.py`, `patch_ncurses`):
+recording is armed (`oracle/patches/0001-prototype-digest.patch`, applied by `oracle/apply_harness_patches.py`):
 
 | Hook | Why |
 |---|---|
