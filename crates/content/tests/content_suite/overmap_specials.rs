@@ -1,6 +1,6 @@
 //! The specials loader against the reference's own data.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_content::overmap_special::{load_specials, read_special};
 use cdda_json::Value;
