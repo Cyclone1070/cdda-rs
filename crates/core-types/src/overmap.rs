@@ -943,3 +943,80 @@ pub fn plan_buildings(
     }
     sites
 }
+
+/// Why a special may not be placed somewhere, or that it may.
+///
+/// Reference: `overmap::can_place_special`. The reference answers with a bare `bool` and a comment; a refusal that
+/// says **which rule** refused is worth the extra type, because a special that never appears is otherwise a mystery.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Placement {
+    /// Every tile of the special fits.
+    Fits,
+    /// The special has no id, so it cannot be referred to or placed.
+    Nameless,
+    /// The special may appear once per world and already has.
+    AlreadyInWorld,
+    /// The special may appear once per overmap and already has.
+    AlreadyOnMap,
+    /// A tile of the special falls outside the map.
+    Outside,
+    /// A tile's ground is not one the special allows.
+    WrongGround,
+}
+
+impl Placement {
+    /// Whether this answer is a placement.
+    #[must_use]
+    pub fn is_fits(self) -> bool {
+        self == Self::Fits
+    }
+}
+
+impl Direction {
+    /// Turns a point the way this direction turns the world.
+    ///
+    /// Reference: `om_direction::rotate( point, dir )`. One step turns north to east, so the rotation is clockwise on
+    /// a map drawn with north upwards.
+    #[must_use]
+    pub fn rotate_point(self, point: (i32, i32)) -> (i32, i32) {
+        let mut turned = point;
+        for _ in 0..self.index() {
+            turned = (-turned.1, turned.0);
+        }
+        turned
+    }
+}
+
+/// Whether a special's shape fits at a position, and if not, which rule refused it.
+///
+/// Reference: `overmap::can_place_special`. Three rules, in the reference's order: the special must have an id, it
+/// must not already be placed when it is unique, and **every** tile must be inside the map and standing on ground the
+/// special allows. The ground test is the caller's, because what counts as `forest` is content the world layer does
+/// not own.
+#[must_use]
+pub fn can_place_shape(
+    overmap: &Overmap,
+    tiles: &[(i32, i32)],
+    at: (i32, i32),
+    rotation: Direction,
+    ground: &dyn Fn(&str) -> bool,
+) -> Placement {
+    for tile in tiles {
+        let (dx, dy) = rotation.rotate_point(*tile);
+        let position = (at.0 + dx, at.1 + dy);
+        if position.0 < 0
+            || position.1 < 0
+            || position.0 >= overmap.width()
+            || position.1 >= overmap.height()
+        {
+            return Placement::Outside;
+        }
+        let Some(terrain) = overmap.terrain(position.0, position.1) else {
+            return Placement::Outside;
+        };
+        if !ground(terrain) {
+            return Placement::WrongGround;
+        }
+    }
+    Placement::Fits
+}

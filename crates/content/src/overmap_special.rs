@@ -194,3 +194,65 @@ pub fn load_specials(documents: &[Value]) -> Vec<OvermapSpecial> {
     }
     specials
 }
+
+/// A named kind of ground a special may be placed on.
+///
+/// Reference: `overmap_location` in `special_locations.json` - just a name and the terrains that count as it. The
+/// indirection matters: a special says it goes on `forest`, and what counts as forest is stated once.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OvermapLocation {
+    /// The id a special refers to.
+    pub id: String,
+    /// The terrains that count as this location.
+    pub terrains: Vec<String>,
+    /// Terrain flags that also count, for locations written against flags rather than ids.
+    pub flags: Vec<String>,
+}
+
+impl OvermapLocation {
+    /// Whether a terrain counts as this location.
+    ///
+    /// Reference: `overmap_location::test`, which matches the terrain's id against the list and then its flags.
+    #[must_use]
+    pub fn test(&self, terrain: &str, terrain_flags: &[&str]) -> bool {
+        self.terrains.iter().any(|known| known == terrain)
+            || self
+                .flags
+                .iter()
+                .any(|flag| terrain_flags.contains(&flag.as_str()))
+    }
+}
+
+/// Reads one location, or nothing when the entry is not one.
+#[must_use]
+pub fn read_location(value: &Value) -> Option<OvermapLocation> {
+    let Value::Object(fields) = value else {
+        return None;
+    };
+    if fields.get("type") != Some(&Value::Str("overmap_location".to_string())) {
+        return None;
+    }
+    Some(OvermapLocation {
+        id: text(fields.get("id"), ""),
+        terrains: list(fields.get("terrains")),
+        flags: list(fields.get("flags")),
+    })
+}
+
+/// Reads every location in a list of parsed JSON documents.
+#[must_use]
+pub fn load_locations(documents: &[Value]) -> Vec<OvermapLocation> {
+    let mut locations = Vec::new();
+    for document in documents {
+        let entries: &[Value] = match document {
+            Value::Array(entries) => entries,
+            other => std::slice::from_ref(other),
+        };
+        for entry in entries {
+            if let Some(location) = read_location(entry) {
+                locations.push(location);
+            }
+        }
+    }
+    locations
+}

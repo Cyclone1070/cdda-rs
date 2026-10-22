@@ -33,6 +33,7 @@ mod overmap_cities;
 mod overmap_city_street;
 mod overmap_forests;
 mod overmap_placement;
+mod overmap_placement_rule;
 mod overmap_reference;
 mod overmap_render;
 mod overmap_road_shape;
