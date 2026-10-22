@@ -551,3 +551,33 @@ pub fn resolve_region_terrain(
     }
     current
 }
+
+/// The densest forest in the region, which is the ceiling the feathering arithmetic compares against.
+///
+/// Reference: the `max_factor` loop at the top of `mapgen_forest`. It is the **largest** `sparseness_adjacency_factor`
+/// over every forest biome, not the value of the one being generated - dense forest is 4 while ordinary forest is 3 -
+/// and using the square's own value instead tilts the whole chunk towards woodland.
+#[must_use]
+pub fn max_sparseness(value: &Value) -> i32 {
+    let entry = match value {
+        Value::Array(entries) => match entries.first() {
+            Some(entry) => entry,
+            None => return 0,
+        },
+        other => other,
+    };
+    let Value::Object(fields) = entry else {
+        return 0;
+    };
+    let Some(Value::Object(all)) = fields.get("forest_mapgen_settings") else {
+        return 0;
+    };
+    all.members()
+        .iter()
+        .map(|(_, forest)| match forest {
+            Value::Object(forest) => number(forest.get("sparseness_adjacency_factor"), 0),
+            _ => 0,
+        })
+        .max()
+        .unwrap_or(0)
+}

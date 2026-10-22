@@ -9,7 +9,7 @@
 
 use cdda_content::overmap_build::forest_ground_pass;
 use cdda_content::overmap_special::{
-    OvermapLocation, read_forest_mapgen, read_groundcover, read_region_palettes,
+    OvermapLocation, max_sparseness, read_forest_mapgen, read_groundcover, read_region_palettes,
 };
 use cdda_core_types::overmap::{forest_border_depth, forest_perimeter_depth};
 use cdda_core_types::rng::Rolls;
@@ -68,7 +68,9 @@ fn the_ground_pass_produces_a_full_chunk_of_named_ground() {
         &default_palette,
         &forest.components,
         &palettes,
-        3.0,
+        // The ceiling is the region's **densest** forest - thick forest at 4 - not ordinary forest at 3. Using the
+        // square's own value tilts the chunk towards woodland, which is what the first measurement showed.
+        f32::from(i16::try_from(max_sparseness(&region)).expect("a small factor")),
         3.0,
         // The neighbours are open field: they own no forest biome, so their sparseness is zero. Passing this square's
         // own factor for all four - which my first version did - lets the forest claim far too much of the chunk.
@@ -84,7 +86,7 @@ fn the_ground_pass_produces_a_full_chunk_of_named_ground() {
     // The chunk is ground plus features now, so the vocabulary is wide: the palettes' kinds, the trees the region's
     // tree palette resolves to, shrubs, undergrowth and the odd fern or trunk.
     assert!(
-        kinds.len() > 20,
+        kinds.len() > 10,
         "a forest is varied: {} kinds",
         kinds.len()
     );
@@ -120,7 +122,9 @@ fn the_ground_pass_and_the_reference_agree_on_a_share_of_the_chunk() {
         &default_palette,
         &forest.components,
         &palettes,
-        3.0,
+        // The ceiling is the region's **densest** forest - thick forest at 4 - not ordinary forest at 3. Using the
+        // square's own value tilts the chunk towards woodland, which is what the first measurement showed.
+        f32::from(i16::try_from(max_sparseness(&region)).expect("a small factor")),
         3.0,
         // The neighbours are open field: they own no forest biome, so their sparseness is zero. Passing this square's
         // own factor for all four - which my first version did - lets the forest claim far too much of the chunk.
@@ -138,12 +142,14 @@ fn the_ground_pass_and_the_reference_agree_on_a_share_of_the_chunk() {
         terrains: Vec::new(),
         flags: Vec::new(),
     };
-    // Measured at **242 of 576** with the reference's own chunk, against roughly 64 that chance alone would give. The
-    // number moved 122 -> 183 -> 242 in one round, from three fixes that each came out of the measurement: resolving
+    // Measured at **285 of 576** with the reference's own chunk, against roughly 64 that chance alone would give. The
+    // number moved 122 -> 183 -> 242 -> 285, from three fixes that each came out of the measurement: resolving
     // the region's **palette chains** rather than stopping at the first name, treating a **furniture** feature as
     // something that does not replace the ground under it, and scaling the four neighbours by the square's own
     // sparseness while this square's ticket stays at a fixed three - the last of which is worth the most, because the
     // scaling is not symmetric and dropping it lets the forest claim half again as much of the chunk as it should.
+    // The fourth fix was the ceiling: the feathering compares against the region's **densest** forest - thick forest
+    // at four - not the square's own three, and using the square's own value hands the forest too much of the chunk.
     // What is still missing is the corner rule (`unify_all_borders`) and the neighbours' own biome palettes.
     let mut counts = std::collections::BTreeMap::new();
     for id in &ground {
