@@ -19,7 +19,11 @@ fn push_field(world: &mut World, at: (i32, i32)) {
     let mut entry = FieldEntry::new(1, 100, false, false);
     entry.set_intensity(1);
     world.spawn((
-        Position { x: at.0, y: at.1 },
+        Position {
+            x: at.0,
+            y: at.1,
+            z: 0,
+        },
         Field {
             id: PUSH_ITEMS,
             entry,

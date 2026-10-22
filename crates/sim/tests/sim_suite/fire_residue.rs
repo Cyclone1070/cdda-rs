@@ -16,7 +16,7 @@ fn burning(world: &mut World, intensity: i32) -> Entity {
     entry.set_intensity(intensity);
     world
         .spawn((
-            Position { x: 5, y: 5 },
+            Position { x: 5, y: 5, z: 0 },
             Field {
                 id: FIRE,
                 entry,

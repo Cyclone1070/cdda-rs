@@ -20,7 +20,7 @@ fn smoke(world: &mut World, x: i32, y: i32, intensity: i32) -> Entity {
                 entry,
                 priority: 0,
             },
-            Position { x, y },
+            Position { x, y, z: 0 },
         ))
         .id()
 }
@@ -29,7 +29,7 @@ fn smoke(world: &mut World, x: i32, y: i32, intensity: i32) -> Entity {
 fn two_patches_of_smoke_add_up() {
     let mut world = World::new();
     let entity = smoke(&mut world, 3, 3, 1);
-    cdda_sim::add_field_strength(&mut world, (3, 3), SMOKE, 2);
+    cdda_sim::add_field_strength(&mut world, (3, 3, 0), SMOKE, 2);
     let field = world.get::<Field>(entity).expect("the smoke");
     assert_eq!(field.entry.intensity(), 3, "one and two make three");
 }
@@ -39,7 +39,7 @@ fn the_sum_is_clamped_to_what_the_field_can_be() {
     // Intensities stop at the type's maximum; the reference's setter clamps, and so does this one.
     let mut world = World::new();
     let entity = smoke(&mut world, 3, 3, 2);
-    cdda_sim::add_field_strength(&mut world, (3, 3), SMOKE, 2);
+    cdda_sim::add_field_strength(&mut world, (3, 3, 0), SMOKE, 2);
     assert_eq!(
         world
             .get::<Field>(entity)
@@ -53,7 +53,7 @@ fn the_sum_is_clamped_to_what_the_field_can_be() {
 #[test]
 fn a_field_on_an_empty_square_is_created_with_the_strength_it_was_given() {
     let mut world = World::new();
-    cdda_sim::add_field_strength(&mut world, (5, 5), SMOKE, 2);
+    cdda_sim::add_field_strength(&mut world, (5, 5, 0), SMOKE, 2);
     let mut query = world.query::<(&Field, &Position)>();
     let found: Vec<i32> = query
         .iter(&world)

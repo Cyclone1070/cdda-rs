@@ -16,7 +16,7 @@ fn world_with_smoke(x: i32, y: i32, half_life: i64) -> (World, Entity) {
     entry.set_intensity(3);
     let entity = world
         .spawn((
-            Position { x, y },
+            Position { x, y, z: 0 },
             Field {
                 id: FieldId(1),
                 entry,
@@ -61,7 +61,7 @@ fn fields_are_processed_in_the_reference_order_so_the_dice_stream_matches() {
     for (x, y) in [(2, 1), (1, 2)] {
         let entry = FieldEntry::new(3, 1, true, false);
         world.spawn((
-            Position { x, y },
+            Position { x, y, z: 0 },
             Field {
                 id: FieldId(1),
                 entry,

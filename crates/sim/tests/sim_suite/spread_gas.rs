@@ -32,7 +32,7 @@ fn spawn(world: &mut World, x: i32, y: i32, intensity: i32) -> Entity {
     entry.set_intensity(intensity);
     world
         .spawn((
-            Position { x, y },
+            Position { x, y, z: 0 },
             Field {
                 id: FieldId(1),
                 entry,

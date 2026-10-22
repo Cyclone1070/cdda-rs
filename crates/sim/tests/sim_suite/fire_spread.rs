@@ -134,7 +134,7 @@ fn a_new_fire_starts_weak_and_two_minutes_old() {
     let mut entry = FieldEntry::new(3, 100, true, true);
     entry.set_intensity(3);
     world.spawn((
-        Position { x: 5, y: 5 },
+        Position { x: 5, y: 5, z: 0 },
         Field {
             id: FIRE,
             entry,
@@ -157,7 +157,7 @@ fn a_spread_fire_starts_weak_and_two_minutes_old_and_costs_the_source_a_minute()
         entry.set_intensity(3);
         let source = world
             .spawn((
-                Position { x: 5, y: 5 },
+                Position { x: 5, y: 5, z: 0 },
                 Field {
                     id: FIRE,
                     entry,

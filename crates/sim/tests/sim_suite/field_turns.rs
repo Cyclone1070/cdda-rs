@@ -73,7 +73,7 @@ fn field_at(world: &mut World, x: i32, y: i32, intensity: i32, age: i64) -> Enti
                 entry,
                 priority: 0,
             },
-            Position { x, y },
+            Position { x, y, z: 0 },
         ))
         .id()
 }
@@ -168,7 +168,7 @@ fn a_field_that_died_during_its_turn_leaves_the_store() {
                 entry,
                 priority: 0,
             },
-            Position { x: 2, y: 2 },
+            Position { x: 2, y: 2, z: 0 },
         ))
         .id();
     let mut rolls = Rolls::new(4);

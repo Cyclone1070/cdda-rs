@@ -15,7 +15,7 @@ fn burning(world: &mut World, intensity: i32, age: i64) -> Entity {
     entry.set_age(age);
     world
         .spawn((
-            Position { x: 5, y: 5 },
+            Position { x: 5, y: 5, z: 0 },
             Field {
                 id: FIRE,
                 entry,

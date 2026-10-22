@@ -23,7 +23,10 @@ fn world_with_floor() -> World {
 #[test]
 fn a_torch_lights_the_squares_around_it() {
     let mut world = world_with_floor();
-    world.spawn((Position { x: 5, y: 5 }, LightSource { luminance: 10.0 }));
+    world.spawn((
+        Position { x: 5, y: 5, z: 0 },
+        LightSource { luminance: 10.0 },
+    ));
     cast_lights(&mut world, Map::terrain_transparency, |_id, _intensity| 0.0);
 
     let light = world.resource::<Light>();
@@ -40,14 +43,17 @@ fn smoke_standing_on_a_square_dims_the_light_that_crosses_it() {
     // The whole point of the store: the smoke is an entity, and the lighting system sees it
     // because it asks what is standing on each square - not because the map keeps a copy.
     let mut world = world_with_floor();
-    world.spawn((Position { x: 3, y: 5 }, LightSource { luminance: 10.0 }));
+    world.spawn((
+        Position { x: 3, y: 5, z: 0 },
+        LightSource { luminance: 10.0 },
+    ));
     cast_lights(&mut world, Map::terrain_transparency, |_id, _intensity| 0.0);
     let clear = world.resource::<Light>().max_at(6, 5);
 
     let mut entry = FieldEntry::new(3, 100, true, false);
     entry.set_intensity(3);
     world.spawn((
-        Position { x: 5, y: 5 },
+        Position { x: 5, y: 5, z: 0 },
         Field {
             id: FieldId(1),
             entry,
@@ -76,7 +82,10 @@ fn a_wall_in_the_store_stops_the_light_it_shadows() {
             map.0.set_terrain(8, y, SOLID_TERRAIN, 1);
         }
     }
-    world.spawn((Position { x: 5, y: 5 }, LightSource { luminance: 10.0 }));
+    world.spawn((
+        Position { x: 5, y: 5, z: 0 },
+        LightSource { luminance: 10.0 },
+    ));
     cast_lights(&mut world, Map::terrain_transparency, |_id, _intensity| 0.0);
 
     let light = world.resource::<Light>();

@@ -59,7 +59,7 @@ fn fire_at(world: &mut World, x: i32, y: i32, intensity: i32, age: i64) -> Entit
                 entry,
                 priority: 0,
             },
-            Position { x, y },
+            Position { x, y, z: 0 },
         ))
         .id()
 }
@@ -166,7 +166,7 @@ fn a_fire_that_is_already_out_is_taken_off_the_store() {
                 entry,
                 priority: 0,
             },
-            Position { x: 1, y: 1 },
+            Position { x: 1, y: 1, z: 0 },
         ))
         .id();
     process_fires(
@@ -198,7 +198,7 @@ fn a_field_that_is_not_fire_is_left_alone() {
                 entry,
                 priority: 0,
             },
-            Position { x: 2, y: 2 },
+            Position { x: 2, y: 2, z: 0 },
         ))
         .id();
     process_fires(

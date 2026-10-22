@@ -57,7 +57,7 @@ fn run(seed: u32, intensity: i32) -> (i32, BTreeMap<(i32, i32), i32>) {
     entry.set_intensity(intensity);
     let vent = world
         .spawn((
-            Position { x: 10, y: 10 },
+            Position { x: 10, y: 10, z: 0 },
             Field {
                 id: SHOCK_VENT,
                 entry,

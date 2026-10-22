@@ -406,6 +406,23 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The store learns which floor it is on (round 318)
+
+`Position` carries `z`, the position index is keyed by the column **and** the floor, and `add_field_strength` takes a three dimensional square. Fires are
+still described in two dimensions - `FireMap` asks about a column - so their products land at [`STREET_LEVEL`], and the code says so instead of pretending.
+
+| Test | What it proves |
+|---|---|
+the index keeps floors apart | the same column on two floors is two squares |
+smoke added one floor down does not thicken the smoke above | a fire upstairs does not feed the cellar |
+smoke added on the same floor still merges | the test above is not passing for the wrong reason |
+
+The third test is the one that keeps the second honest: a store that never merged anything would pass the first two and be wrong everywhere else.
+
+**Migration cost, recorded:** 52 struct literals, the index key, `add_field_strength`, and every call site that named a square - done mechanically with the
+compiler as the checklist, and all 1,223 existing tests kept passing at every step. The systems above still compare two coordinates in places; those are
+the next round's work, and each one of them is a rule that will now have a floor to be wrong about.
+
 ## The vertical half of the gas rule, and a self-inflicted scare (round 317)
 
 `spread_gas` now carries all three directions the reference tries, **in the reference's order**: the square below first and *for free* (no die beyond the

@@ -43,7 +43,10 @@ fn a_torch_indoors_adds_where_the_sun_cannot_reach() {
     // never their sum.
     let mut world = world();
     let torch = world
-        .spawn((Position { x: 5, y: 5 }, LightSource { luminance: 10.0 }))
+        .spawn((
+            Position { x: 5, y: 5, z: 0 },
+            LightSource { luminance: 10.0 },
+        ))
         .id();
     let _ = torch;
 
@@ -59,7 +62,10 @@ fn a_torch_indoors_adds_where_the_sun_cannot_reach() {
 #[test]
 fn outside_torchlight_never_outshines_daylight() {
     let mut world = world();
-    world.spawn((Position { x: 5, y: 5 }, LightSource { luminance: 10.0 }));
+    world.spawn((
+        Position { x: 5, y: 5, z: 0 },
+        LightSource { luminance: 10.0 },
+    ));
     cast_sunlight(&mut world, NOON, 0.0, |_, _| true);
     let day = world.resource::<Light>().max_at(5, 5);
     cast_lights(&mut world, Map::terrain_transparency, |_id, _intensity| 0.0);

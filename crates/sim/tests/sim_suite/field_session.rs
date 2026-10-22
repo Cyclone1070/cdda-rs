@@ -130,7 +130,7 @@ fn the_port_reproduces_the_reference_turn_for_turn() {
                 entry,
                 priority: 0,
             },
-            Position { x: 0, y: 0 },
+            Position { x: 0, y: 0, z: 0 },
         ))
         .id();
 

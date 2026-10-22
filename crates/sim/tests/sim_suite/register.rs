@@ -14,7 +14,7 @@ struct Smoke {
 fn a_component_carries_its_own_numbers() {
     let mut world = World::new();
     let entity = world
-        .spawn((Position { x: 0, y: 0 }, Smoke { strength: 2 }))
+        .spawn((Position { x: 0, y: 0, z: 0 }, Smoke { strength: 2 }))
         .id();
     let _ = entity;
     let mut query = world.query::<&Smoke>();
@@ -31,10 +31,10 @@ struct Person {
 fn things_are_entities_with_a_position_and_the_grid_finds_them() {
     let mut world = World::new();
     let smoke = world
-        .spawn((Position { x: 3, y: 4 }, Smoke { strength: 2 }))
+        .spawn((Position { x: 3, y: 4, z: 0 }, Smoke { strength: 2 }))
         .id();
     let person = world
-        .spawn((Position { x: 3, y: 4 }, Person { name: "Ada" }))
+        .spawn((Position { x: 3, y: 4, z: 0 }, Person { name: "Ada" }))
         .id();
 
     PositionIndex::rebuild(&mut world);
@@ -56,7 +56,7 @@ fn a_new_kind_of_thing_needs_no_new_container() {
     }
     let mut world = World::new();
     let blood = world
-        .spawn((Position { x: 1, y: 1 }, Blood { age: 0 }))
+        .spawn((Position { x: 1, y: 1, z: 0 }, Blood { age: 0 }))
         .id();
     PositionIndex::rebuild(&mut world);
     assert!(world.resource::<PositionIndex>().at(1, 1).contains(&blood));
@@ -66,7 +66,7 @@ fn a_new_kind_of_thing_needs_no_new_container() {
 fn moving_a_thing_moves_it_in_the_grid_once_the_grid_is_rebuilt() {
     let mut world = World::new();
     let person = world
-        .spawn((Position { x: 2, y: 2 }, Person { name: "Ada" }))
+        .spawn((Position { x: 2, y: 2, z: 0 }, Person { name: "Ada" }))
         .id();
     PositionIndex::rebuild(&mut world);
     assert!(world.resource::<PositionIndex>().at(2, 2).contains(&person));
@@ -87,7 +87,7 @@ fn moving_a_thing_moves_it_in_the_grid_once_the_grid_is_rebuilt() {
 fn despawning_a_thing_removes_it_from_the_grid() {
     let mut world = World::new();
     let person = world
-        .spawn((Position { x: 7, y: 7 }, Person { name: "Ada" }))
+        .spawn((Position { x: 7, y: 7, z: 0 }, Person { name: "Ada" }))
         .id();
     PositionIndex::rebuild(&mut world);
     assert_eq!(world.resource::<PositionIndex>().occupied_squares(), 1);

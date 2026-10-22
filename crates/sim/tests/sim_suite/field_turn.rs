@@ -29,6 +29,7 @@ fn field_at(world: &mut World, square: (i32, i32), id: u32, intensity: i32) -> E
             Position {
                 x: square.0,
                 y: square.1,
+                z: 0,
             },
             Field {
                 id: FieldId(id),

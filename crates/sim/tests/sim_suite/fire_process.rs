@@ -22,7 +22,7 @@ fn world_with_fire(intensity: i32, age: i64) -> (World, Entity) {
     entry.set_age(age);
     let entity = world
         .spawn((
-            Position { x: 5, y: 5 },
+            Position { x: 5, y: 5, z: 0 },
             Field {
                 id: FIRE,
                 entry,

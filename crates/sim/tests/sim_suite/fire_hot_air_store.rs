@@ -49,7 +49,7 @@ fn fire(world: &mut World, x: i32, y: i32, intensity: i32) -> Entity {
                 entry,
                 priority: 0,
             },
-            Position { x, y },
+            Position { x, y, z: 0 },
         ))
         .id()
 }

@@ -14,7 +14,11 @@ fn spawn(world: &mut World, id: FieldId, intensity: i32, at: (i32, i32)) -> Enti
     entry.set_intensity(intensity);
     world
         .spawn((
-            Position { x: at.0, y: at.1 },
+            Position {
+                x: at.0,
+                y: at.1,
+                z: 0,
+            },
             Field {
                 id,
                 entry,

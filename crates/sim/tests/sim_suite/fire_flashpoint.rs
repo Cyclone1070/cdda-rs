@@ -17,7 +17,11 @@ fn fire(world: &mut World, at: (i32, i32), intensity: i32, age: i64) -> Entity {
     entry.set_age(age);
     world
         .spawn((
-            Position { x: at.0, y: at.1 },
+            Position {
+                x: at.0,
+                y: at.1,
+                z: 0,
+            },
             Field {
                 id: FIRE,
                 entry,

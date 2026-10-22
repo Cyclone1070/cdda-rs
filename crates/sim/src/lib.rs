@@ -9,13 +9,30 @@ use cdda_core_types::field::{FieldEntry, FieldId};
 use cdda_core_types::shadowcasting::FourQuadrants;
 use std::collections::BTreeMap;
 
+/// The level everything stands on until a system learns to climb: the reference's ground floor.
+pub const STREET_LEVEL: i32 = 0;
+
 /// Where a thing stands. The only authoritative position, because it lives on the thing.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Component)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Component)]
 pub struct Position {
     /// The square's column.
     pub x: i32,
     /// The square's row.
     pub y: i32,
+    /// The level the square is on: negative underground, zero at street level, positive upstairs.
+    ///
+    /// The reference's maps are three dimensional and most of its rules say so - gas falls before it drifts, smoke rises, a fire on a roof does not warm
+    /// the room below. The store carries the level from the start rather than pretending otherwise, even where the systems above it have not learned to
+    /// look at it yet.
+    pub z: i32,
+}
+
+impl Position {
+    /// A square at street level, which is where almost every test stands.
+    #[must_use]
+    pub const fn flat(x: i32, y: i32) -> Self {
+        Self { x, y, z: 0 }
+    }
 }
 
 /// The derived index: which things stand on each square.
@@ -24,27 +41,33 @@ pub struct Position {
 /// disagrees with the World, it is wrong.
 #[derive(Debug, Default, Resource)]
 pub struct PositionIndex {
-    squares: BTreeMap<(i32, i32), Vec<Entity>>,
+    squares: BTreeMap<(i32, i32, i32), Vec<Entity>>,
 }
 
 impl PositionIndex {
     /// Rebuilds the index from the World's `Position` components.
     pub fn rebuild(world: &mut World) {
-        let mut squares: BTreeMap<(i32, i32), Vec<Entity>> = BTreeMap::new();
+        let mut squares: BTreeMap<(i32, i32, i32), Vec<Entity>> = BTreeMap::new();
         let mut query = world.query::<(Entity, &Position)>();
         for (entity, position) in query.iter(world) {
             squares
-                .entry((position.x, position.y))
+                .entry((position.x, position.y, position.z))
                 .or_default()
                 .push(entity);
         }
         world.insert_resource(Self { squares });
     }
 
-    /// Everything standing on a square, in spawn order.
+    /// Everything standing on a square at street level, in spawn order.
     #[must_use]
     pub fn at(&self, x: i32, y: i32) -> &[Entity] {
-        self.squares.get(&(x, y)).map_or(&[], Vec::as_slice)
+        self.at_level(x, y, 0)
+    }
+
+    /// Everything standing on a square on a named level, in spawn order.
+    #[must_use]
+    pub fn at_level(&self, x: i32, y: i32, z: i32) -> &[Entity] {
+        self.squares.get(&(x, y, z)).map_or(&[], Vec::as_slice)
     }
 
     /// How many squares hold anything at all.
@@ -285,7 +308,7 @@ pub fn process_fires(
                 entry,
                 priority: 0,
             },
-            Position { x, y },
+            Position { x, y, z: 0 },
         ));
     }
 }
@@ -385,6 +408,7 @@ pub fn process_gas(
                 Position {
                     x: destination.0,
                     y: destination.1,
+                    z: 0,
                 },
             ));
         }
@@ -624,6 +648,7 @@ pub fn gas_spread_to(world: &mut World, source: Entity, target: (i32, i32)) {
             Position {
                 x: target.0,
                 y: target.1,
+                z: 0,
             },
             Field {
                 id,
@@ -810,6 +835,7 @@ fn transform_field(
         Position {
             x: position.x,
             y: position.y,
+            z: 0,
         },
         Field {
             id: new_id,
@@ -917,7 +943,7 @@ pub fn create_hot_air(
         let mut entry = FieldEntry::new(3, 100, true, false);
         entry.set_intensity(1);
         world.spawn((
-            Position { x, y },
+            Position { x, y, z: 0 },
             Field {
                 id,
                 entry,
@@ -945,10 +971,16 @@ fn fire_discharge(
         && let Some(hot_air) = hot_air_id(kind)
     {
         for (dx, dy) in cdda_core_types::fire::hot_air_squares(rolls) {
-            add_field_strength(world, (square.0 + dx, square.1 + dy), hot_air, 1);
+            add_field_strength(
+                world,
+                (square.0 + dx, square.1 + dy, STREET_LEVEL),
+                hot_air,
+                1,
+            );
         }
     }
-    // The port's store is two dimensional for now, so smoke settles on the fire's own square and the dump says so.
+    // Fires are still described in two dimensions (`FireMap` asks about a column), so their products land at street level; smoke also settles on the
+    // fire's own square rather than rising, because the store's vertical rules are not wired into the sweep yet.
     if let Some(smoke) = cdda_core_types::fire::smoke_from_fire(
         rolls,
         intensity,
@@ -958,7 +990,12 @@ fn fire_discharge(
         false,
         false,
     ) {
-        add_field_strength(world, square, SMOKE, smoke.intensity);
+        add_field_strength(
+            world,
+            (square.0, square.1, STREET_LEVEL),
+            SMOKE,
+            smoke.intensity,
+        );
     }
 }
 
@@ -1195,6 +1232,7 @@ fn lay_electricity(world: &mut World, square: (i32, i32), strength: i32) {
         Position {
             x: square.0,
             y: square.1,
+            z: 0,
         },
         Field {
             id: ELECTRICITY,
@@ -1238,6 +1276,7 @@ pub fn drop_item(world: &mut World, square: (i32, i32), kind: ItemTypeId, charge
             Position {
                 x: square.0,
                 y: square.1,
+                z: 0,
             },
             GroundItem {
                 burnt: 0,
@@ -1411,6 +1450,7 @@ pub fn process_fire_spread<F>(
                 Position {
                     x: square.0,
                     y: square.1,
+                    z: 0,
                 },
                 Field {
                     id: FIRE,
@@ -1572,7 +1612,12 @@ pub fn process_fire_residue(
         return;
     };
     if !suppressed && rolls.rng(0, 100 - windpower) <= smoke && rolls.rng(3, 35) < intensity * 10 {
-        add_field_strength(world, (position.x, position.y), SMOKE, intensity);
+        add_field_strength(
+            world,
+            (position.x, position.y, position.z),
+            SMOKE,
+            intensity,
+        );
     }
     let ceiling = 4 - i32::try_from(adjacent_fires).unwrap_or(4);
     if adjacent_fires < 5 && ceiling > 0 && rolls.rng(0, ceiling) != 0 {
@@ -1581,12 +1626,12 @@ pub fn process_fire_residue(
 }
 
 /// Adds or strengthens a field on a square, keeping the stronger of what is there and what arrives.
-pub fn add_field_strength(world: &mut World, square: (i32, i32), id: FieldId, strength: i32) {
+pub fn add_field_strength(world: &mut World, square: (i32, i32, i32), id: FieldId, strength: i32) {
     let existing = {
         let mut query = world.query::<(Entity, &Position, &Field)>();
         query
             .iter(world)
-            .find(|(_, at, field)| at.x == square.0 && at.y == square.1 && field.id == id)
+            .find(|(_, at, field)| (at.x, at.y, at.z) == square && field.id == id)
             .map(|(entity, _, field)| (entity, field.entry.intensity()))
     };
     if let Some((entity, already)) = existing {
@@ -1603,6 +1648,7 @@ pub fn add_field_strength(world: &mut World, square: (i32, i32), id: FieldId, st
         Position {
             x: square.0,
             y: square.1,
+            z: square.2,
         },
         Field {
             id,
@@ -1992,6 +2038,7 @@ pub fn spawn_monster(
             Position {
                 x: square.0,
                 y: square.1,
+                z: 0,
             },
             Monster {
                 kind,
@@ -3943,6 +3990,7 @@ pub fn spawn_player(world: &mut World, square: (i32, i32), hp_max: i32, armour: 
             Position {
                 x: square.0,
                 y: square.1,
+                z: 0,
             },
             Player {
                 hp: hp_max,

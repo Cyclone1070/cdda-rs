@@ -22,7 +22,7 @@ fn spawn(world: &mut World, x: i32, y: i32, intensity: i32, age: i64) -> Entity 
     entry.set_age(age);
     world
         .spawn((
-            Position { x, y },
+            Position { x, y, z: 0 },
             Field {
                 id: FieldId(1),
                 entry,
