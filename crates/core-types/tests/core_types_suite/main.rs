@@ -15,6 +15,7 @@ mod coordinate_matrix;
 mod daylight;
 mod diagnostics;
 mod field;
+mod forest_border;
 mod four_quadrants;
 mod ids;
 mod level;

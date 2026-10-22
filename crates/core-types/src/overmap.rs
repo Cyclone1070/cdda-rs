@@ -1124,3 +1124,55 @@ pub fn building_kind(
         BuildingKind::House
     }
 }
+
+/// How far a neighbouring biome reaches into this map chunk, along each of its eight borders.
+///
+/// Reference: the opening of `mapgen_forest` in `mapgen_functions.cpp`. Each of the chunk's four corners is hashed from
+/// its **absolute map-square position**, the hash is turned into a unit value, and a **Box-Muller** transform makes two
+/// depths from it - one for the horizontal border meeting at that corner and one for the vertical. The transform is
+/// what makes a forest's edge wander instead of sitting on a straight line.
+///
+/// The index order is the reference's own comment, counter-clockwise from the north edge:
+/// `[0]` north, `[1]` east, `[2]` south, `[3]` west, `[4..8]` the same four at the opposite corner of each border.
+#[must_use]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::indexing_slicing
+)]
+pub fn forest_border_depth(
+    corners: [(i64, i64); 4],
+    average_depth: i32,
+    depth_deviation: f32,
+) -> [i32; 8] {
+    const UINT32_MAX: f32 = 4_294_967_295.0;
+    let mut border = [average_depth; 8];
+    for (index, corner) in corners.iter().enumerate() {
+        // The reference hashes the corner's two absolute coordinates and mixes them; libc++'s hash for an integral
+        // type is the value itself, which is why this is a shift and an exclusive-or rather than a mixing function.
+        let x = corner.0 as u32;
+        let y = corner.1 as u32;
+        let net_hash = x ^ (y << 1);
+        let horizontal_unit = net_hash as f32 / UINT32_MAX;
+        // The second hash is over the first, and hashing an integer returns it, so both draws are the same number.
+        let vertical_unit = net_hash as f32 / UINT32_MAX;
+
+        // A Box-Muller transform turns two unit draws into two normal ones; the reference takes the horizontal depth
+        // from the cosine and the vertical from the sine.
+        let magnitude = depth_deviation * (-2.0 * horizontal_unit.ln()).sqrt();
+        let angle = 2.0 * std::f32::consts::PI * vertical_unit;
+        let horizontal = (magnitude * angle.cos() + average_depth as f32).round();
+        let vertical = (magnitude * angle.sin() + average_depth as f32).round();
+
+        // The reference's own corner labelling, counter-clockwise.
+        let corner_index = if index % 2 == 1 {
+            1 + index / 2
+        } else {
+            3 * (index / 2)
+        };
+        border[corner_index] = horizontal.abs() as i32;
+        border[corner_index + 4] = vertical.abs() as i32;
+    }
+    border
+}
