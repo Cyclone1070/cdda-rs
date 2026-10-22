@@ -129,8 +129,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-22 11:47:42
-@@ -0,0 +1,1096 @@
++++ oracle/src/src/harness.cpp	2026-10-22 13:11:40
+@@ -0,0 +1,1123 @@
 +#include "harness.h"
 +#include "recipe_dictionary.h"
 +#include "requirements.h"
@@ -994,6 +994,33 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    std::fprintf( stderr, "\n" );
 +}
 +
++void dump_map( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    // One map chunk, exactly as the generator left it: the overmap terrain it belongs to, where it sits, and the
++    // terrain id of every square. A port that generates the same chunk has to produce these ids.
++    map &here = get_map();
++    const tripoint_abs_omt omt = project_to<coords::omt>( here.get_abs_sub() );
++    const oter_id &oter = overmap_buffer.ter( omt );
++    std::fprintf( out, "{\"harness\":\"map\",\"version\":1,\"oter\":\"%s\",\"omt\":[%d,%d,%d],\"size\":%d,\"rows\":[\n",
++                  harness::harness_escape( oter.id().str() ).c_str(), omt.x(), omt.y(), omt.z(),
++                  SEEX * 2 );
++    for( int y = 0; y < SEEY * 2; y++ ) {
++        std::fprintf( out, "%s[", y == 0 ? "" : ",\n" );
++        for( int x = 0; x < SEEX * 2; x++ ) {
++            const ter_id &ter = here.ter( tripoint_bub_ms( x, y, here.get_abs_sub().z() ) );
++            std::fprintf( out, "%s\"%s\"", x == 0 ? "" : ",", harness::harness_escape( ter.id().str() ).c_str() );
++        }
++        std::fprintf( out, "]" );
++    }
++    std::fprintf( out, "\n]}\n" );
++    std::fclose( out );
++}
++
 +void dump_noise( const std::string &path, int radius )
 +{
 +    std::FILE *out = std::fopen( path.c_str(), "wb" );
@@ -1229,8 +1256,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-22 11:35:01
-@@ -0,0 +1,159 @@
++++ oracle/src/src/harness.h	2026-10-22 13:14:47
+@@ -0,0 +1,160 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -1375,6 +1402,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +void dump_frame( const std::string &path, int radius );
 +void dump_overmap( const std::string &path, int radius );
 +void dump_noise( const std::string &path, int radius );
++void dump_map( const std::string &path );
 +
 +/** Runs one named mapgen and prints its first row, to see whether the call works at all. */
 +void probe_mapgen( const std::string &oter_id );
@@ -1412,7 +1440,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-22 11:35:01
++++ oracle/src/src/main.cpp	2026-10-22 13:11:40
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -1423,7 +1451,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,41 @@
+@@ -272,6 +275,42 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -1438,6 +1466,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_frame;
 +    std::string dump_overmap;
 +    std::string dump_noise;
++    std::string dump_map;
 +    int dump_noise_radius = 20;
 +    int dump_overmap_radius = 20;
 +    std::string probe_mapgen;
@@ -1465,7 +1494,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +338,236 @@
+@@ -300,6 +339,246 @@
                  }
              },
              {
@@ -1659,6 +1688,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                }
 +            },
 +            {
++                "--dump-map", "<file>",
++                "Writes the generated map chunk the player stands in: terrain ids, 24 by 24",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_map = params[0];
++                    return 1;
++                }
++            },
++            {
 +                "--dump-state", "<file>",
 +                "Starts a new game headlessly and writes its state to <file>",
 +                section_default,
@@ -1702,7 +1741,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +1054,171 @@
+@@ -786,6 +1065,174 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -1736,6 +1775,9 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            }
 +            if( !cli.dump_noise.empty() ) {
 +                harness::dump_noise( cli.dump_noise, cli.dump_noise_radius );
++            }
++            if( !cli.dump_map.empty() ) {
++                harness::dump_map( cli.dump_map );
 +            }
 +            exit_handler( 0 );
 +        }

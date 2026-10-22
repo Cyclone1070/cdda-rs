@@ -22,6 +22,7 @@ mod light;
 mod light_source;
 mod line;
 mod map_cache;
+mod map_reference_chunk;
 mod memory;
 mod noise_octaves;
 mod noise_reference;
