@@ -10,6 +10,7 @@
 mod city_settings;
 mod corpus;
 mod digest;
+mod digest_ids;
 mod eocs;
 mod factory;
 mod fields;
