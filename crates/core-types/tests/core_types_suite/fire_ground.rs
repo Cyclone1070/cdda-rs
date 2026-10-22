@@ -43,7 +43,7 @@ fn rolls_from(lines: &[String]) -> Rolls {
 
 #[test]
 fn the_tracings_four_fuel_phases_are_exactly_what_the_rule_expects() {
-    // Two draws on the turn the ground fed (the die that decides, then the die about bashing), one draw on each of the other three.
+    // Two draws on a turn the ground fed (the die that decides, then the die about bashing), one on a turn it refused.
     let phases = fuel_phases();
     assert_eq!(
         phases.len(),
@@ -52,26 +52,31 @@ fn the_tracings_four_fuel_phases_are_exactly_what_the_rule_expects() {
     );
     assert_eq!(
         phases[0].len(),
-        1,
-        "a hard-ground turn that did not feed: {:?}",
+        2,
+        "a hard-ground turn that fed and then asked about bashing: {:?}",
         phases[0]
     );
-    assert_eq!(phases[1].len(), 1);
     assert_eq!(
-        phases[2].len(),
-        2,
-        "a hard-ground turn that did feed then asked about bashing: {:?}",
-        phases[2]
+        phases[1].len(),
+        1,
+        "a turn the ground refused: {:?}",
+        phases[1]
     );
-    assert_eq!(phases[3].len(), 1);
+    assert_eq!(phases[2].len(), 1, "and another: {:?}", phases[2]);
+    assert_eq!(
+        phases[3].len(),
+        2,
+        "and the last one feeds again: {:?}",
+        phases[3]
+    );
 }
 
 #[test]
 fn the_port_asks_for_the_same_dice_in_the_same_order() {
     // The real claim: given the reference's dice, the port asks for them in the reference's order and reaches the reference's answer. Four turns
-    // at intensity two on `FLAMMABLE_HARD`, and only the third fed.
+    // at intensity two on `FLAMMABLE_HARD`; the first and the fourth fed, and neither bash die came up zero.
     let phases = fuel_phases();
-    let expected = [(0, false), (0, false), (2, false), (0, false)];
+    let expected = [(2, false), (0, false), (0, false), (2, false)];
     for (index, phase) in phases.iter().enumerate() {
         let mut rolls = rolls_from(phase);
         let fuel = ground_fuel(Ground::FlammableHard, 2, true, &mut rolls);

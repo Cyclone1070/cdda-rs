@@ -406,6 +406,20 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The item branch, and a fixture that would not cooperate (round 329)
+
+The spread rule's last disjunct is `( one_in( 5 ) && dst.get_item_count() > 0 && flammable_items_at( ... ) )`. The port had been **drawing** that die and
+throwing the answer away, because nothing in the world it modelled could be lying on the ground. It now decides: `Neighbour` carries `items`, `MapFacts`
+carries a per-square answer, and the dump carries `"items_burn"` for every grid square.
+
+Three unit tests pin the branch, including the one that matters: a plank on ground that refuses catches on the item die **alone**, and the die is spent even
+when the square is empty.
+
+**What is not proven:** no fixture exercises it end to end. The oracle grew `--place-items`, `--place-terrain` and `--place-furniture` this round precisely to
+build one - fire on `t_concrete`, every neighbour `t_concrete`, one plank on one square - and the reference then refused to spread there at all in twenty
+turns of trying: the chance is 25%, the skip is one in four, and the item die is one in five, so an isolated square is rolled for about once every forty turns.
+That is a fixture to build with a longer session, not a rule to doubt; the unit tests hold the rule until then, and this paragraph is the receipt.
+
 ## A fixture is a test now, not a test per fixture (round 328)
 
 The replay is machinery now: `reference_session` loads a fixture (terrain grid, furniture, turns, recorded dice), builds the port's world from it and plays

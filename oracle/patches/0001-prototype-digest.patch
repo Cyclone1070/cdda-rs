@@ -129,8 +129,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-23 03:30:30
-@@ -0,0 +1,1232 @@
++++ oracle/src/src/harness.cpp	2026-10-23 06:00:51
+@@ -0,0 +1,1255 @@
 +#include "harness.h"
 +#include "recipe_dictionary.h"
 +#include "requirements.h"
@@ -1219,7 +1219,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +// with its type, intensity and age. There are no creatures and no items in the session, so what the port has to
 +// reproduce is exactly what the field processor does - nothing else can move.
 +void dump_field_series( const std::string &path, const point &offset, int intensity, int turns,
-+                        int radius )
++                        int radius, const point &items_at,
++                        const std::vector<std::pair<point, std::string>> &terrain,
++                        const std::vector<std::pair<point, std::string>> &furniture )
 +{
 +    const tripoint_bub_ms fire = get_avatar().pos_bub() + tripoint( offset, 0 );
 +    std::FILE *out = std::fopen( path.c_str(), "wb" );
@@ -1227,7 +1229,22 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
 +        return;
 +    }
++    for( const std::pair<point, std::string> &change : terrain ) {
++        g->harness_map().ter_set( get_avatar().pos_bub() + tripoint( change.first, 0 ),
++                                  ter_id( change.second ) );
++    }
++    for( const std::pair<point, std::string> &change : furniture ) {
++        g->harness_map().furn_set( get_avatar().pos_bub() + tripoint( change.first, 0 ),
++                                   furn_id( change.second ) );
++    }
 +    g->harness_map().add_field( fire, fd_fire, intensity, 0_turns, false );
++    // One flammable item, placed where a fixture wants a square to catch that the ground itself would refuse. A plank is the smallest thing certain to burn and
++    // needs nothing else to be true about the world.
++    if( items_at != point( INT_MIN, INT_MIN ) ) {
++        static const itype_id itype_2x4( "2x4" );
++        g->harness_map().add_item_or_charges( get_avatar().pos_bub() + tripoint( items_at, 0 ),
++                                              item( itype_2x4 ) );
++    }
 +    // Where in the reference's dice stream the session begins. `CDDA_RNG_TRACE` records every draw the whole run makes,
 +    // world generation included, so a replay needs the offset to slice its own dice out of that file.
 +    std::fprintf( out,
@@ -1242,10 +1259,16 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    for( const tripoint_bub_ms &p : g->harness_map().points_in_radius( center, radius ) ) {
 +        const ter_id &ter = g->harness_map().ter( p );
 +        const furn_id &frn = g->harness_map().furn( p );
-+        std::fprintf( out, "%s{\"x\":%d,\"y\":%d,\"z\":%d,\"ter\":\"%s\",\"furn\":\"%s\"}",
++        // The items on a square are part of the answer too: the spread rule's last disjunct is
++        // `one_in( 5 ) && get_item_count() > 0 && flammable_items_at( ... )`, so a replay has to know whether anything burnable is lying there.
++        std::fprintf( out,
++                      "%s{\"x\":%d,\"y\":%d,\"z\":%d,\"ter\":\"%s\",\"furn\":\"%s\","
++                      "\"items\":%zu,\"items_burn\":%d}",
 +                      first_square ? "" : ",", p.x(), p.y(), p.z(),
 +                      harness::harness_escape( ter.id().str() ).c_str(),
-+                      harness::harness_escape( frn.id().str() ).c_str() );
++                      harness::harness_escape( frn.id().str() ).c_str(),
++                      g->harness_map().i_at( p ).size(),
++                      g->harness_map().flammable_items_at( p ) ? 1 : 0 );
 +        first_square = false;
 +    }
 +    std::fprintf( out, "],\n\"turns\":[" );
@@ -1365,8 +1388,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-23 00:31:00
-@@ -0,0 +1,166 @@
++++ oracle/src/src/harness.h	2026-10-23 06:00:51
+@@ -0,0 +1,168 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -1510,7 +1533,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +
 +/** Writes an environment-only session: a fire, the field sweep, and every field after each turn. */
 +void dump_field_series( const std::string &path, const point &offset, int intensity, int turns,
-+                        int radius );
++                        int radius, const point &items_at = point( INT_MIN, INT_MIN ),
++                        const std::vector<std::pair<point, std::string>> &terrain = {},
++                        const std::vector<std::pair<point, std::string>> &furniture = {} );
 +
 +/** Writes the glyphs and light of the squares around the player. */
 +void dump_frame( const std::string &path, int radius );
@@ -1555,7 +1580,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-23 00:31:00
++++ oracle/src/src/main.cpp	2026-10-23 06:00:51
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -1566,7 +1591,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,46 @@
+@@ -272,6 +275,54 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -1580,6 +1605,14 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_state;
 +    // Harness: an environment-only session - a fire, the field sweep, and every field after each turn.
 +    std::string dump_field_series;
++    // Repeatable: a fixture that wants a fire on ground of its own choosing usually wants the squares around it changed too, so that the only way a
++    // spread can happen is the one the fixture is about.
++    std::vector<std::pair<point, std::string>> place_terrain;
++    // Furniture too: a bench is `FLAMMABLE_ASH`, and a fixture that has cleared the ground under a square and left the bench standing has not isolated
++    // anything at all.
++    std::vector<std::pair<point, std::string>> place_furniture;
++    int place_items_x = INT_MIN;
++    int place_items_y = INT_MIN;
 +    int place_fire_x = INT_MIN;
 +    int place_fire_y = INT_MIN;
 +    int place_fire_intensity = 2;
@@ -1613,7 +1646,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +343,419 @@
+@@ -300,6 +351,454 @@
                  }
              },
              {
@@ -1840,6 +1873,41 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                }
 +            },
 +            {
++                "--place-terrain", "<x> <y> <ter>",
++                "Puts this terrain on this square of the reality bubble, for --dump-field-series: the way a fixture puts ground under a fire that the "
++                "room it starts in does not have",
++                section_default,
++                3,
++                [&result]( int, const char **params ) -> int {
++                    result.place_terrain.emplace_back( point( std::atoi( params[0] ), std::atoi( params[1] ) ),
++                                                       params[2] );
++                    return 1;
++                }
++            },
++            {
++                "--place-furniture", "<x> <y> <furn>",
++                "Puts this furniture on this square of the reality bubble, for --dump-field-series; `f_null` clears it",
++                section_default,
++                3,
++                [&result]( int, const char **params ) -> int {
++                    result.place_furniture.emplace_back( point( std::atoi( params[0] ), std::atoi( params[1] ) ),
++                                                         params[2] );
++                    return 1;
++                }
++            },
++            {
++                "--place-items", "<x> <y>",
++                "Puts a rag on this square of the reality bubble, for --dump-field-series: one flammable item, which is what a fire needs to catch "
++                "somewhere the ground itself will not burn",
++                section_default,
++                2,
++                [&result]( int, const char **params ) -> int {
++                    result.place_items_x = std::atoi( params[0] );
++                    result.place_items_y = std::atoi( params[1] );
++                    return 1;
++                }
++            },
++            {
 +                "--field-turns", "<n>",
 +                "How many field turns --dump-field-series runs (default 6)",
 +                section_default,
@@ -2033,7 +2101,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +1242,202 @@
+@@ -786,6 +1285,205 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -2098,7 +2166,10 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            // player happens to start on.
 +            harness::dump_field_series( cli.dump_field_series,
 +                                        point( cli.place_fire_x, cli.place_fire_y ),
-+                                        cli.place_fire_intensity, cli.field_turns, 3 );
++                                        cli.place_fire_intensity, cli.field_turns, 3,
++                                        cli.place_items_x == INT_MIN ? point::zero
++                                        : point( cli.place_items_x, cli.place_items_y ),
++                                        cli.place_terrain, cli.place_furniture );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_state.empty() || !cli.replay.empty() ) {

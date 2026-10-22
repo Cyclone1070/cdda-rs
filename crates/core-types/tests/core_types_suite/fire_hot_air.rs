@@ -39,10 +39,11 @@ fn recording_of(lines: &[String]) -> Rolls {
 
 #[test]
 fn the_gate_is_a_non_zero_roll_and_a_fire_with_five_neighbours_does_not_roll() {
-    // Four turns of the session, four gate rolls: `int 0 4 0` is a refusal, `int 0 4 1` and `int 0 4 4` are requests.
+    // Four turns of the session, four gate rolls: a zero is a refusal and anything else is a request, which is why the gate is a `rng( 0, 4 )` rather
+    // than a `one_in( 5 )` - the reference wants to know *how* close the square was to being too crowded as well as whether it is.
     let phases = hot_air_phases();
     assert_eq!(phases.len(), 4, "{phases:?}");
-    let wanted = [false, true, false, true];
+    let wanted = [true, false, true, false];
     for (index, phase) in phases.iter().enumerate() {
         let gate = phase.first().expect("a gate roll");
         let mut rolls = recording_of(std::slice::from_ref(gate));

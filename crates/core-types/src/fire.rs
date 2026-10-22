@@ -123,6 +123,8 @@ pub struct Neighbour {
     pub fire_intensity: i32,
     /// How long the fire there has burned, which the flashpoint rule compares against ours.
     pub fire_age: i64,
+    /// Whether something burnable is lying there, which is the last way a square catches.
+    pub items: bool,
 }
 
 /// What the spread phase did to a fire and its neighbours.
@@ -265,25 +267,12 @@ pub fn spread_fire(
             && ((power >= 2 && neighbour.flammable && rolls.one_in(2))
                 || (power >= 2 && neighbour.flammable_ash && rolls.one_in(2))
                 || (power >= 3 && neighbour.flammable_hard && rolls.one_in(5)));
-        // The reference's last disjunct is `( one_in( 5 ) && dst.get_item_count() > 0 && flammable_items_at( ... ) )`, and C++ draws the die **before** it
-        // asks whether anything is lying there (`map_field.cpp:1343`). The port has no items on the ground yet, so the die is drawn and its answer ignored -
-        // but it must be drawn, or every turn with a square of ordinary wall beside the fire puts the rest of the turn one draw out.
-        if passes && !neighbour.web && !takes_ground {
-            let _items_might_burn = rolls.one_in(5);
-        }
-        if std::env::var_os("CDDA_TRACE_SPREAD").is_some() {
-            eprintln!(
-                "candidate {index}: power {power} counts {} passes {passes} ground {takes_ground} web {} flags {:?}",
-                neighbour.has_fire,
-                neighbour.web,
-                (
-                    neighbour.flammable,
-                    neighbour.flammable_ash,
-                    neighbour.flammable_hard
-                )
-            );
-        }
-        if passes && (neighbour.web || takes_ground) {
+        // The reference's last disjunct is `( one_in( 5 ) && dst.get_item_count() > 0 && flammable_items_at( ... ) )`, and C++ draws the die **before**
+        // it asks whether anything is lying there (`map_field.cpp:1343`). The die is therefore spent on every square that reaches this point, items or not;
+        // what it decides is whether a square with something burnable on it catches where the ground alone would refuse.
+        let takes_items =
+            passes && !neighbour.web && !takes_ground && rolls.one_in(5) && neighbour.items;
+        if passes && (neighbour.web || takes_ground || takes_items) {
             caught.push(usize::try_from(index).unwrap_or(0));
         }
     }

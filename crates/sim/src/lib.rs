@@ -273,6 +273,7 @@ impl TerrainFacts {
 pub struct MapFacts {
     terrain: BTreeMap<(i32, i32, i32), TerrainFacts>,
     furniture: BTreeMap<(i32, i32, i32), TerrainFacts>,
+    items: BTreeMap<(i32, i32, i32), bool>,
     fires: BTreeMap<(i32, i32, i32), (i32, i64)>,
 }
 
@@ -292,6 +293,11 @@ impl MapFacts {
     /// terrain's and its furniture's together - a bench on a tiled floor burns like a bench, and a locker on one does not burn at all.
     pub fn set_furniture(&mut self, square: (i32, i32, i32), facts: TerrainFacts) {
         self.furniture.insert(square, facts);
+    }
+
+    /// Says whether something burnable is lying on a square - the spread rule's last way to catch, and the one a fire uses to cross a fireproof floor.
+    pub fn set_items(&mut self, square: (i32, i32, i32), burnable: bool) {
+        self.items.insert(square, burnable);
     }
 
     /// Records that a square holds a fire of this intensity and age, for [`FireMap::adjacent_fires`] and the flashpoint rule.
@@ -367,6 +373,7 @@ impl FireMap for MapFacts {
             has_fire: self.fires.contains_key(&square),
             fire_intensity: fire.0,
             fire_age: fire.1,
+            items: self.items.get(&square).copied().unwrap_or(false),
             web: false,
             // Three separate questions with three separate dice: plain `FLAMMABLE` takes no roll to catch, `FLAMMABLE_ASH` rolls `one_in( 2 )` and
             // `FLAMMABLE_HARD` rolls `one_in( 5 )`. Folding ash into `flammable` here cost a die per bench - the port asked twice where the reference asked

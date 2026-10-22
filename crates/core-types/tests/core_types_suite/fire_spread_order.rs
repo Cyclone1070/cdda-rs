@@ -19,6 +19,7 @@ fn ground_here() -> Neighbour {
         flammable_hard: false,
         fire_intensity: 0,
         fire_age: 0,
+        items: false,
     }
 }
 

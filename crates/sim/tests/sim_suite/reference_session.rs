@@ -47,8 +47,8 @@ impl Placed {
 
 /// A recorded scene: its terrain, its turns, and its dice.
 pub struct Session {
-    /// Every square in the radius, with the terrain and the furniture it held.
-    pub grid: Vec<(i32, i32, i32, String, String)>,
+    /// Every square in the radius, with the terrain and the furniture it held, and whether anything burnable was lying on it.
+    pub grid: Vec<(i32, i32, i32, String, String, bool)>,
     /// The fields after each turn, starting with the state before anything ran.
     pub turns: Vec<Vec<Placed>>,
     /// The dice the reference rolled inside its field processors, in order.
@@ -74,6 +74,7 @@ impl Session {
                     i32::try_from(integer(square.get("z").expect("z"))).expect("z fits"),
                     string(square.get("ter").expect("terrain")).to_string(),
                     square.get("furn").map_or("f_null", string).to_string(),
+                    integer(square.get("items_burn").expect("items_burn")) != 0,
                 )
             })
             .collect();
@@ -112,10 +113,11 @@ impl Session {
     pub fn map(&self) -> cdda_sim::MapFacts {
         let flags = terrain_flags();
         let mut map = cdda_sim::MapFacts::new();
-        for (x, y, z, terrain, furniture) in &self.grid {
+        for (x, y, z, terrain, furniture, items) in &self.grid {
             // `ter_furn_has_flag` reads both, so the square's answers are its terrain's and its furniture's together - a bench on a tiled floor burns.
             map.set_terrain((*x, *y, *z), facts_for(terrain, &flags));
             map.set_furniture((*x, *y, *z), facts_for(furniture, &flags));
+            map.set_items((*x, *y, *z), *items);
         }
         map
     }

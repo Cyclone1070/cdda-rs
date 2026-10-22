@@ -34,7 +34,7 @@ fn the_terrain_the_recording_names_is_the_terrain_the_port_reads() {
     let floor = session
         .grid
         .iter()
-        .filter(|(_, _, _, id, _)| id == "t_floor")
+        .filter(|(_, _, _, id, _, _)| id == "t_floor")
         .count();
     assert_eq!(
         floor, 41,

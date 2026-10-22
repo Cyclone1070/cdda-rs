@@ -86,3 +86,16 @@ Those draws belong to the creature layer, which the port has no entities for in 
 the session's dice are the fields' own from the first draw to the last, which is what `fire_session_parity` replays with nothing carved out.
 
 Keep both. The first is the better fixture for the creature layer the day it is ported; the second is the one that proves the field rules.
+
+## Placing the scene, not just the fire (round 329)
+
+The dump can now be told what to stand the fire in and what to put around it, because a fixture about one branch of the rules needs the other branches out of
+the way:
+
+| Option | What it does |
+|---|---|
+`--place-items <x> <y>` | puts a plank on a square - the spread rule's last disjunct is `one_in( 5 ) && get_item_count() > 0 && flammable_items_at( ... )`, and without an item no fixture can reach it |
+`--place-terrain <x> <y> <ter>` | sets the ground on a square; repeatable, so a fixture can bury a fire in `t_concrete` and leave exactly one square catchable |
+`--place-furniture <x> <y> <furn>` | sets the furniture; `f_null` clears it - a bench is `FLAMMABLE_ASH`, and clearing the ground while leaving the bench standing isolates nothing at all |
+
+Every grid square in the dump now carries `"items"` and `"items_burn"`, so a replay knows what a fire could have caught besides the ground.
