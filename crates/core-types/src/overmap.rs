@@ -1260,3 +1260,77 @@ pub fn forest_perimeter_depth(border: [i32; 8], average_depth: i32, rolls: &mut 
     }
     perimeter
 }
+
+/// How strongly each compass neighbour pulls on a forest square.
+///
+/// Reference: the `nesw_weights` lambda in `mapgen_forest`. A square's pull from the north is the **depth of the
+/// north edge's curve at that column** divided by **how far the square is from the north edge**, and the same for the
+/// other three sides; the ratio is raised to the transition's abruptness, which the reference fixes at one.
+///
+/// Two things the reference does that are easy to miss: the perimeter depth is **offset** before it is used (the
+/// ground cover margin steps it back, the features do not), and a neighbour that owns no biome is **not divided** by
+/// its own depth, because that neighbour does not feather at all.
+#[must_use]
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::indexing_slicing
+)]
+pub fn nesw_weights(
+    point: (i32, i32),
+    width: i32,
+    perimeter: &[i32],
+    depth_offset: f32,
+    neighbour_has_biome: [bool; 4],
+) -> [f32; 4] {
+    // Distance from the square to each edge, in the reference's own order: north, east, south, west.
+    let point_depths = [point.1, width - point.0 - 1, width - point.1 - 1, point.0];
+    // Where that edge's curve is, at the column (or row) this square sits in.
+    // The perimeter is four edges of `width` squares each, so the east edge starts at `width` and the west at
+    // `3 * width`. My first version multiplied the wrong number and indexed past the end - the test said so at once.
+    let perimeter_depths = [
+        perimeter[point.0 as usize],
+        perimeter[width as usize + point.1 as usize],
+        perimeter[(width * 2) as usize + point.0 as usize],
+        perimeter[(width * 3) as usize + point.1 as usize],
+    ];
+    let mut weights = [0.0_f32; 4];
+    for direction in 0..4 {
+        let depth = (perimeter_depths[direction] as f32 + depth_offset).max(1.0);
+        let ratio = depth / (point_depths[direction] as f32 + 1.0);
+        weights[direction] = if neighbour_has_biome[direction] {
+            ratio / depth
+        } else {
+            ratio
+        };
+    }
+    weights
+}
+
+/// The raffle a forest square's ground comes out of.
+///
+/// Reference: `get_feathered_groundcover`. Six tickets: the four compass neighbours, **this square's own biome at
+/// `self_scalar`**, and an "empty" ticket for the region's default ground - which is where the field-coloured squares
+/// inside a forest come from. The empty ticket's weight is the total **scaled up by the maximum density** minus what
+/// the neighbours and this square would contribute at their own densities, so the emptier a neighbourhood is, the more
+/// likely a square falls back to plain ground.
+#[must_use]
+pub fn feather_pool(
+    weights: [f32; 4],
+    self_weight: f32,
+    net: f32,
+    max_factor: f32,
+    factor: f32,
+    direction_factors: [f32; 4],
+) -> [f32; 6] {
+    let mut pool = [0.0_f32; 6];
+    pool[..4].copy_from_slice(&weights);
+    pool[4] = self_weight;
+    let claimed = weights[0] * direction_factors[0]
+        + weights[1] * direction_factors[1]
+        + weights[2] * direction_factors[2]
+        + weights[3] * direction_factors[3]
+        + self_weight * factor;
+    pool[5] = (net + self_weight) * max_factor - claimed;
+    pool
+}
