@@ -308,6 +308,17 @@ equality; JSON accept/reject parity". Each part, and where it is proven:
 | JSON acceptance is identical | All 6,220 shipped files: same accept/reject verdict and same structural digest as the reference; the writer is compared byte for byte on 127 of them |
 | The cache changes nothing | All 6,220 files read identically cold and warm |
 
+## The port generating the reference's chunk (round 257)
+
+With the four records on one key, the port now runs the reference chunk's **own perimeter** through its own rules and
+produces a chunk of the right shape: hundreds of placeholders left in place, ground cover dominating. It draws its own dice,
+so this is not a positional comparison - what it settles is that the port stops at the same stage and for the same reason.
+
+**The test caught its own author first.** My initial version expanded the region's default ground cover into `t_grass`,
+`t_grass_dead` and `t_dirt` - real terrains - and the port then produced only **55** placeholders of 576. That is the exact
+eagerness this test exists to catch, and it was in the test rather than in the port: the region settings write the
+**placeholder** `t_region_groundcover`, and expanding it early moves the resolution from the sweep into generation.
+
 ## One chunk, four files, one moment (round 256)
 
 A single generated chunk is now recorded four ways that all describe the **same** moment and the **same** square: the
