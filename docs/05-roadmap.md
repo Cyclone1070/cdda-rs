@@ -113,6 +113,9 @@ What is left is a single square. The pass lays grass at the chunk's corner where
 two cheap explanations are already dead: the corner's arithmetic checks out by hand (the empty ticket wins 76% there),
 and the sample is not mirrored (identity 291 against a best mirror of 307). So the next step is not another inference
 but an instrument: a per-square trace saying which ticket the reference drew, whether a layer fired, and what came out.
+**That instrument is built** (`CDDA_MAP_TRACE`), and reading it is currently blocked: the harness's saved world was
+deleted while forcing a fresh one, and no run since has reached map generation inside a supervised window. The next step
+on this thread is to rebuild that saved world without dumping a chunk, then read the trace from a run that reuses it.
 
 The suite now also runs **on a second machine and a second platform**: `tools/remote_test.py` syncs the workspace to
 a Linux desktop and runs every gate there in about twenty seconds, so the same 969 cases are verified on macOS and

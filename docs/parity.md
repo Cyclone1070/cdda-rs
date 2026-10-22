@@ -307,3 +307,26 @@ equality; JSON accept/reject parity". Each part, and where it is proven:
 | RNG draws are identical | The engine is compared draw for draw against the reference for every composite case in the corpus; the distributions are transcribed from this build's standard library and compared the same way |
 | JSON acceptance is identical | All 6,220 shipped files: same accept/reject verdict and same structural digest as the reference; the writer is compared byte for byte on 127 of them |
 | The cache changes nothing | All 6,220 files read identically cold and warm |
+
+## Blocker on the map-chunk trace (round 237)
+
+The oracle can record which ticket its forest generator drew for every square it generates: `CDDA_MAP_TRACE=<path>`
+appends `x y ticket` after the pick, so a traced run and an untraced one produce the same world. That is what the last
+unexplained square needs - it turns "what did the reference decide at `(0,0)`" from an argument into a lookup.
+
+**It cannot be read at the moment, and the reason is a mistake of mine.** The harness world save
+(`oracle/userdir/save/harness-fixed`) was deleted while forcing a fresh world, and no run since has reached map
+generation inside a window that can be supervised: four attempts sat on the loading screen past five minutes, writing
+neither a trace nor a dump, and each was killed rather than left running. There are no oracle processes on this machine
+now.
+
+Mitigation, in order of cost:
+
+1. **Rebuild the saved world** with a harness action that generates and saves a world **without** dumping a chunk - it
+   is the dump that needs a map, not the save. Every later run then reuses it, as the earlier ones did at ~40 s each.
+2. Let the mapgen dump accept a smaller unit than a full chunk.
+3. Leave the corner recorded as unexplained and return to it when the world can be rebuilt.
+
+The instrument itself is not in doubt: it compiles, it is in `oracle/patches/0001-prototype-digest.patch`, and a traced
+run of a world that exists will write the file.
+
