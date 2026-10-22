@@ -231,3 +231,50 @@ pub fn spawn_from_field<'a>(
     }
     produced
 }
+
+/// Where one spawned monster lands: a square near the field, drawn the way the reference draws it.
+///
+/// Reference: `random_point( points_in_radius( p, radius ), passable )` (`map_field.cpp:777`). Three details matter and none is
+/// the obvious reading:
+///
+/// * **The range is the bounding box**, not a circle - `points_in_radius` is `center - offset .. center + offset`
+///   (`map_iterator.h:154`), so a square at the corner of the box is a legal spawn even though it is further away in a straight
+///   line than the radius.
+/// * **Ten optimistic tries** (`map_selector.cpp:59`), each spending three draws, before it enumerates the range.
+/// * **The enumeration runs x fastest** (`map_iterator.h:44-58`), then y, then z, so the fallback list is row-major.
+///
+/// The predicate says whether a square will take a monster - in the reference, `passable_through`.
+pub fn random_point_in_radius(
+    center: (i32, i32),
+    radius: i32,
+    accepts: impl Fn(i32, i32) -> bool,
+    rolls: &mut Rolls,
+) -> Option<(i32, i32)> {
+    let radius = radius.max(0);
+    let (low_x, high_x) = (center.0 - radius, center.0 + radius);
+    let (low_y, high_y) = (center.1 - radius, center.1 + radius);
+    for _ in 0..10 {
+        let x = rolls.rng(low_x, high_x);
+        let y = rolls.rng(low_y, high_y);
+        // The reference draws a z as well, with both bounds equal on a single-level search; the draw is spent regardless.
+        let _z = rolls.rng(0, 0);
+        if accepts(x, y) {
+            return Some((x, y));
+        }
+    }
+    let mut suitable = Vec::new();
+    for y in low_y..=high_y {
+        for x in low_x..=high_x {
+            if accepts(x, y) {
+                suitable.push((x, y));
+            }
+        }
+    }
+    if suitable.is_empty() {
+        return None;
+    }
+    let index = rolls.rng(0, i32::try_from(suitable.len()).unwrap_or(1) - 1);
+    usize::try_from(index)
+        .ok()
+        .and_then(|index| suitable.get(index).copied())
+}

@@ -377,6 +377,24 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Where the monster lands (round 279)
+
+`random_point_in_radius` ports `random_point( points_in_radius( p, radius ), passable )`. Three details matter and none is the
+obvious reading:
+
+* **The "radius" is the bounding box**, not a circle: `points_in_radius` is `center - offset .. center + offset`
+  (`map_iterator.h:154`), so the corner of the box is a legal spawn even though it is further than the radius in a straight line.
+* **Ten optimistic tries** first (`map_selector.cpp:59`), three draws each, before it enumerates the range at all.
+* **The enumeration runs x fastest** (`map_iterator.h:44-58`), so the fallback list is row-major.
+
+Five tests: a radius of zero can only produce the centre; a blocked centre is never chosen in fifty seeds; **a corner of the box
+is reachable** - the test that fails on a circular implementation; a range that refuses everything returns nothing; and the same
+seed lands on the same square.
+
+Also corrected: the first version of the "ten tries" test asserted a hard-coded square and was wrong about what it was checking.
+It now compares a refused run and an accepted run **from the same seed**, so they walk the same squares and differ only in what
+the predicate says.
+
 ## Picking from a group, and the default weight that was hiding (round 277)
 
 `pick_monster` now resolves a group to a monster: weighted pick, and when an entry names another **group** the pick repeats
