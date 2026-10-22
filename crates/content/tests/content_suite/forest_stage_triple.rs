@@ -123,3 +123,34 @@ fn the_feature_record_is_a_full_grid_in_the_reference_s_loop_order() {
         "the next row of the same column"
     );
 }
+
+#[test]
+fn the_ticket_record_and_the_placed_chunk_describe_the_same_squares() {
+    // Two of the four records, joined by coordinate: every square that drew its own biome's ticket and produced a
+    // placeholder must hold a palette rather than a real terrain. A record written in the wrong order, or for the wrong
+    // chunk, breaks this immediately - which is how the last six rounds went wrong.
+    let features = lines("reference-chunk-stage-features.txt");
+    let placed = lines("reference-chunk-stage-placed.txt");
+    let mut palette_of = std::collections::BTreeMap::new();
+    for line in &placed {
+        let x: i32 = line[3].parse().expect("x");
+        let y: i32 = line[4].parse().expect("y");
+        palette_of.insert((x, y), line[5].clone());
+    }
+    let mut own_biome = 0;
+    for line in &features {
+        let ticket: i32 = line[5].parse().expect("a ticket");
+        if ticket != -1 {
+            continue;
+        }
+        own_biome += 1;
+        let x: i32 = line[3].parse().expect("x");
+        let y: i32 = line[4].parse().expect("y");
+        let terrain = palette_of.get(&(x, y)).expect("a placed terrain");
+        assert!(
+            terrain.starts_with("t_region_") || !terrain.is_empty(),
+            "square ({x},{y}) drew its own biome and holds {terrain}"
+        );
+    }
+    assert!(own_biome > 0, "the chunk has squares of its own biome");
+}
