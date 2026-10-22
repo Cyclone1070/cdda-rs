@@ -58,6 +58,7 @@ mod seen;
 mod shadowcasting;
 mod sight;
 mod sound;
+mod sound_queue;
 mod strings;
 mod submap_store;
 mod sunlight;
