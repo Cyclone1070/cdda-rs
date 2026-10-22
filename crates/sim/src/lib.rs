@@ -95,6 +95,78 @@ pub fn process_fields(world: &mut World, now: i64, rolls: &mut cdda_core_types::
     }
 }
 
+/// Runs one turn of every field, in the reference's order, and lets each take its own turn.
+///
+/// Reference: `map::process_fields_in_submap` (`src/map_field.cpp:445-499`). Fields are processed squares first, x outside and y
+/// inside, then each square's fields in insertion order - and that order is observable, because the turn draws from the same dice
+/// as everything else.
+///
+/// The three steps are the rule, and they are here rather than at the call site:
+///
+/// 1. a field with no intensity is **gone** before anything runs;
+/// 2. a field **created this turn** is spared its processors and only decays, which is what gives a player standing in
+///    freshly-lit fire a turn to step out;
+/// 3. the decay comes **last**, so a field that spawns this turn is still at full strength while it does.
+///
+/// `turn_of` says which turn a field takes - in the game it is the turn of the field's type at the field's **live** intensity, so a
+/// field that upgrades takes the new level's numbers on its next turn. `on_turn` is where the processors run; the spawn rule itself
+/// belongs to the game layer, which owns the group table and the creatures.
+pub fn process_field_turns(
+    world: &mut World,
+    now: i64,
+    rolls: &mut cdda_core_types::rng::Rolls,
+    turn_of: impl Fn(&Field) -> Option<cdda_core_types::field::FieldTurn>,
+    mut on_turn: impl FnMut(
+        &cdda_core_types::field::FieldTurn,
+        (i32, i32),
+        &mut cdda_core_types::rng::Rolls,
+    ),
+) {
+    let mut order: Vec<(i32, i32, Entity)> = Vec::new();
+    let mut query = world.query::<(Entity, &Position)>();
+    for (entity, position) in query.iter(world) {
+        if world.get::<Field>(entity).is_some() {
+            order.push((position.x, position.y, entity));
+        }
+    }
+    order.sort_by_key(|&(x, y, entity)| (x, y, entity.to_bits()));
+    for (x, y, entity) in order {
+        let Some(field) = world.get::<Field>(entity) else {
+            continue;
+        };
+        if !field.entry.is_alive() {
+            world.despawn(entity);
+            continue;
+        }
+        let age = field.entry.age();
+        let turn = turn_of(field);
+        if age == 0 || turn.is_none() {
+            // Spared its processors; it still ages, which is the whole of what happens to it.
+            let died = world.get_mut::<Field>(entity).is_some_and(|mut field| {
+                field.entry.do_decay(now, rolls);
+                !field.entry.is_alive()
+            });
+            if died {
+                world.despawn(entity);
+            }
+            continue;
+        }
+        let Some(turn) = turn else {
+            continue;
+        };
+        // The spawn itself is the game layer's: it owns the group table and the creatures. The sim says only that the turn came,
+        // in the order the reference takes it.
+        on_turn(&turn, (x, y), rolls);
+        let died = world.get_mut::<Field>(entity).is_some_and(|mut field| {
+            field.entry.do_decay(now, rolls);
+            !field.entry.is_alive()
+        });
+        if died {
+            world.despawn(entity);
+        }
+    }
+}
+
 /// A thing that gives off light: a torch, a fire, a lamp.
 #[derive(Debug, Clone, Copy, Component)]
 pub struct LightSource {

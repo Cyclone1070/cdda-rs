@@ -144,3 +144,25 @@ impl FieldId {
     /// The null field type.
     pub const NULL: Self = Self(0);
 }
+
+/// What one intensity level of a field does on its turn.
+///
+/// The numbers are the field's own: its type carries them per level, and the port hands them over as a value rather than letting a
+/// spawner keep a second copy. Only the processors the port models are here - monster spawning, and the intensity upgrade that
+/// competes with it for the same turn. Reference: the processor list `field_type` registers at load time
+/// (`src/field_type.cpp:350`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FieldTurn {
+    /// The chance in a hundred that this level spawns a group.
+    pub spawn_chance: i32,
+    /// How many spawns to attempt.
+    pub spawn_count: i32,
+    /// The group to draw from.
+    pub spawn_group: String,
+    /// How far from the field the spawns appear.
+    pub spawn_radius: i32,
+    /// The chance in a hundred that the level upgrades instead.
+    pub upgrade_chance: i32,
+    /// How often the upgrade is rolled, in turns; zero disables it.
+    pub upgrade_duration: i64,
+}

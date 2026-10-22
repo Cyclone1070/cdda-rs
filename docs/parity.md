@@ -57,7 +57,7 @@ Nothing is `gated` without a link to the run that proved it.
 | Overmap terrain ids | done | P1 | The `overmap terrain type` registry is exactly the distinct `type: overmap_terrain` ids in the load set - 6,269 measured against 6,269 reported. The `overmap terrain` registry is those types expanded into rotation and line-drawing variants; the shape is known and the rotation rule is proven exactly: `!NO_ROTATE && !LINEAR` with flags inherited through `copy-from` and `delete` applied last, giving 5,901 rotatable types with no disagreement against the dump, plus 256 line-drawing shapes for the 14 `LINEAR` types. The type registry is **exact**: 6,269 against 6,269. **24,218 of 24,218 exact**, with rotations, the sixteen line-drawing shapes per `LINEAR` type and plain types all matching. The last eight came down to flag semantics: a plain `flags` member *replaces* what inheritance supplied, `extend.flags` adds, `delete.flags` removes last. See [15-overmap-terrain-ids.md](15-overmap-terrain-ids.md) |
 | Effect-on-conditions | done | P1 | **913 of 913 exact**, 692 defined and 221 inline. An inline effect is registered under the `id` inside the slot it sits in (`activated_eocs`, `true_eocs`, `result_eocs`, `eocs` and the rest, `effect_on_condition.cpp:119-133`). Collection stops at the slot boundary: a sound effect inside a dialogue effect also has an `id`, and collecting it invented seven effects that do not exist |
 | Overmap specials | done | P1 | **742 of 742 exact.** `overmap_special` and `city_building` are one namespace, and the `FakeSpecial_<id>` ids the reference mints for single-tile buildings named by a region but defined by no special are generated from the `city` lists of `region_settings`. `overmap_special` and `city_building` are one namespace - the reference's `city_buildings::load` is an alias for `overmap_specials::load` - so both are read into one set: 707 of 742. What is missing is exactly the 35 `FakeSpecial_<oter>` ids the reference mints for single-tile city buildings a region names but no special defines. See [15-overmap-terrain-ids.md](15-overmap-terrain-ids.md) |
-| Fields as things in the store | done (P2-T0c) | P2 | A patch of smoke is an `Entity` with a square, a strength and an age; `process_fields` walks the store in the reference's order (x outer, y inner, insertion order within a square) and despawns the dead. **The per-square container in the map layer is deleted** - the map no longer knows what smoke is on it, which is the point: one authority, not two |
+| Fields as things in the store | done (P2-T0c), single authority restored round 290 | P2 | A patch of smoke is an `Entity` with a square, a strength and an age; `process_fields` walks the store in the reference's order (x outer, y inner, insertion order within a square) and despawns the dead. **The per-square container in the map layer is deleted** - the map no longer knows what smoke is on it, which is the point: one authority, not two |
 | Gas spread | **partial** (arithmetic done, direction not) | P2 | `gas_spread_to` reproduces `map::gas_spread_to` (`src/map_field.cpp:250-273`): gas thins as it moves and gives up the fraction of its age equal to age divided by intensity; a square already holding the gas gets one thicker instead of a second field. Four tests transcribed from that function, including the guard that a single unit of gas does not spread and the check that the arithmetic draws no dice - the dice belong to the direction choice, so drawing one here would shift every later roll. **Not ported:** the direction itself, which needs wind (`get_local_windpower`) and `rng(1, 100 - windpower) > percent_spread` |
 | Sunlight as a system | done (P2-T0c) | P2 | `cast_sunlight` writes the sun's answer into the same [`Light`] resource the torches write, so daylight and lamps meet in one place. Four tests: open sky is bright at noon and black at midnight; a room with no sky depends on its torch; a torch outdoors never makes a square darker and never doubles it, because sources take the brighter corner rather than summing (`update_light_quadrants`); and clearing the answer leaves nothing, because a stale answer is not an answer. The pipeline is clear, then sun, then sources, and a test caught the reason: a merge by maximum will happily keep last turn's brighter value and hide a dimming |
 | Light as a system | done (P2-T0c) | P2 | `cast_lights` reads the store - terrain from the map resource, sources and smoke as components - and writes a [`Light`] resource of four quarters per square. The smoke test that used to live in the map layer now lives here: a torch lights a room, and an entity standing between torch and wall dims the wall. Terrain transparency is still a two-valued rule (solid or open air) because per-terrain transparency has not been ported; the ledger says so rather than pretending otherwise |
@@ -76,7 +76,7 @@ Nothing is `gated` without a link to the run that proved it.
 | Field decay | done | P2 | `FieldEntry` reproduces `src/field.cpp:58-113`. Three rules that read like bugs and are not: intensity never falls below one, death is a separate flag, and a decay resets the age *and* the decay time so the next half-life is drawn afresh. The decay time itself is `now - age + half_life` where the age has already been ticked, so a field with a half-life of five decays on the fourth tick after it starts, not the fifth. Fire's own branch (`dice(2, age)` against the half-life) is ported but only its shape is tested: the exact draw belongs to the shared RNG stream and will be gated by a replay |
 | Cached light | done | P2 | (the previous round's commit says 347 tests; the suite held 346 - 344 plus the two that round added) |
 | Transparency memo | done | P2 | Whether a tile blocks light is worked out once per tile, not once per cast: two casts from nearby tiles pay only for the row and column the other never saw, and a write drops that one tile's entry rather than a whole window. The reference caches transparency per level; a per-tile memo is the same idea at a finer grain |
-| Fields as things in the store | **in progress (P2-T0c)** | P2 | `Field` is a component and a patch of smoke is an `Entity` with a square, a strength and an age; `process_fields` walks them in the reference's order (x outer, y inner, insertion order within a square) and despawns the dead. Three tests hold it, including that a dying field leaves the store and that the walk order is the one the dice stream depends on. **The old per-square container in `Level` still exists and still feeds the light**, so the store and the container disagree for now - that is the next cut, and it is why this row says in progress rather than done |
+| Fields as things in the store | done (P2-T0c), single authority restored round 290 | P2 | `Field` is a component and a patch of smoke is an `Entity` with a square, a strength and an age; `process_field_turns` walks them in the reference's order (x outer, y inner, insertion order within a square) and despawns the dead. The three steps of `map::process_fields_in_submap` are the rule: a dead field goes before anything runs, a field **created this turn** is spared its processors and only decays, and the decay comes **last**. The turn is taken per field at its **live** intensity, so a field that upgrades uses the new level's numbers next turn. Five tests. **Correction, round 290:** rounds 285 to 289 had built a second authority - a per-square container on `Level` - and the five green tests that guarded it proved nothing, because nothing compared it against the store. The container and its tests are deleted; the turn rules live in the store's own system, and `FieldTurn` moved to `cdda-core-types` so the sim can name a turn without depending on the data crate. The claim that a `Level` container still fed the light was wrong: nothing feeds it but the store |
 | Point light sources | done (memoised transparency) | P2 | `Level::add_light_source` casts from a source with the ported caster and raises the quarter facing it by `sight_calc` of the luminance, falling off with distance. Five properties hold: nearer is brighter, the corner facing the lamp is the lit one, a wall shadows what is behind it, a source under `LIGHT_AMBIENT_LOW` casts nothing (its range is zero), and a second lamp raises a tile without doubling it. The ray accumulation the reference does is now ported too: `cast_light_values` averages transparency along each ray as it travels (`accumulate_transparency`), so smoke dims what is behind it - gated by a test that puts a band of smoke in front of a wall and requires the wall behind it to be darker. The sign is worth stating because it cost a round: the value is attenuation *per tile*, so open air is 2.3/72 = 0.032, smoke is 0.38, and higher means dimmer - while solid is 0.0 and special-cased as blocking |
 | Daylight on the level | done | P2 | `Level::daylight` reproduces the ambient pass of `map::build_map_cache`: outdoors takes the sun in all four quarters, an indoor tile with open sky to its south lights only its south quarters and leaves the back of the room dark, a tile with no opening stays at the indoor level, and the same room is black at midnight. `outside` is asked tile by tile rather than decided here - it depends on terrain and roofs, which the level does not own |
 | Astronomy | done (gated on 424 samples) | P2 | `sun_azimuth_and_altitude_in_year` reproduces `sun_azimuth_altitude` (`src/calendar.cpp:123-239`) to **1.4e-3 degrees** over 424 samples of a year; the residual is the reference's angle helpers rounding, since every intermediate matches to the printed digits. Two things the dump taught: the year length is an option, not a constant, so the function takes it (a four-day year is a different curve, not a scaled one); and a dump that does not record its calendar cannot be gated against - the harness now prints the year and season length, and exposing the intermediates (`--dump-astronomy` carries ra, dec, sidereal, hour angle) is what made a six-step chain debuggable instead of a black box |
@@ -377,24 +377,25 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
-## The sweep follows the field's live intensity (round 289)
+## Correction: one authority for fields, not two (round 290)
 
-The sweep now takes the **type** rather than a constant turn and builds each field's turn from its own intensity, so a field that
-upgrades mid-turn takes the new level's numbers on its next turn. A field whose intensity the type has no level for decays without
-running anything.
+Rounds 285 to 289 built the field turn against a **container on the level** - `Level::field_squares`, `take_field`, a sweep that
+walked it - and that was wrong. The ledger already said so two phases ago: fields are **entities in the store**, `process_fields`
+walks the store, and *the per-square container in the map layer is deleted, because one authority is the point*. I added a second
+one, and it survived five rounds of green tests precisely because nothing compared it against the store.
 
-Five tests, one new: the same field on the same square **spawns at intensity one and does not at intensity two**, because the
-fixture's two levels differ in exactly that. A sweep that used one level's numbers for everything fails one half of that pair.
+What survives the correction, and where:
 
-## Each intensity hands over its own numbers (round 288)
+| Piece | Where it lives now |
+|---|---|
+The turn's numbers per intensity | `FieldLevel::turn` and `turn_at` in `cdda-content`, gated against the reference's own field dump - **every** level hands over its own chance, count, group, radius and upgrade; the data has **two** spawning levels |
+The three steps of a turn | `process_field_turns` in `cdda-sim`, over the store: a dead field is gone before anything runs; a field **created this turn** is spared its processors and only decays; the decay comes **last** |
+The sweep order | the same system: squares in **x outside, y inside** order, then each square's fields by entity, with a test that records the squares it walked and gets them column by column |
+The live intensity | the system asks `turn_of` for **each** field, so a field that upgrades takes the new level's numbers on its next turn - the test observes the turn contents, one monster at intensity one and none at intensity two |
+The spawn rule | `spawn_monsters_from_field` in `cdda-content`, unchanged; the sim system hands the turn to the game layer, which owns the group table and the creatures, so `cdda-sim` keeps its one dependency |
+The map-layer container | **deleted**, with the three test files that exercised it: a second authority is worse than a gap, because it looks like progress |
 
-`turn_at(field, intensity)` picks the level before it builds the turn, because every processor asks `cur.get_intensity_level()`
-first (`map_field.cpp:764`). An intensity-three field is **not** the intensity-one field: the data gives each level its own chance,
-count and group, and using one level's numbers for all of them spawns at the wrong rate on every field with more than one level.
-An intensity of zero, or one the data does not have, hands over nothing.
-
-Three tests: two levels that differ in everything a turn reads hand over what they were written with; an intensity outside the data
-hands over nothing; and every level of the reference's whole field dump is selected by its own intensity - more than fifty of them.
+`FieldTurn` moved to `cdda-core-types` so the sim can name the turn without depending on the data crate.
 
 ## The turn reads the field's own numbers (round 287)
 
@@ -406,36 +407,15 @@ Two tests: **every** level in the reference's field dump hands over its chance, 
 and the data has **two** spawning intensity levels, which is the count the monster spawn gate was built around; and `fd_smoke`,
 which spawns nothing, says so at every level.
 
-## The sweep reads the level it sweeps (round 286)
+## The turn reads the field's own numbers (round 287)
 
-`run_level_field_turns` replaces the caller-supplied map with the level itself: `Level::field_squares` already hands the squares
-back column by column, so the sweep never sorts and the dice are spent in the reference's sequence. Each field is **taken off**
-the level, given its turn, and put back **only if it survived** - which is how the reference's removal of a decayed field falls
-out of the same pass rather than needing a second one.
+`FieldLevel::turn()` builds the turn from the level's own data instead of a hand-built constant. The reference registers each
+processor at load time and reads its numbers off the level it runs at (`field_type.cpp:350`), and a rule handed its constants by
+hand drifts while every test stays green.
 
-Four tests, one of them new: a field aged past its half-life with an intensity of one **leaves the level** during its own turn and
-is not restored.
-
-## The level holds the fields (round 285)
-
-A field has to live somewhere between turns. `Level` now keeps one entry per square, with `add_field`, `field_at`, `take_field` and
-- the one that matters - `field_squares`, which returns the populated squares **column by column**, exactly the order the sweep
-consumes them. Putting a field down or taking one away also marks the light dirty, because fire is a light source and the cached
-cast would otherwise be reused.
-
-Four tests: an empty level has none; a field can be placed, read and taken away leaving nothing behind; four fields at scattered
-coordinates come back `(0,0), (0,11), (3,2), (3,9)`; and placing one twice replaces rather than duplicates.
-
-## The sweep, column by column (round 284)
-
-`run_submap_field_turns` walks a submap the way `process_fields_in_submap` does (`map_field.cpp:445-499`): **`locx` outside, `locy`
-inside**, so a submap is visited column by column, and squares with no field are skipped without touching the dice. The order is
-not cosmetic - every die a field spends lands in that sequence - and it is the same trap that cost this port six rounds in map
-generation.
-
-The test states the order rather than inferring it: a visitor records the squares the sweep processed, and four fields in the
-corners of a two-by-two block come out `(0,0), (0,1), (1,0), (1,1)`. Three tests, including that a lone field on a square spends
-nothing on the eleven columns before it.
+Two tests: **every** level in the reference's field dump hands over its chance, count, group, radius and upgrade exactly as written -
+and the data has **two** spawning intensity levels, which is the count the monster spawn gate was built around; and `fd_smoke`,
+which spawns nothing, says so at every level.
 
 ## What a field does on its turn (round 283)
 

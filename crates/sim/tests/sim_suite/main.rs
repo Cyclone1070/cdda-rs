@@ -27,6 +27,7 @@ mod extinguisher;
 mod field_growth;
 mod field_ids;
 mod field_turn;
+mod field_turns;
 mod fields;
 mod fire_burnout;
 mod fire_flashpoint;
