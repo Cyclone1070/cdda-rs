@@ -70,3 +70,47 @@ pub fn sound_distance_3d(source: (i32, i32, i32), sink: (i32, i32, i32)) -> i32 
     attenuation *= 5;
     crate::sound::sound_distance((source.0, source.1), (sink.0, sink.1)) + attenuation
 }
+
+/// What of a noise survives the weather.
+///
+/// Reference: `sounds::process_sounds` (`src/sounds.cpp:470`), which subtracts `weather_id->sound_attn` from every cluster's volume
+/// before any monster hears it. The subtraction is **unguarded**, so a quiet noise in a storm has a negative volume here - and a port
+/// that clamped at zero would report a different number to anything that shows the player what they heard, even where the rules
+/// downstream behave the same.
+#[must_use]
+pub fn heard_volume(volume: i32, weather_attn: i32) -> i32 {
+    volume - weather_attn
+}
+
+/// The signal a noise sends to hordes on the overmap.
+///
+/// Reference: `get_signal_for_hordes` (`src/sounds.cpp:432-458`). The weather comes off the volume first; below ground the result is
+/// divided by **twice** the depth, so a cellar halves it and a deep shaft silences it. A result of sixty or less sends nothing at all;
+/// past that the signal is the volume over `SEEX`, floored at eight and capped at twenty-six, so a distant horde is either not called
+/// or called with a usable number - never with a whisper.
+#[must_use]
+pub fn horde_signal(volume: i32, weather_attn: i32, z: i32) -> i32 {
+    /// Hordes cannot hear a volume below this.
+    const MIN_VOLUME_CAP: i32 = 60;
+    /// Underground, the volume is divided by twice the depth.
+    const UNDERGROUND_DIV: i32 = 2;
+    /// The reference's `SEEX`, which is the divisor from tiles to submaps.
+    const HORDES_SIGNAL_DIV: i32 = 12;
+    /// The quietest signal that still counts as one.
+    const MIN_SIGNAL_CAP: i32 = 8;
+    /// The loudest.
+    const MAX_SIGNAL_CAP: i32 = 26;
+
+    let heard = heard_volume(volume, weather_attn);
+    let underground = if z < 0 {
+        heard / (UNDERGROUND_DIV * z.abs())
+    } else {
+        heard
+    };
+    if underground <= MIN_VOLUME_CAP {
+        return 0;
+    }
+    // `std::ceil` of a float, which for a positive integer division means rounding up.
+    let signal = (underground + HORDES_SIGNAL_DIV - 1) / HORDES_SIGNAL_DIV;
+    signal.clamp(MIN_SIGNAL_CAP, MAX_SIGNAL_CAP)
+}
