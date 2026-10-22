@@ -406,6 +406,27 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## A fire reading a real map (round 322)
+
+Every answer the fire chain had been receiving from a test double now has a real source. `TerrainFacts` carries the six flags the reference asks about -
+`FLAMMABLE`, `FLAMMABLE_ASH`, `FLAMMABLE_HARD`, `FIRE_CONTAINER`, `NO_FLOOR`, `SUPPRESS_SMOKE` - and `MapFacts` is those facts per square plus which squares
+hold fires, implementing `FireMap` in full.
+
+| Question | Answer's source | The reference's rule |
+|---|---|---|
+`can_burn` | the flags underfoot | `( ter.is_flammable() || frn.is_flammable() ) && !FIRE_CONTAINER` |
+`neighbour` | the flags beside | the spread rule's four kinds |
+`suppress_smoke` | the flag underfoot | `SUPPRESS_SMOKE` |
+`smoke_ceiling_open` | the flag **overhead** | `has_flag_ter( NO_FLOOR, up )` |
+`adjacent_fires` | the fire set | the eight around, same floor |
+`can_spread` | a container holds its fire | a brazier does not spill |
+
+Six tests, each a transcribed reference rule. The one worth reading twice is the brazier: it is `FLAMMABLE` and it must **not** feed the fire inside it, because
+`FIRE_CONTAINER` overrides flammability - the kind of rule that is invisible until a player builds one and the fire burns for ever.
+
+**Layering kept intact:** `cdda-sim` does not depend on `cdda-content`. The tests convert a loaded `MapData` into `TerrainFacts` the way the game's adapter
+will, so the systems stay ignorant of JSON and the loaders stay ignorant of systems.
+
 ## Smoke rises through an open floor (round 321)
 
 The last declared gap in the fire chain is closed: `FireMap` gained `smoke_ceiling_open` - is there `TFLAG_NO_FLOOR` in the square overhead - and `fire_discharge`

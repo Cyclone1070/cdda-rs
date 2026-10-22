@@ -206,6 +206,126 @@ pub trait FireMap {
     }
 }
 
+/// The handful of terrain facts the fire chain asks about, read from a loaded prototype.
+///
+/// The reference asks the terrain and furniture objects themselves (`ter_furn_has_flag`), which is fine because they are right there. The port keeps the
+/// *answers* rather than the objects, so `cdda-sim` does not have to know what a `MapData` is - and so a test can describe a square in six booleans.
+// Six independent answers, because the reference asks six independent flags; grouping them into enums would invent relationships the game does not have
+// (a floor can be `FLAMMABLE_HARD` and `NO_FLOOR` at once).
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TerrainFacts {
+    /// `FLAMMABLE`: feeds a fire every turn.
+    pub flammable: bool,
+    /// `FLAMMABLE_ASH`: the same, and leaves ash behind.
+    pub flammable_ash: bool,
+    /// `FLAMMABLE_HARD`: feeds a fire on a die.
+    pub flammable_hard: bool,
+    /// `FIRE_CONTAINER`: a brazier holds its fire and does not feed it.
+    pub fire_container: bool,
+    /// `NO_FLOOR`: open air here, so nothing above a fire is holding its smoke down.
+    pub no_floor: bool,
+    /// `SUPPRESS_SMOKE`: a sealed room.
+    pub suppress_smoke: bool,
+}
+
+impl TerrainFacts {
+    /// Whether this square is a fuel the fire can eat, as the reference defines it.
+    ///
+    /// Reference: `can_burn = ( ter.is_flammable() || frn.is_flammable() ) && !has_flag( FIRE_CONTAINER )` (`src/map_field.cpp:1050`). The container rule
+    /// is the surprising half: a brazier is flammable and must not feed what is burning in it.
+    #[must_use]
+    pub fn can_burn(&self) -> bool {
+        (self.flammable || self.flammable_ash || self.flammable_hard) && !self.fire_container
+    }
+}
+
+/// The map as the fire chain sees it: terrain answers per square, and which squares are on fire.
+///
+/// A read model, not a second authority. It is built from the world at the start of a turn (`note_fire` for each fire, `set_terrain` for each square the game
+/// has loaded), and thrown away afterwards. Keeping it separate from the store is what lets the fire rules be asked about a square without a `&World`.
+#[derive(Debug, Clone, Default)]
+pub struct MapFacts {
+    terrain: BTreeMap<(i32, i32, i32), TerrainFacts>,
+    fires: std::collections::BTreeSet<(i32, i32, i32)>,
+}
+
+impl MapFacts {
+    /// An empty map: no terrain, no fires.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Says what is underfoot at a square.
+    pub fn set_terrain(&mut self, square: (i32, i32, i32), facts: TerrainFacts) {
+        self.terrain.insert(square, facts);
+    }
+
+    /// Records that a square holds a fire, for [`FireMap::adjacent_fires`].
+    pub fn note_fire(&mut self, square: (i32, i32, i32)) {
+        self.fires.insert(square);
+    }
+
+    /// What is underfoot, or nothing at all for a square nobody described.
+    #[must_use]
+    pub fn terrain_at(&self, square: (i32, i32, i32)) -> TerrainFacts {
+        self.terrain.get(&square).copied().unwrap_or_default()
+    }
+}
+
+impl FireMap for MapFacts {
+    fn adjacent_fires(&self, square: (i32, i32, i32)) -> i32 {
+        let mut count = 0;
+        for (index, _) in EIGHT_NEIGHBOURS.iter().enumerate() {
+            if let Some(offset) = EIGHT_NEIGHBOURS.get(index) {
+                let beside = (square.0 + offset.0, square.1 + offset.1, square.2);
+                if self.fires.contains(&beside) {
+                    count += 1;
+                }
+            }
+        }
+        count
+    }
+
+    fn can_burn(&self, square: (i32, i32, i32)) -> bool {
+        self.terrain_at(square).can_burn()
+    }
+
+    fn time_added(&self, _square: (i32, i32, i32)) -> i64 {
+        // The fuel arithmetic itself rolls dice, so it belongs to the fire's turn rather than to the map's answers; see `ground_fuel`.
+        0
+    }
+
+    fn can_spread(&self, square: (i32, i32, i32)) -> bool {
+        // Whether the fire may spread from here is about what it is: a brazier or an oven does not spill onto the floor.
+        !self.terrain_at(square).fire_container
+    }
+
+    fn neighbour(&self, square: (i32, i32, i32)) -> cdda_core_types::fire::Neighbour {
+        let facts = self.terrain_at(square);
+        cdda_core_types::fire::Neighbour {
+            has_fire: self.fires.contains(&square),
+            web: false,
+            flammable: facts.flammable || facts.flammable_ash,
+            flammable_ash: facts.flammable_ash,
+            flammable_hard: facts.flammable_hard,
+        }
+    }
+
+    fn suppress_smoke(&self, square: (i32, i32, i32)) -> bool {
+        self.terrain_at(square).suppress_smoke
+    }
+
+    fn smoke_produced(&self, _square: (i32, i32, i32)) -> i32 {
+        0
+    }
+
+    fn smoke_ceiling_open(&self, square: (i32, i32, i32)) -> bool {
+        self.terrain_at((square.0, square.1, square.2 + 1)).no_floor
+    }
+}
+
 /// Gives every fire on the level its turn: it spends or gains fuel, and grows if it has earned it.
 ///
 /// Reference: the fire processor inside the per-turn field sweep (`src/map_field.cpp:945-1360`), whose arithmetic is

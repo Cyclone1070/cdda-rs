@@ -61,6 +61,7 @@ mod kill_to_loot;
 mod level_turn;
 mod levels;
 mod light_system;
+mod map_facts;
 mod monster_action;
 mod monster_blocked;
 mod monster_damage;
