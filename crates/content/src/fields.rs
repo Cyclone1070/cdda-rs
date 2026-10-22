@@ -309,3 +309,31 @@ pub fn spawn_monsters_from_field<'a>(
     }
     placed
 }
+
+/// The same spawn, asking a **level** what is on each square instead of a caller-supplied predicate.
+///
+/// The terrain table is passed as a function rather than a map so this stays a rule about spawning and not a second copy of the
+/// loader: the caller says which terrain ids take a creature, and the level says which square holds which id.
+#[allow(clippy::too_many_arguments)]
+pub fn spawn_monsters_on_level<'a>(
+    level: &cdda_core_types::level::Level,
+    takes_creature: impl Fn(u32) -> bool,
+    spawn_chance: i32,
+    spawn_count: i32,
+    spawn_group: &str,
+    center: (i32, i32),
+    radius: i32,
+    groups: &'a [crate::monster_groups::MonsterGroup],
+    rolls: &mut Rolls,
+) -> Vec<(&'a str, (i32, i32))> {
+    spawn_monsters_from_field(
+        spawn_chance,
+        spawn_count,
+        spawn_group,
+        center,
+        radius,
+        groups,
+        |x, y| level.terrain_at(x, y).is_some_and(&takes_creature),
+        rolls,
+    )
+}

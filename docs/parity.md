@@ -377,6 +377,15 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Spawning against a real level (round 282)
+
+A field processor does not have a predicate, it has a **map**: `spawn_monsters_on_level` joins the two, with the level answering
+what is on a square and a terrain predicate answering whether that takes a creature. Three tests on a level with a wall down one
+column: across sixty seeds **no monster ever stood in the wall**, a field beside the wall put every monster on the open side, and
+a field walled in on all sides spawned nothing.
+
+The terrain table stays a function rather than a second copy of the loader, so this remains a rule about spawning.
+
 ## Whether a square will take a creature (round 281)
 
 `map::passable_through` is two questions joined by **and** (`map.cpp:2419-2422`): room (`move_cost != 0`) and a floor (not
