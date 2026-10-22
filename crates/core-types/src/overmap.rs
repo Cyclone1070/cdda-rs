@@ -1335,6 +1335,17 @@ pub fn feather_pool(
     pool
 }
 
+/// The reference's corner rule, which never runs - kept because its intent is documented behaviour.
+///
+/// **This is dead code in the reference, and a port must not call it.** `mapgen_forest` declares
+/// `forest_biome self_biome = current_biome_def_it->second;` - a **copy** - and then compares the neighbour pointers
+/// against `&self_biome`. A pointer into the region's own biome map is never the address of that local copy, so both
+/// branches below are unreachable and no weight is ever blended. A traced world settles it: four chunks generated beside
+/// open ground are explained by the raw neighbour weights on **576 of 576** squares, with no blending anywhere.
+///
+/// It stays here, and tested, as the rule the source *means* to apply - not the rule it applies. See
+/// `docs/parity.md`, "the corner rule is dead code".
+///
 /// Stops a biome poking into a corner it does not own.
 ///
 /// Reference: `unify_continuous_border` in `mapgen_forest`. When a square's corner is one biome and both of its sides

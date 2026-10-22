@@ -308,6 +308,29 @@ equality; JSON accept/reject parity". Each part, and where it is proven:
 | JSON acceptance is identical | All 6,220 shipped files: same accept/reject verdict and same structural digest as the reference; the writer is compared byte for byte on 127 of them |
 | The cache changes nothing | All 6,220 files read identically cold and warm |
 
+## The corner rule is dead code (round 248)
+
+The gap of the previous round is closed, and it was not a subtlety in the guard - it was that **the rule never runs.**
+
+`mapgen_forest` declares `forest_biome self_biome = current_biome_def_it->second;` - a **copy** of the region's biome -
+and then asks `ccw == &self_biome`. The neighbours it compares against are pointers **into the region's biome map**, so
+one is a heap address inside that map and the other is the address of a local copy: they are never equal, and both
+branches begin with exactly that comparison. `unify_continuous_border` is unreachable.
+
+A traced world says the same thing independently: four chunks generated beside open ground are explained by the **raw**
+neighbour weights, plain woodland at density three, on **576 of 576** squares each - no blending anywhere.
+
+The two mistakes this corrects are mine, and both were plausible:
+
+- **The "edge chunks".** Round 246 found six chunks no side mask explained and read that as corner blending firing. It
+  was the assumed **density**: those chunks are plain woodland, and evaluating them at the denser woodland's density of
+  four fits nothing.
+- **The 288-of-576 score.** Round 247 read it as the port's corner arithmetic disagreeing with the reference's. It was
+  the port's **test** applying a rule the reference does not execute; the port's own generation pass never called it.
+
+The function stays in the core types, tested, marked as the rule the source *means* to apply rather than the one it
+applies - because deleting it would hide the finding, and calling it would invent behaviour.
+
 ## The corner rule against a real edge, and the gap it exposed (round 247)
 
 The trace now records each chunk's **eight neighbour terrains** beside its weights, so the whole chain - perimeter to

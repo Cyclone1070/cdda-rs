@@ -16,7 +16,7 @@
     clippy::needless_range_loop
 )]
 
-use cdda_core_types::overmap::{feather_pool, nesw_weights, unify_all_borders};
+use cdda_core_types::overmap::{feather_pool, nesw_weights};
 
 const SIDE: i32 = 24;
 const TOLERANCE: f32 = 3e-3;
@@ -119,16 +119,16 @@ fn pool_for(chunk: &Chunk, point: (i32, i32), self_id: Option<&str>, factor: f32
         is_woodland(chunk.neighbours[2].as_deref()),
         is_woodland(chunk.neighbours[3].as_deref()),
     ];
-    let mut weights = nesw_weights(point, SIDE, &chunk.perimeter, 0.0, owns).map(|w| w * factor);
-    let mut self_weight = SELF_WEIGHT;
-    let names: [Option<&str>; 8] = std::array::from_fn(|index| {
-        chunk.neighbours[index]
-            .as_deref()
-            .filter(|name| is_woodland(Some(name)))
-    });
-    unify_all_borders(point, SIDE, names, &mut weights, self_id, &mut self_weight);
+    // **No corner blending.** The reference's `unify_continuous_border` compares the neighbour pointers against
+    // `&self_biome`, and `self_biome` is a **copy** of the biome, whose address can never equal a pointer into the
+    // region's own biome map. Both branches begin with one of those comparisons, so the rule never runs - which is why
+    // every square of every chunk here is explained by the raw neighbour weights. The port's own pass never called it
+    // either; only this test did, and the 288-of-576 score of the previous round was the port inventing behaviour the
+    // reference does not have.
+    let _ = self_id;
+    let weights = nesw_weights(point, SIDE, &chunk.perimeter, 0.0, owns).map(|w| w * factor);
     let net: f32 = weights.iter().sum();
-    feather_pool(weights, self_weight, net, MAX_FACTOR, factor, [factor; 4])
+    feather_pool(weights, SELF_WEIGHT, net, MAX_FACTOR, factor, [factor; 4])
 }
 
 #[test]
@@ -149,47 +149,38 @@ fn four_edge_chunks_with_their_eight_neighbours_and_perimeters() {
 }
 
 #[test]
-fn the_chain_matches_most_of_an_edge_chunk_and_the_rest_is_recorded_as_a_gap() {
-    // Honest score, not a claim of parity. With plain woodland and density three, the chain reproduces **288 of 576**
-    // squares of this edge chunk. The first disagreement is square (0,12): the reference leaves its south weight at
-    // 0.25 and its own weight at 3, while the port's corner rule divides the south weight to 0.0769 - the arithmetic of
-    // the rule's **second** branch, which the reference did not take here even though the three names involved match
-    // what that branch asks for (south is this world's woodland, the south-west corner and the west side are the denser
-    // woodland, and the square's own biome is plain). So either the branch's guard is not what the port reproduces, or
-    // the corner slot is not the one the port passes. Until that is settled the test says 288 and names the square.
-    let chunk = &chunks()[0];
-    let mut matched = 0;
-    let mut first_miss = None;
-    for (x, y, recorded, _) in &chunk.squares {
-        let pool = pool_for(chunk, (*x, *y), Some("forest"), 3.0);
-        let weights = [pool[0], pool[1], pool[2], pool[3]];
-        if (0..4).all(|d| (weights[d] - recorded[d]).abs() < TOLERANCE) {
-            matched += 1;
-        } else if first_miss.is_none() {
-            first_miss = Some((*x, *y, weights, *recorded));
+fn every_square_of_every_edge_chunk_is_explained_by_the_raw_neighbour_weights() {
+    // The score the previous round could not reach. Plain woodland, density three, **no corner blending**, and every
+    // single square matches - 576 of 576 in all four chunks. My first version allowed two misses per chunk expecting
+    // rounding to cost something; it costs nothing at this tolerance, and the assertion was tightened when the run
+    // reported a perfect score rather than being left loose to look cautious.
+    for chunk in chunks() {
+        let mut matched = 0;
+        let mut misses = Vec::new();
+        for (x, y, recorded, _) in &chunk.squares {
+            let pool = pool_for(&chunk, (*x, *y), Some("forest"), 3.0);
+            let weights = [pool[0], pool[1], pool[2], pool[3]];
+            if (0..4).all(|d| (weights[d] - recorded[d]).abs() < TOLERANCE) {
+                matched += 1;
+            } else {
+                misses.push((*x, *y, weights, *recorded));
+            }
         }
+        assert_eq!(
+            matched,
+            576,
+            "chunk {:?} matched {matched} of 576; misses {:?}",
+            chunk.omt,
+            &misses[..misses.len().min(3)]
+        );
     }
-    assert_eq!(matched, 288, "matched {matched} of 576");
-    let (x, y, computed, recorded) = first_miss.expect("a first disagreement");
-    assert_eq!(
-        (x, y),
-        (0, 12),
-        "the first disagreement is on the western edge"
-    );
-    assert!(
-        (recorded[2] - 0.25).abs() < 1e-4,
-        "the reference keeps 0.25: {recorded:?}"
-    );
-    assert!(
-        (computed[2] - 0.076_923).abs() < 1e-4,
-        "the port divides it: {computed:?}"
-    );
 }
 
 #[test]
 fn the_denser_woodland_explains_none_of_the_chunk() {
     // The chunk's own density is read off the record rather than assumed: a north weight of 2.30769 is ten squares of
-    // perimeter over thirteen rows, times three - and the same numbers times four are nowhere in the trace.
+    // perimeter over thirteen rows times three, and the same numbers times four are nowhere in the trace. This is what
+    // made four chunks look like "edges" in the previous round: the density was assumed to be four.
     let chunk = &chunks()[0];
     let mut matched = 0;
     for (x, y, recorded, _) in &chunk.squares {
@@ -200,4 +191,25 @@ fn the_denser_woodland_explains_none_of_the_chunk() {
         }
     }
     assert_eq!(matched, 0, "dense woodland does not explain this chunk");
+}
+
+#[test]
+fn the_reference_s_corner_rule_is_dead_code_because_it_compares_against_a_copy() {
+    // Stated as an executable fact rather than a comment: the source declares `forest_biome self_biome = ...->second`,
+    // a copy, and then asks `ccw == &self_biome`. A pointer into the region's biome map is never the address of that
+    // copy, so both branches are unreachable, and a port that applies the rule anyway invents behaviour the reference
+    // does not have.
+    let source = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../references/Cataclysm-DDA/src/mapgen_functions.cpp"),
+    )
+    .expect("the reference source");
+    assert!(
+        source.contains("forest_biome self_biome = current_biome_def_it->second;"),
+        "self_biome is a copy"
+    );
+    assert!(
+        source.contains("cw == &self_biome"),
+        "and is compared by address"
+    );
 }
