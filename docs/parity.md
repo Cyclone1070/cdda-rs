@@ -406,6 +406,27 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## A whole turn against the recording, and the rule it found (round 324)
+
+`fire_session_parity` does what the last four rounds were building towards: it loads the session's **entire terrain grid** (the dump grew a `"grid"` of all 49
+squares this round, because terrain under the neighbours is as much part of the answer as terrain under the fire), places the fire where the fixture has it,
+and hands the port the reference's own dice for one processed turn.
+
+It did not pass, and what it found is worth more than a pass:
+
+| Finding | Consequence |
+|---|---|
+the reference draws `one_in( 3 )` **before** the spread loop, for the **flashpoint** rule | the port is one die behind from the second draw of every turn |
+the flashpoint and the **growth** share that die as an `if / else if` | the port grows fires on turns the reference does not |
+`adjacent_fires` is counted **inside** that block | the port's count is an input where the reference's is an output |
+
+A real ordering bug was fixed on the way: `spread_fire` drew the terrain rolls before the chance roll, while the reference's condition is
+`can_spread && rng( 1, 100 ) < spread_chance && ( ... flag && one_in( n ) ... )` and short-circuits left to right. Two tests now pin that order, including the
+one that matters most: **a fire that fails the chance never rolls for the ground**.
+
+The whole-turn test is `#[ignore]`d with the reason written into the attribute, rather than deleted or made lenient. It is not a green test; it is a named,
+reproducible gap with the reference's dice attached, and the next round's work.
+
 ## The fuel rule moves into the fire's turn (round 323)
 
 `FireMap::time_added` is gone. It was a value handed to the fire chain by whoever built the map, which made the one thing the fuel rule is - *a die* - invisible.

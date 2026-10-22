@@ -66,3 +66,12 @@ That is what makes dice parity testable. `core_types_suite/fire_ground.rs` reads
 4 | `int 0 2 1` | failed | no fuel |
 
 The order is the point: a port that rolled the bash die first would shift every later draw in the turn.
+
+## The grid, added in round 324
+
+The dump now carries a `"grid"` array: the terrain and furniture of **every** square in the radius, not only of the squares that happen to hold a field.
+Without it a replay has to guess the ground under the fire's neighbours, and the guess is invisible - the fuel branch, the spread rule and whether smoke may
+rise all read terrain, and a port that reads "nothing" everywhere looks plausible and spreads differently.
+
+The dump is 49 squares (`radius 3`), seven by seven, and the session's fire sits at `(69, 60)`: the room is `t_floor`, the walls are `t_wall_w`, and the
+fixture is regenerated with the command at the top of this file.

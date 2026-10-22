@@ -129,8 +129,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-23 01:11:48
-@@ -0,0 +1,1217 @@
++++ oracle/src/src/harness.cpp	2026-10-23 03:30:30
+@@ -0,0 +1,1232 @@
 +#include "harness.h"
 +#include "recipe_dictionary.h"
 +#include "requirements.h"
@@ -1231,9 +1231,24 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    // Where in the reference's dice stream the session begins. `CDDA_RNG_TRACE` records every draw the whole run makes,
 +    // world generation included, so a replay needs the offset to slice its own dice out of that file.
 +    std::fprintf( out,
-+                  "{\"harness\":\"field-series\",\"version\":1,\"radius\":%d,\"draw_start\":%llu,\"turns\":[\n",
++                  "{\"harness\":\"field-series\",\"version\":1,\"radius\":%d,\"draw_start\":%llu,",
 +                  radius, rng_draws_so_far() );
 +    const tripoint_bub_ms center = get_avatar().pos_bub();
++    // The terrain of the **whole** radius, not just of the squares that carry a field. A replay needs the ground under every square the fire might care
++    // about - the fuel branch, the spread rule, whether smoke may rise - and a dump that lists terrain only where fields are leaves the rest of the map
++    // a guess, which is exactly the part a port would get wrong without noticing.
++    std::fprintf( out, "\"grid\":[" );
++    bool first_square = true;
++    for( const tripoint_bub_ms &p : g->harness_map().points_in_radius( center, radius ) ) {
++        const ter_id &ter = g->harness_map().ter( p );
++        const furn_id &frn = g->harness_map().furn( p );
++        std::fprintf( out, "%s{\"x\":%d,\"y\":%d,\"z\":%d,\"ter\":\"%s\",\"furn\":\"%s\"}",
++                      first_square ? "" : ",", p.x(), p.y(), p.z(),
++                      harness::harness_escape( ter.id().str() ).c_str(),
++                      harness::harness_escape( frn.id().str() ).c_str() );
++        first_square = false;
++    }
++    std::fprintf( out, "],\n\"turns\":[" );
 +    for( int turn = 0; turn <= turns; turn++ ) {
 +        std::fprintf( out, "%s{\"turn\":%d,\"fields\":[", turn == 0 ? "" : ",\n", turn );
 +        bool first = true;

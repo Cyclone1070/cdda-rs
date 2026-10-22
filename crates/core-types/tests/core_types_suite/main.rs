@@ -20,6 +20,7 @@ mod fire_hot_air;
 mod fire_rules;
 mod fire_smoke;
 mod fire_spread;
+mod fire_spread_order;
 mod forest_border;
 mod forest_corner_arithmetic;
 mod forest_corners;

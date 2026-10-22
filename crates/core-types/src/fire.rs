@@ -166,15 +166,15 @@ pub fn spread_fire(
         }
         let chance = spread_chance(intensity, neighbour.web);
         let power = intensity + i32::from(rolls.one_in(5));
-        // The reference draws the take roll and the terrain rolls in this order; each is drawn only when the condition before it holds,
-        // which is why a fire's dice consumption depends on what it is standing next to.
-        let takes_ground = (power >= 2 && neighbour.flammable && rolls.one_in(2))
-            || (power >= 2 && neighbour.flammable_ash && rolls.one_in(2))
-            || (power >= 3 && neighbour.flammable_hard && rolls.one_in(5));
-        if !can_spread {
-            continue;
-        }
-        if rolls.rng(1, 100) < chance && (neighbour.web || takes_ground) {
+        // The order is the reference's, and it is not the obvious one: the **chance is drawn before the terrain is asked anything**
+        // (`map_field.cpp:1330-1345`). `can_spread && rng( 1, 100 ) < spread_chance && ( ... flag && one_in( n ) ... )` short-circuits left to
+        // right, so a fire that fails the chance never rolls for the ground and one that passes rolls only for the flags that are set.
+        let passes = can_spread && rolls.rng(1, 100) < chance;
+        let takes_ground = passes
+            && ((power >= 2 && neighbour.flammable && rolls.one_in(2))
+                || (power >= 2 && neighbour.flammable_ash && rolls.one_in(2))
+                || (power >= 3 && neighbour.flammable_hard && rolls.one_in(5)));
+        if passes && (neighbour.web || takes_ground) {
             caught.push(usize::try_from(index).unwrap_or(0));
         }
     }

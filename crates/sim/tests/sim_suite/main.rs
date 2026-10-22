@@ -39,6 +39,7 @@ mod fire_hot_air_store;
 mod fire_items;
 mod fire_process;
 mod fire_residue;
+mod fire_session_parity;
 mod fire_smoke_store;
 mod fire_spread;
 mod fire_spreading;

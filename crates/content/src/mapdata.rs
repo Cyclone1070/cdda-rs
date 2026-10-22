@@ -53,6 +53,12 @@ pub struct MapData {
 }
 
 impl MapData {
+    /// Whether this prototype carries a flag, by its reference name (`FLAMMABLE_HARD`, `NO_FLOOR`, ...).
+    #[must_use]
+    pub fn has_flag(&self, flag: &str) -> bool {
+        self.flags.contains(flag)
+    }
+
     /// Whether a creature may stand on this square.
     ///
     /// Reference: `map::passable_through` (`map.cpp:2419-2422`) - `passable( p ) && ( has_floor( p ) || has_floor_or_support( p ) )`.
