@@ -406,6 +406,27 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Hot air, and the first rule ported *from the dice* rather than from the source (round 312)
+
+`create_hot_air` is small and it is the last thing the fire processor does (`src/map_field.cpp:375-399, 1429`): a gate of
+`adjacent_fires < 5 && rng( 0, 4 - adjacent_fires )`, then **five** squares drawn as `rng( -1, 1 )` for x and again for y, each set to intensity one.
+Three functions now port it - `wants_hot_air`, `hot_air_field`, `hot_air_squares` - and the host test reads the reference's own recording rather than
+a table I typed:
+
+| Turn | Gate draw | What happened |
+|---|---|---|
+1 | `int 0 4 0` | refused - the gate is a **non-zero** roll, not a success test |
+2 | `int 0 4 1` | requested, then ten `int -1 1` draws |
+3 | `int 0 4 0` | refused |
+4 | `int 0 4 4` | requested, then ten draws |
+
+The test asserts the port consumes exactly the recorded dice in the recorded order and lands on the recorded squares, and that a fire with five
+neighbours rolls nothing at all.
+
+**The next gap is now measured, not guessed.** The turn that creates hot air is followed by 117 draws in total, of which only 11 are the rule above: the
+other 106 belong to the hot air field's own processor, which emits and spreads in `emit.cpp`. So the port can match the refuelling and the spread and
+the smoke of a turn and still be 106 draws out at the end of it. That is the next piece of work, and it has a number attached.
+
 ## The reference's dice, labelled (round 311)
 
 The oracle now **labels its own dice**. `rng_mark( "fire.before_fuel" )` and its four siblings write a line into the `CDDA_RNG_TRACE` file at the boundaries

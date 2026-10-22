@@ -288,3 +288,41 @@ pub fn ground_fuel(ground: Ground, intensity: i32, rolls: &mut crate::rng::Rolls
     }
     fuel
 }
+
+/// How many squares hot air is dropped on when a fire makes it.
+pub const HOT_AIR_SQUARES: usize = 5;
+
+/// Whether a fire asks for hot air this turn, and the die it spends asking.
+///
+/// Reference: `if( adjacent_fires < 5 && rng( 0, 4 - adjacent_fires ) )` (`src/map_field.cpp:1429`). The gate is a **non-zero** result, not a
+/// success test, and the range shrinks as neighbours multiply - which is the reference's own note that "they produce radiant heat which does what hot
+/// air would do anyway". A fire with five neighbours does not roll at all.
+#[must_use]
+pub fn wants_hot_air(adjacent_fires: i32, rolls: &mut crate::rng::Rolls) -> bool {
+    if adjacent_fires >= 5 {
+        return false;
+    }
+    rolls.rng(0, 4 - adjacent_fires) != 0
+}
+
+/// The hot air field a fire of this intensity makes, as the reference's four field ids.
+///
+/// Reference: `map::create_hot_air` (`src/map_field.cpp:375-394`) - intensity one to four maps to `fd_hot_air1` to `fd_hot_air4`, and anything else
+/// is a bug in the caller rather than a thing to guess at.
+#[must_use]
+pub fn hot_air_field(intensity: i32) -> Option<i32> {
+    (1..=4).contains(&intensity).then_some(intensity)
+}
+
+/// The squares hot air lands on, as offsets from the fire.
+///
+/// Reference: `create_hot_air`'s loop (`src/map_field.cpp:396-399`) - **five** squares, each drawn as `rng( -1, 1 )` for x and again for y, and each
+/// set to intensity one whatever the fire's own intensity was. Ten dice, in x-then-y order, is the shape a replay has to match.
+#[must_use]
+pub fn hot_air_squares(rolls: &mut crate::rng::Rolls) -> [(i32, i32); HOT_AIR_SQUARES] {
+    let mut squares = [(0, 0); HOT_AIR_SQUARES];
+    for square in &mut squares {
+        *square = (rolls.rng(-1, 1), rolls.rng(-1, 1));
+    }
+    squares
+}
