@@ -97,6 +97,23 @@ from the reference's own **258 specials, 35 locations, 178 houses, 223 shops and
 regional file's forest thresholds (**0.2 / 0.25**) override the header's, and the noise is shifted by a
 **forest growth adjustment** that only appears away from the origin.
 
+**The map level is open, and scored.** A second reference dump captures one 24x24 chunk the generator actually built,
+with the overmap terrain it belongs to and the terrain id of all **576 squares**. The port reproduces that chunk's whole
+rule: corner depths hashed from absolute positions, the curve between them, the six-ticket raffle, the layer chain, the
+region's palettes and their chains, furniture that does not replace the ground, and the four neighbours read from the
+world rather than assumed. Measured against the dump it matches **291 squares of 576** - and the way that number moved
+matters more than the number: seven separate bugs came out of watching it, each invisible from reading the code. A
+neighbour that owns no biome must not be divided by its depth; the ceiling is the region's **densest** forest, not the
+square's own; the ground gets its **own** raffle, stepped back by the margin, rather than reusing a failed feature's
+ticket; palette names chain, so resolving once leaves placeholders on the map; and the raffle's die is a raw 32-bit
+value, not a real one. Two consecutive rounds took the score **down** on purpose - 316 to 302, 305 to 291 - because the
+assumption behind the higher number was the wrong one, and the ledger says so beside each figure.
+
+What is left is a single square. The pass lays grass at the chunk's corner where the reference lays forest floor, and
+two cheap explanations are already dead: the corner's arithmetic checks out by hand (the empty ticket wins 76% there),
+and the sample is not mirrored (identity 291 against a best mirror of 307). So the next step is not another inference
+but an instrument: a per-square trace saying which ticket the reference drew, whether a layer fired, and what came out.
+
 The suite now also runs **on a second machine and a second platform**: `tools/remote_test.py` syncs the workspace to
 a Linux desktop and runs every gate there in about twenty seconds, so the same 969 cases are verified on macOS and
 Linux on each run.
