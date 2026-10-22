@@ -116,3 +116,72 @@ fn invalidating_everything_rebuilds_everything() {
     }
     assert_eq!(builds, 8);
 }
+
+#[test]
+fn a_level_cache_starts_with_nothing_marked() {
+    let cache = cdda_core_types::map_cache::LevelCache::new();
+    assert!(!cache.transparency_dirty_anywhere(), "no submap is stale");
+    assert!(!cache.seen_dirty());
+    assert!(!cache.floor_dirty());
+    assert!(!cache.outside_dirty());
+}
+
+#[test]
+fn a_square_marks_its_own_submap_and_no_other() {
+    // Reference: `map::set_transparency_cache_dirty( p, field )` (`map.cpp:302-311`). The bit is `sm.x * MAPSIZE + sm.y` - x outer again - so submap (2,1) is bit 23
+    // and not bit 13.
+    let mut cache = cdda_core_types::map_cache::LevelCache::new();
+    // Submap (2,1) starts at map square (24,12).
+    cache.mark_transparency_dirty_at(24, 12, false);
+    assert!(cache.transparency_dirty_anywhere());
+    assert!(cache.transparency_dirty_at(2, 1), "its own submap");
+    assert!(!cache.transparency_dirty_at(1, 2), "and not the transpose");
+    assert!(!cache.transparency_dirty_at(0, 0));
+}
+
+#[test]
+fn a_change_that_is_not_a_field_also_invalidates_reachability() {
+    // The same function has a second effect: `if( !field ) get_creature_tracker().invalidate_reachability_cache();` (`map.cpp:307-309`). Smoke moving is not a change
+    // a creature's path can care about; a wall appearing is.
+    let mut field_change = cdda_core_types::map_cache::LevelCache::new();
+    field_change.mark_transparency_dirty_at(0, 0, true);
+    assert!(
+        !field_change.reachability_dirty(),
+        "smoke does not block a path"
+    );
+
+    let mut terrain_change = cdda_core_types::map_cache::LevelCache::new();
+    terrain_change.mark_transparency_dirty_at(0, 0, false);
+    assert!(terrain_change.reachability_dirty(), "a wall does");
+}
+
+#[test]
+fn marking_a_whole_level_marks_every_submap_and_keeps_the_narrow_marks() {
+    // `map::invalidate_map_cache` (`map.cpp:397-406`) sets all four: the transparency bitset wholesale, floor, seen and outside.
+    let mut cache = cdda_core_types::map_cache::LevelCache::new();
+    cache.invalidate_all();
+    assert!(cache.transparency_dirty_anywhere());
+    assert!(cache.transparency_dirty_at(0, 0));
+    assert!(cache.transparency_dirty_at(10, 10), "the far corner too");
+    assert!(cache.seen_dirty());
+    assert!(cache.floor_dirty());
+    assert!(cache.outside_dirty());
+}
+
+#[test]
+fn a_square_nobody_could_see_does_not_mark_the_seen_cache() {
+    // Reference: `map::set_seen_cache_dirty( p )` (`map.cpp:313-325`). Two early-outs: already dirty is nothing to do, and a square whose seen **and** camera values are
+    // both zero cannot have been shadowing anything, so a change there cannot change what is seen.
+    let mut cache = cdda_core_types::map_cache::LevelCache::new();
+    cache.set_seen_value(4, 4, 0.0);
+    cache.mark_seen_dirty_at(4, 4);
+    assert!(!cache.seen_dirty(), "nothing was visible there to lose");
+
+    cache.set_seen_value(5, 5, 0.5);
+    cache.mark_seen_dirty_at(5, 5);
+    assert!(cache.seen_dirty(), "this square was visible");
+
+    // Already dirty: the second call is cheap and changes nothing.
+    cache.mark_seen_dirty_at(5, 5);
+    assert!(cache.seen_dirty());
+}

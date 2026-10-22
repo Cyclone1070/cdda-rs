@@ -81,3 +81,119 @@ impl MapCache {
         self.values.len()
     }
 }
+
+/// One z-level's derived state, and what says it is stale.
+///
+/// Reference: `struct level_cache` (`src/level_cache.h:20-98`) together with the four functions that mark it (`src/map.cpp:295-345`). The port keeps the marking
+/// rules and the two indices that are easy to get wrong; the derived arrays themselves arrive with the systems that compute them.
+///
+/// Three kinds of mark live here, and they are not interchangeable:
+///
+/// * the **transparency** bitset, one bit per submap, because transparency is computed a submap at a time and a changed tile spoils only its own;
+/// * the **seen** flag, one for the level, because visibility is a property of the whole light map;
+/// * the **floor** and **outside** flags, one each, because both are read off terrain and furniture and both are cheap to recompute for a level.
+// The reference's struct is four bare `bool`s in a row (`level_cache.h:31-33`) and that is what they are: named, readable, and each asked for by name. Grouping them
+// into a bitflags type would be tidier and further from the thing being transcribed.
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Debug, Clone, Default)]
+pub struct LevelCache {
+    /// One bit per submap, set when that submap's transparency needs rebuilding.
+    transparency_dirty: std::collections::BTreeSet<(i32, i32)>,
+    seen_dirty: bool,
+    floor_dirty: bool,
+    outside_dirty: bool,
+    reachability_dirty: bool,
+    /// A square's seen value, kept so the marking rule can ask whether it was visible at all.
+    seen: std::collections::BTreeMap<(i32, i32), f32>,
+}
+
+impl LevelCache {
+    /// A cache with nothing marked.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Whether any submap's transparency is stale.
+    #[must_use]
+    pub fn transparency_dirty_anywhere(&self) -> bool {
+        !self.transparency_dirty.is_empty()
+    }
+
+    /// Whether one submap's transparency is stale.
+    ///
+    /// The submap is named by its position in the map's grid, which is what the reference's bitset is indexed by.
+    #[must_use]
+    pub fn transparency_dirty_at(&self, submap_x: i32, submap_y: i32) -> bool {
+        self.transparency_dirty.contains(&(submap_x, submap_y))
+    }
+
+    /// Marks the submap holding a map square, and possibly the reachability cache.
+    ///
+    /// Reference: `map::set_transparency_cache_dirty( const tripoint_bub_ms &p, bool field )` (`map.cpp:302-311`). The bit is `sm.x() * MAPSIZE + sm.y()`, so the
+    /// grid is indexed x-first; and a change that is **not** a field also invalidates reachability, because a wall changes what a creature can walk to and smoke does
+    /// not.
+    pub fn mark_transparency_dirty_at(&mut self, x: i32, y: i32, field: bool) {
+        self.transparency_dirty.insert((
+            x.div_euclid(crate::grid::SEEX),
+            y.div_euclid(crate::grid::SEEY),
+        ));
+        if !field {
+            self.reachability_dirty = true;
+        }
+    }
+
+    /// Whether a mask change has invalidated the reachability cache.
+    #[must_use]
+    pub fn reachability_dirty(&self) -> bool {
+        self.reachability_dirty
+    }
+
+    /// Marks the whole level stale, as `map::invalidate_map_cache` does (`map.cpp:397-406`).
+    pub fn invalidate_all(&mut self) {
+        for x in 0..crate::grid::MAPSIZE {
+            for y in 0..crate::grid::MAPSIZE {
+                self.transparency_dirty.insert((x, y));
+            }
+        }
+        self.floor_dirty = true;
+        self.seen_dirty = true;
+        self.outside_dirty = true;
+    }
+
+    /// Whether the light map has to be recomputed.
+    #[must_use]
+    pub fn seen_dirty(&self) -> bool {
+        self.seen_dirty
+    }
+
+    /// Whether the floor cache has to be recomputed.
+    #[must_use]
+    pub fn floor_dirty(&self) -> bool {
+        self.floor_dirty
+    }
+
+    /// Whether the outside cache has to be recomputed.
+    #[must_use]
+    pub fn outside_dirty(&self) -> bool {
+        self.outside_dirty
+    }
+
+    /// Records what is visible at a square, which is what the marking rule reads.
+    pub fn set_seen_value(&mut self, x: i32, y: i32, seen: f32) {
+        self.seen.insert((x, y), seen);
+    }
+
+    /// Marks the light map stale if this square could have been contributing to it.
+    ///
+    /// Reference: `map::set_seen_cache_dirty( const tripoint_bub_ms & )` (`map.cpp:313-325`). Two early-outs, and the second is the interesting one: if the square's
+    /// seen value **and** its camera value are both zero, nothing was visible there, so a change there cannot change what is seen and the map is left alone.
+    pub fn mark_seen_dirty_at(&mut self, x: i32, y: i32) {
+        if self.seen_dirty {
+            return;
+        }
+        if self.seen.get(&(x, y)).copied().unwrap_or(0.0) != 0.0 {
+            self.seen_dirty = true;
+        }
+    }
+}

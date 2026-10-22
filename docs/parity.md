@@ -406,6 +406,27 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## What marks a level stale, and the early-out that saves a light map (round 346)
+
+`level_cache` (`src/level_cache.h:20-98`) holds a level's derived values; four functions mark it stale (`map.cpp:295-345`), and porting the marking is what makes the
+rebuilds correct before any of the derived arrays exist. Three kinds of mark, and they are not interchangeable:
+
+| Mark | Granularity | Why |
+|---|---|---|
+transparency | one bit per **submap** | transparency is computed a submap at a time, so a changed tile spoils only its own |
+seen (the light map) | one flag per **level** | visibility is a property of the whole map, not of a square |
+floor, outside | one flag each per level | both are read off terrain and furniture and both are cheap to recompute for a level |
+
+**Submap bits are x-first.** The bit is `smp.x() * MAPSIZE + smp.y()` (`map.cpp:306`), the third place this project has found the same ordering - after the SoA tile
+order and `get_nonant`. A port that indexes y-first gets a transposed grid of dirty bits, which is invisible until a rebuild is skipped.
+
+**And one mark is conditional on visibility, which is the clever part.** `set_seen_cache_dirty( p )` (`map.cpp:313-325`) returns early twice: already dirty is
+nothing to do, and a square whose **seen and camera values are both zero** cannot have been shadowing anything, so a change there cannot change what is seen. That
+is what keeps a fire crossing an unexplored room from recomputing the whole light map.
+
+**A non-field change also invalidates reachability** (`map.cpp:307-309`). Smoke moving does not change what a creature can walk to; a wall appearing does. The port
+keeps that distinction because the reachability cache will be built on it.
+
 ## The bubble is a square, and its walk order is the digest's order (round 345)
 
 The state dump fingerprints the world with `points_in_radius( center, 60 )` (`harness.cpp:1141`), and porting that window is what makes the fingerprint reproducible
