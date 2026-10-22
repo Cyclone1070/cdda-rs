@@ -202,13 +202,47 @@ fn pick_terrain(palette: &[(String, i32)], rolls: &mut Rolls) -> String {
 /// The ground-cover margin: half the average depth of a border, in squares.
 const MARGIN: f32 = -2.0;
 
-/// Reference: `get_feathered_groundcover` called for every square of the chunk.
+/// The same pass, stopping where the reference stops: **placeholders, not terrain.**
+///
+/// The reference's forest generation writes names like `t_region_groundcover_forest` into the map and never resolves them;
+/// a separate sweep does that afterwards (see [`resolve_chunk_placeholders`]). The pass below used to resolve eagerly,
+/// which produced the right terrain but at the wrong stage - and made every comparison against the reference's own chunk
+/// a comparison of two different moments.
 #[allow(
     clippy::too_many_arguments,
     clippy::cast_sign_loss,
     clippy::cast_possible_truncation,
     clippy::indexing_slicing
 )]
+pub fn forest_ground_pass_placeholders(
+    side: i32,
+    perimeter: &[i32],
+    self_palette: &[(String, i32)],
+    default_palette: &[(String, i32)],
+    layers: &[crate::overmap_special::ForestComponent],
+    palettes: &std::collections::BTreeMap<String, Vec<(String, i32)>>,
+    max_factor: f32,
+    factor: f32,
+    neighbour_biomes: [Option<&crate::overmap_special::ForestMapgen>; 4],
+    rolls: &mut Rolls,
+) -> Vec<String> {
+    forest_pass_inner(
+        side,
+        perimeter,
+        self_palette,
+        default_palette,
+        layers,
+        palettes,
+        max_factor,
+        factor,
+        neighbour_biomes,
+        rolls,
+        false,
+    )
+}
+
+/// Reference: `get_feathered_groundcover` called for every square of the chunk, with the sweep attached.
+#[allow(clippy::too_many_arguments)]
 pub fn forest_ground_pass(
     side: i32,
     perimeter: &[i32],
@@ -221,6 +255,42 @@ pub fn forest_ground_pass(
     neighbour_biomes: [Option<&crate::overmap_special::ForestMapgen>; 4],
     rolls: &mut Rolls,
 ) -> Vec<String> {
+    forest_pass_inner(
+        side,
+        perimeter,
+        self_palette,
+        default_palette,
+        layers,
+        palettes,
+        max_factor,
+        factor,
+        neighbour_biomes,
+        rolls,
+        true,
+    )
+}
+
+#[allow(clippy::too_many_arguments, clippy::cast_sign_loss)]
+fn forest_pass_inner(
+    side: i32,
+    perimeter: &[i32],
+    self_palette: &[(String, i32)],
+    default_palette: &[(String, i32)],
+    layers: &[crate::overmap_special::ForestComponent],
+    palettes: &std::collections::BTreeMap<String, Vec<(String, i32)>>,
+    max_factor: f32,
+    factor: f32,
+    neighbour_biomes: [Option<&crate::overmap_special::ForestMapgen>; 4],
+    rolls: &mut Rolls,
+    resolve: bool,
+) -> Vec<String> {
+    let resolve = |name: String, rolls: &mut Rolls| -> String {
+        if resolve {
+            resolve_region_terrain(palettes, &name, rolls)
+        } else {
+            name
+        }
+    };
     let mut ground = Vec::with_capacity((side * side) as usize);
     let self_weight = 3.0;
 
@@ -264,7 +334,7 @@ pub fn forest_ground_pass(
                 // furniture on top.
                 && !feature.starts_with('f')
             {
-                ground.push(resolve_region_terrain(palettes, &feature, rolls));
+                ground.push(resolve(feature, rolls));
                 continue;
             }
             // No terrain yet, so the ground gets its own raffle, stepped back by the ground-cover margin - half the
@@ -280,7 +350,7 @@ pub fn forest_ground_pass(
             } else {
                 pick_terrain(default_palette, rolls)
             };
-            ground.push(resolve_region_terrain(palettes, &picked, rolls));
+            ground.push(resolve(picked, rolls));
         }
     }
     ground

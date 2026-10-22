@@ -29,6 +29,7 @@ mod forest_pool_arithmetic;
 mod forest_pool_trace;
 mod forest_recorded_inputs;
 mod forest_region_masks;
+mod forest_stage_parity;
 mod forest_trace;
 mod frame_diff;
 mod frame_dump;

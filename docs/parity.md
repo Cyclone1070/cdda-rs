@@ -308,6 +308,20 @@ equality; JSON accept/reject parity". Each part, and where it is proven:
 | JSON acceptance is identical | All 6,220 shipped files: same accept/reject verdict and same structural digest as the reference; the writer is compared byte for byte on 127 of them |
 | The cache changes nothing | All 6,220 files read identically cold and warm |
 
+## The port stops where the reference stops (round 255)
+
+The oracle's finding changed the port's shape: generation now has a **placeholder-producing form**
+(`forest_ground_pass_placeholders`) and the resolution sweep is a step of its own. The resolving form of the pass still
+exists and simply calls the same code with the sweep attached, so nothing that used it had to change - but a comparison can
+now be made **at the reference's own stage** instead of against a finished map.
+
+The reference's chunk, as generated, holds **567 placeholders of 576** squares - only nine squares skip the palettes
+entirely - with `t_region_groundcover` 258 times and `t_region_groundcover_forest` 253. That is a far more placeholder-heavy
+chunk than I would have guessed, and it is the number a port's generator has to produce before its sweep.
+
+One more expectation of mine corrected: I wrote 400 placeholders, carrying a different run's figure into this chunk. The
+data said 567.
+
 ## The generator leaves placeholders, 576 squares of 576 (round 254)
 
 Two traces of one run settle it: the per-square raffle, and the chunk read back **from the very map object the placement
