@@ -465,3 +465,29 @@ pub fn read_forest_mapgen(value: &Value, terrain: &str) -> Option<ForestMapgen> 
         terrain_furniture: ordered_weighted(forest.get("terrain_furniture")),
     })
 }
+
+/// Reads a region's groundcover palette by the id a mapgen names.
+///
+/// Reference: `region_terrain_and_furniture.terrain` in `regional_map_settings.json`, where a name like
+/// `t_region_groundcover_forest` stands for a weighted list of terrains. The weights are **large on purpose** - the
+/// file says so in a comment - so that a mod can add a rare terrain without rebalancing the base ones.
+#[must_use]
+pub fn read_groundcover(value: &Value, palette: &str) -> Option<Vec<(String, i32)>> {
+    let entry = match value {
+        Value::Array(entries) => entries.first()?,
+        other => other,
+    };
+    let Value::Object(fields) = entry else {
+        return None;
+    };
+    let Some(Value::Object(region)) = fields.get("region_terrain_and_furniture") else {
+        return None;
+    };
+    let Some(Value::Object(terrains)) = region.get("terrain") else {
+        return None;
+    };
+    let Some(Value::Object(members)) = terrains.get(palette) else {
+        return None;
+    };
+    Some(weighted_bin(Some(&Value::Object(members.clone()))))
+}

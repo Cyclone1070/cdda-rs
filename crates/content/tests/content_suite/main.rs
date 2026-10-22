@@ -17,6 +17,7 @@ mod forest_mapgen;
 mod frame_diff;
 mod frame_dump;
 mod generated;
+mod groundcover;
 mod harvest_defs;
 mod inheritance_corpus;
 mod item_catalog;
