@@ -193,11 +193,14 @@ pub fn build_town(
 /// pass whose input the port already has end to end: the edge curve, the pull of each neighbour, the six-ticket
 /// raffle, and the palettes the tickets resolve through.
 ///
+/// The ground-cover margin: half the average depth of a border, in squares.
+const MARGIN: f32 = -2.0;
+
 /// Reference: `get_feathered_groundcover` called for every square of the chunk.
 #[allow(
     clippy::too_many_arguments,
     clippy::cast_sign_loss,
-    clippy::needless_range_loop,
+    clippy::cast_possible_truncation,
     clippy::indexing_slicing
 )]
 pub fn forest_ground_pass(
@@ -213,54 +216,55 @@ pub fn forest_ground_pass(
     rolls: &mut Rolls,
 ) -> Vec<String> {
     let mut ground = Vec::with_capacity((side * side) as usize);
-    // The reference steps the perimeter back for groundcover by half the average depth and lets the four neighbours
-    // compete with this square's own biome, which holds three tickets.
-    let margin = -2.0;
     let self_weight = 3.0;
+
+    // One raffle. The reference runs **two** of these per square - one to pick a feature, and, when that yields no
+    // terrain, a second one stepped back by the ground-cover margin to pick the ground - so the two are the same
+    // arithmetic with a different offset, and the dice are spent twice.
+    let raffle = |rolls: &mut Rolls, square: (i32, i32), depth_offset: f32| -> usize {
+        let weights = nesw_weights(square, side, perimeter, depth_offset, [false; 4])
+            .map(|weight| weight * factor);
+        let net: f32 = weights.iter().sum();
+        let pool = feather_pool(
+            weights,
+            self_weight,
+            net,
+            max_factor,
+            factor,
+            neighbour_factors,
+        );
+        let total: f32 = pool.iter().map(|weight| weight.max(0.0)).sum();
+        let mut ticket = rolls.rng_float(0.0, f64::from(total));
+        for (index, weight) in pool.iter().enumerate() {
+            ticket -= f64::from(weight.max(0.0));
+            if ticket <= 0.0 {
+                return index;
+            }
+        }
+        4
+    };
+
     for y in 0..side {
         for x in 0..side {
-            // The reference scales the four neighbours by the square's own sparseness and leaves this square's own
-            // ticket at a fixed three, so the scaling is not symmetric and cannot be dropped without letting the
-            // forest claim more of the chunk than the reference gives it.
-            let weights = nesw_weights((x, y), side, perimeter, margin, [true; 4])
-                .map(|weight| weight * factor);
-            let net: f32 = weights.iter().sum();
-            let pool = feather_pool(
-                weights,
-                self_weight,
-                net,
-                max_factor,
-                factor,
-                neighbour_factors,
-            );
-            let total: f32 = pool.iter().map(|weight| weight.max(0.0)).sum();
-            let mut ticket = rolls.rng_float(0.0, f64::from(total));
-            let mut chosen = 4; // this square's own biome, the fallback when the arithmetic leaves nothing else
-            for index in 0..6 {
-                ticket -= f64::from(pool[index].max(0.0));
-                if ticket <= 0.0 {
-                    chosen = index;
-                    break;
-                }
+            let point = (x, y);
+            // Ticket 4 is this square's own biome; the four neighbour tickets and the empty one fall through to the
+            // ground raffle. A neighbour without a biome is **not** divided by its own depth, because it does not
+            // feather at all.
+            let first = raffle(rolls, point, 0.0);
+            if first == 4
+                && let Some(feature) = pick_forest_feature(layers, rolls)
+                // A feature can be **furniture** - a boulder, or the region's own forest furniture palette - and
+                // furniture does not replace the ground under it; the reference keeps the ground and sets the
+                // furniture on top.
+                && !feature.starts_with('f')
+            {
+                ground.push(resolve_region_terrain(palettes, &feature, rolls));
+                continue;
             }
-            // Ticket 4 is this square's own biome; the four neighbour tickets and the empty one resolve through the
-            // region's default ground. That is right for the case that matters here - a forest next to open ground,
-            // where the neighbours own no forest biome - and it is the difference between a chunk that is mostly
-            // grass, as the reference's is, and one that is mostly forest floor, as my first version produced.
-            if chosen == 4 {
-                // This square's own biome runs its layers and only falls back to ground when none of them rolled:
-                // the reference's `forest_biome::pick` followed by `get_feathered_groundcover`.
-                if let Some(feature) = pick_forest_feature(layers, rolls) {
-                    // A feature can be **furniture** - a boulder, or the region's own forest furniture palette - and
-                    // furniture does not replace the ground under it. Those squares keep their ground cover, which is
-                    // what the reference does by setting the terrain and the furniture separately.
-                    if !feature.starts_with('f') {
-                        ground.push(resolve_region_terrain(palettes, &feature, rolls));
-                        continue;
-                    }
-                }
-            }
-            let palette = if chosen == 4 {
+            // No terrain yet, so the ground gets its own raffle, stepped back by the ground-cover margin - half the
+            // average depth - so that ground reaches further out than the features standing on it.
+            let second = raffle(rolls, point, MARGIN);
+            let palette = if second == 4 {
                 self_palette
             } else {
                 default_palette
