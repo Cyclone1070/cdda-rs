@@ -308,6 +308,21 @@ equality; JSON accept/reject parity". Each part, and where it is proven:
 | JSON acceptance is identical | All 6,220 shipped files: same accept/reject verdict and same structural digest as the reference; the writer is compared byte for byte on 127 of them |
 | The cache changes nothing | All 6,220 files read identically cold and warm |
 
+## The generator leaves placeholders, 576 squares of 576 (round 254)
+
+Two traces of one run settle it: the per-square raffle, and the chunk read back **from the very map object the placement
+used**, written the moment generation finished. They agree on **576 of 576** squares - the terrain a finished forest chunk
+holds is the placeholder the raffle chose, unreplaced, and **more than four hundred** of its squares still begin `t_region_`.
+
+That is the answer to three rounds of disagreement. The port must produce placeholders at the end of generation and resolve
+them in a separate pass; comparing a generator against a *finished* map's dump compares a chunk before resolution with one
+after, which is why half the squares never matched, why no rotation or transposition fixed it, and why a placeholder like
+`t_water_dp` appeared to resolve to grass.
+
+**A lesson about the instrument, not the code:** the dump is the wrong ground truth for a generation step, because it holds
+the world after every later pass. A trace written *inside* the step that produced it is the only thing that can be compared
+with something else from that step. Both traces now carry the chunk identity, so that comparison is a lookup.
+
 ## The second draw, found in the source (round 253)
 
 The missing pass has a name: `resolve_regional_terrain_and_furniture` in `mapgen_functions.cpp`. Map generation writes

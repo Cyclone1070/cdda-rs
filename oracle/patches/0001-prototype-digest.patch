@@ -2026,7 +2026,7 @@ diff -ruN references/Cataclysm-DDA/src/mapdata.cpp oracle/src/src/mapdata.cpp
  template<>
 diff -ruN references/Cataclysm-DDA/src/mapgen_functions.cpp oracle/src/src/mapgen_functions.cpp
 --- references/Cataclysm-DDA/src/mapgen_functions.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/mapgen_functions.cpp	2026-10-22 16:48:30
++++ oracle/src/src/mapgen_functions.cpp	2026-10-22 16:55:06
 @@ -5,6 +5,7 @@
  #include <cmath>
  #include <cstdint>
@@ -2096,11 +2096,10 @@ diff -ruN references/Cataclysm-DDA/src/mapgen_functions.cpp oracle/src/src/mapge
          switch( feather_selection ) {
              case no_dir:
                  feature = self_biome.pick();
-@@ -1080,6 +1121,21 @@
-         }
+@@ -1081,6 +1122,21 @@
          if( feature.ter == no_ter_furn.ter ) {
              feature.ter = get_feathered_groundcover( p );
-+        }
+         }
 +        // What the square ended up with, and which of the two routes chose it: the feature raffle's pick, or the ground
 +        // raffle that runs when the pick has no terrain. The furniture route is recorded separately, because a square can
 +        // carry furniture and ground at once and only the ground one replaces what is underneath.
@@ -2115,9 +2114,31 @@ diff -ruN references/Cataclysm-DDA/src/mapgen_functions.cpp oracle/src/src/mapge
 +                       << ( feature.ter == no_ter_furn.ter ? "none" : feature.ter.id().str() ) << ' '
 +                       << ( feature.furn == furn_str_id::NULL_ID() ? "none" : feature.furn.id().str() )
 +                       << '\n';
-         }
++        }
          return feature;
      };
+ 
+@@ -1121,6 +1177,20 @@
+             m->ter_set( point_bub_ms( x, y ), feature.ter );
+             m->furn_set( point_bub_ms( x, y ), feature.furn );
+             set_terrain_dependent_furniture( feature.ter, point_bub_ms( x, y ) );
++        }
++    }
++
++    // The chunk's terrain **as this function left it**, written from the same map object the placement used. The dump
++    // taken later reads whatever the map holds after every later pass; this reads the moment the generator finished, which
++    // is the only thing that can be compared with the per-square trace that ran beside it.
++    if( const char *trace_path = std::getenv( "CDDA_MAP_TRACE_PLACED" ) ) {
++        static std::ofstream trace_file( trace_path, std::ios::app );
++        const tripoint_abs_sm chunk = dat.m.get_abs_sub();
++        for( int x = 0; x < SEEX * 2; x++ ) {
++            for( int y = 0; y < SEEY * 2; y++ ) {
++                trace_file << chunk.x() << ' ' << chunk.y() << ' ' << chunk.z() << ' ' << x << ' ' << y << ' '
++                           << dat.m.ter( tripoint_bub_ms( x, y, dat.zlevel() ) ).id().str() << '\n';
++            }
+         }
+     }
+ 
 diff -ruN references/Cataclysm-DDA/src/mtype.h oracle/src/src/mtype.h
 --- references/Cataclysm-DDA/src/mtype.h	2026-10-19 18:15:05
 +++ oracle/src/src/mtype.h	2026-10-21 06:53:22

@@ -24,6 +24,7 @@ mod forest_layers;
 mod forest_mapgen;
 mod forest_neighbours;
 mod forest_palette_weights;
+mod forest_placeholders_placed;
 mod forest_pool_arithmetic;
 mod forest_pool_trace;
 mod forest_recorded_inputs;
