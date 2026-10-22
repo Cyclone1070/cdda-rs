@@ -272,6 +272,7 @@ impl TerrainFacts {
 #[derive(Debug, Clone, Default)]
 pub struct MapFacts {
     terrain: BTreeMap<(i32, i32, i32), TerrainFacts>,
+    furniture: BTreeMap<(i32, i32, i32), TerrainFacts>,
     fires: BTreeMap<(i32, i32, i32), (i32, i64)>,
 }
 
@@ -287,15 +288,32 @@ impl MapFacts {
         self.terrain.insert(square, facts);
     }
 
+    /// Says what is standing on a square. The reference asks `ter_furn_has_flag( ter, frn, flag )`, which reads both, so a square's answers are its
+    /// terrain's and its furniture's together - a bench on a tiled floor burns like a bench, and a locker on one does not burn at all.
+    pub fn set_furniture(&mut self, square: (i32, i32, i32), facts: TerrainFacts) {
+        self.furniture.insert(square, facts);
+    }
+
     /// Records that a square holds a fire of this intensity and age, for [`FireMap::adjacent_fires`] and the flashpoint rule.
     pub fn note_fire(&mut self, square: (i32, i32, i32), intensity: i32, age: i64) {
         self.fires.insert(square, (intensity, age));
     }
 
-    /// What is underfoot, or nothing at all for a square nobody described.
+    /// What is underfoot and what stands on it, taken together, or nothing at all for a square nobody described.
     #[must_use]
     pub fn terrain_at(&self, square: (i32, i32, i32)) -> TerrainFacts {
-        self.terrain.get(&square).copied().unwrap_or_default()
+        let under = self.terrain.get(&square).copied().unwrap_or_default();
+        match self.furniture.get(&square) {
+            Some(standing) => TerrainFacts {
+                flammable: under.flammable || standing.flammable,
+                flammable_ash: under.flammable_ash || standing.flammable_ash,
+                flammable_hard: under.flammable_hard || standing.flammable_hard,
+                fire_container: under.fire_container || standing.fire_container,
+                no_floor: under.no_floor || standing.no_floor,
+                suppress_smoke: under.suppress_smoke || standing.suppress_smoke,
+            },
+            None => under,
+        }
     }
 }
 
@@ -323,12 +341,15 @@ impl FireMap for MapFacts {
             // A container holds its fire and does not feed it, so as fuel it is nothing at all.
             return cdda_core_types::fire::Ground::Inert;
         }
-        if facts.flammable_hard {
+        // The order is the reference's (`map_field.cpp:1054-1104`) and it decides which rule runs: plain `FLAMMABLE` first and without a die, then
+        // `FLAMMABLE_HARD` behind `one_in( 3 )`, then `FLAMMABLE_ASH`. A bench on a tiled floor is therefore *hard* ground, not ash - the harder flag wins
+        // because it is asked first, which is exactly the kind of precedence a state dump never shows and a dice replay does.
+        if facts.flammable {
+            cdda_core_types::fire::Ground::Flammable
+        } else if facts.flammable_hard {
             cdda_core_types::fire::Ground::FlammableHard
         } else if facts.flammable_ash {
             cdda_core_types::fire::Ground::FlammableAsh
-        } else if facts.flammable {
-            cdda_core_types::fire::Ground::Flammable
         } else {
             cdda_core_types::fire::Ground::Inert
         }
@@ -347,7 +368,10 @@ impl FireMap for MapFacts {
             fire_intensity: fire.0,
             fire_age: fire.1,
             web: false,
-            flammable: facts.flammable || facts.flammable_ash,
+            // Three separate questions with three separate dice: plain `FLAMMABLE` takes no roll to catch, `FLAMMABLE_ASH` rolls `one_in( 2 )` and
+            // `FLAMMABLE_HARD` rolls `one_in( 5 )`. Folding ash into `flammable` here cost a die per bench - the port asked twice where the reference asked
+            // once, and the recording said so within four draws.
+            flammable: facts.flammable,
             flammable_ash: facts.flammable_ash,
             flammable_hard: facts.flammable_hard,
         }
@@ -406,8 +430,20 @@ pub fn process_fires(
         if field.entry.age() == 0 {
             continue;
         }
-        let fuel =
-            cdda_core_types::fire::ground_fuel(map.ground(square), field.entry.intensity(), rolls);
+        if std::env::var_os("CDDA_TRACE_FIRES").is_some() {
+            eprintln!(
+                "fire ({x},{y},{z}) intensity {} age {} draws {}",
+                field.entry.intensity(),
+                field.entry.age(),
+                rolls.recording_position()
+            );
+        }
+        let fuel = cdda_core_types::fire::ground_fuel(
+            map.ground(square),
+            field.entry.intensity(),
+            map.can_burn(square),
+            rolls,
+        );
         let turn = cdda_core_types::fire::fire_turn(
             field.entry.age(),
             field.entry.intensity(),
@@ -571,7 +607,7 @@ fn spread_and_flash(
 /// The order is `eight_horizontal_neighbors` (`point.h:450`), and it is **not** a clockwise walk: west comes before east, and the southern row runs
 /// south-west, south, south-east. I had it as a plain clockwise ring for four rounds, which cost nothing while only the fire's own square mattered and cost
 /// exactly one square as soon as the parity test could see where a fire spread: the dice agreed, the square was one step round the ring.
-const EIGHT_NEIGHBOURS: [(i32, i32); 8] = [
+pub const EIGHT_NEIGHBOURS: [(i32, i32); 8] = [
     (-1, -1),
     (0, -1),
     (1, -1),

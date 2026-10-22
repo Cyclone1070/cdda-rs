@@ -346,7 +346,8 @@ pub struct Rolls {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Recording {
     draws: Vec<Draw>,
-    position: usize,
+    /// How far into the recording the replay has got.
+    pub position: usize,
 }
 
 /// One recorded die.
@@ -441,7 +442,8 @@ impl Recording {
                 assert_eq!(
                     (recorded_low, recorded_high),
                     (low, high),
-                    "the reference asked for a different range here"
+                    "the reference asked for a different range here (draw {})",
+                    self.position - 1
                 );
                 drawn
             }
@@ -474,6 +476,14 @@ impl Rolls {
             normal: NormalDistribution::standard(),
             recording: Some(recording),
         }
+    }
+
+    /// How many recorded draws have been played so far.
+    #[must_use]
+    pub fn recording_position(&self) -> usize {
+        self.recording
+            .as_ref()
+            .map_or(0, |recording| recording.position)
     }
 
     /// How many recorded draws remain unplayed, or `None` when this run draws its own dice.

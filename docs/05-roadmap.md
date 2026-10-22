@@ -287,8 +287,8 @@ entities.** <!-- verified -->
 session turn by turn (fields, scent, terrain, furniture) **and** label its own dice, and one five-turn fire session is replayed by the port to the
 same age and intensity. Not yet: weather as a system, light across z-levels, and vision. The store carries `z`, gases use it (fall first, rise last), fires answer in whole
 squares, smoke rises through an open floor, and every terrain answer - including the fuel rule's own dice - comes from loaded prototypes (`MapFacts`
-over `TerrainFacts`) rather than from a test double. **The reference's whole fire session - five turns, six processors - replays die for die** (`fire_session_parity`), the first end-to-end parity receipt
-for an environment session.
+over `TerrainFacts`) rather than from a test double. **Every session listed in `corpus/fields/replayable.txt` replays die for die** (`corpus_sessions`, machinery in `reference_session`), the first
+end-to-end parity receipt for an environment session and now a mechanism rather than a test: a new rule needs a new fixture, not a new test.
 
 **Exit gate (M2).** Per-turn state hash equality on environment-only sessions covering weather
 transitions, fire and gas spread, light changes across z-levels, scent diffusion, and vision.

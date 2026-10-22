@@ -373,11 +373,22 @@ pub struct GroundFuel {
 /// later draw in the turn by one, and the reference's own dice trace shows exactly this order - `int 0 2 0` followed by `int 0 99 11` on the turn
 /// the ground fed, and a single `int 0 2 1` on the turns it did not.
 #[must_use]
-pub fn ground_fuel(ground: Ground, intensity: i32, rolls: &mut crate::rng::Rolls) -> GroundFuel {
+pub fn ground_fuel(
+    ground: Ground,
+    intensity: i32,
+    can_burn: bool,
+    rolls: &mut crate::rng::Rolls,
+) -> GroundFuel {
     let mut fuel = GroundFuel {
         time_added: 0,
         bashed: false,
     };
+    if !can_burn {
+        // The reference's whole fuel block sits inside `if( can_burn )` (`map_field.cpp:1075`), so a fire that may not burn its ground - water, a locker on
+        // a tiled floor, anything whose terrain and furniture are both fireproof - draws **no die at all**. Drawing one to learn "nothing" is the kind of
+        // difference that never shows up in a state dump and always shows up in a replay.
+        return fuel;
+    }
     let fed = match ground {
         Ground::Inert => return fuel,
         Ground::Flammable | Ground::FlammableAsh => {

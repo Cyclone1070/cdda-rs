@@ -138,8 +138,8 @@ fn the_ground_class_comes_from_the_flags_underfoot() {
     assert_eq!(facts.ground((0, 0, 0)), Ground::Flammable);
     assert_eq!(
         facts.ground((1, 0, 0)),
-        Ground::FlammableAsh,
-        "ash-bearing ground is its own branch"
+        Ground::Flammable,
+        "ground that is both is asked about FLAMMABLE first, which is the branch without a die"
     );
     assert_eq!(
         facts.ground((2, 0, 0)),
@@ -151,5 +151,54 @@ fn the_ground_class_comes_from_the_flags_underfoot() {
         facts.ground((4, 0, 0)),
         Ground::Inert,
         "a container feeds nothing"
+    );
+}
+
+#[test]
+fn a_square_takes_its_flags_from_its_terrain_and_its_furniture_together() {
+    // Reference: `ter_furn_has_flag( ter, frn, flag )` reads both, and `can_burn` is `( ter.is_flammable() || frn.is_flammable() ) && !FIRE_CONTAINER`. So a
+    // tiled floor with a bench on it burns like a bench, and a tiled floor with a locker on it does not burn at all - the terrain's `FLAMMABLE_HARD` is not
+    // enough once the furniture is taken into the same answer.
+    let bare = cdda_sim::TerrainFacts::default();
+    let floor = cdda_sim::TerrainFacts {
+        flammable_hard: true,
+        ..bare
+    };
+    let bench = cdda_sim::TerrainFacts {
+        flammable_ash: true,
+        ..bare
+    };
+    let locker = bare;
+    let facts = |under: cdda_sim::TerrainFacts| {
+        let mut map = cdda_sim::MapFacts::new();
+        map.set_terrain((0, 0, 0), floor);
+        map.set_furniture((0, 0, 0), under);
+        map
+    };
+    assert_eq!(
+        facts(bench).ground((0, 0, 0)),
+        cdda_core_types::fire::Ground::FlammableHard,
+        "the harder flag is asked first, so a bench on a tiled floor is still hard ground"
+    );
+    assert!(facts(bench).can_burn((0, 0, 0)), "the bench makes it burn");
+    let mut on_a_bench = cdda_sim::MapFacts::new();
+    on_a_bench.set_terrain((0, 0, 0), bare);
+    on_a_bench.set_furniture((0, 0, 0), bench);
+    assert_eq!(
+        on_a_bench.ground((0, 0, 0)),
+        cdda_core_types::fire::Ground::FlammableAsh,
+        "and with nothing flammable under it, the bench is what burns"
+    );
+    let mut on_a_locker = cdda_sim::MapFacts::new();
+    on_a_locker.set_terrain((0, 0, 0), bare);
+    on_a_locker.set_furniture((0, 0, 0), locker);
+    assert!(
+        !on_a_locker.can_burn((0, 0, 0)),
+        "a locker on a fireproof floor is a square that does not burn, so the fire draws no fuel die"
+    );
+    // A hole overhead is read from the square **above**, not from this one, so the test asks the square where it belongs.
+    assert!(
+        !facts(bare).smoke_ceiling_open((0, 0, 0)),
+        "nothing overhead is a ceiling"
     );
 }

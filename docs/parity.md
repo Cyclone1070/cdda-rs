@@ -406,6 +406,27 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## A fixture is a test now, not a test per fixture (round 328)
+
+The replay is machinery now: `reference_session` loads a fixture (terrain grid, furniture, turns, recorded dice), builds the port's world from it and plays
+it; `corpus_sessions` runs **every** session `corpus/fields/replayable.txt` names. A new rule needs a new fixture and one line in that list, not a new test.
+
+Getting the second fixture to replay turned up four rules, three of them wrong in the port:
+
+| Finding | How it showed |
+|---|---|
+`can_burn` gates the whole fuel block | a fire on a square that cannot burn drew a fuel die the reference never rolled |
+`FLAMMABLE` is asked **before** `FLAMMABLE_HARD` and `FLAMMABLE_ASH` | the precedence decides which rule runs, and a bench on a tiled floor is *hard* ground because the harder flag is asked first |
+a square's answers are its terrain's **and** its furniture's | `ter_furn_has_flag` reads both; without it a bench square read as bare floor |
+`FLAMMABLE_ASH` is not `FLAMMABLE` | folding them together cost one die per bench - the port asked twice where the reference asked once |
+
+**Proving the machinery can fail:** deleting the spread's outcome makes `corpus_sessions` fail with both sides printed, so the harness is not vacuous. The
+ring's order is *not* caught by the fixture - one spread does not distinguish the order - so it is pinned by a transcript test against `point.h:450`
+instead. That is the honest split: a fixture for what a scene can show, a transcript for a constant.
+
+**Guard added:** `fire-floor-offset` now stands where no locker is adjacent, because a spread onto a locker's square succeeds through the reference's
+*items* branch, and the port has no items. That gap was found by the replay refusing a die, not by reading the code.
+
 ## The hundred draws were a person, not a fire (round 327)
 
 Last round's replay carved out **104 draws** per hot-air creation, on the theory that they were what `add_field` costs. They were not. Marking each statement

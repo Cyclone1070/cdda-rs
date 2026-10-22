@@ -48,13 +48,12 @@ int 0 7 0
 int 0 3 2
 int 0 4 1
 int 1 100 20
-int 0 4 1
-int 0 3 1
+int 0 1 1
 int 0 4 0
-int 1 100 96
-int 0 3 2
+int 0 3 3
 int 0 4 2
-int 1 100 69
+int 1 100 91
+int 0 3 0
 int 0 3 3
 int 0 4 4
 int 1 100 82
@@ -141,19 +140,21 @@ mark fire.done
 int 1 64 41
 int 1 64 44
 int 1 100 67
-int 1 100 90
 int 1 100 26
 int 1 100 100
+int 1 100 50
 mark fire.begin
 mark fire.terrain_read
 mark fire.before_fuel
 int 0 2 0
-int 0 99 14
+int 0 99 48
 mark fire.fuelled
 mark fire.before_spread
+int 0 7 6
+int 0 2 0
+int 0 7 3
 int 0 7 5
-int 0 2 1
-int 0 7 0
+int 0 3 0
 int 0 3 3
 int 0 4 0
 int 1 100 9
@@ -163,6 +164,7 @@ int 0 3 0
 int 0 3 1
 int 0 4 0
 int 1 100 22
+int 0 1 1
 int 0 4 2
 int 0 4 3
 int 0 3 1
@@ -178,28 +180,89 @@ int 0 4 4
 int 1 100 13
 int 0 4 1
 int 0 3 0
-int 0 3 2
-int 0 4 3
-int 1 100 99
 mark fire.before_smoke
-int 0 100 74
+int 0 100 90
 mark fire.before_hot_air
-int 0 4 4
+int 0 4 3
 mark hot_air.begin
-int -1 1 -1
-int -1 1 -1
+int -1 1 1
 int -1 1 0
 int -1 1 0
 int -1 1 1
+int -1 1 1
+int -1 1 -1
+int -1 1 -1
 int -1 1 -1
 int -1 1 0
-int -1 1 -1
 int -1 1 0
-int -1 1 -1
 mark hot_air.end
 mark fire.done
-int 1 63 47
-int 1 63 47
+int 1 63 35
+int 1 63 41
+int 1 100 98
+int 1 100 41
 int 1 100 49
 int 1 100 95
 int 1 100 91
+mark fire.begin
+mark fire.terrain_read
+mark fire.before_fuel
+int 0 2 2
+mark fire.fuelled
+mark fire.before_spread
+int 0 7 1
+int 0 2 0
+int 0 7 4
+int 0 7 2
+int 0 3 0
+int 0 3 3
+int 0 4 3
+int 1 100 1
+int 0 4 4
+int 0 3 1
+int 0 4 4
+int 1 100 88
+int 0 3 1
+int 0 4 2
+int 1 100 17
+int 0 4 2
+int 0 3 3
+int 0 4 1
+int 1 100 59
+int 0 3 3
+int 0 4 4
+int 1 100 94
+int 0 3 1
+int 0 4 2
+int 1 100 6
+int 0 1 0
+int 0 3 1
+int 0 4 2
+int 1 100 22
+int 0 4 3
+mark fire.before_smoke
+int 0 100 39
+mark fire.before_hot_air
+int 0 4 4
+mark hot_air.begin
+int -1 1 1
+int -1 1 -1
+int -1 1 -1
+int -1 1 0
+int -1 1 1
+int -1 1 1
+int -1 1 0
+int -1 1 1
+int -1 1 1
+int -1 1 1
+mark hot_air.end
+mark fire.done
+int 1 144 76
+int 1 144 133
+int 1 100 3
+int 0 7 6
+int 0 3 2
+int 1 100 88
+int 1 100 66
+int 1 100 73
+int 1 100 12

@@ -74,7 +74,7 @@ fn the_port_asks_for_the_same_dice_in_the_same_order() {
     let expected = [(0, false), (0, false), (2, false), (0, false)];
     for (index, phase) in phases.iter().enumerate() {
         let mut rolls = rolls_from(phase);
-        let fuel = ground_fuel(Ground::FlammableHard, 2, &mut rolls);
+        let fuel = ground_fuel(Ground::FlammableHard, 2, true, &mut rolls);
         assert_eq!(
             (fuel.time_added, fuel.bashed),
             expected[index],
@@ -92,7 +92,7 @@ fn the_port_asks_for_the_same_dice_in_the_same_order() {
 fn a_fire_on_inert_ground_spends_no_dice_at_all() {
     // Nothing burns, so nothing is asked - and the recording stays untouched. A port that rolled anyway would shift every later draw.
     let mut rolls = Rolls::new(9);
-    let fuel = ground_fuel(Ground::Inert, 3, &mut rolls);
+    let fuel = ground_fuel(Ground::Inert, 3, true, &mut rolls);
     assert_eq!((fuel.time_added, fuel.bashed), (0, false));
     assert_eq!(
         rolls.recording_remaining(),
@@ -105,7 +105,7 @@ fn a_fire_on_inert_ground_spends_no_dice_at_all() {
 fn ordinary_flammable_ground_feeds_every_turn_and_still_rolls_for_bashing() {
     // `FLAMMABLE` does not roll to feed - only hard ground does - but it does roll to bash when it burns at intensity two or more.
     let mut rolls = Rolls::new(3);
-    let fuel = ground_fuel(Ground::Flammable, 2, &mut rolls);
+    let fuel = ground_fuel(Ground::Flammable, 2, true, &mut rolls);
     assert_eq!(fuel.time_added, 3, "five minus intensity");
     assert!(!fuel.bashed, "seed three is not a bash");
 }

@@ -15,6 +15,7 @@ mod coordinate_matrix;
 mod daylight;
 mod diagnostics;
 mod field;
+mod fire_fuel_gate;
 mod fire_ground;
 mod fire_hot_air;
 mod fire_rules;
