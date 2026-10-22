@@ -308,6 +308,21 @@ equality; JSON accept/reject parity". Each part, and where it is proven:
 | JSON acceptance is identical | All 6,220 shipped files: same accept/reject verdict and same structural digest as the reference; the writer is compared byte for byte on 127 of them |
 | The cache changes nothing | All 6,220 files read identically cold and warm |
 
+## The pool, square by square, against the reference's own numbers (round 267)
+
+The reference now writes, for every square of a chunk, the **four neighbour weights it computed**, the self weight and the
+empty ticket's weight. No dice are involved on either side: this is arithmetic, and it can be compared positionally.
+
+Result: **576 of 576 squares** match, on a chunk whose eight neighbours are all `forest_thick`, so no direction is
+short-circuited by a neighbour with no forest. The self weight is the constant 3 on every square, and the empty ticket's
+weight - the one figure that ties all six together, so any sign error anywhere shows up in it - follows from the same four on
+every square too.
+
+**One convention difference, found by the data:** the reference scales each neighbour weight by the biome's
+sparseness-adjacency factor (4 here), while the port returns the proximity fraction and scales at the call site. The two
+agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
+small everywhere.
+
 ## The reference's own dice (round 266)
 
 The reference now records **every die it rolls** - `CDDA_RNG_TRACE` writes `bits <value>` for a raw draw and

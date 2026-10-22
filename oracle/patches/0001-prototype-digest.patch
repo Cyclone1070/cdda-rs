@@ -2026,7 +2026,7 @@ diff -ruN references/Cataclysm-DDA/src/mapdata.cpp oracle/src/src/mapdata.cpp
  template<>
 diff -ruN references/Cataclysm-DDA/src/mapgen_functions.cpp oracle/src/src/mapgen_functions.cpp
 --- references/Cataclysm-DDA/src/mapgen_functions.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/mapgen_functions.cpp	2026-10-22 16:55:06
++++ oracle/src/src/mapgen_functions.cpp	2026-10-22 19:02:12
 @@ -5,6 +5,7 @@
  #include <cmath>
  #include <cstdint>
@@ -2074,9 +2074,13 @@ diff -ruN references/Cataclysm-DDA/src/mapgen_functions.cpp oracle/src/src/mapge
          switch( feather_selection ) {
              case no_dir:
                  return *self_biome.groundcover.pick();
-@@ -1062,6 +1088,21 @@
+@@ -1061,7 +1087,25 @@
+ 
          // Pick from the direction pool, and calculate + return the appropriate terrain:
          ter_furn_id feature;
++        // Which die of the whole run this square's raffle is about to spend. Recorded so the port can replay that exact die
++        // instead of guessing where in a three-million-draw recording a square begins.
++        const unsigned long long first_draw_of_square = rng_draws_so_far();
          const int feather_selection = *direction_pool.pick();
 +        // Harness instrumentation: when CDDA_MAP_TRACE names a file, every square appends which of the six tickets it
 +        // drew. Nothing about generation changes - the trace is written after the pick - so a traced run and an
@@ -2096,7 +2100,7 @@ diff -ruN references/Cataclysm-DDA/src/mapgen_functions.cpp oracle/src/src/mapge
          switch( feather_selection ) {
              case no_dir:
                  feature = self_biome.pick();
-@@ -1081,6 +1122,21 @@
+@@ -1081,6 +1125,21 @@
          if( feature.ter == no_ter_furn.ter ) {
              feature.ter = get_feathered_groundcover( p );
          }
@@ -2112,13 +2116,13 @@ diff -ruN references/Cataclysm-DDA/src/mapgen_functions.cpp oracle/src/src/mapge
 +            trace_file << chunk.x() << ' ' << chunk.y() << ' ' << chunk.z() << ' '
 +                       << p.x << ' ' << p.y << ' ' << feather_selection << ' '
 +                       << ( feature.ter == no_ter_furn.ter ? "none" : feature.ter.id().str() ) << ' '
-+                       << ( feature.furn == furn_str_id::NULL_ID() ? "none" : feature.furn.id().str() )
-+                       << '\n';
++                       << ( feature.furn == furn_str_id::NULL_ID() ? "none" : feature.furn.id().str() ) << ' '
++                       << first_draw_of_square << '\n';
 +        }
          return feature;
      };
  
-@@ -1121,6 +1177,20 @@
+@@ -1121,6 +1180,20 @@
              m->ter_set( point_bub_ms( x, y ), feature.ter );
              m->furn_set( point_bub_ms( x, y ), feature.furn );
              set_terrain_dependent_furniture( feature.ter, point_bub_ms( x, y ) );
@@ -2247,7 +2251,7 @@ diff -ruN references/Cataclysm-DDA/src/prefix.h oracle/src/src/prefix.h
 +#define PREFIX "/usr/local"
 diff -ruN references/Cataclysm-DDA/src/rng.cpp oracle/src/src/rng.cpp
 --- references/Cataclysm-DDA/src/rng.cpp	2026-10-19 18:15:05
-+++ oracle/src/src/rng.cpp	2026-10-22 18:47:09
++++ oracle/src/src/rng.cpp	2026-10-22 19:02:12
 @@ -3,6 +3,8 @@
  #include <algorithm>
  #include <chrono>
@@ -2257,7 +2261,7 @@ diff -ruN references/Cataclysm-DDA/src/rng.cpp oracle/src/src/rng.cpp
  
  #include "calendar.h"
  #include "cata_assert.h"
-@@ -10,11 +12,41 @@
+@@ -10,11 +12,49 @@
  #include "debug.h"
  #include "units.h"
  
@@ -2265,8 +2269,8 @@ diff -ruN references/Cataclysm-DDA/src/rng.cpp oracle/src/src/rng.cpp
 +{
 +
 +// Optional recording of every die the game rolls, in the order it rolls them. Compiled in only for the harness: when the
-+// variable is unset this is a single pointer test, and it changes no draw. With it set, a port can be driven by exactly the
-+// dice the reference used instead of drawing its own and hoping the two agree.
++// variable is unset this is one pointer test per draw, and it changes no draw. With it set, a port can be driven by exactly
++// the dice the reference used instead of drawing its own and hoping the two agree.
 +std::ofstream &rng_trace()
 +{
 +    static std::ofstream file = [] {
@@ -2285,7 +2289,14 @@ diff -ruN references/Cataclysm-DDA/src/rng.cpp oracle/src/src/rng.cpp
 +    return rng_trace().is_open();
 +}
 +
++unsigned long long draw_count = 0;
++
 +} // namespace
++
++unsigned long long rng_draws_so_far()
++{
++    return draw_count;
++}
 +
  unsigned int rng_bits()
  {
@@ -2293,6 +2304,7 @@ diff -ruN references/Cataclysm-DDA/src/rng.cpp oracle/src/src/rng.cpp
      static std::uniform_int_distribution<unsigned int> rng_uint_dist;
 -    return rng_uint_dist( rng_get_engine() );
 +    const unsigned int drawn = rng_uint_dist( rng_get_engine() );
++    ++draw_count;
 +    if( recording() ) {
 +        rng_trace() << "bits " << drawn << '\n';
 +    }
@@ -2300,12 +2312,13 @@ diff -ruN references/Cataclysm-DDA/src/rng.cpp oracle/src/src/rng.cpp
  }
  
  int rng( int lo, int hi )
-@@ -23,7 +55,11 @@
+@@ -23,7 +63,12 @@
      if( lo > hi ) {
          std::swap( lo, hi );
      }
 -    return rng_int_dist( rng_get_engine(), std::uniform_int_distribution<>::param_type( lo, hi ) );
 +    const int drawn = rng_int_dist( rng_get_engine(), std::uniform_int_distribution<>::param_type( lo, hi ) );
++    ++draw_count;
 +    if( recording() ) {
 +        rng_trace() << "int " << lo << ' ' << hi << ' ' << drawn << '\n';
 +    }
@@ -2313,6 +2326,20 @@ diff -ruN references/Cataclysm-DDA/src/rng.cpp oracle/src/src/rng.cpp
  }
  
  double rng_float( double lo, double hi )
+diff -ruN references/Cataclysm-DDA/src/rng.h oracle/src/src/rng.h
+--- references/Cataclysm-DDA/src/rng.h	2026-10-19 18:15:05
++++ oracle/src/src/rng.h	2026-10-22 18:51:50
+@@ -32,6 +32,10 @@
+ cata_default_random_engine &rng_get_engine();
+ unsigned int rng_bits();
+ 
++// How many dice have been rolled since the process started. With CDDA_RNG_TRACE writing every draw in order, this is the
++// index of the next one - which is what lets a record say *which* die produced it instead of leaving the port to guess.
++unsigned long long rng_draws_so_far();
++
+ int rng( int lo, int hi );
+ double rng_float( double lo, double hi );
+ 
 diff -ruN references/Cataclysm-DDA/src/src/harness.cpp oracle/src/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/src/harness.cpp	1970-01-01 10:00:00
 +++ oracle/src/src/src/harness.cpp	2026-10-21 06:53:22
