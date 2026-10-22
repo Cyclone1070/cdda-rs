@@ -88,6 +88,19 @@ exactly, with no named gaps at all**, and JSON reading and writing match over al
 inherited flags while `extend.flags` adds to them - treating the two the same way is
 what kept two overmap terrain types wrong.
 
+**P9 has a world on both sides now.** The reference's own overmap, noise field and final terrain can be
+dumped in one run from one seed, and the port's rules are checked against that terrain tile for tile: **1,681 of
+1,681 tiles accounted for**, with every disagreement being a square the town wrote over. The world layer itself has
+gone from a blank grid to woodland from the reference's own noise (**matched to a part in a million on 1,681
+points**), cities, streets, **shaped road tiles** in the reference's box-drawing vocabulary, and buildings placed
+from the reference's own **258 specials, 35 locations, 178 houses, 223 shops and 51 parks** - the whole specials family, loaded, placed and gated against itself. Two bugs the comparison found and reading would not have: the
+regional file's forest thresholds (**0.2 / 0.25**) override the header's, and the noise is shifted by a
+**forest growth adjustment** that only appears away from the origin.
+
+The suite now also runs **on a second machine and a second platform**: `tools/remote_test.py` syncs the workspace to
+a Linux desktop and runs every gate there in about twenty seconds, so the same 969 cases are verified on macOS and
+Linux on each run.
+
 **P2 stands here.** Read this against `03-decisions.md`: things are nouns, systems are verbs,
 and answers are neither. T1 (the ground of a square), T2 (positions come from the register, the
 grid is rebuilt from it) and T3 (answers and their caches) are done.
