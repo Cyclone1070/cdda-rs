@@ -308,6 +308,37 @@ equality; JSON accept/reject parity". Each part, and where it is proven:
 | JSON acceptance is identical | All 6,220 shipped files: same accept/reject verdict and same structural digest as the reference; the writer is compared byte for byte on 127 of them |
 | The cache changes nothing | All 6,220 files read identically cold and warm |
 
+## The perimeter trace needs a regenerated chunk (round 240)
+
+The perimeter depths are now written too (`CDDA_MAP_TRACE_PERIMETER`, one line of ninety-six depths per chunk), which is
+the input the port needs to be checked against the reference **given identical inputs** rather than on coincidence. The
+instrument compiles and is in the patch.
+
+**It cannot be read from a chunk the world already holds.** A run whose save already contains the chunk does not
+regenerate it, so the mapgen functions never execute and no trace is written - which is exactly what happened when the
+perimeter trace was first tried: the game exited cleanly, wrote its dumps, and logged nothing, because the chunk had been
+built by an earlier run. Reading it needs one generation with an empty save, which is the expensive case that stalled
+three rounds ago. So the instrument waits on a run that is worth planning rather than starting on a whim.
+
+## The missing-draw hypothesis, falsified in one read (round 240)
+
+The obvious candidate for the dice being out of step was `set_terrain_dependent_furniture`, which rolls `one_in` per
+square. It does not apply: **`forest`'s `terrain_furniture` block is empty** in this data, so the reference returns from
+that function before rolling anything at all. Nothing is consumed, nothing is missing, and the hypothesis is dead.
+
+**The real reason the chunk cannot match, and it is architectural rather than arithmetic.** The reference's perimeter
+curve is built from **dice**, not from a hash of the chunk: the number of critical points per edge and their positions
+and depths are all drawn from the engine's stream when the chunk is generated. The port's chunk test builds that curve
+from a made-up seed (`Rolls::new(31337)`), which means the port has never been generating the same chunk - it has been
+generating *a* chunk with the same rules. Every score since round 224 has been the share of squares where two different
+draws happened to agree, and that is why the numbers sat between 280 and 320 while the rules got better.
+
+**What that changes.** Exact chunk parity needs the same dice, which needs either a full replay of the world's generation
+order - everything generated before this chunk consumed state - or a **recorded starting state for the chunk**. The second
+is the oracle-first answer and it is small: dump the engine state (or seed) immediately before the chunk is generated,
+along with the **96 perimeter depths** it computed, and the port can then be checked against the reference **given
+identical inputs** instead of being scored on a coincidence.
+
 ## The corner, answered (round 239)
 
 The ground raffle is instrumented too (`CDDA_MAP_TRACE_GROUND`), and it answers the question the last four rounds were
