@@ -1,8 +1,8 @@
 //! The port's groundcover pass against the reference's own forest chunk.
 //!
 //! This is a **baseline**, not parity: the reference runs four feature layers after its groundcover pass, and the port
-//! runs none of them yet, so most squares will differ. What the numbers are good for is telling the two failures apart
-//! - wrong ground where the port should have been right, and missing features where the port has not written that pass
+//! runs none of them yet, so most squares will differ. What the numbers are good for is telling the two failures apart:
+//! wrong ground where the port should have been right, and missing features where the port has not written that pass
 //! at all.
 
 #![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
@@ -58,6 +58,7 @@ fn the_ground_pass_produces_a_full_chunk_of_named_ground() {
     );
     let mut rolls = Rolls::new(31337);
     let perimeter = forest_perimeter_depth(border, 5, &mut rolls);
+    let _ = &forest;
     let ground = forest_ground_pass(
         24,
         &perimeter,
