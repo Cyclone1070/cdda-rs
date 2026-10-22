@@ -233,15 +233,9 @@ pub fn forest_ground_pass(
             factor,
             neighbour_factors,
         );
-        let total: f32 = pool.iter().map(|weight| weight.max(0.0)).sum();
-        let mut ticket = rolls.rng_float(0.0, f64::from(total));
-        for (index, weight) in pool.iter().enumerate() {
-            ticket -= f64::from(weight.max(0.0));
-            if ticket <= 0.0 {
-                return index;
-            }
-        }
-        4
+        // The reference draws this raffle with a raw 32-bit value and walks the tickets; a real-valued draw consumes a
+        // different amount of the engine's state and puts every later square on different dice.
+        cdda_core_types::overmap::pick_real_ticket(rolls.rng_bits(), &pool)
     };
 
     for y in 0..side {

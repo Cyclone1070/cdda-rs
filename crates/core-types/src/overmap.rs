@@ -1413,3 +1413,25 @@ pub fn unify_all_borders(
     cardinal_weights[ccw_index] = ccw_weight;
     cardinal_weights[cw_index] = cw_weight;
 }
+
+/// Picks a ticket from a list of **real-weighted** tickets, the way the reference does.
+///
+/// Reference: `weighted_float_list::pick_ent` in `weighted_list.h`. It draws the same kind of die as the integer lists -
+/// a raw 32-bit value - and turns it into a position by `randi / UINT_MAX * total`, then walks the tickets taking the
+/// first whose accumulated weight is **at least** that position. Two details matter for reproducing a world: the
+/// divisor is `UINT_MAX` rather than one more than it, and the comparison is inclusive. Using a real-valued draw here
+/// instead - which is the obvious reading of "weighted by real numbers" - gives the right kinds and the wrong squares,
+/// because every square after the first is generated from different dice.
+#[must_use]
+pub fn pick_real_ticket(bits: u32, tickets: &[f32]) -> usize {
+    let total: f32 = tickets.iter().map(|weight| weight.max(0.0)).sum();
+    let position = f64::from(bits) / f64::from(u32::MAX) * f64::from(total);
+    let mut accumulated = 0.0_f64;
+    for (index, weight) in tickets.iter().enumerate() {
+        accumulated += f64::from(weight.max(0.0));
+        if accumulated >= position {
+            return index;
+        }
+    }
+    tickets.len().saturating_sub(1)
+}

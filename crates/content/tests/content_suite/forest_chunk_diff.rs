@@ -142,8 +142,8 @@ fn the_ground_pass_and_the_reference_agree_on_a_share_of_the_chunk() {
         terrains: Vec::new(),
         flags: Vec::new(),
     };
-    // Measured at **302 of 576** with the reference's own chunk, against roughly 64 that chance alone would give. The
-    // number moved 122 -> 183 -> 242 -> 285 -> 302, from three fixes that each came out of the measurement: resolving
+    // Measured at **305 of 576** with the reference's own chunk, against roughly 64 that chance alone would give. The
+    // number moved 122 -> 183 -> 242 -> 285 -> 302 -> 305, from three fixes that each came out of the measurement: resolving
     // the region's **palette chains** rather than stopping at the first name, treating a **furniture** feature as
     // something that does not replace the ground under it, and scaling the four neighbours by the square's own
     // sparseness while this square's ticket stays at a fixed three - the last of which is worth the most, because the
