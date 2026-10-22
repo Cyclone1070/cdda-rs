@@ -101,3 +101,82 @@ pub fn fire_turn(
         grew,
     }
 }
+
+/// What one square next to a fire looks like, as far as spreading is concerned.
+///
+/// The four flags are the reference's own condition, kept together because they answer one question - would this square catch? - and
+/// splitting them into separate types would only move the same four `bool`s somewhere else.
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Neighbour {
+    /// A fire is already burning there; the reference boosts those elsewhere and never re-lights them here.
+    pub has_fire: bool,
+    /// A spider web is there, which makes the fire much more eager.
+    pub web: bool,
+    /// The ground is `FLAMMABLE`.
+    pub flammable: bool,
+    /// The ground is `FLAMMABLE_ASH`.
+    pub flammable_ash: bool,
+    /// The ground is `FLAMMABLE_HARD`, which needs a hotter fire.
+    pub flammable_hard: bool,
+}
+
+/// The squares a fire sets alight this turn.
+///
+/// Reference: the spread loop at `src/map_field.cpp:1285-1345`. Its shape is the rule:
+///
+/// * the loop starts at a **random** neighbour - `rng( 0, n - 1 )` - and wraps, because the reference wants a fire to prefer whichever
+///   side it happens to think of first, and the order is part of the world;
+/// * a neighbour is skipped on `one_in( intensity * 2 )`, so a bigger fire considers fewer neighbours per turn;
+/// * the chance to take is `25 * ( intensity - 1 )`, and `50 + chance / 2` when a web is there - which is why a **single square of fire
+///   can cross a web** but not a lawn;
+/// * the fire's `power` is `intensity + one_in( 5 )`, and the ground must accept it: `FLAMMABLE` and `FLAMMABLE_ASH` need power two with a
+///   coin toss, `FLAMMABLE_HARD` needs power three with one in five, and a web needs nothing at all.
+///
+/// Returns the indices of the neighbours that caught, in the order the loop considered them. The dice are spent identically whether the
+/// answer is yes or no - which is the property a replay depends on.
+#[must_use]
+pub fn spread_fire(
+    rolls: &mut crate::rng::Rolls,
+    intensity: i32,
+    can_spread: bool,
+    neighbours: &[Neighbour],
+) -> Vec<usize> {
+    let mut caught = Vec::new();
+    if neighbours.is_empty() {
+        return caught;
+    }
+    let Some(count) = i32::try_from(neighbours.len()).ok() else {
+        return caught;
+    };
+    let start = rolls.rng(0, count - 1);
+    for step in 1..=count {
+        let index = (start + step).rem_euclid(count);
+        let Some(neighbour) = usize::try_from(index)
+            .ok()
+            .and_then(|index| neighbours.get(index))
+        else {
+            continue;
+        };
+        if rolls.one_in(intensity * 2) {
+            continue;
+        }
+        if neighbour.has_fire {
+            continue;
+        }
+        let chance = spread_chance(intensity, neighbour.web);
+        let power = intensity + i32::from(rolls.one_in(5));
+        // The reference draws the take roll and the terrain rolls in this order; each is drawn only when the condition before it holds,
+        // which is why a fire's dice consumption depends on what it is standing next to.
+        let takes_ground = (power >= 2 && neighbour.flammable && rolls.one_in(2))
+            || (power >= 2 && neighbour.flammable_ash && rolls.one_in(2))
+            || (power >= 3 && neighbour.flammable_hard && rolls.one_in(5));
+        if !can_spread {
+            continue;
+        }
+        if rolls.rng(1, 100) < chance && (neighbour.web || takes_ground) {
+            caught.push(usize::try_from(index).unwrap_or(0));
+        }
+    }
+    caught
+}

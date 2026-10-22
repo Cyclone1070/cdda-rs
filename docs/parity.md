@@ -406,6 +406,21 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Fire jumping to a neighbour (round 302)
+
+`spread_fire` ports the spread loop at `src/map_field.cpp:1285-1345`. Its **shape** is the rule and each part of the shape is a way to be wrong
+without any test noticing:
+
+| Part | Why it is there |
+|---|---|
+the loop starts at a **random** neighbour and wraps | the order it considers squares in is part of the world, not an optimisation |
+a neighbour is skipped on `one_in( intensity * 2 )` | a bigger fire looks at fewer neighbours per turn, which is the opposite of the obvious guess |
+the chance is `25 x ( intensity - 1 )`, or `50 + chance / 2` onto a **web** | so a single square of fire can cross a spider web and cannot cross a lawn - the case my intuition missed |
+`power = intensity + one_in( 5 )` gates the ground: `FLAMMABLE`/`FLAMMABLE_ASH` at power two with a coin toss, `FLAMMABLE_HARD` at power three with one in five | the flags are not interchangeable, and the hard case is much harder |
+
+Seven tests, including that a neighbour already burning is never re-lit, that a fire in a brazier does not spread at all, and that two runs from
+one seed stop at the same point in the dice stream whatever they decide - which is the property a replay depends on.
+
 ## Fire in the store (round 301)
 
 `process_fires` is the join: it walks the fire entities in the sweep's order, drops any whose turn begins with nothing left, and hands each
