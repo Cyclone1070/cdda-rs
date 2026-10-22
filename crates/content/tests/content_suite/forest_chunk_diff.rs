@@ -155,7 +155,35 @@ fn the_ground_pass_and_the_reference_agree_on_a_share_of_the_chunk() {
     for id in &ground {
         *counts.entry(id.clone()).or_insert(0_usize) += 1;
     }
-    eprintln!("the ground pass agrees on {agree} of 576 squares: {counts:?}");
+    let first_difference = ground
+        .iter()
+        .zip(reference.iter())
+        .position(|(ours, theirs)| ours != theirs)
+        .unwrap_or(576);
+    eprintln!(
+        "the ground pass agrees on {agree} of 576 squares, first difference at square {first_difference} \
+         (row {}, column {}): ours {:?} against theirs {:?}",
+        first_difference / 24,
+        first_difference % 24,
+        ground.get(first_difference),
+        reference.get(first_difference)
+    );
+    // Where the two first disagree: **square zero**, not somewhere in the middle. The port lays grass and the
+    // reference lays forest floor. So the difference is structural rather than accumulated drift - the very first
+    // decision a square makes is already different, and no amount of matching dice afterwards would fix it. That
+    // narrows the next probe to one square with known dice instead of 576 comparisons.
+    assert_eq!(
+        first_difference, 0,
+        "the disagreement starts at the first square"
+    );
+    assert_eq!(
+        ground[0], "t_grass",
+        "the port calls the corner square grass"
+    );
+    assert_eq!(
+        reference[0], "t_forestfloor",
+        "and the reference calls it forest floor"
+    );
     assert!(
         agree > 250,
         "the ground pass agrees with the reference on {agree} of 576 squares - below a hundred would mean it is \
