@@ -380,3 +380,32 @@ impl ScentWindow {
         }
     }
 }
+
+/// One turn of the scent map: deposit, then update.
+///
+/// Reference: `do_turn.cpp:642-648`. Each turn, unless the character carries the `NO_SCENT` flag, they lay their own scent at their own
+/// square - and the overmap records it, which is the overmap's business - and then the map updates: one diffusion pass over the
+/// window. The order is the rule: the deposit is what the pass spreads, so a port that diffused first would spread last turn's scent
+/// and never this turn's.
+///
+/// The pause belongs to the **update**, not the deposit: a character who has stood still long enough still smells where they are, and
+/// nothing is spread around them.
+///
+/// Returns whether the map updated, which is what a caller needs to know if it keeps its own idea of the last pass.
+pub fn scent_turn(
+    window: &mut ScentWindow,
+    clock: &mut ScentClock,
+    center: (i32, i32),
+    scent: i32,
+    no_scent: bool,
+    now: i64,
+) -> bool {
+    if !no_scent {
+        window.set(center.0, center.1, scent);
+    }
+    if !clock.should_update(center, now) {
+        return false;
+    }
+    window.diffuse();
+    true
+}
