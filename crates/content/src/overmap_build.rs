@@ -310,3 +310,28 @@ pub fn pick_forest_feature(
     }
     None
 }
+
+/// Turns the placeholder names in a generated chunk into the terrain the region's palettes stand for.
+///
+/// Reference: `resolve_regional_terrain_and_furniture` in `mapgen_functions.cpp`. Map generation writes names like
+/// `t_region_groundcover_forest` into the map and never resolves them; a **separate pass over every square of the chunk**
+/// does that afterwards, drawing one weighted pick per placeholder. So the terrain a finished chunk holds is not the
+/// terrain its generator chose - it is the generator's choice **plus** a second draw, and a port that stops after the
+/// generator produces a chunk of placeholders.
+///
+/// The pass is deliberately separate here too: it is a step a caller can run on any chunk, in the order the reference
+/// runs it, rather than something hidden inside generation.
+pub fn resolve_chunk_placeholders(
+    cells: &mut [String],
+    palettes: &std::collections::BTreeMap<String, Vec<(String, i32)>>,
+    rolls: &mut Rolls,
+) -> usize {
+    let mut resolved = 0;
+    for cell in cells.iter_mut() {
+        if palettes.contains_key(cell) {
+            *cell = crate::overmap_special::resolve_region_terrain(palettes, cell, rolls);
+            resolved += 1;
+        }
+    }
+    resolved
+}

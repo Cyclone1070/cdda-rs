@@ -308,6 +308,22 @@ equality; JSON accept/reject parity". Each part, and where it is proven:
 | JSON acceptance is identical | All 6,220 shipped files: same accept/reject verdict and same structural digest as the reference; the writer is compared byte for byte on 127 of them |
 | The cache changes nothing | All 6,220 files read identically cold and warm |
 
+## The second draw, found in the source (round 253)
+
+The missing pass has a name: `resolve_regional_terrain_and_furniture` in `mapgen_functions.cpp`. Map generation writes
+placeholder names like `t_region_groundcover_forest` into the map and leaves them there; **a separate pass over every
+square** replaces each placeholder with a weighted draw from the region's palette, and only then is the chunk finished.
+
+That changes the model the port was built on. A chunk's terrain is the generator's choice **plus a second draw**, and a port
+that stops after generation produces chunks full of placeholders - which is exactly what my feature trace was recording,
+square after square, without my noticing that the reference resolves them afterwards.
+
+The port now has that pass as a step of its own - `resolve_chunk_placeholders` - taking a chunk, the region's palettes and
+the dice, and returning how many squares it changed. Four tests: placeholders become terrain, they land only on entries of
+their own palette (ten to one in the sample, and four hundred draws show both entries), the same seed resolves the same
+chunk the same way, and a chunk with **no** placeholders spends **no** dice - because the pass draws only where it resolves,
+and a port that drew per square regardless would put every later square of the world on different dice.
+
 ## The trace names its chunk, and the finding survives (round 252)
 
 Every feature-trace line now begins with the chunk it belongs to, which turns the 576 lines of a chunk into a **lookup**

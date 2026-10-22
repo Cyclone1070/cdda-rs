@@ -282,7 +282,7 @@ impl MinStdRand0 {
 }
 
 /// `std::normal_distribution<>` (`src/rng.cpp:80-83`).
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct NormalDistribution {
     /// libc++'s `__v_` / `__v_hot_`: the polar method produces two values per
     /// accepted pair, so the second one is stored and returned next time.
@@ -330,7 +330,7 @@ impl NormalDistribution {
 /// anything goes through them, so a wrapper that drew one extra value would
 /// shift every later draw. The distributions share one cache of the second
 /// normal value, exactly as the reference's statics do.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Rolls {
     engine: MinStdRand0,
     normal: NormalDistribution,
