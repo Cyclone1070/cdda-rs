@@ -16,6 +16,7 @@ mod daylight;
 mod diagnostics;
 mod field;
 mod forest_border;
+mod forest_corner_arithmetic;
 mod forest_corners;
 mod forest_feather;
 mod forest_perimeter;
