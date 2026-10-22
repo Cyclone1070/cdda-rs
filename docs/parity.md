@@ -406,6 +406,26 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Merging submaps, where two layers break the rules (round 344)
+
+`merge_submaps` (`submap.cpp:391-436`) merges one submap onto another with `copy_from_is_overlay` deciding who wins. Three layers follow the obvious rule and two do
+not:
+
+| Layer | When the source's value is taken |
+|---|---|
+terrain, furniture, traps | the source has one (**not** null) **and** either this is an overlay or the target has none |
+radiation | the source is **above zero** and either this is an overlay or the target has none |
+light | **always**, and **added** - no null check, no overlay check |
+items, fields | always (they arrive with their own layers) |
+
+**The light sum wraps.** `this->m->lum[x][y] += copy_from->m->lum[x][y]` is a `uint8_t` addition: promoted to `int`, added, truncated on the way back. Two squares of 200
+and 100 light merge to 44. Item counting saturates at 255 one item at a time, so the merge is the one place the value can leave that range, and the reference wraps
+rather than clamping. Reproduced, with the reason written at the call site.
+
+**And uniformity is a save rule, not just a memory trick.** `mapbuffer.cpp:278-284` skips a whole quad of submaps when every one of them is uniform - "regenerated
+faster than it would be re-read" - so `needs_saving()` is a question the save path asks. A uniform submap is not a compressed empty one; it is one that is never
+written.
+
 ## The other four layers, and the asymmetries between them (round 343)
 
 A submap now carries terrain, furniture, luminance, traps and radiation, each a page that costs nothing until it is written. The reference's `maptile_soa` also

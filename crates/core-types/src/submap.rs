@@ -205,6 +205,52 @@ impl Submap {
         }
     }
 
+    /// Merges another submap into this one.
+    ///
+    /// Reference: `submap::merge_submaps` (`submap.cpp:391-436`). Each layer has its own rule, and two of them are surprising:
+    ///
+    /// | Layer | When the source's value is taken |
+    /// |---|---|
+    /// | terrain, furniture, traps | the source has one (**not** null) **and** either this is an overlay or the target has none |
+    /// | radiation | the source is **above zero** and either this is an overlay or the target has none |
+    /// | light | **always**, added to whatever is here - no null, no overlay |
+    /// | items, fields | always (they arrive with their own layers) |
+    ///
+    /// The light sum is a `uint8_t` addition in the reference, so it wraps rather than saturating; that is reproduced here rather than corrected.
+    pub fn merge_from(&mut self, source: &Submap, overlay: bool) {
+        for x in 0..SUBMAP_SIDE {
+            for y in 0..SUBMAP_SIDE {
+                let terrain = source.terrain(x, y);
+                if terrain != NULL_ID && (overlay || self.terrain(x, y) == NULL_ID) {
+                    self.set_terrain(x, y, terrain);
+                }
+                let furniture = source.furniture(x, y);
+                if furniture != NULL_ID && (overlay || self.furniture(x, y) == NULL_ID) {
+                    self.set_furniture(x, y, furniture);
+                }
+                let light = self.luminance(x, y).wrapping_add(source.luminance(x, y));
+                self.set_luminance(x, y, light);
+                let trap = source.trap(x, y);
+                if trap != NULL_ID && (overlay || self.trap(x, y) == NULL_ID) {
+                    self.set_trap(x, y, trap);
+                }
+                let radiation = source.radiation(x, y);
+                if radiation > 0 && (overlay || self.radiation(x, y) == 0) {
+                    self.set_radiation(x, y, radiation);
+                }
+            }
+        }
+    }
+
+    /// Whether this submap holds anything worth writing to a save file.
+    ///
+    /// Reference: `mapbuffer.cpp:278-284`, which skips a quad entirely when every submap in it is uniform, because regenerating one is faster than reading it back.
+    /// So a uniform submap is not a compressed empty one - it is one that is never written at all.
+    #[must_use]
+    pub fn needs_saving(&self) -> bool {
+        !self.is_uniform()
+    }
+
     /// The radiation at a cell.
     ///
     /// # Panics
