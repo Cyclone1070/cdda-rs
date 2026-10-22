@@ -11,6 +11,9 @@ use std::collections::BTreeMap;
 
 use cdda_json::Value;
 
+use cdda_core_types::rng::Rolls;
+use cdda_core_types::weighted::WeightedList;
+
 use crate::monsters::LoadError;
 
 /// What an entry points at.
@@ -86,10 +89,12 @@ pub fn load_paths(dirs: &[&std::path::Path]) -> Result<Vec<MonsterGroup>, LoadEr
                         (_, Some(Value::Str(group))) => EntryKind::Group(group.clone()),
                         _ => continue,
                     };
-                    // A weight is the whole point of the entry; the data always writes one.
+                    // An entry without a weight counts as **one**, not zero: the reference reads `mon.get_int( "weight", 1 )`
+                    // (`mongroup.cpp:496`), and a loader that defaulted to zero dropped those entries out of the raffle
+                    // entirely - which is how a group made only of other groups ended up producing nothing at all.
                     let weight = match entry.get("weight") {
-                        Some(Value::Int(number)) => i32::try_from(*number).unwrap_or(0),
-                        _ => 0,
+                        Some(Value::Int(number)) => i32::try_from(*number).unwrap_or(1),
+                        _ => 1,
                     };
                     entries.push(MonsterGroupEntry { kind, weight });
                 }
@@ -100,4 +105,46 @@ pub fn load_paths(dirs: &[&std::path::Path]) -> Result<Vec<MonsterGroup>, LoadEr
         .into_iter()
         .map(|(id, entries)| MonsterGroup { id, entries })
         .collect())
+}
+
+/// Picks a monster out of a group, resolving nested groups.
+///
+/// Reference: `MonsterGroup::pick` (`mongroup.cpp`). An entry is chosen by weight; if it names another **group** the pick is
+/// repeated inside it, up to a bound so malformed data that refers back to itself cannot hang a spawn. Conditions on time,
+/// season and terrain are not consulted - the port's spawner will pass only the entries that pass them, which is the shape the
+/// reference uses too.
+///
+/// Returns the monster's id, or `None` when the group does not exist or holds nothing to pick.
+pub fn pick_monster<'a>(
+    group_id: &str,
+    groups: &'a [MonsterGroup],
+    rolls: &mut Rolls,
+) -> Option<&'a str> {
+    let mut current = group_id;
+    // A nested chain in the data is two or three deep; eight is a generous ceiling that still terminates on a cycle.
+    for _ in 0..8 {
+        let group = groups.iter().find(|group| group.id == current)?;
+        let entries: Vec<(EntryKind, i32)> = group
+            .entries
+            .iter()
+            .map(|entry| (entry.kind.clone(), entry.weight))
+            .collect();
+        let list = WeightedList::from_entries(entries);
+        let kind = list.pick(rolls)?.clone();
+        match kind {
+            EntryKind::Monster(id) => {
+                // The group table borrows from itself, so the id is looked up rather than returned by value.
+                return groups.iter().find_map(|group| {
+                    group.entries.iter().find_map(|entry| match &entry.kind {
+                        EntryKind::Monster(name) if *name == id => Some(name.as_str()),
+                        _ => None,
+                    })
+                });
+            }
+            EntryKind::Group(id) => {
+                current = groups.iter().find(|group| group.id == id)?.id.as_str();
+            }
+        }
+    }
+    None
 }

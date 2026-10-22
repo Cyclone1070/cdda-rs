@@ -55,6 +55,7 @@ mod mapgen_objects;
 mod mapgen_place;
 mod materials;
 mod mods;
+mod monster_group_pick;
 mod monster_groups;
 mod monster_harvest;
 mod monsters;

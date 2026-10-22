@@ -377,6 +377,17 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Picking from a group, and the default weight that was hiding (round 277)
+
+`pick_monster` now resolves a group to a monster: weighted pick, and when an entry names another **group** the pick repeats
+inside it, bounded so malformed data that refers back to itself cannot hang a spawn. Four tests, including twenty thousand
+draws of `GROUP_GOO` landing within three points of the data's own shares (blob 69.3%, small blob 30%, shoggoth under 1%).
+
+**A default I had guessed wrong, caught by a test that kept returning nothing.** Entries without a `"weight"` were loaded as
+zero, so they could never be picked - and a group made only of other groups produced no monster at all. The reference reads
+`mon.get_int( "weight", 1 )` (`mongroup.cpp:496`): the default is **one**, not zero, and a zero-weight entry is a way to
+disable something rather than to leave it unspecified.
+
 ## Monster groups: 401 groups, 2,782 entries (round 276)
 
 The table a spawn point draws from is loaded: **401 groups and every one of their 2,782 entries**, checked against a
