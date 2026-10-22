@@ -57,6 +57,7 @@ mod materials;
 mod mods;
 mod monster_harvest;
 mod monsters;
+mod npc_classes;
 mod overmap;
 mod overmap_build;
 mod overmap_locations;

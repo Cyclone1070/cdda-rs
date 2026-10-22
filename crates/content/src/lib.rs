@@ -27,6 +27,7 @@ pub mod mapgen;
 pub mod materials;
 pub mod mods;
 pub mod monsters;
+pub mod npc_classes;
 pub mod overmap;
 pub mod recipes;
 mod rules;

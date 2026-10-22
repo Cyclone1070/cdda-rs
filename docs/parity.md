@@ -30,7 +30,7 @@ Nothing is `gated` without a link to the run that proved it.
 | Item types: identity, measure, category, flags, names | done (first slice) | M1 | All 9,912 match on id set, name, plural, glyph, colour, weight, volume, price, category, flags and materials — including armour that derives its materials from its per-part entries, and materials added or dropped through `extend` and `delete`. No outstanding notes |
 | Monster types | done (first slice) | M1 | 1,154 monster types match on id set, name, glyph, colour, body type, hp, speed, difficulty, melee skill, dodge, morale, aggression, weight, volume, species, categories and materials, including the null type and the dormant twins the reference generates |
 | Generated prototypes | in progress | M1 | the ids the reference builds for itself are reproduced: the null monster and its dormant twins, 311 inline enchantments, 113 martial-art buffs, 239 turret parts |
-| Content registry | in progress, 86 of 90 registries | M1 | 86 of 90 registries hold exactly the reference's ids, and **no invented ids anywhere**. The gate runs on every build and names the four gaps with their exact shortfalls, so a regression in any of the other 86 fails it and finishing a gap means editing the list |
+| Content registry | in progress, 87 of 90 registries | M1 | 87 of 90 registries hold exactly the reference's ids, and **no invented ids anywhere**. The gate runs on every build and names the three remaining gaps with their exact shortfalls, so a regression in any of the other 86 fails it and finishing a gap means editing the list |
 | JSON reading | done (P0 scope) | M0 | Reader matches the reference on **all 6,220** data files — accept or reject in agreement, and the same structural digest; duplicate keys are a hard error, member order is sorted, trailing content is ignored. A further run parses the whole 107 MB tree in one go |
 | JSON writing | done (P0 scope) | M0 | Writer matches the reference byte for byte on **all 6,220** data files, compact and pretty, including its fixed 6-decimal float format. Raised from a 127-file sample: the shapes a sample skips are where the escaping and rounding rules bite |
 | JSON parse cache | done (P0 scope) | M0 | 5 tests: a hit avoids the parse, a changed source is a miss, a damaged entry is a miss and never an error, unused entries are pruned at open; plus a corpus run over the reference's own cache directory |
@@ -376,6 +376,20 @@ every square too.
 sparseness-adjacency factor (4 here), while the port returns the proximity fraction and scales at the call site. The two
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
+
+## NPC classes, 155 of 155 (round 274)
+
+The largest remaining hole in the P1 loader families was `npc_class` - what an NPC is before they are given a personality:
+their starting skills, traits, worn gear and carried items. Nothing in the port read it, so every NPC-bearing mapgen square
+was untranslatable.
+
+The port now loads the class table: **155 classes, exactly the reference's ids, none invented, none missing**, which moves the
+content registry to 87 of 90. The two tests are the same shape the other eighty-odd registries use - the reference's own id
+artifact, compared in both directions - plus one that pins the **name** parsing: the data writes a name as a translated string
+object (`{ "str": "No class" }`), not a bare string, and a reader that only looks for one form loads 155 empty names without
+failing.
+
+The skill and gear tables are not ported: they are what a class *does*, and they wait for the code that consumes them.
 
 ## The reference's own dice (round 266)
 
