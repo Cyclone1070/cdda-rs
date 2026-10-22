@@ -21,7 +21,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 /// The registries this rule gets exactly right, with the count each of them holds. The counts are part of the claim: a registry that quietly lost or gained
 /// entries changes a number here even if the digest check below is somehow skipped.
-const GATED: [(&str, usize); 75] = [
+const GATED: [(&str, usize); 79] = [
     ("ITEM", 9912),
     ("widgets", 1236),
     ("trait", 959),
@@ -96,6 +96,10 @@ const GATED: [(&str, usize); 75] = [
     ("shopkeeper_blacklist", 2),
     ("profession_group", 1),
     ("speed_description", 1),
+    ("MONSTER_FACTION", 133),
+    ("martial art buff", 113),
+    ("species", 32),
+    ("achievement", 226),
     ("butchery_requirements", 1),
 ];
 
@@ -104,7 +108,7 @@ const GATED: [(&str, usize); 75] = [
 /// Two thirds of the registries are named something other than their JSON type, and none of that is documented anywhere: `widgets` are written `widget`,
 /// `json_flags` are `json_flag`, a `mission_type` is a `mission_definition`, a `zone_type` is a `LOOT_ZONE`. Each pair here was found the only way it can be
 /// found honestly - by asking which JSON type's id set equals the reference's - and then gated by the digest, so a pair that is wrong cannot pass.
-const RENAMED: [(&str, &[&str]); 41] = [
+const RENAMED: [(&str, &[&str]); 42] = [
     ("widgets", &["widget"]),
     ("trait", &["mutation"]),
     ("json_flags", &["json_flag"]),
@@ -146,7 +150,59 @@ const RENAMED: [(&str, &[&str]); 41] = [
     ("move_mode", &["movement_mode"]),
     ("option slider", &["option_slider"]),
     ("butchery_requirements", &["butchery_requirement"]),
+    ("species", &["SPECIES"]),
 ];
+
+/// The registries whose entries name themselves with some member other than `id`.
+///
+/// Reference: `generic_factory<monfaction> faction_factory( "MONSTER_FACTION", "name" )` (`src/monfaction.cpp:13`). It is the only one of the ninety that does
+/// this, and it is easy to mistake for a factory that has lost its ids: the registry holds 133 faction names and not one of them is under `id`.
+const NAMED_BY: [(&str, &str); 1] = [("MONSTER_FACTION", "name")];
+
+fn id_member(json_type: &str) -> &str {
+    if let Some((_, member)) = NAMED_BY.iter().find(|(named, _)| *named == json_type) {
+        return member;
+    }
+    "id"
+}
+
+/// The ids that come from somewhere other than an entry's own `id`.
+///
+/// Three of them, and each is a different kind of exception:
+///
+/// - a **null prototype** the factory makes in code: `spec_null` is a species the reference has and no file writes, the same wrinkle as `t_null` and `f_null`;
+/// - a registry that **borrows a second type**: a conduct is an achievement, so `achievement` is `achievement` entries plus `conduct` entries;
+/// - a **slot**, like the effects in `*_eocs`: a martial art's `static_buffs`, `onblock_buffs` and their nine siblings each hold objects with an `id`, and each
+///   of those is a buff the reference registers (`martialarts.cpp`, the `*_buffs` readers).
+fn extra_ids(registry: &str, value: &Value) -> Vec<String> {
+    let mut out = Vec::new();
+    match registry {
+        "species" => out.push("spec_null".to_owned()),
+        "martial art buff" => {
+            for entry in entries(value) {
+                let Value::Object(object) = entry else {
+                    continue;
+                };
+                for (name, member) in object.members() {
+                    if !name.ends_with("_buffs") {
+                        continue;
+                    }
+                    if let Value::Array(slots) = member {
+                        for slot in slots {
+                            if let Value::Object(buff) = slot
+                                && let Some(Value::Str(id)) = buff.get("id")
+                            {
+                                out.push(id.clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+    out
+}
 
 fn json_types(registry: &str) -> Vec<&str> {
     if let Some((_, types)) = RENAMED.iter().find(|(named, _)| *named == registry) {
@@ -156,8 +212,12 @@ fn json_types(registry: &str) -> Vec<&str> {
 }
 
 /// Collects `(JSON type -> ids)` by the shared rule, for every type in the tree.
-fn registries_in_tree() -> BTreeMap<String, BTreeSet<String>> {
+fn registries_in_tree() -> (
+    BTreeMap<String, BTreeSet<String>>,
+    BTreeMap<String, BTreeSet<String>>,
+) {
     let mut by_type: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    let mut extras: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     for root in crate::corpus::dirs() {
         let Ok(files) = cdda_content::json_files_in_load_order(&root) else {
             continue;
@@ -169,14 +229,20 @@ fn registries_in_tree() -> BTreeMap<String, BTreeSet<String>> {
             for entry in entries(&value) {
                 register(entry, &mut by_type);
             }
+            // Only the slot-based kinds need to see the file as a whole, and only they are walked for it.
+            for registry in ["martial art buff"] {
+                for id in extra_ids(registry, &value) {
+                    extras.entry(registry.to_owned()).or_default().insert(id);
+                }
+            }
         }
     }
-    by_type
+    (by_type, extras)
 }
 
 /// The same, named the way the reference's registries are named.
 fn shared_rule() -> BTreeMap<String, BTreeSet<String>> {
-    let by_type = registries_in_tree();
+    let (by_type, extras) = registries_in_tree();
     let mut out = BTreeMap::new();
     for registry in GATED.iter().map(|(registry, _)| *registry) {
         let mut ids = BTreeSet::new();
@@ -184,6 +250,18 @@ fn shared_rule() -> BTreeMap<String, BTreeSet<String>> {
             if let Some(found) = by_type.get(json_type) {
                 ids.extend(found.iter().cloned());
             }
+        }
+        if registry == "achievement"
+            && let Some(conducts) = by_type.get("conduct")
+        {
+            // A conduct is an achievement with a type of its own, and the reference registers both in the same factory.
+            ids.extend(conducts.iter().cloned());
+        }
+        if registry == "species" {
+            ids.insert("spec_null".to_owned());
+        }
+        if let Some(found) = extras.get(registry) {
+            ids.extend(found.iter().cloned());
         }
         if !ids.is_empty() {
             out.insert(registry.to_owned(), ids);
@@ -210,7 +288,10 @@ fn register(entry: &Value, out: &mut BTreeMap<String, BTreeSet<String>>) {
     let Value::Object(object) = entry else {
         return;
     };
-    if let (Some(Value::Str(kind)), Some(Value::Str(id))) = (object.get("type"), object.get("id"))
+    let Some(Value::Str(kind)) = object.get("type") else {
+        return;
+    };
+    if let Some(Value::Str(id)) = object.get(id_member(kind))
         && object.get("abstract").is_none()
     {
         out.entry(kind.clone()).or_default().insert(id.clone());
@@ -246,7 +327,7 @@ fn digests() -> BTreeMap<String, String> {
 
 #[allow(clippy::panic)]
 #[test]
-fn seventy_five_registries_hold_exactly_the_ids_the_reference_holds() {
+fn seventy_nine_registries_hold_exactly_the_ids_the_reference_holds() {
     let ours = shared_rule();
     let theirs = digests();
     let mut checked = 0;
@@ -271,7 +352,7 @@ fn seventy_five_registries_hold_exactly_the_ids_the_reference_holds() {
         );
         checked += 1;
     }
-    assert_eq!(checked, 75, "every registry in the list was checked");
+    assert_eq!(checked, 79, "every registry in the list was checked");
 }
 
 #[allow(clippy::expect_used)]
@@ -280,6 +361,7 @@ fn the_enchantments_are_the_written_ones_plus_the_inline_ones() {
     // Second registry in the corpus that a rule finishes: 42 entries name themselves, and 311 are written inline in a trait, a bionic, an effect or a vehicle
     // part, where the reference invents a name from the owner and the slot's position (`magic_enchantment.cpp:267-285`).
     let mut ids: BTreeSet<String> = registries_in_tree()
+        .0
         .remove("enchantment")
         .expect("the tree defines enchantments by name");
     let written = ids.len();
@@ -347,5 +429,21 @@ fn an_abstract_registers_nothing_and_a_type_name_can_differ_from_its_registry() 
     assert!(
         !by_type.contains_key("spell"),
         "a monster's special attack is not an entry: three spells in the real data are exactly this and the reference has none of them"
+    );
+
+    // And the id member is not always called `id`: a monster faction is named by `name`, which is why a rule that only looked for `id` found none of the 133.
+    let text = r#"[
+        {"type": "MONSTER_FACTION", "name": "acid_ant"},
+        {"type": "MONSTER_FACTION", "name": ""}
+    ]"#;
+    let value = cdda_json::parse(text.as_bytes()).expect("it parses");
+    let mut by_type = BTreeMap::new();
+    for entry in entries(&value) {
+        register(entry, &mut by_type);
+    }
+    assert_eq!(
+        by_type.get("MONSTER_FACTION"),
+        Some(&BTreeSet::from([String::new(), "acid_ant".to_owned()])),
+        "a faction with an empty name is the sentinel the reference keeps"
     );
 }

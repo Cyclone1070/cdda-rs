@@ -249,7 +249,7 @@ before this phase and everything after it depends on the harness. <!-- inference
   whether they become a data table or stay code; either way it is 4,206 lines to move. <!-- verified -->
 
 **Exit gate (M1).** Prototype digest equality across the full data set and all 42 in-repo mods
-(the digest is now ported and **83 of the 90 registries pass**: 8 through a real loader alone, 75 through the id-set rule in `digest_ids`); mod load-order
+(the digest is now ported and **88 of the 90 registries pass**; the two left, `city` and `magic_type`, hold no ids at all); mod load-order
 and duplicate-detection parity; oracle self-consistency gate green (see B1); a reference state dump loads
 into the port and reproduces the same digest.
 
