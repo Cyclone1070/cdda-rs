@@ -308,6 +308,22 @@ equality; JSON accept/reject parity". Each part, and where it is proven:
 | JSON acceptance is identical | All 6,220 shipped files: same accept/reject verdict and same structural digest as the reference; the writer is compared byte for byte on 127 of them |
 | The cache changes nothing | All 6,220 files read identically cold and warm |
 
+## The arithmetic agrees, 576 squares at a time (round 244)
+
+Feeding the recorded weights back through the port's own functions settles two things that reading the code could not.
+
+**The empty ticket.** Its weight is the chunk's total scaled by the maximum density minus what the neighbours and this
+square contribute at their own densities. Those densities belong to the chunk's four neighbours and are therefore the
+same for all 576 squares - so the chunk is 576 equations in four unknowns. Exactly **one** set of densities satisfies
+every one of them: **[4, 4, 4, 0]** - dense woods to the north, east and south, and **nothing to the west**, the neighbour
+that owns no biome at all.
+
+**The four neighbour weights.** They come from the perimeter, the square's distance from each edge, and which sides own a
+biome. The last is unknown, so it was inferred the same way: of sixteen possible masks, exactly one reproduces all 576
+recorded weights - the same three woods and no biome to the west. The two independent fits agreeing on the same
+neighbour set is the strongest evidence this port has produced about the forest rules, and it is the first that involves
+**no dice whatsoever.**
+
 ## The weights themselves, square by square (round 244)
 
 The feature raffle now writes **six weights per square** beside the ticket it drew, so `reference-forest-pools-trace.txt`
