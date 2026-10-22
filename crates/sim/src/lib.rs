@@ -221,7 +221,6 @@ pub trait FireMap {
     /// Whether smoke is suppressed here, as a sealed room does.
     fn suppress_smoke(&self, square: (i32, i32, i32)) -> bool;
     /// How much smoke the fire's fuel made this turn.
-    fn smoke_produced(&self, square: (i32, i32, i32)) -> i32;
     /// Whether the smoke may rise through the square overhead - `TFLAG_NO_FLOOR` up there, an open shaft or a hole in a roof.
     ///
     /// The default answer is **no**, because a map that has not looked upward cannot promise a way through, and the reference's own fallback is to leave
@@ -388,10 +387,6 @@ impl FireMap for MapFacts {
         self.terrain_at(square).suppress_smoke
     }
 
-    fn smoke_produced(&self, _square: (i32, i32, i32)) -> i32 {
-        0
-    }
-
     fn smoke_ceiling_open(&self, square: (i32, i32, i32)) -> bool {
         self.terrain_at((square.0, square.1, square.2 + 1)).no_floor
     }
@@ -437,18 +432,11 @@ pub fn process_fires(
         if field.entry.age() == 0 {
             continue;
         }
-        if std::env::var_os("CDDA_TRACE_FIRES").is_some() {
-            eprintln!(
-                "fire ({x},{y},{z}) intensity {} age {} draws {}",
-                field.entry.intensity(),
-                field.entry.age(),
-                rolls.recording_position()
-            );
-        }
         let fuel = cdda_core_types::fire::ground_fuel(
             map.ground(square),
             field.entry.intensity(),
             map.can_burn(square),
+            windpower,
             rolls,
         );
         let turn = cdda_core_types::fire::fire_turn(
@@ -487,7 +475,18 @@ pub fn process_fires(
         let adjacent = spread_and_flash(world, &burning, &neighbours, rolls, &mut newborn);
         // The neighbour count comes from the phase, because that is where the reference counts it: a fire that may not spread never looks, and reports
         // none.
-        fire_discharge(world, square, intensity, adjacent, map, windpower, rolls);
+        fire_discharge(
+            world,
+            square,
+            &Discharging {
+                intensity,
+                adjacent_fires: adjacent,
+                smoke_made: fuel.smoke,
+                windpower,
+            },
+            map,
+            rolls,
+        );
     }
     for (x, y, z) in newborn {
         // One fire per square: a square that already has one is not re-lit, and a square is a column **and** a floor.
@@ -1260,27 +1259,32 @@ pub fn create_hot_air(
     }
 }
 
-/// The four hot air field ids, placeholders until the field loader is wired in.
-/// The hot air and the smoke a fire leaves behind, in the reference's order.
+/// The numbers one turn of burning produced, grouped because they all come from the same processor run and travel together.
+struct Discharging {
+    intensity: i32,
+    adjacent_fires: i32,
+    smoke_made: i32,
+    windpower: i32,
+}
+
+/// The smoke and the hot air a fire leaves behind, in the reference's order.
 ///
 /// Split out of [`process_fires`] only because the system had grown past the point where a reader can hold it: the order is the rule, and the order is
-/// hot air first (`map_field.cpp:1429`), then smoke (`:1407`).
+/// smoke (`map_field.cpp:1407`) then hot air (`:1429`).
 fn fire_discharge(
     world: &mut World,
     square: (i32, i32, i32),
-    intensity: i32,
-    adjacent_fires: i32,
+    fire: &Discharging,
     map: &impl FireMap,
-    windpower: i32,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) {
     // **Smoke first** (`map_field.cpp:1407`), then hot air (`:1429`). I had these the other way round and the recording caught it: the port asked the
     // hot-air gate where the reference asked the smoke gate, one draw after the spread loop.
     if let Some(smoke) = cdda_core_types::fire::smoke_from_fire(
         rolls,
-        intensity,
-        map.smoke_produced(square),
-        windpower,
+        fire.intensity,
+        fire.smoke_made,
+        fire.windpower,
         map.suppress_smoke(square),
         // `p.z() < OVERMAP_HEIGHT` - there is always a level above in this store, and the top of the world is not modelled.
         true,
@@ -1289,8 +1293,8 @@ fn fire_discharge(
         let floor = if smoke.up { square.2 + 1 } else { square.2 };
         add_field_strength(world, (square.0, square.1, floor), SMOKE, smoke.intensity);
     }
-    if cdda_core_types::fire::wants_hot_air(adjacent_fires, rolls)
-        && let Some(kind) = cdda_core_types::fire::hot_air_field(intensity)
+    if cdda_core_types::fire::wants_hot_air(fire.adjacent_fires, rolls)
+        && let Some(kind) = cdda_core_types::fire::hot_air_field(fire.intensity)
         && let Some(hot_air) = hot_air_id(kind)
     {
         for (dx, dy) in cdda_core_types::fire::hot_air_squares(rolls) {

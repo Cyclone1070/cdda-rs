@@ -99,3 +99,18 @@ the way:
 `--place-furniture <x> <y> <furn>` | sets the furniture; `f_null` clears it - a bench is `FLAMMABLE_ASH`, and clearing the ground while leaving the bench standing isolates nothing at all |
 
 Every grid square in the dump now carries `"items"` and `"items_burn"`, so a replay knows what a fire could have caught besides the ground.
+
+## The isolated plank (`fire-plank`)
+
+The item branch only shows itself when **nothing else** on the scene could catch, so this fixture removes everything else: the fire stands on `t_floor` and
+all eight of its neighbours are `t_concrete` with `f_null`, except one square that holds a plank. The plank square is the only square a fire can reach, and
+`t_concrete` has no flammable flags of any kind (`prototype` row: `FLAT`, `MINEABLE`, `ROAD`, `TRANSPARENT`).
+
+Confirmed by mutation: with the item branch disabled the replay fails on turn 6 - `[(70, 59, 2, 84)]` against the reference's
+`[(69, 59, 1, 120), (70, 59, 2, 144)]` - and with it enabled it passes. The bench fixture this replaced (`fire-items`) did **not** fail under the same
+mutation, because a bench is `FLAMMABLE_ASH` and the ground rule caught the square without any help; it has been deleted rather than kept as a test that
+cannot fail.
+
+The session stops at the spread on purpose. From the next turn the newborn starts **eating the plank**: over sixty turns the reference's own state shows the
+newborn's age going 120 then 119 then 120 - one turn of fuel from the item, then nothing - and the port has no `item::burn` and no `fire_data` fuel to
+produce that. That is a rule to port, not a fixture to cut: the cut is recorded here so the next session can extend this same file.

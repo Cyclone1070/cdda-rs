@@ -21,7 +21,6 @@ struct FlatMap {
     can_spread: bool,
     neighbour: Neighbour,
     suppress_smoke: bool,
-    smoke_produced: i32,
 }
 
 impl FireMap for FlatMap {
@@ -42,9 +41,6 @@ impl FireMap for FlatMap {
     }
     fn suppress_smoke(&self, _square: (i32, i32, i32)) -> bool {
         self.suppress_smoke
-    }
-    fn smoke_produced(&self, _square: (i32, i32, i32)) -> i32 {
-        self.smoke_produced
     }
 }
 

@@ -163,10 +163,11 @@ impl cdda_sim::FireMap for Smoky {
         9
     }
     fn can_burn(&self, _square: (i32, i32, i32)) -> bool {
-        false
+        true
     }
     fn ground(&self, _square: (i32, i32, i32)) -> cdda_core_types::fire::Ground {
-        cdda_core_types::fire::Ground::Inert
+        // Ground that feeds: the fire gets two smoke out of it, which is what the gate below needs to be worth asking.
+        cdda_core_types::fire::Ground::Flammable
     }
     fn can_spread(&self, _square: (i32, i32, i32)) -> bool {
         false
@@ -176,9 +177,6 @@ impl cdda_sim::FireMap for Smoky {
     }
     fn suppress_smoke(&self, _square: (i32, i32, i32)) -> bool {
         false
-    }
-    fn smoke_produced(&self, _square: (i32, i32, i32)) -> i32 {
-        100
     }
 }
 /// A map that records which square it was asked about, and burns hard.
@@ -190,10 +188,11 @@ impl cdda_sim::FireMap for Watched {
         0
     }
     fn can_burn(&self, _square: (i32, i32, i32)) -> bool {
-        false
+        true
     }
     fn ground(&self, _square: (i32, i32, i32)) -> cdda_core_types::fire::Ground {
-        cdda_core_types::fire::Ground::Inert
+        // Ground that feeds: the fire gets two smoke out of it, which is what the gate below needs to be worth asking.
+        cdda_core_types::fire::Ground::Flammable
     }
     fn can_spread(&self, _square: (i32, i32, i32)) -> bool {
         false
@@ -203,9 +202,6 @@ impl cdda_sim::FireMap for Watched {
     }
     fn suppress_smoke(&self, _square: (i32, i32, i32)) -> bool {
         true
-    }
-    fn smoke_produced(&self, _square: (i32, i32, i32)) -> i32 {
-        0
     }
 }
 
@@ -251,7 +247,11 @@ fn a_fire_upstairs_leaves_its_smoke_upstairs() {
         },
         Position { x: 2, y: 2, z: 1 },
     ));
-    let mut rolls = Rolls::new(3);
+    // The same dice the ceiling test uses, so this test is about where the smoke lands and not about which way a seed falls.
+    let mut rolls = Rolls::replaying(
+        Recording::parse("int 0 49 49\nint 0 7 0\nint 0 100 1\nint 3 35 5\nint 0 4 0")
+            .expect("a recording"),
+    );
     cdda_sim::process_fires(&mut world, &Smoky, 0, &mut rolls);
     let mut query = world.query::<(&Field, &Position)>();
     assert!(
@@ -279,10 +279,11 @@ impl cdda_sim::FireMap for Ceiling {
         9
     }
     fn can_burn(&self, _square: (i32, i32, i32)) -> bool {
-        false
+        true
     }
     fn ground(&self, _square: (i32, i32, i32)) -> cdda_core_types::fire::Ground {
-        cdda_core_types::fire::Ground::Inert
+        // Ground that feeds: the fire gets two smoke out of it, which is what the gate below needs to be worth asking.
+        cdda_core_types::fire::Ground::Flammable
     }
     fn can_spread(&self, _square: (i32, i32, i32)) -> bool {
         false
@@ -292,9 +293,6 @@ impl cdda_sim::FireMap for Ceiling {
     }
     fn suppress_smoke(&self, _square: (i32, i32, i32)) -> bool {
         false
-    }
-    fn smoke_produced(&self, _square: (i32, i32, i32)) -> i32 {
-        100
     }
     fn smoke_ceiling_open(&self, _square: (i32, i32, i32)) -> bool {
         self.open
@@ -334,7 +332,8 @@ fn smoke_rises_through_an_open_floor() {
     // `has_flag_ter( TFLAG_NO_FLOOR, up )` is true, so the smoke goes to the square overhead with `rng( 1, intensity )` of thickness.
     let mut world = burning_room();
     let mut rolls = Rolls::replaying(
-        Recording::parse("int 0 7 0\nint 0 100 1\nint 3 35 5\nint 1 3 2\nint 0 4 0")
+        // A fire at intensity three on flammable ground: the bash die, then the smoke gate, then the thickness, then the thickness of what rose.
+        Recording::parse("int 0 49 49\nint 0 7 0\nint 0 100 1\nint 3 35 5\nint 1 3 2\nint 0 4 0")
             .expect("a recording"),
     );
     cdda_sim::process_fires(&mut world, &Ceiling { open: true }, 0, &mut rolls);
@@ -351,7 +350,8 @@ fn smoke_settles_where_it_was_made_under_a_ceiling() {
     // The same fire with a floor above: the smoke stays on the fire's square and is as thick as the fire is strong - no thickness die is drawn.
     let mut world = burning_room();
     let mut rolls = Rolls::replaying(
-        Recording::parse("int 0 7 0\nint 0 100 1\nint 3 35 5\nint 0 4 0").expect("a recording"),
+        Recording::parse("int 0 49 49\nint 0 7 0\nint 0 100 1\nint 3 35 5\nint 0 4 0")
+            .expect("a recording"),
     );
     cdda_sim::process_fires(&mut world, &Ceiling { open: false }, 0, &mut rolls);
     assert_eq!(

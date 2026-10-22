@@ -406,6 +406,28 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Three rules the replay found that the unit tests could not (round 330)
+
+The plank fixture - fire on `t_floor`, all eight neighbours `t_concrete` with `f_null`, one plank - spread onto the plank's square at turn six and then held up
+the replay at three different draws. Each one was a real rule:
+
+| Draw | What the port believed | What the reference does |
+|---|---|---|
+the hot-air gate's range | counted the neighbouring fire and asked `rng( 0, 3 )` | asks `rng( 0, 4 )`, because the flashpoint scan only runs while the fire has **fuel banked** (`age < 0`) and a fire with nothing banked counts no neighbours at all |
+`int 0 100` then `int 3 35` | smoke was a property of the square, and every square answered zero | smoke is a **local of this turn's fuel block**: every feeding branch adds `2 + windpower / 5`, and the gate reads that |
+the newborn's second turn | processed the newborn the turn after it was born and aged it | left the age at 120 for a turn, then 121 - the newborn was **eating the plank** (`time_added = 1_turns` from `item::burn`), which is a rule the port does not have |
+
+The first two are ported. The third is declared: `item::burn` and `fire_data` are not modelled, so the fixture stops at the spread and the sixty-turn run that
+found it is recorded in `corpus/fields/README.md` with the numbers (120, 119, 120) for whoever ports it.
+
+**Two corrections of my own work.** The mutation check I ran last round compared against a string that `cargo fmt` had rewritten, so it silently did nothing
+and I reported "no fixture exercises the item branch" on the strength of a no-op. Re-run properly, the bench fixture still did not fail - it spreads onto
+`FLAMMABLE_ASH` ground and never needed the branch - while the new plank fixture does: with the branch disabled it fails on turn six with
+`[(70, 59, 2, 84)]` against `[(69, 59, 1, 120), (70, 59, 2, 144)]`. The bench fixture has been deleted rather than kept as a test that cannot fail.
+
+**Refactor:** `FireMap::smoke_produced` is gone. It was a query that only ever had one honest answer - zero - and now that the number comes from the fuel block
+no map has to be asked. `fire_discharge` also stopped taking eight arguments: the four numbers a turn of burning produces travel together as `Discharging`.
+
 ## The item branch, and a fixture that would not cooperate (round 329)
 
 The spread rule's last disjunct is `( one_in( 5 ) && dst.get_item_count() > 0 && flammable_items_at( ... ) )`. The port had been **drawing** that die and

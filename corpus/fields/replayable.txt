@@ -3,4 +3,4 @@
 # `fire-floor` does not, because its fire stands on the player's own square and the reference rolls the
 # creature layer there. See the README in this directory.
 fire-floor-offset
-fire-items
+fire-plank

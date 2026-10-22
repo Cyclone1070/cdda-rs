@@ -40,9 +40,6 @@ impl FireMap for HardFloor {
     fn suppress_smoke(&self, _square: (i32, i32, i32)) -> bool {
         false
     }
-    fn smoke_produced(&self, _square: (i32, i32, i32)) -> i32 {
-        10
-    }
 }
 
 fn every_square_takes(_from: (i32, i32, i32), _to: (i32, i32, i32)) -> bool {

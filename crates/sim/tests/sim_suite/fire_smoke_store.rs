@@ -35,9 +35,6 @@ impl FireMap for Smoky {
     fn suppress_smoke(&self, _square: (i32, i32, i32)) -> bool {
         self.suppress
     }
-    fn smoke_produced(&self, _square: (i32, i32, i32)) -> i32 {
-        100
-    }
 }
 
 fn fire(world: &mut World, x: i32, y: i32, intensity: i32) -> Entity {

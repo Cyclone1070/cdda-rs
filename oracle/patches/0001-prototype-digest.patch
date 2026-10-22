@@ -2309,7 +2309,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
          }
 diff -ruN references/Cataclysm-DDA/src/map_field.cpp oracle/src/src/map_field.cpp
 --- references/Cataclysm-DDA/src/map_field.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/map_field.cpp	2026-10-23 04:37:54
++++ oracle/src/src/map_field.cpp	2026-10-23 06:40:02
 @@ -950,6 +950,9 @@
      const oter_id om_ter = pd.om_ter;
  

@@ -12,12 +12,11 @@ int 0 7 0
 int 0 3 2
 int 0 4 4
 int 1 100 14
-int 0 1 1
-int 0 4 2
-int 0 3 3
-int 0 4 4
-int 1 100 70
+int 0 4 3
 int 0 3 2
+int 0 4 3
+int 1 100 85
+int 0 3 1
 int 0 4 0
 int 1 100 66
 int 0 3 1
@@ -80,39 +79,45 @@ int 0 3 3
 int 0 4 0
 int 1 100 4
 int 0 4 4
-int 0 4 3
 mark fire.before_smoke
-int 0 100 17
+int 0 100 99
 mark fire.before_hot_air
-int 0 4 4
+int 0 4 1
 mark hot_air.begin
 int -1 1 1
+int -1 1 0
+int -1 1 -1
+int -1 1 1
 int -1 1 1
 int -1 1 1
 int -1 1 0
 int -1 1 0
 int -1 1 1
 int -1 1 1
-int -1 1 1
-int -1 1 -1
-int -1 1 -1
 mark hot_air.end
 mark fire.done
-int 1 43 7
-int 1 43 2
-int 1 100 37
-int 1 100 99
+int 1 43 32
+int 1 43 13
+int 1 100 92
+int 1 100 69
+int 1 100 53
 mark fire.begin
 mark fire.terrain_read
 mark fire.before_fuel
-int 0 2 0
-int 0 99 88
+int 0 2 2
 mark fire.fuelled
 mark fire.before_spread
-int 0 7 0
+int 0 7 1
 int 0 2 0
-int 0 7 2
-int 0 7 4
+int 0 7 0
+int 0 7 0
+int 0 3 2
+int 0 4 4
+int 1 100 74
+int 0 3 2
+int 0 4 0
+int 1 100 83
+int 0 3 0
 int 0 3 1
 int 0 4 4
 int 1 100 91
@@ -126,94 +131,98 @@ int 0 3 0
 int 0 3 2
 int 0 4 0
 int 1 100 44
-int 0 3 2
-int 0 4 4
-int 1 100 90
-int 0 3 1
-int 0 4 3
-int 1 100 50
-int 0 3 0
 mark fire.before_smoke
-int 0 100 48
+int 0 100 66
 mark fire.before_hot_air
-int 0 4 2
+int 0 4 4
 mark hot_air.begin
 int -1 1 0
 int -1 1 0
+int -1 1 0
+int -1 1 -1
+int -1 1 -1
 int -1 1 1
 int -1 1 0
-int -1 1 -1
+int -1 1 1
 int -1 1 0
-int -1 1 -1
-int -1 1 -1
-int -1 1 -1
 int -1 1 0
 mark hot_air.end
 mark fire.done
-int 1 42 18
-int 1 42 17
-int 1 100 74
-int 1 100 22
-int 1 100 39
-int 1 100 46
+int 1 64 39
+int 1 64 46
+int 1 100 45
+int 1 100 84
+int 1 100 73
+int 1 100 9
+int 0 7 1
+int 0 5 1
+int 1 100 17
 mark fire.begin
 mark fire.terrain_read
 mark fire.before_fuel
-int 0 2 2
+int 0 2 1
 mark fire.fuelled
 mark fire.before_spread
+int 0 7 5
+int 0 2 2
 int 0 7 3
-int 0 2 0
-int 0 7 6
-int 0 7 3
+int 0 3 1
+int 0 4 0
+int 1 100 81
 int 0 3 3
+int 0 4 0
+int 1 100 24
 int 0 4 4
-int 1 100 13
-int 0 4 1
-int 0 3 0
 int 0 3 2
+int 0 4 3
+int 1 100 20
+int 0 4 4
+int 0 3 0
+int 0 3 0
+int 0 3 1
+int 0 4 4
+int 1 100 91
+int 0 3 3
 int 0 4 3
 int 1 100 99
 int 0 3 1
 int 0 4 2
 int 1 100 95
-int 0 3 0
-int 0 3 0
-int 0 3 0
-int 0 3 3
-int 0 4 2
-int 1 100 41
 mark fire.before_smoke
-int 0 100 97
+int 0 100 24
 mark fire.before_hot_air
-int 0 4 0
+int 0 4 4
+mark hot_air.begin
+int -1 1 0
+int -1 1 0
+int -1 1 1
+int -1 1 -1
+int -1 1 0
+int -1 1 -1
+int -1 1 0
+int -1 1 -1
+int -1 1 1
+int -1 1 1
+mark hot_air.end
 mark fire.done
-int 1 63 38
-int 1 63 41
-int 1 100 49
-int 1 100 95
-int 1 100 91
-int 1 100 88
-int 1 100 12
+int 1 85 49
+int 1 85 12
+int 1 100 75
+int 1 100 27
+int 1 100 37
+int 1 100 81
+int 1 100 28
 mark fire.begin
 mark fire.terrain_read
 mark fire.before_fuel
-int 0 2 2
+int 0 2 0
+int 0 99 44
 mark fire.fuelled
 mark fire.before_spread
-int 0 7 1
-int 0 2 0
-int 0 7 4
 int 0 7 2
-int 0 3 0
+int 0 2 1
+int 0 7 4
 int 0 3 3
-int 0 4 3
-int 1 100 1
-int 0 4 4
-int 0 3 1
-int 0 4 4
-int 1 100 88
-int 0 3 1
 int 0 4 2
 int 1 100 17
 int 0 4 2
@@ -226,33 +235,41 @@ int 1 100 94
 int 0 3 1
 int 0 4 2
 int 1 100 6
-int 0 1 0
+int 0 4 0
 int 0 3 1
 int 0 4 2
 int 1 100 22
 int 0 4 3
+int 0 3 3
+int 0 4 4
+int 1 100 60
+int 0 3 2
+int 0 4 4
+int 1 100 12
+int 0 4 0
+int 0 3 1
+int 0 4 2
+int 1 100 91
 mark fire.before_smoke
 int 0 100 39
 mark fire.before_hot_air
-int 0 4 4
+int 0 4 2
 mark hot_air.begin
 int -1 1 1
-int -1 1 -1
-int -1 1 -1
-int -1 1 0
-int -1 1 1
 int -1 1 1
 int -1 1 0
+int -1 1 -1
 int -1 1 1
 int -1 1 1
 int -1 1 1
+int -1 1 0
+int -1 1 -1
+int -1 1 -1
 mark hot_air.end
 mark fire.done
-int 1 144 76
-int 1 144 133
-int 1 100 3
-int 0 7 6
-int 0 2 2
-int 1 100 73
-int 1 100 12
-int 1 100 23
+int 1 144 12
+int 1 144 5
+int 1 100 67
+int 1 100 77
+int 1 100 77
+int 1 100 62

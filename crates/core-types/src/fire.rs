@@ -173,6 +173,12 @@ pub fn spread_phase(
     if intensity > 1 && rolls.one_in(3) {
         let scan = usize::try_from(rolls.rng(0, count - 1)).unwrap_or(0);
         for step in 1..=count {
+            // The reference's loop condition is `count != neighs.size() && cur.get_field_age() < 0_turns`, re-checked every iteration
+            // (`map_field.cpp:1180`): the flashpoint **pays** five minutes of the fire's own life for each neighbouring fire it wakes, so a fire with
+            // nothing banked does not scan at all - and one that runs out mid-scan stops there.
+            if age + phase.spent >= 0 {
+                break;
+            }
             let index =
                 usize::try_from((i32::try_from(scan).unwrap_or(0) + step).rem_euclid(count))
                     .unwrap_or(0);
@@ -353,6 +359,8 @@ pub struct GroundFuel {
     pub time_added: i64,
     /// Whether the fire bashed the ground out from under itself this turn.
     pub bashed: bool,
+    /// What this turn's burning put into the air, for the smoke gate that reads it twenty lines later.
+    pub smoke: i32,
 }
 
 /// One turn of the fire eating the ground it stands on.
@@ -366,11 +374,13 @@ pub fn ground_fuel(
     ground: Ground,
     intensity: i32,
     can_burn: bool,
+    windpower: i32,
     rolls: &mut crate::rng::Rolls,
 ) -> GroundFuel {
     let mut fuel = GroundFuel {
         time_added: 0,
         bashed: false,
+        smoke: 0,
     };
     if !can_burn {
         // The reference's whole fuel block sits inside `if( can_burn )` (`map_field.cpp:1075`), so a fire that may not burn its ground - water, a locker on
@@ -393,8 +403,13 @@ pub fn ground_fuel(
             }
         }
     };
-    if fed && intensity > 1 && rolls.one_in(200 - intensity * 50) {
-        fuel.bashed = true;
+    if fed {
+        // Every fuel branch in the reference ends with these two lines (`map_field.cpp:1063-1096`), which makes `smoke` a local of this turn's fuel
+        // block rather than a property of the square: a fire that did not feed this turn smokes only by the barest chance.
+        fuel.smoke = 2 + windpower / 5;
+        if intensity > 1 && rolls.one_in(200 - intensity * 50) {
+            fuel.bashed = true;
+        }
     }
     fuel
 }
