@@ -129,8 +129,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-22 11:05:11
-@@ -0,0 +1,1058 @@
++++ oracle/src/src/harness.cpp	2026-10-22 11:47:42
+@@ -0,0 +1,1096 @@
 +#include "harness.h"
 +#include "recipe_dictionary.h"
 +#include "requirements.h"
@@ -143,6 +143,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +#include "game.h"
 +#include "map.h"
 +#include "mapgendata.h"
++#include "overmap_noise.h"
++#include "overmapbuffer.h"
 +#include "mapgen_functions.h"
 +#include "enums.h"
 +#include "item_factory.h"
@@ -992,6 +994,42 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    std::fprintf( stderr, "\n" );
 +}
 +
++void dump_noise( const std::string &path, int radius )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    // The forest noise field, exactly as place_forests asks for it: the values, not the terrain they produce, so a
++    // port of the noise can be checked against the reference rather than against its own output.
++    const tripoint_abs_omt centre = project_to<coords::omt>( get_map().get_abs_sub() );
++    const overmap *om = overmap_buffer.get_existing( project_to<coords::om>( centre.xy() ) );
++    if( om == nullptr ) {
++        std::fprintf( out, "{\"harness\":\"noise\",\"version\":1,\"error\":\"no overmap\"}\n" );
++        std::fclose( out );
++        return;
++    }
++    const point_abs_omt base = om->global_base_point();
++    const om_noise::om_noise_layer_forest forest( base, g->get_seed() );
++    std::fprintf( out, "{\"harness\":\"noise\",\"version\":1,\"radius\":%d,\"centre\":[%d,%d],\"seed\":%u,\"rows\":[\n",
++                  radius, centre.x(), centre.y(), static_cast<unsigned>( g->get_seed() ) );
++    bool first = true;
++    for( int dy = -radius; dy <= radius; dy++ ) {
++        std::fprintf( out, "%s[", first ? "" : ",\n" );
++        for( int dx = -radius; dx <= radius; dx++ ) {
++            // The layer samples in overmap-local coordinates and converts to global itself, so the absolute point is
++            // shifted back to the overmap's own origin first.
++            const point_om_omt local( centre.x() + dx - base.x(), centre.y() + dy - base.y() );
++            std::fprintf( out, "%s%.6f", dx == -radius ? "" : ",", static_cast<double>( forest.noise_at( local ) ) );
++        }
++        std::fprintf( out, "]" );
++        first = false;
++    }
++    std::fprintf( out, "\n]}\n" );
++    std::fclose( out );
++}
++
 +void dump_overmap( const std::string &path, int radius )
 +{
 +    std::FILE *out = std::fopen( path.c_str(), "wb" );
@@ -1191,8 +1229,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-22 11:05:11
-@@ -0,0 +1,158 @@
++++ oracle/src/src/harness.h	2026-10-22 11:35:01
+@@ -0,0 +1,159 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -1336,6 +1374,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +/** Writes the glyphs and light of the squares around the player. */
 +void dump_frame( const std::string &path, int radius );
 +void dump_overmap( const std::string &path, int radius );
++void dump_noise( const std::string &path, int radius );
 +
 +/** Runs one named mapgen and prints its first row, to see whether the call works at all. */
 +void probe_mapgen( const std::string &oter_id );
@@ -1373,7 +1412,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-22 11:05:11
++++ oracle/src/src/main.cpp	2026-10-22 11:35:01
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -1384,7 +1423,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,39 @@
+@@ -272,6 +275,41 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -1398,6 +1437,8 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_state;
 +    std::string dump_frame;
 +    std::string dump_overmap;
++    std::string dump_noise;
++    int dump_noise_radius = 20;
 +    int dump_overmap_radius = 20;
 +    std::string probe_mapgen;
 +    int dump_frame_radius = 20;
@@ -1424,7 +1465,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +336,226 @@
+@@ -300,6 +338,236 @@
                  }
              },
              {
@@ -1608,6 +1649,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                }
 +            },
 +            {
++                "--dump-noise", "<file>",
++                "Writes the forest noise field around the player, the values place_forests reads",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_noise = params[0];
++                    return 1;
++                }
++            },
++            {
 +                "--dump-state", "<file>",
 +                "Starts a new game headlessly and writes its state to <file>",
 +                section_default,
@@ -1651,7 +1702,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +1042,168 @@
+@@ -786,6 +1054,171 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -1682,6 +1733,9 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            harness::dump_frame( cli.dump_frame, cli.dump_frame_radius );
 +            if( !cli.dump_overmap.empty() ) {
 +                harness::dump_overmap( cli.dump_overmap, cli.dump_overmap_radius );
++            }
++            if( !cli.dump_noise.empty() ) {
++                harness::dump_noise( cli.dump_noise, cli.dump_noise_radius );
 +            }
 +            exit_handler( 0 );
 +        }
