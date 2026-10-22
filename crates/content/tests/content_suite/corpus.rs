@@ -81,6 +81,41 @@ pub fn eocs_loaded() -> eocs::Loaded {
         .clone()
 }
 
+/// Every NPC class the reference defines.
+#[must_use]
+pub fn npc_classes_loaded() -> Vec<cdda_content::npc_classes::NpcClass> {
+    static ONCE: OnceLock<Vec<cdda_content::npc_classes::NpcClass>> = OnceLock::new();
+    ONCE.get_or_init(|| cdda_content::npc_classes::load_paths(&paths()).expect("npc classes"))
+        .clone()
+}
+
+/// Every harvest list the reference defines, gathered the way its loader walks the tree.
+#[must_use]
+pub fn harvests_loaded()
+-> std::collections::BTreeMap<String, cdda_content::harvest::HarvestDefinition> {
+    static ONCE: OnceLock<
+        std::collections::BTreeMap<String, cdda_content::harvest::HarvestDefinition>,
+    > = OnceLock::new();
+    ONCE.get_or_init(|| {
+        let mut all = std::collections::BTreeMap::new();
+        for root in paths() {
+            let Ok(files) = cdda_content::json_files_in_load_order(root) else {
+                continue;
+            };
+            for path in files {
+                let Some(value) = cdda_content::read_json(&path) else {
+                    continue;
+                };
+                for (id, harvest) in cdda_content::harvest::load_harvests(&value) {
+                    all.insert(id, harvest);
+                }
+            }
+        }
+        all
+    })
+    .clone()
+}
+
 /// Every trap the reference defines.
 #[must_use]
 pub fn traps_loaded() -> Vec<traps::Trap> {

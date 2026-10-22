@@ -243,3 +243,37 @@ fn furniture_specials_vehicles_and_the_starting_kit_match() {
         "overmap specials"
     );
 }
+
+#[test]
+fn the_effects_the_harvests_and_the_classes_are_gated_too() {
+    // Three registries the port already loaded correctly and nobody had asked it to prove: an effect-on-condition (913, 692 of them defined and 221
+    // inline in someone else's slot), a harvest list (366) and an NPC class (155). A loader that a gate does not cover is a loader that drifts, and these
+    // three drifted into the corpus long before this test existed.
+    let digests = read("corpus/prototypes/digest.json");
+
+    let effects = crate::corpus::eocs_loaded();
+    let ours = digest::digest_hex(digest::digest_ids(effects.ids.iter().map(String::as_str)));
+    assert_eq!(
+        ours,
+        digest_of(digests.get("effect_on_condition").expect("effect digest")),
+        "effect-on-condition ids"
+    );
+
+    let harvests = crate::corpus::harvests_loaded();
+    let ours = digest::digest_hex(digest::digest_ids(harvests.keys().map(String::as_str)));
+    assert_eq!(
+        ours,
+        digest_of(digests.get("harvest_list").expect("harvest digest")),
+        "harvest list ids"
+    );
+
+    let classes = crate::corpus::npc_classes_loaded();
+    let ours = digest::digest_hex(digest::digest_ids(
+        classes.iter().map(|class| class.id.as_str()),
+    ));
+    assert_eq!(
+        ours,
+        digest_of(digests.get("npc_class").expect("class digest")),
+        "npc class ids"
+    );
+}
