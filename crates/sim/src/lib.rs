@@ -341,30 +341,35 @@ pub fn process_gas(
     id: FieldId,
     percent_spread: i32,
     windpower: i32,
-    can_take: impl Fn((i32, i32), (i32, i32)) -> bool,
+    can_take: impl Fn((i32, i32, i32), (i32, i32, i32)) -> bool,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) {
-    let mut order: Vec<(i32, i32, Entity)> = Vec::new();
+    let mut order: Vec<(i32, i32, i32, Entity)> = Vec::new();
     let mut query = world.query::<(Entity, &Position, &Field)>();
     for (entity, position, field) in query.iter(world) {
         if field.id == id {
-            order.push((position.x, position.y, entity));
+            order.push((position.x, position.y, position.z, entity));
         }
     }
-    order.sort_by_key(|&(x, y, entity)| (x, y, entity.to_bits()));
-    for (x, y, entity) in order {
+    order.sort_by_key(|&(x, y, z, entity)| (x, y, z, entity.to_bits()));
+    for (x, y, z, entity) in order {
         let Some(field) = world.get::<Field>(entity) else {
             continue;
         };
         let intensity = field.entry.intensity();
         let age = field.entry.age();
-        // The store is flat for now, so only the eight sideways answers exist. Naming the other two as false keeps the vertical half a wiring change.
-        let mut around = cdda_core_types::fire::Around::default();
+        // Below first, above last: the answers are collected here in the order `spread_gas` tries them.
+        let mut beside = [false; 8];
         for (index, offset) in EIGHT_NEIGHBOURS.iter().enumerate() {
-            if let Some(slot) = around.beside.get_mut(index) {
-                *slot = can_take((x, y), (x + offset.0, y + offset.1));
+            if let Some(slot) = beside.get_mut(index) {
+                *slot = can_take((x, y, z), (x + offset.0, y + offset.1, z));
             }
         }
+        let around = cdda_core_types::fire::Around {
+            below: can_take((x, y, z), (x, y, z - 1)),
+            beside,
+            above: can_take((x, y, z), (x, y, z + 1)),
+        };
         let movement = cdda_core_types::fire::spread_gas(
             intensity,
             age,
@@ -373,11 +378,13 @@ pub fn process_gas(
             &around,
             rolls,
         );
-        let cdda_core_types::fire::GasDirection::Side(index) = movement.direction else {
-            // Down, up and nowhere all have no square to go to while the store is flat.
-            continue;
+        let destination = match movement.direction {
+            cdda_core_types::fire::GasDirection::Side(index) => neighbour_of(x, y, z, index),
+            cdda_core_types::fire::GasDirection::Down => Some((x, y, z - 1)),
+            cdda_core_types::fire::GasDirection::Up => Some((x, y, z + 1)),
+            cdda_core_types::fire::GasDirection::None => None,
         };
-        let Some(destination) = neighbour_of(x, y, index) else {
+        let Some(destination) = destination else {
             continue;
         };
         let existing = {
@@ -385,7 +392,7 @@ pub fn process_gas(
             query
                 .iter(world)
                 .find(|(_, position, field)| {
-                    position.x == destination.0 && position.y == destination.1 && field.id == id
+                    (position.x, position.y, position.z) == destination && field.id == id
                 })
                 .map(|(entity, _, field)| (entity, field.entry.intensity(), field.entry.age()))
         };
@@ -408,7 +415,7 @@ pub fn process_gas(
                 Position {
                     x: destination.0,
                     y: destination.1,
-                    z: 0,
+                    z: destination.2,
                 },
             ));
         }
@@ -423,11 +430,11 @@ pub fn process_gas(
     }
 }
 
-/// The square one step away at a neighbour index, in this project's neighbour order.
-fn neighbour_of(x: i32, y: i32, index: usize) -> Option<(i32, i32)> {
+/// The square one step away at a neighbour index on the same floor, in this project's neighbour order.
+fn neighbour_of(x: i32, y: i32, z: i32, index: usize) -> Option<(i32, i32, i32)> {
     EIGHT_NEIGHBOURS
         .get(index)
-        .map(|offset| (x + offset.0, y + offset.1))
+        .map(|offset| (x + offset.0, y + offset.1, z))
 }
 
 /// A thing that gives off light: a torch, a fire, a lamp.
@@ -1016,7 +1023,7 @@ pub fn run_environment_turn(
     world: &mut World,
     map: &impl FireMap,
     windpower: i32,
-    can_take: impl Fn((i32, i32), (i32, i32)) -> bool + Copy,
+    can_take: impl Fn((i32, i32, i32), (i32, i32, i32)) -> bool + Copy,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) {
     // Fires first: everything else this turn reacts to what they left behind.

@@ -34,9 +34,9 @@ fn at(world: &mut World, x: i32, y: i32) -> Option<(i32, i64)> {
         .map(|(field, _)| (field.entry.intensity(), field.entry.age()))
 }
 
-/// Every neighbour accepts the gas.
-fn open(_from: (i32, i32), _to: (i32, i32)) -> bool {
-    true
+/// Every neighbour **on the same floor** accepts the gas, and there is no floor above or below to fall or rise to.
+fn open(from: (i32, i32, i32), to: (i32, i32, i32)) -> bool {
+    to.2 == from.2
 }
 
 #[test]
@@ -111,7 +111,14 @@ fn a_gas_with_nowhere_to_go_stays_put_and_spends_only_the_two_dice_the_scan_need
     smoke(&mut world, 0, 0, 3, 90);
     let mut rolls =
         Rolls::replaying(Recording::parse("int 1 100 1\nint 0 7 3").expect("a recording"));
-    process_gas(&mut world, SMOKE, 10, 0, |_, _| false, &mut rolls);
+    process_gas(
+        &mut world,
+        SMOKE,
+        10,
+        0,
+        |_, _: (i32, i32, i32)| false,
+        &mut rolls,
+    );
     assert_eq!(rolls.recording_remaining(), Some(0));
     assert_eq!(at(&mut world, 0, 0), Some((3, 90)), "untouched");
 }

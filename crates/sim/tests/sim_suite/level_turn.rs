@@ -45,7 +45,7 @@ impl FireMap for HardFloor {
     }
 }
 
-fn every_square_takes(_from: (i32, i32), _to: (i32, i32)) -> bool {
+fn every_square_takes(_from: (i32, i32, i32), _to: (i32, i32, i32)) -> bool {
     true
 }
 

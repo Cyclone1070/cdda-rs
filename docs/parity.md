@@ -406,6 +406,26 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Smoke falls before it drifts, and rises last (round 319)
+
+`process_gas` now answers all three of the rule's questions about the world, and the store does something with the answers: a gas over a hole **falls**
+(cheaply - no die beyond the gate), anything else drifts sideways on its own floor, and a gas with nothing beside it **rises**. The destination is a full
+three dimensional square, so the field created downstairs is downstairs.
+
+| Test | What it proves |
+|---|---|
+a gas over a hole falls | the reference's first move, and that it costs no extra die |
+a gas with no hole does not reach the floor below | the fall is conditional, not automatic |
+a gas with nothing sideways rises | the last-resort branch |
+smoke on the same floor still merges | unchanged by the vertical work |
+
+**Two existing tests had to change, and both were lying.** They used a closure that said *every* square accepts gas - including the square below - so once
+falling worked they saw the gas disappear through the floor and then reported the store was wrong. The closure now says what those tests actually meant:
+every square **on this floor**. A test double that is too permissive is a test that cannot tell a bug from a feature.
+
+**Still two dimensional:** fires. `FireMap` asks about a column, so a fire's smoke and haze land at street level whatever the fire's own floor is - which
+matters not at all today, because nothing places a fire anywhere else yet.
+
 ## The store learns which floor it is on (round 318)
 
 `Position` carries `z`, the position index is keyed by the column **and** the floor, and `add_field_strength` takes a three dimensional square. Fires are
