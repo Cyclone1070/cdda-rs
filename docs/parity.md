@@ -377,6 +377,17 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Gate, group, square - composed (round 280)
+
+The three pieces exist separately; `spawn_monsters_from_field` composes them, and the composition is where the **order** of the
+dice lives: whether anything spawns is decided first, so a field that does not trigger spends exactly one die, and only then are
+monsters picked and placed. A caller that picked before rolling the gate would produce a plausible world on different dice,
+which is the kind of error only an ordered replay catches.
+
+Four tests: three monsters inside the box, a field walled in on every side but one putting **everything** on that square (which
+forces the enumeration path in the placement), a radius with no open square producing **nothing** rather than a monster on a
+wall, and the same seed producing the same monsters on the same squares.
+
 ## Where the monster lands (round 279)
 
 `random_point_in_radius` ports `random_point( points_in_radius( p, radius ), passable )`. Three details matter and none is the

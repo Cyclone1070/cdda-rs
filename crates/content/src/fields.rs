@@ -278,3 +278,34 @@ pub fn random_point_in_radius(
         .ok()
         .and_then(|index| suitable.get(index).copied())
 }
+
+/// The whole spawn, in the reference's order: gate, group, square.
+///
+/// Reference: `field_processor_monster_spawn` (`map_field.cpp:762-786`). Whether anything spawns is decided **first**, so a
+/// field that does not trigger spends exactly one die; only if it does are monsters picked, and only then placed. Composing the
+/// three pieces here rather than at every call site is what keeps that order - a caller that picked the monster before rolling
+/// the gate would produce a plausible world on different dice.
+///
+/// Returns each monster with the square it landed on. A monster that finds nowhere to stand is **not** produced, which is what
+/// the reference does with an empty `random_point`.
+#[allow(clippy::too_many_arguments)]
+pub fn spawn_monsters_from_field<'a>(
+    spawn_chance: i32,
+    spawn_count: i32,
+    spawn_group: &str,
+    center: (i32, i32),
+    radius: i32,
+    groups: &'a [crate::monster_groups::MonsterGroup],
+    accepts: impl Fn(i32, i32) -> bool,
+    rolls: &mut Rolls,
+) -> Vec<(&'a str, (i32, i32))> {
+    let monsters = spawn_from_field(spawn_chance, spawn_count, spawn_group, groups, rolls);
+    let mut placed = Vec::new();
+    for monster in monsters {
+        match random_point_in_radius(center, radius, &accepts, rolls) {
+            Some(square) => placed.push((monster, square)),
+            None => break,
+        }
+    }
+    placed
+}

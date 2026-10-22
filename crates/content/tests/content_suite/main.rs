@@ -18,6 +18,7 @@ mod forest_chunk_diff;
 mod forest_chunk_pair;
 
 mod field_spawn;
+mod field_spawn_end_to_end;
 mod field_spawn_place;
 mod forest_chunk_alignment;
 mod forest_edge_blend;
