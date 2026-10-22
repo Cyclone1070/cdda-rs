@@ -706,3 +706,21 @@ So the oracle build is what needs fixing, and the next steps are ordinary ones: 
 still crashes at the mod check, bisect between the pinned reference's own build and this one. The port's side is
 unaffected - every gate that runs is green - but **no reference dump can be taken until the oracle starts again**,
 and that is the honest state of the frame gate.
+
+### Resolved (round 202): the oracle was fine, the invocation was not
+
+The segfault at the mod check was not the build. Running the same binary with **`--userdir oracle/userdir`** makes
+everything work: the prototype digest in **30 seconds**, the frame dump in **30 seconds**, and the overmap dump in
+**30 seconds**. The default home directory's config is what crashed it, and every probe from round 197 onwards had
+been run without the userdir flag - so four rounds of "the dump does not work" were four rounds of the wrong command
+line.
+
+The lesson is written here rather than in a commit message: **the oracle has a canonical invocation, and it belongs
+in the documentation next to the flags**, because a probe that fails for want of a flag looks exactly like a probe
+that fails for want of a capability.
+
+Canonical invocation:
+
+```
+oracle/build/src/cataclysm --userdir oracle/userdir --datadir oracle/src/data --dump-frame <file> --dump-overmap <file>
+```

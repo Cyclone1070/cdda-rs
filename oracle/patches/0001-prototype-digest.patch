@@ -129,8 +129,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-22 10:58:30
-@@ -0,0 +1,1032 @@
++++ oracle/src/src/harness.cpp	2026-10-22 11:05:11
+@@ -0,0 +1,1058 @@
 +#include "harness.h"
 +#include "recipe_dictionary.h"
 +#include "requirements.h"
@@ -992,6 +992,32 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    std::fprintf( stderr, "\n" );
 +}
 +
++void dump_overmap( const std::string &path, int radius )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    // The centre comes from the map's absolute position: in a headless start the avatar's overmap position reads
++    // as the origin, while the map knows where it really is.
++    const tripoint_abs_omt centre = project_to<coords::omt>( get_map().get_abs_sub() );
++    std::fprintf( out, "{\"harness\":\"overmap\",\"version\":1,\"radius\":%d,\"centre\":[%d,%d],\"rows\":[\n",
++                  radius, centre.x(), centre.y() );
++    bool first = true;
++    for( int dy = -radius; dy <= radius; dy++ ) {
++        std::string row;
++        for( int dx = -radius; dx <= radius; dx++ ) {
++            const tripoint_abs_omt p( centre.x() + dx, centre.y() + dy, centre.z() );
++            row += overmap_buffer.ter( p )->get_symbol( om_vision_level::full );
++        }
++        std::fprintf( out, "%s\"%s\"", first ? "" : ",\n", harness::harness_escape( row ).c_str() );
++        first = false;
++    }
++    std::fprintf( out, "\n]}\n" );
++    std::fclose( out );
++}
++
 +void dump_frame( const std::string &path, int radius )
 +{
 +    std::FILE *out = std::fopen( path.c_str(), "wb" );
@@ -1165,8 +1191,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-22 09:53:23
-@@ -0,0 +1,157 @@
++++ oracle/src/src/harness.h	2026-10-22 11:05:11
+@@ -0,0 +1,158 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -1309,6 +1335,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +
 +/** Writes the glyphs and light of the squares around the player. */
 +void dump_frame( const std::string &path, int radius );
++void dump_overmap( const std::string &path, int radius );
 +
 +/** Runs one named mapgen and prints its first row, to see whether the call works at all. */
 +void probe_mapgen( const std::string &oter_id );
@@ -1346,7 +1373,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-22 10:58:20
++++ oracle/src/src/main.cpp	2026-10-22 11:05:11
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -1357,7 +1384,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,37 @@
+@@ -272,6 +275,39 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -1370,6 +1397,8 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    // Harness: the state of a freshly started game.
 +    std::string dump_state;
 +    std::string dump_frame;
++    std::string dump_overmap;
++    int dump_overmap_radius = 20;
 +    std::string probe_mapgen;
 +    int dump_frame_radius = 20;
 +    // Harness: resolved terrain and furniture prototypes.
@@ -1395,7 +1424,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +334,216 @@
+@@ -300,6 +336,226 @@
                  }
              },
              {
@@ -1569,6 +1598,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                }
 +            },
 +            {
++                "--dump-overmap", "<file>",
++                "Writes the overmap glyphs around the player, in the same run as the frame dump",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_overmap = params[0];
++                    return 1;
++                }
++            },
++            {
 +                "--dump-state", "<file>",
 +                "Starts a new game headlessly and writes its state to <file>",
 +                section_default,
@@ -1612,7 +1651,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +1030,165 @@
+@@ -786,6 +1042,168 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -1641,6 +1680,9 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                exit_handler( 3 );
 +            }
 +            harness::dump_frame( cli.dump_frame, cli.dump_frame_radius );
++            if( !cli.dump_overmap.empty() ) {
++                harness::dump_overmap( cli.dump_overmap, cli.dump_overmap_radius );
++            }
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_state.empty() || !cli.replay.empty() ) {
