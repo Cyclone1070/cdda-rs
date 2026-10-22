@@ -48,3 +48,25 @@ impl SoundEvent {
         Some((self.volume - distance / 2).max(0))
     }
 }
+
+/// How far a noise has to travel between two **levels**, in the reference's steps.
+///
+/// Reference: `sound_distance` (`src/sounds.cpp:253-269`). The horizontal part is the ordinary step distance; the vertical part is scaled
+/// **five times**, and below ground it is worse: the first level down adds four *before* that scaling and each further level adds twenty
+/// more. The reference's own comment calls these "5x" and "100x", which is not what its arithmetic does - the port follows the
+/// arithmetic, because that is what a monster's hearing is built from.
+#[must_use]
+pub fn sound_distance_3d(source: (i32, i32, i32), sink: (i32, i32, i32)) -> i32 {
+    let lower_z = source.2.min(sink.2);
+    let upper_z = source.2.max(sink.2);
+    let displacement = upper_z - lower_z;
+    let mut attenuation = displacement;
+    if lower_z < 0 && displacement > 0 {
+        // The first level down is worth four extra before scaling; deeper than that costs twenty per level, counted from the ground.
+        attenuation += 4;
+        let underground = lower_z.saturating_neg().min(displacement);
+        attenuation += (underground - 1) * 20;
+    }
+    attenuation *= 5;
+    crate::sound::sound_distance((source.0, source.1), (sink.0, sink.1)) + attenuation
+}

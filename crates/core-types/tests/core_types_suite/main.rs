@@ -60,6 +60,7 @@ mod sight;
 mod sound;
 mod sound_clusters;
 mod sound_queue;
+mod sound_vertical;
 mod strings;
 mod submap_store;
 mod sunlight;
