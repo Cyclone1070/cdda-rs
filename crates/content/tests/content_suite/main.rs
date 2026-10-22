@@ -23,6 +23,7 @@ mod field_spawn_on_level;
 mod field_spawn_place;
 mod field_sweep;
 mod field_turn;
+mod field_turn_by_intensity;
 mod field_turn_data;
 mod forest_chunk_alignment;
 mod forest_edge_blend;

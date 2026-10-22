@@ -377,6 +377,16 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Each intensity hands over its own numbers (round 288)
+
+`turn_at(field, intensity)` picks the level before it builds the turn, because every processor asks `cur.get_intensity_level()`
+first (`map_field.cpp:764`). An intensity-three field is **not** the intensity-one field: the data gives each level its own chance,
+count and group, and using one level's numbers for all of them spawns at the wrong rate on every field with more than one level.
+An intensity of zero, or one the data does not have, hands over nothing.
+
+Three tests: two levels that differ in everything a turn reads hand over what they were written with; an intensity outside the data
+hands over nothing; and every level of the reference's whole field dump is selected by its own intensity - more than fifty of them.
+
 ## The turn reads the field's own numbers (round 287)
 
 `FieldLevel::turn()` builds the turn from the level's own data instead of a hand-built constant. The reference registers each

@@ -56,6 +56,23 @@ impl FieldLevel {
     }
 }
 
+/// The turn a field takes at a given intensity.
+///
+/// Reference: every processor asks `cur.get_intensity_level()` first (`map_field.cpp:764`), so an intensity-three field is **not**
+/// the intensity-one field - the data gives each level its own chance, count and group, and using one level's numbers for all of
+/// them spawns at the wrong rate on every field with more than one level.
+///
+/// Intensities start at one; a level the data does not have hands over nothing, which is the same refusal the reference makes
+/// when intensity is capped at the type's maximum.
+#[must_use]
+pub fn turn_at(field: &FieldType, intensity: i32) -> Option<FieldTurn> {
+    if intensity < 1 {
+        return None;
+    }
+    let index = usize::try_from(intensity - 1).ok()?;
+    field.levels.get(index).map(FieldLevel::turn)
+}
+
 /// One kind of field, with its levels in order (index 0 is intensity 1).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FieldType {
