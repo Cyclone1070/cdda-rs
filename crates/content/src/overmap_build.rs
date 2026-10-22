@@ -416,3 +416,44 @@ pub fn resolve_chunk_placeholders(
     }
     resolved
 }
+
+/// Where a forest chunk's items end up: a handful of squares picked at random, not every square.
+///
+/// Reference: the tail of `mapgen_forest` calls `m->place_items( item_group, item_group_chance, whole chunk )` once per
+/// `item_spawn_iterations`, and `map::place_items` turns that chance into a **count** of batches
+/// (`roll_remainder( chance * spawn_rate / 100 )`), then picks a square for each: three draws for the coordinates, retried
+/// while the square will not take items, up to twenty tries, and nothing placed if it never finds one.
+///
+/// Returns the squares that received a batch, in the order they were filled.
+pub fn place_forest_items(
+    side: i32,
+    chance: i32,
+    iterations: i32,
+    spawn_rate: f32,
+    rolls: &mut Rolls,
+    mut refuses_items: impl FnMut(i32, i32) -> bool,
+) -> Vec<(i32, i32)> {
+    let mut placed = Vec::new();
+    for _ in 0..iterations.max(0) {
+        let expected = f64::from(chance) * f64::from(spawn_rate) / 100.0;
+        let batches = rolls.roll_remainder(expected);
+        for _ in 0..batches.max(0) {
+            let mut tries = 0;
+            let mut square = None;
+            while tries < 20 {
+                let x = rolls.rng(0, side - 1);
+                let y = rolls.rng(0, side - 1);
+                let _z = rolls.rng(0, 0);
+                tries += 1;
+                if !refuses_items(x, y) {
+                    square = Some((x, y));
+                    break;
+                }
+            }
+            if let Some(square) = square {
+                placed.push(square);
+            }
+        }
+    }
+    placed
+}

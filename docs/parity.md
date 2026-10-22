@@ -331,6 +331,12 @@ The reference places items **once at the end of the chunk** (`place_items( item_
 `item_spawn_iterations` times), not per square - so the port needs that rule, and the desynchronisation it causes is a
 consequence of not placing them at all rather than of a per-square roll.
 
+How much work that is, measured from the recording: between one chunk's last square and the next chunk's first square the
+reference spends **589 to 601 dice**, where the placement rule alone accounts for one roll for the count plus three per
+attempt. So the bulk is not picking squares - it is **expanding the item group**, which constructs items and draws for each.
+The port now has the placement rule (count, square, twenty-try refusal) and not the expansion; that is the next piece, and the
+measurement says precisely how big it is.
+
 Two instrumentation attempts failed and were removed rather than left behind: a phase marker written from
 `mapgen_functions.cpp` never reached the recording (the hook compiled but produced no lines, so it was unverified
 machinery), and a call-stack dump fired on every full-range draw in the process and made a run take minutes instead of

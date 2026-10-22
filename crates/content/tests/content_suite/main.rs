@@ -20,6 +20,7 @@ mod forest_chunk_pair;
 mod forest_chunk_alignment;
 mod forest_edge_blend;
 mod forest_ground_trace;
+mod forest_items;
 mod forest_layers;
 mod forest_mapgen;
 mod forest_neighbours;
