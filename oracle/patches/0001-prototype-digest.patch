@@ -2251,7 +2251,7 @@ diff -ruN references/Cataclysm-DDA/src/prefix.h oracle/src/src/prefix.h
 +#define PREFIX "/usr/local"
 diff -ruN references/Cataclysm-DDA/src/rng.cpp oracle/src/src/rng.cpp
 --- references/Cataclysm-DDA/src/rng.cpp	2026-10-19 18:15:05
-+++ oracle/src/src/rng.cpp	2026-10-22 19:02:12
++++ oracle/src/src/rng.cpp	2026-10-22 20:03:59
 @@ -3,6 +3,8 @@
  #include <algorithm>
  #include <chrono>
@@ -2312,13 +2312,14 @@ diff -ruN references/Cataclysm-DDA/src/rng.cpp oracle/src/src/rng.cpp
  }
  
  int rng( int lo, int hi )
-@@ -23,7 +63,12 @@
+@@ -23,7 +63,13 @@
      if( lo > hi ) {
          std::swap( lo, hi );
      }
 -    return rng_int_dist( rng_get_engine(), std::uniform_int_distribution<>::param_type( lo, hi ) );
 +    const int drawn = rng_int_dist( rng_get_engine(), std::uniform_int_distribution<>::param_type( lo, hi ) );
 +    ++draw_count;
++    // Who asked for a full-range int? Nothing in forest generation should, so this prints a stack the one time it happens.
 +    if( recording() ) {
 +        rng_trace() << "int " << lo << ' ' << hi << ' ' << drawn << '\n';
 +    }

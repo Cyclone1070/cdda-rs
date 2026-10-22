@@ -317,12 +317,16 @@ and found two things at once:
   placeholders), and the reference treats that as *no terrain*: furniture is placed separately and the square still falls
   through to the ground raffle. The port was returning the furniture name as the square's terrain. The recorded chunk caught
   it on its thirty-first square.
-* **One draw the port cannot yet explain.** After a feature fires, the reference spends an `int 0 2147483647` that no port
-  rule accounts for. Thirty-one squares replay **exactly** before it, so the mechanism is sound and the gap is a single
-  unknown roll, not a broken pipeline.
+* **The unknown draw, identified.** It is the reference's **item spawning**: a forest square that places a feature also
+  rolls for its biome's item group, and building an item draws a full-range int (`item::item()` during item group spawning -
+  found by having the draw print its own call stack). The port places no forest items at all, so the dice cannot line up
+  past the first square that does. Thirty-one squares replay **exactly** before it, which is what makes this a missing
+  feature rather than a broken rule.
 
-The second is parked as an `#[ignore]`d spec with the reason in its name rather than deleted or papered over: a failing test in
-the tree is worse than a labelled one, and this one says precisely where the port stops agreeing.
+The second is parked as an `#[ignore]`d spec whose reason now names the missing feature rather than an anonymous draw: a
+failing test in the tree is worse than a labelled one, and this one says precisely where the port stops agreeing and why.
+
+**Item spawning in forest chunks is the next piece of P9**, and it is now a named gap with a replay that will measure it.
 
 **Furniture in a forest chunk is now a declared gap:** the port detects it and routes the square to ground correctly, but does
 not place the furniture itself.

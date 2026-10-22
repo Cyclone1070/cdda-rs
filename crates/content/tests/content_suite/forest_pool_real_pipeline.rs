@@ -38,9 +38,11 @@ const FACTOR: f32 = 4.0;
 const TICKETS: [i32; 6] = [0, 1, 2, 3, -1, -2];
 
 #[test]
-#[ignore = "next round's red spec: the stream desynchronises on a draw the port does not make - an `int 0 2147483647` \
-            the reference spends after a feature fires, which no port rule accounts for yet. 31 squares replay exactly \
-            before it, so the mechanism works; the gap is one unknown draw, not the pipeline."]
+#[ignore = "the stream desynchronises on the reference's **item spawning**: a forest square that places a feature also \
+            rolls for the biome's item group, and building an item draws a full-range int that the port has no rule for \
+            because it places no items at all. Traced to its caller - `item::item()` during item group spawning - after 31 \
+            squares replayed exactly, so the pipeline is sound and the gap is a missing feature rather than an arithmetic \
+            error."]
 fn the_biome_the_ticket_names_then_produces_the_terrain_the_reference_produced() {
     // The second decision of a square. Every neighbour here is the same dense forest, so whichever ticket wins, the layer
     // that answers it is the same one - and the port has to land on the same terrain the reference recorded, or on nothing
