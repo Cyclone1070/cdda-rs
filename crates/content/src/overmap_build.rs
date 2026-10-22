@@ -375,7 +375,18 @@ pub fn pick_forest_feature(
             let entries = WeightedList::from_entries(layer.types.iter().cloned());
             // The layer's list is `(terrain id, weight)` pairs, and the pick borrows from it, so the pair is cloned
             // out rather than the id alone.
-            return entries.pick(rolls).cloned();
+            let picked = entries.pick(rolls).cloned();
+            // A layer can yield **furniture** - `f_region_forest_dense` sits in the shrubs layer beside the placeholders -
+            // and the reference treats that as "no terrain": furniture is placed separately, and the square still falls
+            // through to the ground raffle. Returning the furniture name as the square's terrain put a furniture id where
+            // terrain belongs, which the recorded chunk caught on its thirty-first square.
+            //
+            // The furniture itself is not placed yet: that is a declared gap, not an oversight, and it is written down in
+            // the parity ledger.
+            if picked.as_deref().is_some_and(|name| name.starts_with("f_")) {
+                return None;
+            }
+            return picked;
         }
     }
     None

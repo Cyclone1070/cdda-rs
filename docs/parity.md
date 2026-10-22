@@ -308,6 +308,25 @@ equality; JSON accept/reject parity". Each part, and where it is proven:
 | JSON acceptance is identical | All 6,220 shipped files: same accept/reject verdict and same structural digest as the reference; the writer is compared byte for byte on 127 of them |
 | The cache changes nothing | All 6,220 files read identically cold and warm |
 
+## The replay runs a square at a time, and stops at the first unknown draw (round 269)
+
+Replaying the reference's whole stream - not one die per square, but every die in order - is stricter than the raffle test
+and found two things at once:
+
+* **A real port defect.** A biome layer can yield **furniture** (`f_region_forest_dense` sits in the shrubs layer beside the
+  placeholders), and the reference treats that as *no terrain*: furniture is placed separately and the square still falls
+  through to the ground raffle. The port was returning the furniture name as the square's terrain. The recorded chunk caught
+  it on its thirty-first square.
+* **One draw the port cannot yet explain.** After a feature fires, the reference spends an `int 0 2147483647` that no port
+  rule accounts for. Thirty-one squares replay **exactly** before it, so the mechanism is sound and the gap is a single
+  unknown roll, not a broken pipeline.
+
+The second is parked as an `#[ignore]`d spec with the reason in its name rather than deleted or papered over: a failing test in
+the tree is worse than a labelled one, and this one says precisely where the port stops agreeing.
+
+**Furniture in a forest chunk is now a declared gap:** the port detects it and routes the square to ground correctly, but does
+not place the furniture itself.
+
 ## The reference's die, through the port's raffle: 576 of 576 (round 268)
 
 Each square of the recorded chunk now says **which die of the whole run it spent** - a 3.25-million-draw recording, entered
