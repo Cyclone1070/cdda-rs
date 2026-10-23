@@ -215,6 +215,19 @@ exactly. Neither is dead code; both are named where they are used.
 ---
 
 
+### The oracle now covers all three questions (round 435)
+
+The instrumented reference answers what the port has to match, and as of this round it can be asked all three kinds of question:
+
+| Question | Flag | Corpus |
+|---|---|---|
+what the data says | `--dump-weather`, `--dump-fields`, `--dump-terrain`, `--dump-items`, `--dump-prototype-ids` | `corpus/prototypes/` |
+what one square looks like | `--dump-frame` | `corpus/frames/` |
+what generation produced | `--dump-map` | `corpus/maps/` |
+
+The third needed a guard rather than a fix: a read past the loaded chunk waits for overmap generation that a headless run never performs, so the dump now asks only for squares the map
+holds. With that, the reference's answer to "what does this chunk look like" is reproducible on demand, which is what a mapgen gate needs.
+
 ### What the next round should pick up (round 391)
 
 Two lists, both current as of head `ef268dd`.
