@@ -816,3 +816,152 @@ impl Cast<'_> {
         }
     }
 }
+
+/// One level's light bookkeeping: the four-quadrant light map, the light source cache, and the buffer of sources still to be cast.
+///
+/// Reference: the three arrays `map::generate_lightmap` fills - `cache.lm`, `cache.sm` and `cache.light_source_buffer` (`lightmap.cpp:1085-1102`) - kept together
+/// because the rule that lights a source reads all three and the caller must not be able to pass one without the others.
+#[derive(Debug, Clone)]
+pub struct LightMap {
+    grid: TransparencyGrid,
+    light: Vec<FourQuadrants>,
+    source: Vec<f32>,
+    buffer: Vec<f32>,
+    circular: bool,
+}
+
+impl LightMap {
+    /// A map with nothing lit, over a transparency grid.
+    #[must_use]
+    pub fn new(grid: TransparencyGrid, circular: bool) -> Self {
+        let cells = grid.side * grid.side;
+        Self {
+            grid,
+            light: vec![FourQuadrants::uniform(0.0); cells],
+            source: vec![0.0; cells],
+            buffer: vec![0.0; cells],
+            circular,
+        }
+    }
+
+    /// The side of the map, in squares.
+    #[must_use]
+    pub fn side(&self) -> usize {
+        self.grid.side
+    }
+
+    /// The light at a square.
+    #[must_use]
+    pub fn light_at(&self, x: i32, y: i32) -> FourQuadrants {
+        self.index(x, y)
+            .and_then(|index| self.light.get(index).copied())
+            .unwrap_or_else(|| FourQuadrants::uniform(0.0))
+    }
+
+    /// The light source sitting in a square, the reference's `sm`.
+    #[must_use]
+    pub fn source_at(&self, x: i32, y: i32) -> f32 {
+        self.index(x, y)
+            .and_then(|index| self.source.get(index).copied())
+            .unwrap_or(0.0)
+    }
+
+    /// Records a source in the buffer without casting it.
+    ///
+    /// Reference: `map::add_light_source` (`lightmap.cpp:666-670`): the buffer keeps the **brightest** source seen at each square, because a square with two lamps is not
+    /// twice as bright to the rule that reads the buffer.
+    pub fn buffer_source(&mut self, at: (i32, i32), luminance: f32) {
+        if let Some(index) = self.index(at.0, at.1)
+            && let Some(slot) = self.buffer.get_mut(index)
+        {
+            *slot = slot.max(luminance);
+        }
+    }
+
+    /// Lights one source: its own square, then a cast in every direction not already covered.
+    ///
+    /// Reference: `map::apply_light_source` (`lightmap.cpp:1217-1294`), in its order.
+    #[allow(clippy::cast_precision_loss, clippy::cast_sign_loss)]
+    pub fn add_source(&mut self, at: (i32, i32), luminance: f32) {
+        let side = self.grid.side;
+        let Some(index) = self.index(at.0, at.1) else {
+            return;
+        };
+        if let (Some(light), Some(source)) = (
+            self.light.get_mut(index).copied(),
+            self.source.get_mut(index),
+        ) {
+            // The square holding a source is lit in **all four** quarters to at least one unit: a candle beside you is visible even though it lights nothing else.
+            let floor = 1.0_f32.max(luminance);
+            let lit = light.max_with_value(floor);
+            if let Some(slot) = self.light.get_mut(index) {
+                *slot = lit;
+            }
+            *source = source.max(luminance);
+        }
+        // One unit and below casts nothing at all; two units and below is raised to 1.49, so that it survives one step of open air.
+        if luminance <= 1.0 {
+            return;
+        }
+        let luminance = if luminance <= 2.0 { 1.49 } else { luminance };
+        // The burning-hospital rule: a direction is skipped when a source already in the buffer, one square that way, is at least as bright.
+        let neighbour = |x: i32, y: i32| -> f32 {
+            self.index(x, y)
+                .and_then(|index| self.buffer.get(index).copied())
+                .unwrap_or(0.0)
+        };
+        let (px, py) = at;
+        let on_edge =
+            |x: i32, y: i32| x < 0 || y < 0 || (x as usize) >= side || (y as usize) >= side;
+        let north = !on_edge(px, py - 1) && neighbour(px, py - 1) < luminance;
+        let south = !on_edge(px, py + 1) && neighbour(px, py + 1) < luminance;
+        let east = !on_edge(px + 1, py) && neighbour(px + 1, py) < luminance;
+        let west = !on_edge(px - 1, py) && neighbour(px - 1, py) < luminance;
+        let radius = i32::try_from(side).unwrap_or(1);
+        let mut cast = |transform: [i32; 4]| {
+            let mut octant = Cast {
+                lit: &mut self.light,
+                grid: &self.grid,
+                transform,
+                origin: (px, py),
+                quad: quadrant_from_x_y(-transform[0] - transform[1], -transform[2] - transform[3]),
+                numerator: luminance,
+                radius,
+                circular: self.circular,
+            };
+            octant.run(1, 1.0, 0.0, crate::light::TRANSPARENCY_OPEN_AIR);
+        };
+        // The pairing below is the reference's, literally, and it is worth reading twice. `apply_light_source`'s "north" test reads the buffer at `y - 1` and then
+        // casts the two octants that cover `y + 1`; its "south" test reads `y + 1` and casts towards `y - 1`. The x directions are not inverted. Either the axis is
+        // named for where the light comes from rather than where it goes, or the reference has a sign error that has never mattered much because the skip is a
+        // performance shortcut and the skipped cast is usually covered by the neighbour that caused it. **The port reproduces it rather than correcting it**, so that a
+        // later decision to change it is deliberate, and `docs/parity.md` records it as a suspected upstream inversion.
+        if north {
+            cast([1, 0, 0, -1]);
+            cast([-1, 0, 0, -1]);
+        }
+        if east {
+            cast([0, -1, 1, 0]);
+            cast([0, -1, -1, 0]);
+        }
+        if south {
+            cast([1, 0, 0, 1]);
+            cast([-1, 0, 0, 1]);
+        }
+        if west {
+            cast([0, 1, 1, 0]);
+            cast([0, 1, -1, 0]);
+        }
+    }
+
+    /// The dense index of a square, or `None` off the map.
+    fn index(&self, x: i32, y: i32) -> Option<usize> {
+        let side = i32::try_from(self.grid.side).ok()?;
+        if x < 0 || y < 0 || x >= side || y >= side {
+            return None;
+        }
+        #[allow(clippy::cast_sign_loss)]
+        let index = x as usize * self.grid.side + y as usize;
+        Some(index)
+    }
+}

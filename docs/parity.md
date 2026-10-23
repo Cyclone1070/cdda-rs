@@ -406,6 +406,28 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## A light source in three steps, and an inversion the port reproduces on purpose (round 355)
+
+`map::apply_light_source` (`lightmap.cpp:1217-1294`) is where every light in the world arrives - a lamp, a fire, lava, a held torch. Three steps, in this order:
+
+| Step | Rule | What a port gets wrong |
+|---|---|---|
+the source's own square | lit to at least **1.0** in **all four quarters**; the raw luminance goes into `sm` | lighting only the quadrant facing the room, so a candle you stand beside is invisible at three corners |
+quantisation | `<= 1` casts nothing; `<= 2` becomes **1.49** | casting 2 units, which decay below the lit threshold after one square of open air |
+direction gating | a direction is skipped when a buffered source one square that way is **>= luminance** | casting all eight octants per fire, which is what a burning building does when the optimisation is missing |
+
+### The inversion
+
+`apply_light_source` reads the buffer at `y - 1` in its "north" test and then casts the two octants that cover `y + 1`; its "south" test reads `y + 1` and casts
+towards `y - 1`. The x directions are not inverted. Either the axis is named for where the light comes from rather than where it goes, or the reference has a sign error
+that has never shown up loudly, because the skip is a performance shortcut and the skipped cast is usually covered by the neighbour that caused it.
+
+**The port reproduces it rather than correcting it**, and had to measure it to be sure: a scratch probe cast each transform on its own and listed the squares it
+covered, which is how the pairing in the test was established rather than guessed. Two consequences are pinned: a bright source to the north stops the cast that goes
+*south*, and a source on the top edge cannot cast downwards at all, because the buffer test that guards that direction is switched off at `y == 0`.
+
+A correction here is a deliberate change with an oracle receipt behind it, not a tidy-up.
+
 ## The light cast itself, and a rounding rule that changes less than expected (round 354)
 
 `castLightAll` (`lightmap.cpp:986-1012`) is one octant walk eight times, once per transform, so that between them the eight cover every square on the level. Each square
