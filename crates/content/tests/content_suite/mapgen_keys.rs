@@ -502,3 +502,64 @@ fn the_palette_graph_is_complete_and_acyclic() {
         }
     }
 }
+
+fn gather_palettes(path: &Path, palettes: &mut std::collections::BTreeMap<String, cdda_json::Object>) {
+    let Ok(entries) = std::fs::read_dir(path) else { return };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            gather_palettes(&path, palettes);
+        } else if path.extension().is_some_and(|extension| extension == "json") {
+            let Ok(text) = std::fs::read_to_string(&path) else { continue };
+            let Ok(Value::Array(entries)) = parse(text.as_bytes()) else { continue };
+            for entry in entries {
+                let Value::Object(object) = entry else { continue };
+                if matches!(object.get("type"), Some(Value::Str(kind)) if kind == "palette")
+                    && let Some(Value::Str(id)) = object.get("id")
+                {
+                    palettes.insert(id.clone(), object);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn a_chunk_s_symbols_gather_through_its_palettes_and_theirs() {
+    // The second mechanism the generator needs. Every mapgen that names palettes is resolved here - through those palettes and whatever they name in turn - and the gathered symbols
+    // are compared against the chunk's own rows where it has any: every character must be drawable, which is the same requirement `resolve_rows` enforces on inline terrain.
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json");
+    let mut palettes: std::collections::BTreeMap<String, cdda_json::Object> = std::collections::BTreeMap::new();
+    gather_palettes(&root, &mut palettes);
+
+    let names: Vec<String> = palettes.keys().cloned().collect();
+    let gathered = cdda_content::mapgen::palette_symbols(&names, &|name| palettes.get(name).cloned());
+    assert!(gathered.len() > 50, "the palettes together draw with {} symbols", gathered.len());
+    // Every id the gathering produces has to be a terrain the game knows.
+    let known = terrain_ids();
+    for (symbol, id) in &gathered {
+        assert!(known.contains(id), "'{symbol}' draws {id}, which the terrain dump does not have");
+    }
+}
+
+/// The terrain ids the reference defines, from the terrain dump.
+fn terrain_ids() -> BTreeSet<String> {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/terrain.json");
+    let text = std::fs::read_to_string(path).expect("the terrain dump exists");
+    let Value::Object(root) = parse(text.as_bytes()).expect("valid JSON") else {
+        panic!("root");
+    };
+    let Some(Value::Array(prototypes)) = root.get("prototypes") else {
+        panic!("no prototypes");
+    };
+    prototypes
+        .iter()
+        .filter_map(|entry| match entry {
+            Value::Object(object) => match object.get("id") {
+                Some(Value::Str(id)) => Some(id.clone()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect()
+}

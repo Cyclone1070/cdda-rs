@@ -384,3 +384,68 @@ pub fn resolve_rows(rows: &[String], terrain: &Object) -> Result<Vec<Vec<Option<
     }
     Ok(resolved)
 }
+
+/// The symbols a chunk can draw with, gathered through its palettes and their palettes.
+///
+/// Reference: `mapgen.cpp`'s palette resolution - a mapgen names palettes, a palette may name more, and the union of their `terrain` maps is what the chunk's rows are drawn from.
+/// Later names win, which is why the walk runs in reverse order before recursing, and a name already on the path is skipped: the data is acyclic, but a resolver that hangs on a cycle
+/// costs an afternoon, and the guard is three lines.
+#[must_use]
+pub fn palette_symbols(
+    names: &[String],
+    lookup: &dyn Fn(&str) -> Option<Object>,
+) -> std::collections::BTreeMap<char, String> {
+    fn gather(
+        names: &[String],
+        lookup: &dyn Fn(&str) -> Option<Object>,
+        visited: &mut std::collections::BTreeSet<String>,
+        into: &mut std::collections::BTreeMap<char, String>,
+    ) {
+        for name in names.iter().rev() {
+            if !visited.insert(name.clone()) {
+                continue;
+            }
+            let Some(palette) = lookup(name) else { continue };
+            if let Some(Value::Object(terrain)) = palette.get("terrain") {
+                collect(terrain, into);
+            }
+            if let Some(Value::Array(more)) = palette.get("palettes") {
+                let more: Vec<String> = more
+                    .iter()
+                    .filter_map(|item| match item {
+                        Value::Str(name) => Some(name.clone()),
+                        _ => None,
+                    })
+                    .collect();
+                gather(&more, lookup, visited, into);
+            }
+        }
+    }
+
+    fn collect(terrain: &Object, into: &mut std::collections::BTreeMap<char, String>) {
+        for (id, symbols) in terrain.members() {
+            match symbols {
+                Value::Str(text) => {
+                    for symbol in text.chars() {
+                        into.insert(symbol, id.clone());
+                    }
+                }
+                Value::Array(items) => {
+                    for item in items {
+                        if let Value::Str(text) = item {
+                            for symbol in text.chars() {
+                                into.insert(symbol, id.clone());
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    let mut into = std::collections::BTreeMap::new();
+    let mut visited = std::collections::BTreeSet::new();
+    gather(names, lookup, &mut visited, &mut into);
+    into
+}
