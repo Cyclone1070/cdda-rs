@@ -2986,6 +2986,25 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The weather as a tick (round 511)
+
+`weather::System::tick` is the first thing in the port that is a **tick**: one call that computes the point from the generator, decides the sky from the data's own conditions, and
+books the next change with the manager.
+
+> Driven only by the reference's recorded dice and two sector draws, it reproduces the recorded day hour by hour: the weather id, the temperature to a millionth of a kelvin, the
+> humidity, the pressure, the wind power, the wind direction, and the turn the next change is due.
+
+Two things had to be got right for the dice to line up, and both are behaviours rather than formatting. **A strike costs nothing**: the reference computes the point inside its due
+check, so an hour that does not recompute rolls no dice at all - which is why the first recorded hour has an empty trace and why the port cannot "warm up" its generator on a turn
+that did not happen. And **a calm hour draws no direction check**, because `one_in` short-circuits at a chance of one or less.
+
+The gate also settled a trap worth naming: `WeatherType::default()` used to carry durations of **zero**, while the loader defaulted to five minutes. Anything built from
+`..Default::default()` - a test, or a mod that only sets a name - would have been a weather that ended the instant it began. The struct's default now carries the data's default, and
+the tick fails loudly if it ever drifts again.
+
+**What is left of the weather:** nothing behavioural. The reference's update also raises a UI distraction, cancels a wait activity and reactivates effect-on-conditions, and those
+belong to the systems that own them; the port reports the change so they can act on it. The transparency flush itself is the map's job and is the next piece of M2.
+
 ## The manager, and the one place weather touches the map (round 510)
 
 `weather_manager::update_weather` (`weather.cpp:901-947`) is ported as a value: the weather id, the point it was decided from, the turn it is next due, and the lightning flag. It

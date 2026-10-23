@@ -22,7 +22,7 @@ pub enum Precipitation {
 }
 
 /// One weather type.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct WeatherType {
     /// Its id, e.g. `fog`.
     pub id: String,
@@ -60,6 +60,32 @@ pub struct WeatherType {
 ///
 /// Every type in the shipped data takes this default, which makes a drawn duration of three hundred turns look like a constant until a mod says otherwise.
 pub const DEFAULT_DURATION_TURNS: i32 = 300;
+
+impl Default for WeatherType {
+    /// A blank type whose durations are the data's default rather than zero.
+    ///
+    /// Zero would be a weather that ends the instant it begins, and a struct default that disagrees with the loader's default is a trap: anything built from
+    /// `..Default::default()` - a test, a mod that only sets a name - would silently last no time at all.
+    fn default() -> Self {
+        WeatherType {
+            id: String::new(),
+            name: String::new(),
+            ranged_penalty: 0,
+            sight_penalty: 1.0,
+            light_modifier: 0,
+            light_multiplier: 1.0,
+            sun_multiplier: 1.0,
+            sound_attn: 0,
+            dangerous: false,
+            precip: Precipitation::None,
+            rains: false,
+            priority: 0,
+            required_weathers: Vec::new(),
+            duration_min: DEFAULT_DURATION_TURNS,
+            duration_max: DEFAULT_DURATION_TURNS,
+        }
+    }
+}
 
 /// The weather types in the order the game tests them: by priority, and **stably**, so a tie keeps the order the data declared.
 ///
@@ -226,6 +252,8 @@ impl Schedule {
 /// rest as arguments where they are needed.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct Point {
+    /// The turn the point describes, which conditions that ask about the time - `is_day` is the one that exists - need to answer.
+    pub turn: i64,
     /// The temperature at the surface, in kelvin.
     pub temperature: f64,
     /// Relative humidity, as a percentage.
@@ -280,6 +308,15 @@ pub struct Manager {
 }
 
 impl Manager {
+    /// Whether this turn recomputes the weather (`weather.cpp:904`).
+    ///
+    /// Reference: `weather_id == WEATHER_NULL || calendar::turn >= nextweather` - no weather yet, or the due turn reached. The comparison is inclusive, so the turn the weather is due
+    /// is the turn it changes.
+    #[must_use]
+    pub fn needs_update(&self, turn: i64) -> bool {
+        self.weather.is_none() || turn >= self.next_turn
+    }
+
     /// Recomputes the weather if it is due (`weather.cpp:901-947`).
     ///
     /// The order is the reference's: the new point replaces the old one, the id is decided, the point's numbers are stored, the lightning is cleared, and **then** the next change is
@@ -294,8 +331,7 @@ impl Manager {
         rules: &dyn WeatherRules,
         roll: &mut dyn FnMut(i32, i32) -> i32,
     ) -> Change {
-        let due = self.weather.is_none() || turn >= self.next_turn;
-        if !due {
+        if !self.needs_update(turn) {
             return Change::None;
         }
         let previous = self.weather.clone();
@@ -317,5 +353,104 @@ impl Manager {
         };
         debug_assert!(!sight_changed || changed, "a sight change without a weather change would be a bug in the rules");
         Change::Weather { sight_changed }
+    }
+}
+
+/// The weather rules as a loaded world has them: the types, their conditions, and the order they are tested in.
+///
+/// This is the object the manager is handed in play. The reference reaches the same three facts through globals - `weather_types::get_all`, each type's `condition`, and
+/// `weather_generator::sorted_weather` - so the port's version is the same facts held in one value that can be tested without a game.
+#[derive(Debug, Clone, Default)]
+pub struct Rules {
+    /// The types, in the order the data declared them.
+    pub types: Vec<WeatherType>,
+    /// Each type's condition, by id. A type with no entry has no condition and never applies.
+    pub conditions: std::collections::BTreeMap<String, crate::condition::Condition>,
+    /// The data-defined functions the conditions call, starting with `dew_point_factor`.
+    pub functions: crate::jmath::Registry,
+}
+
+impl Rules {
+    /// Builds the rules from types and their conditions.
+    #[must_use]
+    pub fn new(
+        types: Vec<WeatherType>,
+        conditions: std::collections::BTreeMap<String, crate::condition::Condition>,
+        functions: crate::jmath::Registry,
+    ) -> Rules {
+        Rules { types, conditions, functions }
+    }
+
+    /// The types in the order the game tests them.
+    #[must_use]
+    pub fn order(&self) -> Vec<&WeatherType> {
+        sorted(&self.types)
+    }
+
+    /// One type by id.
+    #[must_use]
+    pub fn get(&self, id: &str) -> Option<&WeatherType> {
+        self.types.iter().find(|kind| kind.id == id)
+    }
+}
+
+impl WeatherRules for Rules {
+    fn decide(&self, point: &Point) -> String {
+        // The weather is decided from the conditions alone; the time-dependent ones answer through the point, which carries the turn.
+        conditions(&self.order(), &mut |candidate| {
+            self.conditions
+                .get(&candidate.id)
+                .is_some_and(|condition| condition.holds(&PointContext { point, functions: &self.functions }))
+        })
+    }
+
+    fn duration_bounds(&self, weather: &str) -> (i32, i32) {
+        self.get(weather)
+            .map_or((DEFAULT_DURATION_TURNS, DEFAULT_DURATION_TURNS), |kind| (kind.duration_min, kind.duration_max))
+    }
+
+    fn sight_penalty(&self, weather: &str) -> f32 {
+        self.get(weather).map_or(1.0, |kind| kind.sight_penalty)
+    }
+}
+
+/// Answers the expression language's names from a weather point.
+///
+/// The functions are the ones the reference's math parser ships (`weather`, `celsius`, `abs`, `log`) plus whatever the data defines; the port's [`Rules`] has no data-defined functions
+/// of its own yet, so the caller supplies a [`crate::jmath::Registry`] where one is wanted.
+pub struct PointContext<'a> {
+    /// The point being described.
+    pub point: &'a Point,
+    /// The data-defined functions the conditions call.
+    pub functions: &'a crate::jmath::Registry,
+}
+
+impl crate::math_expr::Context for PointContext<'_> {
+    fn number(&self, name: &str) -> Option<f64> {
+        // `is_day` is a named dialogue condition, answered from the sun (`calendar.cpp:368`). A turn past two hundred million would lose its last seconds to the conversion, which
+        // is four hundred years of game time and not a case worth carrying.
+        #[allow(clippy::cast_precision_loss)]
+        match name {
+            "condition:is_day" => Some(if cdda_core_types::astronomy::is_day(self.point.turn as f64) { 1.0 } else { 0.0 }),
+            _ => None,
+        }
+    }
+
+    fn call(&self, name: &str, arguments: &[crate::math_expr::Value]) -> Result<crate::math_expr::Value, crate::math_expr::MathError> {
+        use crate::math_expr::{MathError, Value};
+        let missing = || MathError::UnknownName { name: name.to_string() };
+        match (name, arguments) {
+            ("weather", [Value::Text(field)]) => match field.as_str() {
+                "temperature" => Ok(Value::Number(self.point.temperature)),
+                "humidity" => Ok(Value::Number(self.point.humidity)),
+                "pressure" => Ok(Value::Number(self.point.pressure)),
+                "windpower" => Ok(Value::Number(f64::from(self.point.windpower))),
+                "winddirection" => Ok(Value::Number(f64::from(self.point.winddirection))),
+                other => Err(MathError::UnknownName { name: other.to_string() }),
+            },
+            // Reference: `units.h:413` - `celsius` subtracts 273.150 and both sides are float in the reference.
+            ("celsius", [Value::Number(kelvin)]) => Ok(Value::Number(kelvin - 273.15)),
+            _ => crate::jmath::call(self.functions, &crate::math_expr::Builtins, name, arguments).map_err(|_| missing()),
+        }
     }
 }

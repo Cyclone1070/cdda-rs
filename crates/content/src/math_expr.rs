@@ -330,3 +330,23 @@ impl Parser<'_> {
         }
     }
 }
+
+/// The functions the reference's math parser ships that weather conditions use: `abs` and `log`.
+///
+/// Everything else a condition calls - `dew_point_factor` and its two helpers - is data-defined and comes from a [`crate::jmath::Registry`].
+pub struct Builtins;
+
+impl Context for Builtins {
+    fn number(&self, _name: &str) -> Option<f64> {
+        None
+    }
+
+    fn call(&self, name: &str, arguments: &[Value]) -> Result<Value, MathError> {
+        let missing = || MathError::UnknownName { name: name.to_string() };
+        match (name, arguments) {
+            ("abs", [Value::Number(value)]) => Ok(Value::Number(value.abs())),
+            ("log", [Value::Number(value)]) => Ok(Value::Number(value.ln())),
+            _ => Err(missing()),
+        }
+    }
+}

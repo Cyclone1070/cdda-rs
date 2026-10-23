@@ -258,9 +258,8 @@ holds. With that, the reference's answer to "what does this chunk look like" is 
 The weather is a **system** now: the generator's numbers, the condition loop, the sun it needs, and the manager that holds them between turns are all ported and gated, the last
 three against the reference's own recorded day. Two things finish it and one thing starts the next piece of M2.
 
-1. **Join the pieces into one call** - the manager currently takes the point and the decision as parameters. A `weather::turn` function that runs the generator for a turn, feeds
-   its point to [`conditions`](../crates/content/src/weather.rs) and hands both to the manager would be the first thing in the port that is a *tick* rather than a function, and
-   the recorded day gates it end to end.
+1. ~~Join the pieces into one call~~ - done in round 511: `weather::System::tick` computes the point, decides the sky and books the next change in one call, and reproduces the
+   recorded day from the recorded dice alone.
 2. **The transparency flush, for real** - `sight_changed` is reported but nothing consumes it yet. The map's caches and their dirty flags are M2's next subject, and they are what
    light will need anyway.
 3. Then light across z-levels, and vision.

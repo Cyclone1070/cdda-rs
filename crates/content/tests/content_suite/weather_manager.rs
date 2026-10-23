@@ -57,7 +57,7 @@ impl WeatherRules for Rules {
 }
 
 fn point(temperature: f64) -> Point {
-    Point { temperature, humidity: 50.0, pressure: 1015.0, windpower: 3, winddirection: 202 }
+    Point { turn: 0, temperature, humidity: 50.0, pressure: 1015.0, windpower: 3, winddirection: 202 }
 }
 
 #[test]
@@ -227,6 +227,7 @@ fn the_manager_walks_the_recorded_day_turn_for_turn() {
         let change = manager.update(
             turn,
             Point {
+                turn,
                 temperature: field(step, "temperature_k"),
                 humidity: field(step, "humidity"),
                 pressure: field(step, "pressure"),
