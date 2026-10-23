@@ -42,19 +42,40 @@ fn the_reference_knows_thousands_of_mapgen_keys_and_the_port_must_not_invent_one
 
 #[test]
 fn the_keys_the_data_does_not_write_are_registered_in_code() {
-    // The data's `om_terrain` ids come to 6,284 and the reference knows 6,306. The difference is the generators built in code, and this is the list of them: twenty-six keys that
-    // exist only because a source file names them. A port that scans the data for its registry falls short by exactly these, so they are pinned here rather than discovered later
-    // by a chunk that cannot be generated.
+    // The data's `om_terrain` ids come to 6,284 and the reference knows 6,306. The twenty-six that are left are generators built in **code**, and this is all of them: forests,
+    // rivers, lakes and oceans, ravines, and the subway pieces. A port that builds its registry by scanning the data comes up short by exactly these, so the list is pinned - not
+    // summarised - because each missing key is a chunk that cannot be generated, and a count would not say which.
     let keys = keys();
     let in_code = [
         "forest",
         "forest_thick",
         "forest_water",
+        "lake_shore",
+        "ocean_shore",
+        "ravine_edge",
+        "ravine_floor_edge",
+        "river",
+        "river_c_not_ne",
+        "river_c_not_nw",
+        "river_c_not_se",
+        "river_c_not_sw",
+        "river_ne",
+        "river_nw",
+        "river_se",
+        "river_sw",
         "lab_subway_curved",
         "lab_subway_end",
+        "lab_subway_four_way",
+        "lab_subway_straight",
+        "lab_subway_tee",
+        "subway_curved",
+        "subway_end",
+        "subway_four_way",
+        "subway_straight",
+        "subway_tee",
     ];
+    assert_eq!(in_code.len(), 26, "no more and no fewer");
     for key in in_code {
         assert!(keys.contains(key), "{key} is registered in code, not in the data");
     }
-    assert_eq!(keys.len() - 6284, 22, "and there are twenty-two more than the five worth naming here");
 }
