@@ -149,3 +149,18 @@ fn the_level_string_shows_a_lit_room_and_the_shadow_behind_the_wall() {
         "and nothing behind it is shown:\n{levels}"
     );
 }
+
+#[test]
+fn the_glyph_string_prints_what_is_there_rather_than_how_lit_it_is() {
+    // `Frame::text` is the other half of the picture: `levels` says what the character can tell about a square, `text` says what the square is. A gate can diff either, and the
+    // one that catches a wrong glyph is this one.
+    let mut world = world();
+    cast_lights_with(&mut world);
+    let drawn = frame(&mut world, (4, 5), 4, 10.0, 3.0);
+    let text = drawn.text();
+    let rows: Vec<&str> = text.lines().collect();
+    assert_eq!(rows.len(), 9);
+    assert_eq!(rows[2].chars().nth(4), Some('o'), "the lamp:\n{text}");
+    assert_eq!(rows[4].chars().nth(5), Some('.'), "a floor:\n{text}");
+    assert_eq!(rows[4].chars().nth(2), Some('#'), "the wall two squares west:\n{text}");
+}
