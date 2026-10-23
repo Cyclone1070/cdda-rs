@@ -448,3 +448,68 @@ pub fn visible_light(
     }
     seen_from.multiplied(*light).max()
 }
+
+/// The larger of the two offsets between two squares: the reference's `square_dist`.
+///
+/// Reference: `square_dist` (`src/line.h:182-191`). Always Chebyshev - diagonals cost the same as steps - and it is the metric the **range check** in `pl_sees` uses.
+#[must_use]
+pub fn square_dist(from: (i32, i32), to: (i32, i32)) -> i32 {
+    (to.0 - from.0).abs().max((to.1 - from.1).abs())
+}
+
+/// The distance the rest of the game means by "range".
+///
+/// Reference: `rl_dist` (`src/line.h:194-204`). Chebyshev unless the "circular distances" option is on, when it is Euclidean. **Two metrics in one name**, which is why
+/// it takes the option as an argument rather than reading a global: a caller that forgets it gets a different answer for every diagonal.
+// A map square count is far inside what an `f32` holds exactly, and the reference does the same conversion to reach `std::sqrt` on a `double`.
+#[allow(clippy::cast_precision_loss)]
+#[must_use]
+pub fn rl_dist(from: (i32, i32), to: (i32, i32), circular: bool) -> f32 {
+    if circular {
+        let dx = (to.0 - from.0) as f32;
+        let dy = (to.1 - from.1) as f32;
+        (dx * dx + dy * dy).sqrt()
+    } else {
+        square_dist(from, to) as f32
+    }
+}
+
+/// One square, as far as the question "can the player see it?" is concerned.
+///
+/// Reference: everything `map::pl_sees` reads (`lightmap.cpp:859-877`) - the range cache, the light cache and the answer `apparent_light_helper` gives.
+#[derive(Debug, Clone, Copy)]
+pub struct Target {
+    /// Whether the square is on the map at all.
+    pub in_bounds: bool,
+    /// `square_dist` to the player, in squares.
+    pub square_dist: i32,
+    /// Light from a camera at the square, the only thing that bypasses the range check.
+    pub camera: f32,
+    /// Whether the line of sight is blocked.
+    pub obstructed: bool,
+    /// How much light reaches the square.
+    pub light: f32,
+    /// The light source sitting in the square itself.
+    pub light_source: f32,
+}
+
+/// Whether the player can see one square.
+///
+/// Reference: `map::pl_sees( t, max_range )` (`lightmap.cpp:859-877`), in its order - the order is all this function adds to what it composes:
+///
+/// 1. off the map is not seen;
+/// 2. past `max_range` is not seen either, unless a camera is at the square (a negative `max_range` means no limit);
+/// 3. blocked is not seen, however much light gets through;
+/// 4. otherwise the square is seen if the light reaches the player's own vision threshold, **or** if a light source is sitting in it.
+///
+/// The threshold is the player's, computed from the light where the *player* is standing, not from this square's light - a lit room and a dark one settle it between them.
+#[must_use]
+pub fn sees(max_range: i32, target: &Target, vision_threshold: f32) -> bool {
+    if !target.in_bounds {
+        return false;
+    }
+    if max_range >= 0 && target.square_dist > max_range && target.camera == 0.0 {
+        return false;
+    }
+    !target.obstructed && (target.light >= vision_threshold || target.light_source > 0.0)
+}

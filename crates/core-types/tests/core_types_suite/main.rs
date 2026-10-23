@@ -41,6 +41,7 @@ mod level;
 mod light;
 mod light_source;
 mod line;
+mod line_of_sight;
 mod map_cache;
 mod map_reference_chunk;
 mod memory;

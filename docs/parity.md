@@ -406,6 +406,27 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Two distance metrics in one function, and it has always been that way (round 353)
+
+`map::pl_sees( t, max_range )` (`lightmap.cpp:859-877`) is what the rest of the game asks instead of re-deriving visibility. It composes the range check, the apparent
+light, the player's own vision threshold and the light source in the square - and adds nothing of its own except **the order**:
+
+1. off the map is not seen;
+2. past `max_range` is not seen, unless a camera is at the square (a negative `max_range` means no limit);
+3. blocked is not seen, **however much light gets through**;
+4. otherwise seen if the light reaches the player's threshold, **or** if a light source sits in the square.
+
+**The two metrics are not the same metric.** The range check uses `square_dist` - Chebyshev, always. `apparent_light_at` uses `rl_dist`, which is Chebyshev only when the
+"circular distances" option is off and Euclidean when it is on. So under that option a square three across and four up is *inside* a range of four by one metric and
+*outside* it by the other, and the reference has always worked that way. The port takes the option as an argument rather than reading a global, so a caller cannot
+forget it silently.
+
+**And the threshold belongs to the player, not the square.** It is computed from the light where the player is standing, so a lit room and a dark one settle the answer
+between them; the square's own light is compared against it, not used to make it reasonable.
+
+**Obstruction is the one thing light cannot overcome here.** `apparent_light_at` has a `BRIGHT_ONLY` answer for light that gets through a blocked sight line, but `pl_sees`
+says no - which is why the game draws a lit wall on the far side of a corner and still refuses to let you see what is behind it.
+
 ## How dark a square has to be before a character stops seeing it (round 352)
 
 `Character::get_vision_threshold( light_level )` (`character.cpp:2724-2763`) is the number the last branch of `apparent_light_at` compares against: below it a square is
