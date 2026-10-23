@@ -406,6 +406,23 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The generator's keys are the JSON ones plus a handful made in code (round 442)
+
+The reference's 6,306 mapgen keys were compared against the `om_terrain` keys written in the data itself:
+
+| Set | Count |
+|---|---|
+reference's keys | 6,306 |
+`om_terrain` keys in the JSON | 6,284 |
+in the data but not the reference | 4 |
+in the reference but not the data | 26 |
+
+**The 26 are the interesting half**: `forest`, `forest_thick`, `forest_water`, `lab_subway_curved`, `lab_subway_end` and twenty-one more are registered in **code** rather than in
+JSON, which is why a port that builds its key set by scanning files comes up short exactly where the built-in generators live. The four the other way are data entries the reference
+does not register - obsolete or condition-gated ones - and they are the mirror trap: a port that trusted the files alone would generate chunks the game cannot.
+
+So the rule for the port's registry is neither list alone but the reference's list, and the test that will hold it is an equality against the dump rather than a superset check.
+
 ## What the generated chunk actually contains (round 439)
 
 The reference's thick forest chunk, read before anything tries to reproduce it:
