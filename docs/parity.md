@@ -406,6 +406,18 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The map dump does not finish headlessly (round 430)
+
+`--dump-map` was run against the same loadout that finished the frame in seconds. It wrote 6,455 bytes and then made **no further progress for half an hour**, with the process
+still alive, so it was stopped and the file removed rather than left growing or hanging.
+
+So the map oracle is **not** available yet, and the reason is in the harness code rather than in the invocation: the frame dump reads the map the game already generated, while the
+map dump asks for generation, and generation in a headless run reaches something that waits. Fixing it means driving the world one turn so the overmap is realised, or generating a
+single submap directly instead of a whole map - a small piece of harness work, not a port-side blocker.
+
+**Nothing else is blocked by it.** The glyph gate stands on the frame dump and passes on 1,638 squares; the loader and behaviour gates are unaffected; and the weather corpus came
+from the same binary.
+
 ## The reference frame's light column is nearly binary, so it is a weak oracle (round 428)
 
 Before writing a light gate, the column was read. Over 1,681 squares the reference records **two** values:
