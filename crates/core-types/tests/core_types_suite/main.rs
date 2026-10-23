@@ -47,6 +47,7 @@ mod light_source_rules;
 mod line;
 mod line_of_sight;
 mod map_cache;
+mod map_cache_build;
 mod map_reference_chunk;
 mod memory;
 mod noise_octaves;

@@ -406,6 +406,33 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Five caches, one order, and a reason for each step (round 362)
+
+`build_map_cache` (`map.cpp:9549-9569`) is the door every light question goes through, and its order is the behaviour:
+
+```mermaid
+graph TD
+    A[Sky: is there open air above this square?] --> B[Transparency: charge the weather for the squares in the sky]
+    B --> C[Floor: what is underfoot, and is the level sealed?]
+    C --> D[Vehicles, in a separate pass over every level]
+    D --> E[Vision: copy the finished transparency and apply its three exceptions]
+```
+
+| Step | Reads | Why it cannot move |
+|---|---|---|
+sky | terrain and furniture indoor flags | transparency charges the weather **against the sky it just computed** |
+transparency | the sky, fields, terrain | floor's dirty flag feeds the seen cache, so it wants to be settled first |
+floor | terrain flags and the level below's furniture | vehicles write the floor of the level **above**, so they cannot be inside this loop |
+vehicles | parts, doors, decks | the reference says it: otherwise "such changes might be overwritten by main cache-building logic" |
+vision | the transparency cache | it **starts as a copy**, so anything writing transparency after it is invisible to sight |
+
+**Two counter-intuitive consequences, both pinned by tests:**
+
+* **smoke dims sight.** The vision cache copies the *with-fields* transparency, so smoke is a sight cost. What smoke does not do is make a square count as
+  *not visible* - that is the `without_fields` answer, which the seen cache reads and this join leaves alone.
+* **an open car door is opaque to neither cache.** The opacity test is on the part, and an openable part with its door open cancels it, so light and sight both pass. A closed
+  door blocks both, because vision copies the light cache rather than recomputing it.
+
 ## A floor is what stops the sun, and a greenhouse is the exception (round 361)
 
 `build_floor_cache` (`map.cpp:9417-9471`) answers "is there something underfoot" per square, and the sunlight pass reads the answer **one level up**: a square receives daylight

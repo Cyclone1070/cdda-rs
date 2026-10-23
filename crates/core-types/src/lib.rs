@@ -25,6 +25,7 @@ pub mod level;
 pub mod light;
 pub mod line;
 pub mod map_cache;
+pub mod map_cache_build;
 pub mod memory;
 pub mod noise;
 pub mod options;
