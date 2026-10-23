@@ -215,6 +215,14 @@ exactly. Neither is dead code; both are named where they are used.
 ---
 
 
+### The mapgen family has its first gate (round 461)
+
+The registry is an equality now: the keys written in the data, plus the twenty-six the game registers in code, minus the four `om_terrain` ids that are selectors rather than chunks,
+comes to the reference's **6,306** exactly, and the test names what a port would miss and what it would wrongly offer as two separate failures.
+
+That was the precondition for generating anything. What follows is the generator itself, and the two things it needs are already in the corpus: the palette a chunk is drawn from
+(`corpus/maps/reference_map.json`, 27 terrain kinds over 576 squares) and the shape a generated chunk must take (24 by 24, every id known to the terrain loader).
+
 ### The oracle now covers all three questions (round 435)
 
 The instrumented reference answers what the port has to match, and as of this round it can be asked all three kinds of question:
