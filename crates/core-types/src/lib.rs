@@ -27,6 +27,7 @@ pub mod map_cache;
 pub mod memory;
 pub mod noise;
 pub mod options;
+pub mod outside_cache;
 pub mod overmap;
 pub mod paths;
 pub mod rng;

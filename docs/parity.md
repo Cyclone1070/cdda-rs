@@ -406,6 +406,33 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Under open sky: one flag and a three-square stamp (round 360)
+
+`build_outside_cache` (`map.cpp:9260-9314`) answers one question per square - is the sky above it - and the last three rounds all quietly trusted the answer:
+
+```mermaid
+graph TD
+    A{Is the level below ground?} -->|yes| B[Everything is inside, one fill]
+    A -->|no| C[Start with everything outside]
+    C --> D[For each square flagged INDOORS]
+    D --> E[Mark it and its eight neighbours inside]
+    E --> F[That is the sky's map]
+```
+
+| Rule | Detail | Why it is not just a copy of the flag |
+|---|---|---|
+the flag | terrain **or** furniture carries `INDOORS` | an awning or a tent is furniture, and it shelters the square |
+the stamp | a **3x3 block** of inside per indoor square | a doorway, a threshold and a wall's own square count as indoors without being listed |
+below ground | a single fill of `false` | there is no sky down there to ask about |
+
+**The padded cache is not an optimisation detail, it is part of the rule's shape.** The reference allocates the answer one square larger on each side, marks it all outside, and lets
+each stamp write its full nine squares; the two that fall off the map at an edge are swallowed by the padding, so no bounds check is needed and an indoor tile in the corner
+still marks its whole neighbourhood. A port that wrote through an unpadded index would panic or wrap - a test pins that the padding does not wrap a corner stamp onto the far
+corner of the map.
+
+**The stamp is why a building's light comes in at the windows.** Two squares from a wall is already outside again, so the sun reaches the ground beside a hut and not the
+floor inside it, and the weather penalty lands on the right squares.
+
 ## Seeing is not lighting: three exceptions the vision cache makes (round 359)
 
 `build_vision_transparency_cache` (`lightmap.cpp:207-286`) starts as a **copy** of the light transparency cache and then changes it in three ways. Each is somewhere that

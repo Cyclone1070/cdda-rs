@@ -51,6 +51,7 @@ mod memory;
 mod noise_octaves;
 mod noise_reference;
 mod options;
+mod outside_cache;
 mod outside_light;
 mod overmap;
 mod overmap_building_kind;
