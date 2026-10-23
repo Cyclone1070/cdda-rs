@@ -39,6 +39,7 @@ mod item_burn;
 mod item_burn_loop;
 mod level;
 mod light;
+mod light_cast;
 mod light_source;
 mod line;
 mod line_of_sight;

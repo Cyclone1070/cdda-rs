@@ -457,20 +457,33 @@ pub fn square_dist(from: (i32, i32), to: (i32, i32)) -> i32 {
     (to.0 - from.0).abs().max((to.1 - from.1).abs())
 }
 
+/// The true distance between two squares, as a float.
+///
+/// Reference: `trig_dist` (`src/line.h:168-178`), the Euclidean distance. Kept apart from [`rl_dist`] because the reference converts it to an integer, and that
+/// conversion is a rule rather than an accident.
+#[must_use]
+pub fn trig_dist(from: (i32, i32), to: (i32, i32)) -> f32 {
+    #[allow(clippy::cast_precision_loss)]
+    let dx = (to.0 - from.0) as f32;
+    #[allow(clippy::cast_precision_loss)]
+    let dy = (to.1 - from.1) as f32;
+    (dx * dx + dy * dy).sqrt()
+}
+
 /// The distance the rest of the game means by "range".
 ///
-/// Reference: `rl_dist` (`src/line.h:194-204`). Chebyshev unless the "circular distances" option is on, when it is Euclidean. **Two metrics in one name**, which is why
-/// it takes the option as an argument rather than reading a global: a caller that forgets it gets a different answer for every diagonal.
-// A map square count is far inside what an `f32` holds exactly, and the reference does the same conversion to reach `std::sqrt` on a `double`.
-#[allow(clippy::cast_precision_loss)]
+/// Reference: `rl_dist` (`src/line.h:194-204`). Chebyshev unless the "circular distances" option is on, when it is Euclidean - and **always an integer**, because the
+/// reference's return type is `int`: a diagonal of `sqrt( 2 )` becomes one square, and only a long enough diagonal rounds up. That truncation is why turning the option
+/// on changes less than a player might expect. The option is an argument rather than a global, so a caller cannot forget it.
 #[must_use]
-pub fn rl_dist(from: (i32, i32), to: (i32, i32), circular: bool) -> f32 {
+pub fn rl_dist(from: (i32, i32), to: (i32, i32), circular: bool) -> i32 {
     if circular {
-        let dx = (to.0 - from.0) as f32;
-        let dy = (to.1 - from.1) as f32;
-        (dx * dx + dy * dy).sqrt()
+        #[allow(clippy::cast_possible_truncation)]
+        {
+            trig_dist(from, to) as i32
+        }
     } else {
-        square_dist(from, to) as f32
+        square_dist(from, to)
     }
 }
 

@@ -639,3 +639,180 @@ pub fn split_span(
     *current_transparency = new_transparency;
     index + inserted_before
 }
+
+/// The transparency of open air, which is what the sweep starts with.
+pub const AMBIENT_OPEN: f32 = crate::light::TRANSPARENCY_OPEN_AIR;
+
+/// Which quadrant light arriving from one direction belongs in.
+///
+/// Reference: `quadrant_from_x_y` (`lightmap.cpp:874-879`). The mapping is not the obvious one - a vector with a positive x is `NW` for a positive y and `SW` for a
+/// negative one, and a negative x gives `NE` and `SE` - because the axes here are the sweep's own, not the screen's.
+#[must_use]
+pub fn quadrant_from_x_y(x: i32, y: i32) -> Quadrant {
+    if x > 0 {
+        if y > 0 {
+            Quadrant::NorthWest
+        } else {
+            Quadrant::SouthWest
+        }
+    } else if y > 0 {
+        Quadrant::NorthEast
+    } else {
+        Quadrant::SouthEast
+    }
+}
+
+/// Casts one light source's light onto a level's four-quadrant light map.
+///
+/// Reference: `castLightAll` (`lightmap.cpp:986-1012`) - the same `castLight` eight times, once per transform, so between them the eight cover every square on the level.
+/// Each square takes the **brightest** light reaching it, not the sum: two rays arriving at one square are two chances to see it, not twice the brightness.
+///
+/// The source's own square is **not** lit here. `map::apply_light_source` lights it before casting, because the sweep starts one square out and a lamp that had to be lit
+/// by its own light would be dark.
+#[must_use]
+pub fn cast_light_quadrants(
+    grid: &TransparencyGrid,
+    origin: (i32, i32),
+    radius: i32,
+    numerator: f32,
+    circular: bool,
+) -> Vec<FourQuadrants> {
+    let mut lit = vec![FourQuadrants::uniform(0.0); grid.side * grid.side];
+    for transform in TRANSFORMS {
+        let quad = quadrant_from_x_y(-transform[0] - transform[1], -transform[2] - transform[3]);
+        let mut cast = Cast {
+            lit: &mut lit,
+            grid,
+            transform,
+            origin,
+            quad,
+            numerator,
+            radius,
+            circular,
+        };
+        cast.run(1, 1.0, 0.0, crate::light::TRANSPARENCY_OPEN_AIR);
+    }
+    lit
+}
+
+/// One octant's sweep, carrying the reference's own recursion state.
+///
+/// Reference: `castLight`'s body (`lightmap.cpp:893-980`). It is a recursive call with nine arguments in the reference; here the invariant parts live in the struct so
+/// the recursion passes only what changes - the row, the span and the running transparency.
+struct Cast<'a> {
+    lit: &'a mut Vec<FourQuadrants>,
+    grid: &'a TransparencyGrid,
+    transform: [i32; 4],
+    origin: (i32, i32),
+    quad: Quadrant,
+    numerator: f32,
+    radius: i32,
+    /// Whether the "circular distances" option is on, which makes a diagonal cost more than a step.
+    circular: bool,
+}
+
+// A radius is a map-square count, far inside what an `f32` holds exactly; the reference converts the same values to `float` for the span arithmetic.
+#[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+impl Cast<'_> {
+    fn run(&mut self, row: i32, start: f32, end: f32, cumulative: f32) {
+        if start < end {
+            return;
+        }
+        let [xx, xy, yx, yy] = self.transform;
+        let radius = self.radius as f32;
+        let mut start = start;
+        let mut new_start;
+        let mut cumulative = cumulative;
+        let mut distance = row;
+        while (distance as f32) <= radius {
+            let dy = -distance;
+            let mut started_row = false;
+            let mut current_transparency = 0.0;
+            // The reference starts x where the leading edge of the span is, so that the `start < leadingEdge`
+            // test it never performs would never have failed.
+            let away = start - (-(distance as f32) + 0.5) / (-(distance as f32) - 0.5);
+            let adjustment = (away * (-(distance as f32) - 0.5)).ceil();
+            let skip = if adjustment > 0.0 {
+                adjustment as i32
+            } else {
+                0
+            };
+            let mut dx = -distance + skip;
+            new_start = 0.0;
+            while dx <= 0 {
+                let cx = self.origin.0 + dx * xx + dy * xy;
+                let cy = self.origin.1 + dx * yx + dy * yy;
+                #[allow(clippy::cast_precision_loss)]
+                let trailing = (dx as f32 - 0.5) / (dy as f32 + 0.5);
+                #[allow(clippy::cast_precision_loss)]
+                let leading = (dx as f32 + 0.5) / (dy as f32 - 0.5);
+                let side = i32::try_from(self.grid.side).unwrap_or(i32::MAX);
+                if cx < 0 || cy < 0 || cx >= side || cy >= side {
+                    dx += 1;
+                    continue;
+                }
+                if end > trailing {
+                    break;
+                }
+                if !started_row {
+                    started_row = true;
+                    current_transparency = self.grid.at(cx, cy);
+                }
+                // With circles off this is the row number itself; with circles on it is the true distance, which rounds the light's reach.
+                let dist = crate::light::rl_dist((0, 0), (dx, dy), self.circular);
+                let last_intensity = sight_calc(self.numerator, cumulative, dist);
+                let new_transparency = self.grid.at(cx, cy);
+                let quarter = if sight_check(new_transparency) {
+                    Quadrant::NorthEast
+                } else {
+                    self.quad
+                };
+                self.update(cx, cy, last_intensity, quarter);
+
+                // Both are values read out of the same grid, so this is an exact comparison of identical bits rather than a tolerance question.
+                #[allow(clippy::float_cmp)]
+                if new_transparency == current_transparency {
+                    new_start = leading;
+                    dx += 1;
+                    continue;
+                }
+                if sight_check(current_transparency) {
+                    self.run(
+                        distance + 1,
+                        start,
+                        trailing,
+                        accumulate_transparency(cumulative, current_transparency, distance),
+                    );
+                }
+                // The reference writes this as `if( !check(...) ) start = newStart; else start = trailingEdge;` - opaque squares restart the span from the new start,
+                // transparent ones only from the trailing edge.
+                start = if sight_check(current_transparency) {
+                    trailing
+                } else {
+                    new_start
+                };
+                if start < end {
+                    return;
+                }
+                current_transparency = new_transparency;
+                new_start = leading;
+                dx += 1;
+            }
+            if !sight_check(current_transparency) {
+                break;
+            }
+            cumulative = accumulate_transparency(cumulative, current_transparency, distance);
+            distance += 1;
+        }
+    }
+
+    fn update(&mut self, x: i32, y: i32, value: f32, quarter: Quadrant) {
+        if let (Ok(x), Ok(y)) = (usize::try_from(x), usize::try_from(y)) {
+            #[allow(clippy::indexing_slicing)]
+            let cell = &mut self.lit[x * self.grid.side + y];
+            if cell.get(quarter) < value {
+                cell.set(quarter, value);
+            }
+        }
+    }
+}

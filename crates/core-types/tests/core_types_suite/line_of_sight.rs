@@ -10,7 +10,7 @@
 
 #![allow(clippy::expect_used)]
 
-use cdda_core_types::light::{Target, rl_dist, sees, square_dist};
+use cdda_core_types::light::{Target, rl_dist, sees, square_dist, trig_dist};
 
 #[track_caller]
 fn assert_close(passed: f32, expected: f32, what: &str) {
@@ -98,13 +98,15 @@ fn the_two_distance_metrics_are_not_the_same_metric() {
     // `square_dist` is Chebyshev, always (`line.h:182-191`). `rl_dist` is Chebyshev unless the "circular distances" option is on, when it is Euclidean
     // (`line.h:194-204`). The pair (3,4) is the smallest one that shows the difference.
     assert_eq!(square_dist((0, 0), (3, 4)), 4, "the larger offset");
-    assert_close(rl_dist((0, 0), (3, 4), false), 4.0, "Chebyshev by default");
-    assert_close(
-        rl_dist((0, 0), (3, 4), true),
-        5.0,
-        "and five with circles on",
+    assert_eq!(rl_dist((0, 0), (3, 4), false), 4, "Chebyshev by default");
+    assert_eq!(rl_dist((0, 0), (3, 4), true), 5, "and five with circles on");
+    // A diagonal of sqrt(2) does **not** differ, because the reference's answer is an `int` and truncates: only a long enough diagonal rounds up. Both facts are the
+    // metric's behaviour, not a rounding detail.
+    assert_close(trig_dist((0, 0), (2, 2)), 2.828_427, "the Euclidean truth");
+    assert_eq!(rl_dist((0, 0), (2, 2), true), 2, "truncated to two");
+    assert_eq!(
+        square_dist((0, 0), (2, 2)),
+        2,
+        "so circles change nothing here"
     );
-    // The asymmetry the header describes: a square three across and four up is inside a range of four by one metric and outside by the other.
-    assert_eq!(square_dist((0, 0), (3, 4)), 4);
-    assert!(rl_dist((0, 0), (3, 4), true) > 4.0);
 }

@@ -406,6 +406,25 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The light cast itself, and a rounding rule that changes less than expected (round 354)
+
+`castLightAll` (`lightmap.cpp:986-1012`) is one octant walk eight times, once per transform, so that between them the eight cover every square on the level. Each square
+takes the **brightest** light reaching it, never the sum: two rays arriving at one square are two chances for it to be seen, not twice the brightness.
+
+| Rule | Value | What a port gets wrong |
+|---|---|---|
+the source's own square | **not lit by the cast** - `apply_light_source` lights it before casting | lighting it here too makes every lamp twice as bright at its own square |
+a square light passes through | all of it in the **default** quadrant | spreading it across four, which changes what a wall beside it looks like |
+an opaque square | lit in **the quadrant the light came from** (`quadrant_from_x_y`) | lighting it evenly, which is why the mechanism exists at all |
+
+**And `rl_dist` answers with an integer, so "circular distances" changes less than a player might expect.** The reference's `rl_dist` returns `int` and converts the
+Euclidean `trig_dist` on the way out, so a one-square diagonal of `sqrt(2)` is **still one square**; only a long enough diagonal rounds up (3,4 is five against
+Chebyshev's four). The first draft of this round's test asserted the imagined rule - that a diagonal would dim with circles on - and the compiled reference said
+otherwise. `rl_dist` now returns `i32` exactly as the reference does, and `trig_dist` is kept beside it for the float value.
+
+`quadrant_from_x_y` (`lightmap.cpp:874-879`) is worth writing down because it is not the obvious mapping: positive x with positive y is `NW`, positive x with
+negative y is `SW`, and negative x gives `NE` and `SE`.
+
 ## Two distance metrics in one function, and it has always been that way (round 353)
 
 `map::pl_sees( t, max_range )` (`lightmap.cpp:859-877`) is what the rest of the game asks instead of re-deriving visibility. It composes the range check, the apparent
