@@ -164,6 +164,11 @@ what is shown | `shown_at` = "drawn at all"; `lit_level_at_square` = "at which l
 the wall's face | the eight-neighbour quadrant rule for opaque squares | 2 tests |
 scent | marks from `NO_SCENT`/`REDUCE_SCENT`, the `ScentWindow` arithmetic, decay, and the deposit the turn starts with | 11 tests |
 
+**Weather is end to end.** The reference was rebuilt on this machine as a tracked background job (no install was needed - the build tree was configured), which produced the
+first oracle dump of the phase: **20 weather types** with their derived numbers. The loader is gated on it, the `Weather` resource takes a loaded type rather than a hand-set
+penalty, and a test proves fog dims a lamp by exactly the absorption it adds. The weather *system* - generators, transitions, precipitation over time, temperature - is still a
+declared gap, and it is the next thing after the frame gate.
+
 **A frame can be drawn, and it is text.** `sim::frame::frame` asks the three questions a cell needs - what is there, how lit, how seen - once per view, and `Frame::levels`
 prints one character per square (`B L l * .`). That string is the semantic frame gate's unit of comparison, and the tests already assert against it square by square. What it
 still needs is an oracle: the reference's own frame for the same fixture, which is the same outstanding build as the weather dump.
