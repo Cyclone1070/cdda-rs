@@ -264,7 +264,8 @@ three against the reference's own recorded day. Two things finish it and one thi
    once. The reference's loop over the overmap's depth is a single mark until the port has more than one level.
 3. **A ten-day weather recording** is now the gate (round 514): `--dump-weather-manager` covers the manager's own path, the port replays 240 hours with fourteen absorption
    changes, and it found three real bugs (a data function that could not see the point, a missing requirement chain, and sight penalties that were all one). One temperature sits a
-   single `float` ulp from the reference at hour 191; a harness hook exposing the generator's double would close it.
+   moment's temperature is now bit-exact: the hook `harness_weather_temperature_terms` records the pre-narrowing double and its terms, which showed the residual was a
+   fixture written to ten digits and a `float` product the port was computing in double. One humidity hour remains one ulp out, which is macOS `cos` against Linux `cos`.
 4. **Weather in the world** is wired (round 513): `Climate` is a resource, `tick_climate` runs a turn of it, and `run_environment_turn` takes the world's wind over its own. What
    is missing for the M2 exit gate is a **recorded session with a weather transition** in it - the oracle records squares but not the sky, so the session format needs weather fields
    before a per-turn hash can cover a transition.

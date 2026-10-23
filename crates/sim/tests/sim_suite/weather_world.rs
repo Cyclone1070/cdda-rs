@@ -263,12 +263,16 @@ fn ten_recorded_days_replay_through_the_world_hour_by_hour() {
         note("next", climate.system.manager.next_turn.to_string(), number(step, "next").to_string());
         note("windpower", point.windpower.to_string(), number(step, "windpower").to_string());
         note("winddirection", point.winddirection.to_string(), number(step, "winddirection").to_string());
-        // The reference's temperature is a `float` (`units::temperature` is `quantity<float, ...>`), so the tightest claim a port can make is **one ulp of that
-        // width**: at 282 K an ulp is 3.05e-5, and a double-level difference of a part in 10^11 is enough to land on either side of a rounding boundary. Every other
-        // number here is a double in the reference and is compared to a millionth.
+        // Both sides of every comparison here are values the reference **stored**, so exactness is the right demand: the temperature is a `float` and the port narrows to one
+        // too, which means the two are equal or one of them is wrong. The earlier one-ulp tolerance was hiding a fixture written to ten digits - the port was computing a cosine
+        // of a rounded fraction.
         let near = |what: &str, ours: f64, theirs: f64, wrong: &mut Vec<(i64, String, String, String)>| {
-            let tolerance = if what == "temperature" { (theirs as f32).abs() * f32::EPSILON } else { 1e-6 };
-            if (ours - theirs).abs() > f64::from(tolerance) && wrong.len() < 8 {
+            // Every number in the recording is written to seventeen significant digits, so nothing here is rounded by the file. What is left is the last bit of
+            // `cos`: the recording was made on macOS and these tests run on Linux, and the two C libraries' trigonometric functions differ by one unit in the last
+            // place on some angles. The temperature is compared exactly because it is stored as a `float`, which absorbs that bit; the humidity and the pressure are
+            // `double` in the reference, so one ulp is the tightest claim that survives two platforms.
+            let tolerance = if what == "temperature" { 0.0 } else { theirs.abs() * f64::EPSILON };
+            if (ours - theirs).abs() > tolerance && wrong.len() < 8 {
                 wrong.push((hour, what.to_string(), format!("{ours}"), format!("{theirs}")));
             }
         };

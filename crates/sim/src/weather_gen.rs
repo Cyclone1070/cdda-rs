@@ -96,31 +96,63 @@ impl Generator {
     }
 }
 
-/// The temperature at a moment, in Celsius (`weather_gen.cpp:99-108`).
+/// The terms the temperature is built from, so a port can be held to the arithmetic and not only to the rounding.
 ///
-/// The noise takes `float` coordinates and the reference converts the doubles on the way in, so the narrowing here is the reference's own and not an
-/// approximation of it.
+/// Reference: `weather_gen.cpp:90-108`, and the oracle's own `harness_weather_temperature_terms`, which exists for exactly this reason - one hour in a fortnight lands
+/// within an ulp of a `float` boundary, and from the narrowed value alone there is no way to tell a formula error from a rounding tie.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TemperatureTerms {
+    /// The total before the conversion to kelvin, in Celsius.
+    pub celsius: f64,
+    /// The day's cosine: `-1` at the coldest hour, `+1` twelve hours later.
+    pub day: f64,
+    /// `-cyf`: `+1` in midwinter, `-1` in midsummer.
+    pub seasonality: f64,
+    /// The noise field's value at this place and moment.
+    pub noise: f64,
+    /// The region's average temperature, in Celsius.
+    pub base: f64,
+    /// How far through the day the moment is.
+    pub day_fraction: f64,
+}
+
+/// The temperature at a moment, in Celsius (`weather_gen.cpp:99-108`), with every term that produced it.
 #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
 #[must_use]
-pub fn temperature(generator: &Generator, common: &CommonData, day_fraction: f64) -> f64 {
+pub fn temperature_terms(generator: &Generator, common: &CommonData, day_fraction: f64) -> TemperatureTerms {
     let seasonality = -common.cyf;
-    let dayv = day_cosine(day_fraction);
+    let day = day_cosine(day_fraction);
     let seasonal = generator
         .seasonal_temp_mod
         .get(common.season)
         .copied()
         .unwrap_or(0.0);
+    // The association is the reference's, term by term: `( ( base + seasonal ) + day * daily ) + seasonality * seasonal_amplitude`, then the noise.
     let baseline = generator.base_temperature
         + seasonal
-        + dayv * DAILY_MAGNITUDE_K
+        + day * DAILY_MAGNITUDE_K
         + seasonality * SEASONALITY_MAGNITUDE_K;
-    let noise = crate::noise::raw_noise_4d(
+    let noise = f64::from(crate::noise::raw_noise_4d(
         common.x as f32,
         common.y as f32,
         common.z as f32,
         common.mod_seed as f32,
-    );
-    baseline + f64::from(noise) * NOISE_MAGNITUDE_K
+    ));
+    TemperatureTerms {
+        celsius: baseline + noise * NOISE_MAGNITUDE_K,
+        day,
+        seasonality,
+        noise,
+        base: generator.base_temperature,
+        day_fraction,
+    }
+}
+
+/// The temperature at a moment, in Celsius (`weather_gen.cpp:99-108`).
+#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+#[must_use]
+pub fn temperature(generator: &Generator, common: &CommonData, day_fraction: f64) -> f64 {
+    temperature_terms(generator, common, day_fraction).celsius
 }
 
 /// The temperature at a moment, in kelvins - which is what the oracle records.
@@ -159,10 +191,15 @@ pub fn humidity(generator: &Generator, common: &CommonData) -> f64 {
 }
 
 /// The atmospheric pressure at a moment, in millibars (`weather_gen.cpp:154-158`).
+///
+/// **`noise * 15` is a single-precision product in the reference.** `raw_noise_4d` returns `float` and the literal is an `int`, so C++ promotes the literal to `float` and
+/// multiplies in `float` before widening to `double` for the rest of the expression. Widening first and multiplying in double leaves a residual of up to a millionth of a
+/// millibar - which is small, and is exactly the size a parity gate is meant to see.
 #[must_use]
 pub fn pressure(generator: &Generator, common: &CommonData) -> f64 {
     let seasonality = -common.cyf;
-    generator.base_pressure + f64::from(noise_at(common, 211)) * 15.0 * (-seasonality + 2.0)
+    let scaled = f64::from(noise_at(common, 211) * 15.0);
+    generator.base_pressure + scaled * (-seasonality + 2.0)
 }
 
 /// The noise field at a given seed offset from the world's.
@@ -177,6 +214,15 @@ fn noise_at(common: &CommonData, offset: u32) -> f32 {
         common.z as f32,
         common.mod_seed.wrapping_add(offset) as f32,
     )
+}
+
+/// The noise field at one of the reference's seed offsets, widened for comparison.
+///
+/// The humidity and the pressure use the same field at two other seeds; exposing it lets a gate separate "the noise is right" from "the arithmetic around it is right".
+#[allow(clippy::cast_precision_loss)]
+#[must_use]
+pub fn noise_for(common: &CommonData, offset: u32) -> f64 {
+    f64::from(noise_at(common, offset))
 }
 
 /// The noise the wind starts from, before the pressure divides it (`weather_gen.cpp:134`).

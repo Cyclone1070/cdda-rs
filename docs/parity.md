@@ -3002,9 +3002,21 @@ Three real bugs only this gate would have found:
 3. **The sight penalties were all one.** The same loader left `sight_penalty` at its default, so the flush count was zero on both sides of the comparison - a vacuously green half of
    the gate. Types are now read by **one** field reader shared by the dump loader and the data loader.
 
-**One number is not bit-identical:** the temperature at hour 191 differs by a single `float` ulp. `units::temperature` is `quantity<float, ...>`, so the tightest claim available is
-one ulp of that width (3.05e-5 K at 282 K), and the gate states exactly that instead of a round number that would hide a larger error. A harness hook exposing the generator's
-pre-narrowing double - the way `harness_sun_internals` does for the sun - would close it; the oracle cannot reach the static today.
+**One number is not bit-identical, and the reason is not a formula error.** Round 515 chased it down: the recording is written to seventeen significant digits for every
+double, and the port then matched the pressure exactly once it multiplied the way the reference does. Three findings came out of the chase.
+
+- **`noise * 15` is a single-precision product.** `raw_noise_4d` returns `float` and the literal is an `int`, so C++ promotes the literal to `float` and multiplies in
+  `float` before widening; multiplying in double leaves a residual of a few tenths of a microbar. The oracle's own pre-narrowing double - `harness_weather_temperature_terms` -
+  is what made this visible instead of arguable.
+- **The recording had been rounded by the fixture, not by the game.** Ten-digit fractions made `cos` differ in its tenth decimal, and nine-decimal temperatures truncated a
+  `float` that needs seventeen significant digits to round-trip. Every recorded number is now written exactly, and the gate compares the temperature with no tolerance at all.
+- **`cos` is not the same function on both platforms.** The recording is made on macOS and the tests run on Linux; the two C libraries disagree by one unit in the last place
+  on some angles. That is the whole of the remaining residual: one hour in two hundred and forty, one ulp, in a `double`. The temperature is exact because storing it as a
+  `float` absorbs the bit.
+
+A **metric was also caught being vacuous**: the harness patch that added the inline capture changed the compiler's code generation, and the reference's pressure moved by three
+tenths of a microbar between two builds of identical source. Capturing a value from inside a function is not free, so the probe was reverted and the question was settled by
+arithmetic against the values already recorded.
 
 ## The weather in the world, and the wind's one answer (round 513)
 

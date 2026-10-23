@@ -303,3 +303,49 @@ fn the_first_update_draws_a_direction_and_the_next_calm_one_draws_again() {
     assert!(wind.needs_redraw(0, None), "a dead calm redraws without rolling");
     assert!(wind.needs_redraw(4, Some(0)), "a fired check redraws");
 }
+
+#[test]
+fn the_temperature_s_terms_match_the_reference_bit_for_bit() {
+    // **The arithmetic under the rounding.** The reference records the double it computed and the three terms that went into it, so a difference of one part in 10^15 can be
+    // traced to the day's cosine, the seasonality or the noise instead of being blamed on the `float` the answer is stored in. Without this, an hour whose double sits within
+    // an ulp of a float boundary looks exactly like a formula error - and one of the ten recorded days has such an hour.
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/weather/manager-240h.json");
+    let text = std::fs::read_to_string(path).expect("the recorded manager");
+    let cdda_json::Value::Object(root) = cdda_json::parse(text.as_bytes()).expect("valid JSON") else { panic!("root") };
+    let Some(cdda_json::Value::Array(steps)) = root.get("steps") else { panic!("steps") };
+    let generator = cdda_sim::weather_gen::Generator::default_region();
+    let number = |object: &cdda_json::Object, key: &str| -> f64 {
+        match object.get(key) {
+            Some(cdda_json::Value::Float(value)) => *value,
+            Some(cdda_json::Value::Int(value)) => *value as f64,
+            other => panic!("{key} is a number: {other:?}"),
+        }
+    };
+    let mut worst: Vec<(i64, &str, f64, f64)> = Vec::new();
+    for step in steps {
+        let cdda_json::Value::Object(step) = step else { panic!("a step") };
+        let common = cdda_sim::weather_gen::CommonData {
+            x: number(step, "common_x"),
+            y: number(step, "common_y"),
+            z: number(step, "common_z"),
+            cyf: cdda_sim::weather_gen::year_cosine(number(step, "year_fraction")),
+            mod_seed: number(step, "mod_seed") as u32,
+            season: number(step, "season") as usize,
+        };
+        let terms = cdda_sim::weather_gen::temperature_terms(&generator, &common, number(step, "day_fraction"));
+        let hour = number(step, "hour") as i64;
+        for (name, ours, theirs) in [
+            ("celsius", terms.celsius, number(step, "celsius_double")),
+            ("day", terms.day, number(step, "dayv")),
+            ("seasonality", terms.seasonality, number(step, "seasonality")),
+            ("noise", terms.noise, number(step, "noise")),
+            ("humidity_noise", cdda_sim::weather_gen::noise_for(&common, 101), number(step, "humidity_noise")),
+            ("pressure_noise", cdda_sim::weather_gen::noise_for(&common, 211), number(step, "pressure_noise")),
+        ] {
+            if (ours - theirs).abs() > 1e-13 && worst.len() < 8 {
+                worst.push((hour, name, ours, theirs));
+            }
+        }
+    }
+    assert!(worst.is_empty(), "every term matches the reference's double: {worst:?}");
+}
