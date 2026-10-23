@@ -143,6 +143,59 @@ impl Takes {
     }
 }
 
+/// One submap's worth of the port's sweep: every square in `(x, y)` order, its gas, then its ageing.
+///
+/// The reference's `process_fields_in_submap` is nested this way (`map_field.cpp:483-560`), and the nesting is the rule: a gas that spreads into a square the
+/// sweep has **already passed** waits until the next turn to age, one that spreads forward is aged at once. Batching a submap's ageing at the end hands every
+/// newborn an extra turn of age - which is exactly one of the two errors the roof fixture showed.
+fn run_port_sweep(
+    world: &mut World,
+    key: (i32, i32, i32),
+    gas: GasType,
+    wind_at: impl Fn((i32, i32, i32)) -> cdda_sim::Wind + Copy,
+    can_take: impl Fn((i32, i32, i32), (i32, i32, i32)) -> bool + Copy,
+    now: i64,
+    rolls: &mut Rolls,
+) {
+    let half_life_of = |_id: FieldId| gas.half_life;
+    for sx in 0..12 {
+        for sy in 0..12 {
+            let square = (key.1 * 12 + sx, key.2 * 12 + sy, key.0);
+            cdda_sim::process_gas_in_wind(
+                world,
+                GAS,
+                cdda_sim::Where::Square(square),
+                gas.percent_spread,
+                cdda_sim::Surroundings {
+                    wind_at,
+                    half_life_of,
+                },
+                can_take,
+                rolls,
+            );
+            let positions: Vec<(Entity, i32, i32)> = {
+                let mut query = world.query::<(Entity, &Position)>();
+                query
+                    .iter(world)
+                    .filter(|(_, position)| (position.x, position.y, position.z) == square)
+                    .map(|(entity, position)| (entity, position.x, position.y))
+                    .collect()
+            };
+            if positions.is_empty() {
+                continue;
+            }
+            cdda_sim::decay_the_fields_the_sweep_found(
+                world,
+                &positions,
+                now,
+                rolls,
+                |_field| None,
+                |_, _, _| {},
+            );
+        }
+    }
+}
+
 /// The wind each square stands in, straight from the fixture.
 ///
 /// A gas on a roof and one in the cellar under it are in different winds on the same turn, and the recorded number is what the reference's own `get_local_windpower`
@@ -238,7 +291,19 @@ fn submaps(world: &mut World) -> Vec<(i32, i32, i32)> {
 }
 
 /// Replays one recorded gas session and answers what disagreed, if anything.
-fn replay(name: &str) -> (usize, usize, Vec<(usize, String)>) {
+/// What a replay spent and what it disagreed about.
+struct Spent {
+    /// Turns compared.
+    turns: usize,
+    /// Dice the reference rolled through `rng()`, of which the replay spent this many.
+    dice: usize,
+    /// Values the reference drew outside `rng()` - the decay deadlines - of which the replay spent this many.
+    engine: usize,
+    /// Where the port's squares, intensities or ages differed from the record.
+    disagreements: Vec<(usize, String)>,
+}
+
+fn replay(name: &str) -> Spent {
     let session = crate::reference_session::Session::load(name);
     assert!(
         !session.dice_by_turn.is_empty(),
@@ -274,6 +339,7 @@ fn replay(name: &str) -> (usize, usize, Vec<(usize, String)>) {
     let mut disagreements: Vec<(usize, String)> = Vec::new();
     let mut compared = 0_usize;
     let mut spent = 0_usize;
+    let mut engine_spent = 0_usize;
     for (index, recorded) in session.turns.iter().enumerate().skip(2) {
         // The squares this turn will visit, taken before anything runs: a field born during the sweep is aged when the sweep reaches its square, and the order is
         // the squares' own. The dump lists the fields it found, so the port's list is built from the same rule: everything standing at the start of the turn.
@@ -296,6 +362,7 @@ fn replay(name: &str) -> (usize, usize, Vec<(usize, String)>) {
         if std::env::var("GAS_TRACE").is_ok() {
             eprintln!("turn {index}: {offered} dice, now {}, port {:?}", session.now.get(index - 1).copied().unwrap_or(0), fields(&mut world));
         }
+        let engine_offered = recorded_dice.engine_draws.len();
         let mut rolls = Rolls::replaying(recorded_dice);
         // **The sweep submap by submap, aging as it goes.** The reference visits submaps in ascending `(z, x, y)` and ages a field when it reaches the field's own
         // submap (`map_field.cpp:164-184`), so a gas born in a submap the sweep has already passed is not aged this turn. Decaying everything at the end of the turn
@@ -305,49 +372,32 @@ fn replay(name: &str) -> (usize, usize, Vec<(usize, String)>) {
         let mut cursor: Option<(i32, i32, i32)> = None;
         while let Some(key) = submaps(&mut world).into_iter().find(|key| cursor.is_none_or(|cursor| *key > cursor)) {
             cursor = Some(key);
-            let _ = wind;
-            let half_life_of = |_id: FieldId| takes.gas.half_life;
-            cdda_sim::process_gas_in_wind(
+            run_port_sweep(
                 &mut world,
-                GAS,
-                cdda_sim::Where::Submap(key),
-                takes.gas.percent_spread,
-                cdda_sim::Surroundings {
-                    wind_at,
-                    half_life_of,
-                },
+                key,
+                takes.gas,
+                wind_at,
                 can_take,
-                &mut rolls,
-            );
-            let positions: Vec<(Entity, i32, i32)> = {
-                let mut query = world.query::<(Entity, &Position)>();
-                query
-                    .iter(&world)
-                    .filter(|(_, position)| cdda_sim::submap_of(position.x, position.y, position.z) == key)
-                    .map(|(entity, position)| (entity, position.x, position.y))
-                    .collect()
-            };
-            cdda_sim::decay_the_fields_the_sweep_found(
-                &mut world,
-                &positions,
                 session.now.get(index - 1).copied().unwrap_or(0),
-                // **The turn's own dice**, not a fresh engine: the decay draws its deadline from the recording (`field.cpp:86-88`), and a random
-                // `Rolls` here spends nothing and decides every field's death by a schedule the reference never had.
                 &mut rolls,
-                |_field| None,
-                |_, _, _| {},
             );
         }
         let unspent = rolls.recording_remaining().unwrap_or(0);
         spent += offered - unspent;
+        // The decay deadlines are drawn from the engine and so are not dice: they are counted apart, because a replay that spends every die and no
+        // deadline is a replay that gets every square right and every death wrong.
+        engine_spent += engine_offered - rolls.engine_draws_left();
         compared += 1;
         if unspent != 0 && disagreements.len() < 6 {
             disagreements.push((index, format!("{unspent} recorded dice went unspent this turn")));
         }
         let _ = (found, &mut map);
         let ours = fields(&mut world);
+        // **Live entries only.** The dump prints the square's list, and a field the reference has killed stays in it until the sweep tidies up; the port
+        // despawns on death, so a corpse in the record is not a field either side still has.
         let theirs: Vec<(i32, i32, i32, i32, i64)> = recorded
             .iter()
+            .filter(|field| field.alive)
             .map(|field| (field.x, field.y, field.z, field.intensity, field.age))
             .collect();
         let mut theirs = theirs;
@@ -356,44 +406,56 @@ fn replay(name: &str) -> (usize, usize, Vec<(usize, String)>) {
             disagreements.push((index, format!("ours {ours:?} theirs {theirs:?}")));
         }
     }
-    (compared, spent, disagreements)
+    Spent {
+        turns: compared,
+        dice: spent,
+        engine: engine_spent,
+        disagreements,
+    }
 }
 
 #[test]
 fn sixty_recorded_turns_of_a_gas_replay_square_for_square() {
-    let (compared, spent, disagreements) = replay("gas-60");
+    let report = replay("gas-60");
     assert!(
-        disagreements.is_empty(),
-        "the port's gas disagrees with the recording: {disagreements:#?}"
+        report.disagreements.is_empty(),
+        "the port's gas disagrees with the recording: {:#?}",
+        report.disagreements
     );
     // A gate that compared nothing would pass for the wrong reason, and one that drew nothing would pass without ever exercising the spread rule.
-    assert_eq!(compared, 59, "every recorded turn was replayed");
-    assert!(spent >= 80, "the replay spent the reference's own dice: {spent}");
+    assert_eq!(report.turns, 59, "every recorded turn was replayed");
+    assert!(report.dice >= 80, "the replay spent the reference's own dice: {}", report.dice);
 }
 
 #[test]
 fn a_gas_on_a_stairwell_falls_the_way_the_recording_says() {
     // The fall branch, end to end: the square is a stair, the square under it is open air, and the reference's gas drops through on turn six. Then the two levels
     // trade intensity as each spreads into the other, which is the half of the rule that no hand-written case would have thought to check.
-    let (compared, spent, disagreements) = replay("gas-fall");
+    let report = replay("gas-fall");
     assert!(
-        disagreements.is_empty(),
-        "the port's gas disagrees with the recording: {disagreements:#?}"
+        report.disagreements.is_empty(),
+        "the port's gas disagrees with the recording: {:#?}",
+        report.disagreements
     );
-    assert_eq!(compared, 39, "every recorded turn was replayed");
-    assert!(spent >= 15, "the replay spent the reference's own dice: {spent}");
+    assert_eq!(report.turns, 39, "every recorded turn was replayed");
+    assert!(report.dice >= 15, "the replay spent the reference's own dice: {}", report.dice);
 }
 
 #[test]
-#[ignore = "red on three small things the decay trace made visible: \n (1) the reference dump prints fields whose `alive` flag is false, and the port despawns them, so the comparison \n must drop dead entries before it compares; (2) with that done, the port is missing the source at state three - it spent \n a decay draw that killed it where the reference's draw kept it; (3) the lateral newborn arrives one age older than the \n reference's. The wind, the rise and the blockers are all replayed correctly"]
 fn a_gas_on_a_roof_spreads_into_the_wind_the_recording_says() {
     // The **wind-blocker** branch, end to end: the gas stands at z 1 under a wind of eighteen with no shelter, so the three squares facing the wind each cost a real
     // draw, and the session cannot be replayed without the branch - the recorded reals have nowhere to go and every later draw is one position out.
-    let (compared, spent, disagreements) = replay("gas-wind");
+    let report = replay("gas-wind");
     assert!(
-        disagreements.is_empty(),
-        "the port's gas disagrees with the recording: {disagreements:#?}"
+        report.disagreements.is_empty(),
+        "the port's gas disagrees with the recording: {:#?}",
+        report.disagreements
     );
-    assert_eq!(compared, 23, "every recorded turn was replayed");
-    assert!(spent >= 10, "the replay spent the reference's own dice: {spent}");
+    assert_eq!(report.turns, 23, "every recorded turn was replayed");
+    assert_eq!(report.dice, 10, "every recorded die was spent: {}", report.dice);
+    assert_eq!(
+        report.engine, 10,
+        "and every decay deadline the reference drew: {}",
+        report.engine
+    );
 }

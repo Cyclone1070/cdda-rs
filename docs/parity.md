@@ -2986,6 +2986,23 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The roof session replays (round 530)
+
+`gas-wind` is green. The three gas sessions - sixty turns of indoor toxic gas, a stairwell fall, and a gas alone on a roof in an eighteen-knot wind - all replay
+square for square against the reference's own dice, **including the branch that had never run in the port**: the wind-blocker scan, with its three real draws, its
+nine-row bearing table, and the choice it makes to blow into the wind.
+
+The last three differences were all on the replay's side of the fence, and each one is a rule rather than a detail:
+
+| Difference | The rule |
+|---|---|
+the dump prints fields whose `alive` flag is false | the reference marks an entry dead and leaves it in the square until the sweep tidies up; the port despawns on death, so the comparison drops corpses |
+the replay aged a whole submap at once | the sweep ages **each square as it reaches it**, so a newborn on an already-passed square waits a turn - batching gave every newborn an extra turn of age |
+`spent` counted only dice | the decay deadlines are drawn from the engine, not through `rng()`, so they are reported separately: ten dice **and** ten deadlines, both asserted |
+
+That last one matters for the shape of the gates: a replay that spends every die and no deadline gets every square right and every death wrong, which is precisely the
+state this fixture was in for six rounds. The tests now say how many of each were spent, so a regression of either kind fails loudly.
+
 ## The decay deadline is drawn every turn, and the replay was drawing it from the wrong dice (round 529)
 
 Two bugs, both found by making the reference say what it was doing rather than by reading the port:

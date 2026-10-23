@@ -614,6 +614,16 @@ impl Rolls {
     /// Reference: `exponential_distribution::operator()` in
     /// `__random/exponential_distribution.h`, which is `-log(1 - u) / lambda`
     /// over one canonical real.
+    /// How many values the reference drew outside `rng()` are still unspent.
+    ///
+    /// A replay that spends every die and none of these gets every square right and every death wrong, so a test can tell the two apart.
+    #[must_use]
+    pub fn engine_draws_left(&self) -> usize {
+        self.recording
+            .as_ref()
+            .map_or(0, |recording| recording.engine_draws.len())
+    }
+
     /// The next value the reference drew outside `rng()` under this label, if a recording is attached.
     ///
     /// The reference's decay draws its exponential from the engine itself (`field.cpp:86-88`), so that value never appears as a die in the

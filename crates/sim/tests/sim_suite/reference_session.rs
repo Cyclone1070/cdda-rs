@@ -40,6 +40,12 @@ pub struct Placed {
     pub windpower: i32,
     /// Whether this square is under a roof. A sheltered gas never feels the wind, however hard it blows.
     pub sheltered: bool,
+    /// Whether the reference still counts this entry as a field.
+    ///
+    /// `field::remove_field` marks an entry dead and leaves it in the square's list until the sweep next tidies up, and the dump prints what is there - so a
+    /// corpse appears in the record with its intensity clamped to one, which reads exactly like a living field of intensity one unless this flag is read. The
+    /// port despawns a field the moment it dies, so a comparison that kept corpses would report every death twice: once as a missing field and once as a mismatch.
+    pub alive: bool,
 }
 
 impl Placed {
@@ -175,6 +181,9 @@ impl Session {
                             sheltered: field
                                 .get("sheltered")
                                 .is_some_and(|value| matches!(value, Value::Bool(true))),
+                            alive: field
+                                .get("alive")
+                                .is_none_or(|value| matches!(value, Value::Bool(true))),
                         }
                     })
                     .collect()
