@@ -148,3 +148,26 @@ fn setting_the_age_restarts_the_decay_schedule() {
         "the second draw was spent, and it landed in the past"
     );
 }
+
+#[test]
+fn every_decay_draws_a_fresh_deadline() {
+    // Measured, not assumed: `CDDA_DECAY_TRACE` on the reference shows `decay_time 0` at the entry of **every** `do_decay`, so `initialize_decay` runs
+    // each time and the deadline it computed last turn is never reused. A field therefore dies on the turn its draw is no longer than its age - the
+    // extinguisher's risen cloud draws one turn at age two and goes at once. A port that cached the deadline kept that cloud alive for the rest of the
+    // session, because a frozen clock can never pass a deadline that is ahead of it.
+    let recording = Recording::parse("drawn decay.turns 40\ndrawn decay.turns 1\n").expect("two drawn");
+    let mut rolls = Rolls::replaying(recording);
+    let mut entry = FieldEntry::new(3, 10, false, false);
+    entry.set_intensity(2);
+    entry.set_age(1);
+    // The first draw is forty turns out: nothing happens.
+    entry.do_decay(5_000, &mut rolls);
+    assert_eq!(entry.intensity(), 2, "the first draw put the deadline ahead");
+    // The second decay must spend the second draw, not reuse the first: one turn at age three is in the past.
+    entry.do_decay(5_000, &mut rolls);
+    assert_eq!(
+        entry.intensity(),
+        1,
+        "the second draw was spent and it landed in the past"
+    );
+}

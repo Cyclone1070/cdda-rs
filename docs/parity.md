@@ -2986,6 +2986,23 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The decay deadline is drawn every turn, and the replay was drawing it from the wrong dice (round 529)
+
+Two bugs, both found by making the reference say what it was doing rather than by reading the port:
+
+**The reference draws a fresh deadline on every decay.** `CDDA_DECAY_TRACE` prints `decay_time` on the entry of every `do_decay` call, and it is **zero every time** -
+so `initialize_decay` runs each turn and the deadline it computed last turn is never reused. The port cached it, which with the harness's frozen calendar meant a
+deadline set ahead could never be reached: a field the reference buried after two turns stayed alive for the whole session. Fixed with a red gate
+(`every_decay_draws_a_fresh_deadline`) that spends two recorded draws and dies on the second.
+
+**And the replay was decaying with a random engine.** The decay call in the replay passed `&mut Rolls::new(7)` - a fresh generator with no recording attached - so the
+recorded `drawn decay.turns` values were never spent and every field's death was decided by a schedule the reference never had. The trace that found it printed
+`engine draw decay.turns: no recording attached` on the first field of every turn. One line: the decay now uses the turn's own dice.
+
+With both fixed the roof session's dead entries line up, and what is left is small and named in the ignored gate: the dump prints fields whose `alive` flag is false
+and the port despawns them, so the comparison has to drop corpses before it compares; after that the port is missing the source at state three, and its lateral newborn
+arrives one age older than the reference's.
+
 ## Every decay is attributable now (round 528)
 
 The reference draws a field's decay deadline from the engine itself, so the value landed in the dice trace with **no square on it**. Two fields decaying on one turn

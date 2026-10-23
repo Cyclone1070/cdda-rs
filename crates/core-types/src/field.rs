@@ -97,13 +97,11 @@ impl FieldEntry {
             }
             return;
         }
-        let decay_time = if let Some(time) = self.decay_time {
-            time
-        } else {
-            let start = self.decay_start(now, rolls);
-            self.decay_time = Some(start);
-            start
-        };
+        // **A fresh deadline every turn.** `CDDA_DECAY_TRACE` on the reference shows `decay_time` at zero on the entry of *every* `do_decay`, so
+        // `initialize_decay` runs each time and the value it computed last turn is never reused. Caching it instead kept a field alive that the
+        // reference buries: with the harness's calendar standing still, a deadline once set ahead can never be reached.
+        let decay_time = self.decay_start(now, rolls);
+        self.decay_time = Some(decay_time);
         if decay_time <= now {
             self.age = 0;
             // The reference resets the age through `set_field_age`, which clears the

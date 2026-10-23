@@ -331,7 +331,9 @@ fn replay(name: &str) -> (usize, usize, Vec<(usize, String)>) {
                 &mut world,
                 &positions,
                 session.now.get(index - 1).copied().unwrap_or(0),
-                &mut Rolls::new(7),
+                // **The turn's own dice**, not a fresh engine: the decay draws its deadline from the recording (`field.cpp:86-88`), and a random
+                // `Rolls` here spends nothing and decides every field's death by a schedule the reference never had.
+                &mut rolls,
                 |_field| None,
                 |_, _, _| {},
             );
@@ -383,7 +385,7 @@ fn a_gas_on_a_stairwell_falls_the_way_the_recording_says() {
 }
 
 #[test]
-#[ignore = "red on the decay draw's bookkeeping, not on the wind: \n both spreads the recording shows are replayed correctly - the rise into z 2 and the turn-two move into the wind, \n the three real draws in the right order. What is left is decay: the reference draws eleven decay exponentials in twenty-four \n turns and the port reaches five fields, so states three and four show ages one turn too old on the newborn and on the risen field. \n The draw is recorded (`drawn decay.turns`) and the replay consumes it; the counts disagree, so the next step is to find which fields \n the reference decays that the sweep never reaches"]
+#[ignore = "red on three small things the decay trace made visible: \n (1) the reference dump prints fields whose `alive` flag is false, and the port despawns them, so the comparison \n must drop dead entries before it compares; (2) with that done, the port is missing the source at state three - it spent \n a decay draw that killed it where the reference's draw kept it; (3) the lateral newborn arrives one age older than the \n reference's. The wind, the rise and the blockers are all replayed correctly"]
 fn a_gas_on_a_roof_spreads_into_the_wind_the_recording_says() {
     // The **wind-blocker** branch, end to end: the gas stands at z 1 under a wind of eighteen with no shelter, so the three squares facing the wind each cost a real
     // draw, and the session cannot be replayed without the branch - the recorded reals have nowhere to go and every later draw is one position out.
