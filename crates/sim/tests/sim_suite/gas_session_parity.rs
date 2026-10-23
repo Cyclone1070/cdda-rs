@@ -52,8 +52,9 @@ struct Takes {
 }
 
 impl Takes {
-    fn load(session: &crate::reference_session::Session) -> Self {
+    fn load(session: &crate::reference_session::Session, name: &str) -> Self {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/terrain.json");
+        let _ = name;
         let text = std::fs::read_to_string(path).expect("the terrain prototypes");
         let cdda_json::Value::Object(root) = cdda_json::parse(text.as_bytes()).expect("valid JSON") else {
             panic!("an object");
@@ -138,15 +139,27 @@ impl Takes {
     }
 }
 
-#[test]
-fn sixty_recorded_turns_of_a_gas_replay_square_for_square() {
-    let session = crate::reference_session::Session::load("gas-60");
+/// The submaps holding a field, in the reference's sweep order `(z, x, y)`.
+fn submaps(world: &mut World) -> Vec<(i32, i32, i32)> {
+    let mut query = world.query::<&Position>();
+    let mut keys: Vec<(i32, i32, i32)> = query
+        .iter(world)
+        .map(|position| cdda_sim::submap_of(position.x, position.y, position.z))
+        .collect();
+    keys.sort_unstable();
+    keys.dedup();
+    keys
+}
+
+/// Replays one recorded gas session and answers what disagreed, if anything.
+fn replay(name: &str) -> (usize, usize, Vec<(usize, String)>) {
+    let session = crate::reference_session::Session::load(name);
     assert!(
         !session.dice_by_turn.is_empty(),
-        "the fixture labels its turns, so each turn's dice are its own"
+        "{name} labels its turns, so each turn's dice are its own"
     );
     let mut map = session.map();
-    let takes = Takes::load(&session);
+    let takes = Takes::load(&session, name);
     let mut world = World::new();
     // **Seeded from the first recorded state, not from the placement.** The dump places the gas and then runs a sweep; the first sweep does not see it - the
     // field is not in a cached submap yet - so the reference's own trace has no dice for the transition into turn 1 while its age still advances. Starting at the
@@ -181,20 +194,9 @@ fn sixty_recorded_turns_of_a_gas_replay_square_for_square() {
             query.iter(&world).collect()
         };
         let wind = session.wind.get(index).copied().unwrap_or(session.wind[0]);
-        // What each square holds, taken before the turn: the rule refuses a destination whose field is not weaker, and a field born this turn must not be
-        // read as having been there when the turn started.
-        let standing: std::collections::BTreeMap<(i32, i32, i32), i32> = {
-            let mut query = world.query::<(&Field, &Position)>();
-            query
-                .iter(&world)
-                .map(|(field, position)| ((position.x, position.y, position.z), field.entry.intensity()))
-                .collect()
-        };
-        let can_take = |from: (i32, i32, i32), to: (i32, i32, i32)| {
-            // `gas_can_spread_to` decides the square will take gas at all; a step to another level must also pass `valid_move`, which is what stops a gas
-            // falling through the floor it is standing on.
-            takes.open(to) && takes.may_step(from, to) && standing.get(&to).copied().unwrap_or(0) < 3
-        };
+        // The other half of `gas_can_spread_to`: the square can be walked, and a step to another level is legal. Whether the square already holds gas at least as
+        // thick as the gas arriving is the crate's question, because only it can see the field a previous square of the same sweep left there.
+        let can_take = |from: (i32, i32, i32), to: (i32, i32, i32)| takes.open(to) && takes.may_step(from, to);
         // Each turn gets its own recording, so a turn that spends a different number of dice says so here instead of shifting every turn after it.
         let recorded_dice = session
             .dice_by_turn
@@ -203,28 +205,38 @@ fn sixty_recorded_turns_of_a_gas_replay_square_for_square() {
             .unwrap_or_else(|| cdda_core_types::rng::Recording::parse("").expect("empty"));
         let offered = recorded_dice.remaining();
         let mut rolls = Rolls::replaying(recorded_dice);
-        cdda_sim::process_gas(&mut world, GAS, 30, wind.power, can_take, &mut rolls);
+        // **The sweep submap by submap, aging as it goes.** The reference visits submaps in ascending `(z, x, y)` and ages a field when it reaches the field's own
+        // submap (`map_field.cpp:164-184`), so a gas born in a submap the sweep has already passed is not aged this turn. Decaying everything at the end of the turn
+        // gets the second case right and the first wrong, which is exactly the one-turn age error the fall fixture found.
+        // A cursor, not a list: a gas that spreads into a **later** submap is aged in the same turn, so the sweep has to notice submaps that did not exist when it
+        // started. One that spreads backwards waits for the next turn, which is the whole point of the order.
+        let mut cursor: Option<(i32, i32, i32)> = None;
+        while let Some(key) = submaps(&mut world).into_iter().find(|key| cursor.is_none_or(|cursor| *key > cursor)) {
+            cursor = Some(key);
+            cdda_sim::process_gas_in_submap(&mut world, GAS, Some(key), 30, wind.power, can_take, &mut rolls);
+            let positions: Vec<(Entity, i32, i32)> = {
+                let mut query = world.query::<(Entity, &Position)>();
+                query
+                    .iter(&world)
+                    .filter(|(_, position)| cdda_sim::submap_of(position.x, position.y, position.z) == key)
+                    .map(|(entity, position)| (entity, position.x, position.y))
+                    .collect()
+            };
+            cdda_sim::decay_the_fields_the_sweep_found(
+                &mut world,
+                &positions,
+                0,
+                &mut Rolls::new(7),
+                |_field| None,
+                |_, _, _| {},
+            );
+        }
         let unspent = rolls.recording_remaining().unwrap_or(0);
         spent += offered - unspent;
         compared += 1;
         if unspent != 0 && disagreements.len() < 6 {
             disagreements.push((index, format!("{unspent} recorded dice went unspent this turn")));
         }
-        let positions: Vec<(Entity, i32, i32)> = {
-            let mut query = world.query::<(Entity, &Position)>();
-            query
-                .iter(&world)
-                .map(|(entity, position)| (entity, position.x, position.y))
-                .collect()
-        };
-        cdda_sim::decay_the_fields_the_sweep_found(
-            &mut world,
-            &positions,
-            0,
-            &mut Rolls::new(7),
-            |_field| None,
-            |_, _, _| {},
-        );
         let _ = (found, &mut map);
         let ours = fields(&mut world);
         let theirs: Vec<(i32, i32, i32, i32, i64)> = recorded
@@ -237,12 +249,30 @@ fn sixty_recorded_turns_of_a_gas_replay_square_for_square() {
             disagreements.push((index, format!("ours {ours:?} theirs {theirs:?}")));
         }
     }
+    (compared, spent, disagreements)
+}
+
+#[test]
+fn sixty_recorded_turns_of_a_gas_replay_square_for_square() {
+    let (compared, spent, disagreements) = replay("gas-60");
     assert!(
         disagreements.is_empty(),
         "the port's gas disagrees with the recording: {disagreements:#?}"
     );
     // A gate that compared nothing would pass for the wrong reason, and one that drew nothing would pass without ever exercising the spread rule.
-    assert_eq!(compared, session.turns.len() - 2, "every recorded turn was replayed");
+    assert_eq!(compared, 59, "every recorded turn was replayed");
     assert!(spent >= 80, "the replay spent the reference's own dice: {spent}");
+}
 
+#[test]
+fn a_gas_on_a_stairwell_falls_the_way_the_recording_says() {
+    // The fall branch, end to end: the square is a stair, the square under it is open air, and the reference's gas drops through on turn six. Then the two levels
+    // trade intensity as each spreads into the other, which is the half of the rule that no hand-written case would have thought to check.
+    let (compared, spent, disagreements) = replay("gas-fall");
+    assert!(
+        disagreements.is_empty(),
+        "the port's gas disagrees with the recording: {disagreements:#?}"
+    );
+    assert_eq!(compared, 39, "every recorded turn was replayed");
+    assert!(spent >= 15, "the replay spent the reference's own dice: {spent}");
 }

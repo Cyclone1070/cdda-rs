@@ -407,20 +407,20 @@ fn dice_per_turn(text: &str, turns: &[Value]) -> Vec<Recording> {
     if !text.contains("gas.turn.") {
         return Vec::new();
     }
-    // The square worth watching is the one the fixture's own field starts on; any other gas in the bubble is somebody else's business.
-    let watched = turns
-        .first()
-        .map(|turn| array(object(turn).get("fields").expect("fields")))
-        .and_then(|fields| fields.first())
-        .map(|field| {
+    // Every square the fixture's own gas ever stands on: a gas that falls or rises marks its draws under the square it is **leaving**, so a set built from the first
+    // turn alone would drop the draws of every square the session later walks onto. Any other gas in the bubble is somebody else's business.
+    let mut watched: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    for turn in turns {
+        for field in array(object(turn).get("fields").expect("fields")) {
             let field = object(field);
-            format!(
+            watched.insert(format!(
                 "{}.{}.{}",
                 integer(field.get("x").expect("x")),
                 integer(field.get("y").expect("y")),
                 integer(field.get("z").expect("z"))
-            )
-        });
+            ));
+        }
+    }
     let mut per_turn: Vec<Vec<String>> = vec![Vec::new()];
     let mut inside = false;
     for line in text.lines() {
@@ -430,7 +430,7 @@ fn dice_per_turn(text: &str, turns: &[Value]) -> Vec<Recording> {
                 per_turn.resize(index + 1, Vec::new());
                 inside = false;
             } else if let Some(square) = label.strip_prefix("gas.begin.") {
-                inside = watched.as_deref().is_none_or(|watched| watched == square);
+                inside = watched.is_empty() || watched.contains(square);
             } else if label.contains(".done") {
                 inside = false;
             }

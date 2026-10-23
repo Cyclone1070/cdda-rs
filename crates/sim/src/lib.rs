@@ -449,9 +449,26 @@ pub fn process_fires(
     windpower: i32,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) {
+    process_fires_in_submap(world, map, windpower, None, rolls);
+}
+
+/// Fires on the squares of one submap, for a caller walking the reference's sweep submap by submap.
+///
+/// See [`process_gas_in_submap`] for why the sweep is spatial: the reference ages a field when its submap comes up, so a fire born in a submap the sweep has already
+/// passed keeps the age it was born with.
+pub fn process_fires_in_submap(
+    world: &mut World,
+    map: &impl FireMap,
+    windpower: i32,
+    submap: Option<(i32, i32, i32)>,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) {
     let mut order: Vec<(i32, i32, i32, Entity)> = Vec::new();
     let mut query = world.query::<(Entity, &Position, &Field)>();
     for (entity, position, field) in query.iter(world) {
+        if submap.is_some_and(|key| submap_of(position.x, position.y, position.z) != key) {
+            continue;
+        }
         if field.id == FIRE {
             order.push((position.x, position.y, position.z, entity));
         }
@@ -677,9 +694,29 @@ pub fn process_gas(
     can_take: impl Fn((i32, i32, i32), (i32, i32, i32)) -> bool,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) {
+    process_gas_in_submap(world, id, None, percent_spread, windpower, can_take, rolls);
+}
+
+/// One gas, on the squares of one submap, for a caller walking the reference's sweep submap by submap.
+///
+/// The reference's `process_fields` visits submaps in ascending `(z, x, y)` and ages a field when it reaches the field's own submap, so a gas that falls into a submap
+/// the sweep has already passed keeps the age it was born with while one that spreads into a later submap is aged in the same turn. A caller that processed every gas
+/// and aged every field at the end of the turn would get the second case right and the first wrong.
+pub fn process_gas_in_submap(
+    world: &mut World,
+    id: FieldId,
+    submap: Option<(i32, i32, i32)>,
+    percent_spread: i32,
+    windpower: i32,
+    can_take: impl Fn((i32, i32, i32), (i32, i32, i32)) -> bool,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) {
     let mut order: Vec<(i32, i32, i32, Entity)> = Vec::new();
     let mut query = world.query::<(Entity, &Position, &Field)>();
     for (entity, position, field) in query.iter(world) {
+        if submap.is_some_and(|key| submap_of(position.x, position.y, position.z) != key) {
+            continue;
+        }
         if field.id == id {
             order.push((position.x, position.y, position.z, entity));
         }
@@ -691,17 +728,26 @@ pub fn process_gas(
         };
         let intensity = field.entry.intensity();
         let age = field.entry.age();
+        // **What the squares hold right now**, which is not what they held when the turn began: an earlier square in the same sweep may have moved gas into or out of
+        // one of them, and the reference reads the live field (`gas_can_spread_to`, `src/map_field.cpp:237-248`). Read once per source square, because nothing
+        // changes between these ten questions and this square's own move.
+        let standing = field_strengths(world, id);
+        // The half of `gas_can_spread_to` that is about fields: a square takes gas only when it holds none, or holds a **weaker** one of the same kind. The caller
+        // answers the other half - whether the square can be walked, and whether a step to another level is legal - because that is a question about terrain.
+        let takes = |to: (i32, i32, i32)| {
+            can_take((x, y, z), to) && standing.get(&to).copied().unwrap_or(0) < intensity
+        };
         // Below first, above last: the answers are collected here in the order `spread_gas` tries them.
         let mut beside = [false; 8];
         for (index, offset) in EIGHT_NEIGHBOURS.iter().enumerate() {
             if let Some(slot) = beside.get_mut(index) {
-                *slot = can_take((x, y, z), (x + offset.0, y + offset.1, z));
+                *slot = takes((x + offset.0, y + offset.1, z));
             }
         }
         let around = cdda_core_types::fire::Around {
-            below: can_take((x, y, z), (x, y, z - 1)),
+            below: takes((x, y, z - 1)),
             beside,
-            above: can_take((x, y, z), (x, y, z + 1)),
+            above: takes((x, y, z + 1)),
         };
         let movement = cdda_core_types::fire::spread_gas(
             intensity,
@@ -720,47 +766,99 @@ pub fn process_gas(
         let Some(destination) = destination else {
             continue;
         };
-        let existing = {
-            let mut query = world.query::<(Entity, &Position, &Field)>();
-            query
-                .iter(world)
-                .find(|(_, position, field)| {
-                    (position.x, position.y, position.z) == destination && field.id == id
-                })
-                .map(|(entity, _, field)| (entity, field.entry.intensity(), field.entry.age()))
-        };
-        if let Some((taken, thick, taken_age)) = existing {
-            if let Some(mut field) = world.get_mut::<Field>(taken) {
-                field.entry.set_intensity(thick + 1);
-                field.entry.set_age(taken_age + movement.transferred_age);
-            }
-        } else {
-            let mut entry =
-                cdda_core_types::field::FieldEntry::new(intensity.max(1), 1_000_000, false, false);
-            entry.set_intensity(1);
-            entry.set_age(movement.transferred_age);
-            world.spawn((
-                Field {
-                    id,
-                    entry,
-                    priority: 0,
-                },
-                Position {
-                    x: destination.0,
-                    y: destination.1,
-                    z: destination.2,
-                },
-            ));
-        }
-        let died = world.get_mut::<Field>(entity).is_some_and(|mut field| {
-            field.entry.set_intensity(movement.source_intensity);
-            field.entry.set_age(movement.source_age);
-            !field.entry.is_alive()
-        });
-        if died {
-            world.despawn(entity);
-        }
+        apply_gas_spread(world, entity, destination, id, &movement, intensity);
     }
+}
+
+/// Moves one gas: the square it reaches gains an intensity and the share of the age it was given, and the square it left loses both.
+///
+/// Split out of [`process_gas_in_submap`] because one half is arithmetic and the other touches the world: the rule decides **where** the gas goes, this decides what
+/// each end looks like afterwards.
+fn apply_gas_spread(
+    world: &mut World,
+    entity: Entity,
+    destination: (i32, i32, i32),
+    id: FieldId,
+    movement: &cdda_core_types::fire::GasSpread,
+    intensity: i32,
+) {
+    let existing = {
+        let mut query = world.query::<(Entity, &Position, &Field)>();
+        query
+            .iter(world)
+            .find(|(_, position, field)| {
+                (position.x, position.y, position.z) == destination && field.id == id
+            })
+            .map(|(entity, _, field)| (entity, field.entry.intensity(), field.entry.age()))
+    };
+    if let Some((taken, thick, taken_age)) = existing {
+        if let Some(mut field) = world.get_mut::<Field>(taken) {
+            field.entry.set_intensity(thick + 1);
+            field.entry.set_age(taken_age + movement.transferred_age);
+        }
+    } else {
+        let mut entry =
+            cdda_core_types::field::FieldEntry::new(intensity.max(1), 1_000_000, false, false);
+        entry.set_intensity(1);
+        entry.set_age(movement.transferred_age);
+        world.spawn((
+            Field {
+                id,
+                entry,
+                priority: 0,
+            },
+            Position {
+                x: destination.0,
+                y: destination.1,
+                z: destination.2,
+            },
+        ));
+    }
+    let died = world.get_mut::<Field>(entity).is_some_and(|mut field| {
+        field.entry.set_intensity(movement.source_intensity);
+        field.entry.set_age(movement.source_age);
+        !field.entry.is_alive()
+    });
+    if died {
+        world.despawn(entity);
+    }
+}
+
+/// What each square holds of one gas, right now.
+fn field_strengths(
+    world: &mut World,
+    id: FieldId,
+) -> std::collections::BTreeMap<(i32, i32, i32), i32> {
+    let mut query = world.query::<(&Position, &Field)>();
+    query
+        .iter(world)
+        .filter(|(_, field)| field.id == id && field.entry.is_alive())
+        .map(|(position, field)| ((position.x, position.y, position.z), field.entry.intensity()))
+        .collect()
+}
+
+/// Which submap a square belongs to: the reference's `my_MAPSIZE` grid, twelve squares to a side (`map::process_fields`, `src/map_field.cpp:164-184`).
+///
+/// The sweep walks these in ascending `(z, x, y)` order and ages a field when it reaches the field's own submap, which is why a gas that **falls** into the submap the
+/// sweep has already passed keeps the age it was born with, while one that spreads into a later submap is aged in the same turn.
+#[must_use]
+pub fn submap_of(x: i32, y: i32, z: i32) -> (i32, i32, i32) {
+    (z, x.div_euclid(12), y.div_euclid(12))
+}
+
+/// The submaps holding at least one field, in the sweep's own order.
+///
+/// Rebuilt at every step of the walk rather than taken once, because a field born in a **later** submap is visited by the same sweep.
+#[must_use]
+pub fn submaps_with_fields(world: &mut World) -> Vec<(i32, i32, i32)> {
+    let mut query = world.query::<(&Position, &Field)>();
+    let mut keys: Vec<(i32, i32, i32)> = query
+        .iter(world)
+        .map(|(position, _)| submap_of(position.x, position.y, position.z))
+        .collect();
+    keys.sort_unstable();
+    keys.dedup();
+    keys
 }
 
 /// The square one step away at a neighbour index on the same floor, in this project's neighbour order.
@@ -1989,44 +2087,50 @@ pub fn run_environment_turn(
     // **The world's wind, not the caller's, when the world has a weather system.** The parameter stays because a session replay drives the wind from its fixture and has no climate;
     // a world that does have one must not be able to disagree with itself about which way the smoke blows.
     let windpower = weather::wind_of(world, windpower);
-    // The squares this sweep will visit, taken **before** any of it runs: a field born during the turn waits for the next one, and the newborn fire at the
-    // end of the reference's own session keeps the two minutes it was born with because of exactly this.
-    let present: Vec<(Entity, i32, i32)> = {
-        let mut query = world.query::<(Entity, &Position)>();
-        query
-            .iter(world)
-            .filter(|(entity, _)| world.get::<Field>(*entity).is_some())
-            .map(|(entity, position)| (entity, position.x, position.y))
-            .collect()
-    };
-    // Scent first, because the reference's turn starts there (`do_turn.cpp:642-648`): the character deposits and the window diffuses before the fields are processed. The
-    // deposit is nobody's yet - there is no creature layer - so the caller passes it through `scent_deposit`, and zero means "nothing deposited this turn".
+    // Scent first, because the reference's turn starts there (`do_turn.cpp:642-648`): the character deposits and the window diffuses before the fields are processed.
+    // The deposit is nobody's yet - there is no creature layer - so the caller passes it through `scent_deposit`, and zero means "nothing deposited this turn".
     scent::advance_scent(world, scent_center, scent_deposit);
-    // Fires first of the field work: everything else this turn reacts to what they left behind.
-    process_fires(world, map, windpower, rolls);
-    // Then the gases, including the haze the fires just made. `percent_spread` is `fd_smoke`'s and the hot air kinds' own data.
-    for (id, percent_spread) in [
-        (SMOKE, 10),
-        (HOT_AIR_1, 10),
-        (HOT_AIR_2, 10),
-        (HOT_AIR_3, 10),
-        (HOT_AIR_4, 10),
-    ] {
-        process_gas(world, id, percent_spread, windpower, can_take, rolls);
+    // **The sweep, submap by submap in the reference's own order** (`map::process_fields`, `src/map_field.cpp:164-184`): ascending `(z, x, y)`, each submap's fires,
+    // then its gases, then the ageing of every field the sweep found there. A field born in a submap the sweep has already passed waits for the next turn, which is why
+    // a gas that falls keeps the age it was born with while one that spreads forward is aged in the same turn. A cursor rather than a list, because a field born in a
+    // later submap is visited by the same sweep.
+    let mut cursor: Option<(i32, i32, i32)> = None;
+    while let Some(key) = submaps_with_fields(world)
+        .into_iter()
+        .find(|key| cursor.is_none_or(|cursor| *key > cursor))
+    {
+        cursor = Some(key);
+        // Fires first: everything else this turn reacts to what they left behind.
+        process_fires_in_submap(world, map, windpower, Some(key), rolls);
+        // Then the gases, including the haze the fires just made. `percent_spread` is `fd_smoke`'s and the hot air kinds' own data.
+        for (id, percent_spread) in [
+            (SMOKE, 10),
+            (HOT_AIR_1, 10),
+            (HOT_AIR_2, 10),
+            (HOT_AIR_3, 10),
+            (HOT_AIR_4, 10),
+        ] {
+            process_gas_in_submap(world, id, Some(key), percent_spread, windpower, can_take, rolls);
+        }
+        // Everything standing on this submap's squares now, including what this very step of the sweep just made: the reference ages a field when it reaches the
+        // square, so a newborn on a square of the submap being processed is aged and one born behind the cursor is not.
+        let found: Vec<(Entity, i32, i32)> = {
+            let mut query = world.query::<(Entity, &Position)>();
+            query
+                .iter(world)
+                .filter(|(entity, position)| {
+                    submap_of(position.x, position.y, position.z) == key
+                        && world.get::<Field>(*entity).is_some()
+                })
+                .map(|(entity, position)| (entity, position.x, position.y))
+                .collect()
+        };
+        decay_the_fields_the_sweep_found(world, &found, 0, rolls, |_field| None, |_turn, _square, _rolls| {});
     }
     // The light map is rebuilt for the world this turn made, the way the draw path rebuilds it after the turn's work (`map::build_map_cache`). Clearing first is part of the
     // rule rather than tidiness: the cast merges by maximum, so a fire that went out this turn would otherwise stay lit by last turn's answer.
     clear_light(world);
     cast_lights_with(world);
-    // Decay last, and only for the squares the sweep found.
-    decay_the_fields_the_sweep_found(
-        world,
-        &present,
-        0,
-        rolls,
-        |_field| None,
-        |_turn, _square, _rolls| {},
-    );
 }
 
 /// The hot air field for a fire of this intensity, as `create_hot_air` chooses it.

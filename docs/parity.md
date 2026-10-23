@@ -2986,6 +2986,29 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The sweep is spatial, and that is a rule about ages (round 519)
+
+A fixture with a stairwell - `t_stairs_down` with open air under it - made the gas **fall** on turn six: source to intensity two at
+z 0, destination born at intensity one at z -1. It also broke the port in a way that hand-written cases never would have.
+
+The reference's sweep is **spatial**, not per kind: `map::process_fields` walks submaps in ascending `(z, x, y)` and ages a field when it reaches the field's own
+submap. A gas that falls into the submap the sweep has already passed keeps the age it was born with; one that spreads into a later submap is aged in the same turn. The
+port aged everything at the end of the turn, which gets the second case right and the first wrong - a one-turn age error that the lateral fixture happened not to
+expose, because a gas spreading sideways in the same building lands in a later submap.
+
+Three things had to change, and each is smaller than the bug:
+
+- `run_environment_turn` now walks the sweep with a **cursor** over `submaps_with_fields`, doing one submap's fires, then its gases, then the ageing of what stands on
+  it. A cursor rather than a list because a field born in a later submap is visited by the same sweep.
+- `process_gas` and `process_fires` gained `_in_submap` variants; the old signatures delegate, so every existing caller is unchanged.
+- The **field half of `gas_can_spread_to` moved out of the caller and into the crate.** Whether a square already holds gas at least as thick as the gas arriving is
+  readable only by whoever can see the field a previous square of the same sweep left behind, and a caller that snapshotted the map before the turn got it wrong at the
+  first exchange between two levels. The caller now answers only the terrain question - can the square be walked, is the step legal - which is what the test's `can_take`
+  had been trying to say all along.
+
+Two gas gates stand on this: the lateral session (fifty-eight transitions) and the fall session (thirty-nine, including the two levels trading intensity as each
+spreads into the other). Both compare position, intensity and age every turn and refuse to pass unless every turn ran and the reference's dice were spent.
+
 ## A gas needs permission to fall, and the rule is `valid_move` (round 517)
 
 The first gas session gate went red for a reason worth keeping: the port spread the gas **down through the floor it was standing on**. The reference asks two questions of
