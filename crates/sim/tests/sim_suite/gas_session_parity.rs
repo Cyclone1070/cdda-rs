@@ -139,14 +139,20 @@ impl Takes {
 }
 
 #[test]
-#[ignore = "waiting on a per-turn marker in the gas trace: the recording has 59 processor blocks for 60 turns, so a replay cannot tell a turn whose gas \n could not spread from one whose processor never ran, and the dice after that turn no longer line up"]
 fn sixty_recorded_turns_of_a_gas_replay_square_for_square() {
     let session = crate::reference_session::Session::load("gas-60");
+    assert!(
+        !session.dice_by_turn.is_empty(),
+        "the fixture labels its turns, so each turn's dice are its own"
+    );
     let mut map = session.map();
     let takes = Takes::load(&session);
     let mut world = World::new();
-    let Some(first) = session.turns.first().and_then(|turn| turn.first()) else {
-        panic!("the fixture starts with a gas");
+    // **Seeded from the first recorded state, not from the placement.** The dump places the gas and then runs a sweep; the first sweep does not see it - the
+    // field is not in a cached submap yet - so the reference's own trace has no dice for the transition into turn 1 while its age still advances. Starting at the
+    // state that sweep left is the honest read of the fixture: from there every turn is a sweep that did see the gas, and the dice line up one for one.
+    let Some(first) = session.turns.get(1).and_then(|turn| turn.first()) else {
+        panic!("the fixture has a second state");
     };
     let mut entry = FieldEntry::new(3, 1_000_000, true, false);
     entry.set_intensity(first.intensity);
@@ -164,9 +170,10 @@ fn sixty_recorded_turns_of_a_gas_replay_square_for_square() {
         },
     ));
 
-    let mut rolls = Rolls::replaying(session.dice.clone());
     let mut disagreements: Vec<(usize, String)> = Vec::new();
-    for (index, recorded) in session.turns.iter().enumerate().skip(1) {
+    let mut compared = 0_usize;
+    let mut spent = 0_usize;
+    for (index, recorded) in session.turns.iter().enumerate().skip(2) {
         // The squares this turn will visit, taken before anything runs: a field born during the sweep is aged when the sweep reaches its square, and the order is
         // the squares' own. The dump lists the fields it found, so the port's list is built from the same rule: everything standing at the start of the turn.
         let found: Vec<Entity> = {
@@ -188,7 +195,21 @@ fn sixty_recorded_turns_of_a_gas_replay_square_for_square() {
             // falling through the floor it is standing on.
             takes.open(to) && takes.may_step(from, to) && standing.get(&to).copied().unwrap_or(0) < 3
         };
+        // Each turn gets its own recording, so a turn that spends a different number of dice says so here instead of shifting every turn after it.
+        let recorded_dice = session
+            .dice_by_turn
+            .get(index - 1)
+            .cloned()
+            .unwrap_or_else(|| cdda_core_types::rng::Recording::parse("").expect("empty"));
+        let offered = recorded_dice.remaining();
+        let mut rolls = Rolls::replaying(recorded_dice);
         cdda_sim::process_gas(&mut world, GAS, 30, wind.power, can_take, &mut rolls);
+        let unspent = rolls.recording_remaining().unwrap_or(0);
+        spent += offered - unspent;
+        compared += 1;
+        if unspent != 0 && disagreements.len() < 6 {
+            disagreements.push((index, format!("{unspent} recorded dice went unspent this turn")));
+        }
         let positions: Vec<(Entity, i32, i32)> = {
             let mut query = world.query::<(Entity, &Position)>();
             query
@@ -220,5 +241,8 @@ fn sixty_recorded_turns_of_a_gas_replay_square_for_square() {
         disagreements.is_empty(),
         "the port's gas disagrees with the recording: {disagreements:#?}"
     );
-    assert_eq!(rolls.recording_remaining(), Some(0), "every recorded die was spent");
+    // A gate that compared nothing would pass for the wrong reason, and one that drew nothing would pass without ever exercising the spread rule.
+    assert_eq!(compared, session.turns.len() - 2, "every recorded turn was replayed");
+    assert!(spent >= 80, "the replay spent the reference's own dice: {spent}");
+
 }

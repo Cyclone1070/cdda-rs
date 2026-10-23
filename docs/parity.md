@@ -3010,8 +3010,15 @@ for a session that made 84. And the remote runner now syncs with `--no-times`: p
 whose clock is behind, and cargo then reuses the artifact it already has, so the gate silently tests the previous round's code.
 
 `corpus/fields/gas-60.json` is re-recorded under `--world harness-fixed` and its dice are sliced to the watched square: sixty turns, 84 draws, a split at turn 48 into a
-source at intensity two and a destination at intensity one. **The replay gate is written and ignored**, with its reason in the attribute: the trace has 59 processor blocks
-for 60 turns, so a replay cannot tell a turn whose gas could not spread from a turn whose processor never ran. The next instrument is a per-turn marker.
+source at intensity two and a destination at intensity one.
+
+**The replay gate is green** (round 518), and the per-turn marker is what made it possible: the sweep now writes `gas.turn.<n>` before each `process_fields`, so every turn
+gets its own recording and a turn that spends a different number of dice says so where it happens instead of shifting every turn after it. Fifty-eight transitions are
+compared field for field - position, intensity, age - and the gate refuses to pass unless every turn ran and at least eighty of the reference's own dice were spent.
+
+One thing the fixture taught that is worth keeping: **the reference's first sweep does not see the gas.** The dump places the field and then sweeps, but the square is not
+in a cached submap yet, so the trace has no dice for the transition into turn one while the age still advances. The replay therefore seeds from the first state that sweep
+left rather than from the placement - the honest read of the recording, and one that a test written from the intent would have got wrong.
 
 ## The field dump learned to look up and down, and the gas learned to say what it rolled (round 516)
 

@@ -72,6 +72,11 @@ pub struct Session {
     pub turns: Vec<Vec<Placed>>,
     /// The dice the reference rolled inside its field processors, in order.
     pub dice: Recording,
+    /// The dice of each turn separately, when the recording labels its turns (`gas.turn.<n>`); empty for a flat recording.
+    ///
+    /// A processor's own label says what it rolled but not which turn rolled it, so a flat slice cannot tell a turn whose gas could not spread from a turn whose
+    /// processor never ran - and after the first such turn every later die is one position out.
+    pub dice_by_turn: Vec<Recording>,
     /// The wind on each turn, which a gas needs: its spread chance is `rng( 1, 100 - windpower )` and its destination is resisted when it blows into that wind.
     pub wind: Vec<Wind>,
     /// Where the fixture came from, so a failed assertion can say which one.
@@ -133,6 +138,7 @@ impl Session {
                 }
             })
             .collect();
+        let dice_by_turn = dice_per_turn(&recording, &turns_of(&fixture));
         let turns = array(object(&fixture).get("turns").expect("turns"))
             .iter()
             .map(|turn| {
@@ -157,6 +163,7 @@ impl Session {
             .collect();
         Session {
             grid,
+            dice_by_turn,
             turns,
             wind,
             dice: processor_dice(&recording),
@@ -386,6 +393,57 @@ pub fn facts_for(id: &str, flags: &BTreeMap<String, Vec<String>>) -> TerrainFact
         no_floor: has("NO_FLOOR"),
         suppress_smoke: has("SUPPRESS_SMOKE"),
     }
+}
+
+/// The watched square: the one the fixture's first field stands on. A gas trace marks its draws with the square, and the bubble holds other gases.
+fn turns_of(fixture: &Value) -> Vec<Value> {
+    array(object(fixture).get("turns").expect("turns")).to_vec()
+}
+
+/// Splits a trace into one recording per turn, when the trace labels its turns.
+///
+/// Returns nothing for a recording without `gas.turn.<n>` labels: those are the fire fixtures, whose dice are one flat run and whose replay wants exactly that.
+fn dice_per_turn(text: &str, turns: &[Value]) -> Vec<Recording> {
+    if !text.contains("gas.turn.") {
+        return Vec::new();
+    }
+    // The square worth watching is the one the fixture's own field starts on; any other gas in the bubble is somebody else's business.
+    let watched = turns
+        .first()
+        .map(|turn| array(object(turn).get("fields").expect("fields")))
+        .and_then(|fields| fields.first())
+        .map(|field| {
+            let field = object(field);
+            format!(
+                "{}.{}.{}",
+                integer(field.get("x").expect("x")),
+                integer(field.get("y").expect("y")),
+                integer(field.get("z").expect("z"))
+            )
+        });
+    let mut per_turn: Vec<Vec<String>> = vec![Vec::new()];
+    let mut inside = false;
+    for line in text.lines() {
+        if let Some(label) = line.strip_prefix("mark ") {
+            if let Some(number) = label.strip_prefix("gas.turn.") {
+                let index: usize = number.parse().expect("a turn number");
+                per_turn.resize(index + 1, Vec::new());
+                inside = false;
+            } else if let Some(square) = label.strip_prefix("gas.begin.") {
+                inside = watched.as_deref().is_none_or(|watched| watched == square);
+            } else if label.contains(".done") {
+                inside = false;
+            }
+            continue;
+        }
+        if inside {
+            per_turn.last_mut().expect("a turn").push(line.to_string());
+        }
+    }
+    per_turn
+        .into_iter()
+        .map(|lines| Recording::parse(&lines.join("\n")).expect("a turn's dice parse"))
+        .collect()
 }
 
 /// The dice the reference rolled inside its field processors: `<kind>.begin` opens one and `<kind>.done` closes it.
