@@ -6,7 +6,7 @@
 
 #![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
-use cdda_core_types::vision::sees_on_one_level;
+use cdda_core_types::vision::{lit_level_at, sees_on_one_level};
 
 const SIDE: i32 = 12;
 
@@ -98,4 +98,44 @@ fn a_diagonal_through_a_corner_squeezes_between_the_two_walls() {
     // And a wall on the diagonal itself closes it.
     let blocked = room(&[(1, 1)]);
     assert!(!sees_on_one_level((0, 0), (2, 2), 60, blocked, in_bounds));
+}
+
+#[test]
+fn a_square_seen_through_fog_is_bright_without_detail() {
+    // `apparent_light_at` (`lightmap.cpp:826-833`): a square whose own `seen_cache` value is below solid - so the light got through only as haze - is `BRIGHT_ONLY` when the
+    // light behind it is bright, and `BLANK` otherwise. The distinction exists so the draw path can show a glow without showing what is in it.
+    use cdda_core_types::light::LitLevel;
+
+    assert_eq!(
+        lit_level_at(20.0, true, 12.0, 4.0, false),
+        LitLevel::BrightOnly
+    );
+    assert_eq!(lit_level_at(5.0, true, 12.0, 4.0, false), LitLevel::Blank);
+}
+
+#[test]
+fn the_unobstructed_chain_is_bright_then_lit_then_low_then_nothing() {
+    // The remaining branches, in the reference's order (`lightmap.cpp:836-850`): bright above `LIGHT_SOURCE_BRIGHT`, then `LIT`, then `LOW` at or above the vision threshold,
+    // then `BLANK`.
+    use cdda_core_types::light::LitLevel;
+
+    assert_eq!(lit_level_at(50.0, false, 12.0, 4.0, false), LitLevel::Bright);
+    assert_eq!(
+        lit_level_at(10.0, false, 12.0, 4.0, true),
+        LitLevel::Bright,
+        "a square with items on it is bright to the player who can see them"
+    );
+    assert_eq!(lit_level_at(10.0, false, 12.0, 4.0, false), LitLevel::Low);
+    assert_eq!(lit_level_at(4.0, false, 12.0, 4.0, false), LitLevel::Low);
+    assert_eq!(lit_level_at(3.9, false, 12.0, 4.0, false), LitLevel::Blank);
+}
+
+#[test]
+fn the_lit_branch_is_unreachable_because_two_thresholds_are_the_same_number() {
+    // `LIGHT_SOURCE_BRIGHT` and `LIGHT_AMBIENT_LIT` are both ten, so the `> LIGHT_SOURCE_BRIGHT` test above has already claimed every square the `> LIGHT_AMBIENT_LIT` test
+    // could find. `LIT` is dead code in the reference rather than a level the port forgot, and pinning it keeps the next reader from "fixing" the chain into disagreement.
+    use cdda_core_types::light::{AMBIENT_LIT, LitLevel, SOURCE_BRIGHT};
+
+    assert!((AMBIENT_LIT - SOURCE_BRIGHT).abs() < f32::EPSILON);
+    assert_ne!(lit_level_at(15.0, false, 12.0, 4.0, false), LitLevel::Lit);
 }

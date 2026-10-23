@@ -406,6 +406,26 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Bright, lit, low, and a glow with nothing in it (round 376)
+
+The port could say whether a square was lit, not **how** it looked. `lit_level` (seven values) existed; the chain that picks one did not. It does now:
+
+| Condition | Answer | Reference |
+|---|---|---|
+hazy, and brighter than the ground | `BrightOnly` | `lightmap.cpp:826-833` |
+hazy otherwise | `Blank` | same |
+above `SOURCE_BRIGHT`, or items on a square the character can see | `Bright` | `lightmap.cpp:836-838` |
+above `AMBIENT_LIT` | `Lit` | `lightmap.cpp:839-841` |
+at or above the vision threshold | `Low` | `lightmap.cpp:842-845` |
+anything else | `Blank` | same |
+
+**Two thresholds in the reference are the same number, so one branch is dead.** `LIGHT_SOURCE_BRIGHT` and `LIGHT_AMBIENT_LIT` are both ten, so the `> SOURCE_BRIGHT` test
+above has already claimed every square the `> AMBIENT_LIT` test could find: `Lit` is unreachable. The port keeps the branch, in the reference's order, and a test pins the
+equality and the unreachability - because the tempting "fix" is to reorder the chain into something that disagrees with the game.
+
+**A pinned count caught a real question and answered it the other way.** The scent test asserted 245 terrain pieces carry `REDUCE_SCENT`; the loader said 225 and the loader
+was right: 20 of those entries are **furniture**. The test now pins the terrain split and says why the dump's total is not the terrain's.
+
 ## A wall marks itself for scent (round 375)
 
 The scent ledger row carried a declared gap: "reading the terrain flags off the map (the caller marks squares)". That is closed. `ScentTable` reads the two flags out of the

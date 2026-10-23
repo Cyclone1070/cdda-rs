@@ -41,6 +41,42 @@ pub fn shown_at(
     level.seen_at(origin, radius, blocks_light, square)
 }
 
+/// What a square looks like to the character: the reference's `lit_level`.
+///
+/// Reference: `map::apparent_light_at` (`src/lightmap.cpp:801-851`), with the parts that need an avatar - clairvoyance, the camera cache, the recoil check, the impaired
+/// range - left to the caller, which supplies the three facts they decide: whether the light got through only as haze (`obstructed`), whether anything is on the square
+/// (`sees_items`), and the character's vision threshold.
+///
+/// `obstructed` is the reference's `a.obstructed`, which is true when the square's own `seen_cache` value is at or below solid: the light arrives as a glow rather than as
+/// detail. `apparent_light` is the brightest quadrant of the light map.
+#[must_use]
+pub fn lit_level_at(
+    apparent_light: f32,
+    obstructed: bool,
+    ground_light_level: f32,
+    vision_threshold: f32,
+    sees_items: bool,
+) -> crate::light::LitLevel {
+    use crate::light::{AMBIENT_LIT, LitLevel, SOURCE_BRIGHT};
+    if obstructed {
+        // Hazy: enough light to glow, not enough to make anything out.
+        if apparent_light > AMBIENT_LIT && apparent_light > ground_light_level {
+            return LitLevel::BrightOnly;
+        }
+        return LitLevel::Blank;
+    }
+    if apparent_light > SOURCE_BRIGHT || sees_items {
+        return LitLevel::Bright;
+    }
+    if apparent_light > AMBIENT_LIT {
+        return LitLevel::Lit;
+    }
+    if apparent_light >= vision_threshold {
+        return LitLevel::Low;
+    }
+    LitLevel::Blank
+}
+
 /// Whether a square can be seen from another on the same level.
 ///
 /// Reference: `map::sees`'s same-level branch (`src/map.cpp:7329-7362`). Sight is a Bresenham walk

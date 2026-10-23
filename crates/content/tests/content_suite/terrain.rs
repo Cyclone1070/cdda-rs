@@ -84,7 +84,10 @@ fn the_port_finds_the_transparent_terrains_the_reference_reports() {
 #[test]
 fn the_two_scent_flags_are_in_the_dump_and_are_not_the_same_flag() {
     // `NO_SCENT` blocks scent outright and `REDUCE_SCENT` only slows it (`mapdata.h:181-193`), and both are terrain flags in the data rather than code rules. The counts are
-    // pinned rather than the ids: 167 squares of wall-like terrain block scent in this corpus and 245 doors reduce it, so a loader that dropped either flag would show here.
+    // pinned rather than the ids: 167 pieces of terrain block scent in this corpus and 225 reduce it, so a loader that dropped either flag would show here.
+    //
+    // **The dump's 245 is not the terrain's 225.** Twenty of the entries carrying `REDUCE_SCENT` are furniture (`f_*`), and this loader reads the terrain kind only, so a
+    // test written against the whole dump disagrees with the loader while both are right - the split was found by exactly that mistake.
     let prototypes = dump();
     let blocks = prototypes
         .iter()
@@ -95,7 +98,7 @@ fn the_two_scent_flags_are_in_the_dump_and_are_not_the_same_flag() {
         .filter(|terrain| terrain.flags.iter().any(|flag| flag == "REDUCE_SCENT"))
         .count();
     assert_eq!(blocks, 167, "terrain that blocks scent");
-    assert_eq!(reduces, 245, "terrain that reduces it");
+    assert_eq!(reduces, 225, "terrain that reduces it");
     assert!(
         prototypes
             .iter()
