@@ -406,6 +406,22 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The reference frame's light column is nearly binary, so it is a weak oracle (round 428)
+
+Before writing a light gate, the column was read. Over 1,681 squares the reference records **two** values:
+
+| Light | Squares | Where |
+|---|---|---|
+100.582 | 1,487 | open ground **and** under trees alike |
+4.000 | 194 | the squares with no daylight of their own |
+
+**Trees do not shade in this dump.** Forest floor beside a birch and forest floor under one both read 100.582, so the column cannot catch a port that forgets to block daylight -
+the two values are "daylight" and "something", and any coarse rule reproduces them. So the light gate is **not** worth writing against this fixture; what it needs is a dump
+taken somewhere the light actually varies: a lamp indoors, a wall casting a shadow, or the same map at a chosen hour.
+
+That is a small, useful negative result: it stops a gate from being written that would pass for the wrong reason. The frame's glyph column, by contrast, varies over 40 distinct
+characters and is what the square-by-square gate uses.
+
 ## The port reproduces the reference's frame, square by square (round 426)
 
 The two halves of the frame gate are joined, and it holds: given the reference's own terrain for each square, the port's draw path prints **the reference's glyph on all 1,638
