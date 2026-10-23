@@ -169,6 +169,11 @@ first oracle dump of the phase: **20 weather types** with their derived numbers.
 penalty, and a test proves fog dims a lamp by exactly the absorption it adds. The weather *system* - generators, transitions, precipitation over time, temperature - is still a
 declared gap, and it is the next thing after the frame gate.
 
+**The frame gate has both halves, and its terms are measured.** The reference's own frame is committed beside the prototype corpora (1,681 squares with glyph, terrain,
+furniture and light), and its glyph column has been read rather than assumed: 1,638 of the 1,681 squares print the terrain prototype's own symbol and 43 print something drawn on
+top of it. So the port can be diffed square by square over 1,638 squares today, and the remaining 43 are a named gap that closes when items and creatures exist. What is left is
+the join: build the port's world for that fixture and diff.
+
 **A frame can be drawn, and it is text.** `sim::frame::frame` asks the three questions a cell needs - what is there, how lit, how seen - once per view, and `Frame::levels`
 prints one character per square (`B L l * .`). That string is the semantic frame gate's unit of comparison, and the tests already assert against it square by square. What it
 still needs is an oracle: the reference's own frame for the same fixture, which is the same outstanding build as the weather dump.
