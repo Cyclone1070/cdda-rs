@@ -107,3 +107,27 @@ fn the_two_scent_flags_are_in_the_dump_and_are_not_the_same_flag() {
         "and no terrain carries both"
     );
 }
+
+#[test]
+fn every_terrain_carries_the_symbol_it_is_drawn_with() {
+    // Reference: `map_data_common_t::sym`, a `nc_color`-paired glyph (`mapdata.h`), which the draw path prints. The dump writes it as the four bytes of the UTF-8 sequence - a
+    // floor is `[46, 46, 46, 46]`, four dots - because the reference stores it as a string of one grapheme rather than a `char`. The port keeps the first character, which is what
+    // a cell prints, and a test pins that every terrain entry has one. The dump holds 1,769 entries of both kinds; this loader reads the 1,109 terrain ones, and furniture is
+    // read by the same code from the same file.
+    let prototypes = dump();
+    assert_eq!(prototypes.len(), 1109);
+    let missing: Vec<&str> = prototypes
+        .iter()
+        .filter(|terrain| terrain.symbol == ' ')
+        .map(|terrain| terrain.id.as_str())
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "terrains with no symbol: {}",
+        missing.len()
+    );
+    let wall = terrain::find(&prototypes, "t_wall").expect("a wall");
+    assert_eq!(wall.symbol, '#');
+    let floor = terrain::find(&prototypes, "t_floor").expect("a floor");
+    assert_eq!(floor.symbol, '.');
+}

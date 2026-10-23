@@ -17,6 +17,11 @@ pub struct Terrain {
     pub move_cost: i32,
     /// Its flags, as the data writes them.
     pub flags: Vec<String>,
+    /// The glyph the square is drawn with.
+    ///
+    /// Reference: `map_data_common_t::sym` (`src/mapdata.h`), which the draw path prints into a cell. The dump writes the four bytes of its UTF-8 encoding, so the port keeps the
+    /// first character - a cell holds one grapheme, and `[46, 46, 46, 46]` is four dots for the same one.
+    pub symbol: char,
     /// Whether light and sight pass through it.
     ///
     /// Reference: `map_data_common_t::transparent` (`src/mapdata.h:573`). It is **stored**, not derived: the factory starts a new object transparent
@@ -108,10 +113,26 @@ pub fn from_dump_by_kind(value: &Value, kind: &str) -> Result<Vec<Terrain>, Stri
             }
         }
         let transparent = matches!(object.get("transparent"), Some(Value::Bool(true)));
+        // The glyph is a byte array in the dump: the UTF-8 encoding of a one-character string, repeated four times because the reference stores a colour pair per byte. The
+        // first byte of a three- or four-byte sequence alone would be half a character, so the whole run is decoded and the first character kept.
+        let symbol = match object.get("symbol") {
+            Some(Value::Array(bytes)) => {
+                let decoded: Vec<u8> = bytes
+                    .iter()
+                    .filter_map(|byte| match byte {
+                        Value::Int(value) => u8::try_from(*value).ok(),
+                        _ => None,
+                    })
+                    .collect();
+                String::from_utf8_lossy(&decoded).chars().next().unwrap_or(' ')
+            }
+            _ => ' ',
+        };
         terrains.push(Terrain {
             id: id.clone(),
             move_cost,
             flags,
+            symbol,
             transparent,
         });
     }

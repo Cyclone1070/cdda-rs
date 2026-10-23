@@ -406,6 +406,21 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Every square knows its glyph (round 388)
+
+The frame the port will draw needs three things per square: what is there, how brightly it is lit, and how clearly it is seen. Two of the three existed. The glyph did not - the
+terrain loader read the id, the move cost, the flags and the transparency, and threw the symbol away.
+
+| Piece | Reference | Port |
+|---|---|---|
+the glyph | `map_data_common_t::sym` (`src/mapdata.h`) | `Terrain::symbol`, from the dump's byte array |
+the encoding | a one-grapheme string | decoded from UTF-8, first character kept - `[46, 46, 46, 46]` is four dots for one `.` |
+the gate | - | every one of the 1,109 terrain entries has one; a wall is `#`, a floor is `.` |
+
+**A count that disagreed was the dump's shape, not a bug.** The first version of the test asserted 1,769 terrains and the loader returned 1,109. Both are right: the dump holds
+1,769 entries of *both* kinds - terrain and furniture - and this loader reads the terrain ones, which is the same split the scent-flag test found two rounds before. The test now
+pins the terrain count and says why the dump's total is not it, in the same words as its neighbour, because the same mistake was made twice.
+
 ## The sim gathers in two phases too (round 387)
 
 Round 386 gave the level the reference's buffer; the sim still cast sources as it found them. It gathers in two phases now, in the reference's order:
