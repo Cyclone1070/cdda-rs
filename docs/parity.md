@@ -406,6 +406,29 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Transparency is stored, not derived, and the data says so (round 364)
+
+`map_data_common_t::transparent` (`mapdata.h:573`) is a **bool on the object**, mutated as the prototype loads. Three measurements, each of which contradicts a plausible
+guess:
+
+| Guess | Data | Rule |
+|---|---|---|
+"a new prototype is transparent" | 373 of 1,109 terrains are opaque, and the 12 with no flags are opaque too | an ordinary prototype starts **opaque** |
+"null prototypes are opaque" | `t_null` and `f_null` are **transparent** | `null_terrain_t`/`null_furniture_t` set the bool themselves and nothing loads over them |
+"the flags decide it" | the flags agree with the bool on every entry | true, but only because every prototype that wants light names a flag |
+
+The loader's rule, transcribed from `map_data_common_t::set_flag`/`unset_flag`/`unset_flags` (`mapdata.cpp:876-912`, `:1112-1122`):
+
+* `set_flag` makes it transparent for `TRANSPARENT` **or** `TRANSLUCENT` - a window passes light without passing detail, and the light cache only asks about light;
+* a child that names its own `flags` array calls `unset_flags`, which clears the bool **before** the new list is applied - this is why twelve prototypes are opaque with
+  an empty flag list, and why the bool cannot be recovered from the final flags;
+* `delete` of `TRANSPARENT` clears the bool **even if `TRANSLUCENT` remains**, while `delete` of `TRANSLUCENT` leaves it alone. That asymmetry is the reference's own; a
+  port that neatened it would disagree on a window that deletes a flag.
+
+**The oracle had to grow to settle this.** The terrain dump carried name, symbol, colour, move cost, light, coverage and flags, and none of them can express "opaque with no
+flags saying so". It now carries `transparent` (dump version 2), and the whole content set compares field by field: **0 mismatches across 1,769 prototypes**, after the port
+was corrected twice by the data rather than by reasoning.
+
 ## One cast, and a multiplier that reads backwards (round 363)
 
 The level's light path was the last place still guessing: it had its own cast that picked a quarter by comparing offsets, and its own transparency rule that kept the

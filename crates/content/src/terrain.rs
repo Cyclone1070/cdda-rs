@@ -17,6 +17,13 @@ pub struct Terrain {
     pub move_cost: i32,
     /// Its flags, as the data writes them.
     pub flags: Vec<String>,
+    /// Whether light and sight pass through it.
+    ///
+    /// Reference: `map_data_common_t::transparent` (`src/mapdata.h:573`). It is **stored**, not derived: the factory starts a new object transparent
+    /// (`mapdata.cpp:576`), `set_flag` makes it transparent for `TRANSPARENT` or `TRANSLUCENT`, and a child that names its own `flags` array calls
+    /// `unset_flags`, which clears it (`mapdata.cpp:1112-1122`). Recovering it from the final flag list is therefore impossible, which is why the
+    /// oracle dumps it.
+    pub transparent: bool,
 }
 
 impl Terrain {
@@ -100,10 +107,12 @@ pub fn from_dump_by_kind(value: &Value, kind: &str) -> Result<Vec<Terrain>, Stri
                 flags.push(text.clone());
             }
         }
+        let transparent = matches!(object.get("transparent"), Some(Value::Bool(true)));
         terrains.push(Terrain {
             id: id.clone(),
             move_cost,
             flags,
+            transparent,
         });
     }
     Ok(terrains)

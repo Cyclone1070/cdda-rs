@@ -64,3 +64,19 @@ fn a_terrain_with_no_id_is_refused() {
     let value = parse(br#"{"prototypes":[{"move_cost":2}]}"#).expect("valid JSON");
     assert!(terrain::from_dump(&value).is_err());
 }
+
+#[test]
+fn the_port_finds_the_transparent_terrains_the_reference_reports() {
+    // The stored bool, not a guess from the flags: `transparent` is set by the factory and mutated by `set_flag`/`unset_flag`
+    // (`mapdata.cpp:876-905`), so a child that names `flags: []` or deletes `TRANSPARENT` is opaque with no flag saying so. The oracle now
+    // dumps the bool, and these are its counts.
+    let all = dump();
+    let transparent = all.iter().filter(|t| t.transparent).count();
+    assert_eq!(transparent, 736, "terrains light passes");
+    assert_eq!(all.len() - transparent, 373, "and terrains it does not");
+
+    let window = terrain::find(&all, "t_window").expect("a window");
+    assert!(window.transparent, "a window passes light");
+    let wall = terrain::find(&all, "t_wall").expect("a wall");
+    assert!(!wall.transparent, "a wall does not");
+}

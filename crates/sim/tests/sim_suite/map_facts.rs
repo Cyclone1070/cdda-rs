@@ -36,6 +36,8 @@ fn terrain(id: &str, flags: &[&str]) -> MapData {
             .iter()
             .map(|flag| (*flag).to_string())
             .collect::<BTreeSet<String>>(),
+        // A fixture is not loaded from JSON, so it starts where an ordinary prototype starts: opaque.
+        transparent: false,
     }
 }
 

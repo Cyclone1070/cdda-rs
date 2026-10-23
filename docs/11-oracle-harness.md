@@ -273,8 +273,11 @@ build by accident.
 ### Resolved content, not just ids
 
 `--dump-terrain` writes every terrain and furniture prototype *after* loading:
-name, symbol per season, colour, move cost, light emitted, coverage and the flag
-set. 1,769 prototypes in 26 seconds, byte-identical across runs.
+name, symbol per season, colour, move cost, light emitted, coverage, the stored
+`transparent` bool and the flag set. 1,769 prototypes in 26 seconds,
+byte-identical across runs. The bool is there because it **cannot be derived**
+from the flags - a prototype can be opaque with an empty flag list, and the two
+null prototypes are transparent without one.
 
 This is the first oracle artifact that can prove a loader rather than a list of
 names. Inheritance, `extend`/`delete` on flags, and the null prototypes all show

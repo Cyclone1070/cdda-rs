@@ -50,6 +50,13 @@ pub struct MapData {
     pub coverage: i32,
     /// The flag set, sorted, after replacement, extension and deletion.
     pub flags: BTreeSet<String>,
+    /// Whether light and sight pass through this square.
+    ///
+    /// Reference: `map_data_common_t::transparent` (`src/mapdata.h:573`), a **stored** bool rather than a derived one, and `false` for a new object. `set_flag`
+    /// makes it transparent for `TRANSPARENT` or `TRANSLUCENT`; a child that names its own `flags` array calls `unset_flags`,
+    /// which clears it (`mapdata.cpp:1112-1114`); and `unset_flag` clears it for `TRANSPARENT` while leaving it alone for `TRANSLUCENT`
+    /// (`mapdata.cpp:892-905`). The asymmetries are the reference's, and they are why this cannot be recomputed from `flags`.
+    pub transparent: bool,
 }
 
 impl MapData {
@@ -138,6 +145,9 @@ pub fn load_paths(dirs: &[&std::path::Path]) -> Result<Vec<MapData>, LoadError> 
                 light: 0,
                 coverage: 0,
                 flags,
+                // `null_terrain_t` and `null_furniture_t` set the bool themselves (`mapdata.cpp:555`, `:576`), and nothing loads over them, so the reference's
+                // own dump has both **transparent** - unlike an ordinary new prototype, which starts opaque.
+                transparent: true,
             },
         );
     }
@@ -297,6 +307,14 @@ fn kind_name(kind: MapDataKind) -> &'static str {
     }
 }
 
+/// Whether a flag makes a prototype transparent.
+///
+/// Reference: `map_data_common_t::set_flag` (`mapdata.cpp:876-883`), which treats both flags alike: `TRANSLUCENT` passes **light** without passing detail, and
+/// the light cache only asks about light.
+fn makes_transparent(flag: &str) -> bool {
+    flag == "TRANSPARENT" || flag == "TRANSLUCENT"
+}
+
 /// Applies one object's fields on top of its base, as the reference's `load` does.
 fn apply(base: Option<MapData>, loaded: &Loaded) -> Result<MapData, LoadError> {
     let json = &loaded.json;
@@ -312,6 +330,9 @@ fn apply(base: Option<MapData>, loaded: &Loaded) -> Result<MapData, LoadError> {
         light: 0,
         coverage: 0,
         flags: BTreeSet::new(),
+        // A new prototype starts **opaque** (`mapdata.h:573`). The only two things that start transparent are the code-made null prototypes, and the
+        // shipped `t_null`/`f_null` override even that by naming their own flags - which is why this is data-pinned rather than reasoned.
+        transparent: false,
     });
     value.kind = loaded.kind;
     value.id.clone_from(&id);
@@ -368,18 +389,31 @@ fn apply(base: Option<MapData>, loaded: &Loaded) -> Result<MapData, LoadError> {
     // `delete` removes, in that order, exactly as the reference does.
     if inherited && json.get("flags").is_some() {
         value.flags.clear();
+        // `unset_flags` clears the stored bool as well (`mapdata.cpp:907-912`).
+        value.transparent = false;
     }
     for flag in strings(json, "flags") {
+        if makes_transparent(&flag) {
+            value.transparent = true;
+        }
         value.flags.insert(flag);
     }
     if let Some(extend) = object(json, "extend") {
         for flag in strings(extend, "flags") {
+            if makes_transparent(&flag) {
+                value.transparent = true;
+            }
             value.flags.insert(flag);
         }
     }
     if let Some(delete) = object(json, "delete") {
         for flag in strings(delete, "flags") {
             value.flags.remove(&flag);
+            // `unset_flag` (`mapdata.cpp:892-905`) clears the bool for `TRANSPARENT` only, and only when it was already set. Clearing `TRANSLUCENT` leaves it alone,
+            // which is the reference's own asymmetry and the reason a window that deletes one flag still passes light.
+            if flag == "TRANSPARENT" && value.transparent {
+                value.transparent = false;
+            }
         }
     }
     Ok(value)

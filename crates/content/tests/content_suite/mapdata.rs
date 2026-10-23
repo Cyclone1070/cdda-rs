@@ -137,7 +137,7 @@ fn naming_flags_replaces_them_and_extend_and_delete_adjust_them() {
 #[allow(clippy::type_complexity)]
 fn reference_prototypes() -> std::collections::BTreeMap<
     (String, String),
-    (String, [i32; 4], String, i32, i32, i32, Vec<String>),
+    (String, [i32; 4], String, i32, i32, i32, Vec<String>, bool),
 > {
     let text = std::fs::read_to_string(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -183,6 +183,10 @@ fn reference_prototypes() -> std::collections::BTreeMap<
                 }
             }
         }
+        let transparent = matches!(
+            object.get("transparent"),
+            Some(cdda_json::Value::Bool(true))
+        );
         out.insert(
             (text_of("kind"), text_of("id")),
             (
@@ -193,6 +197,7 @@ fn reference_prototypes() -> std::collections::BTreeMap<
                 number_of("light"),
                 number_of("coverage"),
                 flags,
+                transparent,
             ),
         );
     }
@@ -217,7 +222,7 @@ fn the_whole_content_set_matches_the_reference_field_by_field() {
             },
             prototype.id.clone(),
         );
-        let Some((name, ref_symbol, ref_color, move_cost, light, coverage, flags)) =
+        let Some((name, ref_symbol, ref_color, move_cost, light, coverage, flags, transparent)) =
             reference.get(&key)
         else {
             mismatches.push(format!("{}: not in the reference", prototype.id));
@@ -264,10 +269,81 @@ fn the_whole_content_set_matches_the_reference_field_by_field() {
         if &ours != flags {
             mismatches.push(format!("{}: flags {ours:?} != {flags:?}", prototype.id));
         }
+        if prototype.transparent != *transparent {
+            mismatches.push(format!(
+                "{}: transparent {} != {transparent}",
+                prototype.id, prototype.transparent
+            ));
+        }
     }
     println!("{} mismatches", mismatches.len());
     for line in mismatches.iter().take(15) {
         println!("  {line}");
     }
     assert!(mismatches.is_empty(), "{} mismatches", mismatches.len());
+}
+
+#[test]
+fn a_new_prototype_starts_opaque_and_a_flag_lets_light_through() {
+    // The struct's default (`mapdata.h:573`) and the two flags that make light pass (`set_flag`, `mapdata.cpp:876-883`). A window is the case that matters:
+    // `TRANSLUCENT` passes **light** without passing detail, and the light cache only asks about light.
+    let plain = only(
+        r##"[
+          { "type": "terrain", "id": "t_plain", "name": "plain", "symbol": "#",
+            "color": "white", "move_cost": 2 }
+        ]"##,
+    );
+    assert!(
+        !plain.transparent,
+        "nothing said otherwise, and an ordinary prototype starts opaque"
+    );
+
+    let window = only(
+        r#"[
+          { "type": "terrain", "id": "t_window_test", "name": "window", "symbol": "'",
+            "color": "white", "move_cost": 0, "flags": [ "TRANSLUCENT" ] }
+        ]"#,
+    );
+    assert!(window.transparent, "a translucent tile passes light");
+}
+
+#[test]
+fn a_child_that_names_its_own_flags_starts_opaque_again() {
+    // `if( was_loaded && jo.has_member( "flags" ) ) { unset_flags(); }` (`mapdata.cpp:1112-1114`), and `unset_flags` sets `transparent = false`
+    // (`mapdata.cpp:907-912`). This is why twelve prototypes in the corpus are opaque with an empty flag list, and why the bool cannot be derived from
+    // the final flags.
+    let loaded = load(
+        r##"[
+          { "type": "terrain", "id": "t_base", "name": "base", "symbol": "#",
+            "color": "white", "move_cost": 2, "flags": [ "TRANSPARENT" ] },
+          { "type": "terrain", "id": "t_child_empty", "copy-from": "t_base", "name": "child",
+            "symbol": "#", "color": "white", "move_cost": 2, "flags": [] }
+        ]"##,
+    );
+    assert!(loaded[0].transparent, "the parent is transparent");
+    assert!(
+        !loaded[1].transparent,
+        "and the child that named an empty flag list is not, even though it inherits the flag"
+    );
+}
+
+#[test]
+fn deleting_transparent_makes_a_square_opaque_even_though_translucent_remains() {
+    // The reference's own asymmetry (`unset_flag`, `mapdata.cpp:892-905`): clearing `TRANSPARENT` sets the bool to false, while clearing `TRANSLUCENT`
+    // leaves it alone. Both halves are pinned because a port that "tidied" this would disagree with the reference on a window that deletes a flag.
+    let loaded = load(
+        r##"[
+          { "type": "terrain", "id": "t_glass", "name": "glass", "symbol": "#",
+            "color": "white", "move_cost": 2, "flags": [ "TRANSPARENT", "TRANSLUCENT" ] },
+          { "type": "terrain", "id": "t_glass_dark", "copy-from": "t_glass", "name": "dark glass",
+            "symbol": "#", "color": "white", "move_cost": 2, "delete": { "flags": [ "TRANSPARENT" ] } },
+          { "type": "terrain", "id": "t_glass_clear", "copy-from": "t_glass", "name": "clear glass",
+            "symbol": "#", "color": "white", "move_cost": 2, "delete": { "flags": [ "TRANSLUCENT" ] } }
+        ]"##,
+    );
+    assert!(!loaded[1].transparent, "TRANSPARENT deleted is enough");
+    assert!(
+        loaded[2].transparent,
+        "and deleting TRANSLUCENT alone changes nothing"
+    );
 }
