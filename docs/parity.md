@@ -2986,6 +2986,28 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The expression language, data-defined functions, and the conditions they decide (round 508)
+
+Three new pieces, each read from the data rather than transcribed from it:
+
+| Piece | What it is | Where |
+|---|---|---|
+`math_expr` | Tokenizer and recursive-descent evaluator: numbers, single-quoted strings, `+ - * / %`, six comparisons, calls, unary minus | `crates/content/src/math_expr.rs` |
+`jmath` | `jmath_function` entries - a body string with `_0`, `_1` bound - evaluated against an outer context | `crates/content/src/jmath.rs` |
+`condition` | `and` / `or` / `not` / a named condition / `math` | `crates/content/src/condition.rs` |
+
+Two decisions worth recording. **An unknown name is an error, never a zero** - a silent zero makes every condition false, every sky clear, and the failure invisible. And a context
+built on another context passes errors through rather than turning them into "unknown name": the first attempt swallowed the inner failure, so a missing `log` was reported as a
+missing `dew_point_factor`, which is the sort of error message that wastes an afternoon.
+
+The end-to-end gate is the payoff. The **data's own** seventeen conditions run against the twenty-four recorded hours: three levels of data-defined function (`dew_point_factor` →
+`dew_point` → `dprhx` → `weather('humidity')`), no precipitation condition ever holds, and `sunny` holds on hours zero through twelve and not after - because its humidity bound is
+seventy per cent and the recording crosses it between the twelfth hour (69.91) and the thirteenth (71.01). That is a real boundary at a real number, not a fixture that agrees with
+itself.
+
+**Not yet:** `is_day` (the sun's altitude is a port of its own, and the sunny condition is the only one that needs it) and `distance`/`value_or`/the portal-storm variables, which no
+shipped condition reaches without a portal storm.
+
 ## The condition loop and the schedule (round 507)
 
 Two rules, both gated on transcribed cases because neither needs a world to be wrong.

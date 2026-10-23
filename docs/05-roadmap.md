@@ -259,9 +259,8 @@ The weather generator is complete: temperature, humidity, pressure, wind power, 
 on its own fixture. What is missing between those pieces and a weather *system* is the condition machine - the dialogue expressions each weather type carries - and the manager that
 puts the pieces in order.
 
-1. **The condition machine**, at least the subset the weather types use. Read the twenty `condition` members and see how few primitives they need: most are a comparison on the
-   temperature, humidity or pressure of the `w_point`, which the oracle now records to nine decimals. A small port of those, gated on transcribed cases, would let the loop be driven
-   by the real conditions instead of a stub.
+1. ~~The condition machine~~ - done in round 508: `math_expr` (`+ - * / %`, comparisons, calls), `jmath` (data-defined functions, followed through three levels), and `condition`
+   (`and`/`or`/`not`/named/`math`). The data's own seventeen conditions now run against the recorded day. What is left under it is `is_day`, which needs the sun's altitude.
 2. **The manager**, wiring [`weather_gen`](../crates/sim/src/weather_gen.rs) and [`weather`](../crates/content/src/weather.rs) together in `weather.cpp`'s order - conditions first,
    then temperature and wind, then the schedule - and clearing the transparency caches when the sight penalty changes (`weather.cpp:938-941`), which is the one place weather reaches
    into the map.

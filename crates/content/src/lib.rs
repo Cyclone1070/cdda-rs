@@ -12,6 +12,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 pub mod catalog;
+pub mod condition;
 pub mod digest;
 pub mod enchantments;
 pub mod eocs;
@@ -23,6 +24,8 @@ pub mod harvest;
 pub mod item_group_draw;
 pub mod item_groups;
 pub mod items;
+pub mod jmath;
+pub mod math_expr;
 pub mod mapdata;
 pub mod mapgen;
 pub mod materials;

@@ -60,6 +60,7 @@ mod items;
 mod mapdata;
 mod mapgen;
 mod mapgen_objects;
+mod math_expr;
 mod mapgen_place;
 mod materials;
 mod mod_graph;
