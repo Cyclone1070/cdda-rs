@@ -419,6 +419,13 @@ submap, and a submap that is not there yet asks the overmap for an OMT that has 
 **The one-line fix was tried and does not work.** `here.load( project_to<coords::sm>( omt ), false )` before the loop makes the dump produce **nothing at all** - the call itself
 is what blocks, because it is generation that waits, not the read. The line was reverted and the binary rebuilt, and the weather dump still reproduces byte for byte.
 
+**How far it got, from the bytes it wrote.** The dump wrote 6,455 bytes: a header of about a hundred and rows of twenty-four quoted terrain ids, roughly 480 bytes each, so
+**thirteen rows were written and the fourteenth blocked**. Thirteen rows is past the first submap's twelve, which is why the read stalls there and why the frame dump next door
+never sees it: the frame reads twenty squares around the player, all inside the loaded bubble, while the map dump walks the whole twenty-four row chunk and steps outside it.
+
+So the next attempt has a shape: either clip the dump to the squares the map actually holds and say so in the file, or force the chunk's generation on a path that does not wait.
+Clipping is honest and small; it also means the dump describes what exists rather than what was asked for.
+
 So the map oracle needs a different approach rather than a tweak: generate the chunk in a path that does not wait (a dedicated harness that calls the mapgen directly on an
 `overmapbuffer` entry), or read the terrain from a **saved** world that was generated interactively. Either is harness work with a real design question in it, and neither is a
 blocker for the port, which has the frame gate and every loader gate standing.
