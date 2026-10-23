@@ -261,7 +261,8 @@ wind's dice come from the caller in the reference's own order. Three pieces rema
 1. ~~Wind direction~~ - done in round 506: the sentinel is an `Option<i32>`, the four weight tables are exposed for a caller's roll, and the
    "one_in(0) is true without rolling" rule reproduces the recorded day's single change.
 2. **`get_weather_conditions`** - the loop over `sorted_weather` that picks an id from a `w_point`, honouring each type's `required_weathers` and evaluating its dialogue
-   `condition`. This is the first weather piece that needs the condition machine; taking the id table and the ordering first, and the conditions second, keeps the gate moving.
+   `condition`. The list is ported and gated (round 506: `weather::sorted`, all twenty types, stability proven); what is missing is the evaluation itself. Take the loop with the
+   condition injected first - it can be gated on a transcribed chain - and then the condition machine underneath it.
 3. **The manager's turn loop** - `weather.cpp:901-960`: recompute only when the turn passes `nextweather`, roll the next duration from the chosen type's `duration_min` and
    `duration_max` (that draw is already in the trace as the last `int` of each hour), and clear the transparency caches when the sight penalty changes.
 

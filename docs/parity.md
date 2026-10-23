@@ -2986,6 +2986,19 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The order weather is decided in (round 506)
+
+`get_weather_conditions` walks a sorted list and lets the **last** type whose condition holds win, so the order is behaviour: two weathers that could both apply are decided by which
+comes later. `--dump-weather-order` now writes both orders in one file - the registry's own and the sorted one - and the port reproduces the sorted one exactly, all twenty types.
+
+The sort is `std::sort` on `priority`, which is **not stable**, but the only tie in the data is `mist` and `fog` at 15, and they come out in declaration order. So the port sorts stably,
+and the test proves the stability rather than assuming it: reorder the registry and the tied pair follows, which a sort by priority-then-name would not do.
+
+The two code-made types are in there too - `null` at -1 and `clear` at 0 - which is why the registry holds twenty while the data declares eighteen.
+
+**What this unlocks:** the condition loop now has its list. What it does not have is the conditions themselves: each type's `condition` is a dialogue expression, so the next step is
+either the condition machine or a call gate that takes the evaluation as a parameter and transcribes a chain or two.
+
 ## The wind's direction, and a calm that redraws itself (round 506)
 
 The direction is a `static int current_winddir = 1000` in the reference - process state that survives every call - and the port now models it as a

@@ -8,9 +8,10 @@
 use cdda_json::Value;
 
 /// What falls from the sky.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum Precipitation {
     /// Nothing.
+    #[default]
     None,
     /// A drizzle at most.
     VeryLight,
@@ -21,7 +22,7 @@ pub enum Precipitation {
 }
 
 /// One weather type.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct WeatherType {
     /// Its id, e.g. `fog`.
     pub id: String,
@@ -47,6 +48,20 @@ pub struct WeatherType {
     pub rains: bool,
     /// Which weather wins when two are possible: the higher the priority.
     pub priority: i32,
+    /// The weathers that must already hold before this one can (`weather_type.h`). Each becomes a chain: rain needs drizzle first, thunder needs rain.
+    pub required_weathers: Vec<String>,
+}
+
+/// The weather types in the order the game tests them: by priority, and **stably**, so a tie keeps the order the data declared.
+///
+/// Reference: `weather_gen.cpp:319-341`, `sort_weather`. The reference uses `std::sort`, which is not stable, but the ties that exist in the data come out in
+/// declaration order - `mist` and `fog` both carry 15 and stay adjacent in that order - so a stable sort reproduces it. `get_weather_conditions` lets the last
+/// match win, which makes this order part of the weather's behaviour rather than a detail of how it is stored.
+#[must_use]
+pub fn sorted(types: &[WeatherType]) -> Vec<&WeatherType> {
+    let mut ordered: Vec<&WeatherType> = types.iter().collect();
+    ordered.sort_by_key(|kind| kind.priority);
+    ordered
 }
 
 /// Reads the weather dump.
@@ -87,6 +102,16 @@ pub fn from_dump(value: &Value) -> Result<Vec<WeatherType>, String> {
             },
             rains: matches!(object.get("rains"), Some(Value::Bool(true))),
             priority: int_of(object.get("priority")),
+            required_weathers: match object.get("required_weathers") {
+                Some(Value::Array(list)) => list
+                    .iter()
+                    .filter_map(|id| match id {
+                        Value::Str(id) => Some(id.clone()),
+                        _ => None,
+                    })
+                    .collect(),
+                _ => Vec::new(),
+            },
         });
     }
     Ok(types)
