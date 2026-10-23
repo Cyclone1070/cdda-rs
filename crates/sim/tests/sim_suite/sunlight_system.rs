@@ -162,3 +162,23 @@ fn a_roofed_square_takes_the_indoors_light_and_an_open_one_takes_the_sun() {
         "and inside the room, dim but lit: {roofed}"
     );
 }
+
+#[test]
+fn the_old_entry_point_speaks_the_cascade_now_and_keeps_the_quarter_shape() {
+    // `cast_sunlight` is the closure-shaped entry point everything older calls, and it used to compute `Level::daylight` - a hand-rolled rule that gave a uniform value to
+    // any square with open sky on one side. It is now the cascade behind an adapter, and the shape is the evidence: a square inside a doorway is bright on the side the sky
+    // is on and dark on the other.
+    let mut world = world();
+    cast_sunlight(&mut world, NOON, 0.0, |x, y| (x, y) == (6, 5));
+
+    let light = world.resource::<Light>();
+    let inside = light.at(5, 5).expect("the square inside the doorway");
+    assert!(
+        inside.get(Quadrant::SouthEast) > inside.get(Quadrant::NorthWest),
+        "the doorway lights the quarters facing it: {inside:?}"
+    );
+    assert!(
+        (inside.get(Quadrant::NorthWest)).abs() < 1e-6,
+        "and the far quarters stay dark, because the caller asked for no indoors light"
+    );
+}

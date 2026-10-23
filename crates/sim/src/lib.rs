@@ -1080,17 +1080,10 @@ pub fn cast_sunlight(
     indoors: f32,
     outside: impl Fn(i32, i32) -> bool,
 ) {
-    let daylight = match world.get_resource::<Map>() {
-        Some(map) => map.0.daylight(turns, indoors, outside),
-        None => BTreeMap::new(),
-    };
-    if let Some(mut light) = world.get_resource_mut::<Light>() {
-        light.merge(daylight);
-    } else {
-        let mut light = Light::default();
-        light.merge(daylight);
-        world.insert_resource(light);
-    }
+    #[allow(clippy::cast_possible_truncation)]
+    let altitude = cdda_core_types::astronomy::sun_altitude_degrees(turns) as f32;
+    let outside_light = cdda_core_types::light::sun_light_from_altitude(altitude);
+    run_sunlight(world, outside_light, indoors, 1.0, &outside);
 }
 
 /// Works out the daylight from loaded prototypes and the transcribed cascade.
@@ -1152,12 +1145,92 @@ pub fn cast_sunlight_with(
         outside_light,
     );
 
-    // Three rungs of the reference's ladder, because a one-level world still has three levels to it: the sky, the roof over the ground, and the ground.
-    //
-    // 1. the empty sky, which is the reference's first iteration (`lightmap.cpp:310-315`) and leaves the pass "fully outside";
-    // 2. the roof layer, whose opaque and floored squares are what end the "fully outside" regime (`lightmap.cpp:344-364`) - this rung's fill is discarded, because it is
-    //    the answer for a level nobody stands on;
-    // 3. the ground, which is the first level to do the per-square work.
+    run_sunlight_layers(
+        world,
+        outside_light,
+        inside_light,
+        sight_penalty,
+        &layer,
+        &above,
+    );
+}
+
+/// The cascade for an entry point that knows only which squares are under open sky.
+///
+/// Reference: `build_sunlight_cache` (`lightmap.cpp:306-437`), reached from the closure-shaped API. A square under open sky is lit by the sun itself; a covered one has a
+/// solid, floored square above it, which is what a roof is to the level below.
+fn run_sunlight(
+    world: &mut World,
+    outside_light: f32,
+    inside_light: f32,
+    sight_penalty: f32,
+    outside: impl Fn(i32, i32) -> bool,
+) {
+    let Some(map) = world.get_resource::<Map>() else {
+        return;
+    };
+    let side = bounds_of(&map.0);
+    let cells = side * side;
+    let mut layer = cdda_core_types::sunlight_cache::SunLayer {
+        side,
+        transparency: vec![cdda_core_types::light::TRANSPARENCY_OPEN_AIR; cells],
+        floor: vec![false; cells],
+        outside: vec![true; cells],
+    };
+    let mut above = cdda_core_types::sunlight_cache::AboveLayer {
+        transparency: vec![cdda_core_types::light::TRANSPARENCY_OPEN_AIR; cells],
+        floor: vec![false; cells],
+        light: vec![outside_light; cells],
+    };
+    for y in 0..side {
+        for x in 0..side {
+            if outside(as_i32(x), as_i32(y)) {
+                continue;
+            }
+            let index = x * side + y;
+            // Under a roof: the square above is solid and floored, so no light comes through it.
+            if let Some(slot) = above.transparency.get_mut(index) {
+                *slot = 0.0;
+            }
+            if let Some(slot) = above.floor.get_mut(index) {
+                *slot = true;
+            }
+            if let Some(slot) = above.light.get_mut(index) {
+                *slot = 0.0;
+            }
+            if let Some(slot) = layer.outside.get_mut(index) {
+                *slot = false;
+            }
+        }
+    }
+    run_sunlight_layers(
+        world,
+        outside_light,
+        inside_light,
+        sight_penalty,
+        &layer,
+        &above,
+    );
+}
+
+/// The three rungs of the reference's ladder, shared by both entry points.
+///
+/// The port lights one level, but a one-level world still has three levels to it: the empty sky, the roof over the ground, and the ground.
+///
+/// 1. the empty sky, which is the reference's first iteration (`lightmap.cpp:310-315`) and leaves the pass "fully outside";
+/// 2. the roof layer, whose opaque and floored squares are what end the "fully outside" regime (`lightmap.cpp:344-364`) - this rung's fill is discarded, because it is the
+///    answer for a level nobody stands on;
+/// 3. the ground, which is the first level to do the per-square work.
+fn run_sunlight_layers(
+    world: &mut World,
+    outside_light: f32,
+    inside_light: f32,
+    sight_penalty: f32,
+    layer: &cdda_core_types::sunlight_cache::SunLayer,
+    above: &cdda_core_types::sunlight_cache::AboveLayer,
+) {
+    let side = layer.side;
+    let cells = side * side;
     let mut sun = cdda_core_types::sunlight_cache::Sunlight::new();
     let sky_layer = cdda_core_types::sunlight_cache::SunLayer {
         side,
@@ -1174,12 +1247,12 @@ pub fn cast_sunlight_with(
     };
     let _ = sun.step_with_above(
         &roof_layer,
-        &above,
+        above,
         outside_light,
         inside_light,
         sight_penalty,
     );
-    let lit = sun.step_with_above(&layer, &above, outside_light, inside_light, sight_penalty);
+    let lit = sun.step_with_above(layer, above, outside_light, inside_light, sight_penalty);
 
     let mut daylight = BTreeMap::new();
     for y in 0..side {

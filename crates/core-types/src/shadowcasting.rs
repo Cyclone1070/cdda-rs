@@ -348,52 +348,6 @@ pub fn update_light_quadrants(update: &mut FourQuadrants, value: f32, quadrant: 
     }
 }
 
-/// Which quarters of a tile face the tile to its north, west, east or south.
-///
-/// Reference: `dir_quadrants` (`src/lightmap.cpp:384-394`). The five rows are the tile
-/// itself, then north, west, east and south, in the order the reference walks them. A
-/// quarter is named by the corner it sits in, so facing north means lighting the two
-/// quarters on the north side.
-pub const FACING: [[Quadrant; 2]; 5] = [
-    [Quadrant::NorthEast, Quadrant::NorthWest],
-    [Quadrant::NorthEast, Quadrant::NorthWest],
-    [Quadrant::SouthWest, Quadrant::NorthWest],
-    [Quadrant::SouthEast, Quadrant::NorthEast],
-    [Quadrant::SouthEast, Quadrant::SouthWest],
-];
-
-/// Lights the quarters of a tile that face the outdoors.
-///
-/// Reference: the ambient pass in `map::build_map_cache` (`src/lightmap.cpp:401-438`),
-/// which walks each tile and its four cardinal neighbours and, where it finds open sky,
-/// raises the quarters facing it to the daylight level. That is how a doorway lightens the
-/// floor inside it and how a window does not light the whole room.
-///
-/// `neighbours` is north, west, east, south - the reference's order, which decides nothing
-/// here but is kept so a future reader comparing the two does not have to guess.
-#[must_use]
-pub fn light_in_from_outside(
-    outside: [bool; 5],
-    level: f32,
-    mut tile: FourQuadrants,
-) -> FourQuadrants {
-    for (index, open) in outside.iter().enumerate() {
-        if !open {
-            continue;
-        }
-        // `outside` and `FACING` are both five long; the enumerate cannot outrun the table.
-        let Some(facing) = FACING.get(index) else {
-            continue;
-        };
-        for quadrant in *facing {
-            if level > tile.get(quadrant) {
-                tile.set(quadrant, level);
-            }
-        }
-    }
-    tile
-}
-
 /// How brightly a source of `luminance` lights each cell it reaches.
 ///
 /// Reference: `cast_zlight` with `sight_calc` as its accumulator (`src/shadowcasting.h:96-99`,

@@ -279,69 +279,6 @@ impl Level {
     }
 }
 
-impl Level {}
-
-impl Level {
-    /// Daylight on the level: every made tile's four quarters.
-    ///
-    /// Reference: the ambient half of `map::build_map_cache` (`src/lightmap.cpp:396-438`),
-    /// which fills the level with the indoor light level and then lifts the quarters of each
-    /// tile that face open sky. Outdoors the whole tile takes the sun; indoors only the side
-    /// facing a way out does, which is why a doorway lights the floor inside it.
-    ///
-    /// `outside` answers whether a tile is under open sky. The port does not decide that
-    /// itself yet - it depends on the terrain and whether the tile has a roof - so it is
-    /// asked, tile by tile, and answered by whoever owns that knowledge.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the clock is before the calendar's epoch, which the astronomy cannot answer.
-    pub fn daylight(
-        &self,
-        turns: f64,
-        indoors: f32,
-        outside: impl Fn(i32, i32) -> bool,
-    ) -> BTreeMap<(i32, i32), crate::shadowcasting::FourQuadrants> {
-        use crate::shadowcasting::FourQuadrants;
-        #[allow(clippy::cast_possible_truncation)]
-        let altitude = crate::astronomy::sun_altitude_degrees(turns) as f32;
-        let sun = crate::light::sun_light_from_altitude(altitude);
-        let mut lit = BTreeMap::new();
-        // `at` holds submaps, not tiles: walk each placed submap's cells to reach the tiles.
-        let tiles: Vec<(i32, i32)> = self
-            .at
-            .keys()
-            .flat_map(|&(submap_x, submap_y)| {
-                (0..side()).flat_map(move |cell_x| {
-                    (0..side())
-                        .map(move |cell_y| (submap_x * side() + cell_x, submap_y * side() + cell_y))
-                })
-            })
-            .collect();
-        for (x, y) in tiles {
-            // The reference checks the tile and its four cardinals; a tile with open sky on
-            // any side takes daylight through it.
-            let neighbours = [
-                outside(x, y),
-                outside(x, y - 1),
-                outside(x - 1, y),
-                outside(x + 1, y),
-                outside(x, y + 1),
-            ];
-            if neighbours[0] {
-                lit.insert((x, y), FourQuadrants::uniform(sun));
-                continue;
-            }
-            let base = FourQuadrants::uniform(indoors);
-            lit.insert(
-                (x, y),
-                crate::shadowcasting::light_in_from_outside(neighbours, sun, base),
-            );
-        }
-        lit
-    }
-}
-
 impl Level {
     /// Adds one light source's light to a map of quarters.
     ///
