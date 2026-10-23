@@ -406,6 +406,25 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## A wall marks itself for scent (round 375)
+
+The scent ledger row carried a declared gap: "reading the terrain flags off the map (the caller marks squares)". That is closed. `ScentTable` reads the two flags out of the
+loaded terrain prototypes and `scent_grid` marks the level's squares from their own codes, so a wall flags itself.
+
+| Piece | Reference | Port |
+|---|---|---|
+the flag | `TFLAG_NO_SCENT`, `TFLAG_REDUCE_SCENT` (`mapdata.h:181-193`) | `ScentTable::marks`, loaded per code |
+the grid | `scent_map`'s array, marked by `update` | `Scent` resource, one cell per square, row by row with x fastest |
+the fade | `scent_map::decay`, once a turn before the fields | `decay_scent` |
+the arithmetic | `scent_map::update` | **not here**: `ScentWindow` in core-types, already pinned by six tests |
+
+**The sim owns the marks; the arithmetic stays where it was transcribed.** My first draft put a `diffuse_scent` in the sim as well, and it disagreed with the pinned
+`ScentWindow` on the first two tests - because a whole-level grid is not the character's window, so `squares_used` differs and the answers with it. The draft is deleted
+rather than debugged: a second implementation of a pinned rule is a liability, not a port.
+
+**The same code answering two ways is the test that matters.** A table that marks plain air as blocking changes the answer for the same terrain code, which is what "loaded
+from the data" has to mean - otherwise the hard-coded rule has only moved from a match arm into the sim.
+
 ## A clear sky costs nothing, and fog costs 1.7 (round 374)
 
 The weather was a bare `f32` at every call site: `cast_lights_with(world, 1.7)` says a number and hides which weather it is, and nothing refused a caller that passed `0.5`.

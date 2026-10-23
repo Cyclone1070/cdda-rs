@@ -6,6 +6,8 @@
 
 pub mod field_table;
 pub mod terrain_table;
+pub mod scent;
+pub mod scent_table;
 pub mod weather;
 pub use weather::Weather;
 
@@ -1009,6 +1011,12 @@ pub fn cast_lights_with(world: &mut World) {
         &fields,
         sight_penalty,
     );
+}
+
+/// How many tiles across the level is, for the modules that need the extent rather than the level.
+#[must_use]
+pub fn bounds_of_public(level: &cdda_core_types::level::Level) -> usize {
+    bounds_of(level)
 }
 
 /// The side of the square of world the level covers, in tiles.

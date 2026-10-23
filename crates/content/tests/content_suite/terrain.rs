@@ -80,3 +80,27 @@ fn the_port_finds_the_transparent_terrains_the_reference_reports() {
     let wall = terrain::find(&all, "t_wall").expect("a wall");
     assert!(!wall.transparent, "a wall does not");
 }
+
+#[test]
+fn the_two_scent_flags_are_in_the_dump_and_are_not_the_same_flag() {
+    // `NO_SCENT` blocks scent outright and `REDUCE_SCENT` only slows it (`mapdata.h:181-193`), and both are terrain flags in the data rather than code rules. The counts are
+    // pinned rather than the ids: 167 squares of wall-like terrain block scent in this corpus and 245 doors reduce it, so a loader that dropped either flag would show here.
+    let prototypes = dump();
+    let blocks = prototypes
+        .iter()
+        .filter(|terrain| terrain.flags.iter().any(|flag| flag == "NO_SCENT"))
+        .count();
+    let reduces = prototypes
+        .iter()
+        .filter(|terrain| terrain.flags.iter().any(|flag| flag == "REDUCE_SCENT"))
+        .count();
+    assert_eq!(blocks, 167, "terrain that blocks scent");
+    assert_eq!(reduces, 245, "terrain that reduces it");
+    assert!(
+        prototypes
+            .iter()
+            .filter(|terrain| terrain.flags.iter().any(|flag| flag == "NO_SCENT"))
+            .all(|terrain| !terrain.flags.iter().any(|flag| flag == "REDUCE_SCENT")),
+        "and no terrain carries both"
+    );
+}

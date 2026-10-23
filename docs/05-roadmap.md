@@ -298,7 +298,9 @@ entities.** <!-- verified -->
 
 **Progress, round 316.** Fields, fire and gases now run a whole turn in the reference's order (`run_environment_turn`), the oracle can record a
 session turn by turn (fields, scent, terrain, furniture) **and** label its own dice, and one five-turn fire session is replayed by the port to the
-same age and intensity. Not yet: weather as a system, light across z-levels, and vision. The store carries `z`, gases use it (fall first, rise last), fires answer in whole
+same age and intensity. Not yet: weather as a system, light across z-levels, and vision.
+Since then: the outside cache and the weather's sight penalty are wired into the cast, the sun runs the transcribed cascade over three rungs, `map::sees` and the field half of
+`sight_transparency` are ported, and the scent marks now come from the loaded terrain flags. The store carries `z`, gases use it (fall first, rise last), fires answer in whole
 squares, smoke rises through an open floor, and every terrain answer - including the fuel rule's own dice - comes from loaded prototypes (`MapFacts`
 over `TerrainFacts`) rather than from a test double. **Every session in `corpus/fields/replayable.txt` replays die for die, including one whose only catchable square is a plank on concrete** - the item
 branch of the spread rule now has an end-to-end receipt, and the replay of it corrected two further rules (the flashpoint's fuel gate, smoke coming from
