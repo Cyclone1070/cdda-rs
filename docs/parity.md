@@ -406,7 +406,24 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
-## The map dump does not finish headlessly (round 430)
+## The map dump works, and a generated chunk is now gated (round 434)
+
+The hang was the guard, not the load. `dump_map` asked every one of the 24 by 24 squares for its terrain, and a square past the loaded chunk pulls in a submap and then waits for
+overmap generation that a headless run never provides. The harness now asks **only for squares the map holds** (`here.inbounds`) and writes an empty id for the rest, and the dump
+finishes in seconds with a full chunk: `oter` `forest_thick`, overmap square `[60, 49, 0]`, 24 rows of 24 ids.
+
+Two tests gate it, and they are the first ones in the project that measure **generated** terrain rather than terrain handed over:
+
+| Assertion | Why it matters |
+|---|---|
+24 rows of 24 squares, named overmap terrain | a lost row would read as a different chunk |
+every id is in the terrain loader's set | a generator inventing an id is the first thing a port's own generation would get wrong |
+more than one kind of terrain in the chunk | a dump that returned one flat terrain would pass the id check vacuously |
+
+**What is still missing before the mapgen gate itself:** the port has no generator yet. This dump is the reference's answer to "what does this chunk look like", and comparing it needs
+the port to produce a chunk of its own - mapgen, the connection logic and the overmap terrain lookup, which is P1's mapgen family rather than P2's environment work.
+
+## The map dump did not finish headlessly (round 430, closed in 434)
 
 `--dump-map` was run against the same loadout that finished the frame in seconds. It wrote 6,455 bytes and then made **no further progress for half an hour**, with the process
 still alive, so it was stopped and the file removed rather than left growing or hanging.

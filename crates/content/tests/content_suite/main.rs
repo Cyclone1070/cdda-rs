@@ -83,6 +83,7 @@ mod recipes;
 mod resolve_placeholders;
 mod rules;
 mod starting_kit;
+mod map_oracle;
 mod terrain;
 mod weather;
 mod traps;
