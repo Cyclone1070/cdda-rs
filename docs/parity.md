@@ -406,6 +406,31 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## How a chunk's terrain is actually declared (round 484)
+
+Counted over the 6,216 `object`s, by which of the three ways each one declares terrain:
+
+| `rows` | `terrain` inline | `palettes` | Entries |
+|---|---|---|---|
+yes | no | yes | 2,411 |
+yes | yes | yes | 1,701 |
+no | no | no | 1,302 |
+yes | yes | no | 627 |
+yes | no | no | 150 |
+no | no | yes | 17 |
+no | yes | no | 7 |
+no | yes | yes | 1 |
+
+Four consequences, each a case a generator either handles or silently gets wrong:
+
+* **4,889 draw a grid, 1,327 do not.** A generator that requires `rows` is wrong for a fifth of the data.
+* **2,429 need a palette lookup** (2,411 + 17 + 1). Reading `object.terrain` alone draws nothing for them.
+* **150 draw a grid with no terrain declared at all** - they come from `fill_ter` or the game's default, from neither map.
+* **1,302 have neither rows nor terrain nor palettes** - placement-only entries, not empty chunks.
+
+**Not written yet:** any of the resolution. These are the counts a resolver has to reproduce, and they are recorded here because they cost a measurement each and would otherwise be
+re-derived - badly - from a reading of the schema, which has already been wrong twice in this file.
+
 ## A mapgen entry keeps its map under `object` (round 482)
 
 The trap, measured over all 6,216 mapgen entries:
