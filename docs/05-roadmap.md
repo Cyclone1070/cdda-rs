@@ -211,7 +211,13 @@ Two lists, both current as of head `ef268dd`.
 
 **Blocked on one build.** The instrumented reference has three dumps written and unrun: the weather prototype dump, and the frame dump for the semantic gate. Both need `ninja`
 and `cmake` on `cyc@elitedesk`, which the server does not have and which was not installed without a decision. The exact command is `pip install --user ninja cmake` on that host;
-after it, `oracle/build` moves there and the dumps are one script. Everything downstream of them - the weather loader, the weather system, the oracle frame - is waiting on
+after it, `oracle/build` moves there and the dumps are one script. Verified at head `dc39818`: `oracle/build/src/cataclysm` exists, was built on 23 October, and
+does **not** answer to `--dump-weather`, so a rebuild is required whichever host does it. The two commands, once approved:
+
+```text
+ssh cyc@elitedesk 'pip install --user ninja cmake'        # then sync and build there
+cd oracle/build && ninja cataclysm                        # or once here, as one managed job
+``` Everything downstream of them - the weather loader, the weather system, the oracle frame - is waiting on
 that single step rather than on any unknown.
 
 **Unblocked, in the order the gap list suggests.** Vertical field movement and multi-level light (`map::cast_zlight`) need the level store to carry more than one z, which is the
