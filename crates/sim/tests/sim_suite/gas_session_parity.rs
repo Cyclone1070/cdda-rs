@@ -310,7 +310,7 @@ fn replay(name: &str) -> (usize, usize, Vec<(usize, String)>) {
             cdda_sim::process_gas_in_wind(
                 &mut world,
                 GAS,
-                Some(key),
+                cdda_sim::Where::Submap(key),
                 takes.gas.percent_spread,
                 cdda_sim::Surroundings {
                     wind_at,

@@ -449,7 +449,7 @@ pub fn process_fires(
     windpower: i32,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) {
-    process_fires_in_submap(world, map, windpower, None, rolls);
+    process_fires_in_submap(world, map, windpower, Where::Anywhere, rolls);
 }
 
 /// Every incendiary field on the squares of one submap, in the sweep's order.
@@ -458,14 +458,14 @@ pub fn process_fires(
 /// rather than from a general dispatch table because the table does not exist yet and a processor nothing calls is a library, not a port.
 pub fn process_incendiaries_in_submap(
     world: &mut World,
-    submap: Option<(i32, i32, i32)>,
+    scope: Where,
     facts: impl Fn(i32, i32, i32) -> TerrainFacts,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) {
     let mut order: Vec<(i32, i32, i32, Entity)> = Vec::new();
     let mut query = world.query::<(Entity, &Position, &Field)>();
     for (entity, position, field) in query.iter(world) {
-        if submap.is_some_and(|key| submap_of(position.x, position.y, position.z) != key) {
+        if !scope.holds((position.x, position.y, position.z)) {
             continue;
         }
         if field.id == INCENDIARY {
@@ -486,13 +486,13 @@ pub fn process_fires_in_submap(
     world: &mut World,
     map: &impl FireMap,
     windpower: i32,
-    submap: Option<(i32, i32, i32)>,
+    scope: Where,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) {
     let mut order: Vec<(i32, i32, i32, Entity)> = Vec::new();
     let mut query = world.query::<(Entity, &Position, &Field)>();
     for (entity, position, field) in query.iter(world) {
-        if submap.is_some_and(|key| submap_of(position.x, position.y, position.z) != key) {
+        if !scope.holds((position.x, position.y, position.z)) {
             continue;
         }
         if field.id == FIRE {
@@ -720,7 +720,7 @@ pub fn process_gas(
     can_take: impl Fn((i32, i32, i32), (i32, i32, i32)) -> bool + Copy,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) {
-    process_gas_in_submap(world, id, None, percent_spread, windpower, can_take, rolls);
+    process_gas_in_submap(world, id, Where::Anywhere, percent_spread, windpower, can_take, rolls);
 }
 
 /// One gas, on the squares of one submap, for a caller walking the reference's sweep submap by submap.
@@ -762,7 +762,7 @@ pub struct Surroundings<W, T> {
 pub fn process_gas_in_wind(
     world: &mut World,
     id: FieldId,
-    submap: Option<(i32, i32, i32)>,
+    scope: Where,
     percent_spread: i32,
     surroundings: Surroundings<impl Fn((i32, i32, i32)) -> Wind + Copy, impl Fn(FieldId) -> i64 + Copy>,
     can_take: impl Fn((i32, i32, i32), (i32, i32, i32)) -> bool + Copy,
@@ -775,7 +775,7 @@ pub fn process_gas_in_wind(
     let mut order: Vec<(i32, i32, i32, Entity)> = Vec::new();
     let mut query = world.query::<(Entity, &Position, &Field)>();
     for (entity, position, field) in query.iter(world) {
-        if submap.is_some_and(|key| submap_of(position.x, position.y, position.z) != key) {
+        if !scope.holds((position.x, position.y, position.z)) {
             continue;
         }
         if field.id == id {
@@ -803,7 +803,7 @@ pub fn process_gas_in_wind(
 pub fn process_gas_in_submap(
     world: &mut World,
     id: FieldId,
-    submap: Option<(i32, i32, i32)>,
+    scope: Where,
     percent_spread: i32,
     windpower: i32,
     can_take: impl Fn((i32, i32, i32), (i32, i32, i32)) -> bool + Copy,
@@ -812,7 +812,7 @@ pub fn process_gas_in_submap(
     let mut order: Vec<(i32, i32, i32, Entity)> = Vec::new();
     let mut query = world.query::<(Entity, &Position, &Field)>();
     for (entity, position, field) in query.iter(world) {
-        if submap.is_some_and(|key| submap_of(position.x, position.y, position.z) != key) {
+        if !scope.holds((position.x, position.y, position.z)) {
             continue;
         }
         if field.id == id {
@@ -947,6 +947,33 @@ fn apply_gas_spread(
     });
     if died {
         world.despawn(entity);
+    }
+}
+
+/// Which squares a sweep step should look at.
+///
+/// The reference's sweep is nested square by square inside a submap and decays a field **as it reaches its square** (`map_field.cpp:164-184` plus the per-square body
+/// of `process_fields_in_submap`), so a newborn is aged this turn only if the sweep has not yet passed the square it was born on. A scope is how the rules keep that
+/// option open: the sweep asks for one square at a time, and older doors ask for a whole submap or for everywhere.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Where {
+    /// Every field of the kind, wherever it stands.
+    Anywhere,
+    /// Only the fields standing on the squares of one submap.
+    Submap((i32, i32, i32)),
+    /// Only the fields on one square.
+    Square((i32, i32, i32)),
+}
+
+impl Where {
+    /// Whether a field standing at this square is in scope.
+    #[must_use]
+    pub fn holds(self, square: (i32, i32, i32)) -> bool {
+        match self {
+            Where::Anywhere => true,
+            Where::Submap(key) => submap_of(square.0, square.1, square.2) == key,
+            Where::Square(only) => square == only,
+        }
     }
 }
 
@@ -2200,11 +2227,11 @@ pub fn run_environment_turn(
     {
         cursor = Some(key);
         // Fires first: everything else this turn reacts to what they left behind.
-        process_fires_in_submap(world, map, windpower, Some(key), rolls);
+        process_fires_in_submap(world, map, windpower, Where::Submap(key), rolls);
         // Then the incendiaries, which can light the fire the next turn burns.
         process_incendiaries_in_submap(
             world,
-            Some(key),
+            Where::Submap(key),
             |x, y, z| {
                 // The three flammable flags, read back from the ground the fire rules already ask about: a `FIRE_CONTAINER` answers `Inert`, which is right - a
                 // brazier holds its fire rather than catching, and the reference's three flags agree with that by all being false on the container itself.
@@ -2225,7 +2252,7 @@ pub fn run_environment_turn(
             (HOT_AIR_3, 10),
             (HOT_AIR_4, 10),
         ] {
-            process_gas_in_submap(world, id, Some(key), percent_spread, windpower, can_take, rolls);
+            process_gas_in_submap(world, id, Where::Submap(key), percent_spread, windpower, can_take, rolls);
         }
         // Everything standing on this submap's squares now, including what this very step of the sweep just made: the reference ages a field when it reaches the
         // square, so a newborn on a square of the submap being processed is aged and one born behind the cursor is not.

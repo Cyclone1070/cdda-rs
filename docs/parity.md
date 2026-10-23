@@ -2986,6 +2986,27 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The sweep's scope, and why the per-square rewrite is not mechanical (round 525)
+
+The remaining gas-parity disagreement is the sweep's **decay order**: the reference decays each field inside its per-square loop, the port batches a submap. The
+obvious change - ask each rule for one square at a time - was written, run, and **reverted**, because it took the fire path with it, and the reason is worth writing down
+before the next attempt.
+
+Scoping the rules is now clean: `Where { Anywhere, Submap, Square }` replaces a bare `Option<(x,y,z)>` at the same arity in all four sweep doors, so the next attempt
+starts from a rule that can be asked about one square without a new signature.
+
+What the experiment showed: with `Where::Square`, a burning room's fire **discharged three times in sixty turns** where the submap-wide pass discharges every turn, and
+the smoke gate - `rng( 0, 100 - windpower ) <= smoke_produced` with `smoke_produced = 2 + windpower / 5` (`map_field.cpp:1417`), about three turns in a hundred in still
+air - went from "sometimes" to "never". Two separate facts fell out of that:
+
+| Fact | Consequence |
+|---|---|
+| `process_fires_in_submap` only discharges for a fire whose entry it re-reads **in the order it collected**; scoping by square changed which fires it saw | the per-square rewrite has to move the fire processor into the square loop, not filter it by square from outside |
+| the 20-turn "fills with smoke" test asserts a **~3% per-turn draw** | it was passing on a lucky seed; it is a coin flip, and the honest version either runs long enough for the rate to matter or seeds a turn that must make smoke |
+
+So the round's delivered change is the scope type, and the finding is that the per-square sweep needs the fire processor rewritten as a per-square function first - a
+change with its own tests, not a filter.
+
 ## The decay clock is data, and the dump did not have it (round 524)
 
 Three instrument gaps fell out of trying to replay one roof fixture, each found by a divergence rather than by reading:
