@@ -123,8 +123,13 @@ impl FieldEntry {
         if self.linear_half_life {
             return now - self.age + self.half_life;
         }
-        // The reference draws with rate `1 / (log2(e) * half_life)` and adds the result,
-        // in turns, to the moment this intensity began.
+        // **The reference's own draw, when a recording is attached.** `initialize_decay` draws its exponential straight from the engine
+        // (`src/field.cpp:86-88`, recorded as `drawn decay.turns`), so a replay that computed its own would decay a field on a different schedule
+        // and leave a corpse where the reference has a living field - or the other way round.
+        if let Some(drawn) = rolls.recorded_engine_draw("decay.turns") {
+            return now - self.age + drawn;
+        }
+        // Otherwise the same rule: rate `1 / (log2(e) * half_life)`, truncated to whole turns because `from_turns` takes whole turns.
         #[allow(clippy::cast_precision_loss)]
         let half_life = self.half_life as f64;
         let drawn = rolls.exponential_roll(1.0 / (std::f64::consts::LOG2_E * half_life));

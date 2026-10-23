@@ -443,12 +443,16 @@ fn dice_per_turn(text: &str, turns: &[Value]) -> Vec<Recording> {
     }
     let mut per_turn: Vec<Vec<String>> = vec![Vec::new()];
     let mut inside = false;
+    // A turn's **decay** draws happen after its processors have finished, so they are outside `.begin`/`.done`: the turn is the span between two
+    // `gas.turn.<n>` marks, and a `drawn` line anywhere in it belongs to it.
+    let mut in_turn = false;
     for line in text.lines() {
         if let Some(label) = line.strip_prefix("mark ") {
             if let Some(number) = label.strip_prefix("gas.turn.") {
                 let index: usize = number.parse().expect("a turn number");
                 per_turn.resize(index + 1, Vec::new());
                 inside = false;
+                in_turn = true;
             } else if let Some(square) = label.strip_prefix("gas.begin.") {
                 inside = watched.is_empty() || watched.contains(square);
             } else if label.contains(".done") {
@@ -456,7 +460,7 @@ fn dice_per_turn(text: &str, turns: &[Value]) -> Vec<Recording> {
             }
             continue;
         }
-        if inside {
+        if inside || (in_turn && line.starts_with("drawn ")) {
             per_turn.last_mut().expect("a turn").push(line.to_string());
         }
     }
@@ -488,6 +492,8 @@ fn processor_dice(text: &str) -> Recording {
             lines.push(line.to_string());
         }
     }
+    // **`drawn` lines come along.** They are not dice, but a turn's decay draws its own and a slice without them hands the port a turn whose
+    // exponential it has to invent - which is how a risen field stayed alive in a replay that the reference had already buried.
     Recording::parse(&lines.join("\n")).expect("the processors' dice parse")
 }
 

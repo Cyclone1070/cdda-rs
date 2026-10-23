@@ -383,7 +383,7 @@ fn a_gas_on_a_stairwell_falls_the_way_the_recording_says() {
 }
 
 #[test]
-#[ignore = "red on what happens to a risen field, not on the wind: \n the sweep is now per square and the ages of the fields it keeps agree, but the reference loses the field \n that rose to z 2 between turns two and three while the port keeps it - measured from corpus/fields/gas-wind.json, \n where state three is [(70,71,1) age 1, (71,71,1) age 2] and state four has no z 2 field at all. \n The reference's decay compares decay_time against a calendar this harness never advances, so the death comes from a rule \n the port does not have; next: find which one"]
+#[ignore = "red on the decay draw's bookkeeping, not on the wind: \n both spreads the recording shows are replayed correctly - the rise into z 2 and the turn-two move into the wind, \n the three real draws in the right order. What is left is decay: the reference draws eleven decay exponentials in twenty-four \n turns and the port reaches five fields, so states three and four show ages one turn too old on the newborn and on the risen field. \n The draw is recorded (`drawn decay.turns`) and the replay consumes it; the counts disagree, so the next step is to find which fields \n the reference decays that the sweep never reaches"]
 fn a_gas_on_a_roof_spreads_into_the_wind_the_recording_says() {
     // The **wind-blocker** branch, end to end: the gas stands at z 1 under a wind of eighteen with no shelter, so the three squares facing the wind each cost a real
     // draw, and the session cannot be replayed without the branch - the recorded reals have nowhere to go and every later draw is one position out.

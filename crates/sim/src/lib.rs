@@ -2226,26 +2226,15 @@ pub fn run_environment_turn(
         .find(|key| cursor.is_none_or(|cursor| *key > cursor))
     {
         cursor = Some(key);
-        // **Square by square, as the reference does it.** `process_fields_in_submap` walks the submap's squares in `(x, y)` order and, for each one, runs the fire
-        // processor, then the gases standing on it, then decays every field there. The nesting is the rule, not an implementation detail: a field born on a square the
-        // sweep has already passed waits a turn to age, so a gas that spreads **forward** in the scan order is aged the same turn and one that spreads **backward** is
-        // not. The squares are collected first, so the sweep visits what stands there when it arrives.
-        let squares: Vec<(i32, i32, i32)> = {
-            let mut query = world.query::<(Entity, &Position)>();
-            let mut squares: Vec<(i32, i32, i32)> = query
-                .iter(world)
-                .filter(|(entity, position)| {
-                    submap_of(position.x, position.y, position.z) == key
-                        && world.get::<Field>(*entity).is_some()
-                })
-                .map(|(_, position)| (position.x, position.y, position.z))
-                .collect();
-            squares.sort_unstable();
-            squares.dedup();
-            squares
-        };
-        for square in squares {
-            let here = Where::Square(square);
+        // **Square by square, as the reference does it.** `process_fields_in_submap` walks every square of the submap in `(x, y)` order and, for each
+        // one, runs the fire processor, then the gases standing on it, then decays every field there - reading the square **live**, so a field that
+        // spread into a later square is aged by the same sweep and one that spread into an earlier square waits for the next turn. A list of the
+        // squares that held fields when the sweep began cannot express that: it misses everything born ahead of the cursor, which is exactly the
+        // fields a spreading gas makes.
+        for sx in 0..12 {
+            for sy in 0..12 {
+                let square = (key.1 * 12 + sx, key.2 * 12 + sy, key.0);
+                let here = Where::Square(square);
             // Fires first: everything else this turn reacts to what they left behind.
             process_fires_in_submap(world, map, windpower, here, rolls);
         // Then the incendiaries, which can light the fire the next turn burns.
@@ -2287,7 +2276,8 @@ pub fn run_environment_turn(
                     .map(|(entity, position)| (entity, position.x, position.y))
                     .collect()
             };
-            decay_the_fields_the_sweep_found(world, &found, 0, rolls, |_field| None, |_turn, _square, _rolls| {});
+                decay_the_fields_the_sweep_found(world, &found, 0, rolls, |_field| None, |_turn, _square, _rolls| {});
+            }
         }
     }
     // The light map is rebuilt for the world this turn made, the way the draw path rebuilds it after the turn's work (`map::build_map_cache`). Clearing first is part of the

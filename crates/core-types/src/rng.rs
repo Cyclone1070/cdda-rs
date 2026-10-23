@@ -349,6 +349,9 @@ pub struct Recording {
     pub draws: Vec<Draw>,
     /// How far into the recording the replay has got.
     pub position: usize,
+    /// The values the reference drew **outside** `rng()` - `field_entry::initialize_decay`'s exponential comes straight from the engine
+    /// (`src/field.cpp:86-88`) - in order, labelled so a replay can ask for the one it needs.
+    pub engine_draws: Vec<(String, i64)>,
 }
 
 /// One recorded die.
@@ -385,6 +388,7 @@ impl Recording {
     /// Returns the offending line when the file holds something that is not a draw.
     pub fn parse(text: &str) -> Result<Self, String> {
         let mut draws = Vec::new();
+        let mut engine_draws: Vec<(String, i64)> = Vec::new();
         for line in text.lines().filter(|line| !line.trim().is_empty()) {
             let fields: Vec<&str> = line.split_whitespace().collect();
             match fields.first().copied() {
@@ -424,10 +428,27 @@ impl Recording {
                         drawn: number(3)?,
                     });
                 }
+                // A value the reference drew outside `rng()`: kept apart from the dice, because it is not one - it is a draw from the engine's
+                // raw bits (`field.cpp:86-88`) and a replay that spent it as an `int` would shift every die after it.
+                Some("drawn") => {
+                    let label = fields
+                        .get(1)
+                        .ok_or_else(|| format!("a drawn line without a label: {line}"))?;
+                    let value = fields
+                        .get(2)
+                        .ok_or_else(|| format!("a drawn line without a value: {line}"))?
+                        .parse()
+                        .map_err(|_| format!("a drawn value that is not a number: {line}"))?;
+                    engine_draws.push(((*label).to_owned(), value));
+                }
                 other => return Err(format!("unknown draw kind {other:?} on line {line}")),
             }
         }
-        Ok(Self { draws, position: 0 })
+        Ok(Self {
+            draws,
+            position: 0,
+            engine_draws,
+        })
     }
 
     /// How many draws are left unplayed.
@@ -593,6 +614,24 @@ impl Rolls {
     /// Reference: `exponential_distribution::operator()` in
     /// `__random/exponential_distribution.h`, which is `-log(1 - u) / lambda`
     /// over one canonical real.
+    /// The next value the reference drew outside `rng()` under this label, if a recording is attached.
+    ///
+    /// The reference's decay draws its exponential from the engine itself (`field.cpp:86-88`), so that value never appears as a die in the
+    /// trace. Replaying it is the difference between a port that decays a field on the reference's schedule and one that guesses.
+    pub fn recorded_engine_draw(&mut self, label: &str) -> Option<i64> {
+        let recording = self.recording.as_mut()?;
+        let at = recording
+            .engine_draws
+            .iter()
+            .position(|(name, _)| name == label)?;
+        let (_, value) = recording.engine_draws.remove(at);
+        Some(value)
+    }
+
+    /// An exponential draw with rate `lambda` from the engine's raw bits.
+    ///
+    /// Reference: `std::exponential_distribution` on `rng_get_engine()` (`src/field.cpp:86-88`). It bypasses `rng()`, so it is **not** a die in the
+    /// trace: a replay spends the recorded value instead (see [`Rolls::recorded_engine_draw`]).
     pub fn exponential_roll(&mut self, lambda: f64) -> f64 {
         let drawn = self.engine.generate_canonical();
         -(1.0 - drawn).ln() / lambda

@@ -2986,6 +2986,27 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## Three instruments the roof fixture needed (round 527)
+
+Chasing the risen field taught more about what the oracle could not see than about the port:
+
+| Instrument | What it settled |
+|---|---|
+a **destination** line in the gas trace (`went to x,y,z (rise / into the wind)`) | which square the dice actually chose, instead of inferring it from a state dumped after the whole sweep |
+a **turn label** on stderr (`== gas.turn.<n>`) | I had been attributing trace lines to the wrong turn and reading a rise as a lateral move |
+`drawn decay.turns <n>` in the dice trace, plus an `alive` flag per dumped field | the reference's decay draws its exponential **straight from the engine** (`field.cpp:86-88`), so it never appeared as a dice line, and a dead entry stays in the dump reading like a live one |
+
+The `alive` flag alone resolved the mystery that started this: the field that rose to z 2 had **died** on its first decay - `initialize_decay` truncates the exponential
+to whole turns, so a draw under one turn puts `decay_time` in the past and the field loses its level at once - and the dump had been showing its corpse as
+`intensity 1, age 0`.
+
+With the destination trace the two spreads in the recording are now known exactly: turn one a **rise** into z 2, turn two a lateral move **into the wind** to
+`(70, 71, 1)` - the blocker branch choosing a blocked square, which is what the three recorded reals are for. The port replays both correctly, dice and squares.
+
+**What is left** is decay bookkeeping, and it is named in the ignored gate: the reference draws eleven decay exponentials over twenty-four turns and the port reaches
+five fields, so the newborn and the risen field keep an age one turn too old. The draws are parsed and consumed; the counts disagree, so the next step is to find which
+fields the reference decays that the sweep never reaches.
+
 ## The sweep is square by square (round 526)
 
 `run_environment_turn` now walks a submap **square by square**: for each `(x, y, z)` it runs the fire processor, then the incendiaries, then the gases standing
