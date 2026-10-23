@@ -179,3 +179,32 @@ fn a_wall_ends_the_cast_and_the_squares_beyond_it_are_not_seen() {
     assert!(grid.at((9, 5)) == 0.0, "nothing behind it");
     assert!(grid.at((11, 5)) == 0.0, "nor further along");
 }
+
+#[test]
+fn a_cast_can_be_built_from_a_table_of_transparencies_the_caller_already_has() {
+    // The sim snapshots its terrain, furniture and field layers before it casts anything, so it has the numbers already. A closure cannot be stored in the view - it borrowed
+    // from a table the view does not own - and passing the table is both cheaper and honest about who owns the rule.
+    use cdda_core_types::light::TRANSPARENCY_OPEN_AIR;
+
+    let mut level = level();
+    for y in 0..12 {
+        for x in 0..12 {
+            level.set_terrain(x, y, OPEN, OPEN);
+        }
+    }
+    let mut transparencies = std::collections::BTreeMap::new();
+    for y in 0..12 {
+        for x in 0..12 {
+            transparencies.insert((x, y), TRANSPARENCY_OPEN_AIR);
+        }
+    }
+    transparencies.insert((8, 5), 0.0);
+
+    let grid = level.seen_grid_of((5, 5), 6, &transparencies);
+    assert!(grid.at((8, 5)) > 0.0, "the opaque square is still seen");
+    assert!(grid.at((9, 5)) == 0.0, "and nothing behind it");
+    assert!(
+        (grid.at((6, 5)) - (-TRANSPARENCY_OPEN_AIR).exp()).abs() < 0.02,
+        "open air one square away attenuates once"
+    );
+}

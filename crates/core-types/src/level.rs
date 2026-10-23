@@ -275,12 +275,37 @@ impl Level {
         radius: i32,
         transparency_of: impl Fn(u32) -> f32,
     ) -> SeenGrid {
-        let rows = self.seen_cast(origin, radius, transparency_of);
-        SeenGrid {
-            origin,
-            radius,
-            rows,
+        // One pass over the cast's square turns codes into numbers; then there is a single cast implementation, which is the one that takes a table.
+        let mut transparency = BTreeMap::new();
+        for offset_y in -radius..=radius {
+            for offset_x in -radius..=radius {
+                let square = (origin.0 + offset_x, origin.1 + offset_y);
+                transparency.insert(
+                    square,
+                    self.terrain_at(square.0, square.1)
+                        .map_or(0.0, &transparency_of),
+                );
+            }
         }
+        self.seen_grid_of(origin, radius, &transparency)
+    }
+
+    /// The sight cast, from a table of per-square transparencies the caller has already worked out.
+    ///
+    /// The sim knows each square's number before it casts - terrain, furniture, outside cache and fields, all multiplied - so handing the table over keeps the rule where it
+    /// belongs (the caller owns what a square is like) and the cast where it belongs (the level). A square the table does not mention is opaque, as an unbuilt square is.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the radius is negative, as [`Level::visibility`] does.
+    #[must_use]
+    pub fn seen_grid_of(
+        &mut self,
+        origin: (i32, i32),
+        radius: i32,
+        transparency: &BTreeMap<(i32, i32), f32>,
+    ) -> SeenGrid {
+        self.seen_cast(origin, radius, transparency)
     }
 
     /// How many sight casts the level has built.
@@ -330,15 +355,19 @@ impl Level {
     /// Panics if the radius is negative.
     #[must_use]
     #[allow(clippy::indexing_slicing)]
-    pub fn seen_cast(
+    fn seen_cast(
         &mut self,
         origin: (i32, i32),
         radius: i32,
-        transparency_of: impl Fn(u32) -> f32,
-    ) -> Vec<Vec<f32>> {
+        transparency: &BTreeMap<(i32, i32), f32>,
+    ) -> SeenGrid {
         assert!(radius >= 0, "a negative view distance is a caller bug");
         let Ok(side) = usize::try_from(radius * 2 + 1) else {
-            return Vec::new();
+            return SeenGrid {
+                origin,
+                radius: 0,
+                rows: Vec::new(),
+            };
         };
         let mut cells = vec![0.0_f32; side * side];
         for grid_y in 0..side {
@@ -349,9 +378,8 @@ impl Level {
                 let Ok(offset_y) = i32::try_from(grid_y) else {
                     continue;
                 };
-                let world_x = origin.0 + offset_x - radius;
-                let world_y = origin.1 + offset_y - radius;
-                cells[grid_x * side + grid_y] = self.terrain_at(world_x, world_y).map_or(0.0, &transparency_of);
+                let square = (origin.0 + offset_x - radius, origin.1 + offset_y - radius);
+                cells[grid_x * side + grid_y] = transparency.get(&square).copied().unwrap_or(0.0);
             }
         }
         let grid = crate::shadowcasting::TransparencyGrid::new(side, cells);
@@ -364,7 +392,11 @@ impl Level {
                 rows[grid_y][grid_x] = values[grid_x * side + grid_y];
             }
         }
-        rows
+        SeenGrid {
+            origin,
+            radius,
+            rows,
+        }
     }
 
     /// Records a buffered light source, without casting it.

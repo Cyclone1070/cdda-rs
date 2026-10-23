@@ -406,6 +406,23 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The sim casts from the numbers it already has (round 389)
+
+The frame needs one sight cast per view, and the sim has every square's transparency before it casts anything: terrain, furniture, the outside cache and the fields, all
+multiplied the way `calc_transp` multiplies them. It could not hand that over, because the view stored a `fn` pointer and a table has no `fn` pointer.
+
+| Entry point | Takes | Use |
+|---|---|---|
+`seen_grid_of` | the per-square transparency table | the sim, which owns the numbers |
+`seen_grid` | a code-to-number closure | a test or a tool with nothing to look up |
+`seen_cast` | the table | the one implementation both go through |
+
+**One cast implementation, and it takes a table.** The closure entry point walks the cast's square once to turn codes into numbers and then delegates, so there is a single place
+where attenuation happens - the shape that stops two casts from drifting, which is the bug this file has already paid for twice.
+
+**A space is a glyph, and the test had to learn it.** The glyph test first asserted that no terrain reads blank; the loader answered 36, and all 36 were right - open air, ledges
+and the inside of a wall are drawn as nothing. The count is pinned now instead, because a loader that dropped the field would read 1,109 blanks and the number would say so.
+
 ## Every square knows its glyph (round 388)
 
 The frame the port will draw needs three things per square: what is there, how brightly it is lit, and how clearly it is seen. Two of the three existed. The glyph did not - the

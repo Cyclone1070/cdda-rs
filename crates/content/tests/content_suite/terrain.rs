@@ -116,16 +116,13 @@ fn every_terrain_carries_the_symbol_it_is_drawn_with() {
     // read by the same code from the same file.
     let prototypes = dump();
     assert_eq!(prototypes.len(), 1109);
-    let missing: Vec<&str> = prototypes
+    // **A space is a glyph.** Thirty-six terrains of this corpus are drawn as blank space - open air, ledges, the inside of a wall - so "the loader kept the symbol" cannot be
+    // tested by looking for spaces. The count is pinned instead: a loader that dropped the field would read every square as blank and the number would be 1,109.
+    let blank = prototypes
         .iter()
         .filter(|terrain| terrain.symbol == ' ')
-        .map(|terrain| terrain.id.as_str())
-        .collect();
-    assert!(
-        missing.is_empty(),
-        "terrains with no symbol: {}",
-        missing.len()
-    );
+        .count();
+    assert_eq!(blank, 36, "terrains drawn as a space");
     let wall = terrain::find(&prototypes, "t_wall").expect("a wall");
     assert_eq!(wall.symbol, '#');
     let floor = terrain::find(&prototypes, "t_floor").expect("a floor");
