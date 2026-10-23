@@ -490,7 +490,10 @@ fn a_chunk_s_symbols_gather_through_its_palettes_and_theirs() {
     gather_palettes(&root, &mut palettes);
 
     let names: Vec<String> = palettes.keys().cloned().collect();
-    let gathered = cdda_content::mapgen::palette_symbols(&names, &|name| palettes.get(name).cloned());
+    let gathered = cdda_content::mapgen::palette_symbols(
+        &cdda_content::mapgen::palette_refs(&names),
+        &|name| palettes.get(name).cloned(),
+    );
     assert!(gathered.len() > 50, "the palettes together draw with {} symbols", gathered.len());
     // Every id the gathering produces has to be a terrain the game knows.
     let known = terrain_ids();
@@ -565,7 +568,7 @@ fn draw_all(path: &Path, palettes: &std::collections::BTreeMap<String, cdda_json
                 let drawn = cdda_content::mapgen::draw_chunk(
                     &rows,
                     terrain,
-                    &names,
+                    &cdda_content::mapgen::palette_refs(&names),
                     &|name| palettes.get(name).cloned(),
                     fill.as_deref(),
                 )

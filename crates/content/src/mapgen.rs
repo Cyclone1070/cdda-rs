@@ -388,9 +388,53 @@ fn read_terrain_map(terrain: &Object, into: &mut std::collections::BTreeMap<char
                     }
                 }
             }
+            // **A parameter with a fallback**: `{"param": "exterior_wall_type", "fallback": "t_brick_wall"}`. The format says what to
+            // draw when nobody supplies the parameter - the fallback - so a reader with no parameter source still draws the chunk the
+            // game draws by default. The shelter's walls are this shape, and their concrete variant comes from the overmap special that
+            // placed the shelter, not from the mapgen.
+            Value::Object(spec) => {
+                if let Some(Value::Str(fallback)) = spec.get("fallback") {
+                    into.insert(symbol, fallback.clone());
+                }
+            }
             _ => {}
         }
     }
+}
+
+/// One entry of a chunk's `palettes` list, in the shape the data writes it.
+///
+/// The data uses three: a plain name, a weighted `distribution` the game rolls between, and a `param` whose value the overmap special supplies. The port keeps them apart instead of
+/// flattening the list to strings, because two of the three cannot be resolved without a decision the caller owns.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PaletteRef {
+    /// `"shelter"`.
+    Named(String),
+    /// `{"distribution": [["cabin_palette", 1], ["cabin_palette_abandoned", 1]]}` - the game rolls.
+    Distribution(Vec<(String, i32)>),
+    /// `{"param": "food_type"}` - the overmap special decides.
+    Param(String),
+}
+
+impl PaletteRef {
+    /// The name to gather, or `None` when the choice belongs to a roll or to a parameter the port does not have yet.
+    ///
+    /// A distribution takes its first candidate, which is the same bargain the furniture picker strikes: the data's weights stay in the
+    /// structure for when the caller can supply a roll, and the first candidate is what a reader with no dice can draw.
+    #[must_use]
+    pub fn resolved(&self) -> Option<&str> {
+        match self {
+            PaletteRef::Named(name) => Some(name),
+            PaletteRef::Distribution(candidates) => candidates.first().map(|(name, _)| name.as_str()),
+            PaletteRef::Param(_) => None,
+        }
+    }
+}
+
+/// Reads a chunk's `palettes` list into references that remember which shape they came in.
+#[must_use]
+pub fn palette_refs(names: &[String]) -> Vec<PaletteRef> {
+    names.iter().map(|name| PaletteRef::Named(name.clone())).collect()
 }
 
 /// The symbols a chunk can draw with, gathered through its palettes and their palettes.
@@ -400,17 +444,18 @@ fn read_terrain_map(terrain: &Object, into: &mut std::collections::BTreeMap<char
 /// costs an afternoon, and the guard is three lines.
 #[must_use]
 pub fn palette_symbols(
-    names: &[String],
+    refs: &[PaletteRef],
     lookup: &dyn Fn(&str) -> Option<Object>,
 ) -> std::collections::BTreeMap<char, String> {
     fn gather(
-        names: &[String],
+        refs: &[PaletteRef],
         lookup: &dyn Fn(&str) -> Option<Object>,
         visited: &mut std::collections::BTreeSet<String>,
         into: &mut std::collections::BTreeMap<char, String>,
     ) {
-        for name in names.iter().rev() {
-            if !visited.insert(name.clone()) {
+        for reference in refs.iter().rev() {
+            let Some(name) = reference.resolved() else { continue };
+            if !visited.insert(name.to_string()) {
                 continue;
             }
             let Some(palette) = lookup(name) else { continue };
@@ -419,23 +464,44 @@ pub fn palette_symbols(
                 read_terrain_map(terrain, into);
             }
             if let Some(Value::Array(more)) = palette.get("palettes") {
-                let more: Vec<String> = more
-                    .iter()
-                    .filter_map(|item| match item {
-                        Value::Str(name) => Some(name.clone()),
-                        _ => None,
-                    })
-                    .collect();
+                let more: Vec<PaletteRef> = more.iter().filter_map(read_palette_ref).collect();
                 gather(&more, lookup, visited, into);
             }
         }
     }
 
-
     let mut into = std::collections::BTreeMap::new();
     let mut visited = std::collections::BTreeSet::new();
-    gather(names, lookup, &mut visited, &mut into);
+    gather(refs, lookup, &mut visited, &mut into);
     into
+}
+
+/// Reads one entry of a `palettes` list, in any of the three shapes the data uses.
+#[must_use]
+pub fn read_palette_ref(value: &Value) -> Option<PaletteRef> {
+    match value {
+        Value::Str(name) => Some(PaletteRef::Named(name.clone())),
+        Value::Object(spec) => {
+            if let Some(Value::Str(param)) = spec.get("param") {
+                return Some(PaletteRef::Param(param.clone()));
+            }
+            let Some(Value::Array(list)) = spec.get("distribution") else { return None };
+            let candidates: Vec<(String, i32)> = list
+                .iter()
+                .filter_map(|candidate| {
+                    let Value::Array(pair) = candidate else { return None };
+                    let (Some(Value::Str(name)), weight) = (pair.first(), pair.get(1)) else { return None };
+                    let weight = match weight {
+                        Some(Value::Int(weight)) => i32::try_from(*weight).ok()?,
+                        _ => 1,
+                    };
+                    Some((name.clone(), weight))
+                })
+                .collect();
+            (!candidates.is_empty()).then_some(PaletteRef::Distribution(candidates))
+        }
+        _ => None,
+    }
 }
 
 /// Draws one chunk: its rows become terrain ids through its palettes and its own terrain map.
@@ -449,7 +515,7 @@ pub fn palette_symbols(
 pub fn draw_chunk(
     rows: &[String],
     terrain: Option<&Object>,
-    palettes: &[String],
+    palettes: &[PaletteRef],
     lookup: &dyn Fn(&str) -> Option<Object>,
     fill: Option<&str>,
 ) -> Result<Vec<Vec<Option<String>>>, String> {

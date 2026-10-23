@@ -258,11 +258,10 @@ holds. With that, the reference's answer to "what does this chunk look like" is 
 The mapgen family's gate is live and unforgiving: `--dump-mapgen <key> <file>` runs one mapgen in isolation in the reference and writes a chunk, and two chunks whose terrain is entirely
 inline now match the reference on every square the port draws. The next two mechanisms are the ones the shelter still fails on, in this order:
 
-1. **Palette parameters.** A palette's terrain value may be `{"param": "exterior_wall_type", "fallback": "t_brick_wall"}`, and a palette reference may carry
-   `{"name": ..., "parameters": {...}}`. 304 references in the data are objects with parameters. This is a reader change in `palette_symbols`, plus threading a parameter map through
-   the recursion.
-2. **The wall-connection pass.** After the draw, the reference replaces a wall's terrain with a directional variant (`t_concrete_wall_w`) when it has a neighbour. That is a
-   post-draw pass over the chunk, not part of the draw.
+1. **The wall-connection pass.** After the draw, the reference replaces a wall's terrain with a directional variant (`t_concrete_wall_w`) when it has a neighbour. That is a
+   post-draw pass over the chunk, not part of the draw, and it is the last reason the shelter's gate is not exact. It needs each terrain's `connects_to` group from the data.
+2. **A parameter source.** The three shapes of a palette reference are read, and a parameter's `fallback` is drawn, but nothing supplies a parameter yet: the overmap special does.
+   That arrives with the overmap-special loader.
 3. Then the furniture layer into `frame`, and the remaining post-draw placements measured in round 496: 1,257 furniture tables, 961 item tables, 1,401 `place_nested`, 2,442 `fill_ter`.
 
 ## 4. Phase detail

@@ -2986,6 +2986,20 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The three shapes of a palette reference (round 502)
+
+A chunk's `palettes` list holds three different things, and the port now keeps them apart instead of flattening the list to strings.
+
+| Shape | Count in the data | What the port does |
+|---|---|---|
+`"shelter"` | most | gathers its terrain symbols |
+`{"distribution": [["cabin_palette", 3], ["cabin_palette_abandoned", 1]]}` | 32 | takes the first candidate; the weights stay in the structure for a caller with dice |
+`{"param": "food_type"}` | 272 | resolves to nothing, because the overmap special owns the choice |
+
+A palette's terrain value can also be **a parameter with a fallback** - `{"param": "exterior_wall_type", "fallback": "t_brick_wall"}` - and the fallback is what the format says to draw when
+nobody supplies the parameter. That is why the shelter still disagrees with the reference on its `#` squares: the reference was handed `t_concrete_wall` by the overmap special that placed
+the shelter, and the port, having no parameter source, draws the fallback.
+
 ## One direction, three masks (round 502)
 
 A mapgen's `terrain` is written **symbol first** - `".": "t_floor"` - and the port read it id-first for many rounds. Every symptom wore a different mask:

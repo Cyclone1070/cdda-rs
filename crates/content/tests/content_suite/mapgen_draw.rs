@@ -128,7 +128,7 @@ fn the_port_draws_the_shelter_the_way_the_reference_draws_it() {
     let drawn = cdda_content::mapgen::draw_chunk(
         &rows,
         terrain,
-        &names,
+        &cdda_content::mapgen::palette_refs(&names),
         &|name| palettes.get(name).cloned(),
         fill.as_deref(),
     )
@@ -239,7 +239,7 @@ fn the_port_draws_a_fully_inline_chunk_square_for_square() {
         let drawn = cdda_content::mapgen::draw_chunk(
             &rows,
             terrain,
-            &names,
+            &cdda_content::mapgen::palette_refs(&names),
             &|name| palettes.get(name).cloned(),
             fill.as_deref(),
         )
@@ -299,4 +299,45 @@ fn a_terrain_map_is_written_symbol_first() {
         vec![vec![Some("t_floor".to_string()), Some("t_floor".to_string()), Some("t_concrete_wall".to_string())]],
         "a symbol draws the id it names, and a list's first id is the one a draw takes"
     );
+}
+
+#[test]
+fn a_parameter_with_a_fallback_draws_the_fallback() {
+    // Reference: `mapgen_palettes/common_parameters.json`, where the exterior wall is
+    // `"#": {"param": "exterior_wall_type", "fallback": "t_brick_wall"}`. The format names the fallback so a chunk can be drawn with no
+    // parameters at all, and that is what a reader without a parameter source draws. The shelter's concrete walls come from the overmap
+    // special that places it, not from this mapgen.
+    let text = br##"[{"terrain": {"#": {"param": "exterior_wall_type", "fallback": "t_brick_wall"}}}]"##;
+    let Value::Array(entries) = parse(text).expect("valid JSON") else { panic!("root") };
+    let Value::Object(entry) = entries.first().expect("one entry") else { panic!("object") };
+    let Some(Value::Object(terrain)) = entry.get("terrain") else { panic!("terrain") };
+    let drawn = cdda_content::mapgen::resolve_rows(&["#".to_string()], terrain).expect("resolves");
+    assert_eq!(drawn, vec![vec![Some("t_brick_wall".to_string())]]);
+}
+
+#[test]
+fn a_distribution_reference_takes_its_first_candidate() {
+    // Reference: `mapgen/cabin.json`, whose palettes include
+    // `{"distribution": [["cabin_palette", 1], ["cabin_palette_abandoned", 1]]}`. The game rolls between them; a reader with no dice takes
+    // the first and keeps the weights in the structure for the caller that eventually has them.
+    let text = br#"[{"palettes": [{"distribution": [["cabin_palette", 3], ["cabin_palette_abandoned", 1]]}]}]"#;
+    let Value::Array(entries) = parse(text).expect("valid JSON") else { panic!("root") };
+    let Value::Object(entry) = entries.first().expect("one entry") else { panic!("object") };
+    let Some(Value::Array(list)) = entry.get("palettes") else { panic!("palettes") };
+    let reference = list.first().and_then(cdda_content::mapgen::read_palette_ref).expect("a reference");
+    assert_eq!(
+        reference,
+        cdda_content::mapgen::PaletteRef::Distribution(vec![
+            ("cabin_palette".to_string(), 3),
+            ("cabin_palette_abandoned".to_string(), 1),
+        ])
+    );
+    assert_eq!(reference.resolved(), Some("cabin_palette"), "the first candidate is what a reader without dice draws");
+
+    let palette = parse(br#"{"terrain": {".": "t_floor"}}"#).expect("valid JSON");
+    let Value::Object(palette) = palette else { panic!("object") };
+    let symbols = cdda_content::mapgen::palette_symbols(&[reference], &|name| {
+        (name == "cabin_palette").then(|| palette.clone())
+    });
+    assert_eq!(symbols.get(&'.'), Some(&"t_floor".to_string()));
 }
