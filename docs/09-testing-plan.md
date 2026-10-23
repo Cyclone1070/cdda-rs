@@ -343,3 +343,10 @@ changed default, a changed data path - so the three dumps the loaders are gated 
 against is still the reference; a different one is a corpus update that has to be committed and a loader that has to be re-gated, and the two cases look exactly the same from a
 green test run.
 
+
+## Two inventories, not one (round 465)
+
+`docs/13-test-inventory.md` lists the **reference's** test files - 215 of them, with their case counts and tags - and it is the coverage map the port is measured against. The
+port's own counts come from `cargo test --workspace` and are reported per binary (content, json, core-types, sim). Conflating the two is easy and was done once in conversation: a
+number from the C++ inventory is not a number of port tests, and a port test is not evidence about a C++ case unless it names the rule it transcribed.
+
