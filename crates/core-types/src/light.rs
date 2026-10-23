@@ -22,6 +22,8 @@ pub const AMBIENT_LIT: f32 = 10.0;
 pub const MAX_VIEW_DISTANCE: i32 = 72;
 /// Cumulative light lost per map square of open air, `2.3 / MAX_VIEW_DISTANCE`.
 pub const TRANSPARENCY_OPEN_AIR: f32 = 2.3 / 72.0;
+/// A transparency of zero: nothing gets through. Not a small number, but the value that means "a wall".
+pub const TRANSPARENCY_SOLID: f32 = 0.0;
 
 /// What a tile's light means to the rest of the game.
 ///
@@ -429,4 +431,47 @@ pub fn visible_light(
         .zip(lit.iter())
         .map(|(seen, light)| seen * light)
         .fold(f32::NEG_INFINITY, f32::max)
+}
+
+/// How much of a light survives a distance through a given transparency.
+///
+/// Reference: `sight_calc` (`src/shadowcasting.h:98-101`). The Beer-Lambert law, `1 / e^( a*l )`, with the length factored out and `a` the mean transparency along the
+/// way: bright light falling on open air at `MAX_VIEW_DISTANCE` is exactly at the lit threshold, which is not an accident - it is how `TRANSPARENCY_OPEN_AIR` is chosen.
+///
+/// Note what a transparency of **zero** does here: nothing. Blocking is `sight_check`'s job, because a ray never enters an opaque square in the first place.
+#[must_use]
+pub fn sight_calc(numerator: f32, transparency: f32, distance: i32) -> f32 {
+    #[allow(clippy::cast_precision_loss)]
+    let distance = distance as f32;
+    numerator / (transparency * distance).exp()
+}
+
+/// Whether a ray may pass into a square of this transparency.
+///
+/// Reference: `sight_check` (`src/shadowcasting.h:102-105`). Strictly above zero, so a square with no transparency at all stops the ray and a square with any at all
+/// does not - the reference's transparencies are all either zero or `2.3 / 72` upwards.
+#[must_use]
+pub fn sight_check(transparency: f32) -> bool {
+    transparency > TRANSPARENCY_SOLID
+}
+
+/// Folds one more square's transparency into a ray's running average.
+///
+/// Reference: `accumulate_transparency` (`src/shadowcasting.h:112-116`): `(( distance - 1 ) * cumulative + current ) / distance`. At each distance this is the exact
+/// arithmetic mean of everything the ray has passed through so far, which makes the result **independent of the order** the squares are met in - a property the light
+/// cast relies on and a test pins.
+#[must_use]
+pub fn accumulate_transparency(cumulative: f32, current: f32, distance: i32) -> f32 {
+    #[allow(clippy::cast_precision_loss)]
+    let distance = distance as f32;
+    ((distance - 1.0) * cumulative + current) / distance
+}
+
+/// Keeps the brighter of two light values.
+///
+/// Reference: `update_light` (`src/shadowcasting.h:105-108`), which is a maximum written as an `if` for a compiler reason the reference explains; a port can call the
+/// maximum directly.
+#[must_use]
+pub fn update_light(existing: f32, candidate: f32) -> f32 {
+    existing.max(candidate)
 }

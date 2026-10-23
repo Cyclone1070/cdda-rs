@@ -74,6 +74,7 @@ mod scent_update;
 mod seen;
 mod shadowcasting;
 mod sight;
+mod sight_calc;
 mod sound;
 mod sound_clusters;
 mod sound_queue;

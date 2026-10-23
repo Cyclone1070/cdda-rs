@@ -406,6 +406,24 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The whole physics of the light cast is four small functions (round 350)
+
+Everything in `shadowcasting.cpp` is deciding *which squares a ray passes through*; the arithmetic that decides *how much light is left* is four functions in
+`shadowcasting.h:96-116`, and all four are now ported and pinned.
+
+| Function | Rule | What a port gets wrong if it improvises |
+|---|---|---|
+`sight_calc` | `numerator / e^( transparency * distance )` - Beer-Lambert with the length factored out | making it return zero for an opaque square, which is `sight_check`'s job, loses a square of light |
+`sight_check` | `transparency > 0`, strictly | `>= 0` lets a ray into a wall and the cast never converges |
+`accumulate_transparency` | `(( d - 1 ) * cumulative + current ) / d` - the exact running mean | carrying the previous value into the first step, which lights the whole map from the origin's own square |
+`update_light` | a maximum | overwriting instead of taking the brighter value, so a lamp loses to the first dim ray that reaches it |
+
+**`TRANSPARENCY_OPEN_AIR` is `2.3 / 72` for a reason.** `e^-2.3` is about a tenth, and a bright lamp (`10.0`) seen across `MAX_VIEW_DISTANCE` of open air comes out at
+`1.0026` - exactly at the lit threshold. That is not a coincidence to be preserved with a magic constant: it is how the constant was chosen, and the value is now a test.
+
+**And the running mean is order-independent.** At each distance the accumulator is the arithmetic mean of every transparency the ray has met so far, so the same squares
+met in another order give the same light. That is a property of the cast, not an accident of the loop, and a test walks a ray forwards and backwards to prove it.
+
 ## A wall is not lit uniformly, and its neighbours decide (round 349)
 
 The light map stores **four values per square**, one per quadrant, because light does not arrive at a wall from one direction: it arrives from wherever the lamps are.
