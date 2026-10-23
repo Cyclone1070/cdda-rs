@@ -91,6 +91,7 @@ mod mapgen_keys;
 mod terrain;
 mod weather;
 mod weather_conditions;
+mod weather_manager;
 mod weather_order;
 mod traps;
 mod turret_parts;

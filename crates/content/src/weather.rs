@@ -219,3 +219,103 @@ impl Schedule {
         self.next_turn = turn + i64::from(duration);
     }
 }
+
+/// The numbers a weather update produces (`w_point`).
+///
+/// The reference's `w_point` also carries the location and the seed that produced it; the port keeps the four numbers a manager and the dialogue conditions read, and takes the
+/// rest as arguments where they are needed.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct Point {
+    /// The temperature at the surface, in kelvin.
+    pub temperature: f64,
+    /// Relative humidity, as a percentage.
+    pub humidity: f64,
+    /// Pressure, in millibars.
+    pub pressure: f64,
+    /// Wind strength.
+    pub windpower: i32,
+    /// Wind direction in degrees.
+    pub winddirection: i32,
+}
+
+/// What an update did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Change {
+    /// The weather was not due, so nothing happened.
+    None,
+    /// The weather was recomputed.
+    Weather {
+        /// Whether the sight penalty changed, which is the signal to mark every transparency cache dirty (`weather.cpp:938-941`).
+        sight_changed: bool,
+    },
+}
+
+/// What the manager needs to know about the data and the rules, supplied by the caller.
+///
+/// The reference reads the same facts from globals - the weather registry, the option system, the regional settings. Passing them in is what lets the manager be tested against
+/// recorded numbers without a world, and it is the same discipline the dice follow.
+pub trait WeatherRules {
+    /// The weather the current conditions produce.
+    fn decide(&self, point: &Point) -> String;
+    /// The shortest and longest a weather can last, in turns.
+    fn duration_bounds(&self, weather: &str) -> (i32, i32);
+    /// How much light the weather absorbs, which is `1.0` for a clear sky.
+    fn sight_penalty(&self, weather: &str) -> f32;
+}
+
+/// The weather, held between turns (`weather_manager`).
+///
+/// The reference keeps one of these in a global and fills it from options, overrides and the player's position. The port keeps the parts that have behaviour: the id, the point it
+/// was decided from, the turn it is next due, and the lightning flag.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Manager {
+    /// The weather now, or `None` before the first update.
+    pub weather: Option<String>,
+    /// The point the last update produced.
+    pub point: Option<Point>,
+    /// The turn the weather is next due to change.
+    pub next_turn: i64,
+    /// Whether a flash is in progress. Cleared by every update, set by the lightning effect and by nothing else.
+    pub lightning_active: bool,
+}
+
+impl Manager {
+    /// Recomputes the weather if it is due (`weather.cpp:901-947`).
+    ///
+    /// The order is the reference's: the new point replaces the old one, the id is decided, the point's numbers are stored, the lightning is cleared, and **then** the next change is
+    /// rolled from the bounds of the id that was just chosen.
+    ///
+    /// The null id the reference starts with has a sight penalty of zero, so the first update always reports a sight change. That is why the map's caches are clean at the start of
+    /// a game without the weather having done anything.
+    pub fn update(
+        &mut self,
+        turn: i64,
+        point: Point,
+        rules: &dyn WeatherRules,
+        roll: &mut dyn FnMut(i32, i32) -> i32,
+    ) -> Change {
+        let due = self.weather.is_none() || turn >= self.next_turn;
+        if !due {
+            return Change::None;
+        }
+        let previous = self.weather.clone();
+        let chosen = rules.decide(&point);
+        let (low, high) = rules.duration_bounds(&chosen);
+        // The point is stored before the decision is asked for in the reference, but the decision reads the local `w`; storing it here first is what a later reader of
+        // `manager.point` expects either way.
+        self.point = Some(point);
+        self.weather = Some(chosen.clone());
+        self.lightning_active = false;
+        self.next_turn = turn + i64::from(roll(low, high));
+        let changed = previous.as_deref() != Some(chosen.as_str());
+        // Exact comparison on purpose: the reference compares the two penalties with `!=`, so a weather that differs by one part in a million still dirties every cache. A margin
+        // would leave a map drawn under the wrong absorption.
+        #[allow(clippy::float_cmp)]
+        let sight_changed = match &previous {
+            None => true,
+            Some(old) => rules.sight_penalty(old) != rules.sight_penalty(&chosen),
+        };
+        debug_assert!(!sight_changed || changed, "a sight change without a weather change would be a bug in the rules");
+        Change::Weather { sight_changed }
+    }
+}

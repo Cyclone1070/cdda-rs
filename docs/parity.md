@@ -2986,6 +2986,27 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The manager, and the one place weather touches the map (round 510)
+
+`weather_manager::update_weather` (`weather.cpp:901-947`) is ported as a value: the weather id, the point it was decided from, the turn it is next due, and the lightning flag. It
+recomputes only when there is no weather yet or the turn has reached the next due turn, and the order is the reference's - store the point, decide the id, clear the lightning, then
+roll the next change from the bounds of the id that was **just chosen**.
+
+Two details that only a test can pin:
+
+- The reference's null id starts with a sight penalty of zero, so the **first** update always reports a sight change. That is why a map is drawn clean at the start of a game.
+- A new weather with the **same** sight penalty does not dirty the caches. `sunny` and `clear` both absorb 1.0, so the recorded day changes sky at the twelfth hour and flushes the
+  transparency caches exactly **once**, at the start.
+
+The port returns what changed rather than acting on it: `Change::Weather { sight_changed }` is the signal the caller turns into "mark every z-level's transparency cache dirty and the
+seen cache too", which is the reference's `for( i = -OVERMAP_DEPTH; i <= OVERMAP_HEIGHT; i++ )`.
+
+Against the recorded day the manager walks all twenty-four hours, lands on every recorded next turn, and flushes exactly once - with the id taken from the recording, because the
+decision has its own gate.
+
+**Deliberately not ported, because they are not weather:** the reference's update also raises a UI distraction, cancels a wait activity, and reactivates effect-on-conditions. Those
+belong to the systems that own them, and the manager now reports the change that would trigger them.
+
 ## The day, the night, and a weather decision with nothing left out (round 509)
 
 `is_day` (`calendar.cpp:368`) is `sun_altitude >= sunrise_angle`, and the angle is **minus one degree**, not zero: the game lets the day begin while the sun's centre is still below

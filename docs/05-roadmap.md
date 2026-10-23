@@ -255,16 +255,15 @@ holds. With that, the reference's answer to "what does this chunk look like" is 
 
 ### What the next round should pick up
 
-The weather generator is complete: temperature, humidity, pressure, wind power, wind direction, the condition loop and the schedule all reproduce the recorded day, and each was gated
-on its own fixture. What is missing between those pieces and a weather *system* is the condition machine - the dialogue expressions each weather type carries - and the manager that
-puts the pieces in order.
+The weather is a **system** now: the generator's numbers, the condition loop, the sun it needs, and the manager that holds them between turns are all ported and gated, the last
+three against the reference's own recorded day. Two things finish it and one thing starts the next piece of M2.
 
-1. ~~The condition machine~~ - done in round 508: `math_expr` (`+ - * / %`, comparisons, calls), `jmath` (data-defined functions, followed through three levels), and `condition`
-   (`and`/`or`/`not`/named/`math`). The data's own seventeen conditions now run against the recorded day. What is left under it is `is_day`, which needs the sun's altitude.
-2. **The manager**, wiring [`weather_gen`](../crates/sim/src/weather_gen.rs) and [`weather`](../crates/content/src/weather.rs) together in `weather.cpp`'s order - conditions first,
-   then temperature and wind, then the schedule - and clearing the transparency caches when the sight penalty changes (`weather.cpp:938-941`), which is the one place weather reaches
-   into the map. The decision itself is closed (round 509): the data's conditions, the ported sun and the loop reproduce the recorded day hour for hour.
-3. Then the rest of M2: light across z-levels, and vision.
+1. **Join the pieces into one call** - the manager currently takes the point and the decision as parameters. A `weather::turn` function that runs the generator for a turn, feeds
+   its point to [`conditions`](../crates/content/src/weather.rs) and hands both to the manager would be the first thing in the port that is a *tick* rather than a function, and
+   the recorded day gates it end to end.
+2. **The transparency flush, for real** - `sight_changed` is reported but nothing consumes it yet. The map's caches and their dirty flags are M2's next subject, and they are what
+   light will need anyway.
+3. Then light across z-levels, and vision.
 
 ## 4. Phase detail
 
