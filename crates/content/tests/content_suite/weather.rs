@@ -36,7 +36,7 @@ fn the_sight_penalty_is_the_multiplier_the_light_code_applies() {
     assert!(
         types
             .iter()
-            .filter(|weather| weather.id != "none")
+            .filter(|weather| weather.id != "null")
             .all(|weather| weather.sight_penalty >= 1.0),
         "every real weather makes sight worse or equal"
     );

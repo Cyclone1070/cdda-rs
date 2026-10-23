@@ -56,3 +56,44 @@ fn a_loaded_weather_type_becomes_the_penalty_and_an_unwritten_one_is_clear_air()
     );
     let _ = WeatherType::clone(fog);
 }
+
+#[test]
+fn fog_dims_a_lamp_by_the_absorption_it_adds_to_every_square() {
+    // The number the loader brings is used the way `calc_transp` uses it (`lightmap.cpp:150-154`): every square under open sky absorbs `sight_penalty` times more, and the cast
+    // attenuates by `e^( -transparency * distance )`. So five squares out, fog's extra 0.7 of one unit is `exp( -(1.7 - 1.0) * TRANSPARENCY_OPEN_AIR * 5 )` of the clear-weather
+    // light - arithmetic worked out here rather than asked of the port.
+    use bevy_ecs::prelude::*;
+    use cdda_core_types::level::Level;
+    use cdda_core_types::light::TRANSPARENCY_OPEN_AIR;
+    use cdda_sim::weather::Weather;
+    use cdda_sim::{Light, LightSource, Map, Position, cast_lights_with};
+
+    fn lit_in(the_sky: Weather) -> f32 {
+        let mut world = World::new();
+        let mut level = Level::new();
+        level.ensure(0, 0, 1);
+        for y in 0..12 {
+            for x in 0..12 {
+                level.set_terrain(x, y, 1, 1);
+            }
+        }
+        world.insert_resource(Map(level));
+        world.insert_resource(the_sky);
+        world.spawn((
+            Position { x: 5, y: 5, z: 0 },
+            LightSource { luminance: 20.0 },
+        ));
+        cast_lights_with(&mut world);
+        world.resource::<Light>().max_at(10, 5)
+    }
+
+    let clear = lit_in(Weather::clear());
+    let foggy = lit_in(Weather::with_sight_penalty(1.7));
+    let expected = clear * (-(0.7_f32) * TRANSPARENCY_OPEN_AIR * 5.0).exp();
+    assert!(clear > 0.0, "the lamp lights five squares out: {clear}");
+    assert!(foggy < clear, "fog dims it: {foggy} against {clear}");
+    assert!(
+        (foggy - expected).abs() < 0.05 * clear,
+        "and by the attenuation it adds: {foggy} against {expected}"
+    );
+}

@@ -406,6 +406,16 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Fog dims a lamp by the absorption it adds (round 419)
+
+The weather number now reaches the physics, and a test works out the expected light rather than asking the port for it: every square under open sky absorbs `sight_penalty`
+times more (`lightmap.cpp:146-154`), and the cast attenuates by `e^( -transparency * distance )`. Five squares out, fog's extra `0.7` of one unit is
+`exp( -(1.7 - 1.0) * TRANSPARENCY_OPEN_AIR * 5 )` of the clear-weather light, and the measured answer agrees within five percent of the clear value.
+
+**A one-word slip inside a test.** The content-side weather test filtered the "real" types by the wrong id - it excluded `none`, which is not a type, instead of `null`, which is -
+so the zero-penalty type survived its own exclusion and the "every real weather makes sight worse or equal" assertion failed. The lesson is small and worth keeping: an id used
+twice in one test is a place where one of the two will be wrong, and the failure named the assertion rather than the id, which is why it took a second look.
+
 ## The weather resource reads the data (round 418)
 
 The `Weather` resource was handed its penalty by hand; it now takes a loaded type. The one rule worth a line is the zero:
