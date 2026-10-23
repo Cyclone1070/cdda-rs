@@ -406,6 +406,24 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## One cast, many readers (round 384)
+
+Round 383 gave sight its fraction but asked the cast once per square. The reference builds a level's `seen_cache` **once** and every reader asks it, and a frame asks about
+fifteen thousand squares.
+
+| Shape | Reference | Port |
+|---|---|---|
+the cast | `build_seen_cache` fills the cache, rebuilt when the level is dirty | `Level::seen_grid(origin, radius, transparency_of) -> SeenGrid`, one build |
+reading it | `map::seen` | `SeenGrid::at(square)`, outside the cast reads as not seen |
+one square | the same cache, one key | `seen_through`, now a grid of one question |
+the receipt | - | `Level::sight_casts()`, a count the test asserts is **one** for 144 squares |
+
+**The arithmetic test is the one that matters.** A grid that answers a hundred times faster and slightly wrong is worse than the slow one, so the second test works out the
+expected value from the reference's own formula - `exp( -OPEN_AIR * d )` along an open corridor - rather than asking the port. It agrees to within 0.02 over six squares.
+
+**A wall ends the cast and the squares beyond it read zero**, which the third test pins separately, because "attenuates" and "stops" are different claims and a cast that only
+attenuates would dim the room behind a wall instead of hiding it.
+
 ## Sight is a fraction, and that is how smoke glows (round 383)
 
 Round 382 declared the gap: with visibility as a yes or a no, `BrightOnly` was unreachable through the world. It is a fraction now.

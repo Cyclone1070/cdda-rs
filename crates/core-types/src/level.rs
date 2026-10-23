@@ -41,6 +41,8 @@ pub struct Level {
     /// cast. Keyed by tile, so moving the light reuses what it already knows.
     transparency: BTreeMap<(i32, i32), bool>,
     transparency_builds: u32,
+    /// How many sight casts have been built, which is the level's receipt for "one cast, many readers".
+    sight_casts: u32,
 }
 
 impl Level {
@@ -205,7 +207,71 @@ impl Level {
     }
 }
 
+/// One sight cast, ready to be read square by square.
+///
+/// Rows are `y - origin.y + radius`, columns `x - origin.x + radius`; a square outside the cast reads as not seen at all, which is the same answer the reference gives for a
+/// square outside its cache.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SeenGrid {
+    origin: (i32, i32),
+    radius: i32,
+    rows: Vec<Vec<f32>>,
+}
+
+impl SeenGrid {
+    /// How clearly a square is seen, from zero to one.
+    #[must_use]
+    pub fn at(&self, square: (i32, i32)) -> f32 {
+        if square == self.origin {
+            // `seen_cache[origin] = VISIBILITY_FULL` before the cast (`lightmap.cpp:1057-1059`).
+            return 1.0;
+        }
+        let (dx, dy) = (square.0 - self.origin.0, square.1 - self.origin.1);
+        if dx.abs() > self.radius || dy.abs() > self.radius {
+            return 0.0;
+        }
+        let (Ok(row), Ok(column)) = (usize::try_from(dy + self.radius), usize::try_from(dx + self.radius))
+        else {
+            return 0.0;
+        };
+        self.rows
+            .get(row)
+            .and_then(|row| row.get(column))
+            .copied()
+            .unwrap_or(0.0)
+    }
+}
+
 impl Level {
+    /// The sight cast over the square of world around an origin, to be read square by square.
+    ///
+    /// Reference: `map::build_seen_cache` (`src/lightmap.cpp:1039-1100`), which fills a level's `seen_cache` once and lets every reader ask it. A frame asks about every
+    /// square it draws, so this is the shape callers want; [`Level::seen_through`] is the same cast for one square.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the radius is negative, as [`Level::visibility`] does.
+    #[must_use]
+    pub fn seen_grid(
+        &mut self,
+        origin: (i32, i32),
+        radius: i32,
+        transparency_of: impl Fn(u32) -> f32,
+    ) -> SeenGrid {
+        let rows = self.seen_cast(origin, radius, transparency_of);
+        SeenGrid {
+            origin,
+            radius,
+            rows,
+        }
+    }
+
+    /// How many sight casts the level has built.
+    #[must_use]
+    pub fn sight_casts(&self) -> u32 {
+        self.sight_casts
+    }
+
     /// How clearly a square is seen, from zero (not at all) to one (in plain sight).
     ///
     /// Reference: `map::cast_seen_light` (`src/lightmap.cpp:1039-1100`), which walks the same octants as the light cast with `sight_calc` as its accumulator and a starting
@@ -233,14 +299,7 @@ impl Level {
         if dx.abs() > radius || dy.abs() > radius {
             return 0.0;
         }
-        let rows = self.seen_cast(origin, radius, transparency_of);
-        let (Ok(row), Ok(column)) = (usize::try_from(dy + radius), usize::try_from(dx + radius)) else {
-            return 0.0;
-        };
-        rows.get(row)
-            .and_then(|row| row.get(column))
-            .copied()
-            .unwrap_or(0.0)
+        self.seen_grid(origin, radius, transparency_of).at(square)
     }
 
     /// The sight cast over the square of world around an origin.
@@ -281,6 +340,7 @@ impl Level {
         let grid = crate::shadowcasting::TransparencyGrid::new(side, cells);
         // `VISIBILITY_FULL` as the starting value (`lightmap.cpp:1046`): sight is a cast of light of strength one.
         let values = crate::shadowcasting::cast_light_values(&grid, (radius, radius), radius, 1.0);
+        self.sight_casts = self.sight_casts.saturating_add(1);
         let mut rows = vec![vec![0.0_f32; side]; side];
         for grid_y in 0..side {
             for grid_x in 0..side {
