@@ -353,6 +353,15 @@ impl Level {
         facts: impl Fn(i32, i32) -> crate::transparency::SquareFacts,
         light: &mut BTreeMap<(i32, i32), crate::shadowcasting::FourQuadrants>,
     ) {
+        // The source's own square is lit before any ray is cast: `lm[p] = max( lm[p], max( lit_level::LOW, luminance ) )` (`lightmap.cpp:1229-1233`). Without it a
+        // lamp lights the room and leaves itself dark, which is exactly what the emitter test caught.
+        let own = luminance.max(1.0);
+        let cell = light
+            .entry(origin)
+            .or_insert_with(|| crate::shadowcasting::FourQuadrants::uniform(0.0));
+        if cell.max() < own {
+            *cell = crate::shadowcasting::FourQuadrants::uniform(cell.max().max(own));
+        }
         let radius = crate::light::light_range(luminance);
         if radius <= 0 {
             return;

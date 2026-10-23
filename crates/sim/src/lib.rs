@@ -1019,6 +1019,68 @@ pub fn bounds_of_public(level: &cdda_core_types::level::Level) -> usize {
     bounds_of(level)
 }
 
+/// Every light the world holds: what a caller placed, and what the terrain, the furniture and the fields emit themselves.
+///
+/// Reference: `map::generate_lightmap`'s gathering loop (`lightmap.cpp:525-547`), which walks every square and adds a source for each terrain, furniture and field whose own
+/// data says it emits one, on top of the items and creatures it also reads. The port has no items or creatures yet; the three that come from the loaded prototypes do.
+fn light_sources(world: &mut World) -> Vec<(i32, i32, f32)> {
+    let mut sources: Vec<(i32, i32, f32)> = Vec::new();
+    let mut source_query = world.query::<(&Position, &LightSource)>();
+    for (position, source) in source_query.iter(world) {
+        sources.push((position.x, position.y, source.luminance));
+    }
+    // The world's own emitters, gathered the way `map::generate_lightmap` gathers them (`lightmap.cpp:525-547`): a burning square is a light, a lamp terrain is a light,
+    // and the number is each one's own data rather than something a caller placed.
+    let mut emitters: BTreeMap<(i32, i32), f32> = BTreeMap::new();
+    if let Some(map) = world.get_resource::<Map>() {
+        let side = bounds_of(&map.0);
+        for y in 0..side {
+            for x in 0..side {
+                let code = map.0.terrain_at(as_i32(x), as_i32(y)).unwrap_or(0);
+                let furniture_code = map.0.furniture_at(as_i32(x), as_i32(y)).unwrap_or(0);
+                let emitted = world
+                    .get_resource::<Prototypes>()
+                    .map_or(0.0, |prototypes| {
+                        prototypes
+                            .terrain
+                            .light(code)
+                            .max(prototypes.furniture.light(furniture_code))
+                    });
+                if emitted > 0.0 {
+                    emitters.insert((as_i32(x), as_i32(y)), emitted);
+                }
+            }
+        }
+    }
+    // The table is cloned out first: a `query` borrows the world mutably, and the table is immutable, so holding both at once is the borrow checker's business rather
+    // than something to work around with an index.
+    let table = world
+        .get_resource::<field_table::FieldTable>()
+        .cloned()
+        .unwrap_or_default();
+    let mut field_query = world.query::<(&Position, &Field)>();
+    for (position, field) in field_query.iter(world) {
+        let emitted = table.light(field.id.0, field.entry.intensity());
+        if emitted > 0.0 {
+            let entry = emitters.entry((position.x, position.y)).or_insert(0.0);
+            *entry = entry.max(emitted);
+        }
+    }
+    for (square, luminance) in emitters {
+        // A square that already carries a placed source takes the brighter of the two, which is how `add_light_source` merges them.
+        if let Some(existing) = sources
+            .iter_mut()
+            .find(|(x, y, _)| *x == square.0 && *y == square.1)
+        {
+            existing.2 = existing.2.max(luminance);
+        } else {
+            sources.push((square.0, square.1, luminance));
+        }
+    }
+
+    sources
+}
+
 /// The side of the square of world the level covers, in tiles.
 fn bounds_of(level: &cdda_core_types::level::Level) -> usize {
     // The level is built of submaps of a fixed side, so the extent is a multiple of it; zero when there is nothing at all.
@@ -1069,17 +1131,12 @@ fn cast_lights_inner(
             });
     }
 
-    let mut sources: Vec<(i32, i32, f32)> = Vec::new();
-    let mut source_query = world.query::<(&Position, &LightSource)>();
-    for (position, source) in source_query.iter(world) {
-        sources.push((position.x, position.y, source.luminance));
-    }
+    let sources = light_sources(world);
 
-    let mut light = BTreeMap::new();
-    if let Some(mut map) = world.get_resource_mut::<Map>() {
-        // The transparency rule is asked about squares while the level is borrowed mutably, so its terrain is snapshotted first - the same
-        // shape the callers of `Level::add_light_source_with` in the core-types tests use.
-        let mut terrains: BTreeMap<(i32, i32), u32> = BTreeMap::new();
+    let mut terrains: BTreeMap<(i32, i32), u32> = BTreeMap::new();
+    // The furniture layer is read while the level is borrowed mutably below, so both layers are snapshotted first: 0 means no furniture, which is transparent anyway.
+    let mut furniture: BTreeMap<(i32, i32), u32> = BTreeMap::new();
+    if let Some(map) = world.get_resource::<Map>() {
         for (x, y, _) in &sources {
             for dy in -12..=12 {
                 for dx in -12..=12 {
@@ -1090,8 +1147,6 @@ fn cast_lights_inner(
                 }
             }
         }
-        // The furniture layer is read while the level is borrowed mutably, so it is snapshotted beside the terrain: 0 means no furniture, which is transparent anyway.
-        let mut furniture: BTreeMap<(i32, i32), u32> = BTreeMap::new();
         for (x, y, _) in &sources {
             for dy in -12..=12 {
                 for dx in -12..=12 {
@@ -1102,6 +1157,10 @@ fn cast_lights_inner(
                 }
             }
         }
+    }
+    let mut light: BTreeMap<(i32, i32), cdda_core_types::shadowcasting::FourQuadrants> =
+        BTreeMap::new();
+    if let Some(mut map) = world.remove_resource::<Map>() {
         let level = &mut map.0;
         for (x, y, luminance) in sources {
             level.add_light_source_with(
@@ -1126,6 +1185,7 @@ fn cast_lights_inner(
                 &mut light,
             );
         }
+        world.insert_resource(map);
     }
     // Sources merge rather than replace: the sun may already have written an answer this
     // turn, and a torch does not undo the daylight.

@@ -134,11 +134,14 @@ fn a_wall_stops_the_light_it_casts_shadows_on() {
 }
 
 #[test]
-fn a_dim_source_lights_nothing_at_all() {
-    // Below LIGHT_AMBIENT_LOW there is no range to cast into.
+fn a_dim_source_lights_only_its_own_square() {
+    // `apply_light_source` writes `max( lit_level::LOW, luminance )` to the source's own square *before* the early return (`lightmap.cpp:1229-1238`), and
+    // `lit_level::LOW` is one (`lightmap.h:53-56`). So a candle stub lights exactly the square it stands on and casts no ray: the port's earlier "lights nothing" was
+    // itself the bug, and the emitters round caught it.
     let mut level = level();
     let light = light_from(&mut level, (5, 5), 1.0);
-    assert!(light.is_empty(), "a candle stub is not a lamp");
+    assert_eq!(light.len(), 1, "one square, nothing else");
+    assert_eq!(light[&(5, 5)].max(), 1.0, "and it is the origin");
 }
 
 #[test]

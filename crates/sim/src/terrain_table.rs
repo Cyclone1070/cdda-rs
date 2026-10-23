@@ -21,6 +21,7 @@ use cdda_core_types::light::TRANSPARENCY_OPEN_AIR;
 pub struct TerrainTable {
     transparent: BTreeMap<u32, bool>,
     indoors: BTreeMap<u32, bool>,
+    light: BTreeMap<u32, f32>,
 }
 
 impl TerrainTable {
@@ -40,6 +41,7 @@ impl TerrainTable {
         Self {
             transparent: pairs.into_iter().collect(),
             indoors: BTreeMap::new(),
+            light: BTreeMap::new(),
         }
     }
 
@@ -49,6 +51,20 @@ impl TerrainTable {
     /// been told about is **under the sky**, which is what an unflagged terrain is.
     pub fn insert_indoors(&mut self, code: u32, indoors: bool) {
         self.indoors.insert(code, indoors);
+    }
+
+    /// Records how much light the code emits.
+    ///
+    /// Reference: `map_data_common_t::light_emitted` (`src/mapdata.h`), which `map::generate_lightmap` turns into a light source on every square of that terrain
+    /// (`lightmap.cpp:527-533`). Twenty-two terrains in this corpus emit light, all of them at 120.
+    pub fn insert_light(&mut self, code: u32, light: f32) {
+        self.light.insert(code, light);
+    }
+
+    /// The light a code emits, zero when it emits none.
+    #[must_use]
+    pub fn light(&self, code: u32) -> f32 {
+        self.light.get(&code).copied().unwrap_or(0.0)
     }
 
     /// Whether the code carries the indoors flag.

@@ -10,6 +10,7 @@ use std::collections::BTreeMap;
 #[derive(Debug, Clone, Default, bevy_ecs::prelude::Resource)]
 pub struct FieldTable {
     by_type: BTreeMap<u32, Vec<f32>>,
+    light: BTreeMap<u32, Vec<f32>>,
 }
 
 impl FieldTable {
@@ -22,6 +23,26 @@ impl FieldTable {
     /// Records one type's translucency, one number per intensity, lowest first.
     pub fn insert(&mut self, id: u32, translucency: &[f32]) {
         self.by_type.insert(id, translucency.to_vec());
+    }
+
+    /// Records one type's emitted light, one number per intensity, lowest first.
+    ///
+    /// Reference: `field_intensity_level::light_emitted` (`src/field.h`), which `map::generate_lightmap` turns into a light source for every field on every square
+    /// (`lightmap.cpp:535-541`). A fire is the obvious one: 20, 60 and 160 at its three intensities.
+    pub fn insert_light(&mut self, id: u32, light: &[f32]) {
+        self.light.insert(id, light.to_vec());
+    }
+
+    /// The light a field emits at an intensity, zero when it emits none.
+    #[must_use]
+    pub fn light(&self, id: u32, intensity: i32) -> f32 {
+        let Some(levels) = self.light.get(&id) else {
+            return 0.0;
+        };
+        let Ok(index) = usize::try_from(intensity.saturating_sub(1)) else {
+            return 0.0;
+        };
+        levels.get(index).copied().unwrap_or(0.0)
     }
 
     /// The translucency of a field at an intensity, clamped to the range the data gives.

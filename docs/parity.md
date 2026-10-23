@@ -406,6 +406,26 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The world lights itself (round 379)
+
+`map::generate_lightmap` walks every square and adds a light source for anything whose own data says it emits one (`lightmap.cpp:525-547`): terrain, furniture, each field on
+it, plus the items and the creatures the port has none of yet. The port gathered only the `LightSource` components a caller had spawned, so a burning square lit nothing and a
+lamp terrain was dark.
+
+| Emitter | Reference | Port |
+|---|---|---|
+terrain | `terrain->light_emitted > 0` | `TerrainTable::light(code)`, from the dump's `light` |
+furniture | `furniture->light_emitted > 0` | `TerrainTable::light(code)` on the furniture table |
+fields | each field's level `light_emitted` | `FieldTable::light(id, intensity)` - `fd_fire` is 20, 60, 160 |
+placed | `LightSource` | unchanged |
+
+**A red gate caught a bug in the light cast itself.** The lamp test read zero, and the reason was not the emitter table: `apply_light_source` writes
+`max( lit_level::LOW, luminance )` to the source's **own square** before any ray is cast (`lightmap.cpp:1229-1233`), and the port never did. A lamp lit the room and left
+itself dark. The fix went into `Level::add_light_source_with`, where the reference has it.
+
+**And it corrected a test that had pinned the wrong answer.** `a_dim_source_lights_nothing_at_all` asserted an empty light map for a luminance-one candle. The reference
+writes one unit to that candle's own square and then returns without casting, so the honest test is "one square, nothing else" - the old one was pinning the port's bug.
+
 ## A turn starts with the smell (round 378)
 
 The reference's turn begins with the character's scent and only then touches the fields (`do_turn.cpp:642-658`):
