@@ -17,6 +17,11 @@ That one command syncs the workspace, runs `tools/test_fast.py`, runs `tools/che
 Local cargo is for diagnosing a single failure, never for the gate: a full debug build of the workspace
 plus a test build is minutes of CPU on the machine someone is trying to use.
 
+The C++ oracle build belongs there too. `oracle/build` is a ninja tree that wants the same treatment - an
+interrupted build leaves compiler children behind, and a rebuild is a hundred translation units. Until the
+oracle tree is moved to the server, an oracle change is the one job that has to run locally, and it runs as
+a single managed job with its output collected, never as a foreground call that can be interrupted halfway.
+
 ## 1. What "the same" means
 
 Absolute sameness is not attainable and is not the claim. The claim is:

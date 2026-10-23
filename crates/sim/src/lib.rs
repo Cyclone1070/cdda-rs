@@ -6,6 +6,8 @@
 
 pub mod field_table;
 pub mod terrain_table;
+pub mod weather;
+pub use weather::Weather;
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::{FieldEntry, FieldId};
@@ -949,7 +951,12 @@ impl FieldOpacityGrid {
 ///
 /// The prototypes come from the [`Prototypes`] resource and the fields from [`field_table::FieldTable`], so there is one source for what a code means and no way to cast
 /// with a table the world does not have.
-pub fn cast_lights_with(world: &mut World, sight_penalty: f32) {
+pub fn cast_lights_with(world: &mut World) {
+    let sight_penalty = world
+        .get_resource::<Weather>()
+        .copied()
+        .unwrap_or_default()
+        .sight_penalty();
     // The sky map: an `INDOORS` flag on either layer covers the three-by-three block around it (`build_outside_cache`).
     let (terrain, furniture) = world.get_resource::<Prototypes>().map_or_else(
         || {
@@ -1151,7 +1158,12 @@ pub fn cast_sunlight(
 /// The port has one level and no roof tiles above it, so "indoors" has to be given a meaning. The one that matches the reference is: a square the outside cache calls indoors
 /// is a square **under a roof**, so the level above it at that square is opaque and has a floor. That is exactly what the reference's `prev_transparency_cache` and
 /// `prev_floor_cache` would say about a hut - and it is why daylight still reaches a square just inside a doorway, from the cardinal that is in the open.
-pub fn cast_sunlight_with(world: &mut World, turns: f64, sight_penalty: f32) {
+pub fn cast_sunlight_with(world: &mut World, turns: f64) {
+    let sight_penalty = world
+        .get_resource::<Weather>()
+        .copied()
+        .unwrap_or_default()
+        .sight_penalty();
     let (terrain, furniture) = world.get_resource::<Prototypes>().map_or_else(
         || {
             (

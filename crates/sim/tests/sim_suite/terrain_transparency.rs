@@ -14,7 +14,7 @@ use cdda_core_types::field::{FieldEntry, FieldId};
 use cdda_core_types::light::TRANSPARENCY_OPEN_AIR;
 use cdda_sim::field_table::FieldTable;
 use cdda_sim::terrain_table::TerrainTable;
-use cdda_sim::{Field, Light, LightSource, Map, Position, Prototypes, cast_lights_with};
+use cdda_sim::{Field, Light, LightSource, Map, Position, Prototypes, Weather, cast_lights_with};
 
 /// A level whose square `(5, 5)` is the given terrain code, with a lamp west of it.
 fn level_with(code: u32) -> World {
@@ -46,7 +46,7 @@ fn load(world: &mut World, table: &TerrainTable) {
 
 fn light_past_the_square(world: &mut World, table: &TerrainTable) -> f32 {
     load(world, table);
-    cast_lights_with(world, 1.0);
+    cast_lights_with(world);
     world.resource::<Light>().max_at(8, 5)
 }
 
@@ -138,7 +138,7 @@ fn smoke_still_dims_a_ray_through_a_window() {
 
     let mut clear = level_with(1);
     load(&mut clear, &table);
-    cast_lights_with(&mut clear, 1.0);
+    cast_lights_with(&mut clear);
     let open = clear.resource::<Light>().max_at(8, 5);
 
     let mut smoked = level_with(1);
@@ -155,7 +155,7 @@ fn smoke_still_dims_a_ray_through_a_window() {
     let mut fields = FieldTable::new();
     fields.insert(1, &[1.0, 10.0, 0.0]);
     smoked.insert_resource(fields);
-    cast_lights_with(&mut smoked, 1.0);
+    cast_lights_with(&mut smoked);
     let dimmed = smoked.resource::<Light>().max_at(8, 5);
 
     assert!(
@@ -175,7 +175,7 @@ fn an_opaque_table_on_a_glass_floor_is_opaque() {
     let open_floor = {
         let mut world = level_with(1);
         load(&mut world, &table);
-        cast_lights_with(&mut world, 1.0);
+        cast_lights_with(&mut world);
         world.resource::<Light>().max_at(8, 5)
     };
 
@@ -187,7 +187,7 @@ fn an_opaque_table_on_a_glass_floor_is_opaque() {
             furniture: table.clone(),
         });
         world.resource_mut::<Map>().0.set_furniture(5, 5, 9, 1);
-        cast_lights_with(&mut world, 1.0);
+        cast_lights_with(&mut world);
         world.resource::<Light>().max_at(8, 5)
     };
 
@@ -208,7 +208,7 @@ fn furniture_that_is_see_through_does_not_stop_the_ray() {
     let open_floor = {
         let mut world = level_with(1);
         load(&mut world, &table);
-        cast_lights_with(&mut world, 1.0);
+        cast_lights_with(&mut world);
         world.resource::<Light>().max_at(8, 5)
     };
 
@@ -220,7 +220,7 @@ fn furniture_that_is_see_through_does_not_stop_the_ray() {
             furniture: table.clone(),
         });
         world.resource_mut::<Map>().0.set_furniture(5, 5, 8, 1);
-        cast_lights_with(&mut world, 1.0);
+        cast_lights_with(&mut world);
         world.resource::<Light>().max_at(8, 5)
     };
 
@@ -245,13 +245,15 @@ fn fog_costs_light_under_open_sky_and_nothing_indoors() {
     let outdoor = {
         let mut world = level_with(1);
         load(&mut world, &table);
-        cast_lights_with(&mut world, 1.7);
+        world.insert_resource(Weather::with_sight_penalty(1.7));
+        cast_lights_with(&mut world);
         world.resource::<Light>().max_at(8, 5)
     };
     let sheltered = {
         let mut world = level_with(7);
         load(&mut world, &table);
-        cast_lights_with(&mut world, 1.7);
+        world.insert_resource(Weather::with_sight_penalty(1.7));
+        cast_lights_with(&mut world);
         world.resource::<Light>().max_at(8, 5)
     };
 
@@ -267,6 +269,7 @@ fn fog_costs_light_under_open_sky_and_nothing_indoors() {
 
 #[test]
 fn clear_weather_costs_nothing_wherever_the_square_is() {
+    // An absent `Weather` resource means a clear sky, which is what every other test in the suite relies on.
     // A `sight_penalty` of one is the clear-sky case, and it must leave the light exactly as it was before the weather existed - otherwise every existing light test would
     // have been depending on a free lunch.
     let mut table = TerrainTable::new();
@@ -274,13 +277,13 @@ fn clear_weather_costs_nothing_wherever_the_square_is() {
     let open = {
         let mut world = level_with(1);
         load(&mut world, &table);
-        cast_lights_with(&mut world, 1.0);
+        cast_lights_with(&mut world);
         world.resource::<Light>().max_at(8, 5)
     };
     assert!(open > 0.0);
     let mut world = level_with(1);
     load(&mut world, &table);
-    cast_lights_with(&mut world, 1.0);
+    cast_lights_with(&mut world);
     let plain = world.resource::<Light>().max_at(8, 5);
     assert!((open - plain).abs() < 1e-6, "clear weather is a no-op");
 }

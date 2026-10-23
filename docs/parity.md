@@ -406,6 +406,23 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## A clear sky costs nothing, and fog costs 1.7 (round 374)
+
+The weather was a bare `f32` at every call site: `cast_lights_with(world, 1.7)` says a number and hides which weather it is, and nothing refused a caller that passed `0.5`.
+
+| Before | After |
+|---|---|
+`cast_lights_with(world, sight_penalty)` | `cast_lights_with(world)` |
+`cast_sunlight_with(world, turns, sight_penalty)` | `cast_sunlight_with(world, turns)` |
+the number, passed by hand | `Weather`, a resource, defaulting to a clear sky |
+
+**The refusal is the point.** `Weather::with_sight_penalty` panics below one, because that direction is not a matter of taste: the multiplier raises a square's absorption, so
+rain is 1.1, snow 1.3 and fog 1.7 in the data, and a value below one would make bad weather *brighten* the world. A test pins the panic rather than leaving it to a doc
+comment.
+
+**An absent resource means a clear sky.** Every existing light and sun test kept working without inserting anything, which is the right default for a world that has not
+loaded weather yet - and it is why the change could be made at all without touching a hundred fixtures.
+
 ## One place the world keeps what a code means (round 373)
 
 The light and the sun each took their tables as arguments, the sight query took them from a resource, and the fields were a closure in one place and a grid in another. Three
