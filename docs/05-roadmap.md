@@ -262,7 +262,10 @@ three against the reference's own recorded day. Two things finish it and one thi
    recorded day from the recorded dice alone.
 2. ~~The transparency flush, for real~~ - done in round 512: `Map::on_weather_change` marks the level's light stale exactly when the sight penalty changes, and the next read rebuilds
    once. The reference's loop over the overmap's depth is a single mark until the port has more than one level.
-3. Then light across z-levels, and vision.
+3. **Weather in the world** is wired (round 513): `Climate` is a resource, `tick_climate` runs a turn of it, and `run_environment_turn` takes the world's wind over its own. What
+   is missing for the M2 exit gate is a **recorded session with a weather transition** in it - the oracle records squares but not the sky, so the session format needs weather fields
+   before a per-turn hash can cover a transition.
+4. Then light across z-levels, and vision.
 
 ## 4. Phase detail
 

@@ -12,7 +12,7 @@ pub mod scent;
 pub mod scent_table;
 pub mod weather;
 pub mod weather_gen;
-pub use weather::Weather;
+pub use weather::{Climate, Forecast, System, Weather, tick_climate, wind_of};
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::{FieldEntry, FieldId};
@@ -1986,6 +1986,9 @@ pub fn run_environment_turn(
     can_take: impl Fn((i32, i32, i32), (i32, i32, i32)) -> bool + Copy,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) {
+    // **The world's wind, not the caller's, when the world has a weather system.** The parameter stays because a session replay drives the wind from its fixture and has no climate;
+    // a world that does have one must not be able to disagree with itself about which way the smoke blows.
+    let windpower = weather::wind_of(world, windpower);
     // The squares this sweep will visit, taken **before** any of it runs: a field born during the turn waits for the next one, and the newborn fire at the
     // end of the reference's own session keeps the two minutes it was born with because of exactly this.
     let present: Vec<(Entity, i32, i32)> = {

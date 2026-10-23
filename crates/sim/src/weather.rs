@@ -137,3 +137,97 @@ impl System {
     }
 }
 
+
+/// The weather as the world holds it: the system, plus the two numbers a turn hands to everything else.
+///
+/// The reference keeps the same facts in `weather_manager`'s globals and reads them where they are needed - `get_weather().windspeed` in the field sweep, the type's `sight_penalty`
+/// in the light. Putting them in a resource is what lets a turn take one borrow instead of reaching for a singleton, and it is where the *last computed* values live between the
+/// hourly updates: a turn that does not recompute still has a wind to spread smoke with.
+#[derive(Debug, Clone, bevy_ecs::prelude::Resource)]
+pub struct Climate {
+    /// The tick itself: manager, remembered wind direction, and rules.
+    pub system: System,
+    /// The wind the last update reported, which is what the field sweep and the fires use.
+    windpower: i32,
+    /// The weather's id, for anything that wants to name what the sky is doing.
+    weather: Option<String>,
+    /// The absorption the light is cast under.
+    sight_penalty: f32,
+}
+
+impl Climate {
+    /// A climate with no weather yet: clear air, no wind, and the rules it will decide by.
+    #[must_use]
+    pub fn new(rules: cdda_content::weather::Rules) -> Climate {
+        Climate { system: System::new(rules), windpower: 0, weather: None, sight_penalty: 1.0 }
+    }
+
+    /// The wind the last update reported.
+    #[must_use]
+    pub fn windpower(&self) -> i32 {
+        self.windpower
+    }
+
+    /// The weather's id.
+    #[must_use]
+    pub fn weather(&self) -> Option<&str> {
+        self.weather.as_deref()
+    }
+
+    /// The absorption the light is cast under.
+    #[must_use]
+    pub fn sight_penalty(&self) -> f32 {
+        self.sight_penalty
+    }
+}
+
+impl Default for Climate {
+    fn default() -> Self {
+        Climate::new(cdda_content::weather::Rules::default())
+    }
+}
+
+/// Runs the weather for one turn and hands the world what changed.
+///
+/// The order is the reference's: the tick decides, then the map is told whether its light is stale, then the numbers a turn reads are stored. The weather resource is updated from the
+/// **same** rules the decision used, so a world cannot end up drawing fog at a clear sky's brightness.
+///
+/// Returns the change, so a caller can react to a weather that just turned dangerous without asking again.
+pub fn tick_climate(
+    world: &mut bevy_ecs::prelude::World,
+    forecast: &Forecast,
+    roll: &mut dyn FnMut(i32, i32) -> i32,
+    sector: &mut dyn FnMut(usize) -> usize,
+) -> cdda_content::weather::Change {
+    let Some(mut climate) = world.remove_resource::<Climate>() else {
+        return cdda_content::weather::Change::None;
+    };
+    let change = climate.system.tick(forecast, roll, sector);
+    if let cdda_content::weather::Change::Weather { .. } = change {
+        if let Some(point) = climate.system.manager.point {
+            climate.windpower = point.windpower;
+        }
+        climate.weather.clone_from(&climate.system.manager.weather);
+        if let Some(id) = climate.weather.as_deref() {
+            climate.sight_penalty = cdda_content::weather::WeatherRules::sight_penalty(&climate.system.rules, id);
+        }
+    }
+    let penalty = climate.sight_penalty;
+    world.insert_resource(climate);
+    if let Some(mut map) = world.get_resource_mut::<crate::Map>() {
+        map.on_weather_change(change);
+    }
+    if let Some(mut weather) = world.get_resource_mut::<crate::Weather>() {
+        *weather = crate::Weather::with_sight_penalty(penalty.max(1.0));
+    }
+    change
+}
+
+/// The wind a turn should spread its fields and fires by.
+///
+/// A world with a [`Climate`] has exactly one answer, and it is the weather's. A world without one - a session replay that supplies its own wind, a unit test of a single rule - falls
+/// back to what its caller passed, which is why the fallback is explicit instead of a zero.
+#[must_use]
+pub fn wind_of(world: &bevy_ecs::prelude::World, fallback: i32) -> i32 {
+    world.get_resource::<Climate>().map_or(fallback, Climate::windpower)
+}

@@ -2986,6 +2986,21 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The weather in the world, and the wind's one answer (round 513)
+
+The weather is now where the game keeps it: a `Climate` resource holding the system, the wind the last update reported, the id, and the absorption the light is cast under.
+`tick_climate` runs one turn of it and hands the world what changed - the map's light staleness, the `Weather` resource's sight penalty, and the wind.
+
+Two rules that only a running world can get wrong:
+
+- **The world's wind wins over a caller's.** `run_environment_turn` keeps its wind parameter because a session replay drives the wind from its fixture and has no climate; once a
+  climate exists the parameter is a fallback. A world that quietly used both would spread half its smoke one way and half the other.
+- **The absorbed light and the decided sky come from the same rules.** The resource's sight penalty is read back through the same `Rules` the decision used, so a world cannot end up
+  drawing fog at a clear sky's brightness.
+
+The gate runs a fog sky through the world and checks all three surfaces at once: the id the climate reports, the 1.7 the `Weather` resource carries, and the map's light marked stale -
+then a second fog update that changes nothing and leaves the light alone.
+
 ## The weather's one reach into the map (round 512)
 
 `weather.cpp:938-941` is three lines and the only place weather touches the map: when the sight penalty changes, every level's transparency cache is dirtied and the seen cache with
