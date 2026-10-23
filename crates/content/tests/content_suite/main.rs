@@ -84,6 +84,7 @@ mod resolve_placeholders;
 mod rules;
 mod starting_kit;
 mod terrain;
+mod weather;
 mod traps;
 mod turret_parts;
 mod vehicles;

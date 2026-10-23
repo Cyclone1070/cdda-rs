@@ -132,7 +132,7 @@ fn the_level_string_shows_a_lit_room_and_the_shadow_behind_the_wall() {
     assert_eq!(rows.len(), 9);
     // Row 1 is y = 2, column 3 is x = 3: the lamp stands at (4, 4), which is row 2, column 4.
     assert_eq!(
-        rows[2].chars().nth(4),
+        rows[3].chars().nth(4),
         Some('B'),
         "the lamp's own square:\n{levels}"
     );
@@ -160,7 +160,9 @@ fn the_glyph_string_prints_what_is_there_rather_than_how_lit_it_is() {
     let text = drawn.text();
     let rows: Vec<&str> = text.lines().collect();
     assert_eq!(rows.len(), 9);
-    assert_eq!(rows[2].chars().nth(4), Some('o'), "the lamp:\n{text}");
+    // The frame is centred on (4, 5) with a radius of four, so the lamp at (4, 4) is row three, column four: a row is `y - 5 + 4` and a column is `x - 4 + 4`. Written out
+    // because the first version of this test had the arithmetic off by one and the failure was a wall where a lamp should be.
+    assert_eq!(rows[3].chars().nth(4), Some('o'), "the lamp:\n{text}");
     assert_eq!(rows[4].chars().nth(5), Some('.'), "a floor:\n{text}");
-    assert_eq!(rows[4].chars().nth(2), Some('#'), "the wall two squares west:\n{text}");
+    assert_eq!(rows[4].chars().nth(6), Some('#'), "the wall:\n{text}");
 }

@@ -406,6 +406,24 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The weather loader, and three guesses the data corrected (round 417)
+
+`weather_type` derives its numbers from a handful of flags rather than storing them (`weather_type.h:73-140`), which is why the port takes them from a dump: **20 types**, gated on
+`--dump-weather`.
+
+| Field | Meaning | Trap |
+|---|---|---|
+`sight_penalty` | the multiplier `calc_transp` applies - higher is more absorbing | fog is **1.7**; the `null` type carries **0**, which means "unwritten", not "better than air" |
+`precip` | none / very light / light / heavy | drizzle is *light*, rain is *heavy*, snowing is *heavy* |
+`rains` | rain or snow | flurries are light precipitation that is not rain |
+
+**Three expectations were wrong and the data won.** This round wrote that snowing was light precipitation, that rain was light, and that no type carries a penalty below one. The
+dump says snowing is heavy, rain is heavy and `null` carries zero. Every one of those was a guess about data I had just dumped and could have read first; the tests now assert
+the measured values and say which way the guess went.
+
+**A zero that means "unwritten" is a bug waiting to be written.** `Weather::with_sight_penalty` panics below one, so the loader has to map that zero to the identity rather than
+hand it over - the test names the one type that carries it, so the mapping cannot be quietly forgotten.
+
 ## The port can draw a frame (round 390)
 
 Three answers per square - what is there, how brightly it is lit, how clearly it is seen - existed separately. A frame asks them together, once per view:

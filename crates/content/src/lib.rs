@@ -26,6 +26,7 @@ pub mod items;
 pub mod mapdata;
 pub mod mapgen;
 pub mod materials;
+pub mod weather;
 pub mod mods;
 pub mod monster_groups;
 pub mod monsters;
