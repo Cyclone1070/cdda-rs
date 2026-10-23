@@ -406,6 +406,27 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Visibility multiplies the light, and the square you stand on is always seen (round 377)
+
+The port asked "is there any light at all" and called that sight. The reference asks `apparent_light >= vision_threshold`, where **`apparent_light` is the light map
+multiplied by the square's visibility** (`lightmap.cpp:795-798`). Two things followed from putting that right:
+
+| Rule | Reference | Port |
+|---|---|---|
+apparent light | `vis * lm.max()`, quadrant-selected on an opaque tile | `shown_at` multiplies the brightest quadrant by the cast's answer |
+the threshold | `lit_level_at(...) != Blank` | the chain from round 376, asked once |
+the character's own square | `seen_cache[origin] = VISIBILITY_FULL` before the cast (`lightmap.cpp:1057-1059`) | `Level::seen_at` answers true for the origin |
+
+**Two tests caught the two halves.** Without the multiplication, a bright room behind a wall was "shown" - the light map has a value there even though the cast does not. And
+without the origin rule, the square the character stands on was blank, because the port's cast does not light its own origin (it matches the reference's shadowcasting
+fixture there, which is right for the *light* map and wrong for the *seen* map).
+
+**`shown_at` had no tests at all.** It was written three rounds ago, referenced from the ledger, and never pinned - so this round is also the one that gave it tests, three of
+them: shown above the threshold, not shown below it, and not shown behind a wall however bright.
+
+**Eight arguments became one type.** The first version of the new signature took eight parameters and clippy refused it, which was the right answer: `View` is what the
+reference reads off the avatar, and naming it says so.
+
 ## Bright, lit, low, and a glow with nothing in it (round 376)
 
 The port could say whether a square was lit, not **how** it looked. `lit_level` (seven values) existed; the chain that picks one did not. It does now:

@@ -222,6 +222,11 @@ impl Level {
         blocks_light: impl Fn(u32) -> bool,
         square: (i32, i32),
     ) -> bool {
+        // The character's own square is always fully visible: `build_seen_cache` writes `VISIBILITY_FULL` there before the cast runs (`lightmap.cpp:1057-1059`). Without
+        // this the origin is lit by nothing and the square the player stands on would be drawn blank.
+        if square == origin {
+            return true;
+        }
         let dx = square.0 - origin.0;
         let dy = square.1 - origin.1;
         if dx.abs() > radius || dy.abs() > radius {

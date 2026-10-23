@@ -13,7 +13,10 @@ use crate::level::Level;
 use crate::shadowcasting::FourQuadrants;
 use std::collections::BTreeMap;
 
-/// How much light reaches a square: the brightest of the four quadrants that cover it.
+/// The light the map holds for a square: the brightest of the four quadrants that cover it.
+///
+/// This is **not** the reference's `apparent_light`, which is this value multiplied by the square's visibility (`lightmap.cpp:795-798`). The multiplication happens in
+/// [`shown_at`], where the cast is known; a caller that forgets it shows the player what is behind a wall.
 ///
 /// Reference: `level_cache::apparent_light_at` (`src/lightmap.cpp`), which adds the ambient light to
 /// the brightest quadrant and clamps at the low and high ambient values.
@@ -22,23 +25,52 @@ pub fn apparent_light_at(light: &BTreeMap<(i32, i32), FourQuadrants>, square: (i
     light.get(&square).map_or(0.0, FourQuadrants::max)
 }
 
-/// Whether a square is shown to the character: in the cast, and lit by something.
+/// What the character is looking with and from: the origin, the range, what stops the sight, and the two numbers that decide whether the light is enough.
+///
+/// Reference: the facts `map::pl_sees` reads from the avatar (`src/map.cpp:854-871`) that the port takes as arguments instead - there is no creature layer yet.
+pub struct View {
+    /// Where the character is.
+    pub origin: (i32, i32),
+    /// How far they see.
+    pub radius: i32,
+    /// Which terrain codes stop the sight.
+    pub blocks_light: fn(u32) -> bool,
+    /// The light around the character, which decides whether a hazy square glows.
+    pub ground_light_level: f32,
+    /// The dimmest light they can see by ([`crate::light::vision_threshold`]).
+    pub vision_threshold: f32,
+}
+
+/// Whether a square is shown to the character: in the cast, and bright enough to see by.
+///
+/// Reference: `map::pl_sees` (`src/map.cpp:854-871`) joined with the draw path's `lit_level` test - the two halves of the rule the frame actually uses. `pl_sees` asks for
+/// the square to be in the cast and `apparent_light >= vision_threshold`; the draw path then skips a square whose level is `Blank`, which is the same test plus the hazy
+/// case. The port asks it once, here, and answers with the level rather than with a bool in two places.
+///
+/// `ground_light_level` is the light around the character, which decides whether a hazy square glows; `vision_threshold` comes from [`crate::light::vision_threshold`].
 ///
 /// # Panics
 ///
 /// Panics if the radius is negative, as [`Level::seen_at`] does.
 pub fn shown_at(
     level: &mut Level,
-    origin: (i32, i32),
-    radius: i32,
-    blocks_light: impl Fn(u32) -> bool,
+    view: &View,
     light: &BTreeMap<(i32, i32), FourQuadrants>,
     square: (i32, i32),
 ) -> bool {
-    if apparent_light_at(light, square) <= 0.0 {
-        return false;
-    }
-    level.seen_at(origin, radius, blocks_light, square)
+    // **Visibility multiplies the light.** `apparent_light = vis * lm.max()` (`lightmap.cpp:795-798`), and `vis` is the seen-cache value, so a square out of the cast has an
+    // apparent light of zero however bright the light map says it is. Reading the light map as if it were already apparent light shows the player what is behind a wall,
+    // which is exactly what this test caught.
+    let in_sight = level.seen_at(view.origin, view.radius, view.blocks_light, square);
+    let visibility = if in_sight { 1.0 } else { 0.0 };
+    let level_at = lit_level_at(
+        visibility * apparent_light_at(light, square),
+        !in_sight,
+        view.ground_light_level,
+        view.vision_threshold,
+        false,
+    );
+    level_at != crate::light::LitLevel::Blank
 }
 
 /// What a square looks like to the character: the reference's `lit_level`.

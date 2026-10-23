@@ -54,3 +54,16 @@ fn nothing_beyond_the_sight_range_is_seen() {
         "and far away is definitely not"
     );
 }
+
+#[test]
+fn the_square_the_character_stands_on_is_always_seen() {
+    // `build_seen_cache` writes `VISIBILITY_FULL` to the origin before the cast runs (`lightmap.cpp:1057-1059`), so the character's own square is seen even inside a sealed
+    // room. Without it the square under the player's feet is drawn blank, which is the kind of bug that only shows on a screen.
+    let mut level = level();
+    for y in 0..12 {
+        for x in 0..12 {
+            level.set_terrain(x, y, WALL, OPEN);
+        }
+    }
+    assert!(level.seen_at((5, 5), 5, blocks, (5, 5)));
+}

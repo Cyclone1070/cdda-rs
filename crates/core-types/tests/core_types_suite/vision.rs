@@ -6,7 +6,7 @@
 
 #![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
-use cdda_core_types::vision::{lit_level_at, sees_on_one_level};
+use cdda_core_types::vision::{View, lit_level_at, sees_on_one_level};
 
 const SIDE: i32 = 12;
 
@@ -138,4 +138,76 @@ fn the_lit_branch_is_unreachable_because_two_thresholds_are_the_same_number() {
 
     assert!((AMBIENT_LIT - SOURCE_BRIGHT).abs() < f32::EPSILON);
     assert_ne!(lit_level_at(15.0, false, 12.0, 4.0, false), LitLevel::Lit);
+}
+
+/// A level of one submap where every square is open ground.
+fn open_level() -> cdda_core_types::level::Level {
+    let mut level = cdda_core_types::level::Level::new();
+    level.ensure(0, 0, 1);
+    for y in 0..12 {
+        for x in 0..12 {
+            level.set_terrain(x, y, 1, 1);
+        }
+    }
+    level
+}
+
+/// A character standing in the open at (5, 5), with a threshold of three.
+fn view() -> View {
+    View {
+        origin: (5, 5),
+        radius: 10,
+        blocks_light: |_code| false,
+        ground_light_level: 10.0,
+        vision_threshold: 3.0,
+    }
+}
+
+/// Light of the given strength on one square.
+fn lit_square(square: (i32, i32), value: f32) -> std::collections::BTreeMap<(i32, i32), cdda_core_types::shadowcasting::FourQuadrants> {
+    let mut light = std::collections::BTreeMap::new();
+    light.insert(
+        square,
+        cdda_core_types::shadowcasting::FourQuadrants::uniform(value),
+    );
+    light
+}
+
+#[test]
+fn a_square_in_sight_and_above_the_threshold_is_shown() {
+    // `pl_sees` (`map.cpp:854-871`) joins the cast with the light through the character's own vision threshold: in sight, and bright enough to see by. The old port asked
+    // only "is there any light at all", which showed a corridor the character could not actually make out.
+    use cdda_core_types::vision::shown_at;
+
+    let mut level = open_level();
+    let light = lit_square((5, 5), 20.0);
+    assert!(shown_at(&mut level, &view(), &light, (5, 5)));
+}
+
+#[test]
+fn a_square_in_sight_but_below_the_threshold_is_not_shown() {
+    // The rule the port was missing. A dim glow of 0.5 is light, and it is not enough: below the character's threshold the square is `BLANK` and nothing is drawn there.
+    use cdda_core_types::vision::shown_at;
+
+    let mut level = open_level();
+    let light = lit_square((5, 5), 0.5);
+    assert!(
+        !shown_at(&mut level, &view(), &light, (5, 5)),
+        "half a unit of light is not something to see by"
+    );
+}
+
+#[test]
+fn a_square_out_of_sight_is_not_shown_however_bright_it_is() {
+    // The other half of the conjunction: the light behind a wall is not a thing the character sees.
+    use cdda_core_types::vision::shown_at;
+
+    let mut level = open_level();
+    for y in 0..12 {
+        level.set_terrain(6, y, 2, 1);
+    }
+    let light = lit_square((8, 5), 40.0);
+    let mut blocked = view();
+    blocked.blocks_light = |code| code == 2;
+    assert!(!shown_at(&mut level, &blocked, &light, (8, 5)));
 }
