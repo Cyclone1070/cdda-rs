@@ -57,7 +57,10 @@ def sync() -> None:
     remote copy owns outright. The remote directory itself is never the target of a delete.
     """
     print(f"syncing to {REMOTE}:{REMOTE_DIR}", flush=True)
-    args = ["rsync", "-az", "--delete"]
+    # `--no-times` matters: `-a` preserves modification times, and a machine whose clock is a little behind the server then delivers a "new" file
+    # with an old timestamp, so cargo reuses the artifact it already has and the gate silently tests the previous round's code. Writing the time as
+    # now for the files that actually changed costs nothing and removes a whole class of false green.
+    args = ["rsync", "-az", "--no-times", "--delete"]
     for pattern in EXCLUDES:
         args.extend(["--exclude", pattern])
     for path in SYNC:

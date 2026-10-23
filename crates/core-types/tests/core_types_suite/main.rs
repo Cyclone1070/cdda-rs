@@ -99,6 +99,7 @@ mod transparency;
 mod units;
 mod units_reader;
 mod visibility;
+mod valid_move;
 mod vision;
 mod vision_threshold;
 mod vision_transparency;

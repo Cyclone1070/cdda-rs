@@ -72,8 +72,21 @@ pub struct Session {
     pub turns: Vec<Vec<Placed>>,
     /// The dice the reference rolled inside its field processors, in order.
     pub dice: Recording,
+    /// The wind on each turn, which a gas needs: its spread chance is `rng( 1, 100 - windpower )` and its destination is resisted when it blows into that wind.
+    pub wind: Vec<Wind>,
     /// Where the fixture came from, so a failed assertion can say which one.
     pub name: String,
+}
+
+/// The wind a turn ran under: the sky's speed and direction, and the local power at the square the dump watched.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Wind {
+    /// The weather's own wind speed.
+    pub speed: i32,
+    /// Which way it blows, in degrees.
+    pub direction: i32,
+    /// The power `get_local_windpower` worked out for the watched square, which is what the dice ceiling uses.
+    pub power: i32,
 }
 
 impl Session {
@@ -103,6 +116,23 @@ impl Session {
                 }
             })
             .collect();
+        let wind = array(object(&fixture).get("turns").expect("turns"))
+            .iter()
+            .map(|turn| {
+                let turn = object(turn);
+                // Fixtures recorded before the wind was beside the fields have none, and a fire does not read it; a gas fixture that wanted it would be a fixture
+                // recorded without the instrument and would have to be re-recorded, not guessed at.
+                let of = |key: &str| match turn.get(key) {
+                    Some(value) => i32::try_from(integer(value)).expect("a wind number"),
+                    None => 0,
+                };
+                Wind {
+                    speed: of("windspeed"),
+                    direction: of("winddirection"),
+                    power: of("windpower"),
+                }
+            })
+            .collect();
         let turns = array(object(&fixture).get("turns").expect("turns"))
             .iter()
             .map(|turn| {
@@ -128,6 +158,7 @@ impl Session {
         Session {
             grid,
             turns,
+            wind,
             dice: processor_dice(&recording),
             name: name.to_string(),
         }
@@ -357,16 +388,21 @@ pub fn facts_for(id: &str, flags: &BTreeMap<String, Vec<String>>) -> TerrainFact
     }
 }
 
-/// The dice the reference rolled inside its field processors: `fire.begin` opens one and `fire.done` closes it.
+/// The dice the reference rolled inside its field processors: `<kind>.begin` opens one and `<kind>.done` closes it.
+///
+/// Any kind, not just `fire`: the gas processor marks its own draws the same way, and a slicer that only knew `fire` silently produced an **empty** recording -
+/// which reads as "the port asked for a die the reference never rolled" when in fact the fixture had simply been cut out of the file.
 fn processor_dice(text: &str) -> Recording {
     let mut lines = Vec::new();
     let mut inside = false;
     for line in text.lines() {
         if let Some(label) = line.strip_prefix("mark ") {
-            match label {
-                "fire.begin" => inside = true,
-                "fire.done" => inside = false,
-                _ => {}
+            // The kind of processor, not the exact label: a gas marks `gas.begin.<x>.<y>.<z>`, because the bubble can hold other gases and a slice that could not
+            // tell whose draw was whose would replay the bubble instead of the fixture.
+            if label.contains(".begin") {
+                inside = true;
+            } else if label.contains(".done") {
+                inside = false;
             }
             continue;
         }

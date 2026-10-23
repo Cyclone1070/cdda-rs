@@ -2986,6 +2986,33 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## A gas needs permission to fall, and the rule is `valid_move` (round 517)
+
+The first gas session gate went red for a reason worth keeping: the port spread the gas **down through the floor it was standing on**. The reference asks two questions of
+a vertical step - `gas_can_spread_to` for the square, and `map::valid_move` for the move - and the port only had the first.
+
+`valid_move`'s vertical half is now its own rule (`cdda_core_types::movement::can_step_vertically`) with seven tests, and the shape is the reference's, not the obvious
+one:
+
+- the **upper** square must be passable at all;
+- an impassable square below refuses the step, **unless** the upper square is a ledge - open air may have rock under it, because the reference deliberately forces a drop
+  there rather than trapping a player on a roof;
+- a square with a floor refuses the fall unless it is a ledge or says `GOES_DOWN`;
+- `NO_FLOOR_WATER` counts as no floor for the floor test and **not** as a ledge, so the two flags part company and only one of them stops a fall.
+
+The function takes its two arguments as **upper** and **lower** rather than from and to: the reference's first act is to sort them that way, and a caller that had them the
+wrong way round would get a plausible answer to the wrong question. Two of the seven tests were wrong on the first write - the ledge-over-rock case reads backwards, and
+water is a hole - which is the kind of thing a transcribed rule catches and a remembered one does not.
+
+**Two instruments fell out of the same work.** The gas processor now marks its draws with the **square** (`gas.begin.<x>.<y>.<z>`), because the reality bubble holds other
+gases and their draws land in the same trace: a slice that cannot tell whose draw is whose replays the bubble, not the fixture - the first gas recording had 2,863 draws
+for a session that made 84. And the remote runner now syncs with `--no-times`: preserving modification times delivers a fresh file with an old timestamp from any machine
+whose clock is behind, and cargo then reuses the artifact it already has, so the gate silently tests the previous round's code.
+
+`corpus/fields/gas-60.json` is re-recorded under `--world harness-fixed` and its dice are sliced to the watched square: sixty turns, 84 draws, a split at turn 48 into a
+source at intensity two and a destination at intensity one. **The replay gate is written and ignored**, with its reason in the attribute: the trace has 59 processor blocks
+for 60 turns, so a replay cannot tell a turn whose gas could not spread from a turn whose processor never ran. The next instrument is a per-turn marker.
+
 ## The field dump learned to look up and down, and the gas learned to say what it rolled (round 516)
 
 A gas fixture needed two things the oracle could not do, and both were gaps in the instrument rather than in the port.
