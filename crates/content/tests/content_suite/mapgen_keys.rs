@@ -228,3 +228,13 @@ fn the_chunk_the_map_dump_came_from_is_a_key_the_registry_has() {
         "and it is one of the keys the data does not write"
     );
 }
+
+#[test]
+fn the_data_writes_four_keys_fewer_than_the_reference_registers() {
+    // The arithmetic of the registry, pinned on its own so a change in either list is visible without reading a diff: the data writes 6,284 keys, the code registers 26, four of the
+    // data's keys are selectors rather than chunks, and the reference ends with 6,306.
+    let in_data = keys_in_the_data().len();
+    assert_eq!(in_data, 6284, "keys written in the data");
+    assert_eq!(in_data + cdda_content::mapgen::CODE_REGISTERED.len() - cdda_content::mapgen::NOT_CHUNKS.len(), 6306);
+    assert_eq!(keys().len(), 6306, "and the reference agrees");
+}
