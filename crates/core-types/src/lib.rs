@@ -36,6 +36,7 @@ pub mod sound;
 pub mod sounds;
 pub mod strings;
 pub mod submap;
+pub mod sunlight_cache;
 pub mod text;
 pub mod tiles;
 pub mod units;

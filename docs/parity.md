@@ -406,6 +406,29 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Sunlight is not cast, it is poured (round 356)
+
+`build_sunlight_cache` (`lightmap.cpp:306-437`) does not cast daylight, because daylight is parallel. It walks the z-levels **top to bottom** and each square takes its
+light from the square directly above it, or failing that from one of the four cardinals - which is how light spills sideways under a ceiling. Two flags carry the state
+between levels, and they are the whole optimisation:
+
+| Regime | Condition | Cost |
+|---|---|---|
+nothing blocked the sun yet | `fully_outside` | one fill of the sky's value per level |
+a hole appeared | neither flag | per-square quadrant work |
+nothing gets through | `fully_inside` | one fill of the indoors value per level |
+
+**Which level does the work is not obvious.** A partly roofed level is still *filled wholesale* - the reference fills first and inspects after - and it is the level
+**below** it that does the per-square work, because that is the first level whose `above` is partly lit and which is neither all-outside nor all-inside. A test that
+skipped straight to the middle regime computed nothing, which is how this was found.
+
+| Rule | Value | What a port gets wrong |
+|---|---|---|
+indoors light | `LIGHT_AMBIENT_DIM * 0.8` **only** if the level is above ground **and** the sky is brighter than a bright lamp | using the dim value at night, or below ground, where there is nothing to be dim about |
+own column first | the square above is checked before the cardinals and **breaks** the scan | smearing light sideways that should have come straight down |
+a cardinal lights **two** quarters | north lights `NE` and `NW` | lighting all four, which removes the gradient beside a shaft |
+the divisor | `clamp( above * OPEN_AIR / transparency, indoors, above )` | dropping the clamp, so thin air makes squares brighter than the sky |
+
 ## A light source in three steps, and an inversion the port reproduces on purpose (round 355)
 
 `map::apply_light_source` (`lightmap.cpp:1217-1294`) is where every light in the world arrives - a lamp, a fire, lava, a held torch. Three steps, in this order:

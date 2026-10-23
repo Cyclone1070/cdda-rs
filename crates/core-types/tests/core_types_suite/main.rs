@@ -88,6 +88,7 @@ mod strings;
 mod submap;
 mod submap_store;
 mod sunlight;
+mod sunlight_cache;
 mod text;
 mod tiles;
 mod units;
