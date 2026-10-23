@@ -1,0 +1,143 @@
+# The dice the reference rolled while running the recorded weather series (seed weatherwatch).
+#
+# Captured with CDDA_RNG_TRACE and labelled per hour, so each hour's draws can be handed to the port's wind in the order the reference asked for them:
+# `int 1 2` for the wind's first multiplier, `int 9 <peaks>` for the pressure exponent, `int 1 2` for the seasonal term, `int 0 <max>` for the wind
+# direction check, and the final `int <min> <max>` for how long the weather lasts. Format: `int <low> <high> <drawn>`.
+mark weather.hour.0
+mark weather.hour.1
+int 1 2 2
+int 9 80 46
+int 1 2 2
+int 0 6479 4432
+int 300 300 300
+mark weather.hour.2
+int 1 2 2
+int 9 80 42
+int 1 2 1
+int 0 6479 1566
+int 300 300 300
+mark weather.hour.3
+int 1 2 1
+int 9 80 48
+int 1 2 1
+int 0 2159 166
+int 300 300 300
+mark weather.hour.4
+int 1 2 2
+int 9 80 20
+int 1 2 1
+int 0 10799 6816
+int 300 300 300
+mark weather.hour.5
+int 1 2 2
+int 9 80 39
+int 1 2 1
+int 0 8639 2918
+int 300 300 300
+mark weather.hour.6
+int 1 2 1
+int 9 80 26
+int 1 2 2
+int 0 4319 1784
+int 300 300 300
+mark weather.hour.7
+int 1 2 2
+int 9 80 67
+int 1 2 2
+int 0 6479 4329
+int 300 300 300
+mark weather.hour.8
+int 1 2 2
+int 9 80 12
+int 1 2 2
+int 0 10799 360
+int 300 300 300
+mark weather.hour.9
+int 1 2 2
+int 9 80 56
+int 1 2 1
+int 0 6479 5192
+int 300 300 300
+mark weather.hour.10
+int 1 2 2
+int 9 80 54
+int 1 2 1
+int 0 6479 3411
+int 300 300 300
+mark weather.hour.11
+int 1 2 2
+int 9 80 57
+int 1 2 1
+int 0 4319 1519
+int 300 300 300
+mark weather.hour.12
+int 1 2 2
+int 9 80 12
+int 1 2 2
+int 0 10799 6092
+int 300 300 300
+mark weather.hour.13
+int 1 2 1
+int 9 80 73
+int 1 2 1
+int 300 300 300
+mark weather.hour.14
+int 1 2 1
+int 9 80 17
+int 1 2 2
+int 0 4319 3691
+int 300 300 300
+mark weather.hour.15
+int 1 2 2
+int 9 80 23
+int 1 2 1
+int 0 8639 1225
+int 300 300 300
+mark weather.hour.16
+int 1 2 2
+int 9 80 77
+int 1 2 2
+int 0 2159 1782
+int 300 300 300
+mark weather.hour.17
+int 1 2 2
+int 9 80 57
+int 1 2 2
+int 0 4319 217
+int 300 300 300
+mark weather.hour.18
+int 1 2 2
+int 9 80 66
+int 1 2 2
+int 0 4319 2863
+int 300 300 300
+mark weather.hour.19
+int 1 2 2
+int 9 80 30
+int 1 2 1
+int 0 8639 102
+int 300 300 300
+mark weather.hour.20
+int 1 2 2
+int 9 80 36
+int 1 2 1
+int 0 8639 7532
+int 300 300 300
+mark weather.hour.21
+int 1 2 2
+int 9 80 25
+int 1 2 1
+int 0 10799 1963
+int 300 300 300
+mark weather.hour.22
+int 1 2 2
+int 9 80 74
+int 1 2 1
+int 0 6479 2333
+int 300 300 300
+mark weather.hour.23
+int 1 2 1
+int 9 80 48
+int 1 2 1
+int 0 4319 497
+int 300 300 300

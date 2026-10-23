@@ -2986,6 +2986,31 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## Humidity, pressure, and the wind's dice (round 505)
+
+Humidity and pressure come from the same noise field the temperature uses, at seeds `+101` and `+211`, and both match all twenty-four recorded hours to within a millionth. They are
+doubles in the reference, unlike the temperature, so there is no storage rounding to explain away: agreement here is agreement with the formula.
+
+The wind is the first generator number that rolls, and it is where the oracle earned its keep. `weather_gen.cpp:160-164` asks for three dice - a multiplier, the exponent the pressure is
+raised to, and the seasonal term's multiplier - and the port takes all three from the caller. The harness now writes a `mark weather.hour.N` before each update, so the dice trace
+(`CDDA_RNG_TRACE`) labels which draws belong to which hour:
+
+```
+mark weather.hour.1
+int 1 2 2        the multiplier
+int 9 80 46      the pressure exponent
+int 1 2 2        the seasonal multiplier
+int 0 6479 4432  the wind direction's check, one_in(W * 2160) with W = 3
+int 300 300 300  the weather's duration
+```
+
+Every recorded hour's wind power now reproduces exactly, and the test asserts the **order** the port asks for the dice, not just the answer - a port that drew its own would be
+comparing luck, and a port that drew them in another order would agree by accident on an hour or two and then diverge.
+
+**Still open in the generator:** the wind direction (`get_wind_direction` and `convert_winddir`, plus the `static current_winddir` the reference keeps between calls), the
+`get_weather_conditions` loop that turns a `w_point` into a weather id through each type's dialogue condition, and the manager's turn loop. The fixture already records the direction,
+the id and the rolled duration, so each has its target.
+
 ## The weather generator's temperature, and three storage details (round 504)
 
 The port reproduces all twenty-four recorded hours of the reference's weather to within a millionth of a kelvin, from the recorded intermediates. Three things had to be right before

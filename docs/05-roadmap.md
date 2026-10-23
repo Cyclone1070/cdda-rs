@@ -255,17 +255,15 @@ holds. With that, the reference's answer to "what does this chunk look like" is 
 
 ### What the next round should pick up
 
-The weather generator's temperature is ported and matches all twenty-four recorded hours to within a millionth of a kelvin. The same fixture carries every other number the system
-produces, so the rest arrives one field at a time, in this order:
+The weather generator now reproduces, from recorded inputs, the temperature (to a millionth of a kelvin), humidity, pressure and wind power of all twenty-four recorded hours, and the
+wind's dice come from the caller in the reference's own order. Three pieces remain before the weather turns into a system:
 
-1. **Humidity and pressure** - the same noise field at seeds `+101` and `+211`, with the season's manual adjustment on humidity (`weather_gen.cpp:141-160`). Both are recorded to nine
-   decimal places, so the gate is as tight as the temperature's.
-2. **Wind** - needs three dice the caller owns (`rng(1, 2)`, `rng(9, base_wind_distrib_peaks)`, `one_in(W * 2160)`), and the reference keeps its wind direction in a `static` across
-   calls, which the port has to make explicit state.
-3. **`get_weather_conditions`** - the loop over `sorted_weather` that turns a `w_point` into a weather id, using each type's `condition` dialogue and its `required_weathers`. This is
-   the first place the port needs the dialogue condition machine, so it may be worth taking the id table first (order and required_weathers) and the conditions second.
-4. **The manager's turn loop** - `weather.cpp:901-960`: recompute only when the turn passes `nextweather`, then roll the next duration from the chosen type's `duration_min` and
-   `duration_max`.
+1. **Wind direction** - `get_wind_direction(season)` picks from a seasonal distribution, `convert_winddir` maps it, and the reference keeps the answer in a `static` between calls,
+   changing it only when `one_in(W * 2160)` fires. That static is per-process state the port has to make explicit. The fixture records both the draw and the resulting direction.
+2. **`get_weather_conditions`** - the loop over `sorted_weather` that picks an id from a `w_point`, honouring each type's `required_weathers` and evaluating its dialogue
+   `condition`. This is the first weather piece that needs the condition machine; taking the id table and the ordering first, and the conditions second, keeps the gate moving.
+3. **The manager's turn loop** - `weather.cpp:901-960`: recompute only when the turn passes `nextweather`, roll the next duration from the chosen type's `duration_min` and
+   `duration_max` (that draw is already in the trace as the last `int` of each hour), and clear the transparency caches when the sight penalty changes.
 
 Then the rest of M2: light across z-levels, and vision.
 

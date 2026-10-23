@@ -1,5 +1,8 @@
 //! Simplex noise, exactly as the reference computes it.
 //!
+//! The single-letter names below are the reference's own (x, y, z, w, i, j, k, l, n0 through n4), kept deliberately: this is a transcription of a
+//! published algorithm, and renaming its coordinates would make it harder to check against the source, not easier.
+//!
 //! Reference: `simplexnoise.cpp`/`simplexnoise.h`. The tables below are copied from that header by a script rather than by hand, because a single
 //! wrong number in a 512-entry permutation table is a wrong world that still looks like a world.
 //!
@@ -76,16 +79,29 @@ const SIMPLEX: [[i32; 4]; 64] = [
 ];
 
 /// Reference: `simplexnoise.cpp`, `fastfloor` - floor toward negative infinity, which a cast alone does not do for negatives.
+///
+/// The saturating cast cannot be reached by real noise coordinates (they are positions in days and map squares, nowhere near 2^31), and saturating is the
+/// defined behaviour where the reference would be undefined.
+#[allow(clippy::cast_possible_truncation)]
 fn fast_floor(x: f32) -> i32 {
     if x > 0.0 { x as i32 } else { x as i32 - 1 }
 }
 
 /// The dot product of one gradient with one point.
+///
+/// The gradients are the numbers -1, 0 and 1 (`grad4`), so the casts are exact even though `i32` to `f32` is not exact in general.
+#[allow(clippy::cast_precision_loss)]
 fn dot4(gradient: [i32; 4], x: f32, y: f32, z: f32, w: f32) -> f32 {
     gradient[0] as f32 * x + gradient[1] as f32 * y + gradient[2] as f32 * z + gradient[3] as f32 * w
 }
 
 /// Reference: `simplexnoise.cpp`, `raw_noise_4d` - four-dimensional simplex noise in `[-1, 1]`.
+#[allow(
+    clippy::many_single_char_names,
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::indexing_slicing
+)]
 #[must_use]
 pub fn raw_noise_4d(x: f32, y: f32, z: f32, w: f32) -> f32 {
     let f4 = (5.0f32.sqrt() - 1.0) / 4.0;
@@ -107,8 +123,9 @@ pub fn raw_noise_4d(x: f32, y: f32, z: f32, w: f32) -> f32 {
     let c3 = if y0 > z0 { 8 } else { 0 };
     let c4 = if x0 > w0 { 4 } else { 0 };
     let c5 = if y0 > w0 { 2 } else { 0 };
-    let c6 = if z0 > w0 { 1 } else { 0 };
-    let corner = SIMPLEX[(c1 + c2 + c3 + c4 + c5 + c6) as usize];
+    let c6 = i32::from(z0 > w0);
+    // The six comparisons produce a number below 64 by construction, which is why the reference indexes a 64-entry table with it directly.
+    let corner = SIMPLEX[usize::try_from(c1 + c2 + c3 + c4 + c5 + c6).unwrap_or(0)];
 
     let step = |threshold: i32| -> [i32; 4] {
         [

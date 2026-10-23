@@ -64,9 +64,43 @@ pub struct Generator {
     pub base_temperature: f64,
     /// The region's manual adjustment per season, in kelvins, in the reference's season order.
     pub seasonal_temp_mod: [f64; 4],
+    /// The year's average relative humidity, as a percentage (`weather_gen.h`).
+    pub base_humidity: f64,
+    /// The year's average pressure, in millibars.
+    pub base_pressure: f64,
+    /// The region's manual adjustment to humidity per season, in percentage points, in the same order.
+    pub humidity_manual_mod: [f64; 4],
+    /// The year's average wind, which the pressure is divided into (`weather_gen.h`).
+    pub base_wind: f64,
+    /// The pressure exponent's upper bound when the wind is being rolled (`weather_gen.h`).
+    pub base_wind_distrib_peaks: i32,
+    /// How much the season moves the wind, as a divisor (`weather_gen.h`).
+    pub base_wind_season_variation: f64,
+}
+
+impl Generator {
+    /// The default region's settings, from `data/json/regional_map_settings.json`: 6.5 C, 70 per cent humidity, 1015 millibars, 3.4 wind, exponent
+    /// peaks at 80, and a seasonal wind variation of 50. No season carries a manual adjustment.
+    #[must_use]
+    pub fn default_region() -> Self {
+        Generator {
+            base_temperature: 6.5,
+            seasonal_temp_mod: [0.0; 4],
+            base_humidity: 70.0,
+            base_pressure: 1015.0,
+            humidity_manual_mod: [0.0; 4],
+            base_wind: 3.4,
+            base_wind_distrib_peaks: 80,
+            base_wind_season_variation: 50.0,
+        }
+    }
 }
 
 /// The temperature at a moment, in Celsius (`weather_gen.cpp:99-108`).
+///
+/// The noise takes `float` coordinates and the reference converts the doubles on the way in, so the narrowing here is the reference's own and not an
+/// approximation of it.
+#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
 #[must_use]
 pub fn temperature(generator: &Generator, common: &CommonData, day_fraction: f64) -> f64 {
     let seasonality = -common.cyf;
@@ -95,6 +129,7 @@ pub fn temperature(generator: &Generator, common: &CommonData, day_fraction: f64
 /// formula produces is rounded to single precision on the way in and widened again on the way out. Doing the same here is not pedantry - at 275 K the
 /// spacing between `float`s is 0.00003 K, which is larger than every arithmetic difference the port could otherwise have, and skipping the round trip
 /// leaves a residual that looks like a formula error when it is only a storage width.
+#[allow(clippy::cast_possible_truncation)]
 #[must_use]
 pub fn temperature_k(generator: &Generator, common: &CommonData, day_fraction: f64) -> f64 {
     // `from_celsius`: `v + 273.150f` where `v` is a double and the constant is a float, so the addition happens in double and only the sum is
@@ -102,4 +137,90 @@ pub fn temperature_k(generator: &Generator, common: &CommonData, day_fraction: f
     // is a recipe with an order in it.
     let celsius = temperature(generator, common, day_fraction);
     f64::from((celsius + f64::from(273.150f32)) as f32)
+}
+
+/// The relative humidity at a moment, as a percentage (`weather_gen.cpp:141-152`).
+///
+/// Reference: `std::min( 100., std::max( 0., base + mod + 100 * ( .15 * seasonality + noise * .2 * ( -seasonality + 2 ) ) ) )`. The noise is the same
+/// field the temperature uses, two hundred and one seeds away, so the two move together - which is what makes a cold snap also a wet one.
+#[must_use]
+pub fn humidity(generator: &Generator, common: &CommonData) -> f64 {
+    let seasonality = -common.cyf;
+    let manual = generator
+        .humidity_manual_mod
+        .get(common.season)
+        .copied()
+        .unwrap_or(0.0);
+    let noise = f64::from(noise_at(common, 101));
+    let unclamped = generator.base_humidity
+        + manual
+        + 100.0 * (0.15 * seasonality + noise * 0.2 * (-seasonality + 2.0));
+    unclamped.clamp(0.0, 100.0)
+}
+
+/// The atmospheric pressure at a moment, in millibars (`weather_gen.cpp:154-158`).
+#[must_use]
+pub fn pressure(generator: &Generator, common: &CommonData) -> f64 {
+    let seasonality = -common.cyf;
+    generator.base_pressure + f64::from(noise_at(common, 211)) * 15.0 * (-seasonality + 2.0)
+}
+
+/// The noise field at a given seed offset from the world's.
+///
+/// The offset is added to an **unsigned** seed in the reference (`modSEED + 101`), so it wraps rather than saturating: a world seed one below the noise
+/// limit would otherwise leave the field entirely.
+#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+fn noise_at(common: &CommonData, offset: u32) -> f32 {
+    crate::noise::raw_noise_4d(
+        common.x as f32,
+        common.y as f32,
+        common.z as f32,
+        common.mod_seed.wrapping_add(offset) as f32,
+    )
+}
+
+/// The noise the wind starts from, before the pressure divides it (`weather_gen.cpp:134`).
+///
+/// Reference: `raw_noise_4d( x / 2.5, y / 2.5, z / 200, modSEED ) * 10.0` - the same field again, widened on x and y and narrowed on z, so the wind
+/// varies over tens of map squares and over years rather than hours.
+#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+#[must_use]
+pub fn wind_noise(common: &CommonData) -> f64 {
+    f64::from(crate::noise::raw_noise_4d(
+        (common.x / 2.5) as f32,
+        (common.y / 2.5) as f32,
+        (common.z / 200.0) as f32,
+        common.mod_seed as f32,
+    )) * 10.0
+}
+
+/// The wind's strength at a moment (`weather_gen.cpp:160-164`).
+///
+/// Reference: `max( 0, int( base_wind * rng(1,2) / pow( (P + W) / 1014.78, rng(9, peaks) ) + -cyf / variation * rng(1,2) ) )`.
+///
+/// The dice come from the caller, in the reference's order - multiplier, exponent, seasonal multiplier - because that is the order the trace shows and a
+/// port that draws its own would be comparing luck. The three are asked for through `roll`, which returns what it was given.
+///
+/// # Panics
+///
+/// Panics only if `roll` returns a value outside the range it was asked for; the reference's dice cannot, and a caller that supplies its own must not
+/// either.
+#[allow(clippy::cast_possible_truncation)]
+#[must_use]
+pub fn wind_power(
+    generator: &Generator,
+    common: &CommonData,
+    pressure: f64,
+    roll: &mut dyn FnMut(i32, i32) -> i32,
+) -> i32 {
+    let multiplier = roll(1, 2);
+    let exponent = roll(9, generator.base_wind_distrib_peaks);
+    let seasonal = roll(1, 2);
+    let noise = wind_noise(common);
+    let numerator = generator.base_wind * f64::from(multiplier);
+    let ratio = ((pressure + noise) / 1014.78).powf(f64::from(exponent));
+    let seasonal_term = -common.cyf / generator.base_wind_season_variation * f64::from(seasonal);
+    let wind = numerator / ratio + seasonal_term;
+    // `static_cast<int>` truncates toward zero, and the maximum with zero is applied after the cast, not before.
+    (wind as i32).max(0)
 }
