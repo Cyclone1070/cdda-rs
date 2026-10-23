@@ -406,6 +406,24 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The sim gathers in two phases too (round 387)
+
+Round 386 gave the level the reference's buffer; the sim still cast sources as it found them. It gathers in two phases now, in the reference's order:
+
+| Phase | Reference | Port |
+|---|---|---|
+1. record | `add_light_source` for terrain, furniture and fields (`lightmap.cpp:528-541`) | `light_sources` returns the emitters as the buffered list |
+2. apply | the buffer drained through `apply_light_source` (`:654-659`) | `apply_buffered_sources`, neighbour skips included |
+3. placed | items and creatures cast directly | `LightSource` components, cast unbuffered |
+
+**Every existing light test stayed green through the change**, which is the point: the two phases are the same answer computed in a different order, and the tests that pin the
+numbers - a lamp's own square, a fire's three intensities, the smoke that dims what is behind it, the turn that rebuilds the map - are what proves the reordering did not move
+anything.
+
+**The new receipt is the drained buffer.** After a cast the level holds no buffered sources, because the next build starts from zero (`lightmap.cpp:463-464`). A test with a
+lamp and a fire side by side checks three things at once: the lamp keeps its own light, the fire beside it is lit, and the room east of the pair keeps the lamp's brightness -
+the skip rule must never darken a square, which is the failure mode a badly-mapped direction table would produce.
+
 ## Buffered sources, and rays a neighbour already casts (round 386)
 
 The reference does not cast a light source when it reads it. It **records** it, walks the whole map, and only then casts (`lightmap.cpp:463-464`, `654-659`, `666-670`).

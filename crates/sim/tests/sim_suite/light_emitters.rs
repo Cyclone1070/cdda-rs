@@ -115,3 +115,41 @@ fn world_spawn(intensity: i32) -> World {
     ));
     world
 }
+
+#[test]
+fn two_lamps_beside_each_other_light_the_room_and_leave_no_buffer_behind() {
+    // The reference records every emitter the map has, then applies them in one pass (`lightmap.cpp:463-464`, `654-659`). The skip rule must not darken anything: the dim lamp's
+    // own square keeps its own light, the bright one's room keeps the bright value, and the buffer is empty once the pass has run, because the next build starts from zero.
+    let mut world = world(&[(5, 5, LAMP)]);
+    // A second, dimmer lamp beside it: the same terrain code with a different luminance, which the table cannot express, so the dimmer one is a fire that emits 20.
+    let mut entry = FieldEntry::new(3, 30, false, true);
+    entry.set_intensity(1);
+    world.spawn((
+        Position { x: 6, y: 5, z: 0 },
+        Field {
+            id: FieldId(FIRE),
+            entry,
+            priority: 0,
+        },
+    ));
+    cast_lights_with(&mut world);
+
+    let light = world.resource::<Light>();
+    assert!(
+        light.max_at(5, 5) >= 100.0,
+        "the lamp's own square: {}",
+        light.max_at(5, 5)
+    );
+    assert!(
+        light.max_at(6, 5) > 0.0,
+        "the fire beside it is lit too: {}",
+        light.max_at(6, 5)
+    );
+    assert!(
+        light.max_at(9, 5) > 50.0,
+        "and the room east of the pair keeps the lamp's light: {}",
+        light.max_at(9, 5)
+    );
+    let map = world.resource::<Map>();
+    assert_eq!(map.0.buffered_sources(), 0, "the buffer is drained");
+}

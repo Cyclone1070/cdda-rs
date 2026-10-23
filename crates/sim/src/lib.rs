@@ -1019,15 +1019,22 @@ pub fn bounds_of_public(level: &cdda_core_types::level::Level) -> usize {
     bounds_of(level)
 }
 
+/// A square and how brightly it shines.
+type Emitter = (i32, i32, f32);
+
+/// The reference's two lists of lights: what the map's own data emits, which is buffered, and what a caller placed, which is not.
+type LightSources = (Vec<Emitter>, Vec<Emitter>);
+
 /// Every light the world holds: what a caller placed, and what the terrain, the furniture and the fields emit themselves.
 ///
 /// Reference: `map::generate_lightmap`'s gathering loop (`lightmap.cpp:525-547`), which walks every square and adds a source for each terrain, furniture and field whose own
 /// data says it emits one, on top of the items and creatures it also reads. The port has no items or creatures yet; the three that come from the loaded prototypes do.
-fn light_sources(world: &mut World) -> Vec<(i32, i32, f32)> {
-    let mut sources: Vec<(i32, i32, f32)> = Vec::new();
+fn light_sources(world: &mut World) -> LightSources {
+    // What a caller placed - a torch, a component someone spawned - is the port's stand-in for the reference's items and creatures: it casts immediately and is not buffered.
+    let mut placed: Vec<Emitter> = Vec::new();
     let mut source_query = world.query::<(&Position, &LightSource)>();
     for (position, source) in source_query.iter(world) {
-        sources.push((position.x, position.y, source.luminance));
+        placed.push((position.x, position.y, source.luminance));
     }
     // The world's own emitters, gathered the way `map::generate_lightmap` gathers them (`lightmap.cpp:525-547`): a burning square is a light, a lamp terrain is a light,
     // and the number is each one's own data rather than something a caller placed.
@@ -1066,19 +1073,11 @@ fn light_sources(world: &mut World) -> Vec<(i32, i32, f32)> {
             *entry = entry.max(emitted);
         }
     }
-    for (square, luminance) in emitters {
-        // A square that already carries a placed source takes the brighter of the two, which is how `add_light_source` merges them.
-        if let Some(existing) = sources
-            .iter_mut()
-            .find(|(x, y, _)| *x == square.0 && *y == square.1)
-        {
-            existing.2 = existing.2.max(luminance);
-        } else {
-            sources.push((square.0, square.1, luminance));
-        }
-    }
-
-    sources
+    let buffered: Vec<Emitter> = emitters
+        .into_iter()
+        .map(|(square, luminance)| (square.0, square.1, luminance))
+        .collect();
+    (buffered, placed)
 }
 
 /// The side of the square of world the level covers, in tiles.
@@ -1131,13 +1130,13 @@ fn cast_lights_inner(
             });
     }
 
-    let sources = light_sources(world);
+    let (buffered, placed) = light_sources(world);
 
     let mut terrains: BTreeMap<(i32, i32), u32> = BTreeMap::new();
     // The furniture layer is read while the level is borrowed mutably below, so both layers are snapshotted first: 0 means no furniture, which is transparent anyway.
     let mut furniture: BTreeMap<(i32, i32), u32> = BTreeMap::new();
     if let Some(map) = world.get_resource::<Map>() {
-        for (x, y, _) in &sources {
+        for (x, y, _) in buffered.iter().chain(placed.iter()) {
             for dy in -12..=12 {
                 for dx in -12..=12 {
                     let at = (x + dx, y + dy);
@@ -1147,7 +1146,7 @@ fn cast_lights_inner(
                 }
             }
         }
-        for (x, y, _) in &sources {
+        for (x, y, _) in buffered.iter().chain(placed.iter()) {
             for dy in -12..=12 {
                 for dx in -12..=12 {
                     let at = (x + dx, y + dy);
@@ -1162,28 +1161,30 @@ fn cast_lights_inner(
         BTreeMap::new();
     if let Some(mut map) = world.remove_resource::<Map>() {
         let level = &mut map.0;
-        for (x, y, luminance) in sources {
-            level.add_light_source_with(
-                (x, y),
-                luminance,
-                sight_penalty,
-                |field_x, field_y| cdda_core_types::transparency::SquareFacts {
-                    // A square the world has not made is not a square: `transparency_grid` reports it solid on its own.
-                    terrain_transparent: terrains
-                        .get(&(field_x, field_y))
-                        .is_none_or(|id| terrain_transparency(*id) > 0.0),
-                    // The conjunction of the two layers (`lightmap.cpp:146-149`): either one being opaque stops the ray.
-                    furniture_transparent: furniture
-                        .get(&(field_x, field_y))
-                        .is_none_or(|code| furniture_transparency(*code) > 0.0),
-                    outside: outside_of_square(field_x, field_y),
-                    fields: dimming
-                        .get(&(field_x, field_y))
-                        .cloned()
-                        .unwrap_or_default(),
-                },
-                &mut light,
-            );
+        let facts = |field_x: i32, field_y: i32| cdda_core_types::transparency::SquareFacts {
+            // A square the world has not made is not a square: `transparency_grid` reports it solid on its own.
+            terrain_transparent: terrains
+                .get(&(field_x, field_y))
+                .is_none_or(|id| terrain_transparency(*id) > 0.0),
+            // The conjunction of the two layers (`lightmap.cpp:146-149`): either one being opaque stops the ray.
+            furniture_transparent: furniture
+                .get(&(field_x, field_y))
+                .is_none_or(|code| furniture_transparency(*code) > 0.0),
+            outside: outside_of_square(field_x, field_y),
+            fields: dimming
+                .get(&(field_x, field_y))
+                .cloned()
+                .unwrap_or_default(),
+        };
+        // **Record first, cast second** (`lightmap.cpp:463-464`, `654-659`): every source the map itself emits is buffered, and only then applied, so each square can ask
+        // whether a neighbour is already lit at least as brightly before deciding which directions are worth casting into.
+        for (x, y, luminance) in buffered {
+            level.add_light_source((x, y), luminance);
+        }
+        level.apply_buffered_sources(sight_penalty, facts, &mut light);
+        // Then the sources a caller placed, which the reference casts immediately and does not buffer.
+        for (x, y, luminance) in placed {
+            level.apply_light_source_with((x, y), luminance, sight_penalty, facts, &mut light);
         }
         world.insert_resource(map);
     }
