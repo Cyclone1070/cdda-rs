@@ -211,3 +211,60 @@ fn a_square_out_of_sight_is_not_shown_however_bright_it_is() {
     blocked.blocks_light = |code| code == 2;
     assert!(!shown_at(&mut level, &blocked, &light, (8, 5)));
 }
+
+/// A block of opaque squares, with the player standing east of it.
+fn blocked_room() -> cdda_core_types::level::Level {
+    let mut level = open_level();
+    for square in [(4, 4), (4, 5), (4, 6), (5, 4), (5, 5), (5, 6)] {
+        level.set_terrain(square.0, square.1, 2, 1);
+    }
+    level
+}
+
+fn four_way(north_east: f32, south_east: f32, south_west: f32, north_west: f32) -> cdda_core_types::shadowcasting::FourQuadrants {
+    use cdda_core_types::shadowcasting::{FourQuadrants, Quadrant};
+    let mut quarters = FourQuadrants::uniform(0.0);
+    quarters.set(Quadrant::NorthEast, north_east);
+    quarters.set(Quadrant::SouthEast, south_east);
+    quarters.set(Quadrant::SouthWest, south_west);
+    quarters.set(Quadrant::NorthWest, north_west);
+    quarters
+}
+
+#[test]
+fn the_face_of_a_wall_only_counts_the_quarters_the_player_can_see_it_from() {
+    // `apparent_light_helper`'s complicated branch (`lightmap.cpp:751-797`): for an **opaque** square the reference counts only the quarters that face a visible, non-opaque
+    // neighbour, so light arriving from behind the wall does not brighten the face the player is looking at. The port took the brightest quarter of all four and would read the
+    // hundred here; the reference reads the five.
+    use cdda_core_types::vision::apparent_light_at_seen;
+
+    let mut level = blocked_room();
+    let mut light = std::collections::BTreeMap::new();
+    // Bright from the north-west, dim from the two quarters the player can see from the east.
+    light.insert((5, 5), four_way(5.0, 1.0, 1.0, 100.0));
+    let mut east = view();
+    east.origin = (8, 5);
+    east.blocks_light = |code| code == 2;
+
+    let apparent = apparent_light_at_seen(&mut level, &east, &light, (5, 5));
+    assert!(
+        (apparent - 5.0).abs() < f32::EPSILON,
+        "the wall's face, not its back: {apparent}"
+    );
+}
+
+#[test]
+fn a_floor_square_counts_the_brightest_quarter_whichever_way_it_points() {
+    // The simple branch (`lightmap.cpp:792-796`): for a non-opaque square light from all directions is equivalent, so the brightest quarter is the answer. The wall rule above must
+    // not leak into open ground, or a room would be lit only where the nearest lamp happens to face.
+    use cdda_core_types::vision::apparent_light_at_seen;
+
+    let mut level = open_level();
+    let mut light = std::collections::BTreeMap::new();
+    light.insert((3, 5), four_way(1.0, 1.0, 1.0, 100.0));
+    let mut east = view();
+    east.origin = (8, 5);
+
+    let apparent = apparent_light_at_seen(&mut level, &east, &light, (3, 5));
+    assert!((apparent - 100.0).abs() < f32::EPSILON, "the brightest one: {apparent}");
+}

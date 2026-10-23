@@ -406,6 +406,27 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The face of a wall counts only the light it faces (round 381)
+
+`apparent_light_at` took the brightest of a square's four quarters whatever the square was. The reference has two branches (`lightmap.cpp:748-798`):
+
+| Square | Reference | Port |
+|---|---|---|
+opaque and visible | walk the eight neighbours, keep the non-opaque => visible ones, count only the two quarters each faces | `apparent_light_at_seen`'s neighbour table |
+anything else | `vis * lm.max()` | unchanged |
+
+**Why the second branch exists at all.** "For a non-opaque tile light from all directions is equivalent" - a floor square's four quarters differ only by where the lamp
+happens to stand, so the brightest is the honest answer. An **opaque** square is different: three of its quarters may face into the wall itself, and counting them lets light
+from behind a wall brighten the face the player is looking at.
+
+**The test that proves it uses the quarters the player cannot see.** The fixture is a six-square block of wall with the player standing east of it; the light map carries a
+hundred in the north-west quarter and five in the two the player can see. The honest answer is five. The old code answered a hundred, and the test says so in its failure
+message.
+
+**One test measured nothing because its own fixture said nothing was opaque.** The first run answered a hundred even with the new rule in place: `view()` in the test file
+declares `blocks_light` as "nothing blocks", so the square was not a wall to the function under test. Fixed in the fixture, not in the rule - which is the right direction, and
+worth writing down because a test double that answers "no walls" makes every wall rule invisible.
+
 ## A turn ends with the light it made (round 380)
 
 Round 379 taught the light map to read the world's own emitters. Nothing rebuilt it, so a fire that started this turn was invisible until something else asked. The turn now

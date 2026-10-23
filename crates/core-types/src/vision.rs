@@ -25,6 +25,75 @@ pub fn apparent_light_at(light: &BTreeMap<(i32, i32), FourQuadrants>, square: (i
     light.get(&square).map_or(0.0, FourQuadrants::max)
 }
 
+/// The light a square appears to hold, counting only the quarters the character can see it from.
+///
+/// Reference: `level_cache::apparent_light_helper` (`src/lightmap.cpp:725-800`), the branch that matters. For an **opaque** square the reference does not take the brightest of
+/// the four quarters, because three of them may face into the wall: it walks the eight neighbours, keeps the ones that are non-opaque and visible, and counts the light only in
+/// the two quarters each of them faces. A non-opaque square takes the brightest quarter, "for a non-opaque tile light from all directions is equivalent"
+/// (`lightmap.cpp:792-796`).
+///
+/// The port's visibility is a yes or a no rather than the reference's fraction, so a visible square counts as fully visible; that is the same trade [`shown_at`] makes.
+#[must_use]
+pub fn apparent_light_at_seen(
+    level: &mut Level,
+    view: &View,
+    light: &BTreeMap<(i32, i32), FourQuadrants>,
+    square: (i32, i32),
+) -> f32 {
+    use crate::shadowcasting::{FourQuadrants, Quadrant};
+    let Some(cell) = light.get(&square).copied() else {
+        return 0.0;
+    };
+    let opaque = level
+        .terrain_at(square.0, square.1)
+        .is_some_and(|code| (view.blocks_light)(code));
+    let in_sight = level.seen_at(view.origin, view.radius, view.blocks_light, square);
+    if !opaque || !in_sight {
+        return cell.max();
+    }
+
+    // The reference's own table (`lightmap.cpp:756-767`): which two quarters each neighbour faces. Eight entries, in this order.
+    let neighbours: [((i32, i32), [Quadrant; 2]); 8] = [
+        ((0, 1), [Quadrant::SouthEast, Quadrant::SouthWest]),
+        ((0, -1), [Quadrant::NorthEast, Quadrant::NorthWest]),
+        ((1, 0), [Quadrant::SouthEast, Quadrant::NorthEast]),
+        ((1, 1), [Quadrant::SouthEast, Quadrant::SouthEast]),
+        ((1, -1), [Quadrant::NorthEast, Quadrant::NorthEast]),
+        ((-1, 0), [Quadrant::SouthWest, Quadrant::NorthWest]),
+        ((-1, 1), [Quadrant::SouthWest, Quadrant::SouthWest]),
+        ((-1, -1), [Quadrant::NorthWest, Quadrant::NorthWest]),
+    ];
+
+    let mut seen_from = FourQuadrants::uniform(0.0);
+    for (offset, quarters) in neighbours {
+        let neighbour = (square.0 + offset.0, square.1 + offset.1);
+        // Out of bounds, or a wall: the reference skips both (`lightmap.cpp:770-776`).
+        let Some(code) = level.terrain_at(neighbour.0, neighbour.1) else {
+            continue;
+        };
+        if (view.blocks_light)(code) {
+            continue;
+        }
+        if !level.seen_at(view.origin, view.radius, view.blocks_light, neighbour) {
+            continue;
+        }
+        for quarter in quarters {
+            seen_from.set(quarter, 1.0);
+        }
+    }
+
+    let mut apparent = 0.0f32;
+    for quarter in [
+        Quadrant::NorthEast,
+        Quadrant::SouthEast,
+        Quadrant::SouthWest,
+        Quadrant::NorthWest,
+    ] {
+        apparent = apparent.max(seen_from.get(quarter) * cell.get(quarter));
+    }
+    apparent
+}
+
 /// What the character is looking with and from: the origin, the range, what stops the sight, and the two numbers that decide whether the light is enough.
 ///
 /// Reference: the facts `map::pl_sees` reads from the avatar (`src/map.cpp:854-871`) that the port takes as arguments instead - there is no creature layer yet.
@@ -59,12 +128,11 @@ pub fn shown_at(
     square: (i32, i32),
 ) -> bool {
     // **Visibility multiplies the light.** `apparent_light = vis * lm.max()` (`lightmap.cpp:795-798`), and `vis` is the seen-cache value, so a square out of the cast has an
-    // apparent light of zero however bright the light map says it is. Reading the light map as if it were already apparent light shows the player what is behind a wall,
-    // which is exactly what this test caught.
+    // apparent light of zero however bright the light map says it is. [`apparent_light_at_seen`] does that multiplication and, on an opaque square, keeps only the quarters the
+    // character can see it from. Believing the light map is already apparent light shows the player what is behind a wall, which is what the first test here caught.
     let in_sight = level.seen_at(view.origin, view.radius, view.blocks_light, square);
-    let visibility = if in_sight { 1.0 } else { 0.0 };
     let level_at = lit_level_at(
-        visibility * apparent_light_at(light, square),
+        apparent_light_at_seen(level, view, light, square),
         !in_sight,
         view.ground_light_level,
         view.vision_threshold,
