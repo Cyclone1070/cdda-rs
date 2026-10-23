@@ -255,14 +255,15 @@ holds. With that, the reference's answer to "what does this chunk look like" is 
 
 ### What the next round should pick up
 
-The mapgen family's gate is live and unforgiving: `--dump-mapgen <key> <file>` runs one mapgen in isolation in the reference and writes a chunk, and two chunks whose terrain is entirely
-inline now match the reference on every square the port draws. The next two mechanisms are the ones the shelter still fails on, in this order:
+The weather system is next, and it now has its oracle: `--dump-weather-series <file> --weather-hours <n>` runs the reference hour by hour and writes what the system did -
+the weather id, the generator's own temperature, humidity, pressure and wind, and the duration it rolled before the next change. Two runs of the same seed are byte-identical, so it
+is a gate and not an observation. `corpus/weather/series-24h.json` is the first fixture: 24 hours on seed `weatherwatch`, two weathers out of it.
 
-1. **The wall-connection pass.** After the draw, the reference replaces a wall's terrain with a directional variant (`t_concrete_wall_w`) when it has a neighbour. That is a
-   post-draw pass over the chunk, not part of the draw, and it is the last reason the shelter's gate is not exact. It needs each terrain's `connects_to` group from the data.
-2. **A parameter source.** The three shapes of a palette reference are read, and a parameter's `fallback` is drawn, but nothing supplies a parameter yet: the overmap special does.
-   That arrives with the overmap-special loader.
-3. Then the furniture layer into `frame`, and the remaining post-draw placements measured in round 496: 1,257 furniture tables, 961 item tables, 1,401 `place_nested`, 2,442 `fill_ter`.
+The port has only `Weather { sight_penalty }` today, so the work is the generator first (`weather_gen.cpp`: base temperature, humidity, pressure and wind over the season, the
+per-hour noise, and `get_weather_conditions`), then the manager's turn loop (`weather.cpp:901-960`: only recompute when the turn passes `nextweather`, and roll the next duration from
+the chosen type's `duration_min`/`duration_max`). The recorded series gives both halves a target, field by field, which is why it was built before any of it was written.
+
+The remaining M2 items after that, unchanged: light across z-levels, and vision.
 
 ## 4. Phase detail
 

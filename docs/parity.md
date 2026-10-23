@@ -2986,6 +2986,15 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The weather system's oracle, before its port (round 503)
+
+`--dump-weather-series` runs the reference hour by hour and writes what the weather system actually did: the weather id, the generator's temperature, humidity, pressure, wind direction
+and wind power, and the duration it rolled before the next change. Two runs of one seed are byte-identical, which is what makes it a gate: the reference's weather is not random from run
+to run, only from seed to seed.
+
+`corpus/weather/series-24h.json` holds the first fixture - 24 hours on seed `weatherwatch`, `sunny` giving way to `clear` - and it was recorded before a line of the port's weather
+system exists, so the system arrives with its target already in hand rather than after the fact.
+
 ## Nearly four of every five overmap ids are a rule (round 503)
 
 The reference holds 6,269 overmap terrain **types** and 24,218 **instances**. The difference is not data: a rotatable type becomes four instances
