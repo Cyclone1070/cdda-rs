@@ -3,7 +3,7 @@
 //! Source: `--dump-mapgens` from the instrumented reference, which writes every `mapgen` key the game can generate a chunk from. The palette a chunk is built from is looked up
 //! by these keys, so the port cannot generate anything until it has the same list.
 
-#![allow(clippy::expect_used, clippy::panic)]
+#![allow(clippy::expect_used, clippy::panic, clippy::indexing_slicing)]
 
 use cdda_json::{Value, parse};
 use std::collections::BTreeSet;
@@ -172,4 +172,39 @@ fn the_registry_from_the_data_plus_the_code_keys_is_exactly_the_reference_s_list
     assert!(missing.is_empty(), "the port would miss {} chunks: {:?}", missing.len(), &missing[..missing.len().min(8)]);
     assert!(extra.is_empty(), "the port would offer {} chunks: {:?}", extra.len(), &extra[..extra.len().min(8)]);
     assert_eq!(registry.len(), 6306, "and the answer is the reference's own count");
+}
+
+#[test]
+fn the_loader_s_own_extractor_agrees_with_the_registry_walk() {
+    // Two pieces of code now read `om_terrain`: the test's walker, which builds the registry, and `mapgen::keys_of`, which a loader uses on one object at a time. If they disagree,
+    // the registry gate passes while the loader that feeds the generator gets a different set - so they are compared over the whole data rather than trusted to match by inspection.
+    fn walk(directory: &Path, into: &mut Vec<(String, String)>) {
+        let Ok(entries) = std::fs::read_dir(directory) else { return };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                walk(&path, into);
+            } else if path.extension().is_some_and(|extension| extension == "json") {
+                let Ok(text) = std::fs::read_to_string(&path) else { continue };
+                let Ok(Value::Array(entries)) = parse(text.as_bytes()) else { continue };
+                for entry in entries {
+                    let Value::Object(object) = &entry else { continue };
+                    for key in cdda_content::mapgen::keys_of(object).terrains {
+                        into.push((text.clone(), key));
+                    }
+                }
+            }
+        }
+    }
+
+    let mut from_loader: BTreeSet<String> = BTreeSet::new();
+    let mut pairs: Vec<(String, String)> = Vec::new();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json");
+    walk(&root, &mut pairs);
+    for (_, key) in pairs {
+        from_loader.insert(key);
+    }
+    let expected = keys_in_the_data();
+    assert_eq!(from_loader.len(), expected.len(), "the same number of keys");
+    assert_eq!(from_loader, expected, "and the same keys, not just the same count");
 }
