@@ -18,6 +18,7 @@ pub mod coords;
 pub mod diagnostics;
 pub mod field;
 pub mod fire;
+pub mod floor_cache;
 pub mod grid;
 pub mod ids;
 pub mod level;

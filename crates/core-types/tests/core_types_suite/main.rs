@@ -26,6 +26,7 @@ mod fire_smoke_source;
 mod fire_spread;
 mod fire_spread_items;
 mod fire_spread_order;
+mod floor_cache;
 mod forest_border;
 mod forest_corner_arithmetic;
 mod forest_corners;

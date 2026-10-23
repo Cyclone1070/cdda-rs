@@ -406,6 +406,30 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## A floor is what stops the sun, and a greenhouse is the exception (round 361)
+
+`build_floor_cache` (`map.cpp:9417-9471`) answers "is there something underfoot" per square, and the sunlight pass reads the answer **one level up**: a square receives daylight
+only when the level above has no floor there.
+
+```mermaid
+graph TD
+    A[Start with a floor everywhere] --> B{Does the terrain open this square?}
+    B -->|no| C[Floor stays]
+    B -->|yes| D{Is there a greenhouse roof on the level below?}
+    D -->|yes| C
+    D -->|no| E[No floor, and the level is no longer sealed]
+```
+
+| Rule | Detail | Consequence |
+|---|---|---|
+four flags open a square | `NO_FLOOR`, `NO_FLOOR_WATER`, `GOES_DOWN`, `TRANSPARENT_FLOOR` | four different ways to fall: nothing there, water there, a stair there, glass there |
+`SUN_ROOF_ABOVE` **below** closes it | furniture on the level *under* this one | a greenhouse catches the sun on its own level instead of passing it down |
+`no_floor_gaps` | true only when the whole level is sealed | one hole anywhere lets a caller skip nothing |
+
+**The roof has to be read from the level below, not this one.** A roof above you is a ceiling; a roof *below* you is what cancels the hole, because the sunlight pass is reading
+this cache while it lights the level underneath. Reading the same level's furniture would make every greenhouse seal the sky above itself instead of catching it - a test pins
+each direction.
+
 ## Under open sky: one flag and a three-square stamp (round 360)
 
 `build_outside_cache` (`map.cpp:9260-9314`) answers one question per square - is the sky above it - and the last three rounds all quietly trusted the answer:
