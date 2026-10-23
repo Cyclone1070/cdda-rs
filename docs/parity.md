@@ -406,6 +406,21 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The mapgen registry equals the reference's, in both directions (round 460)
+
+The first gate of the mapgen family is in, and it is an equality rather than a count:
+
+```text
+keys written in the data  +  the 26 registered in code  -  the 4 that are not chunks  =  6,306  =  the reference's list
+```
+
+The test walks `data/json` the way a registry build would, parses every file, keeps `type: mapgen` entries and collects `om_terrain` however it is written - a string, an array, or
+an array of arrays - then does the union and the subtraction and compares **both directions** with the dumped list. A chunk the port would miss and a chunk it would offer are named
+separately, because they are different bugs: one is a region the player can walk into and the port cannot draw, the other is a region the port would invent.
+
+**What this does not yet prove:** that any chunk is generated *correctly*. It proves the port knows which chunks exist, which is the precondition for generating one. The terrain of a
+generated chunk is gated separately (`corpus/maps/`), and the generator itself is the next piece of work.
+
 ## The generator's keys are the JSON ones plus a handful made in code (round 442)
 
 The reference's 6,306 mapgen keys were compared against the `om_terrain` keys written in the data itself:

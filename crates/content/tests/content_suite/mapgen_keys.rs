@@ -110,3 +110,66 @@ fn the_port_carries_the_code_keys_and_refuses_the_selectors_in_its_own_source() 
     }
     assert!(BTreeSet::from_iter(code).is_disjoint(&BTreeSet::from_iter(selectors)));
 }
+
+/// Every `mapgen` key written in the data, derived the way a registry would be built.
+fn keys_in_the_data() -> BTreeSet<String> {
+    fn walk(directory: &Path, into: &mut BTreeSet<String>) {
+        let Ok(entries) = std::fs::read_dir(directory) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                walk(&path, into);
+            } else if path.extension().is_some_and(|extension| extension == "json") {
+                let Ok(text) = std::fs::read_to_string(&path) else {
+                    continue;
+                };
+                let Ok(value) = parse(text.as_bytes()) else {
+                    continue;
+                };
+                let Value::Array(entries) = value else { continue };
+                for entry in &entries {
+                    let Value::Object(object) = entry else { continue };
+                    if !matches!(object.get("type"), Some(Value::Str(kind)) if kind == "mapgen") {
+                        continue;
+                    }
+                    let mut stack = vec![object.get("om_terrain")];
+                    while let Some(value) = stack.pop() {
+                        match value {
+                            Some(Value::Str(key)) => {
+                                into.insert(key.clone());
+                            }
+                            Some(Value::Array(items)) => stack.extend(items.iter().map(Some)),
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let mut keys = BTreeSet::new();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json");
+    walk(&root, &mut keys);
+    keys
+}
+
+#[test]
+fn the_registry_from_the_data_plus_the_code_keys_is_exactly_the_reference_s_list() {
+    // The gate the mapgen family starts from. Three sets, one answer: what the data writes, plus what the code registers, minus what is not a chunk at all. Anything else means the
+    // port would generate a chunk the game cannot, or fail to generate one it can - and both look identical from a green suite.
+    let mut registry = keys_in_the_data();
+    for key in cdda_content::mapgen::CODE_REGISTERED {
+        registry.insert(key.to_string());
+    }
+    for key in cdda_content::mapgen::NOT_CHUNKS {
+        registry.remove(key);
+    }
+    let reference = keys();
+    let missing: Vec<&String> = reference.difference(&registry).collect();
+    let extra: Vec<&String> = registry.difference(&reference).collect();
+    assert!(missing.is_empty(), "the port would miss {} chunks: {:?}", missing.len(), &missing[..missing.len().min(8)]);
+    assert!(extra.is_empty(), "the port would offer {} chunks: {:?}", extra.len(), &extra[..extra.len().min(8)]);
+    assert_eq!(registry.len(), 6306, "and the answer is the reference's own count");
+}
