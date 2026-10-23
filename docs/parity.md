@@ -406,6 +406,25 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Seven light levels, not four (round 347)
+
+`lit_level` (`lightmap.h:55-63`) has seven values and the port had four. The three it had were the brightnesses; the ones it was missing - `BRIGHT_ONLY`, `BLANK`,
+`MEMORIZED` - were excluded on the stated grounds that they are "not light levels but states of the map overlay". That was wrong, and `map::apparent_light_at`
+(`lightmap.cpp:801-857`) is the proof: it **returns** `BRIGHT_ONLY` for a square whose light gets through without its detail, and `BLANK` for one that cannot be seen
+at all. They are answers the light code produces, so the visibility rule has to read them.
+
+`map::get_visibility` (`map.cpp:6808-6849`) is the join, and it is a five-arm switch over seven levels:
+
+| Light level | Player is fine | Boomed |
+|---|---|---|
+`DARK` | `DARK` | `BOOMER_DARK` |
+`BRIGHT_ONLY` | `LIT` - bright, and nothing more can be made out | `BOOMER` - a smear of colour |
+`LOW`, `LIT`, `BRIGHT` | `CLEAR` - the level itself is not the answer, only that the square can be seen | `CLEAR` |
+`BLANK`, `MEMORIZED` | `HIDDEN` | `BOOMER_DARK` |
+
+Two things fall out of the table that are worth stating: the three middles are indistinguishable to this function, and a boomer's bile changes **every** answer it
+touches - including turning a memorised square into a dark one.
+
 ## What marks a level stale, and the early-out that saves a light map (round 346)
 
 `level_cache` (`src/level_cache.h:20-98`) holds a level's derived values; four functions mark it stale (`map.cpp:295-345`), and porting the marking is what makes the

@@ -25,19 +25,77 @@ pub const TRANSPARENCY_OPEN_AIR: f32 = 2.3 / 72.0;
 
 /// What a tile's light means to the rest of the game.
 ///
-/// The reference's `lit_level` (`src/lightmap.h:53-61`) has two more entries -
-/// `MEMORIZED` and `BLANK` - which are not light levels but states of the map
-/// overlay, so they are not part of what this function can answer.
+/// Reference: `enum class lit_level` (`src/lightmap.h:55-63`). All seven values are here, including the two that are not brightnesses: `MEMORIZED` behaves like a light
+/// level, and `BLANK` is what `map::apparent_light_at` answers for a square whose detail cannot be made out. An earlier version of this enum had four, on the stated
+/// grounds that the other two were overlay state; `apparent_light_at` returns `BLANK` and `BRIGHT_ONLY`, so they are values this code produces.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LitLevel {
     /// Nothing to see by.
     Dark,
     /// Hard to see.
     Low,
+    /// Bright, but without enough detail to make anything out.
+    BrightOnly,
     /// Full daylight or better.
     Lit,
     /// A light source is right here.
     Bright,
+    /// Remembered rather than seen. Not a light level, but it behaves like one.
+    Memorized,
+    /// Nothing drawn at all.
+    Blank,
+}
+
+/// What the player can make of a square once the light is known.
+///
+/// Reference: `enum class visibility_type` (`src/enums.h:128-135`). A boomer's bile is the only thing that changes the answer, and it changes it for every value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VisibilityType {
+    /// Nothing is drawn: the square is not there to the player.
+    Hidden,
+    /// Seen plainly.
+    Clear,
+    /// Lit, but not seen - the player can tell it is bright and nothing more.
+    Lit,
+    /// Seen through bile.
+    Boomer,
+    /// Dark, and the player knows it.
+    Dark,
+    /// Dark through bile.
+    BoomerDark,
+}
+
+/// What a square at a known light level looks like to the player.
+///
+/// Reference: `map::get_visibility` (`src/map.cpp:6808-6849`). The switch has five arms for seven values, because `LOW`, `LIT` and `BRIGHT` all answer `CLEAR` - the
+/// light level itself is not what the drawing code needs, only whether the square can be seen. `boomered` stands in for the reference's whole `visibility_variables`
+/// cache, which holds exactly one fact that changes this answer.
+#[must_use]
+pub fn visibility(level: LitLevel, boomered: bool) -> VisibilityType {
+    match level {
+        LitLevel::Dark => {
+            if boomered {
+                VisibilityType::BoomerDark
+            } else {
+                VisibilityType::Dark
+            }
+        }
+        LitLevel::BrightOnly => {
+            if boomered {
+                VisibilityType::Boomer
+            } else {
+                VisibilityType::Lit
+            }
+        }
+        LitLevel::Low | LitLevel::Lit | LitLevel::Bright => VisibilityType::Clear,
+        LitLevel::Blank | LitLevel::Memorized => {
+            if boomered {
+                VisibilityType::BoomerDark
+            } else {
+                VisibilityType::Hidden
+            }
+        }
+    }
 }
 
 /// How far a light of `brightness` reaches, in map squares.

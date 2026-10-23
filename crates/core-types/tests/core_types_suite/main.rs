@@ -85,6 +85,7 @@ mod text;
 mod tiles;
 mod units;
 mod units_reader;
+mod visibility;
 mod vision;
 mod weather;
 mod weighted;
