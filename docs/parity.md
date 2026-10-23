@@ -2986,6 +2986,27 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The session dump carries the sky, and the clock can move (round 531)
+
+The M2 exit gate wants a per-turn hash of an environment session that covers a **weather transition**, and until this round a session could not contain one: the dump
+recorded the wind but not the weather, and the calendar stood still for the whole run. A dump with the wind and no weather cannot tell a storm from a calm night at the
+same air speed - the manager's id decides the light multiplier, the sight penalty and the sound attenuation.
+
+Two additions to the instrument, both ahead of any port work:
+
+| Addition | What it makes visible |
+|---|---|
+`"weather"`, `"temperature"`, `"nextweather"` on every turn | the sky the manager reported, the air temperature in kelvin, and the turn it said the sky was next due to change |
+`--turn-minutes <n>` | how far each turn advances the calendar, with the manager updated after each step - default zero, so every existing fixture keeps its frozen clock |
+
+`corpus/fields/weather-session.json` (seed `w2`, one game hour per turn, twenty-six turns) crosses **two** transitions: light drizzle, then cloudy at the fifth turn,
+then clear. Two gates pin the fixture's promise rather than the port's behaviour - that it really does change sky, and that every pair of turns is exactly 3600 apart with
+the manager's next change never behind the clock - because a re-record that quietly lost the transition would leave every later gate passing on a session that never
+changed weather.
+
+Re-recorded with the wider header, all three gas sessions still replay die for die: sixty turns indoors, the stairwell fall, and the roof's wind. Their fixtures now carry
+the clock, the sky, each field's `alive` flag and `decay_at`, and the decay draws are labelled with the square that rolled them.
+
 ## The roof session replays (round 530)
 
 `gas-wind` is green. The three gas sessions - sixty turns of indoor toxic gas, a stairwell fall, and a gas alone on a roof in an eighteen-knot wind - all replay
