@@ -130,3 +130,116 @@ fn most_glyphs_are_the_terrain_s_symbol_and_the_rest_are_something_drawn_on_top(
     assert_eq!(plain, 1638, "squares printing their terrain's own symbol");
     assert_eq!(overlaid, 43, "squares with something drawn on top");
 }
+
+#[test]
+fn the_port_prints_every_plain_square_the_way_the_reference_prints_it() {
+    // The join: the port's own draw path, given the reference's terrain for each square, must print the reference's glyph - over the 1,638 squares where nothing is drawn on top.
+    // The 43 that carry an item, creature or field are named out of the comparison rather than tolerated, because the port has none of those yet.
+    use bevy_ecs::prelude::*;
+    use cdda_core_types::level::Level;
+    use cdda_sim::frame::frame;
+    use cdda_sim::terrain_table::TerrainTable;
+    use cdda_sim::{Map, Prototypes};
+    use cdda_json::{Value, parse};
+    use std::collections::BTreeMap;
+    use std::path::Path;
+
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus");
+    let read = |name: &str| std::fs::read_to_string(root.join(name)).expect("a corpus file");
+
+    // The terrain prototypes: id to code, code to symbol and transparency.
+    let Value::Object(terrain_root) = parse(read("prototypes/terrain.json").as_bytes()).expect("valid") else {
+        panic!("root is not an object");
+    };
+    let Some(Value::Array(prototypes)) = terrain_root.get("prototypes") else {
+        panic!("no prototypes");
+    };
+    let mut codes: BTreeMap<String, u32> = BTreeMap::new();
+    let mut terrain = TerrainTable::new();
+    for entry in prototypes {
+        let Value::Object(object) = entry else { continue };
+        let Some(Value::Str(id)) = object.get("id") else { continue };
+        let Some(Value::Array(bytes)) = object.get("symbol") else { continue };
+        let decoded: Vec<u8> = bytes
+            .iter()
+            .filter_map(|byte| match byte {
+                Value::Int(value) => u8::try_from(*value).ok(),
+                _ => None,
+            })
+            .collect();
+        let symbol = String::from_utf8_lossy(&decoded).chars().next().unwrap_or(' ');
+        #[allow(clippy::cast_possible_truncation)]
+        let code = u32::try_from(codes.len()).expect("few") + 1;
+        codes.insert(id.clone(), code);
+        terrain.insert(code, true);
+        terrain.insert_symbol(code, symbol);
+    }
+
+    // The reference's squares, as a level and the glyphs to compare against.
+    let Value::Object(frame_root) = parse(read("frames/reference_frame.json").as_bytes()).expect("valid") else {
+        panic!("root is not an object");
+    };
+    let radius = match frame_root.get("radius") {
+        Some(Value::Int(value)) => i32::try_from(*value).expect("small"),
+        _ => panic!("no radius"),
+    };
+    let centre = match frame_root.get("centre") {
+        Some(Value::Array(pair)) => (
+            match pair.first() {
+                Some(Value::Int(value)) => i32::try_from(*value).expect("small"),
+                _ => panic!("no x"),
+            },
+            match pair.get(1) {
+                Some(Value::Int(value)) => i32::try_from(*value).expect("small"),
+                _ => panic!("no y"),
+            },
+        ),
+        _ => panic!("no centre"),
+    };
+    let Some(Value::Array(squares)) = frame_root.get("squares") else {
+        panic!("no squares");
+    };
+    let mut level = Level::new();
+    level.ensure(centre.0 - radius, centre.1 - radius, 1);
+    let mut expected: BTreeMap<(i32, i32), char> = BTreeMap::new();
+    for entry in squares {
+        let Value::Object(square) = entry else { continue };
+        let (Some(Value::Int(x)), Some(Value::Int(y))) = (square.get("x"), square.get("y")) else {
+            continue;
+        };
+        let (Some(Value::Str(terrain_id)), Some(Value::Str(glyph))) = (square.get("ter"), square.get("glyph"))
+        else {
+            continue;
+        };
+        let (Ok(x), Ok(y)) = (i32::try_from(*x), i32::try_from(*y)) else { continue };
+        let code = codes[terrain_id.as_str()];
+        level.set_terrain(x, y, code, code);
+        // Only the plain squares are the port's to reproduce: the others carry something drawn on top.
+        if terrain.symbol(code) == glyph.chars().next().unwrap_or(' ') {
+            expected.insert((x, y), glyph.chars().next().unwrap_or(' '));
+        }
+    }
+
+    let mut world = World::new();
+    world.insert_resource(Map(level));
+    world.insert_resource(Prototypes {
+        terrain,
+        furniture: TerrainTable::new(),
+    });
+    let drawn = frame(&mut world, centre, radius, 100.0, 3.0);
+    let text = drawn.text();
+    let rows: Vec<&str> = text.lines().collect();
+    let mut checked = 0;
+    for ((x, y), glyph) in &expected {
+        let row = usize::try_from(y - centre.1 + radius).expect("in range");
+        let column = usize::try_from(x - centre.0 + radius).expect("in range");
+        let Some(line) = rows.get(row) else { continue };
+        assert_eq!(
+            line.chars().nth(column),
+            Some(*glyph),
+            "square ({x}, {y}) in the reference's frame:\n{text}"
+        );
+        checked += 1;
+    }
+    assert_eq!(checked, 1638, "the plain squares, all of them");
+}

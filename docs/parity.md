@@ -406,6 +406,22 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The port reproduces the reference's frame, square by square (round 426)
+
+The two halves of the frame gate are joined, and it holds: given the reference's own terrain for each square, the port's draw path prints **the reference's glyph on all 1,638
+squares where nothing is drawn on top**. The comparison walks the reference's frame, sets the port's level to the terrain the reference recorded, draws with `Frame::text` and
+asserts each square's character against the reference's own glyph column - 1,638 assertions, not a hash and not a spot check.
+
+| What is compared | Source | Result |
+|---|---|---|
+glyph per square | the reference's `--dump-frame` | 1,638 of 1,638 plain squares |
+terrain id in the frame | the port's terrain loader | all 1,681 known |
+the 43 overlaid squares | items, creatures, fields | excluded by name, not by tolerance |
+
+**What this proves and what it does not.** It proves the loader's symbols, the level's terrain layer and the draw path agree with the reference on the picture a player would see.
+It does not prove map generation, because the terrain in the test comes from the reference rather than from the port's mapgen - that is the next gate, and it needs the
+`--dump-map` output. The light column of the frame is likewise not yet compared: the port's sun is a hand-set number in this test.
+
 ## What the frame's glyph column means (round 424)
 
 Before the frame gate can compare anything, it has to know what the reference's glyph column holds. Measured over the 1,681 squares of the reference frame:
