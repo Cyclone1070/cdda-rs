@@ -330,3 +330,52 @@ fn the_eight_ways_the_data_declares_a_chunk_s_terrain_are_stable() {
     }
     assert_eq!(counts.values().sum::<usize>(), 6216, "and the eight partition the data");
 }
+
+fn find_predecessors(path: &Path, seen: &mut Vec<(String, String)>) {
+    let Ok(entries) = std::fs::read_dir(path) else { return };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            find_predecessors(&path, seen);
+        } else if path.extension().is_some_and(|extension| extension == "json") {
+            let Ok(text) = std::fs::read_to_string(&path) else { continue };
+            let Ok(Value::Array(entries)) = parse(text.as_bytes()) else { continue };
+            for entry in &entries {
+                let Value::Object(object) = entry else { continue };
+                if !matches!(object.get("type"), Some(Value::Str(kind)) if kind == "mapgen") {
+                    continue;
+                }
+                let Some(Value::Object(inner)) = object.get("object") else { continue };
+                if let Some(Value::Str(predecessor)) = inner.get("predecessor_mapgen") {
+                    seen.push((format!("{object:?}"), predecessor.clone()));
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn the_thick_forest_is_generated_in_code_and_some_chunks_are_drawn_over_another() {
+    // Two mechanisms a generator has to support, both measured rather than read off the schema.
+    //
+    // First: `forest_thick` - the key the map dump was taken for - has **no mapgen entry in the data at all**. Not a rows grid, not a palette: nothing. It is one of the twenty-six
+    // built in code, which is why the chunk we dumped shows twenty-seven terrain kinds that no JSON describes.
+    //
+    // Second: a chunk can be drawn **over another one**. `island_forest_thick` runs `forest_thick` first and then scatters six nested chunks over it with weights and ranges, so
+    // "generate this chunk" is sometimes "generate that chunk, then place on top".
+    let in_data = keys_in_the_data();
+    assert!(
+        !in_data.contains("forest_thick"),
+        "the thick forest is generated in code, so the data has no entry for it"
+    );
+    assert!(
+        cdda_content::mapgen::CODE_REGISTERED.contains(&"forest_thick"),
+        "and it is in the code-registered list because of that"
+    );
+
+    let mut over = Vec::new();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json");
+    find_predecessors(&root, &mut over);
+    assert_eq!(over.len(), 1, "one chunk in the data is drawn over another");
+    assert_eq!(over[0].1, "forest_thick", "and it is drawn over the thick forest");
+}
