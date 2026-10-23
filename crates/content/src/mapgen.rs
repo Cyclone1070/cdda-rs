@@ -337,3 +337,50 @@ pub const CODE_REGISTERED: [&str; 26] = [
 /// They are `om_terrain` ids, so a scan of the data finds them, but the reference never registers a generator under them. Offering them would be offering chunks the game cannot
 /// generate.
 pub const NOT_CHUNKS: [&str; 4] = ["lab_1side", "lab_4side", "lab_finale_1level", "null"];
+
+/// Resolves a chunk's `rows` into terrain ids through its own `terrain` map.
+///
+/// Reference: `mapgen.cpp`'s symbol lookup - the `terrain` object maps an id to the characters that draw it, as a string or a list of them, and every character in `rows` has to be
+/// found in it. A space draws nothing and is not a terrain, which is why the answer is `Option`: a chunk's grid may be mostly empty.
+///
+/// # Errors
+///
+/// Returns the character that has no id in this mapgen's terrain, because a silent default would draw the wrong chunk rather than say the data is unreadable.
+pub fn resolve_rows(rows: &[String], terrain: &Object) -> Result<Vec<Vec<Option<String>>>, String> {
+    let mut by_symbol: std::collections::BTreeMap<char, &str> = std::collections::BTreeMap::new();
+    for (id, symbols) in terrain.members() {
+        match symbols {
+            Value::Str(text) => {
+                for symbol in text.chars() {
+                    by_symbol.insert(symbol, id.as_str());
+                }
+            }
+            Value::Array(items) => {
+                for item in items {
+                    if let Value::Str(text) = item {
+                        for symbol in text.chars() {
+                            by_symbol.insert(symbol, id.as_str());
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut resolved = Vec::with_capacity(rows.len());
+    for row in rows {
+        let mut line = Vec::with_capacity(row.len());
+        for symbol in row.chars() {
+            if symbol == ' ' {
+                line.push(None);
+                continue;
+            }
+            match by_symbol.get(&symbol) {
+                Some(id) => line.push(Some((*id).to_string())),
+                None => return Err(format!("'{symbol}' has no terrain in this mapgen")),
+            }
+        }
+        resolved.push(line);
+    }
+    Ok(resolved)
+}
