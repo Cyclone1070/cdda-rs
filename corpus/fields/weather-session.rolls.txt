@@ -1,10 +1,8 @@
 # The dice the reference rolled through a session that spans a **change of sky** (seed w2, --world harness-fixed, `--turn-minutes 60`).
 #
-# Twenty-six turns of one game hour each: the air starts as light drizzle and turns cloudy at the fifth turn, so the fixture carries a transition rather than a single
-# weather type. Each turn also carries the manager's own `weather`, `temperature` and `nextweather`, which is what makes a per-turn hash of an environment session able to
-# notice the sky at all - a dump with only the wind cannot tell a storm from a calm night at the same air speed.
-#
-# The gas is the smallest thing that gives the session a field to watch; the weather is the point.
+# Twenty-six turns of one game hour each: the air starts as light drizzle, turns cloudy at the fifth turn and clears later, so the fixture carries transitions rather than a
+# single weather type. Each turn also carries the manager's `weather`, `temperature` and `nextweather`, the generator's own inputs - `year_fraction`, `day_fraction`,
+# `season`, the noise field's origin and seed - and the point it produced, which is what lets a port recompute the sky instead of only reading it back.
 mark gas.turn.0
 drawn decay.turns 2
 int 1 2 2

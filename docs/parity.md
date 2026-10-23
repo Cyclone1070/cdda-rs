@@ -2986,6 +2986,17 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The session's sky is recomputed, not just read back (round 532)
+
+The session dump now carries the generator's own **inputs** - where the player stood (`common_x/y/z`), the season, the fraction of the year and of the day, and the noise
+field's seed - and the point the reference produced from them: temperature in kelvin, humidity, pressure.
+
+With the inputs in the file, the sky stops being a number the port can only copy: it is a pure function of four values, so the port recomputes every turn of the
+weather session and matches the reference to a millionth in temperature, humidity and pressure. No die is involved, which is the point - a difference there is a formula
+difference and not a roll that landed elsewhere. That is the half of the sky the light multiplier and the sight penalty hang on.
+
+The other half - the manager deciding *which* weather, and when - needs the hour's dice and the wind sector, and is the next piece.
+
 ## The session dump carries the sky, and the clock can move (round 531)
 
 The M2 exit gate wants a per-turn hash of an environment session that covers a **weather transition**, and until this round a session could not contain one: the dump

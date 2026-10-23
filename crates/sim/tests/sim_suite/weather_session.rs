@@ -14,9 +14,11 @@
     clippy::indexing_slicing,
     clippy::struct_field_names,
     clippy::cast_precision_loss,
-    clippy::cast_possible_truncation
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss
 )]
 
+use cdda_sim::weather_gen::{CommonData, Generator, humidity, pressure, temperature_k};
 use std::path::Path;
 
 /// One recorded turn: the clock, the sky, and the wind the fields felt.
@@ -33,6 +35,12 @@ struct Turn {
     next: i64,
     /// The wind's speed, as the manager held it.
     speed: i64,
+    /// The generator's inputs, which are what make the sky replayable rather than merely readable.
+    common: CommonData,
+    /// How far into the day the turn fell.
+    day_fraction: f64,
+    /// The point the reference's generator produced, in kelvin, percent and millibars.
+    point: (f64, f64, f64),
 }
 
 fn number(object: &cdda_json::Object, key: &str) -> f64 {
@@ -67,6 +75,20 @@ fn turns() -> Vec<Turn> {
                 temperature: number(turn, "temperature"),
                 next: number(turn, "nextweather") as i64,
                 speed: number(turn, "windspeed") as i64,
+                common: CommonData {
+                    x: number(turn, "common_x"),
+                    y: number(turn, "common_y"),
+                    z: number(turn, "common_z"),
+                    cyf: cdda_sim::weather_gen::year_cosine(number(turn, "year_fraction")),
+                    mod_seed: number(turn, "mod_seed") as u32,
+                    season: number(turn, "season") as usize,
+                },
+                day_fraction: number(turn, "day_fraction"),
+                point: (
+                    number(turn, "point_temperature"),
+                    number(turn, "humidity"),
+                    number(turn, "pressure"),
+                ),
             }
         })
         .collect()
@@ -132,5 +154,37 @@ fn every_turn_carries_the_sky_and_a_moved_clock() {
     assert!(
         turns.iter().all(|turn| turn.speed >= 0),
         "every turn carries the wind's speed"
+    );
+}
+
+#[test]
+fn the_port_recomputes_the_sessions_sky_from_its_own_inputs() {
+    // The session carries the generator's **inputs** - where the player stood, the season, the noise field's origin and seed, how far into the day the turn fell - and the
+    // point the reference produced from them. Nothing is drawn: the point is a pure function of those four, so a difference here is a formula difference and not a die
+    // that landed elsewhere. That is the half of the sky a session can be held to without replaying the manager, and it is the half the light and the sight penalty hang on.
+    let generator = Generator::default_region();
+    let turns = turns();
+    let mut wrong: Vec<(i64, String, f64, f64)> = Vec::new();
+    let mut checked = 0;
+    for turn in &turns {
+        let mut near = |what: &str, ours: f64, theirs: f64| {
+            if (ours - theirs).abs() > 1e-6 && wrong.len() < 8 {
+                wrong.push((turn.turn, what.to_string(), ours, theirs));
+            }
+        };
+        near(
+            "temperature",
+            temperature_k(&generator, &turn.common, turn.day_fraction),
+            turn.point.0,
+        );
+        near("humidity", humidity(&generator, &turn.common), turn.point.1);
+        near("pressure", pressure(&generator, &turn.common), turn.point.2);
+        checked += 1;
+    }
+    assert_eq!(checked, turns.len(), "every recorded turn was recomputed");
+    assert!(checked >= 20, "the session is long enough to be a day: {checked}");
+    assert!(
+        wrong.is_empty(),
+        "the port's sky disagrees with the recording: {wrong:?}"
     );
 }
