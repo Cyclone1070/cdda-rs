@@ -2986,6 +2986,24 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The field dump learned to look up and down, and the gas learned to say what it rolled (round 516)
+
+A gas fixture needed two things the oracle could not do, and both were gaps in the instrument rather than in the port.
+
+- **The field dump read one level.** `--dump-field-series` scanned the radius around the player on the player's own z, so a gas that falls or rises would have been
+  reported gone and two runs would have agreed about nothing. It now scans three levels, and every square carries its `z`.
+- **The gas processor's dice were unlabelled.** The fire processor has had `fire.begin`/`fire.done` marks for three rounds; the gas processor drew its four dice into
+  an unmarked trace, which made a gas session unreplayable. It now marks `gas.begin`/`gas.done` around each spread.
+- **The wind is now part of every field turn.** A gas's spread chance is `rng( 1, 100 - windpower )` and its destination is resisted when it blows into the wind, so a
+  fixture whose dice show the ceiling moving between 100 and 94 has to say why. Each turn carries `windspeed`, `winddirection` and the local `windpower`.
+- A `--place-gas <id> <intensity>` option places a gas on the fixture's square, and a fire intensity of **zero** now means "no fire", which is how a session can be
+  about the gas alone: a fire adds smoke of its own and there would be no telling the two apart.
+
+`corpus/fields/gas-60.json` is the first recording made with it: `fd_toxic_gas` at intensity three for sixty turns under a light wind. It sits still for forty-seven
+turns and then splits - the source from three to two with its age falling from 47 to **33**, the destination arriving at intensity one and age **16**. Those are the
+spread rule's arithmetic, and a port that gets them wrong looks plausible until the split. None of the three levels is touched, which is itself the fact worth
+knowing: a gas on a floored square drifts rather than falls, so the fall and rise branches need a fixture with a hole in it, and that is the next instrument.
+
 ## Ten recorded days, and three bugs the longer gate found (round 514)
 
 `--dump-weather-manager` runs the reference's **manager** rather than the generator: it owns the null id, the first update, the overrides and the next turn, and none of that is

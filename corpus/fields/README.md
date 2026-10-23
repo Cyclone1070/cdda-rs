@@ -121,3 +121,25 @@ produce that. That is a rule to port, not a fixture to cut: the cut is recorded 
 port makes every real the reference makes, in the same order - and today it does not: bash and rubble draw reals the port has no rule for. With the switch on,
 `fire-plank` fails at the first real inside the spread loop; with it off, the same file replays to its last integer die. The opt-in exists so that the day the
 remaining float rules land, the corpus can be recorded strictly without touching the harness again.
+
+## `gas-60.json`: where a gas goes
+
+```sh
+oracle/build/src/cataclysm \
+    --userdir oracle/userdir \
+    --datadir "$PWD/oracle/src/data/" \
+    --seed gaswatch \
+    --place-fire 0 0 0 --place-gas fd_toxic_gas 3 \
+    --field-turns 60 \
+    --dump-field-series corpus/fields/gas-60.json
+```
+
+A fire intensity of **zero** means the fixture is about the gas alone: a fire would add smoke of its own and there would be no telling the two apart. The
+sixty turns are what it takes for `fd_toxic_gas` to beat its own spread chance - ten percent under a light wind - and the split at turn 48 is the thing worth
+recording: the source drops from intensity three to two and its age falls from 47 to 33, while the destination arrives at intensity one and age 16. Those
+numbers are the spread rule's arithmetic, not a rounding, and a port that gets them wrong looks plausible for forty-seven turns and then is visibly wrong.
+
+Each turn carries the **wind** (`windspeed`, `winddirection`, and the local `windpower` at the centre), because the spread chance is `rng( 1, 100 - windpower )`
+and the destination is resisted when it blows into that wind: the dump's dice say the ceiling moves between 100 and 94, and without the wind beside them there is
+no way to say why. The field dump reads **three levels**, so a gas that falls or rises is still recorded; none of the levels is touched in this fixture, which is
+itself the fact worth knowing - a gas on a floored square drifts rather than falls.
