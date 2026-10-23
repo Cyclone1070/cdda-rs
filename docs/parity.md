@@ -2986,6 +2986,26 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## Ten recorded days, and three bugs the longer gate found (round 514)
+
+`--dump-weather-manager` runs the reference's **manager** rather than the generator: it owns the null id, the first update, the overrides and the next turn, and none of that is
+visible from `weather_generator` alone. Ten recorded days (seed `weatherwatch`, 240 hours, 1,192 dice) contain fog, drizzle, rain and **fourteen changes of sight absorption**.
+
+The port replays all 240 hours through the running world and matches every id, every next turn, both wind numbers, the humidity and the pressure to a millionth.
+
+Three real bugs only this gate would have found:
+
+1. **A data-defined function could not see the point.** `jmath`'s bodies were evaluated with the *builtins* as their outer context, so `dprhx`'s `weather('humidity')` had nowhere to
+   go; every fog condition failed from the inside out and the sky came out clear. The failure was invisible because `Condition::holds` treats an evaluation error as false.
+2. **The chain was missing.** A test-side loader built weather types from `..Default::default()`, which drops `required_weathers`, so `drizzle` could appear while the sky was
+   `fog`. The lesson is the same one the manager gate taught: a partial type is a trap that reads as a full one.
+3. **The sight penalties were all one.** The same loader left `sight_penalty` at its default, so the flush count was zero on both sides of the comparison - a vacuously green half of
+   the gate. Types are now read by **one** field reader shared by the dump loader and the data loader.
+
+**One number is not bit-identical:** the temperature at hour 191 differs by a single `float` ulp. `units::temperature` is `quantity<float, ...>`, so the tightest claim available is
+one ulp of that width (3.05e-5 K at 282 K), and the gate states exactly that instead of a round number that would hide a larger error. A harness hook exposing the generator's
+pre-narrowing double - the way `harness_sun_internals` does for the sun - would close it; the oracle cannot reach the static today.
+
 ## The weather in the world, and the wind's one answer (round 513)
 
 The weather is now where the game keeps it: a `Climate` resource holding the system, the wind the last update reported, the id, and the absorption the light is cast under.

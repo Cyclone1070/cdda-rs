@@ -116,10 +116,25 @@ pub fn from_dump(value: &Value) -> Result<Vec<WeatherType>, String> {
         let Value::Object(object) = entry else {
             return Err("a weather type is not an object".to_string());
         };
+        types.push(WeatherType::from_object(object)?);
+    }
+    Ok(types)
+}
+
+impl WeatherType {
+    /// Reads one type's fields out of an object, whether it came from the oracle's prototype dump or from the data itself.
+    ///
+    /// Both sources use the same key names, and there is exactly one reader because a second one drifts: the rules loader once built its types from
+    /// `..Default::default()`, which silently gave every weather a sight penalty of one and made a ten-day gate unable to see a single transition.
+    ///
+    /// # Errors
+    ///
+    /// Returns the reason the object is not a weather type.
+    fn from_object(object: &cdda_json::Object) -> Result<WeatherType, String> {
         let Some(Value::Str(id)) = object.get("id") else {
             return Err("a weather type has no id".to_string());
         };
-        types.push(WeatherType {
+        Ok(WeatherType {
             id: id.clone(),
             name: string_of(object.get("name")),
             ranged_penalty: int_of(object.get("ranged_penalty")),
@@ -149,9 +164,8 @@ pub fn from_dump(value: &Value) -> Result<Vec<WeatherType>, String> {
                     .collect(),
                 _ => Vec::new(),
             },
-        });
+        })
     }
-    Ok(types)
 }
 
 /// One weather type by id.
@@ -450,7 +464,66 @@ impl crate::math_expr::Context for PointContext<'_> {
             },
             // Reference: `units.h:413` - `celsius` subtracts 273.150 and both sides are float in the reference.
             ("celsius", [Value::Number(kelvin)]) => Ok(Value::Number(kelvin - 273.15)),
-            _ => crate::jmath::call(self.functions, &crate::math_expr::Builtins, name, arguments).map_err(|_| missing()),
+            // A name that is not a weather field is either one of the data's own functions or one of the parser's builtins, and the data's functions call the builtins
+            // themselves (`dprhx` uses `log`), so both are tried before the name is declared unknown. Falling through to `missing` without trying the builtins is what made
+            // every fog condition quietly false: the error was swallowed and the sky came out clear.
+            // The data's functions read the point - `dprhx` calls `weather('humidity')` - so **this** context is their outer one, not just the builtins. Passing the builtins
+            // here made every one of them fail from the inside out, and the failure looked exactly like a sky that was not foggy.
+            _ => crate::jmath::call(self.functions, self, name, arguments)
+                .or_else(|_| crate::math_expr::Context::call(&crate::math_expr::Builtins, name, arguments))
+                .map_err(|_| missing()),
         }
+    }
+}
+
+impl Rules {
+    /// Reads the rules out of a weather data file: the `weather_type` entries, their conditions, and the `jmath_function`s they call.
+    ///
+    /// Reference: the reference gets the same three facts from the registry (`weather_types::get_all`), each type's own `condition`, and `jmath`'s function table, all filled by
+    /// generic factory loading. Reading them together here is what makes a `Rules` value the *whole* of what the decision needs - and it is why `required_weathers` is read at all:
+    /// without the chains, `rain` can fall out of a clear sky because its condition alone does not know it follows drizzle.
+    ///
+    /// # Errors
+    ///
+    /// Returns the reason the file could not be read or understood.
+    pub fn read_json(json: &[u8]) -> Result<Rules, String> {
+        let parsed = cdda_json::parse(json).map_err(|error| error.to_string())?;
+        let cdda_json::Value::Array(entries) = parsed else {
+            return Err("the weather data is an array".to_string());
+        };
+        let objects: Vec<cdda_json::Object> = entries
+            .into_iter()
+            .filter_map(|entry| match entry {
+                cdda_json::Value::Object(object) => Some(object),
+                _ => None,
+            })
+            .collect();
+        let functions = crate::jmath::read_entries(&objects)?;
+        let mut types = Vec::new();
+        let mut conditions = std::collections::BTreeMap::new();
+        for object in &objects {
+            if text_of(object, "type") != Some("weather_type") {
+                continue;
+            }
+            let Some(id) = text_of(object, "id") else {
+                return Err("a weather type with no id".to_string());
+            };
+            types.push(WeatherType::from_object(object)?);
+            if let Some(condition) = object.get("condition") {
+                conditions.insert(id.to_string(), crate::condition::Condition::from_value(condition)?);
+            }
+        }
+        Ok(Rules::new(types, conditions, functions))
+    }
+}
+
+fn text_of<'a>(object: &'a cdda_json::Object, key: &str) -> Option<&'a str> {
+    object.get(key).and_then(text_of_value)
+}
+
+fn text_of_value(value: &cdda_json::Value) -> Option<&str> {
+    match value {
+        cdda_json::Value::Str(text) => Some(text),
+        _ => None,
     }
 }
