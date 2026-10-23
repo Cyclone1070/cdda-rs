@@ -268,3 +268,49 @@ fn a_floor_square_counts_the_brightest_quarter_whichever_way_it_points() {
     let apparent = apparent_light_at_seen(&mut level, &east, &light, (3, 5));
     assert!((apparent - 100.0).abs() < f32::EPSILON, "the brightest one: {apparent}");
 }
+
+#[test]
+fn a_wall_the_character_sees_is_drawn_bright_rather_than_hazy() {
+    // The reference distinguishes "seen" from "seen through haze" with the seen cache's own **number**: `obstructed = vis <= LIGHT_TRANSPARENCY_SOLID + 0.1`
+    // (`lightmap.cpp:733`). A wall the character is looking at is seen, so its visibility is high, so it is not obstructed and is drawn `Bright`.
+    //
+    // The port's visibility is a bool, so `BrightOnly` is **unreachable through the world** until the seen cache carries a fraction - the `bright_without_detail` unit
+    // test above pins the branch, and this one pins the boundary the port actually sits on. Declared as a gap rather than papered over: the frame will be wrong on fogged
+    // squares until the seen cache is a float, and nothing else on the frame depends on it.
+    use cdda_core_types::light::LitLevel;
+    use cdda_core_types::vision::lit_level_at_square;
+
+    let mut level = blocked_room();
+    let mut light = std::collections::BTreeMap::new();
+    light.insert((5, 5), four_way(200.0, 200.0, 200.0, 200.0));
+    let mut east = view();
+    east.origin = (8, 5);
+    east.blocks_light = |code| code == 2;
+
+    assert_eq!(
+        lit_level_at_square(&mut level, &east, &light, (5, 5)),
+        LitLevel::Bright,
+        "a wall in plain sight is a wall, not a glow"
+    );
+}
+
+#[test]
+fn the_two_questions_a_frame_asks_agree() {
+    // `shown_at` is `lit_level_at_square != Blank` and nothing else, so the draw loop's "skip blank squares" and its "how bright is this" can never disagree.
+    use cdda_core_types::light::LitLevel;
+    use cdda_core_types::vision::{lit_level_at_square, shown_at};
+
+    let mut level = open_level();
+    let mut light = std::collections::BTreeMap::new();
+    light.insert((6, 5), four_way(40.0, 40.0, 40.0, 40.0));
+    light.insert((3, 5), four_way(0.2, 0.2, 0.2, 0.2));
+    let east = view();
+    for square in [(6, 5), (3, 5), (9, 9)] {
+        let level_at = lit_level_at_square(&mut level, &east, &light, square);
+        assert_eq!(
+            shown_at(&mut level, &east, &light, square),
+            level_at != LitLevel::Blank,
+            "at {square:?}: {level_at:?}"
+        );
+    }
+}

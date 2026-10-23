@@ -44,11 +44,16 @@ pub fn apparent_light_at_seen(
     let Some(cell) = light.get(&square).copied() else {
         return 0.0;
     };
+    // **Visibility multiplies the light** (`lightmap.cpp:795-798`): out of the cast means no light at all, whatever the light map holds there. The port's visibility is a
+    // yes or a no, so the multiplier is one or zero.
+    if !level.seen_at(view.origin, view.radius, view.blocks_light, square) {
+        return 0.0;
+    }
     let opaque = level
         .terrain_at(square.0, square.1)
         .is_some_and(|code| (view.blocks_light)(code));
-    let in_sight = level.seen_at(view.origin, view.radius, view.blocks_light, square);
-    if !opaque || !in_sight {
+    if !opaque {
+        // The simple branch: for a non-opaque tile light from all directions is equivalent (`lightmap.cpp:792-796`).
         return cell.max();
     }
 
@@ -127,18 +132,31 @@ pub fn shown_at(
     light: &BTreeMap<(i32, i32), FourQuadrants>,
     square: (i32, i32),
 ) -> bool {
+    lit_level_at_square(level, view, light, square) != crate::light::LitLevel::Blank
+}
+
+/// The level a square is drawn at, which is the whole answer a frame needs about its light.
+///
+/// Reference: `map::apparent_light_at` (`src/lightmap.cpp:801-851`) as the draw path calls it - the same chain [`lit_level_at`] holds, with the facts taken from the world
+/// rather than handed over. Splitting it out means the two callers a frame has - "is this drawn at all" and "at which level" - ask one question, so they cannot disagree.
+#[must_use]
+pub fn lit_level_at_square(
+    level: &mut Level,
+    view: &View,
+    light: &BTreeMap<(i32, i32), FourQuadrants>,
+    square: (i32, i32),
+) -> crate::light::LitLevel {
     // **Visibility multiplies the light.** `apparent_light = vis * lm.max()` (`lightmap.cpp:795-798`), and `vis` is the seen-cache value, so a square out of the cast has an
     // apparent light of zero however bright the light map says it is. [`apparent_light_at_seen`] does that multiplication and, on an opaque square, keeps only the quarters the
     // character can see it from. Believing the light map is already apparent light shows the player what is behind a wall, which is what the first test here caught.
     let in_sight = level.seen_at(view.origin, view.radius, view.blocks_light, square);
-    let level_at = lit_level_at(
+    lit_level_at(
         apparent_light_at_seen(level, view, light, square),
         !in_sight,
         view.ground_light_level,
         view.vision_threshold,
         false,
-    );
-    level_at != crate::light::LitLevel::Blank
+    )
 }
 
 /// What a square looks like to the character: the reference's `lit_level`.

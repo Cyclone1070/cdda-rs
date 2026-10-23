@@ -152,7 +152,21 @@ still missing from the field layer is vertical movement - the reference tries do
 neighbour, then up - and the remaining sixteen of the twenty-one processors. T5 illumination is complete end to end, including point
 sources and smoke dimming what is behind it.
 
-step. T6 vision and T7 scent are not started.
+step.
+
+**T6 vision is well past "not started" and T7 scent is ported to the turn.** What exists and is gated:
+
+| Layer | What it does | Gate |
+|---|---|---|
+the cast | `map::sees`'s Bresenham walk, stopping before the target so a wall is visible as a wall | 8 tests |
+the level | `lit_level`, the chain from `apparent_light_at`, the draw path's answer | 6 tests |
+what is shown | `shown_at` = "drawn at all"; `lit_level_at_square` = "at which level" | 5 tests, plus a pin that the two agree |
+the wall's face | the eight-neighbour quadrant rule for opaque squares | 2 tests |
+scent | marks from `NO_SCENT`/`REDUCE_SCENT`, the `ScentWindow` arithmetic, decay, and the deposit the turn starts with | 11 tests |
+
+**The one thing T6 cannot yet say is "hazy".** The reference separates "seen" from "seen through haze" with the seen cache's own **number**, so a fogged square is
+`BRIGHT_ONLY` - a glow with nothing in it. The port's visibility is a yes or a no, so that branch is unreachable through the world: the unit test pins the branch, and the
+test beside it pins the boundary the port actually sits on. Making the seen cache a fraction is the next step of T6 and the last one before a frame can be drawn honestly.
 
 Fields come before vision for a reason: smoke is both a field and a thing that blocks sight,
 and the light model is now good enough to notice the difference.

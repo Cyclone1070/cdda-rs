@@ -406,6 +406,20 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## One question, two callers (round 382)
+
+The draw path needs two answers about a square - "is it drawn at all" and "at which level" - and a port that computes them separately will eventually have them disagree.
+`lit_level_at_square` is now the one body: `shown_at` is `!= Blank` and nothing else, and a test walks three squares through both and asserts they agree.
+
+**The round's real work was a bug the split exposed.** `apparent_light_at_seen` returned the light map's value for any square that was not an opaque wall - including squares
+out of the cast, where the reference multiplies by a visibility of zero (`lightmap.cpp:795-798`). Round 377's arithmetic had that multiplication in `shown_at`; moving it into
+the quadrant function dropped it. The test that caught it is the one written in 377 against exactly that mistake, which is the argument for writing the test where the rule
+lives rather than where the call happens.
+
+**`BrightOnly` is unreachable through the world, and the tests now say so.** `obstructed` is `vis <= LIGHT_TRANSPARENCY_SOLID + 0.1` on a **fractional** seen cache: a wall
+you look at is seen clearly, a fogged square is not. With visibility as a bool the branch can only be reached by handing the classifier its inputs directly, so that is what
+the unit test does, and a second test pins what the world currently answers for a wall in plain sight - `Bright`, not a glow. Declared in the roadmap as the next step of T6.
+
 ## The face of a wall counts only the light it faces (round 381)
 
 `apparent_light_at` took the brightest of a square's four quarters whatever the square was. The reference has two branches (`lightmap.cpp:748-798`):
