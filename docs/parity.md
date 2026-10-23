@@ -406,6 +406,19 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The weather resource reads the data (round 418)
+
+The `Weather` resource was handed its penalty by hand; it now takes a loaded type. The one rule worth a line is the zero:
+
+| Data | Meaning | Resource |
+|---|---|---|
+`sight_penalty >= 1` | the absorption multiplier | passed straight through |
+`sight_penalty == 0` | nothing wrote one (`null`) | **clear air**, not a division by zero |
+
+**The guard stayed and the conversion moved.** `Weather::with_sight_penalty` still panics below one, because a caller passing `0.5` has the direction backwards; the loader's
+zero is not that kind of mistake, so `Weather::from_type` translates it before the guard can see it. A test pins both halves: fog arrives at 1.7, and the unwritten type arrives
+equal to `Weather::clear()`.
+
 ## The weather loader, and three guesses the data corrected (round 417)
 
 `weather_type` derives its numbers from a handful of flags rather than storing them (`weather_type.h:73-140`), which is why the port takes them from a dump: **20 types**, gated on

@@ -37,6 +37,19 @@ impl Weather {
         Self { sight_penalty }
     }
 
+    /// The sky a loaded weather type describes.
+    ///
+    /// A type whose penalty is zero is a type nothing wrote one for - the data has exactly one, and it means "no weather in force" rather than "better than clear air" - so it
+    /// becomes [`Weather::clear`] instead of tripping the guard above. That is the reference's own reading: the multiplier is one when no weather applies.
+    #[must_use]
+    pub fn from_type(weather: &cdda_content::weather::WeatherType) -> Self {
+        if weather.sight_penalty >= 1.0 {
+            Self::with_sight_penalty(weather.sight_penalty)
+        } else {
+            Self::clear()
+        }
+    }
+
     /// The penalty the transparency rule applies to every square in the open.
     #[must_use]
     pub fn sight_penalty(self) -> f32 {

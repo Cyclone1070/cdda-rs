@@ -9,9 +9,9 @@ publish.workspace = true
 [dependencies]
 bevy_ecs = { version = "0.20.0", default-features = false }
 cdda-core-types = { path = "../core-types" }
+cdda-content = { path = "../content" }
 
 [dev-dependencies]
-cdda-content = { path = "../content" }
 cdda-json = { path = "../json" }
 
 [lints]
