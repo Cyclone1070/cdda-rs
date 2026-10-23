@@ -406,6 +406,25 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## A window costs the light nothing and a wall costs it everything (round 365)
+
+The sim's light path had one hard-coded answer left: terrain code zero was solid, every other code was open air. The per-terrain `transparent` bool is now loaded, so the
+answer is data - and `sim::terrain_table::TerrainTable` is where the two meet.
+
+| Rule | Value | Why it is not a fraction |
+|---|---|---|
+a transparent terrain | exactly `LIGHT_TRANSPARENCY_OPEN_AIR` | `calc_transp` does not interpolate; a window dims nothing |
+an opaque terrain | `0.0` | the cast's `sight_check` fails, so the square is a wall to the light |
+a code the table has never seen | open air | a table that is not told about a code must not black out the map |
+
+**Codes are the caller's.** The level stores terrain as a number, and what that number means is decided by whatever built the level, so `TerrainTable::insert(code, transparent)` is the
+whole seam. Nothing in the sim guesses that code 2 is `t_wall`.
+
+**The test was checked for teeth.** Setting the opaque branch back to open air fails three of the five cases, including the one that matters - "the wall shades the far side:
+8.25582 against 8.25582" - so the assertion is doing the work rather than agreeing with itself.
+
+Still hard-coded: `Map::terrain_transparency`, kept for callers with no table. It is the last hard-coded answer in the light path and the ledger says so.
+
 ## Transparency is stored, not derived, and the data says so (round 364)
 
 `map_data_common_t::transparent` (`mapdata.h:573`) is a **bool on the object**, mutated as the prototype loads. Three measurements, each of which contradicts a plausible

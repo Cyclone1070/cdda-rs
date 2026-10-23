@@ -82,4 +82,5 @@ mod shock_vent;
 mod spared_newborns;
 mod spread_gas;
 mod sunlight_system;
+mod terrain_transparency;
 mod wind_reach;

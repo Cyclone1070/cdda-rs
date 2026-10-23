@@ -4,6 +4,8 @@
 //! components, reached by id and never by pointer. What a square holds is found through a
 //! grid resource rebuilt from the World, never kept as a second authority.
 
+pub mod terrain_table;
+
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::{FieldEntry, FieldId};
 use cdda_core_types::shadowcasting::FourQuadrants;
@@ -830,12 +832,13 @@ impl std::ops::Deref for Map {
 }
 
 impl Map {
-    /// The terrain transparency rule the lighting system asks about.
+    /// The old hard-coded rule, kept only so that callers with no table still work.
+    ///
+    /// It says solid terrain blocks and every other code is open air, which is the shape of the reference's rule with none of its data. Callers that know which
+    /// terrain a code stands for should pass [`terrain_table::TerrainTable::transparency`] instead, and the ledger records this as the last hard-coded answer in
+    /// the light path.
     #[must_use]
     pub fn terrain_transparency(terrain: u32) -> f32 {
-        // Solid terrain blocks; everything else is open air. The reference's per-terrain
-        // transparency (`src/mapdata.cpp`) is not ported yet, so this is the honest default and
-        // the ledger says so.
         if terrain == SOLID_TERRAIN {
             0.0
         } else {
