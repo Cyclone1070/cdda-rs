@@ -406,6 +406,22 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## A turn ends with the light it made (round 380)
+
+Round 379 taught the light map to read the world's own emitters. Nothing rebuilt it, so a fire that started this turn was invisible until something else asked. The turn now
+ends with a clear and a fresh cast, which is where the reference puts it: `map::build_map_cache` runs in the draw path, **after** the turn's fields have been processed.
+
+| Rule | Why it matters | Test |
+|---|---|---|
+clear, then cast | the cast merges by maximum, so a fire that went out would stay lit by the previous turn's answer | `a_square_whose_fire_is_gone_is_dark_at_the_end_of_the_next_turn` |
+cast at the end | the frame a player sees is this turn's fire, not last turn's | `a_fire_burning_through_a_turn_is_lit_at_the_end_of_it` |
+
+**The red gate failed in the shape it should.** The first run panicked on `Requested resource ... does not exist`: no `Light` at all, because nothing had ever built one during a
+turn. That is a better failure than a wrong number - it says the piece is missing rather than that it is wrong.
+
+**Two test doubles disagreeing is a signal, not noise.** The new suite's `HardFloor` first declared methods the `FireMap` trait does not have, because it was written from
+memory of an older shape. The trait's six methods are what a fire actually asks the map; the port keeps them that way deliberately, so the double is where that shows.
+
 ## The world lights itself (round 379)
 
 `map::generate_lightmap` walks every square and adds a light source for anything whose own data says it emits one (`lightmap.cpp:525-547`): terrain, furniture, each field on

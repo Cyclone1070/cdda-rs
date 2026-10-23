@@ -86,5 +86,6 @@ mod spared_newborns;
 mod spread_gas;
 mod sunlight_system;
 mod terrain_transparency;
+mod turn_light;
 mod weather;
 mod wind_reach;

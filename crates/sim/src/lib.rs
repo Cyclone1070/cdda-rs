@@ -1974,6 +1974,10 @@ pub fn run_environment_turn(
     ] {
         process_gas(world, id, percent_spread, windpower, can_take, rolls);
     }
+    // The light map is rebuilt for the world this turn made, the way the draw path rebuilds it after the turn's work (`map::build_map_cache`). Clearing first is part of the
+    // rule rather than tidiness: the cast merges by maximum, so a fire that went out this turn would otherwise stay lit by last turn's answer.
+    clear_light(world);
+    cast_lights_with(world);
     // Decay last, and only for the squares the sweep found.
     decay_the_fields_the_sweep_found(
         world,
