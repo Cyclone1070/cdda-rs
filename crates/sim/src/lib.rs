@@ -4,6 +4,7 @@
 //! components, reached by id and never by pointer. What a square holds is found through a
 //! grid resource rebuilt from the World, never kept as a second authority.
 
+pub mod field_table;
 pub mod terrain_table;
 
 use bevy_ecs::prelude::*;
@@ -868,7 +869,114 @@ pub fn cast_lights(
     );
 }
 
-/// Works out the light from loaded prototypes: both layers of every square, and the weather.
+/// The loaded prototypes the map asks about: one table per layer.
+///
+/// Two instances of the same type rather than one, because terrain and furniture are separate id spaces and code three means two different things. Keeping them in one
+/// resource also means a query does not have to be handed the tables it needs - the world already carries them, the way the reference's world carries its prototype
+/// registry.
+#[derive(Debug, Clone, Default, Resource)]
+pub struct Prototypes {
+    /// What each terrain code says about light.
+    pub terrain: terrain_table::TerrainTable,
+    /// What each furniture code says about light.
+    pub furniture: terrain_table::TerrainTable,
+}
+
+/// Whether one square can see another, with both layers of every square and the fields counted.
+///
+/// Reference: `map::sees` (`src/map.cpp:7329-7362`) over `map::is_transparent`, which reads the transparency cache **with** the fields in it. Prefer
+/// [`sees_through_fields`] for the reference's other question, the one that ignores them.
+#[must_use]
+pub fn sees(world: &World, from: (i32, i32), to: (i32, i32), range: i32) -> bool {
+    sees_through_fields(world, from, to, range, true)
+}
+
+/// Whether one square can see another, choosing whether the fields count.
+///
+/// Reference: the reference keeps two casts, `is_transparent` and `is_transparent_wo_fields`, and picks between them with a member pointer at the top of `map::sees`
+/// (`map.cpp:7337-7338`). This is the same choice, made by the caller.
+#[must_use]
+pub fn sees_through_fields(
+    world: &World,
+    from: (i32, i32),
+    to: (i32, i32),
+    range: i32,
+    with_fields: bool,
+) -> bool {
+    let Some(map) = world.get_resource::<Map>() else {
+        return false;
+    };
+    let prototypes = world.get_resource::<Prototypes>();
+    let (terrain, furniture) = match prototypes {
+        Some(prototypes) => (&prototypes.terrain, &prototypes.furniture),
+        // Nothing loaded: every square is air, which is the honest answer for a world with no prototypes rather than a reason to refuse to look.
+        None => {
+            return cdda_core_types::vision::sees_on_one_level(
+                from,
+                to,
+                range,
+                |_x, _y| true,
+                |_, _| true,
+            );
+        }
+    };
+    let fields = if with_fields {
+        Some(field_opacity(world))
+    } else {
+        None
+    };
+    cdda_core_types::vision::sees_on_one_level(
+        from,
+        to,
+        range,
+        |x, y| {
+            let terrain_code = map.0.terrain_at(x, y).unwrap_or(0);
+            let furniture_code = map.0.furniture_at(x, y).unwrap_or(0);
+            let mut transparency = terrain
+                .transparency(terrain_code)
+                .min(furniture.transparency(furniture_code));
+            if let Some(fields) = &fields {
+                transparency = transparency.min(fields.transparency_at(x, y));
+            }
+            transparency > 0.0
+        },
+        |x, y| map.0.terrain_at(x, y).is_some(),
+    )
+}
+
+/// The strongest field on every square, as the transparency rule wants it.
+///
+/// Reference: the field half of `calc_transp` (`lightmap.cpp:155-165`), which walks a square's fields and keeps the smallest translucency. A field whose translucency
+/// is zero makes the square solid, which is how smoke at full strength blinds a line.
+fn field_opacity(world: &World) -> FieldOpacityGrid {
+    let mut squares: BTreeMap<(i32, i32), f32> = BTreeMap::new();
+    let table = world.get_resource::<field_table::FieldTable>();
+    let mut query = world.try_query::<(Entity, &Position, &Field)>();
+    if let Some(query) = query.as_mut() {
+        for (_entity, position, field) in query.iter(world) {
+            let intensity = field.entry.intensity();
+            let translucency = table.map_or(0.0, |table| table.translucency(field.id.0, intensity));
+            let entry = squares
+                .entry((position.x, position.y))
+                .or_insert(f32::INFINITY);
+            *entry = entry.min(translucency);
+        }
+    }
+    FieldOpacityGrid { squares }
+}
+
+/// The strongest field on each square, for the questions that ask whether a square is see-through.
+struct FieldOpacityGrid {
+    squares: BTreeMap<(i32, i32), f32>,
+}
+
+impl FieldOpacityGrid {
+    fn transparency_at(&self, x: i32, y: i32) -> f32 {
+        self.squares.get(&(x, y)).copied().unwrap_or(f32::INFINITY)
+    }
+}
+
+/// Wraps the light ahead of the cast that reads it.
 ///
 /// Reference: `map::build_map_cache`'s order (`map.cpp:9556-9557`) - the sky is decided **first**, because the transparency rule charges the weather for the squares that are
 /// in it. `sight_penalty` is the weather's cost: one for a clear sky, below one for rain, fog or snow.

@@ -79,6 +79,7 @@ mod push_items;
 mod reference_session;
 mod register;
 mod shock_vent;
+mod sight;
 mod spared_newborns;
 mod spread_gas;
 mod sunlight_system;

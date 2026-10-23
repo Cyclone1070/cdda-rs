@@ -406,6 +406,25 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Smoke you can see through and smoke you cannot (round 372)
+
+Sight counted the terrain and the furniture and forgot the third thing the reference checks: the fields. `calc_transp` multiplies each field's `translucency` into a square's
+value (`lightmap.cpp:158-165`), and `map::sees` picks between the two casts - with the fields and without - with a member pointer at the top.
+
+| Piece | Reference | Port |
+|---|---|---|
+the number | `field_intensity_level::translucency`, one per intensity | `FieldLevel::translucency`, read from the dump |
+the table | the field registry | `FieldTable`, a resource, indexed by type and intensity |
+the choice | `is_transparent` / `is_transparent_wo_fields` | `sees` / `sees_through_fields` |
+
+**The flag and the number are not the same question.** Smoke is marked opaque from intensity two, and its translucency there is **ten** - a heavy dimming, not a wall. Only
+intensity three has zero, and that is what blinds. A port that read `transparent` and stopped there would make thick smoke visible-through, or make thin smoke solid; both are
+wrong in a way you only notice when something is shooting at you.
+
+**The oracle had to move first.** The field dump carried the `transparent` flag and not the translucency, so the loader had nothing to load. The dump now carries both at
+version 2, `corpus/prototypes/fields.json` is regenerated from it, and the loader test reads the numbers back - 1, 10 and 0 for smoke, 0.7, 0.4 and 0.1 for fire. The
+hard-coded table this replaced was written the same day and deleted in the same round.
+
 ## A wall is seen as a wall; what is behind it is not (round 371)
 
 The port had `map::seen` - the shadow cast that answers "is this square in the field of view" - but not `map::sees`, the straight-line question "can A see B", which is

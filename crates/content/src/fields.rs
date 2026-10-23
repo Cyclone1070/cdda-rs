@@ -8,7 +8,7 @@ use cdda_core_types::rng::Rolls;
 use cdda_json::{Object, Value};
 
 /// One intensity of a field.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FieldLevel {
     /// The displayed name.
     pub name: String,
@@ -20,6 +20,12 @@ pub struct FieldLevel {
     pub dangerous: bool,
     /// Whether light passes through this intensity.
     pub transparent: bool,
+    /// How much this intensity absorbs from a ray that gets through it.
+    ///
+    /// Reference: `field_intensity_level::translucency` (`src/field.h`), read by `calc_transp` (`lightmap.cpp:158-165`), which **multiplies** it into the square's value -
+    /// a larger number absorbs more, and zero makes the square solid. The two flags are not redundant: smoke at intensity two is marked opaque yet has a translucency of
+    /// ten, so it dims rather than blocks.
+    pub translucency: f32,
     /// Extra movement cost to enter.
     pub move_cost: i32,
     /// The upgrade chance and period for this intensity, if it can grow on its own.
@@ -74,7 +80,7 @@ pub fn turn_at(field: &FieldType, intensity: i32) -> Option<FieldTurn> {
 }
 
 /// One kind of field, with its levels in order (index 0 is intensity 1).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FieldType {
     /// The field's id, e.g. `fd_smoke`.
     pub id: String,
@@ -108,6 +114,15 @@ fn int_of(object: &Object, key: &str) -> Option<i64> {
 fn bool_of(object: &Object, key: &str) -> Option<bool> {
     match object.get(key)? {
         Value::Bool(value) => Some(*value),
+        _ => None,
+    }
+}
+
+fn float_of(object: &Object, key: &str) -> Option<f64> {
+    #[allow(clippy::cast_precision_loss)]
+    match object.get(key)? {
+        Value::Int(value) => Some(*value as f64),
+        Value::Float(value) => Some(*value),
         _ => None,
     }
 }
@@ -168,6 +183,11 @@ pub fn from_dump(value: &Value) -> Result<Vec<FieldType>, String> {
                 color: str_of(level, "color").unwrap_or_default(),
                 dangerous: bool_of(level, "dangerous").unwrap_or(false),
                 transparent: bool_of(level, "transparent").unwrap_or(true),
+                translucency: float_of(level, "translucency").map_or(0.0, |value| {
+                    #[allow(clippy::cast_possible_truncation)]
+                    let answer = value as f32;
+                    answer
+                }),
                 move_cost: i32::try_from(int_of(level, "move_cost").unwrap_or(0)).unwrap_or(0),
                 upgrade_chance: i32::try_from(int_of(level, "upgrade_chance").unwrap_or(0))
                     .unwrap_or(0),

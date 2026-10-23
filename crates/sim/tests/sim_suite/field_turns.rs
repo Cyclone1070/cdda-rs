@@ -25,6 +25,7 @@ fn level(spawn_chance: i32, spawn_count: i32) -> FieldLevel {
         color: String::new(),
         dangerous: false,
         transparent: true,
+        translucency: 0.0,
         move_cost: 0,
         upgrade_chance: 0,
         upgrade_duration: 0,

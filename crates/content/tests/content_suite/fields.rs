@@ -121,3 +121,23 @@ fn only_two_fields_in_the_data_can_spawn_anything() {
             .all(|(_, chance, group)| *chance > 0 && !group.is_empty())
     );
 }
+
+#[test]
+fn the_dump_carries_the_light_absorption_of_every_intensity() {
+    // `translucency` is what `calc_transp` multiplies into a square's value (`lightmap.cpp:158-165`), and it is **not** the same question as the `transparent` flag beside
+    // it: smoke at intensity two is marked opaque and still has a translucency of ten, so it dims a ray rather than stopping it. The dump carries both, so the loader can
+    // tell the difference instead of guessing from the flag.
+    let loaded = dump();
+
+    let smoke = fields::find(&loaded, "fd_smoke").expect("smoke");
+    let absorption: Vec<f32> = smoke
+        .levels
+        .iter()
+        .map(|level| level.translucency)
+        .collect();
+    assert_eq!(absorption, vec![1.0, 10.0, 0.0], "thin, thick, and solid");
+    assert!(
+        smoke.levels.get(2).map(|level| level.translucency) == Some(0.0),
+        "and the thickest layer is solid, which is what blinds a line of sight"
+    );
+}

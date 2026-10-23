@@ -29,6 +29,7 @@ fn level_with(chance: i32, count: i32, group: &str) -> FieldLevel {
         color: String::new(),
         dangerous: false,
         transparent: true,
+        translucency: 0.0,
         move_cost: 0,
         upgrade_chance: 0,
         upgrade_duration: 0,
