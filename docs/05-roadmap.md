@@ -253,24 +253,17 @@ what generation produced | `--dump-map` | `corpus/maps/` |
 The third needed a guard rather than a fix: a read past the loaded chunk waits for overmap generation that a headless run never performs, so the dump now asks only for squares the map
 holds. With that, the reference's answer to "what does this chunk look like" is reproducible on demand, which is what a mapgen gate needs.
 
-### What the next round should pick up (round 391)
+### What the next round should pick up
 
-Two lists, both current as of head `ef268dd`.
+The mapgen family's gate is live and unforgiving: `--dump-mapgen <key> <file>` runs one mapgen in isolation in the reference and writes a chunk, and two chunks whose terrain is entirely
+inline now match the reference on every square the port draws. The next two mechanisms are the ones the shelter still fails on, in this order:
 
-**Blocked on one build.** The instrumented reference has three dumps written and unrun: the weather prototype dump, and the frame dump for the semantic gate. Both need `ninja`
-and `cmake` on `cyc@elitedesk`, which the server does not have and which was not installed without a decision. The exact command is `pip install --user ninja cmake` on that host;
-after it, `oracle/build` moves there and the dumps are one script. Verified at head `dc39818`: `oracle/build/src/cataclysm` exists, was built on 23 October, and
-does **not** answer to `--dump-weather`, so a rebuild is required whichever host does it. The two commands, once approved:
-
-```text
-ssh cyc@elitedesk 'pip install --user ninja cmake'        # then sync and build there
-cd oracle/build && ninja cataclysm                        # or once here, as one managed job
-``` Everything downstream of them - the weather loader, the weather system, the oracle frame - is waiting on
-that single step rather than on any unknown.
-
-**Unblocked, in the order the gap list suggests.** Vertical field movement and multi-level light (`map::cast_zlight`) need the level store to carry more than one z, which is the
-first structural piece P2 does not yet have. The remaining field processors mostly need item and creature data, so they belong after P3. `field_count` and the declared gaps in
-`parity.md` are small and independent. The frame exists and its picture is asserted; giving it an oracle is what turns it into a gate.
+1. **Palette parameters.** A palette's terrain value may be `{"param": "exterior_wall_type", "fallback": "t_brick_wall"}`, and a palette reference may carry
+   `{"name": ..., "parameters": {...}}`. 304 references in the data are objects with parameters. This is a reader change in `palette_symbols`, plus threading a parameter map through
+   the recursion.
+2. **The wall-connection pass.** After the draw, the reference replaces a wall's terrain with a directional variant (`t_concrete_wall_w`) when it has a neighbour. That is a
+   post-draw pass over the chunk, not part of the draw.
+3. Then the furniture layer into `frame`, and the remaining post-draw placements measured in round 496: 1,257 furniture tables, 961 item tables, 1,401 `place_nested`, 2,442 `fill_ter`.
 
 ## 4. Phase detail
 

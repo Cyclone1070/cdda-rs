@@ -340,33 +340,15 @@ pub const NOT_CHUNKS: [&str; 4] = ["lab_1side", "lab_4side", "lab_finale_1level"
 
 /// Resolves a chunk's `rows` into terrain ids through its own `terrain` map.
 ///
-/// Reference: `mapgen.cpp`'s symbol lookup - the `terrain` object maps an id to the characters that draw it, as a string or a list of them, and every character in `rows` has to be
-/// found in it. A space draws nothing and is not a terrain, which is why the answer is `Option`: a chunk's grid may be mostly empty.
+/// Reference: `mapgen.cpp`'s symbol lookup - the `terrain` object maps a **symbol to the id it draws**, as in `".": "t_floor"`, and every character in `rows` has to be found in it.
+/// A space draws nothing and is not a terrain, which is why the answer is `Option`: a chunk's grid may be mostly empty.
 ///
 /// # Errors
 ///
 /// Returns the character that has no id in this mapgen's terrain, because a silent default would draw the wrong chunk rather than say the data is unreadable.
 pub fn resolve_rows(rows: &[String], terrain: &Object) -> Result<Vec<Vec<Option<String>>>, String> {
-    let mut by_symbol: std::collections::BTreeMap<char, &str> = std::collections::BTreeMap::new();
-    for (id, symbols) in terrain.members() {
-        match symbols {
-            Value::Str(text) => {
-                for symbol in text.chars() {
-                    by_symbol.insert(symbol, id.as_str());
-                }
-            }
-            Value::Array(items) => {
-                for item in items {
-                    if let Value::Str(text) = item {
-                        for symbol in text.chars() {
-                            by_symbol.insert(symbol, id.as_str());
-                        }
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
+    let mut by_symbol = std::collections::BTreeMap::new();
+    read_terrain_map(terrain, &mut by_symbol);
     let mut resolved = Vec::with_capacity(rows.len());
     for row in rows {
         let mut line = Vec::with_capacity(row.len());
@@ -376,13 +358,39 @@ pub fn resolve_rows(rows: &[String], terrain: &Object) -> Result<Vec<Vec<Option<
                 continue;
             }
             match by_symbol.get(&symbol) {
-                Some(id) => line.push(Some((*id).to_string())),
+                Some(id) => line.push(Some(id.clone())),
                 None => return Err(format!("'{symbol}' has no terrain in this mapgen")),
             }
         }
         resolved.push(line);
     }
     Ok(resolved)
+}
+
+/// Reads a terrain map into symbol, then id - the direction **every** terrain map in this format is written in.
+///
+/// This is the port's longest-standing misreading and the whole of it: `terrain` is symbol-first (`".": "t_floor"`), and the port read it id-first for many rounds. Each symptom
+/// looked like a different bug - a chunk that needed a fill, a palette that resolved to single letters, stairs that came out as plain floor - and all of them were this one direction.
+///
+/// A symbol may carry several ids, or an id with a weight. The first id is what a draw needs: choosing between them is a roll the caller owns.
+fn read_terrain_map(terrain: &Object, into: &mut std::collections::BTreeMap<char, String>) {
+    for (symbol, value) in terrain.members() {
+        let Some(symbol) = symbol.chars().next() else { continue };
+        match value {
+            Value::Str(id) => {
+                into.insert(symbol, id.clone());
+            }
+            Value::Array(items) => {
+                for item in items {
+                    if let Value::Str(id) = item {
+                        into.insert(symbol, id.clone());
+                        break;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
 }
 
 /// The symbols a chunk can draw with, gathered through its palettes and their palettes.
@@ -407,11 +415,8 @@ pub fn palette_symbols(
             }
             let Some(palette) = lookup(name) else { continue };
             if let Some(Value::Object(terrain)) = palette.get("terrain") {
-                // **A palette's terrain map runs symbol to id**, the opposite direction from a mapgen's own `terrain`, which runs
-                // id to the symbols that draw it. Reading a palette the mapgen way inverted every entry: the gatherer produced
-                // single letters where terrain ids belong, which is exactly what three hundred and thirty-three missing symbols
-                // looked like.
-                collect_by_symbol(terrain, into);
+                // A palette's map is written symbol first, exactly like a mapgen's own.
+                read_terrain_map(terrain, into);
             }
             if let Some(Value::Array(more)) = palette.get("palettes") {
                 let more: Vec<String> = more
@@ -426,28 +431,6 @@ pub fn palette_symbols(
         }
     }
 
-    /// A palette's map: the symbol is the key, the terrain id the value.
-    fn collect_by_symbol(terrain: &Object, into: &mut std::collections::BTreeMap<char, String>) {
-        for (symbol, value) in terrain.members() {
-            let Some(symbol) = symbol.chars().next() else { continue };
-            match value {
-                Value::Str(id) => {
-                    into.insert(symbol, id.clone());
-                }
-                // A palette may also write a **list** for a symbol - either several ids or an id with a weight - and taking the first
-                // id is what a draw needs: the choice between them is a roll the caller owns, not the reader's.
-                Value::Array(items) => {
-                    for item in items {
-                        if let Value::Str(id) = item {
-                            into.insert(symbol, id.clone());
-                            break;
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
 
     let mut into = std::collections::BTreeMap::new();
     let mut visited = std::collections::BTreeSet::new();
@@ -472,22 +455,8 @@ pub fn draw_chunk(
 ) -> Result<Vec<Vec<Option<String>>>, String> {
     let mut symbols = palette_symbols(palettes, lookup);
     if let Some(terrain) = terrain {
-        for (id, value) in terrain.members() {
-            let mut put = |symbol: char| {
-                symbols.insert(symbol, id.clone());
-            };
-            match value {
-                Value::Str(text) => text.chars().for_each(&mut put),
-                Value::Array(items) => {
-                    for item in items {
-                        if let Value::Str(text) = item {
-                            text.chars().for_each(&mut put);
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
+        // The entry's own map wins over its palettes, and it is written the same way they are: symbol first.
+        read_terrain_map(terrain, &mut symbols);
     }
     let mut drawn = Vec::with_capacity(rows.len());
     for row in rows {

@@ -2986,6 +2986,23 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## One direction, three masks (round 502)
+
+A mapgen's `terrain` is written **symbol first** - `".": "t_floor"` - and the port read it id-first for many rounds. Every symptom wore a different mask:
+
+| Symptom | Read symbol-first | Read id-first |
+|---|---|---|
+a chunk with no inline terrain needed a `fill_ter` | yes, but only for furniture squares | every square fell back to the fill |
+the symbol gatherer produced 33 nonsense entries | 122 real symbols | single letters where terrain ids belong |
+stairs in a temple came out as plain rock floor | `'>'` is `t_stairs_down` | `'>'` is not a symbol at all |
+
+All three were the same bug. Two fully-inline chunks now match the reference on **every square the port draws**, under one of four quarter turns, and a transcribed three-square case pins
+the direction so it cannot flip back silently.
+
+**What the gate covers now:** `temple_chunk` (4 terrains, 48 drawn squares) and `billboard_chunk` (3 terrains) agree exactly with the reference's own mapgen run. The shelter stays at
+334 of 385 with every disagreement a `#` wall square, because those walls arrive through a palette that takes **parameters** and the reference then connects neighbours into
+directional ids - both still missing, both named.
+
 ## The mapgen oracle, and three things it caught (round 501)
 
 The reference can now be asked what a **mapgen** draws, with no world, no player and no seed: `--dump-mapgen <key> <file>` runs one mapgen and writes the terrain and furniture id of

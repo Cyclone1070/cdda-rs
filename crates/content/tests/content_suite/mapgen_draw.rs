@@ -185,3 +185,118 @@ fn the_port_draws_the_shelter_the_way_the_reference_draws_it() {
         "at least 85% of drawn squares match without the wall pass: {agree} of {drawn_squares}"
     );
 }
+
+/// A reference chunk, by the file it was dumped into.
+fn chunk(file: &str) -> (String, Vec<Vec<String>>) {
+    let text = std::fs::read_to_string(corpus().join("mapgens").join(file)).expect("a mapgen dump");
+    let Value::Object(root) = parse(text.as_bytes()).expect("valid JSON") else { panic!("root") };
+    let Some(Value::Str(mapgen)) = root.get("mapgen") else { panic!("no mapgen key") };
+    let Some(Value::Array(rows)) = root.get("rows") else { panic!("no rows") };
+    let rows = rows
+        .iter()
+        .map(|row| {
+            let Value::Array(squares) = row else { panic!("a row is not an array") };
+            squares
+                .iter()
+                .map(|square| {
+                    let Value::Array(pair) = square else { panic!("a square is not a pair") };
+                    match pair.first() {
+                        Some(Value::Str(terrain)) => terrain.clone(),
+                        _ => panic!("a square has no terrain"),
+                    }
+                })
+                .collect()
+        })
+        .collect();
+    (mapgen.clone(), rows)
+}
+
+#[test]
+fn the_port_draws_a_fully_inline_chunk_square_for_square() {
+    // The unqualified version of the gate, on chunks whose whole terrain comes from the entry itself - rows, a terrain map, a fill and
+    // nothing else. There is no palette indirection and no parameter here, so there is nothing to explain away: every square the port
+    // draws has to be the square the reference drew, under one of the four rotations, and the drawn squares have to be nearly all of them.
+    for file in ["temple_chunk.json", "billboard_chunk.json"] {
+        let (key, expected) = chunk(file);
+        let (entry, names, palettes) = mapgen_entry(&key);
+        let entry = entry.unwrap_or_else(|| panic!("the data has a mapgen for {key}"));
+        let Some(Value::Array(rows)) = entry.get("rows") else { panic!("{key} draws a grid") };
+        let rows: Vec<String> = rows
+            .iter()
+            .filter_map(|row| match row {
+                Value::Str(text) => Some(text.clone()),
+                _ => None,
+            })
+            .collect();
+        let terrain = match entry.get("terrain") {
+            Some(Value::Object(terrain)) => Some(terrain),
+            _ => None,
+        };
+        let fill = match entry.get("fill_ter") {
+            Some(Value::Str(fill)) => Some(fill.clone()),
+            _ => None,
+        };
+        let drawn = cdda_content::mapgen::draw_chunk(
+            &rows,
+            terrain,
+            &names,
+            &|name| palettes.get(name).cloned(),
+            fill.as_deref(),
+        )
+        .expect("the chunk draws");
+
+        let size = drawn.len();
+        let mut best: Option<(usize, usize, Disagreements)> = None;
+        for turn in 0..4 {
+            let mut agree = 0;
+            let mut drawn_squares = 0;
+            let mut different = Vec::new();
+            for (y, line) in drawn.iter().enumerate() {
+                for (x, square) in line.iter().enumerate() {
+                    let Some(id) = square else { continue };
+                    drawn_squares += 1;
+                    let (rx, ry) = match turn {
+                        0 => (x, y),
+                        1 => (size - 1 - y, x),
+                        2 => (size - 1 - x, size - 1 - y),
+                        _ => (y, size - 1 - x),
+                    };
+                    let want = &expected[ry][rx];
+                    if id == want {
+                        agree += 1;
+                    } else if different.len() < 6 {
+                        let symbol = rows[y].chars().nth(x).unwrap_or('?');
+                        different.push((symbol, id.clone(), want.clone()));
+                    }
+                }
+            }
+            if best.as_ref().is_none_or(|(a, _, _)| agree > *a) {
+                best = Some((agree, drawn_squares, different));
+            }
+        }
+        let (agree, drawn_squares, different) = best.expect("one rotation");
+        assert_eq!(
+            agree, drawn_squares,
+            "{key}: every drawn square matches ({agree} of {drawn_squares}): {different:?}"
+        );
+    }
+}
+
+#[test]
+fn a_terrain_map_is_written_symbol_first() {
+    // Reference: `mapgen.cpp`'s symbol lookup. A mapgen's `terrain` is written `".": "t_floor"` - the symbol is the key - and the port
+    // read it the other way for many rounds. The misreading wore three different masks: a chunk that seemed to need a fill, a palette
+    // that resolved to single letters, and stairs that came out as plain floor. This is the smallest case that tells the two apart: read
+    // symbol-first it draws floor and wall; read id-first it draws nothing at all, because no key is one character long.
+    let text = br##"[{"terrain": {".": "t_floor", "#": ["t_concrete_wall", 100]}}]"##;
+    let Value::Array(entries) = parse(text).expect("valid JSON") else { panic!("root") };
+    let Value::Object(entry) = entries.first().expect("one entry") else { panic!("object") };
+    let Some(Value::Object(terrain)) = entry.get("terrain") else { panic!("terrain") };
+    let rows = vec!["..#".to_string()];
+    let drawn = cdda_content::mapgen::resolve_rows(&rows, terrain).expect("resolves");
+    assert_eq!(
+        drawn,
+        vec![vec![Some("t_floor".to_string()), Some("t_floor".to_string()), Some("t_concrete_wall".to_string())]],
+        "a symbol draws the id it names, and a list's first id is the one a draw takes"
+    );
+}
