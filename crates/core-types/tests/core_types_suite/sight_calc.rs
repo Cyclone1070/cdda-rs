@@ -8,9 +8,9 @@
 
 #![allow(clippy::expect_used)]
 
-use cdda_core_types::light::{
-    AMBIENT_LIT, SOURCE_BRIGHT, TRANSPARENCY_OPEN_AIR, accumulate_transparency, sight_calc,
-    sight_check, update_light,
+use cdda_core_types::light::{AMBIENT_LIT, SOURCE_BRIGHT, TRANSPARENCY_OPEN_AIR};
+use cdda_core_types::shadowcasting::{
+    accumulate_transparency, sight_calc, sight_check, update_light,
 };
 
 /// Floats: "the same" means "as close as floats get".

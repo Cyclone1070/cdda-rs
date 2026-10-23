@@ -307,6 +307,15 @@ pub fn sight_calc(numerator: f32, transparency: f32, distance: i32) -> f32 {
     numerator / (transparency * distance).exp()
 }
 
+/// Keeps the brighter of two light values.
+///
+/// Reference: `update_light` (`src/shadowcasting.h:105-108`), which is a maximum written as an `if` for a compiler reason the reference explains; a port can call the
+/// maximum directly.
+#[must_use]
+pub fn update_light(existing: f32, candidate: f32) -> f32 {
+    existing.max(candidate)
+}
+
 /// Whether light goes through a cell at all.
 ///
 /// Reference: `sight_check` (`src/shadowcasting.h:100-103`). Solid is the only thing that
@@ -421,4 +430,212 @@ pub fn cast_light_values(
         }
     }
     values
+}
+
+/// An angle, kept as a rise over a run so comparisons stay exact.
+///
+/// Reference: `struct slope` (`src/shadowcasting.cpp:19-44`). The reference stores both fields as `int_least8_t` and notes that "a shadowcasting radius of 60 readily
+/// fits within that space" while "a radius of 120 definitely will not". The port stores `i32`, which is exact for every radius the game uses and also for the ones the
+/// reference would truncate; the truncation is a limit of the reference's storage, not a rule worth reproducing.
+#[derive(Debug, Clone, Copy)]
+pub struct Slope {
+    rise: i32,
+    run: i32,
+}
+
+impl Slope {
+    /// Builds an angle, keeping the run positive so that comparisons need no sign handling.
+    ///
+    /// Reference: the constructor (`shadowcasting.cpp:20-29`) takes `abs( run )` and negates the rise when the run came in negative - which is the same angle, written
+    /// the way the comparison wants it.
+    #[must_use]
+    pub fn new(rise: i32, run: i32) -> Self {
+        if run < 0 {
+            Self {
+                rise: -rise,
+                run: -run,
+            }
+        } else {
+            Self { rise, run }
+        }
+    }
+
+    /// The rise.
+    #[must_use]
+    pub fn rise(self) -> i32 {
+        self.rise
+    }
+
+    /// The run, always positive.
+    #[must_use]
+    pub fn run(self) -> i32 {
+        self.run
+    }
+}
+
+impl PartialEq for Slope {
+    /// Equal angles, not equal pairs: one in two is two in four (`operator==`, `shadowcasting.cpp:39-43`).
+    fn eq(&self, other: &Self) -> bool {
+        self.rise * other.run == other.rise * self.run
+    }
+}
+
+impl Eq for Slope {}
+
+impl PartialOrd for Slope {
+    /// Compares by cross-multiplication, as `operator<` does (`shadowcasting.cpp:34-38`): `a/b < c/d` is `a*d < c*b`, which is valid because both runs are positive.
+    ///
+    /// Comparing the rises first would make one in three look smaller than two in five, which it is not - and the sweep's spans would then be cut at the wrong angles.
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Slope {
+    /// A total order, which the rationals with positive denominators are: the sweep asks for the higher and lower of two angles, so this has to be `Ord` and not
+    /// merely `PartialOrd`.
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        (self.rise * other.run).cmp(&(other.rise * self.run))
+    }
+}
+
+/// One frustum of the sweep: the squares between two angles, at one accumulated opacity.
+///
+/// Reference: `struct span` (`src/shadowcasting.cpp:49-63`). `major` is the axis being swept at this distance and `minor` the axis across it; the two `skip` flags stop a
+/// new span re-checking the row or column that caused it to be cut off.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Span {
+    /// The leading edge along the sweep direction.
+    pub start_major: Slope,
+    /// The trailing edge along the sweep direction.
+    pub end_major: Slope,
+    /// The leading edge across the sweep.
+    pub start_minor: Slope,
+    /// The trailing edge across the sweep.
+    pub end_minor: Slope,
+    /// The running mean transparency of everything this span has covered.
+    pub cumulative_value: f32,
+    /// Set on a span cut off by a change on the current row, so it does not re-check that row.
+    pub skip_first_row: bool,
+    /// Set on a span cut off by a change in the current column, so it does not re-check that column.
+    pub skip_first_column: bool,
+}
+
+impl Span {
+    /// Builds a span with neither skip flag set.
+    #[must_use]
+    pub fn new(
+        start_major: Slope,
+        end_major: Slope,
+        start_minor: Slope,
+        end_minor: Slope,
+        cumulative_value: f32,
+    ) -> Self {
+        Self {
+            start_major,
+            end_major,
+            start_minor,
+            end_minor,
+            cumulative_value,
+            skip_first_row: false,
+            skip_first_column: false,
+        }
+    }
+}
+
+/// Cuts the span at `index` where the sweep met a square of a different opacity.
+///
+/// Reference: `split_span` (`src/shadowcasting.cpp:69-159`). The span is cut into up to four pieces, and which of them exist depends on where the edges fall:
+///
+/// * `A` - rows already processed, old opacity - and `B` - the processed part of this row - are kept **only when the square just left was transparent**, because an
+///   opaque square's span stops there;
+/// * `D` - everything past the current row - is cut off whenever the leading edge has not reached the span's end, and starts on the **next** row;
+/// * the span being processed is then truncated to the current row and takes the new opacity.
+///
+/// Returns the index of the span that was being processed. It can move when pieces are inserted before it, and the caller must use the answer rather than the index it
+/// passed in.
+// The reference's signature, transplanted: eleven arguments, three of them out-parameters, because the sweep hands the current square's edges in rather than a struct
+// that would have to be built and thrown away at every square. And every index below is either the caller's own span index or one this function just created.
+#[allow(clippy::too_many_arguments, clippy::indexing_slicing)]
+pub fn split_span(
+    spans: &mut Vec<Span>,
+    index: usize,
+    current_transparency: &mut f32,
+    new_transparency: f32,
+    distance: i32,
+    new_start_minor: &mut Slope,
+    trailing_edge_major: Slope,
+    leading_edge_major: Slope,
+    trailing_edge_minor: Slope,
+    leading_edge_minor: Slope,
+) -> usize {
+    let span = spans[index];
+    let next_cumulative =
+        accumulate_transparency(span.cumulative_value, *current_transparency, distance);
+    // The square just left was transparent, so the rows and columns already covered keep their own span. If it was opaque, they are gone.
+    let old_was_transparent = sight_check(*current_transparency);
+    let mut inserted_before = 0;
+    if old_was_transparent {
+        // `A`: the rows above this one.
+        if trailing_edge_major > span.start_major {
+            spans.insert(
+                index,
+                Span {
+                    start_major: span.start_major,
+                    end_major: trailing_edge_major,
+                    start_minor: span.start_minor,
+                    end_minor: span.end_minor,
+                    cumulative_value: next_cumulative,
+                    skip_first_row: false,
+                    skip_first_column: span.skip_first_column,
+                },
+            );
+            inserted_before += 1;
+        }
+        // `B`: the part of this row already covered.
+        if trailing_edge_minor > span.start_minor {
+            spans.insert(
+                index + inserted_before,
+                Span {
+                    start_major: span.start_major.max(trailing_edge_major),
+                    end_major: span.end_major.min(leading_edge_major),
+                    start_minor: span.start_minor,
+                    end_minor: trailing_edge_minor,
+                    cumulative_value: next_cumulative,
+                    skip_first_row: false,
+                    skip_first_column: span.skip_first_column,
+                },
+            );
+            inserted_before += 1;
+        }
+        // The previous square was transparent, so the new span starts at its trailing edge rather than at the previous one's.
+        *new_start_minor = trailing_edge_minor;
+    }
+
+    let span = spans[index + inserted_before];
+    // `D`: the rows still to come, which keep the old opacity and must not re-check this row.
+    if leading_edge_major < span.end_major {
+        spans.insert(
+            index + inserted_before + 1,
+            Span {
+                start_major: leading_edge_major,
+                end_major: span.end_major,
+                start_minor: span.start_minor,
+                end_minor: span.end_minor,
+                cumulative_value: span.cumulative_value,
+                skip_first_row: true,
+                skip_first_column: span.skip_first_column,
+            },
+        );
+    }
+
+    let span = &mut spans[index + inserted_before];
+    // Two transparent squares of different transparency: the cut is between them, so the column that caused it must not be checked twice.
+    span.skip_first_column = sight_check(*current_transparency) && sight_check(new_transparency);
+    span.start_major = span.start_major.max(trailing_edge_major);
+    span.end_major = span.end_major.min(leading_edge_major);
+    span.start_minor = *new_start_minor;
+    *new_start_minor = leading_edge_minor;
+    *current_transparency = new_transparency;
+    index + inserted_before
 }

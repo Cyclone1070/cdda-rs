@@ -80,6 +80,7 @@ mod sound_clusters;
 mod sound_queue;
 mod sound_vertical;
 mod sound_weather;
+mod span_split;
 mod strings;
 mod submap;
 mod submap_store;

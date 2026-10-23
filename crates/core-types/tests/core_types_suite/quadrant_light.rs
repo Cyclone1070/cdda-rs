@@ -18,9 +18,25 @@
 // The neighbour arrays are exactly eight long and every index below is a literal or a loop over that same table.
 #![allow(clippy::indexing_slicing)]
 
-use cdda_core_types::light::{
-    Neighbourhood, Quadrant, Quadrants, SeenFrom, four_quadrants, visible_light,
-};
+use cdda_core_types::light::{Neighbourhood, SeenFrom, visible_light};
+use cdda_core_types::shadowcasting::{FourQuadrants, Quadrant};
+
+/// Builds four quadrant values, north-east first.
+fn four_quadrants(values: [f32; 4]) -> FourQuadrants {
+    let mut quadrants = FourQuadrants::uniform(0.0);
+    for (quadrant, value) in [
+        Quadrant::NorthEast,
+        Quadrant::SouthEast,
+        Quadrant::SouthWest,
+        Quadrant::NorthWest,
+    ]
+    .into_iter()
+    .zip(values)
+    {
+        quadrants.set(quadrant, value);
+    }
+    quadrants
+}
 
 /// Light is a float, so "the same" means "as close as floats get" and never `==`.
 #[track_caller]
@@ -178,10 +194,10 @@ fn a_square_light_passes_through_does_not_need_quadrants_at_all() {
 fn the_quadrant_order_is_the_references() {
     // `enum class quadrant { NE, SE, SW, NW }` (`shadowcasting.h:24-30`), and `four_quadrants` indexes its array with it directly. A port that ordered these
     // clockwise from north would be a rotation of the truth, and the multiplier below would pair the wrong quadrants.
-    assert_eq!(Quadrant::NorthEast as usize, 0);
-    assert_eq!(Quadrant::SouthEast as usize, 1);
-    assert_eq!(Quadrant::SouthWest as usize, 2);
-    assert_eq!(Quadrant::NorthWest as usize, 3);
-    let quadrants = Quadrants::new([1.0, 2.0, 3.0, 4.0]);
+    assert_eq!(Quadrant::NorthEast.index(), 0);
+    assert_eq!(Quadrant::SouthEast.index(), 1);
+    assert_eq!(Quadrant::SouthWest.index(), 2);
+    assert_eq!(Quadrant::NorthWest.index(), 3);
+    let quadrants = four_quadrants([1.0, 2.0, 3.0, 4.0]);
     assert_light(quadrants.get(Quadrant::SouthWest), 3.0, "the third value");
 }

@@ -406,6 +406,38 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The span list, and a duplication this round had to undo first (round 351)
+
+The light cast does not walk rays. It sweeps a widening wedge and carries a list of **spans**, each one a frustum of that wedge that has met the same opacity so far. When
+a square's opacity differs from the span's, `split_span` (`shadowcasting.cpp:69-159`) cuts the span into up to four pieces:
+
+```text
++-------+ <- end major
+|   D   |  rows not yet processed, old opacity, and they must not re-check this row
++---+---+ <- leading edge major
+| B | C |  B: this row's processed part, old opacity
++---+---+  C: the rest of this row, new opacity
+|   A   |  rows above, old opacity
++-------+ <- start major
+```
+
+| Piece | Exists when | Why |
+|---|---|---|
+`A`, `B` | the square just left was **transparent** | an opaque square's span stops at it; nothing behind it is lit through it |
+`D` | the leading edge has not reached the span's end | the rows beyond the change keep the old opacity |
+
+**And `slope` compares by cross-multiplication, not by its fields.** `a/b < c/d` is `a*d < c*b` (`shadowcasting.cpp:34-38`), which makes one in two equal to two in
+four - so the port implements `PartialEq`, `Eq` and `Ord` by cross-multiplication as well. A port that derived `PartialEq` from the fields would call those two angles
+different while `Ord` called them equal, and whatever container sorted them would misbehave in a way that only shows up at the far end of a sweep.
+
+**The round also had to undo its own duplication.** Rounds 349 and 350 added `Quadrant`, `FourQuadrants`, `sight_calc`, `sight_check`, `accumulate_transparency` and
+`update_light` to `light.rs` without noticing that `shadowcasting.rs` already had all six from an earlier pass. The duplicate set is gone; `shadowcasting.rs` owns the
+sweep, `light.rs` owns what the player makes of a lit square, and `visible_light` now takes the one `FourQuadrants` that exists. Tests were repointed, not duplicated.
+
+**Two reference details worth keeping:** `slope` stores its fields as `int_least8_t` and the reference notes that a radius of 120 "definitely will not fit" - the port
+stores `i32`, exact for every radius the game uses, and treats the truncation as a limit of the reference's storage rather than a rule. And `split_span` answers with
+the index of the span that carries on, because the pieces are inserted **before** it and every caller would otherwise use a stale index.
+
 ## The whole physics of the light cast is four small functions (round 350)
 
 Everything in `shadowcasting.cpp` is deciding *which squares a ray passes through*; the arithmetic that decides *how much light is left* is four functions in

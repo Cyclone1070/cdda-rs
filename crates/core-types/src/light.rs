@@ -22,8 +22,6 @@ pub const AMBIENT_LIT: f32 = 10.0;
 pub const MAX_VIEW_DISTANCE: i32 = 72;
 /// Cumulative light lost per map square of open air, `2.3 / MAX_VIEW_DISTANCE`.
 pub const TRANSPARENCY_OPEN_AIR: f32 = 2.3 / 72.0;
-/// A transparency of zero: nothing gets through. Not a small number, but the value that means "a wall".
-pub const TRANSPARENCY_SOLID: f32 = 0.0;
 
 /// What a tile's light means to the rest of the game.
 ///
@@ -269,69 +267,6 @@ pub fn apparent_light(eyes: &Eyes, square: &Apparent) -> LitLevel {
     LitLevel::Blank
 }
 
-/// Which side of a square a light comes from or is looked at from.
-///
-/// Reference: `enum class quadrant` (`src/shadowcasting.h:24-30`). The order is **not** clockwise from north: it is NE, SE, SW, NW, which is north-east then
-/// east's two then west's two. A port that ordered these clockwise would be a rotation of the truth, and every quadrant product would pair the wrong sides.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Quadrant {
-    /// Up and to the right.
-    NorthEast = 0,
-    /// Down and to the right.
-    SouthEast = 1,
-    /// Down and to the left.
-    SouthWest = 2,
-    /// Up and to the left.
-    NorthWest = 3,
-}
-
-/// Four values, one per quadrant.
-///
-/// Reference: `struct four_quadrants` (`src/shadowcasting.h:38-70`), which is the light map's per-square value: light does not arrive at a wall uniformly, it arrives
-/// from wherever the lamps are.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Quadrants([f32; 4]);
-
-/// Builds a set of four quadrants, as the reference's `four_quadrants( float )` and `four_quadrants{...}` constructors do.
-#[must_use]
-pub fn four_quadrants(values: [f32; 4]) -> Quadrants {
-    Quadrants(values)
-}
-
-// Every index below comes from `quadrant as usize`, and the enum has exactly four variants numbered 0 to 3, so the arithmetic cannot leave the array. The allow is
-// here rather than a `match` because a `match` would let a future fifth variant compile and silently answer with a stale quadrant.
-#[allow(clippy::indexing_slicing)]
-impl Quadrants {
-    /// Builds a set of four quadrants.
-    #[must_use]
-    pub fn new(values: [f32; 4]) -> Self {
-        Self(values)
-    }
-
-    /// One quadrant's value.
-    #[must_use]
-    pub fn get(self, quadrant: Quadrant) -> f32 {
-        self.0[quadrant as usize]
-    }
-
-    /// Sets one quadrant's value.
-    pub fn set(&mut self, quadrant: Quadrant, value: f32) {
-        self.0[quadrant as usize] = value;
-    }
-
-    /// The brightest quadrant, which is what a square light passes through answers with.
-    #[must_use]
-    pub fn max(self) -> f32 {
-        self.0.iter().copied().fold(f32::NEG_INFINITY, f32::max)
-    }
-
-    /// The quadrant values.
-    #[must_use]
-    pub fn values(self) -> [f32; 4] {
-        self.0
-    }
-}
-
 /// What one of the eight neighbours says about being seen.
 ///
 /// Reference: the three tests the helper applies to a neighbour (`lightmap.cpp:779-786`): is it inside the lightmap, is it opaque, and can anybody see it - the last
@@ -367,23 +302,48 @@ pub struct Neighbourhood {
 /// Reference: `adjacent_offsets` (`lightmap.cpp:754-771`). A **cardinal** neighbour lights two quadrants - the south neighbour lights `SE` and `SW` - and a **diagonal**
 /// one lights a single quadrant twice, because it is the corner shared by two quadrants. That asymmetry is the whole mechanism: it is how a wall with a lamp on one side
 /// and darkness on the other shows only the lit side.
-const LIT_QUADRANTS: [[Quadrant; 2]; 8] = [
+const LIT_QUADRANTS: [[crate::shadowcasting::Quadrant; 2]; 8] = [
+    // `Q` is the sweep module's `Quadrant`, named in full once above: this module antedates it and the alias keeps the table readable.
     // south
-    [Quadrant::SouthEast, Quadrant::SouthWest],
+    [
+        crate::shadowcasting::Quadrant::SouthEast,
+        crate::shadowcasting::Quadrant::SouthWest,
+    ],
     // north
-    [Quadrant::NorthEast, Quadrant::NorthWest],
+    [
+        crate::shadowcasting::Quadrant::NorthEast,
+        crate::shadowcasting::Quadrant::NorthWest,
+    ],
     // east
-    [Quadrant::SouthEast, Quadrant::NorthEast],
+    [
+        crate::shadowcasting::Quadrant::SouthEast,
+        crate::shadowcasting::Quadrant::NorthEast,
+    ],
     // south-east
-    [Quadrant::SouthEast, Quadrant::SouthEast],
+    [
+        crate::shadowcasting::Quadrant::SouthEast,
+        crate::shadowcasting::Quadrant::SouthEast,
+    ],
     // north-east
-    [Quadrant::NorthEast, Quadrant::NorthEast],
+    [
+        crate::shadowcasting::Quadrant::NorthEast,
+        crate::shadowcasting::Quadrant::NorthEast,
+    ],
     // west
-    [Quadrant::SouthWest, Quadrant::NorthWest],
+    [
+        crate::shadowcasting::Quadrant::SouthWest,
+        crate::shadowcasting::Quadrant::NorthWest,
+    ],
     // south-west
-    [Quadrant::SouthWest, Quadrant::SouthWest],
+    [
+        crate::shadowcasting::Quadrant::SouthWest,
+        crate::shadowcasting::Quadrant::SouthWest,
+    ],
     // north-west
-    [Quadrant::NorthWest, Quadrant::NorthWest],
+    [
+        crate::shadowcasting::Quadrant::NorthWest,
+        crate::shadowcasting::Quadrant::NorthWest,
+    ],
 ];
 
 /// How much light reaches a square, given what its neighbours are like.
@@ -403,12 +363,12 @@ pub fn visible_light(
     opaque: bool,
     vis: f32,
     neighbourhood: &Neighbourhood,
-    light: &Quadrants,
+    light: &crate::shadowcasting::FourQuadrants,
 ) -> f32 {
     if !opaque {
         return vis * light.max();
     }
-    let mut seen_from = Quadrants::new([0.0; 4]);
+    let mut seen_from = crate::shadowcasting::FourQuadrants::uniform(0.0);
     for (index, quadrants) in LIT_QUADRANTS.iter().enumerate() {
         if !neighbourhood.in_bounds[index] || neighbourhood.opaque[index] {
             continue;
@@ -424,54 +384,5 @@ pub fn visible_light(
             seen_from.set(*quadrant, vis);
         }
     }
-    let values = seen_from.values();
-    let lit = light.values();
-    values
-        .iter()
-        .zip(lit.iter())
-        .map(|(seen, light)| seen * light)
-        .fold(f32::NEG_INFINITY, f32::max)
-}
-
-/// How much of a light survives a distance through a given transparency.
-///
-/// Reference: `sight_calc` (`src/shadowcasting.h:98-101`). The Beer-Lambert law, `1 / e^( a*l )`, with the length factored out and `a` the mean transparency along the
-/// way: bright light falling on open air at `MAX_VIEW_DISTANCE` is exactly at the lit threshold, which is not an accident - it is how `TRANSPARENCY_OPEN_AIR` is chosen.
-///
-/// Note what a transparency of **zero** does here: nothing. Blocking is `sight_check`'s job, because a ray never enters an opaque square in the first place.
-#[must_use]
-pub fn sight_calc(numerator: f32, transparency: f32, distance: i32) -> f32 {
-    #[allow(clippy::cast_precision_loss)]
-    let distance = distance as f32;
-    numerator / (transparency * distance).exp()
-}
-
-/// Whether a ray may pass into a square of this transparency.
-///
-/// Reference: `sight_check` (`src/shadowcasting.h:102-105`). Strictly above zero, so a square with no transparency at all stops the ray and a square with any at all
-/// does not - the reference's transparencies are all either zero or `2.3 / 72` upwards.
-#[must_use]
-pub fn sight_check(transparency: f32) -> bool {
-    transparency > TRANSPARENCY_SOLID
-}
-
-/// Folds one more square's transparency into a ray's running average.
-///
-/// Reference: `accumulate_transparency` (`src/shadowcasting.h:112-116`): `(( distance - 1 ) * cumulative + current ) / distance`. At each distance this is the exact
-/// arithmetic mean of everything the ray has passed through so far, which makes the result **independent of the order** the squares are met in - a property the light
-/// cast relies on and a test pins.
-#[must_use]
-pub fn accumulate_transparency(cumulative: f32, current: f32, distance: i32) -> f32 {
-    #[allow(clippy::cast_precision_loss)]
-    let distance = distance as f32;
-    ((distance - 1.0) * cumulative + current) / distance
-}
-
-/// Keeps the brighter of two light values.
-///
-/// Reference: `update_light` (`src/shadowcasting.h:105-108`), which is a maximum written as an `if` for a compiler reason the reference explains; a port can call the
-/// maximum directly.
-#[must_use]
-pub fn update_light(existing: f32, candidate: f32) -> f32 {
-    existing.max(candidate)
+    seen_from.multiplied(*light).max()
 }
