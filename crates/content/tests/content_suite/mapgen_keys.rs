@@ -208,3 +208,23 @@ fn the_loader_s_own_extractor_agrees_with_the_registry_walk() {
     assert_eq!(from_loader.len(), expected.len(), "the same number of keys");
     assert_eq!(from_loader, expected, "and the same keys, not just the same count");
 }
+
+#[test]
+fn the_chunk_the_map_dump_came_from_is_a_key_the_registry_has() {
+    // Ties the two corpora together: the map dump names the overmap terrain it was generated for, and that name has to be a key in the registry - otherwise the port knows the
+    // chunk's terrain without being able to ask for that chunk again. `forest_thick` is one of the twenty-six registered in code, which makes this the one case where the two
+    // lists have to agree.
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/maps/reference_map.json");
+    let text = std::fs::read_to_string(path).expect("the reference map exists");
+    let Value::Object(root) = parse(text.as_bytes()).expect("valid JSON") else {
+        panic!("the map's root is not an object");
+    };
+    let Some(Value::Str(oter)) = root.get("oter") else {
+        panic!("the map names no overmap terrain");
+    };
+    assert!(keys().contains(oter), "{oter} is the chunk the map dump came from");
+    assert!(
+        cdda_content::mapgen::CODE_REGISTERED.contains(&oter.as_str()),
+        "and it is one of the keys the data does not write"
+    );
+}
