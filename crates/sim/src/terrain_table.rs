@@ -22,6 +22,7 @@ pub struct TerrainTable {
     transparent: BTreeMap<u32, bool>,
     indoors: BTreeMap<u32, bool>,
     light: BTreeMap<u32, f32>,
+    symbols: BTreeMap<u32, char>,
 }
 
 impl TerrainTable {
@@ -42,6 +43,7 @@ impl TerrainTable {
             transparent: pairs.into_iter().collect(),
             indoors: BTreeMap::new(),
             light: BTreeMap::new(),
+            symbols: BTreeMap::new(),
         }
     }
 
@@ -51,6 +53,36 @@ impl TerrainTable {
     /// been told about is **under the sky**, which is what an unflagged terrain is.
     pub fn insert_indoors(&mut self, code: u32, indoors: bool) {
         self.indoors.insert(code, indoors);
+    }
+
+    /// Records the glyph the code is drawn with.
+    ///
+    /// Reference: `map_data_common_t::sym` (`src/mapdata.h`), loaded by [`crate::terrain_table::TerrainTable::from_terrains`]. A code the table has not been told about is a
+    /// space, which is what the reference draws for open air.
+    pub fn insert_symbol(&mut self, code: u32, symbol: char) {
+        self.symbols.insert(code, symbol);
+    }
+
+    /// The glyph a code is drawn with.
+    #[must_use]
+    pub fn symbol(&self, code: u32) -> char {
+        self.symbols.get(&code).copied().unwrap_or(' ')
+    }
+
+    /// Marks every code that either layer calls opaque as opaque.
+    ///
+    /// Reference: `map::calc_transp` (`lightmap.cpp:146-149`) multiplies the two layers' transparencies per square, so a square is opaque when **either** layer is. Merging by code
+    /// is the same statement for a frame that draws one level: the numbers are per code, and the more absorbing layer decides.
+    pub fn merge_absorbing_from(&mut self, other: &Self) {
+        let opaque: Vec<u32> = other
+            .transparent
+            .iter()
+            .filter(|(_, transparent)| !**transparent)
+            .map(|(code, _)| *code)
+            .collect();
+        for code in opaque {
+            self.transparent.insert(code, false);
+        }
     }
 
     /// Records how much light the code emits.

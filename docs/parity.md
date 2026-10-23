@@ -406,6 +406,30 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The port can draw a frame (round 390)
+
+Three answers per square - what is there, how brightly it is lit, how clearly it is seen - existed separately. A frame asks them together, once per view:
+
+```text
+one sight cast -> one light map -> a walk over the squares
+```
+
+| Piece | Reference | Port |
+|---|---|---|
+the glyph | `map_data_common_t::sym` | `TerrainTable::symbol`, loaded from the dump |
+the level | `lit_level` | `lit_level_with`, the wall-face rule included |
+the sight | `seen_cache` | `SeenGrid` from the cast |
+the frame | the draw loop | `frame::frame`, `Frame::text`, `Frame::levels` |
+
+**`Frame::levels` is the string a semantic frame gate compares.** A picture of the world is hard to diff; a picture of what the character can *tell* about the world is not - one
+character per square, `B L l * .` for bright, lit, low, a glow with nothing in it, and blank. The tests use it already: five rows, five columns, a `*` where smoke is in the way.
+
+**The view now owns its rules.** `View` held `fn` pointers, which the sim could not build because its rules read loaded tables; `Box<dyn Fn>` is what a table-shaped rule needs, and
+the tests that used to write `|code| code == 2` now box it. Small change, and the reason the frame could be written at all.
+
+**Furniture is merged into the transparency by code rather than by square.** The reference multiplies two per-square numbers; a frame that draws one level only needs to know
+whether a code can be seen through, and the more absorbing layer decides. That is a simplification with a name on it rather than an accident.
+
 ## The sim casts from the numbers it already has (round 389)
 
 The frame needs one sight cast per view, and the sim has every square's transparency before it casts anything: terrain, furniture, the outside cache and the fields, all

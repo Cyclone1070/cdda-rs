@@ -5,6 +5,7 @@
 //! grid resource rebuilt from the World, never kept as a second authority.
 
 pub mod field_table;
+pub mod frame;
 pub mod terrain_table;
 pub mod scent;
 pub mod scent_table;
@@ -778,7 +779,7 @@ pub struct LightSource {
 ///
 /// An answer, not a thing: written by the lighting system whenever something that casts light
 /// has moved or died, and thrown away when it is stale.
-#[derive(Debug, Default, Resource)]
+#[derive(Debug, Clone, Default, Resource)]
 pub struct Light {
     squares: BTreeMap<(i32, i32), FourQuadrants>,
 }
@@ -794,6 +795,15 @@ impl Light {
     #[must_use]
     pub fn max_at(&self, x: i32, y: i32) -> f32 {
         self.squares.get(&(x, y)).map_or(0.0, FourQuadrants::max)
+    }
+
+    /// The map the rule functions read.
+    ///
+    /// The rules were written against a `BTreeMap` of quarters because that is what a cast produces; the resource is the same thing with a name, so it hands over its own map
+    /// rather than a copy per square.
+    #[must_use]
+    pub fn squares_for_the_rules(&self) -> BTreeMap<(i32, i32), FourQuadrants> {
+        self.squares.clone()
     }
 
     /// How many squares anything lights.

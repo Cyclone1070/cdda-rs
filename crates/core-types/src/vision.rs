@@ -59,7 +59,7 @@ pub fn apparent_light_at_seen(
     light: &BTreeMap<(i32, i32), FourQuadrants>,
     square: (i32, i32),
 ) -> f32 {
-    let grid = level.seen_grid(view.origin, view.radius, view.transparency_of);
+    let grid = level.seen_grid(view.origin, view.radius, |code| (view.transparency_of)(code));
     apparent_light_from(level, view, light, grid.at(square), square, |neighbour| {
         grid.at(neighbour) > 0.0
     })
@@ -145,10 +145,12 @@ pub struct View {
     /// How far they see.
     pub radius: i32,
     /// Which terrain codes stop the sight.
-    pub blocks_light: fn(u32) -> bool,
+    ///
+    /// Owned rather than a `fn` pointer: the sim's rule reads a loaded table, and a table has no `fn` pointer to give.
+    pub blocks_light: Box<dyn Fn(u32) -> bool>,
     /// How much a code's square absorbs: the same number `calc_transp` puts in the reference's transparency cache, where `TRANSPARENCY_OPEN_AIR` is the floor and zero means
     /// opaque. Sight attenuates by it (`cast_seen_light`), so the answer is a fraction rather than a yes or a no.
-    pub transparency_of: fn(u32) -> f32,
+    pub transparency_of: Box<dyn Fn(u32) -> f32>,
     /// The light around the character, which decides whether a hazy square glows.
     pub ground_light_level: f32,
     /// The dimmest light they can see by ([`crate::light::vision_threshold`]).
@@ -214,7 +216,7 @@ pub fn lit_level_at_square(
     // **Visibility multiplies the light.** `apparent_light = vis * lm.max()` (`lightmap.cpp:795-798`), and `vis` is the seen-cache value, so a square out of the cast has an
     // apparent light of zero however bright the light map says it is. [`apparent_light_at_seen`] does that multiplication and, on an opaque square, keeps only the quarters the
     // character can see it from. Believing the light map is already apparent light shows the player what is behind a wall, which is what the first test here caught.
-    let grid = level.seen_grid(view.origin, view.radius, view.transparency_of);
+    let grid = level.seen_grid(view.origin, view.radius, |code| (view.transparency_of)(code));
     lit_level_with(level, view, light, &grid, square)
 }
 

@@ -154,14 +154,14 @@ fn open_level() -> cdda_core_types::level::Level {
 
 /// The sight rule the walls in these tests obey: code 2 stops the sight and absorbs all of it, everything else is open air.
 fn walls_are_opaque(view: &mut View) {
-    view.blocks_light = |code| code == 2;
-    view.transparency_of = |code| {
+    view.blocks_light = Box::new(|code| code == 2);
+    view.transparency_of = Box::new(|code| {
         if code == 2 {
             0.0
         } else {
             cdda_core_types::light::TRANSPARENCY_OPEN_AIR
         }
-    };
+    });
 }
 
 /// A character standing in the open at (5, 5), with a threshold of three.
@@ -169,8 +169,8 @@ fn view() -> View {
     View {
         origin: (5, 5),
         radius: 10,
-        blocks_light: |_code| false,
-        transparency_of: |_code| cdda_core_types::light::TRANSPARENCY_OPEN_AIR,
+        blocks_light: Box::new(|_code| false),
+        transparency_of: Box::new(|_code| cdda_core_types::light::TRANSPARENCY_OPEN_AIR),
         ground_light_level: 10.0,
         vision_threshold: 3.0,
     }
@@ -353,13 +353,13 @@ fn a_square_seen_through_smoke_glows_without_showing_what_is_on_it() {
     light.insert((7, 5), four_way(200.0, 200.0, 200.0, 200.0));
 
     let mut smoking = view();
-    smoking.transparency_of = |code| {
+    smoking.transparency_of = Box::new(move |code| {
         if code == SMOKY {
             10.0
         } else {
             TRANSPARENCY_OPEN_AIR
         }
-    };
+    });
 
     // The sight cast measures 0.078 there - below the tenth - while the square *past* the smoke recovers to 0.43, because the reference's accumulator averages the transparency
     // across a whole octant row: one column of smoke dims its neighbour most and is diluted by the open air beside it. A quirk of the reference's arithmetic, reproduced rather
@@ -380,7 +380,7 @@ fn a_frame_of_forty_nine_squares_casts_the_sight_once() {
     let mut level = open_level();
     let before = level.sight_casts();
     let drawn = view();
-    let grid = level.seen_grid(drawn.origin, drawn.radius, drawn.transparency_of);
+    let grid = level.seen_grid(drawn.origin, drawn.radius, |code| (drawn.transparency_of)(code));
     let mut light = std::collections::BTreeMap::new();
     for x in 0..7 {
         for y in 0..7 {
