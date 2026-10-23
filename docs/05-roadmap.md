@@ -215,6 +215,23 @@ exactly. Neither is dead code; both are named where they are used.
 ---
 
 
+### The mapgen family's groundwork is measured and pinned (round 493)
+
+The generator is not written, but everything it has to satisfy is now a number or a test rather than a reading of the schema:
+
+| Fact | Value | Where |
+|---|---|---|
+registry | the reference's **6,306**, both directions | `content_suite::mapgen_keys` |
+keys in the data | 6,284, plus 26 in code, minus 4 selectors | same |
+entry shape | the map is under `object` in **all 6,216**; never at the top level | same |
+terrain declaration | eight combinations, each pinned (2,411 palette-only, 150 grid-with-no-terrain, 1,302 placement-only, ...) | same |
+palette graph | **481** palettes, 5,304 references, 278 names, **0** dangling, **0** cycles | same |
+first step written | `mapgen::resolve_rows` turns a grid into terrain ids through its own map | `content_suite` |
+
+Two mechanisms remain to be written before a chunk can be produced: **transitive palette resolution** (the graph is proven acyclic, so a plain walk suffices) and
+**predecessor mapgens** (one chunk in the data is drawn over another). The thick forest - the chunk we dumped - is generated in code, so the first end-to-end comparison will need a
+chunk whose mapgen the data describes rather than that one.
+
 ### The mapgen family has its first gate (round 461)
 
 The registry is an equality now: the keys written in the data, plus the twenty-six the game registers in code, minus the four `om_terrain` ids that are selectors rather than chunks,
