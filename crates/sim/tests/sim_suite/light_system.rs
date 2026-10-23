@@ -62,9 +62,13 @@ fn smoke_standing_on_a_square_dims_the_light_that_crosses_it() {
     ));
     // A turn clears the answer before recomputing it: a stale brighter value would survive a
     // merge by maximum and hide the dimming entirely, which is what this test caught.
+    //
+    // Ten is what the data gives smoke at its second intensity (`field_type.json`: `translucency: 10`), and the value is a *multiplier on
+    // the square's light transparency*, where higher means more absorbing. An intuitive 0.38 would make the smoke more transparent than open
+    // air and brighten everything behind it - which is exactly what this test caught when the cast was first joined to the transparency rule.
     clear_light(&mut world);
     cast_lights(&mut world, Map::terrain_transparency, |_id, _intensity| {
-        0.38
+        10.0
     });
 
     let smoked = world.resource::<Light>().max_at(6, 5);

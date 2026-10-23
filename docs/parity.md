@@ -406,6 +406,34 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## One cast, and a multiplier that reads backwards (round 363)
+
+The level's light path was the last place still guessing: it had its own cast that picked a quarter by comparing offsets, and its own transparency rule that kept the
+**most opaque** field on a square. Both are gone. `Level::add_light_source_with` now asks the transcribed transparency rule and hands the grid to the transcribed octant
+sweep, so there is one cast in the port and one answer to "what does this square cost".
+
+| Old | New | Why the old one was wrong |
+|---|---|---|
+most opaque field wins | every field **multiplies** | two layers of half-smoke are a quarter of the light, not a half |
+quarter chosen by comparing offsets | the sweep's own quadrant, with `default_` for transparent squares | a wall must light the side facing the lamp and **not** the side facing away |
+`cast_light_values` | `cast_light_quadrants` | the old path had no span recursion, so a dim square did not shadow what was behind it |
+
+### The measurement that found it
+
+The corner test asserted that a floor tile north-west of a lamp lights its **south-east** quarter. Probing the transcribed sweep showed it lights its **north-east**
+quarter - because the reference writes `quadrant::default_` for a square it can see through, and `default_` **is** `NE` (`shadowcasting.h:26-31`), with a comment saying
+"for non-opaque tiles direction doesn't matter". Only an **opaque** square gets the octant's own quadrant, which is what makes a wall read as a wall. The old test was
+pinning a guess; the new one pins the measured rule for both cases.
+
+### And the sign of a field's translucency
+
+The reference attenuates by `e^( transparency * distance )`, so a **higher** transparency is *more* absorbing. Field data confirms the direction: open air is `2.3/72`,
+smoke at its second intensity is `10` (`field_type.json`), and `fd_fire` uses `0.7`, `0.4`, `0.1` - each *less* absorbing than open air, because a fire is meant to be seen.
+Dense smoke's `translucency: 0` multiplies the square to zero, and `sight_check` requires `> 0`, so it is **solid**: the third intensity of smoke blocks sight outright.
+
+A port that read `translucency` as an opacity in the intuitive direction would brighten everything behind a fire and blind nothing behind smoke. The sim's own test was
+using `0.38` for smoke and had to be corrected against the data rather than against intuition.
+
 ## Five caches, one order, and a reason for each step (round 362)
 
 `build_map_cache` (`map.cpp:9549-9569`) is the door every light question goes through, and its order is the behaviour:

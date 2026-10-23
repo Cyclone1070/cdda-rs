@@ -12,8 +12,26 @@
 )]
 
 use cdda_core_types::level::Level;
-use cdda_core_types::shadowcasting::{FourQuadrants, Quadrant};
+use cdda_core_types::shadowcasting::{FourQuadrants, Quadrant, sight_calc};
+use cdda_core_types::transparency::{FieldOpacity, SquareFacts};
 use std::collections::BTreeMap;
+
+/// A square of open air, with whatever fields the test gives it.
+fn air(fields: Vec<FieldOpacity>) -> SquareFacts {
+    SquareFacts {
+        terrain_transparent: true,
+        furniture_transparent: true,
+        outside: false,
+        fields,
+    }
+}
+
+fn smoke(translucency: f32) -> FieldOpacity {
+    FieldOpacity {
+        transparent: false,
+        translucency,
+    }
+}
 
 const FLOOR: u32 = 1;
 
@@ -28,17 +46,32 @@ fn level() -> Level {
     level
 }
 
+/// Terrain id used by these tests to mean "a wall".
+const WALL: u32 = 2;
+
 fn light_from(
     level: &mut Level,
     origin: (i32, i32),
     luminance: f32,
 ) -> BTreeMap<(i32, i32), FourQuadrants> {
+    // The transparency rule is asked about squares by the caster while the level is borrowed mutably, so the level's terrain is snapshotted first.
+    let mut terrains = BTreeMap::new();
+    for y in 0..12 {
+        for x in 0..12 {
+            terrains.insert((x, y), level.terrain_at(x, y).unwrap_or(0));
+        }
+    }
     let mut light = BTreeMap::new();
-    level.add_light_source(
+    level.add_light_source_with(
         origin,
         luminance,
-        |terrain| if terrain == 2 { 0.0 } else { 2.3 / 72.0 },
-        |_x, _y| 0.0,
+        1.0,
+        move |x, y| SquareFacts {
+            terrain_transparent: terrains.get(&(x, y)).copied().unwrap_or(0) != WALL,
+            furniture_transparent: true,
+            outside: false,
+            fields: Vec::new(),
+        },
         &mut light,
     );
     light
@@ -57,20 +90,35 @@ fn a_lamp_lights_the_room_around_it_and_not_the_whole_map() {
 }
 
 #[test]
-fn the_corner_facing_the_light_is_the_bright_one() {
-    // The lamp is south-east of the tile at (5,4), so that tile's south-east quarter takes the
-    // light and its north-west quarter does not.
+fn a_wall_lights_the_quarter_that_faces_the_lamp_and_a_floor_lights_only_the_default_one() {
+    // The reference's own rule, and it is not what it looks like: `castLight` writes the octant's quadrant for an **opaque** square and
+    // `quadrant::default_` for a transparent one (`lightmap.cpp:943-951`), with a comment saying why - "for non-opaque tiles direction doesn't matter so we
+    // just use the single default_ value". `default_` is `NE` (`shadowcasting.h:26-31`), so a floor tile gets exactly one quarter and a wall gets the two facing
+    // the lamp.
     let mut level = level();
+    // A wall at (5, 4), north-west of the lamp at (6, 5).
+    level.set_terrain(5, 4, WALL, FLOOR);
     let light = light_from(&mut level, (6, 5), 10.0);
-    let tile = light.get(&(5, 4)).expect("the tile is lit");
+
+    let wall = light.get(&(5, 4)).expect("the wall is lit");
     assert!(
-        tile.get(Quadrant::SouthEast) > 0.0,
-        "the corner facing the lamp"
+        wall.get(Quadrant::SouthEast) > 0.0,
+        "the quarter facing the lamp"
     );
     assert_eq!(
-        tile.get(Quadrant::NorthWest),
+        wall.get(Quadrant::NorthWest),
         0.0,
-        "the corner away from it"
+        "and not the one facing away, which is what makes a wall read as a wall"
+    );
+
+    let floor = light
+        .get(&(6, 4))
+        .expect("the floor north of the lamp is lit");
+    assert!(floor.get(Quadrant::NorthEast) > 0.0, "the default quarter");
+    assert_eq!(
+        floor.get(Quadrant::SouthWest),
+        0.0,
+        "and only the default quarter, because a floor has no side to face"
     );
 }
 
@@ -97,22 +145,42 @@ fn a_dim_source_lights_nothing_at_all() {
 fn two_sources_take_the_brighter_corner_rather_than_summing() {
     let mut level = level();
     let mut light = BTreeMap::new();
-    level.add_light_source(
-        (5, 5),
-        10.0,
-        |terrain| if terrain == 2 { 0.0 } else { 2.3 / 72.0 },
-        |_x, _y| 0.0,
-        &mut light,
-    );
+    let clear = |_x: i32, _y: i32| air(Vec::new());
+    level.add_light_source_with((5, 5), 10.0, 1.0, clear, &mut light);
     let first = light[&(6, 5)].max();
-    level.add_light_source(
-        (6, 5),
-        10.0,
-        |terrain| if terrain == 2 { 0.0 } else { 2.3 / 72.0 },
-        |_x, _y| 0.0,
-        &mut light,
-    );
+    level.add_light_source_with((6, 5), 10.0, 1.0, clear, &mut light);
     let second = light[&(6, 5)].max();
     assert!(second >= first, "adding a lamp does not dim the tile");
     assert!(second < first * 2.0, "and does not double it either");
+}
+
+#[test]
+fn fields_darken_a_ray_in_proportion_rather_than_by_the_worst_one() {
+    // The rule the level used to get wrong: `calc_transp` **multiplies** each field's translucency (`lightmap.cpp:158-165`), so two layers of half-opaque smoke leave a quarter
+    // of the light, not a half. The old closure API took one number per square and kept the most opaque field, which is a different rule and a wrong one.
+    let mut level = level();
+    let smoker = |x: i32, y: i32| -> SquareFacts {
+        if (4..=6).contains(&x) && (4..=6).contains(&y) {
+            air(vec![smoke(0.5), smoke(0.5)])
+        } else {
+            air(Vec::new())
+        }
+    };
+    let mut light = BTreeMap::new();
+    level.add_light_source_with((1, 5), 10.0, 1.0, smoker, &mut light);
+
+    let expected = sight_calc(
+        10.0,
+        cdda_core_types::light::TRANSPARENCY_OPEN_AIR * 0.25,
+        6,
+    );
+    let through = light
+        .get(&(7, 5))
+        .copied()
+        .expect("the far side is lit")
+        .max();
+    assert!(
+        (through - expected).abs() < 2.0,
+        "two layers of smoke, one quarter of the light: got {through}, expected about {expected}"
+    );
 }

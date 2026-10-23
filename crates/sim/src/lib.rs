@@ -853,16 +853,30 @@ pub fn cast_lights(
     terrain_transparency: impl Fn(u32) -> f32,
     field_opacity: impl Fn(FieldId, i32) -> f32,
 ) {
-    // Fields dim a square: the most opaque thing on it wins, as the reference's transparency
-    // cache does when it folds fields into terrain.
-    let mut dimming: BTreeMap<(i32, i32), f32> = BTreeMap::new();
+    // Fields multiply a square's transparency, layer by layer (`map::build_transparency_cache`, `lightmap.cpp:158-165`), where the
+    // older code here kept only the most opaque layer.
+    //
+    // The multiplier's direction is worth stating because it reads backwards: the cast attenuates by `e^( transparency * distance )`,
+    // so a **higher** transparency is more absorbing. Open air is `2.3/72`; real smoke at its second intensity is `10`, which is why smoke
+    // blinds the room it fills, and `fd_fire` uses `0.7`, `0.4`, `0.1` - each *less* absorbing than open air, because a fire is meant to be
+    // seen. A closure that answers zero here means "not modelled", and such an entity is skipped rather than made solid; a real field with
+    // translucency zero is solid in the reference (`sight_check` requires `transparency > 0`), which the sim does not exercise yet.
+    let mut dimming: BTreeMap<(i32, i32), Vec<cdda_core_types::transparency::FieldOpacity>> =
+        BTreeMap::new();
     let mut field_query = world.query::<(&Position, &Field)>();
     for (position, field) in field_query.iter(world) {
         let value = field_opacity(field.id, field.entry.intensity());
-        let entry = dimming.entry((position.x, position.y)).or_insert(0.0);
-        if value > *entry {
-            *entry = value;
+        if value <= 0.0 {
+            continue;
         }
+        dimming.entry((position.x, position.y)).or_default().push(
+            cdda_core_types::transparency::FieldOpacity {
+                // A field that is `transparent` is skipped by the reference; none of the intensities the sim handles are, and a
+                // multiplier of exactly one would be the identity anyway.
+                transparent: false,
+                translucency: value,
+            },
+        );
     }
 
     let mut sources: Vec<(i32, i32, f32)> = Vec::new();
@@ -873,13 +887,37 @@ pub fn cast_lights(
 
     let mut light = BTreeMap::new();
     if let Some(mut map) = world.get_resource_mut::<Map>() {
+        // The transparency rule is asked about squares while the level is borrowed mutably, so its terrain is snapshotted first - the same
+        // shape the callers of `Level::add_light_source_with` in the core-types tests use.
+        let mut terrains: BTreeMap<(i32, i32), u32> = BTreeMap::new();
+        for (x, y, _) in &sources {
+            for dy in -12..=12 {
+                for dx in -12..=12 {
+                    let at = (x + dx, y + dy);
+                    if let Some(id) = map.0.terrain_at(at.0, at.1) {
+                        terrains.insert(at, id);
+                    }
+                }
+            }
+        }
         let level = &mut map.0;
         for (x, y, luminance) in sources {
-            level.add_light_source(
+            level.add_light_source_with(
                 (x, y),
                 luminance,
-                &terrain_transparency,
-                |field_x, field_y| dimming.get(&(field_x, field_y)).copied().unwrap_or(0.0),
+                1.0,
+                |field_x, field_y| cdda_core_types::transparency::SquareFacts {
+                    // A square the world has not made is not a square: `transparency_grid` reports it solid on its own.
+                    terrain_transparent: terrains
+                        .get(&(field_x, field_y))
+                        .is_none_or(|id| terrain_transparency(*id) > 0.0),
+                    furniture_transparent: true,
+                    outside: false,
+                    fields: dimming
+                        .get(&(field_x, field_y))
+                        .cloned()
+                        .unwrap_or_default(),
+                },
                 &mut light,
             );
         }

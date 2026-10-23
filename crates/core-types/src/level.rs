@@ -332,67 +332,19 @@ impl Level {
     /// # Panics
     ///
     /// Panics if the radius is negative, as [`Level::visibility`] does.
-    pub fn add_light_source(
-        &mut self,
-        origin: (i32, i32),
-        luminance: f32,
-        terrain_transparency: impl Fn(u32) -> f32,
-        field_transparency: impl Fn(i32, i32) -> f32,
-        light: &mut BTreeMap<(i32, i32), crate::shadowcasting::FourQuadrants>,
-    ) {
-        use crate::shadowcasting::{FourQuadrants, cast_light_values, update_light_quadrants};
-        let radius = crate::light::light_range(luminance);
-        if radius <= 0 {
-            return;
-        }
-        let grid =
-            self.transparency_grid(origin, radius, &terrain_transparency, &field_transparency);
-        let side = usize::try_from(radius * 2 + 1).unwrap_or(1);
-        let values = cast_light_values(&grid, (radius, radius), radius, luminance);
-        for grid_y in 0..side {
-            for grid_x in 0..side {
-                let index = grid_x * side + grid_y;
-                let Some(&value) = values.get(index) else {
-                    continue;
-                };
-                if value <= 0.0 {
-                    continue;
-                }
-                let Ok(offset_x) = i32::try_from(grid_x) else {
-                    continue;
-                };
-                let Ok(offset_y) = i32::try_from(grid_y) else {
-                    continue;
-                };
-                let offset_x = offset_x - radius;
-                let offset_y = offset_y - radius;
-                if offset_x == 0 && offset_y == 0 {
-                    continue;
-                }
-                // The quadrant is the tile's corner facing *back* at the source, so the
-                // direction is reversed: a tile north-west of the lamp has its south-east
-                // corner lit.
-                let quadrant = quadrant_facing(-offset_x, -offset_y);
-                let entry = light
-                    .entry((origin.0 + offset_x, origin.1 + offset_y))
-                    .or_insert_with(|| FourQuadrants::uniform(0.0));
-                update_light_quadrants(entry, value, quadrant);
-            }
-        }
-    }
-
     /// The transparency of a window of tiles, for the caster.
     ///
-    /// Reference: `map::build_transparency_cache` (`src/lightmap.cpp:100-205`), which fills a
-    /// grid from terrain and then from fields. The tile's value is its terrain's, dimmed by
-    /// whichever field on it is the most opaque: smoke in a doorway dims the doorway.
+    /// Reference: `map::build_transparency_cache` (`src/lightmap.cpp:100-203`), whose per-square rule lives in
+    /// [`crate::transparency::transparency_of`]. This function only gathers the window and asks that rule, so the level cannot
+    /// disagree with the cache about what a square costs - the older version of this function kept the *most opaque* field on a
+    /// square, which is a different and wrong rule for two overlapping layers.
     #[must_use]
     pub fn transparency_grid(
         &self,
         origin: (i32, i32),
         radius: i32,
-        terrain_transparency: impl Fn(u32) -> f32,
-        field_transparency: impl Fn(i32, i32) -> f32,
+        sight_penalty: f32,
+        facts: impl Fn(i32, i32) -> crate::transparency::SquareFacts,
     ) -> crate::shadowcasting::TransparencyGrid {
         let side = usize::try_from(radius * 2 + 1).unwrap_or(1);
         let mut cells = vec![0.0_f32; side * side];
@@ -406,15 +358,13 @@ impl Level {
                 };
                 let world_x = origin.0 + offset_x - radius;
                 let world_y = origin.1 + offset_y - radius;
-                // A tile the world has not made is solid: light does not pass through a place
-                // that does not exist.
-                let mut value = self
-                    .terrain_at(world_x, world_y)
-                    .map_or(0.0, &terrain_transparency);
-                let field_value = field_transparency(world_x, world_y);
-                if field_value > 0.0 && (value <= 0.0 || field_value > value) {
-                    value = field_value;
-                }
+                // A tile the world has not made is solid: light does not pass through a place that does not exist.
+                let value = if self.terrain_at(world_x, world_y).is_some() {
+                    crate::transparency::transparency_of(&facts(world_x, world_y), sight_penalty)
+                        .value
+                } else {
+                    0.0
+                };
                 if let Some(cell) = cells.get_mut(grid_x * side + grid_y) {
                     *cell = value;
                 }
@@ -422,18 +372,63 @@ impl Level {
         }
         crate::shadowcasting::TransparencyGrid::new(side, cells)
     }
-}
 
-/// Which quarter of a tile faces a source `(dx, dy)` away from it.
-///
-/// The quarter is named by the corner it sits in, so a source to the north-east lights the
-/// tile's north-east quarter first.
-fn quadrant_facing(dx: i32, dy: i32) -> crate::shadowcasting::Quadrant {
-    use crate::shadowcasting::Quadrant;
-    match (dx >= 0, dy >= 0) {
-        (false, false) => Quadrant::NorthWest,
-        (true, false) => Quadrant::NorthEast,
-        (false, true) => Quadrant::SouthWest,
-        (true, true) => Quadrant::SouthEast,
+    /// Casts one light source using the transcribed transparency rule.
+    ///
+    /// Reference: `map::apply_light_source` (`lightmap.cpp:1217-1294`). The `facts` closure answers, per square, what the transparency cache would
+    /// answer for it - terrain and furniture flags, whether it is under the sky, and its fields.
+    pub fn add_light_source_with(
+        &mut self,
+        origin: (i32, i32),
+        luminance: f32,
+        sight_penalty: f32,
+        facts: impl Fn(i32, i32) -> crate::transparency::SquareFacts,
+        light: &mut BTreeMap<(i32, i32), crate::shadowcasting::FourQuadrants>,
+    ) {
+        let radius = crate::light::light_range(luminance);
+        if radius <= 0 {
+            return;
+        }
+        let grid = self.transparency_grid(origin, radius, sight_penalty, facts);
+        Self::apply_cast(origin, radius, luminance, &grid, light);
+    }
+
+    /// Writes one cast of light into the map.
+    ///
+    /// Reference: `map::apply_light_source` (`lightmap.cpp:1217-1294`), whose cast is the octant sweep in
+    /// [`crate::shadowcasting::cast_light_quadrants`]. That sweep already decides, per square, **which two quarters** the ray entered by, so nothing here
+    /// has to guess a facing: it takes the brighter of the two answers per quarter and stops.
+    fn apply_cast(
+        origin: (i32, i32),
+        radius: i32,
+        luminance: f32,
+        grid: &crate::shadowcasting::TransparencyGrid,
+        light: &mut BTreeMap<(i32, i32), crate::shadowcasting::FourQuadrants>,
+    ) {
+        use crate::shadowcasting::cast_light_quadrants;
+        let side = usize::try_from(radius * 2 + 1).unwrap_or(1);
+        let cast = cast_light_quadrants(grid, (radius, radius), radius, luminance, false);
+        for grid_y in 0..side {
+            for grid_x in 0..side {
+                let Some(&value) = cast.get(grid_x * side + grid_y) else {
+                    continue;
+                };
+                if value.max() <= 0.0 {
+                    continue;
+                }
+                let Ok(offset_x) = i32::try_from(grid_x) else {
+                    continue;
+                };
+                let Ok(offset_y) = i32::try_from(grid_y) else {
+                    continue;
+                };
+                let offset_x = offset_x - radius;
+                let offset_y = offset_y - radius;
+                let entry = light
+                    .entry((origin.0 + offset_x, origin.1 + offset_y))
+                    .or_insert_with(|| crate::shadowcasting::FourQuadrants::uniform(0.0));
+                *entry = entry.max_with(value);
+            }
+        }
     }
 }
