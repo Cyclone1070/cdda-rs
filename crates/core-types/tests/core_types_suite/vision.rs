@@ -370,3 +370,27 @@ fn a_square_seen_through_smoke_glows_without_showing_what_is_on_it() {
         "a glow in the smoke: the light got there, the detail did not"
     );
 }
+
+#[test]
+fn a_frame_of_forty_nine_squares_casts_the_sight_once() {
+    // A draw loop asks about every square it draws, so the rule functions have to take a cast rather than build one. The receipt is the level's own count: forty-nine squares
+    // of one frame, one cast. Before this, each square rebuilt the cast and the frame cost its own square times the work of a cast.
+    use cdda_core_types::vision::lit_level_with;
+
+    let mut level = open_level();
+    let before = level.sight_casts();
+    let drawn = view();
+    let grid = level.seen_grid(drawn.origin, drawn.radius, drawn.transparency_of);
+    let mut light = std::collections::BTreeMap::new();
+    for x in 0..7 {
+        for y in 0..7 {
+            light.insert((x, y), four_way(30.0, 30.0, 30.0, 30.0));
+        }
+    }
+    for x in 0..7 {
+        for y in 0..7 {
+            let _ = lit_level_with(&level, &drawn, &light, &grid, (x, y));
+        }
+    }
+    assert_eq!(level.sight_casts() - before, 1, "one cast for the frame");
+}

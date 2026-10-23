@@ -34,11 +34,46 @@ pub fn apparent_light_at(light: &BTreeMap<(i32, i32), FourQuadrants>, square: (i
 ///
 /// The port's visibility is a yes or a no rather than the reference's fraction, so a visible square counts as fully visible; that is the same trade [`shown_at`] makes.
 #[must_use]
+#[allow(clippy::too_many_arguments)]
+pub fn apparent_light_with(
+    level: &Level,
+    view: &View,
+    light: &BTreeMap<(i32, i32), FourQuadrants>,
+    grid: &crate::level::SeenGrid,
+    square: (i32, i32),
+) -> f32 {
+    apparent_light_from(level, view, light, grid.at(square), square, |neighbour| {
+        grid.at(neighbour) > 0.0
+    })
+}
+
+/// [`apparent_light_with`] for a caller that has no cast in hand.
+///
+/// # Panics
+///
+/// Panics if the radius is negative, as [`Level::seen_at`] does.
+#[must_use]
 pub fn apparent_light_at_seen(
     level: &mut Level,
     view: &View,
     light: &BTreeMap<(i32, i32), FourQuadrants>,
     square: (i32, i32),
+) -> f32 {
+    let grid = level.seen_grid(view.origin, view.radius, view.transparency_of);
+    apparent_light_from(level, view, light, grid.at(square), square, |neighbour| {
+        grid.at(neighbour) > 0.0
+    })
+}
+
+/// The body both entry points share: the light a square appears to hold, given how clearly it is seen.
+#[allow(clippy::too_many_arguments)]
+fn apparent_light_from(
+    level: &Level,
+    view: &View,
+    light: &BTreeMap<(i32, i32), FourQuadrants>,
+    seen: f32,
+    square: (i32, i32),
+    seen_at_neighbour: impl Fn((i32, i32)) -> bool,
 ) -> f32 {
     use crate::shadowcasting::{FourQuadrants, Quadrant};
     let Some(cell) = light.get(&square).copied() else {
@@ -46,7 +81,6 @@ pub fn apparent_light_at_seen(
     };
     // **Visibility multiplies the light** (`lightmap.cpp:795-798`), and the multiplier is the sight cast's own fraction: a square seen through smoke gets a fraction of the light
     // the map says it holds, and a square out of the cast gets none of it.
-    let seen = level.seen_through(view.origin, view.radius, view.transparency_of, square);
     if seen <= 0.0 {
         return 0.0;
     }
@@ -80,7 +114,9 @@ pub fn apparent_light_at_seen(
         if (view.blocks_light)(code) {
             continue;
         }
-        if !level.seen_at(view.origin, view.radius, view.blocks_light, neighbour) {
+        // The neighbour has to be seen too, and the cast in hand is the same one the reference consults (`map_cache.seen_cache[neighbour]`): out of the frame it reads zero, which
+        // skips the neighbour exactly as an unseen one is skipped.
+        if !seen_at_neighbour(neighbour) {
             continue;
         }
         for quarter in quarters {
@@ -144,6 +180,31 @@ pub fn shown_at(
 /// Reference: `map::apparent_light_at` (`src/lightmap.cpp:801-851`) as the draw path calls it - the same chain [`lit_level_at`] holds, with the facts taken from the world
 /// rather than handed over. Splitting it out means the two callers a frame has - "is this drawn at all" and "at which level" - ask one question, so they cannot disagree.
 #[must_use]
+pub fn lit_level_with(
+    level: &Level,
+    view: &View,
+    light: &BTreeMap<(i32, i32), FourQuadrants>,
+    grid: &crate::level::SeenGrid,
+    square: (i32, i32),
+) -> crate::light::LitLevel {
+    // `obstructed` is the sight cast's own fraction at or below a tenth (`lightmap.cpp:733`), not "was anything in the way": a wall you look at is seen clearly, and a square seen
+    // only through smoke or fog is not.
+    let seen = grid.at(square);
+    lit_level_at(
+        apparent_light_with(level, view, light, grid, square),
+        seen <= 0.1,
+        view.ground_light_level,
+        view.vision_threshold,
+        false,
+    )
+}
+
+/// [`lit_level_with`] for a caller that has no cast in hand.
+///
+/// # Panics
+///
+/// Panics if the radius is negative, as [`Level::seen_at`] does.
+#[must_use]
 pub fn lit_level_at_square(
     level: &mut Level,
     view: &View,
@@ -153,16 +214,8 @@ pub fn lit_level_at_square(
     // **Visibility multiplies the light.** `apparent_light = vis * lm.max()` (`lightmap.cpp:795-798`), and `vis` is the seen-cache value, so a square out of the cast has an
     // apparent light of zero however bright the light map says it is. [`apparent_light_at_seen`] does that multiplication and, on an opaque square, keeps only the quarters the
     // character can see it from. Believing the light map is already apparent light shows the player what is behind a wall, which is what the first test here caught.
-    // `obstructed` is the sight cast's own fraction at or below a tenth (`lightmap.cpp:733`), not "was anything in the way": a wall you look at is seen clearly, and a square seen
-    // only through smoke or fog is not.
-    let seen = level.seen_through(view.origin, view.radius, view.transparency_of, square);
-    lit_level_at(
-        apparent_light_at_seen(level, view, light, square),
-        seen <= 0.1,
-        view.ground_light_level,
-        view.vision_threshold,
-        false,
-    )
+    let grid = level.seen_grid(view.origin, view.radius, view.transparency_of);
+    lit_level_with(level, view, light, &grid, square)
 }
 
 /// What a square looks like to the character: the reference's `lit_level`.

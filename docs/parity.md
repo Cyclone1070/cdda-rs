@@ -406,6 +406,22 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The frame asks once (round 385)
+
+Round 384 built the sight cast once; the rule functions still built one per square. They take the cast now, so a draw loop casts the sight once and reads forty-nine squares from it.
+
+| Entry point | Takes | Use |
+|---|---|---|
+`lit_level_with`, `apparent_light_with` | a `SeenGrid` | the frame |
+`lit_level_at_square`, `apparent_light_at_seen` | nothing | one question, a test, a tool |
+
+**The wall's-face rule now reads its neighbours from the cast too.** The reference consults `seen_cache[neighbour]` (`lightmap.cpp:773-779`); the port asked `seen_at` and would
+have built a whole cast to answer about one neighbour, which is the same bug one layer down. A neighbour outside the cast reads zero and is skipped, which is what the reference's
+cache gives for a square it never saw.
+
+**Eight parameters became a closure.** Passing the cast's neighbour test as an argument was the smallest honest way to keep one body for both entry points; the alternative was two
+copies of the quadrant table, which is how the two answers would start to disagree.
+
 ## One cast, many readers (round 384)
 
 Round 383 gave sight its fraction but asked the cast once per square. The reference builds a level's `seen_cache` **once** and every reader asks it, and a frame asks about
