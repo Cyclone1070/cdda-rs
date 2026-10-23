@@ -39,3 +39,22 @@ fn the_reference_knows_thousands_of_mapgen_keys_and_the_port_must_not_invent_one
         "and the list is not sorted by family, so a reader that assumed an order would be wrong"
     );
 }
+
+#[test]
+fn the_keys_the_data_does_not_write_are_registered_in_code() {
+    // The data's `om_terrain` ids come to 6,284 and the reference knows 6,306. The difference is the generators built in code, and this is the list of them: twenty-six keys that
+    // exist only because a source file names them. A port that scans the data for its registry falls short by exactly these, so they are pinned here rather than discovered later
+    // by a chunk that cannot be generated.
+    let keys = keys();
+    let in_code = [
+        "forest",
+        "forest_thick",
+        "forest_water",
+        "lab_subway_curved",
+        "lab_subway_end",
+    ];
+    for key in in_code {
+        assert!(keys.contains(key), "{key} is registered in code, not in the data");
+    }
+    assert_eq!(keys.len() - 6284, 22, "and there are twenty-two more than the five worth naming here");
+}
