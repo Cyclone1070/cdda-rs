@@ -2986,6 +2986,23 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The wind is per square, and the roof fixture says so (round 523)
+
+`Wind { power, direction, sheltered }` is now read **per square**, which is what `map::spread_gas` does at its top, and the sweep passes it through
+`process_gas_in_wind`. The older `process_gas_in_submap` keeps its single-wind door for callers that have one wind to give.
+
+The second instrument error of the wind work, found the same way as the first: the dump recorded the windpower at the player's square, so a gas on a roof and one in the
+cellar beside it recorded the same zero. Each field entry carries its own `windpower` and `sheltered` now, and the measured example is exactly the case that matters - a
+gas on a roof under a thirteen-speed wind gets a local power of **18**, where every indoor square before it read zero.
+
+`corpus/fields/gas-wind.json` is the first fixture whose gas is **outdoors**: `fd_extinguisher` at level three on a roof, twenty-four recorded turns, **three real
+draws** in its gas blocks - the wind-blocker branch, in a recording.
+
+Its replay gate is written and **ignored**, with the reason in the attribute: the session is red on the field's own decay rather than on the wind. The extinguisher drops
+from intensity three to two on turn two having spent three dice and made no destination, and the replay's ageing pass hands `do_decay` a clock of **zero** because the
+fixture does not record the calendar - so the port ages the field differently and diverges one turn later. The branch the fixture was made for is exercised and correct:
+the three recorded reals are spent where they belong and every range matches. The next instrument is `now` in the fixture.
+
 ## The wind blocks the squares it faces (round 522)
 
 `map::spread_gas` has a branch the port never had: when the gas is **not sheltered** and the wind is at least five, the three squares facing the wind are asked

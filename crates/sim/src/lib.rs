@@ -728,6 +728,53 @@ pub fn process_gas(
 /// The reference's `process_fields` visits submaps in ascending `(z, x, y)` and ages a field when it reaches the field's own submap, so a gas that falls into a submap
 /// the sweep has already passed keeps the age it was born with while one that spreads into a later submap is aged in the same turn. A caller that processed every gas
 /// and aged every field at the end of the turn would get the second case right and the first wrong.
+/// The wind at a square: what the spread rule reads, and nothing about the weather beyond it.
+///
+/// Reference: `map::spread_gas` (`src/map_field.cpp:279-284`) asks `get_local_windpower` about the square the gas stands on and `g->is_sheltered` there, so the wind is a
+/// property of a **square**, not of a turn: a gas on a roof and one in the cellar under it stand in different winds on the same turn.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Wind {
+    /// The local wind power at the square, which sets the spread chance's ceiling and the blockers' resistance.
+    pub power: i32,
+    /// Which way the wind blows, in degrees.
+    pub direction: i32,
+    /// Whether the square is under a roof. A sheltered gas never feels the wind, however hard it blows.
+    pub sheltered: bool,
+}
+
+/// Every gas of one kind on the squares of one submap, with the wind read per square.
+///
+/// The sweep's door: `run_environment_turn` walks submaps in the reference's order and hands this the weather, a fixture replay hands it the recorded wind of each
+/// square, and both get the same rule.
+pub fn process_gas_in_wind(
+    world: &mut World,
+    id: FieldId,
+    submap: Option<(i32, i32, i32)>,
+    percent_spread: i32,
+    wind_at: impl Fn((i32, i32, i32)) -> Wind + Copy,
+    can_take: impl Fn((i32, i32, i32), (i32, i32, i32)) -> bool + Copy,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) {
+    let mut order: Vec<(i32, i32, i32, Entity)> = Vec::new();
+    let mut query = world.query::<(Entity, &Position, &Field)>();
+    for (entity, position, field) in query.iter(world) {
+        if submap.is_some_and(|key| submap_of(position.x, position.y, position.z) != key) {
+            continue;
+        }
+        if field.id == id {
+            order.push((position.x, position.y, position.z, entity));
+        }
+    }
+    order.sort_by_key(|&(x, y, z, entity)| (x, y, z, entity.to_bits()));
+    for (x, y, z, entity) in order {
+        process_one_gas(world, entity, percent_spread, wind_at((x, y, z)), can_take, rolls);
+    }
+}
+
+/// Every gas of one kind on the squares of one submap, with one wind for all of them.
+///
+/// The older door, kept for callers that have a single wind to give - a smoke test, an old per-field turn. The sweep uses [`process_gas_in_wind`], because a gas on a
+/// roof and one in the cellar under it stand in different winds on the same turn.
 pub fn process_gas_in_submap(
     world: &mut World,
     id: FieldId,
@@ -749,7 +796,12 @@ pub fn process_gas_in_submap(
     }
     order.sort_by_key(|&(x, y, z, entity)| (x, y, z, entity.to_bits()));
     for (_, _, _, entity) in order {
-        process_one_gas(world, entity, percent_spread, windpower, can_take, rolls);
+        let wind = Wind {
+            power: windpower,
+            direction: 0,
+            sheltered: false,
+        };
+        process_one_gas(world, entity, percent_spread, wind, can_take, rolls);
     }
 }
 
@@ -761,7 +813,7 @@ fn process_one_gas(
     world: &mut World,
     entity: Entity,
     percent_spread: i32,
-    windpower: i32,
+    wind: Wind,
     can_take: impl Fn((i32, i32, i32), (i32, i32, i32)) -> bool,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) {
@@ -796,11 +848,10 @@ fn process_one_gas(
             below: takes((x, y, z - 1)),
             beside,
             above: takes((x, y, z + 1)),
-            // The caller owns the weather; this rule owns what to do with it. A sheltered gas never feels the wind however hard it blows, and a caller with no
-            // weather to speak of says so by leaving the wind at zero.
-            sheltered: false,
-            windpower,
-            wind_direction: 0,
+            // The caller owns the weather; this rule owns what to do with it.
+            sheltered: wind.sheltered,
+            windpower: wind.power,
+            wind_direction: wind.direction,
         };
         let movement = cdda_core_types::fire::spread_gas(intensity, age, percent_spread, &around, rolls);
         let destination = match movement.direction {
@@ -1810,7 +1861,12 @@ pub fn spread_gas(
             field.entry.set_age(age + outdoor_age_speedup);
         }
     }
-    process_one_gas(world, source, percent_spread, context.windpower, can_take, rolls);
+    let wind = Wind {
+        power: context.windpower,
+        direction: context.wind_angle,
+        sheltered: false,
+    };
+    process_one_gas(world, source, percent_spread, wind, can_take, rolls);
 }
 
 /// Replaces one field on a square with another kind, carrying the age across.

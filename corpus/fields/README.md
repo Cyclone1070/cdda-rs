@@ -4,6 +4,10 @@ A **field session** is the smallest world that can still behave: no creatures, n
 own field sweep running a turn at a time. It is the fixture behind the P2 exit gate's "per-turn state hash on environment-only
 sessions", and it was built because a hand-computed table cannot tell whether a fire's *spread* matches - only a recording can.
 
+`gas-wind.json` is the one fixture with a gas **outdoors**: placed at `--place-gas-at 0 0 1`, on the roof, where `get_local_windpower` answers 18 rather than the
+zero every indoor square reads. It exists to reach the wind-blocker branch of `map::spread_gas`, which draws a real per blocked neighbour; record it with
+`CDDA_RNG_TRACE_REALS=1` or the reals are missing and every draw after them is one position out.
+
 ## Regenerating a session
 
 ```sh

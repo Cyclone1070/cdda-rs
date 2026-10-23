@@ -35,6 +35,11 @@ pub struct Placed {
     pub intensity: i32,
     /// How long it had burned, in turns.
     pub age: i64,
+    /// The wind at **this square**, which is what the spread rule's chance ceiling and its blockers read (`map_field.cpp:279-284`). A gas on a roof and one in the
+    /// cellar beside it stand in different winds, so the fixture records the number per square rather than per turn.
+    pub windpower: i32,
+    /// Whether this square is under a roof. A sheltered gas never feels the wind, however hard it blows.
+    pub sheltered: bool,
 }
 
 impl Placed {
@@ -156,6 +161,11 @@ impl Session {
                             ))
                             .expect("intensity fits"),
                             age: integer(field.get("age").expect("age")),
+                            windpower: i32::try_from(field.get("windpower").map_or(0, integer))
+                                .expect("windpower fits"),
+                            sheltered: field
+                                .get("sheltered")
+                                .is_some_and(|value| matches!(value, Value::Bool(true))),
                         }
                     })
                     .collect()

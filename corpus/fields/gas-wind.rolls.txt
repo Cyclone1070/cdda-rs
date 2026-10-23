@@ -1,0 +1,56 @@
+# The dice the reference's sweep rolled for a gas on a **roof**, where the wind actually blows (seed w2, --world harness-fixed).
+#
+# The square is at z 1, outdoors, with a windpower of 18 and no shelter - the one combination that reaches the wind-blocker branch, which draws a real per blocked
+# neighbour. Labelled per turn (`gas.turn.<n>`) and per square (`gas.begin.<x>.<y>.<z>`).
+mark gas.turn.0
+mark gas.turn.1
+mark gas.begin.71.71.1
+int 1 82 60
+int 0 7 7
+int 0 7 6
+mark gas.done
+mark gas.turn.2
+mark gas.begin.71.71.1
+int 1 82 30
+int 0 7 4
+int 0 7 0
+real 0 1 0.78676091403086734
+real 0 1 0.096959647389408932
+real 0 1 0.64613127284360239
+int 0 4 4
+mark gas.done
+mark gas.begin.71.71.2
+mark gas.done
+mark gas.turn.3
+mark gas.begin.70.71.1
+mark gas.done
+mark gas.begin.71.71.1
+mark gas.done
+mark gas.turn.4
+mark gas.begin.70.71.1
+mark gas.done
+mark gas.turn.5
+mark gas.begin.70.71.1
+mark gas.done
+mark gas.turn.6
+mark gas.begin.70.71.1
+mark gas.done
+mark gas.turn.7
+mark gas.begin.70.71.1
+mark gas.done
+mark gas.turn.8
+mark gas.turn.9
+mark gas.turn.10
+mark gas.turn.11
+mark gas.turn.12
+mark gas.turn.13
+mark gas.turn.14
+mark gas.turn.15
+mark gas.turn.16
+mark gas.turn.17
+mark gas.turn.18
+mark gas.turn.19
+mark gas.turn.20
+mark gas.turn.21
+mark gas.turn.22
+mark gas.turn.23
