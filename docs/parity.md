@@ -406,6 +406,26 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## One place the world keeps what a code means (round 373)
+
+The light and the sun each took their tables as arguments, the sight query took them from a resource, and the fields were a closure in one place and a grid in another. Three
+shapes for one fact. Now there is one: `Prototypes` (a terrain table and a furniture table) and `FieldTable` in the world, and one entry point each.
+
+| Before | After |
+|---|---|
+`cast_lights(world, terrain_fn, field_fn)` | deleted |
+`cast_lights_with_furniture(world, terrain_fn, furniture_fn, field_fn)` | deleted |
+`cast_lights_with(world, &terrain, &furniture, penalty, field_fn)` | `cast_lights_with(world, penalty)` |
+`cast_sunlight_with(world, turns, &terrain, &furniture, penalty)` | `cast_sunlight_with(world, turns, penalty)` |
+`Map::terrain_transparency` | deleted: the last hard-coded light rule is gone |
+
+**Deleting the hard-coded rule was the point.** `Map::terrain_transparency` said code zero was solid and every other code was air - a rule that was true of the corpus and
+would have been wrong about any world that loaded different prototypes. Its two remaining users were tests, and both of them now say what they mean: one inserts a table
+with code zero opaque, the other inserts the table the data gives.
+
+**A test caught the deletion's edge.** With the rule gone, a terrain code the table has never heard of answers "open air" - which is right, and which silently unblocked a
+wall in a fixture that had relied on the old default. The fixture now marks its wall opaque, which is what a wall is.
+
 ## Smoke you can see through and smoke you cannot (round 372)
 
 Sight counted the terrain and the furniture and forgot the third thing the reference checks: the fields. `calc_transp` multiplies each field's `translucency` into a square's

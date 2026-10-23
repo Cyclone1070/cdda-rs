@@ -832,42 +832,8 @@ impl std::ops::Deref for Map {
     }
 }
 
-impl Map {
-    /// The old hard-coded rule, kept only so that callers with no table still work.
-    ///
-    /// It says solid terrain blocks and every other code is open air, which is the shape of the reference's rule with none of its data. Callers that know which
-    /// terrain a code stands for should pass [`terrain_table::TerrainTable::transparency`] instead, and the ledger records this as the last hard-coded answer in
-    /// the light path.
-    #[must_use]
-    pub fn terrain_transparency(terrain: u32) -> f32 {
-        if terrain == SOLID_TERRAIN {
-            0.0
-        } else {
-            cdda_core_types::light::TRANSPARENCY_OPEN_AIR
-        }
-    }
-}
-
 /// Terrain that light cannot pass.
 pub const SOLID_TERRAIN: u32 = 0;
-
-/// Works out the light every source on the level casts, and writes it to the [`Light`] resource.
-///
-/// Furniture is passed as "always see-through", which is what a level with no furniture layer on it deserves. A caller with real furniture - a table, a counter, a
-/// closed cupboard - must use [`cast_lights_with_furniture`], because `calc_transp` requires **both** layers to be transparent (`lightmap.cpp:146-149`) and a port that
-/// forgot the furniture would light a room through a solid oak table.
-pub fn cast_lights(
-    world: &mut World,
-    terrain_transparency: impl Fn(u32) -> f32,
-    field_opacity: impl Fn(FieldId, i32) -> f32,
-) {
-    cast_lights_with_furniture(
-        world,
-        terrain_transparency,
-        |_code| cdda_core_types::light::TRANSPARENCY_OPEN_AIR,
-        field_opacity,
-    );
-}
 
 /// The loaded prototypes the map asks about: one table per layer.
 ///
@@ -976,18 +942,24 @@ impl FieldOpacityGrid {
     }
 }
 
-/// Wraps the light ahead of the cast that reads it.
+/// Works out the light from what the world has loaded: both layers of every square, the fields, and the weather.
 ///
 /// Reference: `map::build_map_cache`'s order (`map.cpp:9556-9557`) - the sky is decided **first**, because the transparency rule charges the weather for the squares that are
-/// in it. `sight_penalty` is the weather's cost: one for a clear sky, below one for rain, fog or snow.
-pub fn cast_lights_with(
-    world: &mut World,
-    terrain: &terrain_table::TerrainTable,
-    furniture: &terrain_table::TerrainTable,
-    sight_penalty: f32,
-    field_opacity: impl Fn(FieldId, i32) -> f32,
-) {
+/// in it. `sight_penalty` is the weather's cost: `1` for a clear sky, above one for rain, fog or snow (the data gives rain 1.1, snow 1.3 and fog 1.7).
+///
+/// The prototypes come from the [`Prototypes`] resource and the fields from [`field_table::FieldTable`], so there is one source for what a code means and no way to cast
+/// with a table the world does not have.
+pub fn cast_lights_with(world: &mut World, sight_penalty: f32) {
     // The sky map: an `INDOORS` flag on either layer covers the three-by-three block around it (`build_outside_cache`).
+    let (terrain, furniture) = world.get_resource::<Prototypes>().map_or_else(
+        || {
+            (
+                terrain_table::TerrainTable::new(),
+                terrain_table::TerrainTable::new(),
+            )
+        },
+        |prototypes| (prototypes.terrain.clone(), prototypes.furniture.clone()),
+    );
     let mut side = 0;
     let mut indoors = Vec::new();
     if let Some(map) = world.get_resource::<Map>() {
@@ -1012,6 +984,7 @@ pub fn cast_lights_with(
             indoors: indoors.clone(),
         },
     );
+    let fields = field_opacity(world);
     cast_lights_inner(
         world,
         |code| terrain.transparency(code),
@@ -1026,8 +999,8 @@ pub fn cast_lights_with(
             }
             outside.get(xu * side + yu).copied().unwrap_or(true)
         },
+        &fields,
         sight_penalty,
-        field_opacity,
     );
 }
 
@@ -1051,60 +1024,34 @@ fn as_i32(value: usize) -> i32 {
     i32::try_from(value).unwrap_or(i32::MAX)
 }
 
-/// Works out the light with both layers of the square taken into account.
-///
-/// Reference: `calc_transp` (`lightmap.cpp:140-167`), which returns solid unless `get_ter().transparent && get_furn().transparent`. The conjunction is the whole
-/// rule: one opaque layer is enough, and it does not matter which.
-pub fn cast_lights_with_furniture(
-    world: &mut World,
-    terrain_transparency: impl Fn(u32) -> f32,
-    furniture_transparency: impl Fn(u32) -> f32,
-    field_opacity: impl Fn(FieldId, i32) -> f32,
-) {
-    // No sky map and a clear sky: this entry point predates both and its callers own their own geometry.
-    cast_lights_inner(
-        world,
-        terrain_transparency,
-        furniture_transparency,
-        |_x, _y| false,
-        1.0,
-        field_opacity,
-    );
-}
-
 /// The one implementation every entry point above funnels into.
 fn cast_lights_inner(
     world: &mut World,
     terrain_transparency: impl Fn(u32) -> f32,
     furniture_transparency: impl Fn(u32) -> f32,
     outside_of_square: impl Fn(i32, i32) -> bool,
+    fields: &FieldOpacityGrid,
     sight_penalty: f32,
-    field_opacity: impl Fn(FieldId, i32) -> f32,
 ) {
     // Fields multiply a square's transparency, layer by layer (`map::build_transparency_cache`, `lightmap.cpp:158-165`), where the
-    // older code here kept only the most opaque layer.
+    // The multiplier's direction is worth stating because it reads backwards: the cast attenuates by `e^( transparency * distance )`, so a **higher**
+    // transparency is more absorbing. Open air is `2.3/72`; smoke at its second intensity is `10`, which is why smoke blinds the room it fills, and `fd_fire`
+    // uses `0.7`, `0.4` and `0.1` - each *less* absorbing than open air, because a fire is meant to be seen.
     //
-    // The multiplier's direction is worth stating because it reads backwards: the cast attenuates by `e^( transparency * distance )`,
-    // so a **higher** transparency is more absorbing. Open air is `2.3/72`; real smoke at its second intensity is `10`, which is why smoke
-    // blinds the room it fills, and `fd_fire` uses `0.7`, `0.4`, `0.1` - each *less* absorbing than open air, because a fire is meant to be
-    // seen. A closure that answers zero here means "not modelled", and such an entity is skipped rather than made solid; a real field with
-    // translucency zero is solid in the reference (`sight_check` requires `transparency > 0`), which the sim does not exercise yet.
+    // The grid is built once for the whole cast, by the same function the sight query asks, so a square the ray cannot see through is the same square that stops
+    // a light: one answer, two readers.
     let mut dimming: BTreeMap<(i32, i32), Vec<cdda_core_types::transparency::FieldOpacity>> =
         BTreeMap::new();
-    let mut field_query = world.query::<(&Position, &Field)>();
-    for (position, field) in field_query.iter(world) {
-        let value = field_opacity(field.id, field.entry.intensity());
-        if value <= 0.0 {
-            continue;
-        }
-        dimming.entry((position.x, position.y)).or_default().push(
-            cdda_core_types::transparency::FieldOpacity {
-                // A field that is `transparent` is skipped by the reference; none of the intensities the sim handles are, and a
-                // multiplier of exactly one would be the identity anyway.
+    for ((x, y), translucency) in &fields.squares {
+        dimming
+            .entry((*x, *y))
+            .or_default()
+            .push(cdda_core_types::transparency::FieldOpacity {
+                // A field that is `transparent` is skipped by the reference; the loaded levels carry their own flag and a multiplier of exactly one would be the
+                // identity anyway, so the grid keeps only the number.
                 transparent: false,
-                translucency: value,
-            },
-        );
+                translucency: *translucency,
+            });
     }
 
     let mut sources: Vec<(i32, i32, f32)> = Vec::new();
@@ -1204,13 +1151,16 @@ pub fn cast_sunlight(
 /// The port has one level and no roof tiles above it, so "indoors" has to be given a meaning. The one that matches the reference is: a square the outside cache calls indoors
 /// is a square **under a roof**, so the level above it at that square is opaque and has a floor. That is exactly what the reference's `prev_transparency_cache` and
 /// `prev_floor_cache` would say about a hut - and it is why daylight still reaches a square just inside a doorway, from the cardinal that is in the open.
-pub fn cast_sunlight_with(
-    world: &mut World,
-    turns: f64,
-    terrain: &terrain_table::TerrainTable,
-    furniture: &terrain_table::TerrainTable,
-    sight_penalty: f32,
-) {
+pub fn cast_sunlight_with(world: &mut World, turns: f64, sight_penalty: f32) {
+    let (terrain, furniture) = world.get_resource::<Prototypes>().map_or_else(
+        || {
+            (
+                terrain_table::TerrainTable::new(),
+                terrain_table::TerrainTable::new(),
+            )
+        },
+        |prototypes| (prototypes.terrain.clone(), prototypes.furniture.clone()),
+    );
     #[allow(clippy::cast_possible_truncation)]
     let altitude = cdda_core_types::astronomy::sun_altitude_degrees(turns) as f32;
     let outside_light = cdda_core_types::light::sun_light_from_altitude(altitude);
@@ -1245,8 +1195,8 @@ pub fn cast_sunlight_with(
 
     let (layer, above) = sunlayers(
         level,
-        terrain,
-        furniture,
+        &terrain,
+        &furniture,
         side,
         &indoors,
         outside_cache,

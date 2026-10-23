@@ -5,9 +5,11 @@
 use bevy_ecs::prelude::*;
 use cdda_core_types::level::Level;
 use cdda_core_types::shadowcasting::Quadrant;
+use cdda_sim::field_table::FieldTable;
 use cdda_sim::terrain_table::TerrainTable;
 use cdda_sim::{
-    Light, LightSource, Map, Position, cast_lights, cast_sunlight, cast_sunlight_with, clear_light,
+    Light, LightSource, Map, Position, Prototypes, cast_lights_with, cast_sunlight,
+    cast_sunlight_with, clear_light,
 };
 
 const NOON: f64 = 12.0 * 3600.0;
@@ -23,6 +25,8 @@ fn world() -> World {
         }
     }
     world.insert_resource(Map(level));
+    world.insert_resource(Prototypes::default());
+    world.insert_resource(FieldTable::new());
     world
 }
 
@@ -58,7 +62,7 @@ fn a_torch_indoors_adds_where_the_sun_cannot_reach() {
     let indoors_only = world.resource::<Light>().max_at(6, 5);
     assert_eq!(indoors_only, 0.0, "no open sky, no daylight");
 
-    cast_lights(&mut world, Map::terrain_transparency, |_id, _intensity| 0.0);
+    cast_lights_with(&mut world, 1.0);
     let with_torch = world.resource::<Light>().max_at(6, 5);
     assert!(with_torch > 0.0, "the torch lights it");
 }
@@ -72,7 +76,7 @@ fn outside_torchlight_never_outshines_daylight() {
     ));
     cast_sunlight(&mut world, NOON, 0.0, |_, _| true);
     let day = world.resource::<Light>().max_at(5, 5);
-    cast_lights(&mut world, Map::terrain_transparency, |_id, _intensity| 0.0);
+    cast_lights_with(&mut world, 1.0);
     let both = world.resource::<Light>().max_at(5, 5);
     assert!(
         both >= day,
@@ -108,6 +112,10 @@ fn daylight_reaches_a_square_just_inside_a_doorway_and_stops_one_step_further_in
     table.insert_indoors(7, true);
 
     let mut world = world();
+    world.insert_resource(Prototypes {
+        terrain: table.clone(),
+        furniture: TerrainTable::new(),
+    });
     for y in 0..12 {
         for x in 0..12 {
             world.resource_mut::<Map>().0.set_terrain(x, y, 1, 1);
@@ -120,7 +128,7 @@ fn daylight_reaches_a_square_just_inside_a_doorway_and_stops_one_step_further_in
         }
     }
 
-    cast_sunlight_with(&mut world, NOON, &table, &TerrainTable::new(), 1.0);
+    cast_sunlight_with(&mut world, NOON, 1.0);
     let light = world.resource::<Light>();
 
     let doorway_square = light.at(5, 4).expect("the square inside the door");
@@ -146,13 +154,17 @@ fn a_roofed_square_takes_the_indoors_light_and_an_open_one_takes_the_sun() {
     table.insert_indoors(7, true);
 
     let mut world = world();
+    world.insert_resource(Prototypes {
+        terrain: table.clone(),
+        furniture: TerrainTable::new(),
+    });
     // A roofed room with an interior square, so that nothing spills in from the open.
     for y in 3..=6 {
         for x in 3..=6 {
             world.resource_mut::<Map>().0.set_terrain(x, y, 7, 1);
         }
     }
-    cast_sunlight_with(&mut world, NOON, &table, &TerrainTable::new(), 1.0);
+    cast_sunlight_with(&mut world, NOON, 1.0);
 
     let open = world.resource::<Light>().max_at(0, 0);
     let roofed = world.resource::<Light>().max_at(4, 4);

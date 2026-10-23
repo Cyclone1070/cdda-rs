@@ -5,7 +5,29 @@
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::{FieldEntry, FieldId};
 use cdda_core_types::level::Level;
-use cdda_sim::{Field, Light, LightSource, Map, Position, SOLID_TERRAIN, cast_lights, clear_light};
+use cdda_sim::field_table::FieldTable;
+use cdda_sim::terrain_table::TerrainTable;
+use cdda_sim::{
+    Field, Light, LightSource, Map, Position, Prototypes, SOLID_TERRAIN, cast_lights_with,
+    clear_light,
+};
+
+/// The prototypes a world with only floors and walls would have loaded: floor code 1 is air, code 0 is solid.
+fn prototypes() -> Prototypes {
+    let mut terrain = TerrainTable::new();
+    terrain.insert(1, true);
+    terrain.insert(SOLID_TERRAIN, false);
+    let mut furniture = TerrainTable::new();
+    furniture.insert(0, true);
+    Prototypes { terrain, furniture }
+}
+
+/// The field table the data gives: smoke's three levels, in the loaded numbers.
+fn field_table() -> FieldTable {
+    let mut fields = FieldTable::new();
+    fields.insert(1, &[1.0, 10.0, 0.0]);
+    fields
+}
 
 fn world_with_floor() -> World {
     let mut world = World::new();
@@ -17,6 +39,8 @@ fn world_with_floor() -> World {
         }
     }
     world.insert_resource(Map(level));
+    world.insert_resource(prototypes());
+    world.insert_resource(field_table());
     world
 }
 
@@ -27,7 +51,7 @@ fn a_torch_lights_the_squares_around_it() {
         Position { x: 5, y: 5, z: 0 },
         LightSource { luminance: 10.0 },
     ));
-    cast_lights(&mut world, Map::terrain_transparency, |_id, _intensity| 0.0);
+    cast_lights_with(&mut world, 1.0);
 
     let light = world.resource::<Light>();
     assert!(light.lit_squares() > 0, "something is lit");
@@ -47,11 +71,13 @@ fn smoke_standing_on_a_square_dims_the_light_that_crosses_it() {
         Position { x: 3, y: 5, z: 0 },
         LightSource { luminance: 10.0 },
     ));
-    cast_lights(&mut world, Map::terrain_transparency, |_id, _intensity| 0.0);
+    cast_lights_with(&mut world, 1.0);
     let clear = world.resource::<Light>().max_at(6, 5);
 
+    // Intensity two: the data gives smoke a translucency of ten there, which dims without stopping. Intensity three is zero and would make the square solid, which is
+    // the next test's business rather than this one's.
     let mut entry = FieldEntry::new(3, 100, true, false);
-    entry.set_intensity(3);
+    entry.set_intensity(2);
     world.spawn((
         Position { x: 5, y: 5, z: 0 },
         Field {
@@ -67,9 +93,7 @@ fn smoke_standing_on_a_square_dims_the_light_that_crosses_it() {
     // the square's light transparency*, where higher means more absorbing. An intuitive 0.38 would make the smoke more transparent than open
     // air and brighten everything behind it - which is exactly what this test caught when the cast was first joined to the transparency rule.
     clear_light(&mut world);
-    cast_lights(&mut world, Map::terrain_transparency, |_id, _intensity| {
-        10.0
-    });
+    cast_lights_with(&mut world, 1.0);
 
     let smoked = world.resource::<Light>().max_at(6, 5);
     assert!(
@@ -90,7 +114,7 @@ fn a_wall_in_the_store_stops_the_light_it_shadows() {
         Position { x: 5, y: 5, z: 0 },
         LightSource { luminance: 10.0 },
     ));
-    cast_lights(&mut world, Map::terrain_transparency, |_id, _intensity| 0.0);
+    cast_lights_with(&mut world, 1.0);
 
     let light = world.resource::<Light>();
     assert!(light.max_at(7, 5) > 0.0, "in front of the wall");
@@ -100,6 +124,6 @@ fn a_wall_in_the_store_stops_the_light_it_shadows() {
 #[test]
 fn with_nothing_shining_the_answer_is_empty() {
     let mut world = world_with_floor();
-    cast_lights(&mut world, Map::terrain_transparency, |_id, _intensity| 0.0);
+    cast_lights_with(&mut world, 1.0);
     assert_eq!(world.resource::<Light>().lit_squares(), 0);
 }

@@ -12,11 +12,9 @@
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::{FieldEntry, FieldId};
 use cdda_core_types::light::TRANSPARENCY_OPEN_AIR;
+use cdda_sim::field_table::FieldTable;
 use cdda_sim::terrain_table::TerrainTable;
-use cdda_sim::{
-    Field, Light, LightSource, Map, Position, cast_lights, cast_lights_with,
-    cast_lights_with_furniture,
-};
+use cdda_sim::{Field, Light, LightSource, Map, Position, Prototypes, cast_lights_with};
 
 /// A level whose square `(5, 5)` is the given terrain code, with a lamp west of it.
 fn level_with(code: u32) -> World {
@@ -37,12 +35,18 @@ fn level_with(code: u32) -> World {
     world
 }
 
+/// Puts the prototypes into the world, which is where the cast reads them from now.
+fn load(world: &mut World, table: &TerrainTable) {
+    world.insert_resource(Prototypes {
+        terrain: table.clone(),
+        furniture: TerrainTable::new(),
+    });
+    world.insert_resource(FieldTable::new());
+}
+
 fn light_past_the_square(world: &mut World, table: &TerrainTable) -> f32 {
-    cast_lights(
-        world,
-        |code| table.transparency(code),
-        |_id, _intensity| 0.0,
-    );
+    load(world, table);
+    cast_lights_with(world, 1.0);
     world.resource::<Light>().max_at(8, 5)
 }
 
@@ -133,7 +137,8 @@ fn smoke_still_dims_a_ray_through_a_window() {
     table.insert(1, true);
 
     let mut clear = level_with(1);
-    cast_lights(&mut clear, |code| table.transparency(code), |_id, _i| 0.0);
+    load(&mut clear, &table);
+    cast_lights_with(&mut clear, 1.0);
     let open = clear.resource::<Light>().max_at(8, 5);
 
     let mut smoked = level_with(1);
@@ -147,7 +152,10 @@ fn smoke_still_dims_a_ray_through_a_window() {
             priority: 0,
         },
     ));
-    cast_lights(&mut smoked, |code| table.transparency(code), |_id, _i| 10.0);
+    let mut fields = FieldTable::new();
+    fields.insert(1, &[1.0, 10.0, 0.0]);
+    smoked.insert_resource(fields);
+    cast_lights_with(&mut smoked, 1.0);
     let dimmed = smoked.resource::<Light>().max_at(8, 5);
 
     assert!(
@@ -166,19 +174,20 @@ fn an_opaque_table_on_a_glass_floor_is_opaque() {
 
     let open_floor = {
         let mut world = level_with(1);
-        cast_lights(&mut world, |code| table.transparency(code), |_id, _i| 0.0);
+        load(&mut world, &table);
+        cast_lights_with(&mut world, 1.0);
         world.resource::<Light>().max_at(8, 5)
     };
 
     let behind_the_table = {
         let mut world = level_with(1);
+        load(&mut world, &table);
+        world.insert_resource(Prototypes {
+            terrain: table.clone(),
+            furniture: table.clone(),
+        });
         world.resource_mut::<Map>().0.set_furniture(5, 5, 9, 1);
-        cast_lights_with_furniture(
-            &mut world,
-            |code| table.transparency(code),
-            |code| table.transparency(code),
-            |_id, _i| 0.0,
-        );
+        cast_lights_with(&mut world, 1.0);
         world.resource::<Light>().max_at(8, 5)
     };
 
@@ -198,19 +207,20 @@ fn furniture_that_is_see_through_does_not_stop_the_ray() {
 
     let open_floor = {
         let mut world = level_with(1);
-        cast_lights(&mut world, |code| table.transparency(code), |_id, _i| 0.0);
+        load(&mut world, &table);
+        cast_lights_with(&mut world, 1.0);
         world.resource::<Light>().max_at(8, 5)
     };
 
     let through = {
         let mut world = level_with(1);
+        load(&mut world, &table);
+        world.insert_resource(Prototypes {
+            terrain: table.clone(),
+            furniture: table.clone(),
+        });
         world.resource_mut::<Map>().0.set_furniture(5, 5, 8, 1);
-        cast_lights_with_furniture(
-            &mut world,
-            |code| table.transparency(code),
-            |code| table.transparency(code),
-            |_id, _i| 0.0,
-        );
+        cast_lights_with(&mut world, 1.0);
         world.resource::<Light>().max_at(8, 5)
     };
 
@@ -234,12 +244,14 @@ fn fog_costs_light_under_open_sky_and_nothing_indoors() {
 
     let outdoor = {
         let mut world = level_with(1);
-        cast_lights_with(&mut world, &table, &TerrainTable::new(), 1.7, |_id, _i| 0.0);
+        load(&mut world, &table);
+        cast_lights_with(&mut world, 1.7);
         world.resource::<Light>().max_at(8, 5)
     };
     let sheltered = {
         let mut world = level_with(7);
-        cast_lights_with(&mut world, &table, &TerrainTable::new(), 1.7, |_id, _i| 0.0);
+        load(&mut world, &table);
+        cast_lights_with(&mut world, 1.7);
         world.resource::<Light>().max_at(8, 5)
     };
 
@@ -261,12 +273,14 @@ fn clear_weather_costs_nothing_wherever_the_square_is() {
     table.insert(1, true);
     let open = {
         let mut world = level_with(1);
-        cast_lights_with(&mut world, &table, &TerrainTable::new(), 1.0, |_id, _i| 0.0);
+        load(&mut world, &table);
+        cast_lights_with(&mut world, 1.0);
         world.resource::<Light>().max_at(8, 5)
     };
     assert!(open > 0.0);
     let mut world = level_with(1);
-    cast_lights(&mut world, |code| table.transparency(code), |_id, _i| 0.0);
+    load(&mut world, &table);
+    cast_lights_with(&mut world, 1.0);
     let plain = world.resource::<Light>().max_at(8, 5);
     assert!((open - plain).abs() < 1e-6, "clear weather is a no-op");
 }
