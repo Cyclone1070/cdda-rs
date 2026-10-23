@@ -79,3 +79,14 @@ fn the_keys_the_data_does_not_write_are_registered_in_code() {
         assert!(keys.contains(key), "{key} is registered in code, not in the data");
     }
 }
+
+#[test]
+fn the_four_data_keys_the_reference_never_registers_stay_out() {
+    // The other direction of the same comparison. Four `om_terrain` ids appear in the data and not in the reference's registry, and the names say why: `lab_1side`, `lab_4side` and
+    // `lab_finale_1level` are **floorplan selectors** rather than chunk ids - the lab generator picks among them - and `null` is the plaza's placeholder. A port that trusted the
+    // files alone would offer four chunks the game itself cannot generate, which is the mirror of the twenty-six it would miss.
+    let keys = keys();
+    for key in ["lab_1side", "lab_4side", "lab_finale_1level", "null"] {
+        assert!(!keys.contains(key), "{key} is a selector, not a chunk");
+    }
+}

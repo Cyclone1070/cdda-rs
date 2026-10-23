@@ -421,6 +421,10 @@ in the reference but not the data | 26 |
 JSON, which is why a port that builds its key set by scanning files comes up short exactly where the built-in generators live. The four the other way are data entries the reference
 does not register - obsolete or condition-gated ones - and they are the mirror trap: a port that trusted the files alone would generate chunks the game cannot.
 
+**The four named**: `lab_1side`, `lab_4side`, `lab_finale_1level` are floorplan **selectors** rather than chunk ids - the lab generator picks among them - and `null` is the
+abandoned plaza's placeholder. So it is not that the reference forgot them; they are not chunks. Both directions are now pinned by tests, the twenty-six by name and the four by
+name, which is the only way an equality test earns the word.
+
 So the rule for the port's registry is neither list alone but the reference's list, and the test that will hold it is an equality against the dump rather than a superset check.
 
 ## What the generated chunk actually contains (round 439)
