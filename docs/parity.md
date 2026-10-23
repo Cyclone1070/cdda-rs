@@ -2986,6 +2986,27 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The mapgen oracle, and three things it caught (round 501)
+
+The reference can now be asked what a **mapgen** draws, with no world, no player and no seed: `--dump-mapgen <key> <file>` runs one mapgen and writes the terrain and furniture id of
+every square. The first target, `shelter`, produced a 24 by 24 chunk with thirteen terrain kinds and four furniture kinds.
+
+Getting there exposed three of my own mistakes, each found by a measurement rather than by re-reading my code.
+
+| Mistake | What it looked like | What was true |
+|---|---|---|
+`--dump-map` nested inside the `--dump-frame` branch | "the map dump hangs" | it never ran; the game fell through and rendered its UI forever |
+the chunk was named from `here.get_abs_sub()` | a chunk three quarters blank | that is the **map buffer's corner**, five submaps from the player |
+palette terrain was read id-to-symbols | 33 nonsense symbols where 122 belong | a palette's `terrain` is **symbol-to-id**, the opposite direction from a mapgen's own map |
+
+**And a third model error the gate itself found:** a symbol missing from the terrain maps is not an error. `furniture`, `items` and `traps` carry their own symbol maps, and a square
+that wears one keeps the chunk's `fill_ter`. The shelter is the proof: `fill_ter` of `t_floor`, no inline terrain at all, and rows full of furniture symbols.
+
+**The gate's claim, exactly.** The port draws 385 of the 576 squares; 334 match the reference under the best quarter turn, and **every** disagreement is a `#` square. Those are the
+two mechanisms still missing and both are named rather than tolerated: the shelter's walls arrive through a palette that takes **parameters** (`parametrized_walls_palette` with
+`wall := t_concrete_wall`), and the reference then connects neighbouring walls into directional ids (`t_concrete_wall_w`). The test asserts that every disagreement is one of those
+squares, so any other symbol disagreeing fails it.
+
 ## A chunk is drawn from its palettes and its own map (round 496)
 
 The generator's draw step, gated over the whole data rather than a sample:

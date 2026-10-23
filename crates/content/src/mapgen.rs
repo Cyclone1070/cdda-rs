@@ -407,7 +407,11 @@ pub fn palette_symbols(
             }
             let Some(palette) = lookup(name) else { continue };
             if let Some(Value::Object(terrain)) = palette.get("terrain") {
-                collect(terrain, into);
+                // **A palette's terrain map runs symbol to id**, the opposite direction from a mapgen's own `terrain`, which runs
+                // id to the symbols that draw it. Reading a palette the mapgen way inverted every entry: the gatherer produced
+                // single letters where terrain ids belong, which is exactly what three hundred and thirty-three missing symbols
+                // looked like.
+                collect_by_symbol(terrain, into);
             }
             if let Some(Value::Array(more)) = palette.get("palettes") {
                 let more: Vec<String> = more
@@ -422,20 +426,21 @@ pub fn palette_symbols(
         }
     }
 
-    fn collect(terrain: &Object, into: &mut std::collections::BTreeMap<char, String>) {
-        for (id, symbols) in terrain.members() {
-            match symbols {
-                Value::Str(text) => {
-                    for symbol in text.chars() {
-                        into.insert(symbol, id.clone());
-                    }
+    /// A palette's map: the symbol is the key, the terrain id the value.
+    fn collect_by_symbol(terrain: &Object, into: &mut std::collections::BTreeMap<char, String>) {
+        for (symbol, value) in terrain.members() {
+            let Some(symbol) = symbol.chars().next() else { continue };
+            match value {
+                Value::Str(id) => {
+                    into.insert(symbol, id.clone());
                 }
+                // A palette may also write a **list** for a symbol - either several ids or an id with a weight - and taking the first
+                // id is what a draw needs: the choice between them is a roll the caller owns, not the reader's.
                 Value::Array(items) => {
                     for item in items {
-                        if let Value::Str(text) = item {
-                            for symbol in text.chars() {
-                                into.insert(symbol, id.clone());
-                            }
+                        if let Value::Str(id) = item {
+                            into.insert(symbol, id.clone());
+                            break;
                         }
                     }
                 }
@@ -463,6 +468,7 @@ pub fn draw_chunk(
     terrain: Option<&Object>,
     palettes: &[String],
     lookup: &dyn Fn(&str) -> Option<Object>,
+    fill: Option<&str>,
 ) -> Result<Vec<Vec<Option<String>>>, String> {
     let mut symbols = palette_symbols(palettes, lookup);
     if let Some(terrain) = terrain {
@@ -491,9 +497,12 @@ pub fn draw_chunk(
                 line.push(None);
                 continue;
             }
+            // **A symbol the terrain maps do not know is not an error**: `furniture`, `items` and `traps` have their own symbol
+            // maps, and a square that carries one of those keeps the chunk's `fill_ter`. Only a symbol no layer claims would be a
+            // mistake, and the port cannot tell that apart from here - so it leaves the fill, which is what the reference draws.
             match symbols.get(&symbol) {
                 Some(id) => line.push(Some(id.clone())),
-                None => return Err(format!("'{symbol}' has no terrain, inline or in a palette")),
+                None => line.push(fill.map(ToString::to_string)),
             }
         }
         drawn.push(line);
