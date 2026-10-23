@@ -191,3 +191,78 @@ pub fn open_sky_lit_level(altitude: f32) -> LitLevel {
     // No source in the tile: the sky is ambient light, not something burning underfoot.
     lit_level(true, 0.0, sun_light_from_altitude(altitude))
 }
+
+/// What the player can see with: their distance to a square, and the three things that change what that distance means.
+///
+/// Reference: the player half of `map::apparent_light_at` (`lightmap.cpp:801-857`) - `rl_dist`, `u_clairvoyance`, `unimpaired_range()` and
+/// `get_vision_threshold()`. Grouping them means the decision tree below takes one argument instead of four, and it is the half a test can state without a character.
+#[derive(Debug, Clone, Copy)]
+pub struct Eyes {
+    /// How far away the square is, in the reference's own distance metric (`rl_dist`).
+    pub dist: i32,
+    /// How far clairvoyance reaches, or zero for none.
+    pub clairvoyance: i32,
+    /// How far the player can see without help.
+    pub unimpaired_range: i32,
+    /// The dimmest light this player can still see by.
+    pub vision_threshold: f32,
+}
+
+/// What the light map says about one square.
+///
+/// Reference: `map::apparent_light_info` (`lightmap.h`) together with the cache values the decision tree reads - `sm` (the light source sitting in the square),
+/// `camera_cache` and `g_light_level` (the ambient light outside).
+#[derive(Debug, Clone, Copy)]
+pub struct Apparent {
+    /// Whether the line of sight to this square is blocked.
+    pub obstructed: bool,
+    /// Whether it is blocked for every eye, cameras included.
+    pub absolute_obstructed: bool,
+    /// How much light reaches the square: `apparent_light_helper`'s answer, the brightest quadrant the player can see it from.
+    pub light: f32,
+    /// The light source sitting in the square itself, the reference's `sm` cache.
+    pub light_source: f32,
+    /// Light from a camera at the square, which the reference keeps apart from the player's own sight.
+    pub camera: f32,
+    /// The ambient light **outside**, `g_light_level`.
+    pub ambient: f32,
+}
+
+/// What the player can make of one square.
+///
+/// Reference: `map::apparent_light_at` (`lightmap.cpp:801-857`), in its order. The order is the behaviour:
+///
+/// 1. clairvoyance reaching the square sees it, whatever is in the way;
+/// 2. a square past the player's unimpaired range and without a camera is `BRIGHT_ONLY` if it is itself a light source and nothing blocks it absolutely, and blank
+///    otherwise;
+/// 3. an obstructed square is `BRIGHT_ONLY` only when enough light gets through **and** that light beats the ambient light outside - otherwise it is blank;
+/// 4. an unobstructed square is `BRIGHT` above `LIGHT_SOURCE_BRIGHT` or with a light source in it, `LIT` above `LIGHT_AMBIENT_LIT`, `LOW` at or above the player's
+///    vision threshold, and blank below it.
+#[must_use]
+pub fn apparent_light(eyes: &Eyes, square: &Apparent) -> LitLevel {
+    if eyes.clairvoyance > 0 && eyes.dist <= eyes.clairvoyance {
+        return LitLevel::Bright;
+    }
+    if eyes.dist > eyes.unimpaired_range && square.camera == 0.0 {
+        if !square.absolute_obstructed && square.light_source > 0.0 {
+            return LitLevel::BrightOnly;
+        }
+        return LitLevel::Blank;
+    }
+    if square.obstructed {
+        if square.light > AMBIENT_LIT && square.light > square.ambient {
+            return LitLevel::BrightOnly;
+        }
+        return LitLevel::Blank;
+    }
+    if square.light > SOURCE_BRIGHT || square.light_source > 0.0 {
+        return LitLevel::Bright;
+    }
+    if square.light > AMBIENT_LIT {
+        return LitLevel::Lit;
+    }
+    if square.light >= eyes.vision_threshold {
+        return LitLevel::Low;
+    }
+    LitLevel::Blank
+}

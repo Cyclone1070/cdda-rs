@@ -406,6 +406,39 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The order of the branches is the behaviour (round 348)
+
+`map::apparent_light_at` (`lightmap.cpp:801-857`) turns the light map into a `lit_level`. The quadrant arithmetic that works out *how much* light reaches a square is
+`apparent_light_helper`'s job; this is the decision tree above it, and it is ported with those answers as inputs.
+
+```mermaid
+graph TD
+    A[clairvoyance reaches the square] -->|yes| Z[BRIGHT]
+    A -->|no| B{beyond unimpaired range and no camera}
+    B -->|yes| C{is it a light source and nothing blocks it?}
+    C -->|yes| Y[BRIGHT_ONLY]
+    C -->|no| X[BLANK]
+    B -->|no| D{obstructed?}
+    D -->|yes| E{light beats AMBIENT_LIT and the sky?}
+    E -->|yes| Y
+    E -->|no| X
+    D -->|no| F{light above a source, or a source here?}
+    F -->|yes| Z
+    F -->|no| G{above AMBIENT_LIT?}
+    G -->|yes| W[LIT]
+    G -->|no| H{at or above the vision threshold?}
+    H -->|yes| V[LOW]
+    H -->|no| X
+```
+
+Three things the tree gets right that a re-derivation would not:
+
+- **clairvoyance beats an opaque wall**, and beats it before distance is considered;
+- **obstruction is not blindness.** Enough light through a blocked sight line makes a square `BRIGHT_ONLY` - but only if that light beats the ambient light outside, so
+  the same square under a brighter sky is blank;
+- **the two comparisons differ**: `> LIGHT_AMBIENT_LIT` for lit and `>= vision_threshold` for low. Exactly ten is *not* lit; exactly the threshold still counts. Both
+  boundaries are pinned.
+
 ## Seven light levels, not four (round 347)
 
 `lit_level` (`lightmap.h:55-63`) has seven values and the port had four. The three it had were the brightnesses; the ones it was missing - `BRIGHT_ONLY`, `BLANK`,
