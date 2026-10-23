@@ -87,3 +87,35 @@ pub fn sun_azimuth_and_altitude_in_year(turns: f64, year_length_days: f64) -> (f
 pub fn sun_altitude_degrees(turns: f64) -> f64 {
     sun_azimuth_and_altitude(turns).1
 }
+
+/// The altitude the sun must reach for the game to call it day: **minus one degree** (`calendar.cpp:42`).
+///
+/// Not zero. The reference lets the day begin while the sun's centre is still below the horizon, which is what refraction and the width of the disc do in the sky it is
+/// modelling, and a port that used the horizon itself would move every dawn and dusk by minutes.
+pub const SUNRISE_ANGLE_DEGREES: f64 = -1.0;
+
+/// The sun's altitude at which the game calls it day, in degrees.
+#[must_use]
+pub fn sunrise_angle() -> f64 {
+    SUNRISE_ANGLE_DEGREES
+}
+
+/// Whether the sun is up (`calendar.cpp:368-371`).
+///
+/// Reference: `is_day( p )` is `sun_altitude( p ) >= sunrise_angle`, an inclusive comparison - so the instant the sun touches the angle is already day.
+#[must_use]
+pub fn is_day(turns: f64) -> bool {
+    sun_altitude_degrees(turns) >= SUNRISE_ANGLE_DEGREES
+}
+
+/// Whether it is night (`calendar.cpp:363-366`).
+///
+/// Reference: `is_night` is `sun_altitude <= civil_dawn`, which is **minus six degrees** - so the two predicates are not each other's negation, and the game has a twilight
+/// between them that neither calls.
+#[must_use]
+pub fn is_night(turns: f64) -> bool {
+    sun_altitude_degrees(turns) <= CIVIL_DAWN_DEGREES
+}
+
+/// The altitude the game calls night, in degrees (`calendar.cpp:41`).
+pub const CIVIL_DAWN_DEGREES: f64 = -6.0;

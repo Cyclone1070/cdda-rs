@@ -2986,6 +2986,24 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The day, the night, and a weather decision with nothing left out (round 509)
+
+`is_day` (`calendar.cpp:368`) is `sun_altitude >= sunrise_angle`, and the angle is **minus one degree**, not zero: the game lets the day begin while the sun's centre is still below
+the horizon, so a port that used the horizon would move every dawn and dusk by minutes. `is_night` is not the negation either - it is `sun_altitude <= -6`, so there is a twilight band
+the game calls neither.
+
+The astronomy underneath was already ported and gated against a year of samples (`corpus/astronomy/sun.json`), so this round only added the two predicates - and then closed the
+weather's **decision** end to end:
+
+> the data's own seventeen conditions, three levels of data-defined functions, the ported sun, the ported sort, and the condition loop, against the twenty-four recorded hours -
+> every hour decides the sky the reference decided.
+
+That gate cannot pass by luck. At hour twelve the humidity is still 69.91 (below sunny's seventy) and the pressure is 1029 (above its 1020), so the *only* thing that turns the answer
+from `sunny` into `clear` is the sun going down - which is exactly what the recording shows and what the port reproduces.
+
+**What is left of the weather:** the manager - the object that holds the id, the point and the schedule between turns, calls the decision, and clears the map's transparency caches
+when the sight penalty changes.
+
 ## The expression language, data-defined functions, and the conditions they decide (round 508)
 
 Three new pieces, each read from the data rather than transcribed from it:

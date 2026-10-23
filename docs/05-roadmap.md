@@ -263,7 +263,7 @@ puts the pieces in order.
    (`and`/`or`/`not`/named/`math`). The data's own seventeen conditions now run against the recorded day. What is left under it is `is_day`, which needs the sun's altitude.
 2. **The manager**, wiring [`weather_gen`](../crates/sim/src/weather_gen.rs) and [`weather`](../crates/content/src/weather.rs) together in `weather.cpp`'s order - conditions first,
    then temperature and wind, then the schedule - and clearing the transparency caches when the sight penalty changes (`weather.cpp:938-941`), which is the one place weather reaches
-   into the map.
+   into the map. The decision itself is closed (round 509): the data's conditions, the ported sun and the loop reproduce the recorded day hour for hour.
 3. Then the rest of M2: light across z-levels, and vision.
 
 ## 4. Phase detail

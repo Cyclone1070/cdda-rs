@@ -7,7 +7,13 @@
 //! The conditions are dialogue expressions and are not ported yet, so the loop takes the evaluation as a parameter. That is not a shortcut around the gate:
 //! the loop's own rules are what is being pinned here, and passing the evaluation in is how a caller with no dialogue machine can still be correct about them.
 
-#![allow(clippy::expect_used, clippy::panic, clippy::indexing_slicing)]
+#![allow(
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing,
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation
+)]
 
 use cdda_content::weather::{WeatherType, conditions, sorted};
 
@@ -136,4 +142,149 @@ fn every_recorded_hour_was_rescheduled_by_the_duration_it_rolled() {
         checked += 1;
     }
     assert!(checked >= 20, "most of the day was rescheduled: {checked}");
+}
+
+/// The weather point a condition sees, with the real sun instead of a stub.
+struct DaylitPoint {
+    temperature: f64,
+    humidity: f64,
+    pressure: f64,
+    windpower: f64,
+    turn: i64,
+    functions: cdda_content::jmath::Registry,
+}
+
+impl cdda_content::math_expr::Context for DaylitPoint {
+    fn number(&self, name: &str) -> Option<f64> {
+        // `is_day` is a named dialogue condition; the reference answers it from the sun (`calendar.cpp:368`), and so does this.
+        match name {
+            "condition:is_day" => Some(if cdda_core_types::astronomy::is_day(self.turn as f64) { 1.0 } else { 0.0 }),
+            _ => None,
+        }
+    }
+    fn call(&self, name: &str, args: &[cdda_content::math_expr::Value]) -> Result<cdda_content::math_expr::Value, cdda_content::math_expr::MathError> {
+        use cdda_content::math_expr::Value;
+        let missing = || cdda_content::math_expr::MathError::UnknownName { name: name.to_string() };
+        match (name, args) {
+            ("weather", [Value::Text(field)]) => match field.as_str() {
+                "temperature" => Ok(Value::Number(self.temperature)),
+                "humidity" => Ok(Value::Number(self.humidity)),
+                "pressure" => Ok(Value::Number(self.pressure)),
+                "windpower" => Ok(Value::Number(self.windpower)),
+                other => Err(cdda_content::math_expr::MathError::UnknownName { name: other.to_string() }),
+            },
+            ("celsius", [Value::Number(kelvin)]) => Ok(Value::Number(kelvin - 273.15)),
+            ("abs", [Value::Number(value)]) => Ok(Value::Number(value.abs())),
+            ("log", [Value::Number(value)]) => Ok(Value::Number(value.ln())),
+            _ => cdda_content::jmath::call(&self.functions, &Builtins, name, args).map_err(|_| missing()),
+        }
+    }
+}
+
+/// The two functions the reference's parser has that the weather conditions use; anything else must come from the data.
+struct Builtins;
+
+impl cdda_content::math_expr::Context for Builtins {
+    fn number(&self, _name: &str) -> Option<f64> {
+        None
+    }
+}
+
+#[test]
+fn the_conditions_and_the_sun_together_reproduce_the_recorded_weather() {
+    // The whole loop, on the day the reference recorded: the data's own conditions, the data's own data-defined functions, the ported sun, and the ported sort. Nothing here
+    // is transcribed except the numbers the reference produced. If this passes, the weather's *decision* is ported; what remains is the manager that calls it.
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json/weather_type.json");
+    let text = std::fs::read_to_string(path).expect("the weather data");
+    let cdda_json::Value::Array(entries) = cdda_json::parse(text.as_bytes()).expect("valid JSON") else { panic!("array") };
+    let objects: Vec<cdda_json::Object> = entries
+        .iter()
+        .filter_map(|entry| match entry {
+            cdda_json::Value::Object(object) => Some(object.clone()),
+            _ => None,
+        })
+        .collect();
+    let functions = cdda_content::jmath::read_entries(&objects).expect("jmath");
+    let mut types = Vec::new();
+    for object in &objects {
+        let is_weather = matches!(object.get("type"), Some(cdda_json::Value::Str(text)) if text == "weather_type");
+        if !is_weather {
+            continue;
+        }
+        let Some(cdda_json::Value::Str(id)) = object.get("id") else { continue };
+        let priority = match object.get("priority") {
+            Some(cdda_json::Value::Int(value)) => i32::try_from(*value).unwrap_or(0),
+            _ => 0,
+        };
+        let required = match object.get("required_weathers") {
+            Some(cdda_json::Value::Array(list)) => list
+                .iter()
+                .filter_map(|id| match id {
+                    cdda_json::Value::Str(id) => Some(id.clone()),
+                    _ => None,
+                })
+                .collect(),
+            _ => Vec::new(),
+        };
+        let condition = object
+            .get("condition")
+            .map(cdda_content::condition::Condition::from_value)
+            .transpose()
+            .expect("a condition");
+        types.push((cdda_content::weather::WeatherType {
+            id: id.clone(),
+            priority,
+            required_weathers: required,
+            ..Default::default()
+        }, condition));
+    }
+    // `clear` and `null` are made by code and carry no condition; every other type has one.
+    assert!(types.len() >= 17, "the data's weather types: {}", types.len());
+
+    let series = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/weather/series-24h.json"),
+    )
+    .expect("the recorded series");
+    let cdda_json::Value::Object(root) = cdda_json::parse(series.as_bytes()).expect("valid JSON") else { panic!("root") };
+    let Some(cdda_json::Value::Array(steps)) = root.get("steps") else { panic!("steps") };
+
+    let mut wrong = Vec::new();
+    let mut checked = 0;
+    for step in steps {
+        let cdda_json::Value::Object(step) = step else { panic!("a step") };
+        let field = |key: &str| match step.get(key) {
+            Some(cdda_json::Value::Float(value)) => *value,
+            Some(cdda_json::Value::Int(value)) => *value as f64,
+            other => panic!("{key} is a number: {other:?}"),
+        };
+        let recorded = match step.get("weather") {
+            Some(cdda_json::Value::Str(id)) => id.clone(),
+            other => panic!("a weather id: {other:?}"),
+        };
+        let point = DaylitPoint {
+            temperature: field("temperature_k"),
+            humidity: field("humidity"),
+            pressure: field("pressure"),
+            windpower: field("windpower"),
+            turn: field("turn") as i64,
+            functions: functions.clone(),
+        };
+        let kinds: Vec<cdda_content::weather::WeatherType> = types.iter().map(|(kind, _)| kind.clone()).collect();
+        let order = cdda_content::weather::sorted(&kinds);
+        let conditions_by_id: std::collections::BTreeMap<&str, &cdda_content::condition::Condition> = types
+            .iter()
+            .filter_map(|(kind, condition)| condition.as_ref().map(|condition| (kind.id.as_str(), condition)))
+            .collect();
+        let answer = cdda_content::weather::conditions(&order, &mut |candidate| {
+            conditions_by_id
+                .get(candidate.id.as_str())
+                .is_some_and(|condition| condition.holds(&point))
+        });
+        checked += 1;
+        if answer != recorded && wrong.len() < 6 {
+            wrong.push((field("hour"), answer, recorded));
+        }
+    }
+    assert!(checked >= 20, "the whole day was decided: {checked}");
+    assert!(wrong.is_empty(), "the port decides the same sky as the reference: {wrong:?}");
 }

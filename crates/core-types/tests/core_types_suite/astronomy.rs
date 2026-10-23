@@ -122,3 +122,29 @@ fn the_sun_rises_and_sets_over_a_day() {
     assert!(noon > 20.0, "noon is above it: {noon}");
     assert!(noon > midnight);
 }
+
+#[test]
+fn the_sun_is_up_between_its_dawn_and_its_dusk() {
+    // Reference: `calendar.cpp:42` and `:368` - `is_day( p )` is `sun_altitude( p ) >= sunrise_angle`, and `sunrise_angle` is **minus one degree**, not zero. The
+    // negative angle is deliberate: refraction and the sun's disc mean the day starts when its centre is still below the horizon, and a port that used zero would
+    // shift every dawn and dusk by a few minutes.
+    let dawn = cdda_core_types::astronomy::sunrise_angle();
+    assert!((dawn - (-1.0)).abs() < 1e-12, "the reference's sunrise angle is -1 degrees: {dawn}");
+    // Over a spring day, the sun is up somewhere in the middle and down at midnight and midday's opposite; the exact hours are the dump's business, the ordering is this
+    // test's.
+    let midnight = 0.0;
+    let noon = 12.0 * 3600.0;
+    assert!(!cdda_core_types::astronomy::is_day(midnight), "midnight is night");
+    assert!(cdda_core_types::astronomy::is_day(noon), "noon is day");
+    // And the transition is a single crossing in each direction, not a flush of flapping values.
+    let mut changes = 0;
+    let mut was = cdda_core_types::astronomy::is_day(midnight);
+    for minute in 1..(24 * 60) {
+        let now = cdda_core_types::astronomy::is_day(f64::from(minute) * 60.0);
+        if now != was {
+            changes += 1;
+        }
+        was = now;
+    }
+    assert_eq!(changes, 2, "day begins once and ends once");
+}
