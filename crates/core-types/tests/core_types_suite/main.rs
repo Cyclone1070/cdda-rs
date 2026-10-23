@@ -91,5 +91,6 @@ mod units;
 mod units_reader;
 mod visibility;
 mod vision;
+mod vision_threshold;
 mod weather;
 mod weighted;

@@ -406,6 +406,26 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## How dark a square has to be before a character stops seeing it (round 352)
+
+`Character::get_vision_threshold( light_level )` (`character.cpp:2724-2763`) is the number the last branch of `apparent_light_at` compares against: below it a square is
+`BLANK`, at or above it the square is `LOW`. Two ideas meet in it.
+
+* **Range** sets a starting threshold through the same attenuation light obeys (`threshold_for_range` = `LIGHT_AMBIENT_MINIMAL / e^( range * 2.3/72 ) - epsilon`), so
+  "the dimmest thing I can see at r squares" is a coherent statement.
+* **Dimming** makes the threshold *worse* as the light around the character gets brighter, from 1.0 at the minimal ambient light to 2.0 at full daylight. A lit room
+  does not help you see into the dark beyond it.
+
+| Detail | Reference | What a port gets wrong |
+|---|---|---|
+the cap | `min( LIGHT_AMBIENT_LOW, ... )` | forgetting it, so a character in daylight can see into pitch dark - and the cap sits **below** `LIGHT_AMBIENT_MINIMAL`, an oddity kept rather than tidied |
+the range floor | `max( 1.0, range * limb_score )` | letting a character with no perception see nothing at all, including their own square |
+night vision | a **branch**, not a bonus: the +10 bionic replaces the enchantment multiplier rather than stacking | adding both and giving 13 squares where the reference gives 10 |
+
+**The cap is the value most characters actually use.** With ordinary eyes the product passes three-and-a-half almost at once, so the threshold is a constant in practice,
+and the dimming only becomes observable with night vision widening the range. Both facts are pinned: the cap by two lights that give the same answer, and the dimming by a
+bionic-eyed character at two lights that give different ones.
+
 ## The span list, and a duplication this round had to undo first (round 351)
 
 The light cast does not walk rays. It sweeps a widening wedge and carries a list of **spans**, each one a frustum of that wedge that has met the same opacity so far. When

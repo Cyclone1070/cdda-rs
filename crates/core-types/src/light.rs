@@ -140,6 +140,68 @@ pub fn lit_level(in_bounds: bool, light_source: f32, ambient: f32) -> LitLevel {
     LitLevel::Dark
 }
 
+/// What a character sees *with*: their perception and the things that widen or narrow it.
+///
+/// Reference: the character half of `Character::get_vision_threshold` (`character.cpp:2724-2763`). The reference reads these from a character; the port takes them as
+/// data so the rule can be stated and tested without one.
+#[derive(Debug, Clone, Copy)]
+pub struct Senses {
+    /// `get_per()`.
+    pub perception: f32,
+    /// The night-vision mode bonus: 2, 4.5 or 10 for the three grades of night vision, and zero for none (`character.cpp:2736-2745`).
+    pub night_vision: f32,
+    /// Whether the character has bird eyes, which add one square on top (`character.cpp:2747-2749`).
+    pub bird_eye: bool,
+    /// Whether the character has the bionic, worn or mutation night vision that adds ten squares (`character.cpp:2751-2753`). This is a **branch, not a bonus**: when it
+    /// is set the enchantment below is not consulted at all.
+    pub gnv: bool,
+    /// The limb score for night vision, which multiplies the range and is clamped to at least one (`character.cpp:2757`).
+    pub limb_night_vis: f32,
+    /// What an enchantment multiplies the range by, when [`Senses::gnv`] is false. One means no enchantment.
+    pub enchantment_night_vis: f32,
+}
+
+/// The dimmest light this character can see by, given how bright the light around them is.
+///
+/// Reference: `Character::get_vision_threshold` (`character.cpp:2724-2763`), the last branch of `map::apparent_light_at`. Two ideas in one number:
+///
+/// * **range** - how far the character sees - sets a starting threshold through the same attenuation light obeys, so "the dimmest thing visible at `range` squares"
+///   is a coherent statement;
+/// * **dimming** - the threshold gets *worse* as the light around the character gets brighter, from 1.0 at `LIGHT_AMBIENT_MINIMAL` to 2.0 at `LIGHT_AMBIENT_LIT`,
+///   because a lit room does not help you see into the dark beyond it.
+///
+/// The answer is capped at `LIGHT_AMBIENT_LOW`: however bright it is, a character's threshold never rises to where everything is unlit.
+///
+/// The debug mode's absurdly low threshold (`character.cpp:2726-2729`) is not modelled - it exists to make a developer's life easier and is not part of play.
+#[must_use]
+pub fn vision_threshold(light_level: f32, senses: &Senses) -> f32 {
+    // From 1.0 at the minimal ambient light to 2.0 at full daylight.
+    let dimming = 1.0 + (light_level - AMBIENT_MINIMAL) / (AMBIENT_LIT - AMBIENT_MINIMAL);
+
+    let mut range = senses.perception / 3.0 + senses.night_vision;
+    if senses.bird_eye {
+        range += 1.0;
+    }
+    if senses.gnv {
+        range += 10.0;
+    } else {
+        range *= senses.enchantment_night_vis;
+    }
+    // A character who can barely see still sees the square they are standing on.
+    range = (range * senses.limb_night_vis).max(1.0);
+
+    (threshold_for_range(range) * dimming).min(AMBIENT_LOW)
+}
+
+/// The dimmest light visible at a given range.
+///
+/// Reference: `threshold_for_range` (`character.cpp:2716-2720`): `LIGHT_AMBIENT_MINIMAL` attenuated over `range` squares, less a small epsilon so that the answer sits
+/// just below the light that would be exactly visible.
+#[must_use]
+pub fn threshold_for_range(range: f32) -> f32 {
+    AMBIENT_MINIMAL / (range * TRANSPARENCY_OPEN_AIR).exp() - 0.01
+}
+
 /// The sun's altitude at which it stops being fully night: -18 degrees.
 pub const ASTRONOMICAL_DAWN: f32 = -18.0;
 /// -12 degrees: the horizon is just distinguishable.
