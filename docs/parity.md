@@ -406,6 +406,20 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## What the frame's glyph column means (round 424)
+
+Before the frame gate can compare anything, it has to know what the reference's glyph column holds. Measured over the 1,681 squares of the reference frame:
+
+| Squares | Glyph is | Meaning |
+|---|---|---|
+1,638 | the terrain prototype's own symbol | nothing drawn on top |
+43 | something else - `f`, `*`, `,`, `6`, `)` | an item, a creature or a field standing on the square |
+0 | - | every terrain id in the frame is in the terrain dump |
+
+**So the reference's glyph is the drawn glyph, not the terrain's.** The port can be compared square by square only where nothing is drawn on top, until items and creatures exist;
+the other 43 squares are a named gap rather than a tolerance. The counts are pinned, because a loader that dropped symbols, or a draw rule that stopped covering something, would
+move them.
+
 ## Fog dims a lamp by the absorption it adds (round 419)
 
 The weather number now reaches the physics, and a test works out the expected light rather than asking the port for it: every square under open sky absorbs `sight_penalty`

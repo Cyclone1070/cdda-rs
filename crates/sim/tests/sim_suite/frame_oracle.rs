@@ -65,3 +65,68 @@ fn every_square_says_what_is_there_and_how_lit_it_is() {
         "open daylight is bright in the reference's own numbers: {brightest}"
     );
 }
+
+#[test]
+fn most_glyphs_are_the_terrain_s_symbol_and_the_rest_are_something_drawn_on_top() {
+    // A gate needs to know **what its own glyph column means** before comparing it to anything. Of the 1,681 squares, 1,638 print exactly the symbol the terrain prototype carries,
+    // and the other 43 print something else: a floor with `6` or `)` on it is a floor with an item, and a forest floor with `f` or `*` is ground with a creature or a field standing
+    // on it. So the reference's glyph is the **drawn** glyph, not the terrain's, and the port can only be compared square by square where nothing is drawn on top - until items and
+    // creatures exist.
+    //
+    // The count is pinned rather than the ids: a loader that dropped symbols, or a draw rule that stopped covering something, would move this number.
+    use cdda_json::{Value, parse};
+    use std::collections::BTreeMap;
+    use std::path::Path;
+
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus");
+    let terrain_text = std::fs::read_to_string(root.join("prototypes/terrain.json")).expect("the terrain dump");
+    let Value::Object(terrain_root) = parse(terrain_text.as_bytes()).expect("valid JSON") else {
+        panic!("the terrain dump's root is not an object");
+    };
+    let Some(Value::Array(prototypes)) = terrain_root.get("prototypes") else {
+        panic!("no prototypes");
+    };
+    let mut symbols: BTreeMap<&str, char> = BTreeMap::new();
+    for entry in prototypes {
+        let Value::Object(object) = entry else { continue };
+        let (Some(Value::Str(id)), Some(Value::Array(bytes))) = (object.get("id"), object.get("symbol"))
+        else {
+            continue;
+        };
+        let decoded: Vec<u8> = bytes
+            .iter()
+            .filter_map(|byte| match byte {
+                Value::Int(value) => u8::try_from(*value).ok(),
+                _ => None,
+            })
+            .collect();
+        symbols.insert(id.as_str(), String::from_utf8_lossy(&decoded).chars().next().unwrap_or(' '));
+    }
+
+    let frame_text = std::fs::read_to_string(root.join("frames/reference_frame.json")).expect("the frame");
+    let Value::Object(frame_root) = parse(frame_text.as_bytes()).expect("valid JSON") else {
+        panic!("the frame's root is not an object");
+    };
+    let Some(Value::Array(squares)) = frame_root.get("squares") else {
+        panic!("no squares");
+    };
+    let mut plain = 0;
+    let mut overlaid = 0;
+    let mut unknown = 0;
+    for entry in squares {
+        let Value::Object(square) = entry else { continue };
+        let (Some(Value::Str(terrain_id)), Some(Value::Str(glyph))) =
+            (square.get("ter"), square.get("glyph"))
+        else {
+            continue;
+        };
+        match symbols.get(terrain_id.as_str()) {
+            None => unknown += 1,
+            Some(symbol) if symbol.to_string() == *glyph => plain += 1,
+            Some(_) => overlaid += 1,
+        }
+    }
+    assert_eq!(unknown, 0, "every terrain in the frame is in the terrain dump");
+    assert_eq!(plain, 1638, "squares printing their terrain's own symbol");
+    assert_eq!(overlaid, 43, "squares with something drawn on top");
+}
