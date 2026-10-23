@@ -63,6 +63,7 @@ mod overmap_street_layout;
 mod overmap_streets;
 mod paths;
 mod projection;
+mod quadrant_light;
 mod recording;
 mod recording_real;
 mod rng;

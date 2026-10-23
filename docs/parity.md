@@ -406,6 +406,29 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## A wall is not lit uniformly, and its neighbours decide (round 349)
+
+The light map stores **four values per square**, one per quadrant, because light does not arrive at a wall from one direction: it arrives from wherever the lamps are.
+`apparent_light_helper` (`lightmap.cpp:725-799`) is the rule that reads them, and it has two cases:
+
+* a square **light passes through** takes light from every direction equally, so its answer is `visibility x brightest quadrant`;
+* a square **light cannot pass through** is only lit on the sides the player can see it from.
+
+For the second case the helper asks each of the eight neighbours which quadrants it sits in:
+
+| Neighbour | Quadrants it lights | Note |
+|---|---|---|
+cardinal (south, north, east, west) | **two** - south lights `SE` and `SW` | a lamp beside a wall lights the half it is on |
+diagonal (SE, NE, SW, NW) | **one**, twice | the corner shared by two quadrants |
+
+A neighbour only counts if it is inside the lightmap, light can pass through it, and somebody can see it - its distance against the player's unimpaired range, and its
+seen and camera values. Then each counted neighbour raises its quadrants to the player's visibility of the wall, and the answer is the brightest product with the wall's
+own four values.
+
+**And the quadrant order is not clockwise.** `enum class quadrant { NE, SE, SW, NW }` (`shadowcasting.h:24-30`) is north-east, then east's two, then west's two. A port
+that ordered them clockwise from north would be a rotation of the truth, and every product would pair the wrong sides - a lit wall would read as dark and a dark one as
+lit. The order is pinned by a test rather than left to the reader.
+
 ## The order of the branches is the behaviour (round 348)
 
 `map::apparent_light_at` (`lightmap.cpp:801-857`) turns the light map into a `lit_level`. The quadrant arithmetic that works out *how much* light reaches a square is

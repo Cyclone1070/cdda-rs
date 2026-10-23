@@ -266,3 +266,167 @@ pub fn apparent_light(eyes: &Eyes, square: &Apparent) -> LitLevel {
     }
     LitLevel::Blank
 }
+
+/// Which side of a square a light comes from or is looked at from.
+///
+/// Reference: `enum class quadrant` (`src/shadowcasting.h:24-30`). The order is **not** clockwise from north: it is NE, SE, SW, NW, which is north-east then
+/// east's two then west's two. A port that ordered these clockwise would be a rotation of the truth, and every quadrant product would pair the wrong sides.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Quadrant {
+    /// Up and to the right.
+    NorthEast = 0,
+    /// Down and to the right.
+    SouthEast = 1,
+    /// Down and to the left.
+    SouthWest = 2,
+    /// Up and to the left.
+    NorthWest = 3,
+}
+
+/// Four values, one per quadrant.
+///
+/// Reference: `struct four_quadrants` (`src/shadowcasting.h:38-70`), which is the light map's per-square value: light does not arrive at a wall uniformly, it arrives
+/// from wherever the lamps are.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Quadrants([f32; 4]);
+
+/// Builds a set of four quadrants, as the reference's `four_quadrants( float )` and `four_quadrants{...}` constructors do.
+#[must_use]
+pub fn four_quadrants(values: [f32; 4]) -> Quadrants {
+    Quadrants(values)
+}
+
+// Every index below comes from `quadrant as usize`, and the enum has exactly four variants numbered 0 to 3, so the arithmetic cannot leave the array. The allow is
+// here rather than a `match` because a `match` would let a future fifth variant compile and silently answer with a stale quadrant.
+#[allow(clippy::indexing_slicing)]
+impl Quadrants {
+    /// Builds a set of four quadrants.
+    #[must_use]
+    pub fn new(values: [f32; 4]) -> Self {
+        Self(values)
+    }
+
+    /// One quadrant's value.
+    #[must_use]
+    pub fn get(self, quadrant: Quadrant) -> f32 {
+        self.0[quadrant as usize]
+    }
+
+    /// Sets one quadrant's value.
+    pub fn set(&mut self, quadrant: Quadrant, value: f32) {
+        self.0[quadrant as usize] = value;
+    }
+
+    /// The brightest quadrant, which is what a square light passes through answers with.
+    #[must_use]
+    pub fn max(self) -> f32 {
+        self.0.iter().copied().fold(f32::NEG_INFINITY, f32::max)
+    }
+
+    /// The quadrant values.
+    #[must_use]
+    pub fn values(self) -> [f32; 4] {
+        self.0
+    }
+}
+
+/// What one of the eight neighbours says about being seen.
+///
+/// Reference: the three tests the helper applies to a neighbour (`lightmap.cpp:779-786`): is it inside the lightmap, is it opaque, and can anybody see it - the last
+/// being its distance against the player's unimpaired range and its seen and camera values.
+#[derive(Debug, Clone, Copy)]
+pub struct SeenFrom {
+    /// How visible the neighbour is, the reference's `seen_cache`.
+    pub seen: f32,
+    /// Light from a camera at the neighbour, which the reference keeps apart from the player's sight.
+    pub camera: f32,
+    /// How far the neighbour is from the player, the reference's `rl_dist`.
+    pub dist: i32,
+}
+
+/// The eight neighbours of a square, in the order the reference walks them.
+///
+/// Reference: `adjacent_offsets` (`lightmap.cpp:754-771`): south, north, east, south-east, north-east, west, south-west, north-west. The order does not change the
+/// answer here - each neighbour only ever raises quadrant values - but keeping it means a divergence shows up as the same neighbour in both.
+#[derive(Debug, Clone, Copy)]
+pub struct Neighbourhood {
+    /// Whether each neighbour is inside the lightmap at all.
+    pub in_bounds: [bool; 8],
+    /// Whether each neighbour is opaque, in which case it cannot be seen past.
+    pub opaque: [bool; 8],
+    /// How far the player can see without help, in squares.
+    pub unimpaired_range: i32,
+    /// What each neighbour says about being seen.
+    pub neighbours: [SeenFrom; 8],
+}
+
+/// The quadrants each neighbour lights, in the reference's own order.
+///
+/// Reference: `adjacent_offsets` (`lightmap.cpp:754-771`). A **cardinal** neighbour lights two quadrants - the south neighbour lights `SE` and `SW` - and a **diagonal**
+/// one lights a single quadrant twice, because it is the corner shared by two quadrants. That asymmetry is the whole mechanism: it is how a wall with a lamp on one side
+/// and darkness on the other shows only the lit side.
+const LIT_QUADRANTS: [[Quadrant; 2]; 8] = [
+    // south
+    [Quadrant::SouthEast, Quadrant::SouthWest],
+    // north
+    [Quadrant::NorthEast, Quadrant::NorthWest],
+    // east
+    [Quadrant::SouthEast, Quadrant::NorthEast],
+    // south-east
+    [Quadrant::SouthEast, Quadrant::SouthEast],
+    // north-east
+    [Quadrant::NorthEast, Quadrant::NorthEast],
+    // west
+    [Quadrant::SouthWest, Quadrant::NorthWest],
+    // south-west
+    [Quadrant::SouthWest, Quadrant::SouthWest],
+    // north-west
+    [Quadrant::NorthWest, Quadrant::NorthWest],
+];
+
+/// How much light reaches a square, given what its neighbours are like.
+///
+/// Reference: `map::apparent_light_helper` (`lightmap.cpp:725-799`). Two cases, and only one of them is interesting:
+///
+/// * a square **light passes through** takes light from every direction equally, so it is `vis` times the brightest quadrant;
+/// * a square **light cannot pass through** - a wall - is only lit on the sides the player can see it from, so each neighbour the player can see raises the quadrants it
+///   sits in to `vis`, and the answer is the brightest product of those with the square's own light map.
+///
+/// `vis` is the player's own visibility of the square, and `opaque` is whether the square itself blocks light.
+// The three arrays are each exactly eight entries and the loop walks exactly eight quadrant pairs, so the indices cannot leave them; writing this with `iter().zip`
+// would obscure the neighbour-by-neighbour reading the reference has.
+#[allow(clippy::indexing_slicing)]
+#[must_use]
+pub fn visible_light(
+    opaque: bool,
+    vis: f32,
+    neighbourhood: &Neighbourhood,
+    light: &Quadrants,
+) -> f32 {
+    if !opaque {
+        return vis * light.max();
+    }
+    let mut seen_from = Quadrants::new([0.0; 4]);
+    for (index, quadrants) in LIT_QUADRANTS.iter().enumerate() {
+        if !neighbourhood.in_bounds[index] || neighbourhood.opaque[index] {
+            continue;
+        }
+        let neighbour = neighbourhood.neighbours[index];
+        let out_of_range =
+            neighbour.dist > neighbourhood.unimpaired_range && neighbour.camera == 0.0;
+        let unseen = neighbour.seen == 0.0 && neighbour.camera == 0.0;
+        if out_of_range || unseen {
+            continue;
+        }
+        for quadrant in quadrants {
+            seen_from.set(*quadrant, vis);
+        }
+    }
+    let values = seen_from.values();
+    let lit = light.values();
+    values
+        .iter()
+        .zip(lit.iter())
+        .map(|(seen, light)| seen * light)
+        .fold(f32::NEG_INFINITY, f32::max)
+}
