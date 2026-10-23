@@ -35,6 +35,8 @@ struct Turn {
     next: i64,
     /// The wind's speed, as the manager held it.
     speed: i64,
+    /// The wind's bearing, in degrees.
+    direction: i64,
     /// The generator's inputs, which are what make the sky replayable rather than merely readable.
     common: CommonData,
     /// How far into the day the turn fell.
@@ -75,6 +77,7 @@ fn turns() -> Vec<Turn> {
                 temperature: number(turn, "temperature"),
                 next: number(turn, "nextweather") as i64,
                 speed: number(turn, "windspeed") as i64,
+                direction: number(turn, "winddirection") as i64,
                 common: CommonData {
                     x: number(turn, "common_x"),
                     y: number(turn, "common_y"),
@@ -187,4 +190,112 @@ fn the_port_recomputes_the_sessions_sky_from_its_own_inputs() {
         wrong.is_empty(),
         "the port's sky disagrees with the recording: {wrong:?}"
     );
+}
+
+/// The dice the reference's manager rolled for one hour, split into what `rng()` rolled and what came from the engine itself.
+#[derive(Clone)]
+struct Hour {
+    /// The `rng()` draws, in the order they were made.
+    dice: Vec<(i32, i32, i32)>,
+    /// The wind sectors the engine drew, in order.
+    sectors: Vec<usize>,
+}
+
+/// The manager's dice per hour, straight from the trace.
+///
+/// The manager is asked about the hour it has just moved into, so the block labelled `weather.session.hour.<n>` belongs to turn `n` - not to the turn whose
+/// sweeps run beside it. The `wind.sector` values are separate because `get_wind_direction` draws from the engine with a `std::discrete_distribution`
+/// (`weather_gen.cpp:256-276`), which `rng()` never sees.
+fn hours() -> Vec<Hour> {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/fields/weather-session.rolls.txt");
+    let text = std::fs::read_to_string(&path).expect("the recorded dice");
+    let mut hours: Vec<Hour> = vec![Hour { dice: Vec::new(), sectors: Vec::new() }];
+    let mut inside = false;
+    for line in text.lines() {
+        if let Some(label) = line.strip_prefix("mark ") {
+            if let Some(number) = label.strip_prefix("weather.session.hour.") {
+                let index: usize = number.parse().expect("an hour");
+                hours.resize(index + 1, Hour { dice: Vec::new(), sectors: Vec::new() });
+                inside = true;
+            } else {
+                inside = false;
+            }
+            continue;
+        }
+        if !inside {
+            continue;
+        }
+        if let Some(rest) = line.strip_prefix("int ") {
+            let mut parts = rest.split(' ');
+            let low = parts.next().expect("low").parse().expect("a number");
+            let high = parts.next().expect("high").parse().expect("a number");
+            let drawn = parts.next().expect("drawn").parse().expect("a number");
+            hours.last_mut().expect("an hour").dice.push((low, high, drawn));
+        } else if let Some(rest) = line.strip_prefix("drawn wind.sector ") {
+            let sector: usize = rest.trim().parse().expect("a sector");
+            hours.last_mut().expect("an hour").sectors.push(sector);
+        }
+    }
+    hours
+}
+
+#[test]
+fn the_port_decides_the_sessions_weather_from_the_recorded_dice() {
+    // The other half of the sky: not the point, which is a formula, but **which weather** and **when the next change is due**. Both are decided from dice, and the
+    // dice are the reference's own - the manager's five draws an hour, plus the sector it took from the engine when the direction changed. The port is seeded with
+    // turn zero's sky and then left to run.
+    let turns = turns();
+    let hours = hours();
+    let generator = Generator::default_region();
+    let mut system = cdda_sim::weather::System::new(crate::weather_tick::rules());
+    let first = &turns[0];
+    system.manager.weather = Some(first.weather.clone());
+    system.manager.point = Some(cdda_content::weather::Point {
+        turn: first.now,
+        temperature: first.point.0,
+        humidity: first.point.1,
+        pressure: first.point.2,
+        windpower: 0,
+        winddirection: i32::try_from(first.speed).unwrap_or(0),
+    });
+    system.manager.next_turn = first.next;
+    // The direction the session opened with: the engine's static starts at a sentinel, so the reference had already drawn its first sector before the recording
+    // began - the same reason hour zero is seeded rather than ticked.
+    system.wind.degrees = Some(i32::try_from(first.direction).unwrap_or(0));
+    let mut wrong: Vec<(i64, String, String, String)> = Vec::new();
+    let mut checked = 0;
+    for turn in &turns[1..] {
+        let index = usize::try_from(turn.turn).expect("a turn number");
+        let Some(hour) = hours.get(index) else { continue };
+        let mut supplied = hour.dice.iter();
+        let mut roll = |low: i32, high: i32| {
+            let Some((want_low, want_high, drawn)) = supplied.next().copied() else {
+                panic!("turn {} asks for a die the reference never rolled", turn.turn);
+            };
+            assert_eq!((low, high), (want_low, want_high), "turn {} asks for the dice the reference asked for", turn.turn);
+            drawn
+        };
+        let mut sectors = hour.sectors.iter().copied();
+        let mut sector = |_season: usize| sectors.next().expect("a sector was drawn when the direction changed");
+        let _ = system.tick(
+            &cdda_sim::weather::Forecast {
+                generator: &generator,
+                common: turn.common,
+                day_fraction: turn.day_fraction,
+                turn: turn.now,
+            },
+            &mut roll,
+            &mut sector,
+        );
+        let mut note = |what: &str, ours: &str, theirs: &str| {
+            if ours != theirs && wrong.len() < 8 {
+                wrong.push((turn.turn, what.to_string(), ours.to_string(), theirs.to_string()));
+            }
+        };
+        note("weather", system.manager.weather.as_deref().unwrap_or("none"), turn.weather.as_str());
+        note("next turn", &system.manager.next_turn.to_string(), &turn.next.to_string());
+        checked += 1;
+    }
+    assert!(checked >= 20, "every recorded hour was replayed: {checked}");
+    assert!(wrong.is_empty(), "the port's weather disagrees with the recording: {wrong:?}");
 }

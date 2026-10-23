@@ -103,7 +103,7 @@ fn dice() -> BTreeMap<i64, Vec<(i32, i32, i32)>> {
 }
 
 /// The weather types and conditions out of the reference's own data file.
-fn rules() -> Rules {
+pub(crate) fn rules() -> Rules {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json/weather_type.json");
     let text = std::fs::read_to_string(path).expect("the weather data");
     let cdda_json::Value::Array(entries) = cdda_json::parse(text.as_bytes()).expect("valid JSON") else { panic!("array") };

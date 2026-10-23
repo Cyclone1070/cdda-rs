@@ -2986,6 +2986,23 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The session's weather is decided from the reference's dice (round 533)
+
+The other half of the sky. The point is a formula, but *which* weather and *when the next change is due* are decided from dice, and those dice were invisible: the
+manager's five an hour were unlabelled, and the wind's sector is drawn with a `std::discrete_distribution` on the engine itself (`weather_gen.cpp:256-276`), so it
+leaves nothing in the trace at all.
+
+Two additions to the instrument:
+
+| Addition | What it makes visible |
+|---|---|
+`mark weather.session.hour.<n>` around the manager's update | which hour the dice belong to - the manager is asked about the hour the clock has just moved into, so these belong to the **next** turn, not the one whose sweep runs beside them |
+`drawn wind.sector <n>` in `get_wind_direction` | the sector the engine chose, for the same reason the decay deadline needed a label |
+
+The replay seeds the manager with turn zero's sky and direction, then runs twenty-six hours on the reference's own dice. Every id and every next-change turn match, and
+the dice are checked as they are spent: each draw asserts the range the reference asked for, so a wrong number of draws or a different range fails where it happens
+rather than shifting everything after it.
+
 ## The session's sky is recomputed, not just read back (round 532)
 
 The session dump now carries the generator's own **inputs** - where the player stood (`common_x/y/z`), the season, the fraction of the year and of the day, and the noise

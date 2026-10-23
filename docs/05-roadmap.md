@@ -271,10 +271,10 @@ three against the reference's own recorded day. Two things finish it and one thi
    changes, and it found three real bugs (a data function that could not see the point, a missing requirement chain, and sight penalties that were all one). One temperature sits a
    moment's temperature is now bit-exact: the hook `harness_weather_temperature_terms` records the pre-narrowing double and its terms, which showed the residual was a
    fixture written to ten digits and a `float` product the port was computing in double. One humidity hour remains one ulp out, which is macOS `cos` against Linux `cos`.
-4. **Weather in the world** is wired (round 513): `Climate` is a resource, `tick_climate` runs a turn of it, and `run_environment_turn` takes the world's wind over its own. What
-   is missing for the M2 exit gate is a **recorded session with a weather transition** in it - the oracle records squares but not the sky, so the session format needs weather fields
-   before a per-turn hash can cover a transition.
-4. Then light across z-levels, and vision.
+4. **Weather in the world** is wired (round 513): `Climate` is a resource, `tick_climate` runs a turn of it, and `run_environment_turn` takes the world's wind over its own.
+   The recorded session with a transition now exists (round 531: `--turn-minutes` and the sky on every turn) and both halves of it are gated - the point is recomputed from the
+   generator's own inputs (round 532) and the manager's decisions are replayed from the reference's dice, sector included (round 533).
+5. Then light across z-levels, and vision.
 
 ## 4. Phase detail
 

@@ -3,13 +3,26 @@
 # Twenty-six turns of one game hour each: the air starts as light drizzle, turns cloudy at the fifth turn and clears later, so the fixture carries transitions rather than a
 # single weather type. Each turn also carries the manager's `weather`, `temperature` and `nextweather`, the generator's own inputs - `year_fraction`, `day_fraction`,
 # `season`, the noise field's origin and seed - and the point it produced, which is what lets a port recompute the sky instead of only reading it back.
+#
+# `weather.session.hour.<n>` bounds the dice the **manager** rolled for turn n, which are the five it draws an hour plus the sector it takes from the engine when the wind
+# changes direction. `drawn wind.sector <n>` is that sector: `get_wind_direction` uses a `std::discrete_distribution` on the engine itself, so it leaves nothing in the
+# dice trace and a replay that could not see it would have to guess the direction.
+mark weather.session.hour.1
+int 1 2 1
+int 9 80 12
+int 1 2 2
+int 0 8639 1139
+int 300 300 300
+mark weather.session.done
 mark gas.turn.0
 drawn decay.turns 2
+mark weather.session.hour.2
 int 1 2 2
 int 9 80 69
 int 1 2 1
 int 0 45359 2754
 int 300 300 300
+mark weather.session.done
 mark gas.turn.1
 mark gas.begin.71.71.1
 int 1 74 10
@@ -18,11 +31,13 @@ int 0 7 2
 mark gas.done
 drawn decay.turns 10
 drawn decay.turns 28
+mark weather.session.hour.3
 int 1 2 1
 int 9 80 23
 int 1 2 1
 int 0 8639 3157
 int 300 300 300
+mark weather.session.done
 mark gas.turn.2
 mark gas.begin.71.71.1
 mark gas.done
@@ -30,11 +45,13 @@ drawn decay.turns 22
 mark gas.begin.71.71.2
 mark gas.done
 drawn decay.turns 56
+mark weather.session.hour.4
 int 1 2 1
 int 9 80 48
 int 1 2 2
 int 0 12959 1033
 int 300 300 300
+mark weather.session.done
 mark gas.turn.3
 mark gas.begin.71.71.1
 mark gas.done
@@ -42,11 +59,13 @@ drawn decay.turns 25
 mark gas.begin.71.71.2
 mark gas.done
 drawn decay.turns 11
+mark weather.session.hour.5
 int 1 2 2
 int 9 80 74
 int 1 2 1
 int 0 38879 16698
 int 300 300 300
+mark weather.session.done
 mark gas.turn.4
 mark gas.begin.71.71.1
 mark gas.done
@@ -54,11 +73,13 @@ drawn decay.turns 7
 mark gas.begin.71.71.2
 mark gas.done
 drawn decay.turns 29
+mark weather.session.hour.6
 int 1 2 2
 int 9 80 47
 int 1 2 1
 int 0 25919 7082
 int 300 300 300
+mark weather.session.done
 mark gas.turn.5
 mark gas.begin.71.71.1
 mark gas.done
@@ -66,123 +87,163 @@ drawn decay.turns 2
 mark gas.begin.71.71.2
 mark gas.done
 drawn decay.turns 0
+mark weather.session.hour.7
 int 1 2 2
 int 9 80 11
 int 1 2 2
 int 0 15119 1575
 int 300 300 300
+mark weather.session.done
 mark gas.turn.6
+mark weather.session.hour.8
 int 1 2 2
 int 9 80 74
 int 1 2 2
 int 0 32399 26626
 int 300 300 300
+mark weather.session.done
 mark gas.turn.7
+mark weather.session.hour.9
 int 1 2 2
 int 9 80 47
 int 1 2 1
 int 0 23759 2631
 int 300 300 300
+mark weather.session.done
 mark gas.turn.8
+mark weather.session.hour.10
 int 1 2 2
 int 9 80 15
 int 1 2 1
 int 0 15119 10343
 int 300 300 300
+mark weather.session.done
 mark gas.turn.9
+mark weather.session.hour.11
 int 1 2 1
 int 9 80 56
 int 1 2 1
 int 0 10799 374
 int 300 300 300
+mark weather.session.done
 mark gas.turn.10
+mark weather.session.hour.12
 int 1 2 2
 int 9 80 19
 int 1 2 2
 int 0 17279 201
 int 300 300 300
+mark weather.session.done
 mark gas.turn.11
+mark weather.session.hour.13
 int 1 2 2
 int 9 80 61
 int 1 2 2
 int 0 21599 16279
 int 300 300 300
+mark weather.session.done
 mark gas.turn.12
+mark weather.session.hour.14
 int 1 2 1
 int 9 80 39
 int 1 2 1
 int 0 8639 2083
 int 300 300 300
+mark weather.session.done
 mark gas.turn.13
+mark weather.session.hour.15
 int 1 2 1
 int 9 80 43
 int 1 2 1
 int 0 8639 2736
 int 300 300 300
+mark weather.session.done
 mark gas.turn.14
+mark weather.session.hour.16
 int 1 2 2
 int 9 80 69
 int 1 2 2
 int 0 15119 8136
 int 300 300 300
+mark weather.session.done
 mark gas.turn.15
+mark weather.session.hour.17
 int 1 2 2
 int 9 80 61
 int 1 2 1
 int 0 12959 8964
 int 300 300 300
+mark weather.session.done
 mark gas.turn.16
+mark weather.session.hour.18
 int 1 2 2
 int 9 80 60
 int 1 2 1
 int 0 10799 4037
 int 300 300 300
+mark weather.session.done
 mark gas.turn.17
+mark weather.session.hour.19
 int 1 2 2
 int 9 80 57
 int 1 2 1
 int 0 8639 5503
 int 300 300 300
+mark weather.session.done
 mark gas.turn.18
+mark weather.session.hour.20
 int 1 2 2
 int 9 80 37
 int 1 2 1
 int 0 10799 6543
 int 300 300 300
+mark weather.session.done
 mark gas.turn.19
+mark weather.session.hour.21
 int 1 2 2
 int 9 80 22
 int 1 2 1
 int 0 10799 2021
 int 300 300 300
+mark weather.session.done
 mark gas.turn.20
+mark weather.session.hour.22
 int 1 2 2
 int 9 80 71
 int 1 2 1
 int 0 6479 2562
 int 300 300 300
+mark weather.session.done
 mark gas.turn.21
+mark weather.session.hour.23
 int 1 2 2
 int 9 80 22
 int 1 2 2
 int 0 10799 1406
 int 300 300 300
+mark weather.session.done
 mark gas.turn.22
+mark weather.session.hour.24
 int 1 2 2
 int 9 80 41
 int 1 2 1
 int 0 8639 425
 int 300 300 300
+mark weather.session.done
 mark gas.turn.23
+mark weather.session.hour.25
 int 1 2 1
 int 9 80 58
 int 1 2 1
 int 0 4319 1672
 int 300 300 300
+mark weather.session.done
 mark gas.turn.24
+mark weather.session.hour.26
 int 1 2 2
 int 9 80 68
 int 1 2 2
 int 0 8639 7379
 int 300 300 300
+mark weather.session.done
 mark gas.turn.25
