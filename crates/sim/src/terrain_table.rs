@@ -20,6 +20,7 @@ use cdda_core_types::light::TRANSPARENCY_OPEN_AIR;
 #[derive(Debug, Clone, Default)]
 pub struct TerrainTable {
     transparent: BTreeMap<u32, bool>,
+    indoors: BTreeMap<u32, bool>,
 }
 
 impl TerrainTable {
@@ -38,7 +39,22 @@ impl TerrainTable {
     pub fn from_prototypes(pairs: impl IntoIterator<Item = (u32, bool)>) -> Self {
         Self {
             transparent: pairs.into_iter().collect(),
+            indoors: BTreeMap::new(),
         }
+    }
+
+    /// Records that a code is, or is not, flagged as indoors.
+    ///
+    /// Reference: `TFLAG_INDOORS` on either layer, read by `build_outside_cache` (`map.cpp:9291-9293`) to decide which squares are under open sky. A code the table has not
+    /// been told about is **under the sky**, which is what an unflagged terrain is.
+    pub fn insert_indoors(&mut self, code: u32, indoors: bool) {
+        self.indoors.insert(code, indoors);
+    }
+
+    /// Whether the code carries the indoors flag.
+    #[must_use]
+    pub fn is_indoors(&self, code: u32) -> bool {
+        self.indoors.get(&code).copied().unwrap_or(false)
     }
 
     /// How much light the terrain costs a ray crossing it.

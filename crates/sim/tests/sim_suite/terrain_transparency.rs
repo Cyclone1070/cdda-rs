@@ -13,7 +13,10 @@ use bevy_ecs::prelude::*;
 use cdda_core_types::field::{FieldEntry, FieldId};
 use cdda_core_types::light::TRANSPARENCY_OPEN_AIR;
 use cdda_sim::terrain_table::TerrainTable;
-use cdda_sim::{Field, Light, LightSource, Map, Position, cast_lights, cast_lights_with_furniture};
+use cdda_sim::{
+    Field, Light, LightSource, Map, Position, cast_lights, cast_lights_with,
+    cast_lights_with_furniture,
+};
 
 /// A level whose square `(5, 5)` is the given terrain code, with a lamp west of it.
 fn level_with(code: u32) -> World {
@@ -215,4 +218,55 @@ fn furniture_that_is_see_through_does_not_stop_the_ray() {
         (through - open_floor).abs() < 1e-4,
         "a see-through frame costs nothing: {through} against {open_floor}"
     );
+}
+
+#[test]
+fn fog_costs_light_under_open_sky_and_nothing_indoors() {
+    // The weather penalty is charged per square **under open sky** (`calc_transp`, `lightmap.cpp:150-154`), so the same fog costs a square in the open and nothing to a
+    // square under a roof. The sim passed `outside: false` everywhere until now, which made weather free.
+    //
+    // The multiplier is **above one** in the data - fog is 1.7, rain 1.1 (`weather_type.json`) - because it raises the square's absorption rather than lowering a transmission,
+    // which is the same backwards-looking direction as a field's translucency.
+    let mut table = TerrainTable::new();
+    table.insert(1, true); // a floor under the sky
+    table.insert(7, true); // a floor indoors
+    table.insert_indoors(7, true);
+
+    let outdoor = {
+        let mut world = level_with(1);
+        cast_lights_with(&mut world, &table, &TerrainTable::new(), 1.7, |_id, _i| 0.0);
+        world.resource::<Light>().max_at(8, 5)
+    };
+    let sheltered = {
+        let mut world = level_with(7);
+        cast_lights_with(&mut world, &table, &TerrainTable::new(), 1.7, |_id, _i| 0.0);
+        world.resource::<Light>().max_at(8, 5)
+    };
+
+    assert!(
+        outdoor > 0.0 && sheltered > 0.0,
+        "both are lit: {outdoor} out, {sheltered} in"
+    );
+    assert!(
+        sheltered > outdoor,
+        "and the fog costs the open square more: {sheltered} indoors against {outdoor} out"
+    );
+}
+
+#[test]
+fn clear_weather_costs_nothing_wherever_the_square_is() {
+    // A `sight_penalty` of one is the clear-sky case, and it must leave the light exactly as it was before the weather existed - otherwise every existing light test would
+    // have been depending on a free lunch.
+    let mut table = TerrainTable::new();
+    table.insert(1, true);
+    let open = {
+        let mut world = level_with(1);
+        cast_lights_with(&mut world, &table, &TerrainTable::new(), 1.0, |_id, _i| 0.0);
+        world.resource::<Light>().max_at(8, 5)
+    };
+    assert!(open > 0.0);
+    let mut world = level_with(1);
+    cast_lights(&mut world, |code| table.transparency(code), |_id, _i| 0.0);
+    let plain = world.resource::<Light>().max_at(8, 5);
+    assert!((open - plain).abs() < 1e-6, "clear weather is a no-op");
 }

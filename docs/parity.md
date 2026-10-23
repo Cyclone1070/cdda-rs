@@ -406,6 +406,25 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Fog costs the square in the open and nothing to the one under a roof (round 367)
+
+The sim has passed `outside: false` and `sight_penalty: 1.0` on every square since the light was first cast, which made weather free. The outside cache from round 360 is now
+wired into the cast, and the order of the two is the reference's own: **the sky is decided first**, because the transparency rule charges the weather against it
+(`build_map_cache`, `map.cpp:9556-9557`).
+
+| Piece | Reference | Port |
+|---|---|---|
+the sky | `build_outside_cache`: an `INDOORS` flag on either layer covers a 3x3 block | `cast_lights_with` builds it from the level's two layers before measuring anything |
+the charge | `value *= sight_penalty` on squares in the sky (`calc_transp`) | `sight_penalty` reaches `transparency_of` per square, so an indoor square pays nothing |
+clear weather | `sight_penalty: 1.0` | multiplying by one, so a clear sky leaves every existing light test untouched |
+
+**The multiplier is above one, and that is not a mistake.** `weather_type.json` gives rain `1.1`, snow `1.3` and fog `1.7`, all `>= 1`, because the value raises the square's
+absorption rather than lowering a transmission - the same backwards-looking direction as a field's translucency. A test written with `0.5` "rain" measured nothing at all,
+because a penalty below one would make bad weather *brighten* the world.
+
+Three entry points now funnel into one: `cast_lights` (terrain only), `cast_lights_with_furniture` (both layers, clear sky) and `cast_lights_with` (both layers and the
+weather). The first two are the older, narrower shapes and their callers own their own geometry; only the third builds a sky map.
+
 ## Two layers, one conjunction (round 366)
 
 `calc_transp` asks one question of a square and it is an `&&`:

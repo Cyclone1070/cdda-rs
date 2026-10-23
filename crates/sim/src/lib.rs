@@ -868,6 +868,78 @@ pub fn cast_lights(
     );
 }
 
+/// Works out the light from loaded prototypes: both layers of every square, and the weather.
+///
+/// Reference: `map::build_map_cache`'s order (`map.cpp:9556-9557`) - the sky is decided **first**, because the transparency rule charges the weather for the squares that are
+/// in it. `sight_penalty` is the weather's cost: one for a clear sky, below one for rain, fog or snow.
+pub fn cast_lights_with(
+    world: &mut World,
+    terrain: &terrain_table::TerrainTable,
+    furniture: &terrain_table::TerrainTable,
+    sight_penalty: f32,
+    field_opacity: impl Fn(FieldId, i32) -> f32,
+) {
+    // The sky map: an `INDOORS` flag on either layer covers the three-by-three block around it (`build_outside_cache`).
+    let mut side = 0;
+    let mut indoors = Vec::new();
+    if let Some(map) = world.get_resource::<Map>() {
+        let level = &map.0;
+        side = bounds_of(level);
+        indoors = vec![false; side * side];
+        for y in 0..side {
+            for x in 0..side {
+                let terrain_code = level.terrain_at(as_i32(x), as_i32(y)).unwrap_or(0);
+                let furniture_code = level.furniture_at(as_i32(x), as_i32(y)).unwrap_or(0);
+                if let Some(slot) = indoors.get_mut(x * side + y) {
+                    *slot =
+                        terrain.is_indoors(terrain_code) || furniture.is_indoors(furniture_code);
+                }
+            }
+        }
+    }
+    let outside = cdda_core_types::outside_cache::outside_of(
+        STREET_LEVEL,
+        &cdda_core_types::outside_cache::OutsideFacts { side, indoors },
+    );
+    cast_lights_inner(
+        world,
+        |code| terrain.transparency(code),
+        |code| furniture.transparency(code),
+        |x, y| {
+            let (Ok(xu), Ok(yu)) = (usize::try_from(x), usize::try_from(y)) else {
+                return false;
+            };
+            if xu >= side || yu >= side {
+                // Off the level the world has not made: not under a roof we know of.
+                return true;
+            }
+            outside.get(xu * side + yu).copied().unwrap_or(true)
+        },
+        sight_penalty,
+        field_opacity,
+    );
+}
+
+/// The side of the square of world the level covers, in tiles.
+fn bounds_of(level: &cdda_core_types::level::Level) -> usize {
+    // The level is built of submaps of a fixed side, so the extent is a multiple of it; zero when there is nothing at all.
+    let mut extent = 0;
+    for y in 0..64 {
+        for x in 0..64 {
+            if level.terrain_at(x, y).is_some()
+                && let Ok(extent_x) = usize::try_from(x + 1)
+            {
+                extent = extent.max(extent_x);
+            }
+        }
+    }
+    extent.max(1)
+}
+
+fn as_i32(value: usize) -> i32 {
+    i32::try_from(value).unwrap_or(i32::MAX)
+}
+
 /// Works out the light with both layers of the square taken into account.
 ///
 /// Reference: `calc_transp` (`lightmap.cpp:140-167`), which returns solid unless `get_ter().transparent && get_furn().transparent`. The conjunction is the whole
@@ -876,6 +948,26 @@ pub fn cast_lights_with_furniture(
     world: &mut World,
     terrain_transparency: impl Fn(u32) -> f32,
     furniture_transparency: impl Fn(u32) -> f32,
+    field_opacity: impl Fn(FieldId, i32) -> f32,
+) {
+    // No sky map and a clear sky: this entry point predates both and its callers own their own geometry.
+    cast_lights_inner(
+        world,
+        terrain_transparency,
+        furniture_transparency,
+        |_x, _y| false,
+        1.0,
+        field_opacity,
+    );
+}
+
+/// The one implementation every entry point above funnels into.
+fn cast_lights_inner(
+    world: &mut World,
+    terrain_transparency: impl Fn(u32) -> f32,
+    furniture_transparency: impl Fn(u32) -> f32,
+    outside_of_square: impl Fn(i32, i32) -> bool,
+    sight_penalty: f32,
     field_opacity: impl Fn(FieldId, i32) -> f32,
 ) {
     // Fields multiply a square's transparency, layer by layer (`map::build_transparency_cache`, `lightmap.cpp:158-165`), where the
@@ -942,7 +1034,7 @@ pub fn cast_lights_with_furniture(
             level.add_light_source_with(
                 (x, y),
                 luminance,
-                1.0,
+                sight_penalty,
                 |field_x, field_y| cdda_core_types::transparency::SquareFacts {
                     // A square the world has not made is not a square: `transparency_grid` reports it solid on its own.
                     terrain_transparent: terrains
@@ -952,7 +1044,7 @@ pub fn cast_lights_with_furniture(
                     furniture_transparent: furniture
                         .get(&(field_x, field_y))
                         .is_none_or(|code| furniture_transparency(*code) > 0.0),
-                    outside: false,
+                    outside: outside_of_square(field_x, field_y),
                     fields: dimming
                         .get(&(field_x, field_y))
                         .cloned()
