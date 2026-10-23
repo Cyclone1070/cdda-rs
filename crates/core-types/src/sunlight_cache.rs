@@ -26,6 +26,21 @@ pub struct SunLayer {
     pub outside: Vec<bool>,
 }
 
+/// What the sunlight pass needs to know about the level **above** the one being lit.
+///
+/// Reference: the three caches `build_sunlight_cache` reads from the previous level - `transparency_cache`, `floor_cache` and the light map itself (`lightmap.cpp:367-371`).
+/// They belong together because they are all read at the *previous* level's square, which is the divergence that matters: the roof that stops the sun is a property of
+/// the level above, not of the level being lit.
+#[derive(Debug, Clone)]
+pub struct AboveLayer {
+    /// How much light each square of the level above lets through.
+    pub transparency: Vec<f32>,
+    /// Whether each square of the level above has a floor, which is a ceiling to the light below it.
+    pub floor: Vec<bool>,
+    /// The light already computed for each square of the level above.
+    pub light: Vec<f32>,
+}
+
 /// The indoors light level for a level, which depends on the sky rather than on the depth.
 ///
 /// Reference: `lightmap.cpp:338-340`. Above ground under a bright sky, indoors is dim-but-lit (`LIGHT_AMBIENT_DIM * 0.8`); otherwise - at night, or anywhere below ground -
@@ -82,9 +97,10 @@ impl Sunlight {
         self.fully_inside
     }
 
-    /// Lights one level with nothing above it.
+    /// Lights one level with open sky above it.
     ///
-    /// Reference: the first level the loop reaches, whose "previous level" is the top of the simulated world.
+    /// Reference: the first level the loop reaches, whose "previous level" is the empty top of the simulated world - open air, no floors, and lit by the sun itself
+    /// (`lightmap.cpp:310-315`). Passing that layer in is what makes a single-level world behave like the reference's: the sun arrives from above, not from nowhere.
     #[must_use]
     pub fn step(
         &mut self,
@@ -93,18 +109,24 @@ impl Sunlight {
         inside_light: f32,
         sight_penalty: f32,
     ) -> Vec<FourQuadrants> {
-        self.step_with_above(level, &[], outside_light, inside_light, sight_penalty)
+        let cells = level.side * level.side;
+        let sky = AboveLayer {
+            transparency: vec![TRANSPARENCY_OPEN_AIR; cells],
+            floor: vec![false; cells],
+            light: vec![outside_light; cells],
+        };
+        self.step_with_above(level, &sky, outside_light, inside_light, sight_penalty)
     }
 
     /// Lights one level from the light on the level above it.
     ///
-    /// Reference: one iteration of `build_sunlight_cache`'s loop (`lightmap.cpp:331-437`). Only the **brightest quarter** of the level above matters to this pass, which is
-    /// why `above` is a plain number per square rather than four.
+    /// Reference: one iteration of `build_sunlight_cache`'s loop (`lightmap.cpp:331-437`). The centre and cardinal tests read the **previous** level's transparency,
+    /// floor and light - that is where a ceiling lives - and only the weather reads the level being lit.
     #[must_use]
     pub fn step_with_above(
         &mut self,
         level: &SunLayer,
-        above: &[f32],
+        above: &AboveLayer,
         outside_light: f32,
         inside_light: f32,
         sight_penalty: f32,
@@ -141,23 +163,14 @@ impl Sunlight {
                 let outside = level.outside.get(index).copied().unwrap_or(false);
                 // The square itself first; if it gives light, the cardinals are never consulted.
                 let mut from_above = false;
-                if let Some(value) = above.get(index) {
-                    let transparency = level.transparency.get(index).copied().unwrap_or(0.0);
-                    let floor = level.floor.get(index).copied().unwrap_or(true);
-                    if transparency > 0.0 && !floor && *value > 0.0 {
-                        let light = sunlight_through(
-                            *value,
-                            transparency,
-                            outside,
-                            inside_light,
-                            sight_penalty,
-                        );
-                        if let Some(cell) = lit.get_mut(index) {
-                            *cell = FourQuadrants::uniform(light);
-                        }
-                        self.fully_inside &= light <= inside_light;
-                        from_above = true;
+                if let Some(light) =
+                    sunlight_from(above, index, outside, inside_light, sight_penalty)
+                {
+                    if let Some(cell) = lit.get_mut(index) {
+                        *cell = FourQuadrants::uniform(light);
                     }
+                    self.fully_inside &= light <= inside_light;
+                    from_above = true;
                 }
                 if from_above {
                     continue;
@@ -172,25 +185,11 @@ impl Sunlight {
                         continue;
                     }
                     let previous = pxu * side + pyu;
-                    let mut transparency = level.transparency.get(previous).copied().unwrap_or(0.0);
-                    let floor = level.floor.get(previous).copied().unwrap_or(true);
-                    if outside {
-                        // This cancels the per-square absorption that weather puts into the transparency cache.
-                        transparency /= sight_penalty;
-                    }
-                    let Some(value) = above.get(previous) else {
+                    let Some(light) =
+                        sunlight_from(above, previous, outside, inside_light, sight_penalty)
+                    else {
                         continue;
                     };
-                    if transparency <= 0.0 || floor || *value <= 0.0 {
-                        continue;
-                    }
-                    let light = sunlight_through(
-                        *value,
-                        transparency,
-                        outside,
-                        inside_light,
-                        sight_penalty,
-                    );
                     self.fully_inside &= light <= inside_light;
                     if let Some(cell) = lit.get_mut(index) {
                         for quarter in quarters {
@@ -204,6 +203,36 @@ impl Sunlight {
         }
         lit
     }
+}
+
+/// The light one square of the level above delivers, if any.
+///
+/// Reference: the guard and the clamp at `lightmap.cpp:406-420`. Three conditions have to hold on the **previous** level's square - it lets light through, it has no floor,
+/// and it is lit - and the answer is `clamp( light * OPEN_AIR / transparency, indoors, light )`, where the transparency is divided by the weather's cost when the square being
+/// lit is in the open. That last detail is the reference's own and it looks backwards: dividing by a penalty above one makes the previous square *more* transparent to the
+/// lower level, cancelling the weather the cache already charged up there.
+fn sunlight_from(
+    above: &AboveLayer,
+    index: usize,
+    outside: bool,
+    inside_light: f32,
+    sight_penalty: f32,
+) -> Option<f32> {
+    let light = above.light.get(index).copied().unwrap_or(0.0);
+    if light <= 0.0 {
+        return None;
+    }
+    if above.floor.get(index).copied().unwrap_or(true) {
+        return None;
+    }
+    let mut transparency = above.transparency.get(index).copied().unwrap_or(0.0);
+    if outside {
+        transparency /= sight_penalty;
+    }
+    if transparency <= 0.0 {
+        return None;
+    }
+    Some((light * TRANSPARENCY_OPEN_AIR / transparency).clamp(inside_light, light))
 }
 
 impl Default for Sunlight {

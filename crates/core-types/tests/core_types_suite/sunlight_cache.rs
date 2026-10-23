@@ -22,7 +22,7 @@
 
 use cdda_core_types::light::{AMBIENT_DIM, AMBIENT_LOW, SOURCE_BRIGHT, TRANSPARENCY_OPEN_AIR};
 use cdda_core_types::shadowcasting::Quadrant;
-use cdda_core_types::sunlight_cache::{SunLayer, Sunlight, inside_light_level};
+use cdda_core_types::sunlight_cache::{AboveLayer, SunLayer, Sunlight, inside_light_level};
 
 const SIDE: usize = 5;
 
@@ -43,6 +43,15 @@ fn roofed_level() -> SunLayer {
         transparency: vec![0.0; SIDE * SIDE],
         floor: vec![true; SIDE * SIDE],
         outside: vec![true; SIDE * SIDE],
+    }
+}
+
+/// An open sky above the level: open air, no floors, and lit at the given value everywhere.
+fn sky(light: f32) -> AboveLayer {
+    AboveLayer {
+        transparency: vec![TRANSPARENCY_OPEN_AIR; SIDE * SIDE],
+        floor: vec![false; SIDE * SIDE],
+        light: vec![light; SIDE * SIDE],
     }
 }
 
@@ -111,7 +120,9 @@ fn a_shaft_in_a_ceiling_lands_as_a_bright_patch() {
     let mut sun = primed();
     let mut level = roofed_level();
     open_at(&mut level, 2, 2);
-    let above = vec![20.0_f32; SIDE * SIDE];
+    // One lit column above the shaft and dark sky everywhere else, which is what a hole in a ceiling looks like from below.
+    let mut above = sky(0.0);
+    above.light[2 * SIDE + 2] = 20.0;
     let lit = sun.step_with_above(&level, &above, 20.0, 4.0, 1.0);
 
     let hole = lit[2 * SIDE + 2];
@@ -139,35 +150,35 @@ fn a_shaft_in_a_ceiling_lands_as_a_bright_patch() {
 
 #[test]
 fn light_through_thicker_air_is_dimmed_and_the_clamp_holds_it_below_the_level_above() {
-    // `clamp( prev_light_max * LIGHT_TRANSPARENCY_OPEN_AIR / prev_transparency, inside, prev_light_max )` (`lightmap.cpp:419-420`). Open air passes everything; twice the
-    // absorption halves it; and thinner-than-air can never raise a square above the light above it, because of the clamp.
+    // `clamp( prev_light_max * LIGHT_TRANSPARENCY_OPEN_AIR / prev_transparency, inside, prev_light_max )` (`lightmap.cpp:419-420`), where the transparency is the
+    // **level above's** - so this is a property of the sky, not of the room. Open air passes everything, twice the absorption halves it, and thinner-than-air can never raise
+    // a square above the light above it because of the clamp.
     let mut sun = primed();
-
     let mut open = roofed_level();
     open_at(&mut open, 2, 2);
-    let clear =
-        sun.step_with_above(&open, &[20.0; SIDE * SIDE], 20.0, 4.0, 1.0)[2 * SIDE + 2].max();
-
-    let mut smoked = roofed_level();
-    smoked.transparency[2 * SIDE + 2] = TRANSPARENCY_OPEN_AIR * 2.0;
-    smoked.floor[2 * SIDE + 2] = false;
-    let dimmed =
-        sun.step_with_above(&smoked, &[20.0; SIDE * SIDE], 20.0, 4.0, 1.0)[2 * SIDE + 2].max();
-
+    let clear = sun.step_with_above(&open, &sky(20.0), 20.0, 4.0, 1.0)[2 * SIDE + 2].max();
     assert!(
         (clear - 20.0).abs() < 1e-5,
         "open air passes the sky: {clear}"
     );
+
+    let mut sun = primed();
+    let mut smoky_sky = sky(20.0);
+    smoky_sky.transparency[2 * SIDE + 2] = TRANSPARENCY_OPEN_AIR * 2.0;
+    let mut room = roofed_level();
+    open_at(&mut room, 2, 2);
+    let dimmed = sun.step_with_above(&room, &smoky_sky, 20.0, 4.0, 1.0)[2 * SIDE + 2].max();
     assert!(
         (dimmed - 10.0).abs() < 1e-4,
         "twice the absorption halves it: {dimmed}"
     );
 
-    let mut thin = roofed_level();
-    thin.transparency[2 * SIDE + 2] = TRANSPARENCY_OPEN_AIR / 2.0;
-    thin.floor[2 * SIDE + 2] = false;
-    let clamped =
-        sun.step_with_above(&thin, &[20.0; SIDE * SIDE], 20.0, 4.0, 1.0)[2 * SIDE + 2].max();
+    let mut sun = primed();
+    let mut thin_sky = sky(20.0);
+    thin_sky.transparency[2 * SIDE + 2] = TRANSPARENCY_OPEN_AIR / 2.0;
+    let mut thin_room = roofed_level();
+    open_at(&mut thin_room, 2, 2);
+    let clamped = sun.step_with_above(&thin_room, &thin_sky, 20.0, 4.0, 1.0)[2 * SIDE + 2].max();
     assert!(
         (clamped - 20.0).abs() < 1e-5,
         "and nothing is brighter than the sky above it: {clamped}"
@@ -183,8 +194,8 @@ fn a_square_dark_above_is_lit_from_the_side_instead() {
     // Two open squares side by side, so that light can pass from one to the other; the western one is under a dark column and the eastern one under the sky.
     open_at(&mut level, 2, 2);
     open_at(&mut level, 3, 2);
-    let mut above = vec![0.0_f32; SIDE * SIDE];
-    above[3 * SIDE + 2] = 20.0;
+    let mut above = sky(0.0);
+    above.light[3 * SIDE + 2] = 20.0;
     let lit = sun.step_with_above(&level, &above, 20.0, 4.0, 1.0);
 
     assert!(
@@ -199,5 +210,42 @@ fn a_square_dark_above_is_lit_from_the_side_instead() {
     assert!(
         (sideways.get(Quadrant::NorthWest) - 4.0).abs() < 1e-6,
         "leaving the far quarters at the indoors value"
+    );
+}
+
+#[test]
+fn the_square_above_decides_whether_its_light_gets_through() {
+    // The reference reads `prev_transparency_cache` and `prev_floor_cache` - the level **above** - for every square it tests (`lightmap.cpp:406-419`), and only
+    // `outside_cache` from the level being lit. A port that read the current level's transparency instead would pour daylight through a roof, because the roof is a
+    // property of the level above and the floor under it belongs to that level too.
+    let mut sun = primed();
+    // The level being lit: open air everywhere, nothing translucent.
+    let mut level = open_level();
+    level.outside = vec![true; SIDE * SIDE];
+    open_at(&mut level, 2, 2);
+    // The level above: one lit square, and **that square is opaque** on the level above.
+    let mut above = AboveLayer {
+        transparency: vec![0.0; SIDE * SIDE],
+        floor: vec![false; SIDE * SIDE],
+        light: vec![20.0; SIDE * SIDE],
+    };
+    above.transparency[2 * SIDE + 2] = TRANSPARENCY_OPEN_AIR;
+    above.floor[2 * SIDE + 2] = true; // a floor above means the sky does not reach the square below
+
+    let lit = sun.step_with_above(&level, &above, 20.0, 4.0, 1.0);
+    assert!(
+        (lit[2 * SIDE + 2].max() - 4.0).abs() < 1e-6,
+        "a roof above the square keeps the sun out: {:?}",
+        lit[2 * SIDE + 2]
+    );
+
+    // A fresh pass: the first call latched `fully_inside`, which is the reference's own state machine and not something to reset by hand.
+    above.floor[2 * SIDE + 2] = false;
+    let mut sun = primed();
+    let lit = sun.step_with_above(&level, &above, 20.0, 4.0, 1.0);
+    assert!(
+        lit[2 * SIDE + 2].max() > 4.0,
+        "and with the floor above removed the sun gets through: {:?}",
+        lit[2 * SIDE + 2]
     );
 }

@@ -406,6 +406,29 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The roof that stops the sun belongs to the level above (round 368)
+
+`build_sunlight_cache` reads three things for every square it tests - the transparency cache, the floor cache and the light map - and all three come from the **previous level**
+(`lightmap.cpp:367-371`). Only the weather reads the level being lit. The port had bundled the wrong three together, which meant a roof could not stop the sun:
+
+| Square of the level above | Effect on the square below |
+|---|---|
+opaque | no light: the ray never gets through |
+has a floor | no light: that floor is a **ceiling** to the room underneath |
+unlit | no light: there is nothing to come through |
+otherwise | `clamp( light * OPEN_AIR / transparency, indoors, light )` |
+
+The fix is a type: an `AboveLayer` carrying those three answers, so the pass cannot accidentally read the right question from the wrong level. A test pins both directions - a
+floor above the square keeps it dark, and removing that floor lets the sun through - and it then caught two more of my own tests, written against the bundled version, which
+had been asserting the room's own transparency decided the answer.
+
+**"Fully inside" is a latch and not a flag to reset by hand.** The second half of that test first reused the same pass, and got the indoors value for a level that was open to the
+sky, because the first call had latched `fully_inside`. The reference does exactly this: once nothing gets through, every level below is filled without a single square being
+examined. The test now starts a fresh pass, which is the honest way to model "a different world", not a reset.
+
+**And `step` now hands in an open sky.** A single-level world has nothing above it, and the reference's first iteration is an empty level of open air lit by the sun itself
+(`lightmap.cpp:310-315`). Passing that layer in explicitly is what makes the top of the port's world behave like the reference's: the sun arrives from above, not from nowhere.
+
 ## Fog costs the square in the open and nothing to the one under a roof (round 367)
 
 The sim has passed `outside: false` and `sight_penalty: 1.0` on every square since the light was first cast, which made weather free. The outside cache from round 360 is now
