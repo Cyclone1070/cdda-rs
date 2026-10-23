@@ -4,7 +4,11 @@
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::level::Level;
-use cdda_sim::{Light, LightSource, Map, Position, cast_lights, cast_sunlight, clear_light};
+use cdda_core_types::shadowcasting::Quadrant;
+use cdda_sim::terrain_table::TerrainTable;
+use cdda_sim::{
+    Light, LightSource, Map, Position, cast_lights, cast_sunlight, cast_sunlight_with, clear_light,
+};
 
 const NOON: f64 = 12.0 * 3600.0;
 const MIDNIGHT: f64 = 0.0;
@@ -90,5 +94,71 @@ fn clearing_the_answer_leaves_nothing_behind() {
         world.resource::<Light>().lit_squares(),
         0,
         "a stale answer is not an answer"
+    );
+}
+
+#[test]
+fn daylight_reaches_a_square_just_inside_a_doorway_and_stops_one_step_further_in() {
+    // The cascade's fingerprint, and the reason the hand-rolled stand-in had to go. Light from the cardinal beside a square lights **only the two quarters facing it**
+    // (`build_sunlight_cache`, `lightmap.cpp:421-431`), and a square whose neighbours are all roofed gets nothing. So the claim has to be read in quarters: a uniform fill
+    // cannot produce this shape, and `max()` would hide it - a square under a roof still has a bright quarter where the doorway is.
+    let mut table = TerrainTable::new();
+    table.insert(1, true); // a floor under the sky
+    table.insert(7, true); // a roofed floor
+    table.insert_indoors(7, true);
+
+    let mut world = world();
+    for y in 0..12 {
+        for x in 0..12 {
+            world.resource_mut::<Map>().0.set_terrain(x, y, 1, 1);
+        }
+    }
+    // A room: everything from x=2 to x=5 and y=3 to y=7 is roofed, and the square at (6,4) is its doorway.
+    for y in 3..=7 {
+        for x in 2..=5 {
+            world.resource_mut::<Map>().0.set_terrain(x, y, 7, 1);
+        }
+    }
+
+    cast_sunlight_with(&mut world, NOON, &table, &TerrainTable::new(), 1.0);
+    let light = world.resource::<Light>();
+
+    let doorway_square = light.at(5, 4).expect("the square inside the door");
+    // An interior square, all four of whose cardinals are roofed: nothing can spill into it.
+    let deep_square = light.at(4, 5).expect("a square in the middle of the room");
+    assert!(
+        doorway_square.get(Quadrant::NorthEast) > doorway_square.get(Quadrant::NorthWest),
+        "the door-facing quarters are bright and the far ones are not: {doorway_square:?}"
+    );
+    assert!(
+        deep_square.max() <= 4.0 + 1e-3,
+        "and the far corner is at the indoors light throughout: {deep_square:?}"
+    );
+}
+
+#[test]
+fn a_roofed_square_takes_the_indoors_light_and_an_open_one_takes_the_sun() {
+    // `inside_light_level` (`lightmap.cpp:338-340`): under a bright sky, indoors is dim-but-lit and the sky is daylight. The stand-in used a caller-supplied constant; this
+    // reads it from the transcribed rule, so a night sky changes it without anybody passing a new number.
+    let mut table = TerrainTable::new();
+    table.insert(1, true);
+    table.insert(7, true);
+    table.insert_indoors(7, true);
+
+    let mut world = world();
+    // A roofed room with an interior square, so that nothing spills in from the open.
+    for y in 3..=6 {
+        for x in 3..=6 {
+            world.resource_mut::<Map>().0.set_terrain(x, y, 7, 1);
+        }
+    }
+    cast_sunlight_with(&mut world, NOON, &table, &TerrainTable::new(), 1.0);
+
+    let open = world.resource::<Light>().max_at(0, 0);
+    let roofed = world.resource::<Light>().max_at(4, 4);
+    assert!(open > 50.0, "noon outside: {open}");
+    assert!(
+        (3.0..open).contains(&roofed),
+        "and inside the room, dim but lit: {roofed}"
     );
 }

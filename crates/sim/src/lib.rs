@@ -899,7 +899,10 @@ pub fn cast_lights_with(
     }
     let outside = cdda_core_types::outside_cache::outside_of(
         STREET_LEVEL,
-        &cdda_core_types::outside_cache::OutsideFacts { side, indoors },
+        &cdda_core_types::outside_cache::OutsideFacts {
+            side,
+            indoors: indoors.clone(),
+        },
     );
     cast_lights_inner(
         world,
@@ -1088,6 +1091,172 @@ pub fn cast_sunlight(
         light.merge(daylight);
         world.insert_resource(light);
     }
+}
+
+/// Works out the daylight from loaded prototypes and the transcribed cascade.
+///
+/// Reference: `build_sunlight_cache` (`lightmap.cpp:306-437`), which is not a cast - daylight is parallel - but a walk down the levels where each square takes its light from
+/// the square above it or, failing that, from one of the four cardinals.
+///
+/// # The roof is what "indoors" means
+///
+/// The port has one level and no roof tiles above it, so "indoors" has to be given a meaning. The one that matches the reference is: a square the outside cache calls indoors
+/// is a square **under a roof**, so the level above it at that square is opaque and has a floor. That is exactly what the reference's `prev_transparency_cache` and
+/// `prev_floor_cache` would say about a hut - and it is why daylight still reaches a square just inside a doorway, from the cardinal that is in the open.
+pub fn cast_sunlight_with(
+    world: &mut World,
+    turns: f64,
+    terrain: &terrain_table::TerrainTable,
+    furniture: &terrain_table::TerrainTable,
+    sight_penalty: f32,
+) {
+    #[allow(clippy::cast_possible_truncation)]
+    let altitude = cdda_core_types::astronomy::sun_altitude_degrees(turns) as f32;
+    let outside_light = cdda_core_types::light::sun_light_from_altitude(altitude);
+    let inside_light =
+        cdda_core_types::sunlight_cache::inside_light_level(STREET_LEVEL, outside_light);
+
+    let Some(map) = world.get_resource::<Map>() else {
+        return;
+    };
+    let level = &map.0;
+    let side = bounds_of(level);
+    let cells = side * side;
+
+    // The sky: open where the outside cache says so, roofed where it does not.
+    let mut indoors = vec![false; cells];
+    for y in 0..side {
+        for x in 0..side {
+            let terrain_code = level.terrain_at(as_i32(x), as_i32(y)).unwrap_or(0);
+            let furniture_code = level.furniture_at(as_i32(x), as_i32(y)).unwrap_or(0);
+            if let Some(slot) = indoors.get_mut(x * side + y) {
+                *slot = terrain.is_indoors(terrain_code) || furniture.is_indoors(furniture_code);
+            }
+        }
+    }
+    let outside_cache = cdda_core_types::outside_cache::outside_of(
+        STREET_LEVEL,
+        &cdda_core_types::outside_cache::OutsideFacts {
+            side,
+            indoors: indoors.clone(),
+        },
+    );
+
+    let (layer, above) = sunlayers(
+        level,
+        terrain,
+        furniture,
+        side,
+        &indoors,
+        outside_cache,
+        outside_light,
+    );
+
+    // Three rungs of the reference's ladder, because a one-level world still has three levels to it: the sky, the roof over the ground, and the ground.
+    //
+    // 1. the empty sky, which is the reference's first iteration (`lightmap.cpp:310-315`) and leaves the pass "fully outside";
+    // 2. the roof layer, whose opaque and floored squares are what end the "fully outside" regime (`lightmap.cpp:344-364`) - this rung's fill is discarded, because it is
+    //    the answer for a level nobody stands on;
+    // 3. the ground, which is the first level to do the per-square work.
+    let mut sun = cdda_core_types::sunlight_cache::Sunlight::new();
+    let sky_layer = cdda_core_types::sunlight_cache::SunLayer {
+        side,
+        transparency: vec![cdda_core_types::light::TRANSPARENCY_OPEN_AIR; cells],
+        floor: vec![false; cells],
+        outside: vec![true; cells],
+    };
+    let _ = sun.step(&sky_layer, outside_light, inside_light, sight_penalty);
+    let roof_layer = cdda_core_types::sunlight_cache::SunLayer {
+        side,
+        transparency: above.transparency.clone(),
+        floor: above.floor.clone(),
+        outside: vec![true; cells],
+    };
+    let _ = sun.step_with_above(
+        &roof_layer,
+        &above,
+        outside_light,
+        inside_light,
+        sight_penalty,
+    );
+    let lit = sun.step_with_above(&layer, &above, outside_light, inside_light, sight_penalty);
+
+    let mut daylight = BTreeMap::new();
+    for y in 0..side {
+        for x in 0..side {
+            let index = x * side + y;
+            if let Some(cell) = lit.get(index)
+                && cell.max() > 0.0
+                && let (Ok(px), Ok(py)) = (i32::try_from(x), i32::try_from(y))
+            {
+                daylight.insert((px, py), *cell);
+            }
+        }
+    }
+    if let Some(mut light) = world.get_resource_mut::<Light>() {
+        light.merge(daylight);
+    } else {
+        let mut light = Light::default();
+        light.merge(daylight);
+        world.insert_resource(light);
+    }
+}
+
+/// Builds the ground layer and the sky-or-roof layer above it.
+///
+/// Two different questions, deliberately answered from two different places: the **roof** above a square is what its own `INDOORS` flag says, while whether the square is
+/// *charged for the weather* is what the outside cache's three-square stamp says (`build_outside_cache`). Reading the stamp for the roof would give every wall one square
+/// of phantom ceiling and seal every doorway - which is exactly what a test caught.
+fn sunlayers(
+    level: &cdda_core_types::level::Level,
+    terrain: &terrain_table::TerrainTable,
+    furniture: &terrain_table::TerrainTable,
+    side: usize,
+    indoors: &[bool],
+    outside_cache: Vec<bool>,
+    outside_light: f32,
+) -> (
+    cdda_core_types::sunlight_cache::SunLayer,
+    cdda_core_types::sunlight_cache::AboveLayer,
+) {
+    let cells = side * side;
+    let mut layer = cdda_core_types::sunlight_cache::SunLayer {
+        side,
+        transparency: vec![0.0; cells],
+        // The ground has no floor of its own to stop light reaching the level below it; the port lights one level.
+        floor: vec![false; cells],
+        outside: outside_cache,
+    };
+    let mut above = cdda_core_types::sunlight_cache::AboveLayer {
+        transparency: vec![0.0; cells],
+        floor: vec![true; cells],
+        light: vec![0.0; cells],
+    };
+    for y in 0..side {
+        for x in 0..side {
+            let index = x * side + y;
+            let terrain_code = level.terrain_at(as_i32(x), as_i32(y)).unwrap_or(0);
+            let furniture_code = level.furniture_at(as_i32(x), as_i32(y)).unwrap_or(0);
+            let transparency = terrain
+                .transparency(terrain_code)
+                .min(furniture.transparency(furniture_code));
+            let open = !indoors.get(index).copied().unwrap_or(false);
+            if let Some(slot) = layer.transparency.get_mut(index) {
+                *slot = transparency;
+            }
+            // Above an open square is the sky itself; above a roofed one is a solid ceiling with a floor over it.
+            if let Some(slot) = above.transparency.get_mut(index) {
+                *slot = if open { transparency } else { 0.0 };
+            }
+            if let Some(slot) = above.floor.get_mut(index) {
+                *slot = !open;
+            }
+            if let Some(slot) = above.light.get_mut(index) {
+                *slot = if open { outside_light } else { 0.0 };
+            }
+        }
+    }
+    (layer, above)
 }
 
 /// Clears the answer before a turn recomputes it, so nothing survives from the last turn.

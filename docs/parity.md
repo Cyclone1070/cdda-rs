@@ -406,6 +406,30 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The sun arrives from above, and a doorway is a shape (round 369)
+
+The sim's daylight was a hand-rolled stand-in: "a tile with open sky on any side takes the sun". It is now the transcribed cascade, walked over **three rungs** because a
+one-level world still has three levels in it:
+
+```mermaid
+graph TD
+    A[The empty sky: lit by the sun, ends nothing] --> B[The roof layer: its opaque and floored squares end the 'fully outside' regime]
+    B --> C[The ground: the first level to do the per-square work]
+```
+
+| Question | Answered by | Why not the other thing |
+|---|---|---|
+is there a roof above this square? | the square's own `INDOORS` flag | the outside cache's **three-square stamp** would give every wall a phantom ceiling and seal every doorway - a test caught exactly that |
+is this square charged for the weather? | the outside cache's stamp | that is what `build_outside_cache` computes, and it is deliberately generous at edges |
+what does the square above deliver? | `AboveLayer`: transparency, floor, light | the roof belongs to the level above, not to the room |
+
+**The claim had to be read in quarters.** `max()` hides the whole point: a square under a roof still has a bright quarter where the doorway is, so a test comparing maxima
+cannot tell the cascade from a uniform fill. The test now asserts that the door-facing quarters are bright and that an interior square, whose four cardinals are all roofed,
+gets nothing.
+
+**And two of my fixtures were wrong before the code was.** A "far corner" of a room is still lit from the open side, and a single roofed square in open ground is lit from all
+four cardinals - both are the rule working, not failing. Interior squares are what a test of "nothing spills in" needs.
+
 ## The roof that stops the sun belongs to the level above (round 368)
 
 `build_sunlight_cache` reads three things for every square it tests - the transparency cache, the floor cache and the light map - and all three come from the **previous level**
