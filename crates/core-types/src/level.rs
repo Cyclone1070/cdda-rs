@@ -206,6 +206,90 @@ impl Level {
 }
 
 impl Level {
+    /// How clearly a square is seen, from zero (not at all) to one (in plain sight).
+    ///
+    /// Reference: `map::cast_seen_light` (`src/lightmap.cpp:1039-1100`), which walks the same octants as the light cast with `sight_calc` as its accumulator and a starting
+    /// value of `VISIBILITY_FULL`. The squared transparency it crosses is each square's own, so open air thins the answer with distance while a wall ends it - which is what
+    /// makes "a wall you look at is seen clearly" and "a square behind fog is not" two different numbers rather than two different code paths.
+    ///
+    /// `transparency_of` is the square's own transparency, the same number `calc_transp` puts in the reference's cache; zero means opaque.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the radius is negative, as [`Level::visibility`] does.
+    pub fn seen_through(
+        &mut self,
+        origin: (i32, i32),
+        radius: i32,
+        transparency_of: impl Fn(u32) -> f32,
+        square: (i32, i32),
+    ) -> f32 {
+        if square == origin {
+            // `seen_cache[origin] = VISIBILITY_FULL` before the cast (`lightmap.cpp:1057-1059`).
+            return 1.0;
+        }
+        let dx = square.0 - origin.0;
+        let dy = square.1 - origin.1;
+        if dx.abs() > radius || dy.abs() > radius {
+            return 0.0;
+        }
+        let rows = self.seen_cast(origin, radius, transparency_of);
+        let (Ok(row), Ok(column)) = (usize::try_from(dy + radius), usize::try_from(dx + radius)) else {
+            return 0.0;
+        };
+        rows.get(row)
+            .and_then(|row| row.get(column))
+            .copied()
+            .unwrap_or(0.0)
+    }
+
+    /// The sight cast over the square of world around an origin.
+    ///
+    /// Rows are `y - origin.y + radius`, columns `x - origin.x + radius`, which is the shape [`Level::seen_through`] reads. **Not cached**: a cast is only reusable for the
+    /// closure it was built with, and a cache that cannot see its rule is how a level starts answering with yesterday's walls. A caller drawing a frame builds one cast and
+    /// reads it; a caller asking about a square asks for one.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the radius is negative.
+    #[must_use]
+    #[allow(clippy::indexing_slicing)]
+    pub fn seen_cast(
+        &mut self,
+        origin: (i32, i32),
+        radius: i32,
+        transparency_of: impl Fn(u32) -> f32,
+    ) -> Vec<Vec<f32>> {
+        assert!(radius >= 0, "a negative view distance is a caller bug");
+        let Ok(side) = usize::try_from(radius * 2 + 1) else {
+            return Vec::new();
+        };
+        let mut cells = vec![0.0_f32; side * side];
+        for grid_y in 0..side {
+            for grid_x in 0..side {
+                let Ok(offset_x) = i32::try_from(grid_x) else {
+                    continue;
+                };
+                let Ok(offset_y) = i32::try_from(grid_y) else {
+                    continue;
+                };
+                let world_x = origin.0 + offset_x - radius;
+                let world_y = origin.1 + offset_y - radius;
+                cells[grid_x * side + grid_y] = self.terrain_at(world_x, world_y).map_or(0.0, &transparency_of);
+            }
+        }
+        let grid = crate::shadowcasting::TransparencyGrid::new(side, cells);
+        // `VISIBILITY_FULL` as the starting value (`lightmap.cpp:1046`): sight is a cast of light of strength one.
+        let values = crate::shadowcasting::cast_light_values(&grid, (radius, radius), radius, 1.0);
+        let mut rows = vec![vec![0.0_f32; side]; side];
+        for grid_y in 0..side {
+            for grid_x in 0..side {
+                rows[grid_y][grid_x] = values[grid_x * side + grid_y];
+            }
+        }
+        rows
+    }
+
     /// Whether a square can be seen from an origin, using the cached cast.
     ///
     /// Reference: `map::seen` reading `seen_cache`, which `map::build_seen_cache` fills with the

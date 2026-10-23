@@ -44,9 +44,10 @@ pub fn apparent_light_at_seen(
     let Some(cell) = light.get(&square).copied() else {
         return 0.0;
     };
-    // **Visibility multiplies the light** (`lightmap.cpp:795-798`): out of the cast means no light at all, whatever the light map holds there. The port's visibility is a
-    // yes or a no, so the multiplier is one or zero.
-    if !level.seen_at(view.origin, view.radius, view.blocks_light, square) {
+    // **Visibility multiplies the light** (`lightmap.cpp:795-798`), and the multiplier is the sight cast's own fraction: a square seen through smoke gets a fraction of the light
+    // the map says it holds, and a square out of the cast gets none of it.
+    let seen = level.seen_through(view.origin, view.radius, view.transparency_of, square);
+    if seen <= 0.0 {
         return 0.0;
     }
     let opaque = level
@@ -54,7 +55,7 @@ pub fn apparent_light_at_seen(
         .is_some_and(|code| (view.blocks_light)(code));
     if !opaque {
         // The simple branch: for a non-opaque tile light from all directions is equivalent (`lightmap.cpp:792-796`).
-        return cell.max();
+        return seen * cell.max();
     }
 
     // The reference's own table (`lightmap.cpp:756-767`): which two quarters each neighbour faces. Eight entries, in this order.
@@ -96,7 +97,7 @@ pub fn apparent_light_at_seen(
     ] {
         apparent = apparent.max(seen_from.get(quarter) * cell.get(quarter));
     }
-    apparent
+    apparent * seen
 }
 
 /// What the character is looking with and from: the origin, the range, what stops the sight, and the two numbers that decide whether the light is enough.
@@ -109,6 +110,9 @@ pub struct View {
     pub radius: i32,
     /// Which terrain codes stop the sight.
     pub blocks_light: fn(u32) -> bool,
+    /// How much a code's square absorbs: the same number `calc_transp` puts in the reference's transparency cache, where `TRANSPARENCY_OPEN_AIR` is the floor and zero means
+    /// opaque. Sight attenuates by it (`cast_seen_light`), so the answer is a fraction rather than a yes or a no.
+    pub transparency_of: fn(u32) -> f32,
     /// The light around the character, which decides whether a hazy square glows.
     pub ground_light_level: f32,
     /// The dimmest light they can see by ([`crate::light::vision_threshold`]).
@@ -149,10 +153,12 @@ pub fn lit_level_at_square(
     // **Visibility multiplies the light.** `apparent_light = vis * lm.max()` (`lightmap.cpp:795-798`), and `vis` is the seen-cache value, so a square out of the cast has an
     // apparent light of zero however bright the light map says it is. [`apparent_light_at_seen`] does that multiplication and, on an opaque square, keeps only the quarters the
     // character can see it from. Believing the light map is already apparent light shows the player what is behind a wall, which is what the first test here caught.
-    let in_sight = level.seen_at(view.origin, view.radius, view.blocks_light, square);
+    // `obstructed` is the sight cast's own fraction at or below a tenth (`lightmap.cpp:733`), not "was anything in the way": a wall you look at is seen clearly, and a square seen
+    // only through smoke or fog is not.
+    let seen = level.seen_through(view.origin, view.radius, view.transparency_of, square);
     lit_level_at(
         apparent_light_at_seen(level, view, light, square),
-        !in_sight,
+        seen <= 0.1,
         view.ground_light_level,
         view.vision_threshold,
         false,

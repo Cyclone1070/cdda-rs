@@ -67,3 +67,32 @@ fn the_square_the_character_stands_on_is_always_seen() {
     }
     assert!(level.seen_at((5, 5), 5, blocks, (5, 5)));
 }
+
+#[test]
+fn a_wall_you_look_at_is_seen_clearly_and_a_square_behind_fog_is_not() {
+    // `cast_seen_light` (`lightmap.cpp:1039-1100`) starts every ray at `VISIBILITY_FULL` and attenuates it by the squares it crosses, so the answer is a fraction: a wall three
+    // squares away is about nine tenths seen, and a square behind a fog that absorbs much more is a tenth. `obstructed` is that fraction at or below a tenth
+    // (`lightmap.cpp:733`), which is the difference the draw path draws between a wall and a glow.
+    use cdda_core_types::light::TRANSPARENCY_OPEN_AIR;
+
+    let mut level = level();
+    for y in 0..12 {
+        for x in 0..12 {
+            level.set_terrain(x, y, OPEN, OPEN);
+        }
+    }
+    let open_air = |_code: u32| TRANSPARENCY_OPEN_AIR;
+    let wall = level.seen_through((5, 5), 10, open_air, (8, 5));
+    assert!(
+        wall > 0.5,
+        "open ground three squares away is seen clearly: {wall}"
+    );
+
+    // Fog, as the weather data gives it: a sight penalty that multiplies every square's transparency by 1.7.
+    let fogged = |_code: u32| TRANSPARENCY_OPEN_AIR * 1.7;
+    let behind_fog = level.seen_through((5, 5), 10, fogged, (8, 5));
+    assert!(
+        behind_fog < wall,
+        "fog dims what is seen: {behind_fog} against {wall}"
+    );
+}

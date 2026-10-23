@@ -152,12 +152,25 @@ fn open_level() -> cdda_core_types::level::Level {
     level
 }
 
+/// The sight rule the walls in these tests obey: code 2 stops the sight and absorbs all of it, everything else is open air.
+fn walls_are_opaque(view: &mut View) {
+    view.blocks_light = |code| code == 2;
+    view.transparency_of = |code| {
+        if code == 2 {
+            0.0
+        } else {
+            cdda_core_types::light::TRANSPARENCY_OPEN_AIR
+        }
+    };
+}
+
 /// A character standing in the open at (5, 5), with a threshold of three.
 fn view() -> View {
     View {
         origin: (5, 5),
         radius: 10,
         blocks_light: |_code| false,
+        transparency_of: |_code| cdda_core_types::light::TRANSPARENCY_OPEN_AIR,
         ground_light_level: 10.0,
         vision_threshold: 3.0,
     }
@@ -208,7 +221,7 @@ fn a_square_out_of_sight_is_not_shown_however_bright_it_is() {
     }
     let light = lit_square((8, 5), 40.0);
     let mut blocked = view();
-    blocked.blocks_light = |code| code == 2;
+    walls_are_opaque(&mut blocked);
     assert!(!shown_at(&mut level, &blocked, &light, (8, 5)));
 }
 
@@ -244,11 +257,13 @@ fn the_face_of_a_wall_only_counts_the_quarters_the_player_can_see_it_from() {
     light.insert((5, 5), four_way(5.0, 1.0, 1.0, 100.0));
     let mut east = view();
     east.origin = (8, 5);
-    east.blocks_light = |code| code == 2;
+    walls_are_opaque(&mut east);
 
+    // Five, dimmed a little by the sight cast: the quarter in front of the player. Counting the north-west quarter as well would answer about ninety-six, and the test's band is
+    // narrow enough that no arithmetic slip can hide inside it.
     let apparent = apparent_light_at_seen(&mut level, &east, &light, (5, 5));
     assert!(
-        (apparent - 5.0).abs() < f32::EPSILON,
+        apparent > 4.0 && apparent < 5.5,
         "the wall's face, not its back: {apparent}"
     );
 }
@@ -265,8 +280,13 @@ fn a_floor_square_counts_the_brightest_quarter_whichever_way_it_points() {
     let mut east = view();
     east.origin = (8, 5);
 
+    // The brightest quarter, and then the sight cast's own fraction of it: five squares of open air is not the same as standing on it. A quarter rule that kept only the quarters
+    // facing the player would answer one instead, which is what the wall test beside this one pins.
     let apparent = apparent_light_at_seen(&mut level, &east, &light, (3, 5));
-    assert!((apparent - 100.0).abs() < f32::EPSILON, "the brightest one: {apparent}");
+    assert!(
+        apparent > 50.0 && apparent < 100.0,
+        "the brightest quarter, dimmed by the distance: {apparent}"
+    );
 }
 
 #[test]
@@ -285,7 +305,7 @@ fn a_wall_the_character_sees_is_drawn_bright_rather_than_hazy() {
     light.insert((5, 5), four_way(200.0, 200.0, 200.0, 200.0));
     let mut east = view();
     east.origin = (8, 5);
-    east.blocks_light = |code| code == 2;
+    walls_are_opaque(&mut east);
 
     assert_eq!(
         lit_level_at_square(&mut level, &east, &light, (5, 5)),
@@ -313,4 +333,40 @@ fn the_two_questions_a_frame_asks_agree() {
             "at {square:?}: {level_at:?}"
         );
     }
+}
+
+#[test]
+fn a_square_seen_through_smoke_glows_without_showing_what_is_on_it() {
+    // The hazy branch, reached through the world at last. `cast_seen_light` attenuates by the transparency of the squares a ray crosses, and smoke's is enormous (ten at its
+    // second intensity, against open air's two hundredths), so a square behind it is seen at a fraction below the tenth that `obstructed` asks for
+    // (`lightmap.cpp:733`). What the player sees is a glow: `BRIGHT_ONLY`.
+    use cdda_core_types::light::{LitLevel, TRANSPARENCY_OPEN_AIR};
+    use cdda_core_types::vision::lit_level_at_square;
+
+    const SMOKY: u32 = 3;
+    let mut level = open_level();
+    // A skin of smoke between the character and the square behind it, one square thick.
+    for y in 0..12 {
+        level.set_terrain(6, y, SMOKY, 1);
+    }
+    let mut light = std::collections::BTreeMap::new();
+    light.insert((7, 5), four_way(200.0, 200.0, 200.0, 200.0));
+
+    let mut smoking = view();
+    smoking.transparency_of = |code| {
+        if code == SMOKY {
+            10.0
+        } else {
+            TRANSPARENCY_OPEN_AIR
+        }
+    };
+
+    // The sight cast measures 0.078 there - below the tenth - while the square *past* the smoke recovers to 0.43, because the reference's accumulator averages the transparency
+    // across a whole octant row: one column of smoke dims its neighbour most and is diluted by the open air beside it. A quirk of the reference's arithmetic, reproduced rather
+    // than corrected, and the reason this test looks at the square immediately behind the smoke.
+    assert_eq!(
+        lit_level_at_square(&mut level, &smoking, &light, (7, 5)),
+        LitLevel::BrightOnly,
+        "a glow in the smoke: the light got there, the detail did not"
+    );
 }

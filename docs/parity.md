@@ -406,6 +406,27 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Sight is a fraction, and that is how smoke glows (round 383)
+
+Round 382 declared the gap: with visibility as a yes or a no, `BrightOnly` was unreachable through the world. It is a fraction now.
+
+| Piece | Reference | Port |
+|---|---|---|
+the sight cast | `cast_seen_light` starts each ray at `VISIBILITY_FULL` and accumulates `sight_calc` (`lightmap.cpp:1039-1100`) | `Level::seen_through(origin, radius, transparency_of, square) -> f32` |
+"seen" | `seen_cache > 0` | unchanged, `seen_at` |
+"hazy" | `seen_cache <= LIGHT_TRANSPARENCY_SOLID + 0.1` (`lightmap.cpp:733`) | the same fraction, and `View` gains `transparency_of` |
+
+**And the branch is reachable.** A skin of smoke between the character and a bright square makes that square a glow: the cast measures **0.078** there, under the tenth, so the level
+is `BrightOnly` - drawn as light with nothing in it.
+
+**A quirk of the reference reproduced rather than corrected.** The square *past* the smoke measures 0.43, brighter than the square behind it, because the accumulator averages
+transparency across a whole octant row: one column of smoke is diluted by the open air beside it. That is the reference's arithmetic, not a port mistake, so the test looks at the
+square immediately behind the smoke and the comment says why.
+
+**The cache question answered the honest way.** The first draft cached the fractional cast keyed by origin and radius - and hit the same class of bug this file carries a scar
+from, because a closure cannot be part of a cache key. `seen_through` builds its cast each time and says so; a caller drawing a frame will build one cast and read it, which is the
+shape the reference has (`seen_cache` per level, rebuilt when dirty).
+
 ## One question, two callers (round 382)
 
 The draw path needs two answers about a square - "is it drawn at all" and "at which level" - and a port that computes them separately will eventually have them disagree.

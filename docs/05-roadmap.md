@@ -164,9 +164,9 @@ what is shown | `shown_at` = "drawn at all"; `lit_level_at_square` = "at which l
 the wall's face | the eight-neighbour quadrant rule for opaque squares | 2 tests |
 scent | marks from `NO_SCENT`/`REDUCE_SCENT`, the `ScentWindow` arithmetic, decay, and the deposit the turn starts with | 11 tests |
 
-**The one thing T6 cannot yet say is "hazy".** The reference separates "seen" from "seen through haze" with the seen cache's own **number**, so a fogged square is
-`BRIGHT_ONLY` - a glow with nothing in it. The port's visibility is a yes or a no, so that branch is unreachable through the world: the unit test pins the branch, and the
-test beside it pins the boundary the port actually sits on. Making the seen cache a fraction is the next step of T6 and the last one before a frame can be drawn honestly.
+**"Hazy" is answered now.** The sight cast carries the reference's own fraction (`cast_seen_light`), so a square seen only through smoke is `BRIGHT_ONLY` - a glow with nothing in
+it - and a wall in plain sight is `BRIGHT`. What T6 still lacks is the *grid*: the port asks "how clearly is this square seen" one square at a time and rebuilds the cast for each
+answer, where the reference keeps a `seen_cache` per level and rebuilds it once. That is a shape problem, not a rule problem, and it is the next step before a frame is drawn.
 
 Fields come before vision for a reason: smoke is both a field and a thing that blocks sight,
 and the light model is now good enough to notice the difference.
