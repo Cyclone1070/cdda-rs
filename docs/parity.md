@@ -412,8 +412,12 @@ small everywhere.
 still alive, so it was stopped and the file removed rather than left growing or hanging.
 
 So the map oracle is **not** available yet, and the reason is in the harness code rather than in the invocation: the frame dump reads the map the game already generated, while the
-map dump asks for generation, and generation in a headless run reaches something that waits. Fixing it means driving the world one turn so the overmap is realised, or generating a
-single submap directly instead of a whole map - a small piece of harness work, not a port-side blocker.
+map dump asks for generation, and generation in a headless run reaches something that waits. **Where it hangs, read off the code rather than guessed** (`harness.cpp:1011-1036`): the dump opens the file, takes `get_map()`, and loops over the 24 by 24 squares
+calling `here.ter(...)`. Opening the file and writing the header is what those 6,455 bytes were; the stall is inside the loop, where asking for a square's terrain pulls in a
+submap, and a submap that is not there yet asks the overmap for an OMT that has not been generated - and headless generation waits for something that never comes.
+
+So the fix is one line before the loop, not a redesign: realise the current OMT's submaps first (`here.load( omt, false )`, or generate them explicitly), then the loop reads squares
+that exist. That is a five-minute change and a ten-minute rebuild, and it belongs at the top of the harness work rather than behind it.
 
 **Nothing else is blocked by it.** The glyph gate stands on the frame dump and passes on 1,638 squares; the loader and behaviour gates are unaffected; and the weather corpus came
 from the same binary.
