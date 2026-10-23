@@ -406,6 +406,23 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## A mapgen entry keeps its map under `object` (round 482)
+
+The trap, measured over all 6,216 mapgen entries:
+
+| Where | Entries |
+|---|---|
+`rows` at the top level | **0** |
+a terrain palette at the top level | **0** |
+`object` holding the map | **6,216** |
+
+So a generator written against `entry["rows"]` - the obvious shape - would compile, run, and draw nothing. The map is under `object` in **every** entry, and `object` itself varies:
+some carry only placement effects, some a rows grid, some nested mapgen ids. The shapes fall 2,410 with `object` alone, 1,838 with a nested id, 867 of those carrying a comment, and
+735 with an update id.
+
+**My expectation was wrong and the data corrected it twice**: I wrote 5,850 under `object` from the sample I had read, and the measured answer is all 6,216. That is the third time in this
+project a guess about data I had just counted has lost to the count.
+
 ## The mapgen registry equals the reference's, in both directions (round 460)
 
 The first gate of the mapgen family is in, and it is an equality rather than a count:

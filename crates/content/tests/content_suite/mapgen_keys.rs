@@ -238,3 +238,46 @@ fn the_data_writes_four_keys_fewer_than_the_reference_registers() {
     assert_eq!(in_data + cdda_content::mapgen::CODE_REGISTERED.len() - cdda_content::mapgen::NOT_CHUNKS.len(), 6306);
     assert_eq!(keys().len(), 6306, "and the reference agrees");
 }
+
+#[test]
+fn a_mapgen_entry_keeps_its_map_under_object_and_never_at_the_top_level() {
+    // The trap this pins: reading `entry["rows"]` looks right and finds nothing. Of the 6,216 mapgen entries, **none** declare rows or a terrain palette at the top level; the map
+    // lives inside `object` in all 6,216, and `object` itself varies - some carry only `place_liquids`, some a `rows` grid, some nested mapgen ids. A generator written against the obvious shape
+    // would compile, run, and draw nothing.
+    fn shapes(directory: &Path, counts: &mut std::collections::BTreeMap<&'static str, usize>) {
+        let Ok(entries) = std::fs::read_dir(directory) else { return };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                shapes(&path, counts);
+            } else if path.extension().is_some_and(|extension| extension == "json") {
+                let Ok(text) = std::fs::read_to_string(&path) else { continue };
+                let Ok(Value::Array(entries)) = parse(text.as_bytes()) else { continue };
+                for entry in &entries {
+                    let Value::Object(object) = entry else { continue };
+                    if !matches!(object.get("type"), Some(Value::Str(kind)) if kind == "mapgen") {
+                        continue;
+                    }
+                    *counts.entry("entries").or_default() += 1;
+                    if object.get("rows").is_some() {
+                        *counts.entry("rows at the top").or_default() += 1;
+                    }
+                    if object.get("terrain").is_some() {
+                        *counts.entry("palette at the top").or_default() += 1;
+                    }
+                    if object.get("object").is_some() {
+                        *counts.entry("under object").or_default() += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    let mut counts = std::collections::BTreeMap::new();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json");
+    shapes(&root, &mut counts);
+    assert_eq!(counts.get("entries"), Some(&6216), "mapgen entries");
+    assert_eq!(counts.get("rows at the top"), None, "none writes rows at the top level");
+    assert_eq!(counts.get("palette at the top"), None, "none writes a palette there either");
+    assert_eq!(counts.get("under object"), Some(&6216), "and **every** entry keeps its map under object");
+}
