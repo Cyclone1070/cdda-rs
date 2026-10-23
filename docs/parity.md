@@ -416,8 +416,12 @@ map dump asks for generation, and generation in a headless run reaches something
 calling `here.ter(...)`. Opening the file and writing the header is what those 6,455 bytes were; the stall is inside the loop, where asking for a square's terrain pulls in a
 submap, and a submap that is not there yet asks the overmap for an OMT that has not been generated - and headless generation waits for something that never comes.
 
-So the fix is one line before the loop, not a redesign: realise the current OMT's submaps first (`here.load( omt, false )`, or generate them explicitly), then the loop reads squares
-that exist. That is a five-minute change and a ten-minute rebuild, and it belongs at the top of the harness work rather than behind it.
+**The one-line fix was tried and does not work.** `here.load( project_to<coords::sm>( omt ), false )` before the loop makes the dump produce **nothing at all** - the call itself
+is what blocks, because it is generation that waits, not the read. The line was reverted and the binary rebuilt, and the weather dump still reproduces byte for byte.
+
+So the map oracle needs a different approach rather than a tweak: generate the chunk in a path that does not wait (a dedicated harness that calls the mapgen directly on an
+`overmapbuffer` entry), or read the terrain from a **saved** world that was generated interactively. Either is harness work with a real design question in it, and neither is a
+blocker for the port, which has the frame gate and every loader gate standing.
 
 **Nothing else is blocked by it.** The glyph gate stands on the frame dump and passes on 1,638 squares; the loader and behaviour gates are unaffected; and the weather corpus came
 from the same binary.
