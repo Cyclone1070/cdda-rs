@@ -224,3 +224,74 @@ pub fn wind_power(
     // `static_cast<int>` truncates toward zero, and the maximum with zero is applied after the cast, not before.
     (wind as i32).max(0)
 }
+
+/// The sixteen wind sectors' weights, one table per season (`weather_gen.cpp:226-246`).
+///
+/// The reference builds a `std::discrete_distribution` from one of these per season, so the weights are a probability table and their sum is whatever it
+/// is - the distribution normalises. They are exposed rather than hidden inside a picker because the pick needs a uniform draw, and draws belong to the
+/// caller.
+pub const WIND_DIRECTION_WEIGHTS: [[i32; 16]; 4] = [
+    // Spring.
+    [3, 3, 5, 8, 11, 10, 5, 2, 5, 6, 6, 5, 8, 10, 8, 6],
+    // Summer.
+    [3, 4, 4, 8, 8, 9, 8, 3, 7, 8, 10, 7, 7, 7, 5, 3],
+    // Autumn.
+    [4, 6, 6, 7, 6, 5, 4, 3, 5, 6, 8, 8, 10, 10, 8, 5],
+    // Winter.
+    [5, 3, 2, 3, 2, 2, 2, 2, 4, 6, 10, 8, 12, 19, 13, 9],
+];
+
+/// One of the sixteen sectors as an angle in degrees (`weather_gen.cpp:250-255`).
+///
+/// Reference: `static_cast<int>( inputdir * 22.5f )` - the multiply is single precision and the cast truncates.
+#[must_use]
+pub fn wind_direction_angle(index: usize) -> i32 {
+    // `22.5f` is exact in binary, so `index as f32 * 22.5f` is exact for every index below sixteen and the truncation is the only rounding.
+    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+    let angle = (index as f32 * 22.5f32) as i32;
+    angle
+}
+
+/// The wind's direction, as the reference keeps it: a value that starts unset and is redrawn on a schedule.
+///
+/// The reference holds this in a `static int current_winddir = 1000`, which is process state that survives every call and every world (`weather_gen.cpp:47`). Making it a value the
+/// caller owns is the same rule this port applies to dice: a system that remembers something between turns should say so in its type, not in a file-scope variable.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct WindDirection {
+    /// The current direction in degrees, or `None` while the reference still holds its `1000` sentinel.
+    pub degrees: Option<i32>,
+}
+
+impl WindDirection {
+    /// Whether this update draws a new direction.
+    ///
+    /// Two reasons: nothing has been drawn yet, or the wind has changed enough to draw again. The first is the sentinel, and it happens exactly once per world.
+    #[must_use]
+    pub fn needs_redraw(&self, wind_power: i32, check: Option<i32>) -> bool {
+        self.degrees.is_none() || needs_new_direction(wind_power, check)
+    }
+
+    /// Takes a new direction from a sector of the seasonal distribution.
+    pub fn set_from_sector(&mut self, sector: usize) {
+        self.degrees = Some(wind_direction_angle(sector));
+    }
+}
+
+/// Whether the wind's direction is redrawn this update (`weather_gen.cpp:165-178`).
+///
+/// The reference keeps the direction in a `static` that starts at a sentinel, draws it the first time, and afterwards redraws only when
+/// `one_in( W * 2160 )` fires.
+///
+/// `one_in` returns true **without rolling** whenever its chance is one or less (`rng.cpp`), and since the wind is never negative, `W * 2160 <= 1` means
+/// the air is dead calm. That is not a detail: across a recorded day the only hour whose direction changed is the hour whose wind was zero, and the
+/// trace shows that hour rolling no check at all.
+#[must_use]
+pub fn needs_new_direction(wind_power: i32, check: Option<i32>) -> bool {
+    let chance = wind_power.saturating_mul(2160);
+    if chance <= 1 {
+        // `one_in( <= 1 )` is true by definition, with no draw to consult.
+        return true;
+    }
+    // A calm hour rolls nothing, so a missing check where the chance is above one would be a recording that does not belong to this rule.
+    check.is_some_and(|drawn| drawn == 0)
+}

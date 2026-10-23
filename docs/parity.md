@@ -2986,6 +2986,22 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The wind's direction, and a calm that redraws itself (round 506)
+
+The direction is a `static int current_winddir = 1000` in the reference - process state that survives every call - and the port now models it as a
+`WindDirection` value with `Option<i32>` degrees, because a system that remembers something between turns should say so in its type.
+
+The rule is `one_in( W * 2160 )`, and `one_in` returns true **without rolling** whenever its chance is one or less. Since the wind is never negative, that
+means a dead calm redraws the direction every time it happens. The recorded day shows it exactly: of twenty-three hours, one has wind zero, that hour rolls
+no direction check at all - and it is the only hour whose direction changes, 202 to 315.
+
+So the gate is a predicate rather than a value: the hours the port would redraw are the hours the reference's direction moved, and nothing else. The
+sector-to-angle conversion is pinned separately on transcribed cases (sector 9 is 202 degrees, not 203, because `22.5f` is truncated and not rounded),
+and the unset-sentinel case has its own test because no recorded day can show it - its first hour was decided before recording began.
+
+**Left in the weather generator:** `get_weather_conditions`, which picks an id from a `w_point` by walking `sorted_weather` and evaluating each type's
+dialogue condition, and then the manager's turn loop.
+
 ## Humidity, pressure, and the wind's dice (round 505)
 
 Humidity and pressure come from the same noise field the temperature uses, at seeds `+101` and `+211`, and both match all twenty-four recorded hours to within a millionth. They are

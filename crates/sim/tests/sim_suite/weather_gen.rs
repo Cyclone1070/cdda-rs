@@ -31,6 +31,7 @@ struct Hour {
     humidity: f64,
     pressure: f64,
     windpower: f64,
+    winddirection: f64,
     x: f64,
     y: f64,
     z: f64,
@@ -62,6 +63,7 @@ fn hours() -> Vec<Hour> {
                 humidity: number(step, "humidity"),
                 pressure: number(step, "pressure"),
                 windpower: number(step, "windpower"),
+                winddirection: number(step, "winddirection"),
                 x: number(step, "common_x"),
                 y: number(step, "common_y"),
                 z: number(step, "common_z"),
@@ -238,4 +240,66 @@ fn the_generator_reproduces_the_recorded_wind_power_from_the_recorded_dice() {
     }
     assert!(checked >= 20, "most of a day's hours rolled: {checked}");
     assert!(wrong.is_empty(), "every recorded wind power, from the recorded dice: {wrong:?}");
+}
+
+#[test]
+fn a_wind_direction_index_becomes_an_angle() {
+    // Reference: `weather_gen.cpp:250-255`. The distribution picks one of sixteen sectors and `convert_winddir` multiplies by 22.5 and truncates, so the
+    // sectors are 0, 22, 45, ..., 337 degrees - not 0, 22.5, 45. Truncation is the whole point of the test: rounding would put every odd sector one
+    // degree out and nothing else in the system would notice.
+    for (index, angle) in [(0usize, 0), (1, 22), (4, 90), (9, 202), (14, 315), (15, 337)] {
+        assert_eq!(
+            cdda_sim::weather_gen::wind_direction_angle(index),
+            angle,
+            "sector {index} is {angle} degrees"
+        );
+    }
+}
+
+#[test]
+fn the_direction_is_redrawn_exactly_when_the_reference_redrew_it() {
+    // Reference: `weather_gen.cpp:165-178`. The direction is a `static` that starts unset, is drawn once, and is drawn again only when
+    // `one_in( W * 2160 )` fires. `one_in` is true without rolling whenever its chance is one or less, so a dead calm - W of zero - redraws the direction
+    // every time it happens, and the trace shows exactly that: every hour rolls a check except the hour whose wind is zero.
+    let hours = hours();
+    let dice = recorded_dice_by_hour();
+    let mut previous: Option<i32> = None;
+    let mut changed = Vec::new();
+    let mut redrawn = Vec::new();
+    for hour in &hours {
+        let Some(drawn) = dice.get(&hour.hour) else { continue };
+        if drawn.len() < 3 {
+            continue;
+        }
+        let wind = hour.windpower as i32;
+        // The direction check is the draw that starts at zero, when the reference made one at all.
+        let check = drawn.iter().find(|(low, _, _)| *low == 0).map(|(_, _, value)| *value);
+        let must_redraw = cdda_sim::weather_gen::needs_new_direction(wind, check);
+        if must_redraw {
+            redrawn.push(hour.hour);
+        }
+        if previous.is_some_and(|was| was != hour.winddirection as i32) {
+            changed.push(hour.hour);
+        }
+        previous = Some(hour.winddirection as i32);
+    }
+    assert_eq!(
+        redrawn, changed,
+        "the hours the port would redraw are the hours the direction changed"
+    );
+    assert!(!changed.is_empty(), "the recording contains at least one change, or this proves nothing");
+}
+
+#[test]
+fn the_first_update_draws_a_direction_and_the_next_calm_one_draws_again() {
+    // The reference's `static int current_winddir = 1000` (`weather_gen.cpp:47`) is a sentinel, not an angle: the first update sees it and draws. After that the
+    // direction only moves when the wind is calm or the check fires. A recorded day cannot show the first case, because its first hour was already decided
+    // before the recording began.
+    let mut wind = cdda_sim::weather_gen::WindDirection::default();
+    assert!(wind.needs_redraw(4, None), "an unset direction is drawn whatever the wind is doing");
+    wind.set_from_sector(9);
+    assert_eq!(wind.degrees, Some(202), "sector nine is 202 degrees");
+    assert!(!wind.needs_redraw(4, Some(517)), "a steady wind with an unfired check keeps the direction");
+    assert!(wind.needs_redraw(0, None), "a dead calm redraws without rolling");
+    assert!(wind.needs_redraw(4, Some(0)), "a fired check redraws");
 }

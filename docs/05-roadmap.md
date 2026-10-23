@@ -258,8 +258,8 @@ holds. With that, the reference's answer to "what does this chunk look like" is 
 The weather generator now reproduces, from recorded inputs, the temperature (to a millionth of a kelvin), humidity, pressure and wind power of all twenty-four recorded hours, and the
 wind's dice come from the caller in the reference's own order. Three pieces remain before the weather turns into a system:
 
-1. **Wind direction** - `get_wind_direction(season)` picks from a seasonal distribution, `convert_winddir` maps it, and the reference keeps the answer in a `static` between calls,
-   changing it only when `one_in(W * 2160)` fires. That static is per-process state the port has to make explicit. The fixture records both the draw and the resulting direction.
+1. ~~Wind direction~~ - done in round 506: the sentinel is an `Option<i32>`, the four weight tables are exposed for a caller's roll, and the
+   "one_in(0) is true without rolling" rule reproduces the recorded day's single change.
 2. **`get_weather_conditions`** - the loop over `sorted_weather` that picks an id from a `w_point`, honouring each type's `required_weathers` and evaluating its dialogue
    `condition`. This is the first weather piece that needs the condition machine; taking the id table and the ordering first, and the conditions second, keeps the gate moving.
 3. **The manager's turn loop** - `weather.cpp:901-960`: recompute only when the turn passes `nextweather`, roll the next duration from the chosen type's `duration_min` and
