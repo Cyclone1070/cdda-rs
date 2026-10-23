@@ -22,7 +22,7 @@ fn hot_air_squares(world: &mut World) -> Vec<(i32, i32, u32, i32)> {
 fn a_fire_scatters_five_wisps_of_hot_air_around_itself() {
     let mut world = World::new();
     let mut rolls = Rolls::new(5);
-    create_hot_air(&mut world, (5, 5), 2, &mut rolls);
+    create_hot_air(&mut world, (5, 5), 0, 2, &mut rolls);
 
     let wisps = hot_air_squares(&mut world);
     assert_eq!(
@@ -47,7 +47,7 @@ fn the_intensity_picks_which_hot_air_this_is() {
     for intensity in 1..=4 {
         let mut world = World::new();
         let mut rolls = Rolls::new(1);
-        create_hot_air(&mut world, (0, 0), intensity, &mut rolls);
+        create_hot_air(&mut world, (0, 0), 0, intensity, &mut rolls);
         ids.push(hot_air_squares(&mut world)[0].2);
     }
     ids.sort_unstable();
@@ -60,7 +60,7 @@ fn an_impossible_intensity_draws_no_dice_and_creates_nothing() {
     // The reference's default branch is a debug message and a return, before any roll.
     let mut world = World::new();
     let mut rolls = Rolls::new(5);
-    create_hot_air(&mut world, (5, 5), 7, &mut rolls);
+    create_hot_air(&mut world, (5, 5), 0, 7, &mut rolls);
     assert!(hot_air_squares(&mut world).is_empty());
     assert_eq!(
         rolls.engine().next_u32(),
@@ -74,7 +74,7 @@ fn a_real_call_advances_the_stream_by_ten_rolls() {
     // Two rng(-1, 1) per placement, five placements.
     let mut world = World::new();
     let mut rolls = Rolls::new(5);
-    create_hot_air(&mut world, (5, 5), 1, &mut rolls);
+    create_hot_air(&mut world, (5, 5), 0, 1, &mut rolls);
     let mut expected = Rolls::new(5);
     for _ in 0..10 {
         expected.rng(-1, 1);

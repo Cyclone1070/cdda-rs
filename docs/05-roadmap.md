@@ -147,9 +147,14 @@ dice roll. The wind half of that now exists - shelter, forest, height and an upw
 reference's order - and it is now wired: `spread_gas` rolls for the chance, picks a starting neighbour, walks
 clockwise from it and moves one unit, with wind-facing squares resisted by a dice roll. The first fire processors are in as well: a flame burst burns down and becomes a fire vent,
 and the vent thins one turn in three and becomes a burst, carrying the age across the change.
-Hot air is ported too, so both fire processors now leave the wisps the reference leaves. What is
-still missing from the field layer is vertical movement - the reference tries down, then a
-neighbour, then up - and the remaining sixteen of the twenty-one processors. T5 illumination is complete end to end, including point
+Hot air is ported too, so both fire processors now leave the wisps the reference leaves. Vertical movement is **ported and gated** as of round 517-519: the reference tries the square
+below first, then a neighbour, then the square above, and two recorded gas sessions replay it
+die for die, one of them dropping through a stairwell. Of the twenty-one processors, ten are in
+with gates (`fd_fire` and the fire vents, smoke and the hot air kinds, gas spread, the
+extinguisher, the shock and acid vents, the self-upgrade, underwater dissipation, and now
+`fd_incendiary`); the rest need subsystems the port does not have yet - monsters, items, the
+fungal and radiation grids - and the ledger says which is which rather than leaving them
+unnamed. T5 illumination is complete end to end, including point
 sources and smoke dimming what is behind it.
 
 step.

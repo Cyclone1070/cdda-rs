@@ -452,6 +452,32 @@ pub fn process_fires(
     process_fires_in_submap(world, map, windpower, None, rolls);
 }
 
+/// Every incendiary field on the squares of one submap, in the sweep's order.
+///
+/// Reference: `field_processor_fd_incendiary` is registered against `fd_incendiary` (`field_type.cpp:350`), so it runs for that field and no other. It is called here
+/// rather than from a general dispatch table because the table does not exist yet and a processor nothing calls is a library, not a port.
+pub fn process_incendiaries_in_submap(
+    world: &mut World,
+    submap: Option<(i32, i32, i32)>,
+    facts: impl Fn(i32, i32, i32) -> TerrainFacts,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) {
+    let mut order: Vec<(i32, i32, i32, Entity)> = Vec::new();
+    let mut query = world.query::<(Entity, &Position, &Field)>();
+    for (entity, position, field) in query.iter(world) {
+        if submap.is_some_and(|key| submap_of(position.x, position.y, position.z) != key) {
+            continue;
+        }
+        if field.id == INCENDIARY {
+            order.push((position.x, position.y, position.z, entity));
+        }
+    }
+    order.sort_by_key(|&(x, y, z, entity)| (x, y, z, entity.to_bits()));
+    for (_, _, _, entity) in order {
+        process_incendiary(world, entity, &facts, rolls);
+    }
+}
+
 /// Fires on the squares of one submap, for a caller walking the reference's sweep submap by submap.
 ///
 /// See [`process_gas_in_submap`] for why the sweep is spatial: the reference ages a field when its submap comes up, so a fire born in a submap the sweep has already
@@ -1892,7 +1918,7 @@ pub fn process_flame_burst(
         }
         // The reference makes hot air on the step that thins it, at the new intensity.
         if let Some(position) = world.get::<Position>(entity).copied() {
-            create_hot_air(world, (position.x, position.y), intensity - 1, rolls);
+            create_hot_air(world, (position.x, position.y), position.z, intensity - 1, rolls);
         }
     } else {
         transform_field(world, entity, FIRE_VENT, 3, age, true);
@@ -1921,7 +1947,7 @@ pub fn process_fire_vent(
             field.entry.set_intensity(intensity - 1);
         }
         if let Some(position) = world.get::<Position>(entity).copied() {
-            create_hot_air(world, (position.x, position.y), intensity - 1, rolls);
+            create_hot_air(world, (position.x, position.y), position.z, intensity - 1, rolls);
         }
     } else {
         transform_field(world, entity, FLAME_BURST, 3, age, true);
@@ -1941,6 +1967,7 @@ pub fn process_fire_vent(
 pub fn create_hot_air(
     world: &mut World,
     square: (i32, i32),
+    z: i32,
     intensity: i32,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) {
@@ -1954,18 +1981,44 @@ pub fn create_hot_air(
     for _ in 0..5 {
         let dx = rolls.rng(-1, 1);
         let dy = rolls.rng(-1, 1);
-        let (x, y) = (square.0 + dx, square.1 + dy);
-        let mut entry = FieldEntry::new(3, 100, true, false);
-        entry.set_intensity(1);
-        world.spawn((
-            Position { x, y, z: 0 },
-            Field {
-                id,
-                entry,
-                priority: 0,
-            },
-        ));
+        add_or_thicken(world, (square.0 + dx, square.1 + dy), z, id, 1);
     }
+}
+
+/// Puts a field on a square, thickening the one already there rather than stacking a second.
+///
+/// Reference: `map::add_field` (`src/map_field.cpp:1260-1310`), where a square holds one entry per field type and adding to it raises the intensity. Two wisps of hot
+/// air landing on the same square are one field at intensity two, and a gas spreading back into the square it came from thickens rather than duplicates.
+pub fn add_or_thicken(world: &mut World, square: (i32, i32), z: i32, id: FieldId, intensity: i32) {
+    let existing = {
+        let mut query = world.query::<(Entity, &Position, &Field)>();
+        query
+            .iter(world)
+            .find(|(_, position, field)| {
+                (position.x, position.y, position.z) == (square.0, square.1, z) && field.id == id
+            })
+            .map(|(entity, _, field)| (entity, field.entry.intensity()))
+    };
+    if let Some((entity, thick)) = existing {
+        if let Some(mut field) = world.get_mut::<Field>(entity) {
+            field.entry.set_intensity(thick + intensity);
+        }
+        return;
+    }
+    let mut entry = FieldEntry::new(3, 100, true, false);
+    entry.set_intensity(intensity);
+    world.spawn((
+        Position {
+            x: square.0,
+            y: square.1,
+            z,
+        },
+        Field {
+            id,
+            entry,
+            priority: 0,
+        },
+    ));
 }
 
 /// The numbers one turn of burning produced, grouped because they all come from the same processor run and travel together.
@@ -2102,6 +2155,22 @@ pub fn run_environment_turn(
         cursor = Some(key);
         // Fires first: everything else this turn reacts to what they left behind.
         process_fires_in_submap(world, map, windpower, Some(key), rolls);
+        // Then the incendiaries, which can light the fire the next turn burns.
+        process_incendiaries_in_submap(
+            world,
+            Some(key),
+            |x, y, z| {
+                // The three flammable flags, read back from the ground the fire rules already ask about: a `FIRE_CONTAINER` answers `Inert`, which is right - a
+                // brazier holds its fire rather than catching, and the reference's three flags agree with that by all being false on the container itself.
+                match map.ground((x, y, z)) {
+                    cdda_core_types::fire::Ground::Flammable => TerrainFacts { flammable: true, ..TerrainFacts::default() },
+                    cdda_core_types::fire::Ground::FlammableHard => TerrainFacts { flammable_hard: true, ..TerrainFacts::default() },
+                    cdda_core_types::fire::Ground::FlammableAsh => TerrainFacts { flammable_ash: true, ..TerrainFacts::default() },
+                    cdda_core_types::fire::Ground::Inert => TerrainFacts::default(),
+                }
+            },
+            rolls,
+        );
         // Then the gases, including the haze the fires just made. `percent_spread` is `fd_smoke`'s and the hot air kinds' own data.
         for (id, percent_spread) in [
             (SMOKE, 10),
@@ -2243,6 +2312,36 @@ pub fn process_acid_vent(
     } else if let Some(mut field) = world.get_mut::<Field>(entity) {
         field.entry.set_intensity(3);
     }
+}
+
+/// The incendiary field, as the field registry numbers it.
+pub const INCENDIARY: FieldId = FieldId(30);
+
+/// An incendiary field sets fire to one neighbour, and warms its own square either way.
+///
+/// Reference: `field_processor_fd_incendiary` (`src/map_field.cpp:928-946`). The two offsets are drawn **first**, so a field about to die still spends them; the
+/// square they pick may be the field's own; it catches if the terrain can burn by any of the three flammable flags; and the hot air is made whether or not anything
+/// caught. The reference also asks `flammable_items_at`, which belongs to the item layer the port does not have yet - the gap is in the ledger, not hidden in the code.
+pub fn process_incendiary(
+    world: &mut World,
+    entity: Entity,
+    facts: impl Fn(i32, i32, i32) -> TerrainFacts,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) {
+    let (dx, dy) = (rolls.rng(-1, 1), rolls.rng(-1, 1));
+    let Some(position) = world.get::<Position>(entity).copied() else {
+        return;
+    };
+    let Some(intensity) = world.get::<Field>(entity).map(|field| field.entry.intensity()) else {
+        return;
+    };
+    let destination = (position.x + dx, position.y + dy);
+    let terrain = facts(destination.0, destination.1, position.z);
+    if terrain.flammable || terrain.flammable_ash || terrain.flammable_hard {
+        add_or_thicken(world, destination, position.z, FIRE, 1);
+    }
+    // The reference's `create_hot_air`, which draws its own ten dice — five attempts of two each — whether or not anything caught.
+    create_hot_air(world, (position.x, position.y), position.z, intensity, rolls);
 }
 
 /// Electricity, as the field registry numbers it.
@@ -2723,7 +2822,7 @@ pub fn process_fire_residue(
     }
     let ceiling = 4 - i32::try_from(adjacent_fires).unwrap_or(4);
     if adjacent_fires < 5 && ceiling > 0 && rolls.rng(0, ceiling) != 0 {
-        create_hot_air(world, (position.x, position.y), intensity, rolls);
+        create_hot_air(world, (position.x, position.y), position.z, intensity, rolls);
     }
 }
 

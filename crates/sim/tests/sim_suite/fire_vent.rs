@@ -111,6 +111,8 @@ fn a_burning_burst_leaves_hot_air_over_the_square() {
         .filter(|f| [HOT_AIR_1, HOT_AIR_2, HOT_AIR_3, HOT_AIR_4].contains(&f.id))
         .map(|f| f.entry.intensity())
         .collect();
-    assert_eq!(hot.len(), 5, "five wisps, as create_hot_air makes");
-    assert!(hot.iter().all(|&i| i == 1), "all thin");
+    // Five wisps, not five entities: `create_hot_air` draws five offsets and `add_field` **thickens** a square that already holds hot air rather than stacking a
+    // second field on it, so the total is what says five wisps were made and no square can hold more than two of them here.
+    assert_eq!(hot.iter().sum::<i32>(), 5, "five thin wisps, as create_hot_air makes");
+    assert!(hot.iter().all(|&i| i <= 2), "no square caught more than two: {hot:?}");
 }

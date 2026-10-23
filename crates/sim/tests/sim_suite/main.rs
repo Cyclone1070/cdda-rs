@@ -51,6 +51,7 @@ mod fire_vent;
 mod gas_effects;
 mod gas_haze;
 mod gas_session_parity;
+mod incendiary;
 mod gas_spread;
 mod ground_items;
 mod harvest_damage;

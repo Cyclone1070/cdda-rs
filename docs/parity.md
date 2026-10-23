@@ -2986,6 +2986,22 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The incendiary field, and a wisp rule that was stacking fields (round 520)
+
+`field_processor_fd_incendiary` is in: two dice pick a neighbouring square, it catches fire if any of the three flammable flags says so, and the hot air is made
+either way - **after** the two offset dice, so a field about to die still spends them.
+
+Writing it corrected two things that were wrong in the port already:
+
+- **`create_hot_air` was stacking fields.** It spawned five entities, so a square that caught two wisps held two thin fields where the reference holds one at
+  intensity two. `add_field` thickens; the port now has one `add_or_thicken` that every field creation goes through, and the five-wisp rule goes through it.
+- **Hot air was hardcoded to z 0.** A fire on the first floor left its wisps on the ground floor. `create_hot_air` now takes the level.
+
+The rule that fell out of the data: `fd_hot_air2` has **three** levels, so five wisps on one square are intensity three, not five. The old `fire_vent` test asserted
+five *entities*, which is what the stacking bug produced; it now asserts five wisps by total intensity, which is what the reference means.
+
+The gap is named rather than hidden: the reference also asks `flammable_items_at`, and the item layer does not exist yet.
+
 ## The sweep is spatial, and that is a rule about ages (round 519)
 
 A fixture with a stairwell - `t_stairs_down` with open air under it - made the gas **fall** on turn six: source to intensity two at
