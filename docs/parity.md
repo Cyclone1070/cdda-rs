@@ -406,6 +406,21 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## What the generated chunk actually contains (round 439)
+
+The reference's thick forest chunk, read before anything tries to reproduce it:
+
+| Fact | Value |
+|---|---|
+overmap terrain | `forest_thick` |
+distinct terrains in the chunk | **27** |
+most common | `t_grass` 222, `t_forestfloor` 173, `t_grass_dead` 54, `t_underbrush` 21, `t_dirt` 16 |
+squares | 576 = 24 by 24 |
+
+**Twenty-seven kinds in one chunk is the shape of the problem.** A generator that produces grass and floor and calls it a forest is wrong by twenty-five terrain ids, and the
+count makes that visible without running anything. It also says the port's mapgen cannot be a single function: 27 kinds over 576 squares means weighted choice among a palette, and
+the palette is what `--dump-mapgens` describes.
+
 ## The map dump works, and a generated chunk is now gated (round 434)
 
 The hang was the guard, not the load. `dump_map` asked every one of the 24 by 24 squares for its terrain, and a square past the loaded chunk pulls in a submap and then waits for
