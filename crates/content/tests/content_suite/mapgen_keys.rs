@@ -90,3 +90,23 @@ fn the_four_data_keys_the_reference_never_registers_stay_out() {
         assert!(!keys.contains(key), "{key} is a selector, not a chunk");
     }
 }
+
+#[test]
+fn the_port_carries_the_code_keys_and_refuses_the_selectors_in_its_own_source() {
+    // The two lists live in the library now, not only in this test, because a registry has to be built from them at run time. Duplicates would hide a missing key by making the list
+    // look complete, and a selector appearing among the chunks would generate something the game cannot.
+    use std::collections::BTreeSet;
+
+    let code: BTreeSet<&str> = cdda_content::mapgen::CODE_REGISTERED.into_iter().collect();
+    assert_eq!(code.len(), 26, "no duplicates");
+    let selectors = cdda_content::mapgen::NOT_CHUNKS;
+    assert_eq!(selectors.len(), 4);
+    let reference = keys();
+    for key in &code {
+        assert!(reference.contains(*key), "{key} is in the reference's registry");
+    }
+    for key in selectors {
+        assert!(!reference.contains(key), "{key} is not a chunk");
+    }
+    assert!(BTreeSet::from_iter(code).is_disjoint(&BTreeSet::from_iter(selectors)));
+}

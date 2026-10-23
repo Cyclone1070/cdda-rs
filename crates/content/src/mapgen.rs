@@ -298,3 +298,42 @@ impl MapgenObject {
         placed
     }
 }
+
+/// The generator keys the game registers in **code** rather than in the data.
+///
+/// Reference: `mapgen.cpp`'s built-in registrations - the forests, the rivers with their curve and mouth variants, the lake and ocean shores, the ravine edges and the subway pieces.
+/// A registry built by scanning the data files comes up short by exactly these twenty-six, which is why the port carries them explicitly and a test names every one.
+pub const CODE_REGISTERED: [&str; 26] = [
+    "forest",
+    "forest_thick",
+    "forest_water",
+    "lake_shore",
+    "ocean_shore",
+    "ravine_edge",
+    "ravine_floor_edge",
+    "river",
+    "river_c_not_ne",
+    "river_c_not_nw",
+    "river_c_not_se",
+    "river_c_not_sw",
+    "river_ne",
+    "river_nw",
+    "river_se",
+    "river_sw",
+    "lab_subway_curved",
+    "lab_subway_end",
+    "lab_subway_four_way",
+    "lab_subway_straight",
+    "lab_subway_tee",
+    "subway_curved",
+    "subway_end",
+    "subway_four_way",
+    "subway_straight",
+    "subway_tee",
+];
+
+/// The keys the data writes that are **not** chunks: the lab's floorplan selectors and the plaza's placeholder.
+///
+/// They are `om_terrain` ids, so a scan of the data finds them, but the reference never registers a generator under them. Offering them would be offering chunks the game cannot
+/// generate.
+pub const NOT_CHUNKS: [&str; 4] = ["lab_1side", "lab_4side", "lab_finale_1level", "null"];
