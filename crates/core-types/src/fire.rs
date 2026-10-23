@@ -485,7 +485,7 @@ pub struct GasSpread {
 ///
 /// The reference asks two different questions of three different places: `spread_gas` tries the square below **first**, the eight beside it second, and the
 /// square above last. Naming all ten answers in one value keeps the call readable and keeps the *order* where the rule can see it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Around {
     /// Whether the square below would take the gas (`gas_can_spread_to` and a legal move).
     pub below: bool,
@@ -493,6 +493,52 @@ pub struct Around {
     pub beside: [bool; 8],
     /// Whether the square above would take it.
     pub above: bool,
+    /// Whether the gas is under a roof. A sheltered gas never feels the wind, however hard it blows (`map_field.cpp:279`).
+    pub sheltered: bool,
+    /// The wind's strength at the gas's own square, which the reference reads per square rather than per turn.
+    pub windpower: i32,
+    /// The wind's direction in degrees; see [`wind_blockers`].
+    pub wind_direction: i32,
+}
+
+impl Default for Around {
+    fn default() -> Self {
+        Self {
+            below: false,
+            beside: [false; 8],
+            above: false,
+            sheltered: true,
+            windpower: 0,
+            wind_direction: 0,
+        }
+    }
+}
+
+/// The three neighbours that face the wind, as indices into this project's neighbour order.
+///
+/// Reference: `map::get_wind_blockers` (`src/map_field.cpp:2137-2180`). A table of nine rows keyed by the wind's bearing, **first row whose threshold the bearing
+/// reaches** - the rows are ordered 330, 301, 240, 211, 150, 121, 60, 31, 0, so a bearing of 350 takes the 330 row and a bearing of 200 takes the 150 one. The rows
+/// name *world* directions rather than "left of the wind", which is why they are written out here instead of being computed: a rotation formula that is off by one
+/// row would block the wrong three squares and only a recorded session would notice.
+///
+/// The indices are this project's neighbour order (`point.h:450`): north west, north, north east, west, east, south west, south, south east.
+#[must_use]
+pub fn wind_blockers(wind_direction: i32) -> [usize; 3] {
+    // (bearing, the three squares facing it) - the reference's own table, in its own order.
+    const ROWS: [(i32, [usize; 3]); 9] = [
+        (330, [4, 2, 7]), // east, north east, south east
+        (301, [7, 4, 6]), // south east, east, south
+        (240, [6, 5, 7]), // south, south west, south east
+        (211, [5, 3, 6]), // south west, west, south
+        (150, [3, 0, 5]), // west, north west, south west
+        (121, [0, 1, 3]), // north west, north, west
+        (60, [1, 0, 2]),  // north, north west, north east
+        (31, [2, 4, 1]),  // north east, east, north
+        (0, [4, 2, 7]),   // east, north east, south east
+    ];
+    ROWS.iter()
+        .find(|(bearing, _)| wind_direction >= *bearing)
+        .map_or([4, 2, 7], |(_, squares)| *squares)
 }
 
 /// One turn of a gas trying to move.
@@ -516,7 +562,6 @@ pub fn spread_gas(
     intensity: i32,
     age: i64,
     percent_spread: i32,
-    windpower: i32,
     around: &Around,
     rolls: &mut crate::rng::Rolls,
 ) -> GasSpread {
@@ -529,7 +574,9 @@ pub fn spread_gas(
     if intensity <= 1 {
         return nowhere;
     }
-    if rolls.rng(1, 100 - windpower) > percent_spread {
+    // **One wind, read once**: the reference computes `windpower` at the top of `map::spread_gas` and uses it both for the chance's ceiling and for the blockers, so a
+    // port with two copies of it could have a gas that blows freely through a wind its own chance never felt.
+    if rolls.rng(1, 100 - around.windpower) > percent_spread {
         return nowhere;
     }
     let share = age / i64::from(intensity);
@@ -551,8 +598,31 @@ pub fn spread_gas(
         }
     }
     if !spread.is_empty() && rolls.one_in(i32::try_from(spread.len()).unwrap_or(i32::MAX)) {
-        let choice = rolls.rng(0, i32::try_from(spread.len()).unwrap_or(1) - 1);
-        let to = spread
+        // Wind blocks the squares it faces, and a gas that tries anyway needs `x_in_y( 1, max( 2, windpower ) )` **per blocked square**, drawn in the order the scan
+        // collected them. A sheltered gas, or a wind under five, never looks at the blockers at all.
+        if around.sheltered || around.windpower < 5 {
+            let choice = rolls.rng(0, i32::try_from(spread.len()).unwrap_or(1) - 1);
+            let to = spread
+                .get(usize::try_from(choice).unwrap_or(0))
+                .copied()
+                .unwrap_or(0);
+            return moving(GasDirection::Side(to));
+        }
+        let blockers = wind_blockers(around.wind_direction);
+        let mut allowed: Vec<usize> = Vec::new();
+        for index in spread {
+            if !blockers.contains(&index) || rolls.x_in_y(1.0, f64::from(around.windpower.max(2))) {
+                allowed.push(index);
+            }
+        }
+        // **Nothing rises when the wind refused every square.** The reference's rising branch is the `else` of the lateral attempt, not a second chance after it, so
+        // a gas that spent its `one_in` and found nowhere to go stays where it is.
+        let Some(choice) = (!allowed.is_empty())
+            .then(|| rolls.rng(0, i32::try_from(allowed.len()).unwrap_or(1) - 1))
+        else {
+            return nowhere;
+        };
+        let to = allowed
             .get(usize::try_from(choice).unwrap_or(0))
             .copied()
             .unwrap_or(0);

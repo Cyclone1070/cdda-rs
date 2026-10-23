@@ -2986,6 +2986,28 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The wind blocks the squares it faces (round 522)
+
+`map::spread_gas` has a branch the port never had: when the gas is **not sheltered** and the wind is at least five, the three squares facing the wind are asked
+`x_in_y( 1, max( 2, windpower ) )` - **one real draw per blocked square**, in the order the clockwise scan collected them - and a gas whose every candidate lost stays
+put rather than falling through to the rising branch, because that branch is the `else` of the lateral attempt and not a second chance after it.
+
+Ported with four transcribed tests, and the branch's shape is the kind of thing that only a recording settles: `get_wind_blockers` is a **nine-row table** keyed by
+bearing with first-match-wins (330, 301, 240, 211, 150, 121, 60, 31, 0), naming world directions rather than "left of the wind". A rotation formula that was one row
+off would block the wrong three squares and nothing but a session replay would notice.
+
+**Two instrument errors fell out of the same work:**
+
+- The dump recorded the windpower at **the player's square**, not the gas's. `spread_gas` asks `get_local_windpower` about the square the gas stands on, and a gas on a
+  roof feels a wind that one in the cellar beside it does not - the recorded value was 0 for both. Each field entry now carries its own `windpower`: measured, a gas on
+  a roof under a thirteen-speed wind gets 18.
+- `spread_gas` took the wind **twice**, once as a parameter for the chance's ceiling and once in `Around` for the blockers, so a gas could blow freely through a wind its
+  own chance never felt. There is one wind now, in `Around`, which is what the reference does at the top of `map::spread_gas`.
+
+The gap this leaves is named: the sweep still hands the rule a **direction of zero** and `sheltered: false`, because the direction is not threaded through
+`process_gas` yet. Indoors that is harmless - the recorded windpower is zero there and the branch never runs - but a roof fixture would spread into the wrong three
+squares until it is threaded.
+
 ## One gas rule, two doors (round 521)
 
 The port had two gas-spread implementations and they disagreed. The session sweep's followed `map::spread_gas` including the square below and the square above; the

@@ -796,15 +796,13 @@ fn process_one_gas(
             below: takes((x, y, z - 1)),
             beside,
             above: takes((x, y, z + 1)),
-        };
-        let movement = cdda_core_types::fire::spread_gas(
-            intensity,
-            age,
-            percent_spread,
+            // The caller owns the weather; this rule owns what to do with it. A sheltered gas never feels the wind however hard it blows, and a caller with no
+            // weather to speak of says so by leaving the wind at zero.
+            sheltered: false,
             windpower,
-            &around,
-            rolls,
-        );
+            wind_direction: 0,
+        };
+        let movement = cdda_core_types::fire::spread_gas(intensity, age, percent_spread, &around, rolls);
         let destination = match movement.direction {
             cdda_core_types::fire::GasDirection::Side(index) => neighbour_of(x, y, z, index),
             cdda_core_types::fire::GasDirection::Down => Some((x, y, z - 1)),
