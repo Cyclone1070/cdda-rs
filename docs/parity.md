@@ -2985,3 +2985,25 @@ Mitigation, in order of cost:
 The instrument itself is not in doubt: it compiles, it is in `oracle/patches/0001-prototype-digest.patch`, and a traced
 run of a world that exists will write the file.
 
+
+## A chunk is drawn from its palettes and its own map (round 496)
+
+The generator's draw step, gated over the whole data rather than a sample:
+
+| Rule | Reference | Port |
+|---|---|---|
+a symbol resolves through the entry's own `terrain` first | `mapgen.cpp`'s draw | `draw_chunk` |
+then through its named palettes, transitively | same | `palette_symbols` |
+a later palette wins over an earlier one | same | names walked in reverse |
+a space draws nothing | same | `Option` per square |
+an unknown symbol is an error naming the symbol | debugmsg | `Err` |
+
+Run over the **2,411** chunks that draw a grid and name palettes - the ones a resolver reading `object.terrain` alone would leave silently blank - and every one draws, over a
+hundred thousand squares.
+
+**What is still missing before a chunk is compared with the reference dump:** the twenty-six generators registered in code have no data to draw from at all; the post-draw placements
+(furniture, items, nested chunks, `fill_ter`) are unwritten; and predecessor mapgens, of which the data has one. Until those exist the port can produce a chunk's *terrain* from the
+data - the largest piece - but not a chunk the game would agree with square for square.
+
+**And the omission that nearly went out:** the first attempt at this entry edited a heading that does not exist, so the write succeeded and the commit found nothing to do. A commit
+that says "nothing to commit" is the cheapest possible check that the edit did not happen.
