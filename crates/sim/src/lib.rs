@@ -717,7 +717,7 @@ pub fn process_gas(
     id: FieldId,
     percent_spread: i32,
     windpower: i32,
-    can_take: impl Fn((i32, i32, i32), (i32, i32, i32)) -> bool,
+    can_take: impl Fn((i32, i32, i32), (i32, i32, i32)) -> bool + Copy,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) {
     process_gas_in_submap(world, id, None, percent_spread, windpower, can_take, rolls);
@@ -734,7 +734,7 @@ pub fn process_gas_in_submap(
     submap: Option<(i32, i32, i32)>,
     percent_spread: i32,
     windpower: i32,
-    can_take: impl Fn((i32, i32, i32), (i32, i32, i32)) -> bool,
+    can_take: impl Fn((i32, i32, i32), (i32, i32, i32)) -> bool + Copy,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) {
     let mut order: Vec<(i32, i32, i32, Entity)> = Vec::new();
@@ -748,12 +748,34 @@ pub fn process_gas_in_submap(
         }
     }
     order.sort_by_key(|&(x, y, z, entity)| (x, y, z, entity.to_bits()));
-    for (x, y, z, entity) in order {
-        let Some(field) = world.get::<Field>(entity) else {
-            continue;
-        };
-        let intensity = field.entry.intensity();
-        let age = field.entry.age();
+    for (_, _, _, entity) in order {
+        process_one_gas(world, entity, percent_spread, windpower, can_take, rolls);
+    }
+}
+
+/// One field's turn of spreading: the whole rule, for a single entity.
+///
+/// The single source of the gas rule, called both by the sweep and by the older per-field door, because two implementations that disagree are worse than one that is
+/// wrong: the session gates were green while the older path silently dropped every fall.
+fn process_one_gas(
+    world: &mut World,
+    entity: Entity,
+    percent_spread: i32,
+    windpower: i32,
+    can_take: impl Fn((i32, i32, i32), (i32, i32, i32)) -> bool,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) {
+    let Some(field) = world.get::<Field>(entity) else {
+        return;
+    };
+    let intensity = field.entry.intensity();
+    let age = field.entry.age();
+    let id = field.id;
+    let Some(position) = world.get::<Position>(entity).copied() else {
+        return;
+    };
+    let (x, y, z) = (position.x, position.y, position.z);
+    {
         // **What the squares hold right now**, which is not what they held when the turn began: an earlier square in the same sweep may have moved gas into or out of
         // one of them, and the reference reads the live field (`gas_can_spread_to`, `src/map_field.cpp:237-248`). Read once per source square, because nothing
         // changes between these ten questions and this square's own move.
@@ -790,9 +812,10 @@ pub fn process_gas_in_submap(
             cdda_core_types::fire::GasDirection::None => None,
         };
         let Some(destination) = destination else {
-            continue;
+            return;
         };
         apply_gas_spread(world, entity, destination, id, &movement, intensity);
+
     }
 }
 
@@ -1767,88 +1790,29 @@ pub struct GasContext {
 }
 
 /// Chooses where a gas spreads to and moves it there, aging it first if it is outdoors.
+///
+/// **The same rule as the sweep's**, through [`process_one_gas`]: down first, then the neighbours in the wind's order, then up. The door exists because the older
+/// per-field turn has its own idea of what a "cell" is; the *rule* behind it must not have two versions, and this one used to - it never looked up or down at all,
+/// which is why a fall could pass every session gate and still not happen here.
 pub fn spread_gas(
     world: &mut World,
     source: Entity,
     context: &GasContext,
-    can_enter: impl Fn(i32, i32) -> bool,
+    can_take: impl Fn((i32, i32, i32), (i32, i32, i32)) -> bool,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) {
     let percent_spread = context.percent_spread;
-    let (windpower, wind_angle) = (context.windpower, context.wind_angle);
     let outdoors = context.outdoors;
     let outdoor_age_speedup = context.outdoor_age_speedup;
-    let Some(field) = world.get::<Field>(source) else {
-        return;
-    };
-    let intensity = field.entry.intensity();
-    let id = field.id;
-    // Dissipate faster outdoors, before any of the spread dice - and before the intensity bail,
-    // which is what the reference does: a thin gas outdoors still ages away faster.
+    // Dissipate faster outdoors, before any of the spread dice - and before the intensity bail, which is what the reference does: a thin gas outdoors still ages
+    // away faster.
     if outdoors && outdoor_age_speedup != 0 {
-        let age = world
-            .get::<Field>(source)
-            .map_or(0, |field| field.entry.age());
+        let age = world.get::<Field>(source).map_or(0, |field| field.entry.age());
         if let Some(mut field) = world.get_mut::<Field>(source) {
             field.entry.set_age(age + outdoor_age_speedup);
         }
     }
-    if intensity <= 1 {
-        return;
-    }
-    let Some(position) = world.get::<Position>(source).copied() else {
-        return;
-    };
-    let ceiling = 100 - windpower;
-    if ceiling < 1 || rolls.rng(1, ceiling) > percent_spread {
-        return;
-    }
-
-    let end_it = rolls.rng(0, 7);
-    let mut spread: Vec<(i32, i32)> = Vec::new();
-    for step in 1..=8 {
-        let Some(&(dx, dy)) =
-            NEIGHBOURS.get(usize::from(u8::try_from((end_it + step) % 8).unwrap_or(0)))
-        else {
-            continue;
-        };
-        let (x, y) = (position.x + dx, position.y + dy);
-        if !can_enter(x, y) {
-            continue;
-        }
-        // A neighbour already holding thicker gas cannot take any of this one.
-        let mut query = world.query::<(&Position, &Field)>();
-        let thicker = query
-            .iter(world)
-            .any(|(p, f)| p.x == x && p.y == y && f.id == id && f.entry.intensity() >= intensity);
-        if !thicker {
-            spread.push((x, y));
-        }
-    }
-    if spread.is_empty() {
-        return;
-    }
-
-    let target = if rolls.one_in(i32::try_from(spread.len()).unwrap_or(1)) {
-        rolls.random_entry(&spread).copied()
-    } else {
-        let blockers = wind_blocker_offsets(wind_angle);
-        let mut candidates: Vec<(i32, i32)> = Vec::new();
-        for &(x, y) in &spread {
-            let blocked = blockers
-                .iter()
-                .any(|&(dx, dy)| position.x + dx == x && position.y + dy == y);
-            let chance = f64::from(windpower.max(2));
-            if !blocked || rolls.x_in_y(1.0, chance) {
-                candidates.push((x, y));
-            }
-        }
-        rolls.random_entry(&candidates).copied()
-    };
-
-    if let Some(target) = target {
-        gas_spread_to(world, source, target);
-    }
+    process_one_gas(world, source, percent_spread, context.windpower, can_take, rolls);
 }
 
 /// Replaces one field on a square with another kind, carrying the age across.
@@ -3150,7 +3114,13 @@ pub fn process_spread_gas(
     if context.percent_spread <= 0 {
         return;
     }
-    spread_gas(world, source, context, can_enter, rolls);
+    spread_gas(
+        world,
+        source,
+        context,
+        |from, to| to.2 == from.2 && can_enter(to.0, to.1),
+        rolls,
+    );
 }
 
 /// A field under water ages away faster.
@@ -3890,8 +3860,14 @@ pub fn process_field_turn(
                 outdoors: data.outdoors,
                 outdoor_age_speedup: data.outdoor_age_speedup,
             };
-            let enter = |x: i32, y: i32| cell_of(x, y).can_enter;
-            spread_gas(world, entity, &gas, enter, rolls);
+            // The older door has no level facts to give, so it answers the lateral half and refuses a step between levels rather than guessing at one.
+            spread_gas(
+                world,
+                entity,
+                &gas,
+                |from, to| to.2 == from.2 && cell_of(to.0, to.1).can_enter,
+                rolls,
+            );
         }
         if !field_is_alive(world, entity) {
             world.despawn(entity);

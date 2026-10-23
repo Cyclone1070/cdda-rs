@@ -50,6 +50,7 @@ mod fire_terrain;
 mod fire_vent;
 mod gas_effects;
 mod gas_haze;
+mod gas_one_rule;
 mod gas_session_parity;
 mod incendiary;
 mod gas_spread;

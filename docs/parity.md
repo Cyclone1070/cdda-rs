@@ -2986,6 +2986,24 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## One gas rule, two doors (round 521)
+
+The port had two gas-spread implementations and they disagreed. The session sweep's followed `map::spread_gas` including the square below and the square above; the
+older per-field door (`spread_gas`, used by `process_field_turn`) only ever looked **sideways**. Two rules that disagree are worse than one rule that is wrong: the
+session gates were green while the other door silently dropped every fall, and the same divergence would have hit wind next.
+
+There is now one `process_one_gas`, and both doors call it. The older door's terrain question was `can_enter(x, y)`; it is now the same `can_take(from, to)` the sweep
+takes, because a closure that cannot name a level cannot answer a question about one. The legacy door answers the lateral half and refuses a step between levels
+rather than guessing, which is what it did before - but it can no longer *disagree* about where a sideways gas goes.
+
+Verified rather than assumed: re-recording the lateral session with `CDDA_RNG_TRACE_REALS=1` and slicing its gas blocks gives **84 int draws and zero real draws**, so
+the wind-blocker branch (`x_in_y`) never fired in that session and the current gate covers everything it exercises. A windy fixture is what would exercise it, and it
+is not written yet - the ledger says so.
+
+`draw_start` in the fixture moved between the two recordings and the states did not: worldgen draws dice and loading a saved world does not. The replay slices by marks
+and never reads the offset, so this is not a determinism failure - but a reader comparing two fixtures would have thought it was, which is why the corpus README now
+says it.
+
 ## The incendiary field, and a wisp rule that was stacking fields (round 520)
 
 `field_processor_fd_incendiary` is in: two dice pick a neighbouring square, it catches fire if any of the three flammable flags says so, and the hot air is made

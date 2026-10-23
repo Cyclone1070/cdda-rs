@@ -51,6 +51,11 @@ Run the same command with `CDDA_RNG_TRACE` set and the reference writes every di
 CDDA_RNG_TRACE=/tmp/rolls.txt oracle/build/src/cataclysm ... (same arguments as above)
 ```
 
+`draw_start` moves between recordings of the *same* session when the fixed world is generated fresh in one run and loaded from
+`oracle/userdir` in the next: worldgen draws dice and loading a saved world does not. The **states** are identical either way, and the
+replay never reads `draw_start` - it slices the trace by the processor marks - so a re-recording that differs only in this field is not a
+determinism failure. Everything from `draw_start` on is unambiguous, which is why the portraits are dated and the offset is not trusted.
+
 The session JSON carries `draw_start`: the reference's draw counter when the session began. Everything after that line in the trace is the
 session's own dice, and it is checked in here as `fire-floor.rolls.txt`. The file also contains **marks** - `mark fire.before_fuel`,
 `mark fire.fuelled`, and so on - written by the fire processor itself (`rng_mark`), so the dice can be attributed to a rule rather than guessed at.

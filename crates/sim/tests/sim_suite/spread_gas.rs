@@ -133,7 +133,7 @@ fn a_wall_square_is_not_spread_into() {
         &mut world,
         source,
         &ctx(100, 0, 0, false, 0),
-        |x, y| !(y < 5 || x > 5),
+        |from, to| to.2 == from.2 && !(to.1 < 5 || to.0 > 5),
         &mut rolls,
     );
     let after = intensities(&mut world);
