@@ -427,3 +427,78 @@ fn every_chunk_that_draws_a_grid_resolves_through_its_own_terrain_map() {
     assert!(resolved_chunks > 500, "chunks with a grid and a terrain map: {resolved_chunks}");
     assert!(resolved_squares > resolved_chunks * 16, "and they are grids, not single squares");
 }
+
+#[test]
+fn the_palette_graph_is_complete_and_acyclic() {
+    // A chunk's terrain often comes from a named palette rather than from the entry, and palettes name other palettes. Before a transitive resolver is written, the graph is measured:
+    // 481 palettes, 5,304 references from mapgens over 278 distinct names, nothing dangling in either direction, and no cycle. A dangling name would be a chunk nobody can draw; a
+    // cycle would hang a resolver exactly the way the map dump hung.
+    fn collect(path: &Path, palettes: &mut std::collections::BTreeMap<String, Vec<String>>, refs: &mut Vec<String>) {
+        let Ok(entries) = std::fs::read_dir(path) else { return };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                collect(&path, palettes, refs);
+            } else if path.extension().is_some_and(|extension| extension == "json") {
+                let Ok(text) = std::fs::read_to_string(&path) else { continue };
+                let Ok(Value::Array(entries)) = parse(text.as_bytes()) else { continue };
+                for entry in &entries {
+                    let Value::Object(object) = entry else { continue };
+                    if matches!(object.get("type"), Some(Value::Str(kind)) if kind == "palette")
+                        && let Some(Value::Str(id)) = object.get("id")
+                    {
+                            let inner = match object.get("palettes") {
+                                Some(Value::Array(items)) => items
+                                    .iter()
+                                    .filter_map(|item| match item {
+                                        Value::Str(name) => Some(name.clone()),
+                                        _ => None,
+                                    })
+                                    .collect(),
+                                _ => Vec::new(),
+                            };
+                        palettes.insert(id.clone(), inner);
+                    }
+                    if let Some(Value::Object(mapgen)) = object.get("object")
+                        && let Some(Value::Array(names)) = mapgen.get("palettes")
+                    {
+                        for name in names {
+                            if let Value::Str(name) = name {
+                                refs.push(name.clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let mut palettes: std::collections::BTreeMap<String, Vec<String>> = std::collections::BTreeMap::new();
+    let mut refs: Vec<String> = Vec::new();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json");
+    collect(&root, &mut palettes, &mut refs);
+    assert_eq!(palettes.len(), 481, "palettes declared");
+    assert_eq!(refs.len(), 5304, "references from mapgens");
+    assert_eq!(refs.iter().collect::<std::collections::BTreeSet<_>>().len(), 278, "distinct names");
+    for name in &refs {
+        assert!(palettes.contains_key(name), "{name} is referenced and declared");
+    }
+    for (id, names) in &palettes {
+        for name in names {
+            assert!(palettes.contains_key(name), "palette {id} names {name}, which exists");
+        }
+    }
+    // No cycle: every walking state is (node, path) and a name already on the path would close one.
+    for start in palettes.keys() {
+        let mut stack: Vec<(&String, std::collections::BTreeSet<&String>)> = Vec::new();
+        stack.push((start, [start].into_iter().collect()));
+        while let Some((node, path)) = stack.pop() {
+            for next in palettes.get(node).map_or(&[][..], Vec::as_slice) {
+                assert!(!path.contains(next), "no cycle through {next}");
+                let mut deeper = path.clone();
+                deeper.insert(next);
+                stack.push((next, deeper));
+            }
+        }
+    }
+}
