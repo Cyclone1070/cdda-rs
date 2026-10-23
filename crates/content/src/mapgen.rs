@@ -500,3 +500,57 @@ pub fn draw_chunk(
     }
     Ok(drawn)
 }
+
+/// The furniture a symbol can place: one or more candidate ids, each with a weight.
+///
+/// Reference: `mapgen.cpp`'s furniture map, where a symbol maps either to a list of ids - each weighted one - or to a list of `[id, weight]` pairs. A symbol with several candidates is
+/// decided by a roll, which the caller supplies, in keeping with this port's rule that dice belong to the caller.
+#[must_use]
+pub fn furniture_choices(furniture: &Object) -> std::collections::BTreeMap<char, Vec<(String, i32)>> {
+    let mut choices: std::collections::BTreeMap<char, Vec<(String, i32)>> = std::collections::BTreeMap::new();
+    for (symbol, value) in furniture.members() {
+        let Some(symbol) = symbol.chars().next() else { continue };
+        let list = match value {
+            Value::Array(items) => items,
+            Value::Str(id) => {
+                choices.entry(symbol).or_default().push((id.clone(), 1));
+                continue;
+            }
+            _ => continue,
+        };
+        for item in list {
+            match item {
+                Value::Str(id) => choices.entry(symbol).or_default().push((id.clone(), 1)),
+                Value::Array(pair) => {
+                    let (Some(Value::Str(id)), Some(Value::Int(weight))) = (pair.first(), pair.get(1))
+                    else {
+                        continue;
+                    };
+                    #[allow(clippy::cast_possible_truncation)]
+                    choices.entry(symbol).or_default().push((id.clone(), *weight as i32));
+                }
+                _ => {}
+            }
+        }
+    }
+    choices
+}
+
+/// One candidate, given the roll that chooses it.
+///
+/// Reference: `random_entry` over weighted candidates - the roll runs from zero to the total weight minus one, and the walk takes the first candidate whose running weight exceeds it. So
+/// weights `[25, 20, 5, 5]` give the first candidate rolls 0 to 24, the second 25 to 44, and so on.
+#[must_use]
+pub fn pick_furniture(
+    choices: &[(String, i32)],
+    roll: i32,
+) -> Option<&str> {
+    let mut remaining = roll;
+    for (id, weight) in choices {
+        if remaining < *weight {
+            return Some(id.as_str());
+        }
+        remaining -= *weight;
+    }
+    choices.last().map(|(id, _)| id.as_str())
+}

@@ -627,3 +627,67 @@ fn a_chunk_that_names_palettes_draws_through_them_with_its_own_map_winning() {
     assert!(chunks > 2_000, "chunks drawing through palettes: {chunks}");
     assert!(squares > 100_000, "and squares drawn: {squares}");
 }
+
+#[test]
+fn a_furniture_symbol_picks_its_candidate_by_the_roll_it_is_given() {
+    // The reference's `random_entry` boundary, transcribed: weights [25, 20, 5, 5] give the first candidate rolls 0 to 24 and the second 25 to 44. The roll is supplied rather than
+    // drawn, which is this port's rule for dice, and it makes the boundary testable at the exact number where it turns over.
+    let choices = [
+        ("f_generator_broken".to_string(), 25),
+        ("f_portable_generator".to_string(), 20),
+        ("f_diesel_generator".to_string(), 5),
+        ("f_12000_gasoline_generator".to_string(), 5),
+    ];
+    assert_eq!(cdda_content::mapgen::pick_furniture(&choices, 0), Some("f_generator_broken"));
+    assert_eq!(cdda_content::mapgen::pick_furniture(&choices, 24), Some("f_generator_broken"));
+    assert_eq!(cdda_content::mapgen::pick_furniture(&choices, 25), Some("f_portable_generator"));
+    assert_eq!(cdda_content::mapgen::pick_furniture(&choices, 44), Some("f_portable_generator"));
+    assert_eq!(cdda_content::mapgen::pick_furniture(&choices, 45), Some("f_diesel_generator"));
+    assert_eq!(cdda_content::mapgen::pick_furniture(&choices, 49), Some("f_diesel_generator"));
+    assert_eq!(cdda_content::mapgen::pick_furniture(&choices, 50), Some("f_12000_gasoline_generator"));
+    let single = [("f_crate_c".to_string(), 1)];
+    assert_eq!(cdda_content::mapgen::pick_furniture(&single, 0), Some("f_crate_c"));
+}
+
+fn gather_furniture(path: &Path, tables: &mut usize, candidates: &mut usize) {
+    let Ok(entries) = std::fs::read_dir(path) else { return };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            gather_furniture(&path, tables, candidates);
+        } else if path.extension().is_some_and(|extension| extension == "json") {
+            let Ok(text) = std::fs::read_to_string(&path) else { continue };
+            let Ok(Value::Array(entries)) = parse(text.as_bytes()) else { continue };
+            for entry in &entries {
+                let Value::Object(object) = entry else { continue };
+                if !matches!(object.get("type"), Some(Value::Str(kind)) if kind == "mapgen") {
+                    continue;
+                }
+                let Some(Value::Object(inner)) = object.get("object") else { continue };
+                let Some(Value::Object(furniture)) = inner.get("furniture") else { continue };
+                let choices = cdda_content::mapgen::furniture_choices(furniture);
+                *tables += 1;
+                for (symbol, options) in &choices {
+                    assert!(!options.is_empty(), "'{symbol}' has no candidate");
+                    for (id, weight) in options {
+                        assert!(!id.is_empty());
+                        assert!(*weight > 0, "'{symbol}' has a candidate that can never be picked");
+                        *candidates += 1;
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn every_furniture_symbol_in_the_data_is_a_map_a_chunk_could_place() {
+    // The tables the data writes, read through the loader that will use them: every symbol one character, every candidate a non-empty id, every weight positive. A zero weight would be
+    // a candidate that can never be picked, and a negative one would make the walk run backwards.
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json");
+    let mut tables = 0;
+    let mut candidates = 0;
+    gather_furniture(&root, &mut tables, &mut candidates);
+    assert_eq!(tables, 1257, "mapgens with a furniture map");
+    assert!(candidates > 1_000, "and candidates between them: {candidates}");
+}
