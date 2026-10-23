@@ -204,6 +204,20 @@ exactly. Neither is dead code; both are named where they are used.
 
 ---
 
+
+### What the next round should pick up (round 391)
+
+Two lists, both current as of head `ef268dd`.
+
+**Blocked on one build.** The instrumented reference has three dumps written and unrun: the weather prototype dump, and the frame dump for the semantic gate. Both need `ninja`
+and `cmake` on `cyc@elitedesk`, which the server does not have and which was not installed without a decision. The exact command is `pip install --user ninja cmake` on that host;
+after it, `oracle/build` moves there and the dumps are one script. Everything downstream of them - the weather loader, the weather system, the oracle frame - is waiting on
+that single step rather than on any unknown.
+
+**Unblocked, in the order the gap list suggests.** Vertical field movement and multi-level light (`map::cast_zlight`) need the level store to carry more than one z, which is the
+first structural piece P2 does not yet have. The remaining field processors mostly need item and creature data, so they belong after P3. `field_count` and the declared gaps in
+`parity.md` are small and independent. The frame exists and its picture is asserted; giving it an oracle is what turns it into a gate.
+
 ## 4. Phase detail
 
 ### P0 — Foundation types, IDs, RNG, text, diagnostics (189 files, 62,866 LOC)
