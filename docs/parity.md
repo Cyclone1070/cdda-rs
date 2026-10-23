@@ -2986,6 +2986,32 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## Every decay is attributable now (round 528)
+
+The reference draws a field's decay deadline from the engine itself, so the value landed in the dice trace with **no square on it**. Two fields decaying on one turn
+therefore looked identical, and that ambiguity is what kept a risen field alive in the port across three rounds of chasing.
+
+`mark decay.<x>.<y>.<z>` (and `decay.newborn.<x>.<y>.<z>` for the branch that only ages a field) now precedes every `do_decay` call in `process_fields_in_submap`.
+Re-recorded with the labels, the roof session reads like a table:
+
+| Turn | Square | Drawn | What happened |
+|---|---|---|---|
+0 | 71,71,1 (newborn) | 47 | the placed gas, aged once |
+1 | 71,71,1 | 16 | the source, its deadline reset by the rise |
+1 | 71,71,2 (newborn) | 2 | the risen field, born this turn |
+2 | 71,71,1 | 28 | the source again, reset by its lateral move |
+2 | 71,71,2 | **1** | the risen field, and a draw of one turn kills it |
+3 | 70,71,1 | 12 | the lateral newborn |
+
+Two more things fell out of the same work. `field_entry::set_field_age` resets `decay_time` (`src/field.h:70-78`), and everything that touches an age goes through it -
+`gas_spread_to` on both source and newborn, and `do_decay`'s own level loss - so a field that spreads draws a **fresh** deadline next turn. And the port's
+`decay_start` now spends the recorded value when one is attached, with two unit tests that pin the truncation: a draw of one turn kills a level, a draw of three keeps
+it.
+
+The roof fixture's replay is still ignored, and the reason is now narrow: the port computes the right deadlines but **reaches the wrong set of them** - its risen field
+keeps the deadline it drew on turn one, where the reference drew a fresh one on turn two. The mechanism that resets it between those turns is the open question, and it is
+a question about one member of `field_entry` rather than about the sweep.
+
 ## Three instruments the roof fixture needed (round 527)
 
 Chasing the risen field taught more about what the oracle could not see than about the port:

@@ -1,21 +1,25 @@
-# The dice the reference's sweep rolled for a gas on a **roof**, where the wind actually blows (seed w2, --world harness-fixed).
+# The dice the reference's sweep rolled for a gas alone on a **roof** (seed w2, --world harness-fixed, no fire placed).
 #
 # The square is at z 1, outdoors, with a windpower of 18 and no shelter - the one combination that reaches the wind-blocker branch, which draws a real per blocked
-# neighbour. The gas also **rises**: the dump's window runs one level above the old one so the risen field is in the record, not inferred from a source that thinned.
+# neighbour. The gas also **rises**: the dump's window runs one level above the old one so the risen field is in the record.
 #
-# `drawn decay.turns <n>` lines are the field's decay draw, which the reference takes from the engine itself (`field.cpp:86-88`) rather than from `rng()`: without
-# them a replay computes its own exponential and kills or keeps a field on the wrong schedule.
+# `mark decay.<x>.<y>.<z>` labels which square's field is about to decay, and `drawn decay.turns <n>` is the draw the reference takes from the engine itself
+# (`field.cpp:86-88`) rather than from `rng()`: without both, a replay cannot tell whose deadline it is computing.
 mark gas.turn.0
+mark decay.newborn.71.71.1
 drawn decay.turns 47
 mark gas.turn.1
+mark decay.71.71.1
 mark gas.begin.71.71.1
 int 1 82 60
 int 0 7 7
 int 0 7 6
 mark gas.done
 drawn decay.turns 16
+mark decay.newborn.71.71.2
 drawn decay.turns 2
 mark gas.turn.2
+mark decay.71.71.1
 mark gas.begin.71.71.1
 int 1 82 30
 int 0 7 4
@@ -26,29 +30,36 @@ real 0 1 0.64613127284360239
 int 0 4 4
 mark gas.done
 drawn decay.turns 28
+mark decay.71.71.2
 mark gas.begin.71.71.2
 mark gas.done
 drawn decay.turns 1
 mark gas.turn.3
+mark decay.70.71.1
 mark gas.begin.70.71.1
 mark gas.done
 drawn decay.turns 12
+mark decay.71.71.1
 mark gas.begin.71.71.1
 mark gas.done
 drawn decay.turns 0
 mark gas.turn.4
+mark decay.70.71.1
 mark gas.begin.70.71.1
 mark gas.done
 drawn decay.turns 22
 mark gas.turn.5
+mark decay.70.71.1
 mark gas.begin.70.71.1
 mark gas.done
 drawn decay.turns 56
 mark gas.turn.6
+mark decay.70.71.1
 mark gas.begin.70.71.1
 mark gas.done
 drawn decay.turns 20
 mark gas.turn.7
+mark decay.70.71.1
 mark gas.begin.70.71.1
 mark gas.done
 drawn decay.turns 5

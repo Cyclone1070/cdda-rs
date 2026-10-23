@@ -3,10 +3,10 @@
 //! Source: `src/field.h:20-70` for the state, `src/field.cpp:58-113` for the intensity
 //! clamp and the decay.
 
-#![allow(clippy::panic, clippy::indexing_slicing)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_core_types::field::FieldEntry;
-use cdda_core_types::rng::Rolls;
+use cdda_core_types::rng::{Recording, Rolls};
 
 fn rolls() -> Rolls {
     Rolls::new(12345)
@@ -92,5 +92,59 @@ fn an_exponential_field_starts_its_decay_somewhere_ahead() {
     assert!(
         !field.is_alive() || field.age() > 0,
         "either it decayed already or it is counting"
+    );
+}
+
+#[test]
+fn a_field_decays_on_the_reference_schedule_when_the_recording_says_so() {
+    // `initialize_decay` draws its exponential from the engine itself (`src/field.cpp:86-88`), so the value is not a die in the dice trace and a replay
+    // has to be handed it separately. The draw is **truncated to whole turns**, which is what makes a short-lived field die on its first decay: a draw
+    // under one turn puts `decay_time` in the past and the level goes at once.
+    let recording = Recording::parse("drawn decay.turns 1\n").expect("one drawn value");
+    let mut rolls = Rolls::replaying(recording);
+    let mut entry = FieldEntry::new(3, 10, false, false);
+    entry.set_intensity(2);
+    entry.set_age(1);
+    // age becomes two, so `decay_time` is now - 2 + 1: one turn in the past.
+    entry.do_decay(5_000, &mut rolls);
+    assert_eq!(entry.intensity(), 1, "the level went, and the field survived");
+    assert_eq!(entry.age(), 0, "and the age restarted with the new level");
+}
+
+#[test]
+fn a_recorded_draw_of_three_turns_keeps_the_field_alive() {
+    let recording = Recording::parse("drawn decay.turns 3\n").expect("one drawn value");
+    let mut rolls = Rolls::replaying(recording);
+    let mut entry = FieldEntry::new(3, 10, false, false);
+    entry.set_intensity(2);
+    entry.set_age(1);
+    // decay_time is now - 2 + 3, one turn in the future: nothing happens yet.
+    entry.do_decay(5_000, &mut rolls);
+    assert_eq!(entry.intensity(), 2, "still standing");
+    assert_eq!(entry.age(), 2, "and a turn older");
+}
+
+#[test]
+fn setting_the_age_restarts_the_decay_schedule() {
+    // `field_entry::set_field_age` resets `decay_time` unless told not to (`src/field.h:70-78`), and everything that touches a field's age goes through
+    // it: `gas_spread_to` sets the source's and the newborn's age, and `do_decay`'s own level loss sets the age back to zero. So a field that spreads
+    // draws a **fresh** decay on its next turn instead of keeping the deadline it had - and a schedule that is never reset cannot be passed while the
+    // harness's calendar stands still, which is why a field the reference buried stayed alive in the port.
+    let recording =
+        Recording::parse("drawn decay.turns 40\ndrawn decay.turns 1\n").expect("two drawn values");
+    let mut rolls = Rolls::replaying(recording);
+    let mut entry = FieldEntry::new(3, 10, false, false);
+    entry.set_intensity(2);
+    entry.set_age(1);
+    // Far in the future: nothing happens.
+    entry.do_decay(5_000, &mut rolls);
+    assert_eq!(entry.intensity(), 2, "the first draw put the deadline ahead");
+    // Something else sets the age, so the deadline is thrown away and drawn again.
+    entry.set_age(0);
+    entry.do_decay(5_000, &mut rolls);
+    assert_eq!(
+        entry.intensity(),
+        1,
+        "the second draw was spent, and it landed in the past"
     );
 }
