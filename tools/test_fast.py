@@ -22,6 +22,19 @@ import time
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
+# Cargo needs a writable home: it unpacks sources there, and a sandbox that forbids
+# the account's own ~/.cargo turns "no writes allowed" into "cannot download a crate",
+# which reads like a broken build. The repository keeps its own, so use it by default.
+WORKSPACE_CARGO_HOME = ROOT / ".cargo-home"
+
+
+def cargo_env() -> dict[str, str]:
+    """The environment cargo should run in: the workspace's home unless one is set."""
+    env = dict(os.environ)
+    if "CARGO_HOME" not in env and WORKSPACE_CARGO_HOME.is_dir():
+        env["CARGO_HOME"] = str(WORKSPACE_CARGO_HOME)
+    return env
+
 
 def binaries() -> list[pathlib.Path]:
     listing = subprocess.run(
@@ -30,6 +43,7 @@ def binaries() -> list[pathlib.Path]:
         capture_output=True,
         text=True,
         check=True,
+        env=cargo_env(),
     )
     found = []
     for line in listing.stdout.splitlines():

@@ -406,6 +406,24 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Seeing is not lighting: three exceptions the vision cache makes (round 359)
+
+`build_vision_transparency_cache` (`lightmap.cpp:207-286`) starts as a **copy** of the light transparency cache and then changes it in three ways. Each is somewhere that
+seeing and lighting disagree, and each is load-bearing:
+
+| Exception | Rule | What breaks without it |
+|---|---|---|
+translucent terrain | `TFLAG_TRANSLUCENT` tiles become **solid to the eye** while staying lit | you can read a room through frosted glass |
+crouching behind cover | if the player is crouching, prone or running on four legs, every **adjacent** square with `coverage >= 30` becomes solid | hiding behind a low wall does nothing |
+your own square | forced back to open air **last**, after both | standing on frosted glass blinds you to your own feet |
+
+**The threshold is inclusive and the radius is one.** `coverage >= 30`, not `> 30`, and `points_in_radius( p, 1 )` means the eight neighbours - this is a check for a low wall
+you are pressed against, not a sight line. A test pins twenty-nine as *not* cover.
+
+**The reference's own TODO is the interesting part:** making an adjacent square solid changes vision for **everyone** on the level, monsters included, so a player crouching
+behind a window also stops two monsters seeing each other. That is what a single shared cache means. The port keeps it and says so, because "fixing" it per-creature is a
+different design, not a correction.
+
 ## One square's transparency, computed twice over the same facts (round 358)
 
 `build_transparency_cache` (`lightmap.cpp:100-203`) asks a small rule about every square, and stores **two** answers because the game asks two different questions:

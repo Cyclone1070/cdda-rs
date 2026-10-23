@@ -87,3 +87,91 @@ pub fn transparency_of(facts: &SquareFacts, sight_penalty: f32) -> Transparency 
         without_fields,
     }
 }
+
+/// The coverage a square must have before a crouching player can hide behind it.
+///
+/// Reference: `coverage( loc ) >= 30` (`lightmap.cpp:245`). Thirty is the reference's own number and the comparison is inclusive - twenty-nine is a low wall you can still
+/// see over.
+pub const COVERAGE_TO_HIDE_BEHIND: i32 = 30;
+
+/// What the vision cache needs to know about a level.
+///
+/// Reference: the inputs of `build_vision_transparency_cache` (`lightmap.cpp:207-286`): the light transparency it copies, the terrain's `TFLAG_TRANSLUCENT` flags, the
+/// player's position if they are on this level, whether they are hiding (crouching, prone or running on four legs), and each square's coverage.
+#[derive(Debug, Clone)]
+pub struct VisionFacts {
+    /// The side of the level, in squares.
+    pub side: usize,
+    /// The light transparency cache this vision cache starts as a copy of.
+    pub transparency: Vec<f32>,
+    /// Whether each square's terrain has `TFLAG_TRANSLUCENT`, which blocks vision without blocking light.
+    pub translucent: Vec<bool>,
+    /// Each square's coverage: how tall the thing in it is.
+    pub coverage: Vec<i32>,
+    /// Where the player is, when they are on this level.
+    pub player: Option<(i32, i32)>,
+    /// Whether the player is crouching, prone or otherwise keeping low.
+    pub hiding: bool,
+}
+
+/// Builds the level's vision transparency cache.
+///
+/// Reference: `map::build_vision_transparency_cache` (`lightmap.cpp:207-286`), in its order - and the order is the whole rule, because the last exception overrides the
+/// others:
+///
+/// 1. start from the light transparency cache;
+/// 2. translucent terrain becomes **solid to the eye**, so frosted glass is lit and cannot be looked through;
+/// 3. if the player is on this level and hiding, every **adjacent** square with enough coverage becomes solid, which is how crouching behind a low wall hides you. The
+///    reference's own TODO says this changes vision for everyone on the level, monsters included; that is what a shared cache means and the port keeps it;
+/// 4. the square the player stands on is forced back to **open air**, so hiding on top of something does not blind you to your own feet.
+#[must_use]
+pub fn vision_transparency_of(facts: &VisionFacts) -> Vec<f32> {
+    let side = facts.side;
+    let mut vision = facts.transparency.clone();
+    vision.resize(side * side, TRANSPARENCY_OPEN_AIR);
+
+    for x in 0..side {
+        for y in 0..side {
+            let index = x * side + y;
+            if facts.translucent.get(index).copied().unwrap_or(false)
+                && let Some(slot) = vision.get_mut(index)
+            {
+                *slot = SOLID;
+            }
+        }
+    }
+
+    if let (Some((px, py)), true) = (facts.player, facts.hiding) {
+        for dx in -1..=1 {
+            for dy in -1..=1 {
+                let (x, y) = (px + dx, py + dy);
+                if (dx, dy) == (0, 0) {
+                    continue;
+                }
+                let (Ok(xu), Ok(yu)) = (usize::try_from(x), usize::try_from(y)) else {
+                    continue;
+                };
+                if xu >= side || yu >= side {
+                    continue;
+                }
+                let index = xu * side + yu;
+                if facts.coverage.get(index).copied().unwrap_or(0) >= COVERAGE_TO_HIDE_BEHIND
+                    && let Some(slot) = vision.get_mut(index)
+                {
+                    *slot = SOLID;
+                }
+            }
+        }
+    }
+
+    if let Some((px, py)) = facts.player
+        && let (Ok(xu), Ok(yu)) = (usize::try_from(px), usize::try_from(py))
+        && xu < side
+        && yu < side
+        && let Some(slot) = vision.get_mut(xu * side + yu)
+    {
+        *slot = TRANSPARENCY_OPEN_AIR;
+    }
+
+    vision
+}
