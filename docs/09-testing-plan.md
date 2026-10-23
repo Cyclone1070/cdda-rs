@@ -327,3 +327,19 @@ permanent test is treated as unfinished work.
   divergence.
 - **Screens never scripted.** The scenario list is the boundary; anything outside
   it is unverified, and the inventory exists so that boundary is visible.
+
+## A rebuild is a gate of its own (round 420)
+
+The reference was rebuilt on this machine after the harness patches were re-applied. A rebuild is a chance to silently invalidate every corpus at once - a changed patch, a
+changed default, a changed data path - so the three dumps the loaders are gated on were re-run from the new binary and compared byte for byte:
+
+| Dump | Corpus | Result |
+|---|---|---|
+`--dump-fields` | `corpus/prototypes/fields.json` | identical |
+`--dump-terrain` | `corpus/prototypes/terrain.json` | identical |
+`--dump-items` | `corpus/prototypes/items.json` | identical |
+
+**Run this after every rebuild**, before trusting any loader gate: `cmp` the fresh dump against the committed corpus. An identical file says the reference the loaders were gated
+against is still the reference; a different one is a corpus update that has to be committed and a loader that has to be re-gated, and the two cases look exactly the same from a
+green test run.
+
