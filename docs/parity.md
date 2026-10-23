@@ -406,6 +406,24 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## A wall is seen as a wall; what is behind it is not (round 371)
+
+The port had `map::seen` - the shadow cast that answers "is this square in the field of view" - but not `map::sees`, the straight-line question "can A see B", which is
+what aiming, line of fire and creature sight all ask. It is a different rule and it is now ported:
+
+| Gate | Reference | Port |
+|---|---|---|
+range | `range >= 0 && range < rl_dist( F, T )` | same, with `rl_dist` as Chebyshev until the "circular distances" option exists |
+bounds | `!inbounds( T )` | the caller's `in_bounds` closure, and a line that leaves the level is blocked where it leaves |
+the walk | `bresenham`, stopping **before** testing the target | `line_to`, with the same early return |
+
+**The last square is the whole point.** The reference exits the walk before testing the square it is looking at, with a comment saying so (`map.cpp:7345-7347`): a wall is
+visible *as* a wall, and only what lies behind it is hidden. A port that tested the target like any other square would make walls invisible, which is a mistake you can only
+see from the player's side of the screen - and the test pins it directly.
+
+**The corner is a tie-break, not a policy.** Two walls meeting at a corner, with the sight line running exactly through the gap: the answer comes from which cell Bresenham
+takes first, so the test pins the answer rather than the intent, and says why.
+
 ## One sun, not two (round 370)
 
 The cascade replaced the stand-in last round, and this round removed the stand-in. `Level::daylight`, `light_in_from_outside` and the `FACING` table are gone, along with

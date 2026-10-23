@@ -1,72 +1,101 @@
-//! Sight limited by light: the two halves the reference joins when it draws a frame.
+//! What one square can see of another on the same level.
+//!
+//! Source: `map::sees` (`src/map.cpp:7329-7362`), the same-level branch. The rule is a
+//! Bresenham walk that stops **before** checking the square it is looking at, so a wall is
+//! still visible as a wall - it just does not let anything behind it be seen.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
-use cdda_core_types::level::Level;
-use cdda_core_types::shadowcasting::FourQuadrants;
-use cdda_core_types::vision::{apparent_light_at, shown_at};
-use std::collections::BTreeMap;
+use cdda_core_types::vision::sees_on_one_level;
 
-const OPEN: u32 = 1;
-const WALL: u32 = 2;
+const SIDE: i32 = 12;
 
-fn level() -> Level {
-    let mut level = Level::new();
-    level.ensure(0, 0, OPEN);
-    level
+/// A room of the given side with the listed squares opaque.
+fn room(walls: &[(i32, i32)]) -> impl Fn(i32, i32) -> bool + '_ {
+    move |x, y| !walls.contains(&(x, y))
 }
 
-fn blocks(terrain: u32) -> bool {
-    terrain == WALL
-}
-
-fn lit(squares: &[(i32, i32)], luminance: f32) -> BTreeMap<(i32, i32), FourQuadrants> {
-    let mut light = BTreeMap::new();
-    for square in squares {
-        light.insert(*square, FourQuadrants::uniform(luminance));
-    }
-    light
+fn in_bounds(x: i32, y: i32) -> bool {
+    (0..SIDE).contains(&x) && (0..SIDE).contains(&y)
 }
 
 #[test]
-fn a_square_in_sight_and_in_light_is_shown() {
-    let mut level = level();
-    let light = lit(&[(5, 6)], 30.0);
-    assert!(shown_at(&mut level, (5, 5), 5, blocks, &light, (5, 6)));
+fn an_open_room_can_be_seen_across() {
+    let transparent = room(&[]);
+    assert!(sees_on_one_level(
+        (1, 1),
+        (9, 9),
+        60,
+        transparent,
+        in_bounds
+    ));
 }
 
 #[test]
-fn a_square_in_sight_but_in_the_dark_is_not_shown() {
-    let mut level = level();
-    let light = BTreeMap::new();
+fn a_wall_in_the_way_stops_the_sight() {
+    let transparent = room(&[(5, 5)]);
+    assert!(!sees_on_one_level(
+        (1, 1),
+        (9, 9),
+        60,
+        transparent,
+        in_bounds
+    ));
+}
+
+#[test]
+fn the_square_being_looked_at_is_seen_even_when_it_is_the_wall() {
+    // The reference exits the walk before testing the last square, and says so in a comment: "Exit before checking the last square, it's still visible even if
+    // opaque" (`map.cpp:7345-7347`). So a wall is seen as a wall; only what is **behind** it is not.
+    let transparent = room(&[(9, 9)]);
+    assert!(sees_on_one_level(
+        (1, 1),
+        (9, 9),
+        60,
+        transparent,
+        in_bounds
+    ));
+}
+
+#[test]
+fn nothing_is_seen_past_the_range() {
+    let transparent = room(&[]);
+    assert!(!sees_on_one_level(
+        (1, 1),
+        (9, 9),
+        5,
+        &transparent,
+        in_bounds
+    ));
     assert!(
-        !shown_at(&mut level, (5, 5), 5, blocks, &light, (5, 6)),
-        "the cast reaches it, but there is nothing to see by"
+        sees_on_one_level((1, 1), (5, 5), 5, &transparent, in_bounds),
+        "and exactly at the range it is still seen"
     );
 }
 
 #[test]
-fn a_lit_square_behind_a_wall_is_not_shown() {
-    let mut level = level();
-    for y in 0..12 {
-        level.set_terrain(9, y, WALL, OPEN);
-    }
-    let light = lit(&[(10, 5)], 30.0);
-    assert!(
-        !shown_at(&mut level, (5, 5), 5, blocks, &light, (10, 5)),
-        "light on the far side does not help"
-    );
+fn nothing_off_the_level_is_seen() {
+    let transparent = room(&[]);
+    assert!(!sees_on_one_level(
+        (1, 1),
+        (20, 5),
+        60,
+        transparent,
+        in_bounds
+    ));
 }
 
 #[test]
-fn the_brightest_quadrant_is_the_one_that_counts() {
-    let mut light = BTreeMap::new();
-    let mut quadrants = FourQuadrants::uniform(1.0);
-    quadrants.set(cdda_core_types::shadowcasting::Quadrant::SouthEast, 42.0);
-    light.insert((3, 3), quadrants);
-    assert!((apparent_light_at(&light, (3, 3)) - 42.0).abs() < 1e-6);
+fn a_diagonal_through_a_corner_squeezes_between_the_two_walls() {
+    // The walk steps through one of the two cells that touch the corner, and which one is the Bresenham tie-break. This pins the answer rather than the intent: the
+    // reference's line from (0,0) to (2,2) takes (1,1) first, so a wall pair at (1,0) and (0,1) leaves the diagonal open.
+    let transparent = room(&[(1, 0), (0, 1)]);
     assert!(
-        apparent_light_at(&light, (3, 4)).abs() < 1e-6,
-        "an unlit square is zero"
+        sees_on_one_level((0, 0), (2, 2), 60, transparent, in_bounds),
+        "the diagonal passes through (1,1), which is open"
     );
+
+    // And a wall on the diagonal itself closes it.
+    let blocked = room(&[(1, 1)]);
+    assert!(!sees_on_one_level((0, 0), (2, 2), 60, blocked, in_bounds));
 }

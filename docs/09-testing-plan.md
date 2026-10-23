@@ -6,6 +6,17 @@ fails. Every number marked **target** is a goal to be measured, not a measuremen
 
 ---
 
+## Where the gates run
+
+The gates belong on the remote build machine, not on the developer's laptop:
+
+    python3 tools/remote_test.py --clippy
+
+That one command syncs the workspace, runs `tools/test_fast.py`, runs `tools/check_docs.py`, and runs
+`cargo clippy --workspace --all-targets -- -D warnings` on `cyc@elitedesk`, then prints the receipt line.
+Local cargo is for diagnosing a single failure, never for the gate: a full debug build of the workspace
+plus a test build is minutes of CPU on the machine someone is trying to use.
+
 ## 1. What "the same" means
 
 Absolute sameness is not attainable and is not the claim. The claim is:
