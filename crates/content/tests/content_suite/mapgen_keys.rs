@@ -563,3 +563,67 @@ fn terrain_ids() -> BTreeSet<String> {
         })
         .collect()
 }
+
+fn draw_all(path: &Path, palettes: &std::collections::BTreeMap<String, cdda_json::Object>, chunks: &mut usize, squares: &mut usize) {
+    let Ok(entries) = std::fs::read_dir(path) else { return };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            draw_all(&path, palettes, chunks, squares);
+        } else if path.extension().is_some_and(|extension| extension == "json") {
+            let Ok(text) = std::fs::read_to_string(&path) else { continue };
+            let Ok(Value::Array(entries)) = parse(text.as_bytes()) else { continue };
+            for entry in &entries {
+                let Value::Object(object) = entry else { continue };
+                if !matches!(object.get("type"), Some(Value::Str(kind)) if kind == "mapgen") {
+                    continue;
+                }
+                let Some(Value::Object(inner)) = object.get("object") else { continue };
+                let (Some(Value::Array(rows)), Some(Value::Array(names))) = (inner.get("rows"), inner.get("palettes"))
+                else {
+                    continue;
+                };
+                let rows: Vec<String> = rows
+                    .iter()
+                    .filter_map(|row| match row {
+                        Value::Str(text) => Some(text.clone()),
+                        _ => None,
+                    })
+                    .collect();
+                let names: Vec<String> = names
+                    .iter()
+                    .filter_map(|name| match name {
+                        Value::Str(name) => Some(name.clone()),
+                        _ => None,
+                    })
+                    .collect();
+                let terrain = match inner.get("terrain") {
+                    Some(Value::Object(terrain)) => Some(terrain),
+                    _ => None,
+                };
+                let drawn = cdda_content::mapgen::draw_chunk(&rows, terrain, &names, &|name| {
+                    palettes.get(name).cloned()
+                })
+                .unwrap_or_else(|why| panic!("{why}"));
+                *chunks += 1;
+                *squares += drawn.iter().map(Vec::len).sum::<usize>();
+            }
+        }
+    }
+}
+
+
+#[test]
+fn a_chunk_that_names_palettes_draws_through_them_with_its_own_map_winning() {
+    // The two mechanisms together: palettes supply the symbols, the entry's own terrain map wins where both define one, and spaces draw nothing. Run over every chunk in the data that
+    // draws a grid and names at least one palette - the 2,411 that reading `object.terrain` alone would leave blank.
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json");
+    let mut palettes: std::collections::BTreeMap<String, cdda_json::Object> = std::collections::BTreeMap::new();
+    gather_palettes(&root, &mut palettes);
+
+    let mut chunks = 0;
+    let mut squares = 0;
+    draw_all(&root, &palettes, &mut chunks, &mut squares);
+    assert!(chunks > 2_000, "chunks drawing through palettes: {chunks}");
+    assert!(squares > 100_000, "and squares drawn: {squares}");
+}

@@ -449,3 +449,54 @@ pub fn palette_symbols(
     gather(names, lookup, &mut visited, &mut into);
     into
 }
+
+/// Draws one chunk: its rows become terrain ids through its palettes and its own terrain map.
+///
+/// Reference: `mapgen.cpp`'s draw step, which resolves a symbol through the mapgen's own `terrain` first and its palettes afterwards - the entry's map is what a chunk author writes
+/// last, so it wins. A space draws nothing, as in [`resolve_rows`].
+///
+/// # Errors
+///
+/// Returns the character that no palette and no inline map supplies, because a silent default would draw a chunk the game never draws.
+pub fn draw_chunk(
+    rows: &[String],
+    terrain: Option<&Object>,
+    palettes: &[String],
+    lookup: &dyn Fn(&str) -> Option<Object>,
+) -> Result<Vec<Vec<Option<String>>>, String> {
+    let mut symbols = palette_symbols(palettes, lookup);
+    if let Some(terrain) = terrain {
+        for (id, value) in terrain.members() {
+            let mut put = |symbol: char| {
+                symbols.insert(symbol, id.clone());
+            };
+            match value {
+                Value::Str(text) => text.chars().for_each(&mut put),
+                Value::Array(items) => {
+                    for item in items {
+                        if let Value::Str(text) = item {
+                            text.chars().for_each(&mut put);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    let mut drawn = Vec::with_capacity(rows.len());
+    for row in rows {
+        let mut line = Vec::with_capacity(row.len());
+        for symbol in row.chars() {
+            if symbol == ' ' {
+                line.push(None);
+                continue;
+            }
+            match symbols.get(&symbol) {
+                Some(id) => line.push(Some(id.clone())),
+                None => return Err(format!("'{symbol}' has no terrain, inline or in a palette")),
+            }
+        }
+        drawn.push(line);
+    }
+    Ok(drawn)
+}
