@@ -406,6 +406,31 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Buffered sources, and rays a neighbour already casts (round 386)
+
+The reference does not cast a light source when it reads it. It **records** it, walks the whole map, and only then casts (`lightmap.cpp:463-464`, `654-659`, `666-670`).
+Recording first is what lets a square ask "is my neighbour already lit at least as brightly" - and if it is, the reference skips that direction entirely (`:1257-1290`):
+
+```text
+record every buffered emitter -> for each recorded square, cast only the directions
+                                  whose neighbour is not at least as bright
+```
+
+| Piece | Reference | Port |
+|---|---|---|
+the buffer | `light_source_buffer`, `max` of two sources on a square | `Level::add_light_source`, `Level::buffered_sources` |
+applying | loop over the buffer calling `apply_light_source` | `Level::apply_buffered_sources` |
+the skip | `buffer[neighbour] < luminance` decides each of four directions | the same test, through `OCTANT_DIRECTIONS` |
+unbuffered | items and creatures cast immediately and are not recorded | `Level::apply_light_source_with` |
+draining | the buffer is zeroed each build | cleared when applied, pinned by a test |
+
+**The observable consequence is a test.** Two buffered fires side by side give the *same* light east of the pair as the eastern fire alone - the western one skips its eastward
+rays - while an unbuffered source beside them still casts in every direction. That is the difference between "the port casts everything" and "the port casts what the game casts",
+and it is the kind of difference that never shows in a screenshot.
+
+**A table of directions beats eight magic indices.** The port's transform table is the reference's eight octants in the reference's order, so a `Direction` per octant names the
+mapping once and lets the skip rule be read as four sentences instead of a bitmask.
+
 ## The frame asks once (round 385)
 
 Round 384 built the sight cast once; the rule functions still built one per square. They take the cast now, so a draw loop casts the sight once and reads forty-nine squares from it.

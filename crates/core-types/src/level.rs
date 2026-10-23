@@ -43,6 +43,11 @@ pub struct Level {
     transparency_builds: u32,
     /// How many sight casts have been built, which is the level's receipt for "one cast, many readers".
     sight_casts: u32,
+    /// Buffered light sources, recorded before any of them casts.
+    ///
+    /// Reference: `level_cache::light_source_buffer` (`src/lightmap.cpp:666-670`), filled by the gathering loop and drained afterwards (`:654-659`). Recording first is what
+    /// lets a square ask "is my neighbour already lit at least as brightly" before it decides which directions to cast into.
+    buffered: BTreeMap<(i32, i32), f32>,
 }
 
 impl Level {
@@ -242,6 +247,18 @@ impl SeenGrid {
     }
 }
 
+/// One light source's cast: where it is, how bright, and how to look at the square it crosses.
+pub struct Source<'a> {
+    /// The square the source stands on.
+    pub at: (i32, i32),
+    /// How bright it is.
+    pub luminance: f32,
+    /// The weather's sight penalty, which attenuates every ray.
+    pub sight_penalty: f32,
+    /// What a square is like: terrain and furniture transparency, the outside cache, and the fields standing on it.
+    pub facts: &'a dyn Fn(i32, i32) -> crate::transparency::SquareFacts,
+}
+
 impl Level {
     /// The sight cast over the square of world around an origin, to be read square by square.
     ///
@@ -348,6 +365,69 @@ impl Level {
             }
         }
         rows
+    }
+
+    /// Records a buffered light source, without casting it.
+    ///
+    /// Reference: `map::add_light_source` (`src/lightmap.cpp:666-670`): the buffer keeps the **brighter** of two sources on one square, because two fires on a square are one
+    /// light. Terrain, furniture and fields are added this way; items and creatures are applied directly.
+    pub fn add_light_source(&mut self, origin: (i32, i32), luminance: f32) {
+        let entry = self.buffered.entry(origin).or_insert(0.0);
+        if luminance > *entry {
+            *entry = luminance;
+        }
+    }
+
+    /// How many buffered sources are waiting to be applied.
+    #[must_use]
+    pub fn buffered_sources(&self) -> usize {
+        self.buffered.len()
+    }
+
+    /// Casts every buffered source, skipping a direction a brighter neighbour already covers.
+    ///
+    /// Reference: the second phase of `map::generate_lightmap` (`src/lightmap.cpp:654-659`) calling `apply_light_source`, whose neighbour test is here: a square does not cast
+    /// into a direction when the square that way holds a buffered source at least as bright (`:1257-1290`). The neighbour's own cast covers the squares beyond, so the answer is
+    /// the same apart from the one square of attenuation the reference is happy to lose.
+    pub fn apply_buffered_sources(
+        &mut self,
+        sight_penalty: f32,
+        facts: impl Fn(i32, i32) -> crate::transparency::SquareFacts,
+        light: &mut BTreeMap<(i32, i32), crate::shadowcasting::FourQuadrants>,
+    ) {
+        let buffered = self.buffered.clone();
+        // The reference zeroes the buffer at the start of every build (`lightmap.cpp:463-464`); the port drains it here, which is the same statement at the other end.
+        self.buffered.clear();
+        for ((x, y), luminance) in &buffered {
+            let (x, y, luminance) = (*x, *y, *luminance);
+            let mut allow = [true; crate::shadowcasting::OCTANTS];
+            for (index, direction) in crate::shadowcasting::OCTANT_DIRECTIONS.iter().enumerate() {
+                let neighbour = match direction {
+                    crate::shadowcasting::Direction::North => (x, y - 1),
+                    crate::shadowcasting::Direction::East => (x + 1, y),
+                    crate::shadowcasting::Direction::South => (x, y + 1),
+                    crate::shadowcasting::Direction::West => (x - 1, y),
+                };
+                // `< luminance`, not `<=`: a neighbour that is **not** brighter fails the test and the direction is skipped.
+                if buffered
+                    .get(&neighbour)
+                    .is_some_and(|theirs| *theirs >= luminance)
+                    && let Some(slot) = allow.get_mut(index)
+                {
+                    *slot = false;
+                }
+            }
+            self.apply_light_source_where(
+                &Source {
+                    at: (x, y),
+                    luminance,
+                    sight_penalty,
+                    facts: &facts,
+                },
+                light,
+                allow,
+            );
+        }
     }
 
     /// Whether a square can be seen from an origin, using the cached cast.
@@ -485,10 +565,11 @@ impl Level {
         crate::shadowcasting::TransparencyGrid::new(side, cells)
     }
 
-    /// Casts one light source using the transcribed transparency rule.
+    /// Casts one light source using the transcribed transparency rule, without recording it.
     ///
-    /// Reference: `map::apply_light_source` (`lightmap.cpp:1217-1294`). The `facts` closure answers, per square, what the transparency cache would
-    /// answer for it - terrain and furniture flags, whether it is under the sky, and its fields.
+    /// Reference: `map::apply_light_source` (`lightmap.cpp:1217-1294`). The `facts` closure answers, per square, what the transparency cache would answer for it - terrain and
+    /// furniture flags, whether it is under the sky, and its fields. Sources that come from the map's own data go through the buffer instead ([`Level::add_light_source`]), because
+    /// a square needs to know whether a neighbour is already lit before it decides which directions to cast into.
     pub fn add_light_source_with(
         &mut self,
         origin: (i32, i32),
@@ -497,11 +578,49 @@ impl Level {
         facts: impl Fn(i32, i32) -> crate::transparency::SquareFacts,
         light: &mut BTreeMap<(i32, i32), crate::shadowcasting::FourQuadrants>,
     ) {
-        // The source's own square is lit before any ray is cast: `lm[p] = max( lm[p], max( lit_level::LOW, luminance ) )` (`lightmap.cpp:1229-1233`). Without it a
-        // lamp lights the room and leaves itself dark, which is exactly what the emitter test caught.
+        self.apply_light_source_with(origin, luminance, sight_penalty, facts, light);
+    }
+
+    /// Casts one source immediately, into every direction, and does **not** record it.
+    ///
+    /// Reference: `map::apply_light_source` called directly (`src/lightmap.cpp:1217-1290`), which is what items and creatures do: they neither consult the buffer nor fill it, so
+    /// a flare is cast in full even when a fire beside it is already lit.
+    pub fn apply_light_source_with(
+        &mut self,
+        origin: (i32, i32),
+        luminance: f32,
+        sight_penalty: f32,
+        facts: impl Fn(i32, i32) -> crate::transparency::SquareFacts,
+        light: &mut BTreeMap<(i32, i32), crate::shadowcasting::FourQuadrants>,
+    ) {
+        self.apply_light_source_where(
+            &Source {
+                at: origin,
+                luminance,
+                sight_penalty,
+                facts: &facts,
+            },
+            light,
+            [true; crate::shadowcasting::OCTANTS],
+        );
+    }
+
+    /// One source's cast, into the directions a caller allows.
+    fn apply_light_source_where(
+        &mut self,
+        source: &Source<'_>,
+        light: &mut BTreeMap<(i32, i32), crate::shadowcasting::FourQuadrants>,
+        allow: [bool; crate::shadowcasting::OCTANTS],
+    ) {
+        let Source {
+            at: (x, y),
+            luminance,
+            sight_penalty,
+            facts,
+        } = *source;
         let own = luminance.max(1.0);
         let cell = light
-            .entry(origin)
+            .entry((x, y))
             .or_insert_with(|| crate::shadowcasting::FourQuadrants::uniform(0.0));
         if cell.max() < own {
             *cell = crate::shadowcasting::FourQuadrants::uniform(cell.max().max(own));
@@ -510,46 +629,39 @@ impl Level {
         if radius <= 0 {
             return;
         }
-        let grid = self.transparency_grid(origin, radius, sight_penalty, facts);
-        Self::apply_cast(origin, radius, luminance, &grid, light);
-    }
-
-    /// Writes one cast of light into the map.
-    ///
-    /// Reference: `map::apply_light_source` (`lightmap.cpp:1217-1294`), whose cast is the octant sweep in
-    /// [`crate::shadowcasting::cast_light_quadrants`]. That sweep already decides, per square, **which two quarters** the ray entered by, so nothing here
-    /// has to guess a facing: it takes the brighter of the two answers per quarter and stops.
-    fn apply_cast(
-        origin: (i32, i32),
-        radius: i32,
-        luminance: f32,
-        grid: &crate::shadowcasting::TransparencyGrid,
-        light: &mut BTreeMap<(i32, i32), crate::shadowcasting::FourQuadrants>,
-    ) {
-        use crate::shadowcasting::cast_light_quadrants;
+        let grid = self.transparency_grid((x, y), radius, sight_penalty, facts);
         let side = usize::try_from(radius * 2 + 1).unwrap_or(1);
-        let cast = cast_light_quadrants(grid, (radius, radius), radius, luminance, false);
-        for grid_y in 0..side {
-            for grid_x in 0..side {
-                let Some(&value) = cast.get(grid_x * side + grid_y) else {
-                    continue;
-                };
-                if value.max() <= 0.0 {
-                    continue;
-                }
-                let Ok(offset_x) = i32::try_from(grid_x) else {
-                    continue;
-                };
-                let Ok(offset_y) = i32::try_from(grid_y) else {
-                    continue;
-                };
-                let offset_x = offset_x - radius;
-                let offset_y = offset_y - radius;
-                let entry = light
-                    .entry((origin.0 + offset_x, origin.1 + offset_y))
-                    .or_insert_with(|| crate::shadowcasting::FourQuadrants::uniform(0.0));
-                *entry = entry.max_with(value);
+        let cast = crate::shadowcasting::cast_light_octants(
+            &grid,
+            (radius, radius),
+            radius,
+            luminance,
+            false,
+            allow,
+        );
+        for (index, quarters) in cast.iter().enumerate() {
+            let (Some(grid_x), Some(grid_y)) = (index.checked_div(side), index.checked_rem(side)) else {
+                continue;
+            };
+            if quarters.max() <= 0.0 {
+                continue;
+            }
+            let square = (
+                x + i32::try_from(grid_x).unwrap_or(0) - radius,
+                y + i32::try_from(grid_y).unwrap_or(0) - radius,
+            );
+            let entry = light
+                .entry(square)
+                .or_insert_with(|| crate::shadowcasting::FourQuadrants::uniform(0.0));
+            for quarter in [
+                crate::shadowcasting::Quadrant::NorthEast,
+                crate::shadowcasting::Quadrant::SouthEast,
+                crate::shadowcasting::Quadrant::SouthWest,
+                crate::shadowcasting::Quadrant::NorthWest,
+            ] {
+                crate::shadowcasting::update_light_quadrants(entry, quarters.get(quarter), quarter);
             }
         }
     }
+
 }

@@ -631,8 +631,65 @@ pub fn cast_light_quadrants(
     numerator: f32,
     circular: bool,
 ) -> Vec<FourQuadrants> {
+    cast_light_octants(
+        grid,
+        origin,
+        radius,
+        numerator,
+        circular,
+        [true; OCTANTS],
+    )
+}
+
+/// How many octants a quadrant cast runs, one pair per direction.
+pub const OCTANTS: usize = 8;
+
+/// The direction each octant casts into, in [`TRANSFORMS`] order.
+///
+/// The reference's `apply_light_source` calls its caster with eight transform pairs, grouped by direction (`src/lightmap.cpp:1260-1290`); the port keeps the same eight in the
+/// same order, so a caller that wants to skip a direction can name it here and let the table do the mapping.
+pub const OCTANT_DIRECTIONS: [Direction; OCTANTS] = [
+    Direction::West,
+    Direction::South,
+    Direction::East,
+    Direction::South,
+    Direction::West,
+    Direction::North,
+    Direction::East,
+    Direction::North,
+];
+
+/// Which way a pair of octants casts, for [`OCTANT_DIRECTIONS`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Direction {
+    /// Towards smaller y.
+    North,
+    /// Towards larger x.
+    East,
+    /// Towards larger y.
+    South,
+    /// Towards smaller x.
+    West,
+}
+
+/// The quadrant cast, running only the octants a caller allows.
+///
+/// Reference: `map::apply_light_source` (`src/lightmap.cpp:1217-1290`), which skips a direction when a neighbour holds a buffered source at least as bright - that neighbour's
+/// own cast covers the squares beyond, so casting both would only spend time.
+#[must_use]
+pub fn cast_light_octants(
+    grid: &TransparencyGrid,
+    origin: (i32, i32),
+    radius: i32,
+    numerator: f32,
+    circular: bool,
+    allow: [bool; OCTANTS],
+) -> Vec<FourQuadrants> {
     let mut lit = vec![FourQuadrants::uniform(0.0); grid.side * grid.side];
-    for transform in TRANSFORMS {
+    for (index, transform) in TRANSFORMS.into_iter().enumerate() {
+        if !allow.get(index).copied().unwrap_or(false) {
+            continue;
+        }
         let quad = quadrant_from_x_y(-transform[0] - transform[1], -transform[2] - transform[3]);
         let mut cast = Cast {
             lit: &mut lit,
