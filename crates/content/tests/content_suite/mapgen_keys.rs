@@ -281,3 +281,52 @@ fn a_mapgen_entry_keeps_its_map_under_object_and_never_at_the_top_level() {
     assert_eq!(counts.get("palette at the top"), None, "none writes a palette there either");
     assert_eq!(counts.get("under object"), Some(&6216), "and **every** entry keeps its map under object");
 }
+
+#[test]
+fn the_eight_ways_the_data_declares_a_chunk_s_terrain_are_stable() {
+    // Every combination of "draws a grid", "declares terrain inline" and "names palettes", counted over the whole data. A generator has to satisfy all eight, and four of them are the
+    // ones that are easy to get wrong: no grid at all, a palette lookup that reading `terrain` would skip, a grid with no terrain anywhere, and placement-only entries.
+    fn count(directory: &Path, into: &mut std::collections::BTreeMap<(bool, bool, bool), usize>) {
+        let Ok(entries) = std::fs::read_dir(directory) else { return };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                count(&path, into);
+            } else if path.extension().is_some_and(|extension| extension == "json") {
+                let Ok(text) = std::fs::read_to_string(&path) else { continue };
+                let Ok(Value::Array(entries)) = parse(text.as_bytes()) else { continue };
+                for entry in &entries {
+                    let Value::Object(object) = entry else { continue };
+                    if !matches!(object.get("type"), Some(Value::Str(kind)) if kind == "mapgen") {
+                        continue;
+                    }
+                    let Some(Value::Object(inner)) = object.get("object") else { continue };
+                    let shape = (
+                        inner.get("rows").is_some(),
+                        inner.get("terrain").is_some(),
+                        inner.get("palettes").is_some(),
+                    );
+                    *into.entry(shape).or_default() += 1;
+                }
+            }
+        }
+    }
+
+    let mut counts = std::collections::BTreeMap::new();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json");
+    count(&root, &mut counts);
+    let expected = [
+        ((true, false, true), 2411),
+        ((true, true, true), 1701),
+        ((false, false, false), 1302),
+        ((true, true, false), 627),
+        ((true, false, false), 150),
+        ((false, false, true), 17),
+        ((false, true, false), 7),
+        ((false, true, true), 1),
+    ];
+    for (shape, number) in expected {
+        assert_eq!(counts.get(&shape).copied().unwrap_or(0), number, "shape {shape:?}");
+    }
+    assert_eq!(counts.values().sum::<usize>(), 6216, "and the eight partition the data");
+}
