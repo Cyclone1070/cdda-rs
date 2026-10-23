@@ -42,6 +42,7 @@ mod level_lighting;
 mod light;
 mod light_cast;
 mod light_buffer;
+mod light_invalidation;
 mod light_source;
 mod light_source_rules;
 mod line;

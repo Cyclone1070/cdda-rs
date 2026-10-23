@@ -848,6 +848,30 @@ impl std::ops::Deref for Map {
     }
 }
 
+impl std::ops::DerefMut for Map {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+
+impl Map {
+    /// Applies what a weather update reported, and answers whether the map was flushed.
+    ///
+    /// Reference: `weather.cpp:938-941`. The condition is the **sight penalty**, not the weather: `sunny` to `clear` changes the sky and costs nothing, while `clear` to `fog` dims
+    /// every ray on the level and has to dirty every level's cache. The port's map holds one level today, so the reference's loop over `-OVERMAP_DEPTH..=OVERMAP_HEIGHT` is a single
+    /// mark; when the levels exist, this is the place that grows the loop.
+    pub fn on_weather_change(&mut self, change: cdda_content::weather::Change) -> bool {
+        match change {
+            cdda_content::weather::Change::Weather { sight_changed: true } => {
+                self.0.mark_weather_changed();
+                true
+            }
+            _ => false,
+        }
+    }
+}
+
 /// Terrain that light cannot pass.
 pub const SOLID_TERRAIN: u32 = 0;
 

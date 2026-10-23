@@ -2986,6 +2986,23 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The weather's one reach into the map (round 512)
+
+`weather.cpp:938-941` is three lines and the only place weather touches the map: when the sight penalty changes, every level's transparency cache is dirtied and the seen cache with
+it. The port's manager reports `Change::Weather { sight_changed }` and `Map::on_weather_change` receives it.
+
+The distinction the reference draws is the sight **penalty**, not the weather: `sunny` to `clear` is a different sky with the same absorption and costs nothing, while `clear` to `fog`
+dims every ray on the level. A flush that fired on every change would be correct and would redraw the world every time the weather moved; the gate pins both directions - an
+unchanged penalty leaves the light alone, a changed one rebuilds it exactly once.
+
+A flush is a **note, not a construction**. `Level::mark_weather_changed` sets the stale flag and the next read rebuilds, which is the reference's ordering too: the weather update
+cannot cast light, and a rebuild inside it would have nowhere to put the result.
+
+**The trap this round set for itself:** the first version of the invalidation gate was written but never registered in the suite, so the run came back green against methods that did
+not exist. Registering it turned the run red immediately - a reminder that a green suite only proves what the suite actually contains.
+
+**Declared gap, unchanged:** the reference's flush loops over `-OVERMAP_DEPTH..=OVERMAP_HEIGHT`; the port's map holds one level, so the loop is one mark until the levels exist.
+
 ## The weather as a tick (round 511)
 
 `weather::System::tick` is the first thing in the port that is a **tick**: one call that computes the point from the generator, decides the sky from the data's own conditions, and

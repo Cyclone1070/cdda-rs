@@ -533,6 +533,20 @@ impl Level {
         }
     }
 
+    /// Whether the light would have to be rebuilt before it can be trusted.
+    #[must_use]
+    pub fn light_is_stale(&self) -> bool {
+        self.light_dirty || self.light.is_none()
+    }
+
+    /// Marks the light stale because the sky changed (`weather.cpp:938-941`).
+    ///
+    /// Reference: the weather update dirties **every** level's transparency cache when the sight penalty changes, and then the seen cache, because the penalty attenuates every
+    /// ray on every level at once. The rebuild itself waits for the next map read, as it does in the reference - a flush is a note, not a construction.
+    pub fn mark_weather_changed(&mut self) {
+        self.light_dirty = true;
+    }
+
     /// How many times light has been rebuilt; the level's own receipt.
     #[must_use]
     pub fn light_rebuilds(&self) -> u32 {

@@ -260,8 +260,8 @@ three against the reference's own recorded day. Two things finish it and one thi
 
 1. ~~Join the pieces into one call~~ - done in round 511: `weather::System::tick` computes the point, decides the sky and books the next change in one call, and reproduces the
    recorded day from the recorded dice alone.
-2. **The transparency flush, for real** - `sight_changed` is reported but nothing consumes it yet. The map's caches and their dirty flags are M2's next subject, and they are what
-   light will need anyway.
+2. ~~The transparency flush, for real~~ - done in round 512: `Map::on_weather_change` marks the level's light stale exactly when the sight penalty changes, and the next read rebuilds
+   once. The reference's loop over the overmap's depth is a single mark until the port has more than one level.
 3. Then light across z-levels, and vision.
 
 ## 4. Phase detail
