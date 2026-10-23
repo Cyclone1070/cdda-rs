@@ -46,3 +46,4 @@ pub mod weighted;
 
 // Modules are added one at a time, test first. See docs/10-task-breakdown.md
 // (P0-T4 onward) for the order.
+pub mod transparency;

@@ -406,6 +406,30 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## One square's transparency, computed twice over the same facts (round 358)
+
+`build_transparency_cache` (`lightmap.cpp:100-203`) asks a small rule about every square, and stores **two** answers because the game asks two different questions:
+
+| Answer | Meaning | Question it serves |
+|---|---|---|
+`transparency` | light gets through, fields included | how much light reaches here |
+`transparency_wo_fields` | the same with the fields removed | is there anything to see here at all |
+
+The rule itself, in the reference's order:
+
+1. **terrain and furniture must both be transparent** - a conjunction. An opaque table on a glass floor is opaque, and so is a transparent chair in a wall. Both answers are
+   solid, and the check comes **before** the fields, so smoke cannot make a wall less opaque.
+2. **weather** - a square under open sky is multiplied by the weather's `sight_penalty`. The reference's own FIXME admits that places inside vehicles are not marked as
+   inside yet, so the rain is wrongly counted there; the port keeps the rule and the FIXME is quoted at the call site rather than quietly fixed.
+3. **fields** - every field whose intensity level is not transparent multiplies the value by its `translucency`. It is a **multiplication, not the dimmest winning**: two
+   layers of half-opaque smoke leave a quarter of the light.
+
+The `wo_fields` answer is taken after step 2 and before step 3, which is exactly what makes it "the same square without its smoke". If it were taken before the weather, a
+rainy square would be marked as more see-through than it is; if after the fields, the two answers would be the same and the cache would be pointless.
+
+**And the reason the second answer exists is visibility, not light.** Smoke that made squares invisible would make a smoked room look like solid rock, so the "can I see
+it" test uses the answer that ignores smoke while the light map uses the one that does not.
+
 ## The order of `generate_lightmap` is the behaviour (round 357)
 
 `generate_lightmap( zlev )` (`lightmap.cpp:446-661`) builds a level's whole light map in seven steps, and every step depends on the one before it:

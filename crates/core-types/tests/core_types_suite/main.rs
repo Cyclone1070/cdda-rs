@@ -92,6 +92,7 @@ mod sunlight;
 mod sunlight_cache;
 mod text;
 mod tiles;
+mod transparency;
 mod units;
 mod units_reader;
 mod visibility;
