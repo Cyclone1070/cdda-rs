@@ -82,6 +82,11 @@ pub struct Session {
     /// A processor's own label says what it rolled but not which turn rolled it, so a flat slice cannot tell a turn whose gas could not spread from a turn whose
     /// processor never ran - and after the first such turn every later die is one position out.
     pub dice_by_turn: Vec<Recording>,
+    /// What the calendar said at each turn, as `calendar::turn` in turns.
+    ///
+    /// A field's decay is arithmetic on the clock - the half-life draws a **deadline**, and the field loses a level when the clock passes it - so a replay that aged a
+    /// field with a clock of zero would keep every field alive forever, or kill it at once, depending on which side of zero its deadline fell.
+    pub now: Vec<i64>,
     /// The wind on each turn, which a gas needs: its spread chance is `rng( 1, 100 - windpower )` and its destination is resisted when it blows into that wind.
     pub wind: Vec<Wind>,
     /// Where the fixture came from, so a failed assertion can say which one.
@@ -125,6 +130,10 @@ impl Session {
                     },
                 }
             })
+            .collect();
+        let now: Vec<i64> = array(object(&fixture).get("turns").expect("turns"))
+            .iter()
+            .map(|turn| object(turn).get("now").map_or(0, integer))
             .collect();
         let wind = array(object(&fixture).get("turns").expect("turns"))
             .iter()
@@ -175,6 +184,7 @@ impl Session {
             grid,
             dice_by_turn,
             turns,
+            now,
             wind,
             dice: processor_dice(&recording),
             name: name.to_string(),

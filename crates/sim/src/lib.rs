@@ -746,15 +746,32 @@ pub struct Wind {
 ///
 /// The sweep's door: `run_environment_turn` walks submaps in the reference's order and hands this the weather, a fixture replay hands it the recorded wind of each
 /// square, and both get the same rule.
+/// What a caller knows about a gas's world that the rule cannot see for itself.
+#[derive(Debug, Clone, Copy)]
+pub struct Surroundings<W, T> {
+    /// The wind at a square.
+    pub wind_at: W,
+    /// The half-life of a field type, which a newborn must be born with.
+    pub half_life_of: T,
+}
+
+/// Every gas of one kind on the squares of one submap, with the wind read **per square** and newborns born on their type's clock.
+///
+/// The sweep's door. `run_environment_turn` hands it the weather and the loaded field data; a fixture replay hands it the recorded wind of each square and the
+/// prototype dump's half-life, and both get the same rule.
 pub fn process_gas_in_wind(
     world: &mut World,
     id: FieldId,
     submap: Option<(i32, i32, i32)>,
     percent_spread: i32,
-    wind_at: impl Fn((i32, i32, i32)) -> Wind + Copy,
+    surroundings: Surroundings<impl Fn((i32, i32, i32)) -> Wind + Copy, impl Fn(FieldId) -> i64 + Copy>,
     can_take: impl Fn((i32, i32, i32), (i32, i32, i32)) -> bool + Copy,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) {
+    let Surroundings {
+        wind_at,
+        half_life_of,
+    } = surroundings;
     let mut order: Vec<(i32, i32, i32, Entity)> = Vec::new();
     let mut query = world.query::<(Entity, &Position, &Field)>();
     for (entity, position, field) in query.iter(world) {
@@ -767,7 +784,15 @@ pub fn process_gas_in_wind(
     }
     order.sort_by_key(|&(x, y, z, entity)| (x, y, z, entity.to_bits()));
     for (x, y, z, entity) in order {
-        process_one_gas(world, entity, percent_spread, wind_at((x, y, z)), can_take, rolls);
+        process_one_gas(
+            world,
+            entity,
+            percent_spread,
+            wind_at((x, y, z)),
+            half_life_of(id),
+            can_take,
+            rolls,
+        );
     }
 }
 
@@ -801,7 +826,7 @@ pub fn process_gas_in_submap(
             direction: 0,
             sheltered: false,
         };
-        process_one_gas(world, entity, percent_spread, wind, can_take, rolls);
+        process_one_gas(world, entity, percent_spread, wind, 1_000_000, can_take, rolls);
     }
 }
 
@@ -814,6 +839,7 @@ fn process_one_gas(
     entity: Entity,
     percent_spread: i32,
     wind: Wind,
+    half_life: i64,
     can_take: impl Fn((i32, i32, i32), (i32, i32, i32)) -> bool,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) {
@@ -863,7 +889,7 @@ fn process_one_gas(
         let Some(destination) = destination else {
             return;
         };
-        apply_gas_spread(world, entity, destination, id, &movement, intensity);
+        apply_gas_spread(world, entity, destination, id, &movement, intensity, half_life);
 
     }
 }
@@ -879,6 +905,7 @@ fn apply_gas_spread(
     id: FieldId,
     movement: &cdda_core_types::fire::GasSpread,
     intensity: i32,
+    half_life: i64,
 ) {
     let existing = {
         let mut query = world.query::<(Entity, &Position, &Field)>();
@@ -895,8 +922,9 @@ fn apply_gas_spread(
             field.entry.set_age(taken_age + movement.transferred_age);
         }
     } else {
-        let mut entry =
-            cdda_core_types::field::FieldEntry::new(intensity.max(1), 1_000_000, false, false);
+        // The newborn carries the **type's own** half-life: a mist born from a spreading mist must decay on the same clock as its parent, and a placeholder here
+        // is a field that outlives the reference's by however much the placeholder is larger.
+        let mut entry = cdda_core_types::field::FieldEntry::new(intensity.max(1), half_life, false, false);
         entry.set_intensity(1);
         entry.set_age(movement.transferred_age);
         world.spawn((
@@ -1866,7 +1894,7 @@ pub fn spread_gas(
         direction: context.wind_angle,
         sheltered: false,
     };
-    process_one_gas(world, source, percent_spread, wind, can_take, rolls);
+    process_one_gas(world, source, percent_spread, wind, 1_000_000, can_take, rolls);
 }
 
 /// Replaces one field on a square with another kind, carrying the age across.

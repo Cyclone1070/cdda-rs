@@ -49,6 +49,9 @@ struct Takes {
     permeable: std::collections::BTreeMap<String, bool>,
     /// What each terrain says about a step between levels, for `valid_move`'s vertical half.
     steps: std::collections::BTreeMap<String, cdda_core_types::movement::StepFacts>,
+    /// The gas's own numbers, straight from the prototype dump: its decay clock and how eagerly it spreads. A replay that hardcoded them would be replaying a
+    /// different gas - and it did, at 30%, which turned the extinguisher's ninety into a gate that refused three recorded dice.
+    gas: GasType,
 }
 
 impl Takes {
@@ -104,6 +107,7 @@ impl Takes {
             move_cost,
             permeable,
             steps,
+            gas: gas_type(session),
         }
     }
 
@@ -139,6 +143,88 @@ impl Takes {
     }
 }
 
+/// The wind each square stands in, straight from the fixture.
+///
+/// A gas on a roof and one in the cellar under it are in different winds on the same turn, and the recorded number is what the reference's own `get_local_windpower`
+/// answered for that square - so it is read per square and never averaged into one figure for the turn.
+fn wind_at(
+    recorded: &[crate::reference_session::Placed],
+    direction: i32,
+) -> impl Fn((i32, i32, i32)) -> cdda_sim::Wind + Copy + '_ {
+    move |square: (i32, i32, i32)| {
+        recorded
+            .iter()
+            .find(|field| (field.x, field.y, field.z) == square)
+            .map_or(cdda_sim::Wind::default(), |field| cdda_sim::Wind {
+                power: field.windpower,
+                direction,
+                sheltered: field.sheltered,
+            })
+    }
+}
+
+/// What the fixture's own gas is, from the field prototype dump.
+#[derive(Debug, Clone, Copy, Default)]
+struct GasType {
+    /// How long it takes the gas to lose an intensity, in turns.
+    half_life: i64,
+    /// Whether that half-life doubles with each level.
+    linear_half_life: bool,
+    /// The chance in a hundred that it spreads to a neighbour each turn.
+    percent_spread: i32,
+}
+
+/// How long the fixture's own gas takes to lose an intensity, from the field prototype dump.
+///
+/// The reference's `field_type::half_life` (`src/field_type.h:217`) is the clock a field's decay is arithmetic on, and a newborn mist must be born with its type's,
+/// not with a placeholder: the extinguisher loses a level every ten turns, and a port that gave it a million keeps it alive for the rest of the session.
+fn gas_type(session: &crate::reference_session::Session) -> GasType {
+    let Some(kind) = session
+        .turns
+        .first()
+        .and_then(|turn| turn.first())
+        .map(|field| field.kind.clone())
+    else {
+        return GasType::default();
+    };
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/fields.json");
+    let text = std::fs::read_to_string(path).expect("the field prototypes");
+    let cdda_json::Value::Object(root) = cdda_json::parse(text.as_bytes()).expect("valid JSON") else {
+        panic!("an object");
+    };
+    let Some(cdda_json::Value::Array(entries)) = root.get("prototypes") else {
+        panic!("prototypes");
+    };
+    entries
+        .iter()
+        .find_map(|entry| {
+            let cdda_json::Value::Object(object) = entry else {
+                return None;
+            };
+            let Some(cdda_json::Value::Str(id)) = object.get("id") else {
+                return None;
+            };
+            if id != &kind {
+                return None;
+            }
+            let half_life = match object.get("half_life") {
+                Some(cdda_json::Value::Int(value)) => *value,
+                _ => 0,
+            };
+            let linear = matches!(object.get("linear_half_life"), Some(cdda_json::Value::Bool(true)));
+            let percent_spread = match object.get("percent_spread") {
+                Some(cdda_json::Value::Int(value)) => i32::try_from(*value).unwrap_or(0),
+                _ => 0,
+            };
+            Some(GasType {
+                half_life,
+                linear_half_life: linear,
+                percent_spread,
+            })
+        })
+        .unwrap_or_default()
+}
+
 /// The submaps holding a field, in the reference's sweep order `(z, x, y)`.
 fn submaps(world: &mut World) -> Vec<(i32, i32, i32)> {
     let mut query = world.query::<&Position>();
@@ -167,7 +253,9 @@ fn replay(name: &str) -> (usize, usize, Vec<(usize, String)>) {
     let Some(first) = session.turns.get(1).and_then(|turn| turn.first()) else {
         panic!("the fixture has a second state");
     };
-    let mut entry = FieldEntry::new(3, 1_000_000, true, false);
+    // **The type's own half-life and decay shape**, not a placeholder: the reference's extinguisher loses a level every ten turns, and a mist handed a million keeps
+    // every intensity the fixture says it lost.
+    let mut entry = FieldEntry::new(3, takes.gas.half_life, takes.gas.linear_half_life, false);
     entry.set_intensity(first.intensity);
     entry.set_age(first.age);
     world.spawn((
@@ -194,24 +282,7 @@ fn replay(name: &str) -> (usize, usize, Vec<(usize, String)>) {
             query.iter(&world).collect()
         };
         let wind = session.wind.get(index).copied().unwrap_or(session.wind[0]);
-        // The wind each square stands in, straight from the fixture: a gas on a roof and one in the cellar under it are in different winds on the same turn, and the
-        // recorded number is what the reference's own `get_local_windpower` answered for that square.
-        let kept: Vec<(i32, i32, i32, i32, bool)> = recorded
-            .iter()
-            .map(|field| (field.x, field.y, field.z, field.windpower, field.sheltered))
-            .collect();
-        let wind_at = |square: (i32, i32, i32)| {
-            kept.iter()
-                .find(|&&(x, y, z, _, _)| (x, y, z) == square)
-                .map_or(
-                    cdda_sim::Wind::default(),
-                    |&(_, _, _, power, sheltered)| cdda_sim::Wind {
-                        power,
-                        direction: wind.direction,
-                        sheltered,
-                    },
-                )
-        };
+        let wind_at = wind_at(recorded, wind.direction);
         // The other half of `gas_can_spread_to`: the square can be walked, and a step to another level is legal. Whether the square already holds gas at least as
         // thick as the gas arriving is the crate's question, because only it can see the field a previous square of the same sweep left there.
         let can_take = |from: (i32, i32, i32), to: (i32, i32, i32)| takes.open(to) && takes.may_step(from, to);
@@ -222,6 +293,9 @@ fn replay(name: &str) -> (usize, usize, Vec<(usize, String)>) {
             .cloned()
             .unwrap_or_else(|| cdda_core_types::rng::Recording::parse("").expect("empty"));
         let offered = recorded_dice.remaining();
+        if std::env::var("GAS_TRACE").is_ok() {
+            eprintln!("turn {index}: {offered} dice, now {}, port {:?}", session.now.get(index - 1).copied().unwrap_or(0), fields(&mut world));
+        }
         let mut rolls = Rolls::replaying(recorded_dice);
         // **The sweep submap by submap, aging as it goes.** The reference visits submaps in ascending `(z, x, y)` and ages a field when it reaches the field's own
         // submap (`map_field.cpp:164-184`), so a gas born in a submap the sweep has already passed is not aged this turn. Decaying everything at the end of the turn
@@ -232,7 +306,19 @@ fn replay(name: &str) -> (usize, usize, Vec<(usize, String)>) {
         while let Some(key) = submaps(&mut world).into_iter().find(|key| cursor.is_none_or(|cursor| *key > cursor)) {
             cursor = Some(key);
             let _ = wind;
-            cdda_sim::process_gas_in_wind(&mut world, GAS, Some(key), 30, wind_at, can_take, &mut rolls);
+            let half_life_of = |_id: FieldId| takes.gas.half_life;
+            cdda_sim::process_gas_in_wind(
+                &mut world,
+                GAS,
+                Some(key),
+                takes.gas.percent_spread,
+                cdda_sim::Surroundings {
+                    wind_at,
+                    half_life_of,
+                },
+                can_take,
+                &mut rolls,
+            );
             let positions: Vec<(Entity, i32, i32)> = {
                 let mut query = world.query::<(Entity, &Position)>();
                 query
@@ -244,7 +330,7 @@ fn replay(name: &str) -> (usize, usize, Vec<(usize, String)>) {
             cdda_sim::decay_the_fields_the_sweep_found(
                 &mut world,
                 &positions,
-                0,
+                session.now.get(index - 1).copied().unwrap_or(0),
                 &mut Rolls::new(7),
                 |_field| None,
                 |_, _, _| {},
@@ -297,7 +383,7 @@ fn a_gas_on_a_stairwell_falls_the_way_the_recording_says() {
 }
 
 #[test]
-#[ignore = "red on the field's own decay, not on the wind: \n extinguisher drops from intensity three to two on turn two with three dice and no destination, and the replay's ageing pass hands \n `do_decay` a clock of zero because the fixture does not record the calendar. The blocker branch itself is exercised and correct - \n the three recorded reals are spent where they belong. Next: record `now` in the fixture"]
+#[ignore = "red on the sweep's decay order, not on the wind: \n the reference decays each field inside the per-square loop, so a newborn is aged this turn only if the \n sweep has not yet passed its square; the port batches a submap's decay after its gases and ages every newborn once. \n Measured against corpus/fields/gas-wind.json: turn three puts age two on a newborn the reference leaves at one, \n and two on a risen field the reference resets to zero. Squares and intensities agree. Next: decay per square"]
 fn a_gas_on_a_roof_spreads_into_the_wind_the_recording_says() {
     // The **wind-blocker** branch, end to end: the gas stands at z 1 under a wind of eighteen with no shelter, so the three squares facing the wind each cost a real
     // draw, and the session cannot be replayed without the branch - the recorded reals have nowhere to go and every later draw is one position out.

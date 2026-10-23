@@ -2986,6 +2986,29 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The decay clock is data, and the dump did not have it (round 524)
+
+Three instrument gaps fell out of trying to replay one roof fixture, each found by a divergence rather than by reading:
+
+| Gap | What the recording said | What the port did |
+|---|---|---|
+| `half_life` missing from the field dump | the extinguisher loses a level every **ten** turns | every field was born with a placeholder million, so nothing ever decayed |
+| `--dump-fields` had no `linear_half_life` | six of the corpus's fields set it | the flag was unexpressible |
+| the series dump stopped **one level short** | the gas **rose** to z 2, thinning its source with no visible destination | the port read a rise it had no terrain for |
+
+`half_life` is a **type-level** field (`field_type.h:217`), not per intensity, so it sits beside `percent_spread` in the dump; 65 of 145 field types have a real
+half-life once recorded. And the dump's window now runs one level above the old one, because a gas that finds no neighbour goes **up** and a window that stops short
+shows a thinning source with no destination - which a port can read as a decay and get right by accident.
+
+The replay also had **two hardcoded numbers** that were one gas's: `percent_spread` 30 and a placeholder half-life. Both are read from the prototype dump now, through
+a `GasType` the fixture's own id selects. With 90 read from the data the extinguisher's recorded dice finally lined up - the three ints of turn two are a gate, a scan
+start and a refused `one_in`, where they had been a gate that refused on the port's 30 and left the rest unspent.
+
+**What is left** is the sweep's decay order and it is named in the ignored gate: the reference decays each field **inside its per-square loop**, so a newborn is aged
+this turn only if the sweep has not yet passed its square. The port batches a submap's decay after its gases and ages every newborn once. Measured against
+`corpus/fields/gas-wind.json`, turn three puts age two on a newborn the reference leaves at one and two on a risen field the reference resets to zero - squares and
+intensities already agree, which is why the remaining disagreement is nothing but ages.
+
 ## The wind is per square, and the roof fixture says so (round 523)
 
 `Wind { power, direction, sheltered }` is now read **per square**, which is what `map::spread_gas` does at its top, and the sweep passes it through

@@ -48,6 +48,8 @@ fn spawning_type() -> FieldType {
         underwater_age_speedup: 0,
         outdoor_age_speedup: 0,
         percent_spread: 0,
+        half_life: 60,
+        linear_half_life: false,
         levels: vec![level(1, 1), level(0, 0)],
     }
 }

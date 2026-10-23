@@ -92,6 +92,13 @@ pub struct FieldType {
     pub outdoor_age_speedup: i64,
     /// The chance in a hundred that this gas spreads to a neighbour each turn.
     pub percent_spread: i32,
+    /// How long it takes this field to lose an intensity, in turns; zero means it never does on its own.
+    ///
+    /// Reference: `field_type::half_life` (`src/field_type.h:217`). This is the clock every field's decay is arithmetic on - a level is lost when the calendar passes
+    /// the deadline the half-life sets - so a port that guessed it kept a mist alive for a million turns that the reference clears in ten.
+    pub half_life: i64,
+    /// Whether the half-life doubles with each intensity instead of staying fixed (`linear_half_life`, `src/field_type.h:223`).
+    pub linear_half_life: bool,
     /// The intensities, weakest first.
     pub levels: Vec<FieldLevel>,
 }
@@ -159,6 +166,8 @@ pub fn from_dump(value: &Value) -> Result<Vec<FieldType>, String> {
         let underwater_age_speedup = int_of(object, "underwater_age_speedup").unwrap_or(0);
         let outdoor_age_speedup = int_of(object, "outdoor_age_speedup").unwrap_or(0);
         let percent_spread = int_of(object, "percent_spread").unwrap_or(0);
+        let half_life = int_of(object, "half_life").unwrap_or(0);
+        let linear_half_life = bool_of(object, "linear_half_life").unwrap_or(false);
         let Some(Value::Array(levels)) = object.get("levels") else {
             return Err(format!("{id} has no levels"));
         };
@@ -206,6 +215,8 @@ pub fn from_dump(value: &Value) -> Result<Vec<FieldType>, String> {
             underwater_age_speedup,
             outdoor_age_speedup,
             percent_spread: i32::try_from(percent_spread).unwrap_or(0),
+            half_life,
+            linear_half_life,
             levels: parsed,
         });
     }

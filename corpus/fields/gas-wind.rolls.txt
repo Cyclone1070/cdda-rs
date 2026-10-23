@@ -1,7 +1,8 @@
 # The dice the reference's sweep rolled for a gas on a **roof**, where the wind actually blows (seed w2, --world harness-fixed).
 #
 # The square is at z 1, outdoors, with a windpower of 18 and no shelter - the one combination that reaches the wind-blocker branch, which draws a real per blocked
-# neighbour. Labelled per turn (`gas.turn.<n>`) and per square (`gas.begin.<x>.<y>.<z>`).
+# neighbour. The gas also **rises**: the dump's window runs one level above the old one so the risen field is in the record, not inferred from a source that thinned.
+# Labelled per turn (`gas.turn.<n>`) and per square (`gas.begin.<x>.<y>.<z>`); each turn carries `now`, the clock the field's decay is arithmetic on.
 mark gas.turn.0
 mark gas.turn.1
 mark gas.begin.71.71.1
