@@ -18,6 +18,11 @@ use cdda_core_types::submap::SUBMAP_SIDE;
 const FLOOR: u32 = 1;
 const WALL: u32 = 2;
 
+/// The furniture code of a square with no furniture on it.
+///
+/// Reference: `f_null` is code zero in the port (`submap::NULL_ID`) and a null prototype in the reference; both mean "nothing here".
+const NO_FURNITURE: u32 = 0;
+
 fn blocks_light(terrain: u32) -> bool {
     terrain == WALL
 }
@@ -188,4 +193,47 @@ fn a_tile_that_changed_is_looked_at_again_and_no_other() {
     );
     let at = |dx: i32, dy: i32| rows[(dy + radius) as usize][(dx + radius) as usize];
     assert!(!at(3, 0), "the new wall shadows what is behind it");
+}
+
+#[test]
+fn furniture_is_stored_beside_the_terrain_and_not_instead_of_it() {
+    // The reference's submap keeps a furniture layer beside the terrain layer (`submap::get_furn`, `map.cpp`), and the transparency rule asks about **both**
+    // (`calc_transp`, `lightmap.cpp:146-149`). So the level has to be able to hold the two independently.
+    let mut level = Level::new();
+    assert_eq!(
+        level.furniture_at(5, 5),
+        None,
+        "a square the world has not made has no furniture layer at all"
+    );
+    level.set_terrain(5, 5, FLOOR, FLOOR);
+    assert_eq!(
+        level.furniture_at(5, 5),
+        Some(NO_FURNITURE),
+        "a made square with nothing on it holds the null furniture"
+    );
+    level.set_furniture(5, 5, 7, FLOOR);
+    assert_eq!(level.furniture_at(5, 5), Some(7), "a table on the floor");
+    assert_eq!(
+        level.terrain_at(5, 5),
+        Some(FLOOR),
+        "and the floor is still there"
+    );
+
+    level.set_furniture(5, 5, NO_FURNITURE, FLOOR);
+    assert_eq!(
+        level.furniture_at(5, 5),
+        Some(NO_FURNITURE),
+        "and it can be taken away again"
+    );
+}
+
+#[test]
+fn furniture_survives_a_submap_boundary_like_the_terrain_does() {
+    // The same arithmetic that makes terrain work across a boundary has to hold for the furniture layer, or a table at the edge of a submap would be lost.
+    let mut level = Level::new();
+    let edge = i32::try_from(SUBMAP_SIDE).expect("a submap side fits in an i32");
+    level.set_furniture(edge - 1, 3, 4, FLOOR);
+    level.set_furniture(edge, 3, 5, FLOOR);
+    assert_eq!(level.furniture_at(edge - 1, 3), Some(4));
+    assert_eq!(level.furniture_at(edge, 3), Some(5));
 }

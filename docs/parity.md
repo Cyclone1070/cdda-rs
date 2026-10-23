@@ -406,6 +406,30 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## Two layers, one conjunction (round 366)
+
+`calc_transp` asks one question of a square and it is an `&&`:
+
+```text
+get_ter().transparent && get_furn().transparent     (lightmap.cpp:146-149)
+```
+
+Either layer being opaque stops the ray, and it does not matter which. The sim could not express that, because `Level` had no furniture layer at all - the reference's
+submap keeps furniture beside terrain, and the port kept only the terrain.
+
+| Piece | Reference | Port |
+|---|---|---|
+the layer | `submap::get_furn`/`set_furn`, materialised on first write | `Level::furniture_at`/`set_furniture` over the submap's own furniture page |
+"nothing here" | `f_null`, code zero | `Some(NULL_ID)` on a made square, `None` on one the world never made |
+the rule | the conjunction above | `cast_lights_with_furniture` takes both codes and asks both tables |
+
+**A made square and an unmade one are different answers.** A tile that exists with nothing on it holds the null furniture, not "no furniture layer"; a tile the world has
+never made has no layer to hold anything. The test was written the other way round first and the code was right: the square that had just been given a floor already
+answered `Some(0)`.
+
+**The floor does not save the table.** A glass floor under an opaque table stops the light, which is the case the sim could not express while it passed
+`furniture_transparent: true` unconditionally - a room lit straight through solid oak furniture.
+
 ## A window costs the light nothing and a wall costs it everything (round 365)
 
 The sim's light path had one hard-coded answer left: terrain code zero was solid, every other code was open air. The per-terrain `transparent` bool is now loaded, so the

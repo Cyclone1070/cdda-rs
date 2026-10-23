@@ -9,14 +9,14 @@
 
 #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 
+use bevy_ecs::prelude::*;
 use cdda_core_types::field::{FieldEntry, FieldId};
 use cdda_core_types::light::TRANSPARENCY_OPEN_AIR;
 use cdda_sim::terrain_table::TerrainTable;
-use cdda_sim::{Field, Light, LightSource, Map, Position, cast_lights};
+use cdda_sim::{Field, Light, LightSource, Map, Position, cast_lights, cast_lights_with_furniture};
 
 /// A level whose square `(5, 5)` is the given terrain code, with a lamp west of it.
-fn level_with(code: u32) -> bevy_ecs::prelude::World {
-    use bevy_ecs::prelude::*;
+fn level_with(code: u32) -> World {
     let mut world = World::new();
     let mut level = cdda_core_types::level::Level::new();
     level.ensure(0, 0, 1);
@@ -34,7 +34,7 @@ fn level_with(code: u32) -> bevy_ecs::prelude::World {
     world
 }
 
-fn light_past_the_square(world: &mut bevy_ecs::prelude::World, table: &TerrainTable) -> f32 {
+fn light_past_the_square(world: &mut World, table: &TerrainTable) -> f32 {
     cast_lights(
         world,
         |code| table.transparency(code),
@@ -150,5 +150,69 @@ fn smoke_still_dims_a_ray_through_a_window() {
     assert!(
         dimmed < open,
         "smoke on the square dims what is behind it: {dimmed} against {open}"
+    );
+}
+
+#[test]
+fn an_opaque_table_on_a_glass_floor_is_opaque() {
+    // `calc_transp` asks for `get_ter().transparent && get_furn().transparent` (`lightmap.cpp:146-149`) - a **conjunction**, so one opaque layer is enough and the floor
+    // underneath being see-through does not save the ray. This is the case the sim could not express while it passed `furniture_transparent: true` unconditionally.
+    let mut table = TerrainTable::new();
+    table.insert(1, true); // a glass floor
+    table.insert(9, false); // a table
+
+    let open_floor = {
+        let mut world = level_with(1);
+        cast_lights(&mut world, |code| table.transparency(code), |_id, _i| 0.0);
+        world.resource::<Light>().max_at(8, 5)
+    };
+
+    let behind_the_table = {
+        let mut world = level_with(1);
+        world.resource_mut::<Map>().0.set_furniture(5, 5, 9, 1);
+        cast_lights_with_furniture(
+            &mut world,
+            |code| table.transparency(code),
+            |code| table.transparency(code),
+            |_id, _i| 0.0,
+        );
+        world.resource::<Light>().max_at(8, 5)
+    };
+
+    assert!(open_floor > 0.0, "the glass floor passes the light");
+    assert!(
+        behind_the_table < open_floor * 0.5,
+        "and the table on it does not: {behind_the_table} against {open_floor}"
+    );
+}
+
+#[test]
+fn furniture_that_is_see_through_does_not_stop_the_ray() {
+    // The other half of the conjunction: a wire frame on a glass floor is still transparent, so the rule must not become "any furniture blocks".
+    let mut table = TerrainTable::new();
+    table.insert(1, true);
+    table.insert(8, true); // a wire frame
+
+    let open_floor = {
+        let mut world = level_with(1);
+        cast_lights(&mut world, |code| table.transparency(code), |_id, _i| 0.0);
+        world.resource::<Light>().max_at(8, 5)
+    };
+
+    let through = {
+        let mut world = level_with(1);
+        world.resource_mut::<Map>().0.set_furniture(5, 5, 8, 1);
+        cast_lights_with_furniture(
+            &mut world,
+            |code| table.transparency(code),
+            |code| table.transparency(code),
+            |_id, _i| 0.0,
+        );
+        world.resource::<Light>().max_at(8, 5)
+    };
+
+    assert!(
+        (through - open_floor).abs() < 1e-4,
+        "a see-through frame costs nothing: {through} against {open_floor}"
     );
 }

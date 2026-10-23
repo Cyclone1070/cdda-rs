@@ -10,7 +10,10 @@ use std::collections::BTreeMap;
 
 use cdda_core_types::light::TRANSPARENCY_OPEN_AIR;
 
-/// Which terrain codes let light through.
+/// Which codes let light through, for either layer of a square.
+///
+/// The reference keeps terrain and furniture in two id spaces but asks them the same question, so one type serves both: a `TerrainTable` for terrain codes and another for
+/// furniture codes. Keeping them as separate instances is what stops code 3 meaning two different things.
 ///
 /// A code the table has never been told about is treated as **open air**, which is what the sim did for every code but zero before the loader existed. An code that is
 /// known to be opaque stops the ray. Codes and their prototypes are matched up by the caller: nothing here guesses that code 2 is `t_wall`.

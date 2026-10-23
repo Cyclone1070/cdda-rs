@@ -102,6 +102,32 @@ impl Level {
             .map(|submap| submap.terrain(cell_x, cell_y))
     }
 
+    /// The furniture standing on a world tile, or `None` when the world has not made the tile.
+    ///
+    /// Reference: `submap::get_furn` (`src/submap.cpp`), which is a layer of its own beside the terrain. `None` is "no such square"; a square with nothing on it
+    /// answers `Some(NULL_ID)`, which is the reference's `f_null`.
+    #[must_use]
+    pub fn furniture_at(&self, x: i32, y: i32) -> Option<u32> {
+        let (id, cell_x, cell_y) = self.submap_at(x, y)?;
+        self.store
+            .get(id)
+            .map(|submap| submap.furniture(cell_x, cell_y))
+    }
+
+    /// Places furniture on a world tile, making its submap if needed.
+    ///
+    /// Reference: `submap::set_furn` (`src/submap.cpp`), which materialises the furniture layer on the first write.
+    pub fn set_furniture(&mut self, x: i32, y: i32, furniture: u32, blank: u32) {
+        let submap = (x.div_euclid(side()), y.div_euclid(side()));
+        let id = self.ensure(submap.0, submap.1, blank);
+        let Some((_, cell_x, cell_y)) = self.submap_at(x, y) else {
+            return;
+        };
+        if let Some(entry) = self.store.get_mut(id) {
+            entry.set_furniture(cell_x, cell_y, furniture);
+        }
+    }
+
     /// Sets the terrain at a world tile, making its submap if needed.
     ///
     /// The terrain the new submap starts as is the one the caller passes, because a

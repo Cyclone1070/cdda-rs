@@ -851,9 +851,31 @@ impl Map {
 pub const SOLID_TERRAIN: u32 = 0;
 
 /// Works out the light every source on the level casts, and writes it to the [`Light`] resource.
+///
+/// Furniture is passed as "always see-through", which is what a level with no furniture layer on it deserves. A caller with real furniture - a table, a counter, a
+/// closed cupboard - must use [`cast_lights_with_furniture`], because `calc_transp` requires **both** layers to be transparent (`lightmap.cpp:146-149`) and a port that
+/// forgot the furniture would light a room through a solid oak table.
 pub fn cast_lights(
     world: &mut World,
     terrain_transparency: impl Fn(u32) -> f32,
+    field_opacity: impl Fn(FieldId, i32) -> f32,
+) {
+    cast_lights_with_furniture(
+        world,
+        terrain_transparency,
+        |_code| cdda_core_types::light::TRANSPARENCY_OPEN_AIR,
+        field_opacity,
+    );
+}
+
+/// Works out the light with both layers of the square taken into account.
+///
+/// Reference: `calc_transp` (`lightmap.cpp:140-167`), which returns solid unless `get_ter().transparent && get_furn().transparent`. The conjunction is the whole
+/// rule: one opaque layer is enough, and it does not matter which.
+pub fn cast_lights_with_furniture(
+    world: &mut World,
+    terrain_transparency: impl Fn(u32) -> f32,
+    furniture_transparency: impl Fn(u32) -> f32,
     field_opacity: impl Fn(FieldId, i32) -> f32,
 ) {
     // Fields multiply a square's transparency, layer by layer (`map::build_transparency_cache`, `lightmap.cpp:158-165`), where the
@@ -903,6 +925,18 @@ pub fn cast_lights(
                 }
             }
         }
+        // The furniture layer is read while the level is borrowed mutably, so it is snapshotted beside the terrain: 0 means no furniture, which is transparent anyway.
+        let mut furniture: BTreeMap<(i32, i32), u32> = BTreeMap::new();
+        for (x, y, _) in &sources {
+            for dy in -12..=12 {
+                for dx in -12..=12 {
+                    let at = (x + dx, y + dy);
+                    if let Some(code) = map.0.furniture_at(at.0, at.1) {
+                        furniture.insert(at, code);
+                    }
+                }
+            }
+        }
         let level = &mut map.0;
         for (x, y, luminance) in sources {
             level.add_light_source_with(
@@ -914,7 +948,10 @@ pub fn cast_lights(
                     terrain_transparent: terrains
                         .get(&(field_x, field_y))
                         .is_none_or(|id| terrain_transparency(*id) > 0.0),
-                    furniture_transparent: true,
+                    // The conjunction of the two layers (`lightmap.cpp:146-149`): either one being opaque stops the ray.
+                    furniture_transparent: furniture
+                        .get(&(field_x, field_y))
+                        .is_none_or(|code| furniture_transparency(*code) > 0.0),
                     outside: false,
                     fields: dimming
                         .get(&(field_x, field_y))
