@@ -255,15 +255,19 @@ holds. With that, the reference's answer to "what does this chunk look like" is 
 
 ### What the next round should pick up
 
-The weather system is next, and it now has its oracle: `--dump-weather-series <file> --weather-hours <n>` runs the reference hour by hour and writes what the system did -
-the weather id, the generator's own temperature, humidity, pressure and wind, and the duration it rolled before the next change. Two runs of the same seed are byte-identical, so it
-is a gate and not an observation. `corpus/weather/series-24h.json` is the first fixture: 24 hours on seed `weatherwatch`, two weathers out of it.
+The weather generator's temperature is ported and matches all twenty-four recorded hours to within a millionth of a kelvin. The same fixture carries every other number the system
+produces, so the rest arrives one field at a time, in this order:
 
-The port has only `Weather { sight_penalty }` today, so the work is the generator first (`weather_gen.cpp`: base temperature, humidity, pressure and wind over the season, the
-per-hour noise, and `get_weather_conditions`), then the manager's turn loop (`weather.cpp:901-960`: only recompute when the turn passes `nextweather`, and roll the next duration from
-the chosen type's `duration_min`/`duration_max`). The recorded series gives both halves a target, field by field, which is why it was built before any of it was written.
+1. **Humidity and pressure** - the same noise field at seeds `+101` and `+211`, with the season's manual adjustment on humidity (`weather_gen.cpp:141-160`). Both are recorded to nine
+   decimal places, so the gate is as tight as the temperature's.
+2. **Wind** - needs three dice the caller owns (`rng(1, 2)`, `rng(9, base_wind_distrib_peaks)`, `one_in(W * 2160)`), and the reference keeps its wind direction in a `static` across
+   calls, which the port has to make explicit state.
+3. **`get_weather_conditions`** - the loop over `sorted_weather` that turns a `w_point` into a weather id, using each type's `condition` dialogue and its `required_weathers`. This is
+   the first place the port needs the dialogue condition machine, so it may be worth taking the id table first (order and required_weathers) and the conditions second.
+4. **The manager's turn loop** - `weather.cpp:901-960`: recompute only when the turn passes `nextweather`, then roll the next duration from the chosen type's `duration_min` and
+   `duration_max`.
 
-The remaining M2 items after that, unchanged: light across z-levels, and vision.
+Then the rest of M2: light across z-levels, and vision.
 
 ## 4. Phase detail
 

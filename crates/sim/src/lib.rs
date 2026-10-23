@@ -7,9 +7,11 @@
 pub mod field_table;
 pub mod frame;
 pub mod terrain_table;
+pub mod noise;
 pub mod scent;
 pub mod scent_table;
 pub mod weather;
+pub mod weather_gen;
 pub use weather::Weather;
 
 use bevy_ecs::prelude::*;

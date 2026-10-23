@@ -2986,6 +2986,23 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The weather generator's temperature, and three storage details (round 504)
+
+The port reproduces all twenty-four recorded hours of the reference's weather to within a millionth of a kelvin, from the recorded intermediates. Three things had to be right before
+that was true, and none of them is the formula:
+
+| Detail | What it costs if missed |
+|---|---|
+`raw_noise_4d` is **f32**, in the reference's own operation order | the tables were copied from `simplexnoise.h` by a script, because a wrong number in a 512-entry permutation gives a world that still looks like a world |
+`units::temperature` is a **float**, not a double | at 275 K a float's spacing is 0.00003 K, larger than every other arithmetic difference in the port |
+`from_celsius` adds the float `273.150f` to the **double** and narrows afterwards | narrowing first is off by one ulp on some hours - exactly one, out of twenty-four |
+
+The third one only showed up after the first two were fixed, which is the useful part: a gate at a thousandth of a kelvin would have forgiven all three.
+
+**What is ported:** the year and day cosines, the baseline, the noise field, and the temperature. **What is not:** humidity and pressure (the same field at seeds +101 and +211), the
+wind (which needs `rng(1, 2)`, `rng(9, base_wind_distrib_peaks)` and `one_in(W * 2160)`, so it arrives with the caller's dice), the condition table that turns a `w_point` into a
+weather id, and the manager's turn loop. The recorded series has a field for each of them, so each arrives with its own target.
+
 ## The weather system's oracle, before its port (round 503)
 
 `--dump-weather-series` runs the reference hour by hour and writes what the weather system actually did: the weather id, the generator's temperature, humidity, pressure, wind direction
