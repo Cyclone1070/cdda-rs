@@ -406,6 +406,33 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## The order of `generate_lightmap` is the behaviour (round 357)
+
+`generate_lightmap( zlev )` (`lightmap.cpp:446-661`) builds a level's whole light map in seven steps, and every step depends on the one before it:
+
+```mermaid
+graph TD
+    A[Zero the light map, the source cache and the buffer] --> B[Pour the sunlight in]
+    B --> C[The player and NPCs light their own squares immediately]
+    C --> D[Sweep every square: openings, items immediately, terrain, furniture and fields into the buffer]
+    D --> E[Monsters and vehicles add their light]
+    E --> F[Flush the buffer: every recorded square casts, x-then-y]
+    F --> G[Apply field light overrides, which replace a square outright]
+```
+
+| Step | Why the order matters |
+|---|---|
+sunlight before sources | the pour *fills* the map, so it must come first; a source after it can only add |
+items and characters immediately, terrain and furniture buffered | a held torch is one square's worth of light, an inferno is thousands - only the bulk is worth batching |
+buffer flushed **after** every emitter is recorded | the direction gating can see a neighbour that was recorded later, which is the entire saving |
+overrides **last** | `lm[x][y].fill( value )` replaces all four quarters, so anything after it would be undone |
+
+**The buffer keeps its contents while it is being flushed.** The reference does not clear it: each `apply_light_source` in the flush reads the same buffer to decide which
+directions to skip. A port that drained it first would compute the first source's cast as if it were alone.
+
+**And the pour does not know about walls.** Sunlight is poured as a plain fill; blocking it is the sunlight pass's own per-square work, one level up. A level built in the
+wrong order gets daylight through a wall - a test pins that the pour alone will happily light the far side, and that only the source pass respects the wall.
+
 ## Sunlight is not cast, it is poured (round 356)
 
 `build_sunlight_cache` (`lightmap.cpp:306-437`) does not cast daylight, because daylight is parallel. It walks the z-levels **top to bottom** and each square takes its

@@ -954,6 +954,51 @@ impl LightMap {
         }
     }
 
+    /// Pours a level's daylight into the map before any source is applied.
+    ///
+    /// Reference: `build_sunlight_cache` (`lightmap.cpp:311-437`), which *fills* the light map rather than adding to it, so it is the first thing step 2 of
+    /// `generate_lightmap` does after zeroing. A source applied afterwards can only brighten a square.
+    pub fn pour_sunlight(&mut self, light: &[FourQuadrants]) {
+        for (slot, value) in self.light.iter_mut().zip(light.iter()) {
+            *slot = *value;
+        }
+    }
+
+    /// Applies every source recorded in the buffer.
+    ///
+    /// Reference: the flush at the end of `generate_lightmap` (`lightmap.cpp:650-659`), whose own comment counts the saving for a 12x12 inferno - 92,160 ray casts
+    /// unbuffered against 7,680 buffered. The deeper reason is the gating: only after every emitter is recorded can a source see that its neighbour is just as bright, so
+    /// **the buffer stays populated while it is being flushed** and is not cleared by this call. Squares are applied in the reference's own x-then-y order.
+    pub fn flush(&mut self) {
+        let side = self.grid.side;
+        let pending: Vec<(i32, i32, f32)> = self
+            .buffer
+            .iter()
+            .enumerate()
+            .filter(|(_, luminance)| **luminance > 0.0)
+            .filter_map(|(index, luminance)| {
+                let x = i32::try_from(index / side).ok()?;
+                let y = i32::try_from(index % side).ok()?;
+                Some((x, y, *luminance))
+            })
+            .collect();
+        for (x, y, luminance) in pending {
+            self.add_source((x, y), luminance);
+        }
+    }
+
+    /// Replaces a square's four quarters with one value.
+    ///
+    /// Reference: the `lm_override` pass (`lightmap.cpp:660-662`), which a field with `local_light_override` asks for: the square *is* that light, whatever the sky and
+    /// the lamps had put there.
+    pub fn override_square(&mut self, at: (i32, i32), value: f32) {
+        if let Some(index) = self.index(at.0, at.1)
+            && let Some(slot) = self.light.get_mut(index)
+        {
+            *slot = FourQuadrants::uniform(value);
+        }
+    }
+
     /// The dense index of a square, or `None` off the map.
     fn index(&self, x: i32, y: i32) -> Option<usize> {
         let side = i32::try_from(self.grid.side).ok()?;

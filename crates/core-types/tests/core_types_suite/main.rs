@@ -38,6 +38,7 @@ mod ids;
 mod item_burn;
 mod item_burn_loop;
 mod level;
+mod level_lighting;
 mod light;
 mod light_cast;
 mod light_source;
