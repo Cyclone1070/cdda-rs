@@ -2986,6 +2986,26 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The sweep is square by square (round 526)
+
+`run_environment_turn` now walks a submap **square by square**: for each `(x, y, z)` it runs the fire processor, then the incendiaries, then the gases standing
+there, then decays that square's fields. That nesting is the rule (`process_fields_in_submap`, `map_field.cpp:457-505`), not a detail of the loop: a field born on a
+square the sweep has already passed waits a turn to age, so a gas that spreads **forward** in the scan order is aged the same turn and one that spreads **backward**
+is not.
+
+It also came with a lesson about the previous round's alarm. The rewrite was reverted last round because a burning room stopped smoking. The real cause was not the
+sweep at all: **the test was a coin flip**. The reference only counts smoke for flammable ground - `smoke += 2 + windpower / 5` (`:1089-1122`) - or for burning items
+(`:1065`), so a fire on the test's inert floor can only smoke through the gate's own hundred-to-one draw. Twenty turns of that is a coin flip wearing a rule's clothes,
+and the seed had been landing heads.
+
+The pair of tests that replaced it: `a_burning_room_fills_with_haze_over_twenty_turns` asserts what is guaranteed - the fire survives and leaves haze - and
+`a_fire_smokes_a_flammable_room` asks the smoke rule itself, on ground that feeds it, with five hundred turns so p ≈ 1 - (1 - 0.03)^500. The rate is honest now instead
+of lucky.
+
+**What the roof fixture still shows** is a smaller and sharper disagreement, named in its ignored gate: the ages of the fields the sweep keeps now agree, but the
+reference **loses the field that rose to z 2** between turns two and three, where the port keeps it. The reference's decay compares `decay_time` against a calendar this
+harness never advances (`field.cpp:92-114`), so that death is not decay - it is a rule the port does not have, and finding it is the next instrument's job.
+
 ## The sweep's scope, and why the per-square rewrite is not mechanical (round 525)
 
 The remaining gas-parity disagreement is the sweep's **decay order**: the reference decays each field inside its per-square loop, the port batches a submap. The

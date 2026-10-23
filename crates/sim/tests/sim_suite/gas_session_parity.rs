@@ -383,7 +383,7 @@ fn a_gas_on_a_stairwell_falls_the_way_the_recording_says() {
 }
 
 #[test]
-#[ignore = "red on the sweep's decay order, not on the wind: \n the reference decays each field inside the per-square loop, so a newborn is aged this turn only if the \n sweep has not yet passed its square; the port batches a submap's decay after its gases and ages every newborn once. \n Measured against corpus/fields/gas-wind.json: turn three puts age two on a newborn the reference leaves at one, \n and two on a risen field the reference resets to zero. Squares and intensities agree. Next: decay per square"]
+#[ignore = "red on what happens to a risen field, not on the wind: \n the sweep is now per square and the ages of the fields it keeps agree, but the reference loses the field \n that rose to z 2 between turns two and three while the port keeps it - measured from corpus/fields/gas-wind.json, \n where state three is [(70,71,1) age 1, (71,71,1) age 2] and state four has no z 2 field at all. \n The reference's decay compares decay_time against a calendar this harness never advances, so the death comes from a rule \n the port does not have; next: find which one"]
 fn a_gas_on_a_roof_spreads_into_the_wind_the_recording_says() {
     // The **wind-blocker** branch, end to end: the gas stands at z 1 under a wind of eighteen with no shelter, so the three squares facing the wind each cost a real
     // draw, and the session cannot be replayed without the branch - the recorded reals have nowhere to go and every later draw is one position out.

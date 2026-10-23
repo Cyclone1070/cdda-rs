@@ -2226,12 +2226,32 @@ pub fn run_environment_turn(
         .find(|key| cursor.is_none_or(|cursor| *key > cursor))
     {
         cursor = Some(key);
-        // Fires first: everything else this turn reacts to what they left behind.
-        process_fires_in_submap(world, map, windpower, Where::Submap(key), rolls);
+        // **Square by square, as the reference does it.** `process_fields_in_submap` walks the submap's squares in `(x, y)` order and, for each one, runs the fire
+        // processor, then the gases standing on it, then decays every field there. The nesting is the rule, not an implementation detail: a field born on a square the
+        // sweep has already passed waits a turn to age, so a gas that spreads **forward** in the scan order is aged the same turn and one that spreads **backward** is
+        // not. The squares are collected first, so the sweep visits what stands there when it arrives.
+        let squares: Vec<(i32, i32, i32)> = {
+            let mut query = world.query::<(Entity, &Position)>();
+            let mut squares: Vec<(i32, i32, i32)> = query
+                .iter(world)
+                .filter(|(entity, position)| {
+                    submap_of(position.x, position.y, position.z) == key
+                        && world.get::<Field>(*entity).is_some()
+                })
+                .map(|(_, position)| (position.x, position.y, position.z))
+                .collect();
+            squares.sort_unstable();
+            squares.dedup();
+            squares
+        };
+        for square in squares {
+            let here = Where::Square(square);
+            // Fires first: everything else this turn reacts to what they left behind.
+            process_fires_in_submap(world, map, windpower, here, rolls);
         // Then the incendiaries, which can light the fire the next turn burns.
         process_incendiaries_in_submap(
             world,
-            Where::Submap(key),
+            here,
             |x, y, z| {
                 // The three flammable flags, read back from the ground the fire rules already ask about: a `FIRE_CONTAINER` answers `Inert`, which is right - a
                 // brazier holds its fire rather than catching, and the reference's three flags agree with that by all being false on the container itself.
@@ -2252,22 +2272,23 @@ pub fn run_environment_turn(
             (HOT_AIR_3, 10),
             (HOT_AIR_4, 10),
         ] {
-            process_gas_in_submap(world, id, Where::Submap(key), percent_spread, windpower, can_take, rolls);
+            process_gas_in_submap(world, id, here, percent_spread, windpower, can_take, rolls);
         }
-        // Everything standing on this submap's squares now, including what this very step of the sweep just made: the reference ages a field when it reaches the
-        // square, so a newborn on a square of the submap being processed is aged and one born behind the cursor is not.
-        let found: Vec<(Entity, i32, i32)> = {
-            let mut query = world.query::<(Entity, &Position)>();
-            query
-                .iter(world)
-                .filter(|(entity, position)| {
-                    submap_of(position.x, position.y, position.z) == key
-                        && world.get::<Field>(*entity).is_some()
-                })
-                .map(|(entity, position)| (entity, position.x, position.y))
-                .collect()
-        };
-        decay_the_fields_the_sweep_found(world, &found, 0, rolls, |_field| None, |_turn, _square, _rolls| {});
+            // **This square's fields age now**, including whatever the lines above just made here. A field born on a square the sweep has already passed is not
+            // in this list and waits for the next turn, which is the one-turn difference the roof fixture measured.
+            let found: Vec<(Entity, i32, i32)> = {
+                let mut query = world.query::<(Entity, &Position)>();
+                query
+                    .iter(world)
+                    .filter(|(entity, position)| {
+                        (position.x, position.y, position.z) == square
+                            && world.get::<Field>(*entity).is_some()
+                    })
+                    .map(|(entity, position)| (entity, position.x, position.y))
+                    .collect()
+            };
+            decay_the_fields_the_sweep_found(world, &found, 0, rolls, |_field| None, |_turn, _square, _rolls| {});
+        }
     }
     // The light map is rebuilt for the world this turn made, the way the draw path rebuilds it after the turn's work (`map::build_map_cache`). Clearing first is part of the
     // rule rather than tidiness: the cast merges by maximum, so a fire that went out this turn would otherwise stay lit by last turn's answer.

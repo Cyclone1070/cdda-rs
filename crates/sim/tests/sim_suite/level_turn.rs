@@ -82,7 +82,7 @@ fn snapshot(world: &mut World) -> Vec<(i32, i32, u32, i32, i64)> {
 }
 
 #[test]
-fn a_burning_room_fills_with_smoke_and_haze_over_twenty_turns() {
+fn a_burning_room_fills_with_haze_over_twenty_turns() {
     let mut world = World::new();
     place_fire(&mut world, 10, 10);
     let mut rolls = Rolls::new(4_242);
@@ -91,17 +91,16 @@ fn a_burning_room_fills_with_smoke_and_haze_over_twenty_turns() {
     }
     let state = snapshot(&mut world);
     let fires = state.iter().filter(|row| row.2 == FIRE.0).count();
-    let smoke = state.iter().filter(|row| row.2 == SMOKE.0).count();
     let hot_air = state
         .iter()
         .filter(|row| [HOT_AIR_1.0, HOT_AIR_2.0, HOT_AIR_3.0, HOT_AIR_4.0].contains(&row.2))
         .count();
     assert!(fires >= 1, "the fire is still burning: {state:?}");
-    assert!(
-        smoke > 0,
-        "twenty turns of a raging fire left smoke somewhere"
-    );
-    assert!(hot_air > 0, "and haze");
+    assert!(hot_air > 0, "the fire left haze behind: {state:?}");
+    // **No smoke is asked for here, because this floor cannot make any.** The reference only adds to the smoke count for flammable ground
+    // (`map_field.cpp:1089-1122`, `smoke += 2 + windpower / 5`) or for burning items (`:1065`), so a fire on inert ground can only smoke through the
+    // hundred-to-one draw of the gate itself. The old assertion here was passing on that draw - a coin flip dressed as a rule. [`a_fire_smokes_a_flammable_room`]
+    // asks the rule instead, and the gas fixtures ask the rate.
 }
 
 #[test]
@@ -143,4 +142,61 @@ fn an_empty_level_stays_empty() {
         run_environment_turn(&mut world, &HardFloor, 0, (0, 0), 0, every_square_takes, &mut rolls);
     }
     assert!(snapshot(&mut world).is_empty());
+}
+
+/// Ground that feeds a fire, so the smoke count is not zero to begin with.
+struct BurningFloor;
+
+impl FireMap for BurningFloor {
+    fn adjacent_fires(&self, _square: (i32, i32, i32)) -> i32 {
+        0
+    }
+    fn can_burn(&self, _square: (i32, i32, i32)) -> bool {
+        true
+    }
+    fn ground(&self, _square: (i32, i32, i32)) -> cdda_core_types::fire::Ground {
+        cdda_core_types::fire::Ground::Flammable
+    }
+    fn can_spread(&self, _square: (i32, i32, i32)) -> bool {
+        true
+    }
+    fn neighbour(&self, _square: (i32, i32, i32)) -> Neighbour {
+        Neighbour {
+            flammable: true,
+            ..Neighbour::default()
+        }
+    }
+    fn suppress_smoke(&self, _square: (i32, i32, i32)) -> bool {
+        false
+    }
+}
+
+#[test]
+fn a_fire_smokes_a_flammable_room() {
+    // The smoke gate is `rng( 0, 100 - windpower ) <= smoke` with `smoke = 2 + windpower / 5` on flammable ground (`map_field.cpp:1089`), so in still air a fire
+    // smokes about three turns in a hundred: **certain enough over five hundred turns, never certain over twenty**, which is what the old assertion in this file
+    // mistook for a rule. A fire that has stopped is relit each turn, because the subject is the smoke gate rather than how long one fire burns.
+    let mut world = World::new();
+    place_fire(&mut world, 10, 10);
+    let mut rolls = Rolls::new(4_242);
+    let mut first_smoke = None;
+    for turn in 0..500 {
+        if !snapshot(&mut world).iter().any(|row| row.2 == FIRE.0) {
+            place_fire(&mut world, 10, 10);
+        }
+        run_environment_turn(&mut world, &BurningFloor, 0, (0, 0), 0, every_square_takes, &mut rolls);
+        if snapshot(&mut world).iter().any(|row| row.2 == SMOKE.0) {
+            first_smoke = Some(turn);
+            break;
+        }
+    }
+    let turn = first_smoke.unwrap_or_else(|| {
+        panic!("five hundred turns of fire on flammable ground left no smoke at all")
+    });
+    assert!(turn < 500, "the smoke arrived on turn {turn}");
+    let smoke = snapshot(&mut world)
+        .iter()
+        .filter(|row| row.2 == SMOKE.0)
+        .count();
+    assert!(smoke > 0, "and it is standing in the room");
 }
