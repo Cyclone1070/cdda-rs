@@ -73,6 +73,7 @@ mod overmap;
 mod overmap_build;
 mod overmap_locations;
 mod overmap_specials;
+mod overmap_terrain_ids;
 mod overmap_world_diff;
 mod passable_through;
 mod prototype_ids;

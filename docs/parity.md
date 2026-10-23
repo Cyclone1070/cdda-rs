@@ -2986,6 +2986,19 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## Nearly four of every five overmap ids are a rule (round 503)
+
+The reference holds 6,269 overmap terrain **types** and 24,218 **instances**. The difference is not data: a rotatable type becomes four instances
+(`_north`, `_east`, `_south`, `_west`), a linear type becomes sixteen (one per line shape), and everything else stays one (`overmap.cpp:989-999`).
+Measured against a fresh dump: 5,903 rotatable types, 16 linear, 350 plain, and 23,612 + 256 + 350 = 24,218 instances.
+
+The port's `overmap.rs` already derived this - the digest gate had been comparing both registries - so the new work is an oracle and a sharper
+test, not a loader. `--dump-overmap-terrains` writes every instance with its type and the two facts that decided it, and the gate now says *why*
+when one disagrees: which type, what the port thought, what the reference said. 24,218 ids and 6,269 per-type flag pairs, both exact.
+
+A duplicate module was written during this and deleted: `overmap_terrain.rs` re-implemented `overmap.rs`. Two copies of a derivation rule is how a
+port ends up disagreeing with itself, and the digest gate would have gone on passing while they drifted.
+
 ## The three shapes of a palette reference (round 502)
 
 A chunk's `palettes` list holds three different things, and the port now keeps them apart instead of flattening the list to strings.
