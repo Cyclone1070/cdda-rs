@@ -87,7 +87,7 @@ fn a_burning_room_fills_with_smoke_and_haze_over_twenty_turns() {
     place_fire(&mut world, 10, 10);
     let mut rolls = Rolls::new(4_242);
     for _ in 0..20 {
-        run_environment_turn(&mut world, &HardFloor, 0, every_square_takes, &mut rolls);
+        run_environment_turn(&mut world, &HardFloor, 0, (0, 0), 0, every_square_takes, &mut rolls);
     }
     let state = snapshot(&mut world);
     let fires = state.iter().filter(|row| row.2 == FIRE.0).count();
@@ -112,7 +112,7 @@ fn the_same_seed_burns_the_same_room_twice() {
         place_fire(&mut world, 10, 10);
         let mut rolls = Rolls::new(777);
         for _ in 0..12 {
-            run_environment_turn(&mut world, &HardFloor, 0, every_square_takes, &mut rolls);
+            run_environment_turn(&mut world, &HardFloor, 0, (0, 0), 0, every_square_takes, &mut rolls);
         }
         snapshot(&mut world)
     };
@@ -127,7 +127,7 @@ fn a_different_seed_burns_it_differently() {
         place_fire(&mut world, 10, 10);
         let mut rolls = Rolls::new(seed);
         for _ in 0..12 {
-            run_environment_turn(&mut world, &HardFloor, 0, every_square_takes, &mut rolls);
+            run_environment_turn(&mut world, &HardFloor, 0, (0, 0), 0, every_square_takes, &mut rolls);
         }
         snapshot(&mut world)
     };
@@ -140,7 +140,7 @@ fn an_empty_level_stays_empty() {
     let mut world = World::new();
     let mut rolls = Rolls::new(5);
     for _ in 0..20 {
-        run_environment_turn(&mut world, &HardFloor, 0, every_square_takes, &mut rolls);
+        run_environment_turn(&mut world, &HardFloor, 0, (0, 0), 0, every_square_takes, &mut rolls);
     }
     assert!(snapshot(&mut world).is_empty());
 }

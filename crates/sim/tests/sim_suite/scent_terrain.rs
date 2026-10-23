@@ -8,7 +8,7 @@
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::level::Level;
-use cdda_sim::scent::{decay_scent, marks_at, reset_scent, scent_at, set_scent_at};
+use cdda_sim::scent::{advance_scent, decay_scent, marks_at, reset_scent, scent_at, set_scent_at};
 use cdda_sim::scent_table::ScentTable;
 use cdda_sim::{Map, Prototypes};
 
@@ -81,4 +81,19 @@ fn scent_fades_by_one_a_turn_and_never_below_zero() {
         decay_scent(&mut world);
     }
     assert_eq!(scent_at(&world, (5, 5)), 0, "and it stops at nothing");
+}
+
+#[test]
+fn a_turn_deposits_scent_where_the_character_stands_and_carries_it_one_square() {
+    // `do_turn.cpp:642-648`: the character deposits their own scent and the window diffuses, both before the fields are processed. One turn later the deposit has spread
+    // into the four orthogonals, and the square beside a `NO_SCENT` wall has nothing because the wall gives and takes none of it.
+    let mut open = world(&[]);
+    advance_scent(&mut open, (5, 5), 10_000);
+    assert!(scent_at(&open, (5, 5)) > 0, "the character smells");
+    assert!(scent_at(&open, (6, 5)) > 0, "and it spreads one square");
+
+    let mut walled = world(&[(6, 5, WALL)]);
+    advance_scent(&mut walled, (5, 5), 10_000);
+    assert_eq!(scent_at(&walled, (6, 5)), 0, "the wall holds it in");
+    assert!(scent_at(&walled, (5, 5)) > 0, "but the room still smells");
 }

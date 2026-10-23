@@ -98,6 +98,67 @@ pub fn set_scent_at(world: &mut World, square: (i32, i32), value: i32) {
     }
 }
 
+/// One turn of the reference's scent step: the character deposits, then the window diffuses.
+///
+/// Reference: `do_turn.cpp:642-648`, which is the first thing a turn does - `scent.set( u.pos, u.scent, type )` and then `scent.update( u.pos, m )`, both **before** the fields
+/// are processed. The window is the character's own radius, because that is the square of the world the reference tracks (`scent_map` is written through the window, not
+/// through the whole bubble).
+///
+/// The marks come from the level's terrain through [`ScentTable`], so a wall that the data flags `NO_SCENT` holds the smell in without being told.
+pub fn advance_scent(world: &mut World, center: (i32, i32), deposited: i32) {
+    let Some(scent) = world.get_resource::<Scent>() else {
+        return;
+    };
+    let mut window = cdda_core_types::scent::ScentWindow::around(center);
+    // Everything the map already holds inside the window comes back in, which is what makes the scent stay put in the world rather than belong to the character.
+    for y in window.min_y()..=window.max_y() {
+        for x in window.min_x()..=window.max_x() {
+            let Some(square) = square_index(scent, x, y) else {
+                continue;
+            };
+            let Some(cell) = scent.cells.get(square) else {
+                continue;
+            };
+            window.set(x, y, cell.value);
+            if cell.blocks {
+                window.block(x, y);
+            }
+            if cell.reduces {
+                window.reduce(x, y);
+            }
+        }
+    }
+    if deposited > 0 {
+        window.set(center.0, center.1, deposited);
+    }
+    window.diffuse();
+
+    let Some(mut scent) = world.get_resource_mut::<Scent>() else {
+        return;
+    };
+    for y in window.min_y()..=window.max_y() {
+        for x in window.min_x()..=window.max_x() {
+            let value = window.get(x, y);
+            let Some(square) = square_index(&scent, x, y) else {
+                continue;
+            };
+            if let Some(cell) = scent.cells.get_mut(square) {
+                cell.value = value;
+            }
+        }
+    }
+}
+
+/// Where a world square sits in the grid, if the level covers it.
+fn square_index(scent: &Scent, x: i32, y: i32) -> Option<usize> {
+    let column = usize::try_from(x).ok()?;
+    let row = usize::try_from(y).ok()?;
+    if column >= scent.side || row >= scent.side {
+        return None;
+    }
+    Some(row * scent.side + column)
+}
+
 /// One point off every square that has any.
 ///
 /// Reference: `scent_map::decay` (`scent_map.cpp:60-67`), called once a turn from `map::decay_fields_and_scent` (`map.cpp:3417-3420`).

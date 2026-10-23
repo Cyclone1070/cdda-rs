@@ -406,6 +406,30 @@ sparseness-adjacency factor (4 here), while the port returns the proximity fract
 agree once the factor is applied, but my first version of the test compared them unscaled and read the port as four times too
 small everywhere.
 
+## A turn starts with the smell (round 378)
+
+The reference's turn begins with the character's scent and only then touches the fields (`do_turn.cpp:642-658`):
+
+```text
+scent.set( player square )  ->  scent.update( player square )  ->  floor caches  ->  process_fields
+```
+
+The port had the scent marks and the diffuser but nothing joined them to the turn. `advance_scent` does now, and `run_environment_turn` calls it **first**.
+
+| Piece | Reference | Port |
+|---|---|---|
+the deposit | `scent.set( u.pos, u.scent )` | `advance_scent(world, center, deposited)` |
+the spread | `scent.update( u.pos, m )` over the character's radius | `ScentWindow` round the same centre, already pinned by six tests |
+what the world already holds | the window reads the map | the grid is loaded into the window before it diffuses, so scent stays in the world rather than following the character |
+the marks | `NO_SCENT`/`REDUCE_SCENT` terrain | `ScentTable`, from the loaded flags |
+
+**The window is the reference's, not mine.** A draft of this round diffused the whole level's grid and disagreed with the pinned arithmetic on its first two tests; the reason is
+the one `scent_map` encodes: the window is the character's radius, and `squares_used` - and so every answer - depends on how many squares take part.
+
+**A test written with a small source proves nothing.** The first version of the spread test used a hundred units and measured zero on both sides, because the reference's
+weights work in tenths and the absorption term takes a tenth of a hundred entirely. The numbers in these tests are large enough to survive the arithmetic, which is what makes
+"the wall holds it in" a claim rather than a coincidence.
+
 ## Visibility multiplies the light, and the square you stand on is always seen (round 377)
 
 The port asked "is there any light at all" and called that sight. The reference asks `apparent_light >= vision_threshold`, where **`apparent_light` is the light map

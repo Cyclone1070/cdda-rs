@@ -1884,6 +1884,8 @@ pub fn run_environment_turn(
     world: &mut World,
     map: &impl FireMap,
     windpower: i32,
+    scent_center: (i32, i32),
+    scent_deposit: i32,
     can_take: impl Fn((i32, i32, i32), (i32, i32, i32)) -> bool + Copy,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) {
@@ -1897,7 +1899,10 @@ pub fn run_environment_turn(
             .map(|(entity, position)| (entity, position.x, position.y))
             .collect()
     };
-    // Fires first: everything else this turn reacts to what they left behind.
+    // Scent first, because the reference's turn starts there (`do_turn.cpp:642-648`): the character deposits and the window diffuses before the fields are processed. The
+    // deposit is nobody's yet - there is no creature layer - so the caller passes it through `scent_deposit`, and zero means "nothing deposited this turn".
+    scent::advance_scent(world, scent_center, scent_deposit);
+    // Fires first of the field work: everything else this turn reacts to what they left behind.
     process_fires(world, map, windpower, rolls);
     // Then the gases, including the haze the fires just made. `percent_spread` is `fd_smoke`'s and the hot air kinds' own data.
     for (id, percent_spread) in [
