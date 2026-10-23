@@ -2986,6 +2986,21 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The condition loop and the schedule (round 507)
+
+Two rules, both gated on transcribed cases because neither needs a world to be wrong.
+
+**The condition loop** (`weather_gen.cpp:196-215`) starts at `clear`, walks the sorted types, and replaces the answer whenever a type's own requirements are met *and* its condition
+holds - so the **last** match wins. The conditions are dialogue expressions and are not ported, so the loop takes the evaluation as a parameter. That is not a way around the gate: the
+loop's own rules are what the tests pin, and a chain that cannot start cannot finish even when every other condition holds.
+
+**The schedule** (`weather.cpp:901-925`): recompute when there is no weather yet or the turn has reached `nextweather`, then set `nextweather = turn + rng(min, max)`. The boundary is
+inclusive, and every recorded hour's distance to its next change is exactly the duration it rolled.
+
+That last check has a wrinkle worth keeping: every type in the shipped data takes the **default** five minutes, so all twenty-four draws are 300 - a constant that is a default rather
+than a rule. The test asserts the draw lies inside the type's own range and that the range's lower bound is that default, so a future type that sets a real range will not quietly
+inherit the arithmetic.
+
 ## The order weather is decided in (round 506)
 
 `get_weather_conditions` walks a sorted list and lets the **last** type whose condition holds win, so the order is behaviour: two weathers that could both apply are decided by which

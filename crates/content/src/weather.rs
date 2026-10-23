@@ -50,7 +50,16 @@ pub struct WeatherType {
     pub priority: i32,
     /// The weathers that must already hold before this one can (`weather_type.h`). Each becomes a chain: rain needs drizzle first, thunder needs rain.
     pub required_weathers: Vec<String>,
+    /// The shortest the weather can last, in turns.
+    pub duration_min: i32,
+    /// The longest it can last, in turns.
+    pub duration_max: i32,
 }
+
+/// What a weather type lasts when the data says nothing: five minutes (`weather_type.cpp:120-122`).
+///
+/// Every type in the shipped data takes this default, which makes a drawn duration of three hundred turns look like a constant until a mod says otherwise.
+pub const DEFAULT_DURATION_TURNS: i32 = 300;
 
 /// The weather types in the order the game tests them: by priority, and **stably**, so a tie keeps the order the data declared.
 ///
@@ -102,6 +111,8 @@ pub fn from_dump(value: &Value) -> Result<Vec<WeatherType>, String> {
             },
             rains: matches!(object.get("rains"), Some(Value::Bool(true))),
             priority: int_of(object.get("priority")),
+            duration_min: duration_of(object, "duration_min"),
+            duration_max: duration_of(object, "duration_max"),
             required_weathers: match object.get("required_weathers") {
                 Some(Value::Array(list)) => list
                     .iter()
@@ -147,5 +158,64 @@ fn string_of(value: Option<&Value>) -> String {
     match value {
         Some(Value::Str(text)) => text.clone(),
         _ => String::new(),
+    }
+}
+
+/// The weather a set of satisfied conditions produces (`weather_gen.cpp:196-215`).
+///
+/// The loop starts at `clear` and walks the types in the order [`sorted`] gives them. A type applies when its own requirements are met - it names none, or it names the
+/// current answer - **and** its condition holds; the last type that applies is the answer, which is why the order is behaviour and not presentation.
+///
+/// The condition is passed in rather than evaluated here: each one is a dialogue expression, and the dialogue machine is a phase of its own. Taking it as a parameter
+/// keeps this loop honest - it can be gated on transcribed chains today, and it does not need rewriting when the conditions arrive.
+#[must_use]
+pub fn conditions(order: &[&WeatherType], satisfied: &mut dyn FnMut(&WeatherType) -> bool) -> String {
+    let mut current = "clear".to_string();
+    for kind in order {
+        let follows = kind.required_weathers.is_empty() || kind.required_weathers.contains(&current);
+        if follows && satisfied(kind) {
+            current.clone_from(&kind.id);
+        }
+    }
+    current
+}
+
+/// One of a type's duration bounds, defaulting to five minutes.
+///
+/// The reference reads these as a `time_duration`, which the dump writes as whole turns; a fractional turn is not a shape the data uses, and truncating it would be
+/// the reference's own conversion if it ever did.
+#[allow(clippy::cast_possible_truncation)]
+fn duration_of(object: &cdda_json::Object, key: &str) -> i32 {
+    match object.get(key) {
+        Some(Value::Int(turns)) => i32::try_from(*turns).unwrap_or(DEFAULT_DURATION_TURNS),
+        Some(Value::Float(turns)) => *turns as i32,
+        _ => DEFAULT_DURATION_TURNS,
+    }
+}
+
+/// When the weather is next due to change (`weather.cpp:901-925`).
+///
+/// Reference: `weather_manager::update_weather` recomputes only when there is no weather yet or the turn has reached `nextweather`, and each recompute sets
+/// `nextweather = turn + rng( weather_id->duration_min, weather_id->duration_max )`. The port keeps the same two facts in a value, so the rule can be checked at
+/// its boundary instead of being inferred from a whole session.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Schedule {
+    /// The weather now, or `None` before the first update.
+    pub weather: Option<String>,
+    /// The turn the weather is next due to change.
+    pub next_turn: i64,
+}
+
+impl Schedule {
+    /// Whether this turn recomputes the weather.
+    #[must_use]
+    pub fn needs_update(&self, turn: i64) -> bool {
+        self.weather.is_none() || turn >= self.next_turn
+    }
+
+    /// Records a new weather and the duration it was rolled to last.
+    pub fn reschedule(&mut self, weather: String, turn: i64, duration: i32) {
+        self.weather = Some(weather);
+        self.next_turn = turn + i64::from(duration);
     }
 }

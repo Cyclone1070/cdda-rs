@@ -255,18 +255,17 @@ holds. With that, the reference's answer to "what does this chunk look like" is 
 
 ### What the next round should pick up
 
-The weather generator now reproduces, from recorded inputs, the temperature (to a millionth of a kelvin), humidity, pressure and wind power of all twenty-four recorded hours, and the
-wind's dice come from the caller in the reference's own order. Three pieces remain before the weather turns into a system:
+The weather generator is complete: temperature, humidity, pressure, wind power, wind direction, the condition loop and the schedule all reproduce the recorded day, and each was gated
+on its own fixture. What is missing between those pieces and a weather *system* is the condition machine - the dialogue expressions each weather type carries - and the manager that
+puts the pieces in order.
 
-1. ~~Wind direction~~ - done in round 506: the sentinel is an `Option<i32>`, the four weight tables are exposed for a caller's roll, and the
-   "one_in(0) is true without rolling" rule reproduces the recorded day's single change.
-2. **`get_weather_conditions`** - the loop over `sorted_weather` that picks an id from a `w_point`, honouring each type's `required_weathers` and evaluating its dialogue
-   `condition`. The list is ported and gated (round 506: `weather::sorted`, all twenty types, stability proven); what is missing is the evaluation itself. Take the loop with the
-   condition injected first - it can be gated on a transcribed chain - and then the condition machine underneath it.
-3. **The manager's turn loop** - `weather.cpp:901-960`: recompute only when the turn passes `nextweather`, roll the next duration from the chosen type's `duration_min` and
-   `duration_max` (that draw is already in the trace as the last `int` of each hour), and clear the transparency caches when the sight penalty changes.
-
-Then the rest of M2: light across z-levels, and vision.
+1. **The condition machine**, at least the subset the weather types use. Read the twenty `condition` members and see how few primitives they need: most are a comparison on the
+   temperature, humidity or pressure of the `w_point`, which the oracle now records to nine decimals. A small port of those, gated on transcribed cases, would let the loop be driven
+   by the real conditions instead of a stub.
+2. **The manager**, wiring [`weather_gen`](../crates/sim/src/weather_gen.rs) and [`weather`](../crates/content/src/weather.rs) together in `weather.cpp`'s order - conditions first,
+   then temperature and wind, then the schedule - and clearing the transparency caches when the sight penalty changes (`weather.cpp:938-941`), which is the one place weather reaches
+   into the map.
+3. Then the rest of M2: light across z-levels, and vision.
 
 ## 4. Phase detail
 
