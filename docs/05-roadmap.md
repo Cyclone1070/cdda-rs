@@ -164,6 +164,10 @@ what is shown | `shown_at` = "drawn at all"; `lit_level_at_square` = "at which l
 the wall's face | the eight-neighbour quadrant rule for opaque squares | 2 tests |
 scent | marks from `NO_SCENT`/`REDUCE_SCENT`, the `ScentWindow` arithmetic, decay, and the deposit the turn starts with | 11 tests |
 
+**A frame can be drawn, and it is text.** `sim::frame::frame` asks the three questions a cell needs - what is there, how lit, how seen - once per view, and `Frame::levels`
+prints one character per square (`B L l * .`). That string is the semantic frame gate's unit of comparison, and the tests already assert against it square by square. What it
+still needs is an oracle: the reference's own frame for the same fixture, which is the same outstanding build as the weather dump.
+
 **"Hazy" is answered now.** The sight cast carries the reference's own fraction (`cast_seen_light`), so a square seen only through smoke is `BRIGHT_ONLY` - a glow with nothing in
 it - and a wall in plain sight is `BRIGHT`. What T6 still lacks is the *grid*: the port asks "how clearly is this square seen" one square at a time and rebuilds the cast for each
 answer, where the reference keeps a `seen_cache` per level and rebuilds it once. That is a shape problem, not a rule problem, and it is the next step before a frame is drawn.

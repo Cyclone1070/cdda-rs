@@ -3,7 +3,7 @@
 //! Reference: the draw path's per-cell work (`map::draw`, `cata_tiles`/curses), which asks three things about a square - what is there, how brightly it is lit, and whether
 //! the character can see it - and prints the glyph only when the answer is not blank.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::level::Level;
@@ -117,4 +117,35 @@ fn the_frame_prints_rows_of_glyphs() {
         "five columns: {text}"
     );
     let _ = world.resource::<Light>();
+}
+
+#[test]
+fn the_level_string_shows_a_lit_room_and_the_shadow_behind_the_wall() {
+    // The picture a frame gate compares, spelled out square by square: the lamp's own square is bright, the room beside it is lit, and the square behind the wall is blank
+    // because the sight cast does not reach it. This is what "the port draws the same world" means when the comparison is text rather than pixels.
+    let mut world = world();
+    cast_lights_with(&mut world);
+    let drawn = frame(&mut world, (4, 5), 4, 10.0, 3.0);
+    let levels = drawn.levels();
+
+    let rows: Vec<&str> = levels.lines().collect();
+    assert_eq!(rows.len(), 9);
+    // Row 1 is y = 2, column 3 is x = 3: the lamp stands at (4, 4), which is row 2, column 4.
+    assert_eq!(
+        rows[2].chars().nth(4),
+        Some('B'),
+        "the lamp's own square:\n{levels}"
+    );
+    // **A lamp of 120 is bright, not merely lit.** The measured answer is that every square the lamp reaches clears `SOURCE_BRIGHT`, so the room reads `B` all the way to the
+    // wall - the expectation this test first wrote down (a floor "lit" rather than bright) was wrong about the data, not about the code.
+    assert_eq!(
+        rows[4].chars().nth(6),
+        Some('B'),
+        "the wall the lamp reaches is seen and lit:\n{levels}"
+    );
+    assert_eq!(
+        rows[4].chars().nth(7),
+        Some('.'),
+        "and nothing behind it is shown:\n{levels}"
+    );
 }
