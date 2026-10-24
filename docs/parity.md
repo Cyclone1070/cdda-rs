@@ -2988,6 +2988,25 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## Light on four levels, per turn — the last M2 clause gets a fixture (round 552)
+
+The M2 exit gate asks for light changing across z-levels, and no session had ever carried any: every dump said what the fields were doing and nothing about what that
+made visible. `--dump-field-series` now writes a **`light` block** per turn — 25 squares on each of four levels, each with `map::light_at` (0 dark to 4 bright), the
+square's own light source, and its ambient.
+
+Measured from `corpus/fields/light-session.json` (a fire at intensity three, seven turns):
+
+| Where | `lit` | `source` | Reading |
+|---|---|---|---|
+the fire's own square | 4 (bright) | 160 | the fire is its own light |
+the square beside it | ≥1 | 0 | rays reach it, dimmer than the fire |
+the square **below** | 1 (low) | 0 | the floor is a ceiling from underneath — the rule the sight cast found, seen from the light's side |
+above (the sky) | 4 | 0 | daylight comes down; the fire does not go down |
+
+The fixture's own gate pins those numbers now, before any replay exists: the replay is the next slice, and pinning the answers first is what stops it from becoming a
+comparison of the port with itself. One thing the dump taught: `lm` (the cache's quadrant array) is **not** what the game reacts to — `light_at` is — so the dump carries
+that and the source beside it, and a replay is held to the observable.
+
 ## The last two processors that needed no subsystem (round 551)
 
 `extra_radiation` and `wandering_field` were the end of the list: every other processor still waiting needs monsters, items, or the fungal and radiation grids to exist
