@@ -4360,6 +4360,85 @@ impl TypeWeight {
     }
 }
 
+/// What a type says about its own volume.
+///
+/// Reference: `itype::volume`, `itype::stack_size` and `itype::count_by_charges()` (`src/itype.h`), which `item::volume` (`src/item.cpp:7511-7590`) reads. Two facts
+/// rather than one because the charge rule needs both: a type counted in charges takes `volume * charges / stack_size` millilitres, and `stack_size` is where that
+/// division's rounding comes from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TypeVolume {
+    /// What one unit takes up, in millilitres.
+    pub millilitres: i64,
+    /// Whether the type is counted in charges rather than as separate objects.
+    pub count_by_charges: bool,
+    /// How many charges share one stack's volume; zero when the type is not counted in charges.
+    pub stack_size: i64,
+}
+
+impl TypeVolume {
+    /// A type that is one object of a fixed size, which is almost all of them.
+    #[must_use]
+    pub const fn plain(millilitres: i64) -> Self {
+        Self {
+            millilitres,
+            count_by_charges: false,
+            stack_size: 0,
+        }
+    }
+
+    /// A type counted in charges, whose volume is shared between `stack_size` of them.
+    #[must_use]
+    pub const fn charges(millilitres: i64, stack_size: i64) -> Self {
+        Self {
+            millilitres,
+            count_by_charges: true,
+            stack_size,
+        }
+    }
+}
+
+/// What an item takes up, contents included.
+///
+/// Reference: `item::volume` (`src/item.cpp:7511-7590`). The parts the port has the data for:
+///
+/// 1. a charge-counted item's volume is `volume * charges / stack_size`, and the division **rounds up a millilitre**;
+/// 2. anything else is its own volume, whatever its charge count;
+/// 3. a container is its own volume plus what is inside it - the reference's `contents.item_size_modifier()`.
+///
+/// Not ported and declared in the ledger: corpses, crafted items, the per-item `volume` override, gun mods and `collapsed_volume_delta`.
+pub fn item_volume(
+    world: &mut World,
+    entity: Entity,
+    facts: impl Fn(ItemTypeId) -> TypeVolume,
+) -> i64 {
+    volume_with(world, entity, &facts)
+}
+
+fn volume_with(world: &mut World, entity: Entity, facts: &dyn Fn(ItemTypeId) -> TypeVolume) -> i64 {
+    let Some(item) = world.get::<GroundItem>(entity).cloned() else {
+        return 0;
+    };
+    let facts_of_type = facts(item.kind);
+    let mut total = if facts_of_type.count_by_charges && facts_of_type.stack_size > 0 {
+        let charges = i64::from(item.charges);
+        let product = facts_of_type.millilitres.saturating_mul(charges);
+        let whole = product / facts_of_type.stack_size;
+        // **Rounded up, in millilitres.** The reference adds one millilitre when the division has a remainder, so a pile one charge past a stack takes one more
+        // millilitre and not a fraction of one.
+        if product % facts_of_type.stack_size != 0 {
+            whole.saturating_add(1)
+        } else {
+            whole
+        }
+    } else {
+        facts_of_type.millilitres
+    };
+    for held in contents(world, entity) {
+        total = total.saturating_add(volume_with(world, held, facts));
+    }
+    total
+}
+
 /// What an item weighs when its caller asks for the **integral** weight.
 ///
 /// Reference: `item::weight( include_contents, integral )` with the second argument true (`src/item.cpp:7256-7261`): the same rule as [`item_weight`] over the type's other

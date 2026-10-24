@@ -2989,6 +2989,18 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## What a pile takes up (round 558)
+
+`item::volume`'s charge rule is ported: `volume * charges / stack_size`, with the division **rounding up a millilitre**, and contents added on top for a container.
+
+The corpus decided what the numbers mean. A type's volume is the volume of a **whole stack** — the battery is 100 ml for 100 charges — so one charge is one millilitre, and
+a port that multiplied and stopped would take a hundred times the room at a hundred charges. The dump now carries `stack_size` and `count_by_charges` beside the volume, and
+a gate pins the 1,261 charge-counted types.
+
+The test that mattered is the one that does not divide evenly: four charges of a 1 ml stack-of-three take **two** millilitres, because the reference adds a millilitre when
+the division has a remainder rather than truncating. That is the kind of branch that a plausible implementation gets wrong silently — truncation looks right until a pile
+crosses a stack boundary.
+
 ## The second weight (round 557)
 
 `item::weight( integral: true )` is ported. The rule is not a fraction of the ordinary weight: it is **another number in the type**, which is why the port carries two

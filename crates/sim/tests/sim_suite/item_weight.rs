@@ -6,7 +6,8 @@
 
 use bevy_ecs::prelude::*;
 use cdda_sim::{
-    Container, GroundItem, ItemTypeId, drop_item, insert_into, item_weight, item_weight_integral,
+    Container, GroundItem, ItemTypeId, drop_item, insert_into, item_volume, item_weight,
+    item_weight_integral,
 };
 
 fn grams(kind: ItemTypeId) -> cdda_sim::TypeWeight {
@@ -168,5 +169,50 @@ fn integral_grams(kind: ItemTypeId) -> cdda_sim::TypeWeight {
         12 => cdda_sim::TypeWeight::with_integral(1134, 1819),
         7 => cdda_sim::TypeWeight::hidden(),
         other => cdda_sim::TypeWeight::plain(grams(ItemTypeId(other)).grams),
+    }
+}
+
+#[test]
+fn a_pile_of_charges_takes_up_its_volume_in_stacks_rounded_up() {
+    // **`item::volume`'s charge rule** (`src/item.cpp:7546-7562`): a charge-counted item multiplies its volume by its charges and then **divides by the type's
+    // `stack_size`, rounding up a millilitre**. The type's volume is the volume of a **whole stack** - a battery in the data is 100 ml for 100 charges - which is the part
+    // that reads wrong until a test says it: one charge of that battery is one millilitre, not a hundred.
+    //
+    // Two things make this worth a gate rather than a comment: the divisor is the type's stack size and not the charges, and the rounding is **up**, which needs a type
+    // whose stacks do not divide evenly - the second synthetic type is 1 ml in stacks of three, so four charges take two millilitres of room.
+    let mut world = World::new();
+    let one = drop_item(&mut world, (5, 5), ItemTypeId(20), 1);
+    let hundred = drop_item(&mut world, (5, 5), ItemTypeId(20), 100);
+    let hundred_one = drop_item(&mut world, (5, 5), ItemTypeId(20), 101);
+    assert_eq!(item_volume(&mut world, one, stack_volume), 1, "one charge of a hundred-charge stack");
+    assert_eq!(
+        item_volume(&mut world, hundred, stack_volume),
+        100,
+        "a full stack is the type's own volume"
+    );
+    assert_eq!(
+        item_volume(&mut world, hundred_one, stack_volume),
+        101,
+        "and one charge past it is a millilitre more"
+    );
+    let three = drop_item(&mut world, (6, 6), ItemTypeId(21), 3);
+    let four = drop_item(&mut world, (6, 6), ItemTypeId(21), 4);
+    assert_eq!(item_volume(&mut world, three, stack_volume), 1, "a whole stack of three");
+    assert_eq!(
+        item_volume(&mut world, four, stack_volume),
+        2,
+        "four charges in stacks of three round **up** to two millilitres, not down to one"
+    );
+    // An item that is not counted in charges ignores all of it: its volume is its volume.
+    let rock = drop_item(&mut world, (5, 5), ItemTypeId(1), 1);
+    assert_eq!(item_volume(&mut world, rock, stack_volume), 250);
+}
+
+/// Volume facts for the two synthetic types: one charge-counted in stacks of a hundred, one plain.
+fn stack_volume(kind: ItemTypeId) -> cdda_sim::TypeVolume {
+    match kind.0 {
+        20 => cdda_sim::TypeVolume::charges(100, 100),
+        21 => cdda_sim::TypeVolume::charges(1, 3),
+        _ => cdda_sim::TypeVolume::plain(250),
     }
 }

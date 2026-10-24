@@ -383,3 +383,46 @@ fn exactly_two_types_in_the_data_weigh_something_else_when_damaged() {
         );
     }
 }
+
+#[test]
+fn the_stack_size_the_volume_rule_divides_by_is_in_the_dump() {
+    // `item::volume` divides a charge-counted item's volume by `stack_size` and rounds up, so a port without the divisor cannot say what a pile takes up. The dump
+    // carries it now, with the flag that decides whether it matters: 1,261 types in the data are counted in charges, and the battery is the one to check by hand -
+    // 100 ml for 100 charges, which is one millilitre a charge.
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/items.json");
+    let bytes = std::fs::read(&path).expect("the dump");
+    let cdda_json::Value::Object(root) = cdda_json::parse(&bytes).expect("valid JSON") else {
+        panic!("the dump is an object")
+    };
+    let Some(cdda_json::Value::Array(prototypes)) = root.get("prototypes") else {
+        panic!("the dump holds prototypes")
+    };
+    let mut charged = 0_usize;
+    let mut battery = None;
+    for entry in prototypes {
+        let cdda_json::Value::Object(entry) = entry else {
+            panic!("a prototype")
+        };
+        let Some(cdda_json::Value::Str(id)) = entry.get("id") else {
+            panic!("an id")
+        };
+        let counted = matches!(entry.get("count_by_charges"), Some(cdda_json::Value::Bool(true)));
+        if !counted {
+            continue;
+        }
+        charged += 1;
+        let whole = |key: &str| match entry.get(key) {
+            Some(cdda_json::Value::Int(value)) => *value,
+            other => panic!("{key} is a whole number: {other:?}"),
+        };
+        if id == "battery" {
+            battery = Some((whole("volume"), whole("stack_size")));
+        }
+    }
+    assert_eq!(charged, 1_261, "every charge-counted type carries its stack size");
+    assert_eq!(
+        battery,
+        Some((100, 100)),
+        "the battery is 100 ml for 100 charges: one millilitre a charge"
+    );
+}
