@@ -2989,6 +2989,27 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The oracle built every level and read whichever was last (round 555)
+
+The `lit` column was wrong, and the cause was the dump, not the game: it built the three levels **and then** read them, so every square was read from whichever level's
+cache had been built last. A 160-lumen fire therefore came out as a dark room. The fix is to build each level and **read it immediately** — measured, not reasoned:
+
+| Square | before the fix | after |
+|---|---|---|
+the fire's own square | `lit` 4, `raw` **4.0**, source 160 | `lit` 4, `brightest` **160.0**, source 160 |
+one square away | `lit` 1, `raw` 4.0 | `lit` 3 (lit), `brightest` 155.5 |
+the level below | `lit` 1, `raw` 3.5 | `lit` 1, `brightest` 3.5, source 0 |
+
+Two more things the fix taught, both now in the dump's column names:
+
+* **the column called `ambient` was `lm`'s maximum**, not the sky. It is now `brightest`, and the sky is a separate column (`natural_light_level` per level). The
+  round-553 classifier gate had been reading that column as if it were the sky; it reads `sky` now, and its threshold is the honest one;
+* **a level's light does not cross to another level** — the square below the fire stays at 3.5 with no source — which is what the reference's per-level `generate_lightmap`
+  does, and what the port's per-level cast already matched.
+
+With the fixture re-recorded and the replay comparing **answers as well as sources**, all 175 squares of the fire's level now agree: the port's cast and the port's
+classifier together reproduce the reference's `lit` on every square of seven turns.
+
 ## The light replay, and the oracle bug it found (round 554)
 
 The fire's level of `light-session.json` now replays: the port builds a `Level` from the record's terrain, places the record's fields, runs its own cast, and compares every

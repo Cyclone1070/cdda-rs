@@ -4,13 +4,12 @@
 //! turn. This replays **the fire's own level** against it: the terrain of the level comes from the record's grid, the fire's intensity comes from the record's fields, the
 //! port's own light cast runs over them, and each square's answer is compared with the reference's.
 //!
-//! **What this replays today: the light each square emits.** The fixture's `lit` column is not yet trustworthy - the fire's own square is recorded as carrying a 160
-//! source and reading 4.0, the ambient brightness, which means the recorded answer came from a cast that did not include the fire. The source column is consistent and is
-//! compared exactly; the level comparison is kept in the file for the re-recorded fixture.
+//! **What it compares: the answer and the emitter.** Every square's `lit` level and its own light source, from a fixture whose columns now agree with each other - the
+//! first cut of the dump built every level before reading any, so it read whichever level had been built last and recorded a 160-lumen fire as a dark room (round 555).
 //!
 //! Two things are **given** rather than ported here, and both are declared:
 //!
-//! * the sky - each square's ambient is the reference's own `ambient_light_at`, the same staging the gas sessions use for the wind, so a disagreement is about the fire and
+//! * the sky - each level's natural light is taken from the record, the same staging the gas sessions use for the wind, so a disagreement is about the fire and
 //!   not about the sun;
 //! * the other three levels - the reference casts a lightmap **per level** (`generate_lightmap`, `src/lightmap.cpp:443`), and so does this: the level below is dark
 //!   because nothing there emits, not because the cast crosses floors.
@@ -38,7 +37,8 @@ const ORIGIN: (i32, i32) = (60, 69);
 struct Square {
     x: i32,
     y: i32,
-    ambient: f32,
+    /// The level's natural light: what the sun offers, before anything reflects it.
+    sky: f32,
     reference_lit: i32,
     /// The reference's own light source for the square, which is what the port's field light has to match.
     reference_source: f32,
@@ -78,14 +78,14 @@ fn session() -> Vec<Turn> {
                     if whole("z") != 0 {
                         continue;
                     }
-                    let ambient = match entry.get("ambient") {
+                    let sky = match entry.get("sky") {
                         Some(cdda_json::Value::Float(value)) => *value as f32,
-                        other => panic!("ambient is a number: {other:?}"),
+                        other => panic!("sky is a number: {other:?}"),
                     };
                     squares.push(Square {
                         x: i32::try_from(whole("x")).expect("x"),
                         y: i32::try_from(whole("y")).expect("y"),
-                        ambient,
+                        sky,
                         reference_lit: i32::try_from(whole("lit")).expect("lit"),
                         reference_source: f32::from(i16::try_from(whole("source")).expect("source")),
                     });
@@ -303,7 +303,7 @@ fn the_port_s_cast_puts_the_fire_s_light_where_the_reference_put_it() {
             let (lx, ly) = (square.x - ORIGIN.0, square.y - ORIGIN.1);
             // The port's own light for the square: its cast, or the sky it was given, whichever is brighter.
             let cast = light.max_at(lx, ly);
-            let brightest = cast.max(square.ambient);
+            let brightest = cast.max(square.sky);
             let port_source = turn
                 .fields
                 .iter()
@@ -321,20 +321,20 @@ fn the_port_s_cast_puts_the_fire_s_light_where_the_reference_put_it() {
                 4 => LitLevel::Bright,
                 other => panic!("no such lit level: {other}"),
             };
-            // **The sources only, for now.** The `lit` column of this fixture disagrees with its own `source` column - the fire's own square is recorded as carrying a 160
-            // source and reading 4.0, the ambient brightness - so the recorded *answer* is not trustworthy until the oracle's dump is fixed and the session re-recorded.
-            // The source is the square's own field light and it is internally consistent, so it is compared exactly; `light_at` and the cast above are kept because they
-            // will be what the re-recorded fixture is gated on.
-            let _ = (answer, reference, lit_name(answer), lit_name(reference), cast, brightest);
-            if (port_source - square.reference_source).abs() > 0.5 && disagreements.len() < 12 {
+            // **Both halves now.** The oracle fix (round 555) made the `lit` column agree with its own `source` column, so the answer is compared as well as the emitter:
+            // a port that placed the light correctly and classified it differently would pass the source check alone.
+            if (answer != reference || (port_source - square.reference_source).abs() > 0.5)
+                && disagreements.len() < 12
+            {
                 {
                     disagreements.push(format!(
-                        "turn {index} ({}, {}): source {port_source} against {} (ambient {}, recorded level {})",
+                        "turn {index} ({}, {}): ours {} source {port_source} cast {cast}, theirs {} source {} (sky {})",
                         square.x,
                         square.y,
+                        lit_name(answer),
                         square.reference_source,
-                        square.ambient,
-                        square.reference_lit
+                        lit_name(reference),
+                        square.sky
                     ));
                 }
             }

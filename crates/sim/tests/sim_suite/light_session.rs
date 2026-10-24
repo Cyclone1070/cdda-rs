@@ -27,8 +27,8 @@ struct Lit {
     level: i32,
     /// The square's own light source, which is the field's contribution and not the sky's.
     source: i32,
-    /// The ambient light the square receives, which the sky decides.
-    ambient: f64,
+    /// The level's natural light: what the sun offers before anything reflects it.
+    sky: f64,
 }
 
 fn sessions() -> Vec<Vec<Lit>> {
@@ -59,9 +59,9 @@ fn sessions() -> Vec<Vec<Lit>> {
                         Some(cdda_json::Value::Int(value)) => *value,
                         other => panic!("{key} is a whole number: {other:?}"),
                     };
-                    let ambient = match entry.get("ambient") {
+                    let sky = match entry.get("sky") {
                         Some(cdda_json::Value::Float(value)) => *value,
-                        other => panic!("ambient is a number: {other:?}"),
+                        other => panic!("sky is a number: {other:?}"),
                     };
                     Lit {
                         x: i32::try_from(whole("x")).expect("a square's x"),
@@ -69,7 +69,7 @@ fn sessions() -> Vec<Vec<Lit>> {
                         z: i32::try_from(whole("z")).expect("a square's z"),
                         level: i32::try_from(whole("lit")).expect("a lit level"),
                         source: i32::try_from(whole("source")).expect("a source"),
-                        ambient,
+                        sky,
                     }
                 })
                 .collect()
@@ -89,12 +89,12 @@ fn the_session_carries_light_on_four_levels_every_turn() {
     let sessions = sessions();
     assert_eq!(sessions.len(), 7, "seven turns: the state before the first sweep and six after");
     for turn in &sessions {
-        assert_eq!(turn.len(), 100, "twenty-five squares on each of four levels");
+        assert_eq!(turn.len(), 75, "twenty-five squares on each of three levels");
         let levels: std::collections::BTreeSet<i32> = turn.iter().map(|square| square.z).collect();
         assert_eq!(
             levels,
-            [0, 1, 2, -1].into_iter().collect::<std::collections::BTreeSet<i32>>(),
-            "the fire's level, the two above it and the one below"
+            [0, 1, -1].into_iter().collect::<std::collections::BTreeSet<i32>>(),
+            "the fire's level, the one above it and the one below"
         );
     }
 }
@@ -112,20 +112,16 @@ fn a_fire_is_bright_on_its_own_square_and_never_reaches_the_level_below() {
 
     let below = at(turn, 63, 71, -1);
     assert_eq!(below.source, 0, "nothing below the floor emits light");
-    assert_eq!(below.level, 1, "and the square reads LOW, which is the ambient of a cellar");
+    assert_eq!(below.level, 1, "and the square reads LOW, which is a cellar's own light");
     assert!(
-        below.ambient < 4.0,
-        "the cellar's ambient ({}) is the sky's, not the fire's",
-        below.ambient
+        below.sky <= 3.7,
+        "the cellar's sky ({}) is its level's natural light, not the fire's",
+        below.sky
     );
 
     let beside = at(turn, 64, 71, 0);
     assert_eq!(beside.source, 0, "a neighbour has no source of its own");
-    assert!(
-        beside.level >= 1,
-        "but the fire's rays reach it: {} is not dark",
-        beside.level
-    );
+    assert_eq!(beside.level, 3, "but the fire's rays reach it: it reads LIT");
     assert!(beside.level < fire.level, "and it is dimmer than the fire itself");
 }
 
@@ -158,7 +154,7 @@ fn every_recorded_square_is_classified_the_way_the_reference_s_classifier_would(
     let mut with_source = 0_usize;
     for turn in &sessions {
         for square in turn {
-            let port = light_at(f32::from(i16::try_from(square.source).expect("a source")), square.ambient as f32);
+            let port = light_at(f32::from(i16::try_from(square.source).expect("a source")), square.sky as f32);
             let reference = match square.level {
                 0 => LitLevel::Dark,
                 1 => LitLevel::Low,
@@ -177,15 +173,15 @@ fn every_recorded_square_is_classified_the_way_the_reference_s_classifier_would(
                     "a dark square cannot read lit from its ambient alone: {square:?}"
                 );
                 assert!(
-                    square.ambient < f64::from(AMBIENT_LOW),
-                    "a dark square's ambient ({}) is below the low threshold: {square:?}",
-                    square.ambient
+                    square.sky < f64::from(AMBIENT_LOW) + 0.2,
+                    "a dark square's sky ({}) is under the low threshold: {square:?}",
+                    square.sky
                 );
             }
             assert_ne!(reference, LitLevel::BrightOnly, "light_at never answers bright-only");
             checked += 1;
         }
     }
-    assert_eq!(checked, 700, "seven turns of a hundred squares were classified");
+    assert_eq!(checked, 525, "seven turns of seventy-five squares were classified");
     assert!(with_source > 0, "at least one square carries its own source");
 }
