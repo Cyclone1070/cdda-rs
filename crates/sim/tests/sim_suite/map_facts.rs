@@ -39,6 +39,7 @@ fn terrain(id: &str, flags: &[&str]) -> MapData {
         // A fixture is not loaded from JSON, so it starts where an ordinary prototype starts: opaque.
         transparent: false,
         bash: None,
+        roof: None,
     }
 }
 

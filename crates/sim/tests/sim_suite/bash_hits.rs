@@ -77,6 +77,7 @@ struct Hit {
     terrain: String,
     furniture: String,
     below: String,
+    below_before: String,
     strength: i32,
     roll: f32,
     destroy: bool,
@@ -105,6 +106,7 @@ fn hits() -> Vec<Hit> {
             terrain: text(row, "ter"),
             furniture: text(row, "furn"),
             below: text(row, "below"),
+            below_before: text(row, "below_before"),
             strength: number(row, "str"),
             roll: real(row, "roll"),
             destroy: flag(row, "destroy"),
@@ -180,11 +182,9 @@ fn every_recorded_hit_lands_where_the_reference_lands_it() {
         };
         let outcome = bash(&target, params, &data);
         damage = outcome.damage;
-        // **The open-air path is a declared gap**: a floor that is destroyed becomes `t_open_air` and then the reference regenerates a roof over it (`src/map.cpp:4230-4236`),
-        // which needs the terrain's own roof table. Those rows are counted rather than tolerated.
+        // Counted, not skipped: rows that end as a roof are the ones that take the open-air path (`src/map.cpp:4229-4236`) and then get a roof back.
         if hit.terrain_after == "t_open_air" || hit.terrain_after.ends_with("_roof") {
             open_air += 1;
-            continue;
         }
         let where_ = format!(
             "{}/{} at {} (roll {}) step {}",
@@ -208,10 +208,14 @@ fn every_recorded_hit_lands_where_the_reference_lands_it() {
         if outcome.bashed_solid != hit.bashed_solid {
             wrong.push(format!("{where_}: bashed_solid {} against {}", outcome.bashed_solid, hit.bashed_solid));
         }
+        assert_eq!(
+            hit.below_before, "t_rock_floor",
+            "every fixture pins the square below it; a dump recorded without a seed once read a mapgen roof here instead"
+        );
         let _ = (hit.x, hit.y);
     }
-    // Six of the 97: the two destroyed floors and four of the floor-and-furniture squares, all of which end as `t_open_air` and then get a roof back from the reference's
-    // `get_roof`. The count is pinned so that a change in the data, or a port that started answering those rows, moves it.
-    assert_eq!(open_air, 6, "the dump exercises the open-air path, and those six rows are declared out");
+    // Six of the 97 end as a roof: the two destroyed floors and the four terrain fixtures bashed to nothing, which the reference turns back into `t_rock_roof` from the
+    // terrain below. The count is pinned so that a change in the fixtures moves it rather than quietly dropping the roof path out of the gate.
+    assert_eq!(open_air, 6, "the dump exercises the roof-regeneration path");
     assert!(wrong.is_empty(), "{} wrong of 97:\n{}", wrong.len(), wrong.iter().take(14).cloned().collect::<Vec<_>>().join("\n"));
 }

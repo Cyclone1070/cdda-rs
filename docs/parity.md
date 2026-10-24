@@ -166,6 +166,7 @@ the layer that decides when to shift
 | Weather | **done: the generator, the condition loop, the sun and the manager** | P2 | `weather::System::tick` computes the point, decides the sky and books the next change in one call and reproduces the reference's recorded ten-day day from the recorded dice alone; `Climate` is a resource and `tick_climate` runs a turn of it (rounds 511-533). The manager's own path is gated on 240 hours with fourteen absorption changes. **Not ported, declared:** the falling-snow tile layer and the lightning strikes |
 | Zone manager | **ported and gated: the four queries and their order** | P2 | `zones::ZoneManager` from `zone_manager` (`src/clzones.cpp:1112-1396`): zones are inclusive rectangles of a type, a faction, an `invert` flag and an `enabled` flag, and the four queries read the list from **both ends** — `zones_at` and `zone_at` walk it forwards (the oldest zone wins), `bottom_zone` and `loot_zone_at` walk it backwards (the newest wins), and "loot" is the **prefix of the type's id**, not a flag. `has` and `has_near` ask the **cached point set** (`cache_data`, `src/clzones.cpp:892-917`), which skips a switched-off zone — so the same square answers "yes" to "what am I standing in" and "no" to "is there a food zone here". Gated against `corpus/zones/probe.json`: 240 squares, 2,640 answers, seven overlapping zones plus one of another faction. Two rules the fixture pins: `has_inside` **ignores `invert`** (the rectangle is the rectangle; the inversion belongs to the reader) and **ignores `enabled`** (a switched-off zone still contains its squares). **Not ported, declared:** zone options, personal and vehicle zones, the point-set cache's staleness and `get_point_set_loot` (rounds 573-574) |
 | Bashing | **ported and gated: terrain and furniture, 97 hits** | P2 | `sim::bash::bash` from `map::bash_ter_furn` (`src/map.cpp:3932-4245`), gated against `corpus/bash/hits.json` — eight fixtures, 97 hits, each compared on what the square became, the damage it kept, `did_bash`, `success` and `bashed_solid`. The oracle needed a **hook**: `bash` draws its roll from the global rng, so the dump hands the roll in and the port takes it as a parameter. Three rules the hits pin: furniture **hides** the terrain underneath (a chair on a concrete floor is a chair); a failed hit past `str_min` leaves at least one point of damage, which the *next* hit reads as strength; and `success` is **not** "something broke" — a `destroy` hit breaks the square and reports success false. **Not ported, declared:** items, fields and vehicles on the square, sounds and messages, `explosive`, tents, spores, signage, `furn_is_supported` (no data has `str_min_blocked`) and the **open-air path** — six of the 97 rows, where a destroyed floor becomes `t_open_air` and the reference regenerates a roof from the terrain below (round 576) |
+| Terrain roofs | **ported and gated: all 1,109 terrains** | P1 | `MapData.roof`, from `optional( jo, was_loaded, "roof", roof, NULL_ID )` (`src/mapdata.cpp:1218`), compared prototype by prototype in the 1,769-row map-data gate. The field has two spellings of "none" and only one of them is none: the reference's null terrain id is **`t_null`**, so 534 terrains carry `t_null` and mean "no roof", while every piece of furniture prints an empty string because it has no field at all. It is what `map::get_roof` answers with, and therefore what a destroyed floor regenerates into — `t_rock_floor`'s roof is `t_rock_roof` (round 577) |
 | Bash data | **ported and gated: every terrain and furniture block** | P2 | `mapdata::BashInfo` from `map_common_bash_info` and its two subclasses (`src/mapdata.h:40-84`, `src/mapdata.cpp:376-430`), loaded for all 1,570 blocks the dda set defines — 958 terrains and 612 pieces of furniture — and gated against `corpus/bash/info.json` field by field. Three rules the dump settled that a transcription would have guessed wrong: `ter_set_bashed_from_above` defaults to `ter_set` **only when the block is fresh**, so a child that renames `ter_set` keeps its parent's above-result (533 blocks turn on it); furniture's `furn_set` defaults to the real id `f_null`, not to nothing; and a block that names no items gets the real group `EMPTY_GROUP`. **Not ported, declared:** inline `items` arrays, which the reference turns into anonymous groups with ids no port can reproduce; `explosive`, `restricts_hauling`, `tent_centers`, `hit_field`/`destroyed_field` and the `sound`/`sound_fail` texts (round 575) |
 | Zone types | **ported and gated** | P2 | `content::zones::load_paths` loads the 64 zone types the dda set defines, from the JSON tag `LOOT_ZONE` (`src/init.cpp:370`) — not `zone_type`, which is the mistake that returns an empty registry with no error. Gated against `corpus/zones/all.json` on id, name, description, display field, `can_be_personal` and `hidden`: 64 of 64, including the 42 a character may own and the one hidden type. **Not ported, declared:** the zone manager's options, `has_zone_type_for`, the personal and vehicle zones, and the area caches (rounds 572-574) |
 | Falling and explosions | not started | M2 | |
@@ -2973,6 +2974,25 @@ Mitigation, in order of cost:
 The instrument itself is not in doubt: it compiles, it is in `oracle/patches/0001-prototype-digest.patch`, and a traced
 run of a world that exists will write the file.
 
+
+## Roofs, and the square below (round 577)
+
+Bashing a floor exposed a gap one layer down: the reference's `get_roof` answers from the **terrain's own `roof` field**, which the port was not loading. Closing it needed a
+corpus change, because the prototype dump did not print the field either.
+
+The field has two spellings of "nothing" and only one of them is nothing:
+
+| Value | Means |
+|---|---|
+| `t_null` (534 terrains) | no roof — the reference's null terrain id, and what `!roof` tests |
+| a real id (1,109 − 534 terrains) | the tile below becomes this when it needs a roof |
+| `""` (all 660 furniture) | the field does not exist on furniture at all |
+
+With it, the six rows of the bash gate that end as a roof are ordinary comparisons rather than a declared gap: a destroyed floor becomes `t_open_air`, and then the roof of the
+square below is put back over it (`src/map.cpp:4229-4236`).
+
+Two lessons worth the round: **`--seed` is not optional** for a dump that touches the world — the first recording read `t_rock_floor_no_roof` under two fixtures because mapgen
+had put something else there — and a dump should record the fixture it *set up* as well as the result, which is why `below_before` exists and the gate asserts the fixture held.
 
 ## Bashing (round 576)
 

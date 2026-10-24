@@ -137,7 +137,17 @@ fn naming_flags_replaces_them_and_extend_and_delete_adjust_them() {
 #[allow(clippy::type_complexity)]
 fn reference_prototypes() -> std::collections::BTreeMap<
     (String, String),
-    (String, [i32; 4], String, i32, i32, i32, Vec<String>, bool),
+    (
+        String,
+        [i32; 4],
+        String,
+        i32,
+        i32,
+        i32,
+        Vec<String>,
+        bool,
+        Option<String>,
+    ),
 > {
     let text = std::fs::read_to_string(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -187,6 +197,14 @@ fn reference_prototypes() -> std::collections::BTreeMap<
             object.get("transparent"),
             Some(cdda_json::Value::Bool(true))
         );
+        // `roof` is the reference's own field on the prototype, and the empty string is how it prints "no roof at all".
+        // The reference prints `t_null` — its null terrain id — for a prototype with no roof, and an empty string for furniture, which has no roof field at all.
+        let declared_roof = match object.get("roof") {
+            Some(cdda_json::Value::Str(text)) if !text.is_empty() && text != "t_null" => {
+                Some(text.clone())
+            }
+            _ => None,
+        };
         out.insert(
             (text_of("kind"), text_of("id")),
             (
@@ -198,6 +216,7 @@ fn reference_prototypes() -> std::collections::BTreeMap<
                 number_of("coverage"),
                 flags,
                 transparent,
+                declared_roof,
             ),
         );
     }
@@ -222,8 +241,17 @@ fn the_whole_content_set_matches_the_reference_field_by_field() {
             },
             prototype.id.clone(),
         );
-        let Some((name, ref_symbol, ref_color, move_cost, light, coverage, flags, transparent)) =
-            reference.get(&key)
+        let Some((
+            name,
+            ref_symbol,
+            ref_color,
+            move_cost,
+            light,
+            coverage,
+            flags,
+            transparent,
+            ref_roof,
+        )) = reference.get(&key)
         else {
             mismatches.push(format!("{}: not in the reference", prototype.id));
             continue;
@@ -273,6 +301,12 @@ fn the_whole_content_set_matches_the_reference_field_by_field() {
             mismatches.push(format!(
                 "{}: transparent {} != {transparent}",
                 prototype.id, prototype.transparent
+            ));
+        }
+        if prototype.roof != *ref_roof {
+            mismatches.push(format!(
+                "{}: roof {:?} != {ref_roof:?}",
+                prototype.id, prototype.roof
             ));
         }
     }

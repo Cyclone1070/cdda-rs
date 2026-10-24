@@ -35,7 +35,12 @@ left that to the world would be a recording of the seed.
 | Hits | 97 |
 | Hits that succeeded | 11 |
 | Hits that touched something | 86 |
-| Rows declared out (the open-air path) | 6 |
+| Rows that end as a roof | 6 |
+| Rows whose square below is not the pinned `t_rock_floor` | 0 |
+
+**Pass `--seed`.** The first recording of `hits.json` was made without one, and two rows came back reading `t_rock_floor_no_roof` where the fixture had written `t_rock_floor`: the
+world under the fixture is mapgen, and without a seed it is a different world each run. The dump now records the square below **before** and after the hit as well, and the gate
+asserts that the fixture held, so an unseeded recording fails instead of quietly changing the answer.
 
 Regenerate with:
 

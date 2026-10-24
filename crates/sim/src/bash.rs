@@ -93,20 +93,19 @@ pub fn bash(
     let (bash, smash_furniture) = choose_block(terrain, furniture, has_furniture);
     let mut smash_terrain = !smash_furniture && bash.is_some();
 
-    // The floor check (`src/map.cpp:3966-3985`): a terrain that hands its bash down to the tile below is not the tile being bashed unless the caller said so, and a
-    // `destroy` still gets through unless the terrain it would become is the terrain it already is.
+    // The roof over the square below, and whether this square **is** that roof (`src/map.cpp:3947-3952`). Both are worked out before anything is bashed, because the bash
+    // can change either square.
+    let below_roof = data.get(&target.below).and_then(|below| below.roof.clone());
+    let roof_of_below_tile = below_roof.as_deref() == Some(target.terrain.as_str());
+
+    // The floor bashing check (`src/map.cpp:3966-3985`). An ordinary hit cannot reach a floor at all. A `destroy` **can**, and it keeps going even when the tile would become
+    // the null terrain — unless the tile is already the roof of the square below, which is the reference's guard against a `destroy` that never ends.
     let mut bash = bash;
-    if smash_terrain
-        && bash.as_ref().is_some_and(|block| block.bash_below)
-        && !params.bash_floor
-    {
-        // An ordinary hit cannot reach a floor at all; a `destroy` gets through unless the floor would become the terrain it already is (`src/map.cpp:3969-3985`), which is
-        // the reference's own guard against a `destroy` that never ends.
-        let reached = params.destroy
-            && !bash.as_ref().is_some_and(|block| {
-                block.set.is_empty() || block.set == "t_null" || block.set == target.terrain
-            });
-        if !reached {
+    if smash_terrain && bash.as_ref().is_some_and(|block| block.bash_below) && !params.bash_floor {
+        let null_set = bash
+            .as_ref()
+            .is_some_and(|block| block.set.is_empty() || block.set == "t_null");
+        if !params.destroy || (null_set && roof_of_below_tile) {
             smash_terrain = false;
             bash = None;
         }
@@ -173,25 +172,79 @@ pub fn bash(
     if smash_furniture {
         outcome.furniture.clone_from(&block.set);
     } else if smash_terrain {
-        let from_above = if params.bashing_from_above {
-            block.set_from_above.as_deref()
-        } else {
-            None
-        };
-        match from_above {
-            Some(above) => above.clone_into(&mut outcome.terrain),
-            // `ter_set` is a **string id**: `t_null` is what the data writes when a destroyed tile should become open air rather than a named terrain.
-            None if !block.set.is_empty() && block.set != "t_null" => {
-                outcome.terrain.clone_from(&block.set);
-            }
-            None => "t_open_air".clone_into(&mut outcome.terrain),
-        }
+        outcome.terrain = destined_terrain(
+            target,
+            params,
+            data,
+            &block,
+            smash_terrain,
+            roof_of_below_tile,
+            below_roof.as_deref(),
+        );
     }
 
     outcome.did_bash = true;
     outcome.success |= success;
     outcome.bashed_solid = true;
     outcome
+}
+
+/// What a destroyed terrain becomes.
+///
+/// Reference: the `smash_ter` arm of `map::bash_ter_furn`'s destructuring (`src/map.cpp:4183-4236`), in its own order: a hit from above uses `ter_set_bashed_from_above`, an
+/// ordinary hit uses `ter_set` unless this square **is** the roof of the one below, and a tile that has no `ter_set` at all becomes open air and then gets a roof back from the
+/// floor underneath it.
+fn destined_terrain(
+    target: &BashTarget,
+    params: BashParams,
+    data: &BTreeMap<String, MapData>,
+    block: &cdda_content::mapdata::BashInfo,
+    smash_terrain: bool,
+    roof_of_below_tile: bool,
+    below_roof: Option<&str>,
+) -> String {
+    let from_above = if params.bashing_from_above {
+        block.set_from_above.as_deref()
+    } else {
+        None
+    };
+    let terrain = match from_above {
+        Some(above) => above.to_owned(),
+        // `ter_set` is a **string id**: `t_null` is what the data writes when a destroyed tile should become open air rather than a named terrain.
+        None if !block.set.is_empty() && block.set != "t_null" && !roof_of_below_tile => {
+            block.set.clone()
+        }
+        None => "t_open_air".to_owned(),
+    };
+    // The roof comes back (`src/map.cpp:4229-4236`): a square left as open air over a floor that supports a roof gets that floor's roof put back over it, so a destroyed room
+    // does not become a hole in the world. `allow_air` is what lets a floor-bash leave a hole on purpose.
+    let below = data.get(&target.below);
+    if ZLEVELS
+        && smash_terrain
+        && data.get(&terrain).is_some_and(|now| now.has_flag("EMPTY_SPACE"))
+        && below.is_some_and(|below| below.has_flag("SUPPORTS_ROOF"))
+    {
+        let allow_air = params.bash_floor && below.is_some_and(|below| below.move_cost != 0);
+        return get_roof(below_roof, allow_air);
+    }
+    terrain
+}
+
+/// Whether the reference is running with z-levels, which decides a handful of the rules above.
+///
+/// It is a **world option**, and the harness world has it on — which its own answers prove: a floor bashed to open air comes back as `t_rock_roof` (`src/map.cpp:4229`), and
+/// that whole branch is behind `if( zlevels )`. A world without z-levels would answer `t_open_air` there instead, and `bash` has no way to ask.
+const ZLEVELS: bool = true;
+
+/// What the square below would become if it were used as a roof (`map::get_roof`, `src/map.cpp:3878-3911`).
+///
+/// **Declared gaps:** the reference also answers `t_rock_floor` below the bottom of the world (`p.z() <= -OVERMAP_DEPTH`) and complains about a `t_null` roof; neither can
+/// happen for a square at ground level, which is the only kind this function is asked about.
+fn get_roof(below_roof: Option<&str>, allow_air: bool) -> String {
+    below_roof.map_or_else(
+        || if allow_air { "t_open_air".to_owned() } else { "t_dirt".to_owned() },
+        str::to_owned,
+    )
 }
 
 /// Which block a hit uses: the furniture's when there is furniture with one, otherwise the terrain's.

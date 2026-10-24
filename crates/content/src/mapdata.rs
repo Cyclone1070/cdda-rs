@@ -63,6 +63,15 @@ pub struct MapData {
     /// `-1` cannot be bashed either but is a different thing — the reference's `bash_ter_furn` tests `if( !bash || ( bash->destroy_only && !params.destroy ) )` on the
     /// block's presence, so a block that merely cannot be reached still answers to `destroy`.
     pub bash: Option<BashInfo>,
+    /// What this terrain becomes when it is the roof over the square below.
+    ///
+    /// Reference: `ter_t::roof` (`src/mapdata.h`), loaded as `optional( jo, was_loaded, "roof", roof, NULL_ID )` (`src/mapdata.cpp:1218`). Only terrain has one. It is what
+    /// `map::get_roof` answers with, and therefore what a destroyed floor regenerates into — `t_rock_floor`'s roof is `t_rock_roof`, which is why a floor bashed to open air
+    /// comes back as a rock ceiling.
+    ///
+    /// `None` is the reference's `!roof`: its null terrain id is spelled **`t_null`** (`ter_str_id::NULL_ID()`), so 534 of the 1,109 terrains carry `t_null` and mean "no
+    /// roof" by it. Every piece of furniture prints an empty roof, which is why the loader only reads the field for terrain.
+    pub roof: Option<String>,
 }
 
 /// One tile's bash block: how much strength it takes, and what it becomes.
@@ -219,6 +228,7 @@ pub fn load_paths(dirs: &[&std::path::Path]) -> Result<Vec<MapData>, LoadError> 
                 // own dump has both **transparent** - unlike an ordinary new prototype, which starts opaque.
                 transparent: true,
                 bash: None,
+                roof: None,
             },
         );
     }
@@ -387,6 +397,21 @@ fn makes_transparent(flag: &str) -> bool {
 }
 
 /// Applies one object's fields on top of its base, as the reference's `load` does.
+/// The roof a terrain prototype declares, if any.
+///
+/// Reference: `optional( jo, was_loaded, "roof", roof, NULL_ID )` (`src/mapdata.cpp:1218`) — read **only** for terrain, inherited when the child says nothing, and defaulted
+/// to the null id (which this port spells `None`) for a fresh one.
+fn apply_roof(value: &mut MapData, json: &Object, kind: MapDataKind) {
+    if let (MapDataKind::Terrain, Some(roof)) = (kind, string(json, "roof")) {
+        // `t_null` is the null terrain id, and the reference's `!roof` test is exactly "this is the null id".
+        value.roof = if roof.is_empty() || roof == "t_null" {
+            None
+        } else {
+            Some(roof)
+        };
+    }
+}
+
 fn apply(base: Option<MapData>, loaded: &Loaded) -> Result<MapData, LoadError> {
     let json = &loaded.json;
     let id = loaded.id.clone();
@@ -405,6 +430,7 @@ fn apply(base: Option<MapData>, loaded: &Loaded) -> Result<MapData, LoadError> {
         // shipped `t_null`/`f_null` override even that by naming their own flags - which is why this is data-pinned rather than reasoned.
         transparent: false,
         bash: None,
+        roof: None,
     });
     value.kind = loaded.kind;
     value.id.clone_from(&id);
@@ -488,6 +514,8 @@ fn apply(base: Option<MapData>, loaded: &Loaded) -> Result<MapData, LoadError> {
             }
         }
     }
+    // `roof` is terrain's alone, and a child that says nothing keeps the parent's (`optional` with `was_loaded`, `src/mapdata.cpp:1218`).
+    apply_roof(&mut value, json, loaded.kind);
     apply_bash(&mut value.bash, json, loaded.kind);
     Ok(value)
 }
