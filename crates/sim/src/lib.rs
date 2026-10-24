@@ -5,6 +5,7 @@
 //! grid resource rebuilt from the World, never kept as a second authority.
 
 pub mod field_table;
+pub mod radiation;
 pub mod frame;
 pub mod terrain_table;
 pub mod noise;
@@ -2910,6 +2911,73 @@ pub fn process_fire_residue(
     }
 }
 
+/// Adds radiation to a square, the way `field_processor_extra_radiation` does.
+///
+/// Reference: `field_processor_extra_radiation` (`src/map_field.cpp:664-673`): the guard is on the **maximum**, so a level that radiates nothing returns before it
+/// draws - which matters because the draw is a die, and a die that is not thrown is a world that does not move.
+pub fn process_extra_radiation(
+    world: &mut World,
+    square: (i32, i32, i32),
+    min: i32,
+    max: i32,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) {
+    if max <= 0 {
+        return;
+    }
+    let extra_radiation = rolls.rng(min, max);
+    if !world.contains_resource::<radiation::Radiation>() {
+        world.insert_resource(radiation::Radiation::new());
+    }
+    let mut store = world.resource_mut::<radiation::Radiation>();
+    store.adjust(square, extra_radiation);
+}
+
+
+
+/// Fills the squares around a vent with the gas it wanders into.
+///
+/// Reference: `field_processor_wandering_field` (`src/map_field.cpp:675-690`). Two details are the whole point of the function:
+///
+/// * the reach is `intensity - 1` squares, so the weakest vent fills only its own square;
+/// * a square whose wandering field is **weaker** gains one level, and any other square - including one already at least as strong - is handed to `add_field`, which
+///   **sums** the strengths.
+pub fn process_wandering_field(
+    world: &mut World,
+    square: (i32, i32, i32),
+    intensity: i32,
+    wandering_field: cdda_core_types::field::FieldId,
+) {
+    let reach = intensity - 1;
+    if reach < 0 {
+        return;
+    }
+    // **A square, not a circle.** `points_in_radius` is `tripoint_range( center - ( r, r, 0 ), center + ( r, r, 0 ) )` (`src/map_iterator.h:153-160`) - the circle is
+    // the separate `points_in_radius_circ` - so a vent at intensity two fills all nine squares and not merely the five that a circle of radius one would hold.
+    for dy in -reach..=reach {
+        for dx in -reach..=reach {
+            let at = (square.0 + dx, square.1 + dy, square.2);
+            let existing = {
+                let mut query = world.query::<(Entity, &Position, &Field)>();
+                query
+                    .iter(world)
+                    .find(|(_, position, field)| {
+                        (position.x, position.y, position.z) == at && field.id == wandering_field
+                    })
+                    .map(|(entity, _, field)| (entity, field.entry.intensity()))
+            };
+            match existing {
+                Some((entity, already)) if already < intensity => {
+                    if let Some(mut field) = world.get_mut::<Field>(entity) {
+                        field.entry.set_intensity(already + 1);
+                    }
+                }
+                _ => add_field_strength(world, at, wandering_field, intensity),
+            }
+        }
+    }
+}
+
 /// Adds or strengthens a field on a square, keeping the stronger of what is there and what arrives.
 pub fn add_field_strength(world: &mut World, square: (i32, i32, i32), id: FieldId, strength: i32) {
     let existing = {
@@ -3829,6 +3897,14 @@ pub struct FieldTurnData {
     pub outdoors: bool,
     /// Whether the square it stands on is swimmable.
     pub swimmable: bool,
+    /// The least and most radiation the intensity it is at adds each processing turn, zero for a field that radiates nothing.
+    ///
+    /// Reference: `field_intensity_level::extra_radiation_min` and `_max` (`src/field.h:106-107`). Only `fd_nuke_gas` has a non-zero maximum in the data.
+    pub extra_radiation: (i32, i32),
+    /// The field this type wanders into around itself, or `None` when it wanders into nothing.
+    ///
+    /// Reference: `field_type::wandering_field` (`src/field_type.h:225`). Three vents in the data wander.
+    pub wandering_field: Option<cdda_core_types::field::FieldId>,
 }
 
 /// The part of the world a turn touches: the reference's reality bubble.
@@ -3988,6 +4064,18 @@ pub fn process_field_turn(
                 |from, to| to.2 == from.2 && cell_of(to.0, to.1).can_enter,
                 rolls,
             );
+        }
+        // 5. Radiation, then 6. the wandering field: the order `processors_for_type` pushes them in (`src/map_field.cpp:2326-2330`).
+        let current = world
+            .get::<Field>(entity)
+            .map_or(0, |field| field.entry.intensity());
+        let (least, most) = data.extra_radiation;
+        let z = world.get::<Position>(entity).map_or(0, |position| position.z);
+        if most > 0 {
+            process_extra_radiation(world, (x, y, z), least, most, rolls);
+        }
+        if let Some(wandering) = data.wandering_field {
+            process_wandering_field(world, (x, y, z), current, wandering);
         }
         if !field_is_alive(world, entity) {
             world.despawn(entity);
