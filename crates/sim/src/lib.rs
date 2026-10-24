@@ -5076,6 +5076,28 @@ pub enum Overflow {
     None,
 }
 
+/// How a group wants its items put into the container it names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Fill {
+    /// What to do with an item the container will not take.
+    pub overflow: Overflow,
+    /// Whether the container is a **corpse**.
+    ///
+    /// Reference: `put_into_container` (`src/item_group.cpp:137-145`). When an item does not fit, the reference asks whether the *container* is a corpse and, if so,
+    /// forces the item in whatever the pockets say (`force_insert_item`). Corpses are the one container the data cannot size, so the reference stops asking rather than
+    /// spilling a dead man's pockets onto the pavement.
+    pub container_is_corpse: bool,
+}
+
+impl Default for Fill {
+    fn default() -> Self {
+        Self {
+            overflow: Overflow::Spill,
+            container_is_corpse: false,
+        }
+    }
+}
+
 /// What became of a group's items.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Filled {
@@ -5099,7 +5121,7 @@ pub fn fill_container(
     world: &mut World,
     container: Entity,
     kinds: &[ItemTypeId],
-    overflow: Overflow,
+    fill: Fill,
     facts_of: impl Fn(Entity) -> ItemFacts + Copy,
     rolls: &mut Rolls,
 ) -> Filled {
@@ -5128,17 +5150,42 @@ pub fn fill_container(
                 },
             ))
             .id();
-        if insert_into(world, container, item, facts_of).is_ok() {
+        let fits = insert_into(world, container, item, facts_of).is_ok();
+        if !fits && fill.container_is_corpse {
+            // A corpse takes it anyway (`ctr.force_insert_item`, `src/item_group.cpp:141-144`).
+            // The item is freshly spawned, so it cannot already be inside anything.
+            if force_into(world, container, item).is_ok() {
+                filled.inside += 1;
+            }
+            continue;
+        }
+        if fits {
             filled.inside += 1;
             continue;
         }
         filled.left_over += 1;
-        if overflow != Overflow::Spill {
+        if fill.overflow != Overflow::Spill {
             // `discard` and `none` both end with the item out of the group's list and out of the world.
             remove_item_with_contents(world, item);
         }
     }
     filled
+}
+
+/// Puts an item inside a container without asking whether it fits.
+///
+/// Reference: `item::force_insert_item` (`src/item.cpp`), which the corpse branch of `put_into_container` calls. The one thing it still refuses is an item that is
+/// already inside something, because there is nowhere else to record the second parent.
+///
+/// # Errors
+///
+/// [`InsertError::AlreadyInside`] if the item already has a parent.
+pub fn force_into(world: &mut World, container: Entity, item: Entity) -> Result<(), InsertError> {
+    if world.get::<Inside>(item).is_some() {
+        return Err(InsertError::AlreadyInside);
+    }
+    world.entity_mut(item).insert((Inside(container), InPocket(0)));
+    Ok(())
 }
 
 /// Removes an item **and everything inside it**.

@@ -47,7 +47,7 @@ fn everything_fits_and_nothing_is_left_over() {
     let mut world = World::new();
     let box_entity = make_box(&mut world, 500);
     let rocks = vec![ROCK, ROCK];
-    let filled = fill_container(&mut world, box_entity, &rocks, Overflow::Spill, facts, &mut Rolls::new(5));
+    let filled = fill_container(&mut world, box_entity, &rocks, cdda_sim::Fill { overflow: Overflow::Spill, container_is_corpse: false }, facts, &mut Rolls::new(5));
     assert_eq!(filled.inside, 2, "both rocks went in");
     assert_eq!(filled.left_over, 0);
     assert_eq!(loose(&mut world), 0);
@@ -58,7 +58,7 @@ fn spill_leaves_the_leftovers_on_the_ground() {
     let mut world = World::new();
     let box_entity = make_box(&mut world, 150);
     let rocks = vec![ROCK, ROCK, ROCK];
-    let filled = fill_container(&mut world, box_entity, &rocks, Overflow::Spill, facts, &mut Rolls::new(5));
+    let filled = fill_container(&mut world, box_entity, &rocks, cdda_sim::Fill { overflow: Overflow::Spill, container_is_corpse: false }, facts, &mut Rolls::new(5));
     assert_eq!(filled.inside, 1, "one rock fits");
     assert_eq!(filled.left_over, 2);
     assert_eq!(loose(&mut world), 2, "and the two that did not are on the square");
@@ -69,7 +69,7 @@ fn discard_loses_the_leftovers_on_purpose() {
     let mut world = World::new();
     let box_entity = make_box(&mut world, 150);
     let rocks = vec![ROCK, ROCK, ROCK];
-    let filled = fill_container(&mut world, box_entity, &rocks, Overflow::Discard, facts, &mut Rolls::new(5));
+    let filled = fill_container(&mut world, box_entity, &rocks, cdda_sim::Fill { overflow: Overflow::Discard, container_is_corpse: false }, facts, &mut Rolls::new(5));
     assert_eq!(filled.inside, 1);
     assert_eq!(filled.left_over, 2, "the player is told what it cost");
     assert_eq!(loose(&mut world), 0, "and nothing is left on the ground");
@@ -81,7 +81,7 @@ fn none_loses_the_leftovers_too_because_the_data_was_wrong() {
     let mut world = World::new();
     let box_entity = make_box(&mut world, 150);
     let rocks = vec![ROCK, ROCK, ROCK];
-    let filled = fill_container(&mut world, box_entity, &rocks, Overflow::None, facts, &mut Rolls::new(5));
+    let filled = fill_container(&mut world, box_entity, &rocks, cdda_sim::Fill { overflow: Overflow::None, container_is_corpse: false }, facts, &mut Rolls::new(5));
     assert_eq!(filled.inside, 1);
     assert_eq!(filled.left_over, 2);
     assert_eq!(loose(&mut world), 0, "the same outcome as a discard, and a diagnostic");
@@ -102,7 +102,7 @@ fn which_items_land_inside_depends_on_the_seed() {
     for seed in 1..=8 {
         let mut world = World::new();
         let box_entity = make_box(&mut world, 150);
-        fill_container(&mut world, box_entity, &run, Overflow::Spill, facts, &mut Rolls::new(seed));
+        fill_container(&mut world, box_entity, &run, cdda_sim::Fill { overflow: Overflow::Spill, container_is_corpse: false }, facts, &mut Rolls::new(seed));
         let boxed = cdda_sim::contents(&mut world, box_entity)
             .into_iter()
             .filter_map(|entity| world.get::<GroundItem>(entity).map(|item| item.kind))
@@ -116,4 +116,52 @@ fn which_items_land_inside_depends_on_the_seed() {
         kinds_seen.len() > 1,
         "the shuffle decides which item goes in, so different seeds have to put different ones in - they all put {kinds_seen:?}"
     );
+}
+
+/// A corpse takes everything, whatever its pockets say.
+///
+/// Reference: `put_into_container` (`src/item_group.cpp:137-145`): when `can_contain_directly` fails the code asks whether the **container** is a corpse, and if it is,
+/// `force_insert_item` puts the item in regardless of volume. Corpses are the one container the data never sizes correctly, so the reference stops asking - and a port
+/// that kept asking would spill a dead man's pockets onto the pavement.
+#[test]
+fn a_corpse_container_takes_what_would_not_fit_anywhere_else() {
+    let mut world = World::new();
+    let corpse = make_box(&mut world, 50);
+    let rocks = vec![ROCK, ROCK, ROCK];
+    let filled = fill_container(
+        &mut world,
+        corpse,
+        &rocks,
+        cdda_sim::Fill {
+            overflow: Overflow::Spill,
+            container_is_corpse: true,
+        },
+        facts,
+        &mut Rolls::new(5),
+    );
+    assert_eq!(filled.inside, 3, "all three went in");
+    assert_eq!(filled.left_over, 0, "and nothing was left over");
+    assert_eq!(loose(&mut world), 0, "nothing on the ground either");
+}
+
+#[test]
+fn an_ordinary_container_of_the_same_size_spills_two_of_them() {
+    // The same fixture without the corpse flag, so the test above is about the flag and not about the arithmetic.
+    let mut world = World::new();
+    let box_entity = make_box(&mut world, 50);
+    let rocks = vec![ROCK, ROCK, ROCK];
+    let filled = fill_container(
+        &mut world,
+        box_entity,
+        &rocks,
+        cdda_sim::Fill {
+            overflow: Overflow::Spill,
+            container_is_corpse: false,
+        },
+        facts,
+        &mut Rolls::new(5),
+    );
+    assert_eq!(filled.inside, 0, "not even one fits in 50 ml");
+    assert_eq!(filled.left_over, 3);
+    assert_eq!(loose(&mut world), 3);
 }
