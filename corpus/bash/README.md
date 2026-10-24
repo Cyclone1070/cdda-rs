@@ -26,7 +26,20 @@ And the defaults are not uniformly "empty": `ter_set_bashed_from_above` defaults
 still bashes from above into the `t_floor` its parent resolved; furniture's `furn_set` defaults to the real id `f_null`; and a block that names no items gets the real group
 `EMPTY_GROUP` rather than nothing.
 
+`hits.json` is `--dump-bash`: eight fixtures bashed with eight or nine hits each — 97 hits in all — recording what the square became, what damage it kept, and whether the hit
+touched anything. Each fixture's square below is pinned to `t_rock_floor`, because a floor's strength depends on whether the tile under it supports a roof and a dump that
+left that to the world would be a recording of the seed.
+
+| Fact | Count |
+|---|---|
+| Hits | 97 |
+| Hits that succeeded | 11 |
+| Hits that touched something | 86 |
+| Rows declared out (the open-air path) | 6 |
+
 Regenerate with:
 
     ./oracle/build/src/cataclysm --datadir oracle/src/data/ --userdir oracle/userdir \
         --seed 12345 --dump-bash-info corpus/bash/info.json < /dev/null
+    ./oracle/build/src/cataclysm --datadir oracle/src/data/ --userdir oracle/userdir \
+        --seed 12345 --dump-bash corpus/bash/hits.json < /dev/null
