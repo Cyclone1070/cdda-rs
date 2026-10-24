@@ -233,6 +233,14 @@ impl ScentWindow {
             .map_or(0, |cell| cell.value)
     }
 
+    /// The window's own cells, for the decay pass.
+    ///
+    /// `map::decay_fields_and_scent` takes a point off every square before the diffusion (`map.cpp:3418-3420`), and the reference does it on the map's whole
+    /// 132 by 132 layer rather than on the window, so a caller that keeps only a window still has to be able to decay it.
+    pub fn cells_mut(&mut self) -> &mut [ScentCell] {
+        &mut self.cells
+    }
+
     /// Puts scent on a square.
     pub fn set(&mut self, x: i32, y: i32, value: i32) {
         if let Some(cell) = self.index(x, y).and_then(|index| self.cells.get_mut(index)) {

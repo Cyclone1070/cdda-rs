@@ -1,0 +1,18 @@
+# The dice rolled through a session whose **scent layer diffuses** (seed scentwatch, --world harness-fixed, `--place-scent 500`).
+#
+# No fields are placed: the fixture is about the scent window, and a field would only add draws of its own. `scent_map::update` is run between turns the way the game
+# loop runs it, so the record spreads from one square to forty-nine and back down, which is what makes the arithmetic checkable turn by turn.
+mark gas.turn.0
+mark gas.turn.1
+mark gas.turn.2
+mark gas.turn.3
+mark gas.turn.4
+mark gas.turn.5
+mark gas.turn.6
+mark gas.turn.7
+mark gas.turn.8
+mark gas.turn.9
+mark gas.turn.10
+mark gas.turn.11
+mark gas.turn.12
+mark gas.turn.13

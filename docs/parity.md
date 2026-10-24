@@ -2986,6 +2986,27 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## Scent can be recorded now, and the record is red by one point (round 534)
+
+The M2 exit gate asks for a session that covers **scent diffusion**, and no session could: the map's scent layer is only ever filled by a character walking, so every
+fixture carried an empty one. Two oracle additions fix that:
+
+| Addition | What it makes visible |
+|---|---|
+`--place-scent <value>` | a value on the player's square at the start of a session |
+`scent_map::update` between turns | the diffusion itself - without it the layer stood still however many turns passed |
+
+`corpus/fields/scent-session.json` (seed `scentwatch`, fourteen turns, no fields at all) spreads from one square to forty-nine and thins as it goes. Two gates: one
+asserts the record really diffuses, the other replays the reference's window in the port.
+
+**The replay is red, and precisely so.** One diffusion reproduces the first turn square for square. From the second turn the port is **one point low on the
+corners** - `68,58` reads 4 where the reference says 5 - while every square beside them matches. The decay is the difference: `map::decay_fields_and_scent` takes
+a point off every square (`map.cpp:3418-3420`) while the diffusion runs in the map's update, so the order between them is a rule the port has not pinned yet. Two
+candidates fit the measurement - decay before diffusion on every turn after the first, or a different integer division on a square with fewer contributing
+neighbours - and the fixture now distinguishes them.
+
+The rest of the gate machinery is in place and green: the window, the accessor the decay needs (`cells_mut`), and the check that the fixture moves at all.
+
 ## The session's weather is decided from the reference's dice (round 533)
 
 The other half of the sky. The point is a formula, but *which* weather and *when the next change is due* are decided from dice, and those dice were invisible: the

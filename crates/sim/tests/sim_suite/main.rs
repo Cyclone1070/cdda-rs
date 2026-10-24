@@ -83,6 +83,7 @@ mod player_turn;
 mod push_items;
 mod reference_session;
 mod register;
+mod scent_session;
 mod scent_terrain;
 mod shock_vent;
 mod sight;
