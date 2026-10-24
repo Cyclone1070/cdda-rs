@@ -12,7 +12,7 @@ use cdda_core_types::light::LitLevel;
 use cdda_core_types::vision::{View, lit_level_with};
 use std::collections::BTreeMap;
 
-use crate::{Light, Map, Prototypes};
+use crate::{Light, Map, Prototypes, field_opacity};
 
 /// One square of a drawn frame.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -123,6 +123,9 @@ pub fn frame(
             };
         };
         let side = usize::try_from(radius * 2 + 1).unwrap_or(0);
+        // **The fields on every square**, which the sight cast reads and the frame's table was leaving out: smoke between the character and a square attenuates the view of
+        // that square exactly as the reference's `transparency_cache` does (`calc_transp`, `lightmap.cpp:140-167`). Read once, before the level is borrowed.
+        let fields = field_opacity(world);
         let mut table = BTreeMap::new();
         for row in 0..side {
             for column in 0..side {
@@ -131,7 +134,14 @@ pub fn frame(
                     origin.1 + i32::try_from(row).unwrap_or(0) - radius,
                 );
                 let code = map.0.terrain_at(square.0, square.1).unwrap_or(0);
-                table.insert(square, terrain.transparency(code));
+                let furniture_code = map.0.furniture_at(square.0, square.1).unwrap_or(0);
+                let mut transparency = terrain
+                    .transparency(code)
+                    .min(furniture.transparency(furniture_code));
+                // **Fields multiply**, as `calc_transp` does (`lightmap.cpp:155-165`): smoke at its second intensity is ten times as absorbing as air, and at its third it
+                // is nothing at all.
+                transparency *= fields.multiplier_at(square.0, square.1);
+                table.insert(square, transparency);
             }
         }
         table

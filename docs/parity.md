@@ -218,6 +218,7 @@ the layer that decides when to shift
 | Inventory | not started | M3a | |
 | Crafting and recipes | not started | M3a | |
 | Requirements and qualities | not started | M3a | |
+| Vision through fields | **ported and gated** | P2 | The frame's transparency table folds the same three layers the reference does (`calc_transp`, `lightmap.cpp:140-167`): terrain, furniture, and the fields — which **multiply**, so smoke at its second intensity is ten times as absorbing as air and smoke at its third intensity blinds the line. Two gates pin it (`frame_smoke`): a square behind smoke is seen less than the same square without it, and behind dense smoke not at all. This closed the last red gate the M2 exit criterion had left open (round 570) |
 | Tool qualities | **the registry and every item's level, gated** | P3 | `qualities::load_paths` for the 87 quality ids and `items::ItemType::qualities` for the 1,091 item types that have one, gated against `corpus/qualities/all.json` (`--dump-qualities`): every id, every name and every level matches. Levels can be **negative** — `BUTCHER -90` on a saw means worse than bare hands, not a sentinel. Three implicit rules the data taught: a gun that is neither a gun mod nor a primitive ranged weapon gets `GUN` at level one **and** the quality named after its skill, but only when that name is a defined quality (so a launcher gets `GUN` and no `LAUNCHER`); gun data is written **flat** (`"skill"` beside `"ammo"`), not under a `gun` member; and qualities are a **container**, so `extend`/`delete` reach them (round 567) |
 | Build check | **whether a construction can be built from a kit, gated** | P3 | `requirements::RequirementData::can_make` from `requirement_data::can_make_with_inventory` (`src/requirements.cpp:865-888`), with `Kit` standing in for the reference's `inventory` (`src/inventory.h:114`). Gated against `corpus/build/check.json` (`--dump-build-check`): **5,285 of 5,285** answers across **seven kits** — empty, tools only, materials only, tools that spend charges, a stocked one, one that only a charge count can refuse, and the two together. Rules the data taught: a positive tool count is **charges** and the kit must hold at least that many (the reference's `charges_of` is asked with a limit and comes back clamped, so its `==` means "at least"), a negative one is a tool to **hold**, an item counted by charge is asked for in charges and anything else in items, and `item( id, turn, n )` makes **one** item — a kit of forty planks is forty items (round 568). `check_enough_materials` is ported too (`src/requirements.cpp:1061-1146`): a component that is also an available tool needs `count + tc` of it, a component that itself provides a required quality needs `required + count` at that quality, a charge count becomes items through the type's `stack_size` before it is measured, and the components of one craft may not add up past `MAX_ITEM_VOLUME` — one thousand litres (round 569). **Not ported, declared:** the UPS accounting and the `is_crafting_component` filter |
 | Constructions | **the registry and what each one takes, gated end to end** | P3 | `constructions::load_paths` from `construction::load` (`src/construction.cpp:2194-2260`) and `requirements::load_paths` from `requirement_data::load` (`src/requirements.cpp`), merged by `constructions::needs_of` from `finalize_construction` (`src/construction.cpp:2533-2537`). Gated against `corpus/constructions/all.json` (`--dump-constructions`): **755 of 756** constructions match on id, group, category, time, `pre_terrain`, `post_terrain`, skills and their **components, tools and qualities** — every alternative of every group, at the reference's counts. Rules the data taught: `pre_terrain` is a `std::set` in byte order, skills fall back to the legacy `skill`/`difficulty` pair, time is a duration string in moves, `"LIST"` marks a nested group which is scaled by its outer count with a floor of `-1` and inlined from its **first** group only, a name is only a group if it is flagged, a bare string is a tool of count `-1`, tools expand into their subtypes and components do not, and two quality groups that cover each other collapse into the newer one (rounds 565-566). **Not ported, declared:** `constr_veh`'s frame list (generated at finalisation, `src/construction.cpp:2516-2520`), the special functions, `pre_flags`/`post_flags`, byproducts and the blacklist |
@@ -2992,6 +2993,21 @@ Mitigation, in order of cost:
 The instrument itself is not in doubt: it compiles, it is in `oracle/patches/0001-prototype-digest.patch`, and a traced
 run of a world that exists will write the file.
 
+
+## Smoke in the line of sight (round 570)
+
+The last red gate the environment gate had left open is closed: the frame's transparency table was built from the terrain alone, so a square behind smoke was drawn as plainly
+as an open one.
+
+Two things were wrong, and the second was worse than the first:
+
+- the table never asked the **furniture** layer or the **fields** at all;
+- the field half was combined with `min`, which reads backwards. The reference **multiplies** (`calc_transp`, `lightmap.cpp:155-165`): open air is about `0.032` and smoke
+  at its second intensity is `10`, so a smoky room is ten times as absorbing, and smoke at its third intensity is `0`, which ends the line. Taking the minimum of an
+  absorbing number and air keeps the air, which is why mid-intensity smoke did nothing while dense smoke looked right by accident.
+
+The same `min` was in the `sees` query, so both readers now multiply through one grid. Two gates pin the behaviour: a square four past the smoke is seen *less* than the
+same square without it, and behind dense smoke it is not seen at all.
 
 ## One pile cannot serve two groups (round 569)
 

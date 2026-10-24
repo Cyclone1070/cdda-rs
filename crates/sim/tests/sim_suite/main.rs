@@ -26,6 +26,7 @@ mod death;
 mod eating;
 mod extinguisher;
 mod frame;
+mod frame_smoke;
 mod frame_oracle;
 mod field_growth;
 mod field_ids;

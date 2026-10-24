@@ -304,8 +304,7 @@ three against the reference's own recorded day. Two things finish it and one thi
    the character seeing squares of the level below through an opening and nothing above it. `cast_zlight` is now transcribed whole in `cdda_core_types::zlight`, and it
    **reproduces the reference's own seen cache on 867 of 867 squares** over three levels (round 544). Two port-wide bugs fell out on the way: `MAX_VIEW_DISTANCE` was 72
    where the reference computes 60, and `rl_dist` was Chebyshev where `CIRCLEDIST` makes it the truncated Euclidean length.
-6. **The per-turn state hash exists** (rounds 547-549): fields, scent and the sky are three layers of one digest, and every environment session has a receipt number. The sight cast is now the reference's (round 545): `Level::seen_cast` runs `cast_zlight`, and one red gate stays
-   as the next thing to fix - smoke's transparency is not folded into the span before the square behind it is written.
+6. **The per-turn state hash exists** (rounds 547-549): fields, scent and the sky are three layers of one digest, and every environment session has a receipt number. The sight cast is now the reference's (round 545): `Level::seen_cast` runs `cast_zlight`, and ~~one red gate stays as the next thing to fix - smoke's transparency is not folded into the span before the square behind it is written~~ **closed in round 570**: the frame's transparency table now folds the furniture layer and the fields in, and the fields **multiply** the way `calc_transp` says rather than winning a `min` - which makes smoke at its second intensity ten times as absorbing as air and smoke at its third intensity a wall. Two gates pin it (`frame_smoke`): a square behind smoke is seen less, and behind dense smoke not at all.
 
 ## 4. Phase detail
 

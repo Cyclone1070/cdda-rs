@@ -1194,7 +1194,7 @@ pub fn sees_through_fields(
                 .transparency(terrain_code)
                 .min(furniture.transparency(furniture_code));
             if let Some(fields) = &fields {
-                transparency = transparency.min(fields.transparency_at(x, y));
+                transparency *= fields.multiplier_at(x, y);
             }
             transparency > 0.0
         },
@@ -1202,11 +1202,14 @@ pub fn sees_through_fields(
     )
 }
 
-/// The strongest field on every square, as the transparency rule wants it.
+/// How much each square's fields multiply its transparency by.
 ///
-/// Reference: the field half of `calc_transp` (`lightmap.cpp:155-165`), which walks a square's fields and keeps the smallest translucency. A field whose translucency
-/// is zero makes the square solid, which is how smoke at full strength blinds a line.
-fn field_opacity(world: &World) -> FieldOpacityGrid {
+/// Reference: the field half of `calc_transp` (`lightmap.cpp:155-165`), which **multiplies** a square's transparency by every field that is not transparent. The numbers
+/// read backwards from what they look like: `TRANSPARENCY_OPEN_AIR` is about `0.032` and smoke at its second intensity is `10`, so a room with smoke in it is ten times
+/// as absorbing as one without, and smoke at its third intensity is `0`, which blinds the line completely.
+///
+/// A square with no fields multiplies by one.
+pub(crate) fn field_opacity(world: &World) -> FieldOpacityGrid {
     let mut squares: BTreeMap<(i32, i32), f32> = BTreeMap::new();
     let table = world.get_resource::<field_table::FieldTable>();
     let mut query = world.try_query::<(Entity, &Position, &Field)>();
@@ -1214,10 +1217,8 @@ fn field_opacity(world: &World) -> FieldOpacityGrid {
         for (_entity, position, field) in query.iter(world) {
             let intensity = field.entry.intensity();
             let translucency = table.map_or(0.0, |table| table.translucency(field.id.0, intensity));
-            let entry = squares
-                .entry((position.x, position.y))
-                .or_insert(f32::INFINITY);
-            *entry = entry.min(translucency);
+            let entry = squares.entry((position.x, position.y)).or_insert(1.0);
+            *entry *= translucency;
         }
     }
     FieldOpacityGrid { squares }
@@ -1229,8 +1230,9 @@ struct FieldOpacityGrid {
 }
 
 impl FieldOpacityGrid {
-    fn transparency_at(&self, x: i32, y: i32) -> f32 {
-        self.squares.get(&(x, y)).copied().unwrap_or(f32::INFINITY)
+    /// What the square's fields multiply its transparency by, one when it has none.
+    fn multiplier_at(&self, x: i32, y: i32) -> f32 {
+        self.squares.get(&(x, y)).copied().unwrap_or(1.0)
     }
 }
 
