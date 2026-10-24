@@ -141,3 +141,42 @@ fn the_dump_carries_the_light_absorption_of_every_intensity() {
         "and the thickest layer is solid, which is what blinds a line of sight"
     );
 }
+
+#[test]
+fn the_dump_carries_what_the_radiation_and_wandering_processors_read() {
+    // **The two processors that need no subsystem at all** (`src/map_field.cpp:664-690`). `field_processor_extra_radiation` rolls
+    // `rng(extra_radiation_min, extra_radiation_max)` per intensity level and adds it to the square's radiation, and `field_processor_wandering_field` places the
+    // type's `wandering_field` at the same intensity around the field. A dump without them would leave a port able to say what a gas *is* but not what it *does* -
+    // which is how these two stayed unimplemented while twenty others were ported.
+    let all = dump();
+    let wandering: Vec<(&str, &str)> = all
+        .iter()
+        .filter(|field| field.wandering_field != "fd_null" && !field.wandering_field.is_empty())
+        .map(|field| (field.id.as_str(), field.wandering_field.as_str()))
+        .collect();
+    assert_eq!(
+        wandering,
+        vec![
+            ("fd_gas_vent", "fd_toxic_gas"),
+            ("fd_tindalos_rift", "fd_tindalos_gas"),
+            ("fd_smoke_vent", "fd_smoke"),
+        ],
+        "three vents wander, each into a named gas"
+    );
+    // Radiation is the other way round: one field emits it, and only at its higher intensities - `fd_nuke_gas` at levels two to four.
+    let radiating: Vec<(&str, i32, i32)> = all
+        .iter()
+        .flat_map(|field| {
+            field
+                .levels
+                .iter()
+                .filter(|level| level.extra_radiation_max > 0)
+                .map(move |level| (field.id.as_str(), level.extra_radiation_min, level.extra_radiation_max))
+        })
+        .collect();
+    assert_eq!(
+        radiating,
+        vec![("fd_nuke_gas", 0, 1), ("fd_nuke_gas", 0, 2), ("fd_nuke_gas", 0, 3)],
+        "one field radiates, and each of its three intensities radiates more than the last"
+    );
+}

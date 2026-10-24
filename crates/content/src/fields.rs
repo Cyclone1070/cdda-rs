@@ -36,6 +36,14 @@ pub struct FieldLevel {
     pub spawn_chance: i32,
     /// How many spawns to attempt.
     pub spawn_count: i32,
+    /// The least and most radiation this intensity adds to its square each processing turn.
+    ///
+    /// Reference: `field_intensity_level::extra_radiation_min` and `_max` (`src/field.h`), read by `field_processor_extra_radiation`
+    /// (`src/map_field.cpp:664-673`): the processor rolls between them and adjusts the square's radiation. `fd_nuke_gas` is the only field in the data that radiates,
+    /// and it does so at its three higher intensities - 0 to 1, 0 to 2 and 0 to 3.
+    pub extra_radiation_min: i32,
+    /// See [`FieldLevel::extra_radiation_min`].
+    pub extra_radiation_max: i32,
     /// How far from the field they appear.
     pub spawn_radius: i32,
     /// The monster group to draw from, empty when it spawns nothing.
@@ -99,6 +107,12 @@ pub struct FieldType {
     pub half_life: i64,
     /// Whether the half-life doubles with each intensity instead of staying fixed (`linear_half_life`, `src/field_type.h:223`).
     pub linear_half_life: bool,
+    /// The field this one wanders into around itself, or `fd_null` when it wanders into nothing.
+    ///
+    /// Reference: `field_type::wandering_field` (`src/field_type.h`), read by `field_processor_wandering_field` (`src/map_field.cpp:675-690`). Three vents in the data
+    /// wander - a gas vent into toxic gas, a smoke vent into smoke and the tindalos rift into its own gas - which is what makes a vent keep producing rather than
+    /// produce once.
+    pub wandering_field: String,
     /// The intensities, weakest first.
     pub levels: Vec<FieldLevel>,
 }
@@ -207,6 +221,10 @@ pub fn from_dump(value: &Value) -> Result<Vec<FieldType>, String> {
                 spawn_radius: i32::try_from(int_of(level, "spawn_radius").unwrap_or(0))
                     .unwrap_or(0),
                 spawn_group: str_of(level, "spawn_group").unwrap_or_default(),
+                extra_radiation_min: i32::try_from(int_of(level, "extra_radiation_min").unwrap_or(0))
+                    .unwrap_or(0),
+                extra_radiation_max: i32::try_from(int_of(level, "extra_radiation_max").unwrap_or(0))
+                    .unwrap_or(0),
             });
         }
         fields.push(FieldType {
@@ -217,6 +235,7 @@ pub fn from_dump(value: &Value) -> Result<Vec<FieldType>, String> {
             percent_spread: i32::try_from(percent_spread).unwrap_or(0),
             half_life,
             linear_half_life,
+            wandering_field: str_of(object, "wandering_field").unwrap_or_default(),
             levels: parsed,
         });
     }

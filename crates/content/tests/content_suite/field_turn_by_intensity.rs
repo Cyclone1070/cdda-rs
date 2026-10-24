@@ -37,6 +37,8 @@ fn level_with(chance: i32, count: i32, group: &str) -> FieldLevel {
         spawn_count: count,
         spawn_radius: 0,
         spawn_group: group.to_owned(),
+        extra_radiation_min: 0,
+        extra_radiation_max: 0,
     }
 }
 

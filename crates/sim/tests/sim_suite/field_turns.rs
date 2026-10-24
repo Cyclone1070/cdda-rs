@@ -37,6 +37,8 @@ fn level(spawn_chance: i32, spawn_count: i32) -> FieldLevel {
         } else {
             String::new()
         },
+        extra_radiation_min: 0,
+        extra_radiation_max: 0,
     }
 }
 
@@ -50,6 +52,7 @@ fn spawning_type() -> FieldType {
         percent_spread: 0,
         half_life: 60,
         linear_half_life: false,
+        wandering_field: "fd_null".to_owned(),
         levels: vec![level(1, 1), level(0, 0)],
     }
 }
