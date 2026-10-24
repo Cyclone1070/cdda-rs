@@ -7,13 +7,17 @@
 use bevy_ecs::prelude::*;
 use cdda_sim::{Container, GroundItem, ItemTypeId, drop_item, insert_into, item_weight};
 
-fn grams(kind: ItemTypeId) -> i64 {
-    match kind.0 {
+fn grams(kind: ItemTypeId) -> cdda_sim::TypeWeight {
+    // Type seven stands for the thirty-two `NO_DROP` types in the data; the loader hands the flag over the same way.
+    if kind.0 == 7 {
+        return cdda_sim::TypeWeight::hidden();
+    }
+    cdda_sim::TypeWeight::plain(match kind.0 {
         1 => 100, // a rock
         2 => 5,   // a battery, per charge
         9 => 500, // a box
         _ => 0,
-    }
+    })
 }
 
 fn box_holding(world: &mut World, contents: &[ItemTypeId]) -> Entity {
@@ -101,7 +105,32 @@ fn charges_that_would_overflow_saturate_instead_of_wrapping() {
         item.charges = i32::MAX;
     }
     assert!(
-        item_weight(&mut world, huge, |_| i64::MAX) > 0,
+        item_weight(&mut world, huge, |_| cdda_sim::TypeWeight::plain(i64::MAX)) > 0,
         "no wrap to a negative"
+    );
+}
+
+#[test]
+fn an_item_that_does_not_drop_weighs_nothing_contents_included() {
+    // **The first branch of `item::weight`** (`src/item.cpp:7235-7239`): a `NO_DROP` item is not really there - the reference's own words are "items just for ease of
+    // implementation" - so it answers zero **before** anything else is asked, contents and all. Thirty-two types in the data carry the flag.
+    //
+    // The order is the rule: a port that weighed the contents and then zeroed the base would leave a `NO_DROP` box holding a rock at a hundred grams, and one that zeroed
+    // the whole tree afterwards would be right by accident. The test gives the box contents precisely so the two differ.
+    let mut world = World::new();
+    let box_entity = box_holding(&mut world, &[ItemTypeId(1)]);
+    // The same box, first as an ordinary container: five hundred grams of box and a hundred of rock.
+    assert_eq!(item_weight(&mut world, box_entity, grams), 600);
+    // Then as a `NO_DROP` one: nothing at all, contents included.
+    let ghost = drop_item(&mut world, (6, 6), ItemTypeId(7), 1);
+    world.entity_mut(ghost).insert(Container {
+        capacity_ml: 10_000,
+    });
+    let rock = drop_item(&mut world, (6, 6), ItemTypeId(1), 1);
+    insert_into(&mut world, ghost, rock, |_| 1).expect("it fits");
+    assert_eq!(
+        item_weight(&mut world, ghost, grams),
+        0,
+        "a NO_DROP container weighs nothing, and neither does what is inside it"
     );
 }

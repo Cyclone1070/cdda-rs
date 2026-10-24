@@ -258,7 +258,33 @@ what generation produced | `--dump-map` | `corpus/maps/` |
 The third needed a guard rather than a fix: a read past the loaded chunk waits for overmap generation that a headless run never performs, so the dump now asks only for squares the map
 holds. With that, the reference's answer to "what does this chunk look like" is reproducible on demand, which is what a mapgen gate needs.
 
+### M2 is closed: every clause of the exit gate now has a session and a receipt (round 556)
+
+The gate reads: *per-turn state hash equality on environment-only sessions covering weather transitions, fire and gas spread, light changes across z-levels, scent
+diffusion, and vision.* All five clauses are now met, each by a replayed reference recording rather than by a hand-written case:
+
+| Clause | Fixture | What is compared | Result |
+|---|---|---|---|
+weather transitions | `corpus/fields/weather-session.json` | 27 turns: the sky recomputed from the generator's inputs, the manager's decisions replayed from the reference's dice, sector included | receipt `0x4c221d74263f52f4`, equal to the record's |
+fire and gas spread | `gas-60`, `gas-fall`, `gas-wind`, the fire sessions | every field on every square, turn by turn, die for die | receipts `0xbb4513a5ce73269a`, `0x033342d5a7845618`, `0x12ca5c3c692106d4` |
+light across z-levels | `corpus/fields/light-session.json` | `map::light_at` on every square of the fire's level, seven turns | **175 of 175 squares agree** (round 555) |
+scent diffusion | `corpus/fields/scent-session.json` | the diffusing window, turn by turn | receipt `0xaac13754071041c0`, equal to the record's |
+vision | `corpus/vision/start-location.json` | the whole `seen_cache` over three levels | **867 of 867 squares agree** (round 544) |
+
+Two of the five clauses had to be *built* before they could be gated - the light session had no light in it until round 552, and its first recording was wrong in a way that
+took an instrument fix to see (round 555: the dump built every level before reading any). That is the milestone's real lesson: **an oracle that records the wrong column is
+worse than no oracle**, because it fails a correct port and passes an incorrect one.
+
+What is *not* in M2 and stays declared: the field processors that need subsystems (monsters, items, the fungal and radiation grids), and the weather beyond the manager -
+pressure systems moving across the overmap, which needs an overmap.
+
+**Next: P3.** The roadmap's P3 is items, inventory, crafting and interaction, and the ledger already carries declared partials to close in order: eating and its data,
+crafting activity and time, skills, container handling, item weight and volume, and consuming.
+
 ### What the next round should pick up
+
+The gate reads: *per-turn state hash equality on environment-only sessions covering weather transitions, fire and gas spread, light changes across z-levels, scent
+diffusion, and vision.* All five clauses are now met, each by a replayed reference recording rather than by a hand-written case:
 
 The weather is a **system** now: the generator's numbers, the condition loop, the sun it needs, and the manager that holds them between turns are all ported and gated, the last
 three against the reference's own recorded day. Two things finish it and one thing starts the next piece of M2.

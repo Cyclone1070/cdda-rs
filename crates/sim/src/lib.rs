@@ -4303,20 +4303,58 @@ pub fn take_out(world: &mut World, item: Entity) {
 pub fn item_weight(
     world: &mut World,
     entity: Entity,
-    base_grams: impl Fn(ItemTypeId) -> i64,
+    facts: impl Fn(ItemTypeId) -> TypeWeight,
 ) -> i64 {
-    weight_with(world, entity, &base_grams)
+    weight_with(world, entity, &facts)
+}
+
+/// What a type says about its own weight.
+///
+/// Two facts, because the reference asks two questions of a type before it weighs anything: what a unit weighs, and whether the type is **not really there** -
+/// `item::weight` returns zero for a `NO_DROP` item before it looks at charges or contents (`src/item.cpp:7235-7239`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TypeWeight {
+    /// What one charge of the type weighs, in grams.
+    pub grams: i64,
+    /// Whether the type carries `NO_DROP`, which makes it weigh nothing at all.
+    pub no_drop: bool,
+}
+
+impl TypeWeight {
+    /// A type that weighs what it says and is really there, which is almost all of them.
+    #[must_use]
+    pub const fn plain(grams: i64) -> Self {
+        Self {
+            grams,
+            no_drop: false,
+        }
+    }
+
+    /// A type the data marks `NO_DROP`.
+    #[must_use]
+    pub const fn hidden() -> Self {
+        Self {
+            grams: 0,
+            no_drop: true,
+        }
+    }
 }
 
 /// The recursion itself, taking the lookup as a trait object so it does not monomorphise per depth.
-fn weight_with(world: &mut World, entity: Entity, base_grams: &dyn Fn(ItemTypeId) -> i64) -> i64 {
+fn weight_with(world: &mut World, entity: Entity, facts: &dyn Fn(ItemTypeId) -> TypeWeight) -> i64 {
     let Some(item) = world.get::<GroundItem>(entity).cloned() else {
         return 0;
     };
+    // **Before the charges and before the contents.** The reference returns zero here, so a `NO_DROP` container's contents do not count either - which is the
+    // difference between this rule and a base weight of zero.
+    let facts_of_type = facts(item.kind);
+    if facts_of_type.no_drop {
+        return 0;
+    }
     let charges = i64::from(item.charges.max(1));
-    let mut total = base_grams(item.kind).saturating_mul(charges);
+    let mut total = facts_of_type.grams.saturating_mul(charges);
     for held in contents(world, entity) {
-        total = total.saturating_add(weight_with(world, held, base_grams));
+        total = total.saturating_add(weight_with(world, held, facts));
     }
     total
 }
