@@ -4314,14 +4314,22 @@ pub fn item_weight(
 /// `item::weight` returns zero for a `NO_DROP` item before it looks at charges or contents (`src/item.cpp:7235-7239`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TypeWeight {
-    /// What one charge of the type weighs, in grams.
-    pub grams: i64,
+    /// What one charge of the type weighs, in **milligrams**.
+    ///
+    /// Milligrams, not grams, because grams are not enough: twenty-four charge-counted types weigh a fraction of a gram a charge (`aluminum_foil` is 135 mg), and a
+    /// pile of two hundred of them weighs 27 grams. A port that rounded the unit weight to grams first got zero.
+    pub milligrams: i64,
     /// What one charge weighs when the caller asks for the **integral** weight, in grams.
     ///
     /// Reference: `itype::integral_weight` (`src/itype.h:1327`), which `item::weight( integral: true )` reads instead of `weight` (`src/item.cpp:7256-7261`). The loader
     /// copies `weight` into it when the data does not say (`src/item_factory.cpp:398-400`), and the data may say **zero** on purpose - a gunmod's weight does not count
     /// toward the gun's integral weight, and three gunmods say `"integral_weight": "0 g"`.
-    pub integral_grams: i64,
+    pub integral_milligrams: i64,
+    /// Whether the type is counted in charges, which is what makes the charge count multiply the weight.
+    ///
+    /// **Not every item with charges is counted in charges.** A torch carries twenty charges and weighs what it weighs; a battery carries a hundred and weighs a hundred
+    /// times one. The reference multiplies inside `if( count_by_charges() )` (`src/item.cpp:7273-7275`) and nowhere else, so the flag is part of the rule.
+    pub count_by_charges: bool,
     /// Whether the type carries `NO_DROP`, which makes it weigh nothing at all.
     pub no_drop: bool,
 }
@@ -4333,8 +4341,31 @@ impl TypeWeight {
     #[must_use]
     pub const fn plain(grams: i64) -> Self {
         Self {
-            grams,
-            integral_grams: grams,
+            milligrams: grams.saturating_mul(1_000),
+            integral_milligrams: grams.saturating_mul(1_000),
+            count_by_charges: false,
+            no_drop: false,
+        }
+    }
+
+    /// A type counted in charges, so that a pile of `charges` weighs `charges` times one.
+    #[must_use]
+    pub const fn counted(grams: i64) -> Self {
+        Self {
+            milligrams: grams.saturating_mul(1_000),
+            integral_milligrams: grams.saturating_mul(1_000),
+            count_by_charges: true,
+            no_drop: false,
+        }
+    }
+
+    /// A type whose weight is only exact in milligrams, which twenty-four of them are.
+    #[must_use]
+    pub const fn from_milligrams(milligrams: i64) -> Self {
+        Self {
+            milligrams,
+            integral_milligrams: milligrams,
+            count_by_charges: false,
             no_drop: false,
         }
     }
@@ -4343,8 +4374,9 @@ impl TypeWeight {
     #[must_use]
     pub const fn with_integral(grams: i64, integral_grams: i64) -> Self {
         Self {
-            grams,
-            integral_grams,
+            milligrams: grams.saturating_mul(1_000),
+            integral_milligrams: integral_grams.saturating_mul(1_000),
+            count_by_charges: false,
             no_drop: false,
         }
     }
@@ -4353,8 +4385,9 @@ impl TypeWeight {
     #[must_use]
     pub const fn hidden() -> Self {
         Self {
-            grams: 0,
-            integral_grams: 0,
+            milligrams: 0,
+            integral_milligrams: 0,
+            count_by_charges: false,
             no_drop: true,
         }
     }
@@ -4456,7 +4489,19 @@ fn weight_with(world: &mut World, entity: Entity, facts: &dyn Fn(ItemTypeId) -> 
     weight_with_mode(world, entity, facts, false)
 }
 
-fn weight_with_mode(
+/// What an item weighs in milligrams, without the truncation to grams.
+///
+/// The same rule as [`item_weight`]; the unit is the difference. A gate that compares whole grams cannot see a 135 mg unit weight, and twenty-four types in the data
+/// have one.
+pub fn item_weight_milligrams(
+    world: &mut World,
+    entity: Entity,
+    facts: impl Fn(ItemTypeId) -> TypeWeight,
+) -> i64 {
+    weight_milligrams(world, entity, &facts, false)
+}
+
+fn weight_milligrams(
     world: &mut World,
     entity: Entity,
     facts: &dyn Fn(ItemTypeId) -> TypeWeight,
@@ -4465,23 +4510,37 @@ fn weight_with_mode(
     let Some(item) = world.get::<GroundItem>(entity).cloned() else {
         return 0;
     };
-    // **Before the charges and before the contents.** The reference returns zero here, so a `NO_DROP` container's contents do not count either - which is the
-    // difference between this rule and a base weight of zero.
     let facts_of_type = facts(item.kind);
     if facts_of_type.no_drop {
         return 0;
     }
-    let charges = i64::from(item.charges.max(1));
-    let unit = if integral {
-        facts_of_type.integral_grams
+    // **Charges multiply only for a charge-counted type.** A torch with twenty charges weighs one torch.
+    let charges = if facts_of_type.count_by_charges {
+        i64::from(item.charges.max(1))
     } else {
-        facts_of_type.grams
+        1
+    };
+    let unit = if integral {
+        facts_of_type.integral_milligrams
+    } else {
+        facts_of_type.milligrams
     };
     let mut total = unit.saturating_mul(charges);
     for held in contents(world, entity) {
-        total = total.saturating_add(weight_with_mode(world, held, facts, integral));
+        total = total.saturating_add(weight_milligrams(world, held, facts, integral));
     }
     total
+}
+
+fn weight_with_mode(
+    world: &mut World,
+    entity: Entity,
+    facts: &dyn Fn(ItemTypeId) -> TypeWeight,
+    integral: bool,
+) -> i64 {
+    // **Reported in grams, counted in milligrams.** `to_gram` truncates, so a pile of 27,000 mg is 27 g here as it is in the reference - and the division happens
+    // once, at the top, because a container of a container must not lose a gram at every level.
+    weight_milligrams(world, entity, facts, integral) / 1_000
 }
 
 /// What burning a portion of an item leaves behind.

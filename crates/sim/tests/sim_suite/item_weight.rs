@@ -15,12 +15,14 @@ fn grams(kind: ItemTypeId) -> cdda_sim::TypeWeight {
     if kind.0 == 7 {
         return cdda_sim::TypeWeight::hidden();
     }
-    cdda_sim::TypeWeight::plain(match kind.0 {
-        1 => 100, // a rock
-        2 => 5,   // a battery, per charge
-        9 => 500, // a box
-        _ => 0,
-    })
+    match kind.0 {
+        // A battery, counted in charges: five grams a charge.
+        2 => cdda_sim::TypeWeight::counted(5),
+        // A rock or a box, one object whatever its charge count.
+        1 => cdda_sim::TypeWeight::plain(100),
+        9 => cdda_sim::TypeWeight::plain(500),
+        _ => cdda_sim::TypeWeight::plain(0),
+    }
 }
 
 fn box_holding(world: &mut World, contents: &[ItemTypeId]) -> Entity {
@@ -168,7 +170,7 @@ fn integral_grams(kind: ItemTypeId) -> cdda_sim::TypeWeight {
         11 => cdda_sim::TypeWeight::with_integral(1000, 650),
         12 => cdda_sim::TypeWeight::with_integral(1134, 1819),
         7 => cdda_sim::TypeWeight::hidden(),
-        other => cdda_sim::TypeWeight::plain(grams(ItemTypeId(other)).grams),
+        other => grams(ItemTypeId(other)),
     }
 }
 

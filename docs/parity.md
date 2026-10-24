@@ -2989,6 +2989,25 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The dataset gate, and the bug it found (round 559)
+
+`corpus/items/measures.json` is a new oracle dump: for each of the 9,912 item types the reference **constructs an item and asks it** what it weighs and what it takes up,
+through `item::weight`, `weight( integral )`, `item::volume` and `volume( integral )`. The prototype dump next door says what the *data* is; this says what the *rules* make
+of it, and the port replays all four numbers against it.
+
+It found two things that no hand-written test would have.
+
+**Weights have to be counted in milligrams.** Twenty-four charge-counted types weigh a fraction of a gram a charge — `aluminum_foil` is 135 mg, and two hundred of them
+weigh 27 g. The prototype dump carried whole grams, so the port's unit weight was zero and the pile weighed nothing.
+
+**Charges do not always multiply the weight.** A torch carries twenty charges and weighs one torch; a battery carries a hundred and weighs a hundred times one. The
+reference multiplies inside `if( count_by_charges() )` (`src/item.cpp:7273-7275`), and the port multiplied unconditionally — which was invisible until a type with charges
+that is *not* counted in charges walked through the gate. Both dumps now carry `count_by_charges`, and the rule asks for it.
+
+Sixty-six types still differ, every one of them declared: eighteen corpses (the reference answers with the monster's size), forty-four guns and magazines holding mods or
+ammo (the reference adds them to the gun's own weight and volume), and `null`. The test names each category and pins the totals, so a new disagreement cannot hide among
+them.
+
 ## What a pile takes up (round 558)
 
 `item::volume`'s charge rule is ported: `volume * charges / stack_size`, with the division **rounding up a millilitre**, and contents added on top for a container.
