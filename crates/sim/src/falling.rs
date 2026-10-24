@@ -66,7 +66,7 @@ pub fn landing(floors: &impl Floors, at: (i32, i32, i32)) -> Option<(i32, i32, i
 }
 
 /// Which fields the data says fall, and which of them may land on a hole.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, bevy_ecs::prelude::Resource)]
 pub struct FieldRules {
     /// Types with `accelerated_decay`: the cosmetic fields, which are the only ones that drop (`src/map.cpp:2989`).
     pub falls: BTreeSet<FieldId>,

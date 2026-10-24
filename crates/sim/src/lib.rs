@@ -22,7 +22,7 @@ pub use weather::{Climate, Forecast, System, Weather, tick_climate, wind_of};
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::{FieldEntry, FieldId};
 use cdda_core_types::shadowcasting::FourQuadrants;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// The level everything stands on until a system learns to climb: the reference's ground floor.
 pub const STREET_LEVEL: i32 = 0;
@@ -235,6 +235,13 @@ pub trait FireMap {
     fn neighbour(&self, square: (i32, i32, i32)) -> cdda_core_types::fire::Neighbour;
     /// Whether smoke is suppressed here, as a sealed room does.
     fn suppress_smoke(&self, square: (i32, i32, i32)) -> bool;
+    /// Whether the square has **no** floor, so anything left on it falls (`TFLAG_NO_FLOOR`, `map::has_floor_or_water`, `src/map.cpp:2651-2660`).
+    ///
+    /// The default answer is **no**: a map that has not been asked cannot promise a hole, and the reference's own fallback for a square it cannot read is to hold things up.
+    fn no_floor(&self, square: (i32, i32, i32)) -> bool {
+        let _ = square;
+        false
+    }
     /// How much smoke the fire's fuel made this turn.
     /// Whether the smoke may rise through the square overhead - `TFLAG_NO_FLOOR` up there, an open shaft or a hole in a roof.
     ///
@@ -276,6 +283,24 @@ impl TerrainFacts {
     #[must_use]
     pub fn can_burn(&self) -> bool {
         (self.flammable || self.flammable_ash || self.flammable_hard) && !self.fire_container
+    }
+}
+
+/// The squares whose support was destroyed in the last turn.
+///
+/// Reference: `map::support_cache_dirty` (`src/map.h:1637`) filled by `map::support_dirty` (`src/map.cpp:3018-3035`). A square whose support goes away is queued, and the
+/// next turn's `process_falling` takes the queue **whole** (`std::set<tripoint_bub_ms> last_cache = std::move( support_cache_dirty )`) and clears it - so a square that
+/// falls is asked once, and a square that keeps falling is re-queued by whatever breaks under it next.
+#[derive(Debug, Clone, Default, PartialEq, Eq, bevy_ecs::prelude::Resource)]
+pub struct SupportLost {
+    /// The squares waiting to be asked whether anything on them still has a floor.
+    pub squares: BTreeSet<(i32, i32, i32)>,
+}
+
+impl SupportLost {
+    /// Queues one square, as `map::support_dirty` does when a tile loses its support.
+    pub fn queue(&mut self, square: (i32, i32, i32)) {
+        self.squares.insert(square);
     }
 }
 
@@ -2223,6 +2248,9 @@ pub fn run_environment_turn(
     // Scent first, because the reference's turn starts there (`do_turn.cpp:642-648`): the character deposits and the window diffuses before the fields are processed.
     // The deposit is nobody's yet - there is no creature layer - so the caller passes it through `scent_deposit`, and zero means "nothing deposited this turn".
     scent::advance_scent(world, scent_center, scent_deposit);
+    // **Then what fell.** `do_turn.cpp:648-655` runs `scent.update`, then `map::build_floor_caches`, then `m.process_falling()`, and only then `m.process_fields()` - so a
+    // thing that falls is aged by the same turn's field sweep rather than the next one. The queue is taken whole and cleared, which is why a square is asked once.
+    process_falling_turn(world, map);
     // **The sweep, submap by submap in the reference's own order** (`map::process_fields`, `src/map_field.cpp:164-184`): ascending `(z, x, y)`, each submap's fires,
     // then its gases, then the ageing of every field the sweep found there. A field born in a submap the sweep has already passed waits for the next turn, which is why
     // a gas that falls keeps the age it was born with while one that spreads forward is aged in the same turn. A cursor rather than a list, because a field born in a
@@ -2291,6 +2319,52 @@ pub fn run_environment_turn(
     // rule rather than tidiness: the cast merges by maximum, so a fire that went out this turn would otherwise stay lit by last turn's answer.
     clear_light(world);
     cast_lights_with(world);
+}
+
+/// Runs the turn's falling: everything left on a square whose support went away, against what the map says about floors.
+///
+/// Reference: `map::process_falling` (`src/map.cpp:3018-3035`) and `map::drop_everything` (`src/map.cpp:2693-2705`); the rules are [`falling`]'s. The queue is taken and
+/// cleared before anything moves, because dropping one square can add another to it - the reference moves the set out and works on the copy so that a second drop is the
+/// next turn's business.
+///
+/// The rules come from a [`falling::FieldRules`] resource when the world has one; without it nothing accelerates, so only items fall. A world that has loaded its field
+/// prototypes should insert it.
+pub fn process_falling_turn(world: &mut World, map: &impl FireMap) {
+    let mut queue = world.remove_resource::<SupportLost>().unwrap_or_default();
+    if queue.squares.is_empty() {
+        world.insert_resource(queue);
+        return;
+    }
+    let rules = world
+        .get_resource::<falling::FieldRules>()
+        .cloned()
+        .unwrap_or_default();
+    let floors = MapFloors { map };
+    let squares: Vec<(i32, i32, i32)> = queue.squares.iter().copied().collect();
+    for square in squares {
+        falling::drop_everything(world, &floors, &rules, square);
+    }
+    // The queue is empty for the next turn: `support_cache_dirty.clear()` after the copy was taken.
+    queue.squares.clear();
+    world.insert_resource(queue);
+}
+
+/// The map as [`falling::Floors`] asks it: two questions, both the map's own.
+struct MapFloors<'a, M: FireMap> {
+    map: &'a M,
+}
+
+impl<M: FireMap> falling::Floors for MapFloors<'_, M> {
+    fn no_floor(&self, at: (i32, i32, i32)) -> bool {
+        self.map.no_floor(at)
+    }
+
+    fn in_bounds(&self, at: (i32, i32, i32)) -> bool {
+        // **Declared:** the port's world is one loaded level and this says every square of it is in bounds, because the reference's `inbounds` is about submap allocation
+        // and the port does not allocate. What stops a fall at the bottom is the world's own depth (`falling::OVERMAP_DEPTH`), not this.
+        let _ = at;
+        true
+    }
 }
 
 /// The hot air field for a fire of this intensity, as `create_hot_air` chooses it.
