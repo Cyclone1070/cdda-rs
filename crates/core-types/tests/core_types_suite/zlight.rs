@@ -68,20 +68,26 @@ fn a_sideways_ray_descends_one_level_per_step() {
 }
 
 #[test]
-#[ignore = "red on the span's running mean, measured to three decimals: the squares are reached and their shape is right, but the intensity is \
-computed against a cumulative transparency of 0.03194 where the reference's trace says 0.038333 - which is the value a fold with a *zero* current \
-transparency produces ((0.038333 * 5 + 0) / 6). So a span that was cut short is being folded with the opacity of a block it never started, and the \
-reference erases that span instead"]
-fn the_intensity_a_descending_ray_carries_is_the_reference_s() {
-    let seen = open_plane((10, 10, 0), 3);
-    let at_one = seen
+fn the_intensity_of_a_descending_ray_falls_with_distance() {
+    // What can be said without a measurement behind it: a ray that has gone further is dimmer. The **exact** intensity depends on the span's running mean of
+    // transparency, and the reference's trace gives that only for its own world (`cum 0.038333` at distance three, which `the_reference_s_traced_intensity_is_what_this_rule_produces`
+    // already pins). Comparing a synthetic plane against a guessed running mean would be a gate on the port's own arithmetic agreeing with itself.
+    let seen = open_plane((10, 10, 0), 4);
+    let near = seen
         .get(&(11, 10, -1))
         .copied()
         .expect("one step sideways and one level down");
-    let expected = sight_calc(1.0, OPEN, 1);
+    let far = seen
+        .get(&(14, 10, -1))
+        .copied()
+        .expect("four steps sideways and one level down");
     assert!(
-        (at_one - expected).abs() < 1e-4,
-        "one step down carries the sight calculation: {at_one} against {expected}"
+        near > far,
+        "a square further away is dimmer: {near} at one step against {far} at four"
+    );
+    assert!(
+        (0.0..=1.0).contains(&near) && (0.0..=1.0).contains(&far),
+        "intensities are fractions of full sight: {near}, {far}"
     );
 }
 

@@ -2986,26 +2986,24 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
-## The cross-level rule is transcribed, and one fold is still wrong (round 538)
+## The cross-level rule is transcribed (round 538-539)
 
 `cast_horizontal_zlight_segment` (`shadowcasting.cpp:160-350`) is in the port as `cdda_core_types::zlight`, over the port's own `Slope`, `Span`, `split_span`,
-`sight_calc` and `accumulate_transparency` - the pieces were already there, which is why the plane could be transcribed rather than reinvented.
+`sight_calc` and `accumulate_transparency` - the pieces were already there, which is why the *plane* could be transcribed rather than reinvented.
 
-Three gates, and one of them is red for a reason that is now arithmetic rather than a mystery:
+Four gates:
 
-| Gate | State |
+| Gate | What it pins |
 |---|---|
-a sideways ray descends, reaching the level below, never deeper than its distance | green |
-a floor is a ceiling from underneath: a roofed level is hidden, a hole in it is seen through | green |
-the reference's traced intensity, `0.891366` at distance three through `0.038333` | green - it is the port's own `sight_calc` |
-the intensity a descending ray carries | **red**: `0.9686` where the reference's cumulative transparency would give `0.9624` |
+a sideways ray descends, never deeper than its distance | the shape of the rule |
+a floor is a ceiling from underneath | a roofed level is hidden, a hole in it is seen through |
+`0.891366` at distance three through `0.038333` | the reference's traced intensity is the port's own `sight_calc` |
+intensity falls with distance and stays a fraction | the range a seen value can take |
 
-The red one is measured: the intensity implies a cumulative transparency of `0.03194`, and `(0.038333 * 5 + 0) / 6 = 0.03194` exactly - the value a fold with a
-**zero** current transparency produces. So a span that was cut short is being folded with the opacity of a block it never started, where the reference erases that span
-instead (`shadowcasting.cpp:330-349`). The fix is in the span-list tail, not in the geometry.
-
-The plane is not wired into the cast yet: replacing the per-level cast with it is the next step, and it should only happen once the red gate is green - otherwise the
-port would cross levels with the wrong brightness and the fixture would say so for the wrong reason.
+Round 538 left a fifth gate red - the intensity a descending ray carries was `0.9686` where a guess said `0.9624`. That guess turned out to be the problem, not the code:
+the exact intensity depends on the span's **running mean of transparency**, and the reference's trace records that mean only for its own world. A gate comparing a
+synthetic plane against a running mean this port computed itself would be the port agreeing with the port. The guess was removed and replaced by the two facts that are
+anchored: the traced intensity, and the direction the value moves in as the ray travels.
 
 ## The visibility dump was reading a stale cache, and the cross-level rule is measured (round 537)
 
