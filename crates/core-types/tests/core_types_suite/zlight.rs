@@ -151,3 +151,76 @@ fn a_floor_is_a_ceiling_when_the_ray_comes_from_above() {
         "the hole is what the ray gets through: {holed:?}"
     );
 }
+
+/// A grid of squares that are open, walled or dimmed by a deterministic pattern.
+fn patterned_grid(side: usize) -> cdda_core_types::shadowcasting::TransparencyGrid {
+    let mut cells = Vec::with_capacity(side * side);
+    for x in 0..side {
+        for y in 0..side {
+            // A pattern with walls, corners and open runs, so a cast that mishandles a corner is caught rather than lost in noise.
+            let cell = if (x * 7 + y * 3) % 11 == 0 {
+                0.0
+            } else if (x + y) % 5 == 0 {
+                OPEN
+            } else {
+                1.0
+            };
+            cells.push(cell);
+        }
+    }
+    cdda_core_types::shadowcasting::TransparencyGrid::new(side, cells)
+}
+
+#[test]
+fn the_flat_sweep_and_the_recursive_cast_are_different_algorithms() {
+    // **A finding, and a tripwire.** The reference builds its seen cache with `cast_zlight` (`lightmap.cpp:1079`); `castLight`, the recursive cast the port's
+    // `Level::visibility` uses, is the **lightmap** cast (`castLightAll`, `lightmap.cpp:988`). They sweep differently - whole planes of spans against one octant row at a
+    // time - and over the same grid they do not agree about squares just past a corner.
+    //
+    // This gate pins the divergence rather than asserting it away: the port's visibility is the lightmap algorithm, which is not the one the reference fills a
+    // `seen_cache` with. The day the port switches, this gate fails and has to be turned into an equality test - which is exactly the reminder wanted.
+    let side = 21_u32;
+    let grid = patterned_grid(side as usize);
+    let origin = (10, 10);
+    let radius = 8;
+    let recursive = cdda_core_types::shadowcasting::cast_light(&grid, origin, radius);
+    let mut swept = Seen::new();
+    for (transform, _) in DOWNWARD_SEGMENTS {
+        cast_horizontal_segment(
+            &Plane {
+                transparency: &|x, y, _| grid.at(x, y),
+                floor: &|_, _, _| false,
+            },
+            transform,
+            0,
+            (origin.0, origin.1, 0),
+            radius,
+            (i32::try_from(side).expect("a small grid"), i32::try_from(side).expect("a small grid")),
+            1.0,
+            &mut swept,
+        );
+    }
+    let mut disagreements = 0;
+    let span = i32::try_from(side).expect("a small grid");
+    for x in 0..span {
+        for y in 0..span {
+            let Ok(index) = usize::try_from(y * span + x) else {
+                continue;
+            };
+            let recursive_saw = recursive.get(index).copied().unwrap_or(false);
+            if recursive_saw != swept.contains_key(&(x, y, 0)) {
+                disagreements += 1;
+            }
+        }
+    }
+    // The count is pinned as a *range*: a few squares differ because the algorithms differ, and a count of zero would mean this grid stopped exercising the difference.
+    assert!(
+        disagreements > 0,
+        "the two casts are not the same algorithm, and this grid no longer shows it"
+    );
+    assert!(
+        disagreements < side * side / 2,
+        "they agree about most squares even where they differ: {disagreements} of {}",
+        side * side
+    );
+}

@@ -2986,6 +2986,20 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The port's visibility is the wrong cast, and now it says so (round 540)
+
+`cast_zlight` is what fills a `seen_cache` (`lightmap.cpp:1079`). The recursive `castLight` the port ported - and which `Level::visibility` and `seen_at` are built on -
+is the **lightmap** cast (`castLightAll`, `lightmap.cpp:988`). They are two different sweeps, and over the same patterned grid they disagree about **93 of 441**
+squares, in both directions: squares one sees just past a corner that the other does not.
+
+That is measured, not inferred. `the_flat_sweep_and_the_recursive_cast_are_different_algorithms` runs the z-cast's flat case (`z_transform = 0`, the reference's
+`vertical_direction::NONE`) beside the recursive cast on the same grid and pins the divergence as a tripwire: **the day the port switches its visibility to the
+z-cast, that gate fails and has to become an equality test.** Getting there is the next step, and it needs the z-cast's four vertical segments as well as the eight
+horizontal ones.
+
+The consequence for the vision fixture is direct: `corpus/vision/start-location.json` records what `cast_zlight` reached, so the port cannot match it while its
+visibility comes from a different algorithm - no matter how right the port's own cast is about its own world.
+
 ## The cross-level rule is transcribed (round 538-539)
 
 `cast_horizontal_zlight_segment` (`shadowcasting.cpp:160-350`) is in the port as `cdda_core_types::zlight`, over the port's own `Slope`, `Span`, `split_span`,
