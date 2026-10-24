@@ -53,6 +53,8 @@ struct Case {
     other_levels: usize,
     hits: Vec<(i32, i32, f32)>,
     room: Vec<String>,
+    above: Vec<String>,
+    below: Vec<String>,
 }
 
 fn cases() -> (i32, Vec<Case>) {
@@ -111,18 +113,20 @@ fn cases() -> (i32, Vec<Case>) {
                     other => panic!("a hit: {other:?}"),
                 })
                 .collect();
-            let tiles = match row {
-                Value::Object(object) => match object.get("room") {
-                    Some(Value::Array(tiles)) => tiles
-                        .iter()
-                        .map(|tile| match tile {
-                            Value::Str(text) => text.clone(),
-                            other => panic!("a tile: {other:?}"),
-                        })
-                        .collect(),
-                    other => panic!("room: {other:?}"),
-                },
-                other => panic!("a case: {other:?}"),
+            let tiles = |key: &str| -> Vec<String> {
+                match row {
+                    Value::Object(object) => match object.get(key) {
+                        Some(Value::Array(tiles)) => tiles
+                            .iter()
+                            .map(|tile| match tile {
+                                Value::Str(text) => text.clone(),
+                                other => panic!("a tile: {other:?}"),
+                            })
+                            .collect(),
+                        other => panic!("{key}: {other:?}"),
+                    },
+                    other => panic!("a case: {other:?}"),
+                }
             };
             #[allow(clippy::cast_possible_truncation)]
             Case {
@@ -134,34 +138,57 @@ fn cases() -> (i32, Vec<Case>) {
                 )
                 .expect("small"),
                 hits,
-                room: tiles,
+                room: tiles("room"),
+                above: tiles("above"),
+                below: tiles("below"),
             }
         })
         .collect();
     (half, cases)
 }
 
-/// The room as a blast sees it: which squares cannot be walked through, and which exist at all.
-///
-/// Squares outside the recorded room are solid: the fixture walls the world off with a margin of bulkhead precisely so that nothing outside it can matter.
+/// The room as a blast sees it: three recorded levels of "can this be walked through", and nothing else — because the fixture seals the squares above and below the room too,
+/// so the wavefront cannot reach a square the dump does not describe.
 struct Room {
     half: i32,
-    margin: i32,
-    solid: Vec<bool>,
+    /// Indexed by `z + 1`: the floor below, the room, the sky above.
+    levels: [Vec<bool>; 3],
 }
 
 impl BlastGrid for Room {
-    fn solid(&self, x: i32, y: i32) -> bool {
+    fn solid(&self, x: i32, y: i32, z: i32) -> bool {
         let width = self.half * 2 + 1;
-        if x.abs() > self.half || y.abs() > self.half {
+        if x.abs() > self.half || y.abs() > self.half || !(-1..=1).contains(&z) {
             return true;
         }
         let index = (y + self.half) * width + (x + self.half);
-        self.solid[usize::try_from(index).expect("inside the room")]
+        let level = usize::try_from(z + 1).expect("inside the three levels");
+        self.levels[level][usize::try_from(index).expect("inside the room")]
     }
 
     fn in_bounds(&self, x: i32, y: i32) -> bool {
-        x.abs() <= self.half + self.margin && y.abs() <= self.half + self.margin
+        x.abs() <= self.half && y.abs() <= self.half
+    }
+}
+
+/// The three recorded levels of a case, as solidity.
+fn room(case: &Case, data: &BTreeMap<String, MapData>, half: i32, width: usize) -> Room {
+    let level = |tiles: &[String]| -> Vec<bool> {
+        (0..width * width)
+            .map(|index| {
+                let id = &tiles[index];
+                let prototype = data.get(id).unwrap_or_else(|| panic!("{id} is loaded"));
+                prototype.move_cost == 0
+            })
+            .collect()
+    };
+    Room {
+        half,
+        levels: [
+            level(&case.below),
+            level(&case.room),
+            level(&case.above),
+        ],
     }
 }
 
@@ -180,19 +207,8 @@ fn compare(case: &Case, data: &BTreeMap<String, MapData>, half: i32) -> (Vec<Str
     // The recorded grid is `(2 * half + 1)` squares across, row-major from the top-left corner.
     let width = usize::try_from(half * 2 + 1).expect("small");
     assert_eq!(case.room.len(), width * width, "the room is square");
-    let solid: Vec<bool> = (0..width * width)
-        .map(|index| {
-            let id = &case.room[index];
-            let prototype = data.get(id).unwrap_or_else(|| panic!("{id} is loaded"));
-            prototype.move_cost == 0
-        })
-        .collect();
-    let room = Room {
-        half,
-        margin: 0,
-        solid,
-    };
-    let outcome = blast(&room, case.power, case.factor, case.fire, &[]);
+    let grid = room(case, data, half, width);
+    let outcome = blast(&grid, case.power, case.factor, case.fire, &[]);
     // Only the squares inside the room are compared: a blast's reach past a wall it cannot break is real, but it is a function of terrain the fixture does not own.
     let ours: Vec<(i32, i32, f32)> = outcome
         .hits
@@ -254,14 +270,9 @@ fn compare(case: &Case, data: &BTreeMap<String, MapData>, half: i32) -> (Vec<Str
         return (wrong, 0);
     }
     let swapped = squares_with_the_other_force(&ours, &case.hits);
-    let expected = match (case.power as i32, case.fire) {
-        (60, false) => 22,
-        (60, true) => 0,
-        _ => 6,
-    };
-    if swapped != expected {
+    if swapped != 0 {
         wrong.push(format!(
-            "power {} fire {}: {swapped} squares carry the other one's force, and {expected} is what this was",
+            "power {} fire {}: {swapped} squares carry the other one's force",
             case.power, case.fire
         ));
     }
@@ -301,10 +312,148 @@ fn a_blast_bashes_the_same_squares_with_the_same_force() {
         declared_other_levels += case.other_levels;
     }
     assert!(wrong.is_empty(), "{} wrong:\n{}", wrong.len(), wrong.iter().take(8).cloned().collect::<Vec<_>>().join("\n"));
-    assert_eq!(swaps, 28, "and this many squares carry the other one's force, which is the open half of the row");
+    assert_eq!(swaps, 0, "every square is hit with the force the reference hits it with");
     assert_eq!(bashed_total, 812, "the three blasts bash this many squares in the room");
     assert_eq!(
-        declared_other_levels, 4264,
+        declared_other_levels, 1262,
         "and these many above and below it, which the fixture declares rather than records"
+    );
+}
+
+/// One square a recorded wavefront popped.
+struct RecordedPop {
+    x: i32,
+    y: i32,
+    z: i32,
+    distance: f32,
+    force: f32,
+}
+
+fn recorded_pops(case: &Value) -> Vec<RecordedPop> {
+    match case {
+        Value::Object(object) => match object.get("pops") {
+            Some(Value::Array(pops)) => pops
+                .iter()
+                .map(|pop| match pop {
+                    Value::Array(parts) => {
+                        let int = |index: usize| match &parts[index] {
+                            Value::Int(value) => i32::try_from(*value).expect("small"),
+                            other => panic!("a pop field: {other:?}"),
+                        };
+                        let real = |index: usize| match &parts[index] {
+                            Value::Float(value) => {
+                                #[allow(clippy::cast_possible_truncation)]
+                                {
+                                    *value as f32
+                                }
+                            }
+                            other => panic!("a pop field: {other:?}"),
+                        };
+                        RecordedPop {
+                            x: int(0),
+                            y: int(1),
+                            z: int(2),
+                            distance: real(3),
+                            force: real(4),
+                        }
+                    }
+                    other => panic!("a pop: {other:?}"),
+                })
+                .collect(),
+            other => panic!("pops: {other:?}"),
+        },
+        other => panic!("a case: {other:?}"),
+    }
+}
+
+/// The wavefront's own order, on its own: which square the queue popped, when, and how far it had travelled to reach it.
+///
+/// This is the gate the blast's squares-and-forces cannot be: it says whether a disagreement is a **queue** that pops the wrong square or a **bash** that hits it with the
+/// wrong force. It needs the fixture's terrain only, and it is compared on the room's own level.
+#[test]
+fn the_wavefront_pops_the_same_squares_in_the_same_order() {
+    let json = std::fs::read_to_string(corpus()).expect("the blast dump");
+    let Value::Object(root) = cdda_json::parse(json.as_bytes()).expect("valid JSON") else {
+        panic!("root")
+    };
+    let Some(Value::Array(rows)) = root.get("cases") else {
+        panic!("cases")
+    };
+    let (half, cases) = cases();
+    let data = data();
+    let mut wrong = Vec::new();
+    let mut popped_total = 0;
+    for (row, case) in rows.iter().zip(cases.iter()) {
+        let recorded = recorded_pops(row);
+        let width = usize::try_from(half * 2 + 1).expect("small");
+        let grid = room(case, &data, half, width);
+        let outcome = blast(&grid, case.power, case.factor, case.fire, &[]);
+        // Every level the dump records, which is every level the sealed fixture lets the wavefront reach.
+        let ours: Vec<(i32, i32, i32, i32, i32)> = outcome
+            .pops
+            .iter()
+            .map(|pop| {
+                (
+                    pop.x,
+                    pop.y,
+                    pop.z,
+                    (pop.distance * 1000.0).round() as i32,
+                    (pop.force * 1000.0).round() as i32,
+                )
+            })
+            .collect();
+        let theirs: Vec<(i32, i32, i32, i32, i32)> = recorded
+            .iter()
+            .map(|pop| {
+                (
+                    pop.x,
+                    pop.y,
+                    pop.z,
+                    (pop.distance * 1000.0).round() as i32,
+                    (pop.force * 1000.0).round() as i32,
+                )
+            })
+            .collect();
+        popped_total += theirs.len();
+        // Distances and forces to the nearest thousandth, with two thousandths of slack: the reference accumulates the distance in `float` and truncates a `double` power,
+        // and two paths to the same square that add up the same distance can still round differently. The square and the order are compared exactly.
+        let differs = |left: &(i32, i32, i32, i32, i32), right: &(i32, i32, i32, i32, i32)| {
+            left.0 != right.0
+                || left.1 != right.1
+                || left.2 != right.2
+                || (left.3 - right.3).abs() > 2
+                || (left.4 - right.4).abs() > 2
+        };
+        if let Some(index) = ours
+            .iter()
+            .zip(theirs.iter())
+            .position(|(left, right)| differs(left, right))
+        {
+            wrong.push(format!(
+                "power {} fire {}: pop {index} is {:?} against {:?}; ours from {}: {:?}, theirs: {:?}",
+                case.power,
+                case.fire,
+                ours.get(index),
+                theirs.get(index),
+                index.saturating_sub(2),
+                ours[index.saturating_sub(2)..(index + 3).min(ours.len())].to_vec(),
+                theirs[index.saturating_sub(2)..(index + 3).min(theirs.len())].to_vec()
+            ));
+        } else if ours.len() != theirs.len() {
+            wrong.push(format!(
+                "power {} fire {}: {} pops against {}",
+                case.power,
+                case.fire,
+                ours.len(),
+                theirs.len()
+            ));
+        }
+    }
+    assert!(popped_total > 0, "the dump records a wavefront");
+    assert!(
+        wrong.is_empty(),
+        "{} wrong:\n{}",
+        wrong.len(),
+        wrong.iter().take(4).cloned().collect::<Vec<_>>().join("\n")
     );
 }

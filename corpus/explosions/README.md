@@ -7,14 +7,24 @@ Two recordings of the reference's explosion code, both with the dice handed in r
 | `blast.json` | Three blasts at the centre of a sealed room, with every square the wavefront bashed on the room's own level, in order, and the force it hit it with |
 | `heap.json` | The reference's own `std::priority_queue` draining a fixed list, which is how it breaks ties between squares the same distance away |
 
-## Why the room is sealed with bulkhead
+## Why the room is sealed — floor, walls **and** sky
 
-A blast does not stop at a wall it can break: it bashes the wall, the wall becomes open air, and the wavefront continues through the hole. That would make the recording a
-function of the bash rule as well as the blast rule. `t_wall_bulkhead` is one of the seventeen impassable terrains the data gives **no bash block at all**, so it cannot be
-broken — which is what keeps the blast inside the room and the recording about the blast.
+A blast does not stop at a wall it can break: it bashes the wall, the wall becomes open air, and the wavefront continues through the hole. It also **climbs** — it bashes the
+square above, and in a room open to the sky it then travels over the wall and comes back down outside, which made the room's own level impossible to reproduce from a model of
+that level alone (the first version of this dump got 22 of 360 squares wrong that way, and it took a recorded pop order to see why).
 
-The grid in the dump runs **two squares past the room**, because a square's shaped-charge bonus counts how many of its eight neighbours are open, and the neighbours of a wall
-square are outside the room.
+So all three levels are sealed. `t_wall_bulkhead` is one of the seventeen impassable terrains the data gives **no bash block at all**, so it cannot be broken; the interior is
+`t_LIXA_thconc_floor`, passable and equally unbreakable, so the wavefront crosses it without changing it. The dump records all three levels, and the grid runs **two squares
+past the room** because a square's shaped-charge bonus counts how many of its eight neighbours are open.
+
+## What the dump holds
+
+| Field | What it is |
+|---|---|
+| `pops` | every square the wavefront popped, in order, with the distance travelled and the force arrived with |
+| `bashes` | every square bashed on the room's level, in order, with the force |
+| `room`, `above`, `below` | the three levels as they were **before** the blast |
+| `other_levels` | how many bashes happened on the two other levels |
 
 ## Why the heap is recorded separately
 

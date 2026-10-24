@@ -45,15 +45,17 @@ const OFFSETS: [(i32, i32, i32); 10] = [
 /// The map, as far as a blast needs to know it.
 pub trait BlastGrid {
     /// Whether a square cannot be walked through. The reference asks `map::impassable`, which is `move_cost == 0`.
-    fn solid(&self, x: i32, y: i32) -> bool;
+    fn solid(&self, x: i32, y: i32, z: i32) -> bool;
     /// Whether a square is inside the world the blast can reach.
     fn in_bounds(&self, x: i32, y: i32) -> bool;
     /// Whether a creature could step from one square to the other (`map::valid_move`, `src/map.cpp:2490-2504`).
     ///
     /// **Declared gap:** the vertical half of that function — ledges, ramps, climbing — is not ported, and neither is the `bash` argument, which the blast passes as false.
-    fn valid_move(&self, from: (i32, i32), to: (i32, i32)) -> bool {
+    /// What is ported is the horizontal rule (the destination must be walkable) and the vertical one the blast actually needs (a level is reached when the square across the
+    /// level boundary is walkable).
+    fn valid_move(&self, from: (i32, i32, i32), to: (i32, i32, i32)) -> bool {
         let _ = from;
-        !self.solid(to.0, to.1)
+        !self.solid(to.0, to.1, to.2)
     }
 }
 
@@ -68,9 +70,26 @@ pub struct BashHit {
     pub force: f32,
 }
 
+/// One square the wavefront popped, with how far it had travelled and the force it arrived with.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Pop {
+    /// Where, as an offset from the centre.
+    pub x: i32,
+    /// Where, as an offset from the centre.
+    pub y: i32,
+    /// Which level, as an offset from the centre's.
+    pub z: i32,
+    /// How far the wavefront had travelled to get here.
+    pub distance: f32,
+    /// The force at that distance.
+    pub force: f32,
+}
+
 /// What a blast did.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Blast {
+    /// Every square the wavefront popped, in order — including the ones it then refused to pass through. This is the queue's answer on its own.
+    pub pops: Vec<Pop>,
     /// The force the centre itself is bashed with before the wavefront starts, which the reference does with its own call (`src/explosion.cpp:197`).
     pub centre_force: f32,
     /// Every square the wavefront bashed, in the order it bashed them.
@@ -87,6 +106,7 @@ pub struct Blast {
 #[must_use]
 pub fn blast(grid: &impl BlastGrid, power: f32, factor: f32, fire: bool, rolls: &[f32]) -> Blast {
     let mut outcome = Blast {
+        pops: Vec::new(),
         centre_force: if fire { power } else { 2.0 * power },
         hits: Vec::new(),
         reached: Vec::new(),
@@ -113,12 +133,20 @@ pub fn blast(grid: &impl BlastGrid, power: f32, factor: f32, fire: bool, rolls: 
         // The reference does this in `double` and truncates to `float` for the bash (`src/explosion.cpp:254`), and the difference shows: a ninth of a point of force at the
         // third ring is enough to change how hard a wall is hit.
         let force = f64::from(power) * f64::from(factor).powf(f64::from(distance));
+        #[allow(clippy::cast_possible_truncation)]
+        outcome.pops.push(Pop {
+            x,
+            y,
+            z,
+            distance,
+            force: force as f32,
+        });
         if force <= 1.0 {
             continue;
         }
         #[allow(clippy::cast_possible_truncation)]
         let force = force as f32;
-        if grid.solid(x, y) && (x, y, z) != (0, 0, 0) {
+        if grid.solid(x, y, z) && (x, y, z) != (0, 0, 0) {
             // A square that cannot be walked through is bashed but not passed through: this is what keeps a blast inside a room.
             continue;
         }
@@ -131,8 +159,8 @@ pub fn blast(grid: &impl BlastGrid, power: f32, factor: f32, fire: bool, rolls: 
             .iter()
             .take(8)
             .filter(|(dx, dy, dz)| {
-                let to = (x + dx, y + dy);
-                !closed.contains(&(to.0, to.1, z + dz)) && grid.valid_move((x, y), to)
+                let to = (x + dx, y + dy, z + dz);
+                !closed.contains(&to) && grid.valid_move((x, y, z), to)
             })
             .count()
             .max(1);
@@ -167,7 +195,7 @@ pub fn blast(grid: &impl BlastGrid, power: f32, factor: f32, fire: bool, rolls: 
                     DIAGONAL
                 };
             if *dz != 0 {
-                if !grid.valid_move((x, y), to) {
+                if !grid.valid_move((x, y, z), dest) {
                     continue;
                 }
                 next_distance += LEVEL;
