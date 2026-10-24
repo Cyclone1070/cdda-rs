@@ -12,7 +12,10 @@
 )]
 
 use cdda_core_types::shadowcasting::sight_calc;
-use cdda_core_types::zlight::{DOWNWARD_SEGMENTS, Plane, Seen, cast_horizontal_segment};
+use cdda_core_types::zlight::{
+    DOWNWARD_SEGMENTS, Plane, Seen, VerticalDirection, cast_horizontal_segment, cast_vertical_segment,
+    cast_zlight, direction_to_cast,
+};
 
 /// The transparency the fixture's open squares carry: open air, already multiplied by the weather's sight penalty.
 const OPEN: f32 = 0.038_333;
@@ -222,5 +225,97 @@ fn the_flat_sweep_and_the_recursive_cast_are_different_algorithms() {
         disagreements < side * side / 2,
         "they agree about most squares even where they differ: {disagreements} of {}",
         side * side
+    );
+}
+
+#[test]
+fn a_shaft_is_seen_straight_down_by_the_vertical_segments() {
+    // The corners the horizontal segments cannot reach: straight below the character. The reference casts four vertical segments per direction for exactly this
+    // (`shadowcasting.cpp:610-625`), and one of them walks the diagonal whose `dx` and `dy` are both zero - the shaft.
+    let mut seen = Seen::new();
+    for transform in cdda_core_types::zlight::VERTICAL_TRANSFORMS {
+        cast_vertical_segment(
+            &Plane {
+                transparency: &|_, _, _| OPEN,
+                floor: &|_, _, _| false,
+            },
+            transform,
+            -1,
+            (10, 10, 0),
+            3,
+            (21, 21),
+            1.0,
+            &mut seen,
+        );
+    }
+    assert!(
+        seen.contains_key(&(10, 10, -1)),
+        "the square straight below is seen: {:?}",
+        seen.keys().filter(|(_, _, z)| *z < 0).collect::<Vec<_>>()
+    );
+    // And a floor beneath the character's feet hides it: the square below is then looked at from under a floor.
+    let mut blocked = Seen::new();
+    for transform in cdda_core_types::zlight::VERTICAL_TRANSFORMS {
+        cast_vertical_segment(
+            &Plane {
+                transparency: &|_, _, _| OPEN,
+                floor: &|_, _, level| level == 0,
+            },
+            transform,
+            -1,
+            (10, 10, 0),
+            3,
+            (21, 21),
+            1.0,
+            &mut blocked,
+        );
+    }
+    assert!(
+        blocked.keys().all(|(_, _, z)| *z >= 0),
+        "a floor under the character seals the shaft: {blocked:?}"
+    );
+}
+
+#[test]
+fn a_sealed_level_can_only_be_seen_upwards() {
+    // The reference's direction gate (`lightmap.cpp:1060-1068`): the cast starts as both ways and becomes upward-only when the character's own level has no floor
+    // gaps - nothing below can be seen through a sealed floor, while the sky above still can.
+    assert_eq!(direction_to_cast(true), VerticalDirection::Up);
+    assert_eq!(direction_to_cast(false), VerticalDirection::Both);
+
+    let plane = Plane {
+        transparency: &|_, _, _| OPEN,
+        // A sealed level: every square of the character's own level has a floor.
+        floor: &|_, _, level| level == 0,
+    };
+    let mut seen = Seen::new();
+    cast_zlight(&plane, (10, 10, 0), 3, (21, 21), 1.0, direction_to_cast(true), &mut seen);
+    assert!(
+        seen.keys().all(|(_, _, z)| *z >= 0),
+        "upward only, so nothing below: {:?}",
+        seen.keys().filter(|(_, _, z)| *z < 0).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn the_whole_cast_covers_every_square_a_hole_lets_it_reach() {
+    // Both halves together, on a level with one hole in it: the squares under the hole are seen, the squares under the rest of the floor are not. This is the fact
+    // the fixture records for the real world, and the gate it has to be compared against once the cast is wired in.
+    let hole = (11, 10);
+    let plane = Plane {
+        transparency: &|_, _, _| OPEN,
+        floor: &|x, y, level| level == 0 && (x, y) != hole,
+    };
+    let mut seen = Seen::new();
+    cast_zlight(&plane, (10, 10, 0), 4, (21, 21), 1.0, VerticalDirection::Both, &mut seen);
+    assert!(seen.contains_key(&(hole.0, hole.1, -1)), "under the hole: {seen:?}");
+    assert!(
+        !seen.contains_key(&(10, 10, -1)),
+        "under the character's own feet, where the floor is whole: {seen:?}"
+    );
+    // The character's own level is cast too, even though no segment was given the level as its own plane: it is the zero-distance row of each segment.
+    assert!(
+        seen.contains_key(&(12, 10, 0)),
+        "the level the character stands on is part of the same cast: {seen:?}"
     );
 }

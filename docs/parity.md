@@ -2986,6 +2986,24 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The whole cast is transcribed (round 541)
+
+`cast_zlight` is in the port: eight horizontal segments and four vertical ones per direction, the four vertical transforms, and the direction gate. The port now has
+the reference's sight algorithm end to end, over a plane it builds from three levels' transparency and floor caches.
+
+Two things the transcription settled that reading the code twice had not:
+
+* **The origin's own level is not a separate cast.** The reference has no "one level only" direction - `vertical_direction` is `UP`, `DOWN` or `BOTH`
+  (`shadowcasting.h:32-36`), and the flat case is the **zero-distance row** of every segment. A port that casts the character's level separately and then adds the
+  neighbours would double-count the level boundary.
+* **A sealed level still sees upwards.** `directions_to_cast` starts at `BOTH` and narrows to `UP` when the character's own level has `no_floor_gaps` (`lightmap.cpp:1060-1068`):
+  a whole floor means nothing below can be seen, while the sky above still can.
+
+Four gates: the shaft straight below is seen and a floor under the feet seals it; a sealed level casts upwards only; one hole in a floor is exactly the square seen
+through; and the character's own level arrives through the same cast rather than a separate one.
+
+The cast is still **not wired** into `Level::visibility` - that swap is the next step, and it wants the vision fixture compared against it, not just synthetic planes.
+
 ## The port's visibility is the wrong cast, and now it says so (round 540)
 
 `cast_zlight` is what fills a `seen_cache` (`lightmap.cpp:1079`). The recursive `castLight` the port ported - and which `Level::visibility` and `seen_at` are built on -

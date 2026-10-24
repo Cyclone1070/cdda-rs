@@ -232,3 +232,234 @@ pub const DOWNWARD_SEGMENTS: [([i32; 4], i32); 8] = [
     ([0, -1, -1, 0], -1),
     ([-1, 0, 0, -1], -1),
 ];
+
+/// Runs one vertical z-segment: the ray that drops or climbs along a diagonal.
+///
+/// Reference: `cast_vertical_zlight_segment<x, y, z>` (`shadowcasting.cpp:368-553`). Its plane is `(x, y)` at a **fixed** level `origin.z + distance * z_transform`,
+/// with the sweep's major axis being `y`, which is the difference from [`cast_horizontal_segment`] where the level is the major axis. The four of these close the
+/// corners the eight horizontal ones cannot reach: a shaft straight below a character is seen by these, not by a segment that walks sideways.
+#[allow(
+    clippy::too_many_arguments,
+    clippy::cast_precision_loss,
+    clippy::too_many_lines,
+    clippy::indexing_slicing,
+    clippy::float_cmp
+)]
+pub fn cast_vertical_segment(
+    plane: &Plane<'_>,
+    transform: [i32; 3],
+    z_transform: i32,
+    origin: (i32, i32, i32),
+    radius: i32,
+    bounds: (i32, i32),
+    numerator: f32,
+    seen: &mut Seen,
+) -> usize {
+    let [x_transform, y_transform, _] = transform;
+    let mut written = 0;
+    let mut new_start_minor = Slope::new(1, 1);
+    let mut spans = vec![Span {
+        start_major: Slope::new(0, 1),
+        end_major: Slope::new(1, 1),
+        start_minor: Slope::new(0, 1),
+        end_minor: Slope::new(1, 1),
+        cumulative_value: TRANSPARENCY_OPEN_AIR,
+        skip_first_row: false,
+        skip_first_column: false,
+    }];
+    for distance in 1..=radius {
+        let dz = distance;
+        let z = origin.2 + dz * z_transform;
+        if !(MIN_Z..=MAX_Z).contains(&z) {
+            continue;
+        }
+        let mut current_transparency = 0.0_f32;
+        let mut index = 0;
+        while index < spans.len() {
+            let mut started_block = false;
+            for dy in 0..=distance {
+                let trailing_major = Slope::new(dy * 2 - 1, dz * 2 + 1);
+                let leading_major = Slope::new(dy * 2 + 1, dz * 2 - 1);
+                let y = origin.1 + dy * y_transform;
+                if y < 0 || y >= bounds.1 {
+                    continue;
+                }
+                let span = spans[index];
+                if span.start_major > leading_major {
+                    continue;
+                }
+                if span.skip_first_row && span.start_major == leading_major {
+                    continue;
+                }
+                if span.end_major < trailing_major {
+                    break;
+                }
+                let mut started_span = false;
+                for dx in 0..=distance {
+                    let x = origin.0 + dx * x_transform;
+                    let trailing_minor = Slope::new(dx * 2 - 1, dz * 2 + 1);
+                    let leading_minor = Slope::new(dx * 2 + 1, dz * 2 - 1);
+                    if x < 0 || x >= bounds.0 {
+                        continue;
+                    }
+                    if span.start_minor > leading_minor {
+                        continue;
+                    }
+                    if span.end_minor < trailing_minor {
+                        break;
+                    }
+                    let mut new_transparency = (plane.transparency)(x, y, z);
+                    let mut floor_block = false;
+                    if z < origin.2 {
+                        if (plane.floor)(x, y, z + 1) {
+                            floor_block = true;
+                            new_transparency = 0.0;
+                        }
+                    } else if z > origin.2 && (plane.floor)(x, y, z) {
+                        floor_block = true;
+                        new_transparency = 0.0;
+                    }
+                    if !started_block {
+                        started_block = true;
+                        current_transparency = new_transparency;
+                    }
+                    let dist = rl_distance(dx, dy).max(dz);
+                    let last_intensity = sight_calc(numerator, spans[index].cumulative_value, dist);
+                    if !floor_block {
+                        let slot = seen.entry((x, y, z)).or_insert(0.0);
+                        if last_intensity > *slot {
+                            *slot = last_intensity;
+                            written += 1;
+                        }
+                    }
+                    if !started_span {
+                        new_start_minor = leading_minor;
+                        started_span = true;
+                    }
+                    if new_transparency == current_transparency {
+                        new_start_minor = leading_minor;
+                        continue;
+                    }
+                    index += split_span(
+                        &mut spans,
+                        index,
+                        &mut current_transparency,
+                        new_transparency,
+                        distance,
+                        &mut new_start_minor,
+                        trailing_major,
+                        leading_major,
+                        trailing_minor,
+                        leading_minor,
+                    );
+                    if index >= spans.len() {
+                        break;
+                    }
+                }
+                if index >= spans.len() {
+                    break;
+                }
+                if !sight_check(current_transparency) {
+                    spans[index].start_major = leading_major;
+                }
+            }
+            if index >= spans.len() {
+                break;
+            }
+            let span = spans[index];
+            if started_block && sight_check(current_transparency) {
+                spans[index].cumulative_value =
+                    accumulate_transparency(span.cumulative_value, current_transparency, distance);
+                index += 1;
+            } else {
+                spans.remove(index);
+            }
+        }
+    }
+    written
+}
+
+/// Which way the reference lets a sight cast travel.
+///
+/// Reference: `enum class vertical_direction` (`shadowcasting.h:32-36`) - it has **no** "one level only" value: the level the character stands on is cast as the
+/// `distance`-zero rows of the down and up segments, which is why [`cast_zlight`] never needs a flat cast of its own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VerticalDirection {
+    /// Only upward.
+    Up,
+    /// Only downward.
+    Down,
+    /// Both.
+    Both,
+}
+
+/// The four x/y diagonal transforms of the vertical segments, in the reference's order.
+///
+/// Reference: `cast_zlight`'s four `cast_vertical_zlight_segment<x, y, ±1>` calls in each branch (`shadowcasting.cpp:610-625` and `676-686`).
+pub const VERTICAL_TRANSFORMS: [[i32; 3]; 4] = [[1, 1, -1], [1, -1, -1], [-1, 1, -1], [-1, -1, -1]];
+
+/// Casts sight over a character's own level **and** the levels on both sides of it.
+///
+/// Reference: `cast_zlight` (`shadowcasting.cpp:560-687`): eight horizontal segments and four vertical ones per direction, all writing into the same cache as a
+/// maximum. The origin's own level is covered by the segments' zero-distance rows, so a caller that runs this gets the flat cast for free.
+///
+/// Returns how many squares it improved, summed over the segments.
+#[allow(clippy::too_many_arguments)]
+pub fn cast_zlight(
+    plane: &Plane<'_>,
+    origin: (i32, i32, i32),
+    radius: i32,
+    bounds: (i32, i32),
+    numerator: f32,
+    direction: VerticalDirection,
+    seen: &mut Seen,
+) -> usize {
+    let mut written = 0;
+    let sideways = |z_transform: i32, seen: &mut Seen| {
+        let mut count = 0;
+        for (transform, _) in DOWNWARD_SEGMENTS {
+            count += cast_horizontal_segment(
+                plane,
+                transform,
+                z_transform,
+                origin,
+                radius,
+                bounds,
+                numerator,
+                seen,
+            );
+        }
+        count
+    };
+    let dropping = |z_transform: i32, seen: &mut Seen| {
+        let mut count = 0;
+        for transform in VERTICAL_TRANSFORMS {
+            count += cast_vertical_segment(
+                plane, transform, z_transform, origin, radius, bounds, numerator, seen,
+            );
+        }
+        count
+    };
+    if matches!(direction, VerticalDirection::Down | VerticalDirection::Both) {
+        written += sideways(-1, seen);
+        written += dropping(-1, seen);
+    }
+    if matches!(direction, VerticalDirection::Up | VerticalDirection::Both) {
+        written += sideways(1, seen);
+        written += dropping(1, seen);
+    }
+    written
+}
+
+/// Whether a character can see past its own level at all.
+///
+/// Reference: `lightmap.cpp:1060-1068`. The cast starts as `BOTH`; when the level the character stands on has **no floor gaps** (`no_floor_gaps`, the summary bit of
+/// the floor cache) it becomes `UP` - a sealed floor means nothing below can be seen, while the sky above still can.
+#[must_use]
+pub fn direction_to_cast(origin_level_has_no_floor_gaps: bool) -> VerticalDirection {
+    if origin_level_has_no_floor_gaps {
+        VerticalDirection::Up
+    } else {
+        VerticalDirection::Both
+    }
+}
