@@ -840,6 +840,12 @@ fn apply_slots(item: &mut ItemType, object: &Object) {
     {
         item.subtypes.insert(json_type.clone());
     }
+    // **The legacy spelling of a single subtype.** Older items say `"sub": "fire"` where newer ones say `"subtypes": [ "fire" ]`, and the reference reads both into the
+    // same slot (`itype::sub`), which is what `item_controller->subtype_replacement` walks when it expands a requirement (`src/requirements.cpp:740-744`). A lit torch is
+    // written that way, so without this a requirement that names `fire` never learns about it.
+    if let Some(Value::Str(sub)) = object.get("sub") {
+        item.subtypes.insert(sub.clone());
+    }
     apply_armor_slots(item, object);
     apply_flat_slots(item, object);
     apply_melee_slots(item, object);

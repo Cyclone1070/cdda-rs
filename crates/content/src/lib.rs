@@ -37,6 +37,7 @@ pub mod monsters;
 pub mod npc_classes;
 pub mod overmap;
 pub mod recipes;
+pub mod requirements;
 mod rules;
 mod scan;
 pub mod starting_kit;

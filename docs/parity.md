@@ -218,7 +218,7 @@ the layer that decides when to shift
 | Inventory | not started | M3a | |
 | Crafting and recipes | not started | M3a | |
 | Requirements and qualities | not started | M3a | |
-| Constructions | **the registry, loaded and gated end to end** | P3 | `constructions::load_paths` from `construction::load` (`src/construction.cpp:2194-2260`), gated against `corpus/constructions/all.json` (`--dump-constructions`): **756 of 756** constructions match the reference on their id, group, category, time, `pre_terrain`, `post_terrain` and required skills. Three rules the data taught: a construction's `pre_terrain` is a **`std::set`** and comes back in byte order (`t_concrete_wall_P` before `t_concrete_wall_b`), a construction with no `required_skills` falls back to the **legacy `skill`/`difficulty`** pair with fabrication at zero (`src/construction.cpp:2203-2211`), and time is read as a duration string into **moves** — one turn is one second and one second is a hundred moves, so `"1 h 30 m"` is 540,000 moves (round 565). **Not ported, declared:** the special functions (`pre_special`, `post_special` and the four static tables behind them), `pre_flags`/`post_flags`, byproducts, the requirement groups the constructions draw from, and the blacklist |
+| Constructions | **the registry and what each one takes, gated end to end** | P3 | `constructions::load_paths` from `construction::load` (`src/construction.cpp:2194-2260`) and `requirements::load_paths` from `requirement_data::load` (`src/requirements.cpp`), merged by `constructions::needs_of` from `finalize_construction` (`src/construction.cpp:2533-2537`). Gated against `corpus/constructions/all.json` (`--dump-constructions`): **755 of 756** constructions match on id, group, category, time, `pre_terrain`, `post_terrain`, skills and their **components, tools and qualities** — every alternative of every group, at the reference's counts. Rules the data taught: `pre_terrain` is a `std::set` in byte order, skills fall back to the legacy `skill`/`difficulty` pair, time is a duration string in moves, `"LIST"` marks a nested group which is scaled by its outer count with a floor of `-1` and inlined from its **first** group only, a name is only a group if it is flagged, a bare string is a tool of count `-1`, tools expand into their subtypes and components do not, and two quality groups that cover each other collapse into the newer one (rounds 565-566). **Not ported, declared:** `constr_veh`'s frame list (generated at finalisation, `src/construction.cpp:2516-2520`), the special functions, `pre_flags`/`post_flags`, byproducts and the blacklist |
 | Use actions | not started | M3a | 195 functions |
 | Examine actions | not started | M3a | 108 functions |
 | Consumption, butchery, liquids | not started | M3a | |
@@ -2990,6 +2990,28 @@ Mitigation, in order of cost:
 The instrument itself is not in doubt: it compiles, it is in `oracle/patches/0001-prototype-digest.patch`, and a traced
 run of a world that exists will write the file.
 
+
+## What a construction takes (round 566)
+
+A construction is not finished when its tiles and its time are known: it is finished when you know what it eats. Every one of the reference's 756 constructions now matches the
+reference's own resolved requirement group — all 601 that consume something, all 211 that need a tool, all 487 that want a quality — with every alternative of every group at
+the reference's count.
+
+The merge is the interesting part, and every rule in it came from a failing comparison rather than from reading:
+
+| Rule | What happened without it |
+|---|---|
+`"LIST"` marks a **nested group** | a component that named another requirement group stayed unexpanded |
+only a flagged name is a group | `autoclave` is both an item and a group's id, and the item was replaced by a recipe's worth of water |
+a nested group is scaled by its outer count, floored at `-1` | `[ "surface_heat", 2, "LIST" ]` asked for **two fires** |
+only its **first** alternative-group is inlined | groups the reference drops came back |
+inner lists are walked per list: tools against tools, components against components | `pickaxe_list` (a tools group) expanded to nothing |
+two alternatives of one item keep the **smaller** count | a group asked for the same thing twice |
+two quality groups that cover each other collapse | a construction asked for `PRY 3` twice |
+a bare string is a tool of count `-1` | `[ "paint_brush" ]` vanished into an empty group |
+tools expand into their **subtypes**, components do not | a fire was only a fire, never a lit torch — and a consumed `forge` became every variant of one |
+
+The last one also found a **loader gap**: the port read `subtypes` but not its older spelling `sub`, which is how a lit torch says it is a fire.
 
 ## Seven hundred and fifty-six constructions (round 565)
 

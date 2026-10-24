@@ -33,12 +33,44 @@ pub struct Construction {
     pub required_skills: BTreeMap<String, i32>,
     /// The requirement group its components, tools and qualities come from.
     pub requirements: String,
+    /// What it consumes, as **groups of alternatives**: one item of one of each group satisfies it, in the quantity given. The third member is the reference's
+    /// `"LIST"` marker: true when the name is another requirement group rather than an item.
+    pub components: Vec<Vec<(String, i32, bool)>>,
+    /// What it needs but does not consume, in the same shape. A negative count is a charge count rather than a number of items.
+    pub tools: Vec<Vec<(String, i32, bool)>>,
+    /// The tool qualities it needs, as `(quality, level, count)` in groups of alternatives.
+    pub qualities: Vec<Vec<(String, i32, i32)>>,
     /// The other requirement groups it merges in, with their multiples (`using`).
     pub using: Vec<(String, i32)>,
     /// The note shown beside its requirements.
     pub pre_note: String,
     /// Whether its requirements are generated during finalisation, which is true only of starting a vehicle.
     pub vehicle_start: bool,
+}
+
+/// What a construction takes, with the groups it names in `using` merged in.
+///
+/// Reference: `finalize_construction` (`src/construction.cpp:2533-2537`), which folds every `using` group into the construction's own with
+/// `requirement_data::operator+` and `operator*`: the groups are **appended**, each scaled by its multiple. A construction whose `using` names a group that is not defined
+/// keeps only its own needs, which is what the reference does with a missing requirement.
+#[must_use]
+pub fn needs_of(
+    construction: &Construction,
+    groups: &std::collections::BTreeMap<String, crate::requirements::RequirementData>,
+    subtypes: &std::collections::BTreeMap<String, Vec<String>>,
+) -> crate::requirements::RequirementData {
+    let mut needs = crate::requirements::RequirementData {
+        components: construction.components.clone(),
+        tools: construction.tools.clone(),
+        qualities: construction.qualities.clone(),
+    };
+    for (id, multiple) in &construction.using {
+        if let Some(group) = groups.get(id) {
+            needs = needs.merged(&group.scaled(*multiple));
+        }
+    }
+    // **The nested groups are expanded last**, because a `using` group may itself name another group (`inline_requirements`, `src/requirements.cpp:647-720`).
+    needs.expand_nested(groups, subtypes)
 }
 
 /// Loads every construction in the given directories, in the reference's file order.
@@ -153,6 +185,8 @@ fn read(object: &Object, id: &str) -> Construction {
             format!("inline_construction_{id}")
         }),
         using: match object.get("using") {
+            // **A bare string is one group with one multiple** (`src/construction.cpp:2226-2229`).
+            Some(Value::Str(single)) => vec![(single.clone(), 1)],
             Some(Value::Array(entries)) => entries
                 .iter()
                 .filter_map(|entry| match entry {
@@ -173,6 +207,9 @@ fn read(object: &Object, id: &str) -> Construction {
                 .collect(),
             _ => Vec::new(),
         },
+        components: crate::requirements::pair_groups(object.get("components")),
+        tools: crate::requirements::pair_groups(object.get("tools")),
+        qualities: crate::requirements::quality_groups(object.get("qualities")),
         pre_note: string(object, "pre_note").unwrap_or_default(),
         vehicle_start: matches!(object.get("vehicle_start"), Some(Value::Bool(true))),
     }
