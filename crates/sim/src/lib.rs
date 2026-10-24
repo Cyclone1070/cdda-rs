@@ -4961,6 +4961,30 @@ pub fn consume_items_with(
     square: (i32, i32),
     kind: ItemTypeId,
     quantity: i32,
+    accept: impl FnMut(&GroundItem) -> bool,
+) -> Consumed {
+    consume_items_held(world, square, kind, quantity, |_kind| false, true, accept)
+}
+
+/// The same, with the square's own facts: whether it holds liquid, and which kinds are liquids.
+///
+/// Reference: `item_stack::use_charges` (`src/item_stack.cpp:146-160`). The walk only offers an item to the per-item rule when it is **not a liquid**, or when the square
+/// carries `TFLAG_LIQUIDCONT` - a puddle on a plain floor is scenery rather than a source of charges. The gate is asked **before** the filter, so a predicate never sees a
+/// puddle it could not have been given.
+///
+/// `holds_liquids` is the square's `TFLAG_LIQUIDCONT`, which is a terrain **or** furniture flag; `is_liquid` is the item type's phase, which is content the caller has
+/// and this crate does not.
+///
+/// # Panics
+///
+/// Panics if a filter asks the world for something it is not allowed to touch; the filters here are pure.
+pub fn consume_items_held(
+    world: &mut World,
+    square: (i32, i32),
+    kind: ItemTypeId,
+    quantity: i32,
+    is_liquid: impl Fn(ItemTypeId) -> bool,
+    holds_liquids: bool,
     mut accept: impl FnMut(&GroundItem) -> bool,
 ) -> Consumed {
     let mut remaining = quantity.max(0);
@@ -4972,6 +4996,10 @@ pub fn consume_items_with(
         let Some(item) = world.get::<GroundItem>(entity).cloned() else {
             continue;
         };
+        // The liquid gate comes first: a puddle on a plain floor is not offered to the filter at all (`src/item_stack.cpp:150-155`).
+        if is_liquid(item.kind) && !holds_liquids {
+            continue;
+        }
         // The filter, then the type: the reference's own order (`src/item.cpp:13145-13149`).
         if !accept(&item) || item.kind != kind {
             continue;
