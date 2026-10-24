@@ -2986,26 +2986,22 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
-## Scent can be recorded now, and the record is red by one point (round 534)
+## Scent diffusion replays, and the fixture's window was the bug (round 535)
 
-The M2 exit gate asks for a session that covers **scent diffusion**, and no session could: the map's scent layer is only ever filled by a character walking, so every
-fixture carried an empty one. Two oracle additions fix that:
+The scent session is green: fourteen turns of the port's window against the reference's, every square of a thirty-seven-square window, from one seeded square to
+sixty-five.
 
-| Addition | What it makes visible |
-|---|---|
-`--place-scent <value>` | a value on the player's square at the start of a session |
-`scent_map::update` between turns | the diffusion itself - without it the layer stood still however many turns passed |
+The red gate that opened this round was misread twice before it was measured, and both misreadings are worth keeping. The port looked **one point high on the ring**
+and then, with a decay added, **one point low on the corners** - two plausible stories about the turn's decay order, neither of them true. Running the reference's own
+`update` arithmetic over the recorded layer in Python reproduced the record exactly, which took decay out of the picture. Then `CDDA_SCENT_TRACE` - a print of
+`here`, `squares_used`, `temp_scent`, `incoming` and the result for one square per update - showed the reference computing **1** at `66,59` on the fifth turn while
+the record said nothing there.
 
-`corpus/fields/scent-session.json` (seed `scentwatch`, fourteen turns, no fields at all) spreads from one square to forty-nine and thins as it goes. Two gates: one
-asserts the record really diffuses, the other replays the reference's window in the port.
+That was the answer: **the dump's scent window was three squares**, because it reused the fields' radius. A fire stays where it is put; scent walks a square a turn,
+so the record stopped seeing the layer at exactly the turn the replay began to disagree with it - and "absent" was being compared as zero.
 
-**The replay is red, and precisely so.** One diffusion reproduces the first turn square for square. From the second turn the port is **one point low on the
-corners** - `68,58` reads 4 where the reference says 5 - while every square beside them matches. The decay is the difference: `map::decay_fields_and_scent` takes
-a point off every square (`map.cpp:3418-3420`) while the diffusion runs in the map's update, so the order between them is a rule the port has not pinned yet. Two
-candidates fit the measurement - decay before diffusion on every turn after the first, or a different integer division on a square with fewer contributing
-neighbours - and the fixture now distinguishes them.
-
-The rest of the gate machinery is in place and green: the window, the accessor the decay needs (`cells_mut`), and the check that the fixture moves at all.
+The window is now six times the fields' radius. Everything else was already right: no decay in this path, the reference's truncating division, and weights of ten and
+two for plain and `REDUCE_SCENT` squares.
 
 ## The session's weather is decided from the reference's dice (round 533)
 

@@ -15,7 +15,7 @@
     clippy::cast_possible_wrap
 )]
 
-use cdda_core_types::scent::{decay, scent_window};
+use cdda_core_types::scent::scent_window;
 use std::path::Path;
 
 /// One square's scent, per turn, exactly as the reference reports it.
@@ -76,41 +76,49 @@ fn window_squares(window: &cdda_core_types::scent::ScentWindow) -> Squares {
 }
 
 #[test]
-#[ignore = "red on the turn's decay, measured to the square: one diffusion matches turn one exactly, and from turn two the port is **one point low on the \
-corners** (68,58 reads 4 where the reference says 5) while the squares beside them match. Two candidate rules remain - the reference may decay before the \
-diffusion on every turn after the first, or its integer division may round a square with fewer contributing neighbours differently - and the fixture now \
-distinguishes them, which is what it was recorded for"]
 fn a_recorded_scent_layer_diffuses_the_way_the_reference_says() {
     // **The whole point of the fixture.** One square seeded on turn zero and nothing else: every value after that is the window's own arithmetic, so a port that
     // rounds differently, weights a neighbour differently or diffuses in the wrong direction shows up on the very first turn and keeps showing up.
     let turns = turns();
     let first = turns.first().expect("a first turn");
-    assert_eq!(first.len(), 1, "turn zero is the seeded square alone: {first:?}");
+    assert_eq!(
+        first.len(),
+        1,
+        "turn zero is the seeded square alone: {first:?}"
+    );
     let (cx, cy, seed) = first[0];
     let mut window = scent_window((cx, cy));
     window.set(cx, cy, seed);
     let mut compared = 0;
-    let mut wrong: Vec<(usize, i32, i32, Squares, Squares)> = Vec::new();
+    let mut wrong: Vec<(usize, i32, i32, i32, i32)> = Vec::new();
     for (index, recorded) in turns.iter().enumerate().skip(1) {
-        // **One point off every square first.** `map::decay_fields_and_scent` calls `scent_map::decay` (`map.cpp:3418-3420`), and the port's window by
-        // itself only diffuses - so a replay that skipped the decay would keep every value a point high and drift further every turn.
+        // **No decay.** The window's diffusion alone reproduces the record turn for turn, so the decay that `decay_fields_and_scent`
+        // (`map.cpp:3418-3420`) applies is not part of what this session shows: the record's centre falls 500, 100, 60, 40, 30 - the geometric
+        // sequence of a pure diffusion of a single peak - and subtracting a point anywhere makes the ring one too low.
         window.diffuse();
         let ours = window_squares(&window);
         let mut theirs = recorded.clone();
         theirs.sort_unstable();
-        if ours != theirs && wrong.len() < 4 {
-            wrong.push((index, 0, 0, ours, theirs));
+        // **Only the squares that differ**, because a whole-layer dump hides a single square in eighty-one rows of agreement.
+        if ours != theirs && wrong.len() < 8 {
+            let mine: std::collections::BTreeMap<(i32, i32), i32> =
+                ours.iter().map(|(x, y, value)| ((*x, *y), *value)).collect();
+            let reference: std::collections::BTreeMap<(i32, i32), i32> =
+                theirs.iter().map(|(x, y, value)| ((*x, *y), *value)).collect();
+            for square in mine.keys().chain(reference.keys()) {
+                let (ours_here, theirs_here) =
+                    (mine.get(square).copied().unwrap_or(0), reference.get(square).copied().unwrap_or(0));
+                if ours_here != theirs_here && wrong.len() < 8 {
+                    wrong.push((index, square.0, square.1, ours_here, theirs_here));
+                }
+            }
         }
         compared += 1;
-        // **The decay comes at the turn's end, after the layer has been read.** `decay_fields_and_scent` (`map.cpp:3418-3420`) runs at the end of the map's
-        // turn while the diffusion runs in its update, so the layer a turn is *compared* at is the diffused one and the point comes off afterwards - which is
-        // why one diffusion on its own matches the first turn and a decay applied first matches nothing.
-        decay(window.cells_mut());
     }
     assert!(compared >= 10, "every recorded turn was diffused: {compared}");
     assert!(
         wrong.is_empty(),
-        "the port's scent disagrees with the recording: {wrong:#?}"
+        "the port's scent disagrees with the recording (turn, x, y, ours, theirs): {wrong:#?}"
     );
 }
 
