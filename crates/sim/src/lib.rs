@@ -4946,6 +4946,23 @@ pub fn consume_items(
     kind: ItemTypeId,
     quantity: i32,
 ) -> Consumed {
+    consume_items_with(world, square, kind, quantity, |_item| true)
+}
+
+/// The same, but only the piles a filter accepts.
+///
+/// Reference: `item::use_charges` (`src/item.cpp:13135-13180`). The filter is asked **first**, before the type is compared: an item it rejects is skipped and the walk
+/// carries on (`if( !filter( *e ) ) return VisitResponse::NEXT;`). The order between the piles is still spawn order, so a caller that forbids the first pile gets the
+/// second one rather than nothing.
+///
+/// Not modelled: the reference visits an item's **contents** as well as the item (`visit_items`), so a filter here is only ever asked about the pile itself.
+pub fn consume_items_with(
+    world: &mut World,
+    square: (i32, i32),
+    kind: ItemTypeId,
+    quantity: i32,
+    mut accept: impl FnMut(&GroundItem) -> bool,
+) -> Consumed {
     let mut remaining = quantity.max(0);
     let mut taken = 0;
     for entity in items_at(world, square) {
@@ -4955,7 +4972,8 @@ pub fn consume_items(
         let Some(item) = world.get::<GroundItem>(entity).cloned() else {
             continue;
         };
-        if item.kind != kind {
+        // The filter, then the type: the reference's own order (`src/item.cpp:13145-13149`).
+        if !accept(&item) || item.kind != kind {
             continue;
         }
         let available = item.charges.max(0);

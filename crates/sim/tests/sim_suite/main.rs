@@ -18,6 +18,7 @@ mod burn_products;
 mod butcher_finish;
 mod butchery;
 mod butchery_activity;
+mod consume_filter;
 mod consume_items;
 mod containers;
 mod corpse_rules;
