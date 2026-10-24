@@ -170,7 +170,7 @@ the layer that decides when to shift
 | Terrain roofs | **ported and gated: all 1,109 terrains** | P1 | `MapData.roof`, from `optional( jo, was_loaded, "roof", roof, NULL_ID )` (`src/mapdata.cpp:1218`), compared prototype by prototype in the 1,769-row map-data gate. The field has two spellings of "none" and only one of them is none: the reference's null terrain id is **`t_null`**, so 534 terrains carry `t_null` and mean "no roof", while every piece of furniture prints an empty string because it has no field at all. It is what `map::get_roof` answers with, and therefore what a destroyed floor regenerates into — `t_rock_floor`'s roof is `t_rock_roof` (round 577) |
 | Bash data | **ported and gated: every terrain and furniture block** | P2 | `mapdata::BashInfo` from `map_common_bash_info` and its two subclasses (`src/mapdata.h:40-84`, `src/mapdata.cpp:376-430`), loaded for all 1,570 blocks the dda set defines — 958 terrains and 612 pieces of furniture — and gated against `corpus/bash/info.json` field by field. Three rules the dump settled that a transcription would have guessed wrong: `ter_set_bashed_from_above` defaults to `ter_set` **only when the block is fresh**, so a child that renames `ter_set` keeps its parent's above-result (533 blocks turn on it); furniture's `furn_set` defaults to the real id `f_null`, not to nothing; and a block that names no items gets the real group `EMPTY_GROUP`. **Not ported, declared:** inline `items` arrays, which the reference turns into anonymous groups with ids no port can reproduce; `explosive`, `restricts_hauling`, `tent_centers`, `hit_field`/`destroyed_field` and the `sound`/`sound_fail` texts (round 575) |
 | Zone types | **ported and gated** | P2 | `content::zones::load_paths` loads the 64 zone types the dda set defines, from the JSON tag `LOOT_ZONE` (`src/init.cpp:370`) — not `zone_type`, which is the mistake that returns an empty registry with no error. Gated against `corpus/zones/all.json` on id, name, description, display field, `can_be_personal` and `hidden`: 64 of 64, including the 42 a character may own and the one hidden type. **Not ported, declared:** the zone manager's options, `has_zone_type_for`, the personal and vehicle zones, and the area caches (rounds 572-574) |
-| Falling and explosions | **explosions: done and gated; falling: not started** | M2 | See the Explosions row above |
+| Falling and explosions | **explosions: done and gated; falling: items and fields done, furniture recorded and not ported** | M2 | Explosions: see the Explosions row. **Falling:** `sim::falling` transcribes `map::process_falling` (`src/map.cpp:3018-3035`) and the two halves of `drop_everything` (`:2693-2705`) that do not need creatures or a vehicle — items, which fall to the **lowest** floor under them and not one level down, and cosmetic fields, which fall exactly **one** level (`:2977-2994`). Gated against `corpus/falling/fall.json`: five columns that lost their support, one of which has a floor of its own and must not move at all, one that falls three levels, one that carries smoke, and one item column that falls one. A liquid field with `accelerated_decay` that falls onto a hole is **destroyed**, not held in mid-air, because `map::add_field` refuses to place a non-gaseous field on a square with no floor (`:6531-6534`). Four tests. The field loader gained `accelerated_decay` and `phase` for all 145 fields (dump version four), gated on the eighteen fields that fall and the five phases the data uses. **Not ported, declared:** furniture falling, which bashes the square it lands on and so raises dust — `corpus/falling/fall.json` records the bench landing two levels down with `f_bench` and `fd_dust` intensity two, which the fall gate asserts as a number rather than a note; creatures falling (`gravity_check`); the impact damage an item takes, which needs item damage and resist that the port does not have; and the vehicle. The item falls are also assumed to land on an empty square, because the reference appends to the stack below and merging is not modelled |
 | Vision through fields | **ported and gated** | P2 | The frame's transparency table folds the same three layers the reference does (`calc_transp`, `lightmap.cpp:140-167`): terrain, furniture, and the fields — which **multiply**, so smoke at its second intensity is ten times as absorbing as air and smoke at its third intensity blinds the line. Two gates pin it (`frame_smoke`): a square behind smoke is seen less than the same square without it, and behind dense smoke not at all. This closed the last red gate the M2 exit criterion had left open (round 570) |
 
 ## P3 — Items
@@ -2975,6 +2975,26 @@ Mitigation, in order of cost:
 The instrument itself is not in doubt: it compiles, it is in `oracle/patches/0001-prototype-digest.patch`, and a traced
 run of a world that exists will write the file.
 
+
+## What falls (round 580)
+
+`map::process_falling` is a queue of squares whose support was destroyed, and `drop_everything` is four rules in a row on each of them: creature, furniture, items, vehicle,
+fields. Two of the four do not need creatures or a vehicle, and they are the two that are here.
+
+The **item** rule is a loop, not a subtraction: a rock above a three-storey shaft lands at the bottom, so the columns in the fixture fall one level and three, and a gate that
+passed the first would fail the second. The **field** rule is one level and only for types whose data says the field is cosmetic — the reference's own comment is that an
+active field "drops itself" through its own processor. And a field that lands on a hole is destroyed rather than held in mid-air, because `map::add_field` will not place a
+non-gaseous field on a square with no floor. That last rule is why blood, which falls, never appears one level down: it is a liquid.
+
+Two recording lessons, both of which cost a re-record:
+
+| Lesson | How it showed |
+|---|---|
+clear the *whole* column, not just the terrain | the first fixture kept mapgen's locker and junk items, so it recorded a map with a hole punched in it |
+a dead field entry is not a field | `remove_field` zeroes an intensity and leaves the slot, so the smoke column read as "three moved and one stayed" |
+
+The furniture half is **recorded and not ported**: the bench falls two levels, bashes the floor it lands on, and the bash raises dust. Bashing a floor into fields is the bash
+port's own declared gap, and the fall gate asserts the recording as a number instead of pretending the column is empty.
 
 ## Sealing a blast (round 579)
 

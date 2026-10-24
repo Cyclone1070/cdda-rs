@@ -6,6 +6,7 @@
 
 pub mod blast;
 pub mod bash;
+pub mod falling;
 pub mod field_table;
 pub mod radiation;
 pub mod frame;

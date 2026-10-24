@@ -53,6 +53,8 @@ fn spawning_type() -> FieldType {
         half_life: 60,
         linear_half_life: false,
         wandering_field: "fd_null".to_owned(),
+        accelerated_decay: false,
+        phase: "gas".to_owned(),
         levels: vec![level(1, 1), level(0, 0)],
     }
 }

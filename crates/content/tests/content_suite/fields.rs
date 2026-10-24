@@ -180,3 +180,53 @@ fn the_dump_carries_what_the_radiation_and_wandering_processors_read() {
         "one field radiates, and each of its three intensities radiates more than the last"
     );
 }
+
+/// A field falls when the ground under it goes, and only a gas may land on open air.
+///
+/// `map::drop_fields` (`src/map.cpp:2977-2994`) moves a field to the level below when the type's `accelerated_decay` is set, and `map::add_field` refuses to put a
+/// field on a square with no floor unless it is gaseous (`src/map.cpp:6531-6534`). Both are data about the type, so both are here rather than in the rule.
+#[test]
+fn the_dump_carries_which_fields_fall_and_which_may_land() {
+    let all = dump();
+    let falls: Vec<&str> = all
+        .iter()
+        .filter(|field| field.accelerated_decay)
+        .map(|field| field.id.as_str())
+        .collect();
+    assert_eq!(
+        falls,
+        vec![
+            "fd_blood",
+            "fd_bile",
+            "fd_gibs_flesh",
+            "fd_gibs_veggy",
+            "fd_slime",
+            "fd_smoke",
+            "fd_tindalos_rift",
+            "fd_blood_veggy",
+            "fd_blood_insect",
+            "fd_blood_invertebrate",
+            "fd_gibs_insect",
+            "fd_gibs_invertebrate",
+            "fd_cigsmoke",
+            "fd_weedsmoke",
+            "fd_cracksmoke",
+            "fd_methsmoke",
+            "fd_direction",
+            "fd_churned_earth",
+        ],
+        "eighteen fields fall, and blood is one of them"
+    );
+    // Blood falls and still never lands on open air, because it is not a gas. Smoke is, which is why a smoke one level down is the case that can be seen in a world.
+    let blood = fields::find(&all, "fd_blood").expect("blood exists");
+    assert_eq!(blood.phase, "liquid", "blood is a liquid, so it cannot land on a hole");
+    let smoke = fields::find(&all, "fd_smoke").expect("smoke exists");
+    assert_eq!(smoke.phase, "gas", "smoke can");
+    // The phases the data uses, so a loader that dropped the field would show up as an empty string here rather than as a wrong answer later.
+    let phases: std::collections::BTreeSet<&str> = all.iter().map(|field| field.phase.as_str()).collect();
+    assert_eq!(
+        phases,
+        ["gas", "liquid", "null", "plasma", "solid"].into_iter().collect(),
+        "five phases"
+    );
+}

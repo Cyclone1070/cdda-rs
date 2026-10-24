@@ -113,6 +113,18 @@ pub struct FieldType {
     /// wander - a gas vent into toxic gas, a smoke vent into smoke and the tindalos rift into its own gas - which is what makes a vent keep producing rather than
     /// produce once.
     pub wandering_field: String,
+    /// Whether this field **falls** when the square under it loses its floor.
+    ///
+    /// Reference: `field_type::accelerated_decay` (`src/field_type.h:219`), read by `map::drop_fields` (`src/map.cpp:2977-2994`). The flag is not about speed: the
+    /// reference's own comment is that only *cosmetic* fields drop, because an active field "drops itself" through its own processor. Twelve of the 145 fields carry
+    /// it, and it is the whole of the test for whether a field moves.
+    pub accelerated_decay: bool,
+    /// What phase the field is in - `gas`, `liquid`, `solid`, `plasma`, or `null`.
+    ///
+    /// Reference: `field_type::phase` (`src/field_type.h:218`), read by `map::add_field`, which **refuses to put a non-gaseous field on a square with no floor**
+    /// (`src/map.cpp:6531-6534`) and refuses a liquid on water. So a fall that lands on open air keeps a gas and drops everything else, which is why blood has
+    /// `accelerated_decay` and still never appears one level down.
+    pub phase: String,
     /// The intensities, weakest first.
     pub levels: Vec<FieldLevel>,
 }
@@ -236,6 +248,8 @@ pub fn from_dump(value: &Value) -> Result<Vec<FieldType>, String> {
             half_life,
             linear_half_life,
             wandering_field: str_of(object, "wandering_field").unwrap_or_default(),
+            accelerated_decay: bool_of(object, "accelerated_decay").unwrap_or(false),
+            phase: str_of(object, "phase").unwrap_or_default(),
             levels: parsed,
         });
     }
