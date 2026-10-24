@@ -102,6 +102,7 @@ mod visibility;
 mod gas_wind;
 mod valid_move;
 mod vision;
+mod zlight;
 mod vision_threshold;
 mod vision_transparency;
 mod weather;

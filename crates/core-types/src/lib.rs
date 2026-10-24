@@ -45,6 +45,7 @@ pub mod text;
 pub mod tiles;
 pub mod units;
 pub mod vision;
+pub mod zlight;
 pub mod weather;
 pub mod weighted;
 
