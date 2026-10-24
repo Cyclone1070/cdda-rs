@@ -32,6 +32,7 @@ mod eating;
 mod extinguisher;
 mod frame;
 mod frame_smoke;
+mod frame_memory;
 mod frame_oracle;
 mod field_growth;
 mod field_ids;

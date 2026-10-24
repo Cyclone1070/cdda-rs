@@ -132,6 +132,7 @@ fn most_glyphs_are_the_terrain_s_symbol_and_the_rest_are_something_drawn_on_top(
 }
 
 #[test]
+#[allow(clippy::too_many_lines)]
 fn the_port_prints_every_plain_square_the_way_the_reference_prints_it() {
     // The join: the port's own draw path, given the reference's terrain for each square, must print the reference's glyph - over the 1,638 squares where nothing is drawn on top.
     // The 43 that carry an item, creature or field are named out of the comparison rather than tolerated, because the port has none of those yet.
@@ -226,6 +227,31 @@ fn the_port_prints_every_plain_square_the_way_the_reference_prints_it() {
         terrain,
         furniture: TerrainTable::new(),
     });
+    // **The frame is drawn in daylight, which it has to be.** The reference recorded this frame outdoors in the middle of a day: its own light column reads the sky's
+    // hundred-odd lumens on every open square. A port that drew it in the dark would be comparing its own blank frames with the reference's glyphs - and, since a dark square
+    // is exactly the square the draw path takes from memory, it would also be silently measuring the memory path instead of the terrain's.
+    // **The light is the recording's own, planted square by square.** The reference's frame sits inside a reality bubble and its light column reads the sky's hundred-odd
+    // lumens on every open square; a level built from the recorded window alone has edges the port's sun cannot reach, because `build_sunlight_cache` lights a square from
+    // its neighbours. Planting the recorded value as a light source on each square gives the draw loop exactly the light the reference had, which is the only input this gate
+    // is about - the glyphs. The sun's own cascade is gated in `sunlight_system`.
+    {
+        for entry in squares {
+            let Value::Object(square) = entry else { continue };
+            let (Some(Value::Int(x)), Some(Value::Int(y))) = (square.get("x"), square.get("y")) else {
+                continue;
+            };
+            let Some(Value::Float(light)) = square.get("light") else {
+                continue;
+            };
+            let (Ok(x), Ok(y)) = (i32::try_from(*x), i32::try_from(*y)) else { continue };
+            #[allow(clippy::cast_possible_truncation)]
+            world.spawn((
+                cdda_sim::Position { x, y, z: 0 },
+                cdda_sim::LightSource { luminance: *light as f32 },
+            ));
+        }
+        cdda_sim::cast_lights_with(&mut world);
+    }
     let drawn = frame(&mut world, centre, radius, 100.0, 3.0);
     let text = drawn.text();
     let rows: Vec<&str> = text.lines().collect();
@@ -237,7 +263,8 @@ fn the_port_prints_every_plain_square_the_way_the_reference_prints_it() {
         assert_eq!(
             line.chars().nth(column),
             Some(*glyph),
-            "square ({x}, {y}) in the reference's frame:\n{text}"
+            "square ({x}, {y}) in the reference's frame, cell {:?}:\n{text}",
+            drawn.at(*x, *y)
         );
         checked += 1;
     }

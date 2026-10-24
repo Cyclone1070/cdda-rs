@@ -12,6 +12,7 @@ use cdda_core_types::light::LitLevel;
 use cdda_core_types::vision::{View, lit_level_with};
 use std::collections::BTreeMap;
 
+use crate::memory::Memory;
 use crate::{Light, Map, Prototypes, field_opacity};
 
 /// One square of a drawn frame.
@@ -23,6 +24,11 @@ pub struct FrameCell {
     pub lit: LitLevel,
     /// How clearly the character sees it, zero to one.
     pub seen: f32,
+    /// Whether the glyph came out of the character's memory rather than off the map.
+    ///
+    /// Reference: `draw_background` (`src/map.cpp:6906-6917`), which the draw loop calls for a square whose `visibility_type` is `HIDDEN` or `DARK`. Such a square prints
+    /// the symbol it was **memorized** with, and a blank space when it was never seen.
+    pub from_memory: bool,
 }
 
 /// A drawn frame: the squares of the view, row by row.
@@ -79,6 +85,71 @@ impl Frame {
         }
         out
     }
+}
+
+
+/// One square of a frame, drawn the way the reference's loop draws it.
+///
+/// Reference: `map::draw`'s inner loop (`src/map.cpp:6930-6960`): the square's `lit_level`, the `visibility_type` it becomes, and the two branches - a background for
+/// `HIDDEN` and `DARK` (the memorized symbol, or a space) and the tile itself otherwise, which is also when the tile is memorized (`src/map.cpp:7216`).
+#[allow(clippy::too_many_arguments)]
+fn draw_cells(
+    level: &cdda_core_types::level::Level,
+    view: &View,
+    light: &Light,
+    grid: &SeenGrid,
+    memory: Option<&mut Memory>,
+    terrain: &crate::terrain_table::TerrainTable,
+    origin: (i32, i32),
+    radius: i32,
+    side: usize,
+) -> Vec<FrameCell> {
+    let light_map = light.squares_for_the_rules();
+    let mut memory = memory;
+    let mut cells = Vec::with_capacity(side * side);
+    for row in 0..side {
+        for column in 0..side {
+            let square = (
+                origin.0 + i32::try_from(column).unwrap_or(0) - radius,
+                origin.1 + i32::try_from(row).unwrap_or(0) - radius,
+            );
+            let code = level.terrain_at(square.0, square.1).unwrap_or(0);
+            let lit = lit_level_with(level, view, &light_map, grid, square);
+            // **Two branches, the reference's own.** `get_visibility` turns `DARK`, `BLANK` and `MEMORIZED` into something the loop draws as a background
+            // (`src/map.cpp:6836-6865`), and everything else as the tile itself.
+            let hidden = matches!(lit, LitLevel::Dark | LitLevel::Blank | LitLevel::Memorized);
+            let remembered = if hidden {
+                memory
+                    .as_ref()
+                    .and_then(|memory| memory.0.at(square))
+                    .and_then(|tile| char::from_u32(tile.symbol))
+                    .filter(|symbol| *symbol != '\0')
+            } else {
+                None
+            };
+            let glyph = if let Some(remembered) = remembered {
+                remembered
+            } else if hidden {
+                ' '
+            } else {
+                let symbol = terrain.symbol(code);
+                if let Some(memory) = memory.as_mut() {
+                    // `map::draw` memorizes inside `draw_maptile` for every square it prints (`src/map.cpp:7216`), so a square is remembered because it was drawn. The
+                    // terrain id is not available here - the frame reads codes - so the tile carries the code and the symbol, which is what a remembered square prints.
+                    memory.0.set_terrain(square, code, "", 0, 0);
+                    memory.0.set_symbol(square, u32::from(symbol));
+                }
+                symbol
+            };
+            cells.push(FrameCell {
+                glyph,
+                lit,
+                seen: grid.at(square),
+                from_memory: remembered.is_some(),
+            });
+        }
+    }
+    cells
 }
 
 /// Draws the frame around a character.
@@ -176,28 +247,33 @@ pub fn frame(
     let light = world.get_resource::<Light>().cloned().unwrap_or_default();
 
     let side = usize::try_from(radius * 2 + 1).unwrap_or(0);
-    let mut cells = Vec::with_capacity(side * side);
+    // **The memory is taken out of the world while the frame is drawn**, for the same reason the level is: the loop both reads it and writes to it, and a resource borrow
+    // held across the walk cannot be handed back to the caller. A world with no memory resource still draws; it just never remembers anything.
+    let mut memory = world.remove_resource::<Memory>();
     let Some(map) = world.get_resource::<Map>() else {
+        // The memory goes back even on the early return: a frame that took it and dropped it would quietly empty the character's map.
+        if let Some(memory) = memory {
+            world.insert_resource(memory);
+        }
         return Frame {
             origin,
             radius,
-            cells,
+            cells: Vec::new(),
         };
     };
-    for row in 0..side {
-        for column in 0..side {
-            let square = (
-                origin.0 + i32::try_from(column).unwrap_or(0) - radius,
-                origin.1 + i32::try_from(row).unwrap_or(0) - radius,
-            );
-            let code = map.0.terrain_at(square.0, square.1).unwrap_or(0);
-            // The rule functions take the whole light map; a frame's is the squares the cast reached, which is what `Light` holds.
-            cells.push(FrameCell {
-                glyph: terrain.symbol(code),
-                lit: lit_level_with(&map.0, &view, &light.squares_for_the_rules(), &grid, square),
-                seen: grid.at(square),
-            });
-        }
+    let cells = draw_cells(
+        &map.0,
+        &view,
+        &light,
+        &grid,
+        memory.as_mut(),
+        &terrain,
+        origin,
+        radius,
+        side,
+    );
+    if let Some(memory) = memory {
+        world.insert_resource(memory);
     }
     Frame {
         origin,
