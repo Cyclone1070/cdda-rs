@@ -43,6 +43,8 @@ pub struct ItemType {
     pub integral_weight: i64,
     /// Volume in millilitres.
     pub volume: i64,
+    /// How many of it make a whole stack, which is what a charge count is divided by when the volume of a pile is worked out.
+    pub stack_size: i32,
     /// What the item takes up when its caller asks for the **integral** volume, in millilitres.
     ///
     /// Reference: `itype::integral_volume`, read by `item::volume( integral: true )` (`src/item.cpp:7540-7544`). Loaded with the same rule as the integral weight: the
@@ -704,6 +706,7 @@ fn resolve(
         symbol: 0,
         color: color_from_string("white").unwrap_or_default(),
         weight: 0,
+        stack_size: 1,
         // Unset until the data or the fallback says otherwise.
         integral_weight: -1,
         volume: 0,
@@ -886,6 +889,9 @@ fn apply_slots(item: &mut ItemType, object: &Object) {
     apply_armor_slots(item, object);
     apply_flat_slots(item, object);
     apply_melee_slots(item, object);
+    if let Some(Value::Int(size)) = object.get("stack_size") {
+        item.stack_size = i32::try_from(*size).unwrap_or(1).max(1);
+    }
     // **Inherited unless declared.** The reference copies the whole type and overrides only the members the child states, so an item that says nothing about its
     // qualities keeps its parent's - a great many tool variants do exactly that.
     if object.get("qualities").is_some() {

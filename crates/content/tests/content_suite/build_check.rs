@@ -104,7 +104,14 @@ fn every_construction_answers_the_same_way_for_four_kits_as_the_reference_does()
             let Some(kind) = catalog.get(id) else {
                 panic!("the kit names {id}, which the port does not know")
             };
-            kit.add(id, *count, kind.counts_by_charge(), kind.qualities.clone());
+            kit.add_measured(
+                id,
+                *count,
+                kind.counts_by_charge(),
+                kind.qualities.clone(),
+                kind.volume,
+                kind.stack_size,
+            );
         }
         kits.insert(name.clone(), kit);
     }

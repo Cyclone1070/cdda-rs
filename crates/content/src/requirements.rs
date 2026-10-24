@@ -426,7 +426,16 @@ pub struct KitStack {
     pub qualities: BTreeMap<String, i32>,
     /// Whether the stack is counted by charge, which decides whether a requirement's count means charges or items.
     pub by_charge: bool,
+    /// The volume of one of them, in millilitres, as the item type states it.
+    pub volume_ml: i64,
+    /// How many of them make a whole stack, which is how a charge count is turned into a number of items for the volume tally.
+    pub stack_size: i32,
 }
+
+/// The largest a craft's components may add up to, in millilitres.
+///
+/// Reference: `MAX_ITEM_VOLUME`, which is `DEFAULT_TILE_VOLUME`, which is one thousand litres (`src/game_constants.h:35-36`).
+pub const MAX_ITEM_VOLUME_ML: i64 = 1_000_000;
 
 impl Kit {
     /// Adds a stack.
@@ -437,8 +446,27 @@ impl Kit {
                 count,
                 qualities,
                 by_charge,
+                volume_ml: 0,
+                stack_size: 1,
             },
         );
+    }
+
+    /// Adds a stack and states how big one of it is, and how many make a stack, which only the pile rule asks about.
+    pub fn add_measured(
+        &mut self,
+        id: &str,
+        count: i32,
+        by_charge: bool,
+        qualities: BTreeMap<String, i32>,
+        volume_ml: i64,
+        stack_size: i32,
+    ) {
+        self.add(id, count, by_charge, qualities);
+        if let Some(stack) = self.stacks.get_mut(id) {
+            stack.volume_ml = volume_ml;
+            stack.stack_size = stack_size.max(1);
+        }
     }
 
     /// How many of an item the kit holds.
@@ -485,12 +513,85 @@ impl RequirementData {
     /// Reference: `requirement_data::can_make_with_inventory` (`src/requirements.cpp:865-888`), in its order: qualities, then tools, then components, all three
     /// always evaluated. One `batch`.
     ///
-    /// Not modelled: `check_enough_materials`, the reference's rule that one pile cannot satisfy two overlapping groups, and the UPS accounting.
+    /// Not modelled: the UPS accounting, and the `is_crafting_component` filter, which the kits here do not distinguish.
     #[must_use]
     pub fn can_make(&self, kit: &Kit) -> bool {
         qualities_available(&self.qualities, kit)
             && tools_available(&self.tools, kit)
             && components_available(&self.components, kit)
+            && self.enough_materials(kit)
+    }
+
+    /// Whether one pile is enough for every group that draws on it.
+    ///
+    /// Reference: `requirement_data::check_enough_materials` (`src/requirements.cpp:1061-1146`). Each group passes on its own and the kit can still be one item short,
+    /// because a component that is **also** a tool or a quality provider cannot be spent and held at once:
+    ///
+    /// - the same type wanted as a component and as a tool needs `count + tc` of it, where a held tool counts as its size and a spent one as one;
+    /// - a component that itself provides a quality the build requires needs `required + count` items at that quality.
+    ///
+    /// The volume side of the same function is checked too: the components of a craft may not add up to more than a tile.
+    #[must_use]
+    pub fn enough_materials(&self, kit: &Kit) -> bool {
+        let mut total_volume: i64 = 0;
+        for group in &self.components {
+            let mut worst_case: i64 = 0;
+            let mut any_available = false;
+            for (item, count, _) in group {
+                if !self.component_is_spare(item, *count, kit) {
+                    continue;
+                }
+                any_available = true;
+                worst_case = worst_case.max(component_volume(item, *count, kit));
+            }
+            if !any_available {
+                return false;
+            }
+            total_volume += worst_case;
+        }
+        total_volume <= MAX_ITEM_VOLUME_ML
+    }
+
+    /// Whether a component alternative is available **and** not needed twice over.
+    fn component_is_spare(&self, item: &str, count: i32, kit: &Kit) -> bool {
+        if !component_available(item, count, kit) {
+            return false;
+        }
+        let wanted = count.unsigned_abs().cast_signed();
+        // The same type wanted as a tool as well: the pile has to cover both.
+        for group in &self.tools {
+            for (tool, tool_count, _) in group {
+                if tool != item || !tool_available(tool, *tool_count, kit) {
+                    continue;
+                }
+                let also = if *tool_count > 0 {
+                    1
+                } else {
+                    tool_count.unsigned_abs().cast_signed()
+                };
+                if !component_available(item, wanted + also, kit) && !tool_available(item, -(wanted + also), kit) {
+                    return false;
+                }
+            }
+        }
+        // And a component that provides a quality the build asks for cannot provide it after being spent.
+        for group in &self.qualities {
+            for (quality, level, needed) in group {
+                let Some(stack) = kit.stacks.get(item) else {
+                    continue;
+                };
+                let Some(held) = stack.qualities.get(quality) else {
+                    continue;
+                };
+                if *held < *level {
+                    continue;
+                }
+                if !kit.has_quality(quality, *level, needed + wanted) {
+                    return false;
+                }
+            }
+        }
+        true
     }
 }
 
@@ -503,6 +604,52 @@ fn qualities_available(groups: &QualityGroups, kit: &Kit) -> bool {
             .iter()
             .any(|(quality, level, count)| kit.has_quality(quality, *level, *count))
     })
+}
+
+/// Whether one component alternative is available at all.
+fn component_available(item: &str, count: i32, kit: &Kit) -> bool {
+    let wanted = count.unsigned_abs().cast_signed();
+    match kit.stacks.get(item) {
+        Some(stack) if stack.by_charge => kit.charges_of(item) >= wanted,
+        _ => kit.amount_of(item) >= wanted,
+    }
+}
+
+/// How much room a component's worth of an item takes, in millilitres.
+///
+/// Reference: `check_enough_materials` (`src/requirements.cpp:1071-1076`): a stack counted by charge is measured as `count / stack_size` of the type's volume, anything
+/// else as `count` of them. A kit knows a type's volume only when the caller measured it; an unmeasured stack adds nothing, which keeps this out of the way of the
+/// behaviour it is not about.
+fn component_volume(item: &str, count: i32, kit: &Kit) -> i64 {
+    let Some(stack) = kit.stacks.get(item) else {
+        return 0;
+    };
+    let count = i64::from(count.unsigned_abs());
+    // **A stack counted by charge is measured in whole items**, so its volume is `count / stack_size` of the type's (`src/requirements.cpp:1072-1074`).
+    let items = if stack.by_charge {
+        f64::from(i32::try_from(count).unwrap_or(i32::MAX))
+            / f64::from(stack.stack_size.max(1))
+    } else {
+        i64_to_f64(count)
+    };
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let scaled = (i64_to_f64(stack.volume_ml) * items) as i64;
+    scaled
+}
+
+/// Widening, for the volume arithmetic above.
+#[allow(clippy::cast_precision_loss)]
+fn i64_to_f64(value: i64) -> f64 {
+    value as f64
+}
+
+/// Whether one tool alternative is available.
+fn tool_available(item: &str, count: i32, kit: &Kit) -> bool {
+    if count > 0 {
+        kit.charges_of(item) >= count
+    } else {
+        kit.amount_of(item) >= count.unsigned_abs().cast_signed()
+    }
 }
 
 /// Whether every tool group has an alternative the kit can meet.
