@@ -4993,33 +4993,69 @@ pub fn consume_items_held(
         if remaining == 0 {
             break;
         }
-        let Some(item) = world.get::<GroundItem>(entity).cloned() else {
+        // The liquid gate is asked about the **top-level** pile only: a puddle on a plain floor is not offered at all, and neither is anything supposedly inside it
+        // (`item_stack::use_charges`, `src/item_stack.cpp:150-155`), while a canteen's water is offered because a canteen is not a liquid.
+        let Some(pile) = world.get::<GroundItem>(entity).cloned() else {
             continue;
         };
-        // The liquid gate comes first: a puddle on a plain floor is not offered to the filter at all (`src/item_stack.cpp:150-155`).
-        if is_liquid(item.kind) && !holds_liquids {
+        if is_liquid(pile.kind) && !holds_liquids {
             continue;
         }
-        // The filter, then the type: the reference's own order (`src/item.cpp:13145-13149`).
-        if !accept(&item) || item.kind != kind {
-            continue;
-        }
-        let available = item.charges.max(0);
-        let take = available.min(remaining);
-        if take == 0 {
-            continue;
-        }
-        remaining -= take;
-        taken += take;
-        if take == available {
-            world.despawn(entity);
-        } else if let Some(mut item) = world.get_mut::<GroundItem>(entity) {
-            item.charges = available - take;
-        }
+        offer_pile(world, entity, kind, &mut remaining, &mut taken, &mut accept);
     }
     Consumed {
         taken,
         satisfied: remaining == 0,
+    }
+}
+
+/// Offers one pile, and then its contents, the way `visit_items` walks them.
+///
+/// Reference: `item::use_charges` (`src/item.cpp:13140-13165`). The visit is **pre-order**: an item is offered before the things inside it, and an item the filter rejects
+/// is skipped while its contents are still walked (`VisitResponse::NEXT`). A container is not itself counted by charges, so it can only ever supply what it holds.
+///
+/// An emptied pile is removed: at the top level that means the pile leaves the square, and inside a container it leaves the container, which is the reference's `del`
+/// list and its `on_contents_changed` in one step.
+fn offer_pile(
+    world: &mut World,
+    entity: Entity,
+    kind: ItemTypeId,
+    remaining: &mut i32,
+    taken: &mut i32,
+    accept: &mut impl FnMut(&GroundItem) -> bool,
+) {
+    if *remaining == 0 {
+        return;
+    }
+    let Some(item) = world.get::<GroundItem>(entity).cloned() else {
+        return;
+    };
+    // The filter, then the type: the reference's own order (`src/item.cpp:13145-13149`).
+    if accept(&item) && item.kind == kind {
+        let available = item.charges.max(0);
+        let take = available.min(*remaining);
+        if take > 0 {
+            *remaining -= take;
+            *taken += take;
+            if take == available {
+                world.despawn(entity);
+                // A removed pile has no contents left to walk.
+                return;
+            }
+            if let Some(mut item) = world.get_mut::<GroundItem>(entity) {
+                item.charges = available - take;
+            }
+        }
+    }
+    if *remaining == 0 {
+        return;
+    }
+    // Then the contents, in the order they went in.
+    for child in contents(world, entity) {
+        offer_pile(world, child, kind, remaining, taken, accept);
+        if *remaining == 0 {
+            return;
+        }
     }
 }
 

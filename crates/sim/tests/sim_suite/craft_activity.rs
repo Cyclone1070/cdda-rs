@@ -27,10 +27,18 @@ fn starting_a_craft_takes_the_parts_into_the_unfinished_item() {
         1,
         "the parts are inside the unfinished craft"
     );
+    // **Five, not three.** The two charges the craft took are inside the unfinished craft, and the reference's `item::use_charges` walks an item's **contents**
+    // (`visit_items`, `src/item.cpp:13140-13165`), so a caller asking the square for five finds the loose three and then the two in the craft. Asking for three would
+    // find only the loose ones and leave the craft untouched.
+    assert_eq!(
+        consume_items(&mut world, (5, 5), ItemTypeId(1), 3).taken,
+        3,
+        "the loose three, and the craft's own two are left alone"
+    );
     assert_eq!(
         consume_items(&mut world, (5, 5), ItemTypeId(1), 5).taken,
-        3,
-        "two of the five were taken"
+        2,
+        "and what is left of the square is what went inside the craft"
     );
 }
 

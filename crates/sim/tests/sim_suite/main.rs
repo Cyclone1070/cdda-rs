@@ -19,6 +19,7 @@ mod butcher_finish;
 mod butchery;
 mod butchery_activity;
 mod consume_filter;
+mod consume_contents;
 mod consume_liquids;
 mod consume_items;
 mod containers;
