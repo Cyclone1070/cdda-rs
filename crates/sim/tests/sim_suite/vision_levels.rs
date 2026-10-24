@@ -247,3 +247,61 @@ fn the_port_s_cast_reproduces_the_reference_s_seen_cache() {
         "the fixture is worth comparing"
     );
 }
+
+/// The frame's own sight cast, against the reference's cache on the level the character stands on.
+///
+/// The gate above runs [`cdda_core_types::zlight::build_seen_cache`] over the recording's own numbers, which proves the cast. This one goes through the **engine** — the
+/// `Level` the frame asks, given the same transparency map — because a cast that is right and a level that hands it the wrong table are two different failures, and only the
+/// second one is the port's to make.
+///
+/// The reference fills **every** level's cache in one pass, so the character's own level is written by the same `cast_zlight`. Its own-level values are the flat cast's, which
+/// is why a level that casts one level and reads as solid beside it can reproduce them; what it cannot reproduce is the other two levels, and that is the gate above.
+#[test]
+fn the_frame_s_cast_reproduces_the_reference_s_seen_cache_on_the_character_s_level() {
+    use cdda_core_types::level::Level;
+    use std::collections::BTreeMap;
+
+    let (squares, (cx, cy, cz)) = squares();
+    let radius = 8;
+    let mut transparency: BTreeMap<(i32, i32), f32> = BTreeMap::new();
+    for square in &squares {
+        if square.z == cz {
+            #[allow(clippy::cast_possible_truncation)]
+            transparency.insert((square.x, square.y), square.transparency as f32);
+        }
+    }
+    let mut level = Level::new();
+    level.ensure(0, 0, 0);
+    let grid = level.seen_grid_of((cx, cy), radius, &transparency);
+
+    let mut compared = 0_usize;
+    let mut wrong = Vec::new();
+    for square in &squares {
+        if square.z != cz {
+            continue;
+        }
+        let ours = grid.at((square.x, square.y));
+        #[allow(clippy::cast_possible_truncation)]
+        let theirs = square.seen as f32;
+        if (ours - theirs).abs() > 1e-4 {
+            wrong.push((square.x, square.y, ours, theirs));
+        }
+        compared += 1;
+    }
+    assert_eq!(compared, 17 * 17, "the character's own level, every square");
+    assert!(
+        wrong.is_empty(),
+        "{} of {compared} squares differ from the reference's cache: {:?}",
+        wrong.len(),
+        &wrong[..wrong.len().min(8)]
+    );
+    // Not vacuous: the level is a mix of visible and visible-past and solid squares, so a level that handed the cast an empty table would fail rather than agree.
+    let visible = (0..17)
+        .flat_map(|row| (0..17).map(move |column| (row, column)))
+        .filter(|(row, column)| {
+            let square = (cx - radius + *column, cy - radius + *row);
+            grid.at(square) > 0.0
+        })
+        .count();
+    assert!(visible > 40, "the level shows a field: {visible}");
+}
