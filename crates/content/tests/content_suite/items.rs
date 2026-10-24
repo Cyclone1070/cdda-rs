@@ -426,3 +426,53 @@ fn the_stack_size_the_volume_rule_divides_by_is_in_the_dump() {
         "the battery is 100 ml for 100 charges: one millilitre a charge"
     );
 }
+
+#[test]
+fn the_integral_volume_is_in_the_dump_and_the_loader_keeps_a_deliberate_zero() {
+    // **The corpus side of `item::volume( integral: true )`.** 120 types answer differently from their ordinary volume, and 97 of those say **zero** on purpose - a
+    // pseudo magazine, a debug item, a `null` - which is the same trap the integral weight had: zero is a value, not an absence.
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/items.json");
+    let bytes = std::fs::read(&path).expect("the dump");
+    let cdda_json::Value::Object(root) = cdda_json::parse(&bytes).expect("valid JSON") else {
+        panic!("the dump is an object")
+    };
+    let Some(cdda_json::Value::Array(prototypes)) = root.get("prototypes") else {
+        panic!("the dump holds prototypes")
+    };
+    let mut differing = 0_usize;
+    let mut zero_on_purpose = 0_usize;
+    for entry in prototypes {
+        let cdda_json::Value::Object(entry) = entry else {
+            panic!("a prototype")
+        };
+        let whole = |key: &str| match entry.get(key) {
+            Some(cdda_json::Value::Int(value)) => *value,
+            other => panic!("{key} is a whole number: {other:?}"),
+        };
+        let (volume, integral) = (whole("volume"), whole("integral_volume"));
+        if integral != volume {
+            differing += 1;
+        }
+        if integral == 0 && volume > 0 {
+            zero_on_purpose += 1;
+        }
+    }
+    assert_eq!(differing, 120, "120 types take up a different room packed down");
+    assert_eq!(zero_on_purpose, 97, "and 97 of them say zero on purpose");
+    // The loader carries it, and a deliberate zero survives: a pseudo magazine is one millilitre as it stands and nothing packed down.
+    let loaded = crate::corpus::items_loaded();
+    let pseudo = loaded
+        .iter()
+        .find(|item| item.id == "pseudo_magazine")
+        .expect("the type loads");
+    assert_eq!(pseudo.volume, 1, "one millilitre as it stands");
+    assert_eq!(pseudo.integral_volume, 0, "and nothing packed down");
+    let rock = loaded
+        .iter()
+        .find(|item| item.id == "rock")
+        .expect("the rock loads");
+    assert_eq!(
+        rock.integral_volume, rock.volume,
+        "a type that says nothing keeps its ordinary volume"
+    );
+}

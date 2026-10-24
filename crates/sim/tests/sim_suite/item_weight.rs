@@ -6,8 +6,8 @@
 
 use bevy_ecs::prelude::*;
 use cdda_sim::{
-    Container, GroundItem, ItemTypeId, drop_item, insert_into, item_volume, item_weight,
-    item_weight_integral,
+    Container, GroundItem, ItemTypeId, drop_item, insert_into, item_volume, item_volume_integral,
+    item_weight, item_weight_integral,
 };
 
 fn grams(kind: ItemTypeId) -> cdda_sim::TypeWeight {
@@ -215,6 +215,38 @@ fn stack_volume(kind: ItemTypeId) -> cdda_sim::TypeVolume {
     match kind.0 {
         20 => cdda_sim::TypeVolume::charges(100, 100),
         21 => cdda_sim::TypeVolume::charges(1, 3),
+        _ => cdda_sim::TypeVolume::plain(250),
+    }
+}
+
+#[test]
+fn a_collapsed_item_takes_up_its_integral_volume() {
+    // **`item::volume( integral: true )`** (`src/item.cpp:7540-7544`): the same rule over the type's other volume, `integral_volume` instead of `volume`. It is the
+    // volume an item takes when it is packed down - a folded frame, a drawn bowstring - and **120 types in the data differ**, 97 of them saying zero on purpose.
+    //
+    // The charge rule still applies, because the reference picks the number first and divides by the stack size afterwards.
+    let mut world = World::new();
+    let folded = drop_item(&mut world, (5, 5), ItemTypeId(30), 1);
+    assert_eq!(item_volume(&mut world, folded, integral_volume), 4000, "as it stands");
+    assert_eq!(
+        item_volume_integral(&mut world, folded, integral_volume),
+        500,
+        "and packed down, which is the whole point of the second number"
+    );
+    let charges = drop_item(&mut world, (5, 5), ItemTypeId(31), 6);
+    assert_eq!(item_volume(&mut world, charges, integral_volume), 2, "six charges of a 3 ml stack of nine");
+    assert_eq!(
+        item_volume_integral(&mut world, charges, integral_volume),
+        1,
+        "and packed down: 6 x 1 ml over a stack of nine, rounded up"
+    );
+}
+
+/// A type whose two volumes differ, and one counted in charges whose two differ too.
+fn integral_volume(kind: ItemTypeId) -> cdda_sim::TypeVolume {
+    match kind.0 {
+        30 => cdda_sim::TypeVolume::with_integral_volume(4000, 500),
+        31 => cdda_sim::TypeVolume::charges_with_integral_volume(3, 1, 9),
         _ => cdda_sim::TypeVolume::plain(250),
     }
 }

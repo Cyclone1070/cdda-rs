@@ -43,6 +43,11 @@ pub struct ItemType {
     pub integral_weight: i64,
     /// Volume in millilitres.
     pub volume: i64,
+    /// What the item takes up when its caller asks for the **integral** volume, in millilitres.
+    ///
+    /// Reference: `itype::integral_volume`, read by `item::volume( integral: true )` (`src/item.cpp:7540-7544`). Loaded with the same rule as the integral weight: the
+    /// ordinary volume is copied over only when the field is **still unset** (`src/item_factory.cpp:394-396`), so a deliberate zero stays zero - 97 types say zero.
+    pub integral_volume: i64,
     /// Price in cents.
     pub price: i64,
     /// Category id, empty when the item states none.
@@ -667,6 +672,7 @@ fn resolve(
         // Unset until the data or the fallback says otherwise.
         integral_weight: -1,
         volume: 0,
+        integral_volume: -1,
         price: 0,
         category: String::new(),
         materials: BTreeMap::new(),
@@ -751,6 +757,16 @@ fn apply(
         item.integral_weight = item.weight;
     }
     item.volume = adjusted(object, "volume", item.volume, read_volume, 1)?;
+    item.integral_volume = adjusted(
+        object,
+        "integral_volume",
+        item.integral_volume,
+        read_volume,
+        1,
+    )?;
+    if item.integral_volume < 0 {
+        item.integral_volume = item.volume;
+    }
     item.price = adjusted(object, "price", item.price, read_money, 1)?;
     if let Some(category) = string(object, "category") {
         item.category = category;

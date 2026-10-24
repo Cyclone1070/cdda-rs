@@ -4402,6 +4402,11 @@ impl TypeWeight {
 pub struct TypeVolume {
     /// What one unit takes up, in millilitres.
     pub millilitres: i64,
+    /// What one unit takes up when its caller asks for the **integral** volume, in millilitres.
+    ///
+    /// Reference: `itype::integral_volume`, read by `item::volume( integral: true )` (`src/item.cpp:7540-7544`) and loaded with the same "copy the ordinary one when the
+    /// data is silent" rule as the weight (`src/item_factory.cpp:394-396`). **120 types in the data differ**, 97 of them saying zero on purpose.
+    pub integral_millilitres: i64,
     /// Whether the type is counted in charges rather than as separate objects.
     pub count_by_charges: bool,
     /// How many charges share one stack's volume; zero when the type is not counted in charges.
@@ -4414,8 +4419,35 @@ impl TypeVolume {
     pub const fn plain(millilitres: i64) -> Self {
         Self {
             millilitres,
+            integral_millilitres: millilitres,
             count_by_charges: false,
             stack_size: 0,
+        }
+    }
+
+    /// A type whose two volumes differ, which 120 of them do.
+    #[must_use]
+    pub const fn with_integral_volume(millilitres: i64, integral_millilitres: i64) -> Self {
+        Self {
+            millilitres,
+            integral_millilitres,
+            count_by_charges: false,
+            stack_size: 0,
+        }
+    }
+
+    /// A charge-counted type whose two volumes differ.
+    #[must_use]
+    pub const fn charges_with_integral_volume(
+        millilitres: i64,
+        integral_millilitres: i64,
+        stack_size: i64,
+    ) -> Self {
+        Self {
+            millilitres,
+            integral_millilitres,
+            count_by_charges: true,
+            stack_size,
         }
     }
 
@@ -4424,6 +4456,7 @@ impl TypeVolume {
     pub const fn charges(millilitres: i64, stack_size: i64) -> Self {
         Self {
             millilitres,
+            integral_millilitres: millilitres,
             count_by_charges: true,
             stack_size,
         }
@@ -4444,17 +4477,39 @@ pub fn item_volume(
     entity: Entity,
     facts: impl Fn(ItemTypeId) -> TypeVolume,
 ) -> i64 {
-    volume_with(world, entity, &facts)
+    volume_with(world, entity, &facts, false)
 }
 
-fn volume_with(world: &mut World, entity: Entity, facts: &dyn Fn(ItemTypeId) -> TypeVolume) -> i64 {
+/// What an item takes up when its caller asks for the **integral** volume.
+///
+/// Reference: `item::volume( integral: true )` (`src/item.cpp:7540-7544`). The number comes from the type's other volume; everything else - the charge rule, the stack
+/// size, the round-up, the contents - is the same rule.
+pub fn item_volume_integral(
+    world: &mut World,
+    entity: Entity,
+    facts: impl Fn(ItemTypeId) -> TypeVolume,
+) -> i64 {
+    volume_with(world, entity, &facts, true)
+}
+
+fn volume_with(
+    world: &mut World,
+    entity: Entity,
+    facts: &dyn Fn(ItemTypeId) -> TypeVolume,
+    integral: bool,
+) -> i64 {
     let Some(item) = world.get::<GroundItem>(entity).cloned() else {
         return 0;
     };
     let facts_of_type = facts(item.kind);
+    let unit = if integral {
+        facts_of_type.integral_millilitres
+    } else {
+        facts_of_type.millilitres
+    };
     let mut total = if facts_of_type.count_by_charges && facts_of_type.stack_size > 0 {
         let charges = i64::from(item.charges);
-        let product = facts_of_type.millilitres.saturating_mul(charges);
+        let product = unit.saturating_mul(charges);
         let whole = product / facts_of_type.stack_size;
         // **Rounded up, in millilitres.** The reference adds one millilitre when the division has a remainder, so a pile one charge past a stack takes one more
         // millilitre and not a fraction of one.
@@ -4464,10 +4519,10 @@ fn volume_with(world: &mut World, entity: Entity, facts: &dyn Fn(ItemTypeId) -> 
             whole
         }
     } else {
-        facts_of_type.millilitres
+        unit
     };
     for held in contents(world, entity) {
-        total = total.saturating_add(volume_with(world, held, facts));
+        total = total.saturating_add(volume_with(world, held, facts, integral));
     }
     total
 }

@@ -15,7 +15,8 @@
 
 use bevy_ecs::prelude::*;
 use cdda_sim::{
-    ItemTypeId, TypeVolume, TypeWeight, drop_item, item_volume, item_weight, item_weight_integral,
+    ItemTypeId, TypeVolume, TypeWeight, drop_item, item_volume, item_volume_integral, item_weight,
+    item_weight_integral,
 };
 use std::collections::BTreeMap;
 
@@ -26,6 +27,7 @@ struct Measured {
     weight: i64,
     integral_weight: i64,
     volume: i64,
+    integral_volume: i64,
 }
 
 /// What the prototypes say about one type.
@@ -34,6 +36,7 @@ struct Facts {
     weight_mg: i64,
     integral_weight_mg: i64,
     volume: i64,
+    integral_volume: i64,
     count_by_charges: bool,
     stack_size: i64,
     no_drop: bool,
@@ -52,6 +55,7 @@ fn dumps() -> (Vec<Measured>, BTreeMap<String, Facts>) {
                 weight_mg: whole(entry, "weight_mg"),
                 integral_weight_mg: whole(entry, "integral_weight_mg"),
                 volume: whole(entry, "volume"),
+                integral_volume: whole(entry, "integral_volume"),
                 count_by_charges: matches!(entry.get("count_by_charges"), Some(cdda_json::Value::Bool(true))),
                 stack_size: whole(entry, "stack_size"),
                 no_drop: is_no_drop(entry),
@@ -66,9 +70,61 @@ fn dumps() -> (Vec<Measured>, BTreeMap<String, Facts>) {
             weight: whole(entry, "weight"),
             integral_weight: whole(entry, "integral_weight"),
             volume: whole(entry, "volume"),
+            integral_volume: whole(entry, "integral_volume"),
         })
         .collect();
     (answers, prototypes_by_id)
+}
+
+/// Asks the port the same four questions the reference was asked, and says which types disagree.
+fn measure_all(measured: &[Measured], facts: &BTreeMap<String, Facts>) -> (usize, Vec<String>) {
+    let mut world = World::new();
+    let mut disagreements: Vec<String> = Vec::new();
+    let mut compared = 0_usize;
+    for (index, row) in measured.iter().enumerate() {
+        let Some(facts_of_type) = facts.get(&row.id) else {
+            continue;
+        };
+        let kind = ItemTypeId(u32::try_from(index).expect("an index"));
+        let entity = drop_item(&mut world, (0, 0), kind, row.charges);
+        let facts_table = *facts_of_type;
+        // **Grams out, milligrams in.** The reference reports grams and counts milligrams - its `to_gram` truncates - and the port does the same, so the input has to be
+        // milligrams (a 135 mg unit weight is invisible in grams) and the answer is compared as the reference prints it.
+        let facts_of_type = |_: ItemTypeId| TypeWeight {
+            milligrams: facts_table.weight_mg,
+            integral_milligrams: facts_table.integral_weight_mg,
+            count_by_charges: facts_table.count_by_charges,
+            no_drop: facts_table.no_drop,
+        };
+        let weight = item_weight(&mut world, entity, facts_of_type);
+        let integral = item_weight_integral(&mut world, entity, facts_of_type);
+        let volume_facts = |_: ItemTypeId| TypeVolume {
+            millilitres: facts_table.volume,
+            integral_millilitres: facts_table.integral_volume,
+            count_by_charges: facts_table.count_by_charges,
+            stack_size: facts_table.stack_size,
+        };
+        let volume = item_volume(&mut world, entity, volume_facts);
+        // **The fourth number.** `item::volume( integral: true )`, which 120 types answer differently - a folded frame takes less room than an unfolded one.
+        let integral_volume = item_volume_integral(&mut world, entity, volume_facts);
+        if weight != row.weight
+            || integral != row.integral_weight
+            || volume != row.volume
+            || integral_volume != row.integral_volume
+        {
+            disagreements.push(format!(
+                "{}: ours {weight}/{integral} g {volume}/{integral_volume} ml, theirs {}/{}/{}/{} (charges {})",
+                row.id,
+                row.weight,
+                row.integral_weight,
+                row.volume,
+                row.integral_volume,
+                row.charges
+            ));
+        }
+        compared += 1;
+    }
+    (compared, disagreements)
 }
 
 fn read_array(path: &std::path::Path, key: &str) -> Vec<cdda_json::Object> {
@@ -114,40 +170,7 @@ fn is_no_drop(entry: &cdda_json::Object) -> bool {
 fn every_type_weighs_and_measures_what_the_reference_s_rules_say() {
     let (measured, facts) = dumps();
     assert_eq!(measured.len(), 9_912, "every type in the reference was measured");
-
-    let mut world = World::new();
-    let mut disagreements: Vec<String> = Vec::new();
-    let mut compared = 0_usize;
-    for (index, row) in measured.iter().enumerate() {
-        let Some(facts_of_type) = facts.get(&row.id) else {
-            continue;
-        };
-        let kind = ItemTypeId(u32::try_from(index).expect("an index"));
-        let entity = drop_item(&mut world, (0, 0), kind, row.charges);
-        let facts_table = *facts_of_type;
-        // **Grams out, milligrams in.** The reference reports grams and counts milligrams - its `to_gram` truncates - and the port does the same, so the input has to be
-        // milligrams (a 135 mg unit weight is invisible in grams) and the answer is compared as the reference prints it.
-        let facts_of_type = |_: ItemTypeId| TypeWeight {
-            milligrams: facts_table.weight_mg,
-            integral_milligrams: facts_table.integral_weight_mg,
-            count_by_charges: facts_table.count_by_charges,
-            no_drop: facts_table.no_drop,
-        };
-        let weight = item_weight(&mut world, entity, facts_of_type);
-        let integral = item_weight_integral(&mut world, entity, facts_of_type);
-        let volume = item_volume(&mut world, entity, |_| TypeVolume {
-            millilitres: facts_table.volume,
-            count_by_charges: facts_table.count_by_charges,
-            stack_size: facts_table.stack_size,
-        });
-        if weight != row.weight || integral != row.integral_weight || volume != row.volume {
-            disagreements.push(format!(
-                "{}: ours {weight}/{integral} g {volume} ml, theirs {}/{}/{} (charges {})",
-                row.id, row.weight, row.integral_weight, row.volume, row.charges
-            ));
-        }
-        compared += 1;
-    }
+    let (compared, disagreements) = measure_all(&measured, &facts);
     assert_eq!(compared, 9_912, "every type was measured by the port too");
     // **The rest agree**, which is the point of the gate: the rules reproduce the reference over the whole dataset and not just over the types a hand-written test
     // would pick.
