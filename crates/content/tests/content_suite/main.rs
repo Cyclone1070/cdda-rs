@@ -82,6 +82,7 @@ mod overmap_world_diff;
 mod passable_through;
 mod prototype_ids;
 mod qualities;
+mod zones;
 mod recipe_requirements;
 mod recipe_skills;
 mod recipe_tools;
