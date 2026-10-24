@@ -4316,16 +4316,35 @@ pub fn item_weight(
 pub struct TypeWeight {
     /// What one charge of the type weighs, in grams.
     pub grams: i64,
+    /// What one charge weighs when the caller asks for the **integral** weight, in grams.
+    ///
+    /// Reference: `itype::integral_weight` (`src/itype.h:1327`), which `item::weight( integral: true )` reads instead of `weight` (`src/item.cpp:7256-7261`). The loader
+    /// copies `weight` into it when the data does not say (`src/item_factory.cpp:398-400`), and the data may say **zero** on purpose - a gunmod's weight does not count
+    /// toward the gun's integral weight, and three gunmods say `"integral_weight": "0 g"`.
+    pub integral_grams: i64,
     /// Whether the type carries `NO_DROP`, which makes it weigh nothing at all.
     pub no_drop: bool,
 }
 
 impl TypeWeight {
     /// A type that weighs what it says and is really there, which is almost all of them.
+    ///
+    /// The integral weight is the same number, because that is what the loader does when the data does not give one.
     #[must_use]
     pub const fn plain(grams: i64) -> Self {
         Self {
             grams,
+            integral_grams: grams,
+            no_drop: false,
+        }
+    }
+
+    /// A type whose two weights differ, which two types in the data do.
+    #[must_use]
+    pub const fn with_integral(grams: i64, integral_grams: i64) -> Self {
+        Self {
+            grams,
+            integral_grams,
             no_drop: false,
         }
     }
@@ -4335,13 +4354,35 @@ impl TypeWeight {
     pub const fn hidden() -> Self {
         Self {
             grams: 0,
+            integral_grams: 0,
             no_drop: true,
         }
     }
 }
 
+/// What an item weighs when its caller asks for the **integral** weight.
+///
+/// Reference: `item::weight( include_contents, integral )` with the second argument true (`src/item.cpp:7256-7261`): the same rule as [`item_weight`] over the type's other
+/// number. Everything that is not the base weight is unchanged - charges still multiply, contents still count, and `NO_DROP` still weighs nothing.
+pub fn item_weight_integral(
+    world: &mut World,
+    entity: Entity,
+    facts: impl Fn(ItemTypeId) -> TypeWeight,
+) -> i64 {
+    weight_with_mode(world, entity, &facts, true)
+}
+
 /// The recursion itself, taking the lookup as a trait object so it does not monomorphise per depth.
 fn weight_with(world: &mut World, entity: Entity, facts: &dyn Fn(ItemTypeId) -> TypeWeight) -> i64 {
+    weight_with_mode(world, entity, facts, false)
+}
+
+fn weight_with_mode(
+    world: &mut World,
+    entity: Entity,
+    facts: &dyn Fn(ItemTypeId) -> TypeWeight,
+    integral: bool,
+) -> i64 {
     let Some(item) = world.get::<GroundItem>(entity).cloned() else {
         return 0;
     };
@@ -4352,9 +4393,14 @@ fn weight_with(world: &mut World, entity: Entity, facts: &dyn Fn(ItemTypeId) -> 
         return 0;
     }
     let charges = i64::from(item.charges.max(1));
-    let mut total = facts_of_type.grams.saturating_mul(charges);
+    let unit = if integral {
+        facts_of_type.integral_grams
+    } else {
+        facts_of_type.grams
+    };
+    let mut total = unit.saturating_mul(charges);
     for held in contents(world, entity) {
-        total = total.saturating_add(weight_with(world, held, facts));
+        total = total.saturating_add(weight_with_mode(world, held, facts, integral));
     }
     total
 }

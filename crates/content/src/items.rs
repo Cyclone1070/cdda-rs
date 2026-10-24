@@ -35,6 +35,12 @@ pub struct ItemType {
     pub color: NcColor,
     /// Weight in grams.
     pub weight: i64,
+    /// What the item weighs when its caller asks for the **integral** weight, in grams.
+    ///
+    /// Reference: `itype::integral_weight` (`src/itype.h:1327`), read by `item::weight( integral: true )` (`src/item.cpp:7256-7261`). The loader copies `weight` into it
+    /// when the data does not say (`src/item_factory.cpp:398-400`) - so the two are equal for almost every type - and the data may say **zero** on purpose, which three
+    /// gunmods do because a gunmod's weight does not count toward the gun's integral weight.
+    pub integral_weight: i64,
     /// Volume in millilitres.
     pub volume: i64,
     /// Price in cents.
@@ -658,6 +664,8 @@ fn resolve(
         symbol: 0,
         color: color_from_string("white").unwrap_or_default(),
         weight: 0,
+        // Unset until the data or the fallback says otherwise.
+        integral_weight: -1,
         volume: 0,
         price: 0,
         category: String::new(),
@@ -727,6 +735,21 @@ fn apply(
     // A bare number is in the unit's own base: grams for weight, millilitres for
     // volume, cents for price (`units_reader`).
     item.weight = adjusted(object, "weight", item.weight, read_mass, 1_000)?;
+    // The integral weight falls back to the ordinary one, which is the loader's own rule (`src/item_factory.cpp:398-400`): the two agree unless the data says otherwise,
+    // and `"integral_weight": "0 g"` is a value, not an absence.
+    // **The fallback is the reference's own**, not a per-key default: the loader copies `weight` into `integral_weight` only when the value is still unset
+    // (`-1`, `src/item_factory.cpp:398-400`). Defaulting the key to `weight` here would overwrite an inherited zero - which is exactly what a gunmod writes when its
+    // weight should not count toward the gun's.
+    item.integral_weight = adjusted(
+        object,
+        "integral_weight",
+        item.integral_weight,
+        read_mass,
+        1_000,
+    )?;
+    if item.integral_weight < 0 {
+        item.integral_weight = item.weight;
+    }
     item.volume = adjusted(object, "volume", item.volume, read_volume, 1)?;
     item.price = adjusted(object, "price", item.price, read_money, 1)?;
     if let Some(category) = string(object, "category") {

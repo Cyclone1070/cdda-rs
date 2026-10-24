@@ -5,7 +5,9 @@
 #![allow(clippy::panic, clippy::expect_used)]
 
 use bevy_ecs::prelude::*;
-use cdda_sim::{Container, GroundItem, ItemTypeId, drop_item, insert_into, item_weight};
+use cdda_sim::{
+    Container, GroundItem, ItemTypeId, drop_item, insert_into, item_weight, item_weight_integral,
+};
 
 fn grams(kind: ItemTypeId) -> cdda_sim::TypeWeight {
     // Type seven stands for the thirty-two `NO_DROP` types in the data; the loader hands the flag over the same way.
@@ -133,4 +135,38 @@ fn an_item_that_does_not_drop_weighs_nothing_contents_included() {
         0,
         "a NO_DROP container weighs nothing, and neither does what is inside it"
     );
+}
+
+#[test]
+fn a_maximally_damaged_item_weighs_its_integral_weight() {
+    // **`item::weight( integral: true )`** (`src/item.cpp:7256-7261`): the same rule with a different number out of the type - `integral_weight` instead of `weight`. It
+    // exists because a gun's *stock* and *barrel* do not stop weighing what they weigh when the gun is damaged past use, and two types in the data say so explicitly
+    // (`robofac_gun_shotgun_breach` 1000 against 650, `retool_ar15_223rem_pistol` 1134 against 1819).
+    //
+    // Everything else is unchanged: the charges still multiply, the contents are still added, and a `NO_DROP` item is still nothing at all.
+    let mut world = World::new();
+    let gun = drop_item(&mut world, (5, 5), ItemTypeId(11), 1);
+    assert_eq!(item_weight(&mut world, gun, integral_grams), 1000, "as made");
+    assert_eq!(
+        item_weight_integral(&mut world, gun, integral_grams),
+        650,
+        "and at the end of its life, which is lighter"
+    );
+    let other = drop_item(&mut world, (6, 6), ItemTypeId(12), 1);
+    assert_eq!(item_weight(&mut world, other, integral_grams), 1134);
+    assert_eq!(
+        item_weight_integral(&mut world, other, integral_grams),
+        1819,
+        "this one is heavier, so the rule is a second number and not a fraction"
+    );
+}
+
+/// The two types whose integral weight differs from their weight, and one that does not.
+fn integral_grams(kind: ItemTypeId) -> cdda_sim::TypeWeight {
+    match kind.0 {
+        11 => cdda_sim::TypeWeight::with_integral(1000, 650),
+        12 => cdda_sim::TypeWeight::with_integral(1134, 1819),
+        7 => cdda_sim::TypeWeight::hidden(),
+        other => cdda_sim::TypeWeight::plain(grams(ItemTypeId(other)).grams),
+    }
 }

@@ -2989,6 +2989,19 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The second weight (round 557)
+
+`item::weight( integral: true )` is ported. The rule is not a fraction of the ordinary weight: it is **another number in the type**, which is why the port carries two
+(`TypeWeight { grams, integral_grams, no_drop }`) and a second entry point.
+
+The corpus decided the shape of it. Only **two** types weigh a different non-zero integral weight — `robofac_gun_shotgun_breach` is 1000 g as made and 650 g damaged,
+`retool_ar15_223rem_pistol` 1134 against 1819, so the rule can go either way — and **twenty-three gunmods say zero on purpose**, because a gunmod's weight does not count
+toward the gun's whole weight.
+
+That last group caught a loader bug in the first cut: `integral_weight` was defaulted to the item's `weight` per key, so an inherited `"integral_weight": "0 g"` was
+overwritten and a stocked rifle would have weighed its stock twice. The reference copies `weight` only when the field is **still unset** (`-1`,
+`src/item_factory.cpp:398-400`), and the loader now does the same — which is the difference between "zero is a value" and "zero is an absence".
+
 ## M2 is closed, and P3 opened with the `NO_DROP` shortcut (round 556)
 
 Every clause of the M2 exit gate now has a replayed reference session and a receipt: weather transitions (`0x4c221d74263f52f4`), fire and gas spread (three receipts),

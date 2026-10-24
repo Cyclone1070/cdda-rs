@@ -311,3 +311,75 @@ fn a_proportional_weight_beats_a_relative_one() {
     // 3600 g * 1.25, not 3600 g + 400 g: the reader checks proportional first.
     assert_eq!(both.weight, 4_500_000);
 }
+
+#[test]
+fn exactly_two_types_in_the_data_weigh_something_else_when_damaged() {
+    // **The corpus side of `item::weight( integral: true )`.** The dump carries both numbers now, and the data's own answer is worth pinning: two types differ, and three
+    // gunmods say zero **on purpose** - a gunmod's weight does not count toward the gun's integral weight. A loader that treated zero as "unset" and copied the ordinary
+    // weight over it would make those three count, and nothing else in the port would notice.
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/items.json");
+    let bytes = std::fs::read(&path).expect("the dump");
+    let cdda_json::Value::Object(root) = cdda_json::parse(&bytes).expect("valid JSON") else {
+        panic!("the dump is an object")
+    };
+    let Some(cdda_json::Value::Array(prototypes)) = root.get("prototypes") else {
+        panic!("the dump holds prototypes")
+    };
+    let mut rows: Vec<(String, i64, i64)> = Vec::new();
+    for entry in prototypes {
+        let cdda_json::Value::Object(entry) = entry else {
+            panic!("a prototype")
+        };
+        let whole = |key: &str| match entry.get(key) {
+            Some(cdda_json::Value::Int(value)) => *value,
+            other => panic!("{key} is a whole number: {other:?}"),
+        };
+        let Some(cdda_json::Value::Str(id)) = entry.get("id") else {
+            panic!("an id")
+        };
+        rows.push((id.clone(), whole("weight"), whole("integral_weight")));
+    }
+    // **Two types weigh a different non-zero number**, one lighter and one heavier: the rule is a second number per type, not a fraction of the first.
+    let differing: Vec<(&str, i64, i64)> = rows
+        .iter()
+        .filter(|(_, weight, integral)| integral != weight && *integral != 0)
+        .map(|(id, weight, integral)| (id.as_str(), *weight, *integral))
+        .collect();
+    assert_eq!(
+        differing,
+        vec![
+            ("robofac_gun_shotgun_breach", 1000, 650),
+            ("retool_ar15_223rem_pistol", 1134, 1819),
+        ],
+        "two types weigh differently when damaged, one lighter and one heavier"
+    );
+    // **And twenty-three say zero on purpose**, every one of them a gunmod: a gunmod's weight does not count toward the gun's integral weight. This is the count that
+    // matters for the loader, because zero is a value there and not an absence - a loader that copied the ordinary weight over it would weigh a stocked rifle at its
+    // stock's weight as well as its own.
+    let zero_on_purpose: Vec<&str> = rows
+        .iter()
+        .filter(|(_, weight, integral)| *integral == 0 && *weight > 0)
+        .map(|(id, _, _)| id.as_str())
+        .collect();
+    assert_eq!(
+        zero_on_purpose.len(),
+        23,
+        "twenty-three types weigh nothing when the whole thing is asked for: {zero_on_purpose:?}"
+    );
+    // And the **loader** carries it: the two types keep their two numbers (the loader works in milligrams, the dump in grams), and an inherited zero stays zero
+    // rather than falling back to the ordinary weight.
+    let loaded = crate::corpus::items_loaded();
+    for (id, weight, integral) in [
+        ("robofac_gun_shotgun_breach", 1000_i64, 650_i64),
+        ("barrel_ported", 225, 0),
+        ("match_trigger", 120, 0),
+    ] {
+        let item = loaded.iter().find(|item| item.id == id).expect("the type loads");
+        assert_eq!(item.weight, weight * 1_000, "{id} weighs what the dump says");
+        assert_eq!(
+            item.integral_weight,
+            integral * 1_000,
+            "{id}'s integral weight is the dump's, not the ordinary weight"
+        );
+    }
+}
