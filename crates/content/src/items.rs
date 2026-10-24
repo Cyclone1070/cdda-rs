@@ -60,6 +60,8 @@ pub struct ItemType {
     pub is_gun: bool,
     /// Whether it is a gun **mod**: those never get a turret part, whatever else is true of them.
     pub is_gunmod: bool,
+    /// The skill a gun is fired with, as its own data writes it (`"gun": { "skill": "rifle" }`).
+    pub gun_skill: Option<String>,
     /// Whether it blows up when a fire reaches it.
     pub explode_in_fire: bool,
     /// Nutrition, in the reference's own units, for a comestible; zero for anything else.
@@ -74,6 +76,8 @@ pub struct ItemType {
     pub cookoff: bool,
     /// Whether its ammo cooks off in a special way.
     pub special_cookoff: bool,
+    /// What it is worth as a tool, by quality id. A **negative** level means worse than bare hands, which the reference uses for things like a saw's butchering.
+    pub qualities: BTreeMap<String, i32>,
     /// The subtypes it declares, or the legacy type it was written as, carried
     /// so the category can be derived the way `calc_category` does.
     pub subtypes: BTreeSet<String>,
@@ -114,9 +118,24 @@ impl ItemType {
     ///
     /// A gun is a gun because its data says so: the dump states it outright and a data file states it as a subtype. `veh_type.cpp:484` asks both questions of
     /// every item in the game, so both paths have to end in the same answer.
-    pub fn derive_gun(&mut self) {
+    pub fn derive_gun(&mut self, known_qualities: &BTreeSet<String>) {
         self.is_gun = self.is_gun || self.subtypes.contains("GUN");
         self.is_gunmod = self.is_gunmod || self.subtypes.contains("GUNMOD");
+        // **A gun is also a quality.** The reference gives every gun that is neither a gun mod nor a primitive ranged weapon the `GUN` quality at level one, and the
+        // quality named after the skill it fires with, taking the larger of what the data said and one (`src/item_factory.cpp:845-852`). That is why `is_gun` and a
+        // `GUN` quality are the same fact told twice, and why anything that counts qualities without this rule undercounts guns by hundreds.
+        if self.is_gun && !self.is_gunmod && !self.flags.contains("PRIMITIVE_RANGED_WEAPON") {
+            self.qualities.entry("GUN".to_owned()).and_modify(|level| *level = (*level).max(1)).or_insert(1);
+            if let Some(skill) = &self.gun_skill {
+                let quality = skill.to_uppercase();
+                if known_qualities.contains(&quality) {
+                    self.qualities
+                        .entry(quality)
+                        .and_modify(|level| *level = (*level).max(1))
+                        .or_insert(1);
+                }
+            }
+        }
     }
 
     /// Derives the two cookoff fields from the ammo effects, the way `item_factory.cpp:512-522` does.
@@ -343,6 +362,9 @@ pub fn load_paths(dirs: &[&std::path::Path]) -> Result<Vec<ItemType>, LoadError>
     let mut objects: BTreeMap<String, Object> = BTreeMap::new();
     let mut order: Vec<String> = Vec::new();
     let mut categories: BTreeSet<String> = BTreeSet::new();
+    // **The names a gun's skill may claim.** The reference gives a gun the quality named after its skill only when that name is a quality it knows
+    // (`qual_gun_skill.is_valid()`, `src/item_factory.cpp:847-851`), so a launcher gets `GUN` and no `LAUNCHER`. Collecting the ids during the same walk costs nothing.
+    let mut known_qualities: BTreeSet<String> = BTreeSet::new();
     for dir in dirs {
         let files = crate::json_files_in_load_order(dir).map_err(|error| LoadError {
             message: format!("{}: {error}", dir.display()),
@@ -351,7 +373,13 @@ pub fn load_paths(dirs: &[&std::path::Path]) -> Result<Vec<ItemType>, LoadError>
             let Some(value) = crate::read_json(&path) else {
                 continue;
             };
-            collect(&value, &mut objects, &mut order, &mut categories);
+            collect(
+                &value,
+                &mut objects,
+                &mut order,
+                &mut categories,
+                &mut known_qualities,
+            );
         }
     }
     let densities = densities_of(dirs)?;
@@ -375,7 +403,7 @@ pub fn load_paths(dirs: &[&std::path::Path]) -> Result<Vec<ItemType>, LoadError>
             if item.counts_by_charge() {
                 item.flags.insert("NO_REPAIR".to_owned());
             }
-            item.derive_gun();
+            item.derive_gun(&known_qualities);
             // A comestible made mostly of one thing lists only that thing
             // (`item_factory.cpp:459-464`), and it happens before the allergen
             // flags are read off the materials.
@@ -425,14 +453,21 @@ fn collect(
     out: &mut BTreeMap<String, Object>,
     order: &mut Vec<String>,
     categories: &mut BTreeSet<String>,
+    known_qualities: &mut BTreeSet<String>,
 ) {
     match value {
         Value::Array(items) => {
             for item in items {
-                collect(item, out, order, categories);
+                collect(item, out, order, categories, known_qualities);
             }
         }
         Value::Object(object) => {
+            if matches!(object.get("type"), Some(Value::Str(text)) if text == "tool_quality") {
+                if let Some(id) = string(object, "id") {
+                    known_qualities.insert(id);
+                }
+                return;
+            }
             // The dispatcher registers categories as `ITEM_CATEGORY`
             // (`init.cpp:352`); a category the content registers is a valid
             // category for `calc_category` purposes.
@@ -678,6 +713,7 @@ fn resolve(
         materials: BTreeMap::new(),
         flags: BTreeSet::new(),
         is_gun: false,
+        gun_skill: None,
         is_gunmod: false,
         explode_in_fire: false,
         nutr: 0,
@@ -686,6 +722,7 @@ fn resolve(
         ammo_effects: BTreeSet::new(),
         cookoff: false,
         special_cookoff: false,
+        qualities: BTreeMap::new(),
         subtypes: BTreeSet::new(),
         melee: BTreeMap::new(),
         comestible_type: String::new(),
@@ -849,6 +886,37 @@ fn apply_slots(item: &mut ItemType, object: &Object) {
     apply_armor_slots(item, object);
     apply_flat_slots(item, object);
     apply_melee_slots(item, object);
+    // **Inherited unless declared.** The reference copies the whole type and overrides only the members the child states, so an item that says nothing about its
+    // qualities keeps its parent's - a great many tool variants do exactly that.
+    if object.get("qualities").is_some() {
+        item.qualities = crate::qualities::item_qualities(object);
+    }
+    // **Qualities are a container too**, so the merge operators reach them: a dutch oven adds an `OVEN` quality to the ones it inherited from a cooking pot, and a kettle
+    // drops the `COOK` quality it does not deserve (`"delete": { "qualities": [ "COOK" ] }`).
+    if let Some(extend) = sub_object(object, "extend")
+        && extend.get("qualities").is_some()
+    {
+        for (quality, level) in crate::qualities::item_qualities(extend) {
+            item.qualities.insert(quality, level);
+        }
+    }
+    if let Some(delete) = sub_object(object, "delete")
+        && let Some(Value::Array(entries)) = delete.get("qualities")
+    {
+        for entry in entries {
+            if let Value::Str(name) = entry {
+                item.qualities.remove(name);
+            }
+        }
+    }
+    // **Gun data is written flat**, not nested: `"skill": "pistol"` sits beside `"ammo"` and `"dispersion"` on the item itself, and the reference reads it into its gun
+    // data whenever the object carries any (`src/item_factory.cpp`, `gun` loader). Only an object that looks like a gun is asked, so a tool that happens to mention a
+    // skill is left alone. It is inherited like every other member.
+    if let Some(Value::Str(skill)) = object.get("skill")
+        && (item.subtypes.contains("GUN") || object.get("ammo").is_some())
+    {
+        item.gun_skill = Some(skill.clone());
+    }
 }
 
 /// Reads the `armor` slot: what covers what, and in what material.

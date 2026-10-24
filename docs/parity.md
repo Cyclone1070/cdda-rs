@@ -218,6 +218,7 @@ the layer that decides when to shift
 | Inventory | not started | M3a | |
 | Crafting and recipes | not started | M3a | |
 | Requirements and qualities | not started | M3a | |
+| Tool qualities | **the registry and every item's level, gated** | P3 | `qualities::load_paths` for the 87 quality ids and `items::ItemType::qualities` for the 1,091 item types that have one, gated against `corpus/qualities/all.json` (`--dump-qualities`): every id, every name and every level matches. Levels can be **negative** — `BUTCHER -90` on a saw means worse than bare hands, not a sentinel. Three implicit rules the data taught: a gun that is neither a gun mod nor a primitive ranged weapon gets `GUN` at level one **and** the quality named after its skill, but only when that name is a defined quality (so a launcher gets `GUN` and no `LAUNCHER`); gun data is written **flat** (`"skill"` beside `"ammo"`), not under a `gun` member; and qualities are a **container**, so `extend`/`delete` reach them (round 567) |
 | Constructions | **the registry and what each one takes, gated end to end** | P3 | `constructions::load_paths` from `construction::load` (`src/construction.cpp:2194-2260`) and `requirements::load_paths` from `requirement_data::load` (`src/requirements.cpp`), merged by `constructions::needs_of` from `finalize_construction` (`src/construction.cpp:2533-2537`). Gated against `corpus/constructions/all.json` (`--dump-constructions`): **755 of 756** constructions match on id, group, category, time, `pre_terrain`, `post_terrain`, skills and their **components, tools and qualities** — every alternative of every group, at the reference's counts. Rules the data taught: `pre_terrain` is a `std::set` in byte order, skills fall back to the legacy `skill`/`difficulty` pair, time is a duration string in moves, `"LIST"` marks a nested group which is scaled by its outer count with a floor of `-1` and inlined from its **first** group only, a name is only a group if it is flagged, a bare string is a tool of count `-1`, tools expand into their subtypes and components do not, and two quality groups that cover each other collapse into the newer one (rounds 565-566). **Not ported, declared:** `constr_veh`'s frame list (generated at finalisation, `src/construction.cpp:2516-2520`), the special functions, `pre_flags`/`post_flags`, byproducts and the blacklist |
 | Use actions | not started | M3a | 195 functions |
 | Examine actions | not started | M3a | 108 functions |
@@ -2990,6 +2991,22 @@ Mitigation, in order of cost:
 The instrument itself is not in doubt: it compiles, it is in `oracle/patches/0001-prototype-digest.patch`, and a traced
 run of a world that exists will write the file.
 
+
+## What a hammer is worth (round 567)
+
+Tool qualities are now loaded from both ends: the catalogue of 87 qualities with their names, and the 1,091 item types that are worth something as a tool, with the level each
+one reaches. Every id, name and level matches the reference.
+
+Two things about the levels are worth stating because both are easy to get wrong. **A level can be negative**, and that is not a sentinel: the reference writes a negative
+level when a tool is worse at the job than bare hands, so a saw is `BUTCHER -90`. And **a gun is a quality**: every gun that is neither a gun mod nor a primitive ranged
+weapon gets `GUN` at level one and the quality named after the skill it fires with — but only when that name is a quality the data defines, which is why a grenade launcher
+gets `GUN` and no `LAUNCHER`.
+
+The gate also caught two loader rules the port was missing:
+
+- gun data is written **flat** — `"skill": "pistol"` sits beside `"ammo"` and `"dispersion"` on the item itself, not under a `gun` member;
+- qualities are a **container**, so the merge operators reach them: a dutch oven adds `OVEN` to the qualities it inherits from a cooking pot, and a kettle `delete`s the
+  `COOK` quality it does not deserve.
 
 ## What a construction takes (round 566)
 
