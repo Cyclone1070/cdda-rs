@@ -4225,6 +4225,11 @@ pub struct Container {
 pub struct Pocket {
     /// How much volume it holds, in millilitres.
     pub capacity_ml: i64,
+    /// How heavy an item it will take, in grams.
+    ///
+    /// Reference: `pocket_data::max_contains_weight`, asked as `it.weight() > weight_capacity()` (`src/item_pocket.cpp:1578-1582`). It is **per item** and not a running
+    /// total: the reference compares each payload against the pocket's whole capacity, so ten items of half the limit each are fine.
+    pub weight_capacity_grams: i64,
     /// Whether a liquid may go in (`pocket_data::watertight`, `src/item_pocket.h:512`).
     pub watertight: bool,
     /// Whether a gas may go in (`pocket_data::airtight`, `src/item_pocket.h:514`).
@@ -4237,6 +4242,7 @@ impl Container {
     pub fn new(capacity_ml: i64) -> Self {
         Self::with_pockets(vec![Pocket {
             capacity_ml,
+            weight_capacity_grams: i64::MAX,
             watertight: false,
             airtight: false,
         }])
@@ -4292,6 +4298,8 @@ pub enum Phase {
 pub struct ItemFacts {
     /// Its volume in millilitres.
     pub volume_ml: i64,
+    /// Its weight in grams.
+    pub weight_grams: i64,
     /// Its phase.
     pub phase: Phase,
 }
@@ -4302,6 +4310,17 @@ impl ItemFacts {
     pub const fn solid(volume_ml: i64) -> Self {
         Self {
             volume_ml,
+            weight_grams: 0,
+            phase: Phase::Solid,
+        }
+    }
+
+    /// A solid of a given volume and weight.
+    #[must_use]
+    pub const fn solid_weighing(volume_ml: i64, weight_grams: i64) -> Self {
+        Self {
+            volume_ml,
+            weight_grams,
             phase: Phase::Solid,
         }
     }
@@ -4311,6 +4330,7 @@ impl ItemFacts {
     pub const fn liquid(volume_ml: i64) -> Self {
         Self {
             volume_ml,
+            weight_grams: 0,
             phase: Phase::Liquid,
         }
     }
@@ -4320,6 +4340,7 @@ impl ItemFacts {
     pub const fn gas(volume_ml: i64) -> Self {
         Self {
             volume_ml,
+            weight_grams: 0,
             phase: Phase::Gas,
         }
     }
@@ -4347,6 +4368,13 @@ pub enum InsertError {
     },
     /// The item has already been put somewhere else.
     AlreadyInside,
+    /// The item is heavier than the pocket will take.
+    TooHeavy {
+        /// The heaviest item the pocket takes, in grams.
+        capacity_grams: i64,
+        /// What it was asked to take, in grams.
+        wanted_grams: i64,
+    },
     /// The container cannot hold this phase at all - a liquid in a pocket that is not watertight, or a gas in one that is not airtight.
     WrongPhase {
         /// The phase that was refused.
@@ -4410,6 +4438,10 @@ pub fn insert_into(
         }
         let left = room.get(index).copied().unwrap_or(0);
         best_room = Some(best_room.map_or(left, |best| best.max(left)));
+        // **The weight is checked before the room**, which is the order `can_contain` asks its questions in, and it is per item rather than a running total.
+        if wanted_facts.weight_grams > pocket.weight_capacity_grams {
+            continue;
+        }
         if chosen.is_none() && wanted_facts.volume_ml <= left {
             chosen = Some(index);
         }
@@ -4421,6 +4453,24 @@ pub fn insert_into(
         });
     };
     let Some(index) = chosen else {
+        // Which refusal to name: the heaviest pocket's capacity when **no** accepting pocket will take the weight, and the room otherwise.
+        let heaviest = capacity
+            .pockets
+            .iter()
+            .filter(|pocket| match wanted_facts.phase {
+                Phase::Solid => true,
+                Phase::Liquid => pocket.watertight,
+                Phase::Gas => pocket.airtight,
+            })
+            .map(|pocket| pocket.weight_capacity_grams)
+            .max()
+            .unwrap_or(0);
+        if wanted_facts.weight_grams > heaviest {
+            return Err(InsertError::TooHeavy {
+                capacity_grams: heaviest,
+                wanted_grams: wanted_facts.weight_grams,
+            });
+        }
         return Err(InsertError::TooBig {
             remaining_ml: best_room,
             wanted_ml: wanted_facts.volume_ml,

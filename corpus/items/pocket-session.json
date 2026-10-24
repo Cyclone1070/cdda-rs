@@ -11,5 +11,7 @@
 {"container":"bottle_plastic","payload":"water_clean","charges":1,"ok":true,"why":"","container_weight":513,"container_volume":510,"room":0,"contents_size":0},
 {"container":"bottle_plastic","payload":"rock","charges":1,"ok":false,"why":"pocket unacceptable because item is too big","container_weight":513,"container_volume":510,"room":0,"contents_size":0},
 {"container":"backpack","payload":"bundle_branch","charges":0,"ok":false,"why":"pockets unacceptable because item is too heavy or item is too long","container_weight":633,"container_volume":2000,"room":35510,"contents_size":0},
-{"container":"backpack","payload":"art_crystal","charges":0,"ok":true,"why":"","container_weight":1033,"container_volume":2500,"room":35010,"contents_size":500}
+{"container":"backpack","payload":"art_crystal","charges":0,"ok":true,"why":"","container_weight":1033,"container_volume":2500,"room":35010,"contents_size":500},
+{"container":"backpack","payload":"manhole_cover","charges":0,"ok":false,"why":"pockets unacceptable because item is too heavy, item is too long, or item is too short","container_weight":1033,"container_volume":2500,"room":35010,"contents_size":500},
+{"container":"backpack","payload":"huge_atomic_battery_cell","charges":0,"ok":false,"why":"pockets unacceptable because item is too heavy, item is too long, or item is too short","container_weight":1033,"container_volume":2500,"room":35010,"contents_size":500}
 ]}

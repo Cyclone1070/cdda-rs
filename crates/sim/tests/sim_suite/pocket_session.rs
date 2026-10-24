@@ -182,6 +182,10 @@ impl Pockets {
                         Some(cdda_json::Value::Int(volume)) => *volume,
                         other => panic!("max_volume is a whole number: {other:?}"),
                     },
+                    weight_capacity_grams: match pocket.get("max_weight") {
+                        Some(cdda_json::Value::Int(weight)) => *weight,
+                        other => panic!("max_weight is a whole number: {other:?}"),
+                    },
                     watertight: matches!(
                         pocket.get("watertight"),
                         Some(cdda_json::Value::Bool(true))
@@ -218,7 +222,7 @@ struct Played {
 /// starts a new container wherever the recording does.
 fn replay() -> Vec<Played> {
     let steps = steps();
-    assert_eq!(steps.len(), 12, "the recording has twelve steps");
+    assert_eq!(steps.len(), 14, "the recording has fourteen steps");
     let table = Table::load();
     let pockets = Pockets::load();
     let order = vec![
@@ -229,6 +233,8 @@ fn replay() -> Vec<Played> {
         "log".to_owned(),
         "bundle_branch".to_owned(),
         "art_crystal".to_owned(),
+        "manhole_cover".to_owned(),
+        "huge_atomic_battery_cell".to_owned(),
     ];
     let (kinds, weight_of, volume_of) = table.numbered(&order);
     let kind_of = |name: &str| *kinds.get(name).unwrap_or_else(|| panic!("{name} is not in the session"));
@@ -256,6 +262,7 @@ fn replay() -> Vec<Played> {
         // **The volumes are measured before the question is asked**, because a container's own volume depends on what is already inside it, and the sim asks about items
         // it cannot hand back to the caller.
         let mut volumes: BTreeMap<Entity, i64> = BTreeMap::new();
+        let mut weights: BTreeMap<Entity, i64> = BTreeMap::new();
         let entities: Vec<Entity> = world
             .query::<(Entity, &GroundItem)>()
             .iter(&world)
@@ -264,13 +271,16 @@ fn replay() -> Vec<Played> {
         for entity in entities {
             let measured = item_volume(&mut world, entity, &volume_of);
             volumes.insert(entity, measured);
+            let weighed = item_weight(&mut world, entity, &weight_of);
+            weights.insert(entity, weighed);
         }
         let outcome = insert_into(&mut world, container, payload, |entity| {
             let room = volumes.get(&entity).copied().unwrap_or(0);
+            let weigh = weights.get(&entity).copied().unwrap_or(0);
             if step.payload == "water_clean" {
                 cdda_sim::ItemFacts::liquid(room)
             } else {
-                cdda_sim::ItemFacts::solid(room)
+                cdda_sim::ItemFacts::solid_weighing(room, weigh)
             }
         });
         let used: i64 = cdda_sim::contents(&mut world, container)
@@ -357,6 +367,18 @@ fn a_pocket_is_its_own_limit_and_a_liquid_needs_a_watertight_one() {
             phase: cdda_sim::Phase::Liquid
         })
     );
+    // **Heavy, not big.** A manhole cover is 20,000 ml - inside the 25,000 ml pocket - and 115 kg, which the pocket's 30 kg will not take; an atomic battery cell is
+    // 20,000 ml and 34 kg, which it will not either. The reference's own words are "item is too heavy, item is too long, or item is too short" - it names three limits in
+    // one message and cannot say which one blocked - so the gate asserts the refusal and the port's reason, and the length and shortness limits are **declared** below.
+    for payload in ["manhole_cover", "huge_atomic_battery_cell"] {
+        let step = of(payload);
+        assert!(!step.recorded_ok, "the reference refuses the {payload}");
+        assert!(
+            matches!(step.placed, Err(cdda_sim::InsertError::TooHeavy { .. })),
+            "and the port refuses it for its weight: {:?}",
+            step.placed
+        );
+    }
     // And one that fits a single pocket **exactly** (a 500 ml crystal in the 510 ml pocket) is accepted.
     let crystal = of("art_crystal");
     assert!(crystal.recorded_ok, "the reference takes the crystal");
