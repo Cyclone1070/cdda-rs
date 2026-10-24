@@ -149,3 +149,53 @@ fn every_entry_kind_the_loader_knows_is_kept() {
         Some(Entry::Nothing { probability: 5 })
     ));
 }
+
+/// The dice the reference draws, with the ranges it asks for.
+///
+/// Reference: `Item_group::create` (`src/item_group.cpp:832-864`). A **collection** asks `rng( 0, 99 )` per entry and skips it when the answer is at least its chance:
+/// `rng( 0, 99 ) >= elem->get_probability( false )`. A **distribution** asks **once** for `rng( 0, sum_prob - 1 )`, then walks the entries subtracting each one's weight and
+/// takes the first that takes the running total below zero. The ranges are not decoration: a replay is a list of `(range, answer)` pairs and a port that asked
+/// `rng( 1, 100 )` instead would not consume the reference's dice at all, which is why the recording panics rather than quietly answering.
+#[test]
+fn the_draw_asks_the_reference_for_its_dice_ranges() {
+    // Three entries of equal weight: `sum_prob` is three, so the distribution's single draw is `rng( 0, 2 )`, and a zero takes the first entry.
+    let groups = from_json(
+        r#"[{"type":"item_group","id":"one_of","subtype":"distribution","entries":[
+            {"item":"meat","prob":1},{"item":"bone","prob":1},{"item":"skin","prob":1}]},
+           {"type":"item_group","id":"a_pile","entries":[
+            {"item":"meat","prob":50},{"item":"bone","prob":100}]}]"#,
+    );
+    let distribution_rolls = "int 0 2 0\nint 1 1 1\n";
+    let mut rolls = Rolls::replaying(cdda_core_types::rng::Recording::parse(distribution_rolls).expect("a recording"));
+    let drawn = draw(&groups, "one_of", &mut rolls);
+    assert_eq!(drawn, vec![("meat".to_owned(), 1)], "the zero takes the first entry");
+
+    // The collection: one `rng( 0, 99 )` per entry, the first fifty and then a hundred - so the first entry is skipped at 50 and the second is taken at 0.
+    let collection_rolls = "int 0 99 50\nint 0 99 0\nint 1 1 1\n";
+    let mut rolls = Rolls::replaying(cdda_core_types::rng::Recording::parse(collection_rolls).expect("a recording"));
+    let drawn = draw(&groups, "a_pile", &mut rolls);
+    assert_eq!(drawn, vec![("bone".to_owned(), 1)], "the chance that failed, then the one that passed");
+}
+
+/// A holiday item is skipped in the middle of a distribution, and the walk keeps going.
+///
+/// Reference: `Item_group::create` (`src/item_group.cpp:844-856`): the loop tests `( ev_based && prob == 0 ) || p >= 0` and **continues**, where `prob` is
+/// `get_probability( false )` - the holiday-gated chance - and `p` was already reduced by `get_probability( true )`, the raw weight. So an event-based entry outside its
+/// holiday is passed over *even when the die chose it*, and its weight still counts towards `sum_prob`. A port that treated the two probabilities as one would give the
+/// holiday item out of season.
+#[test]
+fn a_holiday_item_is_passed_over_and_the_next_one_is_taken() {
+    let groups = from_json(
+        r#"[{"type":"item_group","id":"one_of","subtype":"distribution","entries":[
+            {"item":"meat","prob":1,"event":"christmas"},{"item":"bone","prob":1}]}]"#,
+    );
+    // The die is a zero, which chooses the first entry by weight - and the first entry is out of season.
+    let recording = "int 0 1 0\nint 1 1 1\n";
+    let mut rolls = Rolls::replaying(cdda_core_types::rng::Recording::parse(recording).expect("a recording"));
+    let drawn = draw(&groups, "one_of", &mut rolls);
+    assert_eq!(
+        drawn,
+        vec![("bone".to_owned(), 1)],
+        "the holiday entry was passed over, and the walk carried on to the next one"
+    );
+}

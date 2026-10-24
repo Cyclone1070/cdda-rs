@@ -23,6 +23,11 @@ pub enum Entry {
         probability: i32,
         /// How few and how many.
         count: (i32, i32),
+        /// The holiday this entry belongs to, when it belongs to one (`Item_spawn_data::event`).
+        ///
+        /// A holiday entry carries two probabilities: its raw weight, which it keeps in the distribution's total, and its
+        /// chance once the holiday gate has been applied, which is zero outside its holiday (`get_probability`, `src/item_group.cpp:901-920`).
+        event: Option<String>,
     },
     /// Another group, with a chance out of a hundred.
     Group {
@@ -30,6 +35,8 @@ pub enum Entry {
         id: String,
         /// Chance out of a hundred, before the reference's roll.
         probability: i32,
+        /// The holiday this group belongs to, when it belongs to one.
+        event: Option<String>,
     },
     /// The reference's explicit "nothing", which occupies weight in a distribution.
     Nothing {
@@ -39,7 +46,58 @@ pub enum Entry {
 }
 
 impl Entry {
-    /// How much of a distribution's weight this entry occupies.
+    /// The same entry with a different weight, which is how a collection's chances are capped.
+    fn with_weight(self, weight: i32) -> Self {
+        match self {
+            Self::Item {
+                id,
+                count,
+                event,
+                probability: _,
+            } => Self::Item {
+                id,
+                probability: weight,
+                count,
+                event,
+            },
+            Self::Group {
+                id,
+                event,
+                probability: _,
+            } => Self::Group {
+                id,
+                probability: weight,
+                event,
+            },
+            Self::Nothing { .. } => Self::Nothing { probability: weight },
+        }
+    }
+
+    /// Whether the entry belongs to a holiday at all (`Item_spawn_data::is_event_based`).
+    fn is_event_based(&self) -> bool {
+        match self {
+            Self::Item { event, .. } | Self::Group { event, .. } => event.is_some(),
+            Self::Nothing { .. } => false,
+        }
+    }
+
+    /// The chance once the holiday gate has been applied (`get_probability( false )`): zero outside its holiday.
+    fn in_season_probability(&self, holiday: Option<&str>) -> i32 {
+        match self {
+            Self::Item {
+                probability, event, ..
+            }
+            | Self::Group {
+                probability, event, ..
+            } => match event {
+                Some(only) if holiday != Some(only.as_str()) => 0,
+                _ => *probability,
+            },
+            Self::Nothing { probability } => *probability,
+        }
+    }
+
+    /// How much of a distribution's weight this entry occupies (`get_probability( true )`, the raw weight).
     fn weight(&self) -> i32 {
         match self {
             Self::Item { probability, .. }
@@ -84,8 +142,23 @@ pub fn load_definitions(value: &Value) -> BTreeMap<String, Definition> {
         };
         let distribution =
             matches!(object.get("subtype"), Some(Value::Str(kind)) if kind == "distribution");
-        let entries = match object.get("entries") {
-            Some(Value::Array(list)) => list.iter().filter_map(read_entry).collect(),
+        let entries: Vec<Entry> = match object.get("entries") {
+            Some(Value::Array(list)) => list
+                .iter()
+                .filter_map(read_entry)
+                // `Item_group::add_entry` drops an entry whose weight is not positive, so a `prob: 0` entry is not in the group at all
+                // (`src/item_group.cpp:813-815`).
+                .filter(|entry| entry.weight() > 0)
+                .map(|entry| {
+                    if distribution {
+                        entry
+                    } else {
+                        // A collection's chances are percentages, and the reference caps them at a hundred (`src/item_group.cpp:818-820`).
+                        let capped = entry.weight().min(100);
+                        entry.with_weight(capped)
+                    }
+                })
+                .collect(),
             _ => Vec::new(),
         };
         out.insert(
@@ -143,35 +216,64 @@ fn read_entry(value: &Value) -> Option<Entry> {
     if matches!(object.get("item"), Some(Value::Str(id)) if id == "null") {
         return Some(Entry::Nothing { probability });
     }
+    // The reference's holiday gate lives on every spawn-data entry (`Item_spawn_data::event`), written as `event` in the data.
+    let event = match object.get("event") {
+        Some(Value::Str(holiday)) if holiday != "none" => Some(holiday.clone()),
+        _ => None,
+    };
     if let Some(Value::Str(id)) = object.get("item") {
         return Some(Entry::Item {
             id: id.clone(),
             probability,
             count: count_range(object),
+            event,
         });
     }
     if let Some(Value::Str(id)) = object.get("group") {
         return Some(Entry::Group {
             id: id.clone(),
             probability,
+            event,
         });
     }
     None
 }
 
-/// Draws what a group produces.
+/// Draws what a group produces, with no holiday in season.
 ///
-/// A **collection** walks its entries and takes each one that its chance allows. A **distribution** picks exactly
-/// one, by weight. Nested groups are expanded in place, so a group of groups is a group of items.
+/// A caller that knows the date uses [`draw_with_holiday`]; this is the form every other caller wants.
 ///
-/// Returns what was drawn as `(item id, count)` pairs, in the order the reference would create them.
+/// # Panics
+///
+/// Panics if a replayed recording runs out of dice, as every replayed draw does.
+#[must_use]
 pub fn draw(
     definitions: &BTreeMap<String, Definition>,
     id: &str,
     rolls: &mut Rolls,
 ) -> Vec<(String, i32)> {
+    draw_with_holiday(definitions, id, rolls, None)
+}
+
+/// Draws what a group produces, against the holiday the calendar is in.
+///
+/// Reference: `Item_group::create` (`src/item_group.cpp:832-864`), which asks `rng( 0, 99 )` per entry of a **collection** and `rng( 0, sum_prob - 1 )` once for a
+/// **distribution**, then subtracts each entry's raw weight and takes the first that takes the running total below zero. The holiday test comes between the two
+/// subtractions: an event-based entry outside its holiday has an in-season chance of zero, and is passed over **even when the die chose it**
+/// (`( ev_based && prob == 0 ) || p >= 0` → continue).
+///
+/// # Panics
+///
+/// Panics if a replayed recording runs out of dice.
+#[must_use]
+pub fn draw_with_holiday(
+    definitions: &BTreeMap<String, Definition>,
+    id: &str,
+    rolls: &mut Rolls,
+    holiday: Option<&str>,
+) -> Vec<(String, i32)> {
     let mut out = Vec::new();
-    draw_into(definitions, id, rolls, &mut out, 0);
+    draw_into(definitions, id, rolls, &mut out, 0, holiday);
     out
 }
 
@@ -181,6 +283,7 @@ fn draw_into(
     rolls: &mut Rolls,
     out: &mut Vec<(String, i32)>,
     depth: usize,
+    holiday: Option<&str>,
 ) {
     // A group that names itself would otherwise draw forever; the reference rejects such data at load time.
     if depth > 8 {
@@ -190,22 +293,25 @@ fn draw_into(
         return;
     };
     if definition.distribution {
+        // `sum_prob` is the sum of the **raw** weights, holiday entries included, and the whole draw is one question
+        // (`int p = rng( 0, sum_prob - 1 )`, `src/item_group.cpp:844`).
         let total: i32 = definition.entries.iter().map(Entry::weight).sum();
         if total <= 0 {
             return;
         }
-        let mut roll = rolls.rng(1, total);
+        let mut remaining = rolls.rng(0, total - 1);
         for entry in &definition.entries {
-            let weight = entry.weight();
-            if roll > weight {
-                roll -= weight;
+            remaining -= entry.weight();
+            // The holiday test sits **after** the subtraction and before the answer: an event-based entry whose in-season chance is zero is passed over,
+            // and its weight has already been taken off the running total (`src/item_group.cpp:846-856`).
+            if (entry.is_event_based() && entry.in_season_probability(holiday) == 0) || remaining >= 0 {
                 continue;
             }
             match entry {
                 Entry::Item { id, count, .. } => {
                     out.push((id.clone(), rolls.rng(count.0.max(1), count.1.max(1))));
                 }
-                Entry::Group { id, .. } => draw_into(definitions, id, rolls, out, depth + 1),
+                Entry::Group { id, .. } => draw_into(definitions, id, rolls, out, depth + 1, holiday),
                 Entry::Nothing { .. } => {}
             }
             return;
@@ -213,23 +319,15 @@ fn draw_into(
         return;
     }
     for entry in &definition.entries {
+        // `rng( 0, 99 ) >= get_probability( false )` → skip (`src/item_group.cpp:837-841`).
+        if rolls.rng(0, 99) >= entry.in_season_probability(holiday) {
+            continue;
+        }
         match entry {
-            Entry::Item {
-                id,
-                probability,
-                count,
-            } => {
-                if *probability < 100 && rolls.rng(1, 100) > *probability {
-                    continue;
-                }
+            Entry::Item { id, count, .. } => {
                 out.push((id.clone(), rolls.rng(count.0.max(1), count.1.max(1))));
             }
-            Entry::Group { id, probability } => {
-                if *probability < 100 && rolls.rng(1, 100) > *probability {
-                    continue;
-                }
-                draw_into(definitions, id, rolls, out, depth + 1);
-            }
+            Entry::Group { id, .. } => draw_into(definitions, id, rolls, out, depth + 1, holiday),
             Entry::Nothing { .. } => {}
         }
     }
