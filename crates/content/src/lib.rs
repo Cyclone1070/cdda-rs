@@ -13,6 +13,7 @@ use std::path::{Path, PathBuf};
 
 pub mod catalog;
 pub mod condition;
+pub mod constructions;
 pub mod digest;
 pub mod enchantments;
 pub mod eocs;

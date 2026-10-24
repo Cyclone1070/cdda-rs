@@ -218,7 +218,7 @@ the layer that decides when to shift
 | Inventory | not started | M3a | |
 | Crafting and recipes | not started | M3a | |
 | Requirements and qualities | not started | M3a | |
-| Constructions | not started | M3a | Named special functions |
+| Constructions | **the registry, loaded and gated end to end** | P3 | `constructions::load_paths` from `construction::load` (`src/construction.cpp:2194-2260`), gated against `corpus/constructions/all.json` (`--dump-constructions`): **756 of 756** constructions match the reference on their id, group, category, time, `pre_terrain`, `post_terrain` and required skills. Three rules the data taught: a construction's `pre_terrain` is a **`std::set`** and comes back in byte order (`t_concrete_wall_P` before `t_concrete_wall_b`), a construction with no `required_skills` falls back to the **legacy `skill`/`difficulty`** pair with fabrication at zero (`src/construction.cpp:2203-2211`), and time is read as a duration string into **moves** — one turn is one second and one second is a hundred moves, so `"1 h 30 m"` is 540,000 moves (round 565). **Not ported, declared:** the special functions (`pre_special`, `post_special` and the four static tables behind them), `pre_flags`/`post_flags`, byproducts, the requirement groups the constructions draw from, and the blacklist |
 | Use actions | not started | M3a | 195 functions |
 | Examine actions | not started | M3a | 108 functions |
 | Consumption, butchery, liquids | not started | M3a | |
@@ -2990,6 +2990,20 @@ Mitigation, in order of cost:
 The instrument itself is not in doubt: it compiles, it is in `oracle/patches/0001-prototype-digest.patch`, and a traced
 run of a world that exists will write the file.
 
+
+## Seven hundred and fifty-six constructions (round 565)
+
+The construction registry is loaded and gated end to end: every one of the reference's 756 constructions matches on id, group, category, time, the tiles it may be built on,
+the tile it leaves and the skills it wants. The oracle writes the list (`--dump-constructions`) and the gate is an equality over all of them — the only kind of check that
+catches a field silently read from the wrong member.
+
+Three rules came from the data rather than from reading:
+
+- **`pre_terrain` is a set.** Four painted-wall constructions came back in a different order than the JSON, because the reference holds them in a `std::set<std::string>` and
+  sorts byte-wise, so `t_concrete_wall_P` comes before `t_concrete_wall_b`.
+- **Skills have two shapes.** Seventy-one constructions have no `required_skills` at all but a legacy `skill`/`difficulty` pair, and the reference defaults to fabrication at
+  zero when neither is present (`src/construction.cpp:2203-2211`).
+- **Time is a duration string in moves.** `"1 h 30 m"` is 540,000 moves, because one turn is one second and one second is a hundred moves. A bare number is already in moves.
 
 ## Heavy, and not big (round 564)
 
