@@ -2986,6 +2986,27 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The visibility dump was reading a stale cache, and the cross-level rule is measured (round 537)
+
+Round 536's fixture claimed the character saw two squares of the level below. It does - but not because the dump built them: `build_map_cache` rebuilds **one** level's
+caches, and `seen_cache` on the level below still held whatever an earlier build had left there. The dump now builds every level it reports, so the numbers it records are
+ones it produced itself.
+
+With that fixed, `CDDA_ZLIGHT_TRACE` (a print of every write `cast_zlight` makes *off the origin's level*) answers a question reading the code could not: **which segment
+crosses a level**. It is the horizontal ones, not the vertical ones:
+
+```
+zlight HORIZ/SEG 75,72,-1 dist 3 intensity 0.891366 cum 0.038333
+zlight HORIZ/SEG 76,72,-1 dist 4 intensity 0.857844 cum 0.038333
+```
+
+So a ray walking sideways also descends, one level per minor step, while its intensity falls with `sight_calc` over the accumulated transparency - which is why the
+squares below are seen at `0.891` and not at the `1.0` a square beside the character gets. The vertical segments (straight down a diagonal) are the other half of the
+reference's rule and were not what this world exercised.
+
+The fixture's numbers moved with the corrected build: the two visible squares below are now `(64,71,-1)` and `(64,72,-1)`, still `0.891` each, and the character's own
+level still shows 220 squares with none above.
+
 ## Vision across levels is recorded now (round 536)
 
 Vision is the one environment layer with nothing recorded for it: `--dump-frame` carries the **light** a square stands in, and light is not sight. `--dump-visibility`
