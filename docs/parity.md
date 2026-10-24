@@ -2986,6 +2986,23 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The sky is layer two, and the M2 receipts are complete (round 549)
+
+The weather session has a receipt — `0x4c221d74263f52f4` over twenty-seven turns — built from the port's **own** recomputed sky rather than read back from the record: the
+temperature, humidity and pressure are recomputed from the generator's inputs, quantised to the millionth the session gate compares at, and folded in beside the manager's
+weather id, wind, clock and time-to-next-change. The test computes the same fold from the recording and asserts the two numbers are equal, so the receipt is a gate on
+the port and not a transcription of the fixture.
+
+That completes the milestone's proof line for P2: **a replay hash per turn over the weather, scent and field sessions**:
+
+| Layer | Session | Turns | Receipt |
+|---|---|---|---|
+fields (0) | `gas-60` | 59 | `0xbb4513a5ce73269a` |
+fields (0) | `gas-fall` | 39 | `0x033342d5a7845618` |
+fields (0) | `gas-wind` | 23 | `0x12ca5c3c692106d4` |
+scent (1) | `scent-session` | 13 | `0xaac13754071041c0` |
+sky (2) | `weather-session` | 27 | `0x4c221d74263f52f4` |
+
 ## Scent folded into the digest, and the dump lists a square three times (round 548)
 
 The scent session has a receipt now — `0xaac13754071041c0` over thirteen turns — and folding it in found something about the **recording** that no square-by-square

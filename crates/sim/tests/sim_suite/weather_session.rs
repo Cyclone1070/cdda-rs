@@ -299,3 +299,68 @@ fn the_port_decides_the_sessions_weather_from_the_recorded_dice() {
     assert!(checked >= 20, "every recorded hour was replayed: {checked}");
     assert!(wrong.is_empty(), "the port's weather disagrees with the recording: {wrong:?}");
 }
+
+#[test]
+fn the_weather_session_has_a_receipt() {
+    // The third layer of the digest: the sky. Its numbers are floats, so they are quantised to the millionth the gate above compares at - a receipt that moved on a bit
+    // of floating-point noise would be a receipt nobody could use. Everything else about the turn is an integer already: the turn, the weather id, the wind, the time to
+    // the next change.
+    let turns = turns();
+    let generator = Generator::default_region();
+    let mut receipt = 0xcbf2_9ce4_8422_2325_u64;
+    let mut record_receipt = 0xcbf2_9ce4_8422_2325_u64;
+    for (index, turn) in turns.iter().enumerate() {
+        let quantised = |value: f64| -> i64 { (value * 1_000_000.0).round() as i64 };
+        // **The port's own numbers.** The receipt is built from what this port recomputes, and the record's receipt is built beside it: two equal numbers mean the port
+        // produced the session, not that the session was read back.
+        let ours = (
+            temperature_k(&generator, &turn.common, turn.day_fraction),
+            humidity(&generator, &turn.common),
+            pressure(&generator, &turn.common),
+        );
+        let mut entries = vec![
+            // Layer two, with the four fields the sky's own generator gives, then what the manager said.
+            (2, 0, 0, 0, 0, quantised(ours.0)),
+            (2, 0, 0, 1, 0, quantised(ours.1)),
+            (2, 0, 0, 2, 0, quantised(ours.2)),
+            (2, 0, 0, 3, 0, turn.next),
+            (2, 0, 0, 4, 0, turn.speed),
+            (2, 0, 0, 5, 0, turn.direction),
+            (2, 0, 0, 6, 0, turn.now),
+            (2, 0, 0, 7, 0, turn.turn),
+            // The weather id is a name, so it is folded in as a hash of its bytes: two ids that differ have different receipts without the digest needing to know the
+            // registry's numbering.
+            (2, 0, 0, 8, 0, name_hash(&turn.weather)),
+        ];
+        entries.sort_unstable();
+        let turn_digest = crate::replay_digest::digest(&entries);
+        receipt = crate::replay_digest::fold(receipt, index, turn_digest);
+        let recorded = vec![
+            (2, 0, 0, 0, 0, quantised(turn.point.0)),
+            (2, 0, 0, 1, 0, quantised(turn.point.1)),
+            (2, 0, 0, 2, 0, quantised(turn.point.2)),
+            (2, 0, 0, 3, 0, turn.next),
+            (2, 0, 0, 4, 0, turn.speed),
+            (2, 0, 0, 5, 0, turn.direction),
+            (2, 0, 0, 6, 0, turn.now),
+            (2, 0, 0, 7, 0, turn.turn),
+            (2, 0, 0, 8, 0, name_hash(&turn.weather)),
+        ];
+        record_receipt = crate::replay_digest::fold(record_receipt, index, crate::replay_digest::digest(&recorded));
+    }
+    assert_eq!(
+        receipt, record_receipt,
+        "the port's receipt is the recording's: {receipt:#018x} against {record_receipt:#018x}"
+    );
+    assert_eq!(receipt, 0x4c22_1d74_263f_52f4_u64, "the weather session receipt is {receipt:#018x} over {} turns", turns.len());
+}
+
+/// A stable number for a weather id's name.
+fn name_hash(name: &str) -> i64 {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in name.bytes() {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x100_0000_01b3);
+    }
+    i64::try_from(hash & 0x7fff_ffff_ffff).unwrap_or(0)
+}
