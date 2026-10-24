@@ -22,6 +22,7 @@ pub use weather::{Climate, Forecast, System, Weather, tick_climate, wind_of};
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::{FieldEntry, FieldId};
+use cdda_core_types::rng::{Rolls, shuffle};
 use cdda_core_types::shadowcasting::FourQuadrants;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -5089,9 +5090,9 @@ pub struct Filled {
 /// Reference: `put_into_container` (`src/item_group.cpp:115-171`). Each item is offered to the container in turn; one that does not fit is **spilled** (left on the
 /// ground), **discarded**, or lost with a diagnostic, according to the group's `on_overflow`.
 ///
-/// The reference shuffles the run before offering it (`std::shuffle` over the group's own engine) so that it is not always the last items that are rejected. That shuffle
-/// is **not modelled here**: the items are offered in the order they were drawn, which is a difference in *which* item is spilled rather than in how many - and it is
-/// recorded in the ledger as an open gap rather than hidden.
+/// The run is **shuffled first** (`std::shuffle( items.end() - num_items, items.end(), rng_get_engine() )`, `src/item_group.cpp:127-129`), so that it is not always the
+/// last drawn items that are rejected. `rolls` is the game's own engine, which is what the reference shuffles with - not `rng()`, so no die is recorded for it, and a
+/// replay that reaches a spawning group's container has to drive the same engine.
 ///
 /// A corpse is not special-cased: the reference forces one into a container whatever its volume says (`ctr.is_corpse()`), and the port has no corpse container rule yet.
 pub fn fill_container(
@@ -5100,12 +5101,16 @@ pub fn fill_container(
     kinds: &[ItemTypeId],
     overflow: Overflow,
     facts_of: impl Fn(Entity) -> ItemFacts + Copy,
+    rolls: &mut Rolls,
 ) -> Filled {
     let Some(position) = world.get::<Position>(container).copied() else {
         return Filled { inside: 0, left_over: kinds.len() };
     };
+    let mut kinds = kinds.to_vec();
+    // The shuffle comes before anything is offered, and over the whole run rather than a prefix.
+    shuffle(&mut kinds, rolls);
     let mut filled = Filled { inside: 0, left_over: 0 };
-    for kind in kinds {
+    for kind in &kinds {
         let item = world
             .spawn((
                 Position {

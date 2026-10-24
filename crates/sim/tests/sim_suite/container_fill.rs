@@ -15,6 +15,7 @@
 #![allow(clippy::expect_used, clippy::panic)]
 
 use bevy_ecs::prelude::*;
+use cdda_core_types::rng::Rolls;
 use cdda_sim::{
     Container, GroundItem, ItemFacts, ItemTypeId, Overflow, Position, drop_item, fill_container,
 };
@@ -46,7 +47,7 @@ fn everything_fits_and_nothing_is_left_over() {
     let mut world = World::new();
     let box_entity = make_box(&mut world, 500);
     let rocks = vec![ROCK, ROCK];
-    let filled = fill_container(&mut world, box_entity, &rocks, Overflow::Spill, facts);
+    let filled = fill_container(&mut world, box_entity, &rocks, Overflow::Spill, facts, &mut Rolls::new(5));
     assert_eq!(filled.inside, 2, "both rocks went in");
     assert_eq!(filled.left_over, 0);
     assert_eq!(loose(&mut world), 0);
@@ -57,7 +58,7 @@ fn spill_leaves_the_leftovers_on_the_ground() {
     let mut world = World::new();
     let box_entity = make_box(&mut world, 150);
     let rocks = vec![ROCK, ROCK, ROCK];
-    let filled = fill_container(&mut world, box_entity, &rocks, Overflow::Spill, facts);
+    let filled = fill_container(&mut world, box_entity, &rocks, Overflow::Spill, facts, &mut Rolls::new(5));
     assert_eq!(filled.inside, 1, "one rock fits");
     assert_eq!(filled.left_over, 2);
     assert_eq!(loose(&mut world), 2, "and the two that did not are on the square");
@@ -68,7 +69,7 @@ fn discard_loses_the_leftovers_on_purpose() {
     let mut world = World::new();
     let box_entity = make_box(&mut world, 150);
     let rocks = vec![ROCK, ROCK, ROCK];
-    let filled = fill_container(&mut world, box_entity, &rocks, Overflow::Discard, facts);
+    let filled = fill_container(&mut world, box_entity, &rocks, Overflow::Discard, facts, &mut Rolls::new(5));
     assert_eq!(filled.inside, 1);
     assert_eq!(filled.left_over, 2, "the player is told what it cost");
     assert_eq!(loose(&mut world), 0, "and nothing is left on the ground");
@@ -80,8 +81,39 @@ fn none_loses_the_leftovers_too_because_the_data_was_wrong() {
     let mut world = World::new();
     let box_entity = make_box(&mut world, 150);
     let rocks = vec![ROCK, ROCK, ROCK];
-    let filled = fill_container(&mut world, box_entity, &rocks, Overflow::None, facts);
+    let filled = fill_container(&mut world, box_entity, &rocks, Overflow::None, facts, &mut Rolls::new(5));
     assert_eq!(filled.inside, 1);
     assert_eq!(filled.left_over, 2);
     assert_eq!(loose(&mut world), 0, "the same outcome as a discard, and a diagnostic");
+}
+
+/// The run is shuffled before anything is offered, so it is not always the last drawn items that are rejected.
+///
+/// Reference: `src/item_group.cpp:127-129`, `std::shuffle( items.end() - num_items, items.end(), rng_get_engine() )`. The port shuffles with the same standard-library
+/// algorithm over the same engine, which the core-types gate pins against 36 recorded permutations - so all this test has to show is that the shuffle is *reached*: with
+/// a run too big for the box, which items land inside has to depend on the seed.
+#[test]
+fn which_items_land_inside_depends_on_the_seed() {
+    let rock = ItemTypeId(1);
+    let plank = ItemTypeId(2);
+    let pipe = ItemTypeId(3);
+    let run = [rock, plank, pipe];
+    let mut kinds_seen = std::collections::BTreeSet::new();
+    for seed in 1..=8 {
+        let mut world = World::new();
+        let box_entity = make_box(&mut world, 150);
+        fill_container(&mut world, box_entity, &run, Overflow::Spill, facts, &mut Rolls::new(seed));
+        let boxed = cdda_sim::contents(&mut world, box_entity)
+            .into_iter()
+            .filter_map(|entity| world.get::<GroundItem>(entity).map(|item| item.kind))
+            .collect::<Vec<_>>();
+        assert_eq!(boxed.len(), 1, "the box takes one of the three");
+        if let Some(&only) = boxed.first() {
+            kinds_seen.insert(only);
+        }
+    }
+    assert!(
+        kinds_seen.len() > 1,
+        "the shuffle decides which item goes in, so different seeds have to put different ones in - they all put {kinds_seen:?}"
+    );
 }

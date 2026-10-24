@@ -207,6 +207,169 @@ impl<'a> IndependentBitsEngine<'a> {
     }
 }
 
+
+/// `numeric_limits<uint64_t>::digits`: `__dt` for a 64-bit `uniform_int_distribution`, and `_WDt`/`_EDt`/`__w_rt` when the engine's
+/// result type and the distribution's are both 64 bits wide.
+const RESULT_DIGITS_64: u32 = 64;
+
+/// `std::__independent_bits_engine<minstd_rand0, uint64_t>` (`__random/uniform_int_distribution.h`).
+///
+/// The same transcription as [`IndependentBitsEngine`], for the instantiation `std::uniform_int_distribution<ptrdiff_t>` reaches: its result type is
+/// `uint64_t`, so the working width, the masks and the accumulator are all 64 bits. It is kept separate rather than parameterised because the two differ in
+/// exactly those widths, and a shared generic would have to carry every one of them as a constant - which is how a transcription stops looking like the code it
+/// copies.
+struct IndependentBitsEngine64<'a> {
+    engine: &'a mut MinStdRand0,
+    /// `__n_`: total number of engine draws per value.
+    n: u32,
+    /// `__w0_`: bits taken from each of the first `__n0_` draws.
+    w0: u32,
+    /// `__n0_`: number of draws that contribute `w0` bits (the rest take `w0 + 1`).
+    n0: u32,
+    /// `__y0_`: exclusive upper bound for accepted engine values in the first loop.
+    y0: u64,
+    /// `__y1_`: the same bound for the second loop, which takes one more bit.
+    y1: u64,
+    /// `__mask0_`: keeps the low `w0` bits.
+    mask0: u64,
+    /// `__mask1_`: keeps the low `w0 + 1` bits.
+    mask1: u64,
+}
+
+impl<'a> IndependentBitsEngine64<'a> {
+    fn new(engine: &'a mut MinStdRand0, w: u32) -> Self {
+        let mut n = w / ENGINE_RANGE_LOG2 + u32::from(!w.is_multiple_of(ENGINE_RANGE_LOG2));
+        let mut w0 = w / n;
+        let mut y0 = rounded_down_range64(w0);
+        if u64::from(ENGINE_RANGE) - y0 > y0 / u64::from(n) {
+            n += 1;
+            w0 = w / n;
+            y0 = rounded_down_range64(w0);
+        }
+        let n0 = n - w % n;
+        let y1 = if w0 < RESULT_DIGITS_64 - 1 {
+            rounded_down_range64(w0 + 1)
+        } else {
+            0
+        };
+        let mask0 = if w0 > 0 {
+            u64::MAX >> (RESULT_DIGITS_64 - w0)
+        } else {
+            0
+        };
+        let mask1 = if w0 < RESULT_DIGITS_64 - 1 {
+            u64::MAX >> (RESULT_DIGITS_64 - (w0 + 1))
+        } else {
+            u64::MAX
+        };
+        Self {
+            engine,
+            n,
+            w0,
+            n0,
+            y0,
+            y1,
+            mask0,
+            mask1,
+        }
+    }
+
+    /// `__eval(true_type)`: draws are rejected until they land below the bound, then their low bits are concatenated.
+    fn next(&mut self) -> u64 {
+        let mut value: u64 = 0;
+        for _ in 0..self.n0 {
+            let draw = self.draw_below(self.y0);
+            value = shift_in64(value, self.w0).wrapping_add(draw & self.mask0);
+        }
+        for _ in self.n0..self.n {
+            let draw = self.draw_below(self.y1);
+            value = shift_in64(value, self.w0 + 1).wrapping_add(draw & self.mask1);
+        }
+        value
+    }
+
+    /// Draws `engine() - min()` repeatedly until it lands below `bound`.
+    fn draw_below(&mut self, bound: u64) -> u64 {
+        loop {
+            let draw = u64::from(self.engine.next_u32() - MinStdRand0::MIN);
+            if draw < bound {
+                return draw;
+            }
+        }
+    }
+}
+
+/// `(_Rp >> bits) << bits` in 64 bits, or 0 when `bits` is a whole word.
+fn rounded_down_range64(bits: u32) -> u64 {
+    if bits < RESULT_DIGITS_64 {
+        (u64::from(ENGINE_RANGE) >> bits) << bits
+    } else {
+        0
+    }
+}
+
+/// `__sp <<= bits` in 64 bits, or 0 when the shift would discard the whole word.
+fn shift_in64(value: u64, bits: u32) -> u64 {
+    if bits < RESULT_DIGITS_64 {
+        value << bits
+    } else {
+        0
+    }
+}
+
+impl MinStdRand0 {
+    /// Draws a uniform integer in `lo..=hi` with `std::uniform_int_distribution<uint64_t>`, which is what `std::uniform_int_distribution<ptrdiff_t>` reaches on
+    /// a 64-bit platform - the distribution `std::shuffle` uses.
+    ///
+    /// Reference: `__random/uniform_int_distribution.h`, `operator()(g, param)`, with `_UIntType = uint64_t` and therefore `__dt = 64`.
+    pub fn uniform_u64_in(&mut self, lo: u64, hi: u64) -> u64 {
+        let range = hi.wrapping_sub(lo).wrapping_add(1);
+        if range == 1 {
+            return lo;
+        }
+        if range == 0 {
+            return IndependentBitsEngine64::new(self, RESULT_DIGITS_64).next();
+        }
+        let mut engine = IndependentBitsEngine64::new(self, bit_width64(range));
+        let mut value = engine.next();
+        while value >= range {
+            value = engine.next();
+        }
+        value.wrapping_add(lo)
+    }
+}
+
+/// `__w` for the 64-bit distribution: the bits the range needs, rounded up when it does not fill them.
+fn bit_width64(range: u64) -> u32 {
+    let w = RESULT_DIGITS_64 - range.leading_zeros() - 1;
+    if range & (u64::MAX >> (RESULT_DIGITS_64 - w)) != 0 {
+        w + 1
+    } else {
+        w
+    }
+}
+
+/// Shuffles a run the way `std::shuffle` does, so that a spawn's items come out in the order the reference would put them.
+///
+/// Reference: libc++'s `__shuffle` (`__algorithm/shuffle.h`): the forward Fisher-Yates, asking `std::uniform_int_distribution<ptrdiff_t>` for `[0, __d]` where `__d`
+/// counts down from `len - 1`, and swapping only when the draw is not zero. The distribution is the standard library's, not the game's `rng()`, which is why this
+/// takes the engine directly and why the dice it consumes never appear in a recording - the port's own engine is driven here instead.
+pub fn shuffle<T>(values: &mut [T], rolls: &mut Rolls) {
+    let len = values.len();
+    if len <= 1 {
+        return;
+    }
+    let mut d = len - 1;
+    for first in 0..len - 1 {
+        let i = rolls.engine.uniform_u64_in(0, d as u64);
+        let i = usize::try_from(i).unwrap_or(0);
+        if i != 0 {
+            values.swap(first, first + i);
+        }
+        d -= 1;
+    }
+}
+
 /// Chooses the number of bits a `uniform_int_distribution` asks the independent
 /// bits engine for: `__w = __dt - countl_zero(__rp) - 1`, rounded up when the
 /// range does not fill those bits (`__random/uniform_int_distribution.h`).
