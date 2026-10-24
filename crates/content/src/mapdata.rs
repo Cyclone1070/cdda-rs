@@ -57,6 +57,76 @@ pub struct MapData {
     /// which clears it (`mapdata.cpp:1112-1114`); and `unset_flag` clears it for `TRANSPARENT` while leaving it alone for `TRANSLUCENT`
     /// (`mapdata.cpp:892-905`). The asymmetries are the reference's, and they are why this cannot be recomputed from `flags`.
     pub transparent: bool,
+    /// How hard the tile is to break, when it can be broken at all.
+    ///
+    /// Reference: `map_data_common_t::bash` (`src/mapdata.h:433`), an `optional` block: a tile with **no** block cannot be bashed, and a tile with a block whose `str_min` is
+    /// `-1` cannot be bashed either but is a different thing — the reference's `bash_ter_furn` tests `if( !bash || ( bash->destroy_only && !params.destroy ) )` on the
+    /// block's presence, so a block that merely cannot be reached still answers to `destroy`.
+    pub bash: Option<BashInfo>,
+}
+
+/// One tile's bash block: how much strength it takes, and what it becomes.
+///
+/// Reference: `map_common_bash_info` with `map_ter_bash_info` and `map_furn_bash_info` (`src/mapdata.h:40-84`). The two subclasses differ in exactly one field each — terrain
+/// names the terrain it turns into and, separately, what it turns into when bashed from above; furniture names the furniture it turns into.
+///
+/// **Absence is a value.** Every numeric field is `-1` when the data does not name it, and `str_min` of `-1` is how the reference spells "this block cannot be bashed at all".
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BashInfo {
+    /// The strength at or below which the bash never succeeds.
+    pub str_min: i32,
+    /// The strength at or above which it always does; between the two, one roll decides.
+    pub str_max: i32,
+    /// `str_min` when the tile is braced by furniture beside it.
+    pub str_min_blocked: i32,
+    /// `str_max` in the same case.
+    pub str_max_blocked: i32,
+    /// `str_min` when something supports the tile from below.
+    pub str_min_supported: i32,
+    /// `str_max` in the same case.
+    pub str_max_supported: i32,
+    /// Only reachable by a `destroy`, never by an ordinary bash.
+    pub destroy_only: bool,
+    /// This terrain is the roof of the tile below, and bashing it should take that too.
+    pub bash_below: bool,
+    /// How loud breaking it is, or `-1` for silent.
+    pub sound_vol: i32,
+    /// How loud failing to break it is, or `-1` for silent.
+    pub sound_fail_vol: i32,
+    /// The **named** item group it drops.
+    ///
+    /// A fresh block that says nothing about items gets the reference's `EMPTY_GROUP` (`src/mapdata.cpp:410-412`), which is a real group with a real name — so the default
+    /// here is that group and not "none". An inline array is turned into an anonymous group with no name to write down, which is recorded as `None`: a declared gap rather
+    /// than a silent one.
+    pub drop_group: Option<String>,
+    /// What it becomes: terrain's `ter_set`, furniture's `furn_set`.
+    pub set: String,
+    /// What terrain becomes when bashed from above, which defaults to [`BashInfo::set`]; furniture has no such field.
+    pub set_from_above: Option<String>,
+}
+
+impl Default for BashInfo {
+    /// The reference's own defaults: every number `-1`, which is its spelling for "not given", and the empty item group.
+    ///
+    /// `map_common_bash_info` (`src/mapdata.h:40-63`) is initialised that way, and `load` only overwrites what the JSON names — so a block that says nothing at all is not a
+    /// block of zeroes.
+    fn default() -> Self {
+        Self {
+            str_min: -1,
+            str_max: -1,
+            str_min_blocked: -1,
+            str_max_blocked: -1,
+            str_min_supported: -1,
+            str_max_supported: -1,
+            destroy_only: false,
+            bash_below: false,
+            sound_vol: -1,
+            sound_fail_vol: -1,
+            drop_group: Some("EMPTY_GROUP".to_owned()),
+            set: String::new(),
+            set_from_above: None,
+        }
+    }
 }
 
 impl MapData {
@@ -148,6 +218,7 @@ pub fn load_paths(dirs: &[&std::path::Path]) -> Result<Vec<MapData>, LoadError> 
                 // `null_terrain_t` and `null_furniture_t` set the bool themselves (`mapdata.cpp:555`, `:576`), and nothing loads over them, so the reference's
                 // own dump has both **transparent** - unlike an ordinary new prototype, which starts opaque.
                 transparent: true,
+                bash: None,
             },
         );
     }
@@ -333,6 +404,7 @@ fn apply(base: Option<MapData>, loaded: &Loaded) -> Result<MapData, LoadError> {
         // A new prototype starts **opaque** (`mapdata.h:573`). The only two things that start transparent are the code-made null prototypes, and the
         // shipped `t_null`/`f_null` override even that by naming their own flags - which is why this is data-pinned rather than reasoned.
         transparent: false,
+        bash: None,
     });
     value.kind = loaded.kind;
     value.id.clone_from(&id);
@@ -416,11 +488,77 @@ fn apply(base: Option<MapData>, loaded: &Loaded) -> Result<MapData, LoadError> {
             }
         }
     }
+    apply_bash(&mut value.bash, json, loaded.kind);
     Ok(value)
 }
 
 /// The four strings of a season array: one string fills all four, or four are
 /// taken one per season.
+/// Applies a `bash` block over whatever the base had.
+///
+/// Reference: `map_data_common_t`'s loaders (`src/mapdata.cpp:1224-1231` for terrain, and the furniture equivalent), which keep the inherited block and load the child's
+/// object over it when there is one — so a child that names only `str_min` keeps its parent's `ter_set`. The block is only created when the JSON has one; a tile without a
+/// block inherits nothing and gets none.
+fn apply_bash(value: &mut Option<BashInfo>, json: &Object, kind: MapDataKind) {
+    let Some(Value::Object(block)) = json.get("bash") else {
+        return;
+    };
+    let fresh = value.is_none();
+    let mut info = value.take().unwrap_or_default();
+    for (member, slot) in [
+        ("str_min", &mut info.str_min),
+        ("str_max", &mut info.str_max),
+        ("str_min_blocked", &mut info.str_min_blocked),
+        ("str_max_blocked", &mut info.str_max_blocked),
+        ("str_min_supported", &mut info.str_min_supported),
+        ("str_max_supported", &mut info.str_max_supported),
+        ("sound_vol", &mut info.sound_vol),
+        ("sound_fail_vol", &mut info.sound_fail_vol),
+    ] {
+        if let Some(number) = integer(block, member) {
+            *slot = number;
+        }
+    }
+    if let Some(flag) = block.get("destroy_only") {
+        info.destroy_only = matches!(flag, Value::Bool(true));
+    }
+    if let Some(flag) = block.get("bash_below") {
+        info.bash_below = matches!(flag, Value::Bool(true));
+    }
+    // **Absent and anonymous are different.** `items` as a string is a group the port can name; as an array it is a group the reference mints an id for, which no port can
+    // reproduce, so it is recorded as "there are items" and left unnamed.
+    if let Some(items) = block.get("items") {
+        info.drop_group = match items {
+            Value::Str(name) => Some(name.clone()),
+            // An inline array: the reference mints an anonymous group for it, and its id is not a name any port could reproduce.
+            _ => None,
+        };
+    }
+    if let Some(set) = string(block, "ter_set").or_else(|| string(block, "furn_set")) {
+        info.set = set;
+    }
+    // `ter_set_bashed_from_above` is `optional( jo, was_loaded, ..., ter_set )` (`src/mapdata.cpp:423`), and that default is applied **only when the object is fresh**:
+    // a child that renames `ter_set` and says nothing about the above variant keeps the value its parent resolved — which is why a carpet over a floor still bashes from
+    // above into `t_floor` and not into the carpet's own base. Furniture has no such field at all.
+    let above = string(block, "ter_set_bashed_from_above");
+    info.set_from_above = match kind {
+        MapDataKind::Terrain => Some(match above {
+            Some(named) => named,
+            None if fresh => info.set.clone(),
+            None => info.set_from_above.unwrap_or_else(|| info.set.clone()),
+        }),
+        // Furniture's `furn_set` is `optional( ..., furn_f_null )` (`src/mapdata.cpp:429`), so a block that names no furniture becomes `f_null` — a real id the map can
+        // stand on, not an empty string.
+        MapDataKind::Furniture => {
+            if info.set.is_empty() {
+                "f_null".clone_into(&mut info.set);
+            }
+            None
+        }
+    };
+    *value = Some(info);
+}
+
 fn season_strings(json: &Object, member: &str) -> Result<[String; 4], LoadError> {
     match json.get(member) {
         Some(Value::Str(text)) => Ok([text.clone(), text.clone(), text.clone(), text.clone()]),

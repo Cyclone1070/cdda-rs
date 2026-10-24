@@ -7,6 +7,7 @@
 //!
 //! A case is still named after its file: `frame_diff::the_same_frame_diffs_to_nothing`.
 
+mod bash_info;
 mod build_check;
 mod pile_rules;
 mod city_settings;

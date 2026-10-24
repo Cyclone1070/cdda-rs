@@ -21,6 +21,7 @@ fn terrain(move_cost: i32, flags: &[&str]) -> MapData {
         coverage: 0,
         flags: flags.iter().map(|flag| (*flag).to_owned()).collect(),
         transparent: true,
+        bash: None,
     }
 }
 

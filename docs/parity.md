@@ -165,6 +165,7 @@ the layer that decides when to shift
 | Temperature | **partial: the sun's terms, not the cache** | P2 | `harness_weather_temperature_terms` records the reference's own pre-narrowing double and its terms, and the port reproduces them to one ulp; the per-turn cache over the reality bubble and the creature's warmth are not ported |
 | Weather | **done: the generator, the condition loop, the sun and the manager** | P2 | `weather::System::tick` computes the point, decides the sky and books the next change in one call and reproduces the reference's recorded ten-day day from the recorded dice alone; `Climate` is a resource and `tick_climate` runs a turn of it (rounds 511-533). The manager's own path is gated on 240 hours with fourteen absorption changes. **Not ported, declared:** the falling-snow tile layer and the lightning strikes |
 | Zone manager | **ported and gated: the four queries and their order** | P2 | `zones::ZoneManager` from `zone_manager` (`src/clzones.cpp:1112-1396`): zones are inclusive rectangles of a type, a faction, an `invert` flag and an `enabled` flag, and the four queries read the list from **both ends** — `zones_at` and `zone_at` walk it forwards (the oldest zone wins), `bottom_zone` and `loot_zone_at` walk it backwards (the newest wins), and "loot" is the **prefix of the type's id**, not a flag. `has` and `has_near` ask the **cached point set** (`cache_data`, `src/clzones.cpp:892-917`), which skips a switched-off zone — so the same square answers "yes" to "what am I standing in" and "no" to "is there a food zone here". Gated against `corpus/zones/probe.json`: 240 squares, 2,640 answers, seven overlapping zones plus one of another faction. Two rules the fixture pins: `has_inside` **ignores `invert`** (the rectangle is the rectangle; the inversion belongs to the reader) and **ignores `enabled`** (a switched-off zone still contains its squares). **Not ported, declared:** zone options, personal and vehicle zones, the point-set cache's staleness and `get_point_set_loot` (rounds 573-574) |
+| Bash data | **ported and gated: every terrain and furniture block** | P2 | `mapdata::BashInfo` from `map_common_bash_info` and its two subclasses (`src/mapdata.h:40-84`, `src/mapdata.cpp:376-430`), loaded for all 1,570 blocks the dda set defines — 958 terrains and 612 pieces of furniture — and gated against `corpus/bash/info.json` field by field. Three rules the dump settled that a transcription would have guessed wrong: `ter_set_bashed_from_above` defaults to `ter_set` **only when the block is fresh**, so a child that renames `ter_set` keeps its parent's above-result (533 blocks turn on it); furniture's `furn_set` defaults to the real id `f_null`, not to nothing; and a block that names no items gets the real group `EMPTY_GROUP`. **Not ported, declared:** inline `items` arrays, which the reference turns into anonymous groups with ids no port can reproduce; `explosive`, `restricts_hauling`, `tent_centers`, `hit_field`/`destroyed_field` and the `sound`/`sound_fail` texts (round 575) |
 | Zone types | **ported and gated** | P2 | `content::zones::load_paths` loads the 64 zone types the dda set defines, from the JSON tag `LOOT_ZONE` (`src/init.cpp:370`) — not `zone_type`, which is the mistake that returns an empty registry with no error. Gated against `corpus/zones/all.json` on id, name, description, display field, `can_be_personal` and `hidden`: 64 of 64, including the 42 a character may own and the one hidden type. **Not ported, declared:** the zone manager's options, `has_zone_type_for`, the personal and vehicle zones, and the area caches (rounds 572-574) |
 | Falling and explosions | not started | M2 | |
 | Vision through fields | **ported and gated** | P2 | The frame's transparency table folds the same three layers the reference does (`calc_transp`, `lightmap.cpp:140-167`): terrain, furniture, and the fields — which **multiply**, so smoke at its second intensity is ten times as absorbing as air and smoke at its third intensity blinds the line. Two gates pin it (`frame_smoke`): a square behind smoke is seen less than the same square without it, and behind dense smoke not at all. This closed the last red gate the M2 exit criterion had left open (round 570) |
@@ -2971,6 +2972,22 @@ Mitigation, in order of cost:
 The instrument itself is not in doubt: it compiles, it is in `oracle/patches/0001-prototype-digest.patch`, and a traced
 run of a world that exists will write the file.
 
+
+## How hard everything is to break (round 575)
+
+The bash data is the first block whose *defaults* carry more information than its values. 958 terrains and 612 pieces of furniture carry one, and the gate compares all
+1,570 field by field.
+
+Three defaults the dump settled, each of which a transcription would have got wrong:
+
+| Default | What it costs to miss |
+|---|---|
+`ter_set_bashed_from_above` defaults to `ter_set` **only when the block is fresh** | a carpet that renames `ter_set` keeps its parent's above-result (200+ blocks), so it still bashes from above into `t_floor` rather than into its own base — 533 blocks differ this way |
+furniture's `furn_set` defaults to the real id `f_null` | an empty string is not a furniture, and every furniture bash would set the square to nothing at all |
+a block with no `items` gets the real group `EMPTY_GROUP` | "no items" and "the empty group" are the same behaviour but not the same data, and only one of them survives inheritance |
+
+Two absences are declared rather than guessed: inline `items` arrays (the reference mints anonymous group ids for them, which no port can reproduce) and the half of the
+block the bash algorithm does not need yet — `explosive`, `tent_centers`, `hit_field`, `destroyed_field` and the two sound texts.
 
 ## The cached question, which skips (round 574)
 
