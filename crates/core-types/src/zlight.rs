@@ -145,7 +145,10 @@ pub fn cast_horizontal_segment(
                         started_block = true;
                         current_transparency = new_transparency;
                     }
-                    let dist = rl_distance(dx, dy);
+                    // **All three of the sweep's coordinates are the ray's distance.** The reference measures `rl_dist( zero, delta )` with `delta` carrying the
+                    // major axis in `z` (`shadowcasting.cpp:301`), so a ray that has dropped a level is further away than its horizontal travel suggests -
+                    // dropping `dz` here makes every descending square too bright, which the visibility fixture showed as 78 squares brighter than the reference.
+                    let dist = rl_distance(dx, dy).max(dz);
                     let last_intensity = sight_calc(numerator, spans[index].cumulative_value, dist);
                     if !floor_block {
                         let slot = seen.entry((x, y, z)).or_insert(0.0);

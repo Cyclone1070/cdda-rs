@@ -2986,6 +2986,23 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The cast is compared with the reference's own cache, and is 37 squares too bright (round 542)
+
+`--dump-visibility` now records the **cast's inputs beside its output**: each square's vision transparency, its floor bit, its level's `no_floor_gaps`, and the sight
+penalty the cache was built with. Two of those were wrong in the first recording, and both were caught by comparing:
+
+* the dump read `transparency_cache` (the **light** cache) instead of `vision_transparency_cache`;
+* it recorded no floor bits and no `no_floor_gaps`, so the port was inferring "can this level be seen from below" from the seventeen-square window instead of from the
+  level summary the reference actually uses - which made the port look downwards where the reference had sealed itself in.
+
+With those recorded, the port's `cast_zlight` reproduces **830 of 867** squares of the reference's own cache. One transcribing bug fell out on the way: the horizontal
+segment measured its distance from the two horizontal coordinates only, where the reference's `delta` carries the major axis in `z` as well - so every descending
+square was too bright.
+
+The remaining 37 are all **one distance step brighter** than the reference - `0.7359` where the reference has `0.70822`, and so on along a diagonal - which means the
+cast is reaching those squares by a **shorter route** than the reference does. The transparency it reads is right; the route is not. The likely cause is a span split
+that should cut a corner and does not, and the next step is a trace of the reference's span list rather than another reading of the sweep.
+
 ## The whole cast is transcribed (round 541)
 
 `cast_zlight` is in the port: eight horizontal segments and four vertical ones per direction, the four vertical transforms, and the direction gate. The port now has
