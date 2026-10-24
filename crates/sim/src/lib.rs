@@ -5038,8 +5038,8 @@ fn offer_pile(
             *remaining -= take;
             *taken += take;
             if take == available {
-                world.despawn(entity);
-                // A removed pile has no contents left to walk.
+                // A removed pile leaves with what it holds; the reference's item is one object.
+                remove_item_with_contents(world, entity);
                 return;
             }
             if let Some(mut item) = world.get_mut::<GroundItem>(entity) {
@@ -5056,6 +5056,84 @@ fn offer_pile(
         if *remaining == 0 {
             return;
         }
+    }
+}
+
+/// Removes an item **and everything inside it**.
+///
+/// An item in the reference is one object: taking the container takes what it holds, and the contents are not left behind as things on the square. The port's contents
+/// are entities of their own, so removing a parent has to walk its children first - otherwise they stay in the world with an `Inside` pointing at something that no
+/// longer exists, and every query that ignores `Inside` starts seeing them as loose items on the floor.
+pub fn remove_item_with_contents(world: &mut World, entity: Entity) {
+    for child in contents(world, entity) {
+        remove_item_with_contents(world, child);
+    }
+    world.despawn(entity);
+}
+
+/// Takes whole **items** off a square, which is not the same question as taking charges.
+///
+/// Reference: `map::use_amount_square` over `use_amount_stack` and `item::use_amount` (`src/map.cpp:5889-5902, 5903-5920`, `src/item.cpp:12868-12921`). The differences
+/// from [`consume_items`] are the whole point of having both:
+///
+/// * a match consumes the **item**, not a charge from it - `quantity--` whatever the item holds - so asking for one of a pile of twenty takes all twenty;
+/// * a container's contents are visited **first**, from the bottom up, and the container itself last (`contained_list.emplace_front`), the reverse of the charges walk;
+/// * the filter is asked about the item being consumed, and a rejected item is passed over.
+///
+/// `taken` counts items here, not charges.
+pub fn consume_items_by_amount(
+    world: &mut World,
+    square: (i32, i32),
+    kind: ItemTypeId,
+    quantity: i32,
+    mut accept: impl FnMut(&GroundItem) -> bool,
+) -> Consumed {
+    let mut remaining = quantity.max(0);
+    let mut taken = 0;
+    for entity in items_at(world, square) {
+        if remaining == 0 {
+            break;
+        }
+        take_amount(world, entity, kind, &mut remaining, &mut taken, &mut accept);
+    }
+    Consumed {
+        taken,
+        satisfied: remaining == 0,
+    }
+}
+
+/// One pile, contents first, then the pile itself.
+///
+/// Reference: `item::use_amount` (`src/item.cpp:12868-12905`): the contained items are walked **before** the item, and from the bottom of the stack up, so removing one
+/// does not invalidate the walk. Thinking an item matched means the whole item goes, contents and all.
+fn take_amount(
+    world: &mut World,
+    entity: Entity,
+    kind: ItemTypeId,
+    remaining: &mut i32,
+    taken: &mut i32,
+    accept: &mut impl FnMut(&GroundItem) -> bool,
+) {
+    if *remaining == 0 {
+        return;
+    }
+    // Bottom up: the reference reverses the list it got from the top down.
+    let mut children = contents(world, entity);
+    children.reverse();
+    for child in children {
+        take_amount(world, child, kind, remaining, taken, accept);
+        if *remaining == 0 {
+            return;
+        }
+    }
+    let Some(item) = world.get::<GroundItem>(entity) else {
+        return;
+    };
+    if item.kind == kind && accept(item) {
+        // If the world only has this to give and the caller still wants more, the count stands: one item is one item.
+        *remaining -= 1;
+        *taken += 1;
+        remove_item_with_contents(world, entity);
     }
 }
 
