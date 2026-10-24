@@ -95,3 +95,121 @@ fn an_empty_memory_is_empty() {
     assert_eq!(memory.len(), 0);
     assert!(memory.at((0, 0)).is_none());
 }
+
+/// The tile the character keeps, against the reference's own recording of a scripted set of writes.
+///
+/// Reference: `map_memory::set_tile_terrain`, `set_tile_decoration`, `set_tile_symbol` and `clear_tile_decoration` (`src/map_memory.cpp:218-276`), and
+/// `corpus/memory/tiles.json` for what the reference answered. The interesting column is the decoration: the clear takes a **prefix**, so clearing `vp_` leaves
+/// `graffiti_hello` alone, and clearing with the empty prefix matches everything.
+#[test]
+#[allow(clippy::too_many_lines)]
+fn a_remembered_tile_carries_its_terrain_its_decoration_and_its_symbol() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/memory/tiles.json");
+    let text = std::fs::read_to_string(path).expect("the memory dump exists");
+    let value = cdda_json::parse(text.as_bytes()).expect("the memory dump is valid JSON");
+    let cdda_json::Value::Object(root) = value else {
+        panic!("root")
+    };
+    let Some(cdda_json::Value::Array(squares)) = root.get("squares") else {
+        panic!("squares")
+    };
+    let whole = |entry: &cdda_json::Value, key: &str| -> i64 {
+        match entry {
+            cdda_json::Value::Object(object) => match object.get(key) {
+                Some(cdda_json::Value::Int(number)) => *number,
+                other => panic!("{key} is a whole number: {other:?}"),
+            },
+            other => panic!("a square: {other:?}"),
+        }
+    };
+    let text_of = |entry: &cdda_json::Value, key: &str| -> String {
+        match entry {
+            cdda_json::Value::Object(object) => match object.get(key) {
+                Some(cdda_json::Value::Str(text)) => text.clone(),
+                other => panic!("{key} is a string: {other:?}"),
+            },
+            other => panic!("a square: {other:?}"),
+        }
+    };
+    // The same scripted sequence the dump runs, in the same order. A gate is only worth what it shares with the recording, so the writes are transcribed one for one
+    // rather than generated from the expected answers.
+    let mut memory = MapMemory::new();
+    memory.set_terrain((0, 0), 1, "t_floor", 2, 1);
+    memory.set_terrain((1, 0), 2, "t_pavement", 0, 0);
+    memory.set_decoration((1, 0), "vp_frame", 3, 2);
+    memory.set_symbol((1, 0), u32::from(b'X'));
+    memory.clear_decoration((1, 0), "vp_");
+    memory.set_terrain((2, 0), 3, "t_dirt", 1, 3);
+    memory.set_decoration((2, 0), "graffiti_hello", 0, 0);
+    memory.set_symbol((2, 0), u32::from(b'Y'));
+    memory.clear_decoration((2, 0), "vp_");
+    memory.set_decoration((3, 0), "f_bench", 1, 1);
+    memory.set_symbol((3, 0), u32::from(b'Z'));
+    memory.clear_decoration((3, 0), "");
+    memory.set_terrain((4, 0), 4, "t_floor", 0, 0);
+    memory.set_decoration((4, 0), "f_chair", 0, 0);
+    memory.set_terrain((4, 0), 5, "t_grass", 2, 1);
+
+    // **Every branch of the clear, pinned before the comparison.** A gate that compared an empty store with an empty recording would pass and prove nothing.
+    assert_eq!(memory.len(), 5, "five squares were written");
+    assert_eq!(
+        memory.at((1, 0)).map(|tile| (tile.decoration.clone(), tile.symbol)),
+        Some((String::new(), 0)),
+        "a decoration cleared by its own prefix takes its symbol with it"
+    );
+    assert_eq!(
+        memory.at((2, 0)).map(|tile| (tile.decoration.clone(), tile.symbol)),
+        Some(("graffiti_hello".to_owned(), u32::from(b'Y'))),
+        "a decoration a prefix does not match keeps everything"
+    );
+    assert_eq!(
+        memory.at((3, 0)).map(|tile| tile.decoration.clone()),
+        Some(String::new()),
+        "the empty prefix matches every decoration"
+    );
+    assert_eq!(
+        memory.at((4, 0)).map(|tile| (tile.terrain_id.clone(), tile.decoration.clone())),
+        Some(("t_grass".to_owned(), "f_chair".to_owned())),
+        "a second terrain write keeps the decoration"
+    );
+    let mut compared = 0_usize;
+    let mut wrong = Vec::new();
+    for square in squares {
+        let dx = i32::try_from(whole(square, "dx")).expect("small");
+        let dy = i32::try_from(whole(square, "dy")).expect("small");
+        let Some(mine) = memory.at((dx, dy)) else {
+            // A square that was never written answers the default tile, which is what the reference records for it.
+            let unwritten = text_of(square, "ter").is_empty()
+                && text_of(square, "dec").is_empty()
+                && whole(square, "symbol") == 0;
+            if !unwritten {
+                wrong.push(format!("({dx}, {dy}) is not remembered, and the reference has a tile there"));
+            }
+            continue;
+        };
+        let theirs = (
+            text_of(square, "ter"),
+            whole(square, "ter_subtile"),
+            whole(square, "ter_rotation"),
+            text_of(square, "dec"),
+            whole(square, "dec_subtile"),
+            whole(square, "dec_rotation"),
+            whole(square, "symbol"),
+        );
+        let port = (
+            mine.terrain_id.clone(),
+            i64::from(mine.terrain_subtile),
+            i64::from(mine.terrain_rotation),
+            mine.decoration.clone(),
+            i64::from(mine.decoration_subtile),
+            i64::from(mine.decoration_rotation),
+            i64::from(mine.symbol),
+        );
+        if port != theirs {
+            wrong.push(format!("({dx}, {dy}): ours {port:?}, theirs {theirs:?}"));
+        }
+        compared += 1;
+    }
+    assert_eq!(compared, 5, "five remembered squares are compared with the reference");
+    assert!(wrong.is_empty(), "{} wrong:\n{}", wrong.len(), wrong.join("\n"));
+}
