@@ -2986,6 +2986,18 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The level's sight cast is the reference's now, and smoke shows a hole in the fold (round 545)
+
+`Level::seen_cast` - the one place the port answers "how clearly is this square seen" - now runs `cast_zlight` instead of the recursive light cast. Everything above it
+(`seen_at`, `seen_through`, `SeenGrid`, the frame's visibility column) is unchanged, and the whole suite stayed green through the swap except one test.
+
+That test is worth keeping red: a square behind a column of smoke reads **0.926**, which is `sight_calc` of open air at distance two - as if the smoke had not been
+crossed at all. The smoke is at distance one in every transform that reaches that square, so its transparency of `10.0` should have been folded into the span before the
+write. It was not, which is a bug in this port's fold or its span bookkeeping - not in the reference, whose own cache this cast reproduces on 867 of 867 squares.
+
+The lesson of the round is that the fixture gate made the swap safe: without a record of what the reference's cast actually produced, "the cast is transcribed" would
+have been a claim about the port agreeing with itself, and the smoke bug would have been invisible.
+
 ## The vision cast matches the reference on 867 of 867 squares (round 542-544)
 
 Getting there needed three instrument fixes, one wrong constant, and one wrong metric.

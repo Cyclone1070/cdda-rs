@@ -382,14 +382,37 @@ impl Level {
                 cells[grid_x * side + grid_y] = transparency.get(&square).copied().unwrap_or(0.0);
             }
         }
-        let grid = crate::shadowcasting::TransparencyGrid::new(side, cells);
-        // `VISIBILITY_FULL` as the starting value (`lightmap.cpp:1046`): sight is a cast of light of strength one.
-        let values = crate::shadowcasting::cast_light_values(&grid, (radius, radius), radius, 1.0);
+        // **The sight cast, not the light cast.** The reference fills a `seen_cache` with `cast_zlight` (`lightmap.cpp:1079`); `castLight` is the lightmap's own sweep
+        // and answers a different question about a square just past a corner - 93 of 441 squares differ on a patterned grid. One level is cast here, so the levels beside
+        // it read as solid and nothing crosses: a caller that wants sight across levels passes the neighbouring transparencies and floors through
+        // [`cdda_core_types::zlight`] directly.
+        let plane = crate::zlight::Plane {
+            transparency: &|x, y, z| {
+                if z == 0 {
+                    transparency.get(&(x, y)).copied().unwrap_or(0.0)
+                } else {
+                    0.0
+                }
+            },
+            floor: &|_, _, _| true,
+        };
+        let values = crate::zlight::build_seen_cache(
+            &plane,
+            (origin.0, origin.1, 0),
+            radius,
+            (i32::MAX, i32::MAX),
+            1.0,
+            crate::zlight::VerticalDirection::Both,
+        );
         self.sight_casts = self.sight_casts.saturating_add(1);
         let mut rows = vec![vec![0.0_f32; side]; side];
-        for grid_y in 0..side {
-            for grid_x in 0..side {
-                rows[grid_y][grid_x] = values[grid_x * side + grid_y];
+        for (grid_y, row) in rows.iter_mut().enumerate() {
+            for (grid_x, cell) in row.iter_mut().enumerate() {
+                let (Ok(offset_x), Ok(offset_y)) = (i32::try_from(grid_x), i32::try_from(grid_y)) else {
+                    continue;
+                };
+                let square = (origin.0 + offset_x - radius, origin.1 + offset_y - radius);
+                *cell = values.get(&(square.0, square.1, 0)).copied().unwrap_or(0.0);
             }
         }
         SeenGrid {
