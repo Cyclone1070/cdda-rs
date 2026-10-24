@@ -4208,48 +4208,68 @@ pub fn damage_level(damage: i32, damage_max: i32, by_charges: bool) -> i32 {
 /// (`src/item.cpp`). The reference's pockets each have their own volume, weight and length limits
 /// and an allow-list of what they accept; the port keeps one capacity per container and grows
 /// pockets when something needs them.
-#[derive(Debug, Clone, Copy, Component)]
+#[derive(Debug, Clone, Component)]
 pub struct Container {
-    /// How much volume it can hold, in millilitres.
+    /// The pockets it holds things in, in the order the reference offers them.
+    ///
+    /// **A pocket is its own limit.** The reference's `item_contents::insert_item` offers a payload to each pocket in turn and takes the first that accepts it, so a
+    /// backpack whose pockets hold 25,000 + 510 + 5,000 + 5,000 ml **refuses** a 30,000 ml branch (`src/item_pocket.cpp:1435-1560`). One pooled capacity would take it.
+    pub pockets: Vec<Pocket>,
+}
+
+/// One pocket: how much it holds, and what it will accept.
+///
+/// Reference: `pocket_data` (`src/item_pocket.h:500-570`). The port keeps the three facts the rules read: the volume, [`Pocket::watertight`] for liquids and
+/// [`Pocket::airtight`] for gases.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Pocket {
+    /// How much volume it holds, in millilitres.
     pub capacity_ml: i64,
-    /// Whether a liquid may go in.
-    ///
-    /// Reference: `pocket_data::watertight` (`src/item_pocket.h:512`), which `item_pocket::can_contain` insists on before it will take a liquid
-    /// (`src/item_pocket.cpp:1396-1401`). A container with several pockets accepts a liquid if **any** of them is watertight.
+    /// Whether a liquid may go in (`pocket_data::watertight`, `src/item_pocket.h:512`).
     pub watertight: bool,
-    /// Whether a gas may go in.
-    ///
-    /// Reference: `pocket_data::airtight` (`src/item_pocket.h:514`), the same check for `phase_id::GAS`.
+    /// Whether a gas may go in (`pocket_data::airtight`, `src/item_pocket.h:514`).
     pub airtight: bool,
 }
 
 impl Container {
-    /// A container of a given capacity that takes solids only, which most of them do.
+    /// A container with one pocket of a given capacity that takes solids only, which is what most containers are.
     #[must_use]
-    pub const fn new(capacity_ml: i64) -> Self {
-        Self {
+    pub fn new(capacity_ml: i64) -> Self {
+        Self::with_pockets(vec![Pocket {
             capacity_ml,
             watertight: false,
             airtight: false,
-        }
+        }])
     }
 
-    /// The same container, able to hold a liquid.
+    /// A container of the pockets the data gives it.
     #[must_use]
-    pub const fn watertight(self) -> Self {
-        Self {
-            watertight: true,
-            ..self
-        }
+    pub fn with_pockets(pockets: Vec<Pocket>) -> Self {
+        Self { pockets }
     }
 
-    /// The same container, able to hold a gas.
+    /// The same container with every pocket able to hold a liquid.
     #[must_use]
-    pub const fn airtight(self) -> Self {
-        Self {
-            airtight: true,
-            ..self
+    pub fn watertight(mut self) -> Self {
+        for pocket in &mut self.pockets {
+            pocket.watertight = true;
         }
+        self
+    }
+
+    /// The same container with every pocket able to hold a gas.
+    #[must_use]
+    pub fn airtight(mut self) -> Self {
+        for pocket in &mut self.pockets {
+            pocket.airtight = true;
+        }
+        self
+    }
+
+    /// What all its pockets hold together, in millilitres.
+    #[must_use]
+    pub fn capacity_ml(&self) -> i64 {
+        self.pockets.iter().map(|pocket| pocket.capacity_ml).sum()
     }
 }
 
@@ -4309,6 +4329,12 @@ impl ItemFacts {
 #[derive(Debug, Clone, Copy, Component)]
 pub struct Inside(pub Entity);
 
+/// Which of the container's pockets took the item.
+///
+/// The reference keeps the payload inside the pocket object itself; the port names the pocket by its index, so the room used in one pocket does not pay for another.
+#[derive(Debug, Clone, Copy, Component)]
+pub struct InPocket(pub usize);
+
 /// Why something could not be put in a container.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InsertError {
@@ -4346,41 +4372,61 @@ pub fn insert_into(
     if world.get::<Inside>(item).is_some() {
         return Err(InsertError::AlreadyInside);
     }
-    let Some(capacity) = world.get::<Container>(container).copied() else {
+    let Some(capacity) = world.get::<Container>(container).cloned() else {
         return Err(InsertError::TooBig {
             remaining_ml: 0,
             wanted_ml: facts_of(item).volume_ml,
         });
     };
-    // **The phase first**, because it is the answer that does not depend on room: the reference asks `can_contain` before it measures anything, and its refusal for a
-    // liquid in a dry pocket comes before the space check (`src/item_pocket.cpp:1396-1401`).
     let wanted_facts = facts_of(item);
-    let phase_allowed = match wanted_facts.phase {
-        Phase::Solid => true,
-        Phase::Liquid => capacity.watertight,
-        Phase::Gas => capacity.airtight,
-    };
-    if !phase_allowed {
+    // **What each pocket has left**, and whether it will take this phase at all. The reference's `insert_item` walks the pockets in order and stops at the first that
+    // accepts, which is why a big payload cannot be paid for out of two small pockets.
+    let mut room: Vec<i64> = capacity
+        .pockets
+        .iter()
+        .map(|pocket| pocket.capacity_ml)
+        .collect();
+    let occupants: Vec<(Entity, usize)> = world
+        .query::<(Entity, &Inside, &InPocket)>()
+        .iter(world)
+        .filter(|(_, inside, _)| inside.0 == container)
+        .map(|(entity, _, InPocket(index))| (entity, *index))
+        .collect();
+    for (entity, index) in occupants {
+        if let Some(slot) = room.get_mut(index) {
+            *slot -= facts_of(entity).volume_ml;
+        }
+    }
+    let mut best_room: Option<i64> = None;
+    let mut chosen: Option<usize> = None;
+    for (index, pocket) in capacity.pockets.iter().enumerate() {
+        let phase_allowed = match wanted_facts.phase {
+            Phase::Solid => true,
+            Phase::Liquid => pocket.watertight,
+            Phase::Gas => pocket.airtight,
+        };
+        if !phase_allowed {
+            continue;
+        }
+        let left = room.get(index).copied().unwrap_or(0);
+        best_room = Some(best_room.map_or(left, |best| best.max(left)));
+        if chosen.is_none() && wanted_facts.volume_ml <= left {
+            chosen = Some(index);
+        }
+    }
+    let Some(best_room) = best_room else {
+        // **No pocket will take this phase at all**, which is the refusal that does not depend on room.
         return Err(InsertError::WrongPhase {
             phase: wanted_facts.phase,
         });
-    }
-    let volume_of = |entity: Entity| facts_of(entity).volume_ml;
-    let mut used = 0;
-    for (entity, inside) in world.query::<(Entity, &Inside)>().iter(world) {
-        if inside.0 == container {
-            used += volume_of(entity);
-        }
-    }
-    let wanted = wanted_facts.volume_ml;
-    let remaining = capacity.capacity_ml - used;
-    if wanted > remaining {
+    };
+    let Some(index) = chosen else {
         return Err(InsertError::TooBig {
-            remaining_ml: remaining,
-            wanted_ml: wanted,
+            remaining_ml: best_room,
+            wanted_ml: wanted_facts.volume_ml,
         });
-    }
-    world.entity_mut(item).insert(Inside(container));
+    };
+    world.entity_mut(item).insert((Inside(container), InPocket(index)));
     Ok(())
 }
 
