@@ -20,6 +20,7 @@ mod butchery;
 mod butchery_activity;
 mod consume_filter;
 mod consume_amount;
+mod container_fill;
 mod consume_contents;
 mod consume_liquids;
 mod consume_items;

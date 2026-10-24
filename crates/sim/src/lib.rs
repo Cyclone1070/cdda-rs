@@ -5059,6 +5059,83 @@ fn offer_pile(
     }
 }
 
+/// What a spawning group does with an item its container will not take.
+///
+/// Reference: `Item_spawn_data::overflow_behaviour` (`src/item_group.h`), named by `on_overflow` in the data.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Overflow {
+    /// Put it on the ground beside the container.
+    Spill,
+    /// Throw it away on purpose.
+    Discard,
+    /// The data was wrong: report it and throw the item away all the same.
+    ///
+    /// This is not the same as "leave it out", which is what the name suggests. `put_into_container` erases **every** drawn item from the group's list and puts back only
+    /// what reached its `excess` pile, and a `none` item never gets there (`src/item_group.cpp:157-171`) - so the player finds nothing, exactly as with a discard.
+    None,
+}
+
+/// What became of a group's items.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Filled {
+    /// How many went into the container.
+    pub inside: usize,
+    /// How many did not fit.
+    pub left_over: usize,
+}
+
+/// Puts a run of freshly spawned items into a container, spilling or losing what does not fit.
+///
+/// Reference: `put_into_container` (`src/item_group.cpp:115-171`). Each item is offered to the container in turn; one that does not fit is **spilled** (left on the
+/// ground), **discarded**, or lost with a diagnostic, according to the group's `on_overflow`.
+///
+/// The reference shuffles the run before offering it (`std::shuffle` over the group's own engine) so that it is not always the last items that are rejected. That shuffle
+/// is **not modelled here**: the items are offered in the order they were drawn, which is a difference in *which* item is spilled rather than in how many - and it is
+/// recorded in the ledger as an open gap rather than hidden.
+///
+/// A corpse is not special-cased: the reference forces one into a container whatever its volume says (`ctr.is_corpse()`), and the port has no corpse container rule yet.
+pub fn fill_container(
+    world: &mut World,
+    container: Entity,
+    kinds: &[ItemTypeId],
+    overflow: Overflow,
+    facts_of: impl Fn(Entity) -> ItemFacts + Copy,
+) -> Filled {
+    let Some(position) = world.get::<Position>(container).copied() else {
+        return Filled { inside: 0, left_over: kinds.len() };
+    };
+    let mut filled = Filled { inside: 0, left_over: 0 };
+    for kind in kinds {
+        let item = world
+            .spawn((
+                Position {
+                    x: position.x,
+                    y: position.y,
+                    z: position.z,
+                },
+                GroundItem {
+                    burnt: 0,
+                    damage: 0,
+                    kind: *kind,
+                    charges: 1,
+                    age: 0,
+                    burn: None,
+                },
+            ))
+            .id();
+        if insert_into(world, container, item, facts_of).is_ok() {
+            filled.inside += 1;
+            continue;
+        }
+        filled.left_over += 1;
+        if overflow != Overflow::Spill {
+            // `discard` and `none` both end with the item out of the group's list and out of the world.
+            remove_item_with_contents(world, item);
+        }
+    }
+    filled
+}
+
 /// Removes an item **and everything inside it**.
 ///
 /// An item in the reference is one object: taking the container takes what it holds, and the contents are not left behind as things on the square. The port's contents
