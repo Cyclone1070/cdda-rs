@@ -274,7 +274,9 @@ three against the reference's own recorded day. Two things finish it and one thi
 4. **Weather in the world** is wired (round 513): `Climate` is a resource, `tick_climate` runs a turn of it, and `run_environment_turn` takes the world's wind over its own.
    The recorded session with a transition now exists (round 531: `--turn-minutes` and the sky on every turn) and both halves of it are gated - the point is recomputed from the
    generator's own inputs (round 532) and the manager's decisions are replayed from the reference's dice, sector included (round 533).
-5. Then light across z-levels, and vision.
+5. **Vision across z-levels** now has its oracle (round 536): `--dump-visibility` writes each level's `seen_cache` and `transparency_cache`, and the first fixture shows
+   the character seeing two squares of the level below through an opening and nothing above it. The port's cast still stops at its own level, which is the next piece.
+6. Then the per-turn state hash that ties the session gates together.
 
 ## 4. Phase detail
 

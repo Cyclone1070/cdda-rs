@@ -91,6 +91,7 @@ mod spared_newborns;
 mod spread_gas;
 mod sunlight_system;
 mod terrain_transparency;
+mod vision_levels;
 mod turn_light;
 mod weather;
 mod wind_reach;

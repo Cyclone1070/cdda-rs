@@ -2986,6 +2986,26 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## Vision across levels is recorded now (round 536)
+
+Vision is the one environment layer with nothing recorded for it: `--dump-frame` carries the **light** a square stands in, and light is not sight. `--dump-visibility`
+dumps each level's `seen_cache` and `transparency_cache` after the same `build_map_cache` the game would run, over seventeen squares square and three levels.
+
+`corpus/vision/start-location.json` is the first recording, from the fixed world's start square at `(71,70,0)`, and it says three things a per-level cast cannot:
+
+| Level | Visible squares | What it means |
+|---|---|---|
+`z` (the character's own) | 220 of 289 | an open room with walls where the cast stops |
+`z + 1` | **0** | the character is under a roof, so the level above contributes nothing |
+`z - 1` | **2**, at `0.891` each | two squares of the floor below are visible through an opening |
+
+The last row is the gap the port's per-level cast has: its sight never leaves the level it starts on. The dump's `transparency_cache` column explains why the fixture
+is a good one - every square in this world reads either `0` (solid) or `0.0383`, the open-air value **already multiplied by the weather's sight penalty**
+(`lightmap.cpp:152-157`), so a port that used the open-air constant would see further than the reference in bad weather.
+
+Two gates pin what the fixture says rather than what the port does: three levels of the right shape with the character's own square always visible, and the
+reach that crosses a level - two squares below at `0.891`, nothing above.
+
 ## Scent diffusion replays, and the fixture's window was the bug (round 535)
 
 The scent session is green: fourteen turns of the port's window against the reference's, every square of a thirty-seven-square window, from one seeded square to
