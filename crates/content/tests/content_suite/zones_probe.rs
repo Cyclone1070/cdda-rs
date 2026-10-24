@@ -198,3 +198,55 @@ fn every_square_gets_the_manager_s_answer() {
     }
     assert!(wrong.is_empty(), "{} wrong of 1,440 answers:\n{}", wrong.len(), wrong.join("\n"));
 }
+
+/// The cached question, and the one thing it does differently.
+///
+/// `has` and `has_near` read a **point set** the manager builds by walking every zone's squares (`cache_data`, `src/clzones.cpp:892-917`) — and that walk **skips a zone
+/// that is switched off**. The queries above do not. So the fixture's switched-off zone is the answer to "what am I standing in" on nine squares and the answer to "is there
+/// a food zone here" on none of them, and a port that used one list for both questions fails here while passing every other gate.
+#[test]
+fn the_cached_questions_skip_a_switched_off_zone() {
+    let (owned, others) = recorded();
+    let mut manager = ZoneManager::new();
+    for zone in owned.iter().chain(&others) {
+        manager.add(zone.clone());
+    }
+    let json = std::fs::read_to_string(corpus()).expect("the dump");
+    let root = cdda_json::parse(json.as_bytes()).expect("valid JSON");
+    let mut wrong = Vec::new();
+    let mut switched_off_answers = 0;
+    let mut switched_off_only = 0;
+    for probe in array(&root, "probes") {
+        let where_ = (number(probe, "x"), number(probe, "y"), 0);
+        let cached = |key: &str| flag(probe, key);
+        let ported = [
+            ("has_food", manager.has(where_, "LOOT_FOOD", "your_followers")),
+            ("has_water", manager.has(where_, "LOOT_DRINK", "your_followers")),
+            ("has_fishing", manager.has(where_, "FISHING_SPOT", "your_followers")),
+            ("near_food_2", manager.has_near(where_, 2, "LOOT_FOOD", "your_followers")),
+            ("near_water_1", manager.has_near(where_, 1, "LOOT_DRINK", "your_followers")),
+        ];
+        for (key, answer) in ported {
+            if answer != cached(key) {
+                wrong.push(format!("({},{}): {key} is {answer} against {}", where_.0, where_.1, cached(key)));
+            }
+        }
+        // Two counts, because they are different facts: how often the switched-off zone is **the** answer to "what am I standing in", and how often it is the answer while
+        // the cached question says there is no food zone at all. The second is what a port that shared one list between the two questions would get wrong.
+        if text(probe, "bottom") == "Switched off" {
+            switched_off_answers += 1;
+            if !cached("has_food") {
+                switched_off_only += 1;
+            }
+        }
+    }
+    assert!(
+        switched_off_answers >= 9,
+        "the switched-off zone is the bottom answer on nine squares: {switched_off_answers}"
+    );
+    assert!(
+        switched_off_only >= 5,
+        "and on five of those it is the only zone, so the cached question says no: {switched_off_only}"
+    );
+    assert!(wrong.is_empty(), "{} wrong of 1,200 answers:\n{}", wrong.len(), wrong.join("\n"));
+}

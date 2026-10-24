@@ -24,8 +24,10 @@ all, laid over a square a loot zone already covers.
 | Zones of the owner's faction | 7 |
 | Zones of another faction | 1 |
 | Probed squares | 240 |
-| Answers compared | 1,440 |
+| Answers compared | 2,640 |
 | Squares where `bottom` and the loot-only answer differ | 9 |
+| Squares where the switched-off zone is the bottom answer | 9 |
+| … and the cached question says there is no food zone | 5 |
 
 Regenerate with:
 

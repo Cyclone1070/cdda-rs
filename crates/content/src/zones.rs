@@ -7,7 +7,7 @@
 //! `"zone_type"`, so a loader that looks for its own name finds nothing and a gate that counts what it found is happy with zero.
 
 use cdda_json::{Object, Value};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// One zone type the data defines.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -240,4 +240,64 @@ impl ZoneManager {
             .rev()
             .find(|zone| zone.faction == faction && zone.zone_type.starts_with("LOOT") && zone.has_inside(at))
     }
+}
+
+impl ZoneManager {
+    /// Every square a type of zone covers, for one faction — the set the cached questions are asked of.
+    ///
+    /// Reference: `zone_manager::cache_data` (`src/clzones.cpp:892-917`), which walks every zone and inserts each square of its rectangle under `type + faction`.
+    ///
+    /// **It skips a zone that is switched off**, and that is the one place in the manager where `enabled` matters. The lookups that walk the zone list
+    /// ([`ZoneManager::zones_at`], [`ZoneManager::bottom_zone`]) return a switched-off zone; the ones that read this set do not.
+    ///
+    /// The reference builds this once per mutation and can answer from a set that is a turn out of date; the port builds it on demand, so its answer is always the current
+    /// one — which is what the reference's next `cache_data` produces.
+    #[must_use]
+    pub fn points_of(&self, zone_type: &str, faction: &str) -> BTreeSet<(i32, i32, i32)> {
+        let mut points = BTreeSet::new();
+        for zone in &self.zones {
+            if !zone.enabled || zone.faction != faction || zone.zone_type != zone_type {
+                continue;
+            }
+            let (sx, ex) = ordered(zone.start.0, zone.end.0);
+            let (sy, ey) = ordered(zone.start.1, zone.end.1);
+            let (sz, ez) = ordered(zone.start.2, zone.end.2);
+            for z in sz..=ez {
+                for y in sy..=ey {
+                    for x in sx..=ex {
+                        points.insert((x, y, z));
+                    }
+                }
+            }
+        }
+        points
+    }
+
+    /// Whether any zone of a type covers the square, counting only zones that are switched on.
+    ///
+    /// Reference: `zone_manager::has` (`src/clzones.cpp:1041-1047`), which asks the cached set. Note that this is **not** [`ZoneManager::zones_at`] being empty: a
+    /// switched-off zone contains the square and is not in the set.
+    #[must_use]
+    pub fn has(&self, at: (i32, i32, i32), zone_type: &str, faction: &str) -> bool {
+        self.points_of(zone_type, faction).contains(&at)
+    }
+
+    /// Whether any zone of a type covers a square within `range` of this one, counting only zones that are switched on.
+    ///
+    /// Reference: `zone_manager::has_near` (`src/clzones.cpp:1049-1063`), which measures `square_dist` — the **larger** of the two axis distances, so a range of one covers
+    /// the eight neighbours and a diagonal is as far as a straight line. `square_dist` on three-dimensional points ignores the level, so a zone on the floor above counts;
+    /// the fixture is flat and does not distinguish that.
+    #[must_use]
+    pub fn has_near(&self, at: (i32, i32, i32), range: i32, zone_type: &str, faction: &str) -> bool {
+        self.points_of(zone_type, faction)
+            .iter()
+            .any(|point| square_dist(*point, at) <= range)
+    }
+}
+
+/// The larger of the two axis distances, which is how the reference measures "near".
+///
+/// Reference: `square_dist( const tripoint &, const tripoint & )` (`src/line.cpp`), which takes the maximum of the x and y differences and **ignores z**.
+fn square_dist(a: (i32, i32, i32), b: (i32, i32, i32)) -> i32 {
+    (a.0 - b.0).abs().max((a.1 - b.1).abs())
 }
