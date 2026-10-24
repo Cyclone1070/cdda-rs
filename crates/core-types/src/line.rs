@@ -263,6 +263,60 @@ impl Walk {
 }
 
 
+
+/// The normalised direction of a line, as `slope_of` computes it (`src/line.cpp:343-352`).
+///
+/// The divisor is the **float** Euclidean distance - `trig_dist` returns a `float` - so the arithmetic below squares in `f64`, takes the square root, rounds it through
+/// `f32`, and only then divides. The narrowing is transcribed because it is what the reference's return type does, not because a recorded case depends on it: none of
+/// the thirteen walks in `corpus/line/move_along.json` changes if the root stays in `f64`, and the corpus says nothing about headings long enough for the difference to
+/// show.
+fn slope_of(from: [i32; 3], to: [i32; 3]) -> (f64, f64, f64) {
+    let [fx, fy, fz] = from;
+    let [tx, ty, tz] = to;
+    let (dx, dy, dz) = (tx - fx, ty - fy, tz - fz);
+    let squared = f64::from(dx) * f64::from(dx)
+        + f64::from(dy) * f64::from(dy)
+        + f64::from(dz) * f64::from(dz);
+    // Narrowing here is the reference's return type, not a shortcut: `trig_dist` returns a `float`.
+    #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+    let length = f64::from(squared.sqrt() as f32);
+    #[allow(clippy::cast_precision_loss)]
+    (
+        f64::from(dx) / length,
+        f64::from(dy) / length,
+        f64::from(dz) / length,
+    )
+}
+
+/// Where a projectile that keeps its heading for `distance` steps ends up.
+///
+/// Reference: `move_along_line` (`src/line.cpp:380-406`). `loc` is where the projectile is, and `from`/`to` are the heading it keeps; the offset is
+/// `distance * slope`, truncated to an integer the way the reference's `int += double` truncates - towards zero, so a step backwards truncates the same way a step
+/// forwards does.
+///
+/// A heading that has no length does not move the projectile. The reference **asserts** instead (`slope_of`, `src/line.cpp:345`), so this is the one place the two
+/// differ, and it differs by being defined rather than by being different where the reference is defined.
+#[must_use]
+pub fn move_along_line(loc: [i32; 3], from: [i32; 3], to: [i32; 3], distance: i32) -> [i32; 3] {
+    if from == to {
+        return loc;
+    }
+    let (sx, sy, sz) = slope_of(from, to);
+    // `as i32` truncates towards zero, which is what `int += double` does in the reference.
+    #[allow(clippy::cast_possible_truncation)]
+    let step = |slope: f64| (f64::from(distance) * slope) as i32;
+    [loc[0] + step(sx), loc[1] + step(sy), loc[2] + step(sz)]
+}
+
+/// The line a projectile would walk if it kept its heading past `to`.
+///
+/// Reference: `continue_line` (`src/line.cpp:408-414`): the heading is re-anchored at the far end and the walk starts again from there, which is why the result is a
+/// fresh line rather than an extension of the old one.
+#[must_use]
+pub fn continue_line(from: [i32; 3], to: [i32; 3], distance: i32) -> Vec<[i32; 3]> {
+    line_to_3d(to, move_along_line(to, from, to, distance), 0, 0)
+}
+
 /// The adjacent squares a mover should try when it wants to get closer to `to`, in the order it should try them.
 ///
 /// Reference: `squares_closer_to` (`src/line.cpp:700-733`). The shapes are:
