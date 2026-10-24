@@ -4,6 +4,7 @@
 
 use cdda_content::item_group_draw::{Definition, Entry, draw, load_definitions};
 use cdda_core_types::rng::Rolls;
+use std::fmt::Write as _;
 use std::collections::BTreeMap;
 
 fn from_json(text: &str) -> BTreeMap<String, Definition> {
@@ -242,4 +243,53 @@ fn a_count_of_zero_produces_nothing() {
         cdda_core_types::rng::Recording::parse(recording).expect("a recording"),
     );
     assert!(draw(&groups, "an_empty_box", &mut rolls).is_empty());
+}
+
+/// A group that names one of its own ancestors stops there, and says so by producing nothing from that branch.
+///
+/// Reference: `Single_item_creator::create` (`src/item_group.cpp:307-312`): the expansion keeps a `RecursionList` of the groups it is inside, and a group that is already on
+/// it is an **error** - `debugmsg( "recursion in item spawn list %s" )` - and the branch ends. The test is a set of names, not a depth, which is what makes a cycle of any
+/// length stop at the second visit.
+#[test]
+fn a_cycle_stops_at_the_second_visit() {
+    let groups = from_json(
+        r#"[{"type":"item_group","id":"a","entries":[{"group":"b"}]},
+            {"type":"item_group","id":"b","entries":[{"group":"a"},{"item":"meat"}]}]"#,
+    );
+    let mut rolls = Rolls::new(7);
+    let drawn = draw(&groups, "a", &mut rolls);
+    assert_eq!(
+        drawn,
+        vec![("meat".to_owned(), 1)],
+        "the cycle produced nothing, and the entry beside it still did: {drawn:?}"
+    );
+}
+
+/// Nesting deeper than the old guard allowed is not an error, and loses nothing.
+///
+/// The reference's guard is a set of names, so a chain of ten distinct groups is drawn in full; the port used to stop at a depth of eight, which silently dropped the items
+/// of a group that was nested legally deep. The fixture is ten groups, each holding the next one.
+#[test]
+fn deep_nesting_is_drawn_in_full() {
+    let mut json = String::from("[");
+    for level in 0..10 {
+        if level > 0 {
+            json.push(',');
+        }
+        let body = if level == 9 {
+            r#"{"item":"meat"}"#.to_owned()
+        } else {
+            format!(r#"{{"group":"g{}"}}"#, level + 1)
+        };
+        write!(
+            json,
+            r#"{{"type":"item_group","id":"g{level}","entries":[{body}]}}"#
+        )
+        .expect("a string write cannot fail");
+    }
+    json.push(']');
+    let groups = from_json(&json);
+    let mut rolls = Rolls::new(11);
+    let drawn = draw(&groups, "g0", &mut rolls);
+    assert_eq!(drawn, vec![("meat".to_owned(), 1)], "ten levels down: {drawn:?}");
 }

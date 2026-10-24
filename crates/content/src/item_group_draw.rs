@@ -273,7 +273,7 @@ pub fn draw_with_holiday(
     holiday: Option<&str>,
 ) -> Vec<(String, i32)> {
     let mut out = Vec::new();
-    draw_into(definitions, id, rolls, &mut out, 0, holiday);
+    draw_into(definitions, id, rolls, &mut out, &mut Vec::new(), holiday);
     out
 }
 
@@ -291,21 +291,41 @@ fn count_to_make(count: (i32, i32), rolls: &mut Rolls) -> usize {
     usize::try_from(made).unwrap_or(0)
 }
 
+/// Expands one group into `out`, refusing to re-enter a group it is already inside.
+///
+/// Reference: `Single_item_creator::create` (`src/item_group.cpp:307-312`) keeps a `RecursionList` of the groups the expansion is inside, pushes the nested group before
+/// expanding it and pops it after, and treats a repeat as an **error**: `debugmsg( "recursion in item spawn list %s" )`, and the branch ends. The test is the **set of
+/// names**, not a depth - a cycle of any length stops at its second visit, and a legally deep chain is drawn in full.
 fn draw_into(
     definitions: &BTreeMap<String, Definition>,
     id: &str,
     rolls: &mut Rolls,
     out: &mut Vec<(String, i32)>,
-    depth: usize,
+    chain: &mut Vec<String>,
     holiday: Option<&str>,
 ) {
-    // A group that names itself would otherwise draw forever; the reference rejects such data at load time.
-    if depth > 8 {
+    if chain.iter().any(|inside| inside == id) {
+        // The reference reports this and returns; the port has no message sink here, so the branch simply ends. What matters is that it ends **here** and not
+        // eight levels down, which is what a depth guard does.
         return;
     }
     let Some(definition) = definitions.get(id) else {
         return;
     };
+    chain.push(id.to_owned());
+    expand(definitions, definition, rolls, out, chain, holiday);
+    chain.pop();
+}
+
+/// The two group kinds, once the recursion check has been made.
+fn expand(
+    definitions: &BTreeMap<String, Definition>,
+    definition: &Definition,
+    rolls: &mut Rolls,
+    out: &mut Vec<(String, i32)>,
+    chain: &mut Vec<String>,
+    holiday: Option<&str>,
+) {
     if definition.distribution {
         // `sum_prob` is the sum of the **raw** weights, holiday entries included, and the whole draw is one question
         // (`int p = rng( 0, sum_prob - 1 )`, `src/item_group.cpp:844`).
@@ -328,7 +348,7 @@ fn draw_into(
                         out.push((id.clone(), i32::try_from(made).unwrap_or(i32::MAX)));
                     }
                 }
-                Entry::Group { id, .. } => draw_into(definitions, id, rolls, out, depth + 1, holiday),
+                Entry::Group { id, .. } => draw_into(definitions, id, rolls, out, chain, holiday),
                 Entry::Nothing { .. } => {}
             }
             return;
@@ -347,7 +367,7 @@ fn draw_into(
                     out.push((id.clone(), i32::try_from(made).unwrap_or(i32::MAX)));
                 }
             }
-            Entry::Group { id, .. } => draw_into(definitions, id, rolls, out, depth + 1, holiday),
+            Entry::Group { id, .. } => draw_into(definitions, id, rolls, out, chain, holiday),
             Entry::Nothing { .. } => {}
         }
     }
