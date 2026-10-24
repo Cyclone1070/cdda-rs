@@ -118,7 +118,7 @@ the corner draws the same ticket the port's arithmetic predicts, so the disagree
 in what plain ground, own biome and neighbour each turn into - rather than in the raffle itself.
 
 The suite now also runs **on a second machine and a second platform**: `tools/remote_test.py` syncs the workspace to
-a Linux desktop and runs every gate there in about twenty seconds, so the same 969 cases are verified on macOS and
+a Linux desktop and runs every gate there in about thirty seconds, so the same 1,217 cases are verified on macOS and
 Linux on each run.
 
 **P2 stands here.** Read this against `03-decisions.md`: things are nouns, systems are verbs,
@@ -458,6 +458,33 @@ actions (187 functions), examine actions (107 functions), consumption, butchery,
 **Exit gate (M3a).** Replay equality on item, pocket, crafting, construction and use-action sessions;
 the corresponding reference tests (iteminfo 3,322 lines, item_pocket 2,995, crafting 2,476) re-expressed
 as port-side tests.
+
+### P3 status at round 600
+
+Read this with `docs/parity.md`, which carries a row per behaviour; what follows is the shape of the phase.
+
+**In and gated.** Item types and their prototypes (the digest half of M1). Item volume and weight with the
+charge rule, contents and the integral volume. Pockets and containers: the compatibility chain, insertion and
+removal, and the per-charge volume cap. Item groups: the collection and distribution dice, the holiday skip,
+the fixed count that draws no die, the recursion set that stops a cycle at its second visit, the container
+overflow behaviours (**spill, discard, and the `none` that loses the item too**), the corpse that takes what
+does not fit, and the leading `std::shuffle` — reproduced against **36 recorded permutations**, because that
+shuffle runs on the standard library's engine and no `rng()` hook ever sees its dice. Consuming: the charges
+walk (spawn order, the filter asked before the type, the liquid gate before both, contents **pre-order** after
+their container) and the amounts walk (whole items, contents **first and bottom up**) — two functions that look
+alike and are not. Crafting: requirement satisfaction, the batch time rule and its floor, the work turns, and
+the unfinished craft that holds its own parts. The line family a use action needs: the 2D and 3D walks,
+`squares_closer_to`, `move_along_line`/`continue_line`, and `clear_path` with its three habits (the last square
+never checked, the inclusive flat comparison against the strictly-climbing one, and support in either column).
+
+**Next, in order.** The pockets' **length** limits, which the reference reports beside weight in one message
+and which the port still ignores. The item's own `volume` override, corpses and crafts. Then the layer the
+phase is named for: an inventory that is a set of entity handles rather than an `item_location` scheme, so
+that wielding, wearing and magazine loading can be ported once instead of twice. Use and examine actions come
+after that, because every one of them starts by asking an inventory something.
+
+**Not started, and named.** Hunger and thirst themselves (the eating *data* is loaded: nutrition, quench and
+charges-per-use), butchery, liquids as a system, auto-pickup, and the 107 examine actions.
 
 ---
 
