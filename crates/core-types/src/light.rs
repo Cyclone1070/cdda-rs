@@ -50,6 +50,31 @@ pub enum LitLevel {
     Blank,
 }
 
+/// What the map itself makes of a square's light, before anybody looks at it.
+///
+/// Reference: `map::light_at` (`src/lightmap.cpp:674-697`). Four arms, in this order, and the order is the behaviour:
+///
+/// 1. a light source in the square at or above [`SOURCE_BRIGHT`] is [`LitLevel::Bright`] - the source is the square's own, not the light that reached it;
+/// 2. otherwise a square at or above [`AMBIENT_LIT`] is [`LitLevel::Lit`];
+/// 3. at or above [`AMBIENT_LOW`] it is [`LitLevel::Low`];
+/// 4. and below both it is [`LitLevel::Dark`].
+///
+/// It never answers [`LitLevel::BrightOnly`] or [`LitLevel::Blank`]: those are what [`apparent_light`] adds when the player's own eyes, obstruction and range are brought
+/// in. Keeping the two apart matters because the draw path asks this one first and the two have different sets of answers.
+#[must_use]
+pub fn light_at(source: f32, brightest: f32) -> LitLevel {
+    if source >= SOURCE_BRIGHT {
+        return LitLevel::Bright;
+    }
+    if brightest >= AMBIENT_LIT {
+        return LitLevel::Lit;
+    }
+    if brightest >= AMBIENT_LOW {
+        return LitLevel::Low;
+    }
+    LitLevel::Dark
+}
+
 /// What the player can make of a square once the light is known.
 ///
 /// Reference: `enum class visibility_type` (`src/enums.h:128-135`). A boomer's bile is the only thing that changes the answer, and it changes it for every value.

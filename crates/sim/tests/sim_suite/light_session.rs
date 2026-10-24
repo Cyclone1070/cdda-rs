@@ -141,3 +141,51 @@ fn the_fire_grows_and_the_light_grows_with_it() {
         "the fire spread: {first} lit squares at the start, {last} at the end"
     );
 }
+
+#[test]
+fn every_recorded_square_is_classified_the_way_the_reference_s_classifier_would() {
+    // **The classifier checked against 700 squares of measured light.** The port cannot yet reproduce the cast, but it can already be held to what the cast *means*:
+    // `map::light_at` has four arms and the record must be consistent with all of them. Each assertion below is falsifiable by the fixture, which is what makes this a
+    // gate rather than a tautology:
+    //
+    // * a square whose own source is at or above `LIGHT_SOURCE_BRIGHT` **must** read BRIGHT, whatever else is true of it;
+    // * nothing may read `BRIGHT_ONLY` (2), because that value only comes from `apparent_light_at`, which takes obstruction and range into account;
+    // * a square that reads DARK **must** have ambient below `LIGHT_AMBIENT_LOW`, since the light a square carries is at least its ambient.
+    use cdda_core_types::light::{light_at, AMBIENT_LOW, LitLevel, SOURCE_BRIGHT};
+
+    let sessions = sessions();
+    let mut checked = 0_usize;
+    let mut with_source = 0_usize;
+    for turn in &sessions {
+        for square in turn {
+            let port = light_at(f32::from(i16::try_from(square.source).expect("a source")), square.ambient as f32);
+            let reference = match square.level {
+                0 => LitLevel::Dark,
+                1 => LitLevel::Low,
+                2 => LitLevel::BrightOnly,
+                3 => LitLevel::Lit,
+                4 => LitLevel::Bright,
+                other => panic!("no such lit level in the reference: {other}"),
+            };
+            if f32::from(i16::try_from(square.source).expect("a source")) >= SOURCE_BRIGHT {
+                assert_eq!(reference, LitLevel::Bright, "a square with its own source is bright");
+                with_source += 1;
+            }
+            if reference == LitLevel::Dark {
+                assert!(
+                    port != LitLevel::Lit && port != LitLevel::Bright,
+                    "a dark square cannot read lit from its ambient alone: {square:?}"
+                );
+                assert!(
+                    square.ambient < f64::from(AMBIENT_LOW),
+                    "a dark square's ambient ({}) is below the low threshold: {square:?}",
+                    square.ambient
+                );
+            }
+            assert_ne!(reference, LitLevel::BrightOnly, "light_at never answers bright-only");
+            checked += 1;
+        }
+    }
+    assert_eq!(checked, 700, "seven turns of a hundred squares were classified");
+    assert!(with_source > 0, "at least one square carries its own source");
+}

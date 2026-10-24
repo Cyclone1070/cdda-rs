@@ -57,3 +57,29 @@ fn a_bright_source_outranks_full_daylight() {
     // in the reference, and swapping the two would be invisible until it mattered.
     assert_eq!(lit_level(true, 10.0, 40.0), LitLevel::Bright);
 }
+
+#[test]
+fn the_map_s_own_light_at_is_four_arms_and_never_says_bright_only() {
+    // **`map::light_at` (`src/lightmap.cpp:674-697`), transcribed.** It is not `apparent_light_at`: it knows nothing about obstruction, range or remembering, and it is
+    // what the draw path asks first. The four arms are, in the reference's order, a source in the square (BRIGHT), then `LIGHT_AMBIENT_LIT` (LIT), then
+    // `LIGHT_AMBIENT_LOW` (LOW), then DARK - so a square with a source of ten is BRIGHT even when it is otherwise black, and a square at 9.999 is not.
+    use cdda_core_types::light::{light_at, LitLevel};
+
+    assert_eq!(light_at(10.0, 0.0), LitLevel::Bright, "a source at the threshold is bright");
+    assert_eq!(light_at(9.99, 9.99), LitLevel::Low, "just under it is not, whatever the field says");
+    assert_eq!(light_at(0.0, 10.0), LitLevel::Lit, "the lit threshold is inclusive");
+    assert_eq!(light_at(0.0, 9.99), LitLevel::Low, "and just under it is low");
+    assert_eq!(light_at(0.0, 3.5), LitLevel::Low, "the low threshold is inclusive too");
+    assert_eq!(
+        light_at(0.0, 3.49),
+        LitLevel::Dark,
+        "below both thresholds there is nothing to see by"
+    );
+    // **Never `BRIGHT_ONLY`.** That value belongs to `apparent_light_at`, which also weighs obstruction; a `light_at` that returned it would make every caller that
+    // matches on four arms wrong.
+    for source in [0.0, 5.0, 10.0, 1e6] {
+        for light in [0.0, 3.5, 10.0, 1e6] {
+            assert_ne!(light_at(source, light), LitLevel::BrightOnly);
+        }
+    }
+}

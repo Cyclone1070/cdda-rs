@@ -91,6 +91,7 @@ counts, so the next receipt cannot borrow its numbers.
 | Astronomy (was) | **oracle ready, port pending** | P2 | `--dump-astronomy` writes 424 samples of the reference's `sun_azimuth_altitude` and `sun_light_at` across a year (`corpus/astronomy/sun.json`): altitude -69.83 to 68.57 degrees, light 0 to 125. The port of the altitude chain has not started, so nothing is claimed for it yet |
 | Open-sky light | done | P2 | `open_sky_lit_level` joins the sun's curve to the level thresholds: at altitude -15 the curve gives 1.53 which is under `AMBIENT_LOW` and reads dark, at -9 it gives 4.24 which is merely hard to see by, and full daylight is far past lit. Two ported halves, no new numbers |
 | Sunlight curve | done | P2 | `sun_light_from_altitude` reproduces `sun_light_at` (`src/calendar.cpp:381-402`): piecewise, not a cosine - exponential across the three dawns, exponential to the horizon, linear to 60 degrees, flat at 125 above it. Gated on twelve values computed from the expression and on monotonicity over the whole range, because a wrong branch boundary shows up as a dip at dawn. The altitude comes from the **Astronomy** row above: the chain from latitude, day of year and hour is ported and gated on 424 samples of a year |
+| Map light | **partial: the classifier, not the cast** | P2 | `light_at` reproduces `map::light_at` (`src/lightmap.cpp:674-697`) arm for arm: a source at or above `LIGHT_SOURCE_BRIGHT` is **BRIGHT** whatever the field says, then `LIGHT_AMBIENT_LIT` is **LIT**, then `LIGHT_AMBIENT_LOW` is **LOW**, else **DARK** - and it **never** answers `BRIGHT_ONLY` or `BLANK`, which belong to `apparent_light_at` where obstruction, range and memory come in. Six threshold cases plus a sweep asserting those two values never appear. The classifier is also checked against **700 measured squares** of `corpus/fields/light-session.json`: every square with its own source reads BRIGHT, no square reads bright-only, and every dark square's ambient is under the low threshold. **Not ported, declared:** the cast that produces the numbers the classifier reads - a per-turn lightmap over four levels - so the replay of the session is the next slice |
 | Daylight quarters | done | P2 | `CARDINAL_QUADRANTS` reproduces `dir_quadrants` (`src/lightmap.cpp:384-404`): a cardinal lights the two quarters facing it, so a doorway lightens the floor inside it and not the back of the room. Daylight is merged by taking the brighter answer, so a lamp in one corner survives sunrise |
 | Sight falloff | done | P2 | `sight_calc`, `sight_check`, `accumulate_transparency` and `update_light_quadrants` (`src/shadowcasting.h:92-116`). Light falls off as `1 / e^(transparency * distance)` - the Beer-Lambert law with the coefficients merged into a running average - only solid stops it, and two rays reaching one corner do not add because it is the same light however many ways it is computed |
 | Four quadrants | done | P2 | `FourQuadrants` and `Quadrant` reproduce `src/shadowcasting.h:24-90`: four floats per tile indexed NE, SE, SW, NW in the reference's order, with `max`, `fill`, elementwise `multiplied` and `max_with`/`max_with_value`. A tile's light is as bright as its brightest quarter, which is what `lit_level` reads - a lamp around a corner still lights the floor you can see |
@@ -2987,6 +2988,18 @@ Mitigation, in order of cost:
 The instrument itself is not in doubt: it compiles, it is in `oracle/patches/0001-prototype-digest.patch`, and a traced
 run of a world that exists will write the file.
 
+
+## The classifier before the cast (round 553)
+
+`map::light_at` is now ported — four arms, in the reference's order, and it never answers `BRIGHT_ONLY` or `BLANK` because those belong to `apparent_light_at` where
+obstruction, range and memory come in. Six threshold cases pin the boundaries (10.0 is bright, 9.99 is not; 3.5 is low, 3.49 is dark) and a sweep asserts the two
+player-only values never appear for any input.
+
+The classifier is also held against **700 measured squares** of `light-session.json`, which is the useful half: every square carrying its own source reads BRIGHT, no square
+reads bright-only, and every DARK square's ambient is under the low threshold. Those are falsifiable by the fixture — a record with a dark square in daylight would fail
+them — and they cost no cast.
+
+The cast itself is the next slice: a per-turn lightmap over four levels, fed by the recorded ambient and the port's own field emitters, compared to `lit` square by square.
 
 ## Light on four levels, per turn — the last M2 clause gets a fixture (round 552)
 
