@@ -199,3 +199,47 @@ fn a_holiday_item_is_passed_over_and_the_next_one_is_taken() {
         "the holiday entry was passed over, and the walk carried on to the next one"
     );
 }
+
+/// A count that cannot vary draws no die at all.
+///
+/// Reference: `Single_item_creator::create` (`src/item_group.cpp:277-284`): `cnt = ( modifier_count.first == modifier_count.second ) ? modifier_count.first : rng(
+/// modifier_count.first, modifier_count.second )`. The conditional is the rule - a range of one value is **not** a range, and the reference does not ask the dice about
+/// it. A port that drew `rng( 5, 5 )` would consume a die the reference never rolled, which puts every later draw of the session one behind.
+#[test]
+fn a_fixed_count_draws_no_die() {
+    let groups = from_json(
+        r#"[{"type":"item_group","id":"a_box","subtype":"distribution","entries":[
+            {"item":"meat","prob":1,"count":5}]}]"#,
+    );
+    // One die for the distribution's own choice, and **nothing after it**: the count is five however the dice fall.
+    let recording = "int 0 0 0\n";
+    let mut rolls = Rolls::replaying(
+        cdda_core_types::rng::Recording::parse(recording).expect("a recording"),
+    );
+    let drawn = draw(&groups, "a_box", &mut rolls);
+    assert_eq!(drawn, vec![("meat".to_owned(), 5)]);
+    assert_eq!(
+        rolls.recording_remaining(),
+        Some(0),
+        "the whole recording was played, which is how a missing or extra draw shows up"
+    );
+}
+
+/// A count of zero produces nothing, and is not the same as a count of one.
+///
+/// Reference: `Single_item_creator::create` (`src/item_group.cpp:286`): `for( ; cnt > 0; cnt-- )`, so a zero count leaves the list untouched. The port used to floor every
+/// count at one, which turned "none of these" into "one of these".
+#[test]
+fn a_count_of_zero_produces_nothing() {
+    let groups = from_json(
+        r#"[{"type":"item_group","id":"an_empty_box","subtype":"distribution","entries":[
+            {"item":"meat","prob":1,"count":0},{"item":"bone","prob":3,"count":1}]}]"#,
+    );
+    // The die is a zero, which chooses the first entry by weight - and the first entry asks for none of them. The range is `rng( 0, 3 )` and not `rng( 0, 2 )`:
+    // the weight is the entry's **probability**, so a zero count keeps its entry in the group's total (`add_entry`, `src/item_group.cpp:813-821`).
+    let recording = "int 0 3 0\n";
+    let mut rolls = Rolls::replaying(
+        cdda_core_types::rng::Recording::parse(recording).expect("a recording"),
+    );
+    assert!(draw(&groups, "an_empty_box", &mut rolls).is_empty());
+}

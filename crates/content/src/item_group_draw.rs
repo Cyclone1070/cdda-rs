@@ -277,6 +277,20 @@ pub fn draw_with_holiday(
     out
 }
 
+/// How many of an entry to make, drawing a die only when the range can vary.
+///
+/// Reference: `Single_item_creator::create` (`src/item_group.cpp:277-284`): `cnt = ( modifier_count.first == modifier_count.second ) ? modifier_count.first : rng(
+/// modifier_count.first, modifier_count.second )`. A range of one value is not a range: the reference asks the dice nothing, so a port that drew `rng( 5, 5 )` would be one
+/// die ahead of the reference for the rest of the session. A count of zero is a count of zero - the reference's `for( ; cnt > 0; cnt-- )` makes nothing.
+fn count_to_make(count: (i32, i32), rolls: &mut Rolls) -> usize {
+    let made = if count.0 == count.1 {
+        count.0
+    } else {
+        rolls.rng(count.0, count.1)
+    };
+    usize::try_from(made).unwrap_or(0)
+}
+
 fn draw_into(
     definitions: &BTreeMap<String, Definition>,
     id: &str,
@@ -309,7 +323,10 @@ fn draw_into(
             }
             match entry {
                 Entry::Item { id, count, .. } => {
-                    out.push((id.clone(), rolls.rng(count.0.max(1), count.1.max(1))));
+                    let made = count_to_make(*count, rolls);
+                    if made > 0 {
+                        out.push((id.clone(), i32::try_from(made).unwrap_or(i32::MAX)));
+                    }
                 }
                 Entry::Group { id, .. } => draw_into(definitions, id, rolls, out, depth + 1, holiday),
                 Entry::Nothing { .. } => {}
@@ -325,7 +342,10 @@ fn draw_into(
         }
         match entry {
             Entry::Item { id, count, .. } => {
-                out.push((id.clone(), rolls.rng(count.0.max(1), count.1.max(1))));
+                let made = count_to_make(*count, rolls);
+                if made > 0 {
+                    out.push((id.clone(), i32::try_from(made).unwrap_or(i32::MAX)));
+                }
             }
             Entry::Group { id, .. } => draw_into(definitions, id, rolls, out, depth + 1, holiday),
             Entry::Nothing { .. } => {}
