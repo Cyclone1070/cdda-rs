@@ -2986,6 +2986,27 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## Every gas session has a receipt number now (round 547)
+
+The milestone's proof line is *replay hash per turn* (`05-roadmap.md`, M2). The gates had been comparing turn by turn and square by square, which says **where** a turn
+differs but never says **that** the turn differs as a single fact - and a layer nobody compared is a layer no gate would miss.
+
+There is now a digest: every square of a turn is written into a canonical byte string (layer, x, y, z, key, value) and hashed with FNV-1a, and a session's receipt is the
+fold of its turns in order. Three are pinned:
+
+| Session | Turns | Receipt |
+|---|---|---|
+`gas-60` | 59 | `0xbb4513a5ce73269a` |
+`gas-fall` | 39 | `0x033342d5a7845618` |
+`gas-wind` | 23 | `0x12ca5c3c692106d4` |
+
+A pinned digest is a **receipt, not a specification**: it says what the port produced when the gate was written, and it has to be re-derived from the recording whenever the
+port is meant to change. That is the point of it - a change that is meant to happen becomes a line in a diff rather than a silent drift, and a field that stops spreading
+moves the number even if every existing assertion survives.
+
+The digest is also where the other layers will go: scent and the sky are their own layer numbers in the same function, so folding them in is a value per square rather than
+a new gate.
+
 ## The smoke gate was the lightmap cast talking, not the reference (round 546)
 
 Swapping the sight cast left one test red: a square behind smoke read `0.926` and came out `Blank` where the test wanted `BrightOnly`. The measurement said the smoke

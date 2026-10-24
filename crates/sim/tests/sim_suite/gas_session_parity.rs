@@ -292,6 +292,16 @@ fn submaps(world: &mut World) -> Vec<(i32, i32, i32)> {
 
 /// Replays one recorded gas session and answers what disagreed, if anything.
 /// What a replay spent and what it disagreed about.
+/// One turn of fields, hashed as layer zero.
+fn field_digest(fields: &[(i32, i32, i32, i32, i64)]) -> u64 {
+    crate::replay_digest::digest(
+        &fields
+            .iter()
+            .map(|(x, y, z, intensity, age)| (0, *x, *y, *z, i64::from(*intensity), *age))
+            .collect::<Vec<_>>(),
+    )
+}
+
 struct Spent {
     /// Turns compared.
     turns: usize,
@@ -301,6 +311,8 @@ struct Spent {
     engine: usize,
     /// Where the port's squares, intensities or ages differed from the record.
     disagreements: Vec<(usize, String)>,
+    /// The fold of every turn's digest: one number for the whole session, which is the receipt line the milestone's proof asks for.
+    digest: u64,
 }
 
 fn replay(name: &str) -> Spent {
@@ -340,6 +352,7 @@ fn replay(name: &str) -> Spent {
     let mut compared = 0_usize;
     let mut spent = 0_usize;
     let mut engine_spent = 0_usize;
+    let mut session_digest = 0xcbf2_9ce4_8422_2325_u64;
     for (index, recorded) in session.turns.iter().enumerate().skip(2) {
         // The squares this turn will visit, taken before anything runs: a field born during the sweep is aged when the sweep reaches its square, and the order is
         // the squares' own. The dump lists the fields it found, so the port's list is built from the same rule: everything standing at the start of the turn.
@@ -405,12 +418,24 @@ fn replay(name: &str) -> Spent {
         if ours != theirs && disagreements.len() < 6 {
             disagreements.push((index, format!("ours {ours:?} theirs {theirs:?}")));
         }
+        // **The turn as one number.** The square-by-square comparison above says *where* a turn differs; this says *that* it does, and it is the number the session
+        // receipt quotes. Fields are layer zero; a layer added later is another value here and a change to it moves the digest.
+        let ours_digest = field_digest(&ours);
+        let theirs_digest = field_digest(&theirs);
+        if ours_digest != theirs_digest && disagreements.len() < 6 {
+            disagreements.push((
+                index,
+                format!("digest {ours_digest:016x} against the record's {theirs_digest:016x}"),
+            ));
+        }
+        session_digest = crate::replay_digest::fold(session_digest, index, ours_digest);
     }
     Spent {
         turns: compared,
         dice: spent,
         engine: engine_spent,
         disagreements,
+        digest: session_digest,
     }
 }
 
@@ -458,4 +483,27 @@ fn a_gas_on_a_roof_spreads_into_the_wind_the_recording_says() {
         "and every decay deadline the reference drew: {}",
         report.engine
     );
+}
+
+#[test]
+fn the_session_receipt_is_one_number_per_session() {
+    // **The milestone's proof line, quoted.** The square-by-square gates above say the port matches; this pins the whole session as a single number, so any change to
+    // what the replay produces - a field that stops spreading, an age that stops advancing, a ninth square that appears - moves the receipt even if every existing
+    // assertion happens to survive it.
+    //
+    // A pinned digest is a receipt, not a specification: it says "this is what the port produced when the gate was written", and it has to be **re-derived** from the
+    // recording whenever the port is meant to change. That is the point - a change that is meant to happen is a line in a diff, not a silent drift.
+    for (name, expected) in [("gas-60", 0xbb45_13a5_ce73_269a_u64), ("gas-fall", 0x0333_42d5_a784_5618_u64), ("gas-wind", 0x12ca_5c3c_6921_06d4_u64)] {
+        let report = replay(name);
+        assert!(
+            report.disagreements.is_empty(),
+            "{name} disagrees with its recording: {:#?}",
+            report.disagreements
+        );
+        assert_eq!(
+            report.digest, expected,
+            "{name}: the session receipt is {:#018x}, over {} turns",
+            report.digest, report.turns
+        );
+    }
 }

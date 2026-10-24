@@ -82,6 +82,7 @@ mod player_body;
 mod player_turn;
 mod push_items;
 mod reference_session;
+mod replay_digest;
 mod register;
 mod scent_session;
 mod scent_terrain;
