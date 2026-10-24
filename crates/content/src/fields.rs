@@ -28,6 +28,12 @@ pub struct FieldLevel {
     pub translucency: f32,
     /// Extra movement cost to enter.
     pub move_cost: i32,
+    /// How much this intensity warms - or cools - a square, in degrees Fahrenheit delta.
+    ///
+    /// Reference: `field_intensity_level::convection_temperature_mod` (`src/field.h:219` is the type's `accelerated_decay`; this one sits next to it), summed by
+    /// `get_convection_temperature` (`src/game.cpp:1845-1853`). A fire adds 300 F at every intensity, which is why standing **in** one is a different thing from
+    /// standing next to one; the cold-air fields are negative, which is how an air conditioner works.
+    pub convection: i32,
     /// The upgrade chance and period for this intensity, if it can grow on its own.
     pub upgrade_chance: i32,
     /// How often the upgrade chance is rolled, in turns.
@@ -224,6 +230,7 @@ pub fn from_dump(value: &Value) -> Result<Vec<FieldType>, String> {
                     answer
                 }),
                 move_cost: i32::try_from(int_of(level, "move_cost").unwrap_or(0)).unwrap_or(0),
+                convection: i32::try_from(int_of(level, "convection").unwrap_or(0)).unwrap_or(0),
                 upgrade_chance: i32::try_from(int_of(level, "upgrade_chance").unwrap_or(0))
                     .unwrap_or(0),
                 upgrade_duration: int_of(level, "upgrade_duration").unwrap_or(0),

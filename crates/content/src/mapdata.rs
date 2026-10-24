@@ -57,6 +57,12 @@ pub struct MapData {
     /// which clears it (`mapdata.cpp:1112-1114`); and `unset_flag` clears it for `TRANSPARENT` while leaving it alone for `TRANSLUCENT`
     /// (`mapdata.cpp:892-905`). The asymmetries are the reference's, and they are why this cannot be recomputed from `flags`.
     pub transparent: bool,
+    /// How much this terrain or furniture radiates heat, in `get_heat_radiation`'s own units.
+    ///
+    /// Reference: `mapdata.h:537`, read by `get_heat_radiation` (`src/game.cpp:1769`) when a square has no fire on it: the intensity is the terrain's, and the heat is
+    /// `6 F * intensity^2 / distance`. Two prototypes in the whole data radiate - lava at 3 and hot spring water at 1 - and they are the only reason a room with no fire
+    /// in it is ever warmer than the weather.
+    pub heat_radiation: i32,
     /// How hard the tile is to break, when it can be broken at all.
     ///
     /// Reference: `map_data_common_t::bash` (`src/mapdata.h:433`), an `optional` block: a tile with **no** block cannot be bashed, and a tile with a block whose `str_min` is
@@ -223,6 +229,7 @@ pub fn load_paths(dirs: &[&std::path::Path]) -> Result<Vec<MapData>, LoadError> 
                 move_cost: 0,
                 light: 0,
                 coverage: 0,
+                heat_radiation: 0,
                 flags,
                 // `null_terrain_t` and `null_furniture_t` set the bool themselves (`mapdata.cpp:555`, `:576`), and nothing loads over them, so the reference's
                 // own dump has both **transparent** - unlike an ordinary new prototype, which starts opaque.
@@ -425,6 +432,7 @@ fn apply(base: Option<MapData>, loaded: &Loaded) -> Result<MapData, LoadError> {
         move_cost: 0,
         light: 0,
         coverage: 0,
+        heat_radiation: 0,
         flags: BTreeSet::new(),
         // A new prototype starts **opaque** (`mapdata.h:573`). The only two things that start transparent are the code-made null prototypes, and the
         // shipped `t_null`/`f_null` override even that by naming their own flags - which is why this is data-pinned rather than reasoned.
@@ -478,6 +486,9 @@ fn apply(base: Option<MapData>, loaded: &Loaded) -> Result<MapData, LoadError> {
     }
     if let Some(light) = integer(json, "light_emitted") {
         value.light = light;
+    }
+    if let Some(radiates) = integer(json, "heat_radiation") {
+        value.heat_radiation = radiates;
     }
     if let Some(coverage) = integer(json, "coverage") {
         value.coverage = coverage;

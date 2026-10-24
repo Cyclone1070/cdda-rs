@@ -24,6 +24,7 @@ fn field_type() -> FieldType {
 
 fn level_with(chance: i32, count: i32, group: &str) -> FieldLevel {
     FieldLevel {
+        convection: 0,
         name: String::new(),
         sym: 0,
         color: String::new(),

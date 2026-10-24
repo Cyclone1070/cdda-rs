@@ -20,6 +20,7 @@ const KIND: u32 = 7;
 
 fn level(spawn_chance: i32, spawn_count: i32) -> FieldLevel {
     FieldLevel {
+        convection: 0,
         name: String::new(),
         sym: 0,
         color: String::new(),

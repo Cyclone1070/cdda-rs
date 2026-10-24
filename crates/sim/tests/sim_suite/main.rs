@@ -9,6 +9,7 @@
 
 mod blast;
 mod falling;
+mod temperature;
 mod bash_hits;
 mod acid_vent;
 mod burn_bookkeeping;
