@@ -406,3 +406,134 @@ fn string(object: &Object, key: &str) -> Option<String> {
         _ => None,
     }
 }
+
+/// What is on hand to build with: stacks of items, and the qualities each one is worth.
+///
+/// The reference's `inventory` (`src/inventory.h:114`) is a set of stacks over which `amount_of`, `charges_of` and `has_quality` are summed; this is the same set with
+/// only the three questions the requirement check asks.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Kit {
+    /// Each stack, keyed by item id. The count of a stack counted in charges **is** its number of charges, which is what the reference's `item` holds.
+    pub stacks: BTreeMap<String, KitStack>,
+}
+
+/// One stack in a kit.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KitStack {
+    /// How many there are: charges for a stack counted by charge, items otherwise.
+    pub count: i32,
+    /// What the stack is worth as a tool, by quality.
+    pub qualities: BTreeMap<String, i32>,
+    /// Whether the stack is counted by charge, which decides whether a requirement's count means charges or items.
+    pub by_charge: bool,
+}
+
+impl Kit {
+    /// Adds a stack.
+    pub fn add(&mut self, id: &str, count: i32, by_charge: bool, qualities: BTreeMap<String, i32>) {
+        self.stacks.insert(
+            id.to_owned(),
+            KitStack {
+                count,
+                qualities,
+                by_charge,
+            },
+        );
+    }
+
+    /// How many of an item the kit holds.
+    ///
+    /// Reference: `read_only_visitable::amount_of` (`src/visitable.cpp:964-984`), which counts **items** and, for a stack counted by charge, counts its charges.
+    #[must_use]
+    pub fn amount_of(&self, id: &str) -> i32 {
+        self.stacks.get(id).map_or(0, |stack| stack.count)
+    }
+
+    /// How many **charges** of an item the kit holds.
+    ///
+    /// Reference: `read_only_visitable::charges_of` (`src/visitable.cpp:916-921`). A stack counted by charge holds `count` charges; anything else holds none, because
+    /// nothing in a kit is a tool with a battery in this model yet.
+    #[must_use]
+    pub fn charges_of(&self, id: &str) -> i32 {
+        self.stacks
+            .get(id)
+            .filter(|stack| stack.by_charge)
+            .map_or(0, |stack| stack.count)
+    }
+
+    /// How many items in the kit are at least this good at a quality.
+    ///
+    /// Reference: `has_quality_internal` (`src/visitable.cpp:109-124`), which sums each qualifying item's `count()` and stops once it has enough.
+    #[must_use]
+    pub fn has_quality(&self, quality: &str, level: i32, count: i32) -> bool {
+        let mut found = 0;
+        for stack in self.stacks.values() {
+            if stack.qualities.get(quality).is_some_and(|held| *held >= level) {
+                found += stack.count;
+                if found >= count {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+}
+
+impl RequirementData {
+    /// Whether this requirement can be met from a kit, which is the question a construction menu asks.
+    ///
+    /// Reference: `requirement_data::can_make_with_inventory` (`src/requirements.cpp:865-888`), in its order: qualities, then tools, then components, all three
+    /// always evaluated. One `batch`.
+    ///
+    /// Not modelled: `check_enough_materials`, the reference's rule that one pile cannot satisfy two overlapping groups, and the UPS accounting.
+    #[must_use]
+    pub fn can_make(&self, kit: &Kit) -> bool {
+        qualities_available(&self.qualities, kit)
+            && tools_available(&self.tools, kit)
+            && components_available(&self.components, kit)
+    }
+}
+
+/// Whether every quality group has an alternative the kit can meet.
+///
+/// Reference: `quality_requirement::has` (`src/requirements.cpp:934-944`), through `has_comps`: the group is a set of **alternatives**, and one is enough.
+fn qualities_available(groups: &QualityGroups, kit: &Kit) -> bool {
+    groups.iter().all(|alternatives| {
+        alternatives
+            .iter()
+            .any(|(quality, level, count)| kit.has_quality(quality, *level, *count))
+    })
+}
+
+/// Whether every tool group has an alternative the kit can meet.
+///
+/// Reference: `tool_comp::has` (`src/requirements.cpp:946-980`). The sign of the count decides the question: a **positive** count is a number of charges to spend, and
+/// the kit must hold exactly that many, while a negative one is a tool to hold, in which case its size is the absolute count.
+fn tools_available(groups: &Groups, kit: &Kit) -> bool {
+    groups.iter().all(|alternatives| {
+        alternatives.iter().any(|(item, count, _)| {
+            if *count > 0 {
+                // **At least, not exactly**, even though the reference writes `==`: it asks `charges_of( type, charges_required )`, which stops counting once it has
+                // enough and therefore comes back **clamped** to the requirement. A welder with four hundred charges satisfies a requirement for four.
+                kit.charges_of(item) >= *count
+            } else {
+                kit.amount_of(item) >= count.unsigned_abs().cast_signed()
+            }
+        })
+    })
+}
+
+/// Whether every component group has an alternative the kit can meet.
+///
+/// Reference: `item_comp::has` (`src/requirements.cpp:1003-1017`): an item counted by charge is asked for in charges, anything else in items.
+fn components_available(groups: &Groups, kit: &Kit) -> bool {
+    groups.iter().all(|alternatives| {
+        alternatives.iter().any(|(item, count, _)| {
+            let wanted = count.unsigned_abs().cast_signed();
+            match kit.stacks.get(item) {
+                Some(stack) if stack.by_charge => kit.charges_of(item) >= wanted,
+                _ => kit.amount_of(item) >= wanted,
+            }
+        })
+    })
+}
