@@ -336,10 +336,6 @@ fn the_two_questions_a_frame_asks_agree() {
 }
 
 #[test]
-#[ignore = "red on the cast swap, and the measurement is the interesting part: with the z-cast, the square behind a smoke column reads 0.926 at (7,5) - \
-sight_calc of open air at distance two, as if the smoke had not been crossed at all. The smoke is at distance one in every transform that reaches that square, so its \
-transparency 10.0 should have been folded into the span before the write; that it was not is a bug in this port's fold or in its span bookkeeping, not in the reference, \
-whose own cache this cast reproduces on 867 of 867 squares"]
 fn a_square_seen_through_smoke_glows_without_showing_what_is_on_it() {
     // The hazy branch, reached through the world at last. `cast_seen_light` attenuates by the transparency of the squares a ray crosses, and smoke's is enormous (ten at its
     // second intensity, against open air's two hundredths), so a square behind it is seen at a fraction below the tenth that `obstructed` asks for
@@ -351,23 +347,27 @@ fn a_square_seen_through_smoke_glows_without_showing_what_is_on_it() {
     let mut level = open_level();
     // A skin of smoke between the character at (5,5) and the square behind it, one square thick: the ray to (7,5) crosses the smoke at (6,5).
     for y in 0..12 {
-        level.set_terrain(4, y, SMOKY, 1);
+        level.set_terrain(6, y, SMOKY, 1);
     }
     let mut light = std::collections::BTreeMap::new();
-    light.insert((7, 5), four_way(200.0, 200.0, 200.0, 200.0));
+    // Two hundred and fifty, not two hundred: `vis * lm` has to clear `LIGHT_AMBIENT_LIT` (ten) for the hazy branch, and the cast puts `vis` at 0.0498, so two hundred would
+    // land at 9.96 - a square that is `Blank` by a hundredth.
+    light.insert((7, 5), four_way(250.0, 250.0, 250.0, 250.0));
 
+    // **The thickness has to be chosen for the branch it exercises.** With smoke ten times open air, the reference's own `exp(-t * d)` puts a square two steps behind it at
+    // `2e-9` - the light arrives so faintly that `vis * lm` is zero and the square is `Blank`, which is right but does not reach the hazy branch at all. This thickness puts
+    // the cast at about `0.05`: under the tenth that makes a square `obstructed` (`lightmap.cpp:731`), while the square's own light of two hundred, multiplied by it, is still
+    // over `LIGHT_AMBIENT_LIT` - which is exactly the "glow without detail" the branch exists for.
     let mut smoking = view();
     smoking.transparency_of = Box::new(move |code| {
         if code == SMOKY {
-            10.0
+            1.5
         } else {
             TRANSPARENCY_OPEN_AIR
         }
     });
 
-    // The sight cast measures 0.078 there - below the tenth - while the square *past* the smoke recovers to 0.43, because the reference's accumulator averages the transparency
-    // across a whole octant row: one column of smoke dims its neighbour most and is diluted by the open air beside it. A quirk of the reference's arithmetic, reproduced rather
-    // than corrected, and the reason this test looks at the square immediately behind the smoke.
+    // The sight cast now measures about `0.05` there - below the tenth - and the square's light of 200 times that is 10, over the `LIGHT_AMBIENT_LIT` the hazy branch asks for.
     assert_eq!(
         lit_level_at_square(&mut level, &smoking, &light, (7, 5)),
         LitLevel::BrightOnly,

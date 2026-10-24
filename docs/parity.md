@@ -2986,14 +2986,27 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The smoke gate was the lightmap cast talking, not the reference (round 546)
+
+Swapping the sight cast left one test red: a square behind smoke read `0.926` and came out `Blank` where the test wanted `BrightOnly`. The measurement said the smoke
+was not crossed at all, which looked like a fold bug - and it was not. Two things were wrong with the test, not the cast:
+
+* the smoke had been moved behind the character while chasing the bug, so the ray to the square never crossed it;
+* once it was back in front, the cast measured `2e-9` - because the reference's own attenuation is `exp(-transparency * distance)` and smoke's transparency of ten gives
+  an answer of essentially zero. `vis * lm` is then zero and the square is `Blank`, which is **the reference's behaviour**: the old cast had been diluting the smoke
+  across a whole octant row and reporting `0.078`, a number the reference never produces.
+
+The gate now uses a thickness chosen for the branch it covers: smoke at `1.5` puts the cast at `0.0498` - under the tenth that makes a square `obstructed` - and the
+square's own light of 250 multiplied by it is 12.4, over `LIGHT_AMBIENT_LIT`, which is what makes it `BrightOnly` rather than `Blank`. Two hundred would have landed at
+9.96 and passed a hundredth short of the branch.
+
 ## The level's sight cast is the reference's now, and smoke shows a hole in the fold (round 545)
 
 `Level::seen_cast` - the one place the port answers "how clearly is this square seen" - now runs `cast_zlight` instead of the recursive light cast. Everything above it
 (`seen_at`, `seen_through`, `SeenGrid`, the frame's visibility column) is unchanged, and the whole suite stayed green through the swap except one test.
 
-That test is worth keeping red: a square behind a column of smoke reads **0.926**, which is `sight_calc` of open air at distance two - as if the smoke had not been
-crossed at all. The smoke is at distance one in every transform that reaches that square, so its transparency of `10.0` should have been folded into the span before the
-write. It was not, which is a bug in this port's fold or its span bookkeeping - not in the reference, whose own cache this cast reproduces on 867 of 867 squares.
+That test is worth keeping red for a round: a square behind a column of smoke read **0.926**, which is `sight_calc` of open air at distance two. It turned out to be the
+test's own geometry - the smoke had been moved behind the character while chasing the number - and the red is closed in the entry above.
 
 The lesson of the round is that the fixture gate made the swap safe: without a record of what the reference's cast actually produced, "the cast is transcribed" would
 have been a claim about the port agreeing with itself, and the smoke bug would have been invisible.
