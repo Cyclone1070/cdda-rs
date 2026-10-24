@@ -2986,30 +2986,28 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
-## Three bugs in the vision instrument, then a cast that is 78 squares off (round 542-543)
+## The vision cast matches the reference on 867 of 867 squares (round 542-544)
 
-`--dump-visibility` records the **cast's inputs beside its output**: each square's vision transparency, its floor bit, its level's `no_floor_gaps`, and the sight penalty.
-Getting those right took three fixes, and every one of them had made the record lie:
+Getting there needed three instrument fixes, one wrong constant, and one wrong metric.
 
-| Bug | What the record said |
-|---|---|
-it read `transparency_cache` (the **light** cache) | the wrong transparency for every square |
-it recorded no floors and no `no_floor_gaps` | the port inferred "can I see below?" from the seventeen-square window instead of the level summary, and looked down where the reference was sealed in |
-it built with `skip_lightmap = true` | the sight cast lives in the lightmap, so the dump read a `seen_cache` left by an earlier build - the reference's own brighter cast came out **dimmer** than the port's |
+**The instrument** (`--dump-visibility`) now records the cast's inputs beside its output: vision transparency per square, its floor bit, its level's `no_floor_gaps`, and
+the sight penalty. It had been lying three ways - it read `transparency_cache` (the *light* cache) instead of `vision_transparency_cache`; it recorded no floors at all,
+so the port inferred "can I see below?" from the seventeen-square window instead of the level summary; and it built with `skip_lightmap = true`, where the sight cast
+lives, so it read a `seen_cache` left by an earlier build. Then two build-order facts: each build wipes every level and only the build targeting the character's level
+writes `VISIBILITY_FULL` into the character's own square, so the levels are built `-1, +1, 0` and made dirty first. And `--avatar-at` plus `--seed` pin the recording,
+because the fixed world's start square and its map both vary per process - without them "the fixture" was a fixture of the run, not of the world.
 
-Two more, about the build order: each `build_map_cache` wipes *every* level's seen cache and re-casts, and only the build whose target is the character's level writes
-`VISIBILITY_FULL` into the character's own square - so the levels are now built `-1, +1, 0` and the caches are made dirty first, otherwise the square the character
-stands on reads zero. And `--avatar-at` pins the character, because the fixed world's start square is chosen per process: without it, every recording was a recording
-of wherever that run had started, which is a gate on the seed rather than on the cast.
+**The constant.** `MAX_VIEW_DISTANCE` is `SEEX * HALF_MAPSIZE` = **60** (`map_scale_constants.h:12-27`), not the ported 72. Every sight and light value was about four
+percent off: the reference's recorded vision transparency is `2.3/60 = 0.038333` and the port computed `2.3/72`. Fixing it moved `light_range`, `sight_calc` and
+`vision_threshold` - all three of which had tables generated from the wrong constant, so those tables were the port agreeing with itself and were regenerated from the
+reference's formulas.
 
-With a record that is finally faithful - 220 squares on the character's level, **0** above, **2** below, and the character's own square at `1.0` - the port's cast
-reproduces **789 of 867**. The 78 that differ split into two kinds:
+**The metric.** `rl_dist` is not Chebyshev: `CIRCLEDIST` defaults to `true` (`options.cpp:1706-1710`), so `rl_dist` is `trig_dist`, the Euclidean length truncated to
+an integer (`line.cpp:1025-1030`). A diagonal square is further away than a straight one, which is exactly the "one distance step brighter on every diagonal" the
+fixture had been reporting for three rounds.
 
-* ours is **one distance step brighter** along a wall (`0.7359` where the reference has `0.6816` or `0.7082`), so the cast reaches those squares by a shorter route;
-* ours sees the level below at `(71,68)` and `(72,68)` while the reference sees its two squares elsewhere - so the descent differs too, not just the distance.
-
-Both are the same suspicion: a span split that should cut a corner and does not. The next step is a trace of the reference's own span list, not another reading of the
-sweep.
+With those, `the_port_s_cast_reproduces_the_reference_s_seen_cache` is **green: 867 of 867 squares**, over three levels, including the two squares the character sees
+through a hole in the floor and the two hundred on its own level.
 
 ## The whole cast is transcribed (round 541)
 

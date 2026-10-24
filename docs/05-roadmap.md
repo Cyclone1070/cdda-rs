@@ -275,9 +275,9 @@ three against the reference's own recorded day. Two things finish it and one thi
    The recorded session with a transition now exists (round 531: `--turn-minutes` and the sky on every turn) and both halves of it are gated - the point is recomputed from the
    generator's own inputs (round 532) and the manager's decisions are replayed from the reference's dice, sector included (round 533).
 5. **Vision across z-levels** now has its oracle (round 536): `--dump-visibility` writes each level's `seen_cache` and `transparency_cache`, and the first fixture shows
-   the character seeing two squares of the level below through an opening and nothing above it. The cross-level rule is transcribed in `cdda_core_types::zlight`, and
-   round 540 measured the bigger gap underneath it: the port's visibility is built on the **lightmap** cast, not on `cast_zlight`, and the two disagree about 93 of 441
-   squares on the same grid. Replacing the cast is the next piece, and it needs the z-cast's four vertical segments as well as its eight horizontal ones.
+   the character seeing squares of the level below through an opening and nothing above it. `cast_zlight` is now transcribed whole in `cdda_core_types::zlight`, and it
+   **reproduces the reference's own seen cache on 867 of 867 squares** over three levels (round 544). Two port-wide bugs fell out on the way: `MAX_VIEW_DISTANCE` was 72
+   where the reference computes 60, and `rl_dist` was Chebyshev where `CIRCLEDIST` makes it the truncated Euclidean length.
 6. Then the per-turn state hash that ties the session gates together.
 
 ## 4. Phase detail

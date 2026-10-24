@@ -18,10 +18,14 @@ pub const AMBIENT_DIM: f32 = 5.0;
 /// Full daylight.
 pub const AMBIENT_LIT: f32 = 10.0;
 
-/// How many map squares air stays legible for: `SEEX * HALF_MAPSIZE`, 72.
-pub const MAX_VIEW_DISTANCE: i32 = 72;
+/// How many map squares air stays legible for: `SEEX * HALF_MAPSIZE` (`map_scale_constants.h:12-27`).
+///
+/// **Sixty, not seventy-two.** `HALF_MAPSIZE` is `MAPSIZE / 2` with `MAPSIZE = 11`, so `12 * 5` - a ported seventy-two is not a different convention but a different
+/// number, and it made every sight and light value in the port about four percent low: the reference's recorded vision transparency is `2.3 / 60 = 0.038333`, and the
+/// port was computing `2.3 / 72 = 0.031944`. The vision fixture caught it as "one distance step brighter" along every wall.
+pub const MAX_VIEW_DISTANCE: i32 = 60;
 /// Cumulative light lost per map square of open air, `2.3 / MAX_VIEW_DISTANCE`.
-pub const TRANSPARENCY_OPEN_AIR: f32 = 2.3 / 72.0;
+pub const TRANSPARENCY_OPEN_AIR: f32 = 2.3 / 60.0;
 
 /// What a tile's light means to the rest of the game.
 ///

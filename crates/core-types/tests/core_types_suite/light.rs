@@ -1,8 +1,10 @@
 //! The light thresholds, against values the reference printed.
 //!
-//! `light_range` was checked against a program built from `src/lightmap.h:42-49` with
-//! the reference's own constants (`MAX_VIEW_DISTANCE` 72, air losing `2.3/72` per
-//! square). The table below is that program's output, not my arithmetic.
+//! `light_range` is `src/lightmap.h:42-49` with the reference's own constants: `MAX_VIEW_DISTANCE` is `SEEX * HALF_MAPSIZE` = **60** (`map_scale_constants.h:12-27`), so
+//! air loses `2.3/60` per square. The table below is that formula's output.
+//!
+//! It used to say 72 - the port's constant, not the reference's - and the whole table was the port agreeing with itself. The vision fixture caught the difference as
+//! "one distance step brighter" along every wall, which is what a four-percent-too-transparent air looks like.
 
 #![allow(clippy::panic)]
 
@@ -16,13 +18,13 @@ const RANGE_TABLE: [(f32, i32); 13] = [
     (3.4, 0),
     (3.5, 0),
     (3.6, 0),
-    (5.0, 11),
-    (9.999, 32),
-    (10.0, 32),
-    (10.001, 32),
-    (20.0, 54),
-    (60.0, 88),
-    (100.0, 104),
+    (5.0, 9),
+    (9.999, 27),
+    (10.0, 27),
+    (10.001, 27),
+    (20.0, 45),
+    (60.0, 74),
+    (100.0, 87),
 ];
 
 #[test]

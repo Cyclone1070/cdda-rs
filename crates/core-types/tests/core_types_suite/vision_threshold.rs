@@ -36,8 +36,8 @@ fn eyes() -> Senses {
 fn the_threshold_for_a_range_is_just_visible_light_at_that_range() {
     // `LIGHT_AMBIENT_MINIMAL / e^( range * LIGHT_TRANSPARENCY_OPEN_AIR ) - epsilon` (`character.cpp:2716-2720`): the same attenuation light obeys, so that
     // "the dimmest thing I can see at r squares" is a coherent statement. The epsilon means the answer is just below the light that would be *exactly* visible.
-    assert_close(threshold_for_range(1.0), 3.573_673_5, "one square");
-    assert_close(threshold_for_range(20.0), 1.943_151, "twenty squares");
+    assert_close(threshold_for_range(1.0), 3.550_850_7, "one square");
+    assert_close(threshold_for_range(20.0), 1.708_868_4, "twenty squares");
     // And it falls with distance: a longer range means a dimmer threshold, not a brighter one.
     assert!(threshold_for_range(20.0) < threshold_for_range(1.0));
 }
@@ -48,7 +48,7 @@ fn in_the_dark_the_threshold_is_the_range_alone() {
     // perception five - range 5/3 - gives the range's own threshold.
     assert_close(
         vision_threshold(3.7, &eyes()),
-        3.498_161_4,
+        3.461_004,
         "perception 5 sees to 5/3 squares",
     );
 }
@@ -61,12 +61,12 @@ fn a_bright_room_makes_the_dark_beyond_it_harder_to_see_into() {
     bionic.gnv = true;
     assert_close(
         vision_threshold(3.7, &bionic),
-        2.538_864,
+        2.355_786_7,
         "in the dark, the widened range alone",
     );
     assert_close(
         vision_threshold(6.0, &bionic),
-        3.465_750_4,
+        3.215_835_8,
         "and at light 6.0 the dimming has made it worse",
     );
 }

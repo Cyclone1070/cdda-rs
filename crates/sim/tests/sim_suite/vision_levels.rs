@@ -179,17 +179,13 @@ fn the_character_sees_a_field_around_it_and_nothing_of_a_sealed_sky() {
 }
 
 #[test]
-#[ignore = "measured gap, 78 of 867 squares in two classes: (1) ours is one distance step brighter along a wall (0.7359 where the reference has 0.6816 or \
-0.7082), so the cast reaches those squares by a shorter route; (2) ours sees the two squares below the character (0.926 at 71,68 and 72,68) where the reference sees \
-two squares below at *different* coordinates - so the descent itself differs, not only the distance. Both need a trace of the reference's span list rather than more \
-reading"]
 fn the_port_s_cast_reproduces_the_reference_s_seen_cache() {
     // **The gate the whole cross-level effort was for.** The fixture records, per square of three levels, the transparency and floor bit the reference's cast read and
     // the `seen_cache` value it produced. Running the port's `cast_zlight` over those same inputs has to reproduce those same values - not the shape of them, the
     // numbers.
     //
     // The direction gate is the reference's own: the character's level is sealed if every one of its squares has a floor.
-    use cdda_core_types::zlight::{Plane, Seen, cast_zlight, direction_to_cast};
+    use cdda_core_types::zlight::{Plane, build_seen_cache, direction_to_cast};
 
     let (squares, (cx, cy, cz)) = squares();
     let transparency = |x: i32, y: i32, z: i32| {
@@ -215,8 +211,7 @@ fn the_port_s_cast_reproduces_the_reference_s_seen_cache() {
         .iter()
         .find(|square| square.z == cz)
         .is_some_and(|square| square.sealed);
-    let mut seen = Seen::new();
-    cast_zlight(
+    let seen = build_seen_cache(
         &Plane {
             transparency: &transparency,
             floor: &floor,
@@ -226,7 +221,6 @@ fn the_port_s_cast_reproduces_the_reference_s_seen_cache() {
         (i32::MAX, i32::MAX),
         1.0,
         direction_to_cast(sealed),
-        &mut seen,
     );
     let _ = side;
     let mut mismatches = Vec::new();

@@ -150,7 +150,7 @@ pub fn cast_horizontal_segment(
                     // **All three of the sweep's coordinates are the ray's distance.** The reference measures `rl_dist( zero, delta )` with `delta` carrying the
                     // major axis in `z` (`shadowcasting.cpp:301`), so a ray that has dropped a level is further away than its horizontal travel suggests -
                     // dropping `dz` here makes every descending square too bright, which the visibility fixture showed as 78 squares brighter than the reference.
-                    let dist = rl_distance(dx, dy).max(dz);
+                    let dist = rl_distance(dx, dy, dz);
                     let last_intensity = sight_calc(numerator, spans[index].cumulative_value, dist);
                     if !floor_block {
                         let slot = seen.entry((x, y, z)).or_insert(0.0);
@@ -215,13 +215,16 @@ pub fn cast_horizontal_segment(
     written
 }
 
-/// The reference's `rl_dist` for a sweep coordinate: a diagonal step counts as one.
+/// The reference's `rl_dist` for a sweep coordinate.
 ///
-/// Reference: `rl_dist( tripoint_rel_ms::zero, delta )` with the default metric (`shadowcasting.cpp:301`), which is Chebyshev distance - the squares a character
-/// can reach in that many moves.
+/// Reference: `rl_dist( tripoint_rel_ms::zero, delta )` (`shadowcasting.cpp:301`, `line.h:194-200`). It is **not** Chebyshev: `CIRCLEDIST` defaults to `true`
+/// (`options.cpp:1706-1710`), so `rl_dist` is `trig_dist` - the Euclidean length, truncated to an integer by the `int` return (`line.cpp:1025-1030`). A diagonal
+/// square is therefore further away than a straight one, which is why the fixture showed the port **one distance step brighter** on every diagonal.
 #[must_use]
-pub fn rl_distance(dx: i32, dy: i32) -> i32 {
-    dx.abs().max(dy.abs())
+#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+pub fn rl_distance(dx: i32, dy: i32, dz: i32) -> i32 {
+    let squared = f64::from(dx) * f64::from(dx) + f64::from(dy) * f64::from(dy) + f64::from(dz) * f64::from(dz);
+    squared.sqrt() as i32
 }
 
 /// Which eight horizontal segments the reference runs for a downward cast, in its own order.
@@ -327,7 +330,7 @@ pub fn cast_vertical_segment(
                         started_block = true;
                         current_transparency = new_transparency;
                     }
-                    let dist = rl_distance(dx, dy).max(dz);
+                    let dist = rl_distance(dx, dy, dz);
                     let last_intensity = sight_calc(numerator, spans[index].cumulative_value, dist);
                     if !floor_block {
                         let slot = seen.entry((x, y, z)).or_insert(0.0);
@@ -466,4 +469,24 @@ pub fn direction_to_cast(origin_level_has_no_floor_gaps: bool) -> VerticalDirect
     } else {
         VerticalDirection::Both
     }
+}
+
+/// Fills a seen cache from one square, the way the reference fills it.
+///
+/// Reference: `map::build_seen_cache` (`lightmap.cpp:1039-1081`). The cast itself does not light the square it starts from - the sweep begins one square out - so the
+/// reference writes `VISIBILITY_FULL` there first. A caller that only ran [`cast_zlight`] would leave the character standing in the dark.
+#[must_use]
+#[allow(clippy::too_many_arguments)]
+pub fn build_seen_cache(
+    plane: &Plane<'_>,
+    origin: (i32, i32, i32),
+    radius: i32,
+    bounds: (i32, i32),
+    numerator: f32,
+    direction: VerticalDirection,
+) -> Seen {
+    let mut seen = Seen::new();
+    seen.insert(origin, 1.0);
+    cast_zlight(plane, origin, radius, bounds, numerator, direction, &mut seen);
+    seen
 }

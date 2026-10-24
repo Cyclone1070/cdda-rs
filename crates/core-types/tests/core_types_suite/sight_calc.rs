@@ -23,27 +23,27 @@ fn assert_close(passed: f32, expected: f32, what: &str) {
 }
 
 #[test]
-fn open_air_eats_almost_everything_in_seventy_two_squares() {
-    // `TRANSPARENCY_OPEN_AIR` is `2.3 / 72`, chosen so that `e^-2.3` - about a tenth - is what is left at `MAX_VIEW_DISTANCE`. The values below were computed from
-    // `1 / exp( 2.3 * d / 72 )` independently of this code.
+fn open_air_eats_almost_everything_in_sixty_squares() {
+    // `TRANSPARENCY_OPEN_AIR` is `2.3 / MAX_VIEW_DISTANCE` with `MAX_VIEW_DISTANCE` = 60 (`map_scale_constants.h:12-27`), chosen so that `e^-2.3` - about a tenth - is what
+    // is left at the reference's view distance. The values below were computed from `1 / exp( 2.3 * d / 60 )` independently of this code.
     assert_close(
         sight_calc(1.0, TRANSPARENCY_OPEN_AIR, 1),
-        0.968_560_4,
+        0.962_392_1,
         "one square",
     );
     assert_close(
         sight_calc(1.0, TRANSPARENCY_OPEN_AIR, 10),
-        0.726_552_6,
+        0.681_585_7_f32,
         "ten squares",
     );
     assert_close(
-        sight_calc(1.0, TRANSPARENCY_OPEN_AIR, 72),
-        0.100_258_8,
-        "seventy-two squares: a tenth",
+        sight_calc(1.0, TRANSPARENCY_OPEN_AIR, 60),
+        0.100_258_8_f32,
+        "sixty squares: a tenth, which is what the constant is chosen for",
     );
     assert_close(
-        sight_calc(SOURCE_BRIGHT, TRANSPARENCY_OPEN_AIR, 72),
-        1.002_588_4,
+        sight_calc(SOURCE_BRIGHT, TRANSPARENCY_OPEN_AIR, 60),
+        1.002_588_4_f32,
         "a bright lamp is exactly at the lit threshold at the edge of sight",
     );
 }
