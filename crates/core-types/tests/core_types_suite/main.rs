@@ -77,6 +77,7 @@ mod recording_real;
 mod rng;
 mod rng_wrappers;
 mod shuffle;
+mod squares_closer;
 mod scent;
 mod scent_turn;
 mod scent_update;

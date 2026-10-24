@@ -262,6 +262,67 @@ impl Walk {
     }
 }
 
+
+/// The adjacent squares a mover should try when it wants to get closer to `to`, in the order it should try them.
+///
+/// Reference: `squares_closer_to` (`src/line.cpp:700-733`). The shapes are:
+///
+/// * a climb first, when the target is on another level - the three-dimensional step;
+/// * then three along the dominant axis, with the two flanking squares;
+/// * finally one along the other axis, when it changes at all.
+///
+/// A pure diagonal (equal distances, and a target that is not straight above or below) offers the diagonal step and then the two axis steps. Standing still offers
+/// nothing, because no neighbour is closer to where you already are.
+///
+/// The **order** is the answer as much as the squares are: monster movement takes the first square it can enter (`src/monmove.cpp:1128`), so offering the same squares
+/// in a different order is a different move.
+#[must_use]
+pub fn squares_closer_to(from: [i32; 3], to: [i32; 3]) -> Vec<[i32; 3]> {
+    let [fx, fy, fz] = from;
+    let [tx, ty, tz] = to;
+    let (dx, dy, dz) = (tx - fx, ty - fy, tz - fz);
+    let (sx, sy) = (sgn_or_zero(dx), sgn_or_zero(dy));
+    let (ax, ay) = (dx.abs(), dy.abs());
+    let mut squares = Vec::with_capacity(5);
+    if dz != 0 {
+        squares.push([fx + sx, fy + sy, fz + sgn_or_zero(dz)]);
+    }
+    if ax > ay {
+        // X dominant.
+        squares.push([fx + sx, fy, fz]);
+        squares.push([fx + sx, fy + 1, fz]);
+        squares.push([fx + sx, fy - 1, fz]);
+        if dy != 0 {
+            squares.push([fx, fy + sy, fz]);
+        }
+    } else if ax < ay {
+        // Y dominant.
+        squares.push([fx, fy + sy, fz]);
+        squares.push([fx + 1, fy + sy, fz]);
+        squares.push([fx - 1, fy + sy, fz]);
+        if dx != 0 {
+            squares.push([fx + sx, fy, fz]);
+        }
+    } else if dx != 0 {
+        // Pure diagonal: the reference's `else if( d.x() != 0 )`, which leaves a straight climb with only its first square.
+        squares.push([fx + sx, fy + sy, fz]);
+        squares.push([fx + sx, fy, fz]);
+        squares.push([fx, fy + sy, fz]);
+    }
+    squares
+}
+
+/// The sign of a difference, with zero meaning "does not move on this axis" - the walk's `sgn` in `squares_closer_to`, not the `SGN` macro's zero-is-positive.
+const fn sgn_or_zero(value: i32) -> i32 {
+    if value < 0 {
+        -1
+    } else if value > 0 {
+        1
+    } else {
+        0
+    }
+}
+
 /// The sign of a difference for the three-dimensional walk, where a **zero** difference has no sign at all.
 ///
 /// The two-dimensional walk's [`sign`] counts zero as positive because the reference's `SGN` macro does; the three-dimensional walk writes its own

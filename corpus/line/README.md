@@ -15,3 +15,18 @@ Reproduce with:
 
     ./oracle/build/src/cataclysm --userdir oracle/userdir --datadir "$PWD/oracle/src/data/" \
         --world harness-fixed --seed 12345 --dump-line "$PWD/corpus/line/walks.json"
+
+## `closer.json`
+
+Fourteen `squares_closer_to` answers (`src/line.cpp:700-733`), which is what monster movement walks when it picks a step
+(`src/monmove.cpp:1128`): the four shapes (x-dominant, y-dominant, diagonal, and a climb), each walking backwards,
+the degenerate straight runs, and a mover that is already at its target.
+
+The order in the file is the order the reference offers the squares in, and that is the point: a creature takes the
+first square it can enter, so the same squares in a different order is a different move. Swapping the two flanking
+squares in the x-dominant branch fails the first case.
+
+Reproduce with:
+
+    ./oracle/build/src/cataclysm --userdir oracle/userdir --datadir "$PWD/oracle/src/data/" \
+        --world harness-fixed --seed 12345 --dump-squares-closer "$PWD/corpus/line/closer.json"
