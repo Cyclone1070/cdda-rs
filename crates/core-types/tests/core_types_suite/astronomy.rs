@@ -1,150 +1,120 @@
-//! The sun's position, against four hundred samples the reference printed.
+//! The sun, as the reference computes it.
 //!
-//! `corpus/astronomy/sun.json` is `--dump-astronomy`: the reference's own
-//! `sun_azimuth_altitude`, a week apart across a year, three hours apart. The port has to
-//! reproduce it; anything else is a curve I made up that happens to look like a day.
+//! `corpus/astronomy/sun.json` is 424 samples of the reference's `sun_azimuth_altitude` and `sun_light_at` (`src/calendar.cpp:237-402`), and beside them the five values
+//! that chain works from — right ascension, declination, sidereal time, hour angle and days since the epoch. They are dumped because the chain crosses all five and a port
+//! with one wrong constant produces a plausible curve that is minutes off at dawn, which is exactly where the light-level boundary sits.
 
-// Days and hours in a dump are small and exactly representable; the cast is how they get into
-// the formula.
 #![allow(
-    clippy::panic,
     clippy::expect_used,
+    clippy::panic,
     clippy::indexing_slicing,
     clippy::cast_precision_loss
 )]
 
-use cdda_core_types::astronomy::{TURNS_PER_DAY, sun_azimuth_and_altitude_in_year};
-use std::path::PathBuf;
+use cdda_core_types::astronomy::{
+    LATITUDE, LONGITUDE, azimuth_altitude, light_at, ra_declination, sidereal_time, timezone_turns,
+};
+use cdda_json::Value;
 
+/// One sample of the reference's own numbers.
 struct Sample {
     day: i64,
     hour: i64,
     altitude: f64,
+    light: f64,
+    ra: f64,
+    dec: f64,
+    sidereal: f64,
+    hour_angle: f64,
+    days: f64,
 }
 
-/// The dump, and the year length it was taken under.
-struct Dump {
-    year_length_days: f64,
-    samples: Vec<Sample>,
-}
-
-fn samples() -> Dump {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../corpus/astronomy/sun.json");
-    let text = std::fs::read_to_string(path).expect("the astronomy dump exists");
-    let mut year_length_days = None;
+fn samples() -> (i32, Vec<Sample>) {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/astronomy/sun.json");
+    let text = std::fs::read_to_string(&path).expect("the astronomy dump");
+    let Value::Object(root) = cdda_json::parse(text.as_bytes()).expect("valid JSON") else {
+        panic!("root")
+    };
+    let number = |object: &cdda_json::Object, key: &str| -> f64 {
+        match object.get(key) {
+            Some(Value::Float(value)) => *value,
+            Some(Value::Int(value)) => *value as f64,
+            other => panic!("{key} is a number: {other:?}"),
+        }
+    };
+    let Some(Value::Int(year)) = root.get("year_length_days") else {
+        panic!("a year length")
+    };
+    let Some(Value::Array(list)) = root.get("samples") else {
+        panic!("samples")
+    };
     let mut out = Vec::new();
-    for line in text.lines() {
-        if let Some(rest) = line.trim().strip_prefix("\"year_length_days\":") {
-            // The line also carries the season length; take the value up to the comma.
-            year_length_days = rest
-                .split(',')
-                .next()
-                .and_then(|value| value.trim().parse::<f64>().ok());
-            continue;
-        }
-        let line = line.trim().trim_end_matches(',');
-        if !line.starts_with('{') {
-            continue;
-        }
-        let mut day = None;
-        let mut hour = None;
-        let mut altitude = None;
-        for field in line.trim_matches(|c| c == '{' || c == '}').split(',') {
-            let (key, value) = field.split_once(':').expect("a field");
-            let key = key.trim().trim_matches('"');
-            match key {
-                "day" => day = value.trim().parse::<i64>().ok(),
-                "hour" => hour = value.trim().parse::<i64>().ok(),
-                "altitude" => altitude = value.trim().parse::<f64>().ok(),
-                _ => {}
-            }
-        }
-        if let (Some(day), Some(hour), Some(altitude)) = (day, hour, altitude) {
-            out.push(Sample {
-                day,
-                hour,
-                altitude,
-            });
-        }
+    for entry in list {
+        let Value::Object(entry) = entry else {
+            panic!("a sample")
+        };
+        out.push(Sample {
+            day: match entry.get("day") {
+                Some(Value::Int(value)) => *value,
+                other => panic!("a day: {other:?}"),
+            },
+            hour: match entry.get("hour") {
+                Some(Value::Int(value)) => *value,
+                other => panic!("an hour: {other:?}"),
+            },
+            altitude: number(entry, "altitude"),
+            light: number(entry, "light"),
+            ra: number(entry, "ra"),
+            dec: number(entry, "dec"),
+            sidereal: number(entry, "sidereal"),
+            hour_angle: number(entry, "hour_angle"),
+            days: number(entry, "days"),
+        });
     }
-    Dump {
-        year_length_days: year_length_days.expect("the dump says which calendar it used"),
-        samples: out,
-    }
+    (i32::try_from(*year).expect("a year length"), out)
 }
 
+/// Every stage of the chain against the reference's own intermediates.
 #[test]
-fn the_sun_reproduces_the_reference_over_a_whole_year() {
-    let dump = samples();
-    let samples = &dump.samples;
-    assert_eq!(
-        samples.len(),
-        424,
-        "the dump is a year of samples, a week apart"
-    );
-    let mut worst = 0.0_f64;
-    let mut worst_at = (0, 0);
-    for sample in samples {
-        let turns = sample.day as f64 * TURNS_PER_DAY + sample.hour as f64 * 3600.0;
-        let mine = sun_azimuth_and_altitude_in_year(turns, dump.year_length_days).1;
-        let error = (mine - sample.altitude).abs();
-        if error > worst {
-            worst = error;
-            worst_at = (sample.day, sample.hour);
-        }
+fn the_sun_s_whole_chain_matches_the_reference() {
+    let (year_length, samples) = samples();
+    assert_eq!(samples.len(), 424, "the dump holds 424 samples");
+    let mut worst = [0.0_f64; 5];
+    let mut worst_light = 0.0_f64;
+    for sample in &samples {
+        let seconds = f64::from(i32::try_from(sample.day).expect("a day")) * 86_400.0
+            + f64::from(i32::try_from(sample.hour).expect("an hour")) * 3_600.0;
+        // The reference subtracts the timezone, which is the longitude turned into hours - fifteen degrees to the hour - before it counts days
+        // (`src/calendar.cpp:139`, `angle_to_time`).
+        let days = (seconds - timezone_turns(LONGITUDE)) / 86_400.0;
+        worst[0] = worst[0].max((days - sample.days).abs() * 86_400.0);
+        let (ra, dec) = ra_declination(days, year_length);
+        let (ra, dec) = (ra.to_degrees(), dec.to_degrees());
+        worst[1] = worst[1].max((ra - sample.ra).abs());
+        worst[1] = worst[1].max((dec - sample.dec).abs());
+        let sidereal = sidereal_time(days, year_length, LONGITUDE).to_degrees();
+        worst[2] = worst[2].max((sidereal - sample.sidereal).abs());
+        let hour_angle = (sidereal - ra) - sample.hour_angle;
+        worst[3] = worst[3].max(hour_angle.abs());
+        let (_, altitude_radians) = azimuth_altitude(days, year_length, LATITUDE, LONGITUDE);
+        let altitude = altitude_radians.to_degrees();
+        worst[4] = worst[4].max((altitude - sample.altitude).abs());
+        // The light takes the altitude in **radians**, as the reference's `sun_light_at` does.
+        worst_light = worst_light.max((f64::from(light_at(altitude_radians)) - sample.light).abs());
     }
-    // Five thousandths of a degree - five arcseconds - is the agreement this reaches. The
-    // residual is the reference's angle helpers rounding on the way through, not a modelling
-    // difference: every intermediate matches to the printed digits.
     assert!(
-        worst < 5e-3,
-        "worst altitude error {worst} degrees at day {} hour {}",
-        worst_at.0,
-        worst_at.1
+        worst[0] < 1.0,
+        "the day count is within a second: {} off",
+        worst[0]
     );
-    println!(
-        "astronomy: {} samples at a {} day year, worst altitude error {:.3e} degrees",
-        samples.len(),
-        dump.year_length_days,
-        worst
-    );
-}
-
-#[test]
-fn the_sun_rises_and_sets_over_a_day() {
-    // A sanity check the dump cannot give: the curve has to have a day in it at all.
-    let midnight = sun_azimuth_and_altitude_in_year(0.0, 4.0).1;
-    let noon = sun_azimuth_and_altitude_in_year(12.0 * 3600.0, 4.0).1;
+    // **A hundredth of an arc second is the floor**, because the obliquity the reference quotes is `23.439279` degrees - six decimals - and half a millionth of a
+    // degree in that constant moves the declination by about a millionth. The rest of the chain is exact against the dump's twelve printed places.
+    assert!(worst[1] < 1e-5, "right ascension and declination: {} degrees off", worst[1]);
+    assert!(worst[2] < 1e-5, "sidereal time: {} degrees off", worst[2]);
+    assert!(worst[3] < 1e-5, "hour angle: {} degrees off", worst[3]);
+    assert!(worst[4] < 1e-5, "altitude: {} degrees off", worst[4]);
     assert!(
-        midnight < -20.0,
-        "midnight is below the horizon: {midnight}"
+        worst_light < 1e-3,
+        "sunlight: {worst_light} off, which is a light level"
     );
-    assert!(noon > 20.0, "noon is above it: {noon}");
-    assert!(noon > midnight);
-}
-
-#[test]
-fn the_sun_is_up_between_its_dawn_and_its_dusk() {
-    // Reference: `calendar.cpp:42` and `:368` - `is_day( p )` is `sun_altitude( p ) >= sunrise_angle`, and `sunrise_angle` is **minus one degree**, not zero. The
-    // negative angle is deliberate: refraction and the sun's disc mean the day starts when its centre is still below the horizon, and a port that used zero would
-    // shift every dawn and dusk by a few minutes.
-    let dawn = cdda_core_types::astronomy::sunrise_angle();
-    assert!((dawn - (-1.0)).abs() < 1e-12, "the reference's sunrise angle is -1 degrees: {dawn}");
-    // Over a spring day, the sun is up somewhere in the middle and down at midnight and midday's opposite; the exact hours are the dump's business, the ordering is this
-    // test's.
-    let midnight = 0.0;
-    let noon = 12.0 * 3600.0;
-    assert!(!cdda_core_types::astronomy::is_day(midnight), "midnight is night");
-    assert!(cdda_core_types::astronomy::is_day(noon), "noon is day");
-    // And the transition is a single crossing in each direction, not a flush of flapping values.
-    let mut changes = 0;
-    let mut was = cdda_core_types::astronomy::is_day(midnight);
-    for minute in 1..(24 * 60) {
-        let now = cdda_core_types::astronomy::is_day(f64::from(minute) * 60.0);
-        if now != was {
-            changes += 1;
-        }
-        was = now;
-    }
-    assert_eq!(changes, 2, "day begins once and ends once");
 }
