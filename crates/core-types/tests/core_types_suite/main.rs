@@ -40,6 +40,7 @@ mod item_burn_loop;
 mod level;
 mod level_lighting;
 mod light;
+mod line_walk;
 mod light_cast;
 mod light_buffer;
 mod light_invalidation;
