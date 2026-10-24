@@ -30,3 +30,22 @@ Reproduce with:
 
     ./oracle/build/src/cataclysm --userdir oracle/userdir --datadir "$PWD/oracle/src/data/" \
         --world harness-fixed --seed 12345 --dump-squares-closer "$PWD/corpus/line/closer.json"
+
+## `clear_path.json`
+
+Twenty answers from `map::clear_path` (`src/map.cpp:7723-7800`) — ten shapes under two cost windows — on a map built
+square by square: a 31-square floor at z=0, a wall column at `x = 5` from `y = -4` to `y = 4`, and a floor above it
+except at `x = 8`, which is open air.
+
+Three habits of the rule are the reason the map is shaped that way:
+
+- the **last** square is never checked, so a target standing *on* the wall is a clear shot;
+- the flat branch compares the move cost **inclusively** and the climbing branch **strictly**, so a window of a single
+  value can carry a flat shot and never a climb — which is exactly what the two windows, `2..=2` and `1..=3`, show;
+- a climb is allowed if either column has support at the higher level, which is why one column above is floor and
+  another is open air.
+
+Reproduce with:
+
+    ./oracle/build/src/cataclysm --userdir oracle/userdir --datadir "$PWD/oracle/src/data/" \
+        --world harness-fixed --seed 12345 --dump-clear-path "$PWD/corpus/line/clear_path.json"

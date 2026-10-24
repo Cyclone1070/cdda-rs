@@ -22,6 +22,7 @@ pub use weather::{Climate, Forecast, System, Weather, tick_climate, wind_of};
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::{FieldEntry, FieldId};
+use cdda_core_types::line::line_to_3d;
 use cdda_core_types::rng::{Rolls, shuffle};
 use cdda_core_types::shadowcasting::FourQuadrants;
 use std::collections::{BTreeMap, BTreeSet};
@@ -5074,6 +5075,91 @@ pub enum Overflow {
     /// This is not the same as "leave it out", which is what the name suggests. `put_into_container` erases **every** drawn item from the group's list and puts back only
     /// what reached its `excess` pile, and a `none` item never gets there (`src/item_group.cpp:157-171`) - so the player finds nothing, exactly as with a discard.
     None,
+}
+
+
+/// What a line of fire needs to know about the map.
+///
+/// Reference: `map::clear_path` asks three things of the map - whether a square is in bounds, what it costs to move through, and whether anything supports a body at a
+/// level (`src/map.cpp:7723-7800`). They are a trait rather than a map borrow so that the rule can be tested against a fixture the size of a recording.
+pub trait LineOfFire {
+    /// The reference's `inbounds`.
+    fn in_bounds(&self, square: [i32; 3]) -> bool;
+    /// The reference's `move_cost`: zero for a wall, and the terrain's own cost otherwise.
+    fn move_cost(&self, square: [i32; 3]) -> i32;
+    /// The reference's `has_floor_or_support`: whether something can stand on this square at this level.
+    fn has_floor_or_support(&self, square: [i32; 3]) -> bool;
+}
+
+/// The reference's `fov_3d_z_range`: how many levels apart two squares may be and still be in sight of each other.
+const FOV_3D_Z_RANGE: i32 = 10;
+
+/// Whether a line of fire from `from` to `to` is clear.
+///
+/// Reference: `map::clear_path` (`src/map.cpp:7723-7800`). The walk skips the **last** square - a target standing on a wall is still a legal shot - and it does two
+/// different things depending on whether a step climbs:
+///
+/// * a step on one level is allowed when the square's move cost falls inside `cost_min..=cost_max`;
+/// * a step that changes level is allowed when one of the two columns has support at the higher level **and** the square it would stand on costs **strictly** between
+///   the bounds. The reference really does compare strictly here and inclusively there, so a window of one value can carry a flat shot and never a climb.
+///
+/// `range` is the reference's `range`: a negative value means "no limit", otherwise the target must be within it.
+#[must_use]
+pub fn clear_path(
+    from: [i32; 3],
+    to: [i32; 3],
+    range: i32,
+    cost_min: i32,
+    cost_max: i32,
+    facts: &impl LineOfFire,
+) -> bool {
+    if (from[2] - to[2]).abs() > FOV_3D_Z_RANGE {
+        return false;
+    }
+    if (range >= 0 && range < rl_dist(from, to)) || !facts.in_bounds(to) {
+        return false;
+    }
+    let mut last = from;
+    for cell in line_to_3d(from, to, 0, 0) {
+        // "Exit before checking the last square, it's still reachable even if it is an obstacle."
+        if cell == to {
+            return true;
+        }
+        if cell[2] == last[2] {
+            let cost = facts.move_cost(cell);
+            if cost < cost_min || cost > cost_max {
+                return false;
+            }
+        } else {
+            let max_z = cell[2].max(last[2]);
+            let mut this_clear = false;
+            if !facts.has_floor_or_support([cell[0], cell[1], max_z]) {
+                let cost = facts.move_cost([cell[0], cell[1], last[2]]);
+                if cost > cost_min && cost < cost_max {
+                    this_clear = true;
+                }
+            }
+            if !this_clear && facts.has_floor_or_support([last[0], last[1], max_z]) {
+                let cost = facts.move_cost([last[0], last[1], cell[2]]);
+                if cost > cost_min && cost < cost_max {
+                    this_clear = true;
+                }
+            }
+            if !this_clear {
+                return false;
+            }
+        }
+        last = cell;
+    }
+    true
+}
+
+/// The reference's `rl_dist` with the default options: the Chebyshev distance, the longest axis.
+fn rl_dist(from: [i32; 3], to: [i32; 3]) -> i32 {
+    (to[0] - from[0])
+        .abs()
+        .max((to[1] - from[1]).abs())
+        .max((to[2] - from[2]).abs())
 }
 
 /// How a group wants its items put into the container it names.
