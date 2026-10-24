@@ -2986,22 +2986,30 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
-## The cast is compared with the reference's own cache, and is 37 squares too bright (round 542)
+## Three bugs in the vision instrument, then a cast that is 78 squares off (round 542-543)
 
-`--dump-visibility` now records the **cast's inputs beside its output**: each square's vision transparency, its floor bit, its level's `no_floor_gaps`, and the sight
-penalty the cache was built with. Two of those were wrong in the first recording, and both were caught by comparing:
+`--dump-visibility` records the **cast's inputs beside its output**: each square's vision transparency, its floor bit, its level's `no_floor_gaps`, and the sight penalty.
+Getting those right took three fixes, and every one of them had made the record lie:
 
-* the dump read `transparency_cache` (the **light** cache) instead of `vision_transparency_cache`;
-* it recorded no floor bits and no `no_floor_gaps`, so the port was inferring "can this level be seen from below" from the seventeen-square window instead of from the
-  level summary the reference actually uses - which made the port look downwards where the reference had sealed itself in.
+| Bug | What the record said |
+|---|---|
+it read `transparency_cache` (the **light** cache) | the wrong transparency for every square |
+it recorded no floors and no `no_floor_gaps` | the port inferred "can I see below?" from the seventeen-square window instead of the level summary, and looked down where the reference was sealed in |
+it built with `skip_lightmap = true` | the sight cast lives in the lightmap, so the dump read a `seen_cache` left by an earlier build - the reference's own brighter cast came out **dimmer** than the port's |
 
-With those recorded, the port's `cast_zlight` reproduces **830 of 867** squares of the reference's own cache. One transcribing bug fell out on the way: the horizontal
-segment measured its distance from the two horizontal coordinates only, where the reference's `delta` carries the major axis in `z` as well - so every descending
-square was too bright.
+Two more, about the build order: each `build_map_cache` wipes *every* level's seen cache and re-casts, and only the build whose target is the character's level writes
+`VISIBILITY_FULL` into the character's own square - so the levels are now built `-1, +1, 0` and the caches are made dirty first, otherwise the square the character
+stands on reads zero. And `--avatar-at` pins the character, because the fixed world's start square is chosen per process: without it, every recording was a recording
+of wherever that run had started, which is a gate on the seed rather than on the cast.
 
-The remaining 37 are all **one distance step brighter** than the reference - `0.7359` where the reference has `0.70822`, and so on along a diagonal - which means the
-cast is reaching those squares by a **shorter route** than the reference does. The transparency it reads is right; the route is not. The likely cause is a span split
-that should cut a corner and does not, and the next step is a trace of the reference's span list rather than another reading of the sweep.
+With a record that is finally faithful - 220 squares on the character's level, **0** above, **2** below, and the character's own square at `1.0` - the port's cast
+reproduces **789 of 867**. The 78 that differ split into two kinds:
+
+* ours is **one distance step brighter** along a wall (`0.7359` where the reference has `0.6816` or `0.7082`), so the cast reaches those squares by a shorter route;
+* ours sees the level below at `(71,68)` and `(72,68)` while the reference sees its two squares elsewhere - so the descent differs too, not just the distance.
+
+Both are the same suspicion: a span split that should cut a corner and does not. The next step is a trace of the reference's own span list, not another reading of the
+sweep.
 
 ## The whole cast is transcribed (round 541)
 

@@ -99,14 +99,16 @@ pub fn cast_horizontal_segment(
                 if !(MIN_Z..=MAX_Z).contains(&z) {
                     continue;
                 }
-                let span = spans[index];
-                if span.start_major > leading_major {
+                // **The span is read through the index, not copied.** The reference's `this_span` is an iterator that ``split_span`` keeps pointing at the same
+                // span while inserting new ones around it, so its minor bounds change *during* the inner loop. A snapshot taken here would keep testing the
+                // bounds the span had before the split, and the sweep would walk past squares the split had just placed in another span.
+                if spans[index].start_major > leading_major {
                     continue;
                 }
-                if span.skip_first_row && span.start_major == leading_major {
+                if spans[index].skip_first_row && spans[index].start_major == leading_major {
                     continue;
                 }
-                if span.end_major < trailing_major {
+                if spans[index].end_major < trailing_major {
                     break;
                 }
                 let mut started_span = false;
@@ -118,13 +120,13 @@ pub fn cast_horizontal_segment(
                     if x < 0 || y < 0 || x >= bounds.0 || y >= bounds.1 {
                         continue;
                     }
-                    if span.start_minor > leading_minor {
+                    if spans[index].start_minor > leading_minor {
                         continue;
                     }
-                    if span.skip_first_column && span.start_minor == leading_minor {
+                    if spans[index].skip_first_column && spans[index].start_minor == leading_minor {
                         continue;
                     }
-                    if span.end_minor < trailing_minor {
+                    if spans[index].end_minor < trailing_minor {
                         break;
                     }
                     let mut new_transparency = (plane.transparency)(x, y, z);
@@ -287,14 +289,13 @@ pub fn cast_vertical_segment(
                 if y < 0 || y >= bounds.1 {
                     continue;
                 }
-                let span = spans[index];
-                if span.start_major > leading_major {
+                if spans[index].start_major > leading_major {
                     continue;
                 }
-                if span.skip_first_row && span.start_major == leading_major {
+                if spans[index].skip_first_row && spans[index].start_major == leading_major {
                     continue;
                 }
-                if span.end_major < trailing_major {
+                if spans[index].end_major < trailing_major {
                     break;
                 }
                 let mut started_span = false;
@@ -305,10 +306,10 @@ pub fn cast_vertical_segment(
                     if x < 0 || x >= bounds.0 {
                         continue;
                     }
-                    if span.start_minor > leading_minor {
+                    if spans[index].start_minor > leading_minor {
                         continue;
                     }
-                    if span.end_minor < trailing_minor {
+                    if spans[index].end_minor < trailing_minor {
                         break;
                     }
                     let mut new_transparency = (plane.transparency)(x, y, z);
