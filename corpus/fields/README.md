@@ -152,3 +152,23 @@ Each turn carries the **wind** (`windspeed`, `winddirection`, and the local `win
 and the destination is resisted when it blows into that wind: the dump's dice say the ceiling moves between 100 and 94, and without the wind beside them there is
 no way to say why. The field dump reads **three levels**, so a gas that falls or rises is still recorded; none of the levels is touched in this fixture, which is
 itself the fact worth knowing - a gas on a floored square drifts rather than falls.
+
+## `light-session.json`: the light a fire throws, on four levels (round 552)
+
+    ./oracle/build/src/cataclysm --userdir oracle/userdir --datadir "$PWD/oracle/src/data/" \
+        --world harness-fixed --seed lightup --dump-field-series corpus/fields/light-session.json \
+        --place-fire 1 0 3 --field-turns 6
+
+Each turn carries a `light` block: 25 squares on each of four levels — the fire's own level, the two above it and
+the one below — with `lit` (`map::light_at`, 0 dark to 4 bright), `source` (the square's own light source, so a fire
+can be told from daylight) and `ambient` (what the sky gives it).
+
+**Why it exists:** the M2 exit gate asks for light changing across z-levels and no other session carries light at
+all. Measured from it: the fire's square is BRIGHT with a source of 160; the square beside it is lit without a source
+of its own; the square **below** is LOW with no source, because a floor is a ceiling from underneath — the same rule
+the sight cast found, seen from the light's side. The fire spreads on the third turn and the count of squares with
+their own source grows with it.
+
+**What the dump deliberately carries:** `light_at`, not the `lm` quadrant array. `lm` is the cast's internals and
+reads 4.0 on a square the game itself calls BRIGHT; `light_at` is what the draw path and `apparent_light_at` both
+start from, so a replay is held to the observable rather than to a number only the cast sees.
