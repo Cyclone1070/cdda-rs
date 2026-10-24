@@ -2986,6 +2986,17 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## Scent folded into the digest, and the dump lists a square three times (round 548)
+
+The scent session has a receipt now — `0xaac13754071041c0` over thirteen turns — and folding it in found something about the **recording** that no square-by-square
+comparison could: the dump lists the whole window on **each of three levels**, so a square appears two or three times in a turn. A digest over the raw list would depend on
+the shape of the dump rather than on the scent, so the digest collapses to one value per square first.
+
+That is the second time the digest has caught a property of the fixture rather than of the port (the first was the scent window's radius). It is worth having for exactly
+that: a per-square comparison silently forgives duplicates, a zero that could have been a value, and a square the port never had.
+
+Layers so far: fields are zero, scent is one. The sky is next.
+
 ## Every gas session has a receipt number now (round 547)
 
 The milestone's proof line is *replay hash per turn* (`05-roadmap.md`, M2). The gates had been comparing turn by turn and square by square, which says **where** a turn
