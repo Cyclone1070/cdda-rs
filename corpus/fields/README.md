@@ -172,3 +172,12 @@ their own source grows with it.
 **What the dump deliberately carries:** `light_at`, not the `lm` quadrant array. `lm` is the cast's internals and
 reads 4.0 on a square the game itself calls BRIGHT; `light_at` is what the draw path and `apparent_light_at` both
 start from, so a replay is held to the observable rather than to a number only the cast sees.
+
+### Known defect in `light-session.json` (round 554)
+
+The `lit` column disagrees with the `source` column: the fire's own square carries a source of 160 and reads **4.0**, which is the ambient brightness of a dark room, so
+the answer came from a lightmap that did not include the fire. The `source` column is internally consistent and is what the replay gates on.
+
+**Recipe to test the fix:** record the same command again after changing the dump to call `build_map_cache` for the fire's level **after** every other level, and read the
+fire's own square. If `lit` then reads 4 (BRIGHT), the fix is a build ordering one; if it still reads 4.0, the cast is not being applied to `lm` at all and the dump should
+carry `apparent_light_at` instead, which is the function the draw path actually uses.

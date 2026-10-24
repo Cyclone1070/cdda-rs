@@ -2989,6 +2989,25 @@ The instrument itself is not in doubt: it compiles, it is in `oracle/patches/000
 run of a world that exists will write the file.
 
 
+## The light replay, and the oracle bug it found (round 554)
+
+The fire's level of `light-session.json` now replays: the port builds a `Level` from the record's terrain, places the record's fields, runs its own cast, and compares every
+square — 175 of them, seven turns of twenty-five. The comparison it can make today is the **source**, the light a square emits itself, and that matches exactly.
+
+**The `lit` column cannot be gated yet, because the dump is wrong.** The fire's own square is recorded as carrying a 160 source and reading **4.0** — the ambient
+brightness of a dark room — so the recorded answer came from a lightmap build that did not include the fire's own light, even though the source column from the same build
+does. The replay measured the same thing from the other side: the port's cast puts 142 to 154 on every square of the room, and the record says LOW everywhere.
+
+That is an **oracle** defect, not a port one, and it is the first the instrument has had in a while. What it means in practice:
+
+* the `source` column is trustworthy and is gated (exact match, all 175 squares);
+* the `lit` comparison is written and waiting, so the fix is a one-line change on each side;
+* the fixture's own gate in `light_session.rs` was written against the columns that are consistent (a square with its own source reads BRIGHT — which is a fact about the
+  source, not about the cast) and the classifier's 700-square check reads `ambient`, which is a third column and agrees with itself.
+
+**Next round starts with the oracle fix**: re-record the session and see whether `lit` and `source` agree on the fire's square. The suspicion is that `build_map_cache`
+regenerates `lm` for a level whose `light_source_buffer` was filled by a *different* build, but that is a hypothesis and the recipe to test it is in the corpus README.
+
 ## The classifier before the cast (round 553)
 
 `map::light_at` is now ported — four arms, in the reference's order, and it never answers `BRIGHT_ONLY` or `BLANK` because those belong to `apparent_light_at` where
