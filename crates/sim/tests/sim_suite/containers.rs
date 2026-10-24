@@ -6,16 +6,18 @@
 #![allow(clippy::panic, clippy::expect_used)]
 
 use bevy_ecs::prelude::*;
-use cdda_sim::{Container, InsertError, ItemTypeId, contents, drop_item, insert_into, take_out};
+use cdda_sim::{
+    Container, InsertError, ItemFacts, ItemTypeId, contents, drop_item, insert_into, take_out,
+};
 
-/// Every test item is 100 ml.
-fn volume_of(_item: Entity) -> i64 {
-    100
+/// Every test item is a 100 ml solid.
+fn volume_of(_item: Entity) -> ItemFacts {
+    ItemFacts::solid(100)
 }
 
 fn box_of(world: &mut World, capacity_ml: i64) -> Entity {
     let item = drop_item(world, (5, 5), ItemTypeId(9), 1);
-    world.entity_mut(item).insert(Container { capacity_ml });
+    world.entity_mut(item).insert(Container::new(capacity_ml));
     item
 }
 

@@ -4212,6 +4212,97 @@ pub fn damage_level(damage: i32, damage_max: i32, by_charges: bool) -> i32 {
 pub struct Container {
     /// How much volume it can hold, in millilitres.
     pub capacity_ml: i64,
+    /// Whether a liquid may go in.
+    ///
+    /// Reference: `pocket_data::watertight` (`src/item_pocket.h:512`), which `item_pocket::can_contain` insists on before it will take a liquid
+    /// (`src/item_pocket.cpp:1396-1401`). A container with several pockets accepts a liquid if **any** of them is watertight.
+    pub watertight: bool,
+    /// Whether a gas may go in.
+    ///
+    /// Reference: `pocket_data::airtight` (`src/item_pocket.h:514`), the same check for `phase_id::GAS`.
+    pub airtight: bool,
+}
+
+impl Container {
+    /// A container of a given capacity that takes solids only, which most of them do.
+    #[must_use]
+    pub const fn new(capacity_ml: i64) -> Self {
+        Self {
+            capacity_ml,
+            watertight: false,
+            airtight: false,
+        }
+    }
+
+    /// The same container, able to hold a liquid.
+    #[must_use]
+    pub const fn watertight(self) -> Self {
+        Self {
+            watertight: true,
+            ..self
+        }
+    }
+
+    /// The same container, able to hold a gas.
+    #[must_use]
+    pub const fn airtight(self) -> Self {
+        Self {
+            airtight: true,
+            ..self
+        }
+    }
+}
+
+/// What phase an item is in: a solid, a liquid or a gas.
+///
+/// Reference: `phase_id` (`src/units.h`), which the reference asks through `item::made_of( phase_id )`. Liquids and gases are stored as charges and take room a charge at a
+/// time; the phase also decides which pockets will take them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Phase {
+    /// A solid.
+    Solid,
+    /// A liquid, which needs a watertight pocket.
+    Liquid,
+    /// A gas, which needs an airtight one.
+    Gas,
+}
+
+/// What [`insert_into`] needs to know about an item: how much room it takes and what phase it is in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ItemFacts {
+    /// Its volume in millilitres.
+    pub volume_ml: i64,
+    /// Its phase.
+    pub phase: Phase,
+}
+
+impl ItemFacts {
+    /// A solid that takes up `volume_ml`.
+    #[must_use]
+    pub const fn solid(volume_ml: i64) -> Self {
+        Self {
+            volume_ml,
+            phase: Phase::Solid,
+        }
+    }
+
+    /// A liquid that takes up `volume_ml`.
+    #[must_use]
+    pub const fn liquid(volume_ml: i64) -> Self {
+        Self {
+            volume_ml,
+            phase: Phase::Liquid,
+        }
+    }
+
+    /// A gas that takes up `volume_ml`.
+    #[must_use]
+    pub const fn gas(volume_ml: i64) -> Self {
+        Self {
+            volume_ml,
+            phase: Phase::Gas,
+        }
+    }
 }
 
 /// Marks an item as being inside a container.
@@ -4230,6 +4321,11 @@ pub enum InsertError {
     },
     /// The item has already been put somewhere else.
     AlreadyInside,
+    /// The container cannot hold this phase at all - a liquid in a pocket that is not watertight, or a gas in one that is not airtight.
+    WrongPhase {
+        /// The phase that was refused.
+        phase: Phase,
+    },
 }
 
 /// Puts an item into a container, if there is room.
@@ -4245,25 +4341,39 @@ pub fn insert_into(
     world: &mut World,
     container: Entity,
     item: Entity,
-    volume_of: impl Fn(Entity) -> i64,
+    facts_of: impl Fn(Entity) -> ItemFacts,
 ) -> Result<(), InsertError> {
     if world.get::<Inside>(item).is_some() {
         return Err(InsertError::AlreadyInside);
     }
-    let Some(capacity) = world.get::<Container>(container).map(|c| c.capacity_ml) else {
+    let Some(capacity) = world.get::<Container>(container).copied() else {
         return Err(InsertError::TooBig {
             remaining_ml: 0,
-            wanted_ml: volume_of(item),
+            wanted_ml: facts_of(item).volume_ml,
         });
     };
+    // **The phase first**, because it is the answer that does not depend on room: the reference asks `can_contain` before it measures anything, and its refusal for a
+    // liquid in a dry pocket comes before the space check (`src/item_pocket.cpp:1396-1401`).
+    let wanted_facts = facts_of(item);
+    let phase_allowed = match wanted_facts.phase {
+        Phase::Solid => true,
+        Phase::Liquid => capacity.watertight,
+        Phase::Gas => capacity.airtight,
+    };
+    if !phase_allowed {
+        return Err(InsertError::WrongPhase {
+            phase: wanted_facts.phase,
+        });
+    }
+    let volume_of = |entity: Entity| facts_of(entity).volume_ml;
     let mut used = 0;
     for (entity, inside) in world.query::<(Entity, &Inside)>().iter(world) {
         if inside.0 == container {
             used += volume_of(entity);
         }
     }
-    let wanted = volume_of(item);
-    let remaining = capacity - used;
+    let wanted = wanted_facts.volume_ml;
+    let remaining = capacity.capacity_ml - used;
     if wanted > remaining {
         return Err(InsertError::TooBig {
             remaining_ml: remaining,
@@ -4974,9 +5084,7 @@ pub fn start_craft(
     let craft = drop_item(world, square, UNFINISHED_CRAFT, 1);
     world
         .entity_mut(craft)
-        .insert(Container {
-            capacity_ml: i64::MAX,
-        })
+        .insert(Container::new(i64::MAX))
         .insert(CraftInProgress {
             result_kind,
             batch: batch.max(1),
@@ -4985,7 +5093,7 @@ pub fn start_craft(
     for (kind, count) in parts {
         let part = drop_item(world, square, kind, count);
         // Capacity is unbounded, so this cannot fail.
-        let _ = insert_into(world, craft, part, |_| 0);
+        let _ = insert_into(world, craft, part, |_| ItemFacts::solid(0));
     }
     Ok(craft)
 }

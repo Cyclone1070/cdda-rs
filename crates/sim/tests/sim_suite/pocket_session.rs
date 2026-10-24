@@ -152,6 +152,64 @@ impl Table {
     }
 }
 
+
+/// What the data says a container's pockets hold, and what they will accept.
+struct Pockets(BTreeMap<String, (i64, bool, bool)>);
+
+impl Pockets {
+    fn load() -> Self {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/pockets.json");
+        let bytes = std::fs::read(&path).expect("the pockets");
+        let cdda_json::Value::Object(root) = cdda_json::parse(&bytes).expect("valid JSON") else {
+            panic!("the dump is an object")
+        };
+        let Some(cdda_json::Value::Array(types)) = root.get("types") else {
+            panic!("the dump holds types")
+        };
+        let mut table = BTreeMap::new();
+        for entry in types {
+            let cdda_json::Value::Object(entry) = entry else {
+                panic!("a type")
+            };
+            let Some(cdda_json::Value::Str(id)) = entry.get("id") else {
+                panic!("an id")
+            };
+            let Some(cdda_json::Value::Array(pockets)) = entry.get("pockets") else {
+                panic!("pockets")
+            };
+            let mut capacity = 0_i64;
+            let mut watertight = false;
+            let mut airtight = false;
+            for pocket in pockets {
+                let cdda_json::Value::Object(pocket) = pocket else {
+                    panic!("a pocket")
+                };
+                if !matches!(pocket.get("kind"), Some(cdda_json::Value::Str(kind)) if kind == "CONTAINER") {
+                    continue;
+                }
+                // **A container with several pockets holds what they all hold**, and accepts a liquid if any one of them does - which is how the reference's
+                // `item_contents::insert_item` behaves when it offers the payload to each pocket in turn.
+                if let Some(cdda_json::Value::Int(volume)) = pocket.get("max_volume") {
+                    capacity += volume;
+                }
+                watertight = watertight
+                    || matches!(pocket.get("watertight"), Some(cdda_json::Value::Bool(true)));
+                airtight =
+                    airtight || matches!(pocket.get("airtight"), Some(cdda_json::Value::Bool(true)));
+            }
+            table.insert(id.clone(), (capacity, watertight, airtight));
+        }
+        Self(table)
+    }
+
+    fn of(&self, id: &str) -> (i64, bool, bool) {
+        *self
+            .0
+            .get(id)
+            .unwrap_or_else(|| panic!("{id} has no pockets entry"))
+    }
+}
+
 #[test]
 fn a_backpack_fills_up_the_way_the_reference_recorded_it() {
     let steps = steps();
@@ -167,13 +225,17 @@ fn a_backpack_fills_up_the_way_the_reference_recorded_it() {
     ];
     let (kinds, weight_of, volume_of) = table.numbered(&order);
 
+    // **The capacity comes from the data, not from this test.** The backpack's four container pockets hold 25,000 + 510 + 5,000 + 5,000 ml, which is exactly the room the
+    // recorded session's own numbers add up to - and none of those pockets is watertight, which is why the water is refused below rather than accepted.
+    let pockets = Pockets::load();
+    let (capacity, watertight, _) = pockets.of("backpack");
+    assert_eq!(capacity, 35_510, "the backpack's pockets hold 35,510 ml");
+    assert!(!watertight, "and none of them is watertight");
+
     let mut world = World::new();
     let kind_of = |name: &str| *kinds.get(name).unwrap_or_else(|| panic!("{name} is not in the session"));
     let container = drop_item(&mut world, (5, 5), kind_of("backpack"), 1);
-    // The backpack's capacity is what the reference's own room numbers add up to: 250 ml per rock, then 4130 for the plank.
-    world.entity_mut(container).insert(Container {
-        capacity_ml: 35_510,
-    });
+    world.entity_mut(container).insert(Container::new(capacity));
     let mut compared = 0_usize;
     for (index, step) in steps.iter().enumerate() {
         let kind = kind_of(&step.payload);
@@ -191,7 +253,12 @@ fn a_backpack_fills_up_the_way_the_reference_recorded_it() {
             volumes.insert(entity, measured);
         }
         let placed = insert_into(&mut world, container, payload, |entity| {
-            volumes.get(&entity).copied().unwrap_or(0)
+            let room = volumes.get(&entity).copied().unwrap_or(0);
+            if step.payload == "water_clean" {
+                cdda_sim::ItemFacts::liquid(room)
+            } else {
+                cdda_sim::ItemFacts::solid(room)
+            }
         });
         if step.payload == "log" {
             // **A log will not fit**, and the port's capacity rule says so on its own: 50,000 ml into the 30,630 ml the backpack has left. This is the step that makes
@@ -211,13 +278,15 @@ fn a_backpack_fills_up_the_way_the_reference_recorded_it() {
             continue;
         }
         if step.payload == "water_clean" {
-            // **The declared difference.** The reference refuses a liquid in a backpack because a pocket of that kind may not hold one
-            // (`item_pocket::can_contain`, `src/item_pocket.cpp`), and the port has no phase rule yet, so it takes the water. The gate says so out loud rather than
-            // skipping the step.
+            // **The phase rule, reproduced.** The reference refuses a liquid in a backpack because no pocket of it is watertight
+            // (`src/item_pocket.cpp:1396-1401`), and the port refuses it for the same reason and from the same data.
             assert!(!step.ok, "the reference refuses the water");
-            assert!(
-                placed.is_ok(),
-                "and the port takes it, which is the declared gap: no phase rule on a pocket"
+            assert_eq!(
+                placed,
+                Err(cdda_sim::InsertError::WrongPhase {
+                    phase: cdda_sim::Phase::Liquid
+                }),
+                "and the port refuses it for the same reason"
             );
             continue;
         }
@@ -251,4 +320,32 @@ fn a_backpack_fills_up_the_way_the_reference_recorded_it() {
         compared, 4,
         "four accepted steps were compared, one was refused on capacity and one was declared"
     );
+}
+
+#[test]
+fn a_liquid_needs_a_watertight_pocket() {
+    // **The phase rule** (`src/item_pocket.cpp:1396-1401`): a liquid may not go into a pocket that is not `watertight`, and a gas needs `airtight`. The reference's own
+    // words for the refusal are "can't contain liquid" and "can't contain gas".
+    //
+    // The data is what makes this more than a flag: the backpack in `corpus/items/pockets.json` has four container pockets and **none of them is watertight**, while the
+    // plastic bottle has one that is - so the same water is refused by one container and accepted by the other, with no rule differing between the two calls.
+    let mut world = World::new();
+    let backpack = drop_item(&mut world, (5, 5), ItemTypeId(40), 1);
+    world.entity_mut(backpack).insert(Container::new(35_510));
+    let bottle = drop_item(&mut world, (5, 5), ItemTypeId(41), 1);
+    world.entity_mut(bottle).insert(Container::new(500).watertight());
+    let water = drop_item(&mut world, (5, 5), ItemTypeId(42), 1);
+    let facts = |entity: Entity| {
+        if entity == water {
+            cdda_sim::ItemFacts::liquid(250)
+        } else {
+            cdda_sim::ItemFacts::solid(1_000)
+        }
+    };
+    let refused = insert_into(&mut world, backpack, water, facts);
+    assert!(
+        matches!(refused, Err(cdda_sim::InsertError::WrongPhase { .. })),
+        "a backpack may not hold water: {refused:?}"
+    );
+    insert_into(&mut world, bottle, water, facts).expect("but a bottle may, because it is watertight");
 }

@@ -27,12 +27,10 @@ fn grams(kind: ItemTypeId) -> cdda_sim::TypeWeight {
 
 fn box_holding(world: &mut World, contents: &[ItemTypeId]) -> Entity {
     let box_entity = drop_item(world, (5, 5), ItemTypeId(9), 1);
-    world.entity_mut(box_entity).insert(Container {
-        capacity_ml: 10_000,
-    });
+    world.entity_mut(box_entity).insert(Container::new(10_000));
     for kind in contents {
         let item = drop_item(world, (5, 5), *kind, 1);
-        insert_into(world, box_entity, item, |_| 1).expect("it fits");
+        insert_into(world, box_entity, item, |_| cdda_sim::ItemFacts::solid(1)).expect("it fits");
     }
     box_entity
 }
@@ -71,10 +69,8 @@ fn the_counting_goes_all_the_way_down() {
     let mut world = World::new();
     let inner = box_holding(&mut world, &[ItemTypeId(1)]);
     let outer = drop_item(&mut world, (5, 5), ItemTypeId(9), 1);
-    world.entity_mut(outer).insert(Container {
-        capacity_ml: 10_000,
-    });
-    insert_into(&mut world, outer, inner, |_| 1).expect("the inner box fits");
+    world.entity_mut(outer).insert(Container::new(10_000));
+    insert_into(&mut world, outer, inner, |_| cdda_sim::ItemFacts::solid(1)).expect("the inner box fits");
     assert_eq!(
         item_weight(&mut world, outer, grams),
         1100,
@@ -128,11 +124,9 @@ fn an_item_that_does_not_drop_weighs_nothing_contents_included() {
     assert_eq!(item_weight(&mut world, box_entity, grams), 600);
     // Then as a `NO_DROP` one: nothing at all, contents included.
     let ghost = drop_item(&mut world, (6, 6), ItemTypeId(7), 1);
-    world.entity_mut(ghost).insert(Container {
-        capacity_ml: 10_000,
-    });
+    world.entity_mut(ghost).insert(Container::new(10_000));
     let rock = drop_item(&mut world, (6, 6), ItemTypeId(1), 1);
-    insert_into(&mut world, ghost, rock, |_| 1).expect("it fits");
+    insert_into(&mut world, ghost, rock, |_| cdda_sim::ItemFacts::solid(1)).expect("it fits");
     assert_eq!(
         item_weight(&mut world, ghost, grams),
         0,
