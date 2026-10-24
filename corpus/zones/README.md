@@ -14,7 +14,22 @@ loader that looks for its own name finds nothing and returns an empty registry w
 | May be owned by a character | 42 |
 | Hidden from the interface | 1 (`LOOT_ITEM_GROUP`) |
 
+`probe.json` is `--dump-zones-probe`: seven zones laid down on purpose so that the order the manager holds them in is observable, and then four different questions asked
+about every square of a 16 by 15 grid — which zones contain it, how many food zones, which is the **first** food zone, which is the **bottom** zone, and which is the last
+**loot** zone. One zone belongs to another faction, so the faction filter has an answer to be wrong about; one is inverted, one is switched off, and one is not a loot zone at
+all, laid over a square a loot zone already covers.
+
+| Fact | Count |
+|---|---|
+| Zones of the owner's faction | 7 |
+| Zones of another faction | 1 |
+| Probed squares | 240 |
+| Answers compared | 1,440 |
+| Squares where `bottom` and the loot-only answer differ | 9 |
+
 Regenerate with:
 
     ./oracle/build/src/cataclysm --datadir oracle/src/data/ --userdir oracle/userdir \
         --seed 12345 --dump-zone-types corpus/zones/all.json < /dev/null
+    ./oracle/build/src/cataclysm --datadir oracle/src/data/ --userdir oracle/userdir \
+        --seed 12345 --dump-zones-probe corpus/zones/probe.json < /dev/null

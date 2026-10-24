@@ -83,6 +83,7 @@ mod passable_through;
 mod prototype_ids;
 mod qualities;
 mod zones;
+mod zones_probe;
 mod recipe_requirements;
 mod recipe_skills;
 mod recipe_tools;

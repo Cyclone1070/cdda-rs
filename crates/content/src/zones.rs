@@ -112,3 +112,132 @@ fn name_of(object: &Object, key: &str) -> Option<String> {
         _ => None,
     }
 }
+
+/// One zone a character has marked out: a rectangle, a type, and the faction that owns it.
+///
+/// Reference: `zone_data` (`src/clzones.h:347-542`). The rectangle's two corners are **inclusive** on every axis, and the corners may be given in either order — the reference
+/// builds an `inclusive_cuboid` from the pair rather than from a point and a size.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ZoneData {
+    /// The name the player gave the zone.
+    pub name: String,
+    /// Its type's id, such as `LOOT_FOOD`.
+    pub zone_type: String,
+    /// The faction that owns it. A query names the faction it is asking for, and a zone of another faction is simply not there.
+    pub faction: String,
+    /// What the player asked for: everything **but** the rectangle.
+    ///
+    /// **This does not change containment.** `has_inside` is the rectangle whether the flag is set or not; the inversion is applied by whoever reads the zones, and a port
+    /// that folded it into the rectangle would answer "outside" where the reference answers "inside" and its complement.
+    pub invert: bool,
+    /// Whether the player has the zone switched on. The manager's lookups **do not read it** — a switched-off zone still contains its squares; the flag stops actions from
+    /// using it.
+    pub enabled: bool,
+    /// One corner, as an absolute square.
+    pub start: (i32, i32, i32),
+    /// The other corner, inclusive.
+    pub end: (i32, i32, i32),
+}
+
+impl ZoneData {
+    /// Whether the square is inside the zone's rectangle.
+    ///
+    /// Reference: `zone_data::has_inside` (`src/clzones.h:533-542`), which asks `inclusive_cuboid( start, end ).contains( p )` — so both corners and every square between
+    /// them are inside, and the corners are the same set whichever way round the player drew them.
+    #[must_use]
+    pub fn has_inside(&self, at: (i32, i32, i32)) -> bool {
+        let (sx, ex) = ordered(self.start.0, self.end.0);
+        let (sy, ey) = ordered(self.start.1, self.end.1);
+        let (sz, ez) = ordered(self.start.2, self.end.2);
+        (sx..=ex).contains(&at.0) && (sy..=ey).contains(&at.1) && (sz..=ez).contains(&at.2)
+    }
+}
+
+/// The pair of bounds a rectangle spans, whichever way round the corners were given.
+fn ordered(a: i32, b: i32) -> (i32, i32) {
+    (a.min(b), a.max(b))
+}
+
+/// The zones a character has marked out, in the order they were drawn.
+///
+/// Reference: `zone_manager` (`src/clzones.h:545-700`). The list's **order** is load-bearing and the reference reads it from both ends:
+///
+/// - [`ZoneManager::zone_at`] walks it forwards, so the answer is the **first** zone drawn that contains the square;
+/// - [`ZoneManager::bottom_zone`] walks it backwards, so the answer is the **last** one drawn;
+/// - [`ZoneManager::loot_zone_at`] also walks backwards, and only considers types whose id starts with `LOOT`.
+///
+/// The three are not interchangeable, and the fixture in `corpus/zones/probe.json` overlaps its zones precisely so that a port which conflated them is caught.
+#[derive(Debug, Clone, Default)]
+pub struct ZoneManager {
+    zones: Vec<ZoneData>,
+}
+
+impl ZoneManager {
+    /// An empty manager.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Every zone, in the order they were drawn, whichever faction owns them.
+    #[must_use]
+    pub fn zones(&self) -> &[ZoneData] {
+        &self.zones
+    }
+
+    /// Marks out a zone. It goes on the end of the list, which is what makes the order the queries depend on.
+    pub fn add(&mut self, zone: ZoneData) {
+        self.zones.push(zone);
+    }
+
+    /// Forgets every zone.
+    pub fn clear(&mut self) {
+        self.zones.clear();
+    }
+
+    /// The zones of one type that contain the square, in the order they were drawn.
+    ///
+    /// Reference: `zone_manager::get_zones_at` (`src/clzones.cpp:1123-1140`). It iterates **forwards**, which is why its first answer is the oldest zone rather than the
+    /// newest — a player who draws a second food zone over the first keeps being answered by the first.
+    #[must_use]
+    pub fn zones_at(&self, at: (i32, i32, i32), zone_type: &str, faction: &str) -> Vec<&ZoneData> {
+        self.zones
+            .iter()
+            .filter(|zone| {
+                zone.faction == faction && zone.zone_type == zone_type && zone.has_inside(at)
+            })
+            .collect()
+    }
+
+    /// The **first** zone of one type that contains the square.
+    ///
+    /// Reference: `zone_manager::get_zone_at` (`src/clzones.cpp:1112-1121`), which is `get_zones_at(...).front()`.
+    #[must_use]
+    pub fn zone_at(&self, at: (i32, i32, i32), zone_type: &str, faction: &str) -> Option<&ZoneData> {
+        self.zones_at(at, zone_type, faction).into_iter().next()
+    }
+
+    /// The **last** zone of any type that contains the square.
+    ///
+    /// Reference: `zone_manager::get_bottom_zone` (`src/clzones.cpp:1380-1396`), which walks the list from its end. This is the zone the interface draws on top, and the one
+    /// the game answers with when the question is "what am I standing in".
+    #[must_use]
+    pub fn bottom_zone(&self, at: (i32, i32, i32), faction: &str) -> Option<&ZoneData> {
+        self.zones
+            .iter()
+            .rev()
+            .find(|zone| zone.faction == faction && zone.has_inside(at))
+    }
+
+    /// The **last** loot zone that contains the square.
+    ///
+    /// Reference: `zone_manager::get_zone_at( where, loot_only, faction )` (`src/clzones.cpp:1356-1378`). "Loot" is decided by the **prefix of the type's id**, not by a flag:
+    /// `z.get_type().str().substr( 0, 4 ) == "LOOT"`. So a zone of a future type called `LOOTAGE` would count, and one called `AUTO_EAT` would not.
+    #[must_use]
+    pub fn loot_zone_at(&self, at: (i32, i32, i32), faction: &str) -> Option<&ZoneData> {
+        self.zones
+            .iter()
+            .rev()
+            .find(|zone| zone.faction == faction && zone.zone_type.starts_with("LOOT") && zone.has_inside(at))
+    }
+}
