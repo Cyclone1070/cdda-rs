@@ -460,6 +460,56 @@ impl ItemType {
             || (!self.comestible_type.is_empty() && self.phase_is_liquid())
     }
 
+    /// The largest damage this type can take before it is destroyed, and **zero** for a type counted in charges.
+    ///
+    /// Reference: `itype::damage_max` (`src/itype.h:1572-1574`) is `count_by_charges() ? 0 : damage_max_`, and `damage_max_` is a constant 4,000
+    /// (`src/itype.h:1549`) — not data, so every type in the game answers 4,000 or 0.
+    #[must_use]
+    pub fn damage_max(&self) -> i32 {
+        if self.counts_by_charge() { 0 } else { 4_000 }
+    }
+
+    /// How many damage increments a type takes before it is destroyed, and **zero** when it does not degrade at all.
+    ///
+    /// Reference: the finalisation in `item_factory.cpp:4115-4126`. The data states a `degradation_multiplier`, but the loader **zeroes it** unless the type is a
+    /// vehicle part and is not counted in charges (`if( count_by_charges() || category_force != item_category_veh_parts ) { degrade_mult = 0.0f; }`), and it reads the
+    /// category **as stated or derived**, not as the player sees it. A multiplier small enough that `mult * 4000 <= 0.5` leaves the increments at zero; anything else
+    /// divides 50 by it, rounded, and never below one.
+    #[must_use]
+    pub fn degrade_increments(&self, multiplier: f64) -> i32 {
+        let multiplier = if self.counts_by_charge() || self.category != "veh_parts" {
+            0.0
+        } else {
+            multiplier
+        };
+        if multiplier * f64::from(4_000) <= 0.5 {
+            return 0;
+        }
+        // **A `NaN` multiplier leaves zero increments**, which the reference checks for by name (`std::isnan( adjusted_inc ) ? 0 : ...`): a data file can say
+        // `"degradation_multiplier": .nan` and the reference treats it as "does not degrade" rather than as a crash.
+        let adjusted = (50.0 / multiplier).max(1.0).round();
+        // `as` on a float saturates and truncates; the reference's `std::round` already made it whole, and the `NaN` case is handled above it.
+        #[allow(clippy::cast_possible_truncation)]
+        let increments = adjusted as i32;
+        if adjusted.is_nan() { 0 } else { increments }
+    }
+
+    /// How badly damaged a thing is, from nothing to destroyed.
+    ///
+    /// Reference: `itype::damage_level` (`src/itype.cpp:117-126`). Zero damage is level zero **whatever the type**; a charge-counted type answers 5 for any damage at
+    /// all, because it has no partial damage to speak of; and everything else is `1 + 4 * damage / damage_max`, clamped to five. The multiplication comes **before** the
+    /// division, which is what makes the four bands equal: at 1,000 of 4,000 the answer is 2, not 1.
+    #[must_use]
+    pub fn damage_level(&self, damage: i32) -> i32 {
+        if damage == 0 {
+            return 0;
+        }
+        if self.counts_by_charge() {
+            return 5;
+        }
+        (1 + 4 * damage / self.damage_max()).clamp(0, 5)
+    }
+
     /// The materials an armour derives from its per-part entries.
     ///
     /// Entries covering the same body part merge: a material both entries name

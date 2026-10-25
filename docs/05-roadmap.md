@@ -477,6 +477,11 @@ the unfinished craft that holds its own parts. The line family a use action need
 `squares_closer_to`, `move_along_line`/`continue_line`, and `clear_path` with its three habits (the last square
 never checked, the inclusive flat comparison against the strictly-climbing one, and support in either column).
 
+**Also in, at round 612.** The item damage family's *type* half: `damage_max`, the degradation increments and the
+`damage_level` bands, gated over 9,912 types (79,296 measurements). The *instance* half — `set_damage`,
+`set_degradation`, `mod_damage` and the per-turn degradation roll — is next, and needs the dice recorder wired to
+an item rather than to a square.
+
 **Next, in order.** ~~The pockets' **length** limits~~ (in at round 602: `ItemType::longest_side`, gated over
 all 9,912 types), ~~the pocket loader and its accept-lists~~ (rounds 603-605), ~~the accept rules in the
 reference's order~~ (round 606: `check`, 4,752 real verdicts), ~~**corpses**' volume~~ (round 608: 8,078

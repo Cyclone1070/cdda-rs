@@ -32,3 +32,17 @@ point: `holster does not accept this item type or form factor` is the accept-lis
 rule's — so one file gates five rules and says which one refused.
 
 Reproduce with `--dump-item-measures`, `--dump-pockets` and `--dump-pocket-session` (see the oracle README).
+
+### `damage.json` — every type's damage numbers
+
+`--dump-damage` writes 9,912 entries: the category, whether the type is counted in charges, `damage_max`, `degrade_increments`, and the damage level the reference
+reports at six probe values (0, 1, a quarter, a half, one short of the maximum, the maximum).
+
+Reproduce:
+
+    ./oracle/build/src/cataclysm --userdir oracle/userdir --datadir "$PWD/oracle/src/data/" \
+        --world harness-fixed --seed 12345 --dump-damage "$PWD/corpus/items/damage.json"
+
+Two of the three rules are not data at all. The maximum is a constant (4,000, or 0 for anything counted in charges — 1,261 types). And `degrade_increments` is **0 for
+all but 230 types**, because the loader throws away the stated `degradation_multiplier` unless the type is a vehicle part: the data says 1.0 everywhere and the rule
+says no. The damage level multiplies before it divides, which is what makes its four bands equal — dividing first fails 25,953 of the 79,296 measurements.

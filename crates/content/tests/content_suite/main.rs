@@ -57,6 +57,7 @@ mod inheritance_corpus;
 mod inline_enchantments;
 mod item_catalog;
 mod item_flags;
+mod item_damage;
 mod item_length;
 mod item_pockets;
 mod item_group_draw;
