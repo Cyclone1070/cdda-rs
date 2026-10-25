@@ -5168,6 +5168,15 @@ fn volume_with(
     let Some(item) = world.get::<GroundItem>(entity).cloned() else {
         return 0;
     };
+    // **An unfinished craft is exactly as big as the parts it holds.** Reference: `item::volume`'s craft branch (`src/item.cpp:7522-7534`) sums the components and
+    // floors the answer at one millilitre, because a recipe of nothing but practices would otherwise be a zero-volume item in the world.
+    if world.get::<CraftInProgress>(entity).is_some() {
+        let mut total: i64 = 0;
+        for held in contents(world, entity) {
+            total = total.saturating_add(volume_with(world, held, facts, integral));
+        }
+        return total.max(1);
+    }
     // **A corpse is not measured like the item it is carried as**: its volume is the creature's, quartered and dressed and gibbed and skinned
     // (`src/item.cpp:7518-7520`). Everything the corpse holds is still counted, because a corpse is a container like any other.
     if let Some(corpse) = world.get::<CorpseOf>(entity).copied() {
@@ -5244,6 +5253,15 @@ fn weight_milligrams(
     let facts_of_type = facts(item.kind);
     if facts_of_type.no_drop {
         return 0;
+    }
+    // **An unfinished craft weighs what it holds and nothing more.** Reference: `item::weight`'s craft branch (`src/item.cpp:7240-7251`) sums the components with **no**
+    // floor - unlike its volume, which is floored at a millilitre - and it runs before the `NO_DROP` check's siblings because a craft of nothing weighs nothing.
+    if world.get::<CraftInProgress>(entity).is_some() {
+        let mut total: i64 = 0;
+        for held in contents(world, entity) {
+            total = total.saturating_add(weight_milligrams(world, held, facts, integral));
+        }
+        return total;
     }
     // **Charges multiply only for a charge-counted type.** A torch with twenty charges weighs one torch.
     let charges = if facts_of_type.count_by_charges {

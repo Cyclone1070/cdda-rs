@@ -7,8 +7,9 @@
 
 use bevy_ecs::prelude::*;
 use cdda_sim::{
-    CraftEnd, CraftInProgress, GroundItem, ItemTypeId, cancel_craft, consume_items, contents,
-    craft_turn_on, drop_item, items_at, start_craft,
+    CraftEnd, CraftInProgress, GroundItem, ItemTypeId, TypeVolume, TypeWeight, UNFINISHED_CRAFT,
+    cancel_craft, consume_items, contents, craft_turn_on, drop_item, item_volume, item_weight,
+    items_at, start_craft,
 };
 
 fn parts() -> Vec<Vec<(ItemTypeId, i32)>> {
@@ -111,4 +112,52 @@ fn an_interrupted_craft_keeps_its_progress() {
         craft_turn_on(&mut world, craft, 100, 1.0),
         CraftEnd::Made(_)
     ));
+}
+
+#[test]
+fn an_unfinished_craft_is_as_big_and_as_heavy_as_the_parts_it_holds() {
+    // **The craft's own type says nothing.** Reference: `item::volume`'s craft branch (`src/item.cpp:7522-7534`) adds up the components and floors the answer at one
+    // millilitre, and `item::weight`'s (`src/item.cpp:7240-7251`) adds up the same components with no floor at all. The unfinished craft carries the **result's** item
+    // type in the reference, so its own volume would be the finished thing's - which is why the rule ignores it.
+    let mut world = World::new();
+    drop_item(&mut world, (5, 5), ItemTypeId(1), 2);
+    let craft = start_craft(&mut world, (5, 5), &parts(), 1, ItemTypeId(9), 200.0)
+        .expect("the parts are there");
+    // The parts are charge-counted so that the two the craft took are two charges of one entity, which is how the port carries a stack: the reference holds two
+    // items and adds both, and a charge-counted type makes those the same number.
+    let volume_of = |kind: ItemTypeId| TypeVolume {
+        millilitres: if kind == UNFINISHED_CRAFT { 999_999 } else { 100 },
+        integral_millilitres: if kind == UNFINISHED_CRAFT { 999_999 } else { 100 },
+        count_by_charges: true,
+        stack_size: 1,
+    };
+    let weight_of = |kind: ItemTypeId| TypeWeight {
+        milligrams: if kind == UNFINISHED_CRAFT { 999_999_000 } else { 50_000 },
+        integral_milligrams: if kind == UNFINISHED_CRAFT { 999_999_000 } else { 50_000 },
+        count_by_charges: true,
+        no_drop: false,
+    };
+    assert_eq!(
+        item_volume(&mut world, craft, volume_of),
+        200,
+        "two 100 ml parts, and not the unfinished type's own volume"
+    );
+    assert_eq!(
+        item_weight(&mut world, craft, weight_of),
+        100,
+        "two 50 g parts, in grams"
+    );
+
+    // An empty craft - a recipe of nothing but practices - is still one millilitre, because the reference floors it there to keep zero-volume items out of the world.
+    let empty = start_craft(&mut world, (6, 6), &[], 1, ItemTypeId(9), 200.0).expect("no parts");
+    assert_eq!(
+        item_volume(&mut world, empty, volume_of),
+        1,
+        "a craft with nothing in it is one millilitre, not zero"
+    );
+    assert_eq!(
+        item_weight(&mut world, empty, weight_of),
+        0,
+        "and it weighs nothing, because the weight branch has no floor"
+    );
 }

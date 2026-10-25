@@ -480,8 +480,9 @@ never checked, the inclusive flat comparison against the strictly-climbing one, 
 **Next, in order.** ~~The pockets' **length** limits~~ (in at round 602: `ItemType::longest_side`, gated over
 all 9,912 types), ~~the pocket loader and its accept-lists~~ (rounds 603-605), ~~the accept rules in the
 reference's order~~ (round 606: `check`, 4,752 real verdicts), ~~**corpses**' volume~~ (round 608: 8,078
-measurements over 1,154 creatures). What is left of this sentence: the item's own `volume` **variable**
-override, which nothing in the content sets yet, and **crafts**, whose volume is the sum of their parts. Then the layer the
+measurements over 1,154 creatures). What is left of this sentence: the item's own `volume` **variable** override,
+which nothing in the content sets yet, and ~~**crafts**~~ (round 609: the volume is the sum of the parts floored at
+one millilitre, the weight the same sum with no floor). Then the layer the
 phase is named for: an inventory that is a set of entity handles rather than an `item_location` scheme, so
 that wielding, wearing and magazine loading can be ported once instead of twice. Use and examine actions come
 after that, because every one of them starts by asking an inventory something.
