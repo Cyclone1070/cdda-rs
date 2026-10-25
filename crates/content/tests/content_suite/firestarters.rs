@@ -81,7 +81,7 @@ fn every_firestarter_is_read_the_way_the_reference_reads_it() {
         };
         let found: Vec<&Firestarter> = item
             .use_actions
-            .iter()
+            .values()
             .filter_map(|action| match action {
                 UseAction::Firestarter(fire) => Some(fire),
                 _ => None,

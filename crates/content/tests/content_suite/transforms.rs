@@ -121,7 +121,7 @@ fn every_transform_an_item_declares_is_read_the_way_the_reference_reads_it() {
             differing.push(format!("{id} is not loaded"));
             continue;
         };
-        let found = item.use_actions.iter().any(|action| match action {
+        let found = item.use_actions.values().any(|action| match action {
             UseAction::Transform(transform) => transform == case,
             _ => false,
         });

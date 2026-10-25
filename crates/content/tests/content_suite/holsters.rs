@@ -72,7 +72,7 @@ fn every_holster_is_read_the_way_the_reference_reads_it() {
         };
         let found: Vec<&Holster> = item
             .use_actions
-            .iter()
+            .values()
             .filter_map(|action| match action {
                 UseAction::Holster(holster) => Some(holster),
                 _ => None,

@@ -215,7 +215,7 @@ fn every_drug_is_read_the_way_the_reference_reads_it() {
         };
         let found: Vec<&ConsumeDrug> = item
             .use_actions
-            .iter()
+            .values()
             .filter_map(|action| match action {
                 UseAction::ConsumeDrug(drug) => Some(drug),
                 _ => None,
@@ -265,7 +265,7 @@ fn the_ported_actor_types_are_the_ones_the_content_uses() {
     let mut ported: BTreeSet<&str> = BTreeSet::new();
     let mut others: BTreeMap<String, usize> = BTreeMap::new();
     for item in &items {
-        for action in &item.use_actions {
+        for action in item.use_actions.values() {
             match action {
                 UseAction::Other { kind } => {
                     *others.entry(kind.clone()).or_default() += 1;

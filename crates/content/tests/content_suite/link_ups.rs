@@ -120,7 +120,7 @@ fn every_cable_is_read_the_way_the_reference_reads_it() {
         };
         let found: Vec<&LinkUp> = item
             .use_actions
-            .iter()
+            .values()
             .filter_map(|action| match action {
                 UseAction::LinkUp(cable) => Some(cable),
                 _ => None,

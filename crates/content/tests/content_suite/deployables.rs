@@ -91,7 +91,7 @@ fn every_deployable_furniture_is_read_the_way_the_reference_reads_it() {
         };
         let found: Vec<&DeployFurn> = item
             .use_actions
-            .iter()
+            .values()
             .filter_map(|action| match action {
                 UseAction::DeployFurn(deploy) => Some(deploy),
                 _ => None,
@@ -150,7 +150,7 @@ fn every_trap_is_read_the_way_the_reference_reads_it() {
         };
         let found: Vec<&PlaceTrap> = item
             .use_actions
-            .iter()
+            .values()
             .filter_map(|action| match action {
                 UseAction::PlaceTrap(place) => Some(place),
                 _ => None,

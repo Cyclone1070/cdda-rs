@@ -17,6 +17,10 @@ pub struct Quality {
     pub id: String,
     /// The name a player sees.
     pub name: String,
+    /// The actions this quality lends at a given level: `[ [ 1, [ "salvage", "inscribe" ] ] ]` means any item with the quality **at level 1 or above** can
+    /// `salvage` and `inscribe`. Filled by the item factory's finalisation pass (`src/item_factory.cpp:333-355`), which is why an item's action list is longer than
+    /// its own JSON.
+    pub usages: Vec<(i32, Vec<String>)>,
 }
 
 /// Loads the quality registry, in the reference's file order.
@@ -74,7 +78,8 @@ fn collect(
                 return Ok(());
             };
             let name = name_of(object).unwrap_or_else(|| id.clone());
-            if out.insert(id.clone(), Quality { id: id.clone(), name }).is_some() {
+            let usages = read_usages(object);
+            if out.insert(id.clone(), Quality { id: id.clone(), name, usages }).is_some() {
                 return Err(LoadError {
                     message: format!("quality {id} is defined twice: {}", path.display()),
                 });
@@ -83,6 +88,39 @@ fn collect(
         _ => {}
     }
     Ok(())
+}
+
+/// A quality's `usages`: `[ [ level, [ action ids ] ] ]`.
+///
+/// Reference: `struct quality::usages` (`src/requirements.h`), read by `generic_factory`. The action ids are **legacy names or actor types**, and the reference
+/// only adds one whose `usage_from_string` resolves — which is checked at the call site, because that table is the item factory's.
+fn read_usages(object: &Object) -> Vec<(i32, Vec<String>)> {
+    let Some(Value::Array(entries)) = object.get("usages") else {
+        return Vec::new();
+    };
+    entries
+        .iter()
+        .filter_map(|entry| {
+            let Value::Array(parts) = entry else {
+                return None;
+            };
+            let level = match parts.first() {
+                Some(Value::Int(level)) => i32::try_from(*level).ok()?,
+                _ => return None,
+            };
+            let actions = match parts.get(1) {
+                Some(Value::Array(actions)) => actions
+                    .iter()
+                    .filter_map(|action| match action {
+                        Value::Str(action) => Some(action.clone()),
+                        _ => None,
+                    })
+                    .collect(),
+                _ => Vec::new(),
+            };
+            Some((level, actions))
+        })
+        .collect()
 }
 
 /// A name, which the reference writes either as a bare string or as an object with `str` and a context.
@@ -103,8 +141,14 @@ fn name_of(object: &Object) -> Option<String> {
 /// read into one here and a repeated quality keeps the last level, which is what an insert into a `std::map` does.
 #[must_use]
 pub fn item_qualities(object: &Object) -> BTreeMap<String, i32> {
+    item_qualities_keyed(object, "qualities")
+}
+
+/// Reads a `[ [ quality, level ] ]` member under any name, because `charged_qualities` has the same shape.
+#[must_use]
+pub fn item_qualities_keyed(object: &Object, member: &str) -> BTreeMap<String, i32> {
     let mut out = BTreeMap::new();
-    let Some(Value::Array(pairs)) = object.get("qualities") else {
+    let Some(Value::Array(pairs)) = object.get(member) else {
         return out;
     };
     for pair in pairs {

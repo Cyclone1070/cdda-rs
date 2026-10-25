@@ -10,7 +10,6 @@
 #![allow(clippy::panic, clippy::expect_used)]
 
 use cdda_content::items::{ItemType, load_paths};
-use cdda_content::use_actions::UseAction;
 use std::collections::BTreeMap;
 
 fn loaded() -> BTreeMap<String, ItemType> {
@@ -32,11 +31,22 @@ fn an_array_shaped_entry_is_an_action_and_not_a_gap() {
     let items = loaded();
     for id in ["large_repairkit", "small_repairkit"] {
         let item = items.get(id).unwrap_or_else(|| panic!("{id} loads"));
-        let kinds: Vec<&str> = item.use_actions.iter().map(UseAction::kind).collect();
+        // **Sorted by name, not in data order, and `repair_item` renamed.** `use_methods` is a `std::map`, so it comes back as `CROWBAR, GUN_REPAIR, HACKSAW, …`
+        // (upper case before lower), `link_up` sorts after `REMOVE_ALL_MODS`, and the `repair_item` actor answers to `repair_metal` — its `item_action_type`
+        // (`src/item_factory.cpp:1858-1865`). The repairkits also **inherit** `REMOVE_ALL_MODS` and `saw_barrel` from a parent, which is why there are seven.
+        let names: Vec<&String> = item.use_actions.keys().collect();
         assert_eq!(
-            kinds,
-            vec!["GUN_REPAIR", "CROWBAR", "HACKSAW", "repair_item", "link_up"],
-            "{id} has all five of its actions, in the order the data writes them"
+            names,
+            vec![
+                "CROWBAR",
+                "GUN_REPAIR",
+                "HACKSAW",
+                "REMOVE_ALL_MODS",
+                "link_up",
+                "repair_metal",
+                "saw_barrel"
+            ],
+            "{id} has all seven of its actions, in the map's own order"
         );
     }
 }

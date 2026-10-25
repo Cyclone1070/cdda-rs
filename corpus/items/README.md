@@ -100,3 +100,9 @@ that says an active item cannot be holstered even when it fits.
 `--dump-deploy-furn` writes 39 actors with one mandatory member. `--dump-place-traps` writes 28, and those have **two halves at two levels**: the unburied half
 reads the actor's own object, the buried half reads a nested `"bury"` object — and only when there is a `bury_question`, so the same keys mean different things at
 the two levels.
+
+### `use-methods.json` and `ammo-scales.json` — what an item can do, and what it costs
+
+`--dump-use-methods` writes every item type's action keys **in the map's own order** with the actor behind each, and `--dump-ammo-scales` writes the per-action charge
+scale. Three rules are visible only here: the keys are **sorted** (they live in a `std::map`), a repeated name **collapses**, and a `repair_item` actor answers to its
+`item_action_type`, so a repairkit has `repair_metal` rather than `repair_item`.

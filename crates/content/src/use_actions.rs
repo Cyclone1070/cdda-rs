@@ -229,45 +229,153 @@ impl Transform {
     }
 }
 
+/// What a type's `use_action` member produces: the actions **by name**, and the per-action charge scale.
+///
+/// The reference keeps these in two members: `itype::use_methods`, a `std::map<std::string, use_function>` (`src/itype.h`), and `itype::ammo_scale`, a
+/// `std::map<std::string, int>` (`1410`). Both are **maps keyed by the action's name**, which is three rules in one: the actions come back **sorted by name** rather
+/// than in the order the data writes them; two entries with the same name **collapse**, because the loader `emplace`s; and a `repair_item` actor is registered under
+/// its `item_action_type` rather than under `repair_item` (`src/item_factory.cpp:1858-1865`).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct UseActions {
+    /// The actions, by name.
+    pub methods: std::collections::BTreeMap<String, UseAction>,
+    /// How much of an action's charge cost to charge, by action name. Absent means one; **present means exactly this**, so a zero is not "unset".
+    pub ammo_scale: std::collections::BTreeMap<String, i32>,
+}
+
+impl UseActions {
+    /// Adds another member's actions on top, keeping the ones already there — the reference **merges** rather than replaces.
+    ///
+    /// `insert_values_from` inserts into the container it is given without clearing it (`src/generic_factory.h:1110-1127`) and the map's handler `emplace`s
+    /// (`1040-1050`), so a type that inherits a `use_action` list and states its own keeps **both**, and the inherited entry wins any name collision.
+    pub fn inherit(&mut self, other: Self) {
+        for (name, action) in other.methods {
+            self.methods.entry(name).or_insert(action);
+        }
+        for (name, scale) in other.ammo_scale {
+            self.ammo_scale.entry(name).or_insert(scale);
+        }
+    }
+}
+
 /// Reads a type's `use_action`, which the data may write as one entry or a list of them.
 ///
-/// Reference: `item_factory.cpp`'s `use_function_reader_map` and `use_function_reader_single`: the member may be a single action or an array of them, and every
-/// entry is either a legacy string id or an object with a `"type"`.
+/// Reference: `use_function_reader_map` (`src/item_factory.cpp:1907-1920`) over `use_function_reader_helper` (`1877-1903`). Both maps are filled with `emplace`, so
+/// **the first entry for a name wins**, and the name is the actor's `type` — or, for a `repair_item` actor, its `item_action_type` (`1858-1865`), which is why a
+/// repairkit answers to `repair_metal` rather than to `repair_item`.
 ///
 /// # Errors
 ///
-/// If an entry is neither a string nor an object, or a ported actor's fields are malformed.
-pub fn read_use_actions(object: &Object) -> Result<Vec<UseAction>, LoadError> {
+/// If a ported actor's fields are malformed.
+pub fn read_use_actions(object: &Object) -> Result<UseActions, LoadError> {
+    let mut out = UseActions::default();
     let Some(value) = object.get("use_action") else {
-        return Ok(Vec::new());
+        return Ok(out);
     };
     let entries: Vec<&Value> = match value {
         Value::Array(entries) => entries.iter().collect(),
         other => vec![other],
     };
-    entries
-        .into_iter()
-        .map(|entry| -> Result<Option<UseAction>, LoadError> {
-            match entry {
-                Value::Str(id) => Ok(Some(UseAction::Other { kind: id.clone() })),
-                Value::Object(actor) => {
-                    let Some(Value::Str(kind)) = actor.get("type") else {
-                        return Ok(None);
-                    };
-                    read_actor(kind, actor)
-                }
-                // **An entry may itself be an array**: `[ "CROWBAR", 0 ]` names the action and overrides its `ammo_scale`
-                // (`src/item_factory.cpp:1894-1899`). Four of them exist, on the two repairkits, and dropping them silently would leave those tools with a shorter
-                // list than the reference's without any gate noticing — so the shape has its own test.
-                Value::Array(parts) => Ok(match parts.first() {
-                    Some(Value::Str(kind)) => Some(UseAction::Other { kind: kind.clone() }),
-                    _ => None,
-                }),
-                _ => Ok(None),
+    for entry in entries {
+        let (name, action, scale) = match entry {
+            Value::Str(id) => (id.clone(), UseAction::Other { kind: id.clone() }, None),
+            Value::Object(actor) => {
+                let Some(Value::Str(kind)) = actor.get("type") else {
+                    continue;
+                };
+                let name = if kind == "repair_item" {
+                    match actor.get("item_action_type") {
+                        Some(Value::Str(id)) => id.clone(),
+                        _ => kind.clone(),
+                    }
+                } else {
+                    kind.clone()
+                };
+                let action = read_actor(&name, actor)?.unwrap_or(UseAction::Other { kind: kind.clone() });
+                let scale = actor.get("ammo_scale").and_then(float_as_int);
+                (name, action, scale)
             }
-        })
-        .filter_map(Result::transpose)
-        .collect()
+            // **An entry may itself be an array**: `[ "CROWBAR", 0 ]` names the action and carries its `ammo_scale`
+            // (`src/item_factory.cpp:1894-1899`).
+            Value::Array(parts) => {
+                let Some(Value::Str(kind)) = parts.first() else {
+                    continue;
+                };
+                let scale = parts.get(1).and_then(float_as_int);
+                (kind.clone(), UseAction::Other { kind: kind.clone() }, scale)
+            }
+            _ => continue,
+        };
+        out.methods.entry(name.clone()).or_insert(action);
+        if let Some(scale) = scale {
+            out.ammo_scale.entry(name).or_insert(scale);
+        }
+    }
+    Ok(out)
+}
+
+/// A number as a whole one, truncating: the reference reads `ammo_scale` with `get_float` and then **narrows it to an int**
+/// (`src/item_factory.cpp:1869-1871`, `1896-1898`), so `0.5` becomes `0` — which is not the same as absent, because absent means one.
+fn float_as_int(value: &Value) -> Option<i32> {
+    match value {
+        #[allow(clippy::cast_possible_truncation)]
+        Value::Float(number) => Some(*number as i32),
+        Value::Int(number) => i32::try_from(*number).ok(),
+        _ => None,
+    }
+}
+
+/// A whole number out of a JSON value.
+fn int_of(value: &Value) -> Option<i32> {
+    match value {
+        Value::Int(value) => i32::try_from(*value).ok(),
+        _ => None,
+    }
+}
+
+/// A translation from a member, or the sentence the reference falls back to.
+///
+/// Reference: the two `if( !obj.read( ... ) ) { x = to_translation( ... ); }` pairs in `iuse_transform::load` (`src/iuse_actor.cpp:259-266`).
+fn translation_or(object: &Object, key: &str, fallback: &str) -> String {
+    match object.get(key) {
+        Some(Value::Str(text)) => text.clone(),
+        Some(Value::Object(text)) => match text.get("str") {
+            Some(Value::Str(text)) => text.clone(),
+            _ => fallback.to_owned(),
+        },
+        _ => fallback.to_owned(),
+    }
+}
+
+/// A duration written either as a string in the game's grammar or as a whole number of turns, in seconds.
+///
+/// Reference: `load_effect_data` (`src/iuse_actor.cpp:839-844`), which reads a string through the duration reader and an int through `from_turns`.
+fn duration_seconds(value: Option<&Value>) -> i64 {
+    match value {
+        Some(Value::Str(text)) => crate::constructions::parse_duration(text),
+        Some(Value::Int(turns)) => *turns,
+        _ => 0,
+    }
+}
+
+/// Reads one actor out of its object, if the port has it.
+///
+/// # Errors
+///
+/// If a ported actor's fields are malformed.
+pub fn read_actor(kind: &str, object: &Object) -> Result<Option<UseAction>, LoadError> {
+    match kind {
+        "transform" | "delayed_transform" => Ok(Some(UseAction::Transform(Transform::read(kind, object)?))),
+        "consume_drug" => Ok(Some(UseAction::ConsumeDrug(ConsumeDrug::read(kind, object)?))),
+        "link_up" => Ok(Some(UseAction::LinkUp(LinkUp::read(kind, object)?))),
+        "firestarter" => Ok(Some(UseAction::Firestarter(Firestarter::read(kind, object)?))),
+        "holster" => Ok(Some(UseAction::Holster(Holster::read(kind, object)?))),
+        "deploy_furn" => Ok(Some(UseAction::DeployFurn(DeployFurn::read(kind, object)?))),
+        "place_trap" => Ok(Some(UseAction::PlaceTrap(PlaceTrap::read(kind, object)?))),
+        _ => Ok(Some(UseAction::Other {
+            kind: kind.to_owned(),
+        })),
+    }
 }
 
 /// One effect a drug gives, for how long, and where.
@@ -481,59 +589,6 @@ fn read_damage_over_time(object: &Object) -> Vec<DrugDamage> {
             })
         })
         .collect()
-}
-
-/// A whole number out of a JSON value.
-fn int_of(value: &Value) -> Option<i32> {
-    match value {
-        Value::Int(value) => i32::try_from(*value).ok(),
-        _ => None,
-    }
-}
-
-/// A translation from a member, or the sentence the reference falls back to.
-///
-/// Reference: the two `if( !obj.read( ... ) ) { x = to_translation( ... ); }` pairs in `iuse_transform::load` (`src/iuse_actor.cpp:259-266`).
-fn translation_or(object: &Object, key: &str, fallback: &str) -> String {
-    match object.get(key) {
-        Some(Value::Str(text)) => text.clone(),
-        Some(Value::Object(text)) => match text.get("str") {
-            Some(Value::Str(text)) => text.clone(),
-            _ => fallback.to_owned(),
-        },
-        _ => fallback.to_owned(),
-    }
-}
-
-/// A duration written either as a string in the game's grammar or as a whole number of turns, in seconds.
-///
-/// Reference: `load_effect_data` (`src/iuse_actor.cpp:839-844`), which reads a string through the duration reader and an int through `from_turns`.
-fn duration_seconds(value: Option<&Value>) -> i64 {
-    match value {
-        Some(Value::Str(text)) => crate::constructions::parse_duration(text),
-        Some(Value::Int(turns)) => *turns,
-        _ => 0,
-    }
-}
-
-/// Reads one actor out of its object, if the port has it.
-///
-/// # Errors
-///
-/// If a ported actor's fields are malformed.
-pub fn read_actor(kind: &str, object: &Object) -> Result<Option<UseAction>, LoadError> {
-    match kind {
-        "transform" | "delayed_transform" => Ok(Some(UseAction::Transform(Transform::read(kind, object)?))),
-        "consume_drug" => Ok(Some(UseAction::ConsumeDrug(ConsumeDrug::read(kind, object)?))),
-        "link_up" => Ok(Some(UseAction::LinkUp(LinkUp::read(kind, object)?))),
-        "firestarter" => Ok(Some(UseAction::Firestarter(Firestarter::read(kind, object)?))),
-        "holster" => Ok(Some(UseAction::Holster(Holster::read(kind, object)?))),
-        "deploy_furn" => Ok(Some(UseAction::DeployFurn(DeployFurn::read(kind, object)?))),
-        "place_trap" => Ok(Some(UseAction::PlaceTrap(PlaceTrap::read(kind, object)?))),
-        _ => Ok(Some(UseAction::Other {
-            kind: kind.to_owned(),
-        })),
-    }
 }
 
 /// The `link_up` actor's data: what a cable can plug into, and what it loses on the way.

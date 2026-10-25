@@ -81,8 +81,13 @@ pub struct ItemType {
     pub faults: Vec<(String, i32)>,
     /// The `fault_group` entries this type pointed at, waiting for finalisation to expand them.
     pub fault_groups: Vec<(i32, i32, f64, String)>,
-    /// What using it does, as far as the actor data is ported (`src/iuse.h:279-300`).
-    pub use_actions: Vec<crate::use_actions::UseAction>,
+    /// What using it does, by **action name**, as far as the actor data is ported (`src/iuse.h:279-300`). A map, not a list, because the reference keeps
+    /// `use_methods` in a `std::map` and three behaviours follow from that alone: sorted order, collapse on a repeated name, and the `repair_item` rename.
+    pub use_actions: BTreeMap<String, crate::use_actions::UseAction>,
+    /// The per-action charge scale (`itype::ammo_scale`, `src/itype.h:1410`): absent means one, and a **zero is a real zero**, not "unset".
+    pub ammo_scale: BTreeMap<String, i32>,
+    /// Qualities the item has **only while charged** (`"charged_qualities": [ [ "OVEN", 2 ] ]`), which lend actions without a charge scale.
+    pub charged_qualities: BTreeMap<String, i32>,
     /// Its flag set.
     pub flags: BTreeSet<String>,
     /// Whether it has gun data, which is what makes it a candidate for an invented turret part (`veh_type.cpp:484`).
@@ -251,6 +256,124 @@ fn read_measures(item: &mut ItemType, object: &Object) -> Result<(), LoadError> 
 /// own pocket list, and a `MAGAZINE` or `MAGAZINE_WELL` one replaces the gun's well; both are appended in the order the mods are installed, which is built-ins
 /// first (`src/item.cpp:383-391`). Only the added CONTAINER pockets show up in what a constructed item reports it holds, which is why they are the ones that
 /// change an item's behaviour here.
+/// Reads a type's `use_action` member, and its `extend`/`delete` operators.
+///
+/// **A stated `use_action` replaces the inherited list; `extend` adds to it and `delete` takes names away.**
+///
+/// Reference: the container overload of `optional` (`src/generic_factory.h:1168-1192`) **clears** the container when the member is present, and only falls through
+/// to the `extend`/`delete` objects when it is not. So a type that inherits five actions and states one of its own has **one**, not six — the opposite of a merge,
+/// which is what an earlier version of this did and what the corpus caught on four types.
+///
+/// # Errors
+///
+/// If a ported actor's fields are malformed.
+fn apply_use_actions(item: &mut ItemType, object: &Object) -> Result<(), LoadError> {
+    if object.get("use_action").is_some() {
+        let stated = crate::use_actions::read_use_actions(object)?;
+        item.use_actions = stated.methods;
+        item.ammo_scale = stated.ammo_scale;
+        return Ok(());
+    }
+    if let Some(Value::Object(extend)) = object.get("extend") {
+        let stated = crate::use_actions::read_use_actions(extend)?;
+        for (name, action) in stated.methods {
+            item.use_actions.entry(name).or_insert(action);
+        }
+        for (name, scale) in stated.ammo_scale {
+            item.ammo_scale.entry(name).or_insert(scale);
+        }
+    }
+    if let Some(Value::Object(delete)) = object.get("delete") {
+        let removed = crate::use_actions::read_use_actions(delete)?;
+        for name in removed.methods.keys() {
+            item.use_actions.remove(name);
+            item.ammo_scale.remove(name);
+        }
+    }
+    Ok(())
+}
+
+/// Adds the actions a type's **qualities** and its **kind** lend it, which is why an item's action list is longer than its own JSON.
+///
+/// Reference: `Item_factory::finalize` (`src/item_factory.cpp:333-377`) and `finalize_pre` (`808-810`). Five rules, and every one uses `emplace_usage`, which adds
+/// an action **only if it is already in the reference's function table** and never overwrites one that is there:
+///
+/// 1. a quality whose level is **at least** a usage's level lends that usage's actions, each at an `ammo_scale` of **zero** — the reference says so outright:
+///    actions from a quality "do not consume ammo";
+/// 2. the same for `charged_qualities`, **without** the scale, because the reference does not know what it would be;
+/// 3. a type with a **mod slot** lends `GUNMOD_ATTACH` (a gunmod) or `TOOLMOD_ATTACH` (anything else), at zero — and a gunmod has a slot whether or not it says so
+///    (`finalize_pre` creates one);
+/// 4. a **gun** lends `detach_gunmods` and `modify_gunmods`, both at zero;
+/// 5. anything that can **plug in** gets a `link_up` scale of zero, whether or not its actor states one (`808-810`): a cable moves power, not charges.
+pub fn add_quality_usages(
+    item: &mut ItemType,
+    qualities: &BTreeMap<String, crate::qualities::Quality>,
+) {
+    fn lend(item: &mut ItemType, action: &str) {
+        item.use_actions
+            .entry(action.to_owned())
+            .or_insert_with(|| crate::use_actions::UseAction::Other {
+                kind: action.to_owned(),
+            });
+    }
+    let owned: Vec<(String, i32)> = item
+        .qualities
+        .iter()
+        .map(|(quality, level)| (quality.clone(), *level))
+        .collect();
+    for (quality, level) in owned {
+        let Some(def) = qualities.get(&quality) else {
+            continue;
+        };
+        for (needed, actions) in &def.usages {
+            if level >= *needed {
+                for action in actions {
+                    lend(item, action);
+                    item.ammo_scale.entry(action.clone()).or_insert(0);
+                }
+            }
+        }
+    }
+    let charged: Vec<(String, i32)> = item
+        .charged_qualities
+        .iter()
+        .map(|(quality, level)| (quality.clone(), *level))
+        .collect();
+    for (quality, level) in charged {
+        let Some(def) = qualities.get(&quality) else {
+            continue;
+        };
+        for (needed, actions) in &def.usages {
+            if level >= *needed {
+                for action in actions {
+                    lend(item, action);
+                }
+            }
+        }
+    }
+    if item.is_gunmod || item.subtypes.contains("TOOLMOD") {
+        let action = if item.is_gunmod {
+            "GUNMOD_ATTACH"
+        } else {
+            "TOOLMOD_ATTACH"
+        };
+        lend(item, action);
+        item.ammo_scale.entry(action.to_owned()).or_insert(0);
+    } else if item.is_gun {
+        for action in ["detach_gunmods", "modify_gunmods"] {
+            lend(item, action);
+            item.ammo_scale.entry(action.to_owned()).or_insert(0);
+        }
+    }
+    if item.use_actions.contains_key("link_up") {
+        item.ammo_scale.entry("link_up".to_owned()).or_insert(0);
+    }
+}
+
+/// Gives every gun its mods' pockets, and gives every mod the well it needs.
+///
+/// Reference: `Item_factory::finalize`'s pocket pass. A gun whose mods carry pockets gains them, and a mod that can hold an item gets a well for it, so the two
+/// halves of an installation agree about where the item lives.
 pub fn apply_mod_pockets(types: &mut [ItemType]) {
     let by_id: BTreeMap<String, (Vec<crate::pockets::PocketSpec>, Vec<crate::pockets::PocketSpec>)> =
         types
@@ -733,6 +856,8 @@ pub fn load_paths(dirs: &[&std::path::Path]) -> Result<Vec<ItemType>, LoadError>
     // **The names a gun's skill may claim.** The reference gives a gun the quality named after its skill only when that name is a quality it knows
     // (`qual_gun_skill.is_valid()`, `src/item_factory.cpp:847-851`), so a launcher gets `GUN` and no `LAUNCHER`. Collecting the ids during the same walk costs nothing.
     let mut known_qualities: BTreeSet<String> = BTreeSet::new();
+    // The quality registry, for the actions each quality lends. Loaded once, before the types are finalised.
+    let qualities_usages = crate::qualities::load_paths(dirs).unwrap_or_default();
     for dir in dirs {
         let files = crate::json_files_in_load_order(dir).map_err(|error| LoadError {
             message: format!("{}: {error}", dir.display()),
@@ -772,6 +897,9 @@ pub fn load_paths(dirs: &[&std::path::Path]) -> Result<Vec<ItemType>, LoadError>
                 item.flags.insert("NO_REPAIR".to_owned());
             }
             item.derive_gun(&known_qualities);
+            // The actions a type's qualities and its kind lend are added **at finalisation**, after the last file is read and before anything asks the type what
+            // it can do (`src/item_factory.cpp:333-377`).
+            add_quality_usages(&mut item, &qualities_usages);
             // A comestible made mostly of one thing lists only that thing
             // (`item_factory.cpp:459-464`), and it happens before the allergen
             // flags are read off the materials.
@@ -1081,7 +1209,9 @@ fn resolve(
         ammo_types: Vec::new(),
         faults: Vec::new(),
         fault_groups: Vec::new(),
-        use_actions: Vec::new(),
+        use_actions: BTreeMap::new(),
+        ammo_scale: BTreeMap::new(),
+        charged_qualities: BTreeMap::new(),
         pockets: Vec::new(),
         added_pockets: Vec::new(),
         gun_mods: Vec::new(),
@@ -1129,10 +1259,10 @@ fn apply(
     // the reference reports both with an empty name.
     let names = names_of(object);
     read_faults(item, object);
-    // A type that states `use_action` replaces its list; one that says nothing keeps what it inherited, which is the reference's `optional` over a member that
-    // `copy-from` had already filled (`src/item_factory.cpp`).
-    if object.get("use_action").is_some() {
-        item.use_actions = crate::use_actions::read_use_actions(object)?;
+    apply_use_actions(item, object)?;
+    // **Qualities the item has only while charged**, written `[ [ "OVEN", 2 ] ]` like the others.
+    if object.get("charged_qualities").is_some() {
+        item.charged_qualities = crate::qualities::item_qualities_keyed(object, "charged_qualities");
     }
     item.name.clear();
     item.name_plural.clear();

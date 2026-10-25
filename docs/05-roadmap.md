@@ -533,7 +533,13 @@ members too, and the gate compares the whole actor.
 
 Round 628 finished that audit on the same actor: **22 members, three clamps, two default sentences**. A negative `moves` is a
 content error, `need_fire` and `need_charges` are lifted to zero, and the actor supplies "The %s is empty!" and "You need a
-source of fire!" itself — which 391 and 458 of the 459 lean on, so emptying either default fails the gate. **Correction:** an earlier version of this line promised a "per-turn degradation
+source of fire!" itself — which 391 and 458 of the 459 lean on, so emptying either default fails the gate.
+
+Round 629 moved the use actions from a list to the **map they really are**, and that alone exposed a rule the port had
+backwards: a stated `use_action` **replaces** the inherited list (`optional` clears the container before inserting), it does
+not merge. An earlier merge disagreed on 31 of 2,653 types. The route also forced the port to grow the finalisation pass
+that lends a type actions it never wrote down — its **qualities' usages**, a mod slot's attach action, a gun's detach and
+modify, and a zero charge scale for anything that plugs in — which is 336 types plus every gun and gunmod. **Correction:** an earlier version of this line promised a "per-turn degradation
 tick"; there is no such thing in the reference — `item::process_internal` does not degrade anything, and the only
 degradation is the one a hit adds and the one `rand_degradation` rolls at spawn.
 
