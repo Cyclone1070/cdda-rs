@@ -169,3 +169,13 @@ stomach's state after one bite of an empty stomach.
 
 Each row also carries the inputs the port has to reach from its own item model — `weight_g`, `type_weight_g`, `charges`, `volume_ml`, `count`, `quench`,
 `relative_rot` — and the intermediate `ratio`, because a disagreement has to be placeable: on the type's data, on the item's arithmetic, or on the food rule itself.
+
+## `digest.json` — the stomach emptying itself
+
+`--dump-digest` puts a bite of each of the 1,686 comestibles into a 1,500 mL stomach and a 1,500 mL set of guts, then digests **six** half-hour steps of each at a fixed
+metabolic pressure (`kcal` 2,500, `hunger` 1) and records, per step, what left (water, solids, calories in thousandths of a kilocalorie) and what the compartment still
+holds (total volume, water, kilocalories). The vitamins that left in the first step and over all six are recorded too, so a rounding rule can be told from a clamping
+one.
+
+The ingested summary is recorded with its own water, solids, calories and vitamins, so the trace can be replayed without the food-summary recording — a disagreement is
+then placeable: on what went in, on the rates, or on the release rule itself.

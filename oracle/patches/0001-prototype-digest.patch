@@ -330,8 +330,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-26 03:43:28
-@@ -0,0 +1,4830 @@
++++ oracle/src/src/harness.cpp	2026-10-26 05:47:50
+@@ -0,0 +1,4950 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +
@@ -342,6 +342,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +#include "dependency_tree.h"
 +#include "map.h"
 +#include "bionics.h"
++#include "stomach.h"
 +#include "vitamin.h"
 +#include "map_memory.h"
 +#include "mod_manager.h"
@@ -2070,6 +2071,125 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +            first_vitamin = false;
 +        }
 +        std::fprintf( out, "}}" );
++        first = false;
++    }
++    std::fprintf( out, "\n],\"count\":%d}\n", count );
++    std::fclose( out );
++}
++
++/// The trace of a full stomach emptying itself, per comestible, in both compartments.
++///
++/// Reference: `stomach_contents::digest` (`src/stomach.cpp:400-437`) and the rates it works at (`:440-476`). The stomach passes material on to the guts in half-hour
++/// steps, and the guts absorb it into the body; both are fed here with a fixed `needs_rates` so the recording measures the rule and not a particular avatar's day.
++///
++/// What the rule is, in words:
++///
++/// * **water** leaves at 250 mL per five minutes and never more than is there — and a drying food's *negative* water is handed back whole, which is how eating
++///   something salty makes you thirstier;
++/// * **solids** leave at a sixth of the stomach's capacity per half hour (a bowl of guts moves a flat 250 mL), never more than is there;
++/// * **calories** leave at whatever is larger: a flat minimum, or a sixth of what is left — but never more than is left, and never less than a sixth of the
++///   thousandths-of-a-kilocalorie figure;
++/// * **vitamins** leave the same way, one at a time, with the same shape and a minimum of one unit — except a **drug** vitamin, which the stomach dumps into the
++///   blood in one step and the guts treat like any other.
++void dump_digest( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    // The rates the trace runs at: a maintenance intake of 2,500 kcal a day and no other pressure on the body.
++    needs_rates rates;
++    rates.kcal = 2500.0f;
++    rates.hunger = 1.0f;
++    rates.thirst = 1.0f;
++    rates.sleepiness = 0.0f;
++    const units::volume capacity = 1500_ml;
++    const int steps = 6;
++
++    std::fprintf( out,
++                  "{\"harness\":\"digest\",\"version\":1,\"rates\":{\"kcal\":%.6g,\"hunger\":%.6g,"
++                  "\"thirst\":%.6g,\"sleepiness\":%.6g},\"capacity_ml\":%lld,\"steps\":%d,\n\"foods\":[\n",
++                  static_cast<double>( rates.kcal ), static_cast<double>( rates.hunger ),
++                  static_cast<double>( rates.thirst ), static_cast<double>( rates.sleepiness ),
++                  static_cast<long long>( units::to_milliliter( capacity ) ), steps );
++
++    // One compartment's whole trace: what the food puts in, then `steps` half-hour digests.
++    const auto trace = [&]( const food_summary &ingested, bool is_stomach ) {
++        stomach_contents contents( capacity, is_stomach );
++        contents.ingest( ingested );
++        std::fprintf( out, "{\"capacity_ml\":%lld,\"steps\":[",
++                      static_cast<long long>( units::to_milliliter( contents.capacity( get_avatar() ) ) ) );
++        std::map<vitamin_id, int> first_vitamins;
++        std::map<vitamin_id, int> total_vitamins;
++        for( int step = 0; step < steps; ++step ) {
++            const food_summary digested = contents.digest( get_avatar(), rates, 1, 1 );
++            if( step == 0 ) {
++                first_vitamins = digested.nutr.vitamins();
++            }
++            for( const std::pair<const vitamin_id, int> &vitamin : digested.nutr.vitamins() ) {
++                total_vitamins[vitamin.first] += vitamin.second;
++            }
++            std::fprintf( out,
++                          "%s[%lld,%lld,%lld,%lld,%lld,%d]", step == 0 ? "" : ",",
++                          static_cast<long long>( units::to_milliliter( digested.water ) ),
++                          static_cast<long long>( units::to_milliliter( digested.solids ) ),
++                          static_cast<long long>( digested.nutr.calories ),
++                          static_cast<long long>( units::to_milliliter( contents.contains() ) ),
++                          static_cast<long long>( units::to_milliliter( contents.get_water() ) ),
++                          contents.get_calories() );
++        }
++        const auto vitamin_map = []( const std::map<vitamin_id, int> &map ) {
++            std::string text = "{";
++            bool first = true;
++            for( const std::pair<const vitamin_id, int> &vitamin : map ) {
++                if( vitamin.second == 0 ) {
++                    continue;
++                }
++                text += string_format( "%s\"%s\":%d", first ? "" : ",",
++                                       harness_escape( vitamin.first.str() ).c_str(), vitamin.second );
++                first = false;
++            }
++            return text + "}";
++        };
++        std::fprintf( out, "],\"vitamins_first\":%s,\"vitamins_total\":%s}",
++                      vitamin_map( first_vitamins ).c_str(), vitamin_map( total_vitamins ).c_str() );
++    };
++
++    avatar &u = get_avatar();
++    bool first = true;
++    int count = 0;
++    for( const itype *type : item_controller->all() ) {
++        if( type == nullptr || !type->comestible ) {
++            continue;
++        }
++        item food( type->get_id(), calendar::turn, 1 );
++        const nutrients effective = u.compute_effective_nutrients( food );
++        const std::pair<units::volume, units::volume> masticated = u.masticated_volume( food );
++        const double ratio = u.compute_effective_food_volume_ratio( food );
++        const food_summary ingested{ masticated.first, masticated.second * ratio, effective };
++        ++count;
++        std::fprintf( out,
++                      "%s{\"id\":\"%s\",\"ingested\":{\"water_ml\":%lld,\"solids_ml\":%lld,\"calories\":%lld,"
++                      "\"vitamins\":{",
++                      first ? "" : ",\n", harness_escape( type->get_id().str() ).c_str(),
++                      static_cast<long long>( units::to_milliliter( ingested.water ) ),
++                      static_cast<long long>( units::to_milliliter( ingested.solids ) ),
++                      static_cast<long long>( ingested.nutr.calories ) );
++        bool first_vitamin = true;
++        for( const std::pair<const vitamin_id, int> &vitamin : ingested.nutr.vitamins() ) {
++            if( vitamin.second == 0 ) {
++                continue;
++            }
++            std::fprintf( out, "%s\"%s\":%d", first_vitamin ? "" : ",",
++                          harness_escape( vitamin.first.str() ).c_str(), vitamin.second );
++            first_vitamin = false;
++        }
++        std::fprintf( out, "}},\"stomach\":" );
++        trace( ingested, true );
++        std::fprintf( out, ",\"guts\":" );
++        trace( ingested, false );
++        std::fprintf( out, "}" );
 +        first = false;
 +    }
 +    std::fprintf( out, "\n],\"count\":%d}\n", count );
@@ -5164,8 +5284,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-26 03:00:23
-@@ -0,0 +1,348 @@
++++ oracle/src/src/harness.h	2026-10-26 04:34:08
+@@ -0,0 +1,351 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -5358,6 +5478,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +
 +/** Writes every `consume_drug` use action, resolved. */
 +void dump_consume_drugs( const std::string &path );
++
++/** Writes the trace of a full stomach emptying itself, in both compartments, as `--dump-digest`. */
++void dump_digest( const std::string &path );
 +
 +/** Writes what a bite of each comestible puts in the stomach, as `--dump-food-summary`. */
 +void dump_food_summary( const std::string &path );
@@ -5688,7 +5811,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-26 03:00:23
++++ oracle/src/src/main.cpp	2026-10-26 04:34:08
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -5699,7 +5822,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,127 @@
+@@ -272,6 +275,128 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -5774,6 +5897,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_material_vitamins;
 +    std::string dump_fun_for;
 +    std::string dump_food_summary;
++    std::string dump_digest;
 +    std::string dump_consume_drugs;
 +    std::string dump_link_ups;
 +    std::string dump_firestarters;
@@ -5827,7 +5951,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +424,1090 @@
+@@ -300,6 +425,1100 @@
                  }
              },
              {
@@ -6218,6 +6342,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_consume_drugs = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-digest", "<file>",
++                "Writes the trace of a full stomach emptying itself, in both compartments",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_digest = params[0];
 +                    return 1;
 +                }
 +            },
@@ -6918,7 +7052,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +1994,574 @@
+@@ -786,6 +2005,580 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -7342,6 +7476,12 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            test_mode = true;
 +            g->check_mod_data( { mod_id( "dda" ) } );
 +            harness::dump_consume_drugs( cli.dump_consume_drugs );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_digest.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_digest( cli.dump_digest );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_food_summary.empty() ) {

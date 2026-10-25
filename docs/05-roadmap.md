@@ -546,7 +546,13 @@ Round 630 turned the same lens on ammunition. An effect list is a container too,
 and extends them. The reader was also asking the *object* whether it declares the AMMO subtype instead of asking the item,
 which loses the block entirely for a child that inherits its ammo slot; no such child exists in this content, so that half is
 pinned by a fixture. And the registry: tempting to refuse an effect it lacks, but the reference does not — `rock` lists four
-**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 642 opened the **stomach**: `--dump-food-summary` records what a bite actually puts in it — the effective calories, the vitamins converted from RDA percentages,
+**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 643 gave the stomach its **exit**: `--dump-digest` traces a bite of each comestible through a 1,500 mL stomach and a 1,500 mL set of guts, six half-hour steps of
+each, and the port agrees on every number of all 1,686 × 2 × 6. The two compartments turn out to be different machines wearing the same class — the stomach at a sixth
+of its capacity per step, the guts at 5% of the metabolism — and three branches are counted rather than assumed: 354 drying foods that give water **back**, 719 steps
+that released exactly the flat minimum, and 12 foods whose drug vitamin skips the trickle entirely. Next: `update_stomach` — what the body does with what the guts
+release (hunger, thirst, stored kcal, vitamins) — and its interaction with `calc_needs_rates`.
+
+Round 642 opened the **stomach**: `--dump-food-summary` records what a bite actually puts in it — the effective calories, the vitamins converted from RDA percentages,
 the water `quench · 5 mL` of it, and the room the dry bulk takes up once density and calories-per-gram are accounted for — and the port agrees on all 1,686. Because
 `stomach::ingest` adds the summary unchanged, the recording *is* the stomach after one bite. Three input rules had to be fixed before any of the maths could compare:
 the port's item weight was documented in grams while it held **milligrams**; a charge-counted item's volume is divided between its stack size, which falls back to the

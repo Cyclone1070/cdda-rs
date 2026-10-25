@@ -11,6 +11,7 @@ pub mod falling;
 pub mod memory;
 pub mod field_table;
 pub mod radiation;
+pub mod digest;
 pub mod food_summary;
 pub mod frame;
 pub mod fun_for;

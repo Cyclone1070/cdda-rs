@@ -33,6 +33,7 @@ mod crafting;
 mod creatures;
 mod death;
 mod degradation;
+mod digest;
 mod eating;
 mod extinguisher;
 mod falling;
