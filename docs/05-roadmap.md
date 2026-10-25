@@ -487,9 +487,11 @@ rather than rounds, and `degradation_symbol`, the five-step bar that is empty fo
 Round 615 closed the faults too:
 `cdda_content::faults` loads all 54 of them with `copy-from`, and the gate compares **every field of every
 fault** — which is where the three non-obvious rules came from (a name is a translation object, a description is a
-string; `copy-from` inherits scalars; the modifier lists are **appended**, not replaced). What is left of the
-damage family: `fault_fix` (repairs, requirements, skills), `fault_group`'s weighted list, and `random_of_type`'s
-die. **Correction:** an earlier version of this line promised a "per-turn degradation
+string; `copy-from` inherits scalars; the modifier lists are **appended**, not replaced). Round 616 added **which faults
+each type can catch** — the `faults` array plus the `fault_group` expansion, which is a finalisation pass and not the
+type's own text, gated over all 915 types. What is left of the damage family: `fault_fix` (repairs, requirements,
+skills), and `set_random_fault_of_type`'s weighted pick, whose die has to be a recorded draw like `item_group`'s
+shuffle. **Correction:** an earlier version of this line promised a "per-turn degradation
 tick"; there is no such thing in the reference — `item::process_internal` does not degrade anything, and the only
 degradation is the one a hit adds and the one `rand_degradation` rolls at spawn.
 

@@ -74,6 +74,13 @@ pub struct ItemType {
     pub category: String,
     /// Materials and their portions.
     pub materials: BTreeMap<String, i32>,
+    /// The faults this type can acquire, with their weights, after `fault_group` expansion has run.
+    ///
+    /// Reference: `itype::faults` (`src/itype.h`), a weighted list filled by the `faults` array in `item_factory.cpp:4168-4183` and completed by the group
+    /// expansion in `item_factory.cpp:919-936`. Empty for anything that cannot fail.
+    pub faults: Vec<(String, i32)>,
+    /// The `fault_group` entries this type pointed at, waiting for finalisation to expand them.
+    pub fault_groups: Vec<(i32, i32, f64, String)>,
     /// Its flag set.
     pub flags: BTreeSet<String>,
     /// Whether it has gun data, which is what makes it a candidate for an invented turret part (`veh_type.cpp:484`).
@@ -124,6 +131,77 @@ pub struct ItemType {
 /// Reference: `item_factory.cpp:390-420` for the two integral fallbacks and `units_reader` for the units. A bare number is in the unit's own base - grams for weight,
 /// millilitres for volume, cents for price - and the two integral values fall back to the ordinary ones **only when still unset**, because `"integral_weight": "0 g"` is a
 /// value and not an absence.
+/// Reads the `faults` array: direct faults now, group references kept for finalisation.
+///
+/// Reference: `item_factory.cpp:4168-4183`. A direct entry states a `fault` and a `weight` (100 when unstated, and the reader takes a **fraction**, so the weight is
+/// cast to a whole number); a group entry states a `fault_group` with `weight_override`, `weight_add` and `weight_mult`, and is **not** expanded here — the reference
+/// defers that to finalisation (`item_factory.cpp:919-936`), which is why a directly-stated fault and a group-expanded one can collide in a way that depends on that
+/// order.
+fn read_faults(item: &mut ItemType, object: &Object) {
+    let Some(Value::Array(entries)) = object.get("faults") else {
+        return;
+    };
+    for entry in entries {
+        let Value::Object(entry) = entry else {
+            continue;
+        };
+        if let Some(Value::Str(fault)) = entry.get("fault") {
+            // **A weight is an integer in the reference's weighted list**, and the reader takes a float (`get_float`) so a fractional weight truncates here rather
+            // than being carried around as a real.
+            let weight = match entry.get("weight") {
+                #[allow(clippy::cast_possible_truncation)]
+                Some(Value::Float(weight)) => *weight as i32,
+                Some(Value::Int(weight)) => i32::try_from(*weight).unwrap_or(100),
+                _ => 100,
+            };
+            item.faults.push((fault.clone(), weight));
+        } else if let Some(Value::Str(group)) = entry.get("fault_group") {
+            let override_weight = match entry.get("weight_override") {
+                Some(Value::Int(weight)) => i32::try_from(*weight).unwrap_or(-1),
+                _ => -1,
+            };
+            let add = match entry.get("weight_add") {
+                Some(Value::Int(weight)) => i32::try_from(*weight).unwrap_or(0),
+                _ => 0,
+            };
+            let multiply = match entry.get("weight_mult") {
+                Some(Value::Float(weight)) => *weight,
+                Some(Value::Int(weight)) => f64::from(i32::try_from(*weight).unwrap_or(1)),
+                _ => 1.0,
+            };
+            item.fault_groups
+                .push((override_weight, add, multiply, group.clone()));
+        }
+    }
+}
+
+/// Expands every `fault_group` an item type pointed at, in the order the reference does.
+///
+/// Reference: `item_factory.cpp:919-936`, which runs once per type at the end of loading. A group with `weight_override == -1` **replaces** the weight of every fault
+/// in it with `( weight + weight_add ) * weight_mult`, truncating the product to a whole number; any other override **adds** each fault at that one weight. A replace
+/// keeps the fault where it already stood in the list; an add appends.
+pub fn expand_fault_groups(item: &mut ItemType, groups: &[crate::faults::FaultGroup]) {
+    for (override_weight, add, multiply, group_id) in item.fault_groups.clone() {
+        let Some(group) = groups.iter().find(|group| group.id == group_id) else {
+            continue;
+        };
+        for (fault, weight) in &group.entries {
+            if override_weight == -1 {
+                #[allow(clippy::cast_possible_truncation)]
+                let made = ((f64::from(*weight) + f64::from(add)) * multiply) as i32;
+                if let Some(slot) = item.faults.iter_mut().find(|(id, _)| id == fault) {
+                    slot.1 = made;
+                } else {
+                    item.faults.push((fault.clone(), made));
+                }
+            } else if !item.faults.iter().any(|(id, _)| id == fault) {
+                item.faults.push((fault.clone(), override_weight));
+            }
+        }
+    }
+    item.fault_groups.clear();
+}
+
 fn read_measures(item: &mut ItemType, object: &Object) -> Result<(), LoadError> {
     // A bare number is in the unit's own base: grams for weight, millilitres for
     // volume, cents for price (`units_reader`).
@@ -999,6 +1077,8 @@ fn resolve(
         integral_weight: -1,
         volume: 0,
         ammo_types: Vec::new(),
+        faults: Vec::new(),
+        fault_groups: Vec::new(),
         pockets: Vec::new(),
         added_pockets: Vec::new(),
         gun_mods: Vec::new(),
@@ -1045,6 +1125,7 @@ fn apply(
     // with no name at all. Two item types in the content do exactly that, and
     // the reference reports both with an empty name.
     let names = names_of(object);
+    read_faults(item, object);
     item.name.clear();
     item.name_plural.clear();
     if let Some((singular, plural)) = names {

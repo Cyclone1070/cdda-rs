@@ -288,3 +288,68 @@ pub fn adjust(value: f64, mods: &[DamageMod], damage_type: &str) -> f64 {
     }
     adjusted
 }
+
+/// A named bag of faults with weights, which an item type can point at instead of listing each one.
+///
+/// Reference: `class fault_group` and `fault_group::load` (`src/fault.cpp:393-401`): a `group` array of `{ "fault": ..., "weight": ... }`, the weight defaulting to 100.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FaultGroup {
+    /// Its id.
+    pub id: String,
+    /// The faults it holds, with their weights, in data order.
+    pub entries: Vec<(String, i32)>,
+}
+
+/// Loads every fault group in the given directories.
+///
+/// # Errors
+///
+/// If a directory cannot be walked or a file cannot be read.
+pub fn load_groups(dirs: &[&std::path::Path]) -> Result<Vec<FaultGroup>, LoadError> {
+    let mut out = Vec::new();
+    for dir in dirs {
+        let files = crate::json_files_in_load_order(dir).map_err(|error| LoadError {
+            message: format!("{}: {error}", dir.display()),
+        })?;
+        for path in files {
+            let Some(value) = crate::read_json(&path) else {
+                continue;
+            };
+            let Value::Array(entries) = &*value else {
+                continue;
+            };
+            for entry in entries {
+                let Value::Object(object) = entry else {
+                    continue;
+                };
+                if !matches!(object.get("type"), Some(Value::Str(kind)) if kind == "fault_group") {
+                    continue;
+                }
+                let Some(Value::Str(id)) = object.get("id") else {
+                    continue;
+                };
+                let mut group = FaultGroup {
+                    id: id.clone(),
+                    entries: Vec::new(),
+                };
+                if let Some(Value::Array(members)) = object.get("group") {
+                    for member in members {
+                        let Value::Object(member) = member else {
+                            continue;
+                        };
+                        let Some(Value::Str(fault)) = member.get("fault") else {
+                            continue;
+                        };
+                        let weight = match member.get("weight") {
+                            Some(Value::Int(weight)) => i32::try_from(*weight).unwrap_or(100),
+                            _ => 100,
+                        };
+                        group.entries.push((fault.clone(), weight));
+                    }
+                }
+                out.push(group);
+            }
+        }
+    }
+    Ok(out)
+}

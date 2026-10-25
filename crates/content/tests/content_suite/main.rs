@@ -59,6 +59,7 @@ mod item_catalog;
 mod item_flags;
 mod faults;
 mod item_damage;
+mod item_faults;
 mod item_length;
 mod item_pockets;
 mod item_group_draw;

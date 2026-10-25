@@ -60,3 +60,10 @@ Reproduce:
 Three rules the dump taught that the header file did not: a fault's `name` is a translation object and its `description` a plain string; `copy-from` inherits every
 scalar the child omits; and `melee_damage_mod`/`armor_mod` are **appended** to the parent's list rather than replacing it — which is six of the 54 faults, and a
 mutation of that one line fails three of them.
+
+### `item-faults.json` — which faults each type can catch
+
+`--dump-item-faults` writes the **resolved** weighted fault list for all 915 types that can acquire one. Resolved, not stated: a type may point at a `fault_group`,
+and the expansion is a finalisation pass (`item_factory.cpp:919-936`) that either replaces a fault's weight with `( weight + weight_add ) * weight_mult` or adds it at
+one `weight_override`. Replacing keeps the fault where it stood; adding appends — so the order of the type's own entries decides the result, and turning that replace
+into an append fails 14 of the 915 types.
