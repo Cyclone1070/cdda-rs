@@ -497,7 +497,13 @@ and a single-entry list that returns **without rolling at all**. Round 618 added
 cracked and not chipped — and a refused fault changes nothing, not even that removal. Round 619 closed the repairs' **data**:
 all 40 `fault_fix` entries, gated field by field — including the odd pair that a grind takes damage **off** and puts
 degradation **on**, which is what makes repeated repairs a losing game. What is left of the damage family: the
-repair *activity* that uses a fix, its requirement tree, and `item::tname`'s name prefix. **Correction:** an earlier version of this line promised a "per-turn degradation
+repair *activity* that uses a fix, its requirement tree, and `item::tname`'s name prefix.
+
+Round 620 opened the **use actions**, which every later P3 piece sits on: the `use_action` member now loads, and its
+largest actor — `transform`, 431 entries plus 28 `delayed_transform` — is read field by field and gated **per item
+type**. `sealed` defaults to **true** and `target_charges`/`cost` to **-1** (meaning "the item's own"), which are the
+kind of defaults that are invisible until they are wrong everywhere at once. The other 29 actor types are kept by name
+rather than dropped, so a type's list is never quietly short. **Correction:** an earlier version of this line promised a "per-turn degradation
 tick"; there is no such thing in the reference — `item::process_internal` does not degrade anything, and the only
 degradation is the one a hit adds and the one `rand_degradation` rolls at spawn.
 

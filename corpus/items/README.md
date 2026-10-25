@@ -67,3 +67,9 @@ mutation of that one line fails three of them.
 and the expansion is a finalisation pass (`item_factory.cpp:919-936`) that either replaces a fault's weight with `( weight + weight_add ) * weight_mult` or adds it at
 one `weight_override`. Replacing keeps the fault where it stood; adding appends — so the order of the type's own entries decides the result, and turning that replace
 into an append fails 14 of the 915 types.
+
+### `transforms.json` — what an item turns into
+
+`--dump-transforms` writes every `transform` use action resolved: 459 of them over 459 types, 431 `transform` and 28 `delayed_transform` (the same loader with a
+`not_ready_msg` on top). Keyed by the item type that declares it, so the gate can put a transform that landed on the wrong type on the failure line instead of hiding
+it behind "found somewhere in the content".

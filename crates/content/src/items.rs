@@ -81,6 +81,8 @@ pub struct ItemType {
     pub faults: Vec<(String, i32)>,
     /// The `fault_group` entries this type pointed at, waiting for finalisation to expand them.
     pub fault_groups: Vec<(i32, i32, f64, String)>,
+    /// What using it does, as far as the actor data is ported (`src/iuse.h:279-300`).
+    pub use_actions: Vec<crate::use_actions::UseAction>,
     /// Its flag set.
     pub flags: BTreeSet<String>,
     /// Whether it has gun data, which is what makes it a candidate for an invented turret part (`veh_type.cpp:484`).
@@ -1079,6 +1081,7 @@ fn resolve(
         ammo_types: Vec::new(),
         faults: Vec::new(),
         fault_groups: Vec::new(),
+        use_actions: Vec::new(),
         pockets: Vec::new(),
         added_pockets: Vec::new(),
         gun_mods: Vec::new(),
@@ -1126,6 +1129,11 @@ fn apply(
     // the reference reports both with an empty name.
     let names = names_of(object);
     read_faults(item, object);
+    // A type that states `use_action` replaces its list; one that says nothing keeps what it inherited, which is the reference's `optional` over a member that
+    // `copy-from` had already filled (`src/item_factory.cpp`).
+    if object.get("use_action").is_some() {
+        item.use_actions = crate::use_actions::read_use_actions(object)?;
+    }
     item.name.clear();
     item.name_plural.clear();
     if let Some((singular, plural)) = names {

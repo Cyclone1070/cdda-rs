@@ -31,6 +31,7 @@ pub mod math_expr;
 pub mod mapdata;
 pub mod mapgen;
 pub mod pockets;
+pub mod use_actions;
 pub mod materials;
 pub mod weather;
 pub mod mods;
