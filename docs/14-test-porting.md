@@ -215,6 +215,10 @@ Round 626 found the port reading `delayed_transform` as a plain `transform`. The
 `delayed_transform_iuse::load` (`src/iuse_actor.cpp:992-997`) calls the parent's loader **and then reads two more members**, `not_ready_msg` and `transform_age`.
 Twenty-eight actions were loading with an age of zero and no message, and nothing failed.
 
+The same round found the second half of the pattern: **the recording has to cover the shapes the reader can refuse**. `use_action` entries may be strings, objects or
+arrays (`[ "CROWBAR", 0 ]`), and the port was silently dropping the array shape — four entries, on the two repairkits. No gate noticed, because no gate looked at those
+two items' lists.
+
 The lesson is narrower than "read the derived class too". It is that **a gate which only asserts the fields you already ported cannot see the fields you did not**.
 The fix has to be at the recording: the dump now writes the derived class's members as well, with the parent-only case stating zero and empty, so the gate compares the
 whole actor and the missing half has somewhere to show up.

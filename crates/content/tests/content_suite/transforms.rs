@@ -49,7 +49,7 @@ fn dump() -> BTreeMap<String, Transform> {
             };
             let transform = Transform {
                 action: text("action"),
-                cost: whole("cost"),
+                msg: text("msg"),
                 target: text("target"),
                 target_group: text("target_group"),
                 container: text("container"),

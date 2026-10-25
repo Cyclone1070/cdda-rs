@@ -66,8 +66,11 @@ impl UseAction {
 pub struct Transform {
     /// The actor's own type: `transform`, or `delayed_transform`, which the reference loads with the same loader and a `not_ready_msg`.
     pub action: String,
-    /// The charge cost of the action; `-1` when the actor does not state one, which the reference means as "the item's own use cost".
-    pub cost: i32,
+    /// What the player is told when the transformation happens (`"You snap open your butterfly net."`).
+    ///
+    /// The reference calls it `msg_transform` and reads it from `"msg"` (`src/iuse_actor.cpp:225`). It is **not** the actor's `cost`: `iuse_transform` never reads
+    /// a `"cost"`, so `iuse_actor::cost` stays at the member's `-1` for every transform in the content and there is nothing here to carry.
+    pub msg: String,
     /// The item type it becomes, or empty when the result comes from a group.
     pub target: String,
     /// The item group the result is drawn from, or empty. The reference refuses an actor that states both.
@@ -138,7 +141,14 @@ impl Transform {
         };
         Ok(Self {
             action: action.to_owned(),
-            cost: whole("cost", -1),
+            msg: match object.get("msg") {
+                Some(Value::Str(text)) => text.clone(),
+                Some(Value::Object(text)) => match text.get("str") {
+                    Some(Value::Str(text)) => text.clone(),
+                    _ => String::new(),
+                },
+                _ => String::new(),
+            },
             target: text("target"),
             target_group: text("target_group"),
             container: text("container"),
@@ -214,6 +224,13 @@ pub fn read_use_actions(object: &Object) -> Result<Vec<UseAction>, LoadError> {
                     };
                     read_actor(kind, actor)
                 }
+                // **An entry may itself be an array**: `[ "CROWBAR", 0 ]` names the action and overrides its `ammo_scale`
+                // (`src/item_factory.cpp:1894-1899`). Four of them exist, on the two repairkits, and dropping them silently would leave those tools with a shorter
+                // list than the reference's without any gate noticing — so the shape has its own test.
+                Value::Array(parts) => Ok(match parts.first() {
+                    Some(Value::Str(kind)) => Some(UseAction::Other { kind: kind.clone() }),
+                    _ => None,
+                }),
                 _ => Ok(None),
             }
         })
