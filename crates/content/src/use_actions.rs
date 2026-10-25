@@ -24,6 +24,10 @@ pub enum UseAction {
     Firestarter(Firestarter),
     /// A holder that stores one thing: its data is two messages, because the pocket does the storing.
     Holster(Holster),
+    /// Putting an item down as furniture.
+    DeployFurn(DeployFurn),
+    /// Setting a trap, in both its unburied and buried forms.
+    PlaceTrap(PlaceTrap),
     /// Anything the port has not ported yet, kept by the name the data gives it — an actor's `"type"`, or a legacy string id.
     Other {
         /// The actor type, or the legacy id.
@@ -44,6 +48,8 @@ impl UseAction {
             Self::LinkUp(cable) => &cable.action,
             Self::Firestarter(fire) => &fire.action,
             Self::Holster(holster) => &holster.action,
+            Self::DeployFurn(deploy) => &deploy.action,
+            Self::PlaceTrap(place) => &place.action,
             Self::Other { kind } => kind,
         }
     }
@@ -435,6 +441,8 @@ pub fn read_actor(kind: &str, object: &Object) -> Result<Option<UseAction>, Load
         "link_up" => Ok(Some(UseAction::LinkUp(LinkUp::read(kind, object)?))),
         "firestarter" => Ok(Some(UseAction::Firestarter(Firestarter::read(kind, object)?))),
         "holster" => Ok(Some(UseAction::Holster(Holster::read(kind, object)?))),
+        "deploy_furn" => Ok(Some(UseAction::DeployFurn(DeployFurn::read(kind, object)?))),
+        "place_trap" => Ok(Some(UseAction::PlaceTrap(PlaceTrap::read(kind, object)?))),
         _ => Ok(Some(UseAction::Other {
             kind: kind.to_owned(),
         })),
@@ -647,4 +655,163 @@ impl Holster {
 #[must_use]
 pub fn can_holster(active: bool, fits: bool) -> bool {
     !active && fits
+}
+
+/// The `deploy_furn` actor's data: the furniture an item becomes when it is put down.
+///
+/// Reference: `class deploy_furn_actor` (`src/iuse_actor.h:404-421`) and its `load` (`src/iuse_actor.cpp:1229-1232`), which is a **single mandatory member** —
+/// `obj.get_string( "furn_type" )` rather than `read`, so an actor without it is an error in the reference and not an empty id.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeployFurn {
+    /// The actor's own type: `deploy_furn`.
+    pub action: String,
+    /// The furniture the item becomes.
+    pub furn_type: String,
+}
+
+impl DeployFurn {
+    /// Reads the actor's data out of its JSON object.
+    ///
+    /// # Errors
+    ///
+    /// If `furn_type` is not a string.
+    pub fn read(action: &str, object: &Object) -> Result<Self, LoadError> {
+        let furn_type = match object.get("furn_type") {
+            Some(Value::Str(furn_type)) => furn_type.clone(),
+            // The reference throws here rather than defaulting, so an actor without the member is a content error and the port says so.
+            other => {
+                return Err(LoadError {
+                    message: format!("a deploy_furn action's furn_type is text: {other:?}"),
+                })
+            }
+        };
+        Ok(Self {
+            action: action.to_owned(),
+            furn_type,
+        })
+    }
+}
+
+/// One half of a `place_trap` actor: which trap, what to say, and what it costs.
+///
+/// Reference: `struct place_trap_actor::data` (`src/iuse_actor.h:995-1005`) and its `load` (`src/iuse_actor.cpp:4166-4172`). The members are `assign`ed, which means
+/// a missing one keeps the member's own default: a trap id of `tr_null`, an empty message, no practice, and **100 moves**.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrapData {
+    /// The trap placed.
+    pub trap: String,
+    /// What the player is told.
+    pub done_message: String,
+    /// Practice of the trap skill, in percent.
+    pub practice: i32,
+    /// Moves the placement takes.
+    pub moves: i32,
+}
+
+impl TrapData {
+    /// Reads one half out of an object.
+    ///
+    /// # Errors
+    ///
+    /// If a member is present with the wrong shape.
+    pub fn read(object: &Object) -> Result<Self, LoadError> {
+        let translation = |key: &str| match object.get(key) {
+            Some(Value::Str(text)) => text.clone(),
+            Some(Value::Object(text)) => match text.get("str") {
+                Some(Value::Str(text)) => text.clone(),
+                _ => String::new(),
+            },
+            _ => String::new(),
+        };
+        Ok(Self {
+            trap: match object.get("trap") {
+                Some(Value::Str(trap)) => trap.clone(),
+                _ => "tr_null".to_owned(),
+            },
+            done_message: translation("done_message"),
+            practice: match object.get("practice") {
+                Some(Value::Int(practice)) => i32::try_from(*practice).unwrap_or(0),
+                _ => 0,
+            },
+            moves: match object.get("moves") {
+                Some(Value::Int(moves)) => i32::try_from(*moves).unwrap_or(100),
+                _ => 100,
+            },
+        })
+    }
+}
+
+/// The `place_trap` actor's data, in **two halves at two levels**.
+///
+/// Reference: `class place_trap_actor` (`src/iuse_actor.h:992-1030`) and `place_trap_actor::load` (`src/iuse_actor.cpp:4174-4187`). The shape is the interesting
+/// part: `unburied_data.load( obj )` reads the **actor's own object**, while `buried_data` reads a nested `"bury"` object — and **only when `bury_question` is
+/// non-empty**, so the same keys (`trap`, `moves`, `practice`, `done_message`) mean different things at the two levels and a reader that only looks at one of them
+/// gets half the actor.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlaceTrap {
+    /// The actor's own type: `place_trap`.
+    pub action: String,
+    /// Whether the trap may be placed while underwater.
+    pub allow_underwater: bool,
+    /// Whether it may be placed on the square the character stands on.
+    pub allow_under_player: bool,
+    /// Whether it needs a solid neighbour, as a trap wire does.
+    pub needs_solid_neighbor: bool,
+    /// A terrain that must exist in a neighbouring square, or `t_null`.
+    pub needs_neighbor_terrain: String,
+    /// A trap laid **around** this one when it is placed, or `tr_null`.
+    pub outer_layer_trap: String,
+    /// The question asked when the trap could be buried; empty when it cannot.
+    pub bury_question: String,
+    /// The half that applies when the trap is **not** buried — read from the actor's own object.
+    pub unburied: TrapData,
+    /// The half that applies when it **is** buried — read from the nested `"bury"` object, and only when there is a `bury_question`.
+    pub buried: TrapData,
+}
+
+impl PlaceTrap {
+    /// Reads the actor's data out of its JSON object.
+    ///
+    /// # Errors
+    ///
+    /// If a member is present with the wrong shape.
+    pub fn read(action: &str, object: &Object) -> Result<Self, LoadError> {
+        let translation = |key: &str| match object.get(key) {
+            Some(Value::Str(text)) => text.clone(),
+            Some(Value::Object(text)) => match text.get("str") {
+                Some(Value::Str(text)) => text.clone(),
+                _ => String::new(),
+            },
+            _ => String::new(),
+        };
+        let bury_question = translation("bury_question");
+        // **The nested half is only read when there is a question to ask** (`src/iuse_actor.cpp:4181-4184`), so an actor with a `"bury"` object but no question ignores it.
+        let buried = match (bury_question.is_empty(), object.get("bury")) {
+            (false, Some(Value::Object(bury))) => TrapData::read(bury)?,
+            _ => TrapData {
+                trap: "tr_null".to_owned(),
+                done_message: String::new(),
+                practice: 0,
+                moves: 100,
+            },
+        };
+        let flag = |key: &str| matches!(object.get(key), Some(Value::Bool(true)));
+        Ok(Self {
+            action: action.to_owned(),
+            allow_underwater: flag("allow_underwater"),
+            allow_under_player: flag("allow_under_player"),
+            needs_solid_neighbor: flag("needs_solid_neighbor"),
+            needs_neighbor_terrain: match object.get("needs_neighbor_terrain") {
+                Some(Value::Str(terrain)) => terrain.clone(),
+                _ => "t_null".to_owned(),
+            },
+            outer_layer_trap: match object.get("outer_layer_trap") {
+                Some(Value::Str(trap)) => trap.clone(),
+                _ => "tr_null".to_owned(),
+            },
+            bury_question,
+            unburied: TrapData::read(object)?,
+            buried,
+        })
+    }
 }

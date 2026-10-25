@@ -93,3 +93,9 @@ needed, vitamins as a range, damage over time, and the item left behind. Keyed b
 
 `--dump-holsters` writes all 76 `holster` actions. The actor stores nothing — the pocket does — so its data is a prompt and a message; its behaviour is the one line
 that says an active item cannot be holstered even when it fits.
+
+### `deploy-furn.json` and `place-traps.json` — putting something into the world
+
+`--dump-deploy-furn` writes 39 actors with one mandatory member. `--dump-place-traps` writes 28, and those have **two halves at two levels**: the unburied half
+reads the actor's own object, the buried half reads a nested `"bury"` object — and only when there is a `bury_question`, so the same keys mean different things at
+the two levels.

@@ -521,7 +521,11 @@ obvious wrong guess, and it fails 7 of the 42.
 Round 624 added `holster`, all 76 — an actor with **no data at all** beyond two messages, because the pocket does the
 storing, and one behavioural line worth a gate: `can_holster` is `!active && can_contain`, so an **active item cannot go
 into a holster even when it fits**. That is the first place the port needed an item's `active` flag, and until it has
-one the rule takes it as an argument. **Correction:** an earlier version of this line promised a "per-turn degradation
+one the rule takes it as an argument.
+
+Round 625 added two actors that put something into the world: `deploy_furn` (39, one mandatory member the reference
+refuses to default) and `place_trap` (28, with **two halves at two levels** — the unburied half reads the actor's own
+object, the buried half reads a nested `"bury"` object and only when there is a `bury_question` to ask). **Correction:** an earlier version of this line promised a "per-turn degradation
 tick"; there is no such thing in the reference — `item::process_internal` does not degrade anything, and the only
 degradation is the one a hit adds and the one `rand_degradation` rolls at spawn.
 
