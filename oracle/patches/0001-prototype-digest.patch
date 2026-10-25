@@ -330,8 +330,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-26 00:26:07
-@@ -0,0 +1,4616 @@
++++ oracle/src/src/harness.cpp	2026-10-26 02:15:20
+@@ -0,0 +1,4764 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +
@@ -341,6 +341,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 +#include "dependency_tree.h"
 +#include "map.h"
++#include "bionics.h"
 +#include "vitamin.h"
 +#include "map_memory.h"
 +#include "mod_manager.h"
@@ -352,6 +353,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +#include "clzones.h"
 +
 +#include <algorithm>
++#include <array>
 +
 +#include "avatar.h"
 +#include "calendar.h"
@@ -2008,6 +2010,152 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +/// Reference: `class iuse_transform` (`src/iuse_actor.h:44-110`) and its `load` (`src/iuse_actor.cpp:216-250`). It is the most common use action in the content (423
 +/// declarations), and its fields are all about the **result**: the target id or the item group to draw one from, an optional container to put it in, the charges to
 +/// set, a timer to start, and the conditions that must hold before the transformation may happen at all.
++/// One eater state that `--dump-fun-for` sweeps: everything `Character::fun_for` reads about the character and the item.
++struct fun_configuration {
++    const char *name;
++    /// A trait toggled on the avatar for this row, or `nullptr`.
++    const char *trait_id;
++    /// An effect added to the avatar, or `nullptr`.
++    const char *effect_id;
++    /// A flag set on the **item**, or `nullptr`.
++    const char *item_flag;
++    /// The item's relative rot, or 0 for fresh.
++    float relative_rot;
++    /// A bionic installed on the avatar, or `nullptr`.
++    const char *bionic_id;
++    /// Whether that bionic is switched on.
++    bool bionic_active;
++    /// The avatar's power level in kilojoules, or 0 for empty.
++    int power_kj;
++};
++
++/// The sweep. Small on purpose: every branch of `fun_for` has one row, and the rows are named after the branch.
++static const std::array<fun_configuration, 22> fun_configurations = { {
++        { "plain", nullptr, nullptr, nullptr, 0.0f, nullptr, false, 0 },
++        { "sick_cold", nullptr, "common_cold", nullptr, 0.0f, nullptr, false, 0 },
++        { "sick_flu", nullptr, "flu", nullptr, 0.0f, nullptr, false, 0 },
++        { "item_cold", nullptr, nullptr, "COLD", 0.0f, nullptr, false, 0 },
++        { "item_frozen", nullptr, nullptr, "FROZEN", 0.0f, nullptr, false, 0 },
++        { "rotten", nullptr, nullptr, nullptr, 1.5f, nullptr, false, 0 },
++        { "rotten_saprophage", "SAPROPHAGE", nullptr, nullptr, 1.5f, nullptr, false, 0 },
++        { "rotten_saprovore", "SAPROVORE", nullptr, nullptr, 1.5f, nullptr, false, 0 },
++        { "gourmand", "GOURMAND", nullptr, nullptr, 0.0f, nullptr, false, 0 },
++        { "thresh_feline", "THRESH_FELINE", nullptr, nullptr, 0.0f, nullptr, false, 0 },
++        { "thresh_lupine", "THRESH_LUPINE", nullptr, nullptr, 0.0f, nullptr, false, 0 },
++        { "thresh_cattle", "THRESH_CATTLE", nullptr, nullptr, 0.0f, nullptr, false, 0 },
++        { "thresh_rabbit", "THRESH_RABBIT", nullptr, nullptr, 0.0f, nullptr, false, 0 },
++        { "thresh_mouse", "THRESH_MOUSE", nullptr, nullptr, 0.0f, nullptr, false, 0 },
++        { "thresh_rat", "THRESH_RAT", nullptr, nullptr, 0.0f, nullptr, false, 0 },
++        { "thresh_bird", "THRESH_BIRD", nullptr, nullptr, 0.0f, nullptr, false, 0 },
++        { "sick_gourmand", "GOURMAND", "common_cold", nullptr, 0.0f, nullptr, false, 0 },
++        { "cold_item_cold_eater", nullptr, "common_cold", "COLD", 0.0f, nullptr, false, 0 },
++        { "grossfood", nullptr, nullptr, nullptr, 0.0f, "bio_faulty_grossfood", false, 0 },
++        { "taste_blocker_10kj", nullptr, nullptr, nullptr, 0.0f, "bio_taste_blocker", true, 10 },
++        { "taste_blocker_20kj", nullptr, nullptr, nullptr, 0.0f, "bio_taste_blocker", true, 20 },
++        { "taste_blocker_rotten_20kj", nullptr, nullptr, nullptr, 1.5f, "bio_taste_blocker", true, 20 },
++    } };
++
++/// What each comestible is worth to an eater in each of those states.
++///
++/// Reference: `Character::fun_for` (`src/consumption.cpp:483`). The transcribed upstream cases in `tests/food_fun_for_test.cpp` are inequalities - "less than half",
++/// "greater than zero" - because the reference had no recording of the exact numbers. This is that recording: every comestible, every branch, both numbers.
++void dump_fun_for( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    avatar &u = get_avatar();
++    u.set_body();
++    // One row of results per comestible, filled one configuration at a time: the avatar's state is set once per configuration rather than once per food.
++    std::vector<itype_id> ids;
++    std::vector<std::vector<std::pair<int, int>>> results;
++    // The two inputs that cannot be recovered from the answers: what the item is worth to itself (`get_comestible_fun`, which adds each flag's `taste_mod` and
++    // floors a mushy item at -5), and where its rot actually sits after `set_relative_rot` - which is **not** 1.5 for everything, because a food that does not
++    // spoil has no rot at all.
++    std::vector<int> item_fun;
++    std::vector<float> rot_set;
++    for( const itype *type : item_controller->all() ) {
++        if( type == nullptr || !type->comestible ) {
++            continue;
++        }
++        ids.push_back( type->get_id() );
++        results.emplace_back();
++        item fresh( type->get_id(), calendar::turn, 1 );
++        item_fun.push_back( fresh.get_comestible_fun() );
++        fresh.set_relative_rot( 1.5f );
++        rot_set.push_back( fresh.get_relative_rot() );
++    }
++    for( const fun_configuration &config : fun_configurations ) {
++        if( config.trait_id != nullptr ) {
++            u.toggle_trait( trait_id( config.trait_id ) );
++        }
++        if( config.effect_id != nullptr ) {
++            u.add_effect( efftype_id( config.effect_id ), 1_hours );
++        }
++        if( config.bionic_id != nullptr ) {
++            u.add_bionic( bionic_id( config.bionic_id ) );
++            if( config.bionic_active ) {
++                for( int i = 0; i < u.num_bionics(); ++i ) {
++                    if( u.bionic_at_index( i ).id == bionic_id( config.bionic_id ) ) {
++                        u.activate_bionic( u.bionic_at_index( i ) );
++                    }
++                }
++            }
++        }
++        if( config.power_kj > 0 ) {
++            u.set_max_power_level( units::from_kilojoule( 100 ) );
++            u.set_power_level( units::from_kilojoule( config.power_kj ) );
++        }
++        for( size_t i = 0; i < ids.size(); ++i ) {
++            item it( ids[i], calendar::turn, 1 );
++            if( config.item_flag != nullptr ) {
++                it.set_flag( flag_id( config.item_flag ) );
++            }
++            if( config.relative_rot > 0.0f ) {
++                it.set_relative_rot( config.relative_rot );
++            }
++            results[i].push_back( u.fun_for( it ) );
++        }
++        // Put the avatar back the way it was, so the next row starts from a plain character.
++        if( config.trait_id != nullptr ) {
++            u.toggle_trait( trait_id( config.trait_id ) );
++        }
++        u.clear_effects();
++        if( config.bionic_id != nullptr ) {
++            u.clear_bionics();
++            u.set_max_power_level( 0_kJ );
++            u.set_power_level( 0_kJ );
++        }
++    }
++
++    std::fprintf( out, "{\"harness\":\"fun-for\",\"version\":1,\n\"configurations\":[" );
++    bool first_config = true;
++    for( const fun_configuration &config : fun_configurations ) {
++        std::fprintf( out, "%s\"%s\"", first_config ? "" : ",", config.name );
++        first_config = false;
++    }
++    std::fprintf( out, "],\n\"foods\":[\n" );
++    bool first = true;
++    for( size_t i = 0; i < ids.size(); ++i ) {
++        const itype *type = item::find_type( ids[i] );
++        std::fprintf( out, "%s{\"id\":\"%s\",\"fun\":%d,\"item_fun\":%d,\"rot_set\":%.6g,\"is_food\":%s,\"pairs\":[",
++                      first ? "" : ",\n", harness_escape( ids[i].str() ).c_str(),
++                      type->comestible->harness_fun(), item_fun[i], rot_set[i],
++                      item( ids[i] ).is_food() ? "true" : "false" );
++        bool first_pair = true;
++        for( const std::pair<int, int> &pair : results[i] ) {
++            std::fprintf( out, "%s[%d,%d]", first_pair ? "" : ",", pair.first, pair.second );
++            first_pair = false;
++        }
++        std::fprintf( out, "]}" );
++        first = false;
++    }
++    std::fprintf( out, "\n],\"count\":%d}\n", static_cast<int>( ids.size() ) );
++    std::fclose( out );
++}
++
 +/// Every material's vitamin content, as the reference holds it.
 +///
 +/// Reference: `material_type::_vitamins` and its accessor (`src/material.h:163-166`). This exists because the derivation that gives a food its vitamins from its
@@ -4950,8 +5098,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-25 23:15:22
-@@ -0,0 +1,342 @@
++++ oracle/src/src/harness.h	2026-10-26 01:28:32
+@@ -0,0 +1,345 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -5144,6 +5292,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +
 +/** Writes every `consume_drug` use action, resolved. */
 +void dump_consume_drugs( const std::string &path );
++
++/** Writes each comestible's `fun_for` pair in 22 eater states, as `--dump-fun-for`. */
++void dump_fun_for( const std::string &path );
 +
 +/** Writes every material's vitamin content, as `--dump-material-vitamins`. */
 +void dump_material_vitamins( const std::string &path );
@@ -5468,7 +5619,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-25 23:15:22
++++ oracle/src/src/main.cpp	2026-10-26 01:28:32
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -5479,7 +5630,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,125 @@
+@@ -272,6 +275,126 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -5552,6 +5703,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_examine_actions;
 +    std::string dump_comestibles;
 +    std::string dump_material_vitamins;
++    std::string dump_fun_for;
 +    std::string dump_consume_drugs;
 +    std::string dump_link_ups;
 +    std::string dump_firestarters;
@@ -5605,7 +5757,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +422,1070 @@
+@@ -300,6 +423,1080 @@
                  }
              },
              {
@@ -5996,6 +6148,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_consume_drugs = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-fun-for", "<file>",
++                "Writes each comestible's fun_for pair in 22 eater states",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_fun_for = params[0];
 +                    return 1;
 +                }
 +            },
@@ -6676,7 +6838,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +1972,562 @@
+@@ -786,6 +1983,568 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -7100,6 +7262,12 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            test_mode = true;
 +            g->check_mod_data( { mod_id( "dda" ) } );
 +            harness::dump_consume_drugs( cli.dump_consume_drugs );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_fun_for.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_fun_for( cli.dump_fun_for );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_material_vitamins.empty() ) {

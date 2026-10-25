@@ -12,6 +12,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 pub mod examine;
+pub mod flags;
 pub mod ammo_effects;
 pub mod catalog;
 pub mod comestible;

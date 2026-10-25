@@ -83,6 +83,25 @@ pub struct Eater<'a> {
     pub now: i64,
 }
 
+/// What a food is worth **to the item**, before any eater is considered: its own stated fun plus every flag's `taste_mod`, floored at -5 once it has gone mushy.
+///
+/// Reference: `item::get_comestible_fun` (`src/item.cpp:8041-8056`). Two rules, and both are easy to miss:
+///
+/// * `taste_mod` is summed over the **instance's** flags *and* the type's — so a `BAD_TASTE` food is worth 5 less than its data says, which is why 22 mutant foods
+///   read -15 in the content and taste like -15 rather than -10;
+/// * a `MUSHY` item - defrosted ice cream - is `min( -5, fun )`: *practically tasteless or tastes off*, however good it was, and the floor applies to the total.
+#[must_use]
+pub fn comestible_fun(stated: i32, flags: &BTreeSet<String>, taste_mod: impl Fn(&str) -> i32) -> i32 {
+    let mut fun = stated;
+    for flag in flags {
+        fun += taste_mod(flag);
+    }
+    if flags.contains("MUSHY") {
+        return fun.min(-5);
+    }
+    fun
+}
+
 /// How much the eater would enjoy this bite, and how much they could enjoy it at best.
 ///
 /// Reference: `Character::fun_for` (`src/consumption.cpp:483`). `ignore_already_ate` is the second argument there, which skips the monotony penalty; it is

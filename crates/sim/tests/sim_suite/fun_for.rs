@@ -6,7 +6,7 @@
 
 #![allow(clippy::expect_used, clippy::panic)]
 
-use cdda_sim::fun_for::{ConsumptionEvent, Eater, Food, fun_for};
+use cdda_sim::fun_for::{ConsumptionEvent, Eater, Food, comestible_fun, fun_for};
 use std::collections::BTreeSet;
 
 fn flags(names: &[&str]) -> BTreeSet<String> {
@@ -353,4 +353,21 @@ fn the_foods_the_upstream_cases_name_still_have_the_properties_those_cases_assum
     assert!(fun("catfood") < 0, "cat food tastes foul to the rest of us: {}", fun("catfood"));
     assert!(fun("dogfood") < 0, "and so does dog food: {}", fun("dogfood"));
     assert!(fun("pine_nuts") > 0, "pine nuts are worth eating: {}", fun("pine_nuts"));
+}
+
+#[test]
+fn the_item_itself_adds_its_flags_taste_and_goes_tasteless_once_mushy() {
+    // Not an upstream case either: `item::get_comestible_fun` (`src/item.cpp:8041-8056`) sits in front of `fun_for` and the reference's own cases reach it only
+    // through the corpus. A `BAD_TASTE` food is worth 5 less than its data says, whatever else is true of the eater; a `MUSHY` one is worth no more than -5
+    // however good it was.
+    let none = flags(&[]);
+    let bad = flags(&["BAD_TASTE"]);
+    let taste = |flag: &str| if flag == "BAD_TASTE" { -5 } else { 0 };
+    assert_eq!(comestible_fun(-10, &none, taste), -10);
+    assert_eq!(comestible_fun(-10, &bad, taste), -15);
+    assert_eq!(comestible_fun(20, &bad, taste), 15);
+
+    let mushy = flags(&["MUSHY"]);
+    assert_eq!(comestible_fun(20, &mushy, taste), -5, "good food gone mushy is at best -5");
+    assert_eq!(comestible_fun(-30, &mushy, taste), -30, "and bad food is left as bad as it was");
 }

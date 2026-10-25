@@ -148,3 +148,14 @@ called a derivation bug — which is exactly what happened on the first run of t
 
 The comestible dump was extended twice: it now writes each type's resolved **material list with portions** (because a stated `primary_material` replaces it, and the
 derived vitamins are computed from it), `contamination`, `freezing_point`, `primary_material`, `rot_spawn` and `consumption_eocs`.
+
+## `fun-for.json` — what every comestible is worth to every eater
+
+`--dump-fun-for` writes, for each of the 1,686 comestibles, the pair `Character::fun_for` returns in **22 eater states** (`src/consumption.cpp:483`): plain, sick
+(cold and flu), cold and frozen items, rotten, rotten for a saprophage and a saprovore, a gourmand, the seven species thresholds, sick-and-gourmand, a faulty
+gross-food bionic, and a taste blocker at 10 and 20 kJ.
+
+Two fields of each row are inputs rather than answers, and both had to be recorded because neither can be recovered from the results:
+
+* `item_fun` — `item::get_comestible_fun` (`src/item.cpp:8041-8056`), which adds each flag's `taste_mod` (`BAD_TASTE` is −5) and floors a `MUSHY` item at −5;
+* `rot_set` — where `get_relative_rot()` actually landed after `set_relative_rot( 1.5 )`, which is **0** for every food that does not spoil.

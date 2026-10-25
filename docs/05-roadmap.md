@@ -546,7 +546,13 @@ Round 630 turned the same lens on ammunition. An effect list is a container too,
 and extends them. The reader was also asking the *object* whether it declares the AMMO subtype instead of asking the item,
 which loses the block entirely for a child that inherits its ammo slot; no such child exists in this content, so that half is
 pinned by a fixture. And the registry: tempting to refuse an effect it lacks, but the reference does not — `rock` lists four
-**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 640 opened the **eating lane** with `Character::fun_for`: the enjoyment of a bite, ported as a pure `fun_for(&Food, &Eater)` and gated by eleven cases
+**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 641 turned `fun_for` from inequalities into a **recording**: `--dump-fun-for` writes the exact pair for all 1,686 comestibles in 22 eater states, and the port
+agrees on all 37,092. Three findings the inequalities could not reach: a food's taste is the **item's** (`get_comestible_fun` adds each flag's `taste_mod` — `BAD_TASTE`
+is −5, which is why 22 mutant foods taste like −15 while their data says −10 — and floors a `MUSHY` item at −5); rot cannot be set on a food that does not spoil, so
+the recording carries where it actually landed; and the sweep covers the interactions nobody writes a case for. `json_flag` gained a loader for `taste_mod`, the first
+flag member the port has needed that carries a number rather than a decision.
+
+Round 640 opened the **eating lane** with `Character::fun_for`: the enjoyment of a bite, ported as a pure `fun_for(&Food, &Eater)` and gated by eleven cases
 transcribed from `tests/food_fun_for_test.cpp` — sick, rotten, cold, melted, species food, gourmand, monotony, taste blocker — plus the three branches upstream
 never reaches (`HEMOVORE_FUN`, the bloodfeeder's half-interest in ordinary food, `bio_faulty_grossfood`). The block order is the reference's and it carries: the
 ceiling is computed before the temperature and the traits, so a species food's ceiling keeps its unhappy number and a gourmand triples the *penalised* fun. Next in
