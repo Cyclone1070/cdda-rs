@@ -901,7 +901,7 @@ pub fn load_paths(dirs: &[&std::path::Path]) -> Result<Vec<ItemType>, LoadError>
             // **The derived vitamins run once per prototype, not once per object.** The reference copies the *raw* slot through `copy-from` and derives per
             // prototype (`src/item_factory.cpp:762-776`), so a child of a food derives from its own materials rather than inheriting the parent's numbers — which
             // is how `blood_mi-go` (material `mi-go_blood`, no vitamins) comes out all-zero under a `meat_mi-go` parent whose flesh carries iron.
-            crate::comestible::finalise_vitamins(&mut item, &registries);
+            crate::comestible::finalise(&mut item, &registries);
             // The category is derived once, here, and only for a prototype: an
             // abstract that states none stays without one, so a child that
             // inherits from it derives from its own slots (`item_factory.cpp:385-388`).

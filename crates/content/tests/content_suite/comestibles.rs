@@ -44,6 +44,13 @@ fn float_map<'a>(entry: &'a cdda_json::Object, key: &str) -> BTreeMap<&'a str, f
     }
 }
 
+/// A list joined in sorted order: the reference keeps these in a `std::set`, so the order is not part of the value.
+fn sorted(names: &[String]) -> String {
+    let mut names = names.to_vec();
+    names.sort();
+    names.join(" ")
+}
+
 fn int_map<'a>(entry: &'a cdda_json::Object, key: &str) -> BTreeMap<&'a str, i32> {
     match entry.get(key) {
         Some(Value::Object(map)) => map
@@ -97,6 +104,7 @@ fn every_comestible_has_the_slot_the_reference_has() {
     let mut with_calories = 0;
     let mut with_spoilage = 0;
     let mut with_contamination = 0;
+    let mut with_petfood = 0;
     let mut with_rot_spawn = 0;
     for entry in types {
         let Value::Object(entry) = entry else {
@@ -117,7 +125,7 @@ fn every_comestible_has_the_slot_the_reference_has() {
         if slot.spoils_in > 0 {
             with_spoilage += 1;
         }
-        let checks: [(&str, String, String); 14] = [
+        let checks: [(&str, String, String); 17] = [
             ("comestible_type", slot.comestible_type.clone(), text(entry, "comestible_type")),
             ("tool", slot.tool.clone(), text(entry, "tool")),
             ("cooks_like", slot.cooks_like.clone(), text(entry, "cooks_like")),
@@ -132,6 +140,28 @@ fn every_comestible_has_the_slot_the_reference_has() {
             ("parasites", slot.parasites.to_string(), number(entry, "parasites").to_string()),
             ("spoils_in", slot.spoils_in.to_string(), number(entry, "spoils_in").to_string()),
             ("calories", slot.calories().to_string(), number(entry, "calories").to_string()),
+            ("monotony_penalty", slot.monotony_penalty.to_string(), number(entry, "monotony_penalty").to_string()),
+            (
+                "addiction_potential",
+                slot.addiction_potential.to_string(),
+                number(entry, "addiction_potential").to_string(),
+            ),
+            (
+                "petfood",
+                sorted(&slot.petfood),
+                match entry.get("petfood") {
+                    Some(Value::Array(names)) => sorted(
+                        &names
+                            .iter()
+                            .map(|name| match name {
+                                Value::Str(name) => name.clone(),
+                                other => panic!("petfood: {other:?}"),
+                            })
+                            .collect::<Vec<String>>(),
+                    ),
+                    other => panic!("petfood: {other:?}"),
+                },
+            ),
         ];
         for (name, ours, theirs) in checks {
             if ours != theirs {
@@ -195,6 +225,9 @@ fn every_comestible_has_the_slot_the_reference_has() {
             ));
         }
         // `rot_spawn`: what crawls out of the item when it rots away (`src/itype.h:135-143`, loader `src/item.cpp:16200-16206`).
+        if !slot.petfood.is_empty() {
+            with_petfood += 1;
+        }
         if !slot.contamination.is_empty() {
             with_contamination += 1;
         }
@@ -223,6 +256,7 @@ fn every_comestible_has_the_slot_the_reference_has() {
     assert!(with_calories > 700, "the corpus carries real nutrition: {with_calories}");
     assert!(with_spoilage > 500, "and real spoilage times: {with_spoilage}");
     assert_eq!(with_contamination, 9, "nine prototypes carry a disease");
+    assert!(with_petfood > 50, "and more than fifty feed a pet: {with_petfood}");
     assert_eq!(with_rot_spawn, 133, "a hundred and thirty-three spawn something when they rot");
     for (field, count) in &per_field {
         let examples: Vec<&String> = differing.iter().filter(|line| line.split('.').nth(1).is_some_and(|rest| rest.starts_with(&format!("{field}:")))).take(4).collect();

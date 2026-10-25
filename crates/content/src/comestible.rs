@@ -184,6 +184,8 @@ pub fn read(
     let mut value = inherited.cloned().unwrap_or_else(|| Comestible {
         tool: "null".to_owned(),
         primary_material: "null".to_owned(),
+        // `-1` means "not stated", which finalisation turns into 2 or 0 (`src/item_factory.cpp:495-497`). It has to stay distinct from a stated 0.
+        monotony_penalty: -1,
         ..Comestible::default()
     });
     if let Some(kind) = super::items::string(object, "comestible_type") {
@@ -402,17 +404,21 @@ fn spoils_in(object: &Object) -> Option<i64> {
     })
 }
 
-/// Derives a prototype's vitamins from its materials when it states none, once the whole `copy-from` chain has been applied.
+/// Runs the two per-prototype rules that `finalize_pre` applies once the whole `copy-from` chain is loaded.
 ///
 /// Reference: `item_factory.cpp:762-776`, which runs per **prototype** during finalisation. Two consequences the recording settled:
 ///
 /// * the derivation sees the **raw** inherited slot, not a parent's derived one, so each prototype derives its own numbers;
 /// * it runs after `primary_material` has replaced the material list (`:463-467`), which is why `mead` - materials `["alcohol", "honey"]`, primary material
 ///   `alcohol` - has no honey vitamins at all.
-pub(crate) fn finalise_vitamins(
-    item: &mut super::items::ItemType,
-    registries: &super::items::Registries<'_>,
-) {
+pub(crate) fn finalise(item: &mut super::items::ItemType, registries: &super::items::Registries<'_>) {
+    // **A boring food gets boring.** `monotony_penalty` starts at `-1` and becomes **0 when any of the item's materials is `junk`**, else 2
+    // (`src/item_factory.cpp:495-497`) — the one member whose default is computed from the material list rather than from a constant.
+    if let Some(slot) = item.comestible.as_mut()
+        && slot.monotony_penalty == -1
+    {
+        slot.monotony_penalty = i32::from(!item.materials.contains_key("junk")) * 2;
+    }
     if let Some(slot) = item.comestible.as_mut()
         && slot.vitamins.is_empty()
         && slot.healthy >= 0

@@ -546,7 +546,11 @@ Round 630 turned the same lens on ammunition. An effect list is a container too,
 and extends them. The reader was also asking the *object* whether it declares the AMMO subtype instead of asking the item,
 which loses the block entirely for a child that inherits its ammo slot; no such child exists in this content, so that half is
 pinned by a fixture. And the registry: tempting to refuse an effect it lacks, but the reference does not — `rock` lists four
-**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 638 closed the last two members of the comestible slot: `contamination` — a **probability** map whose reader defaults to 1.0, so `water`'s 0.1 is one in ten
+**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 639 finished the slot off with its three remaining scalars: `monotony_penalty` — the one member whose default is computed from the material list, `-1` becoming
+**0 when any material is `junk`** and 2 otherwise — `addiction_potential`, and `petfood` as a sorted set. The gate now compares 25 fields × 1,686 types. Mutation
+check: forcing the penalty to 0 fails 1,589 of them.
+
+Round 638 closed the last two members of the comestible slot: `contamination` — a **probability** map whose reader defaults to 1.0, so `water`'s 0.1 is one in ten
 (nine prototypes carry a disease) — and `rot_spawn`, which reads from the **defaults** rather than from the parent, so the egg abstract stating only `"chance": 0`
 carries no monster and its 133 children each restate theirs. Both are gated; `rot_spawn`'s `chance`/`amount` stay declared because the reference leaves them
 indeterminate for prototypes that state no `rot_spawn` at all, and `consumption_effect_on_conditions` has zero uses in the core content.
