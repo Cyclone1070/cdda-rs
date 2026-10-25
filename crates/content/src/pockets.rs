@@ -19,6 +19,10 @@ pub const MAX_VOLUME_FOR_CONTAINER: i64 = 200_000_000;
 pub const MAX_WEIGHT_FOR_CONTAINER: i64 = 2_000_000_000;
 
 /// One pocket of a thing, as the rules read it.
+///
+/// The flags are kept as flags because they are what the reference keeps (`pocket_data`, `src/item_pocket.h:470-495`) and each one is read by a different rule;
+/// folding them into a state machine would invent a structure the data does not have.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PocketSpec {
     /// What it is for, as the reference names it: `CONTAINER`, `MAGAZINE`, `MAGAZINE_WELL`, `MOD`, and so on.
@@ -39,6 +43,23 @@ pub struct PocketSpec {
     pub min_length_mm: i64,
     /// The smallest volume that fits, in millilitres; zero when the pocket does not care.
     pub min_volume_ml: i64,
+    /// The one biggest item that fits, in millilitres; `None` when the pocket does not care (`pocket_data::max_item_volume`, `src/item_pocket.h:477`).
+    ///
+    /// The reference asks it as `charges_per_volume_recursive` against the **per-charge** volume, and skips the question for liquids, gases and frozen liquids
+    /// (`src/item_pocket.cpp:1411-1418`).
+    pub max_item_volume_ml: Option<i64>,
+    /// Whether it holds exactly one item, like a holster (`src/item_pocket.h:488`).
+    pub holster: bool,
+    /// Whether its contents are ablative armour and never count against it (`src/item_pocket.h:490`).
+    pub ablative: bool,
+    /// Whether it may be sealed, which is what a pocket of a sealed thing reports (`src/item_pocket.h:130-136`).
+    pub sealed: bool,
+    /// The item ids it accepts, in the data's order; empty when it accepts any (`pocket_data::item_id_restriction`).
+    pub items: Vec<String>,
+    /// The item flags it needs, in the data's order; empty when it needs none (`pocket_data::flag_restrictions`).
+    pub flags: Vec<String>,
+    /// The materials it wants its contents made of, in the data's order; empty when it does not care (`pocket_data::material_restriction`).
+    pub materials: Vec<String>,
 }
 
 /// Reads the pockets a thing states.
@@ -87,6 +108,7 @@ fn read_pocket(entry: &Value) -> Option<PocketSpec> {
             volume(entry, "min_item_volume").unwrap_or(0),
         )
     };
+    let ablative = flag(entry, "ablative");
     Some(PocketSpec {
         kind: text(entry, "pocket_type").unwrap_or_else(|| "CONTAINER".to_owned()),
         watertight: flag(entry, "watertight"),
@@ -97,6 +119,14 @@ fn read_pocket(entry: &Value) -> Option<PocketSpec> {
         max_length_mm,
         min_length_mm,
         min_volume_ml,
+        max_item_volume_ml: volume(entry, "max_item_volume"),
+        // The reference flags an ablative pocket as a holster as well, so that it only ever holds one thing (`src/item_pocket.cpp:196-199`).
+        holster: flag(entry, "holster") || ablative,
+        ablative,
+        sealed: entry.get("sealed_data").is_some(),
+        items: id_list(entry, "item_restriction"),
+        flags: id_list(entry, "flag_restriction"),
+        materials: id_list(entry, "material_restriction"),
     })
 }
 
@@ -107,6 +137,23 @@ fn diagonal_mm(side_mm: i64) -> i64 {
     #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
     let product = (side_mm as f64 * std::f64::consts::SQRT_2) as i64;
     product
+}
+
+/// A list of ids, **in the order the data writes them**.
+///
+/// The reference keeps these in a `cata::flat_set`, which is an append-if-absent vector rather than a sorted one, so its iteration order is the data's order and not
+/// an alphabetical one: a wallet's flags come out `CREDIT_CARD_SHAPED` and then `BANK_NOTE_SHAPED`, which is how the wallet's JSON writes them.
+fn id_list(object: &Object, member: &str) -> Vec<String> {
+    match object.get(member) {
+        Some(Value::Array(entries)) => entries
+            .iter()
+            .filter_map(|entry| match entry {
+                Value::Str(id) => Some(id.clone()),
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
 }
 
 fn text(object: &Object, member: &str) -> Option<String> {

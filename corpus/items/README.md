@@ -17,7 +17,8 @@ anything counted by charges is the volume of one charge, so a battery's 100 ml b
 `belt40mm`, whose recorded length is that of the 25 grenades the reference's default construction puts inside it.
 
 `pockets.json` — `--dump-pockets`: every pocket a constructed item reports, with its kind, volume, weight, watertightness, rigidity
-and the three compatibility limits (`max_length`, `min_length`, `min_volume`). The dump walks `get_all_contained_pockets`, which is
+the three compatibility limits (`max_length`, `min_length`, `min_volume`), the one-item rules (`holster`, `ablative`, `sealed`,
+`max_item_volume`) and the three accept-lists (`items`, `flags`, `materials`, in the reference's own set order). The dump walks `get_all_contained_pockets`, which is
 `get_pockets( is_type( CONTAINER ) )` (`src/item_contents.cpp:2142-2147`), so it records the **CONTAINER** pockets only — 1,146 types,
 2,528 pockets — and a gun whose pockets are all magazine wells has none. Pockets contributed by installed mods are in there too, because
 the reference records what a constructed item holds.
