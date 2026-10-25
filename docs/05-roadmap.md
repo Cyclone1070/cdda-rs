@@ -478,9 +478,11 @@ the unfinished craft that holds its own parts. The line family a use action need
 never checked, the inclusive flat comparison against the strictly-climbing one, and support in either column).
 
 **Also in, at round 612.** The item damage family's *type* half: `damage_max`, the degradation increments and the
-`damage_level` bands, gated over 9,912 types (79,296 measurements). The *instance* half — `set_damage`,
-`set_degradation`, `mod_damage` and the per-turn degradation roll — is next, and needs the dice recorder wired to
-an item rather than to a square.
+`damage_level` bands, gated over 9,912 types (79,296 measurements). The *instance* half came at round 613:
+`ItemDamage` is the two-number state with its invariant, `mod_damage`'s three-way branch, and the degradation a hit
+adds by the bands it crosses (`factor( 0 )` is `-1`, which is why the first hit degrades twice as fast as the
+second). What is left of the family: the faults, and the per-turn degradation tick, which needs the dice recorder
+wired to an item rather than to a square.
 
 **Next, in order.** ~~The pockets' **length** limits~~ (in at round 602: `ItemType::longest_side`, gated over
 all 9,912 types), ~~the pocket loader and its accept-lists~~ (rounds 603-605), ~~the accept rules in the

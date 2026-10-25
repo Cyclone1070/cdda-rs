@@ -42,6 +42,7 @@ mod frame_smoke;
 mod frame_memory;
 mod frame_oracle;
 mod inventory;
+mod item_damage_state;
 mod field_growth;
 mod field_ids;
 mod field_merge;

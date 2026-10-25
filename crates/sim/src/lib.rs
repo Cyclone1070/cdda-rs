@@ -7075,6 +7075,125 @@ fn item_flags(world: &World, entity: Entity) -> std::collections::BTreeSet<Strin
         .unwrap_or_default()
 }
 
+/// How damaged one item is, and how much of that damage cannot be repaired.
+///
+/// Reference: `item::damage_` and `item::degradation_` (`src/item.h`). Two numbers, and the invariant between them is the whole point: **damage is never below
+/// degradation**, because degradation is the damage that repairs cannot undo (`item::set_damage`, `src/item.cpp:967-970`).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Component)]
+pub struct ItemDamage {
+    /// How damaged it is, from zero to the type's maximum.
+    pub damage: i32,
+    /// How much of that damage can never be repaired.
+    pub degradation: i32,
+}
+
+/// What a type says about damage, passed in because it is content and this crate is not.
+#[derive(Debug, Clone, Copy)]
+pub struct DamageLimits {
+    /// `ItemType::damage_max`: 4,000 for anything not counted in charges, 0 for anything that is.
+    pub max_damage: i32,
+    /// `ItemType::degrade_increments`: zero for every type that does not degrade, which is all but the vehicle parts.
+    pub degrade_increments: i32,
+    /// The type's stack size, which is how a charge-counted type turns damage into charges lost.
+    pub stack_size: i32,
+    /// Whether it is counted in charges, which is what makes damage eat charges instead of health.
+    pub count_by_charges: bool,
+    /// Whether it carries `UNBREAKABLE`, which refuses all damage.
+    pub unbreakable: bool,
+}
+
+impl ItemDamage {
+    /// Sets how damaged it is, but never below what can no longer be repaired.
+    ///
+    /// Reference: `item::set_damage` (`src/item.cpp:967-970`) is `damage_ = clamp( qty, degradation_, max_damage() )` — the clamp's **lower** bound is the
+    /// degradation, not zero.
+    pub fn set_damage(&mut self, quantity: i32, limits: &DamageLimits) {
+        self.damage = quantity.clamp(self.degradation, limits.max_damage);
+    }
+
+    /// Sets how much of the damage cannot be repaired, and pulls the damage up with it.
+    ///
+    /// Reference: `item::set_degradation` (`src/item.cpp:972-979`). A type with no degradation increments keeps zero however hard it is pushed, and the trailing
+    /// `set_damage( damage_ )` is what enforces the invariant when the floor rises past the damage.
+    pub fn set_degradation(&mut self, quantity: i32, limits: &DamageLimits) {
+        self.degradation = if limits.degrade_increments > 0 {
+            quantity.clamp(0, limits.max_damage)
+        } else {
+            0
+        };
+        self.set_damage(self.damage, limits);
+    }
+
+    /// Damages it, and answers whether that destroyed it.
+    ///
+    /// Reference: `item::mod_damage` (`src/item.cpp:9440-9468`). Three branches that behave nothing alike:
+    ///
+    /// * `UNBREAKABLE` refuses outright;
+    /// * a **charge-counted** item loses charges, `stack_size * qty / damage_scale` of them, and is destroyed when it runs out of charges rather than of health;
+    /// * anything else takes the damage, and if it survived, **automatic degradation** comes with it — the fraction of a degradation increment the new damage level
+    ///   crossed, which is what [`degrade_amount`] computes.
+    ///
+    /// The destruction test is made **before** the damage is applied (`( damage_ + qty ) > max_damage()`), so the hit that takes an item exactly to its maximum is not
+    /// the hit that destroys it.
+    #[must_use]
+    pub fn mod_damage(self, quantity: i32, limits: &DamageLimits) -> (Self, bool) {
+        if limits.unbreakable {
+            return (self, false);
+        }
+        let mut damage = self;
+        if limits.count_by_charges {
+            // A charge-counted item has no health to damage: the reference eats its **charges** and returns whether that emptied it, so the caller owns the count
+            // ([`mod_damage_charges`]) and this state stays at zero.
+            return (damage, false);
+        }
+        let before = damage.damage;
+        let destroyed = damage.damage.saturating_add(quantity) > limits.max_damage;
+        damage.set_damage(damage.damage.saturating_add(quantity), limits);
+        if quantity > 0 && !destroyed {
+            let step = degrade_amount(&damage, before, limits);
+            damage.set_degradation(damage.degradation.saturating_add(step), limits);
+        }
+        (damage, destroyed)
+    }
+}
+
+/// Damages a **charge-counted** pile by taking charges, and answers whether that emptied it.
+///
+/// Reference: the charge branch of `item::mod_damage` (`src/item.cpp:9444-9447`): `charges -= std::min( stack_size * qty / damage_scale, charges ); return charges == 0;`.
+/// A pile of two hundred nails does not get "hurt"; it loses nails.
+///
+/// Returns the charges left and whether the pile is now gone.
+#[must_use]
+pub fn mod_damage_charges(charges: i32, quantity: i32, stack_size: i32) -> (i32, bool) {
+    let lost = stack_size.max(0).saturating_mul(quantity) / DAMAGE_SCALE;
+    let left = charges - lost.min(charges.max(0));
+    (left, left <= 0)
+}
+
+/// The damage scale: a thousand units to a point of health, which is why the numbers above are in the thousands.
+pub const DAMAGE_SCALE: i32 = 1_000;
+
+/// How much degradation a hit adds, as a fraction of an increment.
+///
+/// Reference: `get_degrade_amount` (`src/item.cpp:9428-9439`). The two "factors" are the damage's position in its five bands, computed as `( damage - 1 ) * 5 / max`
+/// — so **zero damage is factor minus one**, not zero, which is what makes the first hit add two factors instead of one. The answer is
+/// `max( facNow - facPrev, 0 ) * max_damage / degrade_increments`: the number of bands crossed, scaled to an increment. A type that does not degrade, or one counted
+/// in charges, answers zero.
+#[must_use]
+pub fn degrade_amount(after: &ItemDamage, before_damage: i32, limits: &DamageLimits) -> i32 {
+    if limits.max_damage == 0 || limits.degrade_increments == 0 {
+        return 0;
+    }
+    let now = factor(after.damage, limits.max_damage);
+    let previous = factor(before_damage, limits.max_damage);
+    (now - previous).max(0) * limits.max_damage / limits.degrade_increments
+}
+
+/// A damage's position in the type's five bands, with the reference's odd `-1` for undamaged.
+fn factor(damage: i32, max_damage: i32) -> i32 {
+    if damage == 0 { -1 } else { (damage - 1) * 5 / max_damage }
+}
+
 /// The largest volume any item may take up: `MAX_ITEM_VOLUME` (`src/game_constants.h:35-36`), one tile, 1,000 litres.
 pub const MAX_ITEM_VOLUME_ML: i64 = 1_000_000;
 
