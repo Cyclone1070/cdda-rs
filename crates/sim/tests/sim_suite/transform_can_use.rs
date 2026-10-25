@@ -66,11 +66,16 @@ fn every_transform_refuses_in_the_reference_s_own_order_and_words() {
     };
     assert_eq!(types.len(), 459, "every transform was recorded");
     let items = loaded();
+    let reference =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let dirs = [reference.join("core"), reference.join("json")];
+    let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
+    let qualities = cdda_content::qualities::load_paths(&paths).expect("the qualities load");
 
     let mut differing: Vec<String> = Vec::new();
     let mut refusals: BTreeSet<String> = BTreeSet::new();
     let mut allowed = 0;
-    let mut declared = 0;
+    let mut quality_verdicts = 0;
     for entry in types {
         let Value::Object(entry) = entry else {
             panic!("a type")
@@ -92,15 +97,6 @@ fn every_transform_refuses_in_the_reference_s_own_order_and_words() {
             let Value::Object(state) = state else {
                 panic!("a state")
             };
-            // **Declared:** a type whose `qualities_needed` is not met is refused with the qualities rule, which asks the character *and* everything within one tile
-            // (`has_quality` over an inventory formed from the map) and then names the quality — `"You need a tool with fine screw driving 1."`. That needs an
-            // inventory and the quality's own name table, so the three types that state qualities are counted rather than claimed; the recording still proves the rule
-            // exists by refusing all three.
-            if !actor.qualities_needed.is_empty() {
-                declared += 1;
-                assert!(!boolean(state, "ok"), "{id}: an unmet quality must refuse, and did");
-                continue;
-            }
             let standing = transform::Standing {
                 // The recording's two standings: a bare item is neither worn nor wielded, a wielded one is only wielded. Nothing in either has contents, and the
                 // charges are the ones the item was built with.
@@ -109,9 +105,19 @@ fn every_transform_refuses_in_the_reference_s_own_order_and_words() {
                 empty: true,
                 charges: i32::try_from(int(state, "charges")).expect("a charge count"),
             };
+            // **The qualities' message is fully determined**, name and all, because it is built from the quality registry rather than from the item: the recorded
+            // sentence is compared whole, not as a template.
+            if !actor.qualities_needed.is_empty() {
+                quality_verdicts += 1;
+                if let Some(disagreement) = quality_refusal(actor, &standing, &qualities, &text(state, "message")) {
+                    differing.push(format!("{id}: {disagreement}"));
+                }
+                continue;
+            }
             let expected_ok = boolean(state, "ok");
             let message = text(state, "message");
-            let ours = transform::can_use(actor, &standing);
+            // The standing carries no tools, so the character offers no quality at all.
+            let ours = transform::can_use(actor, &standing, |_, _| false);
             match (&ours, expected_ok) {
                 (Ok(()), true) => allowed += 1,
                 (Ok(()), false) => differing.push(format!(
@@ -146,7 +152,7 @@ fn every_transform_refuses_in_the_reference_s_own_order_and_words() {
     assert!(refusals.contains("NotWorn"), "the wearing rule has to fire: {refusals:?}");
     assert!(refusals.contains("NotWielded"), "and so does the wielding rule: {refusals:?}");
     assert!(allowed > 600, "most standings are allowed: {allowed}");
-    assert_eq!(declared, 9, "three types state qualities, in three standings each");
+    assert_eq!(quality_verdicts, 9, "three types state qualities, in three standings each");
     // **What this corpus cannot see, said out loud.** No transform states both `need_worn` and `need_wielding`, so no standing in this recording can tell the order
     // of those two rules apart; that ordering is pinned by a transcribed unit test beside the code instead (`src/iuse_actor.cpp:433-441`).
     let both = items
@@ -164,4 +170,21 @@ fn every_transform_refuses_in_the_reference_s_own_order_and_words() {
         differing.len(),
         differing.get(..10).unwrap_or(&differing)
     );
+}
+
+/// The qualities' refusal, compared whole: the sentence names the quality **and its level**, and both come from the registry rather than from the item.
+fn quality_refusal(
+    actor: &cdda_content::use_actions::Transform,
+    standing: &transform::Standing,
+    qualities: &BTreeMap<String, cdda_content::qualities::Quality>,
+    message: &str,
+) -> Option<String> {
+    let Err(transform::Refusal::MissingQualities(unmet)) = transform::can_use(actor, standing, |_, _| false)
+    else {
+        return Some("nothing offers the quality, so it must refuse".to_owned());
+    };
+    let ours = transform::quality_message(&unmet, |quality| {
+        qualities.get(quality).map_or_else(|| quality.to_owned(), |def| def.name.clone())
+    });
+    (ours != message).then(|| format!("the port says {ours:?}, the reference says {message:?}"))
 }

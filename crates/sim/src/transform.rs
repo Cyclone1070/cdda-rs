@@ -91,6 +91,8 @@ pub enum Refusal {
     NotEmpty,
     /// `need_charges`, and it has fewer charges than the actor asks.
     NotEnoughCharges,
+    /// `qualities_needed`, and neither the character nor anything within a tile offers them. The unmet ones come in the actor's own order, which is its map's.
+    MissingQualities(Vec<(String, i32)>),
 }
 
 impl Refusal {
@@ -105,8 +107,42 @@ impl Refusal {
             Self::NotWielded => "You need to wield the %1$s before activating it.",
             Self::NotEmpty => "You need to empty the %1$s before activating it.",
             Self::NotEnoughCharges => &actor.need_charges_msg,
+            // The qualities' refusal is **two templates**, chosen by how many qualities are unmet: `n_gettext`'s singular and plural
+            // (`src/iuse_actor.cpp:477-479`). The names go in through [`quality_message`], which is where the counting joiner lives.
+            Self::MissingQualities(unmet) => {
+                if unmet.len() == 1 {
+                    "You need a tool with %s."
+                } else {
+                    "You need tools with %s."
+                }
+            }
         }
     }
+}
+
+/// The sentence for unmet qualities: the template above with the qualities named and joined.
+///
+/// Reference: `iuse_actor.cpp:475-481` names each unmet quality `"%s %d"` and joins them with `enumerate_as_string`, whose default conjunction is `and_` and whose
+/// joiner uses the **Oxford comma** — `"a, b and c"` for two, `"a, b, and c"` for three or more (`src/output.h:688-733`).
+#[must_use]
+pub fn quality_message(unmet: &[(String, i32)], name_of: impl Fn(&str) -> String) -> String {
+    let named: Vec<String> = unmet
+        .iter()
+        .map(|(quality, level)| format!("{} {}", name_of(quality), level))
+        .collect();
+    // A slice pattern rather than indices, so the three cases are the compiler's business and not a panic waiting to happen.
+    let joined = match named.as_slice() {
+        [] => String::new(),
+        [only] => only.clone(),
+        [left, right] => format!("{left} and {right}"),
+        [rest @ .., last] => format!("{}, and {}", rest.join(", "), last),
+    };
+    let template = if unmet.len() == 1 {
+        "You need a tool with %s."
+    } else {
+        "You need tools with %s."
+    };
+    template.replace("%s", &joined)
 }
 
 /// Whether a transform may be used, and if not, why.
@@ -114,7 +150,11 @@ impl Refusal {
 /// # Errors
 ///
 /// The first condition that refuses it, in the reference's order.
-pub fn can_use(actor: &Transform, standing: &Standing) -> Result<(), Refusal> {
+pub fn can_use(
+    actor: &Transform,
+    standing: &Standing,
+    has_quality: impl Fn(&str, i32) -> bool,
+) -> Result<(), Refusal> {
     if actor.need_worn && !standing.worn {
         return Err(Refusal::NotWorn);
     }
@@ -130,8 +170,18 @@ pub fn can_use(actor: &Transform, standing: &Standing) -> Result<(), Refusal> {
         return Err(Refusal::NotEnoughCharges);
     }
     // **The qualities come last**, and they are asked of the character *and* of the surroundings within one tile (`has_quality` over an inventory formed from the
-    // map). That needs an inventory and a materialised map, so it is declared too.
-    Ok(())
+    // map); the caller supplies one predicate for both, because the reference's two calls are the same question asked of two inventories.
+    let unmet: Vec<(String, i32)> = actor
+        .qualities_needed
+        .iter()
+        .filter(|(quality, level)| !has_quality(quality, **level))
+        .map(|(quality, level)| (quality.clone(), *level))
+        .collect();
+    if unmet.is_empty() {
+        Ok(())
+    } else {
+        Err(Refusal::MissingQualities(unmet))
+    }
 }
 
 /// A transform the port cannot yet perform, named rather than silently skipped.
@@ -201,6 +251,25 @@ fn choose_random_charges(_actor: &Transform) -> Option<i32> {
 mod tests {
     use super::*;
 
+    /// **The plural and the Oxford comma, transcribed**, because all three quality-bearing actors state exactly one quality: the singular sentence with no joiner is
+    /// the only shape the corpus can reach, and the rule's other two branches come from `src/iuse_actor.cpp:477-479` and `src/output.h:688-733`.
+    #[test]
+    fn two_qualities_use_the_plural_and_the_oxford_comma() {
+        let name = |quality: &str| quality.to_owned();
+        assert_eq!(
+            quality_message(&[("A".to_owned(), 1)], name),
+            "You need a tool with A 1."
+        );
+        assert_eq!(
+            quality_message(&[("A".to_owned(), 1), ("B".to_owned(), 2)], name),
+            "You need tools with A 1 and B 2."
+        );
+        assert_eq!(
+            quality_message(&[("A".to_owned(), 1), ("B".to_owned(), 2), ("C".to_owned(), 3)], name),
+            "You need tools with A 1, B 2, and C 3."
+        );
+    }
+
     /// **Transcribed from the reference, because the content cannot tell these two apart.** No actor in the corpus states `need_worn` *and* `need_wielding`, so no
     /// recording can distinguish the order — only the source can, and it asks `need_worn` first (`src/iuse_actor.cpp:433-441`).
     #[test]
@@ -232,6 +301,6 @@ mod tests {
             not_ready_msg: String::new(),
         };
         let bare = Standing { worn: false, wielded: false, empty: true, charges: 0 };
-        assert_eq!(can_use(&actor, &bare), Err(Refusal::NotWorn));
+        assert_eq!(can_use(&actor, &bare, |_, _| false), Err(Refusal::NotWorn));
     }
 }

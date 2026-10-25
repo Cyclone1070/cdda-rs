@@ -550,9 +550,13 @@ pinned by a fixture. And the registry: tempting to refuse an effect it lacks, bu
 459 transforms in three standings each. The gate had to be built around `item::tname` — the recorded sentence has the item's name
 formatted into it, so the port is held to the **template** and the two placeholder spellings that come with it (`%1$s` from the
 three literals, `%s` from an actor's `need_charges_msg`). Six actors replace that default message, which is why the corpus is
-worth having. Declared: the worn-mutation conflict, the three quality-bearing actors (nine verdicts), and the **order** between
-`need_worn` and `need_wielding` — no actor states both, so no recording can distinguish them; that pair is pinned by a
-transcribed test instead of pretending the corpus covers it.
+worth having. The qualities' refusal came with it, message and all: the sentence names each unmet quality as `"<name> <level>"` and joins
+them with an **Oxford comma**, so the nine verdicts the three quality-bearing actors produce are compared **whole** — that
+sentence carries no item name, unlike the other four. Its plural and three-or-more branches are reached by no content, so they
+are transcribed tests beside the code. Declared: the worn-mutation conflict, the two-sources half of the quality rule (the
+character's own qualities and a one-tile inventory), and the **order** between `need_worn` and `need_wielding` — no actor
+states both, so no recording can distinguish them; that pair is pinned by a transcribed test instead of pretending the corpus
+covers it.
 
 Round 631 ported what a `transform` action **does** to its item, not what its data says: `do_transform`'s item half over
 `item::convert`, gated by building each of the 459 items and handing it to the reference's own `do_transform`. The finding
