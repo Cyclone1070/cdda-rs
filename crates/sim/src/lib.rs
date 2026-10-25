@@ -4336,6 +4336,9 @@ pub struct Pocket {
     pub holster: bool,
     /// Whether it takes an item of up to a given volume and no bigger, in millilitres (`pocket_data::max_item_volume`).
     pub max_item_volume_ml: Option<i64>,
+    /// The ammunition types it takes, from `ammo_restriction`; empty when it takes anything. A pocket that states them takes **only** ammunition
+    /// (`src/item_pocket.cpp:1375-1395`).
+    pub ammo: Vec<String>,
 }
 
 impl Pocket {
@@ -4355,6 +4358,7 @@ impl Pocket {
             materials: Vec::new(),
             holster: false,
             max_item_volume_ml: None,
+            ammo: Vec::new(),
         }
     }
 
@@ -4374,6 +4378,7 @@ impl Pocket {
             materials: spec.materials.clone(),
             holster: spec.holster,
             max_item_volume_ml: spec.max_item_volume_ml,
+            ammo: spec.ammo.clone(),
         }
     }
 }
@@ -4454,7 +4459,7 @@ pub enum Phase {
 }
 
 /// What [`insert_into`] needs to know about an item: how much room it takes and what phase it is in.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ItemFacts {
     /// Its volume in millilitres.
     pub volume_ml: i64,
@@ -4462,6 +4467,20 @@ pub struct ItemFacts {
     pub weight_grams: i64,
     /// Its phase.
     pub phase: Phase,
+    /// Its type id, which the accept-lists name things by (`item_pocket.cpp:1362-1372`).
+    pub id: String,
+    /// The flags it carries, which the accept-lists and the unwield rule read.
+    pub flags: std::collections::BTreeSet<String>,
+    /// The material it is mostly made of, which the accept-lists read (`item::get_base_material`).
+    pub base_material: String,
+    /// The ammunition types it belongs to; empty for anything that is not ammunition (`itype::ammo->type`).
+    pub ammo_types: Vec<String>,
+    /// Whether it **is** ammunition, which is not the same as naming a caliber: a magazine names the caliber it holds (`item::is_ammo`, `src/item.cpp:10040-10043`).
+    pub is_ammo: bool,
+    /// How many charges it holds, which is what a biggest-item volume is measured against one of (`charges_per_volume_recursive`).
+    pub charges: i32,
+    /// Whether it is soft, which its length and its biggest-item volume both read (`item::is_soft`, `src/item.cpp:15199`).
+    pub soft: bool,
     /// Its longest side, in millimetres; **zero means "not measured"**, and then the length limits are not asked.
     ///
     /// Reference: `item::length` (`src/item.cpp:7343-7398`), which reads the prototype's `longest_side`. The port does not thread that yet, and it must not invent one: a
@@ -4478,6 +4497,13 @@ impl ItemFacts {
             volume_ml,
             weight_grams: 0,
             phase: Phase::Solid,
+            id: String::new(),
+            flags: std::collections::BTreeSet::new(),
+            base_material: String::new(),
+            ammo_types: Vec::new(),
+            is_ammo: false,
+            charges: 1,
+            soft: false,
             length_mm: 0,
         }
     }
@@ -4489,6 +4515,13 @@ impl ItemFacts {
             volume_ml,
             weight_grams,
             phase: Phase::Solid,
+            id: String::new(),
+            flags: std::collections::BTreeSet::new(),
+            base_material: String::new(),
+            ammo_types: Vec::new(),
+            is_ammo: false,
+            charges: 1,
+            soft: false,
             length_mm: 0,
         }
     }
@@ -4502,6 +4535,13 @@ impl ItemFacts {
             volume_ml,
             weight_grams: 0,
             phase: Phase::Liquid,
+            id: String::new(),
+            flags: std::collections::BTreeSet::new(),
+            base_material: String::new(),
+            ammo_types: Vec::new(),
+            is_ammo: false,
+            charges: 1,
+            soft: false,
             length_mm: 0,
         }
     }
@@ -4513,6 +4553,13 @@ impl ItemFacts {
             volume_ml,
             weight_grams: 0,
             phase: Phase::Gas,
+            id: String::new(),
+            flags: std::collections::BTreeSet::new(),
+            base_material: String::new(),
+            ammo_types: Vec::new(),
+            is_ammo: false,
+            charges: 1,
+            soft: false,
             length_mm: 0,
         }
     }
@@ -4529,7 +4576,7 @@ pub struct Inside(pub Entity);
 pub struct InPocket(pub usize);
 
 /// Why something could not be put in a container.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InsertError {
     /// The container has no room for it.
     TooBig {
@@ -4540,6 +4587,53 @@ pub enum InsertError {
     },
     /// The item has already been put somewhere else.
     AlreadyInside,
+    /// The pocket's accept-lists do not name it.
+    ///
+    /// Reference: `"holster does not accept this item type or form factor"` (`src/item_pocket.cpp:1362-1372`), which is the message every restricted pocket gives.
+    NotAccepted,
+    /// The pocket holds one thing already, and it is a holster.
+    ///
+    /// Reference: `"holster already contains an item"` (`src/item_pocket.cpp:1548-1560`), which only ammunition may overrule since ammunition stacks.
+    HolsterOccupied,
+    /// The pocket has the room in total but not left.
+    ///
+    /// Reference: `"not enough space"` (`src/item_pocket.cpp:1595-1598`), distinct from `"item is too big"`, which is a thing bigger than the pocket **entirely**
+    /// (`src/item_pocket.cpp:1583-1586`).
+    NotEnoughSpace {
+        /// Room the pocket had left, in millilitres.
+        remaining_ml: i64,
+        /// What it was asked to take, in millilitres.
+        wanted_ml: i64,
+    },
+    /// Every pocket refused, and the reference names them all: `pockets unacceptable because a, b, or c`.
+    ///
+    /// Reference: `item_contents_helper::find_pocket_for` (`src/item_contents.cpp:802-822`), which sorts the messages, removes the duplicates and joins them with
+    /// `or`. The order is the reference's `localized_compare`, which for these messages is alphabetical.
+    AnyOf {
+        /// The distinct messages, sorted.
+        messages: Vec<String>,
+    },
+    /// The pocket takes only ammunition and the thing is not ammunition.
+    ///
+    /// Reference: `"item is not ammunition"` (`src/item_pocket.cpp:1377-1381`).
+    NotAmmo,
+    /// The pocket takes only certain ammunition and the thing is another kind.
+    ///
+    /// Reference: `"item is not the correct ammo type"` (`src/item_pocket.cpp:1385-1388`).
+    WrongAmmo,
+    /// The thing can never be put anywhere, because it cannot be unwielded.
+    ///
+    /// Reference: `"cannot unwield item"` (`src/item_pocket.cpp:1359-1362`).
+    CannotUnwield,
+    /// The thing is bigger than the largest item the pocket takes.
+    ///
+    /// Reference: `"item is too big"` (`src/item_pocket.cpp:1411-1418`), asked of the **per-charge** volume and skipped for liquids, gases and frozen liquids.
+    TooBigItem {
+        /// The largest item volume the pocket takes, in millilitres.
+        limit_ml: i64,
+        /// The thing's own volume per charge, in millilitres.
+        wanted_ml: i64,
+    },
     /// The item is heavier than the pocket will take.
     TooHeavy {
         /// The heaviest item the pocket takes, in grams.
@@ -4581,22 +4675,171 @@ pub enum InsertError {
     },
 }
 
+impl InsertError {
+    /// The message the reference gives this refusal, character for character, so that a gate can compare the two as text.
+    ///
+    /// Every message here is transcribed from `src/item_pocket.cpp`; a refusal the reference does not name (the port's own bookkeeping) answers an empty string.
+    #[must_use]
+    pub fn message(&self) -> String {
+        match self {
+            Self::TooBig { .. } | Self::TooBigItem { .. } => "item is too big".to_owned(),
+            Self::NotEnoughSpace { .. } => "not enough space".to_owned(),
+            Self::HolsterOccupied => "holster already contains an item".to_owned(),
+            Self::TooHeavy { .. } => "item is too heavy".to_owned(),
+            Self::WrongPhase {
+                phase: Phase::Liquid,
+            } => "can't contain liquid".to_owned(),
+            Self::WrongPhase { .. } => "can't contain gas".to_owned(),
+            Self::TooLong { .. } => "item is too long".to_owned(),
+            Self::TooShort { .. } => "item is too short".to_owned(),
+            Self::TooSmall { .. } => "item is too small".to_owned(),
+            Self::NotAccepted => "holster does not accept this item type or form factor".to_owned(),
+            Self::NotAmmo => "item is not ammunition".to_owned(),
+            Self::WrongAmmo => "item is not the correct ammo type".to_owned(),
+            Self::CannotUnwield => "cannot unwield item".to_owned(),
+            Self::AlreadyInside => String::new(),
+            // The reference's own wording for a container whose pockets all refused: `pockets unacceptable because a, b, or c`
+            // (`src/item_contents.cpp:818-822`). A single pocket's refusal is returned as its own variant instead, so this wording appears only where several rules
+            // were named.
+            Self::AnyOf { messages } => format!("pockets unacceptable because {}", join_with_or(messages)),
+        }
+    }
+}
+
+/// Joins messages the way the reference enumerates them: `a`, `a or b`, `a, b, or c` (`enumeration_conjunction::or_`).
+fn join_with_or(messages: &[String]) -> String {
+    match messages {
+        [] => String::new(),
+        [only] => only.clone(),
+        [first, second] => format!("{first} or {second}"),
+        _ => {
+            let Some((last, rest)) = messages.split_last() else {
+                return String::new();
+            };
+            format!("{}, or {last}", rest.join(", "))
+        }
+    }
+}
+
+/// Whether a pocket refuses an item, and which rule refused it.
+///
+/// Reference: `item_pocket::is_compatible` (`src/item_pocket.cpp:1318-1433`) followed by the weight and the room of `_can_contain` (`src/item_pocket.cpp:1570-1590`),
+/// **in the reference's order**, because the order decides which message a payload hears:
+///
+/// 1. a thing that cannot be unwielded can never go anywhere (`"cannot unwield item"`);
+/// 2. the accept-lists (`"holster does not accept this item type or form factor"`);
+/// 3. an ammunition pocket takes ammunition and nothing else, and only its own calibres - and then it **stops**, which is why an ammo pocket never complains about a
+///    length or a weight;
+/// 4. a liquid needs a watertight pocket and a gas an airtight one;
+/// 5. the largest item the pocket takes, measured **per charge** and skipped for liquids, gases and frozen liquids;
+/// 6. the longest side, the shortest side and the smallest volume;
+/// 7. the weight, then the room.
+/// # Errors
+///
+/// The first rule of [`check_in`] that refuses the thing.
+pub fn check(pocket: &Pocket, facts: &ItemFacts, remaining_ml: i64) -> Result<(), InsertError> {
+    check_in(pocket, facts, remaining_ml, false)
+}
+
+/// [`check`], for a pocket that may already hold something.
+///
+/// # Errors
+///
+/// The first rule that refuses the thing, in the reference's order.
+pub fn check_in(
+    pocket: &Pocket,
+    facts: &ItemFacts,
+    remaining_ml: i64,
+    occupied: bool,
+) -> Result<(), InsertError> {
+    if facts.flags.contains("NO_UNWIELD") {
+        return Err(InsertError::CannotUnwield);
+    }
+    if !accepts(pocket, &facts.id, &facts.flags, &facts.base_material) {
+        return Err(InsertError::NotAccepted);
+    }
+    if !pocket.ammo.is_empty() {
+        if !facts.is_ammo {
+            return Err(InsertError::NotAmmo);
+        }
+        if !pocket
+            .ammo
+            .iter()
+            .any(|allowed| facts.ammo_types.iter().any(|mine| mine == allowed))
+        {
+            return Err(InsertError::WrongAmmo);
+        }
+        // An ammunition pocket answers here, and the weight, the room and the limits are never asked of it.
+        return Ok(());
+    }
+    let frozen = facts.flags.contains("FROM_FROZEN_LIQUID");
+    if facts.phase == Phase::Liquid && !pocket.watertight && !frozen {
+        return Err(InsertError::WrongPhase {
+            phase: Phase::Liquid,
+        });
+    }
+    if facts.phase == Phase::Gas && !pocket.airtight {
+        return Err(InsertError::WrongPhase { phase: Phase::Gas });
+    }
+    // **A soft thing is never too big**, because the reference's `charges_per_volume_recursive` answers `INFINITE_CHARGES` for a soft item with nothing inside it:
+    // its loop never runs, so nothing is smaller than the number it returns (`src/item_pocket.cpp:1304-1318`). That is why a 500 ml pair of stockings goes into a
+    // 17 ml bottle's pocket and a 500 ml rock does not.
+    if let Some(limit) = pocket.max_item_volume_ml
+        && facts.phase != Phase::Liquid
+        && facts.phase != Phase::Gas
+        && !frozen
+        && !facts.soft
+    {
+        let per_charge = facts.volume_ml / i64::from(facts.charges.max(1));
+        if per_charge > limit {
+            return Err(InsertError::TooBigItem {
+                limit_ml: limit,
+                wanted_ml: per_charge,
+            });
+        }
+    }
+    if let Some(refusal) = compatibility_refusal(pocket, facts) {
+        return Err(refusal);
+    }
+    if pocket.holster && occupied {
+        return Err(InsertError::HolsterOccupied);
+    }
+    if facts.weight_grams > pocket.weight_capacity_grams {
+        return Err(InsertError::TooHeavy {
+            capacity_grams: pocket.weight_capacity_grams,
+            wanted_grams: facts.weight_grams,
+        });
+    }
+    if facts.volume_ml > pocket.capacity_ml {
+        return Err(InsertError::TooBig {
+            remaining_ml: pocket.capacity_ml,
+            wanted_ml: facts.volume_ml,
+        });
+    }
+    if facts.volume_ml > remaining_ml {
+        return Err(InsertError::NotEnoughSpace {
+            remaining_ml,
+            wanted_ml: facts.volume_ml,
+        });
+    }
+    Ok(())
+}
+
 /// Whether a pocket's own limits refuse an item, and which one did.
 ///
 /// Reference: `item_pocket::is_compatible` (`src/item_pocket.cpp:1408-1432`). The three questions are a maximum length, a minimum length and a minimum volume, in that
 /// order - which is the order the reference asks them in, and the reason `"item is too long"` wins over `"item is too small"` for an item that is both.
 ///
-/// A length of zero means the item's own length is **not measured** (the prototype's `longest_side` is not threaded yet), and the length limits are then not asked rather
-/// than asked against a guess.
+/// **The length is always asked, and zero is a real answer**: a soft thing with nothing in it has no length, and the reference refuses it into an exterior pocket as
+/// `"item is too short"` exactly as it refuses a short blade. That is why the limits are compared unconditionally.
 fn compatibility_refusal(pocket: &Pocket, facts: &ItemFacts) -> Option<InsertError> {
-    let measured = facts.length_mm > 0;
-    if pocket.max_item_length_mm > 0 && measured && facts.length_mm > pocket.max_item_length_mm {
+    if pocket.max_item_length_mm > 0 && facts.length_mm > pocket.max_item_length_mm {
         return Some(InsertError::TooLong {
             limit_mm: pocket.max_item_length_mm,
             wanted_mm: facts.length_mm,
         });
     }
-    if pocket.min_item_length_mm > 0 && measured && facts.length_mm < pocket.min_item_length_mm {
+    if pocket.min_item_length_mm > 0 && facts.length_mm < pocket.min_item_length_mm {
         return Some(InsertError::TooShort {
             limit_mm: pocket.min_item_length_mm,
             wanted_mm: facts.length_mm,
@@ -4649,72 +4892,50 @@ pub fn insert_into(
         .filter(|(_, inside, _)| inside.0 == container)
         .map(|(entity, _, InPocket(index))| (entity, *index))
         .collect();
+    let mut occupants_by_pocket: BTreeMap<usize, usize> = BTreeMap::new();
     for (entity, index) in occupants {
         if let Some(slot) = room.get_mut(index) {
             *slot -= facts_of(entity).volume_ml;
         }
+        *occupants_by_pocket.entry(index).or_default() += 1;
     }
     let mut best_room: Option<i64> = None;
     let mut chosen: Option<usize> = None;
     let mut refusals: Vec<InsertError> = Vec::new();
     for (index, pocket) in capacity.pockets.iter().enumerate() {
-        let phase_allowed = match wanted_facts.phase {
-            Phase::Solid => true,
-            Phase::Liquid => pocket.watertight,
-            Phase::Gas => pocket.airtight,
-        };
-        if !phase_allowed {
-            continue;
-        }
         let left = room.get(index).copied().unwrap_or(0);
         best_room = Some(best_room.map_or(left, |best| best.max(left)));
-        // **The compatibility limits come first**, because they live in `is_compatible`, which every `can_contain` runs before the weight and the room
-        // (`src/item_pocket.cpp:1408-1432`).
-        if let Some(refusal) = compatibility_refusal(pocket, &wanted_facts) {
-            refusals.push(refusal);
-            continue;
-        }
-        // **The weight is checked before the room**, which is the order `can_contain` asks its questions in, and it is per item rather than a running total.
-        if wanted_facts.weight_grams > pocket.weight_capacity_grams {
-            continue;
-        }
-        if chosen.is_none() && wanted_facts.volume_ml <= left {
-            chosen = Some(index);
+        let occupied = occupants_by_pocket.get(&index).copied().unwrap_or(0) > 0;
+        match check_in(pocket, &wanted_facts, left, occupied) {
+            Ok(()) => {
+                if chosen.is_none() {
+                    chosen = Some(index);
+                }
+            }
+            Err(refusal) => refusals.push(refusal),
         }
     }
     let Some(best_room) = best_room else {
-        // **No pocket will take this phase at all**, which is the refusal that does not depend on room.
-        return Err(InsertError::WrongPhase {
-            phase: wanted_facts.phase,
+        // No pocket at all, which is not a refusal but an empty container.
+        return Err(InsertError::TooBig {
+            remaining_ml: 0,
+            wanted_ml: wanted_facts.volume_ml,
         });
     };
     let Some(index) = chosen else {
-        // A compatibility refusal is what the reference would report first, so it wins over a weight or room refusal.
-        if let Some(refusal) = refusals.first().copied() {
-            return Err(refusal);
+        // **Every pocket refused, and the reference names them all.** `find_pocket_for` collects the messages of the pockets it tried, sorts them, removes the
+        // duplicates and joins them with `or` (`src/item_contents.cpp:802-822`), so a backpack answers "holster already contains an item or item is too long"
+        // rather than whichever pocket happened to come first.
+        let mut messages: Vec<String> = refusals.iter().map(InsertError::message).collect();
+        messages.sort_unstable();
+        messages.dedup();
+        if messages.len() == 1 {
+            return Err(refusals.first().cloned().unwrap_or(InsertError::TooBig {
+                remaining_ml: best_room,
+                wanted_ml: wanted_facts.volume_ml,
+            }));
         }
-        // Which refusal to name: the heaviest pocket's capacity when **no** accepting pocket will take the weight, and the room otherwise.
-        let heaviest = capacity
-            .pockets
-            .iter()
-            .filter(|pocket| match wanted_facts.phase {
-                Phase::Solid => true,
-                Phase::Liquid => pocket.watertight,
-                Phase::Gas => pocket.airtight,
-            })
-            .map(|pocket| pocket.weight_capacity_grams)
-            .max()
-            .unwrap_or(0);
-        if wanted_facts.weight_grams > heaviest {
-            return Err(InsertError::TooHeavy {
-                capacity_grams: heaviest,
-                wanted_grams: wanted_facts.weight_grams,
-            });
-        }
-        return Err(InsertError::TooBig {
-            remaining_ml: best_room,
-            wanted_ml: wanted_facts.volume_ml,
-        });
+        return Err(InsertError::AnyOf { messages });
     };
     world.entity_mut(item).insert((Inside(container), InPocket(index)));
     Ok(())

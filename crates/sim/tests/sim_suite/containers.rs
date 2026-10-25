@@ -42,7 +42,9 @@ fn a_full_box_refuses_and_says_how_much_room_is_left() {
     let refused = insert_into(&mut world, box_entity, third, volume_of);
     assert_eq!(
         refused,
-        Err(InsertError::TooBig {
+        // **"Not enough space", not "item is too big"**: the box is 250 ml and the rock is 100 ml, so the rock would fit an empty box and it is the room left that
+        // refuses it - and the reference keeps a separate message for a thing bigger than the pocket outright (`src/item_pocket.cpp:1583-1598`).
+        Err(InsertError::NotEnoughSpace {
             remaining_ml: 50,
             wanted_ml: 100
         })

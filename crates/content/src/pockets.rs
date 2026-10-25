@@ -60,6 +60,11 @@ pub struct PocketSpec {
     pub flags: Vec<String>,
     /// The materials it wants its contents made of, in the data's order; empty when it does not care (`pocket_data::material_restriction`).
     pub materials: Vec<String>,
+    /// The ammunition types it takes, from the keys of `ammo_restriction`; empty when it takes anything (`pocket_data::ammo_restriction`).
+    ///
+    /// A pocket that states one takes **only** ammunition, and only of those types - and the reference returns success right there, skipping the length, the volume
+    /// and the weight entirely (`src/item_pocket.cpp:1375-1395`).
+    pub ammo: Vec<String>,
 }
 
 /// Reads the pockets a thing states.
@@ -127,6 +132,7 @@ fn read_pocket(entry: &Value) -> Option<PocketSpec> {
         items: id_list(entry, "item_restriction"),
         flags: id_list(entry, "flag_restriction"),
         materials: id_list(entry, "material_restriction"),
+        ammo: ammo_types_of(entry),
     })
 }
 
@@ -151,6 +157,18 @@ fn id_list(object: &Object, member: &str) -> Vec<String> {
                 Value::Str(id) => Some(id.clone()),
                 _ => None,
             })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// The ammunition types an `ammo_restriction` names, which are its keys.
+fn ammo_types_of(object: &Object) -> Vec<String> {
+    match object.get("ammo_restriction") {
+        Some(Value::Object(restriction)) => restriction
+            .members()
+            .iter()
+            .map(|(ammo, _)| ammo.clone())
             .collect(),
         _ => Vec::new(),
     }

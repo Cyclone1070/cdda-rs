@@ -45,6 +45,8 @@ pub struct ItemType {
     pub integral_weight: i64,
     /// Volume in millilitres.
     pub volume: i64,
+    /// The ammunition types it is ammunition for, when it is ammunition at all (`itype::ammo->type`, loaded from `"ammo_type"`).
+    pub ammo_types: Vec<String>,
     /// The pockets it holds things in, as the data states them (`src/item_pocket.cpp:150-200`).
     pub pockets: Vec<crate::pockets::PocketSpec>,
     /// The pockets it **adds** to whatever it is installed on: `pocket_mods`, which only a gunmod states (`src/item_factory.cpp:3357`).
@@ -200,6 +202,21 @@ pub fn apply_mod_pockets(types: &mut [ItemType]) {
             }
             item.pockets.extend(added);
         }
+    }
+}
+
+/// Reads `"ammo_type"`, which a type states as one caliber or as a list of them.
+fn read_ammo_types(object: &Object) -> Vec<String> {
+    match object.get("ammo_type") {
+        Some(Value::Str(ammo)) => vec![ammo.clone()],
+        Some(Value::Array(entries)) => entries
+            .iter()
+            .filter_map(|entry| match entry {
+                Value::Str(ammo) => Some(ammo.clone()),
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
     }
 }
 
@@ -549,6 +566,21 @@ impl ItemType {
     /// the same phases the rest of the code spells in capitals.
     fn phase_is_liquid(&self) -> bool {
         !self.phase.eq_ignore_ascii_case("SOLID")
+    }
+
+    /// Its phase, as the rules that ask `made_of( phase_id )` see it (`src/item.h:1100-1110`).
+    ///
+    /// Reference: `item::made_of( phase_id::LIQUID )` and its gas sibling, which read the prototype's `phase`. The reference's own default is `SOLID`, so anything
+    /// that is not a liquid or a gas is a solid.
+    #[must_use]
+    pub fn phase(&self) -> &'static str {
+        if self.phase.eq_ignore_ascii_case("LIQUID") {
+            "liquid"
+        } else if self.phase.eq_ignore_ascii_case("GAS") || self.phase.eq_ignore_ascii_case("PLASMA") {
+            "gas"
+        } else {
+            "solid"
+        }
     }
 
     /// The name the reference prints for the item's colour.
@@ -916,6 +948,7 @@ fn resolve(
         // Unset until the data or the fallback says otherwise.
         integral_weight: -1,
         volume: 0,
+        ammo_types: Vec::new(),
         pockets: Vec::new(),
         added_pockets: Vec::new(),
         gun_mods: Vec::new(),
@@ -991,6 +1024,11 @@ fn apply(
     read_measures(item, object)?;
     // Only when the object states its own: a copy-from child that says nothing keeps the pockets it inherited, which is how a robe's pockets reach the
     // artifacts that copy from it.
+    // Only when the object states its own: an arrow that copies from another keeps the caliber it inherited, which is the third time this pattern has come up
+    // (pockets, a material's softness, and now a caliber).
+    if object.get("ammo_type").is_some() {
+        item.ammo_types = read_ammo_types(object);
+    }
     if object.get("pocket_data").is_some() {
         item.pockets = crate::pockets::read_pockets(object);
     }
