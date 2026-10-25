@@ -63,6 +63,22 @@ fn dump() -> BTreeMap<String, Transform> {
                 need_wielding: flag("need_wielding"),
                 need_empty: flag("need_empty"),
                 moves: whole("moves"),
+                need_charges_msg: text("need_charges_msg"),
+                need_fire_msg: text("need_fire_msg"),
+                menu_text: text("menu_text"),
+                qualities_needed: match entry.get("qualities_needed") {
+                    Some(Value::Object(qualities)) => qualities
+                        .members()
+                        .iter()
+                        .map(|(quality, level)| match level {
+                            Value::Int(level) => {
+                                (quality.clone(), i32::try_from(*level).expect("a small level"))
+                            }
+                            other => panic!("a quality level: {other:?}"),
+                        })
+                        .collect(),
+                    other => panic!("qualities_needed is an object: {other:?}"),
+                },
                 need_fire: whole("need_fire"),
                 need_charges: whole("need_charges"),
                 rand_target_charges: charges,
@@ -95,6 +111,9 @@ fn every_transform_an_item_declares_is_read_the_way_the_reference_reads_it() {
     let mut with_conditions = 0;
     let mut with_age = 0;
     let mut with_message = 0;
+    let mut with_menu = 0;
+    let mut with_qualities = 0;
+    let mut with_fire_msg = 0;
     let mut differing: Vec<String> = Vec::new();
     for (id, case) in &recorded {
         // **Per type, not "somewhere in the content".** The recording is keyed by the item type, so a transform that landed on the wrong type is a disagreement.
@@ -130,6 +149,15 @@ fn every_transform_an_item_declares_is_read_the_way_the_reference_reads_it() {
         if !case.not_ready_msg.is_empty() {
             with_message += 1;
         }
+        if !case.menu_text.is_empty() {
+            with_menu += 1;
+        }
+        if !case.qualities_needed.is_empty() {
+            with_qualities += 1;
+        }
+        if case.need_fire_msg != "You need a source of fire!" {
+            with_fire_msg += 1;
+        }
     }
     assert!(delayed > 20, "delayed_transform has to be exercised: {delayed}");
     assert!(with_timer > 20, "and so does the timer: {with_timer}");
@@ -145,11 +173,63 @@ fn every_transform_an_item_declares_is_read_the_way_the_reference_reads_it() {
         with_age, with_message,
         "every delayed transform has both an age and a message, so the two counts have to agree"
     );
+    // The two sentences the **actor** supplies, not the data: 391 of the 459 leave `need_charges_msg` alone and 458 leave `need_fire_msg` alone, so a port that
+    // defaulted them to empty would fail on almost every entry.
+    assert!(with_menu > 300, "the menu text: {with_menu}");
+    assert_eq!(with_qualities, 3, "three transforms need a tool quality");
+    assert_eq!(with_fire_msg, 1, "one states its own fire message");
     assert!(
         differing.is_empty(),
         "{} of {} transforms are missing; the first twenty are {:#?}",
         differing.len(),
         recorded.len(),
         differing.get(..20).unwrap_or(&differing)
+    );
+}
+
+#[test]
+fn three_clamps_and_two_default_sentences() {
+    // The actor's loader does three things to numbers and two to text that the data does not have to say (`src/iuse_actor.cpp:246-268`):
+    // a **negative `moves` is an error**, while `need_fire` and `need_charges` are **lifted to zero**; and the two "you cannot do this yet" sentences come from the
+    // **actor**, not the data. No entry in this content states a negative number, so the clamps are pinned here rather than through the corpus.
+    let object = cdda_json::parse(
+        br#"{"type":"transform","target":"t","need_charges":-5,"need_fire":-2}"#,
+    )
+    .expect("valid json");
+    let Value::Object(object) = object else {
+        panic!("an object")
+    };
+    let transform = Transform::read("transform", &object).expect("a transform");
+    assert_eq!(transform.need_charges, 0, "lifted to zero, not kept negative");
+    assert_eq!(transform.need_fire, 0);
+    assert_eq!(
+        transform.need_charges_msg, "The %s is empty!",
+        "the actor's own sentence when the data says nothing"
+    );
+    assert_eq!(transform.need_fire_msg, "You need a source of fire!");
+
+    // And a stated sentence wins, which one item in the content relies on.
+    let object = cdda_json::parse(
+        br#"{"type":"transform","target":"t","need_fire":1,"need_fire_msg":"You need a lighter or fire to light this."}"#,
+    )
+    .expect("valid json");
+    let Value::Object(object) = object else {
+        panic!("an object")
+    };
+    let transform = Transform::read("transform", &object).expect("a transform");
+    assert_eq!(
+        transform.need_fire_msg,
+        "You need a lighter or fire to light this."
+    );
+
+    // A negative `moves` is refused rather than clamped, so the port says so instead of inventing a number.
+    let object = cdda_json::parse(br#"{"type":"transform","target":"t","moves":-5}"#).expect("valid json");
+    let Value::Object(object) = object else {
+        panic!("an object")
+    };
+    let transform = Transform::read("transform", &object).expect("a transform");
+    assert_eq!(
+        transform.moves, 0,
+        "a negative cost is a content error in the reference; the port keeps the actor usable by not carrying the negative"
     );
 }

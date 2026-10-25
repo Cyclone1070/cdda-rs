@@ -529,7 +529,11 @@ object, the buried half reads a nested `"bury"` object and only when there is a 
 
 Round 626 closed a hole the port had been living with: `delayed_transform` was being read as a plain `transform`, so 28 actions lost their age and
 their not-ready message while the gate stayed green, because it only asserted the fields a `transform` has. The recording now writes the derived class's
-members too, and the gate compares the whole actor. **Correction:** an earlier version of this line promised a "per-turn degradation
+members too, and the gate compares the whole actor.
+
+Round 628 finished that audit on the same actor: **22 members, three clamps, two default sentences**. A negative `moves` is a
+content error, `need_fire` and `need_charges` are lifted to zero, and the actor supplies "The %s is empty!" and "You need a
+source of fire!" itself — which 391 and 458 of the 459 lean on, so emptying either default fails the gate. **Correction:** an earlier version of this line promised a "per-turn degradation
 tick"; there is no such thing in the reference — `item::process_internal` does not degrade anything, and the only
 degradation is the one a hit adds and the one `rand_degradation` rolls at spawn.
 

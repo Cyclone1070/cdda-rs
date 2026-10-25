@@ -95,12 +95,20 @@ pub struct Transform {
     pub need_wielding: bool,
     /// Whether the item must be empty first.
     pub need_empty: bool,
-    /// Moves the transformation costs the one who does it.
+    /// Moves the transformation costs the one who does it; the reference **refuses a negative one** (`src/iuse_actor.cpp:251-254`).
     pub moves: i32,
-    /// Fire charges the item must have, from a fire nearby.
+    /// Fire charges the item must have, from a fire nearby, **clamped at zero**.
     pub need_fire: i32,
-    /// Charges the item must hold before it may be transformed.
+    /// Charges the item must hold before it may be transformed, **clamped at zero** (`need_charges = std::max( need_charges, 0 )`).
     pub need_charges: i32,
+    /// What to say when the item is empty; **`"The %s is empty!"` when the actor does not say** (`src/iuse_actor.cpp:259-261`).
+    pub need_charges_msg: String,
+    /// What to say when there is no fire; **`"You need a source of fire!"` when the actor does not say** (`263-266`).
+    pub need_fire_msg: String,
+    /// The text in the activation menu, which 362 of the 459 state.
+    pub menu_text: String,
+    /// Tool qualities needed, by quality id, with the level (`"SCREW_FINE": 1`).
+    pub qualities_needed: std::collections::BTreeMap<String, i32>,
     /// The charges to choose from at random, which the reference refuses to combine with a fixed count.
     pub rand_target_charges: Vec<i32>,
     /// `delayed_transform`'s minimum age for the item, **in turns**; zero for a plain transform
@@ -170,9 +178,33 @@ impl Transform {
             need_worn: flag("need_worn", false),
             need_wielding: flag("need_wielding", false),
             need_empty: flag("need_empty", false),
-            moves: whole("moves", 0),
-            need_fire: whole("need_fire", 0),
-            need_charges: whole("need_charges", 0),
+            // **Three clamps, three rules.** `moves` is refused when negative, while `need_fire` and `need_charges` are **lifted to zero**
+            // (`src/iuse_actor.cpp:251-268`), so a data error becomes a satisfied requirement rather than an impossible one.
+            moves: whole("moves", 0).max(0),
+            need_fire: whole("need_fire", 0).max(0),
+            need_charges: whole("need_charges", 0).max(0),
+            // Two default sentences the actor supplies rather than the data: an item that says nothing about being empty still says it is empty.
+            need_charges_msg: translation_or(object, "need_charges_msg", "The %s is empty!"),
+            need_fire_msg: translation_or(object, "need_fire_msg", "You need a source of fire!"),
+            menu_text: match object.get("menu_text") {
+                Some(Value::Str(text)) => text.clone(),
+                Some(Value::Object(text)) => match text.get("str") {
+                    Some(Value::Str(text)) => text.clone(),
+                    _ => String::new(),
+                },
+                _ => String::new(),
+            },
+            qualities_needed: match object.get("qualities_needed") {
+                Some(Value::Object(qualities)) => qualities
+                    .members()
+                    .iter()
+                    .filter_map(|(quality, level)| match level {
+                        Value::Int(level) => Some((quality.clone(), i32::try_from(*level).ok()?)),
+                        _ => None,
+                    })
+                    .collect(),
+                _ => std::collections::BTreeMap::new(),
+            },
             rand_target_charges,
             // **Only `delayed_transform` reads these two.** `delayed_transform_iuse::load` calls the parent's loader first and then takes `not_ready_msg` and
             // `transform_age` (`src/iuse_actor.cpp:992-997`); a plain `transform` that states them is ignored by the reference, so the port ignores them too.
@@ -456,6 +488,20 @@ fn int_of(value: &Value) -> Option<i32> {
     match value {
         Value::Int(value) => i32::try_from(*value).ok(),
         _ => None,
+    }
+}
+
+/// A translation from a member, or the sentence the reference falls back to.
+///
+/// Reference: the two `if( !obj.read( ... ) ) { x = to_translation( ... ); }` pairs in `iuse_transform::load` (`src/iuse_actor.cpp:259-266`).
+fn translation_or(object: &Object, key: &str, fallback: &str) -> String {
+    match object.get(key) {
+        Some(Value::Str(text)) => text.clone(),
+        Some(Value::Object(text)) => match text.get("str") {
+            Some(Value::Str(text)) => text.clone(),
+            _ => fallback.to_owned(),
+        },
+        _ => fallback.to_owned(),
     }
 }
 
