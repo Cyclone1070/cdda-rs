@@ -42,6 +42,21 @@ diff -ruN references/Cataclysm-DDA/src/calendar.h oracle/src/src/calendar.h
  /** Returns the current sunlight.
   *  Based entirely on astronomical circumstances; does not account for e.g.
   *  weather.
+diff -ruN references/Cataclysm-DDA/src/character.h oracle/src/src/character.h
+--- references/Cataclysm-DDA/src/character.h	2026-10-19 18:15:04
++++ oracle/src/src/character.h	2026-10-26 06:58:00
+@@ -682,6 +682,11 @@
+ 
+         /** Getter for need values exclusive to characters */
+         int get_stored_kcal() const;
++        /// The stored calories in thousandths of a kilocalorie, for the harness: the food clock adds sub-kilocalorie burns, so the port pins this exact figure rather
++        /// than the rounded one the game displays.
++        int get_stored_calories() const {
++            return stored_calories;
++        }
+         int get_healthy_kcal() const;
+         // Returns stored kcals as a proportion of "healthy" kcals (1.0 == healthy)
+         float get_kcal_percent() const;
 diff -ruN references/Cataclysm-DDA/src/debug.cpp oracle/src/src/debug.cpp
 --- references/Cataclysm-DDA/src/debug.cpp	2026-10-19 18:15:04
 +++ oracle/src/src/debug.cpp	2026-10-21 06:53:22
@@ -330,8 +345,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-26 05:47:50
-@@ -0,0 +1,4950 @@
++++ oracle/src/src/harness.cpp	2026-10-26 07:40:58
+@@ -0,0 +1,5105 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +
@@ -2191,6 +2206,161 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        trace( ingested, false );
 +        std::fprintf( out, "}" );
 +        first = false;
++    }
++    std::fprintf( out, "\n],\"count\":%d}\n", count );
++    std::fclose( out );
++}
++
++/// What the body does with what the guts release: `Character::update_stomach` (`src/character_body.cpp:935-1019`), up to the point it picks a hunger *effect*.
++///
++/// This dump calls the **real** rule and records what it did, with every input it read written down beside it: the metabolic `rates` (which the rule recomputes from
++/// the character, so they are recorded per profile), the calorie burn per turn (`get_bmr() / (12 * 24)`), the healthy weight's calorie figure, and the two dice.
++///
++/// The dice are the only randomness in the rule — `roll_remainder( rates.hunger * five_mins )` and the same for thirst — and they are made reproducible rather than
++/// avoided: the engine is seeded, the two rolls are taken and written down, the engine is seeded **again** to the same place, and the rule then rolls the same two
++/// numbers in the same order. The port takes the recorded numbers as inputs, because dice belong to the caller.
++///
++/// Three profiles are traced for each food, because the rule is a ladder of `if`s on the character's state and one happy path would only ever climb one rung: fed and
++/// just bitten; fed and bitten forty minutes ago (past the ten-minute line); and already engorged, thirsty, and running on half the calories it wants.
++void dump_update_stomach( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    struct profile {
++        /// The compartment's base capacity. **250 mL is what a real character has**: `stomach_contents`'s `max_volume` defaults to zero and `capacity()` floors it at a
++        /// quarter of a litre, so a stomach capacity of 1,500 is a hypothetical and 250 is the game. Both are here because the ladder of fullness is written in
++        /// fractions of the capacity and a 1,500 mL stomach never gets past the first rung with one bite.
++        int capacity_ml;
++        int hunger;
++        int thirst;
++        int stored_kcal;
++        int minutes_since_ate;
++    };
++    static const std::array<profile, 6> profiles = {{
++            { 1500, 0, 0, 3000, 0 },
++            { 1500, 0, 0, 3000, 40 },
++            { 1500, -61, 20, 1500, 0 },
++            { 250, 0, 0, 3000, 0 },
++            { 250, 0, 0, 3000, 40 },
++            { 250, 300, 0, 1000, 40 },
++        }};
++    const unsigned seed = 20'250'101;
++
++    avatar &u = get_avatar();
++    const auto vitamin_map = []( const std::map<vitamin_id, int> &map ) {
++        std::string text = "{";
++        bool first = true;
++        for( const std::pair<const vitamin_id, int> &vitamin : map ) {
++            if( vitamin.second == 0 ) {
++                continue;
++            }
++            text += string_format( "%s\"%s\":%d", first ? "" : ",",
++                                   harness_escape( vitamin.first.str() ).c_str(), vitamin.second );
++            first = false;
++        }
++        return text + "}";
++    };
++    const auto levels = [&u]() {
++        std::map<vitamin_id, int> out_levels;
++        for( const std::pair<const vitamin_id, vitamin> &entry : vitamin::all() ) {
++            const int level = u.vitamin_get( entry.first );
++            if( level != 0 ) {
++                out_levels.emplace( entry.first, level );
++            }
++        }
++        return out_levels;
++    };
++
++    std::fprintf( out, "{\"harness\":\"update-stomach\",\"version\":1,\"five_mins\":6,"
++                  "\"half_hours\":1,\"seed\":%u,\n\"foods\":[\n", seed );
++
++    bool first_food = true;
++    int count = 0;
++    for( const itype *type : item_controller->all() ) {
++        if( type == nullptr || !type->comestible ) {
++            continue;
++        }
++        item food( type->get_id(), calendar::turn, 1 );
++        const nutrients effective = u.compute_effective_nutrients( food );
++        const std::pair<units::volume, units::volume> masticated = u.masticated_volume( food );
++        const double ratio = u.compute_effective_food_volume_ratio( food );
++        const food_summary ingested{ masticated.first, masticated.second * ratio, effective };
++        ++count;
++        std::fprintf( out, "%s{\"id\":\"%s\",\"ingested\":{\"water_ml\":%lld,\"solids_ml\":%lld,"
++                      "\"calories\":%lld,\"vitamins\":%s},\"profiles\":[",
++                      first_food ? "" : ",\n", harness_escape( type->get_id().str() ).c_str(),
++                      static_cast<long long>( units::to_milliliter( ingested.water ) ),
++                      static_cast<long long>( units::to_milliliter( ingested.solids ) ),
++                      static_cast<long long>( ingested.nutr.calories ),
++                      vitamin_map( ingested.nutr.vitamins() ).c_str() );
++        bool first_profile = true;
++        for( const profile &p : profiles ) {
++            // The bite happens at a clock position chosen so that `time_since_ate()` comes out as the profile's: `ingest` stamps `last_ate` with the clock, so the
++            // clock is moved back before the food goes in and forward again before the update.
++            const time_point now = calendar::turn_zero + 1_hours;
++            calendar::turn = now - time_duration::from_minutes( p.minutes_since_ate );
++            const units::volume capacity = units::from_milliliter( p.capacity_ml );
++            u.stomach = stomach_contents( capacity, true );
++            u.guts = stomach_contents( capacity, false );
++            u.set_hunger( p.hunger );
++            u.set_thirst( p.thirst );
++            u.set_stored_kcal( p.stored_kcal );
++            for( const std::pair<const vitamin_id, vitamin> &entry : vitamin::all() ) {
++                u.vitamin_set( entry.first, 0 );
++            }
++            u.stomach.ingest( ingested );
++            calendar::turn = now;
++
++            // The inputs the rule will read, recorded before it runs.
++            const needs_rates rates = u.calc_needs_rates();
++            const float kcal_per_time = u.get_bmr() / ( 12.0f * 24.0f );
++            const int healthy_kcal = u.get_healthy_kcal();
++            const int stored_before = u.get_stored_kcal();
++            const int stored_calories_before = u.get_stored_calories();
++            const int hunger_before = u.get_hunger();
++            const int thirst_before = u.get_thirst();
++            std::fprintf( out,
++                          "%s{\"profile\":{\"capacity_ml\":%d,\"hunger\":%d,\"thirst\":%d,\"stored_kcal\":%d,"
++                          "\"minutes_since_ate\":%d},"
++                          "\"rates\":{\"kcal\":%.6g,\"hunger\":%.6g,\"thirst\":%.6g,\"sleepiness\":%.6g},"
++                          "\"kcal_per_time\":%.17g,\"healthy_kcal\":%d,",
++                          first_profile ? "" : ",", p.capacity_ml, p.hunger, p.thirst, p.stored_kcal,
++                          p.minutes_since_ate,
++                          static_cast<double>( rates.kcal ), static_cast<double>( rates.hunger ),
++                          static_cast<double>( rates.thirst ), static_cast<double>( rates.sleepiness ),
++                          static_cast<double>( kcal_per_time ), healthy_kcal );
++            first_profile = false;
++
++            // Roll the two dice, then put the engine back so the rule rolls them again itself.
++            rng_set_engine_seed( seed );
++            const int hunger_roll = roll_remainder( rates.hunger * 6 );
++            const int thirst_roll = roll_remainder( rates.thirst * 6 );
++            rng_set_engine_seed( seed );
++            u.update_stomach( now, now + 30_minutes );
++
++            std::fprintf( out,
++                          "\"rolls\":{\"hunger\":%d,\"thirst\":%d},"
++                          "\"before\":{\"hunger\":%d,\"thirst\":%d,\"stored_kcal\":%d,\"stored_calories\":%d},"
++                          "\"after\":{\"hunger\":%d,\"thirst\":%d,\"stored_kcal\":%d,\"stored_calories\":%d,"
++                          "\"vitamins\":%s,"
++                          "\"stomach\":{\"contains_ml\":%lld,\"water_ml\":%lld,\"kcal\":%d},"
++                          "\"guts\":{\"contains_ml\":%lld,\"water_ml\":%lld,\"kcal\":%d}}}",
++                          hunger_roll, thirst_roll, hunger_before, thirst_before, stored_before,
++                          stored_calories_before,
++                          u.get_hunger(), u.get_thirst(), u.get_stored_kcal(), u.get_stored_calories(),
++                          vitamin_map( levels() ).c_str(),
++                          static_cast<long long>( units::to_milliliter( u.stomach.contains() ) ),
++                          static_cast<long long>( units::to_milliliter( u.stomach.get_water() ) ),
++                          u.stomach.get_calories(),
++                          static_cast<long long>( units::to_milliliter( u.guts.contains() ) ),
++                          static_cast<long long>( units::to_milliliter( u.guts.get_water() ) ),
++                          u.guts.get_calories() );
++        }
++        std::fprintf( out, "]}" );
++        first_food = false;
 +    }
 +    std::fprintf( out, "\n],\"count\":%d}\n", count );
 +    std::fclose( out );
@@ -5284,8 +5454,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-26 04:34:08
-@@ -0,0 +1,351 @@
++++ oracle/src/src/harness.h	2026-10-26 06:31:06
+@@ -0,0 +1,354 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -5478,6 +5648,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +
 +/** Writes every `consume_drug` use action, resolved. */
 +void dump_consume_drugs( const std::string &path );
++
++/** Writes what the body does with what the guts release, as `--dump-update-stomach`. */
++void dump_update_stomach( const std::string &path );
 +
 +/** Writes the trace of a full stomach emptying itself, in both compartments, as `--dump-digest`. */
 +void dump_digest( const std::string &path );
@@ -5811,7 +5984,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-26 04:34:08
++++ oracle/src/src/main.cpp	2026-10-26 06:31:06
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -5822,7 +5995,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,128 @@
+@@ -272,6 +275,129 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -5898,6 +6071,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_fun_for;
 +    std::string dump_food_summary;
 +    std::string dump_digest;
++    std::string dump_update_stomach;
 +    std::string dump_consume_drugs;
 +    std::string dump_link_ups;
 +    std::string dump_firestarters;
@@ -5951,7 +6125,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +425,1100 @@
+@@ -300,6 +426,1110 @@
                  }
              },
              {
@@ -6342,6 +6516,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_consume_drugs = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-update-stomach", "<file>",
++                "Writes what the body does with what the guts release",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_update_stomach = params[0];
 +                    return 1;
 +                }
 +            },
@@ -7052,7 +7236,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2005,580 @@
+@@ -786,6 +2016,586 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -7476,6 +7660,12 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            test_mode = true;
 +            g->check_mod_data( { mod_id( "dda" ) } );
 +            harness::dump_consume_drugs( cli.dump_consume_drugs );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_update_stomach.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_update_stomach( cli.dump_update_stomach );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_digest.empty() ) {

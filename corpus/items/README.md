@@ -179,3 +179,14 @@ one.
 
 The ingested summary is recorded with its own water, solids, calories and vitamins, so the trace can be replayed without the food-summary recording — a disagreement is
 then placeable: on what went in, on the rates, or on the release rule itself.
+
+## `update-stomach.json` — the body's side of a meal
+
+`--dump-update-stomach` runs the **real** `Character::update_stomach` (`src/character_body.cpp:935-1019`) on a fresh pair of compartments holding one bite of each of
+the 1,686 comestibles, in six character profiles: at a 1,500 mL capacity and at the **250 mL a real character has**, fed and just bitten, fed and bitten forty
+minutes ago, engorged and thirsty, and famished. Each profile records the metabolic rates the rule recomputed for itself, the calorie burn per turn, the healthy
+weight's calorie figure, the two dice it rolled, and the body before and after — hunger, thirst, stored **calories** (not kilocalories: the burn is sub-kilocalorie and
+the displayed figure rounds it away), vitamin levels, and both compartments.
+
+The dice are the only randomness in the rule. The harness seeds the engine, rolls `roll_remainder( rates.hunger * five_mins )` and the thirst one, writes both down,
+seeds the engine again to the same place, and calls the rule — which then rolls the same two numbers in the same order.

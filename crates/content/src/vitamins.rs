@@ -23,6 +23,13 @@ pub struct Vitamin {
     /// Only a `vitamin` writes its amount in the data as an **RDA percentage**. Everything else is already in units — `meat_allergen` at 1 is one allergen, not one
     /// percent of a day — which is why the conversion below asks first.
     pub vit_type: String,
+    /// The lowest level the body can reach: `vitamin::min`, **zero** when the data states none (`src/vitamin.h:126`).
+    pub min: i32,
+    /// The highest level the body can reach: `vitamin::max`, **zero** when the data states none (`src/vitamin.h:127`).
+    ///
+    /// A zero ceiling is not a bug in the data: 50 of the 53 vitamins in the content are markers (`meat_allergen`, `mutagen`, `bad_food`) that are read, not stored,
+    /// so a level that clamps to zero is the same answer the reference gives.
+    pub max: i32,
     /// How long one unit lasts, in turns: the type's `rate`, which every vitamin in the content states as `15 m`.
     ///
     /// This is the scale that turns a food's **RDA percentage** into internal units. `RDA_to_default` is `24h * percent / 100 / rate`, so with a 15-minute rate one
@@ -58,6 +65,12 @@ pub fn load_paths(dirs: &[&Path]) -> Result<BTreeMap<String, Vitamin>, crate::ma
                 let Some(id) = crate::items::string(object, "id") else {
                     continue;
                 };
+                let number = |key: &str| match object.get(key) {
+                    Some(Value::Int(value)) => i32::try_from(*value).unwrap_or(0),
+                    _ => 0,
+                };
+                let min = number("min");
+                let max = number("max");
                 let rate = match object.get("rate") {
                     Some(Value::Str(text)) => crate::constructions::parse_duration(text),
                     Some(Value::Int(turns)) => *turns,
@@ -80,6 +93,8 @@ pub fn load_paths(dirs: &[&Path]) -> Result<BTreeMap<String, Vitamin>, crate::ma
                     Vitamin {
                         id,
                         vit_type: crate::items::string(object, "vit_type").unwrap_or_else(|| "vitamin".to_owned()),
+                        min,
+                        max,
                         weight_per_unit,
                         rate,
                     },
