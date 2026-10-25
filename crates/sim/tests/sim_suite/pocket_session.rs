@@ -53,6 +53,28 @@ fn steps() -> Vec<Step> {
         .collect()
 }
 
+/// A whole number from a recorded pocket.
+fn whole(pocket: &cdda_json::Object, key: &str) -> i64 {
+    match pocket.get(key) {
+        Some(cdda_json::Value::Int(value)) => *value,
+        other => panic!("{key} is a whole number: {other:?}"),
+    }
+}
+
+/// A list of ids from a recorded pocket.
+fn list(pocket: &cdda_json::Object, key: &str) -> Vec<String> {
+    match pocket.get(key) {
+        Some(cdda_json::Value::Array(entries)) => entries
+            .iter()
+            .map(|entry| match entry {
+                cdda_json::Value::Str(id) => id.clone(),
+                other => panic!("{key} holds text: {other:?}"),
+            })
+            .collect(),
+        other => panic!("{key} is a list: {other:?}"),
+    }
+}
+
 /// The length the reference measured for each type, from the measures recording, so that a pocket's length limits are asked of real numbers.
 fn lengths() -> BTreeMap<String, i64> {
     let path =
@@ -198,46 +220,39 @@ impl Pockets {
                 let cdda_json::Value::Object(pocket) = pocket else {
                     panic!("a pocket")
                 };
-                if !matches!(pocket.get("kind"), Some(cdda_json::Value::Str(kind)) if kind == "CONTAINER") {
+                let Some(cdda_json::Value::Str(kind)) = pocket.get("kind") else {
+                    panic!("a kind")
+                };
+                if kind != "CONTAINER" {
                     continue;
                 }
                 // **A container with several pockets holds what they all hold**, and accepts a liquid if any one of them does - which is how the reference's
                 // `item_contents::insert_item` behaves when it offers the payload to each pocket in turn.
-                kept.push(cdda_sim::Pocket {
-                    capacity_ml: match pocket.get("max_volume") {
-                        Some(cdda_json::Value::Int(volume)) => *volume,
-                        other => panic!("max_volume is a whole number: {other:?}"),
-                    },
-                    weight_capacity_grams: match pocket.get("max_weight") {
-                        Some(cdda_json::Value::Int(weight)) => *weight,
-                        other => panic!("max_weight is a whole number: {other:?}"),
-                    },
+                kept.push(cdda_sim::Pocket::from_spec(&cdda_content::pockets::PocketSpec {
+                    kind: kind.clone(),
                     watertight: matches!(
                         pocket.get("watertight"),
                         Some(cdda_json::Value::Bool(true))
                     ),
                     airtight: matches!(pocket.get("airtight"), Some(cdda_json::Value::Bool(true))),
-                    // The reference's compatibility limits, recorded with the rest of the pocket, so the port asks the questions the data actually states:
-                    // 2,502 of the corpus's pockets carry at least one of them.
-                    max_item_length_mm: match pocket.get("max_length") {
-                        Some(cdda_json::Value::Int(length)) => *length,
-                        other => panic!("max_length is a whole number: {other:?}"),
+                    rigid: matches!(pocket.get("rigid"), Some(cdda_json::Value::Bool(true))),
+                    max_volume_ml: whole(pocket, "max_volume"),
+                    max_weight_grams: whole(pocket, "max_weight"),
+                    max_length_mm: whole(pocket, "max_length"),
+                    min_length_mm: whole(pocket, "min_length"),
+                    min_volume_ml: whole(pocket, "min_volume"),
+                    max_item_volume_ml: match whole(pocket, "max_item_volume") {
+                        volume if volume < 0 => None,
+                        volume => Some(volume),
                     },
-                    min_item_length_mm: match pocket.get("min_length") {
-                        Some(cdda_json::Value::Int(length)) => *length,
-                        other => panic!("min_length is a whole number: {other:?}"),
-                    },
-                    min_item_volume_ml: match pocket.get("min_volume") {
-                        Some(cdda_json::Value::Int(volume)) => *volume,
-                        other => panic!("min_volume is a whole number: {other:?}"),
-                    },
-                    items: Vec::new(),
-                    flags: Vec::new(),
-                    materials: Vec::new(),
-                    holster: false,
-                    max_item_volume_ml: None,
+                    holster: matches!(pocket.get("holster"), Some(cdda_json::Value::Bool(true))),
+                    ablative: matches!(pocket.get("ablative"), Some(cdda_json::Value::Bool(true))),
+                    sealed: matches!(pocket.get("sealed"), Some(cdda_json::Value::Bool(true))),
+                    items: list(pocket, "items"),
+                    flags: list(pocket, "flags"),
+                    materials: list(pocket, "materials"),
                     ammo: Vec::new(),
-                });
+                }));
             }
             table.insert(id.clone(), kept);
         }
@@ -396,11 +411,10 @@ fn a_pocket_is_its_own_limit_and_a_liquid_needs_a_watertight_one() {
     // `AnyOf { messages: ["item is too heavy", "item is too long"] }`. The reference's first message is `holster already contains an item` instead, because its
     // `copies_remaining` counter is shared across the pockets it asks and the first pocket consumes the log's single copy; the port asks each pocket on its own. That
     // difference is **declared** in `docs/parity.md` rather than papered over, and this assertion pins the half the port is right about.
-    let refusal = log.placed.as_ref().expect_err("the log is refused");
-    assert!(
-        refusal.message().contains("item is too long"),
-        "the log is too long for a 400 mm pocket; the port said {:?}",
-        refusal.message()
+    assert_eq!(
+        log.placed.as_ref().err().map(cdda_sim::InsertError::message),
+        Some("pockets unacceptable because holster already contains an item or item is too long".to_owned()),
+        "the reference's own sentence: the 2x4 is in the holster and the log is too long for the rest"
     );
     // **And a branch bigger than any one pocket is refused too**, though it would fit the backpack's pockets added together: 30,000 ml against 25,000, 510, 5,000 and
     // 5,000. A pooled capacity takes it; a pocket is its own limit.

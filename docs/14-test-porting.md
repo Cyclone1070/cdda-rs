@@ -194,3 +194,17 @@ World, character, combat, vehicles | with their phase, as that phase's acceptanc
 The tracker for which file has been taken is the Port status column in
 [13-test-inventory.md](13-test-inventory.md); update `tools/test_inventory.py` when a
 file's status changes, so the table stays derived rather than remembered.
+
+## A fixture that lies is the most expensive bug in the repository
+
+Five times now a gate has failed because the **fixture** was wrong and the rule was right:
+
+* a wall pushed into the map before the floor it should have replaced, so `find` returned the floor;
+* a `Pocket` literal that hard-coded `holster: false` while the recorded pocket said `true`, which made the port's
+  refusal of a log read `item is too heavy` where the reference said `holster already contains an item`;
+* payload facts with a length of zero for things that have lengths, so every exterior pocket refused them as "too short";
+* a length derived from a volume for items whose data states a `longest_side`, which refuses what the reference accepts;
+* a corpus path resolved relative to the working directory, which broke under the remote runner.
+
+The rule that follows: **a fixture is code**, and it is read from the recording rather than written by hand wherever the recording
+has the field. When a gate disagrees, the fixture is the first suspect, not the rule.
