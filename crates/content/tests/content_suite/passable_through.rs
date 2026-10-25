@@ -12,6 +12,7 @@ use cdda_content::mapdata::{MapData, passable_through};
 fn terrain(move_cost: i32, flags: &[&str]) -> MapData {
     MapData {
         heat_radiation: 0,
+        examine: None,
         kind: cdda_content::mapdata::MapDataKind::Terrain,
         id: "t_probe".to_owned(),
         name: "probe".to_owned(),

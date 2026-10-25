@@ -57,6 +57,11 @@ pub struct MapData {
     /// which clears it (`mapdata.cpp:1112-1114`); and `unset_flag` clears it for `TRANSPARENT` while leaving it alone for `TRANSLUCENT`
     /// (`mapdata.cpp:892-905`). The asymmetries are the reference's, and they are why this cannot be recomputed from `flags`.
     pub transparent: bool,
+    /// What examining it does, if anything (`"examine_action"`, `src/mapdata.h:500-505`).
+    ///
+    /// `None` is a square with no examine action at all, which is not the same as `Named("none")`: the content states `"none"` on 1,000-odd prototypes to **cancel**
+    /// what they inherited, and the two are told apart by the reference too (`examine_func` set to `iexamine::none` versus never set).
+    pub examine: Option<crate::examine::ExamineAction>,
     /// How much this terrain or furniture radiates heat, in `get_heat_radiation`'s own units.
     ///
     /// Reference: `mapdata.h:537`, read by `get_heat_radiation` (`src/game.cpp:1769`) when a square has no fire on it: the intensity is the terrain's, and the heat is
@@ -230,6 +235,7 @@ pub fn load_paths(dirs: &[&std::path::Path]) -> Result<Vec<MapData>, LoadError> 
                 light: 0,
                 coverage: 0,
                 heat_radiation: 0,
+                examine: None,
                 flags,
                 // `null_terrain_t` and `null_furniture_t` set the bool themselves (`mapdata.cpp:555`, `:576`), and nothing loads over them, so the reference's
                 // own dump has both **transparent** - unlike an ordinary new prototype, which starts opaque.
@@ -419,6 +425,7 @@ fn apply_roof(value: &mut MapData, json: &Object, kind: MapDataKind) {
     }
 }
 
+#[allow(clippy::too_many_lines)]
 fn apply(base: Option<MapData>, loaded: &Loaded) -> Result<MapData, LoadError> {
     let json = &loaded.json;
     let id = loaded.id.clone();
@@ -433,6 +440,7 @@ fn apply(base: Option<MapData>, loaded: &Loaded) -> Result<MapData, LoadError> {
         light: 0,
         coverage: 0,
         heat_radiation: 0,
+        examine: None,
         flags: BTreeSet::new(),
         // A new prototype starts **opaque** (`mapdata.h:573`). The only two things that start transparent are the code-made null prototypes, and the
         // shipped `t_null`/`f_null` override even that by naming their own flags - which is why this is data-pinned rather than reasoned.
@@ -445,6 +453,11 @@ fn apply(base: Option<MapData>, loaded: &Loaded) -> Result<MapData, LoadError> {
 
     if let Some(name) = name_of(json) {
         value.name = name;
+    }
+    // **Replaced, not merged**, when stated: the member is read the way `optional` reads any scalar, so a child that states its own examine action drops its parent's.
+    // No prototype in this content does that over a parent that has one — the corpus counts zero — so the rule is pinned by a fixture rather than by the corpus.
+    if json.get("examine_action").is_some() {
+        value.examine = crate::examine::read(json)?;
     }
     if json.get("symbol").is_some() {
         let seasons = season_strings(json, "symbol")?;

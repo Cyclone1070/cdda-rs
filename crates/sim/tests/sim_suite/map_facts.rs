@@ -25,6 +25,7 @@ fn facts_of(prototype: &MapData) -> TerrainFacts {
 fn terrain(id: &str, flags: &[&str]) -> MapData {
     MapData {
         heat_radiation: 0,
+        examine: None,
         kind: MapDataKind::Terrain,
         id: id.to_string(),
         name: id.to_string(),

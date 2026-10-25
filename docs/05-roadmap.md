@@ -546,7 +546,14 @@ Round 630 turned the same lens on ammunition. An effect list is a container too,
 and extends them. The reader was also asking the *object* whether it declares the AMMO subtype instead of asking the item,
 which loses the block entirely for a child that inherits its ammo slot; no such child exists in this content, so that half is
 pinned by a fixture. And the registry: tempting to refuse an effect it lacks, but the reference does not — `rock` lists four
-**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 632 ported **whether** a transform may be used: `can_use`'s four conditions in the reference's own order, gated over
+**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 634 opened the **examine actions** — the family the roadmap lists as "not started", 77 names over ~530 tiles. The split is the interesting part: 73 names are
+bare strings with no data at all (a hardcoded C++ function), and only **4 carry members**, so the loader keeps a name for most tiles and an actor for
+`appliance_convert` (38), `cardreader` (21), `effect_on_condition` (20) and `mortar` (1). The recording is `--dump-examine-actions`, 1,769 tiles, and it settled two
+things the JSON cannot say: the reference's **default function is `iexamine::none`**, so 1,208 tiles say `none` without any prototype writing it; and **no prototype
+states an examine action over a parent that has one**, so replace-vs-keep is pinned by a fixture rather than pretended. Round 635 moved the oracle build itself to the
+server — `cmake`/`ninja`/`ncurses-devel` there, the patched source rebuilt from `0001-prototype-digest.patch`, and every dump now recorded on `cyc@elitedesk`.
+
+Round 632 ported **whether** a transform may be used: `can_use`'s four conditions in the reference's own order, gated over
 459 transforms in three standings each. The gate had to be built around `item::tname` — the recorded sentence has the item's name
 formatted into it, so the port is held to the **template** and the two placeholder spellings that come with it (`%1$s` from the
 three literals, `%s` from an actor's `need_charges_msg`). Six actors replace that default message, which is why the corpus is
