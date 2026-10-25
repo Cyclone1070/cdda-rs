@@ -90,7 +90,7 @@ impl Body {
 
     /// Hunger as the reference caps it: `set_hunger` (`src/character.cpp:4647-4654`) never lets it above 300 — "cap hunger at 300, just below famished".
     pub fn set_hunger(&mut self, hunger: i32) {
-        self.hunger = hunger.min(300);
+        self.hunger = hunger.min(crate::needs::MAX_HUNGER);
     }
 
     /// Thirst as the reference floors it: `mod_thirst` (`src/character.cpp:4682-4688`) never lets it below -100.

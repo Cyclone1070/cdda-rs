@@ -345,8 +345,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-26 07:40:58
-@@ -0,0 +1,5105 @@
++++ oracle/src/src/harness.cpp	2026-10-26 09:08:35
+@@ -0,0 +1,5176 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +
@@ -2361,6 +2361,77 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        }
 +        std::fprintf( out, "]}" );
 +        first_food = false;
++    }
++    std::fprintf( out, "\n],\"count\":%d}\n", count );
++    std::fclose( out );
++}
++
++/// The arithmetic behind the metabolic rates: `get_starvation` (`src/character.cpp:4657-4670`), `metabolic_rate` (`:770-790`), `base_bmr` (`:6514-6527`),
++/// `get_bmr` (`:6538-6542`) and the `calc_needs_rates` that assembles them (`:5273-5316`).
++///
++/// These four numbers are the ones every meal, every burn and every sleep in the game are measured against, and until now the port took them from a recording rather
++/// than computing them. The dump therefore calls each function separately as well as recording the state it read, so a disagreement says **which** of the four is
++/// wrong instead of only that the rates came out different.
++///
++/// The grid is deliberately lopsided: hunger runs from engorged to famished and past the last threshold, the calorie store runs from full to half, and the activity
++/// level runs over the whole exertional range. The avatar is kept **awake**, because the sleeping path multiplies the rates by a half and reads the temperature of
++/// every body part (`calc_sleep_recovery_rate`, `:5321-5360`), which is a slice of its own.
++void dump_needs( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    static const std::array<int, 6> hungers = {{ -61, -21, 0, 100, 300, 600 }};
++    static const std::array<double, 3> kcal_percents = {{ 1.0, 0.9, 0.5 }};
++    static const std::array<float, 4> activities = {{ 1.0f, 1.15f, 1.5f, 2.0f }};
++
++    avatar &u = get_avatar();
++    u.remove_effect( efftype_id( "sleep" ) );
++    const int healthy_kcal = u.get_healthy_kcal();
++    const int weight_grams = units::to_gram<int>( u.bodyweight() );
++    const int height_cm = u.height();
++    const int age = u.age();
++    const double metabolism_base = static_cast<double>( u.metabolic_rate_base() );
++
++    std::fprintf( out,
++                  "{\"harness\":\"needs\",\"version\":1,\"bodyweight_grams\":%d,\"height_cm\":%d,\"age\":%d,"
++                  "\"metabolism_base\":%.17g,\"healthy_kcal\":%d,\n\"cases\":[\n",
++                  weight_grams, height_cm, age, metabolism_base, healthy_kcal );
++    bool first = true;
++    int count = 0;
++    for( const int hunger : hungers ) {
++        for( const double percent : kcal_percents ) {
++            for( const float activity : activities ) {
++                u.set_hunger( hunger );
++                u.set_stored_kcal( static_cast<int>( std::round( healthy_kcal * percent ) ) );
++                // The tracker averages a window, so the level is logged several times to move the average rather than nudge it.
++                for( int i = 0; i < 20; ++i ) {
++                    u.set_activity_level( activity );
++                }
++                const needs_rates rates = u.calc_needs_rates();
++                ++count;
++                std::fprintf( out,
++                              "%s{\"hunger\":%d,\"stored_kcal\":%d,\"kcal_percent\":%.17g,\"activity\":%.17g,"
++                              "\"bodyweight_grams\":%d,\"metabolism_base\":%.17g,"
++                              "\"starvation\":%d,\"speed\":%d,\"metabolic_rate\":%.17g,\"base_bmr\":%d,"
++                              "\"average_activity\":%.17g,\"max_exertion\":%.17g,\"bmr\":%d,"
++                              "\"rates\":{\"kcal\":%.17g,\"hunger\":%.17g,\"thirst\":%.17g,\"sleepiness\":%.17g,"
++                              "\"recovery\":%.17g}}",
++                              first ? "" : ",\n", hunger, u.get_stored_kcal(), u.get_kcal_percent(),
++                              static_cast<double>( activity ), units::to_gram<int>( u.bodyweight() ),
++                              static_cast<double>( u.metabolic_rate_base() ),
++                              u.get_starvation(), u.get_speed(),
++                              static_cast<double>( u.metabolic_rate() ), u.base_bmr(),
++                              static_cast<double>( u.activity_history.average_activity() ),
++                              static_cast<double>( u.maximum_exertion_level() ), u.get_bmr(),
++                              static_cast<double>( rates.kcal ), static_cast<double>( rates.hunger ),
++                              static_cast<double>( rates.thirst ), static_cast<double>( rates.sleepiness ),
++                              static_cast<double>( rates.recovery ) );
++                first = false;
++            }
++        }
 +    }
 +    std::fprintf( out, "\n],\"count\":%d}\n", count );
 +    std::fclose( out );
@@ -5454,8 +5525,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-26 06:31:06
-@@ -0,0 +1,354 @@
++++ oracle/src/src/harness.h	2026-10-26 08:25:40
+@@ -0,0 +1,357 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -5648,6 +5719,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +
 +/** Writes every `consume_drug` use action, resolved. */
 +void dump_consume_drugs( const std::string &path );
++
++/** Writes the arithmetic behind the metabolic rates, as `--dump-needs`. */
++void dump_needs( const std::string &path );
 +
 +/** Writes what the body does with what the guts release, as `--dump-update-stomach`. */
 +void dump_update_stomach( const std::string &path );
@@ -5984,7 +6058,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-26 06:31:06
++++ oracle/src/src/main.cpp	2026-10-26 08:25:40
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -5995,7 +6069,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,129 @@
+@@ -272,6 +275,130 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -6072,6 +6146,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_food_summary;
 +    std::string dump_digest;
 +    std::string dump_update_stomach;
++    std::string dump_needs;
 +    std::string dump_consume_drugs;
 +    std::string dump_link_ups;
 +    std::string dump_firestarters;
@@ -6125,7 +6200,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +426,1110 @@
+@@ -300,6 +427,1120 @@
                  }
              },
              {
@@ -6516,6 +6591,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_consume_drugs = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-needs", "<file>",
++                "Writes the arithmetic behind the metabolic rates",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_needs = params[0];
 +                    return 1;
 +                }
 +            },
@@ -7236,7 +7321,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2016,586 @@
+@@ -786,6 +2027,592 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -7660,6 +7745,12 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            test_mode = true;
 +            g->check_mod_data( { mod_id( "dda" ) } );
 +            harness::dump_consume_drugs( cli.dump_consume_drugs );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_needs.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_needs( cli.dump_needs );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_update_stomach.empty() ) {

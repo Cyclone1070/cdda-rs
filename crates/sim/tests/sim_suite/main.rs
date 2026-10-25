@@ -102,6 +102,7 @@ mod monster_spawn;
 mod monster_strike_world;
 mod monster_turn;
 mod monster_world;
+mod needs;
 mod neighbour_order;
 mod player_body;
 mod player_turn;

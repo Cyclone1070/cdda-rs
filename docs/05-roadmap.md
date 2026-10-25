@@ -546,7 +546,14 @@ Round 630 turned the same lens on ammunition. An effect list is a container too,
 and extends them. The reader was also asking the *object* whether it declares the AMMO subtype instead of asking the item,
 which loses the block entirely for a child that inherits its ammo slot; no such child exists in this content, so that half is
 pinned by a fixture. And the registry: tempting to refuse an effect it lacks, but the reference does not — `rock` lists four
-**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 644 closed the meal: `Character::update_stomach` — the one place the compartments meet the character — now runs as a gated port over **10,116 traces** (every
+**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 645 removed the last recorded inputs from the food clock: `--dump-needs` records the four functions the rates are built from — starvation, the metabolic
+multiplier, the basal rate and the activity-scaled burn — each called **separately** over 72 character states, so a disagreement names the function. What the grid
+settled: `set_hunger` caps hunger at **300**, so a case asking for 600 is a character at 300 with a multiplier of exactly 1; the activity level rounds **up**; and
+every term of the Harris-Benedict equation truncates. Bodyweight is recorded per case because starving changes it (1,738 → 1,631). With the rates now computed
+rather than recorded, the meal pipeline is closed end to end: rates → digestion → body. Next: the hunger-effect ladder that closes `update_stomach`, which needs the
+effects system.
+
+Round 644 closed the meal: `Character::update_stomach` — the one place the compartments meet the character — now runs as a gated port over **10,116 traces** (every
 comestible in six character states, at both a 1,500 mL and the 250 mL capacity a real character has). The recording calls the **real rule** with every input it reads
 written down beside it, and the two dice it rolls are made reproducible by seeding the engine twice rather than avoided. The findings: the fullness ladder is **two
 different ladders** depending on whether the last bite is under ten minutes old; only **one** vitamin in the content can be held positive (`iron`; `calcium` and `vitC`

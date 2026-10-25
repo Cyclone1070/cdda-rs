@@ -15,6 +15,7 @@ pub mod body;
 pub mod digest;
 pub mod food_summary;
 pub mod frame;
+pub mod needs;
 pub mod fun_for;
 pub mod terrain_table;
 pub mod noise;
