@@ -350,6 +350,12 @@ fn translation_or(object: &Object, key: &str, fallback: &str) -> String {
 /// A duration written either as a string in the game's grammar or as a whole number of turns, in seconds.
 ///
 /// Reference: `load_effect_data` (`src/iuse_actor.cpp:839-844`), which reads a string through the duration reader and an int through `from_turns`.
+#[must_use]
+pub fn duration_of(value: &Value) -> i64 {
+    duration_seconds(Some(value))
+}
+
+/// A duration in seconds, from an optional member.
 fn duration_seconds(value: Option<&Value>) -> i64 {
     match value {
         Some(Value::Str(text)) => crate::constructions::parse_duration(text),

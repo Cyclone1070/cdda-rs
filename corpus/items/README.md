@@ -112,3 +112,9 @@ scale. Three rules are visible only here: the keys are **sorted** (they live in 
 `--dump-ammo-effects` writes all 736 ammunition types' resolved effects; `--dump-ammo-effects-registry` writes the 82 `ammo_effect` definitions. The pair exists
 because the reference **does not validate** an effect id at load — four ids in this content are really flags — so a gate has to record both sides rather than
 assume the registry is a filter.
+
+### `transform-applies.json` — what a transform *does*, not what it says
+
+`--dump-transform-applies` builds each of the 459 items that carry a `transform`, hands it to the reference's own `do_transform`, and writes what it became: type,
+charges, count-by-charges, active, countdown, item counter. The companion of `transforms.json`, which holds the actor's **data**; this one holds its **effect**, and
+the two disagree in the ways that matter — `active` is a union of three conditions, and a liquid result switches the item on for a reason the actor never states.

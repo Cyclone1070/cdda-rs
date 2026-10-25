@@ -4,6 +4,7 @@
 //! components, reached by id and never by pointer. What a square holds is found through a
 //! grid resource rebuilt from the World, never kept as a second authority.
 
+pub mod transform;
 pub mod blast;
 pub mod bash;
 pub mod falling;

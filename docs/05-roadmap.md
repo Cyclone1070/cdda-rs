@@ -546,7 +546,15 @@ Round 630 turned the same lens on ammunition. An effect list is a container too,
 and extends them. The reader was also asking the *object* whether it declares the AMMO subtype instead of asking the item,
 which loses the block entirely for a child that inherits its ammo slot; no such child exists in this content, so that half is
 pinned by a fixture. And the registry: tempting to refuse an effect it lacks, but the reference does not — `rock` lists four
-**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. **Correction:** an earlier version of this line promised a "per-turn degradation
+**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 631 ported what a `transform` action **does** to its item, not what its data says: `do_transform`'s item half over
+`item::convert`, gated by building each of the 459 items and handing it to the reference's own `do_transform`. The finding
+is what turns an item on — `active` is a **union of three unrelated conditions**, so a fermenting batch switches on because
+its result is a *liquid* (comestibles have a temperature), and 11 of the 459 fail without that half. Charges survive only while
+the count-by-charges-ness does; a target type with its own `countdown_interval` arms a timer the actor never mentions (declared
+untested — no transform target has one); and the 4 shapes that put the result **inside** a container are declared rather than
+guessed.
+
+**Correction:** an earlier version of this line promised a "per-turn degradation
 tick"; there is no such thing in the reference — `item::process_internal` does not degrade anything, and the only
 degradation is the one a hit adds and the one `rand_degradation` rolls at spawn.
 

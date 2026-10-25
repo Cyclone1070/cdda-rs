@@ -86,6 +86,9 @@ pub struct ItemType {
     pub use_actions: BTreeMap<String, crate::use_actions::UseAction>,
     /// The per-action charge scale (`itype::ammo_scale`, `src/itype.h:1410`): absent means one, and a **zero is a real zero**, not "unset".
     pub ammo_scale: BTreeMap<String, i32>,
+    /// The type's own countdown, in seconds: an item of a type that has one is **active** and counting down from the moment it becomes that type
+    /// (`itype::countdown_interval`, read at `src/item_factory.cpp:4195`, used at `src/item.cpp:682-686`).
+    pub countdown_interval_seconds: i64,
     /// Qualities the item has **only while charged** (`"charged_qualities": [ [ "OVEN", 2 ] ]`), which lend actions without a charge scale.
     pub charged_qualities: BTreeMap<String, i32>,
     /// Its flag set.
@@ -1213,6 +1216,7 @@ fn resolve(
         use_actions: BTreeMap::new(),
         ammo_scale: BTreeMap::new(),
         charged_qualities: BTreeMap::new(),
+        countdown_interval_seconds: 0,
         pockets: Vec::new(),
         added_pockets: Vec::new(),
         gun_mods: Vec::new(),
@@ -1247,6 +1251,7 @@ fn resolve(
     Ok(vec![item])
 }
 
+#[allow(clippy::too_many_lines)]
 fn apply(
     item: &mut ItemType,
     object: &Object,
@@ -1261,6 +1266,10 @@ fn apply(
     let names = names_of(object);
     read_faults(item, object);
     apply_use_actions(item, object)?;
+    // **The type's own countdown**, written in the game's duration grammar.
+    if let Some(value) = object.get("countdown_interval") {
+        item.countdown_interval_seconds = crate::use_actions::duration_of(value);
+    }
     // **Qualities the item has only while charged**, written `[ [ "OVEN", 2 ] ]` like the others.
     if object.get("charged_qualities").is_some() {
         item.charged_qualities = crate::qualities::item_qualities_keyed(object, "charged_qualities");
