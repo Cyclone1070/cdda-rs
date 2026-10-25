@@ -16,6 +16,7 @@ pub mod condition;
 pub mod constructions;
 pub mod digest;
 pub mod enchantments;
+pub mod faults;
 pub mod eocs;
 pub mod factory;
 pub mod fields;

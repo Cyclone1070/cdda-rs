@@ -484,7 +484,12 @@ adds by the bands it crosses (`factor( 0 )` is `-1`, which is why the first hit 
 second). Round 614 closed the rest of it:
 `rand_degradation`, whose die is asked between **zero and the item's own damage** and whose answer truncates
 rather than rounds, and `degradation_symbol`, the five-step bar that is empty for a type that cannot degrade.
-The faults are what is left. **Correction:** an earlier version of this line promised a "per-turn degradation
+Round 615 closed the faults too:
+`cdda_content::faults` loads all 54 of them with `copy-from`, and the gate compares **every field of every
+fault** — which is where the three non-obvious rules came from (a name is a translation object, a description is a
+string; `copy-from` inherits scalars; the modifier lists are **appended**, not replaced). What is left of the
+damage family: `fault_fix` (repairs, requirements, skills), `fault_group`'s weighted list, and `random_of_type`'s
+die. **Correction:** an earlier version of this line promised a "per-turn degradation
 tick"; there is no such thing in the reference — `item::process_internal` does not degrade anything, and the only
 degradation is the one a hit adds and the one `rand_degradation` rolls at spawn.
 

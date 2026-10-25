@@ -46,3 +46,17 @@ Reproduce:
 Two of the three rules are not data at all. The maximum is a constant (4,000, or 0 for anything counted in charges — 1,261 types). And `degrade_increments` is **0 for
 all but 230 types**, because the loader throws away the stated `degradation_multiplier` unless the type is a vehicle part: the data says 1.0 everywhere and the rule
 says no. The damage level multiplies before it divides, which is what makes its four bands equal — dividing first fails 25,953 of the 79,296 measurements.
+
+### `faults.json` — every fault, whole
+
+`--dump-faults` writes all 54 faults: name, description, fault type, item prefix and suffix, price modifier, degradation modifier, `affected_by_degradation`, both
+encumbrance numbers, the blocked faults and both damage-modifier lists. Small enough that the gate compares **every field of every fault** rather than a sample.
+
+Reproduce:
+
+    ./oracle/build/src/cataclysm --userdir oracle/userdir --datadir "$PWD/oracle/src/data/" \
+        --world harness-fixed --seed 12345 --dump-faults "$PWD/corpus/items/faults.json"
+
+Three rules the dump taught that the header file did not: a fault's `name` is a translation object and its `description` a plain string; `copy-from` inherits every
+scalar the child omits; and `melee_damage_mod`/`armor_mod` are **appended** to the parent's list rather than replacing it — which is six of the 54 faults, and a
+mutation of that one line fails three of them.

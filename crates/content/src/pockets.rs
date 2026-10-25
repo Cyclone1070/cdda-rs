@@ -149,7 +149,7 @@ fn diagonal_mm(side_mm: i64) -> i64 {
 ///
 /// The reference keeps these in a `cata::flat_set`, which is an append-if-absent vector rather than a sorted one, so its iteration order is the data's order and not
 /// an alphabetical one: a wallet's flags come out `CREDIT_CARD_SHAPED` and then `BANK_NOTE_SHAPED`, which is how the wallet's JSON writes them.
-fn id_list(object: &Object, member: &str) -> Vec<String> {
+pub(crate) fn id_list(object: &Object, member: &str) -> Vec<String> {
     match object.get(member) {
         Some(Value::Array(entries)) => entries
             .iter()

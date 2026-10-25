@@ -1,0 +1,157 @@
+//! Every fault the game defines, field by field against the reference.
+//!
+//! `corpus/items/faults.json` is `--dump-faults`: all 54 faults, with the name, the description, the fault type, the price modifier, the degradation modifier, the two
+//! encumbrance numbers and both modifier lists. It is small enough to compare completely, which is the point — a fault's numbers reach the player through the item's
+//! displayed name, its price, its repair ceiling and its melee damage.
+
+#![allow(clippy::panic, clippy::expect_used)]
+
+use cdda_content::faults::{DamageMod, Fault, load_paths};
+use cdda_json::Value;
+use std::collections::BTreeMap;
+
+/// Reads the recorded faults.
+#[allow(clippy::cast_precision_loss)]
+fn real(value: i64) -> f64 {
+    value as f64
+}
+
+fn dump() -> Vec<Fault> {
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/faults.json");
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
+    let Value::Object(root) = cdda_json::parse(&bytes).expect("valid json") else {
+        panic!("the dump is an object")
+    };
+    let Some(Value::Array(faults)) = root.get("faults") else {
+        panic!("the dump holds faults")
+    };
+    faults
+        .iter()
+        .map(|fault| {
+            let Value::Object(fault) = fault else {
+                panic!("a fault")
+            };
+            let text = |key: &str| match fault.get(key) {
+                Some(Value::Str(value)) => value.clone(),
+                other => panic!("{key} is text: {other:?}"),
+            };
+            let number = |key: &str| match fault.get(key) {
+                Some(Value::Float(value)) => *value,
+                Some(Value::Int(value)) => real(*value),
+                other => panic!("{key} is a number: {other:?}"),
+            };
+            let whole = |key: &str| match fault.get(key) {
+                Some(Value::Int(value)) => i32::try_from(*value).expect("a small number"),
+                other => panic!("{key} is a whole number: {other:?}"),
+            };
+            let ids = |key: &str| match fault.get(key) {
+                Some(Value::Array(entries)) => entries
+                    .iter()
+                    .map(|entry| match entry {
+                        Value::Str(id) => id.clone(),
+                        other => panic!("{key} holds text: {other:?}"),
+                    })
+                    .collect::<Vec<String>>(),
+                other => panic!("{key} is a list: {other:?}"),
+            };
+            let mods = |key: &str| match fault.get(key) {
+                Some(Value::Array(entries)) => entries
+                    .iter()
+                    .map(|entry| {
+                        let Value::Object(entry) = entry else {
+                            panic!("a modifier")
+                        };
+                        DamageMod {
+                            add: match entry.get("add") {
+                                Some(Value::Int(value)) => i32::try_from(*value).expect("small"),
+                                other => panic!("add is a whole number: {other:?}"),
+                            },
+                            multiply: match entry.get("multiply") {
+                                Some(Value::Float(value)) => *value,
+                                other => panic!("multiply is a number: {other:?}"),
+                            },
+                            damage_id: match entry.get("damage_id") {
+                                Some(Value::Str(id)) => id.clone(),
+                                other => panic!("damage_id is text: {other:?}"),
+                            },
+                        }
+                    })
+                    .collect::<Vec<DamageMod>>(),
+                other => panic!("{key} is a list: {other:?}"),
+            };
+            Fault {
+                id: text("id"),
+                name: text("name"),
+                description: text("description"),
+                fault_type: text("type"),
+                item_prefix: text("item_prefix"),
+                item_suffix: text("item_suffix"),
+                price_modifier: number("price_modifier"),
+                degradation_mod: whole("degradation_mod"),
+                affected_by_degradation: matches!(
+                    fault.get("affected_by_degradation"),
+                    Some(Value::Bool(true))
+                ),
+                encumbrance_add: number("encumbrance_add"),
+                encumbrance_mult: number("encumbrance_mult"),
+                block_faults: ids("block_faults").into_iter().collect(),
+                melee_damage_mod: mods("melee_damage_mod"),
+                armor_mod: mods("armor_mod"),
+            }
+        })
+        .collect()
+}
+
+fn loaded() -> BTreeMap<String, Fault> {
+    let reference =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let dirs = [reference.join("core"), reference.join("json")];
+    let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
+    load_paths(&paths)
+        .expect("the faults load")
+        .into_iter()
+        .map(|fault| (fault.id.clone(), fault))
+        .collect()
+}
+
+#[test]
+fn every_fault_matches_the_reference_number_for_number() {
+    let recorded = dump();
+    assert_eq!(recorded.len(), 54, "every fault was recorded");
+    let faults = loaded();
+    let mut differing: Vec<String> = Vec::new();
+    for case in &recorded {
+        let Some(fault) = faults.get(&case.id) else {
+            differing.push(format!("{} is not loaded", case.id));
+            continue;
+        };
+        if fault != case {
+            differing.push(format!(
+                "{}: the port says {fault:?}, the reference says {case:?}",
+                case.id
+            ));
+        }
+    }
+    // The gate has to exercise the interesting half: 19 faults adjust melee damage and 9 raise the repair ceiling.
+    assert!(
+        recorded.iter().filter(|fault| !fault.melee_damage_mod.is_empty()).count() > 15,
+        "the melee modifiers have to be exercised"
+    );
+    assert!(
+        recorded
+            .iter()
+            .filter(|fault| fault.degradation_mod > 0)
+            .count()
+            > 5,
+        "and so does the degradation modifier"
+    );
+    assert!(
+        differing.is_empty(),
+        "{} of {} faults disagree; they are {:#?}",
+        differing.len(),
+        recorded.len(),
+        differing
+    );
+}
