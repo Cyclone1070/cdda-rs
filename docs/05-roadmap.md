@@ -546,7 +546,14 @@ Round 630 turned the same lens on ammunition. An effect list is a container too,
 and extends them. The reader was also asking the *object* whether it declares the AMMO subtype instead of asking the item,
 which loses the block entirely for a child that inherits its ammo slot; no such child exists in this content, so that half is
 pinned by a fixture. And the registry: tempting to refuse an effect it lacks, but the reference does not — `rock` lists four
-**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 634 opened the **examine actions** — the family the roadmap lists as "not started", 77 names over ~530 tiles. The split is the interesting part: 73 names are
+**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 636 closed the **comestible slot** — the first of P3's declared partials, which the ledger had been meeting by reading numbers out of a dump rather than porting the
+loader. `ItemType::comestible` now carries 15 members, and the gate is 1,686 types × 15 fields against `--dump-comestibles`. It found three rules the JSON does not
+state: the slot **merges** on `copy-from` (`load_slot` reuses the parent's object), `proportional`/`relative` apply to every numeric member and are tried **instead of** a
+stated value with the proportional product truncated toward zero, and `calories` is multiplied by 1,000 only at finalisation — multiplying during the load double-counted
+54 inherited types, which the gate named one by one. `nutr` is derived rather than read, `kcal / ( 2500 / 288 )` in `f32`, because the reference does the division in the
+type its constant has.
+
+Round 634 opened the **examine actions** — the family the roadmap lists as "not started", 77 names over ~530 tiles. The split is the interesting part: 73 names are
 bare strings with no data at all (a hardcoded C++ function), and only **4 carry members**, so the loader keeps a name for most tiles and an actor for
 `appliance_convert` (38), `cardreader` (21), `effect_on_condition` (20) and `mortar` (1). The recording is `--dump-examine-actions`, 1,769 tiles, and it settled two
 things the JSON cannot say: the reference's **default function is `iexamine::none`**, so 1,208 tiles say `none` without any prototype writing it; and **no prototype

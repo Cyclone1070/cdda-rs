@@ -101,10 +101,8 @@ pub struct ItemType {
     pub gun_skill: Option<String>,
     /// Whether it blows up when a fire reaches it.
     pub explode_in_fire: bool,
-    /// Nutrition, in the reference's own units, for a comestible; zero for anything else.
-    pub nutr: i32,
-    /// How much thirst it quenches.
-    pub quench: i32,
+    /// The comestible slot, when the type has one (`src/itype.h:147-248`). `None` is not food at all, which is a different thing from food with no nutrition.
+    pub comestible: Option<crate::comestible::Comestible>,
     /// How many charges one use spends: one for food, the tool's own rate for tools.
     pub charges_to_use: i32,
     /// The ammo effects it declares, which decide whether its ammunition cooks off.
@@ -120,8 +118,6 @@ pub struct ItemType {
     pub subtypes: BTreeSet<String>,
     /// Damage types and their amounts, from `melee_damage`.
     pub melee: BTreeMap<String, f64>,
-    /// `comestible_type` for food and drink, which separates drugs from food.
-    pub comestible_type: String,
     /// `stackable` as stated, which decides charge counting.
     pub stackable: bool,
     /// `phase`, which separates liquids from solids.
@@ -565,7 +561,7 @@ impl ItemType {
     /// Whether it can be eaten or drunk at all.
     #[must_use]
     pub fn is_comestible(&self) -> bool {
-        !self.comestible_type.is_empty()
+        self.comestible.is_some()
     }
 
     /// Whether a fire makes it go off.
@@ -663,7 +659,7 @@ impl ItemType {
     pub fn counts_by_charge(&self) -> bool {
         self.stackable
             || self.subtypes.contains("AMMO")
-            || (!self.comestible_type.is_empty() && self.phase_is_liquid())
+            || (self.comestible.is_some() && self.phase_is_liquid())
     }
 
     /// The largest damage this type can take before it is destroyed, and **zero** for a type counted in charges.
@@ -891,7 +887,11 @@ pub fn load_paths(dirs: &[&std::path::Path]) -> Result<Vec<ItemType>, LoadError>
             // A stated category that names nothing is as good as none: the
             // reference derives when the id is not registered.
             if !categories.contains(&item.category) {
-                item.category = category_of(&item.subtypes, &item.melee, &item.comestible_type);
+                item.category = category_of(
+                    &item.subtypes,
+                    &item.melee,
+                    item.comestible.as_ref().map_or("", |slot| slot.comestible_type.as_str()),
+                );
             }
             // Things that stack by charge cannot be repaired, and the reference
             // adds the flag rather than asking the content to
@@ -1230,8 +1230,7 @@ fn resolve(
         gun_skill: None,
         is_gunmod: false,
         explode_in_fire: false,
-        nutr: 0,
-        quench: 0,
+        comestible: None,
         charges_to_use: 0,
         ammo_effects: BTreeSet::new(),
         cookoff: false,
@@ -1239,7 +1238,6 @@ fn resolve(
         qualities: BTreeMap::new(),
         subtypes: BTreeSet::new(),
         melee: BTreeMap::new(),
-        comestible_type: String::new(),
         stackable: false,
         phase: "SOLID".to_owned(),
         primary_material: String::new(),
@@ -1522,9 +1520,9 @@ fn apply_flat_slots(item: &mut ItemType, object: &Object) {
             }
         }
     }
-    if let Some(kind) = string(object, "comestible_type") {
-        item.comestible_type = kind;
-    }
+    // The slot **merges** with what the parent supplied: `load_slot` reuses the inherited object and reads into it (`item_factory.cpp:2859-2868`), so a child that
+    // states only `calories` keeps its parent's `quench` and `spoils_in`. The calories multiply lives in `comestible::read`, once per prototype.
+    item.comestible = crate::comestible::read(object, item.comestible.as_ref());
 }
 
 /// Reads the `melee_damage` slot, with the `relative` and `proportional` forms the content uses to adjust it.

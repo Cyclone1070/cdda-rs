@@ -330,8 +330,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-25 20:13:08
-@@ -0,0 +1,4487 @@
++++ oracle/src/src/harness.cpp	2026-10-25 21:56:59
+@@ -0,0 +1,4553 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +
@@ -2007,6 +2007,72 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +/// Reference: `class iuse_transform` (`src/iuse_actor.h:44-110`) and its `load` (`src/iuse_actor.cpp:216-250`). It is the most common use action in the content (423
 +/// declarations), and its fields are all about the **result**: the target id or the item group to draw one from, an optional container to put it in, the charges to
 +/// set, a timer to start, and the conditions that must hold before the transformation may happen at all.
++/// Every item type's comestible slot, resolved.
++///
++/// Reference: `islot_comestible` (`src/itype.h:147-248`) and its loader (`src/item_factory.cpp:3405-3441`). Two things about it are invisible in the JSON and are the reason
++/// this is a recording rather than a re-read of the data:
++///
++/// * **the slot merges on inheritance.** `Item_factory::load_slot` (`src/item_factory.cpp:2859-2868`) reuses the parent's slot and then calls `deserialize` with
++///   `was_loaded`, so a child that states only `calories` keeps its parent's `quench`, `spoils_in` and the rest. That is the opposite of the container members, whose
++///   stated value clears the list first.
++/// * **`addiction_type` reads a value `addiction_potential` supplies.** The weighted reader's default is `default_addict_potential`, and that member is itself loaded
++///   two lines earlier (`:3432-3435`), so an addiction written without a weight takes the item's own potential - which a child may have inherited.
++void dump_comestibles( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    std::fprintf( out, "{\"harness\":\"comestibles\",\"version\":1,\n\"types\":[\n" );
++    bool first = true;
++    int count = 0;
++    for( const itype *type : item_controller->all() ) {
++        if( !type->comestible ) {
++            continue;
++        }
++        const islot_comestible &slot = *type->comestible;
++        ++count;
++        std::fprintf( out,
++                      "%s{\"id\":\"%s\",\"comestible_type\":\"%s\",\"tool\":\"%s\",\"charges\":%d,"
++                      "\"stack_size\":%d,\"quench\":%d,\"fun\":%d,\"stim\":%d,\"sleepiness_mod\":%d,"
++                      "\"healthy\":%d,\"parasites\":%d,\"spoils_in\":%d,\"monotony_penalty\":%d,"
++                      "\"calories\":%lld,\"cooks_like\":\"%s\",\"smoking_result\":\"%s\","
++                      "\"addiction_potential\":%d,\"nutr\":%d,\"petfood\":[",
++                      first ? "" : ",\n", harness_escape( type->get_id().str() ).c_str(),
++                      harness_escape( slot.comesttype ).c_str(), harness_escape( slot.tool.str() ).c_str(),
++                      slot.def_charges, slot.stack_size, slot.quench, slot.harness_fun(), slot.stim,
++                      slot.sleepiness_mod, slot.healthy, slot.parasites,
++                      to_turns<int>( slot.spoils ), slot.harness_monotony_penalty(),
++                      static_cast<long long>( slot.harness_calories() ), harness_escape( slot.cooks_like.str() ).c_str(),
++                      harness_escape( slot.smoking_result.str() ).c_str(),
++                      slot.harness_addict_potential(), slot.get_default_nutr() );
++        bool first_pet = true;
++        for( const std::string &kind : slot.petfood ) {
++            std::fprintf( out, "%s\"%s\"", first_pet ? "" : ",", harness_escape( kind ).c_str() );
++            first_pet = false;
++        }
++        std::fprintf( out, "],\"addictions\":{" );
++        bool first_addiction = true;
++        for( const std::pair<const addiction_id, int> &entry : slot.addictions ) {
++            std::fprintf( out, "%s\"%s\":%d", first_addiction ? "" : ",",
++                          harness_escape( entry.first.str() ).c_str(), entry.second );
++            first_addiction = false;
++        }
++        std::fprintf( out, "},\"vitamins\":{" );
++        bool first_vitamin = true;
++        for( const std::pair<const vitamin_id, int> &entry : slot.harness_vitamins() ) {
++            std::fprintf( out, "%s\"%s\":%d", first_vitamin ? "" : ",",
++                          harness_escape( entry.first.str() ).c_str(), entry.second );
++            first_vitamin = false;
++        }
++        std::fprintf( out, "}}" );
++        first = false;
++    }
++    std::fprintf( out, "\n],\"count\":%d}\n", count );
++    std::fclose( out );
++}
++
 +/// Every terrain's and furniture's examine action, with the actor's data resolved.
 +///
 +/// Reference: `map_data_common_t::examine_func` and `examine_actor` (`src/mapdata.h:500-505`). The JSON's `"examine_action"` fills one or the other: a **bare name**
@@ -4821,8 +4887,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-25 20:30:54
-@@ -0,0 +1,336 @@
++++ oracle/src/src/harness.h	2026-10-25 21:10:03
+@@ -0,0 +1,339 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -5015,6 +5081,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +
 +/** Writes every `consume_drug` use action, resolved. */
 +void dump_consume_drugs( const std::string &path );
++
++/** Writes every item type's comestible slot, resolved, as `--dump-comestibles`. */
++void dump_comestibles( const std::string &path );
 +
 +/** Writes every terrain's and furniture's examine action, with its data, as `--dump-examine-actions`. */
 +void dump_examine_actions( const std::string &path );
@@ -5209,6 +5278,35 @@ diff -ruN references/Cataclysm-DDA/src/iexamine.h oracle/src/src/iexamine.h
 +const std::map<std::string, iexamine_examine_function> &harness_examine_function_names();
  
  #endif // CATA_SRC_IEXAMINE_H
+diff -ruN references/Cataclysm-DDA/src/itype.h oracle/src/src/itype.h
+--- references/Cataclysm-DDA/src/itype.h	2026-10-19 18:15:04
++++ oracle/src/src/itype.h	2026-10-25 21:10:03
+@@ -152,6 +152,25 @@
+         bool was_loaded = false;
+         void deserialize( const JsonObject &jo );
+ 
++#ifdef CATA_HARNESS
++        // Harness only: the members a recording needs and the class keeps private. Never called by the game.
++        int harness_fun() const {
++            return fun;
++        }
++        int harness_monotony_penalty() const {
++            return monotony_penalty;
++        }
++        int64_t harness_calories() const {
++            return default_nutrition.calories;
++        }
++        int harness_addict_potential() const {
++            return default_addict_potential;
++        }
++        std::map<vitamin_id, int> harness_vitamins() const {
++            return default_nutrition.vitamins();
++        }
++#endif
++
+         /** subtype, e.g. FOOD, DRINK, MED */
+         std::string comesttype;
+ 
 diff -ruN references/Cataclysm-DDA/src/iuse_actor.h oracle/src/src/iuse_actor.h
 --- references/Cataclysm-DDA/src/iuse_actor.h	2026-10-19 18:15:04
 +++ oracle/src/src/iuse_actor.h	2026-10-25 19:11:57
@@ -5304,7 +5402,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-25 20:30:54
++++ oracle/src/src/main.cpp	2026-10-25 21:10:03
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -5315,7 +5413,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,123 @@
+@@ -272,6 +275,124 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -5386,6 +5484,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_transform_applies;
 +    std::string dump_transform_can_use;
 +    std::string dump_examine_actions;
++    std::string dump_comestibles;
 +    std::string dump_consume_drugs;
 +    std::string dump_link_ups;
 +    std::string dump_firestarters;
@@ -5439,7 +5538,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +420,1050 @@
+@@ -300,6 +421,1060 @@
                  }
              },
              {
@@ -5830,6 +5929,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_consume_drugs = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-comestibles", "<file>",
++                "Writes every item type's comestible slot",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_comestibles = params[0];
 +                    return 1;
 +                }
 +            },
@@ -6490,7 +6599,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +1950,550 @@
+@@ -786,6 +1961,556 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -6914,6 +7023,12 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            test_mode = true;
 +            g->check_mod_data( { mod_id( "dda" ) } );
 +            harness::dump_consume_drugs( cli.dump_consume_drugs );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_comestibles.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_comestibles( cli.dump_comestibles );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_examine_actions.empty() ) {

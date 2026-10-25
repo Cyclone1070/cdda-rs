@@ -125,3 +125,15 @@ the two disagree in the ways that matter — `active` is a union of three condit
 writes the verdict plus the sentence it gave. The sentence is the useful half: the conditions are asked in a fixed order, so the answer says *which* one refused. It
 carries the item's name formatted in, so a port comparing it has to compare the template around the name — and there are two placeholder spellings to handle, because
 three sentences are `can_use`'s own (`%1$s`) and the fourth is the actor's `need_charges_msg` (`%s`).
+
+## `comestibles.json` — every comestible slot, resolved
+
+`--dump-comestibles` writes one entry per item type with a comestible slot (`src/itype.h:147-248`, 1,686 of them), with `calories` already multiplied by 1,000 and `nutr`
+already derived:
+
+```sh
+tools/oracle_sync.sh --dump-comestibles '\$PWD/oracle/comestibles.json'
+```
+
+The build and the dump both run on `cyc@elitedesk` — `tools/oracle_sync.sh` rsyncs the already-patched source tree (the patch is proved to reproduce it by
+`apply_harness_patches.py --verify`) and builds there. Nothing heavy runs on the Mac.

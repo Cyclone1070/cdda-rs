@@ -12,6 +12,7 @@ mod ammo_effects;
 mod bash_info;
 mod build_check;
 mod city_settings;
+mod comestibles;
 mod constructions;
 mod consume_drugs;
 mod corpus;

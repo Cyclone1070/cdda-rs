@@ -62,7 +62,7 @@ fn text(entry: &cdda_json::Object, key: &str) -> String {
 /// the port has no corpse type yet, and no transform in the content produces one, so the gate would be claiming something it never exercises if it pretended to
 /// check it.
 fn has_temperature(target: &ItemType) -> bool {
-    !target.comestible_type.is_empty() && !target.flags.contains("NO_TEMP")
+    target.is_comestible() && !target.flags.contains("NO_TEMP")
 }
 
 #[test]

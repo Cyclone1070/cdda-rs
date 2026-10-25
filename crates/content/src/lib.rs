@@ -14,6 +14,7 @@ use std::path::{Path, PathBuf};
 pub mod examine;
 pub mod ammo_effects;
 pub mod catalog;
+pub mod comestible;
 pub mod condition;
 pub mod constructions;
 pub mod digest;
