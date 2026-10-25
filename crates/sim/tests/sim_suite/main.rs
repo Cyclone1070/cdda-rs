@@ -59,6 +59,7 @@ mod fire_spread;
 mod fire_spreading;
 mod fire_terrain;
 mod fire_vent;
+mod food_summary;
 mod frame;
 mod frame_memory;
 mod frame_oracle;

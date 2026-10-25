@@ -330,8 +330,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-26 02:15:20
-@@ -0,0 +1,4764 @@
++++ oracle/src/src/harness.cpp	2026-10-26 03:43:28
+@@ -0,0 +1,4830 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +
@@ -2010,6 +2010,72 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +/// Reference: `class iuse_transform` (`src/iuse_actor.h:44-110`) and its `load` (`src/iuse_actor.cpp:216-250`). It is the most common use action in the content (423
 +/// declarations), and its fields are all about the **result**: the target id or the item group to draw one from, an optional container to put it in, the charges to
 +/// set, a timer to start, and the conditions that must hold before the transformation may happen at all.
++/// What a bite actually puts in the stomach, per comestible.
++///
++/// Reference: `Character::consume_effects` (`src/consumption.cpp:1689-1714`) up to the point it calls `stomach.ingest`. Four calculations happen before that call and
++/// none of them is visible in the item's data:
++///
++/// * `compute_effective_nutrients` (`:306-317`) - the calories a character actually gets, after `RAW` loses a quarter, a carnivore loses half of `CARNIVORE_OK`
++///   food, and rot scales the rest down linearly to nothing at halfway-rotten;
++/// * `compute_default_effective_vitamins` (`:262-302`), which turns each **vitamin's** RDA percentage into internal units with `RDA_to_default` (`src/vitamin.cpp:122-129`):
++///   `24h * percent / 100 / rate`, and every vitamin in the content has a 15-minute rate, so one unit is 96 a day and a percent is 0.96 units;
++/// * `masticated_volume` (`:1524-1543`) - the water in the food is `quench * 5 mL`, and the dry volume is crunched down to its dry weight when it is less dense than
++///   water;
++/// * `compute_effective_food_volume_ratio` (`:1506-1519`) - calories per gram, floored at 1 and square-rooted above 3, which is how a dense food takes up more room
++///   than its volume says.
++void dump_food_summary( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    std::fprintf( out, "{\"harness\":\"food-summary\",\"version\":1,\n\"types\":[\n" );
++    bool first = true;
++    int count = 0;
++    avatar &u = get_avatar();
++    for( const itype *type : item_controller->all() ) {
++        if( type == nullptr || !type->comestible ) {
++            continue;
++        }
++        item food( type->get_id(), calendar::turn, 1 );
++        const nutrients effective = u.compute_effective_nutrients( food );
++        const std::pair<units::volume, units::volume> masticated = u.masticated_volume( food );
++        const double ratio = u.compute_effective_food_volume_ratio( food );
++        ++count;
++        std::fprintf( out,
++                      "%s{\"id\":\"%s\",\"comestible_type\":\"%s\",\"quench\":%d,\"weight_g\":%lld,"
++                      "\"type_weight_g\":%lld,\"charges\":%d,\"volume_ml\":%lld,\"count\":%d,\"relative_rot\":%.6g,"
++                      "\"kcal\":%d,\"water_ml\":%lld,"
++                      "\"solid_ml\":%lld,\"ratio\":%.17g,\"solids_ml\":%lld,\"vitamins\":{",
++                      first ? "" : ",\n", harness_escape( type->get_id().str() ).c_str(),
++                      harness_escape( type->comestible->comesttype ).c_str(),
++                      type->comestible->quench,
++                      static_cast<long long>( units::to_gram( food.weight() ) ),
++                      // The prototype's own weight, so a disagreement can be placed: on the type's data or on the item's arithmetic.
++                      static_cast<long long>( units::to_gram( type->weight ) ),
++                      food.charges,
++                      static_cast<long long>( units::to_milliliter( food.volume() ) ),
++                      food.count(), food.get_relative_rot(), effective.kcal(),
++                      static_cast<long long>( units::to_milliliter( masticated.first ) ),
++                      static_cast<long long>( units::to_milliliter( masticated.second ) ), ratio,
++                      static_cast<long long>( units::to_milliliter( masticated.second * ratio ) ) );
++        bool first_vitamin = true;
++        for( const std::pair<const vitamin_id, int> &vitamin : effective.vitamins() ) {
++            if( vitamin.second == 0 ) {
++                continue;
++            }
++            std::fprintf( out, "%s\"%s\":%d", first_vitamin ? "" : ",",
++                          harness_escape( vitamin.first.str() ).c_str(), vitamin.second );
++            first_vitamin = false;
++        }
++        std::fprintf( out, "}}" );
++        first = false;
++    }
++    std::fprintf( out, "\n],\"count\":%d}\n", count );
++    std::fclose( out );
++}
++
 +/// One eater state that `--dump-fun-for` sweeps: everything `Character::fun_for` reads about the character and the item.
 +struct fun_configuration {
 +    const char *name;
@@ -5098,8 +5164,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-26 01:28:32
-@@ -0,0 +1,345 @@
++++ oracle/src/src/harness.h	2026-10-26 03:00:23
+@@ -0,0 +1,348 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -5292,6 +5358,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +
 +/** Writes every `consume_drug` use action, resolved. */
 +void dump_consume_drugs( const std::string &path );
++
++/** Writes what a bite of each comestible puts in the stomach, as `--dump-food-summary`. */
++void dump_food_summary( const std::string &path );
 +
 +/** Writes each comestible's `fun_for` pair in 22 eater states, as `--dump-fun-for`. */
 +void dump_fun_for( const std::string &path );
@@ -5619,7 +5688,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-26 01:28:32
++++ oracle/src/src/main.cpp	2026-10-26 03:00:23
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -5630,7 +5699,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,126 @@
+@@ -272,6 +275,127 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -5704,6 +5773,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_comestibles;
 +    std::string dump_material_vitamins;
 +    std::string dump_fun_for;
++    std::string dump_food_summary;
 +    std::string dump_consume_drugs;
 +    std::string dump_link_ups;
 +    std::string dump_firestarters;
@@ -5757,7 +5827,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +423,1080 @@
+@@ -300,6 +424,1090 @@
                  }
              },
              {
@@ -6148,6 +6218,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_consume_drugs = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-food-summary", "<file>",
++                "Writes what a bite of each comestible puts in the stomach",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_food_summary = params[0];
 +                    return 1;
 +                }
 +            },
@@ -6838,7 +6918,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +1983,568 @@
+@@ -786,6 +1994,574 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -7262,6 +7342,12 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            test_mode = true;
 +            g->check_mod_data( { mod_id( "dda" ) } );
 +            harness::dump_consume_drugs( cli.dump_consume_drugs );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_food_summary.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_food_summary( cli.dump_food_summary );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_fun_for.empty() ) {

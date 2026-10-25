@@ -159,3 +159,13 @@ Two fields of each row are inputs rather than answers, and both had to be record
 
 * `item_fun` — `item::get_comestible_fun` (`src/item.cpp:8041-8056`), which adds each flag's `taste_mod` (`BAD_TASTE` is −5) and floors a `MUSHY` item at −5;
 * `rot_set` — where `get_relative_rot()` actually landed after `set_relative_rot( 1.5 )`, which is **0** for every food that does not spoil.
+
+## `food-summary.json` — what a bite puts in the stomach
+
+`--dump-food-summary` writes, for all 1,686 comestibles, the four numbers `Character::consume_effects` computes before it hands the food to the stomach
+(`src/consumption.cpp:1689-1714`): `kcal` after the body's own rules, the vitamins converted from RDA percentages, the water `quench · 5 mL` carries, and the room the
+dry bulk takes up after its density and its calories per gram. `stomach::ingest` (`src/stomach.cpp:392-398`) adds all four unchanged, so this recording is the
+stomach's state after one bite of an empty stomach.
+
+Each row also carries the inputs the port has to reach from its own item model — `weight_g`, `type_weight_g`, `charges`, `volume_ml`, `count`, `quench`,
+`relative_rot` — and the intermediate `ratio`, because a disagreement has to be placeable: on the type's data, on the item's arithmetic, or on the food rule itself.

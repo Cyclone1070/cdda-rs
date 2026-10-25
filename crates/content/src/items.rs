@@ -35,9 +35,10 @@ pub struct ItemType {
     pub symbol: u32,
     /// The colour.
     pub color: NcColor,
-    /// Weight in grams.
+    /// Weight in **milligrams**, which is the reference's `units::mass` base (`src/units.h`: one milligram is one unit). The data writes `"40 g"`, which is 40,000
+    /// here — reading it as grams would make every item a thousand times too heavy, which the food-summary gate caught the moment it compared a bite's weight.
     pub weight: i64,
-    /// What the item weighs when its caller asks for the **integral** weight, in grams.
+    /// What the item weighs when its caller asks for the **integral** weight, in milligrams (see `weight`).
     ///
     /// Reference: `itype::integral_weight` (`src/itype.h:1327`), read by `item::weight( integral: true )` (`src/item.cpp:7256-7261`). The loader copies `weight` into it
     /// when the data does not say (`src/item_factory.cpp:398-400`) - so the two are equal for almost every type - and the data may say **zero** on purpose, which three
@@ -648,8 +649,27 @@ impl ItemType {
             // The data's own stack size, however large: gunpowder states 4,540 and chain links 425, and the reference reports both unchanged.
             stated
         } else {
-            i64::from(self.default_charges).max(1)
+            // The fallback is `charges_default()` (`src/itype.cpp:139-149`), which is the **comestible's** `def_charges` - the slot's `charges`, not the item-level
+            // `count` - so a bottle of bleach is a stack of two and its volume is halved. The food-summary gate found this on 219 drinks.
+            let stated_charges = self
+                .comestible
+                .as_ref()
+                .map_or(self.default_charges, |slot| slot.charges);
+            i64::from(stated_charges).max(1)
         }
+    }
+
+    /// What a stack of `charges` of this type weighs, in **milligrams**: `item::weight` (`src/item.cpp:7230-7299`).
+    ///
+    /// Two rules, and the second is the one that surprises: a charge-counted item's weight is the type's multiplied by its charges, and an item flagged **`NO_DROP`**
+    /// weighs **nothing at all** — "items that don't drop aren't really there", says the reference, and acetylene is the one comestible that says so. The food-summary
+    /// gate found it: acetylene's data states 40 g and the reference's item weighs 0.
+    #[must_use]
+    pub fn item_weight(&self, charges: i32) -> i64 {
+        if self.flags.contains("NO_DROP") {
+            return 0;
+        }
+        self.weight.saturating_mul(i64::from(charges.max(1)))
     }
 
     /// Whether the item is counted in charges rather than as objects

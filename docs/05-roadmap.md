@@ -546,7 +546,14 @@ Round 630 turned the same lens on ammunition. An effect list is a container too,
 and extends them. The reader was also asking the *object* whether it declares the AMMO subtype instead of asking the item,
 which loses the block entirely for a child that inherits its ammo slot; no such child exists in this content, so that half is
 pinned by a fixture. And the registry: tempting to refuse an effect it lacks, but the reference does not — `rock` lists four
-**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 641 turned `fun_for` from inequalities into a **recording**: `--dump-fun-for` writes the exact pair for all 1,686 comestibles in 22 eater states, and the port
+**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 642 opened the **stomach**: `--dump-food-summary` records what a bite actually puts in it — the effective calories, the vitamins converted from RDA percentages,
+the water `quench · 5 mL` of it, and the room the dry bulk takes up once density and calories-per-gram are accounted for — and the port agrees on all 1,686. Because
+`stomach::ingest` adds the summary unchanged, the recording *is* the stomach after one bite. Three input rules had to be fixed before any of the maths could compare:
+the port's item weight was documented in grams while it held **milligrams**; a charge-counted item's volume is divided between its stack size, which falls back to the
+**comestible's** `charges` rather than the item-level `count` (219 drinks were a quarter too large); and a **`NO_DROP`** item weighs nothing at all, which is
+acetylene's 40 g of data becoming a zero-gram item. Next: digestion — `stomach_contents::digest` and the absorption that follows.
+
+Round 641 turned `fun_for` from inequalities into a **recording**: `--dump-fun-for` writes the exact pair for all 1,686 comestibles in 22 eater states, and the port
 agrees on all 37,092. Three findings the inequalities could not reach: a food's taste is the **item's** (`get_comestible_fun` adds each flag's `taste_mod` — `BAD_TASTE`
 is −5, which is why 22 mutant foods taste like −15 while their data says −10 — and floors a `MUSHY` item at −5); rot cannot be set on a food that does not spoil, so
 the recording carries where it actually landed; and the sweep covers the interactions nobody writes a case for. `json_flag` gained a loader for `taste_mod`, the first

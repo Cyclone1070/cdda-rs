@@ -18,6 +18,16 @@ pub struct Vitamin {
     pub id: String,
     /// What one unit weighs, in **micrograms**, when the type says.
     pub weight_per_unit: Option<i64>,
+    /// What kind of thing it is: `vitamin`, `counter`, `drug` or `toxin` (`vitamin_type`, `src/vitamin.h:20-26`).
+    ///
+    /// Only a `vitamin` writes its amount in the data as an **RDA percentage**. Everything else is already in units — `meat_allergen` at 1 is one allergen, not one
+    /// percent of a day — which is why the conversion below asks first.
+    pub vit_type: String,
+    /// How long one unit lasts, in turns: the type's `rate`, which every vitamin in the content states as `15 m`.
+    ///
+    /// This is the scale that turns a food's **RDA percentage** into internal units. `RDA_to_default` is `24h * percent / 100 / rate`, so with a 15-minute rate one
+    /// unit is one 96th of a day and a percent is 0.96 units (`src/vitamin.cpp:122-129`).
+    pub rate: i64,
 }
 
 /// Reads every vitamin prototype under `dirs`.
@@ -48,6 +58,12 @@ pub fn load_paths(dirs: &[&Path]) -> Result<BTreeMap<String, Vitamin>, crate::ma
                 let Some(id) = crate::items::string(object, "id") else {
                     continue;
                 };
+                let rate = match object.get("rate") {
+                    Some(Value::Str(text)) => crate::constructions::parse_duration(text),
+                    Some(Value::Int(turns)) => *turns,
+                    // The class's own default when the data says nothing (`src/vitamin.h:128`: zero).
+                    _ => 0,
+                };
                 let weight_per_unit = match object.get("weight_per_unit") {
                     Some(Value::Str(text)) => {
                         Some(cdda_core_types::units::read_vitamin_mass(text).map_err(|error| {
@@ -63,13 +79,32 @@ pub fn load_paths(dirs: &[&Path]) -> Result<BTreeMap<String, Vitamin>, crate::ma
                     id.clone(),
                     Vitamin {
                         id,
+                        vit_type: crate::items::string(object, "vit_type").unwrap_or_else(|| "vitamin".to_owned()),
                         weight_per_unit,
+                        rate,
                     },
                 );
             }
         }
     }
     Ok(out)
+}
+
+/// Turns a food's **RDA percentage** into internal units: `vitamin::RDA_to_default` (`src/vitamin.cpp:122-129`).
+///
+/// `24_hours * ( percent / 100.0f ) / rate`, and the reference assigns the `float` it returns to an `int`, so the answer truncates toward zero.
+///
+/// **Only a `vitamin` is converted.** The reference returns the percent unchanged for anything else (`vitamin.cpp:122-126`), and 50 of the 53 types in the content are
+/// not vitamins: `meat_allergen` at 1 is one allergen, and converting it would answer 0 — which the food-summary gate caught on the snake skins.
+#[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+#[must_use]
+pub fn rda_to_default(vitamin: &Vitamin, percent: i32) -> i32 {
+    if vitamin.vit_type != "vitamin" || vitamin.rate <= 0 {
+        return percent;
+    }
+    let seconds = 24_i64 * 60 * 60;
+    let units = seconds as f32 * (percent as f32 / 100.0) / vitamin.rate as f32;
+    units as i32
 }
 
 /// Converts a mass to whole units on the vitamin's scale: `vitamin::units_from_mass` (`src/vitamin.cpp:136-144`).
