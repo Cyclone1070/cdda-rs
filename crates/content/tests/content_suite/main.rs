@@ -58,6 +58,7 @@ mod inline_enchantments;
 mod item_catalog;
 mod item_flags;
 mod faults;
+mod consume_drugs;
 mod item_damage;
 mod item_faults;
 mod item_length;

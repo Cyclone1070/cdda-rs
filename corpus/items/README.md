@@ -73,3 +73,8 @@ into an append fails 14 of the 915 types.
 `--dump-transforms` writes every `transform` use action resolved: 459 of them over 459 types, 431 `transform` and 28 `delayed_transform` (the same loader with a
 `not_ready_msg` on top). Keyed by the item type that declares it, so the gate can put a transform that landed on the wrong type on the failure line instead of hiding
 it behind "found somewhere in the content".
+
+### `consume-drugs.json` — what taking something does
+
+`--dump-consume-drugs` writes all 108 `consume_drug` actions resolved: effects with durations and body parts, fields produced, stat adjustments, charges and tools
+needed, vitamins as a range, damage over time, and the item left behind. Keyed by item type for the same reason the transforms are.

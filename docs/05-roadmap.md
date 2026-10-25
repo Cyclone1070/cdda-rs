@@ -503,7 +503,12 @@ Round 620 opened the **use actions**, which every later P3 piece sits on: the `u
 largest actor — `transform`, 431 entries plus 28 `delayed_transform` — is read field by field and gated **per item
 type**. `sealed` defaults to **true** and `target_charges`/`cost` to **-1** (meaning "the item's own"), which are the
 kind of defaults that are invisible until they are wrong everywhere at once. The other 29 actor types are kept by name
-rather than dropped, so a type's list is never quietly short. **Correction:** an earlier version of this line promised a "per-turn degradation
+rather than dropped, so a type's list is never quietly short.
+
+Round 621 added the `consume_drug` actor, all **108** of them, and it found the kind of bug the actor family is going
+to keep finding: `vitamins` live in a `std::map`, so they come back **sorted by id**, and reading them in file order
+disagreed on 30 of the 108. The corpus also proves a declared gap honestly — `bp_null` everywhere, nothing permanent,
+no damage over time — by asserting those counts at **zero** rather than passing on them silently. **Correction:** an earlier version of this line promised a "per-turn degradation
 tick"; there is no such thing in the reference — `item::process_internal` does not degrade anything, and the only
 degradation is the one a hit adds and the one `rand_degradation` rolls at spawn.
 
