@@ -546,7 +546,15 @@ Round 630 turned the same lens on ammunition. An effect list is a container too,
 and extends them. The reader was also asking the *object* whether it declares the AMMO subtype instead of asking the item,
 which loses the block entirely for a child that inherits its ammo slot; no such child exists in this content, so that half is
 pinned by a fixture. And the registry: tempting to refuse an effect it lacks, but the reference does not — `rock` lists four
-**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 631 ported what a `transform` action **does** to its item, not what its data says: `do_transform`'s item half over
+**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 632 ported **whether** a transform may be used: `can_use`'s four conditions in the reference's own order, gated over
+459 transforms in three standings each. The gate had to be built around `item::tname` — the recorded sentence has the item's name
+formatted into it, so the port is held to the **template** and the two placeholder spellings that come with it (`%1$s` from the
+three literals, `%s` from an actor's `need_charges_msg`). Six actors replace that default message, which is why the corpus is
+worth having. Declared: the worn-mutation conflict, the three quality-bearing actors (nine verdicts), and the **order** between
+`need_worn` and `need_wielding` — no actor states both, so no recording can distinguish them; that pair is pinned by a
+transcribed test instead of pretending the corpus covers it.
+
+Round 631 ported what a `transform` action **does** to its item, not what its data says: `do_transform`'s item half over
 `item::convert`, gated by building each of the 459 items and handing it to the reference's own `do_transform`. The finding
 is what turns an item on — `active` is a **union of three unrelated conditions**, so a fermenting batch switches on because
 its result is a *liquid* (comestibles have a temperature), and 11 of the 459 fail without that half. Charges survive only while

@@ -11,6 +11,7 @@ mod blast;
 mod falling;
 mod temperature;
 mod transform_apply;
+mod transform_can_use;
 mod turn_falling;
 mod bash_hits;
 mod acid_vent;

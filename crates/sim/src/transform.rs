@@ -64,6 +64,76 @@ pub struct After {
     pub phase: String,
 }
 
+/// The item's standing with respect to the character, which is all `can_use` reads about it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Standing {
+    /// Whether the character is wearing it.
+    pub worn: bool,
+    /// Whether the character is wielding it.
+    pub wielded: bool,
+    /// Whether it is empty, which is what `need_empty` refuses.
+    pub empty: bool,
+    /// How many charges it has left, which is what `need_charges` is compared against.
+    pub charges: i32,
+}
+
+/// Why a transform cannot be used, as the reference's own sentence.
+///
+/// Reference: `iuse_transform::can_use` (`src/iuse_actor.cpp:428-475`). The conditions are asked in a **fixed order** and the first failure is the answer, which is why
+/// the variant matters as much as the text: an item that is neither worn nor wielded reports the wearing rule even when it also has no charges.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Refusal {
+    /// `need_worn`, and the character is not wearing it.
+    NotWorn,
+    /// `need_wielding`, and the character is not wielding it.
+    NotWielded,
+    /// `need_empty`, and it has something inside.
+    NotEmpty,
+    /// `need_charges`, and it has fewer charges than the actor asks.
+    NotEnoughCharges,
+}
+
+impl Refusal {
+    /// The sentence the reference gives, with `%1$s` where the item's name goes.
+    ///
+    /// The three fixed ones are literals in `can_use`; the fourth is the **actor's own** message, whose default is `"The %s is empty!"` and which several actors
+    /// replace (six of them with `"Your internal reservoir is empty."`, which has no placeholder at all).
+    #[must_use]
+    pub fn template<'actor>(&self, actor: &'actor Transform) -> &'actor str {
+        match self {
+            Self::NotWorn => "You need to wear the %1$s before activating it.",
+            Self::NotWielded => "You need to wield the %1$s before activating it.",
+            Self::NotEmpty => "You need to empty the %1$s before activating it.",
+            Self::NotEnoughCharges => &actor.need_charges_msg,
+        }
+    }
+}
+
+/// Whether a transform may be used, and if not, why.
+///
+/// # Errors
+///
+/// The first condition that refuses it, in the reference's order.
+pub fn can_use(actor: &Transform, standing: &Standing) -> Result<(), Refusal> {
+    if actor.need_worn && !standing.worn {
+        return Err(Refusal::NotWorn);
+    }
+    if actor.need_wielding && !standing.wielded {
+        return Err(Refusal::NotWielded);
+    }
+    if actor.need_empty && !standing.empty {
+        return Err(Refusal::NotEmpty);
+    }
+    // **The worn-mutation conflict sits between these and the charges** (`src/iuse_actor.cpp:438-451`): a worn item whose target conflicts with a mutation the
+    // character has is refused. It needs the mutation layer, which is P4, so it is **declared** rather than skipped silently.
+    if actor.need_charges > 0 && standing.charges < actor.need_charges {
+        return Err(Refusal::NotEnoughCharges);
+    }
+    // **The qualities come last**, and they are asked of the character *and* of the surroundings within one tile (`has_quality` over an inventory formed from the
+    // map). That needs an inventory and a materialised map, so it is declared too.
+    Ok(())
+}
+
 /// A transform the port cannot yet perform, named rather than silently skipped.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Unsupported {
@@ -125,4 +195,43 @@ pub fn apply(actor: &Transform, before: &Before, target: &Target, now: i64) -> R
 /// to the caller's dice rather than inventing a stream of its own.
 fn choose_random_charges(_actor: &Transform) -> Option<i32> {
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// **Transcribed from the reference, because the content cannot tell these two apart.** No actor in the corpus states `need_worn` *and* `need_wielding`, so no
+    /// recording can distinguish the order — only the source can, and it asks `need_worn` first (`src/iuse_actor.cpp:433-441`).
+    #[test]
+    fn the_wearing_rule_is_asked_before_the_wielding_one() {
+        let actor = Transform {
+            action: "transform".to_owned(),
+            msg: String::new(),
+            target: "test".to_owned(),
+            target_group: String::new(),
+            container: String::new(),
+            variant_type: "<any>".to_owned(),
+            sealed: true,
+            target_charges: -1,
+            target_ammo: String::new(),
+            target_timer_seconds: 0,
+            active: false,
+            need_worn: true,
+            need_wielding: true,
+            need_empty: false,
+            moves: 0,
+            need_fire: 0,
+            need_charges: 0,
+            need_charges_msg: String::new(),
+            need_fire_msg: String::new(),
+            menu_text: String::new(),
+            qualities_needed: std::collections::BTreeMap::new(),
+            rand_target_charges: Vec::new(),
+            transform_age: 0,
+            not_ready_msg: String::new(),
+        };
+        let bare = Standing { worn: false, wielded: false, empty: true, charges: 0 };
+        assert_eq!(can_use(&actor, &bare), Err(Refusal::NotWorn));
+    }
 }

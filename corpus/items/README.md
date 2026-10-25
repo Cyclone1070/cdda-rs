@@ -118,3 +118,10 @@ assume the registry is a filter.
 `--dump-transform-applies` builds each of the 459 items that carry a `transform`, hands it to the reference's own `do_transform`, and writes what it became: type,
 charges, count-by-charges, active, countdown, item counter. The companion of `transforms.json`, which holds the actor's **data**; this one holds its **effect**, and
 the two disagree in the ways that matter — `active` is a union of three conditions, and a liquid result switches the item on for a reason the actor never states.
+
+### `transform-can-use.json` — whether the action is allowed, and in whose words
+
+`--dump-transform-can-use` asks the reference's own `iuse_transform::can_use` about every transform in three standings (bare, wielded, wielded with no charges) and
+writes the verdict plus the sentence it gave. The sentence is the useful half: the conditions are asked in a fixed order, so the answer says *which* one refused. It
+carries the item's name formatted in, so a port comparing it has to compare the template around the name — and there are two placeholder spellings to handle, because
+three sentences are `can_use`'s own (`%1$s`) and the fourth is the actor's `need_charges_msg` (`%s`).
