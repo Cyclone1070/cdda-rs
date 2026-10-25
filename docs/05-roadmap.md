@@ -546,7 +546,13 @@ Round 630 turned the same lens on ammunition. An effect list is a container too,
 and extends them. The reader was also asking the *object* whether it declares the AMMO subtype instead of asking the item,
 which loses the block entirely for a child that inherits its ammo slot; no such child exists in this content, so that half is
 pinned by a fixture. And the registry: tempting to refuse an effect it lacks, but the reference does not — `rock` lists four
-**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 639 finished the slot off with its three remaining scalars: `monotony_penalty` — the one member whose default is computed from the material list, `-1` becoming
+**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 640 opened the **eating lane** with `Character::fun_for`: the enjoyment of a bite, ported as a pure `fun_for(&Food, &Eater)` and gated by eleven cases
+transcribed from `tests/food_fun_for_test.cpp` — sick, rotten, cold, melted, species food, gourmand, monotony, taste blocker — plus the three branches upstream
+never reaches (`HEMOVORE_FUN`, the bloodfeeder's half-interest in ordinary food, `bio_faulty_grossfood`). The block order is the reference's and it carries: the
+ceiling is computed before the temperature and the traits, so a species food's ceiling keeps its unhappy number and a gourmand triples the *penalised* fun. Next in
+this lane: a `--dump-fun-for` recording of exact pairs over a matrix of eater states, then `Character::consume` itself.
+
+Round 639 finished the slot off with its three remaining scalars: `monotony_penalty` — the one member whose default is computed from the material list, `-1` becoming
 **0 when any material is `junk`** and 2 otherwise — `addiction_potential`, and `petfood` as a sorted set. The gate now compares 25 fields × 1,686 types. Mutation
 check: forcing the penalty to 0 fails 1,589 of them.
 

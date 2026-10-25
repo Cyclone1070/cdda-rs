@@ -12,6 +12,7 @@ pub mod memory;
 pub mod field_table;
 pub mod radiation;
 pub mod frame;
+pub mod fun_for;
 pub mod terrain_table;
 pub mod noise;
 pub mod scent;
