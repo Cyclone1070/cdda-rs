@@ -12,7 +12,9 @@
 //! * `material` is a weighted list: names, or `[ name, weight ]` pairs.
 
 use cdda_core_types::colors::{NcColor, color_from_string, string_from_color};
-use cdda_core_types::units::{read_mass, read_money, read_volume};
+use cdda_core_types::units::{read_length, read_mass, read_money, read_volume};
+
+use crate::materials::Material;
 use cdda_json::{Object, Value};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -43,8 +45,16 @@ pub struct ItemType {
     pub integral_weight: i64,
     /// Volume in millilitres.
     pub volume: i64,
+    /// The longest side the data states, in millimetres; [`UNSET_LENGTH`] when it states none.
+    ///
+    /// Reference: `itype::longest_side`, loaded from `"longest_side"` (`src/item_factory.cpp:4076`) and **filled in at finalisation** from the effective volume when
+    /// unset (`src/item_factory.cpp:812-817`). The field is kept as loaded here, and [`ItemType::longest_side`] does the filling, because the two are different facts: a
+    /// type that states 750 mm for a 235 ml rod is telling you something the cube root would get wrong.
+    pub longest_side: i64,
     /// How many of it make a whole stack, which is what a charge count is divided by when the volume of a pile is worked out.
     pub stack_size: i32,
+    /// The default number of charges the type is created with, which is `"count"` in the data (`src/item_factory.cpp:2988`) and is the fallback for a stack size.
+    pub default_charges: i32,
     /// What the item takes up when its caller asks for the **integral** volume, in millilitres.
     ///
     /// Reference: `itype::integral_volume`, read by `item::volume( integral: true )` (`src/item.cpp:7540-7544`). Loaded with the same rule as the integral weight: the
@@ -101,7 +111,134 @@ pub struct ItemType {
     pub armor_entries: Vec<BTreeSet<String>>,
 }
 
+/// Reads the measures a type carries: weight, integral weight, volume, longest side, integral volume and price.
+///
+/// Reference: `item_factory.cpp:390-420` for the two integral fallbacks and `units_reader` for the units. A bare number is in the unit's own base - grams for weight,
+/// millilitres for volume, cents for price - and the two integral values fall back to the ordinary ones **only when still unset**, because `"integral_weight": "0 g"` is a
+/// value and not an absence.
+fn read_measures(item: &mut ItemType, object: &Object) -> Result<(), LoadError> {
+    // A bare number is in the unit's own base: grams for weight, millilitres for
+    // volume, cents for price (`units_reader`).
+    item.weight = adjusted(object, "weight", item.weight, read_mass, 1_000)?;
+    // The integral weight falls back to the ordinary one, which is the loader's own rule (`src/item_factory.cpp:398-400`): the two agree unless the data says otherwise,
+    // and `"integral_weight": "0 g"` is a value, not an absence.
+    // **The fallback is the reference's own**, not a per-key default: the loader copies `weight` into `integral_weight` only when the value is still unset
+    // (`-1`, `src/item_factory.cpp:398-400`). Defaulting the key to `weight` here would overwrite an inherited zero - which is exactly what a gunmod writes when its
+    // weight should not count toward the gun's.
+    item.integral_weight = adjusted(
+        object,
+        "integral_weight",
+        item.integral_weight,
+        read_mass,
+        1_000,
+    )?;
+    if item.integral_weight < 0 {
+        item.integral_weight = item.weight;
+    }
+    item.volume = adjusted(object, "volume", item.volume, read_volume, 1)?;
+    item.longest_side = adjusted(
+        object,
+        "longest_side",
+        item.longest_side,
+        read_length,
+        UNSET_LENGTH,
+    )?;
+    item.integral_volume = adjusted(
+        object,
+        "integral_volume",
+        item.integral_volume,
+        read_volume,
+        1,
+    )?;
+    if item.integral_volume < 0 {
+        item.integral_volume = item.volume;
+    }
+    item.price = adjusted(object, "price", item.price, read_money, 1)?;
+    Ok(())
+}
+
+/// Reads `"count"`, the number of charges a freshly made item starts with (`src/item_factory.cpp:2988`), keeping the inherited value when the data is silent.
+fn read_default_charges(object: &Object, inherited: i32) -> i32 {
+    match object.get("count") {
+        Some(Value::Int(count)) => i32::try_from(*count).unwrap_or(1).max(1),
+        _ => inherited,
+    }
+}
+
+/// What `longest_side` holds when the data states none: the reference's `-1_mm` sentinel (`src/item_factory.cpp:4076`).
+pub const UNSET_LENGTH: i64 = -1;
+
+/// The length the reference gives a thing of a given volume: the cube root, rounded to the centimetre, in millimetres.
+///
+/// Reference: `units::default_length_from_volume` (`src/units.h:740-746`): `round( cbrt( millilitres ) )` centimetres. Written as an integer search rather than a float
+/// root, so the rounding is exact at a boundary and the rule holds for the large volumes a vehicle part has.
+#[must_use]
+pub fn default_length_from_volume(volume_ml: i64) -> i64 {
+    if volume_ml <= 0 {
+        return 0;
+    }
+    // Rounding the **root**, not the volume: the answer is the whole centimetre nearest `cbrt( ml )`, so a centimetre `cm` is the answer while the root has not
+    // passed `cm + 0.5`. In integers that is `8 * ml >= ( 2cm - 1 )^3`, which is exact and needs no floating point.
+    let mut cm: i64 = 0;
+    loop {
+        let next = (2 * cm + 1) * (2 * cm + 1) * (2 * cm + 1);
+        if 8 * volume_ml < next {
+            break;
+        }
+        cm += 1;
+    }
+    cm * 10
+}
+
 impl ItemType {
+    /// Its longest side, in millimetres, as `item::length` reports it for an empty item.
+    ///
+    /// Reference: `item::length` (`src/item.cpp:7343-7398`) over `itype::longest_side`, which the factory fills in at finalisation from the **effective** volume - the
+    /// volume of one charge for something counted by charges (`src/item_factory.cpp:812-817`). That is why a fifty-litre water item is not a 370 mm cube: its own volume is
+    /// divided by the stack size first.
+    ///
+    /// A liquid has **no** length (`src/item.cpp:7345-7347`), and so does a soft thing with nothing in it; a gas is measured like anything else. Guns and corpses are not modelled: a gun's length
+    /// depends on its mods, and a corpse's on the monster, and both are their own pieces of work.
+    #[must_use]
+    pub fn longest_side(&self, materials: &BTreeMap<String, Material>) -> i64 {
+        // A **liquid** has no length; a gas is measured like anything else (`src/item.cpp:7345-7347` asks `made_of( phase_id::LIQUID )` and nothing about gas).
+        if self.phase == "liquid" {
+            return 0;
+        }
+        if self.is_soft(materials) {
+            return 0;
+        }
+        if self.longest_side >= 0 {
+            return self.longest_side;
+        }
+        let effective_volume = if self.counts_by_charge() {
+            let stack = self.effective_stack_size();
+            if stack > 0 { self.volume / stack } else { self.volume }
+        } else {
+            self.volume
+        };
+        default_length_from_volume(effective_volume)
+    }
+
+    /// Whether the thing is soft: `item::is_soft` (`src/item.cpp:15199-15211`).
+    ///
+    /// The flags win over the materials, and the materials decide the rest: an item is soft when **every** material it is made of is soft - which is vacuously
+    /// true for an item made of nothing, and is what gives the debug items a length of zero.
+    #[must_use]
+    pub fn is_soft(&self, materials: &BTreeMap<String, Material>) -> bool {
+        if self.flags.contains("SOFT") {
+            return true;
+        }
+        if self.flags.contains("HARD") {
+            return false;
+        }
+        // `std::all_of` over an **empty** map is true, so an item made of nothing at all counts as soft - which is how a debug item with no materials
+        // gets a length of zero.
+        self.materials
+            .keys()
+            .all(|id| materials.get(id).is_some_and(|material| material.soft))
+    }
+
     /// Whether the item cannot be taken out of whatever holds it.
     ///
     /// Reference: `item::is_irremovable` (`src/item.cpp:10356-10359`), which is the `IRREMOVABLE`
@@ -226,6 +363,27 @@ impl ItemType {
             || has(&self.flags, "INTEGRATED")
         {
             self.flags.insert("TRADER_AVOID".to_owned());
+        }
+    }
+
+    /// How many of it make a full stack, after the reference's finalisation.
+    ///
+    /// Reference: `item_factory.cpp:400-414`: for anything counted by charges the stack size is the comestible's or the ammunition's own, falling back to the item's
+    /// default charge count — which is what makes a battery a stack of **100**. The reference also carries a "cap at 200" branch, but it is not what reaches the data: the
+    /// corpus reports gunpowder at 4,540 and chain links at 425, so a port that capped would disagree with 34 types and with every length that divides by them.
+    ///
+    /// The loader keeps `stack_size` as the data states it; this fills in the rest.
+    #[must_use]
+    pub fn effective_stack_size(&self) -> i64 {
+        if !self.counts_by_charge() {
+            return i64::from(self.stack_size).max(1);
+        }
+        let stated = i64::from(self.stack_size);
+        if stated > 0 {
+            // The data's own stack size, however large: gunpowder states 4,540 and chain links 425, and the reference reports both unchanged.
+            stated
+        } else {
+            i64::from(self.default_charges).max(1)
         }
     }
 
@@ -706,10 +864,12 @@ fn resolve(
         symbol: 0,
         color: color_from_string("white").unwrap_or_default(),
         weight: 0,
-        stack_size: 1,
+        stack_size: 0,
+        default_charges: 1,
         // Unset until the data or the fallback says otherwise.
         integral_weight: -1,
         volume: 0,
+        longest_side: UNSET_LENGTH,
         integral_volume: -1,
         price: 0,
         category: String::new(),
@@ -778,36 +938,7 @@ fn apply(
             message: format!("item {id}: color {text:?}: {error:?}"),
         })?;
     }
-    // A bare number is in the unit's own base: grams for weight, millilitres for
-    // volume, cents for price (`units_reader`).
-    item.weight = adjusted(object, "weight", item.weight, read_mass, 1_000)?;
-    // The integral weight falls back to the ordinary one, which is the loader's own rule (`src/item_factory.cpp:398-400`): the two agree unless the data says otherwise,
-    // and `"integral_weight": "0 g"` is a value, not an absence.
-    // **The fallback is the reference's own**, not a per-key default: the loader copies `weight` into `integral_weight` only when the value is still unset
-    // (`-1`, `src/item_factory.cpp:398-400`). Defaulting the key to `weight` here would overwrite an inherited zero - which is exactly what a gunmod writes when its
-    // weight should not count toward the gun's.
-    item.integral_weight = adjusted(
-        object,
-        "integral_weight",
-        item.integral_weight,
-        read_mass,
-        1_000,
-    )?;
-    if item.integral_weight < 0 {
-        item.integral_weight = item.weight;
-    }
-    item.volume = adjusted(object, "volume", item.volume, read_volume, 1)?;
-    item.integral_volume = adjusted(
-        object,
-        "integral_volume",
-        item.integral_volume,
-        read_volume,
-        1,
-    )?;
-    if item.integral_volume < 0 {
-        item.integral_volume = item.volume;
-    }
-    item.price = adjusted(object, "price", item.price, read_money, 1)?;
+    read_measures(item, object)?;
     if let Some(category) = string(object, "category") {
         item.category = category;
     }
@@ -889,9 +1020,11 @@ fn apply_slots(item: &mut ItemType, object: &Object) {
     apply_armor_slots(item, object);
     apply_flat_slots(item, object);
     apply_melee_slots(item, object);
+    // Kept as the data states it, **including zero**: zero is what tells the finalisation to use the default charge count, and clamping it here would hide that.
     if let Some(Value::Int(size)) = object.get("stack_size") {
-        item.stack_size = i32::try_from(*size).unwrap_or(1).max(1);
+        item.stack_size = i32::try_from(*size).unwrap_or(0).max(0);
     }
+    item.default_charges = read_default_charges(object, item.default_charges);
     // **Inherited unless declared.** The reference copies the whole type and overrides only the members the child states, so an item that says nothing about its
     // qualities keeps its parent's - a great many tool variants do exactly that.
     if object.get("qualities").is_some() {

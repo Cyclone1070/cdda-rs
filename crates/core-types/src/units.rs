@@ -1353,6 +1353,9 @@ const MASS_UNITS: &[(&str, i64)] = &[("mg", 1), ("g", 1_000), ("kg", 1_000_000)]
 /// The volume table (`units.h:1152-1155`), in millilitres.
 const VOLUME_UNITS: &[(&str, i64)] = &[("ml", 1), ("L", 1_000)];
 
+/// The length table (`units.h:1153-1160`), in millimetres.
+const LENGTH_UNITS: &[(&str, i64)] = &[("mm", 1), ("cm", 10), ("meter", 1_000), ("km", 1_000_000)];
+
 /// The money table (`units.h:1136-1143`), in cents.
 const MONEY_UNITS: &[(&str, i64)] = &[
     ("cents", 1),
@@ -1379,6 +1382,15 @@ pub fn read_mass(text: &str) -> Result<i64, UnitError> {
 /// See [`read_quantity`].
 pub fn read_volume(text: &str) -> Result<i64, UnitError> {
     read_quantity(text, VOLUME_UNITS)
+}
+
+/// Reads a length in millimetres.
+///
+/// # Errors
+///
+/// See [`read_quantity`].
+pub fn read_length(text: &str) -> Result<i64, UnitError> {
+    read_quantity(text, LENGTH_UNITS)
 }
 
 /// Reads money in cents.

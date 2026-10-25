@@ -31,6 +31,8 @@ pub struct Material {
     pub burn: Vec<BurnData>,
     /// What burning it leaves behind, as an item id and an efficiency (`material.h:115-116`).
     pub burn_products: Vec<(String, f64)>,
+    /// Whether things made of it are soft (`material.h:95`, loaded from `"soft"`). Read by `item::is_soft`, which decides whether an item has a length at all.
+    pub soft: bool,
 }
 
 /// One material's behaviour in a fire of a given intensity.
@@ -69,6 +71,7 @@ fn defaults(id: &str) -> Material {
         latent_heat: 0.0,
         burn: Vec::new(),
         burn_products: Vec::new(),
+        soft: false,
     }
 }
 
@@ -241,6 +244,10 @@ fn apply(material: &mut Material, object: &Object) -> Result<(), LoadError> {
             };
             material.burn_products.push((id.clone(), efficiency));
         }
+    }
+    // Only when the data states it: a copy-from child that says nothing keeps what it inherited, which is what the reference's `optional( jo, was_loaded, ... )` does.
+    if let Some(Value::Bool(soft)) = object.get("soft") {
+        material.soft = *soft;
     }
     Ok(())
 }
