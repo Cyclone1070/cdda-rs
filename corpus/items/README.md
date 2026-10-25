@@ -83,3 +83,8 @@ needed, vitamins as a range, damage over time, and the item left behind. Keyed b
 
 `--dump-link-ups` writes all 108 `link_up` actions resolved. The defaults carry the behaviour: efficiency 0.85, move cost 5, and a target set that is
 `{ no_link, vehicle_port }` rather than empty.
+
+### `firestarters.json` — how long a light takes
+
+`--dump-firestarters` writes all 42 `firestarter` actions. Its second field is derived rather than defaulted: `moves_slow` falls back to `moves * 10`, so
+`"moves": 50` alone means a slow cost of 500, not the member's 1,000.

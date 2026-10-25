@@ -512,7 +512,11 @@ no damage over time — by asserting those counts at **zero** rather than passin
 
 Round 622 added `link_up`, all **108**, where the **defaults are the behaviour**: 106 of the 108 never state an
 efficiency, so the actor's own 0.85 — losing a sixth of the power — is what every cable does, and the default target
-set is `{ no_link, vehicle_port }` rather than empty, which shrinking fails on 101 of 108. **Correction:** an earlier version of this line promised a "per-turn degradation
+set is `{ no_link, vehicle_port }` rather than empty, which shrinking fails on 101 of 108.
+
+Round 623 added `firestarter`, all 42, for one line of C++ worth a gate: `moves_slow` falls back to **`moves * 10`**, computed
+from the fast cost *after* it is read — so `"moves": 50` alone means 500, not the member's 1,000. The member default is the
+obvious wrong guess, and it fails 7 of the 42. **Correction:** an earlier version of this line promised a "per-turn degradation
 tick"; there is no such thing in the reference — `item::process_internal` does not degrade anything, and the only
 degradation is the one a hit adds and the one `rand_degradation` rolls at spawn.
 

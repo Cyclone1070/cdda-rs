@@ -267,17 +267,11 @@ fn the_ported_actor_types_are_the_ones_the_content_uses() {
     for item in &items {
         for action in &item.use_actions {
             match action {
-                UseAction::Transform(transform) => {
-                    ported.insert(transform.action.as_str());
-                }
-                UseAction::ConsumeDrug(drug) => {
-                    ported.insert(drug.action.as_str());
-                }
-                UseAction::LinkUp(cable) => {
-                    ported.insert(cable.action.as_str());
-                }
                 UseAction::Other { kind } => {
                     *others.entry(kind.clone()).or_default() += 1;
+                }
+                ported_action => {
+                    ported.insert(ported_action.kind());
                 }
             }
         }

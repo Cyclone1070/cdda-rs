@@ -59,6 +59,7 @@ mod item_catalog;
 mod item_flags;
 mod faults;
 mod consume_drugs;
+mod firestarters;
 mod item_damage;
 mod link_ups;
 mod item_faults;

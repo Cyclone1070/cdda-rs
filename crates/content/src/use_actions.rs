@@ -20,11 +20,30 @@ pub enum UseAction {
     ConsumeDrug(ConsumeDrug),
     /// Plugging a cable into something.
     LinkUp(LinkUp),
+    /// Lighting a fire.
+    Firestarter(Firestarter),
     /// Anything the port has not ported yet, kept by the name the data gives it — an actor's `"type"`, or a legacy string id.
     Other {
         /// The actor type, or the legacy id.
         kind: String,
     },
+}
+
+impl UseAction {
+    /// The actor type this action is, as the data named it.
+    ///
+    /// Every actor carries its own type — the reference's `iuse_actor::type` (`src/iuse.h:289`), a public member precisely so a caller can ask — so this is a
+    /// lookup rather than a match on the port's own enum. It exists so that adding an actor does not silently change what a test is looking at.
+    #[must_use]
+    pub fn kind(&self) -> &str {
+        match self {
+            Self::Transform(transform) => &transform.action,
+            Self::ConsumeDrug(drug) => &drug.action,
+            Self::LinkUp(cable) => &cable.action,
+            Self::Firestarter(fire) => &fire.action,
+            Self::Other { kind } => kind,
+        }
+    }
 }
 
 /// The `transform` actor's data, and `delayed_transform`'s, which derives from it.
@@ -411,6 +430,7 @@ pub fn read_actor(kind: &str, object: &Object) -> Result<Option<UseAction>, Load
         "transform" | "delayed_transform" => Ok(Some(UseAction::Transform(Transform::read(kind, object)?))),
         "consume_drug" => Ok(Some(UseAction::ConsumeDrug(ConsumeDrug::read(kind, object)?))),
         "link_up" => Ok(Some(UseAction::LinkUp(LinkUp::read(kind, object)?))),
+        "firestarter" => Ok(Some(UseAction::Firestarter(Firestarter::read(kind, object)?))),
         _ => Ok(Some(UseAction::Other {
             kind: kind.to_owned(),
         })),
@@ -533,4 +553,43 @@ pub fn parse_watts(text: &str) -> i64 {
     #[allow(clippy::cast_possible_truncation)]
     let watts = (number * multiplier) as i64;
     watts
+}
+
+/// The `firestarter` actor's data: how long a light takes.
+///
+/// Reference: `class firestarter_actor` (`src/iuse_actor.h:481-511`) and its `load` (`src/iuse_actor.cpp:1460-1465`). Three fields, and the third is **derived rather
+/// than defaulted**: `moves_slow` falls back to `moves * 10`, computed from the fast cost *after* that has been read. So a firestarter that states only `"moves": 50`
+/// has a slow cost of **500**, not the member's 1,000 — and six of the 42 in the content are exactly that case.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Firestarter {
+    /// The actor's own type: `firestarter`.
+    pub action: String,
+    /// Moves spent at the start of a fire with good fuel.
+    pub moves: i32,
+    /// Moves for a whole fire with mediocre fuel; `moves * 10` when the actor does not say.
+    pub moves_slow: i32,
+    /// Whether it only works in sunlight, which is a magnifying glass and not a lighter.
+    pub need_sunlight: bool,
+}
+
+impl Firestarter {
+    /// Reads the actor's data out of its JSON object.
+    ///
+    /// # Errors
+    ///
+    /// If a member is present with the wrong shape.
+    pub fn read(action: &str, object: &Object) -> Result<Self, LoadError> {
+        let whole = |key: &str, fallback: i32| match object.get(key) {
+            Some(Value::Int(value)) => i32::try_from(*value).unwrap_or(fallback),
+            _ => fallback,
+        };
+        let moves = whole("moves", 100);
+        Ok(Self {
+            action: action.to_owned(),
+            moves,
+            // **The fallback reads the value just read**, so it multiplies rather than using the member's own 1,000.
+            moves_slow: whole("moves_slow", moves.saturating_mul(10)),
+            need_sunlight: matches!(object.get("need_sunlight"), Some(Value::Bool(true))),
+        })
+    }
 }
