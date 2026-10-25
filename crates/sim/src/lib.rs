@@ -7157,6 +7157,45 @@ impl ItemDamage {
     }
 }
 
+/// Degradation a badly-made item starts with, rolled rather than stated.
+///
+/// Reference: `item::rand_degradation` (`src/item.cpp:903-909`). An item spawned damaged gets a degradation somewhere between undamaged and its own damage, scaled
+/// so that a `max_damage / degrade_increments` slice of health is one increment: `rng( 0, damage() ) * 50.0f / degrade_increments()`, converted to a whole number
+/// when `set_degradation` takes it — which **truncates**, so the result is never rounded up.
+///
+/// A type that does not degrade rolls nothing at all: the reference returns before it touches a die, which matters because a roll that does not happen is a die the
+/// recording does not contain.
+#[must_use]
+pub fn rand_degradation(rolls: &mut Rolls, damage: i32, degrade_increments: i32) -> i32 {
+    if degrade_increments == 0 {
+        return 0;
+    }
+    let drawn = rolls.rng(0, damage);
+    #[allow(clippy::cast_possible_truncation)]
+    let degradation = (f64::from(drawn) * 50.0 / f64::from(degrade_increments)) as i32;
+    degradation
+}
+
+/// The bar the interface draws beside an item to show what repairs cannot fix.
+///
+/// Reference: `item::degradation_symbol` (`src/item.cpp:6918-6941`). Five bars, from a full block at no degradation down to a single row at four increments or more,
+/// and **nothing at all for a type that does not degrade** — the type check is the last thing the reference does, not the first.
+#[must_use]
+pub fn degradation_symbol(degradation: i32, max_damage: i32, degrade_increments: i32) -> &'static str {
+    if degrade_increments == 0 {
+        return "";
+    }
+    let slice = max_damage / 5;
+    let level = degradation / if slice > 0 { slice } else { 1 };
+    match level {
+        0 => "█",
+        1 => "▇",
+        2 => "▅",
+        3 => "▃",
+        _ => "▁",
+    }
+}
+
 /// Damages a **charge-counted** pile by taking charges, and answers whether that emptied it.
 ///
 /// Reference: the charge branch of `item::mod_damage` (`src/item.cpp:9444-9447`): `charges -= std::min( stack_size * qty / damage_scale, charges ); return charges == 0;`.

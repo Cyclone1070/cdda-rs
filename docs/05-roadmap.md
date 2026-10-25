@@ -481,8 +481,12 @@ never checked, the inclusive flat comparison against the strictly-climbing one, 
 `damage_level` bands, gated over 9,912 types (79,296 measurements). The *instance* half came at round 613:
 `ItemDamage` is the two-number state with its invariant, `mod_damage`'s three-way branch, and the degradation a hit
 adds by the bands it crosses (`factor( 0 )` is `-1`, which is why the first hit degrades twice as fast as the
-second). What is left of the family: the faults, and the per-turn degradation tick, which needs the dice recorder
-wired to an item rather than to a square.
+second). Round 614 closed the rest of it:
+`rand_degradation`, whose die is asked between **zero and the item's own damage** and whose answer truncates
+rather than rounds, and `degradation_symbol`, the five-step bar that is empty for a type that cannot degrade.
+The faults are what is left. **Correction:** an earlier version of this line promised a "per-turn degradation
+tick"; there is no such thing in the reference — `item::process_internal` does not degrade anything, and the only
+degradation is the one a hit adds and the one `rand_degradation` rolls at spawn.
 
 **Next, in order.** ~~The pockets' **length** limits~~ (in at round 602: `ItemType::longest_side`, gated over
 all 9,912 types), ~~the pocket loader and its accept-lists~~ (rounds 603-605), ~~the accept rules in the
