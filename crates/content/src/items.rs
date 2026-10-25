@@ -857,6 +857,23 @@ pub fn load_paths(dirs: &[&std::path::Path]) -> Result<Vec<ItemType>, LoadError>
     let mut known_qualities: BTreeSet<String> = BTreeSet::new();
     // The quality registry, for the actions each quality lends. Loaded once, before the types are finalised.
     let qualities_usages = crate::qualities::load_paths(dirs).unwrap_or_default();
+    // The vitamin registry, because a vitamin amount may be written as a **mass** and only the vitamin itself knows the scale
+    // (`vitamin::units_from_mass`, `src/vitamin.cpp:136-144`).
+    let vitamins = crate::vitamins::load_paths(dirs).map_err(|error| LoadError {
+        message: error.message,
+    })?;
+    let material_registry: BTreeMap<String, crate::materials::Material> =
+        crate::materials::load_paths(dirs)
+            .map_err(|error| LoadError {
+                message: format!("materials: {error}"),
+            })?
+            .into_iter()
+            .map(|material| (material.id.clone(), material))
+            .collect();
+    let registries = Registries {
+        vitamins: &vitamins,
+        materials: &material_registry,
+    };
     for dir in dirs {
         let files = crate::json_files_in_load_order(dir).map_err(|error| LoadError {
             message: format!("{}: {error}", dir.display()),
@@ -880,7 +897,11 @@ pub fn load_paths(dirs: &[&std::path::Path]) -> Result<Vec<ItemType>, LoadError>
     let mut out = Vec::new();
     for id in &order {
         let mut seen = Vec::new();
-        for mut item in resolve(id, &objects, &mut seen, &densities)? {
+        for mut item in resolve(id, &objects, &mut seen, &densities, &registries)? {
+            // **The derived vitamins run once per prototype, not once per object.** The reference copies the *raw* slot through `copy-from` and derives per
+            // prototype (`src/item_factory.cpp:762-776`), so a child of a food derives from its own materials rather than inheriting the parent's numbers — which
+            // is how `blood_mi-go` (material `mi-go_blood`, no vitamins) comes out all-zero under a `meat_mi-go` parent whose flesh carries iron.
+            crate::comestible::finalise_vitamins(&mut item, &registries);
             // The category is derived once, here, and only for a prototype: an
             // abstract that states none stays without one, so a child that
             // inherits from it derives from its own slots (`item_factory.cpp:385-388`).
@@ -1180,6 +1201,7 @@ fn resolve(
     objects: &BTreeMap<String, Object>,
     seen: &mut Vec<String>,
     densities: &BTreeMap<String, f64>,
+    registries: &Registries<'_>,
 ) -> Result<Vec<ItemType>, LoadError> {
     if seen.iter().any(|entry| entry == id) {
         return Err(LoadError {
@@ -1194,7 +1216,9 @@ fn resolve(
     seen.push(id.to_owned());
     let inherited = object.get("copy-from").is_some();
     let mut base = match object.get("copy-from") {
-        Some(Value::Str(from)) => resolve(from, objects, seen, densities)?.into_iter().next(),
+        Some(Value::Str(from)) => resolve(from, objects, seen, densities, registries)?
+            .into_iter()
+            .next(),
         _ => None,
     };
     seen.pop();
@@ -1245,7 +1269,7 @@ fn resolve(
         armor_entries: Vec::new(),
     });
     id.clone_into(&mut item.id);
-    apply(&mut item, object, inherited, densities)?;
+    apply(&mut item, object, inherited, densities, registries)?;
     Ok(vec![item])
 }
 
@@ -1255,6 +1279,7 @@ fn apply(
     object: &Object,
     inherited: bool,
     densities: &BTreeMap<String, f64>,
+    registries: &Registries<'_>,
 ) -> Result<(), LoadError> {
     let id = item.id.clone();
     // The name is cleared before it is read (`item_factory.cpp:4126`), so an
@@ -1325,7 +1350,7 @@ fn apply(
     if let Some(category) = string(object, "category") {
         item.category = category;
     }
-    apply_slots(item, object);
+    apply_slots(item, object, registries)?;
     if let Some(entries) = object.get("material") {
         item.materials = materials_of(entries)?;
     }
@@ -1373,12 +1398,28 @@ fn apply(
             item.flags.remove(&flag);
         }
     }
+    // **A stated `primary_material` replaces the material list outright**: one material, portion 1 `(`src/item_factory.cpp:463-467`)`. This runs before the
+    // derived vitamins below, which is why `mead` - materials `["alcohol", "honey"]`, primary material `alcohol` - has no honey vitamins at all: the honey was
+    // dropped before anything could read it. Eleven comestibles are like that, and the recording found all eleven.
+    if let Some(slot) = &item.comestible
+        && !slot.primary_material.is_empty()
+        && slot.primary_material != "null"
+    {
+        let primary = slot.primary_material.clone();
+        item.materials.clear();
+        item.materials.insert(primary, 1);
+    }
+
     Ok(())
 }
 
 /// Reads everything that names a slot: the subtypes, the legacy type, the
 /// armour entries, the comestible fields and the melee damage.
-fn apply_slots(item: &mut ItemType, object: &Object) {
+fn apply_slots(
+    item: &mut ItemType,
+    object: &Object,
+    registries: &Registries<'_>,
+) -> Result<(), LoadError> {
     // Slots are inherited: an object that copies and states no subtypes of its
     // own keeps the base's, and the category is derived from them.
     if let Some(Value::Array(subtypes)) = object.get("subtypes") {
@@ -1401,7 +1442,7 @@ fn apply_slots(item: &mut ItemType, object: &Object) {
         item.subtypes.insert(sub.clone());
     }
     apply_armor_slots(item, object);
-    apply_flat_slots(item, object);
+    apply_flat_slots(item, object, registries)?;
     apply_melee_slots(item, object);
     // Kept as the data states it, **including zero**: zero is what tells the finalisation to use the default charge count, and clamping it here would hide that.
     if let Some(Value::Int(size)) = object.get("stack_size") {
@@ -1439,6 +1480,7 @@ fn apply_slots(item: &mut ItemType, object: &Object) {
     {
         item.gun_skill = Some(skill.clone());
     }
+    Ok(())
 }
 
 /// Reads the `armor` slot: what covers what, and in what material.
@@ -1478,7 +1520,19 @@ fn apply_armor_slots(item: &mut ItemType, object: &Object) {
 
 /// Reads the slots that are one value each: the material the thing is mostly made of, its phase, whether it stacks, whether it goes off in a fire, whether it
 /// is a gun, and what it does when eaten.
-fn apply_flat_slots(item: &mut ItemType, object: &Object) {
+/// The registries a slot may consult, which are not part of the item data itself.
+pub(crate) struct Registries<'a> {
+    /// Vitamin types, for a vitamin amount written as a mass.
+    pub vitamins: &'a BTreeMap<String, crate::vitamins::Vitamin>,
+    /// Materials, for the vitamins a comestible derives when it states none.
+    pub materials: &'a BTreeMap<String, crate::materials::Material>,
+}
+
+fn apply_flat_slots(
+    item: &mut ItemType,
+    object: &Object,
+    registries: &Registries<'_>,
+) -> Result<(), LoadError> {
     if let Some(material) = string(object, "primary_material") {
         item.primary_material = material;
     }
@@ -1522,7 +1576,12 @@ fn apply_flat_slots(item: &mut ItemType, object: &Object) {
     }
     // The slot **merges** with what the parent supplied: `load_slot` reuses the inherited object and reads into it (`item_factory.cpp:2859-2868`), so a child that
     // states only `calories` keeps its parent's `quench` and `spoils_in`. The calories multiply lives in `comestible::read`, once per prototype.
-    item.comestible = crate::comestible::read(object, item.comestible.as_ref());
+    item.comestible = crate::comestible::read(object, item.comestible.as_ref(), registries.vitamins)
+        .map_err(|error| LoadError {
+            message: error.message,
+        })?;
+
+    Ok(())
 }
 
 /// Reads the `melee_damage` slot, with the `relative` and `proportional` forms the content uses to adjust it.

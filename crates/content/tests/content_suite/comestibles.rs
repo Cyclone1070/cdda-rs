@@ -9,7 +9,13 @@
 //! And one rule about inheritance the recording pins: the slot **merges** on `copy-from` rather than replacing, because `load_slot` reuses the parent's object
 //! (`src/item_factory.cpp:2859-2868`).
 
-#![allow(clippy::panic, clippy::expect_used, clippy::cast_possible_truncation)]
+#![allow(
+    clippy::panic,
+    clippy::expect_used,
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::too_many_lines
+)]
 
 use cdda_content::items::load_paths;
 use cdda_json::Value;
@@ -19,6 +25,20 @@ fn recorded() -> Value {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/comestibles.json");
     let bytes = std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
     cdda_json::parse(&bytes).expect("valid json")
+}
+
+fn int_map<'a>(entry: &'a cdda_json::Object, key: &str) -> BTreeMap<&'a str, i32> {
+    match entry.get(key) {
+        Some(Value::Object(map)) => map
+            .members()
+            .iter()
+            .map(|(name, value)| match value {
+                Value::Int(number) => (name.as_str(), i32::try_from(*number).unwrap_or(0)),
+                other => panic!("{name}: {other:?}"),
+            })
+            .collect(),
+        other => panic!("{key}: {other:?}"),
+    }
 }
 
 #[test]
@@ -94,6 +114,48 @@ fn every_comestible_has_the_slot_the_reference_has() {
                 *per_field.entry(name.to_owned()).or_default() += 1;
                 differing.push(format!("{id}.{name}: the port says {ours}, the reference says {theirs}"));
             }
+        }
+        // The three **maps**: vitamins after every mass was converted, addictions with their potentials, and the diseases it may carry.
+        let ours_vitamins: BTreeMap<&str, i32> = slot.vitamins.iter().map(|(id, units)| (id.as_str(), *units)).collect();
+        let theirs_vitamins = int_map(entry, "vitamins");
+        if ours_vitamins != theirs_vitamins {
+            *per_field.entry("vitamins".to_owned()).or_default() += 1;
+            differing.push(format!("{id}.vitamins: the port says {ours_vitamins:?}, the reference says {theirs_vitamins:?}"));
+        }
+        let ours_addictions: BTreeMap<&str, i32> = slot.addictions.iter().map(|(id, weight)| (id.as_str(), *weight)).collect();
+        let theirs_addictions = int_map(entry, "addictions");
+        if ours_addictions != theirs_addictions {
+            *per_field.entry("addictions".to_owned()).or_default() += 1;
+            differing.push(format!("{id}.addictions: the port says {ours_addictions:?}, the reference says {theirs_addictions:?}"));
+        }
+        // The rest of the slot the recording gained: contamination, the freezing point, the primary material, and the materials the item resolved to.
+        // Compared as numbers, not as text: the recording writes `0` for a whole number and `-5` for a negative one, and both parse to the same `f32`.
+        let ours = f64::from(slot.freezing_point);
+        let theirs = match entry.get("freezing_point") {
+            Some(Value::Float(value)) => *value,
+            Some(Value::Int(value)) => *value as f64,
+            other => panic!("freezing_point: {other:?}"),
+        };
+        if (ours - theirs).abs() > f64::EPSILON {
+            *per_field.entry("freezing_point".to_owned()).or_default() += 1;
+            differing.push(format!("{id}.freezing_point: the port says {ours}, the reference says {theirs}"));
+        }
+        if slot.primary_material != text(entry, "primary_material") {
+            *per_field.entry("primary_material".to_owned()).or_default() += 1;
+            differing.push(format!(
+                "{id}.primary_material: the port says {:?}, the reference says {:?}",
+                slot.primary_material,
+                text(entry, "primary_material")
+            ));
+        }
+        let ours_materials: BTreeMap<&str, i32> =
+            item.materials.iter().map(|(name, portion)| (name.as_str(), *portion)).collect();
+        let theirs_materials = int_map(entry, "materials");
+        if ours_materials != theirs_materials {
+            *per_field.entry("materials".to_owned()).or_default() += 1;
+            differing.push(format!(
+                "{id}.materials: the port says {ours_materials:?}, the reference says {theirs_materials:?}"
+            ));
         }
         let ours = slot.nutr().to_string();
         let theirs = number(entry, "nutr").to_string();

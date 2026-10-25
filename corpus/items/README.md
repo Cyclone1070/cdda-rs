@@ -137,3 +137,14 @@ tools/oracle_sync.sh --dump-comestibles '\$PWD/oracle/comestibles.json'
 
 The build and the dump both run on `cyc@elitedesk` — `tools/oracle_sync.sh` rsyncs the already-patched source tree (the patch is proved to reproduce it by
 `apply_harness_patches.py --verify`) and builds there. Nothing heavy runs on the Mac.
+
+## `material-vitamins.json` — what each material carries
+
+`--dump-material-vitamins` writes the nonzero vitamins of all 193 materials, read through `material_type::vitamin` (`src/material.h:163-166`). A comestible that states
+no vitamins derives them from its materials (`src/item_factory.cpp:762-776`), so a disagreement about a food has to be traced to the material data before it can be
+called a derivation bug — which is exactly what happened on the first run of the comestible gate.
+
+## `comestibles.json` also carries `materials` and `contamination`
+
+The comestible dump was extended twice: it now writes each type's resolved **material list with portions** (because a stated `primary_material` replaces it, and the
+derived vitamins are computed from it), `contamination`, `freezing_point`, `primary_material`, `rot_spawn` and `consumption_eocs`.

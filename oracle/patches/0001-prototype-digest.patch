@@ -330,8 +330,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-25 21:56:59
-@@ -0,0 +1,4553 @@
++++ oracle/src/src/harness.cpp	2026-10-26 00:26:07
+@@ -0,0 +1,4616 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +
@@ -341,6 +341,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 +#include "dependency_tree.h"
 +#include "map.h"
++#include "vitamin.h"
 +#include "map_memory.h"
 +#include "mod_manager.h"
 +#include "worldfactory.h"
@@ -2007,6 +2008,43 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +/// Reference: `class iuse_transform` (`src/iuse_actor.h:44-110`) and its `load` (`src/iuse_actor.cpp:216-250`). It is the most common use action in the content (423
 +/// declarations), and its fields are all about the **result**: the target id or the item group to draw one from, an optional container to put it in, the charges to
 +/// set, a timer to start, and the conditions that must hold before the transformation may happen at all.
++/// Every material's vitamin content, as the reference holds it.
++///
++/// Reference: `material_type::_vitamins` and its accessor (`src/material.h:163-166`). This exists because the derivation that gives a food its vitamins from its
++/// materials (`src/item_factory.cpp:762-776`) multiplies these numbers, and a recording of the comestibles alone cannot say whether a disagreement is in the
++/// derivation or in the material data underneath it.
++void dump_material_vitamins( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    std::fprintf( out, "{\"harness\":\"material-vitamins\",\"version\":1,\n\"materials\":[\n" );
++    bool first = true;
++    int count = 0;
++    for( const material_type &material : materials::get_all() ) {
++        ++count;
++        std::fprintf( out, "%s{\"id\":\"%s\",\"vitamins\":{", first ? "" : ",\n",
++                      harness_escape( material.id.str() ).c_str() );
++        bool first_vitamin = true;
++        for( const std::pair<const vitamin_id, vitamin> &entry : vitamin::all() ) {
++            const vitamin_id &vitamin = entry.first;
++            const double amount = material.vitamin( vitamin );
++            if( amount == 0.0 ) {
++                continue;
++            }
++            std::fprintf( out, "%s\"%s\":%.6g", first_vitamin ? "" : ",",
++                          harness_escape( vitamin.str() ).c_str(), amount );
++            first_vitamin = false;
++        }
++        std::fprintf( out, "}}" );
++        first = false;
++    }
++    std::fprintf( out, "\n],\"count\":%d}\n", count );
++    std::fclose( out );
++}
++
 +/// Every item type's comestible slot, resolved.
 +///
 +/// Reference: `islot_comestible` (`src/itype.h:147-248`) and its loader (`src/item_factory.cpp:3405-3441`). Two things about it are invisible in the JSON and are the reason
@@ -2065,6 +2103,31 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +            std::fprintf( out, "%s\"%s\":%d", first_vitamin ? "" : ",",
 +                          harness_escape( entry.first.str() ).c_str(), entry.second );
 +            first_vitamin = false;
++        }
++        std::fprintf( out, "},\"contamination\":{" );
++        bool first_disease = true;
++        for( const std::pair<const diseasetype_id, float> &entry : slot.contamination ) {
++            std::fprintf( out, "%s\"%s\":%.6g", first_disease ? "" : ",",
++                          harness_escape( entry.first.str() ).c_str(), entry.second );
++            first_disease = false;
++        }
++        std::fprintf( out, "},\"freezing_point\":%.6g,\"primary_material\":\"%s\",\"rot_spawn\":{\"monster\":\"%s\","
++                      "\"group\":\"%s\"},\"consumption_eocs\":[",
++                      slot.freeze_point, harness_escape( slot.primary_material.str() ).c_str(),
++                      harness_escape( slot.rot_spawn.rot_spawn_monster.str() ).c_str(),
++                      harness_escape( slot.rot_spawn.rot_spawn_group.str() ).c_str() );
++        bool first_eoc = true;
++        for( const effect_on_condition_id &eoc : slot.consumption_eocs ) {
++            std::fprintf( out, "%s\"%s\"", first_eoc ? "" : ",", harness_escape( eoc.str() ).c_str() );
++            first_eoc = false;
++        }
++        // **The materials the item resolved to**, because the derived vitamins are computed from them and a disagreement has to be locatable.
++        std::fprintf( out, "],\"materials\":{" );
++        bool first_material = true;
++        for( const std::pair<const material_id, int> &entry : type->materials ) {
++            std::fprintf( out, "%s\"%s\":%d", first_material ? "" : ",",
++                          harness_escape( entry.first.str() ).c_str(), entry.second );
++            first_material = false;
 +        }
 +        std::fprintf( out, "}}" );
 +        first = false;
@@ -4887,8 +4950,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-25 21:10:03
-@@ -0,0 +1,339 @@
++++ oracle/src/src/harness.h	2026-10-25 23:15:22
+@@ -0,0 +1,342 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -5081,6 +5144,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +
 +/** Writes every `consume_drug` use action, resolved. */
 +void dump_consume_drugs( const std::string &path );
++
++/** Writes every material's vitamin content, as `--dump-material-vitamins`. */
++void dump_material_vitamins( const std::string &path );
 +
 +/** Writes every item type's comestible slot, resolved, as `--dump-comestibles`. */
 +void dump_comestibles( const std::string &path );
@@ -5402,7 +5468,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-25 21:10:03
++++ oracle/src/src/main.cpp	2026-10-25 23:15:22
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -5413,7 +5479,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,124 @@
+@@ -272,6 +275,125 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -5485,6 +5551,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_transform_can_use;
 +    std::string dump_examine_actions;
 +    std::string dump_comestibles;
++    std::string dump_material_vitamins;
 +    std::string dump_consume_drugs;
 +    std::string dump_link_ups;
 +    std::string dump_firestarters;
@@ -5538,7 +5605,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +421,1060 @@
+@@ -300,6 +422,1070 @@
                  }
              },
              {
@@ -5929,6 +5996,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_consume_drugs = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-material-vitamins", "<file>",
++                "Writes every material's vitamin content",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_material_vitamins = params[0];
 +                    return 1;
 +                }
 +            },
@@ -6599,7 +6676,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +1961,556 @@
+@@ -786,6 +1972,562 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -7023,6 +7100,12 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            test_mode = true;
 +            g->check_mod_data( { mod_id( "dda" ) } );
 +            harness::dump_consume_drugs( cli.dump_consume_drugs );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_material_vitamins.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_material_vitamins( cli.dump_material_vitamins );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_comestibles.empty() ) {

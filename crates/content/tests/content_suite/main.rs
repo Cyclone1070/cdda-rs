@@ -80,6 +80,7 @@ mod mapgen_draw;
 mod mapgen_keys;
 mod mapgen_objects;
 mod mapgen_place;
+mod material_vitamins;
 mod materials;
 mod math_expr;
 mod mod_graph;

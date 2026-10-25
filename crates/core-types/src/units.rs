@@ -1375,6 +1375,21 @@ pub fn read_mass(text: &str) -> Result<i64, UnitError> {
     read_quantity(text, MASS_UNITS)
 }
 
+/// The vitamin mass table (`src/stomach.h:28-35`), in **micrograms**.
+///
+/// Vitamins are their own unit tag: `vitamin_units::mass` counts micrograms and knows only these five spellings, which is why a vitamin's amount cannot be read with
+/// the item mass reader - it has no micrograms at all, and `calcium`'s `10 mg 420 μg` would fail on the second term.
+const VITAMIN_MASS_UNITS: &[(&str, i64)] = &[("ug", 1), ("μg", 1), ("mcg", 1), ("mg", 1_000), ("g", 1_000_000)];
+
+/// Reads a vitamin mass in micrograms.
+///
+/// # Errors
+///
+/// See [`read_quantity`].
+pub fn read_vitamin_mass(text: &str) -> Result<i64, UnitError> {
+    read_quantity(text, VITAMIN_MASS_UNITS)
+}
+
 /// Reads a volume in millilitres.
 ///
 /// # Errors

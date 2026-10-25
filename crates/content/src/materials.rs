@@ -33,6 +33,12 @@ pub struct Material {
     pub burn_products: Vec<(String, f64)>,
     /// Whether things made of it are soft (`material.h:95`, loaded from `"soft"`). Read by `item::is_soft`, which decides whether an item has a length at all.
     pub soft: bool,
+    /// How much of each vitamin one unit of the material carries, as `material_type::vitamin` answers it.
+    ///
+    /// Reference: `"vitamins"` in the material's own data (`src/material.cpp`), a list of `[vitamin, amount]` pairs whose amounts are **fractional** (`0.5` for
+    /// `flesh`'s calcium and iron). It exists for one caller: a comestible that states no vitamins of its own **derives them from its materials**
+    /// (`src/item_factory.cpp:762-776`), which is why a food's vitamins are a fact about what it is made of rather than only about what the JSON says.
+    pub vitamins: std::collections::BTreeMap<String, f64>,
 }
 
 /// One material's behaviour in a fire of a given intensity.
@@ -72,6 +78,7 @@ fn defaults(id: &str) -> Material {
         burn: Vec::new(),
         burn_products: Vec::new(),
         soft: false,
+        vitamins: std::collections::BTreeMap::new(),
     }
 }
 
@@ -248,6 +255,26 @@ fn apply(material: &mut Material, object: &Object) -> Result<(), LoadError> {
     // Only when the data states it: a copy-from child that says nothing keeps what it inherited, which is what the reference's `optional( jo, was_loaded, ... )` does.
     if let Some(Value::Bool(soft)) = object.get("soft") {
         material.soft = *soft;
+    }
+    // `"vitamins": [ [ "calcium", 2 ] ]` - pairs, and the amounts are floats often enough that a fraction must survive.
+    if let Some(Value::Array(entries)) = object.get("vitamins") {
+        material.vitamins.clear();
+        for entry in entries {
+            let Value::Array(pair) = entry else {
+                continue;
+            };
+            let (Some(Value::Str(id)), Some(amount)) = (pair.first(), pair.get(1)) else {
+                continue;
+            };
+            let amount = match amount {
+                Value::Int(value) => f64::from(i32::try_from(*value).unwrap_or(0)),
+                Value::Float(value) => *value,
+                _ => continue,
+            };
+            material
+                .vitamins
+                .insert(id.clone(), amount);
+        }
     }
     Ok(())
 }

@@ -12,9 +12,10 @@
 //!   2500/288 ≈ 8.68 kcal per unit of nutrition (`src/itype.h:231-239`). The port computes it the same way rather than reading it, and the gate compares the result.
 
 use cdda_json::{Object, Value};
+use std::collections::BTreeMap;
 
 /// What the reference keeps about a comestible.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Comestible {
     /// Its subtype: `FOOD`, `DRINK`, `MED`, and the rest. `mandatory`.
     pub comestible_type: String,
@@ -55,6 +56,16 @@ pub struct Comestible {
     pub addiction_potential: i32,
     /// The pet food categories it feeds. Sorted, as the reference's `std::set` is.
     pub petfood: Vec<String>,
+    /// Vitamins and how many units of each, after every mass was converted to units.
+    pub vitamins: BTreeMap<String, i32>,
+    /// Addictions and the potential of each. Sorted, as the reference's `std::map` is.
+    pub addictions: BTreeMap<String, i32>,
+    /// Diseases it may carry and the odds of each.
+    pub contamination: BTreeMap<String, f32>,
+    /// The temperature it freezes at, in degrees Celsius.
+    pub freezing_point: f32,
+    /// The material it is mostly made of, which **replaces** its material list. `"null"` when it has none.
+    pub primary_material: String,
 }
 
 /// How many thousandths of a kilocalorie one unit of nutrition is worth: `base_metabolic_rate / ( 12 * 24 )` (`src/itype.h:132`, `:231`).
@@ -90,16 +101,24 @@ impl Comestible {
 ///
 /// `inherited` is the slot the prototype's `copy-from` parent supplied, or `None`. A member that is absent leaves the inherited value alone — that is
 /// `load_slot`'s `was_loaded` path, and it is why this takes the parent's value rather than starting empty.
-#[must_use]
-pub fn read(object: &Object, inherited: Option<&Comestible>) -> Option<Comestible> {
+///
+/// # Errors
+///
+/// If a vitamin is not registered, or a vitamin amount written as a mass does not parse.
+pub fn read(
+    object: &Object,
+    inherited: Option<&Comestible>,
+    vitamins: &BTreeMap<String, super::vitamins::Vitamin>,
+) -> Result<Option<Comestible>, super::mapdata::LoadError> {
     let is_comestible = super::items::string(object, "comestible_type").is_some()
         || super::items::strings(object, "subtypes").iter().any(|kind| kind == "COMESTIBLE")
         || inherited.is_some();
     if !is_comestible {
-        return None;
+        return Ok(None);
     }
     let mut value = inherited.cloned().unwrap_or_else(|| Comestible {
         tool: "null".to_owned(),
+        primary_material: "null".to_owned(),
         ..Comestible::default()
     });
     if let Some(kind) = super::items::string(object, "comestible_type") {
@@ -131,7 +150,52 @@ pub fn read(object: &Object, inherited: Option<&Comestible>) -> Option<Comestibl
     if object.get("petfood").is_some() {
         value.petfood = super::items::strings(object, "petfood");
     }
-    Some(value)
+    // **`addiction_type` falls back to the item's own `addiction_potential`**, and that member is read two lines earlier in the reference
+    // (`src/item_factory.cpp:3432-3435`), so an addiction written without a weight takes a value this object may have inherited.
+    if object.get("addiction_type").is_some() {
+        value.addictions = read_addictions(object, value.addiction_potential);
+    }
+    // Vitamins are a **list of pairs**, not a map, and their amounts may be masses; `nutrients::finalize_vitamins` converts each mass on its own vitamin's scale.
+    //
+    // An object that states none keeps what it inherited, and a comestible that ends up with **no** vitamins and a non-negative healthy rating gets them derived from
+    // its materials instead (`src/item_factory.cpp:762-776`) - which the caller does, because it is the only one holding the material registry.
+    if object.get("vitamins").is_some() {
+        value.vitamins = super::vitamins::read_list(object, vitamins)?;
+    } else {
+        // **`extend.vitamins` adds to the inherited map and `delete.vitamins` takes ids away** - and they are only reached when this object does not state
+        // `vitamins` itself, because a stated container member clears first (`src/generic_factory.h:1168-1192`). `protein_shake` is the one prototype that uses
+        // it: it inherits its parent's calcium and extends with `[["vitC", "20 mg"], ["fruit_allergen", 1]]`, and 20 mg of `vitC` is **21 units** on that
+        // vitamin's 938 μg scale.
+        if let Some(extend) = super::items::sub_object(object, "extend")
+            && extend.get("vitamins").is_some()
+        {
+            for (id, units) in super::vitamins::read_list(extend, vitamins)? {
+                value.vitamins.insert(id, units);
+            }
+        }
+        if let Some(delete) = super::items::sub_object(object, "delete")
+            && let Some(Value::Array(entries)) = delete.get("vitamins")
+        {
+            for entry in entries {
+                if let Value::Str(id) = entry {
+                    value.vitamins.remove(id);
+                }
+            }
+        }
+    }
+    if object.get("contamination").is_some() {
+        value.contamination = read_contamination(object);
+    }
+    if let Some(point) = object.get("freezing_point").and_then(super::items::numeric) {
+        #[allow(clippy::cast_possible_truncation)]
+        {
+            value.freezing_point = point as f32;
+        }
+    }
+    if let Some(material) = super::items::string(object, "primary_material") {
+        value.primary_material = material;
+    }
+    Ok(Some(value))
 }
 
 /// A numeric member as the reference's reader leaves it: a stated value, else the inherited one, then `relative` adds or `proportional` scales it.
@@ -162,6 +226,90 @@ fn adjusted_i64(object: &Object, member: &str, current: i64) -> i64 {
     }
 }
 
+/// `addiction_type`, in both forms the data uses: a list of ids, or a list of one-key objects naming an id and its weight.
+///
+/// Reference: `weighted_string_id_reader<addiction_id, int>` (`src/generic_factory.h:1430-1462`) with `default_addict_potential` as its default weight: an entry
+/// written as a bare string takes the item's potential, an entry written as `{"alcohol": 5}` takes **5**. Only 3 comestibles use the object form, and 113 use the
+/// bare string, so the fallback is the common path and the object form is the rare one.
+#[allow(clippy::cast_possible_truncation)]
+fn read_addictions(object: &Object, potential: i32) -> BTreeMap<String, i32> {
+    let mut out = BTreeMap::new();
+    // **A bare string is the common form** - 113 comestibles write `"addiction_type": "alcohol"` rather than a one-element array - and it means the item's own
+    // `addiction_potential`.
+    if let Some(Value::Str(id)) = object.get("addiction_type") {
+        out.insert(id.clone(), potential);
+        return out;
+    }
+    let Some(Value::Array(entries)) = object.get("addiction_type") else {
+        return out;
+    };
+    for entry in entries {
+        match entry {
+            Value::Str(id) => {
+                out.insert(id.clone(), potential);
+            }
+            // The object form names its members: `{"addiction": "alcohol", "potential": 5}`. The reference's weighted reader is shape-blind - the first string
+            // member is the id and the first number is the weight (`src/generic_factory.h:1437-1453`) - so a bare one-key object works too, and the port scans the
+            // same way rather than insisting on the names.
+            Value::Object(pair) => {
+                let mut id: Option<String> = None;
+                let mut weight = potential;
+                for (key, value) in pair.members() {
+                    match value {
+                        Value::Str(name) => id = Some(name.clone()),
+                        Value::Int(weight_value) => weight = i32::try_from(*weight_value).unwrap_or(potential),
+                        Value::Float(weight_value) => weight = *weight_value as i32,
+                        _ => id = Some(key.clone()),
+                    }
+                }
+                if let Some(id) = id {
+                    out.insert(id, weight);
+                }
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
+/// `contamination`: a list of `{"disease": ..., "probability": ...}` objects in every place the content uses it.
+///
+/// Reference: `weighted_string_id_reader<diseasetype_id, float>` with a default weight of **1.0** (`src/item_factory.cpp:3427-3428`), which the port keeps for an
+/// entry that names a disease without a probability.
+fn read_contamination(object: &Object) -> BTreeMap<String, f32> {
+    let mut out = BTreeMap::new();
+    let Some(Value::Array(entries)) = object.get("contamination") else {
+        return out;
+    };
+    for entry in entries {
+        let Value::Object(pair) = entry else {
+            continue;
+        };
+        let mut disease = None;
+        let mut probability = 1.0_f64;
+        for (key, value) in pair.members() {
+            match key.as_str() {
+                "disease" | "id" => {
+                    if let Value::Str(id) = value {
+                        disease = Some(id.clone());
+                    }
+                }
+                "probability" | "chance" => {
+                    if let Some(chance) = super::items::numeric(value) {
+                        probability = chance;
+                    }
+                }
+                _ => {}
+            }
+        }
+        if let Some(disease) = disease {
+            #[allow(clippy::cast_possible_truncation)]
+            out.insert(disease, probability as f32);
+        }
+    }
+    out
+}
+
 #[allow(clippy::cast_precision_loss)]
 fn block_value(object: &Object, block: &str, member: &str) -> Option<f64> {
     let inner = super::items::sub_object(object, block)?;
@@ -182,4 +330,28 @@ fn spoils_in(object: &Object) -> Option<i64> {
         Value::Str(text) => crate::constructions::parse_duration(text),
         _ => 0,
     })
+}
+
+/// Derives a prototype's vitamins from its materials when it states none, once the whole `copy-from` chain has been applied.
+///
+/// Reference: `item_factory.cpp:762-776`, which runs per **prototype** during finalisation. Two consequences the recording settled:
+///
+/// * the derivation sees the **raw** inherited slot, not a parent's derived one, so each prototype derives its own numbers;
+/// * it runs after `primary_material` has replaced the material list (`:463-467`), which is why `mead` - materials `["alcohol", "honey"]`, primary material
+///   `alcohol` - has no honey vitamins at all.
+pub(crate) fn finalise_vitamins(
+    item: &mut super::items::ItemType,
+    registries: &super::items::Registries<'_>,
+) {
+    if let Some(slot) = item.comestible.as_mut()
+        && slot.vitamins.is_empty()
+        && slot.healthy >= 0
+    {
+        slot.vitamins = super::vitamins::derived_from_materials(
+            &item.materials,
+            slot.healthy,
+            registries.vitamins,
+            registries.materials,
+        );
+    }
 }

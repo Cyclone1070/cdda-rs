@@ -546,7 +546,14 @@ Round 630 turned the same lens on ammunition. An effect list is a container too,
 and extends them. The reader was also asking the *object* whether it declares the AMMO subtype instead of asking the item,
 which loses the block entirely for a child that inherits its ammo slot; no such child exists in this content, so that half is
 pinned by a fixture. And the registry: tempting to refuse an effect it lacks, but the reference does not — `rock` lists four
-**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 636 closed the **comestible slot** — the first of P3's declared partials, which the ledger had been meeting by reading numbers out of a dump rather than porting the
+**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 637 finished the comestible slot: vitamins, addictions, contamination, the freezing point and the material list, 20 fields × 1,686 types. Four rules only the
+recording could settle — a vitamin amount written as a **mass** is read on that vitamin's own microgram scale (`20 mg` of vitC is **21 units**); a bare
+`addiction_type` string takes the item's own `addiction_potential`; a food that states no vitamins **derives them from its materials**, `max(healthy,1)*10` with each
+material's contribution ceiled separately; and a stated `primary_material` **replaces the material list**, which is why `mead` has no honey vitamins. Two ordering
+facts the gate caught: the derivation runs per prototype on the **raw** inherited slot, and `extend.vitamins` adds (`protein_shake`). `--dump-material-vitamins` became
+its own recording so a food disagreement can be traced to the material data first.
+
+Round 636 closed the **comestible slot** — the first of P3's declared partials, which the ledger had been meeting by reading numbers out of a dump rather than porting the
 loader. `ItemType::comestible` now carries 15 members, and the gate is 1,686 types × 15 fields against `--dump-comestibles`. It found three rules the JSON does not
 state: the slot **merges** on `copy-from` (`load_slot` reuses the parent's object), `proportional`/`relative` apply to every numeric member and are tried **instead of** a
 stated value with the proportional product truncated toward zero, and `calories` is multiplied by 1,000 only at finalisation — multiplying during the load double-counted
