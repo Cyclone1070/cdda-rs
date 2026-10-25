@@ -60,6 +60,7 @@ mod item_flags;
 mod faults;
 mod consume_drugs;
 mod firestarters;
+mod holsters;
 mod item_damage;
 mod link_ups;
 mod item_faults;

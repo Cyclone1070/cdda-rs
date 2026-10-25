@@ -516,7 +516,12 @@ set is `{ no_link, vehicle_port }` rather than empty, which shrinking fails on 1
 
 Round 623 added `firestarter`, all 42, for one line of C++ worth a gate: `moves_slow` falls back to **`moves * 10`**, computed
 from the fast cost *after* it is read — so `"moves": 50` alone means 500, not the member's 1,000. The member default is the
-obvious wrong guess, and it fails 7 of the 42. **Correction:** an earlier version of this line promised a "per-turn degradation
+obvious wrong guess, and it fails 7 of the 42.
+
+Round 624 added `holster`, all 76 — an actor with **no data at all** beyond two messages, because the pocket does the
+storing, and one behavioural line worth a gate: `can_holster` is `!active && can_contain`, so an **active item cannot go
+into a holster even when it fits**. That is the first place the port needed an item's `active` flag, and until it has
+one the rule takes it as an argument. **Correction:** an earlier version of this line promised a "per-turn degradation
 tick"; there is no such thing in the reference — `item::process_internal` does not degrade anything, and the only
 degradation is the one a hit adds and the one `rand_degradation` rolls at spawn.
 

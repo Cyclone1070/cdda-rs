@@ -22,6 +22,8 @@ pub enum UseAction {
     LinkUp(LinkUp),
     /// Lighting a fire.
     Firestarter(Firestarter),
+    /// A holder that stores one thing: its data is two messages, because the pocket does the storing.
+    Holster(Holster),
     /// Anything the port has not ported yet, kept by the name the data gives it — an actor's `"type"`, or a legacy string id.
     Other {
         /// The actor type, or the legacy id.
@@ -41,6 +43,7 @@ impl UseAction {
             Self::ConsumeDrug(drug) => &drug.action,
             Self::LinkUp(cable) => &cable.action,
             Self::Firestarter(fire) => &fire.action,
+            Self::Holster(holster) => &holster.action,
             Self::Other { kind } => kind,
         }
     }
@@ -431,6 +434,7 @@ pub fn read_actor(kind: &str, object: &Object) -> Result<Option<UseAction>, Load
         "consume_drug" => Ok(Some(UseAction::ConsumeDrug(ConsumeDrug::read(kind, object)?))),
         "link_up" => Ok(Some(UseAction::LinkUp(LinkUp::read(kind, object)?))),
         "firestarter" => Ok(Some(UseAction::Firestarter(Firestarter::read(kind, object)?))),
+        "holster" => Ok(Some(UseAction::Holster(Holster::read(kind, object)?))),
         _ => Ok(Some(UseAction::Other {
             kind: kind.to_owned(),
         })),
@@ -592,4 +596,55 @@ impl Firestarter {
             need_sunlight: matches!(object.get("need_sunlight"), Some(Value::Bool(true))),
         })
     }
+}
+
+/// The `holster` actor's data: two messages and nothing else.
+///
+/// Reference: `class holster_actor` (`src/iuse_actor.h:790-812`) and its `load` (`src/iuse_actor.cpp:2905-2909`). It carries **no storage data at all** — the pocket
+/// does the storing, which is why 45 of the 76 leave both messages empty. Its behaviour is one line: `can_holster` (`src/iuse_actor.cpp:2911-2914`) is
+/// `!obj.active && holster.can_contain( obj ).success()`, so a holster adds exactly one rule to the pockets: **an active item cannot go in even when it fits**.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Holster {
+    /// The actor's own type: `holster`.
+    pub action: String,
+    /// The prompt when choosing what to store, e.g. `"Stash ammo"`.
+    pub holster_prompt: String,
+    /// The message on storing, e.g. `"You stash your %s."`.
+    pub holster_msg: String,
+}
+
+impl Holster {
+    /// Reads the actor's data out of its JSON object.
+    ///
+    /// # Errors
+    ///
+    /// If a member is present with the wrong shape.
+    pub fn read(action: &str, object: &Object) -> Result<Self, LoadError> {
+        let translation = |key: &str| match object.get(key) {
+            Some(Value::Str(text)) => text.clone(),
+            Some(Value::Object(text)) => match text.get("str") {
+                Some(Value::Str(text)) => text.clone(),
+                _ => String::new(),
+            },
+            _ => String::new(),
+        };
+        Ok(Self {
+            action: action.to_owned(),
+            holster_prompt: translation("holster_prompt"),
+            holster_msg: translation("holster_msg"),
+        })
+    }
+}
+
+/// Whether something can go into a holster: it fits **and** it is not active.
+///
+/// Reference: `holster_actor::can_holster` (`src/iuse_actor.cpp:2911-2914`), one line:
+/// `return obj.active ? false : holster.can_contain( obj ).success();`. The order matters no further than that both must hold, but the *rule* does: a lit torch
+/// that fits a holster perfectly still cannot be put away, which is why the item's own [`crate::use_actions`]-independent bag check is not enough.
+///
+/// `fits` is the pocket check's answer — [`cdda_sim::check`] — passed in rather than performed here, because whether a pocket takes something is a question about
+/// the pocket and this function is only about the holster's extra condition.
+#[must_use]
+pub fn can_holster(active: bool, fits: bool) -> bool {
+    !active && fits
 }

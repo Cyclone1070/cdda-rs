@@ -88,3 +88,8 @@ needed, vitamins as a range, damage over time, and the item left behind. Keyed b
 
 `--dump-firestarters` writes all 42 `firestarter` actions. Its second field is derived rather than defaulted: `moves_slow` falls back to `moves * 10`, so
 `"moves": 50` alone means a slow cost of 500, not the member's 1,000.
+
+### `holsters.json` — the two messages, and nothing else
+
+`--dump-holsters` writes all 76 `holster` actions. The actor stores nothing — the pocket does — so its data is a prompt and a message; its behaviour is the one line
+that says an active item cannot be holstered even when it fits.
