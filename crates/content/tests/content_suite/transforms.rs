@@ -100,7 +100,7 @@ fn every_transform_an_item_declares_is_read_the_way_the_reference_reads_it() {
         };
         let found = item.use_actions.iter().any(|action| match action {
             UseAction::Transform(transform) => transform == case,
-            UseAction::ConsumeDrug(_) | UseAction::Other { .. } => false,
+            UseAction::ConsumeDrug(_) | UseAction::LinkUp(_) | UseAction::Other { .. } => false,
         });
         if !found {
             differing.push(format!(

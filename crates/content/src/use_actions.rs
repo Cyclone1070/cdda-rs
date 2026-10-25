@@ -18,6 +18,8 @@ pub enum UseAction {
     Transform(Transform),
     /// Taking the thing: effects, fields, stat changes, vitamins and the item left behind.
     ConsumeDrug(ConsumeDrug),
+    /// Plugging a cable into something.
+    LinkUp(LinkUp),
     /// Anything the port has not ported yet, kept by the name the data gives it — an actor's `"type"`, or a legacy string id.
     Other {
         /// The actor type, or the legacy id.
@@ -408,8 +410,127 @@ pub fn read_actor(kind: &str, object: &Object) -> Result<Option<UseAction>, Load
     match kind {
         "transform" | "delayed_transform" => Ok(Some(UseAction::Transform(Transform::read(kind, object)?))),
         "consume_drug" => Ok(Some(UseAction::ConsumeDrug(ConsumeDrug::read(kind, object)?))),
+        "link_up" => Ok(Some(UseAction::LinkUp(LinkUp::read(kind, object)?))),
         _ => Ok(Some(UseAction::Other {
             kind: kind.to_owned(),
         })),
     }
+}
+
+/// The `link_up` actor's data: what a cable can plug into, and what it loses on the way.
+///
+/// Reference: `class link_up_actor` (`src/iuse_actor.h:1160-1182`) and its `load` (`src/iuse_actor.cpp:4917-4925`). Two defaults carry behaviour rather than
+/// decoration: an **efficiency of 0.85**, so a cable that says nothing still loses a sixth of the power it carries, and a **move cost of 5**, so attaching one
+/// still costs a moment. A `cable_length` of **-1** means "as long as the item's own charge capacity", not "no cable".
+#[derive(Debug, Clone, PartialEq)]
+pub struct LinkUp {
+    /// The actor's own type: `link_up`.
+    pub action: String,
+    /// The longest cable this can be, or `-1` to use the item's own limits.
+    pub cable_length: i32,
+    /// How fast power moves, in watts.
+    pub charge_rate_watts: i64,
+    /// The chance to pass a charge each interval, out of one. **A float in the reference**, so it is one here too.
+    pub efficiency: f32,
+    /// Moves to attach the cable.
+    pub move_cost: i32,
+    /// The text shown in the activation menu.
+    pub menu_text: String,
+    /// The link states this cable may end in, by their names (`no_link`, `vehicle_port`, `ups`, …).
+    pub targets: std::collections::BTreeSet<String>,
+    /// Other cables that may be chained onto this one, by item type.
+    pub can_extend: std::collections::BTreeSet<String>,
+}
+
+impl LinkUp {
+    /// Reads the actor's data out of its JSON object.
+    ///
+    /// # Errors
+    ///
+    /// If a member is present with the wrong shape.
+    pub fn read(action: &str, object: &Object) -> Result<Self, LoadError> {
+        let strings = |key: &str| match object.get(key) {
+            Some(Value::Array(entries)) => entries
+                .iter()
+                .filter_map(|entry| match entry {
+                    Value::Str(entry) => Some(entry.clone()),
+                    _ => None,
+                })
+                .collect(),
+            _ => std::collections::BTreeSet::new(),
+        };
+        Ok(Self {
+            action: action.to_owned(),
+            cable_length: match object.get("cable_length") {
+                Some(Value::Int(length)) => i32::try_from(*length).unwrap_or(-1),
+                _ => -1,
+            },
+            charge_rate_watts: match object.get("charge_rate") {
+                // A power in the game's units ("1 kW", "35 W"), which is a **watt count** once the suffix is applied.
+                Some(Value::Str(rate)) => parse_watts(rate),
+                Some(Value::Int(watts)) => *watts,
+                _ => 0,
+            },
+            efficiency: match object.get("efficiency") {
+                Some(Value::Float(efficiency)) => {
+                    #[allow(clippy::cast_possible_truncation)]
+                    let efficiency = *efficiency as f32;
+                    efficiency
+                }
+                Some(Value::Int(efficiency)) => {
+                    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+                    let efficiency = *efficiency as f32;
+                    efficiency
+                }
+                // `float efficiency = 0.85f` is the actor's own default (`src/iuse_actor.h:1168`).
+                _ => 0.85,
+            },
+            move_cost: match object.get("move_cost") {
+                Some(Value::Int(cost)) => i32::try_from(*cost).unwrap_or(5),
+                _ => 5,
+            },
+            menu_text: match object.get("menu_text") {
+                Some(Value::Str(text)) => text.clone(),
+                Some(Value::Object(text)) => match text.get("str") {
+                    Some(Value::Str(text)) => text.clone(),
+                    _ => String::new(),
+                },
+                _ => String::new(),
+            },
+            // **The default target set is not empty**: `{ no_link, vehicle_port }` (`src/iuse_actor.h:1174`), so a cable that names none may still be plugged into
+            // a vehicle port. A set of ids, compared as a set because the reference orders by the **enum's** value and the port by name.
+            targets: if object.get("targets").is_some() {
+                strings("targets")
+            } else {
+                ["no_link", "vehicle_port"]
+                    .iter()
+                    .map(|state| (*state).to_owned())
+                    .collect()
+            },
+            can_extend: strings("can_extend"),
+        })
+    }
+}
+
+/// A power written in the game's units — `"1 kW"`, `"35 W"` — in watts.
+///
+/// Reference: `units::power`'s JSON reader, which takes a number and a unit and multiplies. The units the content uses are `W`, `kW` and `MW`; anything else is
+/// read as watts, because a rate with no unit is a rate in the base unit.
+#[must_use]
+pub fn parse_watts(text: &str) -> i64 {
+    let split = text
+        .find(|character: char| !(character.is_ascii_digit() || character == '.' || character == '-'))
+        .unwrap_or(text.len());
+    let (number, unit) = text.split_at(split);
+    let Ok(number) = number.trim().parse::<f64>() else {
+        return 0;
+    };
+    let multiplier = match unit.trim() {
+        "kW" | "kw" => 1_000.0,
+        "MW" | "mw" => 1_000_000.0,
+        _ => 1.0,
+    };
+    #[allow(clippy::cast_possible_truncation)]
+    let watts = (number * multiplier) as i64;
+    watts
 }

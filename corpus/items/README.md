@@ -78,3 +78,8 @@ it behind "found somewhere in the content".
 
 `--dump-consume-drugs` writes all 108 `consume_drug` actions resolved: effects with durations and body parts, fields produced, stat adjustments, charges and tools
 needed, vitamins as a range, damage over time, and the item left behind. Keyed by item type for the same reason the transforms are.
+
+### `link-ups.json` — what a cable plugs into
+
+`--dump-link-ups` writes all 108 `link_up` actions resolved. The defaults carry the behaviour: efficiency 0.85, move cost 5, and a target set that is
+`{ no_link, vehicle_port }` rather than empty.

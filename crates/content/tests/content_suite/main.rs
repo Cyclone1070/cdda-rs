@@ -60,6 +60,7 @@ mod item_flags;
 mod faults;
 mod consume_drugs;
 mod item_damage;
+mod link_ups;
 mod item_faults;
 mod item_length;
 mod item_pockets;

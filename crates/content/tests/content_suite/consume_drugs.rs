@@ -273,6 +273,9 @@ fn the_ported_actor_types_are_the_ones_the_content_uses() {
                 UseAction::ConsumeDrug(drug) => {
                     ported.insert(drug.action.as_str());
                 }
+                UseAction::LinkUp(cable) => {
+                    ported.insert(cable.action.as_str());
+                }
                 UseAction::Other { kind } => {
                     *others.entry(kind.clone()).or_default() += 1;
                 }

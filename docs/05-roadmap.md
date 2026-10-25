@@ -508,7 +508,11 @@ rather than dropped, so a type's list is never quietly short.
 Round 621 added the `consume_drug` actor, all **108** of them, and it found the kind of bug the actor family is going
 to keep finding: `vitamins` live in a `std::map`, so they come back **sorted by id**, and reading them in file order
 disagreed on 30 of the 108. The corpus also proves a declared gap honestly — `bp_null` everywhere, nothing permanent,
-no damage over time — by asserting those counts at **zero** rather than passing on them silently. **Correction:** an earlier version of this line promised a "per-turn degradation
+no damage over time — by asserting those counts at **zero** rather than passing on them silently.
+
+Round 622 added `link_up`, all **108**, where the **defaults are the behaviour**: 106 of the 108 never state an
+efficiency, so the actor's own 0.85 — losing a sixth of the power — is what every cable does, and the default target
+set is `{ no_link, vehicle_port }` rather than empty, which shrinking fails on 101 of 108. **Correction:** an earlier version of this line promised a "per-turn degradation
 tick"; there is no such thing in the reference — `item::process_internal` does not degrade anything, and the only
 degradation is the one a hit adds and the one `rand_degradation` rolls at spawn.
 
