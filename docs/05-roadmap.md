@@ -546,7 +546,12 @@ Round 630 turned the same lens on ammunition. An effect list is a container too,
 and extends them. The reader was also asking the *object* whether it declares the AMMO subtype instead of asking the item,
 which loses the block entirely for a child that inherits its ammo slot; no such child exists in this content, so that half is
 pinned by a fixture. And the registry: tempting to refuse an effect it lacks, but the reference does not — `rock` lists four
-**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 637 finished the comestible slot: vitamins, addictions, contamination, the freezing point and the material list, 20 fields × 1,686 types. Four rules only the
+**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 638 closed the last two members of the comestible slot: `contamination` — a **probability** map whose reader defaults to 1.0, so `water`'s 0.1 is one in ten
+(nine prototypes carry a disease) — and `rot_spawn`, which reads from the **defaults** rather than from the parent, so the egg abstract stating only `"chance": 0`
+carries no monster and its 133 children each restate theirs. Both are gated; `rot_spawn`'s `chance`/`amount` stay declared because the reference leaves them
+indeterminate for prototypes that state no `rot_spawn` at all, and `consumption_effect_on_conditions` has zero uses in the core content.
+
+Round 637 finished the comestible slot: vitamins, addictions, contamination, the freezing point and the material list, 20 fields × 1,686 types. Four rules only the
 recording could settle — a vitamin amount written as a **mass** is read on that vitamin's own microgram scale (`20 mg` of vitC is **21 units**); a bare
 `addiction_type` string takes the item's own `addiction_potential`; a food that states no vitamins **derives them from its materials**, `max(healthy,1)*10` with each
 material's contribution ceiled separately; and a stated `primary_material` **replaces the material list**, which is why `mead` has no honey vitamins. Two ordering

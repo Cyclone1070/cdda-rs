@@ -66,6 +66,71 @@ pub struct Comestible {
     pub freezing_point: f32,
     /// The material it is mostly made of, which **replaces** its material list. `"null"` when it has none.
     pub primary_material: String,
+    /// What crawls out of it when it rots away.
+    pub rot_spawn: RotSpawn,
+}
+
+/// What an item spawns when it rots: a monster or a monster group, how often, and how many.
+///
+/// Reference: `rot_spawn_data` (`src/itype.h:135-143`), loader `item.cpp:16200-16206`. Two things about it are worth stating:
+///
+/// * `monster` and `group` are **mutually exclusive**; the game draws one or the other (`src/map.cpp:8337-8338`).
+/// * a prototype that **states** `rot_spawn` gets every member read with `was_loaded = false`, so the unstated ones take their **defaults** rather than the
+///   parent's values. That is why the egg abstract, which states only `"chance": 0`, carries no monster at all and its children each restate theirs.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RotSpawn {
+    /// The monster that spawns. `"mon_null"` when it spawns a group instead.
+    pub monster: String,
+    /// The monster group that spawns. `"GROUP_NULL"` when it spawns a single monster.
+    pub group: String,
+    /// The chance out of 100 that anything spawns at all.
+    pub chance: f32,
+    /// How many, as an inclusive range.
+    pub amount: (i32, i32),
+}
+
+impl Default for RotSpawn {
+    fn default() -> Self {
+        Self {
+            monster: "mon_null".to_owned(),
+            group: "GROUP_NULL".to_owned(),
+            chance: 0.0,
+            amount: (1, 1),
+        }
+    }
+}
+
+impl RotSpawn {
+    /// Reads a stated `rot_spawn`, from the **defaults** rather than from the inherited value.
+    ///
+    /// # Errors
+    ///
+    /// If `chance` is not a number or `amount` is not a two-number array.
+    pub fn read(object: &Object) -> Result<Self, super::mapdata::LoadError> {
+        let mut value = Self::default();
+        value.monster = super::items::text_or(object, "monster", &value.monster);
+        value.group = super::items::text_or(object, "group", &value.group);
+        if let Some(number) = object.get("chance") {
+            value.chance = super::items::as_f32("rot_spawn.chance", number)?;
+        }
+        if let Some(number) = object.get("amount") {
+            let Value::Array(pair) = number else {
+                return Err(super::mapdata::LoadError {
+                    message: "rot_spawn.amount is a two-number array".to_owned(),
+                });
+            };
+            let [low, high] = pair.as_slice() else {
+                return Err(super::mapdata::LoadError {
+                    message: "rot_spawn.amount is a two-number array".to_owned(),
+                });
+            };
+            value.amount = (
+                super::items::as_i32("rot_spawn.amount", low)?,
+                super::items::as_i32("rot_spawn.amount", high)?,
+            );
+        }
+        Ok(value)
+    }
 }
 
 /// How many thousandths of a kilocalorie one unit of nutrition is worth: `base_metabolic_rate / ( 12 * 24 )` (`src/itype.h:132`, `:231`).
@@ -183,6 +248,11 @@ pub fn read(
             }
         }
     }
+    value.rot_spawn = match super::items::sub_object(object, "rot_spawn") {
+        Some(inner) => RotSpawn::read(inner)?,
+        None => inherited.map(|slot| slot.rot_spawn.clone()).unwrap_or_default(),
+    };
+
     if object.get("contamination").is_some() {
         value.contamination = read_contamination(object);
     }

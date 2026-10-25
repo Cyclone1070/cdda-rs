@@ -1888,6 +1888,37 @@ pub(crate) fn boolean(object: &Object, member: &str) -> Option<bool> {
     }
 }
 
+pub(crate) fn text_or(object: &Object, member: &str, fallback: &str) -> String {
+    match object.get(member) {
+        Some(Value::Str(value)) => value.clone(),
+        _ => fallback.to_owned(),
+    }
+}
+
+#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+pub(crate) fn as_f32(member: &str, value: &Value) -> Result<f32, crate::mapdata::LoadError> {
+    match value {
+        Value::Int(number) => Ok(*number as f32),
+        Value::Float(number) => Ok(*number as f32),
+        other => Err(crate::mapdata::LoadError {
+            message: format!("{member} is a number, not {other:?}"),
+        }),
+    }
+}
+
+#[allow(clippy::cast_possible_truncation)]
+pub(crate) fn as_i32(member: &str, value: &Value) -> Result<i32, crate::mapdata::LoadError> {
+    match value {
+        Value::Int(number) => i32::try_from(*number).map_err(|_| crate::mapdata::LoadError {
+            message: format!("{member} is out of range: {number}"),
+        }),
+        Value::Float(number) => Ok(*number as i32),
+        other => Err(crate::mapdata::LoadError {
+            message: format!("{member} is a number, not {other:?}"),
+        }),
+    }
+}
+
 pub(crate) fn sub_object<'a>(object: &'a Object, member: &str) -> Option<&'a Object> {
     match object.get(member) {
         Some(Value::Object(inner)) => Some(inner),

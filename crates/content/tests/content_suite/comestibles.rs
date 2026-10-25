@@ -27,6 +27,23 @@ fn recorded() -> Value {
     cdda_json::parse(&bytes).expect("valid json")
 }
 
+/// A `{ name: float }` member, at the **`float`** precision the reference stores: `%.6g` in the recording turns `0.1f` back into `0.1`, so comparing in `f64` would
+/// report a difference on every value that is not exact in binary.
+fn float_map<'a>(entry: &'a cdda_json::Object, key: &str) -> BTreeMap<&'a str, f32> {
+    match entry.get(key) {
+        Some(Value::Object(map)) => map
+            .members()
+            .iter()
+            .map(|(name, value)| match value {
+                Value::Int(number) => (name.as_str(), *number as f32),
+                Value::Float(number) => (name.as_str(), *number as f32),
+                other => panic!("{name}: {other:?}"),
+            })
+            .collect(),
+        other => panic!("{key}: {other:?}"),
+    }
+}
+
 fn int_map<'a>(entry: &'a cdda_json::Object, key: &str) -> BTreeMap<&'a str, i32> {
     match entry.get(key) {
         Some(Value::Object(map)) => map
@@ -69,11 +86,18 @@ fn every_comestible_has_the_slot_the_reference_has() {
         Some(Value::Str(value)) => value.clone(),
         other => panic!("{key}: {other:?}"),
     };
+    // `"outer": { "inner": "text" }`, which `rot_spawn` is.
+    let inner_text = |entry: &cdda_json::Object, outer: &str, inner: &str| match entry.get(outer) {
+        Some(Value::Object(object)) => text(object, inner),
+        other => panic!("{outer}: {other:?}"),
+    };
 
     let mut differing: Vec<String> = Vec::new();
     let mut per_field: BTreeMap<String, usize> = BTreeMap::new();
     let mut with_calories = 0;
     let mut with_spoilage = 0;
+    let mut with_contamination = 0;
+    let mut with_rot_spawn = 0;
     for entry in types {
         let Value::Object(entry) = entry else {
             panic!("a type")
@@ -157,6 +181,36 @@ fn every_comestible_has_the_slot_the_reference_has() {
                 "{id}.materials: the port says {ours_materials:?}, the reference says {theirs_materials:?}"
             ));
         }
+        // `contamination`: the reference's weighted reader with a **1.0 default** (`src/item_factory.cpp:3427-3428`), so the weight is a probability, not a count.
+        let ours_contamination: BTreeMap<&str, f32> = slot
+            .contamination
+            .iter()
+            .map(|(disease, probability)| (disease.as_str(), *probability))
+            .collect();
+        let theirs_contamination = float_map(entry, "contamination");
+        if ours_contamination != theirs_contamination {
+            *per_field.entry("contamination".to_owned()).or_default() += 1;
+            differing.push(format!(
+                "{id}.contamination: the port says {ours_contamination:?}, the reference says {theirs_contamination:?}"
+            ));
+        }
+        // `rot_spawn`: what crawls out of the item when it rots away (`src/itype.h:135-143`, loader `src/item.cpp:16200-16206`).
+        if !slot.contamination.is_empty() {
+            with_contamination += 1;
+        }
+        let ours = (&slot.rot_spawn.monster, &slot.rot_spawn.group);
+        if !slot.rot_spawn.monster.is_empty()
+            && (slot.rot_spawn.monster != "mon_null" || slot.rot_spawn.group != "GROUP_NULL")
+        {
+            with_rot_spawn += 1;
+        }
+        let theirs = (inner_text(entry, "rot_spawn", "monster"), inner_text(entry, "rot_spawn", "group"));
+        if ours.0 != &theirs.0 || ours.1 != &theirs.1 {
+            *per_field.entry("rot_spawn".to_owned()).or_default() += 1;
+            differing.push(format!(
+                "{id}.rot_spawn: the port says {ours:?}, the reference says {theirs:?}"
+            ));
+        }
         let ours = slot.nutr().to_string();
         let theirs = number(entry, "nutr").to_string();
         if ours != theirs {
@@ -164,9 +218,12 @@ fn every_comestible_has_the_slot_the_reference_has() {
             differing.push(format!("{id}.nutr: the port says {ours}, the reference says {theirs}"));
         }
     }
-    // **Non-vacuity**: a loader that left every field at its default would still have 1,686 slots and would pass an empty corpus check.
+    // **Non-vacuity**: a loader that left every field at its default would still have 1,686 slots and would pass an empty corpus check. The counts are what the
+    // recording holds, so a corpus that quietly shrank fails here rather than passing on fewer comparisons.
     assert!(with_calories > 700, "the corpus carries real nutrition: {with_calories}");
     assert!(with_spoilage > 500, "and real spoilage times: {with_spoilage}");
+    assert_eq!(with_contamination, 9, "nine prototypes carry a disease");
+    assert_eq!(with_rot_spawn, 133, "a hundred and thirty-three spawn something when they rot");
     for (field, count) in &per_field {
         let examples: Vec<&String> = differing.iter().filter(|line| line.split('.').nth(1).is_some_and(|rest| rest.starts_with(&format!("{field}:")))).take(4).collect();
         eprintln!("{field}: {count} differ, e.g. {examples:#?}");
