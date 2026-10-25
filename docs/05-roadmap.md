@@ -525,7 +525,11 @@ one the rule takes it as an argument.
 
 Round 625 added two actors that put something into the world: `deploy_furn` (39, one mandatory member the reference
 refuses to default) and `place_trap` (28, with **two halves at two levels** — the unburied half reads the actor's own
-object, the buried half reads a nested `"bury"` object and only when there is a `bury_question` to ask). **Correction:** an earlier version of this line promised a "per-turn degradation
+object, the buried half reads a nested `"bury"` object and only when there is a `bury_question` to ask).
+
+Round 626 closed a hole the port had been living with: `delayed_transform` was being read as a plain `transform`, so 28 actions lost their age and
+their not-ready message while the gate stayed green, because it only asserted the fields a `transform` has. The recording now writes the derived class's
+members too, and the gate compares the whole actor. **Correction:** an earlier version of this line promised a "per-turn degradation
 tick"; there is no such thing in the reference — `item::process_internal` does not degrade anything, and the only
 degradation is the one a hit adds and the one `rand_degradation` rolls at spawn.
 

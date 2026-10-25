@@ -100,6 +100,11 @@ pub struct Transform {
     pub need_charges: i32,
     /// The charges to choose from at random, which the reference refuses to combine with a fixed count.
     pub rand_target_charges: Vec<i32>,
+    /// `delayed_transform`'s minimum age for the item, **in turns**; zero for a plain transform
+    /// (`src/iuse_actor.h:291-311`, `src/iuse_actor.cpp:992-997`).
+    pub transform_age: i32,
+    /// `delayed_transform`'s message when the item is too young, or empty for a plain transform.
+    pub not_ready_msg: String,
 }
 
 impl Transform {
@@ -159,6 +164,25 @@ impl Transform {
             need_fire: whole("need_fire", 0),
             need_charges: whole("need_charges", 0),
             rand_target_charges,
+            // **Only `delayed_transform` reads these two.** `delayed_transform_iuse::load` calls the parent's loader first and then takes `not_ready_msg` and
+            // `transform_age` (`src/iuse_actor.cpp:992-997`); a plain `transform` that states them is ignored by the reference, so the port ignores them too.
+            transform_age: if action == "delayed_transform" {
+                whole("transform_age", 0)
+            } else {
+                0
+            },
+            not_ready_msg: if action == "delayed_transform" {
+                match object.get("not_ready_msg") {
+                    Some(Value::Str(text)) => text.clone(),
+                    Some(Value::Object(text)) => match text.get("str") {
+                        Some(Value::Str(text)) => text.clone(),
+                        _ => String::new(),
+                    },
+                    _ => String::new(),
+                }
+            } else {
+                String::new()
+            },
         })
     }
 }

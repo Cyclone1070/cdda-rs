@@ -66,6 +66,8 @@ fn dump() -> BTreeMap<String, Transform> {
                 need_fire: whole("need_fire"),
                 need_charges: whole("need_charges"),
                 rand_target_charges: charges,
+                transform_age: whole("transform_age"),
+                not_ready_msg: text("not_ready_msg"),
             };
             out.insert(text("id"), transform);
         }
@@ -91,6 +93,8 @@ fn every_transform_an_item_declares_is_read_the_way_the_reference_reads_it() {
     let mut with_timer = 0;
     let mut with_container = 0;
     let mut with_conditions = 0;
+    let mut with_age = 0;
+    let mut with_message = 0;
     let mut differing: Vec<String> = Vec::new();
     for (id, case) in &recorded {
         // **Per type, not "somewhere in the content".** The recording is keyed by the item type, so a transform that landed on the wrong type is a disagreement.
@@ -120,6 +124,12 @@ fn every_transform_an_item_declares_is_read_the_way_the_reference_reads_it() {
         if case.need_charges > 0 || case.need_fire > 0 || case.need_worn || case.need_wielding {
             with_conditions += 1;
         }
+        if case.transform_age > 0 {
+            with_age += 1;
+        }
+        if !case.not_ready_msg.is_empty() {
+            with_message += 1;
+        }
     }
     assert!(delayed > 20, "delayed_transform has to be exercised: {delayed}");
     assert!(with_timer > 20, "and so does the timer: {with_timer}");
@@ -127,6 +137,13 @@ fn every_transform_an_item_declares_is_read_the_way_the_reference_reads_it() {
     assert!(
         with_conditions > 20,
         "and the conditions that gate a transformation: {with_conditions}"
+    );
+    // **`delayed_transform`'s own two fields**, which a reader that treated it as a plain `transform` would drop without a word: 28 actions have both.
+    assert!(with_age > 20, "the age that a delayed transform waits for: {with_age}");
+    assert!(with_message > 20, "and its not-ready message: {with_message}");
+    assert_eq!(
+        with_age, with_message,
+        "every delayed transform has both an age and a message, so the two counts have to agree"
     );
     assert!(
         differing.is_empty(),
