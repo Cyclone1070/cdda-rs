@@ -209,6 +209,10 @@ fn every_comestible_moves_the_body_the_way_the_reference_says() {
                 foodless: false,
                 no_thirst: false,
                 mycus: false,
+                // The recording's avatar: 175 cm and a lean size of one. This gate does not compare the hunger effect — `hunger_effect.rs` does, over its own grid
+                // with six body-fat levels — so the figures only have to be sane, but they are the recorded avatar's rather than invented.
+                height_cm: 175,
+                organic_size: 1.0,
             };
             body.update_stomach(&profile.rates, &inputs, &vitamins);
 

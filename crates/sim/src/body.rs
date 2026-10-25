@@ -37,6 +37,8 @@ pub struct Body {
     pub stored_calories: i64,
     /// The vitamin levels the body holds, in internal units.
     pub vitamins: BTreeMap<String, i32>,
+    /// The hunger effect it wears, if any: exactly **one** of [`HUNGER_EFFECTS`] at a time, because the rule that installs one removes all nine first.
+    pub hunger_effect: Option<String>,
     /// The stomach.
     pub stomach: StomachContents,
     /// The guts.
@@ -66,10 +68,172 @@ pub struct BodyInputs {
     pub no_thirst: bool,
     /// `M_DEPENDENT`, the mycus: thirst is not a thing it has.
     pub mycus: bool,
+    /// The character's height, which is half of the body-fat figure the hunger-effect ladder reads.
+    pub height_cm: i64,
+    /// The character's lean size, the other half of it (`get_cached_organic_size`, normally one).
+    pub organic_size: f32,
 }
 
 /// Ten minutes in turns, the line between "just ate" and "settled".
 pub const TEN_MINUTES: i64 = 10 * 60;
+
+/// Fifteen minutes in turns, the line between "I ate just now" and "I ate a while ago" — a **different** line from `TEN_MINUTES`, and the two ladders in
+/// `update_stomach` use different ones.
+pub const FIFTEEN_MINUTES: i64 = 15 * 60;
+
+/// Three hours in turns: a meal recent enough that another one is not wanted (`src/character_body.cpp:1028`).
+pub const THREE_HOURS: i64 = 3 * 60 * 60;
+
+/// The body-fat cumulative density figure, `KCAL_PER_KG` (`src/character.h:123`): 3,500 kilocalories to a pound of fat, in kilograms.
+pub const KCAL_PER_KG: f32 = 3500.0 * 2.20462;
+
+/// The lower bounds of the body-fat classes (`src/game_constants.h:170-179`).
+///
+/// These are **not** the textbook BMI: they are the bounds on the fat a body carries on top of its lean mass, which is why "normal" starts at 3.
+pub mod weight_category {
+    /// Emaciated.
+    pub const EMACIATED: f32 = 1.0;
+    /// Underweight.
+    pub const UNDERWEIGHT: f32 = 2.0;
+    /// Normal.
+    pub const NORMAL: f32 = 3.0;
+    /// Overweight.
+    pub const OVERWEIGHT: f32 = 5.0;
+    /// Obese.
+    pub const OBESE: f32 = 10.0;
+    /// Very obese.
+    pub const VERY_OBESE: f32 = 15.0;
+    /// Morbidly obese.
+    pub const MORBIDLY_OBESE: f32 = 20.0;
+}
+
+/// The eight hunger effects the rule can install, and the blank one it can also install: `src/character_body.cpp:1083-1092`.
+///
+/// The order matters: the block that installs one **removes all eight first**, so a character can only ever hold one of them.
+pub const HUNGER_EFFECTS: [&str; 9] = [
+    "hunger_engorged",
+    "hunger_full",
+    "hunger_satisfied",
+    "hunger_hungry",
+    "hunger_very_hungry",
+    "hunger_near_starving",
+    "hunger_starving",
+    "hunger_famished",
+    "hunger_blank",
+];
+
+/// How much of the body is fat: `Character::get_bmi_fat` (`src/character.cpp:6356-6360`).
+///
+/// The stored calories are divided by the energy a kilogram of fat holds, and that is divided by the body's square-of-height times its lean size. The reference does
+/// the whole thing in `float`, and the value is compared against the class bounds, so the type matters at a boundary.
+#[allow(clippy::cast_precision_loss)]
+#[must_use]
+pub fn bmi_fat(stored_kcal: i64, height_cm: i64, organic_size: f32) -> f32 {
+    let height_metres = height_cm as f32 / 100.0;
+    (stored_kcal as f32 / KCAL_PER_KG) / (height_metres * height_metres * organic_size)
+}
+
+/// Whether the body is running on its own fat: `has_calorie_deficit` (`src/character.cpp:6362-6365`), which is simply "below normal".
+#[must_use]
+pub fn has_calorie_deficit(bmi: f32) -> bool {
+    bmi < weight_category::NORMAL
+}
+
+/// Whether another bite would burst the stomach: `stomach_contents::would_be_engorged_with` (`src/stomach.cpp:373-378`).
+///
+/// The threshold is **not one number**: a body in deficit counts a stomach at full capacity as engorged, while a body that is not waits until five sixths.
+///
+/// **The fullness ratio is an integer division.** `units::volume / units::volume` answers the underlying `int64` (`src/units.h:253-257`), so the ratio is 0 for
+/// anything short of the capacity and 1 at it — which means five sixths, three quarters and eleven twentieths are all the same test in practice: "at least full".
+/// The hit-terms-flat shape is kept here because that is what the reference does.
+#[allow(clippy::cast_precision_loss)]
+#[must_use]
+pub fn would_be_engorged_with(contains_ml: i64, intake_ml: i64, capacity_ml: i64, deficit: bool) -> bool {
+    if capacity_ml <= 0 {
+        return false;
+    }
+    let fullness = ((contains_ml + intake_ml) / capacity_ml) as f64;
+    (deficit && fullness >= 1.0) || fullness >= 5.0 / 6.0
+}
+
+/// Whether another bite would make the stomach full: `stomach_contents::would_be_full_with` (`src/stomach.cpp:380-385`), and again the threshold depends on the deficit.
+#[allow(clippy::cast_precision_loss)]
+#[must_use]
+pub fn would_be_full_with(contains_ml: i64, intake_ml: i64, capacity_ml: i64, deficit: bool) -> bool {
+    if capacity_ml <= 0 {
+        return false;
+    }
+    let fullness = ((contains_ml + intake_ml) / capacity_ml) as f64;
+    (deficit && fullness >= 11.0 / 20.0) || fullness >= 3.0 / 4.0
+}
+
+/// Which hunger effect a body ends up wearing: `src/character_body.cpp:1019-1099`.
+///
+/// Because the fullness ratio truncates, **`hunger_full` can never be chosen**: engorged is tested first and both fire at the same ratio — at or over capacity. The
+/// recording of 126 states never once produced it, and `hunger_starving` is equally unreachable, because the reference tests `emaciated` (1.0) *after* `underweight`
+/// (2.0). Two dead rungs of a nine-rung ladder, kept here in the reference's order so the port cannot quietly "fix" them.
+///
+/// **Two ladders, and they are not the same ladder.** A body whose last bite is more than ten minutes old is judged against the stomach's capacity in eighths and
+/// halves, and its bottom rung is read off the body fat — starving, near starving, famished. A body that has **just** eaten is judged in quarters and cools to `blank`
+/// as soon as its calories are topped up, and its bottom rung depends only on whether it is overweight. Everything above those two lines is identical: engorged, then
+/// full.
+#[must_use]
+pub fn choose_hunger_effect(
+    contains_ml: i64,
+    capacity_ml: i64,
+    time_since_ate: i64,
+    bmi: f32,
+    guts_kcal: i64,
+) -> &'static str {
+    let deficit = has_calorie_deficit(bmi);
+    // The time lines are the reference's: fifteen minutes to have "just eaten", three hours to have eaten recently enough that no meal is wanted.
+    let just_ate = time_since_ate < FIFTEEN_MINUTES;
+    let recently_ate = time_since_ate < THREE_HOURS;
+    let _ = guts_kcal;
+
+    if deficit {
+        if would_be_engorged_with(contains_ml, 0, capacity_ml, deficit) {
+            return "hunger_engorged";
+        }
+        if would_be_full_with(contains_ml, 0, capacity_ml, deficit) {
+            return "hunger_full";
+        }
+        if just_ate && contains_ml > capacity_ml / 2 {
+            return "hunger_satisfied";
+        }
+        if just_ate {
+            return "hunger_hungry";
+        }
+        if recently_ate {
+            return "hunger_very_hungry";
+        }
+        if bmi < weight_category::UNDERWEIGHT {
+            return "hunger_near_starving";
+        }
+        // The reference tests `emaciated` (1.0) *after* `underweight` (2.0), so this rung can never be reached: every body that is emaciated is already underweight.
+        if bmi < weight_category::EMACIATED {
+            return "hunger_starving";
+        }
+        return "hunger_famished";
+    }
+
+    if would_be_engorged_with(contains_ml, 0, capacity_ml, deficit) {
+        return "hunger_engorged";
+    }
+    if would_be_full_with(contains_ml, 0, capacity_ml, deficit) {
+        return "hunger_full";
+    }
+    if recently_ate && contains_ml >= capacity_ml * 3 / 8 {
+        return "hunger_satisfied";
+    }
+    if recently_ate || contains_ml > 0 {
+        return "hunger_blank";
+    }
+    if bmi > weight_category::OVERWEIGHT {
+        return "hunger_hungry";
+    }
+    "hunger_very_hungry"
+}
 
 impl Body {
     /// A body with a stomach and a set of guts of the given capacity, and nothing else.
@@ -249,6 +413,22 @@ impl Body {
         // "Mycus and Metabolic Rehydration makes thirst unnecessary."
         if inputs.mycus || inputs.no_thirst {
             self.set_thirst(0);
+        }
+
+        // And finally the effect that says how the character feels about it. The body fat is read **after** the calories moved, which is why the height and the lean size
+        // come in as inputs rather than as a figure: a character can cross a weight class in a single call.
+        let bmi = bmi_fat(self.stored_kcal(), inputs.height_cm, inputs.organic_size);
+        let chosen = choose_hunger_effect(
+            self.stomach.contains_ml(),
+            stomach_capacity,
+            inputs.time_since_ate,
+            bmi,
+            self.guts.kcal(),
+        );
+        // "If they do not already have the effect they should, take all of them away and give them this one." A character already wearing the right one keeps its
+        // remaining duration instead of having it refreshed.
+        if self.hunger_effect.as_deref() != Some(chosen) {
+            self.hunger_effect = Some(chosen.to_owned());
         }
     }
 

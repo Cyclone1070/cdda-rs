@@ -77,6 +77,7 @@ mod ground_items;
 mod harvest_damage;
 mod harvest_yield;
 mod hot_air;
+mod hunger_effect;
 mod incendiary;
 mod inventory;
 mod item_burn;

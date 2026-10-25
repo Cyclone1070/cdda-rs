@@ -546,7 +546,14 @@ Round 630 turned the same lens on ammunition. An effect list is a container too,
 and extends them. The reader was also asking the *object* whether it declares the AMMO subtype instead of asking the item,
 which loses the block entirely for a child that inherits its ammo slot; no such child exists in this content, so that half is
 pinned by a fixture. And the registry: tempting to refuse an effect it lacks, but the reference does not — `rock` lists four
-**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 645 removed the last recorded inputs from the food clock: `--dump-needs` records the four functions the rates are built from — starvation, the metabolic
+**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 646 closed `update_stomach`: the hunger-effect ladder now has a port, gated over 126 states (seven fillings × three ages of the last bite × six body-fat levels),
+and with it the meal pipeline is complete from raw data to the effect a character wears. The recording caught two things reading had missed: **the fullness ratio is an
+integer division**, so five sixths, three quarters and eleven twentieths are all the same test, and a float ratio fails the gate; and because of that — plus the
+reference testing `emaciated` after `underweight` — **two of the nine hunger effects are unreachable code**, which the port keeps in the reference's order and asserts
+stay unreachable. Next: the effects system itself (`add_effect`, durations, body parts), which the hunger effect, sleep, allergies and the vitamin deficiency rules all
+need.
+
+Round 645 removed the last recorded inputs from the food clock: `--dump-needs` records the four functions the rates are built from — starvation, the metabolic
 multiplier, the basal rate and the activity-scaled burn — each called **separately** over 72 character states, so a disagreement names the function. What the grid
 settled: `set_hunger` caps hunger at **300**, so a case asking for 600 is a character at 300 with a multiplier of exactly 1; the activity level rounds **up**; and
 every term of the Harris-Benedict equation truncates. Bodyweight is recorded per case because starving changes it (1,738 → 1,631). With the rates now computed

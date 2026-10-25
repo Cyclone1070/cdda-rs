@@ -345,8 +345,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-26 09:08:35
-@@ -0,0 +1,5176 @@
++++ oracle/src/src/harness.cpp	2026-10-26 09:55:32
+@@ -0,0 +1,5270 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +
@@ -2429,6 +2429,100 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +                              static_cast<double>( rates.kcal ), static_cast<double>( rates.hunger ),
 +                              static_cast<double>( rates.thirst ), static_cast<double>( rates.sleepiness ),
 +                              static_cast<double>( rates.recovery ) );
++                first = false;
++            }
++        }
++    }
++    std::fprintf( out, "\n],\"count\":%d}\n", count );
++    std::fclose( out );
++}
++
++/// The last thing `update_stomach` does: pick the hunger **effect** and install it.
++///
++/// Reference: `src/character_body.cpp:1019-1100`. The rule is a ladder of volume comparisons against the stomach's capacity, and it has **two** ladders — one for a
++/// character whose last bite is over ten minutes old, one for one who has just eaten — and each ladder's bottom rung depends on the character's body fat, because a
++/// starving body reads an empty stomach as famished and a fat one merely hungry.
++///
++/// `would_be_engorged_with` and `would_be_full_with` (`src/stomach.cpp:373-385`) are the volume halves of the ladder: both take the emptiness of the guts into account
++/// through `calorie_deficit`, and the thresholds are **different** for a body in deficit (`1.0` and `11/20` of capacity) than for one that is not (`5/6` and `3/4`).
++///
++/// The grid is every rung: seven fillings of a 250 mL stomach from empty to full, three ages of the last bite either side of the ten-minute and three-hour lines, and
++/// six body-fat levels from emaciated to obese. No digestion happens — the update is called with a one-turn span, which is zero five-minute ticks — so the stomach
++/// holds exactly what the case put in it.
++void dump_hunger_effect( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    static const std::array<double, 7> fillings = {{
++            0.0, 1.0 / 8, 3.0 / 8, 0.5, 0.75, 5.0 / 6, 1.0
++        }};
++    static const std::array<int, 3> ages_minutes = {{ 0, 20, 200 }};
++    static const std::array<double, 6> body_fat = {{ 0.5, 1.5, 2.5, 4.0, 7.0, 12.0 }};
++    const units::volume capacity = 250_ml;
++
++    avatar &u = get_avatar();
++    const double height_metres = u.height() / 100.0;
++    const double organic_size = u.get_cached_organic_size();
++    // The stored calories a body fat of `bmi` needs: `get_bmi_fat` (`src/character.cpp:6356-6360`) rearranged.
++    const auto stored_kcal_for = [&]( double bmi ) {
++        return static_cast<int>( std::lround( bmi * KCAL_PER_KG * height_metres * height_metres * organic_size ) );
++    };
++
++    std::fprintf( out,
++                  "{\"harness\":\"hunger-effect\",\"version\":1,\"height_cm\":%d,\"organic_size\":%.17g,"
++                  "\"capacity_ml\":%lld,\n\"cases\":[\n",
++                  u.height(), organic_size,
++                  static_cast<long long>( units::to_milliliter( capacity ) ) );
++
++    bool first = true;
++    int count = 0;
++    for( const double filling : fillings ) {
++        for( const int minutes : ages_minutes ) {
++            for( const double bmi : body_fat ) {
++                // The clock is placed so that `time_since_ate()` comes out as the case wants it.
++                const time_point now = calendar::turn_zero + 1_hours;
++                calendar::turn = now - time_duration::from_minutes( minutes );
++                u.stomach = stomach_contents( capacity, true );
++                u.guts = stomach_contents( capacity, false );
++                u.set_stored_kcal( stored_kcal_for( bmi ) );
++                for( const std::pair<const vitamin_id, vitamin> &entry : vitamin::all() ) {
++                    u.vitamin_set( entry.first, 0 );
++                }
++                const int solids = static_cast<int>( std::llround( units::to_milliliter( capacity ) * filling ) );
++                u.stomach.ingest( food_summary{ 0_ml, units::from_milliliter( solids ),
++                                                nutrients{} } );
++                calendar::turn = now;
++
++                const bool deficit = u.has_calorie_deficit();
++                const bool engorged = u.stomach.would_be_engorged_with( u, 0_ml, deficit );
++                const bool full = u.stomach.would_be_full_with( u, 0_ml, deficit );
++                u.update_stomach( now, now + 1_turns );
++
++                // Which of the eight the character now has.
++                std::string effect = "none";
++                for( const std::string &candidate : {
++                         "hunger_engorged", "hunger_full", "hunger_satisfied", "hunger_hungry",
++                         "hunger_very_hungry", "hunger_near_starving", "hunger_starving",
++                         "hunger_famished", "hunger_blank"
++                     } ) {
++                    if( u.has_effect( efftype_id( candidate ) ) ) {
++                        effect = candidate;
++                        break;
++                    }
++                }
++                ++count;
++                std::fprintf( out,
++                              "%s{\"filling\":%.17g,\"minutes_since_ate\":%d,\"stored_kcal\":%d,"
++                              "\"bmi_fat\":%.17g,\"calorie_deficit\":%s,\"engorged\":%s,\"full\":%s,"
++                              "\"contains_ml\":%lld,\"guts_kcal\":%d,\"effect\":\"%s\"}",
++                              first ? "" : ",\n", filling, minutes, u.get_stored_kcal(),
++                              u.get_bmi_fat(), deficit ? "true" : "false", engorged ? "true" : "false",
++                              full ? "true" : "false",
++                              static_cast<long long>( units::to_milliliter( u.stomach.contains() ) ),
++                              u.guts.get_calories(), effect.c_str() );
 +                first = false;
 +            }
 +        }
@@ -5525,8 +5619,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-26 08:25:40
-@@ -0,0 +1,357 @@
++++ oracle/src/src/harness.h	2026-10-26 09:55:32
+@@ -0,0 +1,360 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -5719,6 +5813,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +
 +/** Writes every `consume_drug` use action, resolved. */
 +void dump_consume_drugs( const std::string &path );
++
++/** Writes which hunger effect `update_stomach` installs, as `--dump-hunger-effect`. */
++void dump_hunger_effect( const std::string &path );
 +
 +/** Writes the arithmetic behind the metabolic rates, as `--dump-needs`. */
 +void dump_needs( const std::string &path );
@@ -6058,7 +6155,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-26 08:25:40
++++ oracle/src/src/main.cpp	2026-10-26 09:55:32
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -6069,7 +6166,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,130 @@
+@@ -272,6 +275,131 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -6147,6 +6244,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_digest;
 +    std::string dump_update_stomach;
 +    std::string dump_needs;
++    std::string dump_hunger_effect;
 +    std::string dump_consume_drugs;
 +    std::string dump_link_ups;
 +    std::string dump_firestarters;
@@ -6200,7 +6298,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +427,1120 @@
+@@ -300,6 +428,1130 @@
                  }
              },
              {
@@ -6591,6 +6689,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_consume_drugs = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-hunger-effect", "<file>",
++                "Writes which hunger effect update_stomach installs",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_hunger_effect = params[0];
 +                    return 1;
 +                }
 +            },
@@ -7321,7 +7429,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2027,592 @@
+@@ -786,6 +2038,598 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -7745,6 +7853,12 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            test_mode = true;
 +            g->check_mod_data( { mod_id( "dda" ) } );
 +            harness::dump_consume_drugs( cli.dump_consume_drugs );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_hunger_effect.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_hunger_effect( cli.dump_hunger_effect );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_needs.empty() ) {
