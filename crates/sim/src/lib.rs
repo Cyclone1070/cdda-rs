@@ -7157,6 +7157,74 @@ impl ItemDamage {
     }
 }
 
+/// Which fault an item catches when it takes damage, or `None` when it can catch none.
+///
+/// Reference: `item::set_random_fault_of_type` (`src/item.cpp:7848-7865`). The list is rebuilt from the **type's** weighted faults, keeping only those of the
+/// requested kind that the item can still have ([`can_have_fault`]); the pick then goes through `weighted_int_list::pick` (`src/weighted_list.h:120-129`,
+/// `247-267`), which is `rng_bits()` and not `rng( lo, hi )` — a raw 32-bit draw, reduced modulo the total weight and then walked from the front. A list with one
+/// entry in it returns that entry **without touching a die at all** (`if( objects.size() == 1 ) return 0;`), which is the sort of thing a recording notices.
+///
+/// `kinds` answers a fault's `fault_type`, and `blocks` answers which faults one of the item's existing faults prevents — both are content, so both are passed in.
+#[must_use]
+pub fn pick_fault(
+    faults: &[(String, i32)],
+    existing: &BTreeSet<String>,
+    fault_type: &str,
+    kinds: impl Fn(&str) -> Option<String>,
+    blocks: impl Fn(&str) -> BTreeSet<String>,
+    rolls: &mut Rolls,
+) -> Option<String> {
+    let blocked: BTreeSet<String> = existing
+        .iter()
+        .flat_map(|fault| blocks(fault))
+        .collect();
+    let candidates: Vec<&(String, i32)> = faults
+        .iter()
+        .filter(|(id, weight)| {
+            *weight > 0
+                && kinds(id).is_some_and(|kind| kind == fault_type)
+                && !blocked.contains(id)
+                && !existing.contains(id)
+        })
+        .collect();
+    let total: i32 = candidates.iter().map(|(_, weight)| *weight).sum();
+    if candidates.is_empty() || total <= 0 {
+        return None;
+    }
+    if candidates.len() == 1 {
+        return candidates.first().map(|(id, _)| id.clone());
+    }
+    let raw = rolls.rng_bits();
+    let picked = raw % u32::try_from(total).unwrap_or(u32::MAX) + 1;
+    let mut accumulated: u32 = 0;
+    for (id, weight) in candidates {
+        accumulated = accumulated.saturating_add(u32::try_from(*weight).unwrap_or(0));
+        if accumulated >= picked {
+            return Some(id.clone());
+        }
+    }
+    None
+}
+
+/// Whether an item can still take a fault: the type must rate it above zero and no fault the item already has may block it.
+///
+/// Reference: `item::can_have_fault` (`src/item.cpp:7809-7826`). The block rule is **one-directional** — a broken handle prevents chipping, but having chipping does
+/// not prevent being broken — and a fault already present is not filtered here; [`pick_fault`] excludes those, because the reference's weighted list does not hold
+/// duplicates.
+#[must_use]
+pub fn can_have_fault(
+    weight: i32,
+    fault: &str,
+    existing: &BTreeSet<String>,
+    blocks: impl Fn(&str) -> BTreeSet<String>,
+) -> bool {
+    weight > 0
+        && !existing.contains(fault)
+        && !existing
+            .iter()
+            .any(|present| blocks(present).contains(fault))
+}
+
 /// Degradation a badly-made item starts with, rolled rather than stated.
 ///
 /// Reference: `item::rand_degradation` (`src/item.cpp:903-909`). An item spawned damaged gets a degradation somewhere between undamaged and its own damage, scaled
