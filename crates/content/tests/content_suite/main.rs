@@ -58,6 +58,7 @@ mod inline_enchantments;
 mod item_catalog;
 mod item_flags;
 mod item_length;
+mod item_pockets;
 mod item_group_draw;
 mod item_groups;
 mod item_nutrition;

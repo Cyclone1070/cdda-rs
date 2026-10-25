@@ -45,6 +45,12 @@ pub struct ItemType {
     pub integral_weight: i64,
     /// Volume in millilitres.
     pub volume: i64,
+    /// The pockets it holds things in, as the data states them (`src/item_pocket.cpp:150-200`).
+    pub pockets: Vec<crate::pockets::PocketSpec>,
+    /// The pockets it **adds** to whatever it is installed on: `pocket_mods`, which only a gunmod states (`src/item_factory.cpp:3357`).
+    pub added_pockets: Vec<crate::pockets::PocketSpec>,
+    /// The mods a gun is made with, in the reference's order: `built_in_mods` first, then `default_mods` (`src/item.cpp:383-391`).
+    pub gun_mods: Vec<String>,
     /// The longest side the data states, in millimetres; [`UNSET_LENGTH`] when it states none.
     ///
     /// Reference: `itype::longest_side`, loaded from `"longest_side"` (`src/item_factory.cpp:4076`) and **filled in at finalisation** from the effective volume when
@@ -155,6 +161,46 @@ fn read_measures(item: &mut ItemType, object: &Object) -> Result<(), LoadError> 
     }
     item.price = adjusted(object, "price", item.price, read_money, 1)?;
     Ok(())
+}
+
+/// Adds the pockets a gun's installed mods contribute, which is what a gun with `pocket_mods` in its stock actually holds.
+///
+/// Reference: `item::update_modified_pockets` (`src/item.cpp:1362-1387`), run at construction. A **CONTAINER** pocket named `pocket_mods` is added to the gun's
+/// own pocket list, and a `MAGAZINE` or `MAGAZINE_WELL` one replaces the gun's well; both are appended in the order the mods are installed, which is built-ins
+/// first (`src/item.cpp:383-391`). Only the added CONTAINER pockets show up in what a constructed item reports it holds, which is why they are the ones that
+/// change an item's behaviour here.
+pub fn apply_mod_pockets(types: &mut [ItemType]) {
+    let by_id: BTreeMap<String, (Vec<crate::pockets::PocketSpec>, Vec<crate::pockets::PocketSpec>)> =
+        types
+            .iter()
+            .map(|item| (item.id.clone(), (item.added_pockets.clone(), item.pockets.clone())))
+            .collect();
+    for item in types.iter_mut() {
+        if item.gun_mods.is_empty() {
+            continue;
+        }
+        let mut added: Vec<crate::pockets::PocketSpec> = Vec::new();
+        let mut well: Option<crate::pockets::PocketSpec> = None;
+        for id in &item.gun_mods {
+            let Some((pockets, _)) = by_id.get(id) else {
+                continue;
+            };
+            for pocket in pockets {
+                if pocket.kind == "CONTAINER" {
+                    added.push(pocket.clone());
+                } else if pocket.kind == "MAGAZINE" || pocket.kind == "MAGAZINE_WELL" {
+                    well = Some(pocket.clone());
+                }
+            }
+        }
+        if !added.is_empty() || well.is_some() {
+            if let Some(well) = well {
+                item.pockets.retain(|pocket| pocket.kind != "MAGAZINE_WELL");
+                item.pockets.push(well);
+            }
+            item.pockets.extend(added);
+        }
+    }
 }
 
 /// Reads `"count"`, the number of charges a freshly made item starts with (`src/item_factory.cpp:2988`), keeping the inherited value when the data is silent.
@@ -590,6 +636,7 @@ pub fn load_paths(dirs: &[&std::path::Path]) -> Result<Vec<ItemType>, LoadError>
             out.push(item);
         }
     }
+    apply_mod_pockets(&mut out);
     Ok(out)
 }
 
@@ -869,6 +916,9 @@ fn resolve(
         // Unset until the data or the fallback says otherwise.
         integral_weight: -1,
         volume: 0,
+        pockets: Vec::new(),
+        added_pockets: Vec::new(),
+        gun_mods: Vec::new(),
         longest_side: UNSET_LENGTH,
         integral_volume: -1,
         price: 0,
@@ -939,6 +989,24 @@ fn apply(
         })?;
     }
     read_measures(item, object)?;
+    // Only when the object states its own: a copy-from child that says nothing keeps the pockets it inherited, which is how a robe's pockets reach the
+    // artifacts that copy from it.
+    if object.get("pocket_data").is_some() {
+        item.pockets = crate::pockets::read_pockets(object);
+    }
+    if let Some(Value::Array(mods)) = object.get("pocket_mods") {
+        item.added_pockets = crate::pockets::specs_of(mods);
+    }
+    // `built_in_mods` and `default_mods` are what a freshly constructed gun has installed, built-ins first (`src/item.cpp:383-391`).
+    for member in ["built_in_mods", "default_mods"] {
+        if let Some(Value::Array(mods)) = object.get(member) {
+            for entry in mods {
+                if let Value::Str(id) = entry {
+                    item.gun_mods.push(id.clone());
+                }
+            }
+        }
+    }
     if let Some(category) = string(object, "category") {
         item.category = category;
     }

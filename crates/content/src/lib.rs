@@ -29,6 +29,7 @@ pub mod jmath;
 pub mod math_expr;
 pub mod mapdata;
 pub mod mapgen;
+pub mod pockets;
 pub mod materials;
 pub mod weather;
 pub mod mods;
