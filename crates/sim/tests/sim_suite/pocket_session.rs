@@ -191,6 +191,20 @@ impl Pockets {
                         Some(cdda_json::Value::Bool(true))
                     ),
                     airtight: matches!(pocket.get("airtight"), Some(cdda_json::Value::Bool(true))),
+                    // The reference's compatibility limits, recorded with the rest of the pocket, so the port asks the questions the data actually states:
+                    // 2,502 of the corpus's pockets carry at least one of them.
+                    max_item_length_mm: match pocket.get("max_length") {
+                        Some(cdda_json::Value::Int(length)) => *length,
+                        other => panic!("max_length is a whole number: {other:?}"),
+                    },
+                    min_item_length_mm: match pocket.get("min_length") {
+                        Some(cdda_json::Value::Int(length)) => *length,
+                        other => panic!("min_length is a whole number: {other:?}"),
+                    },
+                    min_item_volume_ml: match pocket.get("min_volume") {
+                        Some(cdda_json::Value::Int(volume)) => *volume,
+                        other => panic!("min_volume is a whole number: {other:?}"),
+                    },
                 });
             }
             table.insert(id.clone(), kept);

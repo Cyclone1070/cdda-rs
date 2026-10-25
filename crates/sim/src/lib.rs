@@ -4317,18 +4317,38 @@ pub struct Pocket {
     pub watertight: bool,
     /// Whether a gas may go in (`pocket_data::airtight`, `src/item_pocket.h:514`).
     pub airtight: bool,
+    /// The longest item it will take, in millimetres; zero for no limit.
+    ///
+    /// Reference: `pocket_data::max_contains_length`, asked as `it.length() > data->max_item_length` and reported as `"item is too long"`
+    /// (`src/item_pocket.cpp:1418-1421`). It is asked **before** the weight and the room, because it sits in `is_compatible`, which every `can_contain` runs first.
+    pub max_item_length_mm: i64,
+    /// The shortest item it will take, in millimetres; zero for no limit. `"item is too short"` (`src/item_pocket.cpp:1423-1426`).
+    pub min_item_length_mm: i64,
+    /// The smallest item it will take, in millilitres; zero for no limit. `"item is too small"` (`src/item_pocket.cpp:1428-1431`).
+    pub min_item_volume_ml: i64,
+}
+
+impl Pocket {
+    /// A pocket of a given capacity that takes anything of the right phase.
+    #[must_use]
+    pub const fn of(capacity_ml: i64) -> Self {
+        Self {
+            capacity_ml,
+            weight_capacity_grams: i64::MAX,
+            watertight: false,
+            airtight: false,
+            max_item_length_mm: 0,
+            min_item_length_mm: 0,
+            min_item_volume_ml: 0,
+        }
+    }
 }
 
 impl Container {
     /// A container with one pocket of a given capacity that takes solids only, which is what most containers are.
     #[must_use]
     pub fn new(capacity_ml: i64) -> Self {
-        Self::with_pockets(vec![Pocket {
-            capacity_ml,
-            weight_capacity_grams: i64::MAX,
-            watertight: false,
-            airtight: false,
-        }])
+        Self::with_pockets(vec![Pocket::of(capacity_ml)])
     }
 
     /// A container of the pockets the data gives it.
@@ -4385,16 +4405,23 @@ pub struct ItemFacts {
     pub weight_grams: i64,
     /// Its phase.
     pub phase: Phase,
+    /// Its longest side, in millimetres; **zero means "not measured"**, and then the length limits are not asked.
+    ///
+    /// Reference: `item::length` (`src/item.cpp:7343-7398`), which reads the prototype's `longest_side`. The port does not thread that yet, and it must not invent one: a
+    /// real 50 litre item is not a 370 mm cube, so a length derived from volume refuses payloads the reference accepts. Zero therefore means "unknown", and a caller that
+    /// knows the real side sets it and gets the real rule.
+    pub length_mm: i64,
 }
 
 impl ItemFacts {
-    /// A solid that takes up `volume_ml`.
+    /// A solid that takes up `volume_ml`, with the length a cube of that volume has.
     #[must_use]
     pub const fn solid(volume_ml: i64) -> Self {
         Self {
             volume_ml,
             weight_grams: 0,
             phase: Phase::Solid,
+            length_mm: 0,
         }
     }
 
@@ -4405,16 +4432,20 @@ impl ItemFacts {
             volume_ml,
             weight_grams,
             phase: Phase::Solid,
+            length_mm: 0,
         }
     }
 
     /// A liquid that takes up `volume_ml`.
+    ///
+    /// Its length is zero because a liquid has none: `item::length` answers `0_mm` for a liquid before asking anything else (`src/item.cpp:7345-7347`).
     #[must_use]
     pub const fn liquid(volume_ml: i64) -> Self {
         Self {
             volume_ml,
             weight_grams: 0,
             phase: Phase::Liquid,
+            length_mm: 0,
         }
     }
 
@@ -4425,6 +4456,7 @@ impl ItemFacts {
             volume_ml,
             weight_grams: 0,
             phase: Phase::Gas,
+            length_mm: 0,
         }
     }
 }
@@ -4463,6 +4495,63 @@ pub enum InsertError {
         /// The phase that was refused.
         phase: Phase,
     },
+    /// The item is longer than the pocket takes.
+    ///
+    /// Reference: `"item is too long"` (`src/item_pocket.cpp:1418-1421`).
+    TooLong {
+        /// The longest item the pocket takes, in millimetres.
+        limit_mm: i64,
+        /// The item's own longest side.
+        wanted_mm: i64,
+    },
+    /// The item is shorter than the pocket takes. The reference refuses these too: a pocket can be sized for a magazine and nothing smaller.
+    ///
+    /// Reference: `"item is too short"` (`src/item_pocket.cpp:1423-1426`).
+    TooShort {
+        /// The shortest item the pocket takes, in millimetres.
+        limit_mm: i64,
+        /// The item's own longest side.
+        wanted_mm: i64,
+    },
+    /// The item is smaller than the pocket takes.
+    ///
+    /// Reference: `"item is too small"` (`src/item_pocket.cpp:1428-1431`).
+    TooSmall {
+        /// The smallest item the pocket takes, in millilitres.
+        limit_ml: i64,
+        /// The item's own volume.
+        wanted_ml: i64,
+    },
+}
+
+/// Whether a pocket's own limits refuse an item, and which one did.
+///
+/// Reference: `item_pocket::is_compatible` (`src/item_pocket.cpp:1408-1432`). The three questions are a maximum length, a minimum length and a minimum volume, in that
+/// order - which is the order the reference asks them in, and the reason `"item is too long"` wins over `"item is too small"` for an item that is both.
+///
+/// A length of zero means the item's own length is **not measured** (the prototype's `longest_side` is not threaded yet), and the length limits are then not asked rather
+/// than asked against a guess.
+fn compatibility_refusal(pocket: &Pocket, facts: &ItemFacts) -> Option<InsertError> {
+    let measured = facts.length_mm > 0;
+    if pocket.max_item_length_mm > 0 && measured && facts.length_mm > pocket.max_item_length_mm {
+        return Some(InsertError::TooLong {
+            limit_mm: pocket.max_item_length_mm,
+            wanted_mm: facts.length_mm,
+        });
+    }
+    if pocket.min_item_length_mm > 0 && measured && facts.length_mm < pocket.min_item_length_mm {
+        return Some(InsertError::TooShort {
+            limit_mm: pocket.min_item_length_mm,
+            wanted_mm: facts.length_mm,
+        });
+    }
+    if pocket.min_item_volume_ml > 0 && facts.volume_ml < pocket.min_item_volume_ml {
+        return Some(InsertError::TooSmall {
+            limit_ml: pocket.min_item_volume_ml,
+            wanted_ml: facts.volume_ml,
+        });
+    }
+    None
 }
 
 /// Puts an item into a container, if there is room.
@@ -4510,6 +4599,7 @@ pub fn insert_into(
     }
     let mut best_room: Option<i64> = None;
     let mut chosen: Option<usize> = None;
+    let mut refusals: Vec<InsertError> = Vec::new();
     for (index, pocket) in capacity.pockets.iter().enumerate() {
         let phase_allowed = match wanted_facts.phase {
             Phase::Solid => true,
@@ -4521,6 +4611,12 @@ pub fn insert_into(
         }
         let left = room.get(index).copied().unwrap_or(0);
         best_room = Some(best_room.map_or(left, |best| best.max(left)));
+        // **The compatibility limits come first**, because they live in `is_compatible`, which every `can_contain` runs before the weight and the room
+        // (`src/item_pocket.cpp:1408-1432`).
+        if let Some(refusal) = compatibility_refusal(pocket, &wanted_facts) {
+            refusals.push(refusal);
+            continue;
+        }
         // **The weight is checked before the room**, which is the order `can_contain` asks its questions in, and it is per item rather than a running total.
         if wanted_facts.weight_grams > pocket.weight_capacity_grams {
             continue;
@@ -4536,6 +4632,10 @@ pub fn insert_into(
         });
     };
     let Some(index) = chosen else {
+        // A compatibility refusal is what the reference would report first, so it wins over a weight or room refusal.
+        if let Some(refusal) = refusals.first().copied() {
+            return Err(refusal);
+        }
         // Which refusal to name: the heaviest pocket's capacity when **no** accepting pocket will take the weight, and the room otherwise.
         let heaviest = capacity
             .pockets
