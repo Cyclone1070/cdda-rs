@@ -539,7 +539,14 @@ Round 629 moved the use actions from a list to the **map they really are**, and 
 backwards: a stated `use_action` **replaces** the inherited list (`optional` clears the container before inserting), it does
 not merge. An earlier merge disagreed on 31 of 2,653 types. The route also forced the port to grow the finalisation pass
 that lends a type actions it never wrote down — its **qualities' usages**, a mod slot's attach action, a gun's detach and
-modify, and a zero charge scale for anything that plugs in — which is 336 types plus every gun and gunmod. **Correction:** an earlier version of this line promised a "per-turn degradation
+modify, and a zero charge scale for anything that plugs in — which is 336 types plus every gun and gunmod.
+
+Round 630 turned the same lens on ammunition. An effect list is a container too, so a stated list is **cleared** and
+`extend`/`delete` reach it — 238 of 736 rounds were wrong without that, every one of them a round that inherits its effects
+and extends them. The reader was also asking the *object* whether it declares the AMMO subtype instead of asking the item,
+which loses the block entirely for a child that inherits its ammo slot; no such child exists in this content, so that half is
+pinned by a fixture. And the registry: tempting to refuse an effect it lacks, but the reference does not — `rock` lists four
+**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. **Correction:** an earlier version of this line promised a "per-turn degradation
 tick"; there is no such thing in the reference — `item::process_internal` does not degrade anything, and the only
 degradation is the one a hit adds and the one `rand_degradation` rolls at spawn.
 

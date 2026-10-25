@@ -11,6 +11,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+pub mod ammo_effects;
 pub mod catalog;
 pub mod condition;
 pub mod constructions;

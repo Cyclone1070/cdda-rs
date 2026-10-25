@@ -900,6 +900,7 @@ pub fn load_paths(dirs: &[&std::path::Path]) -> Result<Vec<ItemType>, LoadError>
             // The actions a type's qualities and its kind lend are added **at finalisation**, after the last file is read and before anything asks the type what
             // it can do (`src/item_factory.cpp:333-377`).
             add_quality_usages(&mut item, &qualities_usages);
+
             // A comestible made mostly of one thing lists only that thing
             // (`item_factory.cpp:459-464`), and it happens before the allergen
             // flags are read off the materials.
@@ -1489,15 +1490,27 @@ fn apply_flat_slots(item: &mut ItemType, object: &Object) {
     if let Some(is_gunmod) = boolean(object, "is_gunmod") {
         item.is_gunmod = is_gunmod;
     }
-    // Ammunition states its effects as `effects` (`item_factory.cpp:2990`), not `ammo_effects`,
-    // which is only the name the reference gives the field once read.
-    let is_ammo_now = strings(object, "subtypes")
-        .iter()
-        .any(|kind| kind == "AMMO");
-    if is_ammo_now && object.get("effects").is_some() {
-        item.ammo_effects.clear();
-        for effect in strings(object, "effects") {
-            item.ammo_effects.insert(effect);
+    // Ammunition states its effects as `effects` (`item_factory.cpp:2990`), not `ammo_effects`, which is only the name the reference gives the field once read.
+    //
+    // **The subtype is the inherited one**, not the object's own: a round that copies from another and says nothing about its type is still ammunition, and asking
+    // the object alone skipped every such type. **The member is a container**, so a stated list is cleared first and `extend`/`delete` reach it — 231 rounds extend
+    // their effects and 177 delete some, which the corpus caught as 238 of 736 types.
+    if item.subtypes.contains("AMMO") {
+        if object.get("effects").is_some() {
+            item.ammo_effects.clear();
+            for effect in strings(object, "effects") {
+                item.ammo_effects.insert(effect);
+            }
+        }
+        if let Some(extend) = sub_object(object, "extend") {
+            for effect in strings(extend, "effects") {
+                item.ammo_effects.insert(effect);
+            }
+        }
+        if let Some(delete) = sub_object(object, "delete") {
+            for effect in strings(delete, "effects") {
+                item.ammo_effects.remove(&effect);
+            }
         }
     }
     if let Some(kind) = string(object, "comestible_type") {

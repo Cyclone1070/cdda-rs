@@ -106,3 +106,9 @@ the two levels.
 `--dump-use-methods` writes every item type's action keys **in the map's own order** with the actor behind each, and `--dump-ammo-scales` writes the per-action charge
 scale. Three rules are visible only here: the keys are **sorted** (they live in a `std::map`), a repeated name **collapses**, and a `repair_item` actor answers to its
 `item_action_type`, so a repairkit has `repair_metal` rather than `repair_item`.
+
+### `ammo-effects.json` and `ammo-effect-registry.json` — what a round does, and what an effect is
+
+`--dump-ammo-effects` writes all 736 ammunition types' resolved effects; `--dump-ammo-effects-registry` writes the 82 `ammo_effect` definitions. The pair exists
+because the reference **does not validate** an effect id at load — four ids in this content are really flags — so a gate has to record both sides rather than
+assume the registry is a filter.

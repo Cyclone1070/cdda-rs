@@ -115,4 +115,6 @@ mod turret_parts;
 mod vehicles;
 mod transforms;
 mod use_action_shapes;
+mod ammo_effect_registry;
+mod ammo_effects;
 mod use_methods;
