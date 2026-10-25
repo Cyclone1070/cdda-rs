@@ -5168,6 +5168,15 @@ fn volume_with(
     let Some(item) = world.get::<GroundItem>(entity).cloned() else {
         return 0;
     };
+    // **A corpse is not measured like the item it is carried as**: its volume is the creature's, quartered and dressed and gibbed and skinned
+    // (`src/item.cpp:7518-7520`). Everything the corpse holds is still counted, because a corpse is a container like any other.
+    if let Some(corpse) = world.get::<CorpseOf>(entity).copied() {
+        let mut total = corpse_volume(corpse.monster_volume_ml, &item_flags(world, entity));
+        for held in contents(world, entity) {
+            total = total.saturating_add(volume_with(world, held, facts, integral));
+        }
+        return total;
+    }
     let facts_of_type = facts(item.kind);
     let unit = if integral {
         facts_of_type.integral_millilitres
@@ -6813,6 +6822,57 @@ pub fn player_turn(
 pub struct CorpseOf {
     /// What kind of creature this was.
     pub kind: MonsterKindId,
+    /// What that creature took up while it was alive, in millilitres, which is what its corpse is measured from (`item::corpse_volume`).
+    pub monster_volume_ml: i64,
+}
+
+/// The flags an item carries of its own, which is what a corpse's butchering state is: the prototype's flags are the type's, and these are this one's.
+#[derive(Debug, Clone, Default, Component)]
+pub struct ItemFlags(pub std::collections::BTreeSet<String>);
+
+/// The flags an item carries, if it carries any.
+fn item_flags(world: &World, entity: Entity) -> std::collections::BTreeSet<String> {
+    world
+        .get::<ItemFlags>(entity)
+        .map(|flags| flags.0.clone())
+        .unwrap_or_default()
+}
+
+/// The largest volume any item may take up: `MAX_ITEM_VOLUME` (`src/game_constants.h:35-36`), one tile, 1,000 litres.
+pub const MAX_ITEM_VOLUME_ML: i64 = 1_000_000;
+
+/// What a corpse takes up.
+///
+/// Reference: `item::corpse_volume` (`src/item.cpp:7455-7479`), reached from `item::volume` for anything that is a corpse (`src/item.cpp:7518-7520`). The volume is the
+/// **creature's** own, multiplied by four fractions in a fixed order — quartered by 4, field-dressed by 3/4, gibbed by 0.85, skinned by 0.85 — and every multiplication
+/// truncates, because the arithmetic is on whole millilitres. The result is capped at [`MAX_ITEM_VOLUME_ML`], so a creature larger than a tile still leaves a corpse that
+/// fits in one.
+///
+/// Field-dressed and field-dressed-**badly** are the same fraction, which is why the reference treats them as one flag pair here: a botched butchery still removes the
+/// parts it removed.
+#[must_use]
+pub fn corpse_volume(monster_volume_ml: i64, flags: &std::collections::BTreeSet<String>) -> i64 {
+    let mut volume = monster_volume_ml;
+    if flags.contains("QUARTERED") {
+        volume = fraction(volume, 0.25);
+    }
+    if flags.contains("FIELD_DRESS") || flags.contains("FIELD_DRESS_FAILED") {
+        volume = fraction(volume, 0.75);
+    }
+    if flags.contains("GIBBED") {
+        volume = fraction(volume, 0.85);
+    }
+    if flags.contains("SKINNED") {
+        volume = fraction(volume, 0.85);
+    }
+    volume.min(MAX_ITEM_VOLUME_ML)
+}
+
+/// A volume multiplied by a fraction and truncated, the way `units::volume *= double` does it.
+fn fraction(volume_ml: i64, factor: f64) -> i64 {
+    #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+    let scaled = (volume_ml as f64 * factor) as i64;
+    scaled
 }
 
 /// Takes the dead off the field and leaves what they were standing on, as the reference leaves it: an item.
@@ -6822,7 +6882,11 @@ pub struct CorpseOf {
 /// the content calls `corpse`, supplied by the caller because the item layer numbers types rather than naming them.
 ///
 /// Returns how many bodies were cleared.
-pub fn reap_dead_monsters(world: &mut World, corpse_kind: ItemTypeId) -> usize {
+pub fn reap_dead_monsters(
+    world: &mut World,
+    corpse_kind: ItemTypeId,
+    volume_of: impl Fn(MonsterKindId) -> i64,
+) -> usize {
     let dead: Vec<(Entity, (i32, i32), MonsterKindId)> = {
         let mut query = world.query::<(Entity, &Position, &Monster)>();
         query
@@ -6834,7 +6898,10 @@ pub fn reap_dead_monsters(world: &mut World, corpse_kind: ItemTypeId) -> usize {
     for (entity, square, kind) in &dead {
         world.despawn(*entity);
         let corpse = drop_item(world, *square, corpse_kind, 1);
-        world.entity_mut(corpse).insert(CorpseOf { kind: *kind });
+        world.entity_mut(corpse).insert(CorpseOf {
+            kind: *kind,
+            monster_volume_ml: volume_of(*kind),
+        });
     }
     dead.len()
 }

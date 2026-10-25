@@ -61,7 +61,7 @@ fn a_kill_becomes_loot_with_every_rule_in_the_chain_agreeing() {
         strike(&mut world, zombie, 20, 0),
         "twelve hit points against twenty"
     );
-    assert_eq!(reap_dead_monsters(&mut world, CORPSE), 1, "one body reaped");
+    assert_eq!(reap_dead_monsters(&mut world, CORPSE, |_| 62_499), 1, "one body reaped");
     assert_eq!(
         corpses_at(&mut world, (5, 5)),
         1,
@@ -143,7 +143,7 @@ fn the_same_seed_kills_the_same_creature_and_butchers_the_same_loot() {
         let mut world = World::new();
         let zombie = spawn_monster(&mut world, (1, 1), MonsterKindId(7), 12);
         strike(&mut world, zombie, 20, 0);
-        reap_dead_monsters(&mut world, CORPSE);
+        reap_dead_monsters(&mut world, CORPSE, |_| 62_499);
         let square = corpse_square(&mut world);
         let corpse = items_at(&mut world, square)
             .first()
@@ -186,7 +186,7 @@ fn a_reaped_body_that_is_never_butchered_stays_a_corpse() {
     let mut world = World::new();
     let zombie = spawn_monster(&mut world, (2, 2), MonsterKindId(7), 1);
     strike(&mut world, zombie, 5, 0);
-    reap_dead_monsters(&mut world, CORPSE);
+    reap_dead_monsters(&mut world, CORPSE, |_| 62_499);
     assert_eq!(corpses_at(&mut world, (2, 2)), 1, "still lying there");
     assert!(items_at(&mut world, (2, 2)).len() == 1, "and nothing else");
     let mut monsters = world.query::<&Monster>();

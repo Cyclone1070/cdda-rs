@@ -19,6 +19,7 @@ fn corpse(world: &mut World, age: i64) -> Entity {
     let item = drop_item(world, (0, 0), CORPSE, 1);
     world.entity_mut(item).insert(CorpseOf {
         kind: MonsterKindId(9),
+        monster_volume_ml: 62_499,
     });
     world.get_mut::<GroundItem>(item).expect("an item").age = age;
     item

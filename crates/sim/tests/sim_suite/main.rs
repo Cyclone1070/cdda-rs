@@ -27,6 +27,7 @@ mod consume_liquids;
 mod consume_items;
 mod containers;
 mod corpse_rules;
+mod corpse_volume;
 mod corpus_sessions;
 mod craft_activity;
 mod craft_progress;

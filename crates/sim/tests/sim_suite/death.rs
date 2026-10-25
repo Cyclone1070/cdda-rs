@@ -17,7 +17,7 @@ fn a_dead_creature_leaves_a_corpse_on_its_square() {
     let zombie = spawn_monster(&mut world, (3, 4), MonsterKindId(7), 5);
     assert!(strike(&mut world, zombie, 9, 0), "that killed it");
     assert_eq!(
-        reap_dead_monsters(&mut world, CORPSE),
+        reap_dead_monsters(&mut world, CORPSE, |_| 62_499),
         1,
         "one body cleared"
     );
@@ -39,7 +39,7 @@ fn the_corpse_does_not_block_the_square() {
     let mut world = World::new();
     let zombie = spawn_monster(&mut world, (3, 4), MonsterKindId(7), 1);
     strike(&mut world, zombie, 5, 0);
-    reap_dead_monsters(&mut world, CORPSE);
+    reap_dead_monsters(&mut world, CORPSE, |_| 62_499);
     assert!(
         !occupied(&mut world, (3, 4)),
         "a corpse is not a creature in the way"
@@ -51,7 +51,7 @@ fn a_living_creature_is_left_alone() {
     let mut world = World::new();
     let zombie = spawn_monster(&mut world, (0, 0), MonsterKindId(7), 5);
     assert_eq!(
-        reap_dead_monsters(&mut world, CORPSE),
+        reap_dead_monsters(&mut world, CORPSE, |_| 62_499),
         0,
         "nothing to clear"
     );
@@ -64,9 +64,9 @@ fn reaping_twice_does_not_duplicate_the_corpse() {
     let mut world = World::new();
     let zombie = spawn_monster(&mut world, (1, 1), MonsterKindId(7), 1);
     strike(&mut world, zombie, 5, 0);
-    reap_dead_monsters(&mut world, CORPSE);
+    reap_dead_monsters(&mut world, CORPSE, |_| 62_499);
     assert_eq!(
-        reap_dead_monsters(&mut world, CORPSE),
+        reap_dead_monsters(&mut world, CORPSE, |_| 62_499),
         0,
         "the second pass finds nothing"
     );
@@ -82,7 +82,7 @@ fn the_corpse_remembers_what_it_was() {
     let mut world = World::new();
     let zombie = spawn_monster(&mut world, (2, 2), MonsterKindId(42), 1);
     strike(&mut world, zombie, 5, 0);
-    reap_dead_monsters(&mut world, CORPSE);
+    reap_dead_monsters(&mut world, CORPSE, |_| 62_499);
     assert_eq!(
         corpse_kind_at(&mut world, (2, 2)),
         Some(MonsterKindId(42)),
@@ -102,7 +102,7 @@ fn the_dead_stop_taking_turns() {
     let zombie = spawn_monster(&mut world, (0, 0), MonsterKindId(7), 1);
     strike(&mut world, zombie, 5, 0);
     // The turn systems skip anything with no hit points, so this is about the corpse not becoming an actor.
-    reap_dead_monsters(&mut world, CORPSE);
+    reap_dead_monsters(&mut world, CORPSE, |_| 62_499);
     let mut monsters = world.query::<&Monster>();
     assert_eq!(
         monsters.iter(&world).count(),
