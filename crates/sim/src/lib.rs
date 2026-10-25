@@ -7157,6 +7157,46 @@ impl ItemDamage {
     }
 }
 
+/// The faults one item carries.
+///
+/// Reference: `item::faults` (`src/item.h`), a set of fault ids. Distinct from the **type's** weighted list, which is what the item *could* catch: this is what it
+/// has.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Component)]
+pub struct ItemFaults(pub BTreeSet<String>);
+
+/// Gives an item a fault, and clears the ones it prevents.
+///
+/// Reference: `item::set_fault` (`src/item.cpp:7828-7845`). Three steps in a fixed order, and the middle one is the one that is easy to miss: the fault's own
+/// `block_faults` are **removed first**, because a thing cannot have a chipped blade when the blade is gone — so giving an item "broken" takes away its "chipped".
+/// A forced fault skips the check; otherwise [`can_have_fault`] decides and nothing changes when it says no.
+///
+/// Returns whether the fault was applied.
+pub fn set_fault(
+    faults: &mut ItemFaults,
+    fault: &str,
+    force: bool,
+    weight: i32,
+    blocks: impl Fn(&str) -> BTreeSet<String>,
+) -> bool {
+    if !force && !can_have_fault(weight, fault, &faults.0, &blocks) {
+        return false;
+    }
+
+    for blocked in blocks(fault) {
+        faults.0.remove(&blocked);
+    }
+    faults.0.insert(fault.to_owned());
+    true
+}
+
+/// Takes a fault away.
+///
+/// Reference: `item::remove_fault` (`src/item.cpp:7869-7872`) is one `erase`, and `remove_single_fault_of_type` (`7874-7882`) removes **the first** fault of a type
+/// and stops — not every one of them, which is what a caller who has both a chipped and a cracked blade would notice.
+pub fn remove_fault(faults: &mut ItemFaults, fault: &str) {
+    faults.0.remove(fault);
+}
+
 /// Which fault an item catches when it takes damage, or `None` when it can catch none.
 ///
 /// Reference: `item::set_random_fault_of_type` (`src/item.cpp:7848-7865`). The list is rebuilt from the **type's** weighted faults, keeping only those of the

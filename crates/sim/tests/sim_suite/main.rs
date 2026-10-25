@@ -30,6 +30,7 @@ mod corpse_rules;
 mod corpse_volume;
 mod degradation;
 mod fault_pick;
+mod set_fault;
 mod corpus_sessions;
 mod craft_activity;
 mod craft_progress;
