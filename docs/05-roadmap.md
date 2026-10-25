@@ -484,7 +484,11 @@ measurements over 1,154 creatures). What is left of this sentence: the item's ow
 which nothing in the content sets yet, and ~~**crafts**~~ (round 609: the volume is the sum of the parts floored at
 one millilitre, the weight the same sum with no floor). Then the layer the
 phase is named for: an inventory that is a set of entity handles rather than an `item_location` scheme, so
-that wielding, wearing and magazine loading can be ported once instead of twice. Use and examine actions come
+that wielding, wearing and magazine loading can be ported once instead of twice. **Started at round 610**: the
+`Inventory` component exists and its two counting walks are ported (`amount_of` counts items, `charges_of` sums
+charges, both descend into contents and both skip `ITEM_BROKEN`). What an inventory still needs before the
+actions can use it: adding and removing with a `limit`, the binned-by-type index the reference keeps as a
+cache, and the `has_amount`/`has_charges` predicates the use actions ask first. Use and examine actions come
 after that, because every one of them starts by asking an inventory something.
 
 **Not started, and named.** Hunger and thirst themselves (the eating *data* is loaded: nutrition, quench and

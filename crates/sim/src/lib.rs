@@ -5147,6 +5147,136 @@ pub fn item_volume(
     volume_with(world, entity, &facts, false)
 }
 
+/// A set of item entities a person or a place can be asked about, which is the port's stand-in for the reference's `inventory`.
+///
+/// Reference: `class inventory` (`src/inventory.h:240-300`). The reference keeps an `item_location` per item so that a use can reach the item in a container, in a
+/// vehicle part, or on the floor; the port keeps the entity, because an entity *is* reachable — that is the whole reason the world is built this way.
+#[derive(Debug, Clone, Default, Component)]
+pub struct Inventory {
+    /// The items it holds, in the order they were added.
+    pub items: Vec<Entity>,
+}
+
+impl Inventory {
+    /// An empty inventory.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self { items: Vec::new() }
+    }
+
+    /// Takes an item in.
+    pub fn add(&mut self, item: Entity) {
+        self.items.push(item);
+    }
+}
+
+/// How many **items** of a type an inventory holds, contents counted.
+///
+/// Reference: `visitable::amount_of` (`src/visitable.cpp:964-978`) — the count is of items, never of charges, so a pile of two hundred nails answers one; a broken
+/// item is not counted at all; `any` counts everything; and `limit` stops the walk, which is what makes it safe to ask "are there two?" of a full inventory.
+///
+/// `any` is [`None`], which the reference spells `itype_id( "any" )`.
+#[must_use]
+pub fn amount_of(
+    world: &mut World,
+    inventory: &Inventory,
+    kind: Option<ItemTypeId>,
+    pseudo: bool,
+    limit: i32,
+) -> i32 {
+    let mut total: i32 = 0;
+    for item in inventory.items.clone() {
+        total = total.saturating_add(amount_of_items(world, item, kind, pseudo, limit - total));
+        if total >= limit {
+            break;
+        }
+    }
+    total.min(limit)
+}
+
+/// The same count over one item and everything inside it, because the reference's `visit_items` descends into contents.
+fn amount_of_items(
+    world: &mut World,
+    item: Entity,
+    kind: Option<ItemTypeId>,
+    pseudo: bool,
+    limit: i32,
+) -> i32 {
+    if limit <= 0 {
+        return 0;
+    }
+    let mut total = 0;
+    if let Some(ground) = world.get::<GroundItem>(item).cloned()
+        && !item_is_broken(world, item)
+        && kind.is_none_or(|wanted| wanted == ground.kind)
+        && (pseudo || !item_has_flag(world, item, "PSEUDO"))
+    {
+        total += 1;
+    }
+    for held in contents(world, item) {
+        total += amount_of_items(world, held, kind, pseudo, limit - total);
+    }
+    total
+}
+
+/// How many charges of a type an inventory holds, contents counted.
+///
+/// Reference: `visitable::charges_of` (`src/visitable.cpp:819-875`) with the UPS branches left to the player layer: a charge-counted item answers its **charges**, and
+/// anything else answers what it holds — a magazine's rounds — which is `ammo_remaining_linked` in the reference. A broken item answers nothing. The walk only
+/// descends into containers, which the port reads as "descend always", because only a container can have contents in the first place.
+#[must_use]
+pub fn charges_of(
+    world: &mut World,
+    inventory: &Inventory,
+    kind: ItemTypeId,
+    limit: i32,
+) -> i32 {
+    let mut total: i32 = 0;
+    for item in inventory.items.clone() {
+        total = total.saturating_add(charges_of_item(
+            world,
+            item,
+            kind,
+            limit - total,
+        ));
+        if total >= limit {
+            break;
+        }
+    }
+    total.min(limit)
+}
+
+/// The same count over one item and everything inside it.
+fn charges_of_item(world: &mut World, item: Entity, kind: ItemTypeId, limit: i32) -> i32 {
+    if limit <= 0 {
+        return 0;
+    }
+    let mut total = 0;
+    let ground = world.get::<GroundItem>(item).cloned();
+    if let Some(ground) = ground
+        && ground.kind == kind
+        && !item_is_broken(world, item)
+    {
+        total += ground.charges.max(0);
+    }
+    for held in contents(world, item) {
+        total += charges_of_item(world, held, kind, limit - total);
+    }
+    total
+}
+
+/// Whether an item is broken, which the reference records as the `ITEM_BROKEN` flag (`src/visitable.cpp:969`).
+fn item_is_broken(world: &World, item: Entity) -> bool {
+    item_has_flag(world, item, "ITEM_BROKEN")
+}
+
+/// Whether an item carries one of its own flags.
+fn item_has_flag(world: &World, item: Entity, flag: &str) -> bool {
+    world
+        .get::<ItemFlags>(item)
+        .is_some_and(|flags| flags.0.contains(flag))
+}
+
 /// What an item takes up when its caller asks for the **integral** volume.
 ///
 /// Reference: `item::volume( integral: true )` (`src/item.cpp:7540-7544`). The number comes from the type's other volume; everything else - the charge rule, the stack
