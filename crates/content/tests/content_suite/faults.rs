@@ -155,3 +155,107 @@ fn every_fault_matches_the_reference_number_for_number() {
         differing
     );
 }
+
+/// Reads one recorded fix, field by field.
+fn recorded_fix(entry: &Value) -> cdda_content::faults::FaultFix {
+    let Value::Object(entry) = entry else {
+        panic!("a fix")
+    };
+    let text = |key: &str| match entry.get(key) {
+        Some(Value::Str(value)) => value.clone(),
+        other => panic!("{key} is text: {other:?}"),
+    };
+    let whole = |key: &str| match entry.get(key) {
+        Some(Value::Int(value)) => *value,
+        other => panic!("{key} is a whole number: {other:?}"),
+    };
+    let ids = |key: &str| match entry.get(key) {
+        Some(Value::Array(entries)) => entries
+            .iter()
+            .map(|id| match id {
+                Value::Str(id) => id.clone(),
+                other => panic!("{key} holds text: {other:?}"),
+            })
+            .collect::<std::collections::BTreeSet<String>>(),
+        other => panic!("{key} is a list: {other:?}"),
+    };
+    let skills = match entry.get("skills") {
+        Some(Value::Object(skills)) => skills
+            .members()
+            .iter()
+            .filter_map(|(skill, level)| match level {
+                Value::Int(level) => Some((skill.clone(), i32::try_from(*level).ok()?)),
+                _ => None,
+            })
+            .collect::<BTreeMap<String, i32>>(),
+        other => panic!("skills is an object: {other:?}"),
+    };
+    cdda_content::faults::FaultFix {
+        id: text("id"),
+        name: text("name"),
+        success_msg: text("success_msg"),
+        time_seconds: whole("time_seconds"),
+        #[allow(clippy::cast_possible_truncation)]
+        mod_damage: whole("mod_damage") as i32,
+        #[allow(clippy::cast_possible_truncation)]
+        mod_degradation: whole("mod_degradation") as i32,
+        faults_removed: ids("faults_removed"),
+        faults_added: ids("faults_added"),
+        skills,
+    }
+}
+
+#[test]
+fn every_fault_fix_matches_the_reference() {
+    // 40 fixes, each with a time, a set of skills, the faults it moves and the damage and degradation it changes. Small enough to compare completely.
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/fault-fixes.json");
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
+    let Value::Object(root) = cdda_json::parse(&bytes).expect("valid json") else {
+        panic!("the dump is an object")
+    };
+    let Some(Value::Array(fixes)) = root.get("fixes") else {
+        panic!("the dump holds fixes")
+    };
+    let reference =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let dirs = [reference.join("core"), reference.join("json")];
+    let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
+    let loaded: BTreeMap<String, cdda_content::faults::FaultFix> =
+        cdda_content::faults::load_fixes(&paths)
+            .expect("the fixes load")
+            .into_iter()
+            .map(|fix| (fix.id.clone(), fix))
+            .collect();
+    assert_eq!(fixes.len(), 40, "every fix was recorded");
+
+    let mut differing: Vec<String> = Vec::new();
+    let mut with_skills = 0;
+    let mut adding = 0;
+    for entry in fixes {
+        let expected = recorded_fix(entry);
+        let id = expected.id.clone();
+        let Some(fix) = loaded.get(&id) else {
+            differing.push(format!("{id} is not loaded"));
+            continue;
+        };
+        if !fix.skills.is_empty() {
+            with_skills += 1;
+        }
+        if !fix.faults_added.is_empty() {
+            adding += 1;
+        }
+        if fix != &expected {
+            differing.push(format!("{id}: the port says {fix:?}, the reference says {expected:?}"));
+        }
+    }
+    assert!(with_skills > 10, "the skill requirement has to be exercised: {with_skills}");
+    assert!(adding > 0, "and so does the fix that adds a fault");
+    assert!(
+        differing.is_empty(),
+        "{} of 40 fixes disagree; they are {:#?}",
+        differing.len(),
+        differing
+    );
+}

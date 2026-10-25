@@ -353,3 +353,118 @@ pub fn load_groups(dirs: &[&std::path::Path]) -> Result<Vec<FaultGroup>, LoadErr
     }
     Ok(out)
 }
+
+/// One repair: what it takes, how long, and what it does to the item.
+///
+/// Reference: `class fault_fix` (`src/fault.h:50-73`) and its `load` (`src/fault.cpp`). A fix **removes** faults and may **add** others — a repair that replaces a
+/// broken handle with a cracked one is one fix, not two — and it moves the item's damage and degradation by fixed amounts, so a grind takes 1,000 units of damage off
+/// and puts 5 units of degradation on. Its requirements are an item-component tree, which is a family of its own.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FaultFix {
+    /// Its id.
+    pub id: String,
+    /// The name a player sees.
+    pub name: String,
+    /// What the player is told when it is applied (`"You grind and polish the edge of %s..."`).
+    pub success_msg: String,
+    /// How long it takes, in seconds.
+    pub time_seconds: i64,
+    /// How much damage it takes off (negative) or adds.
+    pub mod_damage: i32,
+    /// How much degradation it adds: a repair leaves the item **more** degraded than a new one, which is what makes repeated repairs a losing game.
+    pub mod_degradation: i32,
+    /// The faults it removes.
+    pub faults_removed: BTreeSet<String>,
+    /// The faults it adds.
+    pub faults_added: BTreeSet<String>,
+    /// The skills it needs, by id, with the level.
+    pub skills: std::collections::BTreeMap<String, i32>,
+}
+
+impl FaultFix {
+    /// Reads one fix out of its JSON object.
+    ///
+    /// # Errors
+    ///
+    /// If the file cannot be read; every member is optional in the reference.
+    pub fn read(object: &Object) -> Result<Self, LoadError> {
+        let text = |key: &str| match object.get(key) {
+            Some(Value::Str(value)) => value.clone(),
+            Some(Value::Object(value)) => match value.get("str") {
+                Some(Value::Str(value)) => value.clone(),
+                _ => String::new(),
+            },
+            _ => String::new(),
+        };
+        let whole = |key: &str| match object.get(key) {
+            Some(Value::Int(value)) => i32::try_from(*value).unwrap_or(0),
+            _ => 0,
+        };
+        // **A fix's time is written in the game's own duration grammar** (`"4 h"`, `"30 m"`), and the reference reads it with a JSON duration reader whose unit is a
+        // **turn**, which is a second. The port's `parse_duration` counts turns, so the answer is already in seconds.
+        let time_seconds = match object.get("time") {
+            Some(value @ (Value::Str(_) | Value::Int(_))) => {
+                crate::constructions::duration_in_moves(value) / 100
+            }
+            _ => 0,
+        };
+        let skills = match object.get("skills") {
+            Some(Value::Object(skills)) => skills
+                .members()
+                .iter()
+                .filter_map(|(skill, level)| match level {
+                    Value::Int(level) => Some((skill.clone(), i32::try_from(*level).ok()?)),
+                    _ => None,
+                })
+                .collect(),
+            _ => std::collections::BTreeMap::new(),
+        };
+        Ok(Self {
+            id: text("id"),
+            name: text("name"),
+            success_msg: text("success_msg"),
+            time_seconds,
+            mod_damage: whole("mod_damage"),
+            mod_degradation: whole("mod_degradation"),
+            faults_removed: crate::pockets::id_list(object, "faults_removed")
+                .into_iter()
+                .collect(),
+            faults_added: crate::pockets::id_list(object, "faults_added")
+                .into_iter()
+                .collect(),
+            skills,
+        })
+    }
+}
+
+/// Loads every fault fix in the given directories.
+///
+/// # Errors
+///
+/// If a directory cannot be walked or a file cannot be read.
+pub fn load_fixes(dirs: &[&std::path::Path]) -> Result<Vec<FaultFix>, LoadError> {
+    let mut out = Vec::new();
+    for dir in dirs {
+        let files = crate::json_files_in_load_order(dir).map_err(|error| LoadError {
+            message: format!("{}: {error}", dir.display()),
+        })?;
+        for path in files {
+            let Some(value) = crate::read_json(&path) else {
+                continue;
+            };
+            let Value::Array(entries) = &*value else {
+                continue;
+            };
+            for entry in entries {
+                let Value::Object(object) = entry else {
+                    continue;
+                };
+                if !matches!(object.get("type"), Some(Value::Str(kind)) if kind == "fault_fix") {
+                    continue;
+                }
+                out.push(FaultFix::read(object)?);
+            }
+        }
+    }
+    Ok(out)
+}

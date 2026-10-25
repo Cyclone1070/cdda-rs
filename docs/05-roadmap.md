@@ -494,8 +494,10 @@ type's own text, gated over all 915 types. Round 617 added the pick:
 not an `rng( lo, hi )`, a modulo by the total weight walked from the front, a blocked set that is one-directional,
 and a single-entry list that returns **without rolling at all**. Round 618 added `set_fault` and
 `remove_fault`: a fault **takes away the faults it prevents**, before it is added, so a chipping staff that cracks is
-cracked and not chipped — and a refused fault changes nothing, not even that removal. What is left of the damage
-family: `fault_fix` (repairs, requirements, skills) and `item::tname`'s name prefix. **Correction:** an earlier version of this line promised a "per-turn degradation
+cracked and not chipped — and a refused fault changes nothing, not even that removal. Round 619 closed the repairs' **data**:
+all 40 `fault_fix` entries, gated field by field — including the odd pair that a grind takes damage **off** and puts
+degradation **on**, which is what makes repeated repairs a losing game. What is left of the damage family: the
+repair *activity* that uses a fix, its requirement tree, and `item::tname`'s name prefix. **Correction:** an earlier version of this line promised a "per-turn degradation
 tick"; there is no such thing in the reference — `item::process_internal` does not degrade anything, and the only
 degradation is the one a hit adds and the one `rand_degradation` rolls at spawn.
 
