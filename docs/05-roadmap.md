@@ -486,9 +486,12 @@ one millilitre, the weight the same sum with no floor). Then the layer the
 phase is named for: an inventory that is a set of entity handles rather than an `item_location` scheme, so
 that wielding, wearing and magazine loading can be ported once instead of twice. **Started at round 610**: the
 `Inventory` component exists and its two counting walks are ported (`amount_of` counts items, `charges_of` sums
-charges, both descend into contents and both skip `ITEM_BROKEN`). What an inventory still needs before the
-actions can use it: adding and removing with a `limit`, the binned-by-type index the reference keeps as a
-cache, and the `has_amount`/`has_charges` predicates the use actions ask first. Use and examine actions come
+charges, both descend into contents and both skip `ITEM_BROKEN`). Round 611 added what the use actions ask
+first: `has_amount`/`has_charges`, and `use_amount`/`use_charges` on the inventory, with the one gate that
+separates the two walks — the charge walk enters **only a container**, the count walk enters anything. What an
+inventory still needs: the binned-by-type index the reference keeps as a cache (a pure optimisation, and
+therefore last), and the insertion side that decides which pocket a thing goes into — the reference's
+`inventory::add_item`, which is `item_contents::insert_item` over each candidate pocket, already ported. Use and examine actions come
 after that, because every one of them starts by asking an inventory something.
 
 **Not started, and named.** Hunger and thirst themselves (the eating *data* is loaded: nutrition, quench and

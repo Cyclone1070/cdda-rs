@@ -5170,6 +5170,72 @@ impl Inventory {
     }
 }
 
+impl Inventory {
+    /// Whether it holds at least `quantity` items of a kind.
+    ///
+    /// Reference: `visitable::has_amount` (`src/visitable.h`), which is `amount_of( what, true, quantity ) == quantity` — the `limit` is the quantity asked for, so the
+    /// walk stops as soon as the answer is yes.
+    pub fn has_amount(&self, world: &mut World, kind: ItemTypeId, quantity: i32) -> bool {
+        amount_of(world, self, Some(kind), true, quantity) >= quantity
+    }
+
+    /// Whether it holds at least `quantity` charges of a kind.
+    ///
+    /// Reference: `visitable::has_charges` (`src/visitable.h`).
+    pub fn has_charges(&self, world: &mut World, kind: ItemTypeId, quantity: i32) -> bool {
+        charges_of(world, self, kind, quantity) >= quantity
+    }
+
+    /// Takes charges of a kind, in visit order.
+    ///
+    /// Reference: `inventory::use_charges` over `use_charges_internal` (`src/visitable.cpp:819-875`), whose walk is **pre-order**: an item before the things inside it.
+    pub fn use_charges(
+        &self,
+        world: &mut World,
+        kind: ItemTypeId,
+        quantity: i32,
+        accept: impl FnMut(&GroundItem) -> bool,
+    ) -> Consumed {
+        charges_from_items(world, self.items.clone(), kind, quantity, accept)
+    }
+
+    /// Takes whole items, contents first and bottom up.
+    ///
+    /// Reference: `inventory::use_amount` over `use_amount_internal`, which is the same rule as [`consume_items_by_amount`] and is **not** the same rule as
+    /// [`Inventory::use_charges`]: a match consumes the item, not a charge from it.
+    pub fn use_amount(
+        &self,
+        world: &mut World,
+        kind: ItemTypeId,
+        quantity: i32,
+        accept: impl FnMut(&GroundItem) -> bool,
+    ) -> Consumed {
+        take_amount_from(world, self.items.clone(), kind, quantity, accept)
+    }
+}
+
+/// Takes charges from an explicit list of items, in pre-order.
+pub fn charges_from_items(
+    world: &mut World,
+    items: Vec<Entity>,
+    kind: ItemTypeId,
+    quantity: i32,
+    mut accept: impl FnMut(&GroundItem) -> bool,
+) -> Consumed {
+    let mut remaining = quantity.max(0);
+    let mut taken = 0;
+    for entity in items {
+        if remaining == 0 {
+            break;
+        }
+        offer_pile(world, entity, kind, &mut remaining, &mut taken, &mut accept);
+    }
+    Consumed {
+        taken,
+        satisfied: remaining == 0,
+    }
+}
+
 /// How many **items** of a type an inventory holds, contents counted.
 ///
 /// Reference: `visitable::amount_of` (`src/visitable.cpp:964-978`) — the count is of items, never of charges, so a pile of two hundred nails answers one; a broken
@@ -5258,6 +5324,10 @@ fn charges_of_item(world: &mut World, item: Entity, kind: ItemTypeId, limit: i32
         && !item_is_broken(world, item)
     {
         total += ground.charges.max(0);
+    }
+    // Only a container is walked into, the same gate the spending walk keeps (`src/visitable.cpp:853`).
+    if world.get::<Container>(item).is_none() {
+        return total;
     }
     for held in contents(world, item) {
         total += charges_of_item(world, held, kind, limit - total);
@@ -5526,7 +5596,8 @@ pub fn consume_items_held(
 ) -> Consumed {
     let mut remaining = quantity.max(0);
     let mut taken = 0;
-    for entity in items_at(world, square) {
+    let items = items_at(world, square);
+    for entity in items {
         if remaining == 0 {
             break;
         }
@@ -5561,6 +5632,9 @@ fn offer_pile(
     taken: &mut i32,
     accept: &mut impl FnMut(&GroundItem) -> bool,
 ) {
+    // **Only a container is walked into.** The reference ends its charge visit with `return e->is_container() ? VisitResponse::NEXT : VisitResponse::SKIP`
+    // (`src/visitable.cpp:853`), so a thing that merely happens to hold something - a corpse with a knife forced into it - supplies nothing to `charges_of`, while
+    // `amount_of` still counts what is inside (`src/visitable.cpp:964-978` has no such gate).
     if *remaining == 0 {
         return;
     }
@@ -5587,7 +5661,10 @@ fn offer_pile(
     if *remaining == 0 {
         return;
     }
-    // Then the contents, in the order they went in.
+    // Then the contents, in the order they went in — but only into a container, which is the reference's `SKIP` for anything else.
+    if world.get::<Container>(entity).is_none() {
+        return;
+    }
     for child in contents(world, entity) {
         offer_pile(world, child, kind, remaining, taken, accept);
         if *remaining == 0 {
@@ -5836,11 +5913,23 @@ pub fn consume_items_by_amount(
     square: (i32, i32),
     kind: ItemTypeId,
     quantity: i32,
+    accept: impl FnMut(&GroundItem) -> bool,
+) -> Consumed {
+    let items = items_at(world, square);
+    take_amount_from(world, items, kind, quantity, accept)
+}
+
+/// Takes whole items from an explicit list, which is what an inventory is: [`consume_items_by_amount`] asks a square, this asks whatever a caller hands it.
+pub fn take_amount_from(
+    world: &mut World,
+    items: Vec<Entity>,
+    kind: ItemTypeId,
+    quantity: i32,
     mut accept: impl FnMut(&GroundItem) -> bool,
 ) -> Consumed {
     let mut remaining = quantity.max(0);
     let mut taken = 0;
-    for entity in items_at(world, square) {
+    for entity in items {
         if remaining == 0 {
             break;
         }
