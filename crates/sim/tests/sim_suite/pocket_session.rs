@@ -205,6 +205,11 @@ impl Pockets {
                         Some(cdda_json::Value::Int(volume)) => *volume,
                         other => panic!("min_volume is a whole number: {other:?}"),
                     },
+                    items: Vec::new(),
+                    flags: Vec::new(),
+                    materials: Vec::new(),
+                    holster: false,
+                    max_item_volume_ml: None,
                 });
             }
             table.insert(id.clone(), kept);

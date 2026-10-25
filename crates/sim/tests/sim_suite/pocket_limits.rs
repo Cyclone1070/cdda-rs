@@ -20,15 +20,7 @@ fn chunky(_item: Entity) -> ItemFacts {
 
 /// A pocket of a given volume that takes anything at all.
 fn pocket(capacity_ml: i64) -> Pocket {
-    Pocket {
-        capacity_ml,
-        weight_capacity_grams: i64::MAX,
-        watertight: false,
-        airtight: false,
-        max_item_length_mm: 0,
-        min_item_length_mm: 0,
-        min_item_volume_ml: 0,
-    }
+    Pocket::of(capacity_ml)
 }
 
 fn box_with(pockets: Vec<Pocket>) -> (World, Entity, Entity) {

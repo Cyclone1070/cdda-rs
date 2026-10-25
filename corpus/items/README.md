@@ -25,4 +25,10 @@ the reference records what a constructed item holds.
 
 `pocket-session.json` — `--dump-pocket-session`: the same payloads offered to the same containers step by step.
 
+`accepts.json` — `--dump-accepts`: twelve containers against every twenty-fifth item type (4,752 cases), with
+`item_pocket::can_contain`'s answer and its own message for **each pocket of the container, in order**. The messages are the
+point: `holster does not accept this item type or form factor` is the accept-list's, `item is too long`/`too short`/`too big`/
+`too heavy`/`too small` are the limits', `item is not ammunition` is the ammo pocket's, and `can't contain liquid` is the phase
+rule's — so one file gates five rules and says which one refused.
+
 Reproduce with `--dump-item-measures`, `--dump-pockets` and `--dump-pocket-session` (see the oracle README).

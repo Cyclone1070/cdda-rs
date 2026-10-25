@@ -4304,7 +4304,7 @@ pub struct Container {
 ///
 /// Reference: `pocket_data` (`src/item_pocket.h:500-570`). The port keeps the three facts the rules read: the volume, [`Pocket::watertight`] for liquids and
 /// [`Pocket::airtight`] for gases.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Pocket {
     /// How much volume it holds, in millilitres.
     pub capacity_ml: i64,
@@ -4326,6 +4326,16 @@ pub struct Pocket {
     pub min_item_length_mm: i64,
     /// The smallest item it will take, in millilitres; zero for no limit. `"item is too small"` (`src/item_pocket.cpp:1428-1431`).
     pub min_item_volume_ml: i64,
+    /// The item ids it takes, in the data's order; empty with the other two lists for "anything" (`pocket_data::item_id_restriction`).
+    pub items: Vec<String>,
+    /// The item flags it takes; one is enough (`pocket_data::flag_restrictions`).
+    pub flags: Vec<String>,
+    /// The materials it takes, one being enough (`pocket_data::material_restriction`).
+    pub materials: Vec<String>,
+    /// Whether it holds exactly one item, so that a second must be the same kind to go in (`pocket_data::holster`).
+    pub holster: bool,
+    /// Whether it takes an item of up to a given volume and no bigger, in millilitres (`pocket_data::max_item_volume`).
+    pub max_item_volume_ml: Option<i64>,
 }
 
 impl Pocket {
@@ -4340,8 +4350,55 @@ impl Pocket {
             max_item_length_mm: 0,
             min_item_length_mm: 0,
             min_item_volume_ml: 0,
+            items: Vec::new(),
+            flags: Vec::new(),
+            materials: Vec::new(),
+            holster: false,
+            max_item_volume_ml: None,
         }
     }
+
+    /// The same pocket as the data states it.
+    #[must_use]
+    pub fn from_spec(spec: &cdda_content::pockets::PocketSpec) -> Self {
+        Self {
+            capacity_ml: spec.max_volume_ml,
+            weight_capacity_grams: spec.max_weight_grams,
+            watertight: spec.watertight,
+            airtight: spec.airtight,
+            max_item_length_mm: spec.max_length_mm,
+            min_item_length_mm: spec.min_length_mm,
+            min_item_volume_ml: spec.min_volume_ml,
+            items: spec.items.clone(),
+            flags: spec.flags.clone(),
+            materials: spec.materials.clone(),
+            holster: spec.holster,
+            max_item_volume_ml: spec.max_item_volume_ml,
+        }
+    }
+}
+
+/// Whether a pocket's accept-lists let a thing in.
+///
+/// Reference: `item_pocket::is_compatible` (`src/item_pocket.cpp:1362-1372`): with **any** of the three lists stated, the thing has to be named by one of them, or
+/// carry one of the flags, or be made of one of the materials - any one is enough, so a named id and a named flag are alternatives rather than requirements. With
+/// none of the lists stated the pocket takes anything, and the reference does not even look.
+///
+/// The refusal is the reference's own: `"holster does not accept this item type or form factor"`, which is the message every restricted pocket gives, holster or
+/// not.
+#[must_use]
+pub fn accepts(
+    pocket: &Pocket,
+    id: &str,
+    flags: &std::collections::BTreeSet<String>,
+    base_material: &str,
+) -> bool {
+    if pocket.items.is_empty() && pocket.flags.is_empty() && pocket.materials.is_empty() {
+        return true;
+    }
+    pocket.items.iter().any(|allowed| allowed == id)
+        || pocket.flags.iter().any(|allowed| flags.contains(allowed))
+        || pocket.materials.iter().any(|allowed| allowed == base_material)
 }
 
 impl Container {
