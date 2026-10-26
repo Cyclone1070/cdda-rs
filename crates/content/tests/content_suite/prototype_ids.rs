@@ -145,6 +145,11 @@ fn the_port_never_invents_an_id_the_reference_does_not_have() {
     if let Ok(buffs) = cdda_content::generated::buff_ids(&[&core, &content]) {
         ours.insert("martial art buff".to_owned(), buffs);
     }
+    // The effects are a plain `std::map` in the reference rather than a `generic_factory`, so the scanner cannot see them by type name; they are loaded by their own
+    // reader, and the ids the reference **mints** for martial-art buffs are the named gap below.
+    if let Ok(effects) = cdda_content::effects::load_paths(&[&core, &content]) {
+        ours.insert("effect types".to_owned(), effects.into_keys().collect());
+    }
     // The turret parts are additions: the registry also holds the parts the
     // files define.
     if let Ok(items) = cdda_content::items::load_paths(&[&core, &content]) {
@@ -198,7 +203,12 @@ fn the_port_never_invents_an_id_the_reference_does_not_have() {
 /// skipped: a regression anywhere in any of them fails it. The list is empty
 /// because nothing is missing any more; keeping the mechanism means a future gap
 /// has to be counted here, in public, rather than excused in a comment.
-const KNOWN_GAPS: [(&str, usize); 0] = [];
+/// The registries the port is knowingly short of, with how many ids it lacks and why.
+const KNOWN_GAPS: [(&str, usize); 1] = [
+    // `register_ma_buff_effect` (`src/effect.cpp:1674-1680`) mints one effect per martial-art buff, so the reference's effect registry holds 113 ids that no file
+    // states. Porting them means porting buffs themselves; until then this is the count, not a shrug.
+    ("effect types", 113),
+];
 
 #[test]
 fn every_registry_holds_exactly_the_ids_the_reference_reports() {

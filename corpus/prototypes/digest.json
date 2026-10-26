@@ -21,6 +21,7 @@
 {"type":"damage info order","count":10,"digest":"83d2e2c6b4316794"},
 {"type":"damage type","count":10,"digest":"83d2e2c6b4316794"},
 {"type":"disease_type","count":2,"digest":"699edf51316a923f"},
+{"type":"effect types","count":564,"digest":"18788d9bdee2b5ae"},
 {"type":"effect_on_condition","count":913,"digest":"16b519f2df301918"},
 {"type":"enchantment","count":353,"digest":"67d14aa2acd9bbaa"},
 {"type":"end_screen","count":10,"digest":"4be62cefaed4847e"},

@@ -546,7 +546,14 @@ Round 630 turned the same lens on ammunition. An effect list is a container too,
 and extends them. The reader was also asking the *object* whether it declares the AMMO subtype instead of asking the item,
 which loses the block entirely for a child that inherits its ammo slot; no such child exists in this content, so that half is
 pinned by a fixture. And the registry: tempting to refuse an effect it lacks, but the reference does not — `rock` lists four
-**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 646 closed `update_stomach`: the hunger-effect ladder now has a port, gated over 126 states (seven fillings × three ages of the last bite × six body-fat levels),
+**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 647 opened the **effects** family: 451 effect types loaded and gated field for field (21 fields each) against the reference's own registry, and — for the first time
+— the effects are visible to the prototype digest, which grew from 90 registries to 91. The family is a plain `std::map` rather than a `generic_factory`, which is why
+the digest could not see it and why there is no `copy-from` to merge. Four defaults differed from what reading suggested and the recording named all four; one member
+turned out not to be data at all (`impairs_movement` is a hardcoded set of ten trapping effects). The 113 ids the reference **mints** for martial-art buffs are a named
+gap with its count, not a shrug. Next: applying effects (`add_effect`, intensity, decay) — the subsystem the hunger effect, sleep, allergies and vitamin deficiencies
+all sit on.
+
+Round 646 closed `update_stomach`: the hunger-effect ladder now has a port, gated over 126 states (seven fillings × three ages of the last bite × six body-fat levels),
 and with it the meal pipeline is complete from raw data to the effect a character wears. The recording caught two things reading had missed: **the fullness ratio is an
 integer division**, so five sixths, three quarters and eleven twentieths are all the same test, and a float ratio fails the gate; and because of that — plus the
 reference testing `emaciated` after `underweight` — **two of the nine hunger effects are unreachable code**, which the port keeps in the reference's order and asserts

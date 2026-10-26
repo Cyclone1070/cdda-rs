@@ -19,6 +19,7 @@ mod corpus;
 mod deployables;
 mod digest;
 mod digest_ids;
+mod effects;
 mod eocs;
 mod examine_actions;
 mod factory;

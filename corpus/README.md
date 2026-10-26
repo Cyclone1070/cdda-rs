@@ -8,8 +8,9 @@ generator is committed next to its output.
 | File | Generator | What it pins down |
 |---|---|---|
 | `rng/engine.csv` | [`rng_corpus.cpp`](../oracle/probes/rng_corpus.cpp) | The reference's random stream: `minstd_rand0` raw draws, plus `uniform_int`, `uniform_real` and `normal` distributions over four seeds |
-| `prototypes/digest.json` | `cataclysm --dump-prototype-digest` (see [11-oracle-harness.md](../docs/11-oracle-harness.md)) | Every loaded prototype registry: 90 registries, 54,925 prototypes, each as a count plus an FNV-1a digest of its sorted ids |
+| `prototypes/digest.json` | `cataclysm --dump-prototype-digest` (see [11-oracle-harness.md](../docs/11-oracle-harness.md)) | Every loaded prototype registry: 91 registries, including the effect types the `generic_factory` walk cannot reach, each as a count plus an FNV-1a digest of its sorted ids |
 | `prototypes/ids.json` | `cataclysm --dump-prototype-ids` | The same registries with every id spelled out, so a difference can be read rather than hunted |
+| `effects.json` | `cataclysm --dump-effects` | All 564 effect types the reference holds, with the twenty-odd members a rule can read — the intensity and duration ceilings, the decay settings, the rating, the flags and the resist/remove/block lists |
 | `env/env-seed12345.json` | `cataclysm --seed 12345 --dump-env` | The state before any world: RNG position, calendar, and the five options the simulation reads. Only reproducible with an explicit seed |
 | `options/table.json` | [`gen_options.py`](../tools/gen_options.py) | Every option the reference declares: name, type, default, range, page (276) |
 | `replay/walk-east.key` + `state/replay-walk-east.json` | `cataclysm --replay --dump-state` | A recorded session and the state it reaches: five inputs, four turns, byte-identical across runs. This is the artifact a port is compared against, because the replay path is the one a player takes |

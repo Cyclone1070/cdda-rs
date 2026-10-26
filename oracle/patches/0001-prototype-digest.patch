@@ -78,6 +78,19 @@ diff -ruN references/Cataclysm-DDA/src/debug.cpp oracle/src/src/debug.cpp
      debug_error_prompt( filename, line, funcname, text.c_str(), false );
  
      if( excess_repetition ) {
+diff -ruN references/Cataclysm-DDA/src/effect.h oracle/src/src/effect.h
+--- references/Cataclysm-DDA/src/effect.h	2026-10-19 18:15:04
++++ oracle/src/src/effect.h	2026-10-26 10:48:46
+@@ -106,6 +106,9 @@
+         friend void load_effect_type( const JsonObject &jo, std::string_view src );
+         friend class effect;
+         friend struct mod_tracker;
++        // The prototype digest and `--dump-effects` need to read every field of a loaded effect type, and the class keeps them protected behind a friend that only
++        // the loader has. One reader struct is a smaller hole than a public getter for each of twenty members.
++        friend struct oracle_effect_reader;
+     public:
+         enum class memorial_gender : int {
+             male,
 diff -ruN references/Cataclysm-DDA/src/explosion.cpp oracle/src/src/explosion.cpp
 --- references/Cataclysm-DDA/src/explosion.cpp	2026-10-19 18:15:04
 +++ oracle/src/src/explosion.cpp	2026-10-25 04:25:41
@@ -345,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-26 09:55:32
-@@ -0,0 +1,5270 @@
++++ oracle/src/src/harness.cpp	2026-10-26 10:55:34
+@@ -0,0 +1,5430 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +
@@ -411,6 +424,73 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +#include <utility>
 +#include <string>
 +#include <vector>
++
++/// Reads the protected fields of a loaded effect type, which is what the digest and `--dump-effects` need.
++struct oracle_effect_reader {
++    static int max_intensity( const effect_type & e ) {
++        return e.max_intensity;
++    }
++    static time_duration max_duration( const effect_type & e ) {
++        return e.max_duration;
++    }
++    static int dur_add_perc( const effect_type & e ) {
++        return e.dur_add_perc;
++    }
++    static int int_add_val( const effect_type & e ) {
++        return e.int_add_val;
++    }
++    static int int_decay_step( const effect_type & e ) {
++        return e.int_decay_step;
++    }
++    static int int_decay_tick( const effect_type & e ) {
++        return e.int_decay_tick;
++    }
++    static time_duration int_dur_factor( const effect_type & e ) {
++        return e.int_dur_factor;
++    }
++    static bool int_decay_remove( const effect_type & e ) {
++        return e.int_decay_remove;
++    }
++    static bool main_parts_only( const effect_type & e ) {
++        return e.main_parts_only;
++    }
++    static bool show_in_info( const effect_type & e ) {
++        return e.show_in_info;
++    }
++    static bool show_intensity( const effect_type & e ) {
++        return e.show_intensity;
++    }
++    static bool pain_sizing( const effect_type & e ) {
++        return e.pain_sizing;
++    }
++    static bool hurt_sizing( const effect_type & e ) {
++        return e.hurt_sizing;
++    }
++    static bool harmful_cough( const effect_type & e ) {
++        return e.harmful_cough;
++    }
++    static bool impairs_movement( const effect_type & e ) {
++        return e.impairs_movement;
++    }
++    static bool pkill_addict_reduces( const effect_type & e ) {
++        return e.pkill_addict_reduces;
++    }
++    static const std::set<flag_id> &flags( const effect_type & e ) {
++        return e.flags;
++    }
++    static const std::vector<trait_id> &resist_traits( const effect_type & e ) {
++        return e.resist_traits;
++    }
++    static const std::vector<efftype_id> &resist_effects( const effect_type & e ) {
++        return e.resist_effects;
++    }
++    static const std::vector<efftype_id> &removes_effects( const effect_type & e ) {
++        return e.removes_effects;
++    }
++    static const std::vector<efftype_id> &blocks_effects( const effect_type & e ) {
++        return e.blocks_effects;
++    }
++};
 +
 +namespace harness
 +{
@@ -504,9 +584,33 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 +} // namespace
 +
++namespace
++{
++
++/// The registries the digest cannot reach on its own, because they are plain maps rather than `generic_factory`s. Today that is exactly one: the effects.
++std::vector<std::pair<std::string, std::vector<std::string>>> collect_manual()
++{
++    std::vector<std::string> effects;
++    effects.reserve( get_effect_types().size() );
++    for( const std::pair<const efftype_id, effect_type> &entry : get_effect_types() ) {
++        effects.push_back( entry.first.str() );
++    }
++    std::sort( effects.begin(), effects.end() );
++    return { { "effect types", std::move( effects ) } };
++}
++
++} // namespace
++
 +void dump_prototype_digest( const std::string &path )
 +{
-+    const auto collected = collect();
++    auto collected = collect();
++    for( auto &manual : collect_manual() ) {
++        collected.push_back( std::move( manual ) );
++    }
++    std::sort( collected.begin(), collected.end(),
++    []( const auto & l, const auto & r ) {
++        return l.first < r.first;
++    } );
 +    std::FILE *out = std::fopen( path.c_str(), "wb" );
 +    if( out == nullptr ) {
 +        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
@@ -527,7 +631,14 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 +void dump_prototype_ids( const std::string &path )
 +{
-+    const auto collected = collect();
++    auto collected = collect();
++    for( auto &manual : collect_manual() ) {
++        collected.push_back( std::move( manual ) );
++    }
++    std::sort( collected.begin(), collected.end(),
++    []( const auto & l, const auto & r ) {
++        return l.first < r.first;
++    } );
 +    std::FILE *out = std::fopen( path.c_str(), "wb" );
 +    if( out == nullptr ) {
 +        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
@@ -2432,6 +2543,68 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +                first = false;
 +            }
 +        }
++    }
++    std::fprintf( out, "\n],\"count\":%d}\n", count );
++    std::fclose( out );
++}
++
++/// Every effect type, with the fields the rules that read them consult.
++///
++/// The effect registry is the one content family the prototype digest could not see: `effect_types` is a plain `std::map` in `src/effect.cpp:58`, not a
++/// `generic_factory`, so nothing registers it automatically. It is the biggest family in the game's behaviour — 453 types, and every one of the hunger, sleep,
++/// allergy and vitamin rules lands on one — so it is recorded here in full for the fields a rule can read, plus its ids for the digest.
++void dump_effects( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    const auto list = []( const auto &values ) {
++        std::string text = "[";
++        bool first = true;
++        for( const auto &value : values ) {
++            text += string_format( "%s\"%s\"", first ? "" : ",", harness_escape( value.str() ).c_str() );
++            first = false;
++        }
++        return text + "]";
++    };
++    std::fprintf( out, "{\"harness\":\"effects\",\"version\":1,\n\"types\":[\n" );
++    bool first_type = true;
++    int count = 0;
++    for( const std::pair<const efftype_id, effect_type> &entry : get_effect_types() ) {
++        const effect_type &effect = entry.second;
++        ++count;
++        std::fprintf( out,
++                      "%s{\"id\":\"%s\",\"max_intensity\":%d,\"max_duration\":%lld,\"dur_add_perc\":%d,"
++                      "\"int_add_val\":%d,\"int_decay_step\":%d,\"int_decay_tick\":%d,\"int_dur_factor\":%lld,"
++                      "\"int_decay_remove\":%s,\"main_parts_only\":%s,\"show_in_info\":%s,"
++                      "\"show_intensity\":%s,\"pain_sizing\":%s,\"hurt_sizing\":%s,\"harmful_cough\":%s,"
++                      "\"impairs_movement\":%s,\"pkill_addict_reduces\":%s,\"rating\":%d,"
++                      "\"flags\":%s,\"resist_traits\":%s,\"resist_effects\":%s,\"removes_effects\":%s,"
++                      "\"blocks_effects\":%s}",
++                      first_type ? "" : ",\n", harness_escape( entry.first.str() ).c_str(),
++                      ::oracle_effect_reader::max_intensity( effect ),
++                      static_cast<long long>( to_turns<int64_t>( ::oracle_effect_reader::max_duration( effect ) ) ),
++                      ::oracle_effect_reader::dur_add_perc( effect ), ::oracle_effect_reader::int_add_val( effect ),
++                      ::oracle_effect_reader::int_decay_step( effect ), ::oracle_effect_reader::int_decay_tick( effect ),
++                      static_cast<long long>( to_turns<int64_t>( ::oracle_effect_reader::int_dur_factor( effect ) ) ),
++                      ::oracle_effect_reader::int_decay_remove( effect ) ? "true" : "false",
++                      ::oracle_effect_reader::main_parts_only( effect ) ? "true" : "false",
++                      ::oracle_effect_reader::show_in_info( effect ) ? "true" : "false",
++                      ::oracle_effect_reader::show_intensity( effect ) ? "true" : "false",
++                      ::oracle_effect_reader::pain_sizing( effect ) ? "true" : "false",
++                      ::oracle_effect_reader::hurt_sizing( effect ) ? "true" : "false",
++                      ::oracle_effect_reader::harmful_cough( effect ) ? "true" : "false",
++                      ::oracle_effect_reader::impairs_movement( effect ) ? "true" : "false",
++                      ::oracle_effect_reader::pkill_addict_reduces( effect ) ? "true" : "false",
++                      static_cast<int>( effect.get_rating() ),
++                      list( ::oracle_effect_reader::flags( effect ) ).c_str(),
++                      list( ::oracle_effect_reader::resist_traits( effect ) ).c_str(),
++                      list( ::oracle_effect_reader::resist_effects( effect ) ).c_str(),
++                      list( ::oracle_effect_reader::removes_effects( effect ) ).c_str(),
++                      list( ::oracle_effect_reader::blocks_effects( effect ) ).c_str() );
++        first_type = false;
 +    }
 +    std::fprintf( out, "\n],\"count\":%d}\n", count );
 +    std::fclose( out );
@@ -5619,8 +5792,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-26 09:55:32
-@@ -0,0 +1,360 @@
++++ oracle/src/src/harness.h	2026-10-26 10:41:51
+@@ -0,0 +1,363 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -5813,6 +5986,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +
 +/** Writes every `consume_drug` use action, resolved. */
 +void dump_consume_drugs( const std::string &path );
++
++/** Writes every effect type and the fields a rule reads, as `--dump-effects`. */
++void dump_effects( const std::string &path );
 +
 +/** Writes which hunger effect `update_stomach` installs, as `--dump-hunger-effect`. */
 +void dump_hunger_effect( const std::string &path );
@@ -6155,7 +6331,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-26 09:55:32
++++ oracle/src/src/main.cpp	2026-10-26 10:41:51
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -6166,7 +6342,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,131 @@
+@@ -272,6 +275,132 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -6245,6 +6421,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_update_stomach;
 +    std::string dump_needs;
 +    std::string dump_hunger_effect;
++    std::string dump_effects;
 +    std::string dump_consume_drugs;
 +    std::string dump_link_ups;
 +    std::string dump_firestarters;
@@ -6298,7 +6475,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +428,1130 @@
+@@ -300,6 +429,1140 @@
                  }
              },
              {
@@ -6689,6 +6866,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_consume_drugs = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-effects", "<file>",
++                "Writes every effect type and the fields a rule reads",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_effects = params[0];
 +                    return 1;
 +                }
 +            },
@@ -7429,7 +7616,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2038,598 @@
+@@ -786,6 +2049,604 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -7853,6 +8040,12 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            test_mode = true;
 +            g->check_mod_data( { mod_id( "dda" ) } );
 +            harness::dump_consume_drugs( cli.dump_consume_drugs );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_effects.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_effects( cli.dump_effects );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_hunger_effect.empty() ) {

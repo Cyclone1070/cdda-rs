@@ -72,7 +72,7 @@ fn the_algorithm_reproduces_every_digest_the_reference_wrote() {
         assert_eq!(&ours, &digest_of(reference), "registry {name}");
         checked += 1;
     }
-    assert_eq!(checked, 90, "every registry in the artifact was checked");
+    assert_eq!(checked, 91, "every registry in the artifact was checked");
 }
 
 #[test]
