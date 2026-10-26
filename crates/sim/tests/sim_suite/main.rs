@@ -36,6 +36,7 @@ mod death;
 mod degradation;
 mod digest;
 mod eating;
+mod effect_merge;
 mod extinguisher;
 mod falling;
 mod fault_pick;

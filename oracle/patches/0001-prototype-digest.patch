@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-26 10:55:34
-@@ -0,0 +1,5430 @@
++++ oracle/src/src/harness.cpp	2026-10-26 13:57:49
+@@ -0,0 +1,5539 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +
@@ -378,6 +378,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +#include "construction.h"
 +#include "recipe_dictionary.h"
 +#include "requirements.h"
++#include "json_loader.h"
 +#include "inventory.h"
 +#include "clzones.h"
 +
@@ -2545,6 +2546,114 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        }
 +    }
 +    std::fprintf( out, "\n],\"count\":%d}\n", count );
++    std::fclose( out );
++}
++
++/// Applies effects to an avatar over and over, and records what the intensity and the duration become.
++///
++/// `Creature::add_effect` (`src/creature.cpp:1731-1856`) has two halves, and both are arithmetic a player feels: an effect the creature **does not** have is created
++/// with the intensity asked for, and one it **does** have has its duration grown by a percentage of the new duration and its intensity stepped by the type's own step
++/// size. The ceilings come from the type. Everything is integer turns, so the percentage is where truncation lives.
++///
++/// The effect types are **synthesised** through the real loader (`load_effect_type`) rather than picked from the data, so a profile can say exactly what it needs
++/// — and the loader gets exercised at the same time.
++void dump_effect_merge( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    avatar &u = get_avatar();
++    const bodypart_str_id torso( "torso" );
++
++    struct profile {
++        int max_intensity;
++        const char *max_duration;
++        int dur_add_perc;
++        int int_add_val;
++        const char *int_dur_factor;
++        bool int_decay_remove;
++    };
++    // Six shapes: the plain one, a capped one, the step-sized one, the duration-sized one, and the ones that can and cannot reach zero.
++    static const std::array<profile, 6> profiles = { {
++            { 1, "1 hours", 100, 0, "0 turns", false },
++            { 3, "1 hours", 100, 1, "0 turns", false },
++            { 10, "6 hours", 50, 2, "0 turns", false },
++            { 5, "6 hours", 200, 0, "0 turns", true },
++            { 30, "6 hours", 100, 0, "10 minutes", false },
++            { 2, "30 minutes", 0, 0, "0 turns", true },
++        }
++    };
++    // Three applications per profile, mixing the ways a caller adds an effect: with an intensity, without one, and with a long one.
++    struct application {
++        int minutes;
++        int intensity;
++    };
++    static const std::array<std::array<application, 3>, 5> sequences = { {
++            { { { 5, 0 }, { 5, 0 }, { 5, 0 } } },
++            { { { 5, 1 }, { 5, 0 }, { 5, 2 } } },
++            { { { 60, 0 }, { 60, 0 }, { 60, 0 } } },
++            { { { 20, 5 }, { 120, 0 }, { 1, 3 } } },
++            // Durations that are **not** a whole number of the ten-minute factor: the difference between a ceil of a ratio and a ceil of an integer.
++            { { { 7, 0 }, { 13, 0 }, { 1, 1 } } },
++        }
++    };
++
++    // The profiles are written out first: the recording has to say what the runs were run against, or the replay is guesswork.
++    std::fprintf( out, "{\"harness\":\"effect-merge\",\"version\":1,\"profiles\":[\n" );
++    for( std::size_t p = 0; p < profiles.size(); ++p ) {
++        const profile &prof = profiles[p];
++        std::fprintf( out,
++                      "%s{\"max_intensity\":%d,\"max_duration\":\"%s\",\"dur_add_perc\":%d,\"int_add_val\":%d,"
++                      "\"int_dur_factor\":\"%s\",\"int_decay_remove\":%s}",
++                      p == 0 ? "" : ",\n", prof.max_intensity, prof.max_duration, prof.dur_add_perc,
++                      prof.int_add_val, prof.int_dur_factor, prof.int_decay_remove ? "true" : "false" );
++    }
++    std::fprintf( out, "],\"runs\":[\n" );
++    bool first_run = true;
++    int runs = 0;
++    for( std::size_t p = 0; p < profiles.size(); ++p ) {
++        const profile &prof = profiles[p];
++        const std::string id = string_format( "harness_merge_%d", static_cast<int>( p ) );
++        const std::string json = string_format(
++                                     "{\"id\":\"%s\",\"max_intensity\":%d,\"max_duration\":\"%s\",\"dur_add_perc\":%d,"
++                                     "\"int_add_val\":%d,\"int_dur_factor\":\"%s\",\"int_decay_remove\":%s}",
++                                     id.c_str(), prof.max_intensity, prof.max_duration, prof.dur_add_perc,
++                                     prof.int_add_val, prof.int_dur_factor, prof.int_decay_remove ? "true" : "false" );
++        JsonValue parsed = json_loader::from_string( json );
++        JsonObject object = parsed.get_object();
++        load_effect_type( object, "harness" );
++        const efftype_id effect_id( id );
++        if( !effect_id.is_valid() ) {
++            std::fprintf( stderr, "harness: the synthesised effect %s did not load\n", id.c_str() );
++            std::fclose( out );
++            return;
++        }
++
++        for( std::size_t s = 0; s < sequences.size(); ++s ) {
++            u.remove_effect( effect_id );
++            ++runs;
++            std::fprintf( out, "%s{\"profile\":%d,\"sequence\":%d,\"steps\":[",
++                          first_run ? "" : ",\n", static_cast<int>( p ), static_cast<int>( s ) );
++            first_run = false;
++            const auto &sequence = sequences[s];
++            for( std::size_t step = 0; step < sequence.size(); ++step ) {
++                const application &app = sequence[step];
++                u.add_effect( effect_source::empty(), effect_id, time_duration::from_minutes( app.minutes ),
++                              torso, false, app.intensity );
++                const effect &applied = u.get_effect( effect_id, torso );
++                std::fprintf( out,
++                              "%s{\"minutes\":%d,\"intensity\":%d,\"after_intensity\":%d,\"after_turns\":%lld}",
++                              step == 0 ? "" : ",", app.minutes, app.intensity,
++                              u.get_effect_int( effect_id, torso ),
++                              static_cast<long long>( to_turns<int64_t>( u.get_effect_dur( effect_id, torso ) ) ) );
++                ( void )applied;
++            }
++            std::fprintf( out, "]}" );
++        }
++    }
++    std::fprintf( out, "\n],\"count\":%d}\n", runs );
 +    std::fclose( out );
 +}
 +
@@ -5792,8 +5901,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-26 10:41:51
-@@ -0,0 +1,363 @@
++++ oracle/src/src/harness.h	2026-10-26 12:22:36
+@@ -0,0 +1,366 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -5986,6 +6095,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +
 +/** Writes every `consume_drug` use action, resolved. */
 +void dump_consume_drugs( const std::string &path );
++
++/** Writes what repeated application does to an effect's intensity and duration, as `--dump-effect-merge`. */
++void dump_effect_merge( const std::string &path );
 +
 +/** Writes every effect type and the fields a rule reads, as `--dump-effects`. */
 +void dump_effects( const std::string &path );
@@ -6331,7 +6443,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-26 10:41:51
++++ oracle/src/src/main.cpp	2026-10-26 12:22:36
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -6342,7 +6454,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,132 @@
+@@ -272,6 +275,133 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -6422,6 +6534,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_needs;
 +    std::string dump_hunger_effect;
 +    std::string dump_effects;
++    std::string dump_effect_merge;
 +    std::string dump_consume_drugs;
 +    std::string dump_link_ups;
 +    std::string dump_firestarters;
@@ -6475,7 +6588,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +429,1140 @@
+@@ -300,6 +430,1150 @@
                  }
              },
              {
@@ -6866,6 +6979,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_consume_drugs = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-effect-merge", "<file>",
++                "Writes what repeated application does to an effect's intensity and duration",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_effect_merge = params[0];
 +                    return 1;
 +                }
 +            },
@@ -7616,7 +7739,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2049,604 @@
+@@ -786,6 +2060,610 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -8040,6 +8163,12 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            test_mode = true;
 +            g->check_mod_data( { mod_id( "dda" ) } );
 +            harness::dump_consume_drugs( cli.dump_consume_drugs );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_effect_merge.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_effect_merge( cli.dump_effect_merge );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_effects.empty() ) {

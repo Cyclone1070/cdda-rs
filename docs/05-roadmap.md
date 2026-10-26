@@ -546,7 +546,13 @@ Round 630 turned the same lens on ammunition. An effect list is a container too,
 and extends them. The reader was also asking the *object* whether it declares the AMMO subtype instead of asking the item,
 which loses the block entirely for a child that inherits its ammo slot; no such child exists in this content, so that half is
 pinned by a fixture. And the registry: tempting to refuse an effect it lacks, but the reference does not — `rock` lists four
-**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 647 opened the **effects** family: 451 effect types loaded and gated field for field (21 fields each) against the reference's own registry, and — for the first time
+**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 648 taught the port to **wear** an effect: 30 runs of three applications each over six profiles, gating both halves of `Creature::add_effect` — creation and merge
+into one already worn. The finding of the round is a pair of operators that look identical and behave oppositely: `dur * dur_add_perc / 100` is integer arithmetic
+(three turns at 50% add one, not two), while `ceil( duration / int_dur_factor )` divides two `time_duration`s, whose `/` answers a `double`, so 21 minutes against a
+ten-minute factor is intensity **3**. The port had the second one wrong — it was written as a truncating integer division — and the recording said so only after a
+sequence of 7, 13 and 1 minutes was added to the grid. Next: decay, so an effect can be worn *down* as well as up.
+
+Round 647 opened the **effects** family: 451 effect types loaded and gated field for field (21 fields each) against the reference's own registry, and — for the first time
 — the effects are visible to the prototype digest, which grew from 90 registries to 91. The family is a plain `std::map` rather than a `generic_factory`, which is why
 the digest could not see it and why there is no `copy-from` to merge. Four defaults differed from what reading suggested and the recording named all four; one member
 turned out not to be data at all (`impairs_movement` is a hardcoded set of ten trapping effects). The 113 ids the reference **mints** for martial-art buffs are a named
