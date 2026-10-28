@@ -22,7 +22,10 @@ fn a_chance_under_a_hundred_places_at_most_one_batch_per_iteration() {
     // A sixty-in-a-hundred chance is not "sixty percent of the squares": it is one roll for whether **this chunk** gets a
     // batch at all, once per iteration. With a spawn rate of one, that is `roll_remainder(0.6)` - zero or one.
     let mut placed = 0;
-    for seed in 0..200 {
+    // Spread seeds, not counted up: `uniform_int` maps a small engine value to a small answer and a small seed's first draw is small,
+    // so `0, 1, 2, ...` samples one end of the distribution rather than the chance under test.
+    for attempt in 0..200 {
+        let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
         let mut rolls = Rolls::new(seed);
         let squares = place_forest_items(24, 60, 1, 1.0, &mut rolls, |_, _| false);
         assert!(
@@ -43,7 +46,10 @@ fn a_chance_under_a_hundred_places_at_most_one_batch_per_iteration() {
 fn every_iteration_can_place_its_own_batch() {
     // Two iterations are two independent rolls and two independent squares - the port must not place once and copy.
     let mut any_two = 0;
-    for seed in 0..400 {
+    // Spread seeds, not counted up: `uniform_int` maps a small engine value to a small answer and a small seed's first draw is small,
+    // so `0, 1, 2, ...` samples one end of the distribution rather than the chance under test.
+    for attempt in 0..400 {
+        let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
         let mut rolls = Rolls::new(seed);
         let squares = place_forest_items(24, 100, 2, 1.0, &mut rolls, |_, _| false);
         assert_eq!(squares.len(), 2, "seed {seed}");

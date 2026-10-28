@@ -71,9 +71,12 @@ fn ground() -> Neighbour {
 fn a_spreading_fire_leaves_a_weak_fuelled_fire_behind() {
     // Intensity three on burnable ground with a generous number of seeds: somewhere in the first few the fire jumps, and what it leaves is
     // intensity one with two minutes of fuel - negative age, which is how the reference writes fuel.
-    for seed in 0..40 {
+    // Spread seeds, not counted up: `uniform_int` maps a small engine value to a small answer and a small seed's first draw is small,
+    // so `0, 1, 2, ...` samples one end of the distribution rather than the chance under test.
+    for attempt in 0..40 {
         let mut world = World::new();
         fire(&mut world, 5, 5, 3, -10_000);
+        let seed = u32::try_from(attempt).unwrap_or(u32::MAX).wrapping_mul(2_654_435_761).wrapping_add(1);
         let mut rolls = Rolls::new(seed);
         process_fires(
             &mut world,
@@ -114,7 +117,10 @@ fn a_spreading_fire_leaves_a_weak_fuelled_fire_behind() {
 fn a_contained_fire_leaves_no_new_fire() {
     let mut world = World::new();
     fire(&mut world, 5, 5, 3, -10_000);
-    for seed in 0..20 {
+    // Spread seeds, not counted up: `uniform_int` maps a small engine value to a small answer and a small seed's first draw is small,
+    // so `0, 1, 2, ...` samples one end of the distribution rather than the chance under test.
+    for attempt in 0..20 {
+        let seed = u32::try_from(attempt).unwrap_or(u32::MAX).wrapping_mul(2_654_435_761).wrapping_add(1);
         let mut rolls = Rolls::new(seed);
         process_fires(
             &mut world,
@@ -141,9 +147,12 @@ fn a_contained_fire_leaves_no_new_fire() {
 #[test]
 fn the_spreading_fire_spends_a_minute_of_its_own_life() {
     // `cur.set_field_age( cur.get_field_age() + 1_minutes )` on the fire that spread - sixty turns closer to burning out.
-    for seed in 0..40 {
+    // Spread seeds, not counted up: `uniform_int` maps a small engine value to a small answer and a small seed's first draw is small,
+    // so `0, 1, 2, ...` samples one end of the distribution rather than the chance under test.
+    for attempt in 0..40 {
         let mut world = World::new();
         let entity = fire(&mut world, 5, 5, 3, -10_000);
+        let seed = u32::try_from(attempt).unwrap_or(u32::MAX).wrapping_mul(2_654_435_761).wrapping_add(1);
         let mut rolls = Rolls::new(seed);
         process_fires(
             &mut world,
@@ -179,9 +188,12 @@ fn the_spreading_fire_spends_a_minute_of_its_own_life() {
 fn each_new_fire_is_put_on_a_different_square() {
     // A neighbour that catches gets one fire, not one per roll: the store is keyed by entity but the world is keyed by square, and two fires on
     // one square would double its damage and its light.
-    for seed in 0..60 {
+    // Spread seeds, not counted up: `uniform_int` maps a small engine value to a small answer and a small seed's first draw is small,
+    // so `0, 1, 2, ...` samples one end of the distribution rather than the chance under test.
+    for attempt in 0..60 {
         let mut world = World::new();
         fire(&mut world, 5, 5, 3, -10_000);
+        let seed = u32::try_from(attempt).unwrap_or(u32::MAX).wrapping_mul(2_654_435_761).wrapping_add(1);
         let mut rolls = Rolls::new(seed);
         process_fires(
             &mut world,

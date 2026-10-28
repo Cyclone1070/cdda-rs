@@ -82,9 +82,12 @@ fn a_strong_fire_vent_thins_only_one_time_in_three() {
     // else may happen. A test that only checked one seed would pass on a broken roll.
     let mut thinned = 0;
     let mut stayed = 0;
-    for seed in 0..30 {
+    // Spread seeds, not counted up: `uniform_int` maps a small engine value to a small answer and a small seed's first draw is small,
+    // so `0, 1, 2, ...` samples one end of the distribution rather than the chance under test.
+    for attempt in 0..30 {
         let mut world = World::new();
         let entity = spawn(&mut world, FIRE_VENT, 3, 5);
+        let seed = u32::try_from(attempt).unwrap_or(u32::MAX).wrapping_mul(2_654_435_761).wrapping_add(1);
         let mut rolls = Rolls::new(seed);
         process_fire_vent(&mut world, entity, &mut rolls);
         match fields(&mut world).as_slice() {

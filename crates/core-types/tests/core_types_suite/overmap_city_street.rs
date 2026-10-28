@@ -94,7 +94,8 @@ fn a_town_of_two_grows_a_short_street_and_no_neighbourhoods() {
 fn a_junction_is_where_a_sub_street_leaves_and_may_carry_a_manhole() {
     let mut junctions = 0;
     let mut manholes = 0;
-    for seed in 0..40 {
+    for attempt in 0..40_u32 {
+        let seed = crate::spread_seed(attempt);
         for (_, kind) in grow(seed, 9, Direction::East) {
             match kind {
                 StreetTile::Junction => junctions += 1,

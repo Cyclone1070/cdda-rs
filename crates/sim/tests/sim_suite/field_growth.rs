@@ -48,7 +48,8 @@ fn a_field_on_dry_land_does_not() {
 fn a_field_that_grows_does_so_on_its_period_and_sometimes_after() {
     let mut grew = 0;
     let mut stayed = 0;
-    for seed in 1..=40 {
+    for attempt in 1..=40 {
+        let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
         let mut world = World::new();
         let entity = field(&mut world, 1, 0);
         let mut rolls = Rolls::new(seed);

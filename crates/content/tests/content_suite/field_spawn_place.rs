@@ -28,7 +28,10 @@ fn a_radius_of_zero_can_only_put_a_monster_on_the_centre() {
 #[test]
 fn a_blocked_centre_is_never_chosen() {
     // The field sits on a wall; the monster must land beside it. Whatever the radius, the refused square never comes back.
-    for seed in 0..50 {
+    // Spread seeds, not counted up: `uniform_int` maps a small engine value to a small answer and a small seed's first draw is small,
+    // so `0, 1, 2, ...` samples one end of the distribution rather than the chance under test.
+    for attempt in 0..50 {
+        let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
         let mut rolls = Rolls::new(seed);
         let placed = random_point_in_radius((5, 5), 2, |x, y| (x, y) != (5, 5), &mut rolls)
             .expect("a square");
@@ -50,8 +53,11 @@ fn the_range_is_the_bounding_box_and_not_a_circle() {
     // the reference still allows it. A port that used a circle would never produce it.
     let corners: Vec<(i32, i32)> = vec![(3, 3), (3, 7), (7, 3), (7, 7)];
     let mut seen = false;
-    for seed in 0..400 {
-        let mut rolls = Rolls::new(seed);
+    // Spread seeds, not counted up: `uniform_int` maps a small engine value to a small answer and a small seed's first draw is small,
+    // so `0, 1, 2, ...` samples one end of the distribution rather than the chance under test.
+    for attempt in 0..400 {
+        let attempt_seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
+        let mut rolls = Rolls::new(attempt_seed);
         let placed = random_point_in_radius((5, 5), 2, |_, _| true, &mut rolls).expect("a square");
         if corners.contains(&placed) {
             seen = true;

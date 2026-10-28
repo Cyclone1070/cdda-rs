@@ -10,7 +10,10 @@ use cdda_core_types::rng::Rolls;
 #[test]
 fn a_city_is_at_least_two_and_never_more_than_fifty_five() {
     let settings = CitySettings::default();
-    for seed in 0..200 {
+    // Spread seeds, not counted up: `uniform_int` maps a small engine value to a small answer and a small seed's first draw is small,
+    // so `0, 1, 2, ...` samples one end of the distribution rather than the chance under test.
+    for attempt in 0..200 {
+        let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
         let mut rolls = Rolls::new(seed);
         let size = roll_city_size(&mut rolls, settings);
         assert!((2..=55).contains(&size), "seed {seed} gave {size}");
@@ -21,8 +24,9 @@ fn a_city_is_at_least_two_and_never_more_than_fifty_five() {
 fn the_sizes_spread_out_rather_than_all_being_the_same() {
     let settings = CitySettings::default();
     let mut sizes = std::collections::BTreeSet::new();
-    for seed in 0..200 {
-        let mut rolls = Rolls::new(seed);
+    for attempt in 0..200_u32 {
+        // Spread seeds, for the reason `field_spawn` records: counting up samples one end of the distribution.
+        let mut rolls = Rolls::new(attempt.wrapping_mul(2_654_435_761).wrapping_add(1));
         sizes.insert(roll_city_size(&mut rolls, settings));
     }
     assert!(sizes.len() > 5, "cities should differ in size: {sizes:?}");

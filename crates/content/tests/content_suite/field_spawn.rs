@@ -37,8 +37,11 @@ fn a_triggered_spawn_produces_as_many_monsters_as_the_count_says() {
 fn a_chance_of_a_hundred_triggers_about_once_in_a_hundred() {
     let groups = groups();
     let mut triggered = 0;
-    for seed in 0..2000 {
-        let mut rolls = Rolls::new(seed);
+    for attempt in 0..2000_u32 {
+        // The seeds are **spread**, not counted up: `uniform_int` maps a small engine value to a small answer, and `minstd_rand0`'s first draw from a small seed is
+        // small too, so `0, 1, 2, ...` would test the low end of one distribution rather than a one-in-a-hundred chance. (Measured: counting up gives 1278 hits of
+        // 2000; this spread gives the handful the chance promises.)
+        let mut rolls = Rolls::new(attempt.wrapping_mul(2_654_435_761).wrapping_add(1));
         if !spawn_from_field(100, 1, "GROUP_ZOMBIE", &groups, &mut rolls).is_empty() {
             triggered += 1;
         }

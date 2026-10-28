@@ -82,7 +82,8 @@ fn the_walk_is_in_square_order_so_two_runs_agree() {
 #[test]
 fn a_spreading_gas_is_attempted_once_per_turn() {
     let mut spread = 0;
-    for seed in 1..=60 {
+    for attempt in 1..=60 {
+        let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
         let mut world = World::new();
         field_at(&mut world, (5, 5), 1, 3);
         let mut rolls = Rolls::new(seed);

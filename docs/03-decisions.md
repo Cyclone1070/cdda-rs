@@ -309,3 +309,7 @@ centre of the curve is exactly one half, so it never reaches the approximation.
 That is a declared divergence rather than a hidden one. It changes an outcome
 with probability 3e-8 per call, which is far below the granularity of anything
 the game rolls against, but it is a difference and the ledger says so.
+
+## The dice follow the oracle's standard library
+
+The standard library's distributions are implementation-defined: the same seeds produce different draws under libc++ (macOS) and libstdc++ (gcc), and `corpus/rng/` holds the two side by side — 64 of 98 draws apart. The port follows **libstdc++**, because the oracle every recording comes from is a gcc build. The consequence to state plainly: a port held to these numbers reproduces the Linux oracle, not a macOS build of the original. CDDA itself does not promise cross-platform dice, so there is no third option to match; choosing the oracle is choosing the only reference we can record.

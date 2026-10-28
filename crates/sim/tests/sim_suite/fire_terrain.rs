@@ -58,7 +58,8 @@ fn the_port_and_the_reference_agree_on_every_ground_type() {
     for intensity in 1..=3 {
         for windpower in [0, 5, 17] {
             for fuel in combos() {
-                for seed in 1..=12 {
+                for attempt in 1..=12 {
+                    let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
                     let mut a = Rolls::new(seed);
                     let expected = reference(fuel, intensity, windpower, &mut a);
                     let mut b = Rolls::new(seed);
@@ -93,7 +94,8 @@ fn hard_ground_burns_only_one_time_in_three_and_gives_less() {
     };
     let mut burned = 0;
     let mut refused = 0;
-    for seed in 1..=60 {
+    for attempt in 1..=60 {
+        let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
         let mut rolls = Rolls::new(seed);
         match burn_terrain(fuel, 1, 0, &mut rolls) {
             Some(burn) => {
@@ -129,7 +131,8 @@ fn ashy_ground_leaves_ash_only_when_it_is_wrecked() {
     };
     let mut ash_seen = false;
     let mut wrecked = false;
-    for seed in 1..=600 {
+    for attempt in 1..=600 {
+        let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
         let mut rolls = Rolls::new(seed);
         if let Some(burn) = burn_terrain(fuel, 2, 0, &mut rolls)
             && burn.bashes

@@ -60,7 +60,8 @@ fn nuke_gas_matches_the_reference_over_every_intensity_and_kind() {
     for intensity in 1..=3 {
         for no_breathe in [false, true] {
             for veggy in [false, true] {
-                for seed in 1..=20 {
+                for attempt in 1..=20 {
+                    let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
                     let mut expected_rolls = Rolls::new(seed);
                     let expected = reference(intensity, no_breathe, veggy, &mut expected_rolls);
                     let mut rolls = Rolls::new(seed);
@@ -79,7 +80,8 @@ fn nuke_gas_matches_the_reference_over_every_intensity_and_kind() {
 fn plants_take_nuke_gas_worse_than_animals() {
     let mut plant_total = 0;
     let mut animal_total = 0;
-    for seed in 1..=30 {
+    for attempt in 1..=30 {
+        let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
         let mut rolls = Rolls::new(seed);
         plant_total += nuke_gas_effect(2, false, true, &mut rolls).damage;
         let mut rolls = Rolls::new(seed);

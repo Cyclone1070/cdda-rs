@@ -97,7 +97,8 @@ fn twenty_seeds_light_exactly_what_the_reference_lights() {
 fn a_strong_vent_thins_one_time_in_five_and_lays_no_bolts() {
     let mut thinned = 0;
     let mut stayed = 0;
-    for seed in 1..=40 {
+    for attempt in 1..=40_u32 {
+        let seed = crate::spread_seed(attempt);
         let expected = reference(seed, (10, 10), 2);
         let actual = run(seed, 2);
         assert_eq!(actual, expected, "seed {seed}");

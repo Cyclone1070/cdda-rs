@@ -57,164 +57,74 @@ impl MinStdRand0 {
     /// as used by `src/rng.cpp:26`.
     ///
     /// Reference: `__random/uniform_int_distribution.h`, `operator()(g, param)`.
+    /// Draws a uniform integer in `lo..=hi`, matching `std::uniform_int_distribution<int>` as the **oracle** uses it.
+    ///
+    /// Reference: libstdc++'s `bits/uniform_int_dist.h`, `operator()(g, param)` — the library the oracle is built against. This is not interchangeable with
+    /// libc++'s: for the same seed the two disagree on most draws, because the standard leaves the algorithm open. `corpus/rng/wrappers.csv` holds the gcc numbers and
+    /// `wrappers-libcxx.csv` the macOS ones, 64 of 98 draws apart, and the port follows the oracle's.
     pub fn uniform_int(&mut self, lo: i32, hi: i32) -> i32 {
-        // The library does the arithmetic in `uint32_t` and casts the biased
-        // value back to `int`, so a negative `lo` arrives as a wrapped value.
+        // The library does the arithmetic in `uint32_t` and casts back to `int`, so a negative `lo` arrives as a wrapped value.
         self.uniform_uint_in(lo.cast_unsigned(), hi.cast_unsigned())
             .cast_signed()
     }
 
-    /// Draws a uniform `unsigned int` over its full range, matching
-    /// `std::uniform_int_distribution<unsigned int>()` as used by `src/rng.cpp:16`.
-    ///
-    /// Reference: `__random/uniform_int_distribution.h`, `operator()(g, param)`
-    /// with the default `param_type(0, UINT_MAX)`.
+    /// Draws a uniform `unsigned int` over its full range, matching `std::uniform_int_distribution<unsigned int>()` as `src/rng.cpp` uses it.
     pub fn uniform_uint(&mut self) -> u32 {
         self.uniform_uint_in(0, u32::MAX)
     }
 
-    /// The unsigned core of `uniform_int_distribution::operator()`, returning
-    /// `__u + __p.a()` in `lo..=hi`.
+    /// libstdc++'s `operator()(g, param)`, over the three branches the engine's range forces.
+    ///
+    /// `minstd_rand0`'s range is narrower than `unsigned int`'s and wider than every smaller distribution's, so all three are reachable and each draws a different
+    /// number of engine values — which is why a port cannot get this right by copying the shape of another library's.
     fn uniform_uint_in(&mut self, lo: u32, hi: u32) -> u32 {
-        let range = hi.wrapping_sub(lo).wrapping_add(1);
-        if range == 1 {
-            return lo;
-        }
-        if range == 0 {
-            // The full 32-bit range wraps `__rp` to 0; libc++ asks for `__dt`
-            // bits and returns the draw with no rejection test and *without*
-            // adding `__p.a()`, so this branch is transcribed verbatim.
-            return IndependentBitsEngine::new(self, RESULT_DIGITS).next();
-        }
-        let mut engine = IndependentBitsEngine::new(self, bit_width(range));
-        let mut value = engine.next();
-        while value >= range {
-            value = engine.next();
-        }
-        value.wrapping_add(lo)
+        self.uniform_uint_range(hi.wrapping_sub(lo)).wrapping_add(lo)
     }
+
+    /// The distribution's body over `0..=urange`, before the low bound is added back.
+    #[allow(clippy::comparison_chain)]
+    fn uniform_uint_range(&mut self, urange: u32) -> u32 {
+        const URNGMIN: u32 = MinStdRand0::MIN;
+        const URNGRANGE: u32 = MinStdRand0::MAX - MinStdRand0::MIN;
+        if URNGRANGE > urange {
+            // Downscaling, the "fallback case (2 divisions)": the engine's range is not the 32-bit one, so libstdc++ specialises nothing here.
+            let ue_range = urange.wrapping_add(1);
+            let scaling = URNGRANGE / ue_range;
+            let past = ue_range.wrapping_mul(scaling);
+            loop {
+                let drawn = self.next_u32() - URNGMIN;
+                if drawn < past {
+                    return drawn / scaling;
+                }
+            }
+        } else if URNGRANGE < urange {
+            // Upscaling: one draw for the high part and one for the low, retried when the sum wraps past the range.
+            loop {
+                let ue_ngrange = URNGRANGE + 1;
+                let tmp = ue_ngrange.wrapping_mul(self.uniform_uint_range(urange / ue_ngrange));
+                let drawn = tmp.wrapping_add(self.next_u32() - URNGMIN);
+                if drawn <= urange && drawn >= tmp {
+                    return drawn;
+                }
+            }
+        } else {
+            self.next_u32() - URNGMIN
+        }
+    }
+
 }
 
-/// `numeric_limits<uint32_t>::digits`: `__dt` in `uniform_int_distribution` and
-/// `__w_rt` in `__independent_bits_engine`.
-const RESULT_DIGITS: u32 = 32;
-
-/// `_WDt`, `numeric_limits<_Working_result_type>::digits`. libc++ picks
-/// `_Working_result_type` as the wider of the engine's result type and the
-/// distribution's; both are 32-bit unsigned here, so this is 32.
-const WORKING_DIGITS: u32 = 32;
-
-/// `_EDt`, `numeric_limits<_Engine_result_type>::digits`. `minstd_rand0`'s
-/// `result_type` is `unsigned int` (32-bit) on this platform — its values stay
-/// below `2^31`, but the type, and therefore this width, does not shrink.
-const ENGINE_DIGITS: u32 = 32;
-
-/// `_Rp` in `__independent_bits_engine`: the number of values the engine can
-/// return, `minstd_rand0::max() - min() + 1`. Note this is the engine's *range*,
-/// `2^31 - 2`, not its modulus `2^31 - 1`.
 const ENGINE_RANGE: u32 = MinStdRand0::MAX - MinStdRand0::MIN + 1;
 
 /// `__log2<_Working_result_type, _Rp>` (`__random/log2.h`): the index of the
 /// highest set bit of `_Rp`, i.e. how many bits one engine draw contributes.
 const ENGINE_RANGE_LOG2: u32 = ENGINE_RANGE.ilog2();
 
-/// `std::__independent_bits_engine<minstd_rand0, uint32_t>`
-/// (`__random/uniform_int_distribution.h`).
-///
-/// Splits the engine's `ENGINE_RANGE_LOG2` usable bits into `n` chunks of
-/// `w0` or `w0 + 1` bits, rejecting draws that would bias the high chunk, and
-/// concatenates them.
-struct IndependentBitsEngine<'a> {
-    engine: &'a mut MinStdRand0,
-    /// `__n_`: total number of engine draws per value.
-    n: u32,
-    /// `__w0_`: bits taken from each of the first `__n0_` draws.
-    w0: u32,
-    /// `__n0_`: number of draws that contribute `w0` bits (the rest take `w0 + 1`).
-    n0: u32,
-    /// `__y0_`: exclusive upper bound for accepted engine values in the first loop.
-    y0: u32,
-    /// `__y1_`: the same bound for the second loop, which takes one more bit.
-    y1: u32,
-    /// `__mask0_`: keeps the low `w0` bits.
-    mask0: u32,
-    /// `__mask1_`: keeps the low `w0 + 1` bits.
-    mask1: u32,
-}
-
-impl<'a> IndependentBitsEngine<'a> {
-    fn new(engine: &'a mut MinStdRand0, w: u32) -> Self {
-        let mut n = w / ENGINE_RANGE_LOG2 + u32::from(!w.is_multiple_of(ENGINE_RANGE_LOG2));
-        let mut w0 = w / n;
-        let mut y0 = rounded_down_range(w0);
-        // `_Rp` is never 0 for this engine, so libc++ takes this branch too.
-        if ENGINE_RANGE - y0 > y0 / n {
-            n += 1;
-            w0 = w / n;
-            y0 = rounded_down_range(w0);
-        }
-        let n0 = n - w % n;
-        let y1 = if w0 < ENGINE_DIGITS - 1 {
-            rounded_down_range(w0 + 1)
-        } else {
-            0
-        };
-        let mask0 = if w0 > 0 {
-            u32::MAX >> (ENGINE_DIGITS - w0)
-        } else {
-            0
-        };
-        let mask1 = if w0 < ENGINE_DIGITS - 1 {
-            u32::MAX >> (ENGINE_DIGITS - (w0 + 1))
-        } else {
-            u32::MAX
-        };
-        Self {
-            engine,
-            n,
-            w0,
-            n0,
-            y0,
-            y1,
-            mask0,
-            mask1,
-        }
-    }
-
-    /// `__eval(true_type)`: the engine's range is non-zero, so draws may need
-    /// rejecting before their low bits are concatenated.
-    fn next(&mut self) -> u32 {
-        let mut value: u32 = 0;
-        for _ in 0..self.n0 {
-            let draw = self.draw_below(self.y0);
-            value = shift_in(value, self.w0).wrapping_add(draw & self.mask0);
-        }
-        for _ in self.n0..self.n {
-            let draw = self.draw_below(self.y1);
-            value = shift_in(value, self.w0 + 1).wrapping_add(draw & self.mask1);
-        }
-        value
-    }
-
-    /// Draws `engine() - min()` repeatedly until it lands below `bound`.
-    fn draw_below(&mut self, bound: u32) -> u32 {
-        loop {
-            let draw = self.engine.next_u32() - MinStdRand0::MIN;
-            if draw < bound {
-                return draw;
-            }
-        }
-    }
-}
-
-
-/// `numeric_limits<uint64_t>::digits`: `__dt` for a 64-bit `uniform_int_distribution`, and `_WDt`/`_EDt`/`__w_rt` when the engine's
-/// result type and the distribution's are both 64 bits wide.
 const RESULT_DIGITS_64: u32 = 64;
 
 /// `std::__independent_bits_engine<minstd_rand0, uint64_t>` (`__random/uniform_int_distribution.h`).
 ///
-/// The same transcription as [`IndependentBitsEngine`], for the instantiation `std::uniform_int_distribution<ptrdiff_t>` reaches: its result type is
+/// The transcription of `std::__independent_bits_engine` for the instantiation `std::uniform_int_distribution<ptrdiff_t>` reaches: its result type is
 /// `uint64_t`, so the working width, the masks and the accumulator are all 64 bits. It is kept separate rather than parameterised because the two differ in
 /// exactly those widths, and a shared generic would have to carry every one of them as a constant - which is how a transcription stops looking like the code it
 /// copies.
@@ -349,8 +259,6 @@ fn bit_width64(range: u64) -> u32 {
     }
 }
 
-/// Shuffles a run the way `std::shuffle` does, so that a spawn's items come out in the order the reference would put them.
-///
 /// Reference: libc++'s `__shuffle` (`__algorithm/shuffle.h`): the forward Fisher-Yates, asking `std::uniform_int_distribution<ptrdiff_t>` for `[0, __d]` where `__d`
 /// counts down from `len - 1`, and swapping only when the draw is not zero. The distribution is the standard library's, not the game's `rng()`, which is why this
 /// takes the engine directly and why the dice it consumes never appear in a recording - the port's own engine is driven here instead.
@@ -367,38 +275,6 @@ pub fn shuffle<T>(values: &mut [T], rolls: &mut Rolls) {
             values.swap(first, first + i);
         }
         d -= 1;
-    }
-}
-
-/// Chooses the number of bits a `uniform_int_distribution` asks the independent
-/// bits engine for: `__w = __dt - countl_zero(__rp) - 1`, rounded up when the
-/// range does not fill those bits (`__random/uniform_int_distribution.h`).
-fn bit_width(range: u32) -> u32 {
-    let w = RESULT_DIGITS - range.leading_zeros() - 1;
-    if range & (u32::MAX >> (RESULT_DIGITS - w)) != 0 {
-        w + 1
-    } else {
-        w
-    }
-}
-
-/// `(_Rp >> bits) << bits`, or 0 when `bits` is a whole word — libc++ guards
-/// every one of these shifts so it never shifts by the type's width.
-fn rounded_down_range(bits: u32) -> u32 {
-    if bits < WORKING_DIGITS {
-        (ENGINE_RANGE >> bits) << bits
-    } else {
-        0
-    }
-}
-
-/// `__sp <<= bits`, or 0 when the shift would discard the whole word
-/// (`if (__w0_ < __w_rt)` in `__eval`).
-fn shift_in(value: u32, bits: u32) -> u32 {
-    if bits < RESULT_DIGITS {
-        value << bits
-    } else {
-        0
     }
 }
 

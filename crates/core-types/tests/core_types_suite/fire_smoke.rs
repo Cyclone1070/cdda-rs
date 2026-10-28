@@ -25,7 +25,10 @@ fn a_suppressed_fire_makes_no_smoke_and_spends_no_dice() {
 fn smoke_goes_up_when_there_is_a_hole_above_it() {
     // With plenty of smoke produced and a windless sky, the first two conditions pass almost always; the smoke lands on the square above, at a
     // strength between one and the fire's own.
-    for seed in 0..200 {
+    // Spread seeds, not counted up: `uniform_int` maps a small engine value to a small answer and a small seed's first draw is small,
+    // so `0, 1, 2, ...` samples one end of the distribution rather than the chance under test.
+    for attempt in 0..200 {
+        let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
         let mut rolls = Rolls::new(seed);
         if let Some(Smoke { up, intensity }) =
             smoke_from_fire(&mut rolls, 3, 100, 0, false, true, true)
@@ -42,7 +45,10 @@ fn smoke_goes_up_when_there_is_a_hole_above_it() {
 fn smoke_stays_where_the_fire_is_when_it_cannot_rise() {
     // No floor above means the smoke cannot go up even though it is a higher square, so it settles on the fire itself - and thicker: the fire's
     // own intensity, not a roll between one and it.
-    for seed in 0..200 {
+    // Spread seeds, not counted up: `uniform_int` maps a small engine value to a small answer and a small seed's first draw is small,
+    // so `0, 1, 2, ...` samples one end of the distribution rather than the chance under test.
+    for attempt in 0..200 {
+        let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
         let mut rolls = Rolls::new(seed);
         if let Some(Smoke { up, intensity }) =
             smoke_from_fire(&mut rolls, 3, 100, 0, false, true, false)
@@ -60,14 +66,20 @@ fn a_weak_fire_makes_smoke_only_sometimes() {
     // The last condition is `rng( 3, 35 ) < intensity * 10`: at intensity one only three through nine of thirty-three values pass, so a small fire
     // smokes rarely - and the count is what a caller sees.
     let mut smoky = 0;
-    for seed in 0..400 {
+    for attempt in 0..400_u32 {
+        // Spread, not counted up: `uniform_int` maps a small engine value to a small answer, and a small seed's first draw is small, so `0, 1, 2, ...` samples the low
+        // end of the distribution instead of the chance.
+        let seed = crate::spread_seed(attempt);
         let mut rolls = Rolls::new(seed);
         if smoke_from_fire(&mut rolls, 1, 100, 0, false, true, true).is_some() {
             smoky += 1;
         }
     }
     let mut raging = 0;
-    for seed in 0..400 {
+    // Spread seeds, not counted up: `uniform_int` maps a small engine value to a small answer and a small seed's first draw is small,
+    // so `0, 1, 2, ...` samples one end of the distribution rather than the chance under test.
+    for attempt in 0..400 {
+        let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
         let mut rolls = Rolls::new(seed);
         if smoke_from_fire(&mut rolls, 3, 100, 0, false, true, true).is_some() {
             raging += 1;
@@ -86,11 +98,15 @@ fn smoking_rate(count: usize) -> f64 {
 
 #[test]
 fn wind_makes_smoke_less_likely() {
-    // `rng( 0, 100 - windpower ) <= smoke`: the smaller the range, the likelier the roll is small enough, so smoke is *more* likely in wind for a
-    // given smoke count - and the reference's own comment says the opposite. This test states what the arithmetic does.
+    // `rng( 0, 100 - windpower ) > smoke` refuses the smoke: the smaller the range, the likelier the roll is small enough to pass, so smoke is *more* likely in wind
+    // for a given smoke count - and the reference's own comment says the opposite. This test states what the arithmetic does.
+    //
+    // The seeds are **spread**, not counted up: `uniform_int` maps a small engine value to a small answer and a small seed's first draw is small, so `0, 1, 2, ...`
+    // would report that a one-in-five chance passes almost always.
     let mut still = 0;
     let mut windy = 0;
-    for seed in 0..400 {
+    for attempt in 0..400_u32 {
+        let seed = crate::spread_seed(attempt);
         let mut rolls = Rolls::new(seed);
         if smoke_from_fire(&mut rolls, 2, 20, 0, false, false, false).is_some() {
             still += 1;
@@ -101,4 +117,5 @@ fn wind_makes_smoke_less_likely() {
         }
     }
     assert!(windy > still, "windy {windy}, still {still}");
+    assert!(still > 20, "and a still fire still smokes sometimes: {still} of 400");
 }

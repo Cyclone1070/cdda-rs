@@ -37,7 +37,10 @@ fn a_monster_never_lands_inside_the_wall() {
     let groups = groups();
     let level = walled_level();
     let mut ever_on_wall = 0;
-    for seed in 0..60 {
+    // Spread seeds, not counted up: `uniform_int` maps a small engine value to a small answer and a small seed's first draw is small,
+    // so `0, 1, 2, ...` samples one end of the distribution rather than the chance under test.
+    for attempt in 0..60 {
+        let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
         let mut rolls = Rolls::new(seed);
         let spawned = spawn_monsters_on_level(
             &level,

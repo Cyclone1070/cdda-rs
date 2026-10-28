@@ -18,7 +18,10 @@ fn a_distribution_gives_exactly_one_thing() {
         r#"[{"type":"item_group","id":"one_of","subtype":"distribution","entries":[
             {"item":"meat","prob":100},{"item":"bone","prob":100},{"item":"skin","prob":100}]}]"#,
     );
-    for seed in 0..20 {
+    // Spread seeds, not counted up: `uniform_int` maps a small engine value to a small answer and a small seed's first draw is small,
+    // so `0, 1, 2, ...` samples one end of the distribution rather than the chance under test.
+    for attempt in 0..20 {
+        let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
         let mut rolls = Rolls::new(seed);
         let drawn = draw(&groups, "one_of", &mut rolls);
         assert_eq!(
@@ -50,7 +53,10 @@ fn a_chance_of_zero_never_gives_anything() {
         r#"[{"type":"item_group","id":"never","entries":[
             {"item":"meat","prob":0},{"item":"bone","prob":0}]}]"#,
     );
-    for seed in 0..20 {
+    // Spread seeds, not counted up: `uniform_int` maps a small engine value to a small answer and a small seed's first draw is small,
+    // so `0, 1, 2, ...` samples one end of the distribution rather than the chance under test.
+    for attempt in 0..20 {
+        let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
         let mut rolls = Rolls::new(seed);
         assert!(draw(&groups, "never", &mut rolls).is_empty());
     }
@@ -70,7 +76,10 @@ fn a_count_range_stays_inside_its_ends() {
     let groups = from_json(
         r#"[{"type":"item_group","id":"some","entries":[{"item":"meat","count":[2,4]}]}]"#,
     );
-    for seed in 0..20 {
+    // Spread seeds, not counted up: `uniform_int` maps a small engine value to a small answer and a small seed's first draw is small,
+    // so `0, 1, 2, ...` samples one end of the distribution rather than the chance under test.
+    for attempt in 0..20 {
+        let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
         let mut rolls = Rolls::new(seed);
         let drawn = draw(&groups, "some", &mut rolls);
         let count = drawn.first().expect("one entry").1;

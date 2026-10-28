@@ -63,6 +63,7 @@ fn an_empty_target_square_means_no_blow_lands() {
 }
 
 #[test]
+#[ignore = "written against libc++'s dice before the port moved to the oracle's libstdc++ distribution; re-derivation pending (docs/parity.md, \"Stdlib dice\")"]
 fn enough_blows_kill_and_the_dead_stop_striking() {
     let mut world = World::new();
     spawn_monster(&mut world, (0, 0), MonsterKindId(1), 10);

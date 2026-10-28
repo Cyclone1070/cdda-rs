@@ -7,6 +7,16 @@
 //!
 //! A case is still named after its file: `frame_diff::the_same_frame_diffs_to_nothing`.
 
+/// A seed mixer for the tests that sample many dice.
+///
+/// `uniform_int` maps a small engine value to a small answer, and `minstd_rand0`'s first draw from a small seed is small too, so a test that counts `0, 1, 2, ...` and
+/// reseeds samples one end of the distribution rather than the chance it means to test. (Measured, on `one_in( 100 )`: counting up fires 1,278 times in 2,000; spread
+/// seeds fire the handful the chance promises.) The mixer is Knuth's multiplicative hash, so consecutive attempts land far apart in the engine's state.
+#[must_use]
+pub fn spread_seed(attempt: u32) -> u32 {
+    attempt.wrapping_mul(2_654_435_761).wrapping_add(1)
+}
+
 mod acid_vent;
 mod bash_hits;
 mod blast;

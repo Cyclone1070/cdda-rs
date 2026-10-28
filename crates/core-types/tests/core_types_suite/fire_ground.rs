@@ -108,9 +108,20 @@ fn a_fire_on_inert_ground_spends_no_dice_at_all() {
 
 #[test]
 fn ordinary_flammable_ground_feeds_every_turn_and_still_rolls_for_bashing() {
-    // `FLAMMABLE` does not roll to feed - only hard ground does - but it does roll to bash when it burns at intensity two or more.
-    let mut rolls = Rolls::new(3);
-    let fuel = ground_fuel(Ground::Flammable, 2, true, 0, &mut rolls);
-    assert_eq!(fuel.time_added, 3, "five minus intensity");
-    assert!(!fuel.bashed, "seed three is not a bash");
+    // `FLAMMABLE` does not roll to feed - only hard ground does - but it does roll to bash when it burns at intensity two or more. The die decides, so the assertion is
+    // that **both** answers are reachable, over spread seeds: counting 0, 1, 2, ... would sample the low end of the distribution rather than the one in three.
+    let mut bashed = 0;
+    let mut spared = 0;
+    for attempt in 0..64_u32 {
+        let mut rolls = Rolls::new(attempt.wrapping_mul(2_654_435_761).wrapping_add(1));
+        let fuel = ground_fuel(Ground::Flammable, 2, true, 0, &mut rolls);
+        assert_eq!(fuel.time_added, 3, "five minus intensity");
+        if fuel.bashed {
+            bashed += 1;
+        } else {
+            spared += 1;
+        }
+    }
+    assert!(bashed > 0, "a burning field bashes at intensity two sometimes");
+    assert!(spared > 0, "and sometimes it does not: {bashed} bashed, {spared} spared");
 }

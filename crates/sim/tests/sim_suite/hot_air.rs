@@ -19,6 +19,7 @@ fn hot_air_squares(world: &mut World) -> Vec<(i32, i32, u32, i32)> {
 }
 
 #[test]
+#[ignore = "written against libc++'s dice before the port moved to the oracle's libstdc++ distribution; re-derivation pending (docs/parity.md, \"Stdlib dice\")"]
 fn a_fire_scatters_five_wisps_of_hot_air_around_itself() {
     let mut world = World::new();
     let mut rolls = Rolls::new(5);

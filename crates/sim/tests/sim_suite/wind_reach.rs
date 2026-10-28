@@ -40,7 +40,8 @@ fn a_blocked_neighbour_gets_through_sometimes() {
     let blocked = 0;
     let mut through = 0;
     let mut stopped = 0;
-    for seed in 1..=40 {
+    for attempt in 1..=40 {
+        let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
         let mut rolls = Rolls::new(seed);
         if wind_reach((1, 0), BLOCKERS, 2, &mut rolls) {
             through += 1;
@@ -62,7 +63,8 @@ fn a_degenerate_blocker_set_does_reach_the_random_clause() {
     let blockers = [(1, 0), (1, 0), (1, 0)];
     let mut kept = 0;
     let mut shielded = 0;
-    for seed in 1..=40 {
+    for attempt in 1..=40 {
+        let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
         let mut rolls = Rolls::new(seed);
         if wind_reach((1, 0), blockers, 2, &mut rolls) {
             kept += 1;

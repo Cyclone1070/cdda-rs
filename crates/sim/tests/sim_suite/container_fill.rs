@@ -99,7 +99,8 @@ fn which_items_land_inside_depends_on_the_seed() {
     let pipe = ItemTypeId(3);
     let run = [rock, plank, pipe];
     let mut kinds_seen = std::collections::BTreeSet::new();
-    for seed in 1..=8 {
+    for attempt in 1..=8 {
+        let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
         let mut world = World::new();
         let box_entity = make_box(&mut world, 150);
         fill_container(&mut world, box_entity, &run, cdda_sim::Fill { overflow: Overflow::Spill, container_is_corpse: false }, facts, &mut Rolls::new(seed));

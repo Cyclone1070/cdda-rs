@@ -58,7 +58,8 @@ fn facts_combinations() -> Vec<NeighbourFacts> {
 fn the_port_and_the_reference_agree_on_every_fuel_combination() {
     for intensity in 1..=3 {
         for facts in facts_combinations() {
-            for seed in 1..=12 {
+            for attempt in 1..=12 {
+                let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
                 let mut reference_rolls = Rolls::new(seed);
                 let expected = reference(intensity, facts, &mut reference_rolls);
                 let mut port_rolls = Rolls::new(seed);
@@ -95,7 +96,8 @@ fn a_weak_fire_never_spreads() {
         flammable: true,
         ..NeighbourFacts::default()
     };
-    for seed in 1..=40 {
+    for attempt in 1..=40 {
+        let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
         let mut rolls = Rolls::new(seed);
         assert!(
             !should_ignite(1, &facts, &mut rolls),
@@ -112,7 +114,8 @@ fn a_strong_fire_on_flammable_ground_spreads_sometimes_but_not_always() {
     };
     let mut lit = 0;
     let mut quiet = 0;
-    for seed in 1..=60 {
+    for attempt in 1..=60 {
+        let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
         let mut rolls = Rolls::new(seed);
         if should_ignite(3, &facts, &mut rolls) {
             lit += 1;

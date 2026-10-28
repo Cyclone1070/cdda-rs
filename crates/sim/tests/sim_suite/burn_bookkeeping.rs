@@ -43,7 +43,8 @@ fn a_whole_number_rounds_without_asking_the_dice() {
 fn a_fraction_rounds_up_sometimes() {
     let mut up = 0;
     let mut down = 0;
-    for seed in 1..=100 {
+    for attempt in 1..=100 {
+        let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
         let mut rolls = Rolls::new(seed);
         if roll_remainder(2.5, &mut rolls) == 3 {
             up += 1;

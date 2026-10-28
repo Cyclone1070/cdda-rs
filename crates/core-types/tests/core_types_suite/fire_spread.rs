@@ -25,7 +25,10 @@ fn burnable() -> Neighbour {
 fn a_fire_at_intensity_one_cannot_spread_onto_plain_ground() {
     // `spread_chance` is zero at intensity one, and nothing else in the condition can rescue it on ordinary ground.
     let neighbours = vec![burnable(); 8];
-    for seed in 0..200 {
+    // Spread seeds, not counted up: `uniform_int` maps a small engine value to a small answer and a small seed's first draw is small,
+    // so `0, 1, 2, ...` samples one end of the distribution rather than the chance under test.
+    for attempt in 0..200 {
+        let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
         let mut rolls = Rolls::new(seed);
         let spread = spread_fire(&mut rolls, 1, true, &neighbours);
         assert!(spread.is_empty(), "seed {seed} spread at intensity one");
@@ -37,7 +40,10 @@ fn a_fire_at_intensity_two_does_spread_onto_burnable_ground() {
     // Not always - the chance is one in four and the ground must take it - but often enough that two hundred seeds see it.
     let neighbours = vec![burnable(); 8];
     let mut spread = 0;
-    for seed in 0..200 {
+    // Spread seeds, not counted up: `uniform_int` maps a small engine value to a small answer and a small seed's first draw is small,
+    // so `0, 1, 2, ...` samples one end of the distribution rather than the chance under test.
+    for attempt in 0..200 {
+        let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
         let mut rolls = Rolls::new(seed);
         spread += spread_fire(&mut rolls, 2, true, &neighbours).len();
     }
@@ -59,7 +65,10 @@ fn a_web_in_the_way_lets_a_small_fire_jump() {
         8
     ];
     let mut spread = 0;
-    for seed in 0..200 {
+    // Spread seeds, not counted up: `uniform_int` maps a small engine value to a small answer and a small seed's first draw is small,
+    // so `0, 1, 2, ...` samples one end of the distribution rather than the chance under test.
+    for attempt in 0..200 {
+        let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
         let mut rolls = Rolls::new(seed);
         spread += spread_fire(&mut rolls, 1, true, &neighbours).len();
     }
@@ -77,7 +86,10 @@ fn a_neighbour_already_burning_is_never_chosen() {
     };
     lit.has_fire = true;
     let neighbours = vec![lit; 8];
-    for seed in 0..200 {
+    // Spread seeds, not counted up: `uniform_int` maps a small engine value to a small answer and a small seed's first draw is small,
+    // so `0, 1, 2, ...` samples one end of the distribution rather than the chance under test.
+    for attempt in 0..200 {
+        let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
         let mut rolls = Rolls::new(seed);
         assert!(
             spread_fire(&mut rolls, 3, true, &neighbours).is_empty(),
@@ -91,7 +103,10 @@ fn a_contained_fire_does_not_spread_at_all() {
     // `can_spread` is false in a brazier or an oven, and then no neighbour is considered - though the loop still runs, which is why the dice
     // are consumed either way.
     let neighbours = vec![burnable(); 8];
-    for seed in 0..50 {
+    // Spread seeds, not counted up: `uniform_int` maps a small engine value to a small answer and a small seed's first draw is small,
+    // so `0, 1, 2, ...` samples one end of the distribution rather than the chance under test.
+    for attempt in 0..50 {
+        let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
         let mut rolls = Rolls::new(seed);
         assert!(
             spread_fire(&mut rolls, 3, false, &neighbours).is_empty(),

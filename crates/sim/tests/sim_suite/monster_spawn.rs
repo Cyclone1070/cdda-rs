@@ -26,7 +26,8 @@ fn a_field_with_no_count_or_no_chance_asks_for_nothing_and_draws_nothing() {
 fn when_the_roll_fires_the_whole_count_is_asked_for() {
     let mut fired = 0;
     let mut quiet = 0;
-    for seed in 1..=400 {
+    for attempt in 1..=400 {
+        let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
         let mut rolls = Rolls::new(seed);
         let attempts = monster_spawn_attempts(15, 1, &mut rolls);
         if attempts == 1 {
@@ -50,12 +51,14 @@ fn when_the_roll_fires_the_whole_count_is_asked_for() {
 #[test]
 fn the_count_comes_back_whole_rather_than_one_at_a_time() {
     let mut world_free_total = 0;
-    for seed in 1..=400 {
+    for attempt in 1..=400 {
+        let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
         let mut rolls = Rolls::new(seed);
         world_free_total += monster_spawn_attempts(15, 3, &mut rolls);
     }
     let mut singles = 0;
-    for seed in 1..=400 {
+    for attempt in 1..=400 {
+        let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
         let mut rolls = Rolls::new(seed);
         if monster_spawn_attempts(15, 1, &mut rolls) == 1 {
             singles += 1;

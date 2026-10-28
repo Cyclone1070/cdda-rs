@@ -65,9 +65,12 @@ fn smoke_here(world: &mut World, square: (i32, i32)) -> i32 {
 
 #[test]
 fn a_raging_fire_eventually_smokes_its_own_square() {
-    for seed in 0..300 {
+    // Spread seeds, not counted up: `uniform_int` maps a small engine value to a small answer and a small seed's first draw is small,
+    // so `0, 1, 2, ...` samples one end of the distribution rather than the chance under test.
+    for attempt in 0..300 {
         let mut world = World::new();
         fire(&mut world, 4, 4, 3);
+        let seed = u32::try_from(attempt).unwrap_or(u32::MAX).wrapping_mul(2_654_435_761).wrapping_add(1);
         let mut rolls = Rolls::new(seed);
         process_fires(&mut world, &Smoky { suppress: false }, 0, &mut rolls);
         let thickness = smoke_here(&mut world, (4, 4));
@@ -84,9 +87,12 @@ fn a_raging_fire_eventually_smokes_its_own_square() {
 
 #[test]
 fn a_suppressed_fire_leaves_no_smoke() {
-    for seed in 0..100 {
+    // Spread seeds, not counted up: `uniform_int` maps a small engine value to a small answer and a small seed's first draw is small,
+    // so `0, 1, 2, ...` samples one end of the distribution rather than the chance under test.
+    for attempt in 0..100 {
         let mut world = World::new();
         fire(&mut world, 4, 4, 3);
+        let seed = u32::try_from(attempt).unwrap_or(u32::MAX).wrapping_mul(2_654_435_761).wrapping_add(1);
         let mut rolls = Rolls::new(seed);
         process_fires(&mut world, &Smoky { suppress: true }, 0, &mut rolls);
         assert_eq!(smoke_here(&mut world, (4, 4)), 0, "seed {seed}");
@@ -99,7 +105,10 @@ fn smoke_on_a_smoky_square_adds_up_turn_after_turn() {
     let mut world = World::new();
     fire(&mut world, 4, 4, 3);
     let mut thickest = 0;
-    for seed in 0..300 {
+    // Spread seeds, not counted up: `uniform_int` maps a small engine value to a small answer and a small seed's first draw is small,
+    // so `0, 1, 2, ...` samples one end of the distribution rather than the chance under test.
+    for attempt in 0..300 {
+        let seed = u32::try_from(attempt).unwrap_or(u32::MAX).wrapping_mul(2_654_435_761).wrapping_add(1);
         let mut rolls = Rolls::new(seed);
         process_fires(&mut world, &Smoky { suppress: false }, 0, &mut rolls);
         thickest = thickest.max(smoke_here(&mut world, (4, 4)));

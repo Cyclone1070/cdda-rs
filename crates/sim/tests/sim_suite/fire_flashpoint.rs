@@ -73,7 +73,8 @@ fn a_small_fire_never_feeds_anyone_and_draws_nothing() {
 
 #[test]
 fn a_fed_neighbour_grows_to_two_and_gains_five_minutes() {
-    for seed in 1..=60 {
+    for attempt in 1..=60 {
+        let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
         let mut world = World::new();
         let source = fire(&mut world, (5, 5), 2, -600);
         let neighbour = fire(&mut world, (6, 5), 1, -600);

@@ -65,9 +65,12 @@ fn the_wind_blocker_table_matches_the_reference() {
 
 #[test]
 fn a_single_unit_of_gas_never_spreads_no_matter_what_it_rolls() {
-    for seed in 0..20 {
+    // Spread seeds, not counted up: `uniform_int` maps a small engine value to a small answer and a small seed's first draw is small,
+    // so `0, 1, 2, ...` samples one end of the distribution rather than the chance under test.
+    for attempt in 0..20 {
         let mut world = World::new();
         let source = spawn(&mut world, 5, 5, 1);
+        let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
         let mut rolls = Rolls::new(seed);
         spread_gas(
             &mut world,
@@ -202,7 +205,8 @@ fn a_field_that_does_not_spread_is_left_alone_and_draws_nothing() {
 #[test]
 fn a_field_that_does_spread_still_ages_and_moves() {
     let mut spread_at_least_once = false;
-    for seed in 1..=60 {
+    for attempt in 1..=60 {
+        let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
         let mut world = World::new();
         let source = spawn(&mut world, 5, 5, 3);
         let mut rolls = Rolls::new(seed);
