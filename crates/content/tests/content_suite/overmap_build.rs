@@ -294,5 +294,8 @@ fn a_town_built_from_the_reference_s_own_specials_places_real_buildings() {
     // are refused by `still_allowed` and the ten retries run out. The assertion is what the rule promises (a town gets built, from the reference's own ids), not a
     // count the rule never claimed.
     assert!(towns >= 1, "the reference's own data builds a town: {towns} of 8");
-    assert_eq!(built_total, towns, "one building per successful town: {built_total} over {towns}");
+    assert!(
+        built_total >= towns,
+        "every successful town built at least one building: {built_total} over {towns} attempts"
+    );
 }

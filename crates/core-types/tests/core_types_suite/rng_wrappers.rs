@@ -34,7 +34,6 @@ fn corpus() -> Vec<(String, f64)> {
 }
 
 #[test]
-#[ignore = "libstdc++ GCC 16 rewrote generate_canonical and its normal_distribution; not transcribed yet (docs/parity.md, \"Stdlib dice\")"]
 fn every_wrapper_draws_the_same_value_the_reference_does() {
     // The chance rows make no draws, so they have their own test; every other
     // row is one call in the stream and must be claimed exactly once.

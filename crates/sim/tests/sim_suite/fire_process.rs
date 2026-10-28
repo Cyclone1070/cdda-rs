@@ -118,16 +118,18 @@ fn a_turn_of_fire_matches_the_steps_run_in_order() {
 }
 
 #[test]
-#[ignore = "written against libc++'s dice before the port moved to the oracle's libstdc++ distribution; re-derivation pending (docs/parity.md, \"Stdlib dice\")"]
 fn a_fire_on_burning_ground_gains_life_rather_than_losing_it() {
     let fuel = TerrainFuel {
         flammable: true,
         ..TerrainFuel::default()
     };
     let (mut world, fire) = world_with_fire(2, -600);
+    // A neighbour nothing grows on, so the only thing that can move this fire's age is the ground it is eating: a spread would charge it sixty turns
+    // (`process_fire_spread`), which is a different rule and is pinned by its own test.
+    let barren = |_square: (i32, i32)| NeighbourFacts::default();
     let context = FireContext {
         fuel,
-        neighbour: &facts,
+        neighbour: &barren,
         windpower: 0,
         consumed: 0,
         smoke_suppressed: true,

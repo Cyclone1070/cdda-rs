@@ -19,19 +19,24 @@ fn hot_air_squares(world: &mut World) -> Vec<(i32, i32, u32, i32)> {
 }
 
 #[test]
-#[ignore = "written against libc++'s dice before the port moved to the oracle's libstdc++ distribution; re-derivation pending (docs/parity.md, \"Stdlib dice\")"]
 fn a_fire_scatters_five_wisps_of_hot_air_around_itself() {
+    // The reference asks for `intensity` placements, but two of them can land on the same square - and a square that already has smoke gains strength rather
+    // than a second entity. So the promise is "up to five, at least one", and five distinct squares are reachable: both are asserted, over spread seeds.
+    let mut most = 0;
+    for attempt in 0..16_u32 {
+        let mut world = World::new();
+        let mut rolls = Rolls::new(crate::spread_seed(attempt));
+        create_hot_air(&mut world, (5, 5), 0, 2, &mut rolls);
+        let wisps = hot_air_squares(&mut world);
+        assert!(!wisps.is_empty(), "a fire scatters at least one wisp");
+        assert!(wisps.len() <= 5, "and never more than the intensity asks for: {}", wisps.len());
+        most = most.max(wisps.len());
+    }
+    assert_eq!(most, 5, "five distinct squares are reachable");
     let mut world = World::new();
-    let mut rolls = Rolls::new(5);
+    let mut rolls = Rolls::new(crate::spread_seed(0));
     create_hot_air(&mut world, (5, 5), 0, 2, &mut rolls);
-
-    let wisps = hot_air_squares(&mut world);
-    assert_eq!(
-        wisps.len(),
-        5,
-        "five placements, as the reference's loop does"
-    );
-    for (x, y, _id, intensity) in &wisps {
+    for (x, y, _id, intensity) in &hot_air_squares(&mut world) {
         assert!(
             (4..=6).contains(x) && (4..=6).contains(y),
             "({x}, {y}) is not adjacent"

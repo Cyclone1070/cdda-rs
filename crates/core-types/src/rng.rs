@@ -294,37 +294,56 @@ impl MinStdRand0 {
         (b - a) * self.generate_canonical() + a
     }
 
-    /// `std::generate_canonical<double, numeric_limits<double>::digits>`
-    /// (`__random/generate_canonical.h`): builds one real from a fixed number of
-    /// engine draws by summing `(draw - min) * range^i`, then dividing by
-    /// `range^k`.
+    /// `std::generate_canonical<double, 53>` as **libstdc++** computes it: `__generate_canonical_any` (`bits/random.tcc`).
+    ///
+    /// GCC 16's rewrite is a different algorithm from the one the standard's prose suggests, and the difference is visible: the reference builds an integer from the
+    /// draws, divides it **with truncation** by a scaling constant, and only then converts to a real. The classic form (sum of draws over a power of the range) gives
+    /// `0.1315377…` for seed 1 where the reference gives `0.1317951…`, so a port that transcribed the prose would be wrong on the fourth digit of every real it draws.
+    ///
+    /// The constants come from the engine's range: `R = 2147483646`, thirty bits per draw, so a fifty-three bit mantissa needs **two** draws, and the pair is scaled by
+    /// `R^2 / 2^53 = 511`. A build that computes the same in reals would differ in the low bits; the integer division is the point.
     pub fn generate_canonical(&mut self) -> f64 {
-        /// `numeric_limits<double>::digits`: `__dt`, and also the `__bits`
-        /// argument `uniform_real_distribution` passes, so `__b` is 53.
-        const DIGITS: u32 = 53;
-        /// `__log2<uint64_t, __URNG::max() - __URNG::min() + 1>` — the usable
-        /// bits per draw, the same 30 bits the integer path gets.
-        const LOG_R: u32 = ENGINE_RANGE.ilog2();
-        // `__k = __b / __log_r + (__b % __log_r != 0) + (__b == 0)`.
-        let k = DIGITS / LOG_R + u32::from(!DIGITS.is_multiple_of(LOG_R)) + u32::from(DIGITS == 0);
-        // `__rp = static_cast<double>(max() - min()) + 1`: the engine's range
-        // width as a real, `2147483646`, not the modulus `2147483647`.
-        let rp = f64::from(MinStdRand0::MAX - MinStdRand0::MIN) + 1.0;
-        let mut base = rp;
-        let mut sum = f64::from(self.next_u32() - MinStdRand0::MIN);
-        for _ in 1..k {
-            sum += f64::from(self.next_u32() - MinStdRand0::MIN) * base;
-            base *= rp;
+        /// `__R`: `max() - min() + 1` as the engine's unsigned result type.
+        const R: u64 = (MinStdRand0::MAX - MinStdRand0::MIN + 1) as u64;
+        /// `__log2R`: the usable bits per draw.
+        const LOG2R: u32 = 30;
+        /// `__d`: `numeric_limits<double>::digits`.
+        const D: u32 = 53;
+        /// `__l`: `(__d + __log2R - 1) / __log2R`, the draws per value.
+        const L: u32 = D.div_ceil(LOG2R);
+        /// `__rd`: `1 << __d`.
+        const RD: u64 = 1 << D;
+        /// `__x`: `__Rk / __rd`, with `__Rk = R^__l`.
+        const X: u64 = {
+            let mut rk: u64 = 1;
+            let mut i = 0;
+            while i < L {
+                rk *= R;
+                i += 1;
+            }
+            rk / RD
+        };
+        loop {
+            let mut sum = u64::from(self.next_u32() - MinStdRand0::MIN);
+            let mut power: u64 = 1;
+            for _ in 1..L {
+                power *= R;
+                sum = sum.wrapping_add(u64::from(self.next_u32() - MinStdRand0::MIN) * power);
+            }
+            #[allow(clippy::cast_precision_loss)]
+            let ret = (sum / X) as f64 / RD as f64;
+            if ret < 1.0 {
+                return ret;
+            }
         }
-        sum / base
     }
 }
 
 /// `std::normal_distribution<>` (`src/rng.cpp:80-83`).
 #[derive(Debug, Clone, PartialEq)]
 pub struct NormalDistribution {
-    /// libc++'s `__v_` / `__v_hot_`: the polar method produces two values per
-    /// accepted pair, so the second one is stored and returned next time.
+    /// The second value of the accepted pair, kept for the next call: the polar method produces two values per pair, and
+    /// libstdc++ answers the second and stores the first.
     cached: Option<f64>,
 }
 
@@ -355,10 +374,11 @@ impl NormalDistribution {
             }
         };
         let factor = (-2.0 * s.ln() / s).sqrt();
-        self.cached = Some(v * factor);
+        // libstdc++ keeps `__x * __mult` and answers `__y * __mult` (`bits/random.tcc`, `normal_distribution::__generate_impl`).
+        self.cached = Some(u * factor);
         // The library's final `__up * stddev() + mean()` is the identity for the
         // default `normal_distribution<>()`.
-        u * factor
+        v * factor
     }
 }
 

@@ -86,7 +86,6 @@ fn a_suppressing_terrain_skips_the_smoke_dice_entirely() {
 }
 
 #[test]
-#[ignore = "written against libc++'s dice before the port moved to the oracle's libstdc++ distribution; re-derivation pending (docs/parity.md, \"Stdlib dice\")"]
 fn strong_fires_make_smoke_more_often_than_weak_ones() {
     let mut weak = 0;
     let mut strong = 0;
@@ -95,7 +94,8 @@ fn strong_fires_make_smoke_more_often_than_weak_ones() {
         let mut world = World::new();
         let source = burning(&mut world, 1);
         let mut rolls = Rolls::new(seed);
-        process_fire_residue(&mut world, source, 0, 0, false, 0, &mut rolls);
+        // `smoke` of a hundred makes the first gate certain (`rng(0, 100) <= 100`), so what is compared is the second: `rng(3, 35) < intensity * 10`.
+        process_fire_residue(&mut world, source, 100, 0, false, 0, &mut rolls);
         if smoke_strength(&mut world).is_some() {
             weak += 1;
         }
@@ -103,7 +103,7 @@ fn strong_fires_make_smoke_more_often_than_weak_ones() {
         let mut world = World::new();
         let source = burning(&mut world, 3);
         let mut rolls = Rolls::new(seed);
-        process_fire_residue(&mut world, source, 0, 0, false, 0, &mut rolls);
+        process_fire_residue(&mut world, source, 100, 0, false, 0, &mut rolls);
         if smoke_strength(&mut world).is_some() {
             strong += 1;
         }
@@ -112,13 +112,12 @@ fn strong_fires_make_smoke_more_often_than_weak_ones() {
         strong > weak,
         "intensity 3 smokes more often: {strong} against {weak}"
     );
-    // With nothing consumed the first gate is `rng(0, 100) <= 0`, which passes one time in 101, and
-    // the second is about one in five - so a weak fire over bare ground smokes roughly once in 500
-    // turns. Eighty seeds find none, and that is the correct answer rather than a broken test:
-    // smoke in this game comes from things burning, not from flames standing still.
-    assert_eq!(
-        weak, 0,
-        "a weak fire with nothing consumed does not smoke in 80 turns"
+    // With the first gate forced open, the second is `rng(3, 35) < intensity * 10`: a fifth for a weak fire (`< 10`), six sevenths for a strong one (`< 30`). The
+    // measured rates over eighty spread seeds are in the assertion, so a change in either constant shows up as a number rather than as a pass.
+    assert_eq!(weak, 17, "a weak fire smokes when the range's low end comes up: {weak} of 80");
+    assert!(
+        strong > 60,
+        "and a strong one most of the time: {strong} of 80"
     );
 }
 

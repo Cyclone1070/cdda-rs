@@ -84,7 +84,6 @@ fn uniform_uint_full_range_matches_the_reference() {
 }
 
 #[test]
-#[ignore = "libstdc++ GCC 16 rewrote generate_canonical and its normal_distribution; not transcribed yet (docs/parity.md, \"Stdlib dice\")"]
 fn uniform_real_matches_the_reference() {
     let corpus = corpus();
     let cases = corpus
@@ -106,7 +105,6 @@ fn uniform_real_matches_the_reference() {
 }
 
 #[test]
-#[ignore = "libstdc++ GCC 16 rewrote generate_canonical and its normal_distribution; not transcribed yet (docs/parity.md, \"Stdlib dice\")"]
 fn normal_matches_the_reference() {
     let corpus = corpus();
     let cases = corpus.get("normal_0_1").expect("normal_0_1 cases");
