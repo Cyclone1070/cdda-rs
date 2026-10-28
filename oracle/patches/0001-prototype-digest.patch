@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-29 03:50:05
-@@ -0,0 +1,6043 @@
++++ oracle/src/src/harness.cpp	2026-10-29 05:26:59
+@@ -0,0 +1,6140 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +
@@ -442,6 +442,12 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    }
 +    static int int_decay_step( const effect_type & e ) {
 +        return e.int_decay_step;
++    }
++    static const std::vector<std::pair<int, int>> &kill_chance( const effect_type &e ) {
++        return e.kill_chance;
++    }
++    static const std::vector<std::pair<int, int>> &red_kill_chance( const effect_type &e ) {
++        return e.red_kill_chance;
 +    }
 +    static int int_decay_tick( const effect_type & e ) {
 +        return e.int_decay_tick;
@@ -2582,6 +2588,97 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        first = false;
 +    }
 +    std::fprintf( out, "]}\n" );
++    std::fclose( out );
++}
++
++/// The small rules an effect answers about itself: its average modifier, its kill chance, and the two flags that adjust them.
++///
++/// `get_avg_mod` is `get_mod` without the dice: the same "a stated maximum that is not zero" gate, the same effective intensity, but the answer is the **mean of the
++/// range** rather than a draw from it. `kill_roll` is a list of `( numerator, denominator )` pairs indexed by **intensity**, not by the list's own order, and the
++/// index is capped so an effect past its last entry uses the last entry. Both are recorded with the die the reference rolled, so the port replays the same one.
++void dump_effect_derived( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    constexpr unsigned seed = 12345;
++    std::fprintf( out, "{\"harness\":\"effect-derived\",\"version\":1,\"seed\":%u,\"types\":[\n", seed );
++    bool first_type = true;
++    int cases = 0;
++    int fired = 0;
++    for( const std::pair<const efftype_id, effect_type> &entry : get_effect_types() ) {
++        const effect_type &type = entry.second;
++        const auto &kill = ::oracle_effect_reader::kill_chance( type );
++        const auto &red_kill = ::oracle_effect_reader::red_kill_chance( type );
++        std::vector<std::string> args;
++        for( const auto &group : ::oracle_effect_reader::mod_data( type ) ) {
++            for( const auto &cell : group.second ) {
++                const uint8_t action = static_cast<uint8_t>( cell.first & 0xFFU );
++                if( action == static_cast<uint8_t>( mod_action::MIN ) ||
++                    action == static_cast<uint8_t>( mod_action::MAX ) ) {
++                    args.push_back( group.first );
++                    break;
++                }
++            }
++        }
++        std::sort( args.begin(), args.end() );
++        args.erase( std::unique( args.begin(), args.end() ), args.end() );
++        if( args.empty() && kill.empty() && red_kill.empty() ) {
++            continue;
++        }
++        std::fprintf( out, "%s{\"id\":\"%s\",\"harmful_cough\":%s,\"avg\":[", first_type ? "" : ",\n",
++                      harness_escape( entry.first.str() ).c_str(),
++                      ::oracle_effect_reader::harmful_cough( type ) ? "true" : "false" );
++        first_type = false;
++        bool first_avg = true;
++        for( const std::string &arg : args ) {
++            for( int intensity = 1; intensity <= 4; ++intensity ) {
++                effect held( effect_source::empty(), &type, 1_hours, bodypart_str_id( "torso" ), false,
++                             intensity, calendar::turn_zero );
++                for( uint8_t level = 0; level < 2; ++level ) {
++                    std::fprintf( out, "%s{\"arg\":\"%s\",\"intensity\":%d,\"level\":%u,\"average\":%d}",
++                                  first_avg ? "" : ",", harness_escape( arg ).c_str(), intensity,
++                                  static_cast<unsigned>( level ),
++                                  held.get_avg_mod( arg, level != 0 ) );
++                    first_avg = false;
++                    ++cases;
++                }
++            }
++        }
++        std::fprintf( out, "],\"kill\":[" );
++        bool first_kill = true;
++        for( int intensity = 1; intensity <= 4; ++intensity ) {
++            effect held( effect_source::empty(), &type, 1_hours, bodypart_str_id( "torso" ), false, intensity,
++                         calendar::turn_zero );
++            for( uint8_t level = 0; level < 2; ++level ) {
++                // One die, recorded, then the engine put back so the rule rolls the same one itself.
++                rng_set_engine_seed( seed + static_cast<unsigned>( cases ) );
++                const double roll = rng_float( 0.0, 1.0 );
++                rng_set_engine_seed( seed + static_cast<unsigned>( cases ) );
++                const bool answer = held.kill_roll( level != 0 );
++                if( answer ) {
++                    ++fired;
++                }
++                ++cases;
++                std::fprintf( out, "%s{\"intensity\":%d,\"level\":%u,\"roll\":%.17g,\"answer\":%s}",
++                              first_kill ? "" : ",", intensity, static_cast<unsigned>( level ), roll,
++                              answer ? "true" : "false" );
++                first_kill = false;
++            }
++        }
++        std::fprintf( out, "],\"chances\":[" );
++        for( std::size_t i = 0; i < kill.size(); ++i ) {
++            std::fprintf( out, "%s[%d,%d]", i == 0 ? "" : ",", kill[i].first, kill[i].second );
++        }
++        std::fprintf( out, "],\"red_chances\":[" );
++        for( std::size_t i = 0; i < red_kill.size(); ++i ) {
++            std::fprintf( out, "%s[%d,%d]", i == 0 ? "" : ",", red_kill[i].first, red_kill[i].second );
++        }
++        std::fprintf( out, "]}" );
++    }
++    std::fprintf( out, "\n],\"count\":%d,\"fired\":%d}\n", cases, fired );
 +    std::fclose( out );
 +}
 +
@@ -6405,8 +6502,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-29 03:31:35
-@@ -0,0 +1,387 @@
++++ oracle/src/src/harness.h	2026-10-29 05:12:38
+@@ -0,0 +1,390 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -6614,6 +6711,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +
 +/** Answers whether reseeding the engine changes the next die, as `--dump-rng-probe`. */
 +void dump_rng_probe( const std::string &path );
++
++/** Writes the small rules an effect answers about itself, as `--dump-effect-derived`. */
++void dump_effect_derived( const std::string &path );
 +
 +/** Writes what one effect does to a body in one turn, as `--dump-per-turn`. */
 +void dump_per_turn( const std::string &path );
@@ -6968,7 +7068,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-29 03:31:35
++++ oracle/src/src/main.cpp	2026-10-29 05:12:38
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -6979,7 +7079,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,140 @@
+@@ -272,6 +275,141 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -7066,6 +7166,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_effect_activated;
 +    std::string dump_bound_mod;
 +    std::string dump_per_turn;
++    std::string dump_effect_derived;
 +    std::string dump_rng_probe;
 +    std::string dump_consume_drugs;
 +    std::string dump_link_ups;
@@ -7120,7 +7221,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +437,1220 @@
+@@ -300,6 +438,1230 @@
                  }
              },
              {
@@ -7521,6 +7622,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_rng_probe = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-effect-derived", "<file>",
++                "Writes the small rules an effect answers about itself",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_effect_derived = params[0];
 +                    return 1;
 +                }
 +            },
@@ -8341,7 +8452,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2137,652 @@
+@@ -786,6 +2148,658 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -8771,6 +8882,12 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            test_mode = true;
 +            g->check_mod_data( { mod_id( "dda" ) } );
 +            harness::dump_rng_probe( cli.dump_rng_probe );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_effect_derived.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_effect_derived( cli.dump_effect_derived );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_per_turn.empty() ) {

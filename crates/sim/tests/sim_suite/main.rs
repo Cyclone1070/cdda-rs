@@ -49,6 +49,7 @@ mod digest;
 mod eating;
 mod effect_activated;
 mod effect_chances;
+mod effect_derived;
 mod effect_decay;
 mod effect_merge;
 mod extinguisher;

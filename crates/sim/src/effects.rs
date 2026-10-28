@@ -318,6 +318,64 @@ pub fn duration_intensity(duration: i64, factor: i64) -> i32 {
     }
 }
 
+/// What an effect adds on average: `effect::get_avg_mod` (`src/effect.cpp:1284-1296`).
+///
+/// The same "a stated maximum that is not zero" gate the rolling readers use, but no dice: the answer is the mean of the low and the high, **truncated toward zero**
+/// rather than rounded, and the high is read as an integer before the gate is tested — so a stated maximum of `0.5` says nothing and the low comes back alone.
+#[must_use]
+#[allow(clippy::cast_possible_truncation)]
+pub fn average_mod(kind: &cdda_content::effects::EffectType, argument: &str, level: u8, intensity: i32) -> i32 {
+    let low = kind.mod_value(argument, cdda_content::effects::ModAction::Min, level, intensity);
+    let high = kind.mod_value(argument, cdda_content::effects::ModAction::Max, level, intensity);
+    if high as i32 != 0 {
+        f64::midpoint(low, high) as i32
+    } else {
+        low as i32
+    }
+}
+
+/// Whether an effect kills the creature it is on at this intensity: `effect::kill_roll` (`src/effect.cpp:1634-1645`).
+///
+/// The list is indexed by **intensity**, not by its own order, and the index is capped: an intensity of one reads entry zero, and an intensity past the end of the list
+/// keeps reading the last entry rather than clamping to the first. An effect with no list never kills, and consumes **no die** when it does not — the reference returns
+/// before rolling.
+pub fn kill_roll(
+    kind: &cdda_content::effects::EffectType,
+    level: u8,
+    intensity: i32,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) -> bool {
+    let chances = if level == 0 {
+        &kind.kill_chance
+    } else {
+        &kind.red_kill_chance
+    };
+    if chances.is_empty() {
+        return false;
+    }
+    let index = cap_to_size(chances.len(), intensity);
+    let Some((numerator, denominator)) = chances.get(index) else {
+        return false;
+    };
+    #[allow(clippy::cast_precision_loss)]
+    rolls.x_in_y(f64::from(*numerator), f64::from(*denominator))
+}
+
+/// The index a one-based **intensity** reaches in a list: `cap_to_size` (`src/effect.cpp:1107-1116`).
+///
+/// Intensities start at one and indexes at zero, so the answer is `intensity - 1` — and an attempt past the end takes the last entry. An intensity of zero or below
+/// underflows the reference's subtraction and lands on the last entry too, which is what this reproduces rather than "fix".
+#[must_use]
+#[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+pub fn cap_to_size(size: usize, attempt: i32) -> usize {
+    let attempt = attempt.wrapping_sub(1);
+    if usize::try_from(attempt).is_ok_and(|index| index >= size) || attempt < 0 {
+        size - 1
+    } else {
+        usize::try_from(attempt).unwrap_or(0)
+    }
+}
+
 /// How far a per-turn modifier may move a value: `bound_mod_to_vals` (`src/cata_utility.cpp:199-208`).
 ///
 /// The answer is the **movement**, not the new value, so the caller adds it back to what it had. Two of the rules read backwards from a clamp written from instinct:

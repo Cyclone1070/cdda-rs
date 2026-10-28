@@ -546,7 +546,13 @@ Round 630 turned the same lens on ammunition. An effect list is a container too,
 and extends them. The reader was also asking the *object* whether it declares the AMMO subtype instead of asking the item,
 which loses the block entirely for a child that inherits its ammo slot; no such child exists in this content, so that half is
 pinned by a fixture. And the registry: tempting to refuse an effect it lacks, but the reference does not — `rock` lists four
-**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 657 finished what 656 started: `generate_canonical` and `normal_distribution` are libstdc++'s too, so **all 98 wrapper draws** and the raw engine stream match the
+**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 658 opened the effect's **self-description**: `get_avg_mod` (4,160 recorded cases) and `kill_roll` (1,392 recorded rolls, the cap on the intensity index included).
+Both arrived the same way — a new `--dump-effect-derived` profile, the port reading the same JSON the reference reads, and a corpus gate whose both-branch counts prove it is not
+vacuous. Two things the recording made plain: the average reads the stated maximum **as an integer** before deciding whether a range exists (so the shipped data, which never
+states a fractional maximum, cannot exercise that branch — a type assembled for it does), and the kill chance's index is capped at the **last** entry, which is the opposite of
+clamping to the first that a reading assumes.
+
+Round 657 finished what 656 started: `generate_canonical` and `normal_distribution` are libstdc++'s too, so **all 98 wrapper draws** and the raw engine stream match the
 oracle. GCC 16's canonical is not the standard's prose — it builds an integer from two draws and divides it **with truncation** by `R^2 / 2^53 = 511` before converting, so
 the classic formula is wrong on the fourth digit of every real drawn (`0.1315377…` against `0.1317951…` for seed 1) — and the normal answers the **second** value of each
 polar pair while keeping the first. Every `#[ignore]` from the switch is gone: the five sim assertions were re-derived against the measured behaviour (a fire's age also

@@ -163,6 +163,8 @@ fn the_tick_zero_means_one_and_two_halves() {
         harmful_cough: false,
         impairs_movement: false,
         pkill_addict_reduces: false,
+        kill_chance: Vec::new(),
+        red_kill_chance: Vec::new(),
         apply_ratings: Vec::new(),
         flags: BTreeSet::new(),
         resist_traits: Vec::new(),

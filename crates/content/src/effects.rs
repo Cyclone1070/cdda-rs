@@ -113,6 +113,13 @@ pub struct EffectType {
     pub impairs_movement: bool,
     /// Whether a painkiller addict takes less of it.
     pub pkill_addict_reduces: bool,
+    /// The chance this effect kills at each intensity, as `( numerator, denominator )` pairs: `chance_kill` (`src/effect.cpp:1576`).
+    ///
+    /// A list rather than a value, because the **intensity chooses the entry** — and an intensity past the end of the list keeps using the last entry, which is the
+    /// opposite of clamping to the first.
+    pub kill_chance: Vec<(i32, i32)>,
+    /// The same, for a character who resisted: `chance_kill_resist` (`src/effect.cpp:1577`).
+    pub red_kill_chance: Vec<(i32, i32)>,
     /// The ratings of its apply messages, in the order the data states them.
     pub apply_ratings: Vec<Rating>,
     /// Its flags.
@@ -317,6 +324,8 @@ fn read(id: &str, object: &Object) -> EffectType {
         // Derived from the id, never read from the data.
         impairs_movement: MOVEMENT_IMPAIRING.contains(&id),
         pkill_addict_reduces: flag(object, "pkill_addict_reduces"),
+        kill_chance: chances(object, "chance_kill"),
+        red_kill_chance: chances(object, "chance_kill_resist"),
         apply_ratings: ratings(object),
         flags: crate::items::strings(object, "flags").into_iter().collect(),
         resist_traits: crate::items::strings(object, "resist_traits"),
@@ -325,6 +334,27 @@ fn read(id: &str, object: &Object) -> EffectType {
         blocks_effects: crate::items::strings(object, "blocks_effects"),
         mods: mods(object),
     }
+}
+
+/// The `( numerator, denominator )` pairs an effect states for one of its kill chances: `chance_kill` and `chance_kill_resist` (`src/effect.cpp:1576-1577`).
+///
+/// The reference reads the member straight into a `std::vector<std::pair<int, int>>`, so an entry that is not a pair of whole numbers is a data error there and is
+/// skipped here.
+fn chances(object: &Object, key: &str) -> Vec<(i32, i32)> {
+    let Some(Value::Array(pairs)) = object.get(key) else {
+        return Vec::new();
+    };
+    pairs
+        .iter()
+        .filter_map(|pair| match pair {
+            Value::Array(values) => {
+                let first = values.first().and_then(whole)?;
+                let second = values.get(1).and_then(whole)?;
+                Some((first, second))
+            }
+            _ => None,
+        })
+        .collect()
 }
 
 /// Reads the modifier table: `effect_type::load_mod_data` and `extract_effect` (`src/effect.cpp:287-560`).
@@ -416,6 +446,14 @@ fn duration(object: &Object, key: &str) -> Option<i64> {
 fn number(object: &Object, key: &str) -> Option<i32> {
     match object.get(key) {
         Some(Value::Int(value)) => Some(i32::try_from(*value).unwrap_or(0)),
+        _ => None,
+    }
+}
+
+/// A whole number written as a bare value, the way a kill chance's pair is.
+fn whole(value: &Value) -> Option<i32> {
+    match value {
+        Value::Int(number) => Some(i32::try_from(*number).unwrap_or(0)),
         _ => None,
     }
 }
