@@ -546,7 +546,13 @@ Round 630 turned the same lens on ammunition. An effect list is a container too,
 and extends them. The reader was also asking the *object* whether it declares the AMMO subtype instead of asking the item,
 which loses the block entirely for a child that inherits its ammo slot; no such child exists in this content, so that half is
 pinned by a fixture. And the registry: tempting to refuse an effect it lacks, but the reference does not — `rock` lists four
-**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 649 gave effects a way **down**: 24 runs of eight turns over eight profiles, gating `effect::decay`. The interesting part is not the arithmetic but the three guards, each
+**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 650 closed the loop the effects family opened: the hunger effect a body wears is now a **real effect with a duration** rather than a string. It is installed for 24 hours at
+intensity one, it is **not** refreshed while the character already has the one it should — the reference's `if( !has_effect( hunger_effect ) )` guard, which the earlier
+recording pinned and this one now makes observable — and when the day runs out it is taken away and put back on the next update. Both mutations fail: refreshing on every
+update loses the remaining day, and never re-applying leaves the character with no effect at all. The lunchtime pipeline is now closed from raw JSON to a worn effect
+with a clock. Next: `process_effects`, which is where an effect's per-turn modifiers, damage and messages actually happen.
+
+Round 649 gave effects a way **down**: 24 runs of eight turns over eight profiles, gating `effect::decay`. The interesting part is not the arithmetic but the three guards, each
 of which a reading would plausibly get wrong and each of which the recording separates: intensity only steps while the effect is short of its ceiling (so a fresh effect
 does not decay), the tick divides the **absolute** turn rather than the effect's age, and a positive step is suppressed by a blocker while a negative one is not. One
 branch is honestly out of reach in this grid — eight turns cannot cross a ten-minute intensity boundary — so it is pinned by the merge recording and a unit test

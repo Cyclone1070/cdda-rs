@@ -94,6 +94,14 @@ fn compartment(map: &cdda_json::Object) -> [i64; 3] {
     ]
 }
 
+/// The effect types, from the reference's own registry: the hunger effect the body installs needs its ceiling and its duration percentage, and both are recorded.
+fn effects() -> std::collections::BTreeMap<String, cdda_content::effects::EffectType> {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let dirs = [path.join("core"), path.join("json")];
+    let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
+    cdda_content::effects::load_paths(&paths).expect("the effects load")
+}
+
 fn recorded() -> (i64, i64, Vec<Recorded>) {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../corpus/items/update-stomach.json");
@@ -191,6 +199,7 @@ fn every_comestible_moves_the_body_the_way_the_reference_says() {
     let mut calories_moved = 0;
     let mut vitamins_stored = 0;
     let mut stomach_ceiling = 0;
+    let effects = effects();
     for row in &rows {
         for profile in &row.profiles {
             let mut body = Body::new(profile.capacity_ml);
@@ -214,7 +223,7 @@ fn every_comestible_moves_the_body_the_way_the_reference_says() {
                 height_cm: 175,
                 organic_size: 1.0,
             };
-            body.update_stomach(&profile.rates, &inputs, &vitamins);
+            body.update_stomach(&profile.rates, &inputs, &vitamins, &effects);
 
             let label = format!(
                 "{}.cap{}:h{}:t{}:ate{}",

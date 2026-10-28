@@ -183,6 +183,7 @@ fn the_effect_is_replaced_only_when_it_changes() {
     use std::collections::BTreeMap;
 
     let vitamins = BTreeMap::new();
+    let effects = hunger_effects();
     let rates = MetabolicRates {
         kcal: 2_000.0,
         hunger: 1.0,
@@ -208,12 +209,99 @@ fn the_effect_is_replaced_only_when_it_changes() {
     // is not judged hungry, it is judged blank. (At zero calories the same state would answer `hunger_hungry`, because the deficit ladder reads an empty stomach as hunger.)
     let mut body = Body::new(250);
     body.stored_calories = 118_153 * 1_000;
-    body.hunger_effect = Some("hunger_engorged".to_owned());
-    body.update_stomach(&rates, &inputs, &vitamins);
-    assert_eq!(body.hunger_effect.as_deref(), Some("hunger_blank"), "the old effect is gone");
+    body.hunger_effect = Some(cdda_sim::effects::ActiveEffect {
+        id: "hunger_engorged".to_owned(),
+        intensity: 1,
+        duration: 900,
+        permanent: false,
+    });
+    body.update_stomach(&rates, &inputs, &vitamins, &effects);
+    assert_eq!(body.hunger_effect_id(), Some("hunger_blank"), "the old effect is gone");
 
     // Running the same state again leaves the effect alone rather than refreshing it.
     let before = body.hunger_effect.clone();
-    body.update_stomach(&rates, &inputs, &vitamins);
+    body.update_stomach(&rates, &inputs, &vitamins, &effects);
     assert_eq!(body.hunger_effect, before, "an effect already worn is not re-added");
+}
+
+/// The effects the body can install, loaded from the reference's own data: nine hunger effects, each with the ceiling and duration percentage the registry holds.
+fn hunger_effects() -> std::collections::BTreeMap<String, cdda_content::effects::EffectType> {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let dirs = [path.join("core"), path.join("json")];
+    let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
+    cdda_content::effects::load_paths(&paths).expect("the effects load")
+}
+
+/// The duration the reference installs a hunger effect for is not invented here: it is 24 hours, and the type's ceiling is 365 days, so the effect runs out long before
+/// the ceiling can matter. The registry states the ceiling, so the test reads it rather than repeating it.
+#[test]
+fn a_hunger_effect_runs_for_a_day_and_is_put_back_when_it_ends() {
+    use cdda_sim::body::{Body, BodyInputs, HUNGER_EFFECT_DURATION};
+    use cdda_sim::digest::MetabolicRates;
+
+    let effects = hunger_effects();
+    let kind = effects.get("hunger_blank").expect("the type the ladder chooses for a fed, empty body");
+    assert_eq!(
+        kind.max_duration, 31_536_000,
+        "the registry caps a hunger effect at 365 days"
+    );
+    assert_eq!(HUNGER_EFFECT_DURATION, 86_400, "and it is installed for one day");
+
+    let vitamins = std::collections::BTreeMap::new();
+    let rates = MetabolicRates {
+        kcal: 2_000.0,
+        hunger: 1.0,
+        thirst: 1.0,
+        sleepiness: 0.0,
+    };
+    let inputs = BodyInputs {
+        five_mins: 0,
+        half_hours: 0,
+        kcal_per_time: 0.0,
+        healthy_kcal: 118_153,
+        hunger_roll: 0,
+        thirst_roll: 0,
+        time_since_ate: 0,
+        foodless: false,
+        no_thirst: false,
+        mycus: false,
+        height_cm: 175,
+        organic_size: 1.0,
+    };
+
+    let mut body = Body::new(250);
+    body.stored_calories = 118_153 * 1_000;
+    body.update_stomach(&rates, &inputs, &vitamins, &effects);
+    let worn = body.hunger_effect.clone().expect("an effect is worn");
+    assert_eq!(worn.id, "hunger_blank");
+    assert_eq!(worn.duration, HUNGER_EFFECT_DURATION, "installed for a day");
+    assert_eq!(worn.intensity, 1, "born at intensity one");
+
+    // Asking again does **not** refresh it: the character keeps the day it already had.
+    body.decay_effects(&effects, 0);
+    let after_one_turn = body.hunger_effect.clone().expect("still worn");
+    assert_eq!(after_one_turn.duration, HUNGER_EFFECT_DURATION - 1, "one turn gone");
+    body.update_stomach(&rates, &inputs, &vitamins, &effects);
+    assert_eq!(
+        body.hunger_effect.clone().expect("still worn").duration,
+        HUNGER_EFFECT_DURATION - 1,
+        "re-choosing the same effect leaves the remaining duration alone"
+    );
+
+    // Run the day out. The effect disappears, and the next update puts it back at full length.
+    for turn in 1..HUNGER_EFFECT_DURATION {
+        body.decay_effects(&effects, turn);
+    }
+    assert!(
+        body.hunger_effect.as_ref().is_none_or(|effect| effect.duration <= 1),
+        "the day is nearly over"
+    );
+    body.decay_effects(&effects, HUNGER_EFFECT_DURATION);
+    assert_eq!(body.hunger_effect_id(), None, "the effect ran out and was taken away");
+    body.update_stomach(&rates, &inputs, &vitamins, &effects);
+    assert_eq!(
+        body.hunger_effect.clone().expect("an effect is worn").duration,
+        HUNGER_EFFECT_DURATION,
+        "and the next update installs it again, at full length"
+    );
 }

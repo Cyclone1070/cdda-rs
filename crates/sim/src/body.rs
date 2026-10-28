@@ -38,7 +38,11 @@ pub struct Body {
     /// The vitamin levels the body holds, in internal units.
     pub vitamins: BTreeMap<String, i32>,
     /// The hunger effect it wears, if any: exactly **one** of [`HUNGER_EFFECTS`] at a time, because the rule that installs one removes all nine first.
-    pub hunger_effect: Option<String>,
+    ///
+    /// It is a real worn effect now, with a duration that runs: the reference adds it for **24 hours** (`src/character_body.cpp:1091-1093`), and because the rule only
+    /// fires when the character does *not* already have the one it should, re-choosing the same effect never refreshes it — the duration the character has left is the
+    /// duration it keeps, and when it runs out the next update puts it straight back.
+    pub hunger_effect: Option<crate::effects::ActiveEffect>,
     /// The stomach.
     pub stomach: StomachContents,
     /// The guts.
@@ -141,6 +145,12 @@ pub fn has_calorie_deficit(bmi: f32) -> bool {
 
 /// Whether another bite would burst the stomach: `stomach_contents::would_be_engorged_with` (`src/stomach.cpp:373-378`).
 ///
+/// How long the hunger effect is installed for: `add_effect( hunger_effect, 24_hours, true )` (`src/character_body.cpp:1093`), in turns.
+pub const HUNGER_EFFECT_DURATION: i64 = 24 * 60 * 60;
+
+/// The intensity it is installed at: the reference passes none, so it is born at one (`Creature::add_effect`, `src/creature.cpp:1845-1852`).
+pub const HUNGER_EFFECT_INTENSITY: i32 = 1;
+
 /// The threshold is **not one number**: a body in deficit counts a stomach at full capacity as engorged, while a body that is not waits until five sixths.
 ///
 /// **The fullness ratio is an integer division.** `units::volume / units::volume` answers the underlying `int64` (`src/units.h:253-257`), so the ratio is 0 for
@@ -320,6 +330,7 @@ impl Body {
         rates: &MetabolicRates,
         inputs: &BodyInputs,
         vitamins: &BTreeMap<String, Vitamin>,
+        effects: &BTreeMap<String, cdda_content::effects::EffectType>,
     ) {
         let stomach_capacity = self.stomach.capacity_ml();
         if inputs.five_mins > 0 {
@@ -426,9 +437,38 @@ impl Body {
             self.guts.kcal(),
         );
         // "If they do not already have the effect they should, take all of them away and give them this one." A character already wearing the right one keeps its
-        // remaining duration instead of having it refreshed.
-        if self.hunger_effect.as_deref() != Some(chosen) {
-            self.hunger_effect = Some(chosen.to_owned());
+        // remaining duration instead of having it refreshed — so this only fires on a change, or when the effect has run out and been taken away.
+        let wearing = self.hunger_effect.as_ref().map(|effect| effect.id.as_str());
+        if wearing != Some(chosen) {
+            self.hunger_effect = effects.get(chosen).map(|kind| {
+                crate::effects::ActiveEffect::new(kind, HUNGER_EFFECT_DURATION, HUNGER_EFFECT_INTENSITY)
+            });
+        }
+    }
+
+    /// The id of the hunger effect it wears, if any.
+    #[must_use]
+    pub fn hunger_effect_id(&self) -> Option<&str> {
+        self.hunger_effect.as_ref().map(|effect| effect.id.as_str())
+    }
+
+    /// Wears every effect it has down by one turn, taking away the ones that ask to go: the loop half of `Creature::process_effects` (`src/creature.cpp:1885-1900`),
+    /// as far as the hunger effect goes.
+    ///
+    /// `absolute_turn` is the game's turn count, which the tick divides.
+    pub fn decay_effects(
+        &mut self,
+        effects: &BTreeMap<String, cdda_content::effects::EffectType>,
+        absolute_turn: i64,
+    ) {
+        let Some(worn) = self.hunger_effect.as_mut() else {
+            return;
+        };
+        let Some(kind) = effects.get(&worn.id) else {
+            return;
+        };
+        if worn.decay(kind, absolute_turn, false) {
+            self.hunger_effect = None;
         }
     }
 
