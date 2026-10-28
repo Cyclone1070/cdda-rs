@@ -190,7 +190,7 @@ for why, and for the rules that turn a case here into a test in the port.
 | `reloading_test.cpp` | 11 | 1,232 | yes | [gun], [liquid], [reload] | — |
 | `requirements_test.cpp` | 9 | 186 | no | [requirement] | — |
 | `rewrite_vsnprintf_test.cpp` | 1 | 40 | no |  | — |
-| `rng_test.cpp` | 3 | 80 | no | [rng] | ported (engine stream and every wrapper, against libc++) |
+| `rng_test.cpp` | 3 | 80 | no | [rng] | ported (engine stream and every wrapper, against the oracle's libstdc++) |
 | `rot_test.cpp` | 3 | 142 | no | [rot] | — |
 | `safe_reference_test.cpp` | 4 | 53 | no | [safe_reference] | — |
 | `shadowcasting_test.cpp` | 16 | 1,143 | no | [.], [shadowcasting] | — |

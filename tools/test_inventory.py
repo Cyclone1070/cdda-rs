@@ -21,7 +21,7 @@ PORTED = {
     "calendar_test.cpp": "ported (28 assertions, all of them)",
     "coordinate_test.cpp": "ported (strings, operations, comparison, hash, distances, midpoint, combine/remain)",
     "units_test.cpp": "partly (83 of 202 assertions; the rest need time, JSON or options)",
-    "rng_test.cpp": "ported (engine stream and every wrapper, against libc++)",
+    "rng_test.cpp": "ported (engine stream and every wrapper, against the oracle's libstdc++)",
     "options_test.cpp": "ported (21 tests, table and behaviour)",
     "string_ids_test.cpp": "ported (interning, ordinal caches, version invalidation)",
     "generic_factory_test.cpp": "partly (5 of 9 cases)",
