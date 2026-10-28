@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-28 23:59:58
-@@ -0,0 +1,5800 @@
++++ oracle/src/src/harness.cpp	2026-10-29 01:22:48
+@@ -0,0 +1,5891 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +
@@ -2550,6 +2550,97 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        }
 +    }
 +    std::fprintf( out, "\n],\"count\":%d}\n", count );
++    std::fclose( out );
++}
++
++/// Whether an effect's per-turn something fires this turn: `effect::activated` (`src/effect.cpp:1360-1394`).
++///
++/// This is the chance arithmetic plus two things the percentage does not have: the **tick clock**, which decides whether this is a turn the thing can happen at all
++/// (`( when - turn_zero ) % tick == 0`), and the **dice**, one uniform float per roll compared against the chance.
++///
++/// Each case records the die the reference rolled and the answer it gave, so the port replays the same uniform float rather than rolling its own — a rule and its dice
++/// on one recording.
++void dump_effect_activated( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    static const std::array<int, 3> values = { { 0, 1, 3 } };
++    static const std::array<double, 2> mods = { { 1.0, 2.0 } };
++    static const std::array<int, 3> turns = { { 0, 1, 2 } };
++    constexpr unsigned seed = 12345;
++    std::fprintf( out, "{\"harness\":\"effect-activated\",\"version\":1,\"seed\":%u,\"cases\":[\n", seed );
++    int rolled = 0;
++    bool first_case = true;
++    int cases = 0;
++    int fired = 0;
++    for( const std::pair<const efftype_id, effect_type> &entry : get_effect_types() ) {
++        const effect_type &type = entry.second;
++        const auto &table = ::oracle_effect_reader::mod_data( type );
++        if( table.empty() ) {
++            continue;
++        }
++        std::vector<std::string> names;
++        for( const auto &group : table ) {
++            for( const auto &cell : group.second ) {
++                const uint8_t action = static_cast<uint8_t>( cell.first & 0xFFU );
++                if( action == static_cast<uint8_t>( mod_action::CHANCE_TOP ) ||
++                    action == static_cast<uint8_t>( mod_action::TICK ) ) {
++                    names.push_back( group.first );
++                    break;
++                }
++            }
++        }
++        if( names.empty() ) {
++            continue;
++        }
++        std::sort( names.begin(), names.end() );
++        names.erase( std::unique( names.begin(), names.end() ), names.end() );
++        for( const std::string &name : names ) {
++            for( int intensity = 1; intensity <= 4; ++intensity ) {
++                effect probe( effect_source::empty(), &type, 1_hours, bodypart_str_id( "torso" ), false,
++                              intensity, calendar::turn_zero );
++                for( const int val : values ) {
++                    for( const double mod : mods ) {
++                        for( const int turn : turns ) {
++                            const time_point when = calendar::turn_zero + time_duration::from_turns( turn );
++                            // One die per case, and a different seed each time so the roll is not the same float fifteen thousand times: seed, take the die, put the
++                            // engine back, and let the rule roll it. What the rule consumed is measured too — the second draw from the seed tells us whether the first
++                            // was taken, which is how the gate can hold the port to drawing on the same cases and not on the others.
++                            const unsigned case_seed = seed + static_cast<unsigned>( cases );
++                            rng_set_engine_seed( case_seed );
++                            const double roll = rng_float( 0.0, 1.0 );
++                            const double second = rng_float( 0.0, 1.0 );
++                            rng_set_engine_seed( case_seed );
++                            const bool answer = probe.activated( when, name, val, false, mod );
++                            // `rng_float` pulls more than one engine value, so the tell is not "a different number" but "the *second* call's number": if the rule
++                            // took a draw the stream has moved on by exactly one call and the next call answers what `second` did; if it took none, the next call
++                            // repeats `roll`.
++                            const double after = rng_float( 0.0, 1.0 );
++                            const bool consumed = after == second;
++                            ++cases;
++                            if( answer ) {
++                                ++fired;
++                            }
++                            if( consumed ) {
++                                ++rolled;
++                            }
++                            std::fprintf( out,
++                                          "%s{\"id\":\"%s\",\"arg\":\"%s\",\"intensity\":%d,\"val\":%d,\"mod\":%g,"
++                                          "\"turn\":%d,\"roll\":%.17g,\"dice\":%d,\"answer\":%s}",
++                                          first_case ? "" : ",\n", harness_escape( entry.first.str() ).c_str(),
++                                          harness_escape( name ).c_str(), intensity, val, mod, turn, roll,
++                                          consumed ? 1 : 0, answer ? "true" : "false" );
++                            first_case = false;
++                        }
++                    }
++                }
++            }
++        }
++    }
++    std::fprintf( out, "\n],\"count\":%d,\"fired\":%d,\"rolled\":%d}\n", cases, fired, rolled );
 +    std::fclose( out );
 +}
 +
@@ -6162,8 +6253,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-28 23:18:48
-@@ -0,0 +1,375 @@
++++ oracle/src/src/harness.h	2026-10-29 00:44:31
+@@ -0,0 +1,378 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -6365,6 +6456,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +
 +/** Writes every effect type's per-intensity modifier table and the value each entry answers, as `--dump-effect-mods`. */
 +void dump_effect_mods( const std::string &path );
++
++/** Writes whether each effect's per-turn something fires, die and answer together, as `--dump-effect-activated`. */
++void dump_effect_activated( const std::string &path );
 +
 +/** Writes how likely each effect's per-turn something is, as `--dump-effect-chances`. */
 +void dump_effect_chances( const std::string &path );
@@ -6713,7 +6807,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-28 23:18:48
++++ oracle/src/src/main.cpp	2026-10-29 00:44:31
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -6724,7 +6818,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,136 @@
+@@ -272,6 +275,137 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -6808,6 +6902,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_effect_decay;
 +    std::string dump_effect_mods;
 +    std::string dump_effect_chances;
++    std::string dump_effect_activated;
 +    std::string dump_consume_drugs;
 +    std::string dump_link_ups;
 +    std::string dump_firestarters;
@@ -6861,7 +6956,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +433,1180 @@
+@@ -300,6 +434,1190 @@
                  }
              },
              {
@@ -7252,6 +7347,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_consume_drugs = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-effect-activated", "<file>",
++                "Writes whether each effect's per-turn something fires, die and answer together",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_effect_activated = params[0];
 +                    return 1;
 +                }
 +            },
@@ -8042,7 +8147,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2093,628 @@
+@@ -786,6 +2104,634 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -8466,6 +8571,12 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            test_mode = true;
 +            g->check_mod_data( { mod_id( "dda" ) } );
 +            harness::dump_consume_drugs( cli.dump_consume_drugs );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_effect_activated.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_effect_activated( cli.dump_effect_activated );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_effect_chances.empty() ) {

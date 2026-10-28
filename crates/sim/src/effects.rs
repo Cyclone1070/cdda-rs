@@ -16,6 +16,7 @@
 //! 2. `units::volume / units::volume` truncates and `time_duration / time_duration` does not — the same-looking operator with opposite behaviour.
 
 use cdda_content::effects::{EffectType, ModAction};
+use cdda_core_types::rng::Rolls;
 
 /// One effect a creature is wearing, as far as its numbers go.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -160,6 +161,45 @@ impl ActiveEffect {
             percentage /= f64::from(tick);
         }
         percentage
+    }
+
+    /// Whether the effect's per-turn something fires this turn: `effect::activated` (`src/effect.cpp:1360-1394`).
+    ///
+    /// The percentage is only half of it. This adds the **clock** — the thing can only happen on turns the tick divides, and a negative tick means it can never happen —
+    /// and the **dice**: one uniform float from zero to one, compared against the chance. A missing bottom means the odds are one in `top`; a stated bottom means `top`
+    /// in `bot`, and the caller's `modifier` scales the numerator.
+    #[allow(clippy::too_many_arguments, clippy::cast_possible_truncation)]
+    pub fn activated(
+        &self,
+        kind: &EffectType,
+        rolls: &mut Rolls,
+        turn: i64,
+        argument: &str,
+        value: i32,
+        reduced: bool,
+        modifier: f64,
+    ) -> bool {
+        let level = u8::from(reduced);
+        let top = kind.mod_value(argument, ModAction::ChanceTop, level, self.intensity) as i32;
+        if value == 0 && top <= 0 {
+            return false;
+        }
+        let mut tick = kind.mod_value(argument, ModAction::Tick, level, self.intensity) as i32;
+        if tick == 0 {
+            tick = 1;
+        } else if tick < 0 {
+            return false;
+        }
+        let bottom = kind.mod_value(argument, ModAction::ChanceBot, level, self.intensity) as i32;
+        // The clock: only the turns the tick divides. Turn zero is the first, so a tick of three fires on turns zero, three, six.
+        if turn % i64::from(tick) != 0 {
+            return false;
+        }
+        if bottom == 0 {
+            rolls.x_in_y(modifier, f64::from(top))
+        } else {
+            rolls.x_in_y(f64::from(top) * modifier, f64::from(bottom))
+        }
     }
 
     /// Wears the effect down by one turn: `effect::decay` (`src/effect.cpp:1042-1068`).

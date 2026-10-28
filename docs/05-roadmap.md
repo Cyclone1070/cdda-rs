@@ -546,7 +546,13 @@ Round 630 turned the same lens on ammunition. An effect list is a container too,
 and extends them. The reader was also asking the *object* whether it declares the AMMO subtype instead of asking the item,
 which loses the block entirely for a child that inherits its ammo slot; no such child exists in this content, so that half is
 pinned by a fixture. And the registry: tempting to refuse an effect it lacks, but the reference does not — `rock` lists four
-**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 652 ported the **chance arithmetic** on top of them: 112 effect types, 2,152 percentages, gated to 1e-12. Four rules stack — a zero value with no stated chance
+**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 653 added the last piece of the chance machinery: `activated` — the arithmetic plus the **clock** and the **die**. 14,760 cases, each replayed on the exact float the
+reference rolled, with whether a die was taken recorded too so a rule that rolls when it should not fails even when the answer coincides. 1,797 fire, 9,124 roll. The
+recording caught the *harness's* bug rather than the port's: "did it take a die" was measured backwards, because `rng_float` pulls more than one engine value and I
+compared the wrong one — 5,636 against the truth of 9,124. With the chance, the table, the clock and the die all pinned, `process_one_effect` is now expressible: what
+remains is the per-turn body of it, one effect name at a time.
+
+Round 652 ported the **chance arithmetic** on top of them: 112 effect types, 2,152 percentages, gated to 1e-12. Four rules stack — a zero value with no stated chance
 answers zero, a stated bottom flips the formula's shape, a tick of zero means *one*, and the intensity is the raw one — and the recording corrected a belief in the gate
 itself: there are no percentages above one hundred, but there are **158 negative** ones, because a chance or a bottom can be stated below zero and nothing clamps it.
 The gate now asserts the measured shape (233 zeroes, 27 at one hundred, 1,734 between, 158 negative) instead of a guess. Two recording defects were found and fixed on

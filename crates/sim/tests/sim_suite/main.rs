@@ -36,6 +36,7 @@ mod death;
 mod degradation;
 mod digest;
 mod eating;
+mod effect_activated;
 mod effect_chances;
 mod effect_decay;
 mod effect_merge;
