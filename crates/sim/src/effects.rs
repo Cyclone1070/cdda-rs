@@ -124,6 +124,38 @@ impl ActiveEffect {
     }
 }
 
+impl ActiveEffect {
+    /// Wears the effect down by one turn: `effect::decay` (`src/effect.cpp:1042-1068`).
+    ///
+    /// Returns whether this turn was the one the effect should be taken off. Two guards decide the intensity half and both are easy to miss: it only steps while the
+    /// effect is **short of its ceiling** — an effect at `max_duration` is freshly applied and does not lose intensity yet — and a **positive** step is skipped when
+    /// another effect blocks this one (a negative one always applies, so a blocker cannot keep something from getting worse).
+    ///
+    /// `absolute_turn` is the game's turn count rather than a count of how long this effect has lasted: the tick divides the former.
+    pub fn decay(&mut self, kind: &EffectType, absolute_turn: i64, blocked: bool) -> bool {
+        let mut removed = false;
+        if self.intensity > 0
+            && kind.int_decay_tick != 0
+            && absolute_turn % i64::from(kind.int_decay_tick) == 0
+            && kind.max_duration > self.duration
+        {
+            if kind.int_decay_step <= 0 || !blocked {
+                self.set_intensity(kind, self.intensity.saturating_add(kind.int_decay_step));
+            }
+            if self.intensity <= 0 {
+                removed = true;
+            }
+        }
+        if self.duration <= 0 {
+            removed = true;
+        } else if !self.permanent {
+            // One turn off, which for a duration-sized type recomputes the intensity on the way through `set_duration`.
+            self.mod_duration(kind, -1);
+        }
+        removed
+    }
+}
+
 /// The intensity a duration implies: `ceil( duration / int_dur_factor )` (`src/effect.cpp:1090-1092`).
 ///
 /// Both operands are `time_duration`, whose division is a `double` (`src/calendar.h:317-319`), so this genuinely rounds up: seven minutes against a ten-minute factor

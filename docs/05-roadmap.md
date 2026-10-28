@@ -546,7 +546,13 @@ Round 630 turned the same lens on ammunition. An effect list is a container too,
 and extends them. The reader was also asking the *object* whether it declares the AMMO subtype instead of asking the item,
 which loses the block entirely for a child that inherits its ammo slot; no such child exists in this content, so that half is
 pinned by a fixture. And the registry: tempting to refuse an effect it lacks, but the reference does not — `rock` lists four
-**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 648 taught the port to **wear** an effect: 30 runs of three applications each over six profiles, gating both halves of `Creature::add_effect` — creation and merge
+**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 649 gave effects a way **down**: 24 runs of eight turns over eight profiles, gating `effect::decay`. The interesting part is not the arithmetic but the three guards, each
+of which a reading would plausibly get wrong and each of which the recording separates: intensity only steps while the effect is short of its ceiling (so a fresh effect
+does not decay), the tick divides the **absolute** turn rather than the effect's age, and a positive step is suppressed by a blocker while a negative one is not. One
+branch is honestly out of reach in this grid — eight turns cannot cross a ten-minute intensity boundary — so it is pinned by the merge recording and a unit test
+instead of by a vacuous assertion. Next: `process_effects`, the pass that calls decay for everything worn and applies what each effect does while it lasts.
+
+Round 648 taught the port to **wear** an effect: 30 runs of three applications each over six profiles, gating both halves of `Creature::add_effect` — creation and merge
 into one already worn. The finding of the round is a pair of operators that look identical and behave oppositely: `dur * dur_add_perc / 100` is integer arithmetic
 (three turns at 50% add one, not two), while `ceil( duration / int_dur_factor )` divides two `time_duration`s, whose `/` answers a `double`, so 21 minutes against a
 ten-minute factor is intensity **3**. The port had the second one wrong — it was written as a truncating integer division — and the recording said so only after a

@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-26 13:57:49
-@@ -0,0 +1,5539 @@
++++ oracle/src/src/harness.cpp	2026-10-28 22:31:00
+@@ -0,0 +1,5653 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +
@@ -2546,6 +2546,120 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        }
 +    }
 +    std::fprintf( out, "\n],\"count\":%d}\n", count );
++    std::fclose( out );
++}
++
++/// Wears an effect down, turn by turn, and records what each turn took off it.
++///
++/// `effect::decay` (`src/effect.cpp:1042-1068`) is called once per turn for every effect a creature wears, and it does two things in one pass: it may **step the
++/// intensity** on the turns the type's `int_decay_tick` divides, and it always takes a turn off the **duration** — unless the effect is paused, which is what
++/// "permanent" means. Two guards are easy to miss and change the answers: the intensity only steps while the effect is **short of its ceiling** (`get_max_duration() >
++/// get_duration()`), and a positive step is skipped when another effect blocks this one.
++///
++/// The recorded time is the absolute turn, because that is what the tick divides.
++void dump_effect_decay( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++
++    struct profile {
++        const char *max_duration;
++        int int_decay_step;
++        int int_decay_tick;
++        const char *int_dur_factor;
++        bool int_decay_remove;
++        int max_intensity;
++    };
++    static const std::array<profile, 8> profiles = { {
++            // No tick: the duration falls and the intensity never moves.
++            { "6 hours", -1, 0, "0 turns", false, 5 },
++            // A tick that divides every turn, stepping the intensity down.
++            { "6 hours", -1, 1, "0 turns", false, 5 },
++            // A slower tick, so only some turns step.
++            { "6 hours", -1, 3, "0 turns", false, 5 },
++            // The same with a type that lets the intensity reach zero, which removes the effect.
++            { "6 hours", -1, 1, "0 turns", true, 5 },
++            // A positive step, which is the one a blocking effect suppresses.
++            { "6 hours", 1, 1, "0 turns", false, 5 },
++            { "6 hours", 2, 1, "0 turns", false, 5 },
++            // Duration-sized intensity: the duration falling recomputes it.
++            { "6 hours", 0, 0, "10 minutes", false, 30 },
++            // Starting at the ceiling, where the intensity may not step at all.
++            { "1 hours", -1, 1, "0 turns", false, 5 },
++        }
++    };
++    // Each profile starts from a few different positions: full, nearly spent, and at the ceiling.
++    // Three starting positions: full, nearly spent, and at the ceiling.
++    struct start {
++        int intensity;
++        int minutes;
++    };
++    static const std::array<start, 3> starts = { { { 3, 60 }, { 3, 2 }, { 5, 60 } } };
++    constexpr int turns = 8;
++
++    std::fprintf( out, "{\"harness\":\"effect-decay\",\"version\":1,\"profiles\":[\n" );
++    for( std::size_t p = 0; p < profiles.size(); ++p ) {
++        const profile &prof = profiles[p];
++        std::fprintf( out,
++                      "%s{\"max_intensity\":%d,\"max_duration\":\"%s\",\"int_decay_step\":%d,\"int_decay_tick\":%d,"
++                      "\"int_dur_factor\":\"%s\",\"int_decay_remove\":%s}",
++                      p == 0 ? "" : ",\n", prof.max_intensity, prof.max_duration, prof.int_decay_step,
++                      prof.int_decay_tick, prof.int_dur_factor, prof.int_decay_remove ? "true" : "false" );
++    }
++    std::fprintf( out, "],\"starts\":[" );
++    for( std::size_t s = 0; s < starts.size(); ++s ) {
++        std::fprintf( out, "%s{\"intensity\":%d,\"minutes\":%d}", s == 0 ? "" : ",", starts[s].intensity,
++                      starts[s].minutes );
++    }
++    std::fprintf( out, "],\"runs\":[\n" );
++
++    bool first_run = true;
++    int runs = 0;
++    for( std::size_t p = 0; p < profiles.size(); ++p ) {
++        const profile &prof = profiles[p];
++        const std::string id = string_format( "harness_decay_%d", static_cast<int>( p ) );
++        const std::string json = string_format(
++                                     "{\"id\":\"%s\",\"max_intensity\":%d,\"max_duration\":\"%s\",\"int_decay_step\":%d,"
++                                     "\"int_decay_tick\":%d,\"int_dur_factor\":\"%s\",\"int_decay_remove\":%s}",
++                                     id.c_str(), prof.max_intensity, prof.max_duration, prof.int_decay_step,
++                                     prof.int_decay_tick, prof.int_dur_factor, prof.int_decay_remove ? "true" : "false" );
++        JsonValue parsed = json_loader::from_string( json );
++        JsonObject object = parsed.get_object();
++        load_effect_type( object, "harness" );
++        const efftype_id effect_id( id );
++        if( !effect_id.is_valid() ) {
++            std::fprintf( stderr, "harness: the synthesised effect %s did not load\n", id.c_str() );
++            std::fclose( out );
++            return;
++        }
++        for( std::size_t s = 0; s < starts.size(); ++s ) {
++            ++runs;
++            const bodypart_str_id torso( "torso" );
++            effect worn( effect_source::empty(), &effect_id.obj(), time_duration::from_minutes( starts[s].minutes ),
++                         torso, false, starts[s].intensity, calendar::turn_zero );
++            std::fprintf( out, "%s{\"profile\":%d,\"start\":%d,\"steps\":[", first_run ? "" : ",\n",
++                          static_cast<int>( p ), static_cast<int>( s ) );
++            first_run = false;
++            for( int turn = 0; turn < turns; ++turn ) {
++                std::vector<efftype_id> rem_ids;
++                std::vector<bodypart_id> rem_bps;
++                effect worn_copy = worn;
++                const effects_map empty_map;
++                worn.decay( rem_ids, rem_bps, calendar::turn_zero + time_duration::from_turns( turn ), false,
++                            empty_map );
++                std::fprintf( out, "%s{\"turn\":%d,\"intensity\":%d,\"turns_left\":%lld,\"removed\":%s}",
++                              turn == 0 ? "" : ",", turn, worn.get_intensity(),
++                              static_cast<long long>( to_turns<int64_t>( worn.get_duration() ) ),
++                              rem_ids.empty() ? "false" : "true" );
++                ( void )worn_copy;
++            }
++            std::fprintf( out, "]}" );
++        }
++    }
++    std::fprintf( out, "\n],\"count\":%d}\n", runs );
 +    std::fclose( out );
 +}
 +
@@ -5901,8 +6015,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-26 12:22:36
-@@ -0,0 +1,366 @@
++++ oracle/src/src/harness.h	2026-10-26 14:21:05
+@@ -0,0 +1,369 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -6098,6 +6212,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +
 +/** Writes what repeated application does to an effect's intensity and duration, as `--dump-effect-merge`. */
 +void dump_effect_merge( const std::string &path );
++
++/** Writes what wearing an effect down does turn by turn, as `--dump-effect-decay`. */
++void dump_effect_decay( const std::string &path );
 +
 +/** Writes every effect type and the fields a rule reads, as `--dump-effects`. */
 +void dump_effects( const std::string &path );
@@ -6443,7 +6560,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-26 12:22:36
++++ oracle/src/src/main.cpp	2026-10-26 14:21:05
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -6454,7 +6571,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,133 @@
+@@ -272,6 +275,134 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -6535,6 +6652,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_hunger_effect;
 +    std::string dump_effects;
 +    std::string dump_effect_merge;
++    std::string dump_effect_decay;
 +    std::string dump_consume_drugs;
 +    std::string dump_link_ups;
 +    std::string dump_firestarters;
@@ -6588,7 +6706,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +430,1150 @@
+@@ -300,6 +431,1160 @@
                  }
              },
              {
@@ -6979,6 +7097,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_consume_drugs = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-effect-decay", "<file>",
++                "Writes what wearing an effect down does turn by turn",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_effect_decay = params[0];
 +                    return 1;
 +                }
 +            },
@@ -7739,7 +7867,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2060,610 @@
+@@ -786,6 +2071,616 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -8163,6 +8291,12 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            test_mode = true;
 +            g->check_mod_data( { mod_id( "dda" ) } );
 +            harness::dump_consume_drugs( cli.dump_consume_drugs );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_effect_decay.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_effect_decay( cli.dump_effect_decay );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_effect_merge.empty() ) {
