@@ -250,3 +250,20 @@ pub fn duration_intensity(duration: i64, factor: i64) -> i32 {
         ratio as i32
     }
 }
+
+/// How far a per-turn modifier may move a value: `bound_mod_to_vals` (`src/cata_utility.cpp:199-208`).
+///
+/// The answer is the **movement**, not the new value, so the caller adds it back to what it had. Two of the rules read backwards from a clamp written from instinct:
+/// a ceiling or a floor of **zero means no limit at all** — not "clamp to zero" — and the two tests both read `val + mod` from the *original* value, so the floor is
+/// tested against a movement the ceiling may already have shortened.
+#[must_use]
+pub fn bound_mod_to_vals(value: i32, modulation: i32, maximum: i32, minimum: i32) -> i32 {
+    let mut modulation = modulation;
+    if value.saturating_add(modulation) > maximum && maximum != 0 {
+        modulation = (maximum - value).max(0);
+    }
+    if value.saturating_add(modulation) < minimum && minimum != 0 {
+        modulation = (minimum - value).min(0);
+    }
+    modulation
+}

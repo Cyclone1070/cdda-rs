@@ -11,6 +11,7 @@ mod acid_vent;
 mod bash_hits;
 mod blast;
 mod body;
+mod bound_mod;
 mod burn_bookkeeping;
 mod burn_products;
 mod butcher_finish;

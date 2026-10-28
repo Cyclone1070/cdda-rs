@@ -546,7 +546,12 @@ Round 630 turned the same lens on ammunition. An effect list is a container too,
 and extends them. The reader was also asking the *object* whether it declares the AMMO subtype instead of asking the item,
 which loses the block entirely for a child that inherits its ammo slot; no such child exists in this content, so that half is
 pinned by a fixture. And the registry: tempting to refuse an effect it lacks, but the reference does not — `rock` lists four
-**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 653 added the last piece of the chance machinery: `activated` — the arithmetic plus the **clock** and the **die**. 14,760 cases, each replayed on the exact float the
+**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 654 ported the clamp every per-turn branch leans on: `bound_mod_to_vals`, 875 cases. It is small and two of its rules are backwards from instinct — a limit of zero
+means **no limit** rather than a clamp to zero (55 cases catch that), and the answer is the movement rather than the value, so the floor is tested against a movement the
+ceiling may already have shortened (two cases catch that, and only when the ceiling comes first). With the table, the arithmetic, the chance, the clock, the die and now
+the clamp, the only thing missing from a per-turn pass is the assembly.
+
+Round 653 added the last piece of the chance machinery: `activated` — the arithmetic plus the **clock** and the **die**. 14,760 cases, each replayed on the exact float the
 reference rolled, with whether a die was taken recorded too so a rule that rolls when it should not fails even when the answer coincides. 1,797 fire, 9,124 roll. The
 recording caught the *harness's* bug rather than the port's: "did it take a die" was measured backwards, because `rng_float` pulls more than one engine value and I
 compared the wrong one — 5,636 against the truth of 9,124. With the chance, the table, the clock and the die all pinned, `process_one_effect` is now expressible: what

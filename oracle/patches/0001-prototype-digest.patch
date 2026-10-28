@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-29 01:22:48
-@@ -0,0 +1,5891 @@
++++ oracle/src/src/harness.cpp	2026-10-29 01:49:07
+@@ -0,0 +1,5926 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +
@@ -2550,6 +2550,41 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        }
 +    }
 +    std::fprintf( out, "\n],\"count\":%d}\n", count );
++    std::fclose( out );
++}
++
++/// How far a per-turn modifier is allowed to move a value: `bound_mod_to_vals` (`src/cata_utility.cpp:199-208`).
++///
++/// Every "the effect moves your hunger by three, but not past its stated ceiling" in `process_one_effect` goes through this, and it has two rules that a clamp written
++/// from instinct gets wrong: a ceiling or a floor of **zero means no limit at all** rather than "clamped to zero", and the answer is the **movement** rather than the
++/// new value, so the caller adds it back. The grid crosses both signs, both limits and the zero cases.
++void dump_bound_mod( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    static const std::array<int, 5> values = { { -100, -5, 0, 5, 100 } };
++    static const std::array<int, 7> mods = { { -60, -10, -1, 0, 1, 10, 60 } };
++    static const std::array<int, 5> limits = { { 0, -20, 5, 20, 100 } };
++    std::fprintf( out, "{\"harness\":\"bound-mod\",\"version\":1,\"cases\":[\n" );
++    bool first = true;
++    int cases = 0;
++    for( const int value : values ) {
++        for( const int mod : mods ) {
++            for( const int maximum : limits ) {
++                for( const int minimum : limits ) {
++                    ++cases;
++                    std::fprintf( out, "%s{\"val\":%d,\"mod\":%d,\"max\":%d,\"min\":%d,\"bounded\":%d}",
++                                  first ? "" : ",\n", value, mod, maximum, minimum,
++                                  bound_mod_to_vals( value, mod, maximum, minimum ) );
++                    first = false;
++                }
++            }
++        }
++    }
++    std::fprintf( out, "\n],\"count\":%d}\n", cases );
 +    std::fclose( out );
 +}
 +
@@ -6253,8 +6288,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-29 00:44:31
-@@ -0,0 +1,378 @@
++++ oracle/src/src/harness.h	2026-10-29 01:49:07
+@@ -0,0 +1,381 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -6459,6 +6494,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +
 +/** Writes whether each effect's per-turn something fires, die and answer together, as `--dump-effect-activated`. */
 +void dump_effect_activated( const std::string &path );
++
++/** Writes how far a per-turn modifier may move a value, as `--dump-bound-mod`. */
++void dump_bound_mod( const std::string &path );
 +
 +/** Writes how likely each effect's per-turn something is, as `--dump-effect-chances`. */
 +void dump_effect_chances( const std::string &path );
@@ -6807,7 +6845,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-29 00:44:31
++++ oracle/src/src/main.cpp	2026-10-29 01:49:07
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -6818,7 +6856,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,137 @@
+@@ -272,6 +275,138 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -6903,6 +6941,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_effect_mods;
 +    std::string dump_effect_chances;
 +    std::string dump_effect_activated;
++    std::string dump_bound_mod;
 +    std::string dump_consume_drugs;
 +    std::string dump_link_ups;
 +    std::string dump_firestarters;
@@ -6956,7 +6995,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +434,1190 @@
+@@ -300,6 +435,1200 @@
                  }
              },
              {
@@ -7347,6 +7386,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_consume_drugs = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-bound-mod", "<file>",
++                "Writes how far a per-turn modifier may move a value",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_bound_mod = params[0];
 +                    return 1;
 +                }
 +            },
@@ -8147,7 +8196,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2104,634 @@
+@@ -786,6 +2115,640 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -8571,6 +8620,12 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            test_mode = true;
 +            g->check_mod_data( { mod_id( "dda" ) } );
 +            harness::dump_consume_drugs( cli.dump_consume_drugs );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_bound_mod.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_bound_mod( cli.dump_bound_mod );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_effect_activated.empty() ) {
