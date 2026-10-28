@@ -15,7 +15,7 @@
 //! `time_duration / time_duration` answers a `double` (`src/calendar.h:317-319`), so that ceiling is real: 21 minutes against a 10-minute factor is intensity 3, not
 //! 2. `units::volume / units::volume` truncates and `time_duration / time_duration` does not — the same-looking operator with opposite behaviour.
 
-use cdda_content::effects::EffectType;
+use cdda_content::effects::{EffectType, ModAction};
 
 /// One effect a creature is wearing, as far as its numbers go.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -125,6 +125,43 @@ impl ActiveEffect {
 }
 
 impl ActiveEffect {
+    /// How likely the effect's per-turn something is to happen, as a percentage: `effect::get_percentage` (`src/effect.cpp:1324-1356`).
+    ///
+    /// Four rules stack here and none of them reads the way it looks:
+    ///
+    /// * **A value of zero with no stated chance answers zero**, rather than "always": the chance members are optional, and an effect that states none cannot fire.
+    /// * **The bottom of the range is optional, and its absence changes the formula's shape** — with a bottom the chance is `100 * top / bottom`, without one it is
+    ///   `100 / top`, so a stated bottom of zero and a stated top of zero mean opposite things.
+    /// * **A tick of zero means one**, because most effects fire every turn and the member exists for the ones that do not — but a tick of two halves the chance, and a
+    ///   *negative* tick means the thing cannot happen at all, which is a different answer from zero chance.
+    /// * The intensity used is the **raw** one, unlike the amount and range readers, which use the effective intensity.
+    ///
+    /// Integer truncation happens where the reference truncates: the three members are read as `int` before the arithmetic.
+    #[must_use]
+    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+    pub fn percentage(&self, kind: &EffectType, argument: &str, value: i32, reduced: bool) -> f64 {
+        let level = u8::from(reduced);
+        let top = kind.mod_value(argument, ModAction::ChanceTop, level, self.intensity) as i32;
+        if value == 0 && top <= 0 {
+            return 0.0;
+        }
+        let bottom = kind.mod_value(argument, ModAction::ChanceBot, level, self.intensity) as i32;
+        let mut tick = kind.mod_value(argument, ModAction::Tick, level, self.intensity) as i32;
+        if tick == 0 {
+            tick = 1;
+        }
+        let mut percentage = 100.0;
+        if bottom != 0 {
+            percentage *= f64::from(top) / f64::from(bottom);
+        } else {
+            percentage /= f64::from(top);
+        }
+        if tick > 1 {
+            percentage /= f64::from(tick);
+        }
+        percentage
+    }
+
     /// Wears the effect down by one turn: `effect::decay` (`src/effect.cpp:1042-1068`).
     ///
     /// Returns whether this turn was the one the effect should be taken off. Two guards decide the intensity half and both are easy to miss: it only steps while the

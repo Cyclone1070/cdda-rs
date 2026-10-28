@@ -546,7 +546,14 @@ Round 630 turned the same lens on ammunition. An effect list is a container too,
 and extends them. The reader was also asking the *object* whether it declares the AMMO subtype instead of asking the item,
 which loses the block entirely for a child that inherits its ammo slot; no such child exists in this content, so that half is
 pinned by a fixture. And the registry: tempting to refuse an effect it lacks, but the reference does not — `rock` lists four
-**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 651 opened the **modifier tables** — the data behind `process_effects`, and the last big piece of effect content: 180 effect types, 1,081 cells, each holding a base and a
+**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 652 ported the **chance arithmetic** on top of them: 112 effect types, 2,152 percentages, gated to 1e-12. Four rules stack — a zero value with no stated chance
+answers zero, a stated bottom flips the formula's shape, a tick of zero means *one*, and the intensity is the raw one — and the recording corrected a belief in the gate
+itself: there are no percentages above one hundred, but there are **158 negative** ones, because a chance or a bottom can be stated below zero and nothing clamps it.
+The gate now asserts the measured shape (233 zeroes, 27 at one hundred, 1,734 between, 158 negative) instead of a guess. Two recording defects were found and fixed on
+the way: `%.10g` was too coarse to compare at 1e-12 (now `%.17g`), and the reduced path had been hand-written into the oracle, which would only have recorded the
+formula back at itself — so it was removed, and the level-one cells stay pinned by the modifier gate. Next: `effect::activated`, which is this percentage plus the dice.
+
+Round 651 opened the **modifier tables** — the data behind `process_effects`, and the last big piece of effect content: 180 effect types, 1,081 cells, each holding a base and a
 scaling, keyed by effect name, action and **reduction level**. The level is the thing worth knowing: it is the *index in the JSON array*, not an intensity, so the array
 that looks like a per-intensity table is really "base value, reduced value". Collapsing it loses a quarter of the cells on one effect and fails 1,185 value comparisons;
 the recording names it immediately. The 139 keys are transcribed from the reference's thirty-one `extract_effect` calls in the same order so the two can be diffed. Next:

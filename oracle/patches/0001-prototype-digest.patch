@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-28 22:48:09
-@@ -0,0 +1,5727 @@
++++ oracle/src/src/harness.cpp	2026-10-28 23:59:58
+@@ -0,0 +1,5800 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +
@@ -2553,6 +2553,79 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    std::fclose( out );
 +}
 +
++/// How likely an effect's per-turn something is to happen: `effect::get_percentage` (`src/effect.cpp:1324-1356`).
++///
++/// This is the arithmetic behind every "you vomit", "you cough", "the pain rises" in the game, and it is four rules stacked in a way no reading guesses right. The
++/// chance is a hundred percent divided by the top of the range, or multiplied by top over bottom when a bottom is given; the tick divides it further, except that a
++/// tick of **zero means one** and a tick below zero means the thing cannot happen at all; and a `val` of zero with no stated chance answers zero rather than a default.
++///
++/// The percentages are recorded for every argument that has a chance or a tick, at four intensities, two reduction levels and three values — the whole cross product,
++/// because the rules interact.
++void dump_effect_chances( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    static const std::array<int, 3> values = { { 0, 1, 3 } };
++    std::fprintf( out, "{\"harness\":\"effect-chances\",\"version\":1,\"values\":[0,1,3],\"types\":[\n" );
++    bool first_type = true;
++    int entries = 0;
++    for( const std::pair<const efftype_id, effect_type> &entry : get_effect_types() ) {
++        const effect_type &type = entry.second;
++        const auto &table = ::oracle_effect_reader::mod_data( type );
++        if( table.empty() ) {
++            continue;
++        }
++        std::vector<std::string> names;
++        for( const auto &group : table ) {
++            bool interesting = false;
++            for( const auto &cell : group.second ) {
++                const uint8_t action = static_cast<uint8_t>( cell.first & 0xFFU );
++                if( action == static_cast<uint8_t>( mod_action::CHANCE_TOP ) ||
++                    action == static_cast<uint8_t>( mod_action::TICK ) ) {
++                    interesting = true;
++                }
++            }
++            if( interesting ) {
++                names.push_back( group.first );
++            }
++        }
++        if( names.empty() ) {
++            continue;
++        }
++        std::sort( names.begin(), names.end() );
++        std::fprintf( out, "%s{\"id\":\"%s\",\"chances\":[", first_type ? "" : ",\n",
++                      harness_escape( entry.first.str() ).c_str() );
++        first_type = false;
++        bool first_entry = true;
++        for( const std::string &name : names ) {
++            for( int intensity = 1; intensity <= 4; ++intensity ) {
++                effect probe( effect_source::empty(), &type, 1_hours, bodypart_str_id( "torso" ), false,
++                              intensity, calendar::turn_zero );
++                // Only the effect's own path is recorded. The reduced path is the same formula over the level-one cells, which `--dump-effect-mods` already pins; running
++                // it here through `resists_effect` is not possible on a synthetic effect, and hand-writing the formula into the oracle would only record itself.
++                for( const int val : values ) {
++                    const double percentage = probe.get_percentage( name, val, false );
++                    if( !std::isfinite( percentage ) ) {
++                        // A zero top with a nonzero value is a division by zero; the reference answers an infinity and does nothing with it.
++                        continue;
++                    }
++                    ++entries;
++                    std::fprintf( out, "%s{\"arg\":\"%s\",\"intensity\":%d,\"val\":%d,\"percentage\":%.17g}",
++                                  first_entry ? "" : ",", harness_escape( name ).c_str(), intensity, val,
++                                  percentage );
++                    first_entry = false;
++                }
++            }
++        }
++        std::fprintf( out, "]}" );
++    }
++    std::fprintf( out, "\n],\"count\":%d}\n", entries );
++    std::fclose( out );
++}
++
 +/// Every effect type's per-intensity modifier table, and the value each entry answers.
 +///
 +/// `load_mod_data` (`src/effect.cpp:333-560`) turns `base_mods` and `scaling_mods` into one table per effect: an **effect name** (`"PAIN"`, `"HUNGER"`, `"SPEED"`, …), an
@@ -2602,14 +2675,14 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +                const modifier_value_arr &values = cells.at( key );
 +                ++entries;
 +                std::fprintf( out,
-+                              "%s{\"arg\":\"%s\",\"action\":%u,\"level\":%u,\"base\":%g,\"scaling\":%g,"
++                              "%s{\"arg\":\"%s\",\"action\":%u,\"level\":%u,\"base\":%.17g,\"scaling\":%.17g,"
 +                              "\"values\":[",
 +                              first_mod ? "" : ",", harness_escape( name ).c_str(),
 +                              key & 0xFFU, ( key >> 8 ) & 0xFFU,
 +                              values[static_cast<size_t>( mod_type::BASE_MOD )],
 +                              values[static_cast<size_t>( mod_type::SCALING_MOD )] );
 +                for( int intensity = 1; intensity <= 4; ++intensity ) {
-+                    std::fprintf( out, "%s%g", intensity == 1 ? "" : ",",
++                    std::fprintf( out, "%s%.17g", intensity == 1 ? "" : ",",
 +                                  effect.get_mod_value( name, static_cast<mod_action>( key & 0xFFU ),
 +                                                        static_cast<uint8_t>( ( key >> 8 ) & 0xFFU ), intensity ) );
 +                }
@@ -6089,8 +6162,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-28 22:48:09
-@@ -0,0 +1,372 @@
++++ oracle/src/src/harness.h	2026-10-28 23:18:48
+@@ -0,0 +1,375 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -6292,6 +6365,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +
 +/** Writes every effect type's per-intensity modifier table and the value each entry answers, as `--dump-effect-mods`. */
 +void dump_effect_mods( const std::string &path );
++
++/** Writes how likely each effect's per-turn something is, as `--dump-effect-chances`. */
++void dump_effect_chances( const std::string &path );
 +
 +/** Writes every effect type and the fields a rule reads, as `--dump-effects`. */
 +void dump_effects( const std::string &path );
@@ -6637,7 +6713,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-28 22:48:09
++++ oracle/src/src/main.cpp	2026-10-28 23:18:48
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -6648,7 +6724,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,135 @@
+@@ -272,6 +275,136 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -6731,6 +6807,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_effect_merge;
 +    std::string dump_effect_decay;
 +    std::string dump_effect_mods;
++    std::string dump_effect_chances;
 +    std::string dump_consume_drugs;
 +    std::string dump_link_ups;
 +    std::string dump_firestarters;
@@ -6784,7 +6861,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +432,1170 @@
+@@ -300,6 +433,1180 @@
                  }
              },
              {
@@ -7175,6 +7252,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_consume_drugs = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-effect-chances", "<file>",
++                "Writes how likely each effect's per-turn something is",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_effect_chances = params[0];
 +                    return 1;
 +                }
 +            },
@@ -7955,7 +8042,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2082,622 @@
+@@ -786,6 +2093,628 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -8379,6 +8466,12 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            test_mode = true;
 +            g->check_mod_data( { mod_id( "dda" ) } );
 +            harness::dump_consume_drugs( cli.dump_consume_drugs );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_effect_chances.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_effect_chances( cli.dump_effect_chances );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_effect_mods.empty() ) {
