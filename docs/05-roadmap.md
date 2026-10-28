@@ -546,7 +546,13 @@ Round 630 turned the same lens on ammunition. An effect list is a container too,
 and extends them. The reader was also asking the *object* whether it declares the AMMO subtype instead of asking the item,
 which loses the block entirely for a child that inherits its ammo slot; no such child exists in this content, so that half is
 pinned by a fixture. And the registry: tempting to refuse an effect it lacks, but the reference does not — `rock` lists four
-**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 650 closed the loop the effects family opened: the hunger effect a body wears is now a **real effect with a duration** rather than a string. It is installed for 24 hours at
+**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 651 opened the **modifier tables** — the data behind `process_effects`, and the last big piece of effect content: 180 effect types, 1,081 cells, each holding a base and a
+scaling, keyed by effect name, action and **reduction level**. The level is the thing worth knowing: it is the *index in the JSON array*, not an intensity, so the array
+that looks like a per-intensity table is really "base value, reduced value". Collapsing it loses a quarter of the cells on one effect and fails 1,185 value comparisons;
+the recording names it immediately. The 139 keys are transcribed from the reference's thirty-one `extract_effect` calls in the same order so the two can be diffed. Next:
+`process_one_effect`, which is what turns these numbers into speed, pain, damage and hunger every turn.
+
+Round 650 closed the loop the effects family opened: the hunger effect a body wears is now a **real effect with a duration** rather than a string. It is installed for 24 hours at
 intensity one, it is **not** refreshed while the character already has the one it should — the reference's `if( !has_effect( hunger_effect ) )` guard, which the earlier
 recording pinned and this one now makes observable — and when the day runs out it is taken away and put back on the next update. Both mutations fail: refreshing on every
 update loses the remaining day, and never re-applying leaves the character with no effect at all. The lunchtime pipeline is now closed from raw JSON to a worn effect

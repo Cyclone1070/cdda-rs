@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-28 22:31:00
-@@ -0,0 +1,5653 @@
++++ oracle/src/src/harness.cpp	2026-10-28 22:48:09
+@@ -0,0 +1,5727 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +
@@ -490,6 +490,10 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    }
 +    static const std::vector<efftype_id> &blocks_effects( const effect_type & e ) {
 +        return e.blocks_effects;
++    }
++    static const std::unordered_map<std::string,
++          std::unordered_map<uint32_t, modifier_value_arr>> &mod_data( const effect_type & e ) {
++        return e.mod_data;
 +    }
 +};
 +
@@ -2546,6 +2550,76 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        }
 +    }
 +    std::fprintf( out, "\n],\"count\":%d}\n", count );
++    std::fclose( out );
++}
++
++/// Every effect type's per-intensity modifier table, and the value each entry answers.
++///
++/// `load_mod_data` (`src/effect.cpp:333-560`) turns `base_mods` and `scaling_mods` into one table per effect: an **effect name** (`"PAIN"`, `"HUNGER"`, `"SPEED"`, …), an
++/// **action** (`pain_min`, `pain_max`, `pain_chance`, `pain_tick`, …) and a **reduction level**, which is the index in the JSON array — `pain_min: [ 1, 0 ]` is one at
++/// the base level and zero when the effect is reduced. Each cell holds two numbers, a base and a scaling, and `get_mod_value` (`src/effect.cpp:563-582`) reads them as
++/// `base + scaling * (intensity - 1)`.
++///
++/// That makes the table data and the value arithmetic a single thing worth recording: the recording holds both, so the port's loader and its arithmetic are held to the
++/// same artifact.
++void dump_effect_mods( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    std::fprintf( out, "{\"harness\":\"effect-mods\",\"version\":1,\"types\":[\n" );
++    bool first_type = true;
++    int with_mods = 0;
++    int entries = 0;
++    for( const std::pair<const efftype_id, effect_type> &entry : get_effect_types() ) {
++        const effect_type &effect = entry.second;
++        const auto &table = ::oracle_effect_reader::mod_data( effect );
++        if( table.empty() ) {
++            continue;
++        }
++        ++with_mods;
++        std::fprintf( out, "%s{\"id\":\"%s\",\"mods\":[", first_type ? "" : ",\n",
++                      harness_escape( entry.first.str() ).c_str() );
++        first_type = false;
++        std::vector<std::string> names;
++        names.reserve( table.size() );
++        for( const auto &group : table ) {
++            names.push_back( group.first );
++        }
++        std::sort( names.begin(), names.end() );
++        bool first_mod = true;
++        for( const std::string &name : names ) {
++            const auto &cells = table.at( name );
++            std::vector<uint32_t> keys;
++            keys.reserve( cells.size() );
++            for( const auto &cell : cells ) {
++                keys.push_back( cell.first );
++            }
++            std::sort( keys.begin(), keys.end() );
++            for( const uint32_t key : keys ) {
++                const modifier_value_arr &values = cells.at( key );
++                ++entries;
++                std::fprintf( out,
++                              "%s{\"arg\":\"%s\",\"action\":%u,\"level\":%u,\"base\":%g,\"scaling\":%g,"
++                              "\"values\":[",
++                              first_mod ? "" : ",", harness_escape( name ).c_str(),
++                              key & 0xFFU, ( key >> 8 ) & 0xFFU,
++                              values[static_cast<size_t>( mod_type::BASE_MOD )],
++                              values[static_cast<size_t>( mod_type::SCALING_MOD )] );
++                for( int intensity = 1; intensity <= 4; ++intensity ) {
++                    std::fprintf( out, "%s%g", intensity == 1 ? "" : ",",
++                                  effect.get_mod_value( name, static_cast<mod_action>( key & 0xFFU ),
++                                                        static_cast<uint8_t>( ( key >> 8 ) & 0xFFU ), intensity ) );
++                }
++                std::fprintf( out, "]}" );
++                first_mod = false;
++            }
++        }
++        std::fprintf( out, "]}" );
++    }
++    std::fprintf( out, "\n],\"count\":%d,\"types_with_mods\":%d}\n", entries, with_mods );
 +    std::fclose( out );
 +}
 +
@@ -6015,8 +6089,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-26 14:21:05
-@@ -0,0 +1,369 @@
++++ oracle/src/src/harness.h	2026-10-28 22:48:09
+@@ -0,0 +1,372 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -6215,6 +6289,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +
 +/** Writes what wearing an effect down does turn by turn, as `--dump-effect-decay`. */
 +void dump_effect_decay( const std::string &path );
++
++/** Writes every effect type's per-intensity modifier table and the value each entry answers, as `--dump-effect-mods`. */
++void dump_effect_mods( const std::string &path );
 +
 +/** Writes every effect type and the fields a rule reads, as `--dump-effects`. */
 +void dump_effects( const std::string &path );
@@ -6560,7 +6637,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-26 14:21:05
++++ oracle/src/src/main.cpp	2026-10-28 22:48:09
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -6571,7 +6648,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,134 @@
+@@ -272,6 +275,135 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -6653,6 +6730,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_effects;
 +    std::string dump_effect_merge;
 +    std::string dump_effect_decay;
++    std::string dump_effect_mods;
 +    std::string dump_consume_drugs;
 +    std::string dump_link_ups;
 +    std::string dump_firestarters;
@@ -6706,7 +6784,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +431,1160 @@
+@@ -300,6 +432,1170 @@
                  }
              },
              {
@@ -7097,6 +7175,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_consume_drugs = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-effect-mods", "<file>",
++                "Writes every effect type's per-intensity modifier table and the value each entry answers",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_effect_mods = params[0];
 +                    return 1;
 +                }
 +            },
@@ -7867,7 +7955,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2071,616 @@
+@@ -786,6 +2082,622 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -8291,6 +8379,12 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            test_mode = true;
 +            g->check_mod_data( { mod_id( "dda" ) } );
 +            harness::dump_consume_drugs( cli.dump_consume_drugs );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_effect_mods.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_effect_mods( cli.dump_effect_mods );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_effect_decay.empty() ) {

@@ -74,7 +74,7 @@ impl Rating {
 /// One effect type, as far as the rules that read it are concerned.
 // Eight flags in one prototype is what the reference has; splitting them into a bitfield struct would make the loader harder to read against the source, not easier.
 #[allow(clippy::struct_excessive_bools)]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct EffectType {
     /// Its id.
     pub id: String,
@@ -125,9 +125,26 @@ pub struct EffectType {
     pub removes_effects: Vec<String>,
     /// The effects it blocks.
     pub blocks_effects: Vec<String>,
+    /// What it does to the character while it lasts: the per-intensity table behind `base_mods` and `scaling_mods`.
+    pub mods: ModTable,
 }
 
 impl EffectType {
+    /// What the effect adds to one of its modifiers at a given intensity: `get_mod_value` (`src/effect.cpp:563-582`).
+    ///
+    /// A missing entry is zero, which is how an effect that says nothing about, say, pain has no effect on it. Otherwise the answer is `base` plus `scaling` for every
+    /// intensity above the first — so a modifier with a scaling and no base grows from nothing, and one with a base and no scaling is flat.
+    #[must_use]
+    pub fn mod_value(&self, argument: &str, action: ModAction, level: u8, intensity: i32) -> f64 {
+        let Some(cells) = self.mods.get(argument) else {
+            return 0.0;
+        };
+        let Some(values) = cells.get(&(action, level)) else {
+            return 0.0;
+        };
+        values.base + values.scaling * f64::from(intensity - 1)
+    }
+
     /// The rating of the message an intensity shows: `get_rating` (`src/effect.cpp:610-614`).
     ///
     /// The intensity is clamped into the message list, so an effect with a single message shows that message's rating at every intensity — and an effect with several
@@ -159,6 +176,77 @@ pub const MOVEMENT_IMPAIRING: [&str; 10] = [
     "tied",
     "webbed",
     "worked_on",
+];
+
+/// One of the eight things a modifier can set: `mod_action` (`src/effect.h:70-79`), in the enum's own order, because the loader keys the table by the number.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ModAction {
+    /// How much of something to do.
+    Amount,
+    /// The bottom of a chance.
+    ChanceBot,
+    /// The top of a chance.
+    ChanceTop,
+    /// The top of a range.
+    Max,
+    /// The top of a range, as a value.
+    MaxVal,
+    /// The bottom of a range.
+    Min,
+    /// The bottom of a range, as a value.
+    MinVal,
+    /// How often it happens.
+    Tick,
+}
+
+/// The two numbers a modifier cell holds: `mod_type` (`src/effect.h:60-65`).
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct ModValues {
+    /// The value at intensity one.
+    pub base: f64,
+    /// How much each further intensity adds.
+    pub scaling: f64,
+}
+
+/// A modifier table: effect name, then (action, reduction level).
+pub type ModTable = BTreeMap<String, BTreeMap<(ModAction, u8), ModValues>>;
+
+/// Every modifier the loader knows, by the effect it applies to: `effect_type::load_mod_data` (`src/effect.cpp:333-560`).
+///
+/// The reference writes this table as thirty-one `extract_effect` calls, each a JSON member name and the action it sets. It is transcribed here in the same order so a
+/// reader can diff the two side by side.
+const MOD_KEYS: [(&str, &[(&str, ModAction)]); 31] = [
+    ("STR", &[("str_mod", ModAction::Min)]),
+    ("DEX", &[("dex_mod", ModAction::Min)]),
+    ("PER", &[("per_mod", ModAction::Min)]),
+    ("INT", &[("int_mod", ModAction::Min)]),
+    ("SPEED", &[("speed_mod", ModAction::Min)]),
+    ("PAIN", &[("pain_amount", ModAction::Amount), ("pain_min", ModAction::Min), ("pain_max", ModAction::Max), ("pain_max_val", ModAction::MaxVal), ("pain_chance", ModAction::ChanceTop), ("pain_chance_bot", ModAction::ChanceBot), ("pain_tick", ModAction::Tick)]),
+    ("HURT", &[("hurt_amount", ModAction::Amount), ("hurt_min", ModAction::Min), ("hurt_max", ModAction::Max), ("hurt_chance", ModAction::ChanceTop), ("hurt_chance_bot", ModAction::ChanceBot), ("hurt_tick", ModAction::Tick)]),
+    ("SLEEP", &[("sleep_amount", ModAction::Amount), ("sleep_min", ModAction::Min), ("sleep_max", ModAction::Max), ("sleep_chance", ModAction::ChanceTop), ("sleep_chance_bot", ModAction::ChanceBot), ("sleep_tick", ModAction::Tick)]),
+    ("PKILL", &[("pkill_amount", ModAction::Amount), ("pkill_min", ModAction::Min), ("pkill_max", ModAction::Max), ("pkill_max_val", ModAction::MaxVal), ("pkill_chance", ModAction::ChanceTop), ("pkill_chance_bot", ModAction::ChanceBot), ("pkill_tick", ModAction::Tick)]),
+    ("STIM", &[("stim_amount", ModAction::Amount), ("stim_min", ModAction::Min), ("stim_max", ModAction::Max), ("stim_min_val", ModAction::MinVal), ("stim_max_val", ModAction::MaxVal), ("stim_chance", ModAction::ChanceTop), ("stim_chance_bot", ModAction::ChanceBot), ("stim_tick", ModAction::Tick)]),
+    ("HEALTH", &[("health_amount", ModAction::Amount), ("health_min", ModAction::Min), ("health_max", ModAction::Max), ("health_min_val", ModAction::MinVal), ("health_max_val", ModAction::MaxVal), ("health_chance", ModAction::ChanceTop), ("health_chance_bot", ModAction::ChanceBot), ("health_tick", ModAction::Tick)]),
+    ("H_MOD", &[("h_mod_amount", ModAction::Amount), ("h_mod_min", ModAction::Min), ("h_mod_max", ModAction::Max), ("h_mod_min_val", ModAction::MinVal), ("h_mod_max_val", ModAction::MaxVal), ("h_mod_chance", ModAction::ChanceTop), ("h_mod_chance_bot", ModAction::ChanceBot), ("h_mod_tick", ModAction::Tick)]),
+    ("RAD", &[("rad_amount", ModAction::Amount), ("rad_min", ModAction::Min), ("rad_max", ModAction::Max), ("rad_max_val", ModAction::MaxVal), ("rad_chance", ModAction::ChanceTop), ("rad_chance_bot", ModAction::ChanceBot), ("rad_tick", ModAction::Tick)]),
+    ("HUNGER", &[("hunger_amount", ModAction::Amount), ("hunger_min", ModAction::Min), ("hunger_max", ModAction::Max), ("hunger_min_val", ModAction::MinVal), ("hunger_max_val", ModAction::MaxVal), ("hunger_chance", ModAction::ChanceTop), ("hunger_chance_bot", ModAction::ChanceBot), ("hunger_tick", ModAction::Tick)]),
+    ("THIRST", &[("thirst_amount", ModAction::Amount), ("thirst_min", ModAction::Min), ("thirst_max", ModAction::Max), ("thirst_min_val", ModAction::MinVal), ("thirst_max_val", ModAction::MaxVal), ("thirst_chance", ModAction::ChanceTop), ("thirst_chance_bot", ModAction::ChanceBot), ("thirst_tick", ModAction::Tick)]),
+    ("PERSPIRATION", &[("perspiration_amount", ModAction::Amount), ("perspiration_min", ModAction::Min), ("perspiration_max", ModAction::Max), ("perspiration_min_val", ModAction::MinVal), ("perspiration_max_val", ModAction::MaxVal), ("perspiration_chance", ModAction::ChanceTop), ("perspiration_chance_bot", ModAction::ChanceBot), ("perspiration_tick", ModAction::Tick)]),
+    ("SLEEPINESS", &[("sleepiness_amount", ModAction::Amount), ("sleepiness_min", ModAction::Min), ("sleepiness_max", ModAction::Max), ("sleepiness_min_val", ModAction::MinVal), ("sleepiness_max_val", ModAction::MaxVal), ("sleepiness_chance", ModAction::ChanceTop), ("sleepiness_chance_bot", ModAction::ChanceBot), ("sleepiness_tick", ModAction::Tick)]),
+    ("STAMINA", &[("stamina_amount", ModAction::Amount), ("stamina_min", ModAction::Min), ("stamina_max", ModAction::Max), ("stamina_max_val", ModAction::MaxVal), ("stamina_chance", ModAction::ChanceTop), ("stamina_chance_bot", ModAction::ChanceBot), ("stamina_tick", ModAction::Tick)]),
+    ("BLOOD_PRESSURE", &[("blood_pressure_amount", ModAction::Amount), ("blood_pressure_min", ModAction::Min), ("blood_pressure_max", ModAction::Max), ("blood_pressure_max_val", ModAction::MaxVal), ("blood_pressure_min_val", ModAction::MinVal), ("blood_pressure_chance", ModAction::ChanceTop), ("blood_pressure_chance_bot", ModAction::ChanceBot), ("blood_pressure_tick", ModAction::Tick)]),
+    ("HEART_RATE", &[("heart_rate_amount", ModAction::Amount), ("heart_rate_min", ModAction::Min), ("heart_rate_max", ModAction::Max), ("heart_rate_max_val", ModAction::MaxVal), ("heart_rate_min_val", ModAction::MinVal), ("heart_rate_chance", ModAction::ChanceTop), ("heart_rate_chance_bot", ModAction::ChanceBot), ("heart_rate_tick", ModAction::Tick)]),
+    ("RESPIRATORY_RATE", &[("respiratory_rate_amount", ModAction::Amount), ("respiratory_rate_min", ModAction::Min), ("respiratory_rate_max", ModAction::Max), ("respiratory_rate_max_val", ModAction::MaxVal), ("respiratory_rate_min_val", ModAction::MinVal), ("respiratory_rate_chance", ModAction::ChanceTop), ("respiratory_rate_chance_bot", ModAction::ChanceBot), ("respiratory_rate_tick", ModAction::Tick)]),
+    ("COUGH", &[("cough_chance", ModAction::ChanceTop), ("cough_chance_bot", ModAction::ChanceBot), ("cough_tick", ModAction::Tick)]),
+    ("VOMIT", &[("vomit_chance", ModAction::ChanceTop), ("vomit_chance_bot", ModAction::ChanceBot), ("vomit_tick", ModAction::Tick)]),
+    ("HEAL_RATE", &[("healing_rate", ModAction::Amount)]),
+    ("HEAL_HEAD", &[("healing_head", ModAction::Amount)]),
+    ("HEAL_TORSO", &[("healing_torso", ModAction::Amount)]),
+    ("DODGE", &[("dodge_mod", ModAction::Min)]),
+    ("HIT", &[("hit_mod", ModAction::Min)]),
+    ("BASH", &[("bash_mod", ModAction::Min)]),
+    ("CUT", &[("cut_mod", ModAction::Min)]),
+    ("SIZE", &[("size_mod", ModAction::Min)]),
 ];
 
 /// The default `max_duration`: 365 days (`src/effect.h:196`), in turns.
@@ -226,7 +314,55 @@ fn read(id: &str, object: &Object) -> EffectType {
         resist_effects: crate::items::strings(object, "resist_effects"),
         removes_effects: crate::items::strings(object, "removes_effects"),
         blocks_effects: crate::items::strings(object, "blocks_effects"),
+        mods: mods(object),
     }
+}
+
+/// Reads the modifier table: `effect_type::load_mod_data` and `extract_effect` (`src/effect.cpp:287-560`).
+///
+/// The two members are read **by index**, and the index is the reduction level: `pain_min: [ 1, 0 ]` is one at the base level and zero when the effect is reduced. A
+/// member that only `scaling_mods` states leaves the base level at zero, and the two are merged into one cell per (action, level) pair.
+fn mods(object: &Object) -> ModTable {
+    let mut out: ModTable = BTreeMap::new();
+    for (member, scaling) in [("base_mods", false), ("scaling_mods", true)] {
+        let Some(Value::Object(group)) = object.get(member) else {
+            continue;
+        };
+        for (name, keys) in &MOD_KEYS {
+            for (json_key, action) in *keys {
+                let Some(Value::Array(values)) = group.get(json_key) else {
+                    continue;
+                };
+                for (level, value) in values.iter().enumerate() {
+                    // The data writes whole numbers without a decimal point, and `get_float` reads both.
+                    let number = match value {
+                        Value::Float(number) => *number,
+                        Value::Int(number) => {
+                            #[allow(clippy::cast_precision_loss)]
+                            let number = *number as f64;
+                            number
+                        }
+                        _ => continue,
+                    };
+                    let Ok(level) = u8::try_from(level) else {
+                        continue;
+                    };
+                    let cell = out
+                        .entry((*name).to_owned())
+                        .or_default()
+                        .entry((*action, level))
+                        .or_default();
+                    if scaling {
+                        cell.scaling = number;
+                    } else {
+                        cell.base = number;
+                    }
+                }
+            }
+        }
+    }
+    out.retain(|_, cells| !cells.is_empty());
+    out
 }
 
 /// The ratings of the effect's apply messages: `load_apply_msgs` (`src/effect.cpp:746-763`).

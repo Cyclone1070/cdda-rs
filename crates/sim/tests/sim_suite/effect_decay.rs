@@ -49,6 +49,7 @@ impl Profile {
             resist_effects: Vec::new(),
             removes_effects: Vec::new(),
             blocks_effects: Vec::new(),
+            mods: cdda_content::effects::ModTable::new(),
         }
     }
 }
