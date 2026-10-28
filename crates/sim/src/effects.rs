@@ -202,6 +202,73 @@ impl ActiveEffect {
         }
     }
 
+    /// The effect's per-turn amount for an argument: `effect::get_mod` (`src/effect.cpp:1270-1282`).
+    ///
+    /// Three rules stacked. The range comes from the **effective** intensity, unlike the chance arithmetic, which uses the raw one. A stated maximum that is **not zero**
+    /// makes the amount a **roll** between the range's ends; no stated maximum means the range's low end is the answer and nothing is rolled at all. And the ends are read
+    /// as integers before the roll, so a range of `0.5` to `4.5` rolls between one and four.
+    #[allow(clippy::cast_possible_truncation)]
+    pub fn per_turn_amount(&self, kind: &EffectType, argument: &str, rolls: &mut Rolls) -> i32 {
+        let minimum = kind.mod_value(argument, ModAction::Min, 0, self.intensity);
+        let maximum = kind.mod_value(argument, ModAction::Max, 0, self.intensity);
+        if maximum as i32 == 0 {
+            minimum as i32
+        } else {
+            rolls.rng_float(minimum, maximum) as i32
+        }
+    }
+
+    /// What the effect does to a body's hunger and thirst in one turn: `Character::process_one_effect` (`src/character.cpp:10989-11006`).
+    ///
+    /// The shape is the same for every statistic the reference has twenty of, and the four rules between them are why it is worth pinning:
+    ///
+    /// - The amount comes from `get_amount` on the turn the effect **arrives** and from `get_mod` on every turn after, and the two are different tables.
+    /// - The chance is **skipped entirely** for a brand-new effect — an effect that has just been applied acts at once, whatever its tick says.
+    /// - The movement is clamped against the type's own ceiling and floor, and the clamp answers the **movement**, so it is added to what the body had.
+    /// - Hunger and thirst are not symmetric: hunger caps at `MAX_HUNGER` and never floors, thirst floors at `-100`.
+    #[allow(clippy::cast_possible_truncation)]
+    pub fn apply_to_body(
+        &self,
+        body: &mut crate::body::Body,
+        kind: &EffectType,
+        rolls: &mut Rolls,
+        turn: i64,
+        is_new: bool,
+    ) {
+        let amount = self.amount_for(kind, "HUNGER", rolls, is_new);
+        if amount != 0 && (is_new || self.activated(kind, rolls, turn, "HUNGER", amount, false, 1.0)) {
+            let movement = bound_mod_to_vals(
+                body.hunger,
+                amount,
+                kind.mod_value("HUNGER", ModAction::MaxVal, 0, self.intensity) as i32,
+                kind.mod_value("HUNGER", ModAction::MinVal, 0, self.intensity) as i32,
+            );
+            body.set_hunger(body.hunger + movement);
+        }
+        let amount = self.amount_for(kind, "THIRST", rolls, is_new);
+        if amount != 0 && (is_new || self.activated(kind, rolls, turn, "THIRST", amount, false, 1.0)) {
+            let movement = bound_mod_to_vals(
+                body.thirst,
+                amount,
+                kind.mod_value("THIRST", ModAction::MaxVal, 0, self.intensity) as i32,
+                kind.mod_value("THIRST", ModAction::MinVal, 0, self.intensity) as i32,
+            );
+            // `mod_thirst` floors at -100 (`src/character.cpp:4682-4688`).
+            body.set_thirst((body.thirst + movement).max(-100));
+        }
+    }
+
+    /// The amount, read the way the branch reads it: `get_amount` on arrival, `get_mod` afterwards.
+    fn amount_for(&self, kind: &EffectType, argument: &str, rolls: &mut Rolls, is_new: bool) -> i32 {
+        if is_new {
+            #[allow(clippy::cast_possible_truncation)]
+            let amount = kind.mod_value(argument, ModAction::Amount, 0, self.intensity) as i32;
+            amount
+        } else {
+            self.per_turn_amount(kind, argument, rolls)
+        }
+    }
+
     /// Wears the effect down by one turn: `effect::decay` (`src/effect.cpp:1042-1068`).
     ///
     /// Returns whether this turn was the one the effect should be taken off. Two guards decide the intensity half and both are easy to miss: it only steps while the

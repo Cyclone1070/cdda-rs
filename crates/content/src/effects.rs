@@ -287,6 +287,15 @@ pub fn load_paths(dirs: &[&Path]) -> Result<BTreeMap<String, EffectType>, crate:
     Ok(out)
 }
 
+/// Reads one effect type from a single object, the way the reference's `load_effect_type` does.
+///
+/// The harness synthesises effect types at run time to exercise rules that no shipped type covers, and a recording of one is only reproducible if the port can read one
+/// the same way — so this is public for the same reason `serde` is: a fixture is data.
+#[must_use]
+pub fn read_one(id: &str, object: &Object) -> EffectType {
+    read(id, object)
+}
+
 /// Reads one effect type from its object.
 fn read(id: &str, object: &Object) -> EffectType {
     EffectType {

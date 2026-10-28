@@ -11,6 +11,20 @@ produces is worthless.
 
 ---
 
+## Open defect: the reference's dice plateau
+
+Measured, not guessed — `--dump-rng-probe` seeds the engine three times and takes three draws each:
+
+| seed | draws |
+|---|---|
+12345 | 95, 84, **10** |
+12346 | 71, 97, **10** |
+12347 | 46, **10**, **10** |
+
+The first two draws follow the seed; from the third on, the engine answers 10 whatever it was reseeded with, so any dump that needs more than a couple of distinct dice per seed records the plateau rather than a die. The cause is not yet established; `rng_set_engine_seed` seeds the same engine `rng()` draws from, and the standalone wrapper corpus (`corpus/rng/`) shows real streams, so the difference is in the game binary's use of it rather than in the generator.
+
+**What this means for the corpus:** a recording that needs a die must record the die **it saw** and the port must replay exactly that (as `corpus/effect-activated.json` does), or must not roll at all. A dump that rolls and records only the *outcome* is asserting the plateau, not the rule — `corpus/per-turn.json` therefore contains no rolling shape, and the roll is pinned port-side on dice the test writes itself.
+
 ## `--probe-mapgen`: asking instead of guessing
 
 `--probe-mapgen <oter_id>` runs one mapgen against a dummy `mapgendata` and prints the first row of what it

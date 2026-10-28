@@ -96,7 +96,7 @@ impl Object {
     ///
     /// The comparison is the one flexbuffers performs while sorting a finished
     /// map, so keys that share a prefix up to a NUL byte collide here too.
-    pub(crate) fn insert(&mut self, key: String, value: Value) -> bool {
+    pub fn insert(&mut self, key: String, value: Value) -> bool {
         match self
             .members
             .binary_search_by(|(k, _)| compare_keys(k, &key))

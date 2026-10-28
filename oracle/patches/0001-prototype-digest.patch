@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-29 01:49:07
-@@ -0,0 +1,5926 @@
++++ oracle/src/src/harness.cpp	2026-10-29 03:50:05
+@@ -0,0 +1,6043 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +
@@ -2550,6 +2550,123 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        }
 +    }
 +    std::fprintf( out, "\n],\"count\":%d}\n", count );
++    std::fclose( out );
++}
++
++/// Does reseeding the reference's engine change the next die? Three seeds, three draws each, and the same with an avatar in hand.
++///
++/// This exists because a dump recorded constant dice and the suspicion fell on the seeding. It answers that question directly rather than by argument.
++void dump_rng_probe( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    std::fprintf( out, "{\"harness\":\"rng-probe\",\"version\":1,\"before_avatar\":[" );
++    bool first = true;
++    for( unsigned seed : { 12345u, 12346u, 12347u } ) {
++        rng_set_engine_seed( seed );
++        std::fprintf( out, "%s{\"seed\":%u,\"draws\":[%d,%d,%d]}", first ? "" : ",", seed, rng( 1, 100 ),
++                      rng( 1, 100 ), rng( 1, 100 ) );
++        first = false;
++    }
++    std::fprintf( out, "],\"after_avatar\":[" );
++    first = true;
++    for( unsigned seed : { 12345u, 12346u, 12347u } ) {
++        avatar &u = get_avatar();
++        rng_set_engine_seed( seed );
++        std::fprintf( out, "%s{\"seed\":%u,\"draws\":[%d,%d,%d]}", first ? "" : ",", seed, rng( 1, 100 ),
++                      rng( 1, 100 ), rng( 1, 100 ) );
++        ( void )u;
++        first = false;
++    }
++    std::fprintf( out, "]}\n" );
++    std::fclose( out );
++}
++
++/// What one effect does to a body in one turn: the hunger and thirst branches of `Character::process_one_effect` (`src/character.cpp:10989-11006`).
++///
++/// The branches are three lines each and hide four rules between them: the amount is read with `get_amount` on the turn an effect **arrives** and with `get_mod` after
++/// that, `get_mod` **rolls** between a stated minimum and maximum when a maximum is stated at all, the chance decides whether the turn counts (and is skipped entirely
++/// for a brand-new effect), and the movement is clamped against the type's own ceiling and floor before it is applied.
++///
++/// The effects are synthesised, so the twenty-odd other branches of the real function see zero and do nothing, and the avatar is set to a known hunger and thirst first.
++void dump_per_turn( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    avatar &u = get_avatar();
++    // Seven shapes: a stated amount, a stated amount with a ceiling, a floor, a ceiling of two so the clamp bites, a chance, a tick, and one that moves thirst instead.
++    // A shape that **rolls** is deliberately absent: this binary's dice plateau, so a recorded roll would be the plateau's value rather than a die (see `--dump-rng-probe`).
++    static const std::array<const char *, 7> profiles = { {
++            "{\"hunger_amount\":[3]}",
++            "{\"hunger_amount\":[30],\"hunger_max_val\":[20]}",
++            "{\"hunger_amount\":[-40],\"hunger_min_val\":[-10]}",
++            "{\"hunger_amount\":[5],\"hunger_max_val\":[2]}",
++            "{\"hunger_amount\":[5],\"hunger_chance\":[1],\"hunger_chance_bot\":[1]}",
++            "{\"hunger_amount\":[5],\"hunger_chance\":[1],\"hunger_chance_bot\":[1],\"hunger_tick\":[3]}",
++            "{\"thirst_amount\":[7],\"thirst_max_val\":[40]}",
++        }
++    };
++    static const std::array<int, 3> hungers = { { -61, 0, 100 } };
++    static const std::array<int, 2> thirsts = { { 0, 50 } };
++    static const std::array<int, 3> turns = { { 0, 1, 2 } };
++    static const std::array<bool, 2> arrivals = { { false, true } };
++    constexpr unsigned seed = 12345;
++
++    std::fprintf( out, "{\"harness\":\"per-turn\",\"version\":1,\"seed\":%u,\"profiles\":[", seed );
++    for( std::size_t p = 0; p < profiles.size(); ++p ) {
++        std::fprintf( out, "%s%s", p == 0 ? "" : ",", profiles[p] );
++    }
++    std::fprintf( out, "],\"cases\":[\n" );
++
++    bool first_case = true;
++    int cases = 0;
++    int moved = 0;
++    for( std::size_t p = 0; p < profiles.size(); ++p ) {
++        const std::string id = string_format( "harness_turn_%d", static_cast<int>( p ) );
++        const std::string json = string_format( "{\"id\":\"%s\",\"base_mods\":%s}", id.c_str(), profiles[p] );
++        JsonValue parsed = json_loader::from_string( json );
++        JsonObject object = parsed.get_object();
++        load_effect_type( object, "harness" );
++        const efftype_id effect_id( id );
++        if( !effect_id.is_valid() ) {
++            std::fprintf( stderr, "harness: the synthesised effect %s did not load\n", id.c_str() );
++            std::fclose( out );
++            return;
++        }
++        for( const int hunger : hungers ) {
++            for( const int thirst : thirsts ) {
++                for( const bool arrival : arrivals ) {
++                    for( const int turn : turns ) {
++                        u.set_hunger( hunger );
++                        u.set_thirst( thirst );
++                        effect worn( effect_source::empty(), &effect_id.obj(), 1_hours, bodypart_str_id( "torso" ),
++                                     false, 1, calendar::turn_zero );
++                        calendar::turn = calendar::turn_zero + time_duration::from_turns( turn );
++                        rng_set_engine_seed( seed + static_cast<unsigned>( cases ) );
++                        u.process_one_effect( worn, arrival );
++                        ++cases;
++                        if( u.get_hunger() != hunger || u.get_thirst() != thirst ) {
++                            ++moved;
++                        }
++                        std::fprintf( out,
++                                      "%s{\"profile\":%zu,\"hunger\":%d,\"thirst\":%d,\"is_new\":%s,\"turn\":%d,"
++                                      "\"seed\":%u,\"after_hunger\":%d,\"after_thirst\":%d}",
++                                      first_case ? "" : ",\n", p, hunger, thirst, arrival ? "true" : "false", turn,
++                                      seed + static_cast<unsigned>( cases - 1 ), u.get_hunger(), u.get_thirst() );
++                        first_case = false;
++                    }
++                }
++            }
++        }
++    }
++    calendar::turn = calendar::turn_zero;
++    std::fprintf( out, "\n],\"count\":%d,\"moved\":%d}\n", cases, moved );
 +    std::fclose( out );
 +}
 +
@@ -6288,8 +6405,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-29 01:49:07
-@@ -0,0 +1,381 @@
++++ oracle/src/src/harness.h	2026-10-29 03:31:35
+@@ -0,0 +1,387 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -6494,6 +6611,12 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +
 +/** Writes whether each effect's per-turn something fires, die and answer together, as `--dump-effect-activated`. */
 +void dump_effect_activated( const std::string &path );
++
++/** Answers whether reseeding the engine changes the next die, as `--dump-rng-probe`. */
++void dump_rng_probe( const std::string &path );
++
++/** Writes what one effect does to a body in one turn, as `--dump-per-turn`. */
++void dump_per_turn( const std::string &path );
 +
 +/** Writes how far a per-turn modifier may move a value, as `--dump-bound-mod`. */
 +void dump_bound_mod( const std::string &path );
@@ -6845,7 +6968,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-29 01:49:07
++++ oracle/src/src/main.cpp	2026-10-29 03:31:35
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -6856,7 +6979,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,138 @@
+@@ -272,6 +275,140 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -6942,6 +7065,8 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_effect_chances;
 +    std::string dump_effect_activated;
 +    std::string dump_bound_mod;
++    std::string dump_per_turn;
++    std::string dump_rng_probe;
 +    std::string dump_consume_drugs;
 +    std::string dump_link_ups;
 +    std::string dump_firestarters;
@@ -6995,7 +7120,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +435,1200 @@
+@@ -300,6 +437,1220 @@
                  }
              },
              {
@@ -7386,6 +7511,26 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_consume_drugs = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-rng-probe", "<file>",
++                "Answers whether reseeding the engine changes the next die",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_rng_probe = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-per-turn", "<file>",
++                "Writes what one effect does to a body in one turn",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_per_turn = params[0];
 +                    return 1;
 +                }
 +            },
@@ -8196,7 +8341,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2115,640 @@
+@@ -786,6 +2137,652 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -8620,6 +8765,18 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            test_mode = true;
 +            g->check_mod_data( { mod_id( "dda" ) } );
 +            harness::dump_consume_drugs( cli.dump_consume_drugs );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_rng_probe.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_rng_probe( cli.dump_rng_probe );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_per_turn.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_per_turn( cli.dump_per_turn );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_bound_mod.empty() ) {

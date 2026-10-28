@@ -546,7 +546,17 @@ Round 630 turned the same lens on ammunition. An effect list is a container too,
 and extends them. The reader was also asking the *object* whether it declares the AMMO subtype instead of asking the item,
 which loses the block entirely for a child that inherits its ammo slot; no such child exists in this content, so that half is
 pinned by a fixture. And the registry: tempting to refuse an effect it lacks, but the reference does not — `rock` lists four
-**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 654 ported the clamp every per-turn branch leans on: `bound_mod_to_vals`, 875 cases. It is small and two of its rules are backwards from instinct — a limit of zero
+**flag** names among its ammunition effects and loads without a murmur, so the gate pins the slack instead of tightening it. Round 655 assembled the first per-turn pass: the hunger and thirst branches of `process_one_effect` on a real avatar, 252 recorded cases, 99 of which move something.
+Four rules hide between them and each has a mutation that fails — the amount is `get_amount` on the turn the effect **arrives** and `get_mod` after, the chance is
+**skipped** for a brand-new effect, the clamp's answer is a **movement** rather than a value, and thirst floors at -100 where hunger caps at 300.
+
+The round's real find was in the **oracle**, not the port: a rolling shape recorded a movement of two on all eighteen of its cases, and chasing that produced
+`--dump-rng-probe` — seed 12345 gives 95, 84, **10**; 12346 gives 71, 97, **10**; 12347 gives 46, **10**, **10**. The reference's dice plateau after two draws, whatever
+the seed. So a dump that rolls and records only the outcome is asserting the plateau, not the rule: the rolling shape was removed from the grid and the roll is pinned
+port-side on dice the test writes itself. The open defect is written up in `docs/11-oracle-harness.md`; it does not affect `effect-activated`, which records each die
+**it saw** and replays exactly that. Next: the same assembly for the branches the body cannot hold yet, starting with sleepiness.
+
+Round 654 ported the clamp every per-turn branch leans on: `bound_mod_to_vals`, 875 cases. It is small and two of its rules are backwards from instinct — a limit of zero
 means **no limit** rather than a clamp to zero (55 cases catch that), and the answer is the movement rather than the value, so the floor is tested against a movement the
 ceiling may already have shortened (two cases catch that, and only when the ceiling comes first). With the table, the arithmetic, the chance, the clock, the die and now
 the clamp, the only thing missing from a per-turn pass is the assembly.
