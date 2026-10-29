@@ -353,3 +353,59 @@ pub struct TheScent;
 pub fn queue_support_loss(world: &mut World, square: (i32, i32, i32)) {
     support_lost(world).queue(square);
 }
+
+/// The character's smell for this turn, spawned on first use.
+///
+/// # Panics
+///
+/// Panics if the entity [`singleton`] returned does not carry the source, which cannot happen: the
+/// helper is the only thing that creates it, and it creates it with both.
+pub fn scent_source(world: &mut World) -> Mut<'_, crate::turn::ScentSource> {
+    let entity = singleton::<crate::turn::ScentSource, crate::turn::TheScentSource>(world);
+    match world.get_mut::<crate::turn::ScentSource>(entity) {
+        Some(source) => source,
+        None => unreachable!("the scent source entity was just spawned with its source"),
+    }
+}
+
+/// Takes the dice out of the store for the length of a draw.
+pub fn take_rolls(world: &mut World) -> Option<cdda_core_types::rng::Rolls> {
+    let entity = singleton::<crate::turn::Random, crate::turn::TheRandom>(world);
+    world.get_mut::<crate::turn::Random>(entity)?.rolls.take()
+}
+
+/// Puts the dice back after a draw.
+pub fn put_rolls(world: &mut World, rolls: cdda_core_types::rng::Rolls) {
+    let entity = singleton::<crate::turn::Random, crate::turn::TheRandom>(world);
+    if let Some(mut random) = world.get_mut::<crate::turn::Random>(entity) {
+        random.rolls = Some(rolls);
+    }
+}
+
+/// The turn's receipt, spawned on first use.
+///
+/// # Panics
+///
+/// Panics if the entity [`singleton`] returned does not carry the trace, which cannot happen.
+pub fn turn_trace(world: &mut World) -> Mut<'_, crate::turn::TurnTrace> {
+    let entity = singleton::<crate::turn::TurnTrace, crate::turn::TheTurnTrace>(world);
+    match world.get_mut::<crate::turn::TurnTrace>(entity) {
+        Some(trace) => trace,
+        None => unreachable!("the trace entity was just spawned with its trace"),
+    }
+}
+
+/// The squares whose ground holds gas out.
+#[must_use]
+pub fn refusing_gas(world: &World) -> std::collections::BTreeSet<(i32, i32, i32)> {
+    let mut refusing = std::collections::BTreeSet::new();
+    let mut query = world.try_query::<(&crate::Position, &crate::turn::GasCapacity)>();
+    if let Some(query) = query.as_mut() {
+        for (position, capacity) in query.iter(world) {
+            if !capacity.accepts {
+                refusing.insert((position.x, position.y, position.z));
+            }
+        }
+    }
+    refusing
+}

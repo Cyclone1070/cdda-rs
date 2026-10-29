@@ -17,6 +17,7 @@ pub mod effects;
 pub mod singletons;
 pub mod square;
 pub mod fire_facts;
+pub mod turn;
 pub use square::load_level;
 pub mod skills;
 pub use singletons::{
@@ -2347,29 +2348,17 @@ pub fn run_environment_turn_from_store(
     run_environment_turn(world, &facts, windpower, scent_center, scent_deposit, can_take, rolls);
 }
 
-/// Runs one environment turn against a map the caller supplies.
+/// The field sweep: fires, then incendiaries, then gases, then the ageing of what the sweep found.
 ///
-/// The rule-level entry point: a replay or a unit test hands over the answers it wants the rules to
-/// see. A world loaded into entities uses [`run_environment_turn_from_store`] instead, which builds
-/// those answers from the store.
-pub fn run_environment_turn(
+/// Reference: `map::process_fields` (`src/map_field.cpp:164-184`), submap by submap in ascending
+/// `(z, x, y)`. Split out of [`run_environment_turn`] so the turn's stages can be run as systems.
+pub fn run_field_sweep(
     world: &mut World,
     map: &impl FireMap,
     windpower: i32,
-    scent_center: (i32, i32),
-    scent_deposit: i32,
     can_take: impl Fn((i32, i32, i32), (i32, i32, i32)) -> bool + Copy,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) {
-    // **The world's wind, not the caller's, when the world has a weather system.** The parameter stays because a session replay drives the wind from its fixture and has no climate;
-    // a world that does have one must not be able to disagree with itself about which way the smoke blows.
-    let windpower = weather::wind_of(world, windpower);
-    // Scent first, because the reference's turn starts there (`do_turn.cpp:642-648`): the character deposits and the window diffuses before the fields are processed.
-    // The deposit is nobody's yet - there is no creature layer - so the caller passes it through `scent_deposit`, and zero means "nothing deposited this turn".
-    scent::advance_scent(world, scent_center, scent_deposit);
-    // **Then what fell.** `do_turn.cpp:648-655` runs `scent.update`, then `map::build_floor_caches`, then `m.process_falling()`, and only then `m.process_fields()` - so a
-    // thing that falls is aged by the same turn's field sweep rather than the next one. The queue is taken whole and cleared, which is why a square is asked once.
-    process_falling_turn(world);
     // **The sweep, submap by submap in the reference's own order** (`map::process_fields`, `src/map_field.cpp:164-184`): ascending `(z, x, y)`, each submap's fires,
     // then its gases, then the ageing of every field the sweep found there. A field born in a submap the sweep has already passed waits for the next turn, which is why
     // a gas that falls keeps the age it was born with while one that spreads forward is aged in the same turn. A cursor rather than a list, because a field born in a
@@ -2434,6 +2423,32 @@ pub fn run_environment_turn(
             }
         }
     }
+}
+
+/// Runs one environment turn against a map the caller supplies.
+///
+/// The rule-level entry point: a replay or a unit test hands over the answers it wants the rules to
+/// see. A world loaded into entities uses [`run_environment_turn_from_store`] instead, which builds
+/// those answers from the store.
+pub fn run_environment_turn(
+    world: &mut World,
+    map: &impl FireMap,
+    windpower: i32,
+    scent_center: (i32, i32),
+    scent_deposit: i32,
+    can_take: impl Fn((i32, i32, i32), (i32, i32, i32)) -> bool + Copy,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) {
+    // **The world's wind, not the caller's, when the world has a weather system.** The parameter stays because a session replay drives the wind from its fixture and has no climate;
+    // a world that does have one must not be able to disagree with itself about which way the smoke blows.
+    let windpower = weather::wind_of(world, windpower);
+    // Scent first, because the reference's turn starts there (`do_turn.cpp:642-648`): the character deposits and the window diffuses before the fields are processed.
+    // The deposit is nobody's yet - there is no creature layer - so the caller passes it through `scent_deposit`, and zero means "nothing deposited this turn".
+    scent::advance_scent(world, scent_center, scent_deposit);
+    // **Then what fell.** `do_turn.cpp:648-655` runs `scent.update`, then `map::build_floor_caches`, then `m.process_falling()`, and only then `m.process_fields()` - so a
+    // thing that falls is aged by the same turn's field sweep rather than the next one. The queue is taken whole and cleared, which is why a square is asked once.
+    process_falling_turn(world);
+    run_field_sweep(world, map, windpower, can_take, rolls);
     // The light map is rebuilt for the world this turn made, the way the draw path rebuilds it after the turn's work (`map::build_map_cache`). Clearing first is part of the
     // rule rather than tidiness: the cast merges by maximum, so a fire that went out this turn would otherwise stay lit by last turn's answer.
     clear_light(world);

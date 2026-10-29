@@ -274,15 +274,9 @@ fn a_turn_runs_on_a_world_that_is_only_entities() {
         ))
         .id();
 
-    let mut rolls = cdda_core_types::rng::Rolls::new(7);
-    cdda_sim::run_environment_turn_from_store(
-        &mut world,
-        0,
-        (5, 5),
-        0,
-        |_, _| false,
-        &mut rolls,
-    );
+    cdda_sim::turn::set_random(&mut world, cdda_core_types::rng::Rolls::new(7));
+    cdda_sim::turn::set_scent_source(&mut world, (5, 5), 0);
+    cdda_sim::turn::run_turn(&mut world);
 
     let aged = world.get::<cdda_sim::Field>(fire).map(|field| field.entry.age());
     assert!(

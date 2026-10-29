@@ -155,3 +155,26 @@ declares it — it does not reach into the store and mutate during iteration.
 - No wall-clock time inside systems; all timing is from game time.
 - Systems never read state another system wrote earlier in the same pass unless
   that dependency is declared in the schedule.
+
+---
+
+## The environment turn is a schedule, and the order is declared
+
+`crates/sim/src/turn.rs` states the reference's environment order once, as `bevy_ecs` system sets,
+instead of as consecutive lines in a function:
+
+| Stage | What runs | Where the reference names it |
+|---|---|---|
+| `Scent` | the character's smell is laid and diffuses | `do_turn.cpp:642-648` |
+| `Falling` | everything whose support went away falls | `do_turn.cpp:648-655` |
+| `Fields` | fires, incendiaries, gases, then the ageing of what the sweep found | `map_field.cpp:164-184` |
+| `Light` | the light the turn left behind is recomputed | `build_map_cache` |
+
+The stages are chained in that order, and `TurnStage::order()` is the same list as data, so a test can
+compare the *declared* order with the *executed* one. `TurnTrace` records what actually ran; the gate
+is `crates/sim/tests/sim_suite/turn_schedule.rs`, and it fails if two stages are swapped in the chain
+(mutation-checked).
+
+Everything a stage needs is in the store: the smell this turn is a `ScentSource` component, the dice
+are a `Random` component taken out for a draw and put back, and the fire rules' question sheet is
+built from the world (`MapFacts::from_world`) rather than handed in by the caller.
