@@ -9,11 +9,11 @@
 use bevy_ecs::prelude::*;
 use cdda_core_types::level::SeenGrid;
 use cdda_core_types::light::LitLevel;
-use cdda_core_types::vision::{View, lit_level_with};
+use cdda_core_types::vision::{View, lit_level_with_codes};
 use std::collections::BTreeMap;
 
 use crate::memory::Memory;
-use crate::{Light, Map, field_opacity};
+use crate::{Light, field_opacity};
 
 /// One square of a drawn frame.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -94,7 +94,7 @@ impl Frame {
 /// `HIDDEN` and `DARK` (the memorized symbol, or a space) and the tile itself otherwise, which is also when the tile is memorized (`src/map.cpp:7216`).
 #[allow(clippy::too_many_arguments)]
 fn draw_cells(
-    level: &cdda_core_types::level::Level,
+    code_at: &dyn Fn(i32, i32) -> Option<u32>,
     view: &View,
     light: &Light,
     grid: &SeenGrid,
@@ -113,8 +113,8 @@ fn draw_cells(
                 origin.0 + i32::try_from(column).unwrap_or(0) - radius,
                 origin.1 + i32::try_from(row).unwrap_or(0) - radius,
             );
-            let code = level.terrain_at(square.0, square.1).unwrap_or(0);
-            let lit = lit_level_with(level, view, &light_map, grid, square);
+            let code = code_at(square.0, square.1).unwrap_or(0);
+            let lit = lit_level_with_codes(code_at, view, &light_map, grid, square);
             // **Two branches, the reference's own.** `get_visibility` turns `DARK`, `BLANK` and `MEMORIZED` into something the loop draws as a background
             // (`src/map.cpp:6836-6865`), and everything else as the tile itself.
             let hidden = matches!(lit, LitLevel::Dark | LitLevel::Blank | LitLevel::Memorized);
@@ -184,13 +184,13 @@ pub fn frame(
     absorbing_layers.merge_absorbing_from(&furniture);
 
     let transparency: BTreeMap<(i32, i32), f32> = {
-        let Some(map) = world.get_resource::<Map>() else {
+        if crate::square::squares(world).is_empty() {
             return Frame {
                 origin,
                 radius,
                 cells: Vec::new(),
             };
-        };
+        }
         let side = usize::try_from(radius * 2 + 1).unwrap_or(0);
         // **The fields on every square**, which the sight cast reads and the frame's table was leaving out: smoke between the character and a square attenuates the view of
         // that square exactly as the reference's `transparency_cache` does (`calc_transp`, `lightmap.cpp:140-167`). Read once, before the level is borrowed.
@@ -202,8 +202,9 @@ pub fn frame(
                     origin.0 + i32::try_from(column).unwrap_or(0) - radius,
                     origin.1 + i32::try_from(row).unwrap_or(0) - radius,
                 );
-                let code = map.0.terrain_at(square.0, square.1).unwrap_or(0);
-                let furniture_code = map.0.furniture_at(square.0, square.1).unwrap_or(0);
+                let code = crate::square::terrain_at(world, (square.0, square.1, 0)).unwrap_or(0);
+                let furniture_code =
+                    crate::square::furniture_at(world, (square.0, square.1, 0)).unwrap_or(0);
                 let mut transparency = terrain
                     .transparency(code)
                     .min(furniture.transparency(furniture_code));
@@ -229,19 +230,10 @@ pub fn frame(
         ground_light_level,
         vision_threshold,
     };
-    // The level is taken out of the world for the cast and put back: the cast needs it mutably, and nothing else may borrow it meanwhile.
-    let grid: SeenGrid = match world.remove_resource::<Map>() {
-        Some(mut map) => {
-            let grid = map.0.seen_grid_of(origin, radius, &transparency);
-            world.insert_resource(map);
-            grid
-        }
-        None => return Frame {
-            origin,
-            radius,
-            cells: Vec::new(),
-        },
-    };
+    // The cast is a function of the table, so nothing has to be taken out of the world for it. The
+    // count is kept because "a frame is one cast" is a promise, and a promise needs a receipt.
+    let grid: SeenGrid = cdda_core_types::level::seen_grid(origin, radius, &transparency);
+    crate::singletons::count_sight_cast(world);
     let light = crate::singletons::light(world);
 
     let side = usize::try_from(radius * 2 + 1).unwrap_or(0);
@@ -252,19 +244,9 @@ pub fn frame(
         .iter(world)
         .next();
     let mut memory = memory_entity.and_then(|entity| world.entity_mut(entity).take::<Memory>());
-    let Some(map) = world.get_resource::<Map>() else {
-        // The memory goes back even on the early return: a frame that took it and dropped it would quietly empty the character's map.
-        if let (Some(entity), Some(memory)) = (memory_entity, memory) {
-            world.entity_mut(entity).insert(memory);
-        }
-        return Frame {
-            origin,
-            radius,
-            cells: Vec::new(),
-        };
-    };
+    let code_at = |x: i32, y: i32| crate::square::terrain_at(world, (x, y, 0));
     let cells = draw_cells(
-        &map.0,
+        &code_at,
         &view,
         &light,
         &grid,

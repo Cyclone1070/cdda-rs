@@ -42,9 +42,37 @@ pub fn apparent_light_with(
     grid: &crate::level::SeenGrid,
     square: (i32, i32),
 ) -> f32 {
-    apparent_light_from(level, view, light, grid.at(square), square, |neighbour| {
-        grid.at(neighbour) > 0.0
-    })
+    apparent_light_with_codes(
+        &|x, y| level.terrain_at(x, y),
+        view,
+        light,
+        grid,
+        square,
+    )
+}
+
+/// [`apparent_light_with`] for a caller whose squares are components rather than a level.
+///
+/// The level was only ever asked for two things here - is this square ground at all, and is that
+/// ground opaque - so the question becomes a function the caller supplies.
+#[must_use]
+pub fn apparent_light_with_codes(
+    code_at: &dyn Fn(i32, i32) -> Option<u32>,
+    view: &View,
+    light: &BTreeMap<(i32, i32), FourQuadrants>,
+    grid: &crate::level::SeenGrid,
+    square: (i32, i32),
+) -> f32 {
+    let opaque = code_at(square.0, square.1).is_some_and(|code| (view.blocks_light)(code));
+    apparent_light_from(
+        code_at,
+        view,
+        light,
+        grid.at(square),
+        square,
+        opaque,
+        |neighbour| grid.at(neighbour) > 0.0,
+    )
 }
 
 /// [`apparent_light_with`] for a caller that has no cast in hand.
@@ -60,19 +88,30 @@ pub fn apparent_light_at_seen(
     square: (i32, i32),
 ) -> f32 {
     let grid = level.seen_grid(view.origin, view.radius, |code| (view.transparency_of)(code));
-    apparent_light_from(level, view, light, grid.at(square), square, |neighbour| {
-        grid.at(neighbour) > 0.0
-    })
+    let opaque = level
+        .terrain_at(square.0, square.1)
+        .is_some_and(|code| (view.blocks_light)(code));
+    let code_at = |x: i32, y: i32| level.terrain_at(x, y);
+    apparent_light_from(
+        &code_at,
+        view,
+        light,
+        grid.at(square),
+        square,
+        opaque,
+        |neighbour| grid.at(neighbour) > 0.0,
+    )
 }
 
 /// The body both entry points share: the light a square appears to hold, given how clearly it is seen.
 #[allow(clippy::too_many_arguments)]
 fn apparent_light_from(
-    level: &Level,
+    code_at: &dyn Fn(i32, i32) -> Option<u32>,
     view: &View,
     light: &BTreeMap<(i32, i32), FourQuadrants>,
     seen: f32,
     square: (i32, i32),
+    opaque: bool,
     seen_at_neighbour: impl Fn((i32, i32)) -> bool,
 ) -> f32 {
     use crate::shadowcasting::{FourQuadrants, Quadrant};
@@ -84,9 +123,6 @@ fn apparent_light_from(
     if seen <= 0.0 {
         return 0.0;
     }
-    let opaque = level
-        .terrain_at(square.0, square.1)
-        .is_some_and(|code| (view.blocks_light)(code));
     if !opaque {
         // The simple branch: for a non-opaque tile light from all directions is equivalent (`lightmap.cpp:792-796`).
         return seen * cell.max();
@@ -108,7 +144,7 @@ fn apparent_light_from(
     for (offset, quarters) in neighbours {
         let neighbour = (square.0 + offset.0, square.1 + offset.1);
         // Out of bounds, or a wall: the reference skips both (`lightmap.cpp:770-776`).
-        let Some(code) = level.terrain_at(neighbour.0, neighbour.1) else {
+        let Some(code) = code_at(neighbour.0, neighbour.1) else {
             continue;
         };
         if (view.blocks_light)(code) {
@@ -189,11 +225,23 @@ pub fn lit_level_with(
     grid: &crate::level::SeenGrid,
     square: (i32, i32),
 ) -> crate::light::LitLevel {
+    lit_level_with_codes(&|x, y| level.terrain_at(x, y), view, light, grid, square)
+}
+
+/// [`lit_level_with`] for a caller whose squares are components rather than a level.
+#[must_use]
+pub fn lit_level_with_codes(
+    code_at: &dyn Fn(i32, i32) -> Option<u32>,
+    view: &View,
+    light: &BTreeMap<(i32, i32), FourQuadrants>,
+    grid: &crate::level::SeenGrid,
+    square: (i32, i32),
+) -> crate::light::LitLevel {
     // `obstructed` is the sight cast's own fraction at or below a tenth (`lightmap.cpp:733`), not "was anything in the way": a wall you look at is seen clearly, and a square seen
     // only through smoke or fog is not.
     let seen = grid.at(square);
     lit_level_at(
-        apparent_light_with(level, view, light, grid, square),
+        apparent_light_with_codes(code_at, view, light, grid, square),
         seen <= 0.1,
         view.ground_light_level,
         view.vision_threshold,

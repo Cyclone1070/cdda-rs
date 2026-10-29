@@ -11,7 +11,7 @@ use cdda_core_types::level::Level;
 use cdda_sim::scent::{advance_scent, decay_scent, marks_at, reset_scent, scent_at, set_scent_at};
 use cdda_sim::scent_table::ScentTable;
 use cdda_sim::set_scent_table;
-use cdda_sim::{Map, Prototypes};
+use cdda_sim::{Prototypes};
 
 const AIR: u32 = 1;
 const WALL: u32 = 2; // NO_SCENT
@@ -29,7 +29,7 @@ fn world(marks: &[(i32, i32, u32)]) -> World {
     for (x, y, code) in marks {
         level.set_terrain(*x, *y, *code, AIR);
     }
-    world.insert_resource(Map(level));
+    cdda_sim::load_level(&mut world, level);
     cdda_sim::set_prototypes(&mut world, Prototypes::default());
 
     let mut scent = ScentTable::new();

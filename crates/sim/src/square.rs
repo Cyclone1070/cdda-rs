@@ -49,36 +49,42 @@ pub struct Materialised {
 /// The codes come from the loaded level and nowhere else: this is the one place a per-square array
 /// is read, and after it runs the store holds the level.
 pub fn materialise(world: &mut World, level: &cdda_core_types::level::Level) -> Materialised {
-    let side = crate::bounds_of_public(level);
+    // A level is whatever submaps were made, so the walk is over the submaps that exist rather than
+    // over a square guessed from the origin: a windowed level starts wherever its first submap does.
+    let Ok(side) = i32::try_from(cdda_core_types::submap::SUBMAP_SIDE) else {
+        return Materialised::default();
+    };
+    let mut places = level.submap_places();
+    places.sort_unstable();
     let mut made = Materialised::default();
-    for y in 0..side {
-        for x in 0..side {
-            let (Ok(xi), Ok(yi)) = (i32::try_from(x), i32::try_from(y)) else {
-                continue;
-            };
-            world.spawn((Position { x: xi, y: yi, z: 0 }, Square));
-            made.squares += 1;
+    for (submap_x, submap_y) in places {
+        for row in 0..side {
+            for column in 0..side {
+                let xi = submap_x * side + column;
+                let yi = submap_y * side + row;
+                world.spawn((Position { x: xi, y: yi, z: 0 }, Square));
+                made.squares += 1;
 
-            let Some(code) = level.terrain_at(xi, yi) else {
-                continue;
-            };
-            world.spawn((Position { x: xi, y: yi, z: 0 }, Ground, Terrain { code }));
-            made.ground += 1;
+                let Some(code) = level.terrain_at(xi, yi) else {
+                    continue;
+                };
+                world.spawn((Position { x: xi, y: yi, z: 0 }, Ground, Terrain { code }));
+                made.ground += 1;
 
-            let furniture = level.furniture_at(xi, yi).unwrap_or(0);
-            if furniture != 0 {
-                world.spawn((
-                    Position { x: xi, y: yi, z: 0 },
-                    Furniture { code: furniture },
-                ));
-                made.furniture += 1;
+                let furniture = level.furniture_at(xi, yi).unwrap_or(0);
+                if furniture != 0 {
+                    world.spawn((
+                        Position { x: xi, y: yi, z: 0 },
+                        Furniture { code: furniture },
+                    ));
+                    made.furniture += 1;
+                }
             }
         }
     }
     crate::PositionIndex::rebuild(world);
     made
 }
-
 /// Loads a level into the world: entities for every square and everything standing on them.
 ///
 /// The level itself stays in the world as well **for now**, because the light engine still reads it

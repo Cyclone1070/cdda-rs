@@ -12,7 +12,7 @@ use cdda_core_types::level::Level;
 use cdda_sim::field_table::FieldTable;
 use cdda_sim::frame::frame;
 use cdda_sim::terrain_table::TerrainTable;
-use cdda_sim::{Field, Map, Position, Prototypes, cast_lights_with, set_field_table};
+use cdda_sim::{Field, Position, Prototypes, cast_lights_with, set_field_table};
 
 const FLOOR: u32 = 1;
 const SMOKE: u32 = 7;
@@ -25,7 +25,7 @@ fn world(smoke: i32) -> World {
             level.set_terrain(x, y, FLOOR, FLOOR);
         }
     }
-    world.insert_resource(Map(level));
+    cdda_sim::load_level(&mut world, level);
 
     let mut terrain = TerrainTable::new();
     terrain.insert(FLOOR, true);

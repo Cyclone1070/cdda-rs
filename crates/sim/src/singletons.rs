@@ -173,6 +173,49 @@ pub fn index_mut(world: &mut World) -> Mut<'_, PositionIndex> {
     }
 }
 
+/// How many sight casts the world has made.
+///
+/// A receipt rather than a rule: the frame draws with one cast, and a test can say "one" only if
+/// something counts them. The counter is a component, because a counter is a thing.
+#[derive(Debug, Clone, Copy, Default, Component)]
+pub struct SightCasts {
+    /// How many casts have been built.
+    pub casts: u32,
+}
+
+/// Marks the one entity that carries the count of sight casts.
+#[derive(Debug, Default, Component)]
+pub struct TheSightCasts;
+
+/// Counts one sight cast.
+pub fn count_sight_cast(world: &mut World) {
+    let mut casts = sight_cast_counter(world);
+    casts.casts = casts.casts.saturating_add(1);
+}
+
+/// How many sight casts the world has made.
+#[must_use]
+pub fn sight_casts(world: &World) -> u32 {
+    world
+        .iter_entities()
+        .find_map(|entity| entity.get::<SightCasts>().map(|casts| casts.casts))
+        .unwrap_or(0)
+}
+
+/// The counter itself, made on first use.
+///
+/// # Panics
+///
+/// Panics if the entity found does not carry the counter, which cannot happen: it is found by
+/// having it, and spawned with it.
+fn sight_cast_counter(world: &mut World) -> Mut<'_, SightCasts> {
+    let entity = singleton::<SightCasts, TheSightCasts>(world);
+    match world.get_mut::<SightCasts>(entity) {
+        Some(casts) => casts,
+        None => unreachable!("the sight-cast entity was just spawned with its counter"),
+    }
+}
+
 /// Marks the one entity that carries the light answer.
 #[derive(Debug, Default, Component)]
 pub struct TheLight;

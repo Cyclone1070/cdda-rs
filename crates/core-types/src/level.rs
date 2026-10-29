@@ -68,6 +68,15 @@ impl Level {
         id
     }
 
+    /// Where every submap of the level sits, in submap coordinates.
+    ///
+    /// The level's extent is not a rectangle from the origin: a level is whatever submaps were made,
+    /// so a caller that needs to walk all of it asks for this rather than guessing a side.
+    #[must_use]
+    pub fn submap_places(&self) -> Vec<(i32, i32)> {
+        self.placed.values().copied().collect()
+    }
+
     /// The submap holding a world tile, if it has been made.
     #[must_use]
     pub fn submap_at(&self, x: i32, y: i32) -> Option<(SubmapId, usize, usize)> {

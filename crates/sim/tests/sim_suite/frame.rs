@@ -10,7 +10,7 @@ use cdda_core_types::level::Level;
 use cdda_core_types::light::LitLevel;
 use cdda_sim::frame::frame;
 use cdda_sim::terrain_table::TerrainTable;
-use cdda_sim::{Map, Prototypes, cast_lights_with};
+use cdda_sim::{Prototypes, cast_lights_with};
 use cdda_sim::{light};
 
 const FLOOR: u32 = 1;
@@ -30,7 +30,7 @@ fn world() -> World {
         level.set_terrain(6, y, WALL, FLOOR);
     }
     level.set_terrain(4, 4, LAMP, FLOOR);
-    world.insert_resource(Map(level));
+    cdda_sim::load_level(&mut world, level);
 
     let mut terrain = TerrainTable::new();
     terrain.insert(FLOOR, true);
@@ -96,11 +96,10 @@ fn the_lamp_lights_the_room_the_frame_draws() {
 fn a_frame_is_one_sight_cast() {
     let mut world = world();
     cast_lights_with(&mut world);
-    let before = world.resource::<Map>().0.sight_casts();
+    let before = cdda_sim::sight_casts(&world);
     let _ = frame(&mut world, (4, 5), 6, 10.0, 3.0);
-    // The map resource is taken and put back by the frame, so the count is read through the world again.
     assert_eq!(
-        world.resource::<Map>().0.sight_casts() - before,
+        cdda_sim::sight_casts(&world) - before,
         1,
         "one cast for the whole view"
     );

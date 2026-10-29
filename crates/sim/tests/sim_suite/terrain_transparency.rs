@@ -28,7 +28,7 @@ fn level_with(code: u32) -> World {
         }
     }
     level.set_terrain(5, 5, code, 1);
-    world.insert_resource(Map(level));
+    cdda_sim::load_level(&mut world, level);
     world.spawn((
         Position { x: 2, y: 5, z: 0 },
         LightSource { luminance: 10.0 },

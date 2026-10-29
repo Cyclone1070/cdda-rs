@@ -140,7 +140,7 @@ fn the_port_prints_every_plain_square_the_way_the_reference_prints_it() {
     use cdda_core_types::level::Level;
     use cdda_sim::frame::frame;
     use cdda_sim::terrain_table::TerrainTable;
-    use cdda_sim::{Map, Prototypes};
+    use cdda_sim::Prototypes;
     use cdda_json::{Value, parse};
     use std::collections::BTreeMap;
     use std::path::Path;
@@ -222,7 +222,7 @@ fn the_port_prints_every_plain_square_the_way_the_reference_prints_it() {
     }
 
     let mut world = World::new();
-    world.insert_resource(Map(level));
+    cdda_sim::load_level(&mut world, level);
     cdda_sim::set_prototypes(&mut world, Prototypes {
         terrain,
         furniture: TerrainTable::new(),

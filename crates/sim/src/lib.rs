@@ -19,10 +19,11 @@ pub mod square;
 pub use square::load_level;
 pub mod skills;
 pub use singletons::{
-    TheFallingQueue, TheFieldRules, TheMemory, TheRadiation, TheScent, TheIndex, ThePrototypes, TheScentTable, TheClimate, TheFieldTable, TheLight, TheWeather,
+    TheFallingQueue, TheFieldRules, TheMemory, TheRadiation, TheScent, TheIndex, ThePrototypes, TheSightCasts, SightCasts, TheScentTable, TheClimate, TheFieldTable, TheLight, TheWeather,
     adjust_radiation,
     falling_queue_entity, field_rules, memory, memory_entity, queue_support_loss, radiation,
-    climate, climate_read, field_table, index, index_mut, light, light_mut, prototypes,
+    climate, climate_read, count_sight_cast, field_table, index, index_mut, light, light_mut,
+    prototypes, sight_casts,
     set_field_table,
     set_prototypes, set_weather, scent_table, weather, set_climate, set_field_rules, set_scent_table,
     singleton, support_lost,
