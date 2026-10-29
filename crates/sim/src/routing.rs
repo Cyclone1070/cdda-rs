@@ -57,6 +57,59 @@ pub fn route(world: &World, from: (i32, i32), to: (i32, i32), max: (i32, i32)) -
     greedy_path(from, to, max, &scorer)
 }
 
+/// What walking one step towards a target did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Walk {
+    /// It stepped, and paid for the step.
+    Stepped,
+    /// This step reached the target.
+    Arrived,
+    /// It has fewer points than the step costs, so it stayed put.
+    TooSlow,
+    /// There is no way through from where it stands.
+    NoRoute,
+}
+
+/// Walks a creature one step towards `target`, asking the world for the route first.
+///
+/// The creature does not know the way; it asks [`route`] each time it moves. That is the reference's
+/// shape too - `monster::move` re-runs its path search rather than keeping one - and it means a creature
+/// reacts to a door closing without anything having to invalidate a cached path.
+pub fn walk_towards(
+    world: &mut World,
+    entity: bevy_ecs::prelude::Entity,
+    target: (i32, i32, i32),
+    bounds: (i32, i32),
+) -> Walk {
+    let Some(position) = world.get::<crate::Position>(entity).copied() else {
+        return Walk::NoRoute;
+    };
+    let from = (position.x, position.y, position.z);
+    if from == target {
+        return Walk::Arrived;
+    }
+    let path = route(world, (from.0, from.1), (target.0, target.1), bounds);
+    // The path runs from the destination back to the source, so the square to step into is the one
+    // just before the last - the source itself is last, and it has no direction.
+    let Some(step) = path.len().checked_sub(2).and_then(|before| path.get(before)) else {
+        return Walk::NoRoute;
+    };
+    let next = (step.x, step.y, from.2);
+    let Some(cost_here) = square_cost(world, from) else {
+        return Walk::NoRoute;
+    };
+    let Some(cost_next) = square_cost(world, next) else {
+        return Walk::NoRoute;
+    };
+    let axes = usize::from(next.0 != from.0) + usize::from(next.1 != from.1);
+    let cost = combined_move_cost(cost_here, cost_next, 0, axes);
+    match crate::creature::try_step(world, entity, next, cost) {
+        crate::creature::StepOutcome::Moved if next == target => Walk::Arrived,
+        crate::creature::StepOutcome::Moved => Walk::Stepped,
+        crate::creature::StepOutcome::TooSlow => Walk::TooSlow,
+    }
+}
+
 /// The direction a path leads away from its source, which is what a creature walking it would take.
 #[must_use]
 pub fn first_step_towards_the_destination(path: &[Node]) -> Option<Direction> {

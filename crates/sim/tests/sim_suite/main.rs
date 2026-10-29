@@ -46,6 +46,7 @@ mod crafting;
 mod creatures;
 mod pathfinding;
 mod routing;
+mod walking;
 mod death;
 mod degradation;
 mod digest;

@@ -225,6 +225,12 @@ pub fn creature_at(world: &World, square: (i32, i32, i32)) -> Vec<Entity> {
         .collect()
 }
 
+/// How many action points a creature has left.
+#[must_use]
+pub fn moves_left(world: &World, entity: Entity) -> i32 {
+    world.get::<Moves>(entity).map_or(0, |moves| moves.left)
+}
+
 /// Adds action points to a creature.
 pub fn give_moves(world: &mut World, entity: Entity, points: i32) {
     if let Some(mut moves) = world.get_mut::<Moves>(entity) {
