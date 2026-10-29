@@ -150,6 +150,91 @@ pub fn oracle_sessions() -> Check {
     }
 }
 
+/// Corpus families no test reads, and why. This ledger may only shrink: an entry that becomes read
+/// is an error here, so the list cannot quietly grow stale the way the status tables did.
+pub const BLOCKED_FAMILIES: &[(&str, &str)] = &[(
+    "replay",
+    "a keylog is played into a full game with --dump-state, and what it dumps is the avatar's state; \
+     there are no creatures to play",
+)];
+
+/// Every file under `corpus/` is read by a test, or its family is in the blocked ledger.
+///
+/// A dump nobody compares against is a promise, not a gate, and two of them sat in this tree for
+/// rounds without anyone noticing. This makes that impossible to do quietly: a new corpus file whose
+/// family no source mentions fails here.
+#[must_use]
+pub fn corpus_is_read(root: &Path) -> Check {
+    let corpus = root.join("corpus");
+    let mut files = Vec::new();
+    collect(&corpus, &mut files);
+    let sources = read_sources(&root.join("crates"));
+    let blocked: std::collections::BTreeSet<&str> =
+        BLOCKED_FAMILIES.iter().map(|(family, _)| *family).collect();
+    let mut cases = 0;
+    let mut failures = Vec::new();
+    // Families are what the ledger talks about, so the check is by family: `corpus/fields/` is read
+    // by the session loader, and every fixture inside it with it.
+    let mut families: std::collections::BTreeMap<String, bool> = std::collections::BTreeMap::new();
+    for file in &files {
+        cases += 1;
+        let Ok(relative) = file.strip_prefix(&corpus) else {
+            continue;
+        };
+        let Some(family) = relative.components().next().and_then(|first| first.as_os_str().to_str())
+        else {
+            continue;
+        };
+        if family.contains('.') {
+            // A file at the root of the corpus has no family. It is read if a source names it, which
+            // is by its file name rather than its path: a test that builds the path from a root
+            // constant never writes the path out.
+            if family == "README.md" {
+                continue;
+            }
+            if !sources.contains(family) {
+                failures.push(format!("corpus/{family}: no test names it and it belongs to no family"));
+            }
+            continue;
+        }
+        let read = sources.contains(&format!("corpus/{family}"));
+        families.insert(family.to_string(), read);
+    }
+    for (family, read) in &families {
+        match (read, blocked.contains(family.as_str())) {
+            (true, true) => failures.push(format!(
+                "corpus/{family}: listed as blocked but a test reads it - drop the ledger line"
+            )),
+            (false, false) => failures.push(format!(
+                "corpus/{family}: no test reads this family and it is not in the blocked ledger"
+            )),
+            _ => {}
+        }
+    }
+    Check {
+        name: format!("corpus: every family is read ({} blocked)", BLOCKED_FAMILIES.len()),
+        cases,
+        failures,
+    }
+}
+
+/// Every Rust source under `crates/`, as one string, for asking "does anything read this".
+fn read_sources(dir: &Path) -> String {
+    let mut files = Vec::new();
+    collect(dir, &mut files);
+    let mut all = String::new();
+    for path in files {
+        if path.extension().and_then(|kind| kind.to_str()) != Some("rs") {
+            continue;
+        }
+        if let Ok(text) = std::fs::read_to_string(&path) {
+            all.push_str(&text);
+            all.push('\n');
+        }
+    }
+    all
+}
+
 /// Every positioned thing is where the index says it is, and the index holds nothing else.
 #[must_use]
 pub fn index_matches_the_store(world: &mut bevy_ecs::prelude::World) -> Check {
@@ -207,6 +292,18 @@ mod tests {
         assert!(
             check.cases > 40,
             "the corpus is more than forty files; the check saw {}",
+            check.cases
+        );
+    }
+
+    #[test]
+    fn every_corpus_family_is_read_or_declared_blocked() {
+        let check = corpus_is_read(&repository());
+
+        assert!(check.failures.is_empty(), "{:#?}", check.failures);
+        assert!(
+            check.cases > 40,
+            "the corpus is more than forty files and the check saw {}",
             check.cases
         );
     }

@@ -20,6 +20,7 @@ pub fn spread_seed(attempt: u32) -> u32 {
 mod apparent_light;
 mod astronomy;
 mod calendar;
+mod rng_probe;
 mod environment;
 mod sun_internals;
 mod colors;
