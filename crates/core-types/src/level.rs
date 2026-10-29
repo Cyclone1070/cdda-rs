@@ -636,33 +636,55 @@ impl Level {
         sight_penalty: f32,
         facts: impl Fn(i32, i32) -> crate::transparency::SquareFacts,
     ) -> crate::shadowcasting::TransparencyGrid {
-        let side = usize::try_from(radius * 2 + 1).unwrap_or(1);
-        let mut cells = vec![0.0_f32; side * side];
-        for grid_y in 0..side {
-            for grid_x in 0..side {
-                let Ok(offset_x) = i32::try_from(grid_x) else {
-                    continue;
-                };
-                let Ok(offset_y) = i32::try_from(grid_y) else {
-                    continue;
-                };
-                let world_x = origin.0 + offset_x - radius;
-                let world_y = origin.1 + offset_y - radius;
-                // A tile the world has not made is solid: light does not pass through a place that does not exist.
-                let value = if self.terrain_at(world_x, world_y).is_some() {
-                    crate::transparency::transparency_of(&facts(world_x, world_y), sight_penalty)
-                        .value
-                } else {
-                    0.0
-                };
-                if let Some(cell) = cells.get_mut(grid_x * side + grid_y) {
-                    *cell = value;
-                }
+        transparency_grid(
+            origin,
+            radius,
+            sight_penalty,
+            |x, y| self.terrain_at(x, y).is_some(),
+            facts,
+        )
+    }
+}
+
+/// The transparency of a window of tiles, for the caster, given what the caller knows about squares.
+///
+/// The level's method is this with "does this square exist" answered from its own tiles; a store
+/// that keeps its squares as entities answers the same question from the store.
+#[must_use]
+pub fn transparency_grid(
+    origin: (i32, i32),
+    radius: i32,
+    sight_penalty: f32,
+    exists: impl Fn(i32, i32) -> bool,
+    facts: impl Fn(i32, i32) -> crate::transparency::SquareFacts,
+) -> crate::shadowcasting::TransparencyGrid {
+    let side = usize::try_from(radius * 2 + 1).unwrap_or(1);
+    let mut cells = vec![0.0_f32; side * side];
+    for grid_y in 0..side {
+        for grid_x in 0..side {
+            let Ok(offset_x) = i32::try_from(grid_x) else {
+                continue;
+            };
+            let Ok(offset_y) = i32::try_from(grid_y) else {
+                continue;
+            };
+            let world_x = origin.0 + offset_x - radius;
+            let world_y = origin.1 + offset_y - radius;
+            // A tile the world has not made is solid: light does not pass through a place that does not exist.
+            let value = if exists(world_x, world_y) {
+                crate::transparency::transparency_of(&facts(world_x, world_y), sight_penalty).value
+            } else {
+                0.0
+            };
+            if let Some(cell) = cells.get_mut(grid_x * side + grid_y) {
+                *cell = value;
             }
         }
-        crate::shadowcasting::TransparencyGrid::new(side, cells)
     }
+    crate::shadowcasting::TransparencyGrid::new(side, cells)
+}
 
+impl Level {
     /// Casts one light source using the transcribed transparency rule, without recording it.
     ///
     /// Reference: `map::apply_light_source` (`lightmap.cpp:1217-1294`). The `facts` closure answers, per square, what the transparency cache would answer for it - terrain and
@@ -705,61 +727,80 @@ impl Level {
 
     /// One source's cast, into the directions a caller allows.
     fn apply_light_source_where(
-        &mut self,
+        &self,
         source: &Source<'_>,
         light: &mut BTreeMap<(i32, i32), crate::shadowcasting::FourQuadrants>,
         allow: [bool; crate::shadowcasting::OCTANTS],
     ) {
-        let Source {
-            at: (x, y),
-            luminance,
-            sight_penalty,
-            facts,
-        } = *source;
-        let own = luminance.max(1.0);
-        let cell = light
-            .entry((x, y))
-            .or_insert_with(|| crate::shadowcasting::FourQuadrants::uniform(0.0));
-        if cell.max() < own {
-            *cell = crate::shadowcasting::FourQuadrants::uniform(cell.max().max(own));
-        }
-        let radius = crate::light::light_range(luminance);
-        if radius <= 0 {
-            return;
-        }
-        let grid = self.transparency_grid((x, y), radius, sight_penalty, facts);
-        let side = usize::try_from(radius * 2 + 1).unwrap_or(1);
-        let cast = crate::shadowcasting::cast_light_octants(
-            &grid,
-            (radius, radius),
-            radius,
-            luminance,
-            false,
+        cast_light_source(
+            source,
+            &|x, y| self.terrain_at(x, y).is_some(),
+            light,
             allow,
         );
-        for (index, quarters) in cast.iter().enumerate() {
-            let (Some(grid_x), Some(grid_y)) = (index.checked_div(side), index.checked_rem(side)) else {
-                continue;
-            };
-            if quarters.max() <= 0.0 {
-                continue;
-            }
-            let square = (
-                x + i32::try_from(grid_x).unwrap_or(0) - radius,
-                y + i32::try_from(grid_y).unwrap_or(0) - radius,
-            );
-            let entry = light
-                .entry(square)
-                .or_insert_with(|| crate::shadowcasting::FourQuadrants::uniform(0.0));
-            for quarter in [
-                crate::shadowcasting::Quadrant::NorthEast,
-                crate::shadowcasting::Quadrant::SouthEast,
-                crate::shadowcasting::Quadrant::SouthWest,
-                crate::shadowcasting::Quadrant::NorthWest,
-            ] {
-                crate::shadowcasting::update_light_quadrants(entry, quarters.get(quarter), quarter);
-            }
-        }
     }
 
+}
+
+/// Casts one light source into a light map.
+///
+/// The level's method is this with its own tiles and its own buffer; a store that keeps its squares
+/// as entities passes the same two answers in.
+#[allow(clippy::too_many_arguments)]
+pub fn cast_light_source(
+    source: &Source<'_>,
+    exists: &dyn Fn(i32, i32) -> bool,
+    light: &mut BTreeMap<(i32, i32), crate::shadowcasting::FourQuadrants>,
+    allow: [bool; crate::shadowcasting::OCTANTS],
+) {
+    let Source {
+        at: (x, y),
+        luminance,
+        sight_penalty,
+        facts,
+    } = *source;
+    let own = luminance.max(1.0);
+    let cell = light
+        .entry((x, y))
+        .or_insert_with(|| crate::shadowcasting::FourQuadrants::uniform(0.0));
+    if cell.max() < own {
+        *cell = crate::shadowcasting::FourQuadrants::uniform(cell.max().max(own));
+    }
+    let radius = crate::light::light_range(luminance);
+    if radius <= 0 {
+        return;
+    }
+    let grid = transparency_grid((x, y), radius, sight_penalty, exists, facts);
+    let side = usize::try_from(radius * 2 + 1).unwrap_or(1);
+    let cast = crate::shadowcasting::cast_light_octants(
+        &grid,
+        (radius, radius),
+        radius,
+        luminance,
+        false,
+        allow,
+    );
+    for (index, quarters) in cast.iter().enumerate() {
+        let (Some(grid_x), Some(grid_y)) = (index.checked_div(side), index.checked_rem(side)) else {
+            continue;
+        };
+        if quarters.max() <= 0.0 {
+            continue;
+        }
+        let square = (
+            x + i32::try_from(grid_x).unwrap_or(0) - radius,
+            y + i32::try_from(grid_y).unwrap_or(0) - radius,
+        );
+        let entry = light
+            .entry(square)
+            .or_insert_with(|| crate::shadowcasting::FourQuadrants::uniform(0.0));
+        for quarter in [
+            crate::shadowcasting::Quadrant::NorthEast,
+            crate::shadowcasting::Quadrant::SouthEast,
+            crate::shadowcasting::Quadrant::SouthWest,
+            crate::shadowcasting::Quadrant::NorthWest,
+        ] {
+            crate::shadowcasting::update_light_quadrants(entry, quarters.get(quarter), quarter);
+        }
+    }
 }
