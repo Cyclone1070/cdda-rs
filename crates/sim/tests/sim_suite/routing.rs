@@ -79,6 +79,47 @@ fn the_scorer_charges_what_combined_move_cost_says() {
     let _ = Direction::North;
 }
 
+/// The reference's own terrain data, in the shape its own loader reads, becomes a walkable world.
+///
+/// Source: `corpus/mapdata.json` is `--dump-mapdata`, which writes every terrain and furniture prototype
+/// with `type` and a string `symbol` - the fields `map_data_common_t::load` reads - rather than the
+/// `kind` and code-point `symbol` the other dumps use for the port's own tests. That difference is the
+/// whole point of the dump: without it the port's loader cannot be pointed at the reference's data at
+/// all, and the two shapes were being bridged by hand-written fixtures.
+#[test]
+fn the_reference_s_terrain_data_loads_and_keeps_its_move_costs() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/mapdata.json");
+    let text = std::fs::read(path).expect("the mapdata dump exists");
+    let parsed = cdda_json::parse(&text).expect("the dump is valid JSON");
+    let loaded = cdda_content::mapdata::load_objects(&parsed, "corpus/mapdata.json")
+        .expect("the reference's own shape loads");
+    let seen = loaded.len();
+    let terrain: Vec<cdda_content::mapdata::MapData> = loaded
+        .into_iter()
+        .filter(|prototype| prototype.kind == cdda_content::mapdata::MapDataKind::Terrain)
+        .collect();
+    let terrains = terrain.len();
+    let (table, codes) = cdda_sim::terrain_table::TerrainTable::from_map_data(terrain);
+
+    let floor = codes.get("t_floor").copied().expect("the data has a floor");
+    assert_eq!(table.move_cost(floor), Some(2), "a floor costs two to stand on");
+    let wall = codes.get("t_wall").copied().expect("the data has a wall");
+    assert_eq!(
+        table.move_cost(wall),
+        Some(0),
+        "a wall costs nothing to stand on, which means it cannot be entered at all"
+    );
+    assert!(
+        terrains > 1_000,
+        "only {terrains} of {seen} prototypes were terrain, which is too few to be the corpus"
+    );
+    assert!(
+        codes.len() == terrains,
+        "every terrain got a code: {} codes for {terrains} terrains",
+        codes.len()
+    );
+}
+
 /// A prototype becomes a code in exactly one place, and its move cost comes with it.
 ///
 /// The fixture is written here rather than read from the corpus dump on purpose: the dump states
