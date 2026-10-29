@@ -192,3 +192,23 @@ cargo xtask frames scenarios/visual/inventory.json
 the gate that proves it, and any declared divergence. It is updated in the same
 change that ports the system, and it is the only place status lives — not in
 chat, not in memory.
+
+---
+
+## The headless game (`crates/cli`)
+
+`cdda-cli` runs the same store and the same schedule the game will, with no window. It is the surface
+a scenario is played, dumped and diffed through:
+
+| Command | What it answers |
+|---|---|
+| `cdda-cli play [--turns N] [--seed S]` | runs N turns and prints how many squares each one changed, and where the first change was |
+| `cdda-cli store` | every kind of component in the world and how many things carry it |
+| `cdda-cli square X Y Z` | everything standing on one square, with each component's value |
+| `cdda-cli index` | whether every positioned thing is found where it stands; exits non-zero if not |
+
+The demo world is one submap of flammable floor with a fire on it, so a turn has something to do. The
+reporting comes from `cdda_sim::inspect`, which names components from its own table (the ECS can only
+name them when built with a debug feature this port does not need) and fingerprints a square by its
+entities and their values, so `play` can say which squares a turn changed rather than only that
+something happened.

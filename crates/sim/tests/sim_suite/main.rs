@@ -150,6 +150,7 @@ mod transform_apply;
 mod transform_can_use;
 mod turn_falling;
 mod turn_schedule;
+mod inspect_surface;
 mod turn_light;
 mod vision_levels;
 mod weather;

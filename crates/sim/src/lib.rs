@@ -18,6 +18,7 @@ pub mod singletons;
 pub mod square;
 pub mod fire_facts;
 pub mod turn;
+pub mod inspect;
 pub use square::load_level;
 pub mod skills;
 pub use singletons::{
