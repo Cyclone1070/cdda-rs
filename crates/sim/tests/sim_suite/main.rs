@@ -44,6 +44,7 @@ mod craft_progress;
 mod craft_time;
 mod crafting;
 mod creatures;
+mod pathfinding;
 mod death;
 mod degradation;
 mod digest;
