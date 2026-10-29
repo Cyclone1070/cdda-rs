@@ -17,6 +17,7 @@
 //! lines is worse than one that refuses to run.
 
 pub mod capture;
+pub mod qa;
 pub mod png;
 
 use bevy_ecs::prelude::*;

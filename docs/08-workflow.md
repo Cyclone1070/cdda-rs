@@ -207,6 +207,7 @@ a scenario is played, dumped and diffed through:
 | `cdda-cli square X Y Z` | everything standing on one square, with each component's value |
 | `cdda-cli index` | whether every positioned thing is found where it stands; exits non-zero if not |
 | `cdda-cli shot FILE [--radius N]` | draws the view around the fire and writes it as a PNG |
+| `cdda-cli qa` | runs every check and prints one table; exits non-zero if anything is not green |
 
 The demo world is one submap of flammable floor with a fire on it, so a turn has something to do. The
 reporting comes from `cdda_sim::inspect`, which names components from its own table (the ECS can only
@@ -255,3 +256,19 @@ every row, zlib stored blocks. That makes it uncompressed and exactly reproducib
 capture needs - two runs over the same world write the same bytes, so a picture can be diffed the way
 a dump is. Verified by decoding: a 104x104 capture decompresses to 43,368 bytes, which is
 104 rows of (one filter byte + 416).
+
+### The QA table
+
+`cdda-cli qa` prints one row per check and exits non-zero if any row is not green:
+
+```text
+check                                                   cases  result
+corpus: every JSON file parses                           115  pass
+scenarios: every playtest passes                           2  pass
+index: every positioned thing is found where it stands   433  pass
+```
+
+Every check answers the same three things: what it looked at, how many cases it compared, and what
+did not hold. **A check that compared nothing is a failure, not a pass** - a gate that reads zero
+files and calls itself green is the worst thing in a repository, so `Check::green` requires
+`cases > 0`.

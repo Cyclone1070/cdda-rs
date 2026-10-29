@@ -32,6 +32,7 @@ fn main() {
         "square" => square(&rest[..]),
         "playtest" => playtest(&rest[..]),
         "shot" => shot(&rest[..]),
+        "qa" => qa(),
         "index" => index(),
         other => {
             eprintln!("unknown command `{other}`");
@@ -50,7 +51,8 @@ fn usage() {
          \x20 store                          what the world holds, by kind\n\
          \x20 square X Y Z                   everything standing on one square\n\
          \x20 index                          whether the index agrees with the store\n\
-         \x20 shot FILE [--radius N]          draw the view around the fire and write it as a PNG"
+         \x20 shot FILE [--radius N]          draw the view around the fire and write it as a PNG\n\
+         \x20 qa                             run every check and print the table"
     );
 }
 
@@ -151,6 +153,28 @@ fn playtest(args: &[String]) {
             std::process::exit(2);
         }
     }
+}
+
+fn qa() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let mut world = World::new();
+    load_demo_world(&mut world);
+    let checks = vec![
+        cdda_cli::qa::corpus(&root.join("corpus")),
+        cdda_cli::qa::scenarios(&root.join("scenarios")),
+        cdda_cli::qa::index_matches_the_store(&mut world),
+    ];
+    print!("{}", cdda_cli::qa::report(&checks));
+    let green = checks.iter().all(cdda_cli::qa::Check::green);
+    println!(
+        "\n{}",
+        if green {
+            "all checks green"
+        } else {
+            "something is not green"
+        }
+    );
+    std::process::exit(i32::from(!green));
 }
 
 fn shot(args: &[String]) {
