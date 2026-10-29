@@ -127,6 +127,8 @@ pub fn run_turn(world: &mut World) {
 
 fn creatures_stage(world: &mut World) {
     note(world, TurnStage::Creatures);
+    // The dead are cleared before anything acts, so a creature killed this turn does not also walk.
+    crate::creature::reap_dead_creatures(world);
     crate::creature::take_turns(world);
 }
 

@@ -120,3 +120,52 @@ fn creature_turns_run_in_the_declared_stage_of_a_real_turn() {
     cdda_sim::turn::run_turn(&mut world);
     assert_eq!(creature_at(&world, (2, 0, 0)), vec![you], "and the next turn arrives");
 }
+
+/// A creature at zero life comes off the field, and the index does not keep its ghost.
+///
+/// Reference: `monster::is_dead_state` is `hp <= 0` (`monster.cpp:2065`) and the turn removes what it finds
+/// dead. The index is derived from the store, so a despawn that left an entry behind would be a second
+/// source of truth wearing a small hat.
+#[test]
+fn the_dead_come_off_the_field_and_leave_no_ghost() {
+    let mut world = corridor(3, &[]);
+    let alive = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let doomed = spawn_creature(&mut world, "a shambler", (1, 0, 0));
+    cdda_sim::creature::set_health(&mut world, alive, 10);
+    cdda_sim::creature::set_health(&mut world, doomed, 0);
+
+    let cleared = cdda_sim::creature::reap_dead_creatures(&mut world);
+
+    assert_eq!(cleared, 1, "one body was cleared");
+    assert_eq!(
+        creature_at(&world, (1, 0, 0)),
+        Vec::new(),
+        "the square it stood on is empty"
+    );
+    assert!(
+        world.get_entity(doomed).is_err(),
+        "and the entity itself is gone rather than merely hidden"
+    );
+    assert_eq!(creature_at(&world, (0, 0, 0)), vec![alive], "the living stay");
+    assert_eq!(
+        cdda_sim::creature::reap_dead_creatures(&mut world),
+        0,
+        "a second sweep finds nothing to do"
+    );
+}
+
+#[test]
+fn a_dead_creature_does_not_take_its_turn() {
+    let mut world = corridor(3, &[]);
+    let doomed = spawn_creature(&mut world, "a shambler", (0, 0, 0));
+    cdda_sim::creature::set_health(&mut world, doomed, -5);
+    cdda_sim::creature::set_speed(&mut world, doomed, 100, 0);
+    cdda_sim::creature::set_goal(&mut world, doomed, (2, 0, 0));
+
+    cdda_sim::turn::run_turn(&mut world);
+
+    assert!(
+        creature_at(&world, (0, 0, 0)).is_empty(),
+        "it is gone before it could walk, because the turn reaps before creatures act"
+    );
+}

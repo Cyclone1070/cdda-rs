@@ -225,6 +225,33 @@ pub fn health_of(world: &World, entity: Entity) -> Option<i32> {
     world.get::<Health>(entity).map(|health| health.hp)
 }
 
+/// A creature with no [`Health`] is not tracked, not dead: the reference gives every monster a hit-point
+/// pool from its type, and this port has not carried that number across yet, so a creature that nothing has
+/// given health to must be alive rather than a body. [`reap_dead_creatures`] therefore asks for `&Health`
+/// explicitly, and "no health" cannot mean "zero health".
+///
+/// Clears every creature whose life has run out, and takes it out of the index too.
+///
+/// Reference: `monster::is_dead_state` (`monster.cpp:2065`) is `hp <= 0`, and the turn removes what it finds
+/// dead. The index entry is removed here by hand because the index is a cache of the store: dropping only the
+/// entity would leave a square claiming an occupant that no longer exists, which is the failure the
+/// architecture gate calls a ghost.
+///
+/// Returns how many were cleared.
+pub fn reap_dead_creatures(world: &mut World) -> usize {
+    let dead: Vec<(Entity, (i32, i32, i32))> = world
+        .query::<(Entity, &Health, &Position)>()
+        .iter(world)
+        .filter(|(_, health, _)| health.hp <= 0)
+        .map(|(entity, _, position)| (entity, (position.x, position.y, position.z)))
+        .collect();
+    for (entity, square) in &dead {
+        crate::singletons::index_mut(world).remove(*entity, *square);
+        world.despawn(*entity);
+    }
+    dead.len()
+}
+
 /// Where a creature is trying to get to.
 ///
 /// Reference: a monster's `goal` (`src/monster.h`), which `monster::move` walks towards and drops when it
@@ -291,10 +318,6 @@ pub fn spawn_creature(world: &mut World, name: &str, square: (i32, i32, i32)) ->
             },
             Moves::default(),
             Speed::default(),
-            Health {
-                hp: 0,
-                max_hp: 0,
-            },
         ))
         .id();
     crate::singletons::index_mut(world).insert(entity, square);
