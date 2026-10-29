@@ -479,39 +479,14 @@ impl Level {
         facts: impl Fn(i32, i32) -> crate::transparency::SquareFacts,
         light: &mut BTreeMap<(i32, i32), crate::shadowcasting::FourQuadrants>,
     ) {
-        let buffered = self.buffered.clone();
-        // The reference zeroes the buffer at the start of every build (`lightmap.cpp:463-464`); the port drains it here, which is the same statement at the other end.
-        self.buffered.clear();
-        for ((x, y), luminance) in &buffered {
-            let (x, y, luminance) = (*x, *y, *luminance);
-            let mut allow = [true; crate::shadowcasting::OCTANTS];
-            for (index, direction) in crate::shadowcasting::OCTANT_DIRECTIONS.iter().enumerate() {
-                let neighbour = match direction {
-                    crate::shadowcasting::Direction::North => (x, y - 1),
-                    crate::shadowcasting::Direction::East => (x + 1, y),
-                    crate::shadowcasting::Direction::South => (x, y + 1),
-                    crate::shadowcasting::Direction::West => (x - 1, y),
-                };
-                // `< luminance`, not `<=`: a neighbour that is **not** brighter fails the test and the direction is skipped.
-                if buffered
-                    .get(&neighbour)
-                    .is_some_and(|theirs| *theirs >= luminance)
-                    && let Some(slot) = allow.get_mut(index)
-                {
-                    *slot = false;
-                }
-            }
-            self.apply_light_source_where(
-                &Source {
-                    at: (x, y),
-                    luminance,
-                    sight_penalty,
-                    facts: &facts,
-                },
-                light,
-                allow,
-            );
-        }
+        let buffered = std::mem::take(&mut self.buffered);
+        apply_buffered_sources(
+            &buffered,
+            sight_penalty,
+            &|x, y| self.terrain_at(x, y).is_some(),
+            facts,
+            light,
+        );
     }
 
     /// Whether a square can be seen from an origin, using the cached cast.
@@ -804,3 +779,48 @@ pub fn cast_light_source(
         }
     }
 }
+
+/// Casts every buffered source, skipping a direction a brighter neighbour already covers.
+///
+/// Reference: the second phase of `map::generate_lightmap` (`src/lightmap.cpp:654-659`) calling
+/// `apply_light_source`. The level's method is this with its own buffer; a store that keeps its
+/// squares as entities keeps the buffer itself and passes it in.
+pub fn apply_buffered_sources(
+    buffered: &BTreeMap<(i32, i32), f32>,
+    sight_penalty: f32,
+    exists: &dyn Fn(i32, i32) -> bool,
+    facts: impl Fn(i32, i32) -> crate::transparency::SquareFacts,
+    light: &mut BTreeMap<(i32, i32), crate::shadowcasting::FourQuadrants>,
+) {
+    for ((x, y), luminance) in buffered {
+            let (x, y, luminance) = (*x, *y, *luminance);
+            let mut allow = [true; crate::shadowcasting::OCTANTS];
+            for (index, direction) in crate::shadowcasting::OCTANT_DIRECTIONS.iter().enumerate() {
+                let neighbour = match direction {
+                    crate::shadowcasting::Direction::North => (x, y - 1),
+                    crate::shadowcasting::Direction::East => (x + 1, y),
+                    crate::shadowcasting::Direction::South => (x, y + 1),
+                    crate::shadowcasting::Direction::West => (x - 1, y),
+                };
+                // `< luminance`, not `<=`: a neighbour that is **not** brighter fails the test and the direction is skipped.
+                if buffered
+                    .get(&neighbour)
+                    .is_some_and(|theirs| *theirs >= luminance)
+                    && let Some(slot) = allow.get_mut(index)
+                {
+                    *slot = false;
+                }
+            }
+        cast_light_source(
+            &Source {
+                at: (x, y),
+                luminance,
+                sight_penalty,
+                facts: &facts,
+            },
+            exists,
+            light,
+            allow,
+        );
+        }
+    }
