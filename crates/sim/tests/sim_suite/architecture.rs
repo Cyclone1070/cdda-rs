@@ -81,11 +81,11 @@ fn boxed_squares() -> Vec<(i32, i32, i32)> {
 /// trusting its internals.
 fn index_pairs(world: &mut World) -> Vec<(Entity, (i32, i32, i32))> {
     let mut found = Vec::new();
+    let Some(index) = cdda_sim::index(world) else {
+        return found;
+    };
     for square in boxed_squares() {
-        for entity in world
-            .resource::<PositionIndex>()
-            .at_level(square.0, square.1, square.2)
-        {
+        for entity in index.at_level(square.0, square.1, square.2) {
             found.push((*entity, square));
         }
     }
@@ -264,7 +264,6 @@ fn no_entity_is_an_empty_shelf() {
 /// component, so this list may only ever shrink.
 const GLOBALS: &[&str] = &[
     "Map",
-    "PositionIndex",
 ];
 
 fn workspace() -> std::path::PathBuf {

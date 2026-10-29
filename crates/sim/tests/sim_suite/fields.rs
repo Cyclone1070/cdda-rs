@@ -31,7 +31,7 @@ fn world_with_smoke(x: i32, y: i32, half_life: i64) -> (World, Entity) {
 fn a_field_is_a_thing_with_a_square_a_strength_and_an_age() {
     let (mut world, entity) = world_with_smoke(4, 5, 5);
     PositionIndex::rebuild(&mut world);
-    assert!(world.resource::<PositionIndex>().at(4, 5).contains(&entity));
+    assert!(cdda_sim::index(&world).expect("the index").at(4, 5).contains(&entity));
     let field = world.get::<Field>(entity).expect("the smoke exists");
     assert_eq!(field.id, FieldId(1));
     assert_eq!(field.entry.intensity(), 3);
@@ -50,7 +50,7 @@ fn the_field_system_ages_it_and_dying_fields_leave_the_store() {
         "the smoke is gone from the store"
     );
     PositionIndex::rebuild(&mut world);
-    assert_eq!(world.resource::<PositionIndex>().occupied_squares(), 0);
+    assert_eq!(cdda_sim::index(&world).expect("the index").occupied_squares(), 0);
 }
 
 #[test]

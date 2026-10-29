@@ -38,7 +38,7 @@ fn things_are_entities_with_a_position_and_the_grid_finds_them() {
         .id();
 
     PositionIndex::rebuild(&mut world);
-    let index = world.resource::<PositionIndex>();
+    let index = cdda_sim::index(&world).expect("the index");
     let here = index.at(3, 4);
     assert_eq!(here.len(), 2, "a square holds both smoke and a person");
     assert!(here.contains(&smoke));
@@ -59,7 +59,7 @@ fn a_new_kind_of_thing_needs_no_new_container() {
         .spawn((Position { x: 1, y: 1, z: 0 }, Blood { age: 0 }))
         .id();
     PositionIndex::rebuild(&mut world);
-    assert!(world.resource::<PositionIndex>().at(1, 1).contains(&blood));
+    assert!(cdda_sim::index(&world).expect("the index").at(1, 1).contains(&blood));
 }
 
 #[test]
@@ -69,13 +69,13 @@ fn moving_a_thing_moves_it_in_the_grid_once_the_grid_is_rebuilt() {
         .spawn((Position { x: 2, y: 2, z: 0 }, Person { name: "Ada" }))
         .id();
     PositionIndex::rebuild(&mut world);
-    assert!(world.resource::<PositionIndex>().at(2, 2).contains(&person));
+    assert!(cdda_sim::index(&world).expect("the index").at(2, 2).contains(&person));
 
     if let Some(mut position) = world.get_mut::<Position>(person) {
         position.x = 5;
     }
     PositionIndex::rebuild(&mut world);
-    let index = world.resource::<PositionIndex>();
+    let index = cdda_sim::index(&world).expect("the index");
     assert!(
         index.at(2, 2).is_empty(),
         "the old square no longer holds it"
@@ -90,9 +90,9 @@ fn despawning_a_thing_removes_it_from_the_grid() {
         .spawn((Position { x: 7, y: 7, z: 0 }, Person { name: "Ada" }))
         .id();
     PositionIndex::rebuild(&mut world);
-    assert_eq!(world.resource::<PositionIndex>().occupied_squares(), 1);
+    assert_eq!(cdda_sim::index(&world).expect("the index").occupied_squares(), 1);
 
     world.despawn(person);
     PositionIndex::rebuild(&mut world);
-    assert_eq!(world.resource::<PositionIndex>().occupied_squares(), 0);
+    assert_eq!(cdda_sim::index(&world).expect("the index").occupied_squares(), 0);
 }

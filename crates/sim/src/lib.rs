@@ -17,10 +17,11 @@ pub mod effects;
 pub mod singletons;
 pub mod skills;
 pub use singletons::{
-    TheFallingQueue, TheFieldRules, TheMemory, TheRadiation, TheScent, TheScentTable, TheClimate, TheFieldTable, TheLight, ThePrototypes, TheWeather,
+    TheFallingQueue, TheFieldRules, TheMemory, TheRadiation, TheScent, TheIndex, ThePrototypes, TheScentTable, TheClimate, TheFieldTable, TheLight, TheWeather,
     adjust_radiation,
     falling_queue_entity, field_rules, memory, memory_entity, queue_support_loss, radiation,
-    climate, climate_read, field_table, light, light_mut, prototypes, set_field_table,
+    climate, climate_read, field_table, index, index_mut, light, light_mut, prototypes,
+    set_field_table,
     set_prototypes, set_weather, scent_table, weather, set_climate, set_field_rules, set_scent_table,
     singleton, support_lost,
 };
@@ -74,7 +75,7 @@ impl Position {
 ///
 /// Reference: D2. Rebuilt from the World, never edited directly and never authoritative: if it
 /// disagrees with the World, it is wrong.
-#[derive(Debug, Default, Resource)]
+#[derive(Debug, Default, Component)]
 pub struct PositionIndex {
     squares: BTreeMap<(i32, i32, i32), Vec<Entity>>,
 }
@@ -90,7 +91,7 @@ impl PositionIndex {
                 .or_default()
                 .push(entity);
         }
-        world.insert_resource(Self { squares });
+        *singletons::index_mut(world) = Self { squares };
     }
 
     /// Everything standing on a square at street level, in spawn order.

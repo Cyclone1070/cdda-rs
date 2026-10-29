@@ -128,9 +128,10 @@ pattern is the same one as for a wall:
 `field_rules` are the first four converted. Asking twice returns the same entity, which is how
 "there is exactly one" is tested rather than assumed.
 
-The rest of the globals are still globals: `Climate`, `FieldTable`, `Light`, `Map`,
-`PositionIndex`, `Prototypes`, `Scent`, `ScentTable`, `Weather`. The architecture gate counts
-them and they may only shrink.
+Twelve of the thirteen have moved: `SupportLost` (the falling queue), `Radiation`, `Memory`,
+`FieldRules`, `Scent`, `ScentTable`, `Climate`, `FieldTable`, `Weather`, `Light`, `Prototypes` and
+`PositionIndex`. One is left: `Map`, whose per-square ground store is the next piece of work. The
+architecture gate counts what remains and it may only shrink.
 
 ### Rules are data carried by entities
 

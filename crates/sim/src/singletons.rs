@@ -20,7 +20,7 @@ use crate::falling::FieldRules;
 use crate::memory::Memory;
 use crate::field_table::FieldTable;
 use crate::weather::Weather;
-use crate::{Light, Prototypes};
+use crate::{Light, PositionIndex, Prototypes};
 use crate::scent_table::ScentTable;
 use crate::weather::Climate;
 use crate::radiation::Radiation;
@@ -146,6 +146,30 @@ pub fn set_prototypes(world: &mut World, prototypes: Prototypes) {
     let entity = singleton::<Prototypes, ThePrototypes>(world);
     if let Some(mut slot) = world.get_mut::<Prototypes>(entity) {
         *slot = prototypes;
+    }
+}
+
+/// Marks the one entity that carries the derived square index.
+#[derive(Debug, Default, Component)]
+pub struct TheIndex;
+
+/// The square index, if it has been built.
+#[must_use]
+pub fn index(world: &World) -> Option<&PositionIndex> {
+    world.iter_entities().find_map(|entity| entity.get::<PositionIndex>())
+}
+
+/// The square index, made empty if nothing has built it yet.
+///
+/// # Panics
+///
+/// Panics if the entity found does not carry the index, which cannot happen: it is found by having
+/// it, and spawned with it.
+pub fn index_mut(world: &mut World) -> Mut<'_, PositionIndex> {
+    let entity = singleton::<PositionIndex, TheIndex>(world);
+    match world.get_mut::<PositionIndex>(entity) {
+        Some(index) => index,
+        None => unreachable!("the index entity was just spawned with its index"),
     }
 }
 

@@ -45,7 +45,7 @@ fn the_index_keeps_floors_apart() {
     let ground = smoke(&mut world, 3, 4, 0, 2);
     let cellar = smoke(&mut world, 3, 4, -1, 1);
     PositionIndex::rebuild(&mut world);
-    let index = world.resource::<PositionIndex>();
+    let index = cdda_sim::index(&world).expect("the index");
     assert_eq!(index.at_level(3, 4, 0), &[ground]);
     assert_eq!(index.at_level(3, 4, -1), &[cellar]);
     assert_eq!(index.at(3, 4), &[ground], "`at` is street level");
