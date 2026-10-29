@@ -388,3 +388,99 @@ fn the_simulation_holds_no_shared_or_raw_pointers() {
         offenders.join("\n")
     );
 }
+
+/// The per-square arrays the simulation still holds, by type name. Like the global ledger this may
+/// only shrink: a result that is a property of a place is a component on the place, and a square is
+/// an entity like anything else.
+const PER_SQUARE_ARRAYS: &[&str] = &["MapFacts", "Radiation"];
+
+/// The index is the one array of the architecture: every square to the things standing on it. It is
+/// derived, it is never authoritative, and a gate below proves it agrees with the store. It is named
+/// here so the scan can skip it rather than needing a ledger line that excuses it.
+const THE_INDEX: &str = "PositionIndex";
+
+/// The types in the simulation that hold a collection keyed by a square.
+fn per_square_types() -> std::collections::BTreeMap<String, String> {
+    let needles = [
+        "BTreeMap<(i32, i32, i32)",
+        "HashMap<(i32, i32, i32)",
+        "Vec<Vec<",
+        "Vec<(i32, i32, i32)>",
+    ];
+    let mut found = std::collections::BTreeMap::new();
+    for (path, text) in sources() {
+        if !path.contains("/sim/src/") {
+            continue;
+        }
+        let mut current: Option<(String, usize)> = None;
+        let mut depth = 0_usize;
+        for (index, line) in text.lines().enumerate() {
+            let code = line.split("//").next().unwrap_or("");
+            if let Some(after) = code.split("struct ").nth(1)
+                && current.is_none()
+            {
+                let name: String = after
+                    .chars()
+                    .take_while(|c| c.is_alphanumeric() || *c == '_')
+                    .collect();
+                if !name.is_empty() && name != THE_INDEX {
+                    current = Some((name, index + 1));
+                }
+            }
+            if let Some((name, line_number)) = &current {
+                for needle in needles {
+                    if code.contains(needle) {
+                        found.insert(
+                            name.clone(),
+                            format!("{path}:{line_number} holds `{needle}`"),
+                        );
+                    }
+                }
+                depth += code.matches('{').count();
+                depth = depth.saturating_sub(code.matches('}').count());
+                if depth == 0 && code.contains('}') {
+                    current = None;
+                }
+            }
+        }
+    }
+    found
+}
+
+#[test]
+fn no_component_holds_a_per_square_array() {
+    let found = per_square_types();
+    let expected: std::collections::BTreeSet<&str> = PER_SQUARE_ARRAYS.iter().copied().collect();
+    let actual: std::collections::BTreeSet<&str> = found.keys().map(String::as_str).collect();
+    let mut message = String::new();
+    for name in actual.difference(&expected) {
+        let _ = writeln!(message, "\n  added `{name}` at {}", found[*name]);
+    }
+    for name in expected.difference(&actual) {
+        let _ = writeln!(
+            message,
+            "\n  `{name}` is listed but no longer holds one - if it moved onto entities, drop the line"
+        );
+    }
+    assert!(
+        message.is_empty(),
+        "the set of per-square arrays changed:\n{message}\n\
+         A square's answer is a component on the square. An array keyed by position is a second \
+         place to look for the truth, and this list may only shrink."
+    );
+    assert_eq!(
+        found.len(),
+        PER_SQUARE_ARRAYS.len(),
+        "the ledger is not seeing the arrays it expects, so it is checking nothing"
+    );
+}
+
+#[test]
+fn the_per_square_ledger_is_not_empty_by_accident() {
+    // The gate above passes trivially if the scan finds nothing at all, so this proves it can see.
+    let found = per_square_types();
+    assert!(
+        found.contains_key("MapFacts") && found.contains_key("Radiation"),
+        "the scan must at least find the array that is still there: {found:?}"
+    );
+}
