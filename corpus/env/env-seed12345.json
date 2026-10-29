@@ -1,5 +1,5 @@
-{"harness":"environment","version":1,
+{"harness":"environment","version":2,
 "rng_next":[2139136712,1446984157,1357908071,1052232628],
-"turn":0,"season":0,"day_of_season":0,"hour":0,"sunrise":18056,"sunset":70893,
+"turn":0,"season":0,"day_of_season":0,"hour":0,"sunrise":21478,"sunset":65767,
 "options":{"SEASON_LENGTH":91,"ETERNAL_SEASON":false,"ETERNAL_TIME_OF_DAY":"normal","MONSTER_SPEED":100,"SPAWN_DENSITY":1.000000}
 }
