@@ -31,6 +31,7 @@ fn main() {
         }
         "square" => square(&rest[..]),
         "playtest" => playtest(&rest[..]),
+        "shot" => shot(&rest[..]),
         "index" => index(),
         other => {
             eprintln!("unknown command `{other}`");
@@ -48,7 +49,8 @@ fn usage() {
          \x20 play [--turns N] [--seed S]   run turns and report what each one changed\n\
          \x20 store                          what the world holds, by kind\n\
          \x20 square X Y Z                   everything standing on one square\n\
-         \x20 index                          whether the index agrees with the store"
+         \x20 index                          whether the index agrees with the store\n\
+         \x20 shot FILE [--radius N]          draw the view around the fire and write it as a PNG"
     );
 }
 
@@ -149,6 +151,30 @@ fn playtest(args: &[String]) {
             std::process::exit(2);
         }
     }
+}
+
+fn shot(args: &[String]) {
+    let Some(path) = args.first() else {
+        eprintln!("shot needs a file to write");
+        std::process::exit(2);
+    };
+    let radius = number(args.get(1..).unwrap_or(&[]), "--radius").unwrap_or(15);
+    let mut world = World::new();
+    load_demo_world(&mut world);
+    let radius = i32::try_from(radius).unwrap_or(15);
+    cdda_sim::turn::run_turn(&mut world);
+    let capture = cdda_cli::capture::draw(&mut world, (6, 6), radius);
+    if let Err(error) = std::fs::write(path, capture.image.png()) {
+        eprintln!("cannot write `{path}`: {error}");
+        std::process::exit(2);
+    }
+    println!(
+        "wrote {path}: {} by {} pixels, {} squares across, {} of them lit",
+        capture.image.width,
+        capture.image.height,
+        capture.squares_across,
+        capture.lit_squares
+    );
 }
 
 fn square(args: &[String]) {

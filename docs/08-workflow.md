@@ -206,6 +206,7 @@ a scenario is played, dumped and diffed through:
 | `cdda-cli store` | every kind of component in the world and how many things carry it |
 | `cdda-cli square X Y Z` | everything standing on one square, with each component's value |
 | `cdda-cli index` | whether every positioned thing is found where it stands; exits non-zero if not |
+| `cdda-cli shot FILE [--radius N]` | draws the view around the fire and writes it as a PNG |
 
 The demo world is one submap of flammable floor with a fire on it, so a turn has something to do. The
 reporting comes from `cdda_sim::inspect`, which names components from its own table (the ECS can only
@@ -240,3 +241,17 @@ A line nobody understands stops the run and names the line and the word; a scena
 ignored half its lines would be worse than one that refuses to start. Every scenario committed in
 `scenarios/` is run by `cargo test -p cdda-cli`, so a playtest that no longer holds fails the suite
 instead of sitting in the tree unexecuted.
+
+### Captures
+
+`cdda-cli shot out.png --radius 6` writes a PNG of the view: one cell per square, tinted by the glyph
+the interface would draw there and shaded by the square's light, with a notch in the corner of any
+square the character is remembering rather than looking at. It is not a bitmap-font renderer: the
+text art is `Frame::text()`, and a font here would be a second thing to keep in step with the data
+while there is still no screen.
+
+The encoder is in `crates/cli/src/png.rs` and has no dependency: 8-bit RGBA, filter type zero on
+every row, zlib stored blocks. That makes it uncompressed and exactly reproducible, which is what a
+capture needs - two runs over the same world write the same bytes, so a picture can be diffed the way
+a dump is. Verified by decoding: a 104x104 capture decompresses to 43,368 bytes, which is
+104 rows of (one filter byte + 416).

@@ -16,6 +16,9 @@
 //! script does not understand is an error, not a comment - a scenario that silently ignores half its
 //! lines is worse than one that refuses to run.
 
+pub mod capture;
+pub mod png;
+
 use bevy_ecs::prelude::*;
 
 /// One step of a scenario.
