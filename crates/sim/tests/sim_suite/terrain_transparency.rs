@@ -38,7 +38,7 @@ fn level_with(code: u32) -> World {
 
 /// Puts the prototypes into the world, which is where the cast reads them from now.
 fn load(world: &mut World, table: &TerrainTable) {
-    world.insert_resource(Prototypes {
+    cdda_sim::set_prototypes(world, Prototypes {
         terrain: table.clone(),
         furniture: TerrainTable::new(),
     });
@@ -183,7 +183,7 @@ fn an_opaque_table_on_a_glass_floor_is_opaque() {
     let behind_the_table = {
         let mut world = level_with(1);
         load(&mut world, &table);
-        world.insert_resource(Prototypes {
+        cdda_sim::set_prototypes(&mut world, Prototypes {
             terrain: table.clone(),
             furniture: table.clone(),
         });
@@ -216,7 +216,7 @@ fn furniture_that_is_see_through_does_not_stop_the_ray() {
     let through = {
         let mut world = level_with(1);
         load(&mut world, &table);
-        world.insert_resource(Prototypes {
+        cdda_sim::set_prototypes(&mut world, Prototypes {
             terrain: table.clone(),
             furniture: table.clone(),
         });

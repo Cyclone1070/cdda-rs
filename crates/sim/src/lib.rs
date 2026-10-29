@@ -17,10 +17,11 @@ pub mod effects;
 pub mod singletons;
 pub mod skills;
 pub use singletons::{
-    TheFallingQueue, TheFieldRules, TheMemory, TheRadiation, TheScent, TheScentTable, TheClimate, TheFieldTable, TheLight, TheWeather,
+    TheFallingQueue, TheFieldRules, TheMemory, TheRadiation, TheScent, TheScentTable, TheClimate, TheFieldTable, TheLight, ThePrototypes, TheWeather,
     adjust_radiation,
     falling_queue_entity, field_rules, memory, memory_entity, queue_support_loss, radiation,
-    climate, climate_read, field_table, light, light_mut, set_field_table, set_weather, scent_table, weather, set_climate, set_field_rules, set_scent_table,
+    climate, climate_read, field_table, light, light_mut, prototypes, set_field_table,
+    set_prototypes, set_weather, scent_table, weather, set_climate, set_field_rules, set_scent_table,
     singleton, support_lost,
 };
 pub mod food_summary;
@@ -1184,7 +1185,7 @@ pub const SOLID_TERRAIN: u32 = 0;
 /// Two instances of the same type rather than one, because terrain and furniture are separate id spaces and code three means two different things. Keeping them in one
 /// resource also means a query does not have to be handed the tables it needs - the world already carries them, the way the reference's world carries its prototype
 /// registry.
-#[derive(Debug, Clone, Default, Resource)]
+#[derive(Debug, Clone, Default, Component)]
 pub struct Prototypes {
     /// What each terrain code says about light.
     pub terrain: terrain_table::TerrainTable,
@@ -1216,7 +1217,7 @@ pub fn sees_through_fields(
     let Some(map) = world.get_resource::<Map>() else {
         return false;
     };
-    let prototypes = world.get_resource::<Prototypes>();
+    let prototypes = singletons::prototypes(world);
     let (terrain, furniture) = match prototypes {
         Some(prototypes) => (&prototypes.terrain, &prototypes.furniture),
         // Nothing loaded: every square is air, which is the honest answer for a world with no prototypes rather than a reason to refuse to look.
@@ -1298,7 +1299,7 @@ impl FieldOpacityGrid {
 pub fn cast_lights_with(world: &mut World) {
     let sight_penalty = singletons::weather(world).unwrap_or_default().sight_penalty();
     // The sky map: an `INDOORS` flag on either layer covers the three-by-three block around it (`build_outside_cache`).
-    let (terrain, furniture) = world.get_resource::<Prototypes>().map_or_else(
+    let (terrain, furniture) = singletons::prototypes(world).map_or_else(
         || {
             (
                 terrain_table::TerrainTable::new(),
@@ -1383,8 +1384,7 @@ fn light_sources(world: &mut World) -> LightSources {
             for x in 0..side {
                 let code = map.0.terrain_at(as_i32(x), as_i32(y)).unwrap_or(0);
                 let furniture_code = map.0.furniture_at(as_i32(x), as_i32(y)).unwrap_or(0);
-                let emitted = world
-                    .get_resource::<Prototypes>()
+                let emitted = singletons::prototypes(world)
                     .map_or(0.0, |prototypes| {
                         prototypes
                             .terrain
@@ -1558,7 +1558,7 @@ pub fn cast_sunlight(
 /// `prev_floor_cache` would say about a hut - and it is why daylight still reaches a square just inside a doorway, from the cardinal that is in the open.
 pub fn cast_sunlight_with(world: &mut World, turns: f64) {
     let sight_penalty = singletons::weather(world).unwrap_or_default().sight_penalty();
-    let (terrain, furniture) = world.get_resource::<Prototypes>().map_or_else(
+    let (terrain, furniture) = singletons::prototypes(world).map_or_else(
         || {
             (
                 terrain_table::TerrainTable::new(),

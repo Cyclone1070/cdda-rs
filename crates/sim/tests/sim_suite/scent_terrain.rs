@@ -30,7 +30,7 @@ fn world(marks: &[(i32, i32, u32)]) -> World {
         level.set_terrain(*x, *y, *code, AIR);
     }
     world.insert_resource(Map(level));
-    world.insert_resource(Prototypes::default());
+    cdda_sim::set_prototypes(&mut world, Prototypes::default());
 
     let mut scent = ScentTable::new();
     scent.insert(AIR, false, false);

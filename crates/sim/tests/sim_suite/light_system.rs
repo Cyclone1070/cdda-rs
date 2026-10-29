@@ -41,7 +41,7 @@ fn world_with_floor() -> World {
         }
     }
     world.insert_resource(Map(level));
-    world.insert_resource(prototypes());
+    cdda_sim::set_prototypes(&mut world, prototypes());
     set_field_table(&mut world, field_table());
     world
 }

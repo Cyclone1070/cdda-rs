@@ -25,7 +25,7 @@ fn world() -> World {
         }
     }
     world.insert_resource(Map(level));
-    world.insert_resource(Prototypes::default());
+    cdda_sim::set_prototypes(&mut world, Prototypes::default());
     set_field_table(&mut world, FieldTable::new());
     world
 }
@@ -112,7 +112,7 @@ fn daylight_reaches_a_square_just_inside_a_doorway_and_stops_one_step_further_in
     table.insert_indoors(7, true);
 
     let mut world = world();
-    world.insert_resource(Prototypes {
+    cdda_sim::set_prototypes(&mut world, Prototypes {
         terrain: table.clone(),
         furniture: TerrainTable::new(),
     });
@@ -154,7 +154,7 @@ fn a_roofed_square_takes_the_indoors_light_and_an_open_one_takes_the_sun() {
     table.insert_indoors(7, true);
 
     let mut world = world();
-    world.insert_resource(Prototypes {
+    cdda_sim::set_prototypes(&mut world, Prototypes {
         terrain: table.clone(),
         furniture: TerrainTable::new(),
     });

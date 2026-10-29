@@ -38,7 +38,7 @@ fn world(terrain: &[(i32, i32, u32)]) -> World {
     let mut fields = FieldTable::new();
     // The numbers are the loaded ones: `fd_smoke` is translucency 1, 10 and 0 at its three intensities (`field_type.json`).
     fields.insert(SMOKE, &[1.0, 10.0, 0.0]);
-    world.insert_resource(Prototypes {
+    cdda_sim::set_prototypes(&mut world, Prototypes {
         terrain: ground,
         furniture,
     });

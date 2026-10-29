@@ -34,7 +34,7 @@ fn world(rules: Rules) -> World {
         }
     }
     world.insert_resource(Map(level));
-    world.insert_resource(Prototypes::default());
+    cdda_sim::set_prototypes(&mut world, Prototypes::default());
     set_weather(&mut world, Weather::clear());
     set_climate(&mut world, Climate::new(rules));
     world

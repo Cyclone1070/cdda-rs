@@ -223,7 +223,7 @@ fn the_port_prints_every_plain_square_the_way_the_reference_prints_it() {
 
     let mut world = World::new();
     world.insert_resource(Map(level));
-    world.insert_resource(Prototypes {
+    cdda_sim::set_prototypes(&mut world, Prototypes {
         terrain,
         furniture: TerrainTable::new(),
     });

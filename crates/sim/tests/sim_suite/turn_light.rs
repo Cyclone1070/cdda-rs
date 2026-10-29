@@ -59,7 +59,7 @@ fn world() -> World {
     world.insert_resource(Map(level));
     let mut terrain = TerrainTable::new();
     terrain.insert(FLOOR, true);
-    world.insert_resource(Prototypes {
+    cdda_sim::set_prototypes(&mut world, Prototypes {
         terrain,
         furniture: TerrainTable::new(),
     });

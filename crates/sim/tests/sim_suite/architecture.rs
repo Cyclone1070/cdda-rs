@@ -265,7 +265,6 @@ fn no_entity_is_an_empty_shelf() {
 const GLOBALS: &[&str] = &[
     "Map",
     "PositionIndex",
-    "Prototypes",
 ];
 
 fn workspace() -> std::path::PathBuf {

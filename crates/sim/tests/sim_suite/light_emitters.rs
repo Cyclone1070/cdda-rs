@@ -36,7 +36,7 @@ fn world(marks: &[(i32, i32, u32)]) -> World {
     terrain.insert(LAMP, true);
     // A lamp terrain emits 120, which is what the data gives the lit carpet and the portal terrains (`terrain.json`).
     terrain.insert_light(LAMP, 120.0);
-    world.insert_resource(Prototypes {
+    cdda_sim::set_prototypes(&mut world, Prototypes {
         terrain,
         furniture: TerrainTable::new(),
     });

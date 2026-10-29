@@ -30,7 +30,7 @@ fn world(smoke: i32) -> World {
     let mut terrain = TerrainTable::new();
     terrain.insert(FLOOR, true);
     terrain.insert_symbol(FLOOR, '.');
-    world.insert_resource(Prototypes {
+    cdda_sim::set_prototypes(&mut world, Prototypes {
         terrain,
         furniture: TerrainTable::new(),
     });

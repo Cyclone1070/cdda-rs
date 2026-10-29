@@ -13,7 +13,7 @@ use cdda_core_types::vision::{View, lit_level_with};
 use std::collections::BTreeMap;
 
 use crate::memory::Memory;
-use crate::{Light, Map, Prototypes, field_opacity};
+use crate::{Light, Map, field_opacity};
 
 /// One square of a drawn frame.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -170,14 +170,12 @@ pub fn frame(
     vision_threshold: f32,
 ) -> Frame {
     assert!(radius >= 0, "a negative view distance is a caller bug");
-    let terrain = world
-        .get_resource::<Prototypes>()
+    let terrain = crate::singletons::prototypes(world)
         .map(|prototypes| prototypes.terrain.clone())
         .unwrap_or_default();
     // Furniture is a second layer of the transparency rule: either layer being opaque stops the ray (`lightmap.cpp:146-149`). Nothing here draws furniture glyphs yet, so the
     // layer only ever makes a square darker than its terrain.
-    let furniture = world
-        .get_resource::<Prototypes>()
+    let furniture = crate::singletons::prototypes(world)
         .map(|prototypes| prototypes.furniture.clone())
         .unwrap_or_default();
     // The frame draws one level, and furniture is not drawn yet, so the two layers' numbers are merged here by taking the more absorbing of the two for each code - the
