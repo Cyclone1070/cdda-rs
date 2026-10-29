@@ -83,10 +83,13 @@ fn quiet_turn(world: &mut World, map: &impl FireMap) {
 
 #[test]
 fn an_item_above_a_hole_falls_in_the_turn_and_the_queue_is_emptied() {
-    let map = Holed {
-        holes: vec![(0, 0, 0)],
-    };
+    let map = Holed { holes: Vec::new() };
     let mut world = World::new();
+    cdda_sim::fire_facts::set_fire_facts(
+        &mut world,
+        (0, 0, 0),
+        cdda_sim::TerrainFacts { no_floor: true, ..cdda_sim::TerrainFacts::default() },
+    );
     let item = item_at(&mut world, 0, 0, 0);
     queue_support_loss(&mut world, (0, 0, 0));
     quiet_turn(&mut world, &map);
@@ -117,10 +120,13 @@ fn an_item_on_a_square_with_a_floor_does_not_fall() {
 
 #[test]
 fn a_cosmetic_field_above_a_hole_falls_with_the_item() {
-    let map = Holed {
-        holes: vec![(30, 30, 0)],
-    };
+    let map = Holed { holes: Vec::new() };
     let mut world = World::new();
+    cdda_sim::fire_facts::set_fire_facts(
+        &mut world,
+        (30, 30, 0),
+        cdda_sim::TerrainFacts { no_floor: true, ..cdda_sim::TerrainFacts::default() },
+    );
     let mut entry = FieldEntry::new(3, 100, true, false);
     entry.set_intensity(1);
     let smoke = FieldId(7);

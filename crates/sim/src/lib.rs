@@ -16,6 +16,7 @@ pub mod digest;
 pub mod effects;
 pub mod singletons;
 pub mod square;
+pub mod fire_facts;
 pub use square::load_level;
 pub mod skills;
 pub use singletons::{
@@ -2308,7 +2309,7 @@ pub fn run_environment_turn(
     scent::advance_scent(world, scent_center, scent_deposit);
     // **Then what fell.** `do_turn.cpp:648-655` runs `scent.update`, then `map::build_floor_caches`, then `m.process_falling()`, and only then `m.process_fields()` - so a
     // thing that falls is aged by the same turn's field sweep rather than the next one. The queue is taken whole and cleared, which is why a square is asked once.
-    process_falling_turn(world, map);
+    process_falling_turn(world);
     // **The sweep, submap by submap in the reference's own order** (`map::process_fields`, `src/map_field.cpp:164-184`): ascending `(z, x, y)`, each submap's fires,
     // then its gases, then the ageing of every field the sweep found there. A field born in a submap the sweep has already passed waits for the next turn, which is why
     // a gas that falls keeps the age it was born with while one that spreads forward is aged in the same turn. A cursor rather than a list, because a field born in a
@@ -2387,13 +2388,15 @@ pub fn run_environment_turn(
 ///
 /// The rules come from a [`falling::FieldRules`] resource when the world has one; without it nothing accelerates, so only items fall. A world that has loaded its field
 /// prototypes should insert it.
-pub fn process_falling_turn(world: &mut World, map: &impl FireMap) {
+pub fn process_falling_turn(world: &mut World) {
     let squares: Vec<(i32, i32, i32)> = singletons::support_lost(world).squares.iter().copied().collect();
     if squares.is_empty() {
         return;
     }
     let rules = singletons::field_rules(world).clone();
-    let floors = MapFloors { map };
+    // The floor question comes from the squares themselves: a square whose facts say it has no floor
+    // is a hole. Read once, before anything moves, because the drop below moves things.
+    let floors = StoreFloors::from_world(world);
     for square in squares {
         falling::drop_everything(world, &floors, &rules, square);
     }
@@ -2401,14 +2404,31 @@ pub fn process_falling_turn(world: &mut World, map: &impl FireMap) {
     singletons::support_lost(world).squares.clear();
 }
 
-/// The map as [`falling::Floors`] asks it: two questions, both the map's own.
-struct MapFloors<'a, M: FireMap> {
-    map: &'a M,
+/// The squares as [`falling::Floors`] asks them: which squares have no floor.
+///
+/// A snapshot rather than a borrow, because the drop below moves the world while it asks.
+struct StoreFloors {
+    holed: std::collections::BTreeSet<(i32, i32, i32)>,
 }
 
-impl<M: FireMap> falling::Floors for MapFloors<'_, M> {
+impl StoreFloors {
+    fn from_world(world: &World) -> Self {
+        let mut holed = std::collections::BTreeSet::new();
+        let mut query = world.try_query::<(&Position, &fire_facts::FireFacts)>();
+        if let Some(query) = query.as_mut() {
+            for (position, facts) in query.iter(world) {
+                if facts.facts.no_floor {
+                    holed.insert((position.x, position.y, position.z));
+                }
+            }
+        }
+        Self { holed }
+    }
+}
+
+impl falling::Floors for StoreFloors {
     fn no_floor(&self, at: (i32, i32, i32)) -> bool {
-        self.map.no_floor(at)
+        self.holed.contains(&at)
     }
 
     fn in_bounds(&self, at: (i32, i32, i32)) -> bool {

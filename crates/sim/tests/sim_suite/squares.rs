@@ -171,3 +171,35 @@ fn setting_the_terrain_writes_the_ground_and_not_a_copy() {
         "and no second piece of ground was made on that square"
     );
 }
+
+#[test]
+fn the_fire_facts_of_a_square_are_a_component_on_it() {
+    // The turn asks the ground a handful of questions - can it burn, is there a floor under it,
+    // does it hold smoke down - and the answers belong on the square, not in a table the caller
+    // hands to the rules.
+    let mut world = World::new();
+    materialise(&mut world, &level(&[]));
+
+    cdda_sim::fire_facts::set_fire_facts(
+        &mut world,
+        (3, 4, 0),
+        cdda_sim::TerrainFacts {
+            no_floor: true,
+            flammable: true,
+            ..cdda_sim::TerrainFacts::default()
+        },
+    );
+
+    let facts = cdda_sim::fire_facts::fire_facts_at(&world, (3, 4, 0));
+    assert!(facts.no_floor, "the hole is a hole");
+    assert!(facts.flammable, "and the floor burns");
+    assert!(
+        !cdda_sim::fire_facts::fire_facts_at(&world, (3, 5, 0)).no_floor,
+        "the square beside it has a floor"
+    );
+    assert_eq!(
+        cdda_sim::fire_facts::fire_facts_squares(&world),
+        1,
+        "only the square that was told about carries facts"
+    );
+}
