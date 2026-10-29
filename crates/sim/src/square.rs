@@ -79,6 +79,17 @@ pub fn materialise(world: &mut World, level: &cdda_core_types::level::Level) -> 
     made
 }
 
+/// Loads a level into the world: entities for every square and everything standing on them.
+///
+/// The level itself stays in the world as well **for now**, because the light engine still reads it
+/// for its caches; a caller that wants the store alone materialises without loading. When the light
+/// engine has moved onto the store this stops inserting the level, and nothing else has to change.
+pub fn load_level(world: &mut World, level: cdda_core_types::level::Level) -> Materialised {
+    let made = materialise(world, &level);
+    world.insert_resource(crate::Map(level));
+    made
+}
+
 /// Every square entity in the store.
 #[must_use]
 pub fn squares(world: &World) -> Vec<Entity> {

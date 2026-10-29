@@ -16,6 +16,7 @@ pub mod digest;
 pub mod effects;
 pub mod singletons;
 pub mod square;
+pub use square::load_level;
 pub mod skills;
 pub use singletons::{
     TheFallingQueue, TheFieldRules, TheMemory, TheRadiation, TheScent, TheIndex, ThePrototypes, TheScentTable, TheClimate, TheFieldTable, TheLight, TheWeather,
@@ -1216,9 +1217,6 @@ pub fn sees_through_fields(
     range: i32,
     with_fields: bool,
 ) -> bool {
-    let Some(map) = world.get_resource::<Map>() else {
-        return false;
-    };
     let prototypes = singletons::prototypes(world);
     let (terrain, furniture) = match prototypes {
         Some(prototypes) => (&prototypes.terrain, &prototypes.furniture),
@@ -1243,8 +1241,8 @@ pub fn sees_through_fields(
         to,
         range,
         |x, y| {
-            let terrain_code = map.0.terrain_at(x, y).unwrap_or(0);
-            let furniture_code = map.0.furniture_at(x, y).unwrap_or(0);
+            let terrain_code = crate::square::terrain_at(world, (x, y, 0)).unwrap_or(0);
+            let furniture_code = crate::square::furniture_at(world, (x, y, 0)).unwrap_or(0);
             let mut transparency = terrain
                 .transparency(terrain_code)
                 .min(furniture.transparency(furniture_code));
@@ -1253,7 +1251,7 @@ pub fn sees_through_fields(
             }
             transparency > 0.0
         },
-        |x, y| map.0.terrain_at(x, y).is_some(),
+        |x, y| crate::square::square_at(world, (x, y, 0)).is_some(),
     )
 }
 

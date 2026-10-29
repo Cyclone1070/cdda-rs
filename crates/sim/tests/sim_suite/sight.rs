@@ -10,7 +10,7 @@ use cdda_core_types::field::{FieldEntry, FieldId};
 use cdda_core_types::level::Level;
 use cdda_sim::field_table::FieldTable;
 use cdda_sim::terrain_table::TerrainTable;
-use cdda_sim::{Field, Map, Position, Prototypes, sees, set_field_table};
+use cdda_sim::{Field, Position, Prototypes, sees, set_field_table};
 
 const FLOOR: u32 = 1;
 const WALL: u32 = 2;
@@ -28,7 +28,7 @@ fn world(terrain: &[(i32, i32, u32)]) -> World {
     for (x, y, code) in terrain {
         level.set_terrain(*x, *y, *code, FLOOR);
     }
-    world.insert_resource(Map(level));
+    cdda_sim::load_level(&mut world, level);
 
     let mut ground = TerrainTable::new();
     ground.insert(FLOOR, true);

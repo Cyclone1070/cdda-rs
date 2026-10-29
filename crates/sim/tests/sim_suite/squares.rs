@@ -111,3 +111,40 @@ fn furniture_is_an_entity_of_its_own_on_the_square() {
         .collect();
     assert_eq!(found, vec![(2, 2, CHAIR)], "the chair is at its square");
 }
+
+#[test]
+fn a_world_of_entities_alone_answers_what_a_character_can_see() {
+    // No `Map` resource at all: the ground entities are the only source of the terrain, and the
+    // sight rule has to read them. This is the gate on "one store" - if the answer needed the
+    // loaded level as well, the world would have two sources of truth.
+    let mut world = World::new();
+    let mut level = level(&[]);
+    for y in 0..SIDE {
+        let Ok(y) = i32::try_from(y) else { continue };
+        level.set_terrain(6, y, WALL, 0);
+    }
+    materialise(&mut world, &level);
+    cdda_sim::set_prototypes(
+        &mut world,
+        cdda_sim::Prototypes {
+            terrain: cdda_sim::terrain_table::TerrainTable::from_prototypes([
+                (AIR, true),
+                (WALL, false),
+            ]),
+            furniture: cdda_sim::terrain_table::TerrainTable::new(),
+        },
+    );
+
+    assert!(
+        world.get_resource::<cdda_sim::Map>().is_none(),
+        "the test world holds no level resource to fall back on"
+    );
+    assert!(
+        !cdda_sim::sees_through_fields(&world, (3, 3), (9, 3), 20, false),
+        "the wall stands between them"
+    );
+    assert!(
+        cdda_sim::sees_through_fields(&world, (3, 3), (5, 3), 20, false),
+        "and the near square is in plain sight"
+    );
+}
