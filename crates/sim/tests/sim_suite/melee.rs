@@ -14,6 +14,7 @@
 
 #![allow(clippy::float_cmp)]
 
+use cdda_core_types::rng::Rolls;
 use cdda_sim::CreatureSize;
 use cdda_sim::melee::{
     Damage, after_armour, dice_total, dodge_roll, dodged, effective_resist, hit_spread, is_a_hit,
@@ -125,4 +126,55 @@ fn a_monster_s_damage_is_its_dice_plus_its_type_s_own() {
     let fixed_only = monster_melee_damage(&mut rolls, Damage { bash: 3, cut: 5, penetration: 0 }, 0, 0);
     assert_eq!(fixed_only.bash, 3);
     assert_eq!(fixed_only.cut, 5);
+}
+
+/// A whole swing, with both rolls given rather than drawn.
+///
+/// The rule is separated from the dice on purpose: a test that replayed a recording would be asserting on
+/// the replay's own mapping as much as on the rule, and a test that drew would pass or fail by luck. Here
+/// the roll is stated and the answer is checked.
+#[test]
+fn a_swing_runs_from_the_roll_to_what_got_through() {
+    let attack = cdda_sim::melee::Attack {
+        accuracy_tenths: 20,
+        fixed: Damage {
+            bash: 0,
+            cut: 0,
+            penetration: 0,
+        },
+        dice: 1,
+        sides: 4,
+    };
+    let defence = cdda_sim::melee::Defence {
+        dodge: 2,
+        size: CreatureSize::Medium,
+        resist: 1.0,
+        worn_armour: 0.0,
+        immobile: false,
+    };
+    // Accuracy 2.0 means a mean of 10 and a deviation of 25; a roll of 30 is one deviation high. Two dodge
+    // is worth ten, so the spread is twenty: a hit, and not close enough to zero to be a dodge as well.
+    let landed = cdda_sim::melee::resolve(30.0, Damage { bash: 3, cut: 0, penetration: 0 }, defence);
+    assert_eq!(landed.spread, 20, "30 taken down by ten of dodge");
+    assert!(landed.hit);
+    assert!(!landed.dodged, "a clean hit is not a dodge");
+    assert_eq!(landed.damage, 2.0, "three damage less one point of armour");
+
+    // And the same swing on a roll of minus thirty: a miss, which costs the target nothing.
+    let missed = cdda_sim::melee::resolve(-30.0, Damage { bash: 3, cut: 0, penetration: 0 }, defence);
+    assert_eq!(missed.spread, -40, "minus thirty, less ten for dodge");
+    assert!(!missed.hit, "a negative spread is a miss");
+    assert!(missed.dodged, "and the target is told it dodged");
+    assert_eq!(missed.damage, 0.0, "a miss deals nothing");
+
+    // The dice are none of this function's business, which is the point of splitting it: the same rule with
+    // a different damage roll gives a different number and the same spread.
+    let bigger = cdda_sim::melee::resolve(30.0, Damage { bash: 9, cut: 0, penetration: 0 }, defence);
+    assert_eq!(bigger.spread, landed.spread, "the spread does not depend on the dice");
+    assert_eq!(bigger.damage, 8.0, "and eight of nine gets through one point of armour");
+
+    // `strike` is the same rule with the engine's dice, so its damage is whatever it rolled.
+    let mut rolls = Rolls::new(1);
+    let drawn = cdda_sim::melee::strike(&mut rolls, attack, defence);
+    assert!(drawn.damage >= 0.0, "a rolled swing never deals negative damage");
 }

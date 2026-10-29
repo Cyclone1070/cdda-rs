@@ -130,6 +130,94 @@ pub fn dice_total(rolls: &mut cdda_core_types::rng::Rolls, number: i32, sides: i
     rolls.dice(number, sides)
 }
 
+/// Everything an attack brings to a target.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Attack {
+    /// The attacker's accuracy, which sets the mean of its roll.
+    pub accuracy_tenths: i32,
+    /// Its type's fixed damage.
+    pub fixed: Damage,
+    /// How many dice its type rolls, and with how many faces.
+    pub dice: i32,
+    /// The faces on those dice.
+    pub sides: i32,
+}
+
+/// Everything a target brings to being hit.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Defence {
+    /// Its dodge, in points; each is worth five on the roll.
+    pub dodge: i32,
+    /// How big it is.
+    pub size: crate::CreatureSize,
+    /// Its armour against bash.
+    pub resist: f32,
+    /// What it is wearing that also resists.
+    pub worn_armour: f32,
+    /// Whether it cannot move at all, which makes it all but unmissable.
+    pub immobile: bool,
+}
+
+/// What came of one swing.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Strike {
+    /// The margin the roll landed by.
+    pub spread: i32,
+    /// Whether damage was dealt.
+    pub hit: bool,
+    /// Whether the target was told it dodged - which is true at exactly zero, as well as on a miss.
+    pub dodged: bool,
+    /// What got past the armour.
+    pub damage: f32,
+}
+
+/// One swing, from accuracy roll to what got through.
+///
+/// The pieces are each ported and tested separately; this composes them in the order the reference does -
+/// `monster::melee_attack` rolls, asks the target for its spread (`deal_melee_attack`), rolls damage and
+/// lets the target absorb it (`absorb_hit`).
+pub fn strike(rolls: &mut cdda_core_types::rng::Rolls, attack: Attack, defence: Defence) -> Strike {
+    #[allow(clippy::cast_precision_loss)]
+    let accuracy = attack.accuracy_tenths as f32 / 10.0;
+    let hitroll = melee_hit_range(rolls, accuracy);
+    // The dice are rolled before the rules see them, so that a miss still spends its roll - the reference
+    // computes damage before asking whether it connected (`monster.cpp:2143-2151`).
+    let rolled = monster_melee_damage(rolls, attack.fixed, attack.dice, attack.sides);
+    resolve(hitroll, rolled, defence)
+}
+
+/// The same swing, with both rolls given rather than drawn.
+///
+/// This is the rule on its own: a hit roll and a damage roll in, what happened out. Splitting it from the
+/// dice is what lets a test say "a roll of thirty against two dodge is twenty - a hit" without pretending to
+/// know what the engine would have rolled, and it keeps [`strike`] to one line of dice.
+#[must_use]
+pub fn resolve(hitroll: f32, rolled: Damage, defence: Defence) -> Strike {
+    #[allow(clippy::cast_possible_truncation)]
+    let spread = hit_spread(
+        hitroll as i32,
+        dodge_roll(defence.dodge),
+        defence.size,
+        defence.immobile,
+    );
+    let hit = is_a_hit(spread);
+    let damage = if hit {
+        #[allow(clippy::cast_precision_loss)]
+        let bash = rolled.bash as f32;
+        #[allow(clippy::cast_precision_loss)]
+        let penetration = rolled.penetration as f32;
+        after_armour(bash, defence.resist, defence.worn_armour, penetration)
+    } else {
+        0.0
+    };
+    Strike {
+        spread,
+        hit,
+        dodged: dodged(spread),
+        damage,
+    }
+}
+
 /// What a monster's melee does before armour: its type's own damage plus its dice.
 ///
 /// Reference: `monster::melee_attack` (`monster.cpp:2143-2146`) starts from the type's `melee_damage`,

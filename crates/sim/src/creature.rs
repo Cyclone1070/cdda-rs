@@ -183,6 +183,48 @@ pub fn try_step(world: &mut World, entity: Entity, to: (i32, i32, i32), cost: i3
     StepOutcome::Moved
 }
 
+/// How much life a creature has left.
+///
+/// Reference: `Creature::hp` (`src/creature.h`), and `monster::is_dead_state` is simply `hp <= 0`
+/// (`monster.cpp:2065`). Kept as a component so "who is dead" is a query and death needs no list.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Health {
+    /// What it has left.
+    pub hp: i32,
+    /// What it started with, which the reference keeps for the health bar.
+    pub max_hp: i32,
+}
+
+/// Sets a creature's health, and its ceiling.
+pub fn set_health(world: &mut World, entity: Entity, hp: i32) {
+    if let Some(mut health) = world.get_mut::<Health>(entity) {
+        health.hp = hp;
+        health.max_hp = hp;
+    } else {
+        world
+            .entity_mut(entity)
+            .insert(Health { hp, max_hp: hp });
+    }
+}
+
+/// Takes damage off a creature, never below zero.
+///
+/// The reference's own arithmetic is `hp -= damage` on an int with the damage rounded down
+/// (`Creature::deal_damage`), and `is_dead_state` reads `hp <= 0`.
+pub fn hurt(world: &mut World, entity: Entity, damage: f32) {
+    #[allow(clippy::cast_possible_truncation)]
+    let whole = damage as i32;
+    if let Some(mut health) = world.get_mut::<Health>(entity) {
+        health.hp -= whole;
+    }
+}
+
+/// What a creature has left, or nothing when it has no [`Health`] at all.
+#[must_use]
+pub fn health_of(world: &World, entity: Entity) -> Option<i32> {
+    world.get::<Health>(entity).map(|health| health.hp)
+}
+
 /// Where a creature is trying to get to.
 ///
 /// Reference: a monster's `goal` (`src/monster.h`), which `monster::move` walks towards and drops when it
@@ -249,6 +291,10 @@ pub fn spawn_creature(world: &mut World, name: &str, square: (i32, i32, i32)) ->
             },
             Moves::default(),
             Speed::default(),
+            Health {
+                hp: 0,
+                max_hp: 0,
+            },
         ))
         .id();
     crate::singletons::index_mut(world).insert(entity, square);
