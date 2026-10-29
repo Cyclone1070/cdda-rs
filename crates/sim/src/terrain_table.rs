@@ -23,6 +23,7 @@ pub struct TerrainTable {
     indoors: BTreeMap<u32, bool>,
     light: BTreeMap<u32, f32>,
     symbols: BTreeMap<u32, char>,
+    move_cost: BTreeMap<u32, i32>,
 }
 
 impl TerrainTable {
@@ -44,6 +45,7 @@ impl TerrainTable {
             indoors: BTreeMap::new(),
             light: BTreeMap::new(),
             symbols: BTreeMap::new(),
+            move_cost: BTreeMap::new(),
         }
     }
 
@@ -83,6 +85,24 @@ impl TerrainTable {
         for code in opaque {
             self.transparent.insert(code, false);
         }
+    }
+
+    /// Records what the code costs to walk on.
+    ///
+    /// Reference: `ter_t::movecost` (`src/mapdata.cpp:1225`), read from the terrain's own
+    /// `"move_cost"` and never scaled: a floor is 2, a wall is 0. The scaling to moves happens later,
+    /// in `map::combined_movecost`, which charges for both squares and multiplies by 50 or 71.
+    pub fn insert_move_cost(&mut self, code: u32, cost: i32) {
+        self.move_cost.insert(code, cost);
+    }
+
+    /// What the code costs to walk on, or `None` when nothing described it.
+    ///
+    /// `None` is not zero: zero means the terrain is there and cannot be walked through, while `None`
+    /// means the world never learned this code and cannot answer at all.
+    #[must_use]
+    pub fn move_cost(&self, code: u32) -> Option<i32> {
+        self.move_cost.get(&code).copied()
     }
 
     /// Records how much light the code emits.

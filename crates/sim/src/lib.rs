@@ -18,6 +18,7 @@ pub mod singletons;
 pub mod square;
 pub mod creature;
 pub mod pathfinding;
+pub mod routing;
 pub mod fire_facts;
 pub mod turn;
 pub mod inspect;
