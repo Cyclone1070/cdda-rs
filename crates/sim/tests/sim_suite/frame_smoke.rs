@@ -12,7 +12,7 @@ use cdda_core_types::level::Level;
 use cdda_sim::field_table::FieldTable;
 use cdda_sim::frame::frame;
 use cdda_sim::terrain_table::TerrainTable;
-use cdda_sim::{Field, Map, Position, Prototypes, cast_lights_with};
+use cdda_sim::{Field, Map, Position, Prototypes, cast_lights_with, set_field_table};
 
 const FLOOR: u32 = 1;
 const SMOKE: u32 = 7;
@@ -38,7 +38,7 @@ fn world(smoke: i32) -> World {
     // **Smoke's own numbers**: translucent at its first intensity and all but solid at its third (`src/field.cpp`), which is why a room fills up with it.
     let mut table = FieldTable::new();
     table.insert(SMOKE, &[3.0, 10.0, 0.0]);
-    world.insert_resource(table);
+    set_field_table(&mut world, table);
 
     if smoke > 0 {
         let mut entry = FieldEntry::new(3, 100, false, false);

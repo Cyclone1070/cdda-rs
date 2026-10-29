@@ -7,7 +7,7 @@
 use std::collections::BTreeMap;
 
 /// The translucency of each field type at each of its intensities.
-#[derive(Debug, Clone, Default, bevy_ecs::prelude::Resource)]
+#[derive(Debug, Clone, Default, bevy_ecs::prelude::Component)]
 pub struct FieldTable {
     by_type: BTreeMap<u32, Vec<f32>>,
     light: BTreeMap<u32, Vec<f32>>,

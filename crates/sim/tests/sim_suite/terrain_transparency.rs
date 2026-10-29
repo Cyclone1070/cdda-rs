@@ -14,7 +14,7 @@ use cdda_core_types::field::{FieldEntry, FieldId};
 use cdda_core_types::light::TRANSPARENCY_OPEN_AIR;
 use cdda_sim::field_table::FieldTable;
 use cdda_sim::terrain_table::TerrainTable;
-use cdda_sim::{Field, Light, LightSource, Map, Position, Prototypes, Weather, cast_lights_with};
+use cdda_sim::{Field, Light, LightSource, Map, Position, Prototypes, Weather, cast_lights_with, set_weather, set_field_table};
 
 /// A level whose square `(5, 5)` is the given terrain code, with a lamp west of it.
 fn level_with(code: u32) -> World {
@@ -41,7 +41,7 @@ fn load(world: &mut World, table: &TerrainTable) {
         terrain: table.clone(),
         furniture: TerrainTable::new(),
     });
-    world.insert_resource(FieldTable::new());
+    set_field_table(world, FieldTable::new());
 }
 
 fn light_past_the_square(world: &mut World, table: &TerrainTable) -> f32 {
@@ -154,7 +154,7 @@ fn smoke_still_dims_a_ray_through_a_window() {
     ));
     let mut fields = FieldTable::new();
     fields.insert(1, &[1.0, 10.0, 0.0]);
-    smoked.insert_resource(fields);
+    set_field_table(&mut smoked, fields);
     cast_lights_with(&mut smoked);
     let dimmed = smoked.resource::<Light>().max_at(8, 5);
 
@@ -245,14 +245,14 @@ fn fog_costs_light_under_open_sky_and_nothing_indoors() {
     let outdoor = {
         let mut world = level_with(1);
         load(&mut world, &table);
-        world.insert_resource(Weather::with_sight_penalty(1.7));
+        set_weather(&mut world, Weather::with_sight_penalty(1.7));
         cast_lights_with(&mut world);
         world.resource::<Light>().max_at(8, 5)
     };
     let sheltered = {
         let mut world = level_with(7);
         load(&mut world, &table);
-        world.insert_resource(Weather::with_sight_penalty(1.7));
+        set_weather(&mut world, Weather::with_sight_penalty(1.7));
         cast_lights_with(&mut world);
         world.resource::<Light>().max_at(8, 5)
     };

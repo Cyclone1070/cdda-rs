@@ -19,7 +19,10 @@ use bevy_ecs::prelude::*;
 use cdda_content::weather::{Rules, WeatherType};
 use cdda_core_types::level::Level;
 use cdda_sim::weather_gen::{CommonData, Generator};
-use cdda_sim::{Climate, Forecast, Map, Prototypes, Weather, climate, climate_read, set_climate, tick_climate};
+use cdda_sim::{
+    Climate, Forecast, Map, Prototypes, Weather, climate, climate_read, set_climate, set_weather,
+    tick_climate, weather,
+};
 
 fn world(rules: Rules) -> World {
     let mut world = World::new();
@@ -32,7 +35,7 @@ fn world(rules: Rules) -> World {
     }
     world.insert_resource(Map(level));
     world.insert_resource(Prototypes::default());
-    world.insert_resource(Weather::clear());
+    set_weather(&mut world, Weather::clear());
     set_climate(&mut world, Climate::new(rules));
     world
 }
@@ -64,7 +67,7 @@ fn a_sky_that_dims_the_light_reaches_the_world_s_weather_and_its_map() {
     let mut roll = |_low: i32, _high: i32| 300;
     let mut sector = |_season: usize| 9;
     tick_climate(&mut world, &forecast(0), &mut roll, &mut sector);
-    let weather = world.get_resource::<Weather>().expect("the weather").sight_penalty();
+    let weather = weather(&world).expect("the weather").sight_penalty();
     assert_eq!(weather, 1.7, "the world is foggy");
     assert!(world.get_resource::<Map>().expect("the map").light_is_stale(), "and the light knows it");
     let climate = climate_read(&world).expect("the climate");

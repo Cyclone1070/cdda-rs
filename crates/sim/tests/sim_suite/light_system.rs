@@ -6,6 +6,7 @@ use bevy_ecs::prelude::*;
 use cdda_core_types::field::{FieldEntry, FieldId};
 use cdda_core_types::level::Level;
 use cdda_sim::field_table::FieldTable;
+use cdda_sim::set_field_table;
 use cdda_sim::terrain_table::TerrainTable;
 use cdda_sim::{
     Field, Light, LightSource, Map, Position, Prototypes, SOLID_TERRAIN, cast_lights_with,
@@ -40,7 +41,7 @@ fn world_with_floor() -> World {
     }
     world.insert_resource(Map(level));
     world.insert_resource(prototypes());
-    world.insert_resource(field_table());
+    set_field_table(&mut world, field_table());
     world
 }
 

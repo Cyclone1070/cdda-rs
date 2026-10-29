@@ -17,10 +17,10 @@ pub mod effects;
 pub mod singletons;
 pub mod skills;
 pub use singletons::{
-    TheFallingQueue, TheFieldRules, TheMemory, TheRadiation, TheScent, TheScentTable, TheClimate,
+    TheFallingQueue, TheFieldRules, TheMemory, TheRadiation, TheScent, TheScentTable, TheClimate, TheFieldTable, TheWeather,
     adjust_radiation,
     falling_queue_entity, field_rules, memory, memory_entity, queue_support_loss, radiation,
-    climate, climate_read, scent_table, set_climate, set_field_rules, set_scent_table,
+    climate, climate_read, field_table, set_field_table, set_weather, scent_table, weather, set_climate, set_field_rules, set_scent_table,
     singleton, support_lost,
 };
 pub mod food_summary;
@@ -1263,7 +1263,7 @@ pub fn sees_through_fields(
 /// A square with no fields multiplies by one.
 pub(crate) fn field_opacity(world: &World) -> FieldOpacityGrid {
     let mut squares: BTreeMap<(i32, i32), f32> = BTreeMap::new();
-    let table = world.get_resource::<field_table::FieldTable>();
+    let table = singletons::field_table(world);
     let mut query = world.try_query::<(Entity, &Position, &Field)>();
     if let Some(query) = query.as_mut() {
         for (_entity, position, field) in query.iter(world) {
@@ -1296,11 +1296,7 @@ impl FieldOpacityGrid {
 /// The prototypes come from the [`Prototypes`] resource and the fields from [`field_table::FieldTable`], so there is one source for what a code means and no way to cast
 /// with a table the world does not have.
 pub fn cast_lights_with(world: &mut World) {
-    let sight_penalty = world
-        .get_resource::<Weather>()
-        .copied()
-        .unwrap_or_default()
-        .sight_penalty();
+    let sight_penalty = singletons::weather(world).unwrap_or_default().sight_penalty();
     // The sky map: an `INDOORS` flag on either layer covers the three-by-three block around it (`build_outside_cache`).
     let (terrain, furniture) = world.get_resource::<Prototypes>().map_or_else(
         || {
@@ -1403,10 +1399,7 @@ fn light_sources(world: &mut World) -> LightSources {
     }
     // The table is cloned out first: a `query` borrows the world mutably, and the table is immutable, so holding both at once is the borrow checker's business rather
     // than something to work around with an index.
-    let table = world
-        .get_resource::<field_table::FieldTable>()
-        .cloned()
-        .unwrap_or_default();
+    let table = singletons::field_table(world).cloned().unwrap_or_default();
     let mut field_query = world.query::<(&Position, &Field)>();
     for (position, field) in field_query.iter(world) {
         let emitted = table.light(field.id.0, field.entry.intensity());
@@ -1570,11 +1563,7 @@ pub fn cast_sunlight(
 /// is a square **under a roof**, so the level above it at that square is opaque and has a floor. That is exactly what the reference's `prev_transparency_cache` and
 /// `prev_floor_cache` would say about a hut - and it is why daylight still reaches a square just inside a doorway, from the cardinal that is in the open.
 pub fn cast_sunlight_with(world: &mut World, turns: f64) {
-    let sight_penalty = world
-        .get_resource::<Weather>()
-        .copied()
-        .unwrap_or_default()
-        .sight_penalty();
+    let sight_penalty = singletons::weather(world).unwrap_or_default().sight_penalty();
     let (terrain, furniture) = world.get_resource::<Prototypes>().map_or_else(
         || {
             (

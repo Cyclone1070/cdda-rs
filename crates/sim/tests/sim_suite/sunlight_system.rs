@@ -9,8 +9,7 @@ use cdda_sim::field_table::FieldTable;
 use cdda_sim::terrain_table::TerrainTable;
 use cdda_sim::{
     Light, LightSource, Map, Position, Prototypes, cast_lights_with, cast_sunlight,
-    cast_sunlight_with, clear_light,
-};
+    cast_sunlight_with, clear_light, set_field_table};
 
 const NOON: f64 = 12.0 * 3600.0;
 const MIDNIGHT: f64 = 0.0;
@@ -26,7 +25,7 @@ fn world() -> World {
     }
     world.insert_resource(Map(level));
     world.insert_resource(Prototypes::default());
-    world.insert_resource(FieldTable::new());
+    set_field_table(&mut world, FieldTable::new());
     world
 }
 

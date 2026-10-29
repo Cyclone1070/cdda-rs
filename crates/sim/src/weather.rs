@@ -8,7 +8,7 @@
 //! transmission - the same backwards-looking direction as a field's translucency. A penalty below one would make bad weather brighten the world.
 
 /// What the sky is doing, as far as the light is concerned.
-#[derive(Debug, Clone, Copy, PartialEq, bevy_ecs::prelude::Resource)]
+#[derive(Debug, Clone, Copy, PartialEq, bevy_ecs::prelude::Component)]
 pub struct Weather {
     /// How much more a square under open sky absorbs while this weather lasts.
     sight_penalty: f32,
@@ -225,9 +225,7 @@ pub fn tick_climate(
     if let Some(mut map) = world.get_resource_mut::<crate::Map>() {
         map.on_weather_change(change);
     }
-    if let Some(mut weather) = world.get_resource_mut::<crate::Weather>() {
-        *weather = crate::Weather::with_sight_penalty(penalty.max(1.0));
-    }
+    crate::singletons::set_weather(world, crate::Weather::with_sight_penalty(penalty.max(1.0)));
     change
 }
 

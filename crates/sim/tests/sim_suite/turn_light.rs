@@ -11,7 +11,7 @@ use cdda_core_types::level::Level;
 use cdda_core_types::rng::Rolls;
 use cdda_sim::field_table::FieldTable;
 use cdda_sim::terrain_table::TerrainTable;
-use cdda_sim::{Field, FireMap, Light, Map, Position, Prototypes, run_environment_turn};
+use cdda_sim::{Field, FireMap, Light, Map, Position, Prototypes, run_environment_turn, set_field_table};
 
 const FLOOR: u32 = 1;
 const FIRE: u32 = 2;
@@ -65,7 +65,7 @@ fn world() -> World {
     let mut fields = FieldTable::new();
     fields.insert(FIRE, &[0.7, 0.4, 0.1]);
     fields.insert_light(FIRE, &[20.0, 60.0, 160.0]);
-    world.insert_resource(fields);
+    set_field_table(&mut world, fields);
     world
 }
 

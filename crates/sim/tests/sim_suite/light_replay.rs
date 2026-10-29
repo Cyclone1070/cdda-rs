@@ -28,7 +28,7 @@ use cdda_core_types::level::Level;
 use cdda_core_types::light::{light_at, LitLevel};
 use cdda_sim::field_table::FieldTable;
 use cdda_sim::terrain_table::TerrainTable;
-use cdda_sim::{Prototypes, add_field_strength, cast_lights_with, Light, Map};
+use cdda_sim::{Prototypes, add_field_strength, cast_lights_with, Light, Map, set_field_table};
 
 /// Where the recorded window starts, so the level can be built from zero.
 const ORIGIN: (i32, i32) = (60, 69);
@@ -287,7 +287,7 @@ fn the_port_s_cast_puts_the_fire_s_light_where_the_reference_put_it() {
             terrain: prototypes_table.terrain.clone(),
             furniture: prototypes_table.furniture.clone(),
         });
-        world.insert_resource(table.clone());
+        set_field_table(&mut world, table.clone());
         for (x, y, kind, intensity) in &turn.fields {
             let code = field_codes.get(kind).copied().unwrap_or(0);
             add_field_strength(

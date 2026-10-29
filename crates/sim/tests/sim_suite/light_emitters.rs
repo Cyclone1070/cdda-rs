@@ -10,7 +10,7 @@ use cdda_core_types::field::{FieldEntry, FieldId};
 use cdda_core_types::level::Level;
 use cdda_sim::field_table::FieldTable;
 use cdda_sim::terrain_table::TerrainTable;
-use cdda_sim::{Field, Light, Map, Position, Prototypes, cast_lights_with, clear_light};
+use cdda_sim::{Field, Light, Map, Position, Prototypes, cast_lights_with, clear_light, set_field_table};
 
 const FLOOR: u32 = 1;
 const LAMP: u32 = 2;
@@ -44,7 +44,7 @@ fn world(marks: &[(i32, i32, u32)]) -> World {
     // `fd_fire` emits 20, 60 and 160 at its three intensities, and smoke emits none (`fields.json`).
     fields.insert(FIRE, &[1.0, 10.0, 0.0]);
     fields.insert_light(FIRE, &[20.0, 60.0, 160.0]);
-    world.insert_resource(fields);
+    set_field_table(&mut world, fields);
     world
 }
 

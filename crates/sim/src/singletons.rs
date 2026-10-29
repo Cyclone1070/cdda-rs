@@ -18,6 +18,8 @@ use bevy_ecs::prelude::*;
 use crate::SupportLost;
 use crate::falling::FieldRules;
 use crate::memory::Memory;
+use crate::field_table::FieldTable;
+use crate::weather::Weather;
 use crate::scent_table::ScentTable;
 use crate::weather::Climate;
 use crate::radiation::Radiation;
@@ -128,6 +130,24 @@ pub fn set_field_rules(world: &mut World, rules: FieldRules) {
     *field_rules(world) = rules;
 }
 
+/// Marks the one entity that carries what the sky is doing.
+#[derive(Debug, Default, Component)]
+pub struct TheWeather;
+
+/// The sky, if the world has one.
+#[must_use]
+pub fn weather(world: &World) -> Option<Weather> {
+    world.iter_entities().find_map(|entity| entity.get::<Weather>()).copied()
+}
+
+/// Replaces the sky, which is what a weather change does.
+pub fn set_weather(world: &mut World, weather: Weather) {
+    let entity = singleton::<Weather, TheWeather>(world);
+    if let Some(mut slot) = world.get_mut::<Weather>(entity) {
+        *slot = weather;
+    }
+}
+
 /// Marks the one entity that carries the weather's own clock.
 #[derive(Debug, Default, Component)]
 pub struct TheClimate;
@@ -152,6 +172,24 @@ pub fn set_climate(world: &mut World, climate: Climate) {
     let entity = singleton::<Climate, TheClimate>(world);
     if let Some(mut slot) = world.get_mut::<Climate>(entity) {
         *slot = climate;
+    }
+}
+
+/// Marks the one entity that carries what each field type does to light.
+#[derive(Debug, Default, Component)]
+pub struct TheFieldTable;
+
+/// The field light table, if the world loaded one.
+#[must_use]
+pub fn field_table(world: &World) -> Option<&FieldTable> {
+    world.iter_entities().find_map(|entity| entity.get::<FieldTable>())
+}
+
+/// Replaces the field light table, which is what a loaded content set does once.
+pub fn set_field_table(world: &mut World, table: FieldTable) {
+    let entity = singleton::<FieldTable, TheFieldTable>(world);
+    if let Some(mut slot) = world.get_mut::<FieldTable>(entity) {
+        *slot = table;
     }
 }
 
