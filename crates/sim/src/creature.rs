@@ -101,6 +101,24 @@ pub fn bank_a_turn(world: &mut World) {
     }
 }
 
+/// What entering a square costs, in moves.
+///
+/// Reference: `map::combined_movecost` (`src/map.cpp:2466-2488`). The two squares are charged for
+/// together, the caller's modifier is added, and the sum is scaled by `{ 0, 50, 71, 100 }` - one entry
+/// per number of differing axes - and halved. Integer arithmetic throughout, so a diagonal floor step
+/// is 142 moves where a straight one is 100: 71 is the reference's stand-in for a hundred over the
+/// square root of two, which is why `Character::run_cost` can then apply its own effects and cancel the
+/// root exactly.
+#[must_use]
+pub fn combined_move_cost(from: i32, to: i32, modifier: i32, differing_axes: usize) -> i32 {
+    const MULTIPLIERS: [i32; 4] = [0, 50, 71, 100];
+    let multiplier = MULTIPLIERS
+        .get(differing_axes.min(3))
+        .copied()
+        .unwrap_or_default();
+    (from + to + modifier) * multiplier / 2
+}
+
 /// Whether a creature moved.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StepOutcome {

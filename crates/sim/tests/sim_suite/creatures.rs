@@ -9,8 +9,8 @@
 
 use bevy_ecs::prelude::*;
 use cdda_sim::creature::{
-    Creature, Moves, StepOutcome, bank_a_turn, creature_at, give_moves, run_cost, scaled_speed,
-    set_speed, spawn_creature, try_step,
+    Creature, Moves, StepOutcome, bank_a_turn, combined_move_cost, creature_at, give_moves, run_cost,
+    scaled_speed, set_speed, spawn_creature, try_step,
 };
 use cdda_sim::{Position, singletons};
 
@@ -148,6 +148,28 @@ fn a_creature_without_the_points_stays_where_it_is() {
     assert_eq!(outcome, StepOutcome::TooSlow, "ninety-nine cannot pay for a hundred");
     assert_eq!(creature_at(&world, (5, 5, 0)), vec![you], "it did not move");
     assert_eq!(moves_of(&world, you), 99, "and it was not charged for trying");
+}
+
+/// What entering a square costs, which is the map's answer and not the creature's.
+///
+/// Reference: `map::combined_movecost` (`src/map.cpp:2466-2488`). Both squares are charged for, the
+/// two are added with the caller's modifier, and the sum is scaled by how many axes differ:
+/// `{ 0, 50, 71, 100 }` divided by two. So a floor costs 2 to stand on, and a step between two floors
+/// is `(2 + 2) * 50 / 2 = 100` moves - one turn - while a diagonal is `(2 + 2) * 71 / 2 = 142`. That
+/// settles the unit question the last round left open: the JSON's `move_cost` is a hundredth of a turn
+/// per point, and 71 is the integer stand-in for a hundred over the square root of two.
+#[test]
+fn a_step_costs_both_squares_scaled_by_how_far_it_goes() {
+    assert_eq!(combined_move_cost(2, 2, 0, 1), 100, "floor to floor");
+    assert_eq!(combined_move_cost(2, 2, 0, 2), 142, "floor to floor, diagonally");
+    assert_eq!(combined_move_cost(2, 2, 0, 3), 200, "and up or down a level too");
+    assert_eq!(combined_move_cost(3, 2, 0, 1), 125, "a rougher square costs more");
+    assert_eq!(
+        combined_move_cost(3, 2, 0, 2),
+        177,
+        "177.5 truncates, because every factor here is an integer"
+    );
+    assert_eq!(combined_move_cost(2, 2, 10, 1), 350, "the caller's modifier adds to both");
 }
 
 /// The action points a creature has left.
