@@ -172,8 +172,11 @@ scent | marks from `NO_SCENT`/`REDUCE_SCENT`, the `ScentWindow` arithmetic, deca
 
 **Weather is end to end.** The reference was rebuilt on this machine as a tracked background job (no install was needed - the build tree was configured), which produced the
 first oracle dump of the phase: **20 weather types** with their derived numbers. The loader is gated on it, the `Weather` resource takes a loaded type rather than a hand-set
-penalty, and a test proves fog dims a lamp by exactly the absorption it adds. The weather *system* - generators, transitions, precipitation over time, temperature - is still a
-declared gap, and it is the next thing after the frame gate.
+penalty, and a test proves fog dims a lamp by exactly the absorption it adds. The weather *system* is no longer a gap: the generator, the condition loop, the sun and the manager are
+ported and gated (see [parity.md](parity.md)), on the recorded ten-day day and on 240 hours of the
+manager with fourteen absorption changes. What remains of weather is declared rather than unknown: the
+falling-snow tile layer, and the lightning strike - and the strike waits on creatures, because the
+reference's own use of it is to supercharge a monster in `monster.cpp`.
 
 **The frame gate has both halves, and its terms are measured.** The reference's own frame is committed beside the prototype corpora (1,681 squares with glyph, terrain,
 furniture and light), and its glyph column has been read rather than assumed: 1,638 of the 1,681 squares print the terrain prototype's own symbol and 43 print something drawn on

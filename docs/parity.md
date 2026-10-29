@@ -72,8 +72,8 @@ counts, so the next receipt cannot borrow its numbers.
 | Prototype registry machinery | done (P1-T1 core) | Prototype digest (M1) | Load, inherit, finalise: abstracts kept apart but usable as bases, `copy-from` retried at finalisation, cycles reported rather than recursed, a same-source duplicate rejected while a cross-source override replaces in place, the factories' null prototypes created. 9 tests ([factory.rs](../crates/content/tests/content_suite/factory.rs), [rules.rs](../crates/content/tests/content_suite/rules.rs)) |
 | Content type loaders (160 types) | in progress, 7 families | M1 | Terrain and furniture, traps, materials, field types, item types, monster types, plus the generated-prototype families. Each is held to a field-by-field corpus dumped by the reference. See [06-inventory.md](06-inventory.md) for the rest |
 | Inheritance and merge operators | done | M1 | `copy-from`, `extend`, `delete`, `relative` and `proportional`, with the two orders the reference uses: readers check proportional before relative, `assign` checks relative first. All 8,743 `copy-from` chains in the core content resolve. [inheritance_corpus.rs](../crates/content/tests/content_suite/inheritance_corpus.rs) |
-| Mod discovery and load order | not started | M1 | User-ordered list, not a topological sort |
-| Mod dependency graph and cycles | not started | M1 | |
+| Mod discovery and load order | **done: discovery, the graph and the order** | M1 | `cdda_sim`'s sibling `cdda_content::mods` reads every `data/mods/*/modinfo.json` and builds the dependency graph, gated on `corpus/mods.json` - the reference's own list of every mod it found, the dependencies each declares and the set it resolves them to. Discovery agrees on every mod, and the resolution agrees mod by mod (`content_suite/mod_graph.rs`, commit `d70bbbd`). **Not ported, declared:** the user-ordered list a world stores, which needs saves |
+| Mod dependency graph and cycles | **done: order and the cycle refusal** | M1 | `mods::dependency_order` puts dependencies before dependants and refuses a cycle by naming it; `mods::resolve_all` answers the closure for every mod, and the corpus gate compares all of them against what the reference resolved |
 | Save reading and writing | not started | M1 | Scope depends on blocker B2 |
 | Save migrations | not started | M1 | 14 content-level migration types plus per-field fix-ups |
 | Compression and archives | not started | M1 | Dictionary content must match bit-for-bit |
@@ -287,7 +287,7 @@ the layer that decides when to shift
 
 | System | Status | Gate | Notes |
 |---|---|---|---|
-| Activity actors | not started | Activity replay (M3d) | 69 classes |
+| Activity actors | **partial: butchery is one, and it runs over turns** | Activity replay (M3d) | `ButcherState` is an entity's activity: `start_butchery` begins it, `butchery_turn` takes one turn of it, and `butchery_moves_left` says how much is left - gated by `sim_suite/butchery_activity.rs`. **Not ported:** the actor framework itself (the 69 classes' common shape), which arrives when there are creatures to act |
 | Activity handlers | not started | M3d | |
 | Activity record and suspension | not started | M3d | Three concurrent slots today |
 | Pickup and movement modes | not started | M3d | |
