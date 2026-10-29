@@ -66,9 +66,62 @@ pub fn hit_spread(hitroll: i32, dodge: f32, size: CreatureSize, immobile: bool) 
 
 /// Whether a spread connects.
 ///
-/// Reference: the reference treats `hit_spread <= 0` as a miss - that is the branch that calls the
-/// target's dodge event (`creature.cpp:924`) - so zero is a miss and one is a hit.
+/// Reference: `monster::melee_attack` deals damage on `hitspread >= 0` (`monster.cpp:2151`). Note what
+/// that means at exactly zero - see [`dodged`].
 #[must_use]
 pub const fn is_a_hit(spread: i32) -> bool {
-    spread > 0
+    spread >= 0
+}
+
+/// Whether the target is told it dodged.
+///
+/// Reference: `Creature::deal_melee_attack` calls the target's dodge event on `hit_spread <= 0`
+/// (`creature.cpp:924`). At exactly zero the reference says **both**: the target dodged and the attack
+/// landed. The two comparisons are one line apart in the source and disagree at one point, which is the
+/// reference's behaviour rather than a reading of it.
+#[must_use]
+pub const fn dodged(spread: i32) -> bool {
+    spread <= 0
+}
+
+/// Damage in the reference's four kinds, with the penetration the attack carries.
+///
+/// Reference: `damage_instance` (`src/damage.h`), a map from damage type to amount plus an armour
+/// penetration value. Bash and cut are the two a monster's claws use; the others are carried so that a
+/// caller cannot lose them.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Damage {
+    /// Blunt damage.
+    pub bash: i32,
+    /// Cutting damage.
+    pub cut: i32,
+    /// Points of armour this attack ignores.
+    pub penetration: i32,
+}
+
+/// The sum of `number` dice with `sides` faces.
+///
+/// Reference: `dice` (`rng.cpp:211-218`) - `rng( 1, sides )` drawn `number` times and added. Each die is
+/// a separate draw, which matters: a single `rng( 1, number * sides )` gives the same range and a
+/// different distribution.
+pub fn dice_total(rolls: &mut cdda_core_types::rng::Rolls, number: i32, sides: i32) -> i32 {
+    rolls.dice(number, sides)
+}
+
+/// What a monster's melee does before armour: its type's own damage plus its dice.
+///
+/// Reference: `monster::melee_attack` (`monster.cpp:2143-2146`) starts from the type's `melee_damage`,
+/// then - only when the type has dice - adds `dice( melee_dice, melee_sides )` of bash carrying
+/// `melee_dice_ap`. A type with no dice adds nothing, and the penetration still comes from the type.
+pub fn monster_melee_damage(
+    rolls: &mut cdda_core_types::rng::Rolls,
+    fixed: Damage,
+    dice: i32,
+    sides: i32,
+) -> Damage {
+    let mut damage = fixed;
+    if dice > 0 {
+        damage.bash += dice_total(rolls, dice, sides);
+    }
+    damage
 }

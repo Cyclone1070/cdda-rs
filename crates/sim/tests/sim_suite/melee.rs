@@ -15,7 +15,10 @@
 #![allow(clippy::float_cmp)]
 
 use cdda_sim::CreatureSize;
-use cdda_sim::melee::{dodge_roll, hit_spread, is_a_hit, size_melee_penalty};
+use cdda_sim::melee::{
+    Damage, dice_total, dodge_roll, dodged, hit_spread, is_a_hit, monster_melee_damage,
+    size_melee_penalty,
+};
 
 #[test]
 fn a_dodge_roll_is_five_per_point_of_dodge() {
@@ -50,9 +53,51 @@ fn the_spread_is_the_roll_less_what_the_target_avoids() {
     );
 }
 
+/// A spread of exactly zero is **both**: the target is told it dodged, and the attack still lands.
+///
+/// Reference: `Creature::deal_melee_attack` fires the dodge event on `hit_spread <= 0`
+/// (`creature.cpp:924`), while `monster::melee_attack` deals damage on `hitspread >= 0`
+/// (`monster.cpp:2151`). The two comparisons disagree at zero, and the reference ships that way. A port
+/// that picked one rule for both would be tidier and wrong at exactly one point - the sort of tidy that
+/// no test written from the outside would catch. Last round's test asserted zero was a miss; this is the
+/// correction, and the reason is a line number on each side.
 #[test]
-fn zero_is_a_miss_not_a_graze() {
-    assert!(!is_a_hit(0), "the reference dodges on `hit_spread <= 0`");
+fn zero_is_a_dodge_and_a_hit() {
+    assert!(is_a_hit(0), "`hitspread >= 0` deals damage, so zero lands");
+    assert!(dodged(0), "and `hit_spread <= 0` tells the target it dodged");
     assert!(!is_a_hit(-1));
-    assert!(is_a_hit(1), "one point over is a hit");
+    assert!(dodged(-1));
+    assert!(is_a_hit(1), "one point over hits and is not a dodge");
+    assert!(!dodged(1));
+}
+
+/// The damage a monster's claws do, before armour: its type's own damage plus dice.
+///
+/// Reference: `monster::melee_attack` (`monster.cpp:2143-2146`) adds `dice( melee_dice, melee_sides )` of
+/// bash to the type's fixed `melee_damage`, carrying the type's armour penetration. `dice` is
+/// `sum of rng( 1, sides )` number times (`rng.cpp:211-218`).
+#[test]
+fn a_monster_s_damage_is_its_dice_plus_its_type_s_own() {
+    let mut rolls = cdda_core_types::rng::Rolls::new(7);
+    for _ in 0..20 {
+        let rolled = dice_total(&mut rolls, 2, 4);
+        assert!((2..=8).contains(&rolled), "2d4 lies between two and eight, got {rolled}");
+    }
+
+    // A type that does one die of four, on top of a fixed three cut, with two points of penetration.
+    let mut rolls = cdda_core_types::rng::Rolls::new(7);
+    let hit = monster_melee_damage(&mut rolls, Damage { bash: 3, cut: 0, penetration: 2 }, 1, 4);
+    assert_eq!(hit.penetration, 2, "the penetration comes from the type");
+    assert!(
+        (4..=7).contains(&hit.bash),
+        "three fixed plus one to four rolled is four to seven, got {}",
+        hit.bash
+    );
+
+    // And a type with no dice adds nothing, which is how a monster whose only damage is a fixed
+    // instance works - the reference tests `melee_dice > 0` before rolling at all.
+    let mut rolls = cdda_core_types::rng::Rolls::new(7);
+    let fixed_only = monster_melee_damage(&mut rolls, Damage { bash: 3, cut: 5, penetration: 0 }, 0, 0);
+    assert_eq!(fixed_only.bash, 3);
+    assert_eq!(fixed_only.cut, 5);
 }
