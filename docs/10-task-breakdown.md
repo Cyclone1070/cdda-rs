@@ -64,16 +64,16 @@ ready to start.
 | ID | Task | Produces | Proven by |
 |---|---|---|---|
 | P2-T0a | Adopt `bevy_ecs` | The framework itself: a `World` as the store, `Entity` as the id, components as columns, resources for shared state, and a schedule built as data (D1, D2, D5, D6, D8) | Spawn, query, despawn and schedule tests; a resource rebuilt from the World agrees with it |
-| P2-T0b | The register | Every thing that exists - people, items, smoke, fire, blood, walls - is an entity in the World, reached by id and never by pointer (D1, D7). Empty squares are gaps, not entries (D3). Adding a kind of thing must not mean writing a container for it | Add, find and remove tests; a grid resource rebuilt from the World agrees with it; a fixture proves a new kind of thing needs no new container |
+| P2-T0b | The entity store | Every thing that exists - people, items, smoke, fire, blood, walls, ground - is an entity in the World, reached by id and never by pointer (D1, D7). A square is an entity too, and it holds no contents (D3). Adding a kind of thing must not mean writing a container for it | Add, find and remove tests; the index rebuilt from the store agrees with it; a fixture proves a new kind of thing needs no new container |
 | P2-T0c | Port the map layer onto the World | Smoke, fire and the ground become components on entities; light, transparency and seen become resources written by systems; the private containers are deleted | The existing behaviour tests keep passing unchanged - that is what proves the storage moved and the behaviour did not |
 | P2-T1 | Ground of a square | The ground is a thing that never moves; storing it per square is a storage choice, not an architectural one. Uniform-region fast path stays | Storage tests + uniform-region fixtures |
-| P2-T2 | Positions and the grid | Where each thing stands comes from the register, and the grid is rebuilt from it (D2). Nothing outside the register is authoritative about position | Grid rebuild tests; no second source of truth |
+| P2-T2 | Positions and the index | Where each thing stands comes from the store, and the index is rebuilt from it (D2). Nothing outside the store is authoritative about position | Index rebuild tests; no second source of truth |
 | P2-T3 | Answers and their caches | Light, transparency, seen, vision, floor, outside: computed by systems, cached, thrown away when a thing they depend on changes | Rebuild tests; dirty-flag invariant I8 |
-| P2-T4 | Smoke, fire and the rest | Smoke, fire, blood and acid are things in the register, each with a square, a strength and an age; 21 processors decide what they do each turn; decay and spread | Fire/gas/smoke session replays |
+| P2-T4 | Smoke, fire and the rest | Smoke, fire, blood and acid are entities in the store, each with a square, a strength and an age; 21 processors decide what they do each turn; decay and spread | Fire/gas/smoke session replays |
 | P2-T5 | Illumination | Four-quadrant light, 21 levels | Light session replays |
 | P2-T6 | Vision and visibility | Line of sight, memory | Vision session replays |
 | P2-T7 | Scent | A smell field is an answer computed per square and diffused by a system, not a thing | Diffusion replay |
-| P2-T8 | Sound events | A sound is a short-lived thing - it exists, it travels, it stops - so it goes in the register like anything else | Sound-affected session replays |
+| P2-T8 | Sound events | A sound is a short-lived thing - it exists, it travels, it stops - so it goes in the store like anything else | Sound-affected session replays |
 | P2-T9 | Temperature | Per-square temperature is an answer; body temperature belongs to the thing that has a body | Cold/heat sessions |
 | P2-T10 | Weather | Weather generator and effects | Multi-day weather replay |
 | P2-T11 | Traps | Trap placement and triggering | Trap sessions |

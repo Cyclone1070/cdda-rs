@@ -19,9 +19,10 @@ describes a table no player has.
 
 | # | Decision | Rationale |
 |---|---|---|
+| D0 | **The architecture is absolute** | The port translates the reference's rules into this architecture and never imports its structure. A shape that breaks a principle is wrong even when its output matches, because everything added afterwards builds on whatever shape is already there. Enforced by the gates in `crates/sim/tests/sim_suite/architecture.rs`, not by good intentions. |
 | D1 | One entity store is the source of truth | Uniform storage means one way to add a kind of thing, one way to save, one way to query. Two storage classes were the main source of confusion in the reference implementation. |
 | D2 | A dense position index is derived, never authoritative | Keeps "what is at this square?" a single step while avoiding two sources of truth. A derived index can always be thrown away and rebuilt. |
-| D3 | Empty squares are not entities | Uniformity is about mechanism, not about creating 366,000 objects to represent air. The index has a third state, "unloaded", which makes streaming honest too. |
+| D3 | A square is an ordinary entity, and it holds no contents | A square is a place, not a container. It carries `Position` and the values computed for it, and nothing else: no terrain slot, no furniture slot, no trap slot, no item slot. Everything standing on it is a separate entity with the same position. One storage shape for squares and for the things on them means one way to add a kind of thing, one way to query, one way to save. |
 | D4 | Composition over inheritance | A dog and a wall differ by components, not by class. This is what makes new behaviour additive instead of a subclass tree. |
 | D5 | System order is data | A readable, diffable schedule instead of subsystem calls buried in one large function. Ordering becomes reviewable and testable. |
 | D6 | Structural changes only at sync points | Iteration stays valid; behaviour becomes reproducible. A turn is already atomic, so batching is natural here in a way it is not in a 60 Hz action game. |
@@ -40,14 +41,14 @@ you take one thing from this document, take this.
 
 Not "an ECS crate": **`bevy_ecs`**, added to the workspace as `cdda-sim`'s dependency. It is the
 first third-party dependency in the project and it is the backbone of everything below - the
-register, every component, every system, and the schedule itself.
+entity store, every component, every system, and the schedule itself.
 
 Why this one, in its own terms:
 
 | Decision | What `bevy_ecs` gives |
 |---|---|
 | D1 one store | a `World` is the store; `Entity` is the id |
-| D2 derived index | a `Resource` holding the grid, rebuilt from the World |
+| D2 derived index | a component holding the square index, on one entity, rebuilt from the store |
 | D5 schedule is data | its `Schedule` is data: built in one place, inspectable, reorderable |
 | D6 structural changes at sync points | commands are applied at defined boundaries, not mid-iteration |
 | D8 no engine | a plain library: no renderer, no window, no application loop |
@@ -64,8 +65,8 @@ task that adopts it is a wish, and wishes do not show up in a diff.*
 **Things are nouns. Systems are verbs.**
 
 * **A thing** exists in the world: it can be created, moved, damaged, seen, picked up, burnt.
-  Smoke, fire, blood, acid, a person, an item, a wall. **Every one of them is one thing in one
-  register** (D1), and the register says where each stands (D2).
+  Smoke, fire, blood, acid, a person, an item, a wall, and the ground of a square. **Every one
+  of them is one entity in the one entity store** (D1), and the index says where each stands (D2).
 * **A system** is a step that does a job each turn: move things, spread fire, work out light,
   work out what a person can see. Systems are scheduled in a readable order (D5).
 * **An answer** is what a system produces: how bright this square is, whether this square is
@@ -77,17 +78,26 @@ bright patch it throws is an answer produced by the lighting system.
 
 ### What this does not mean
 
-* **It does not mean every square is an entity.** Air holding nothing is not a thing to
-  create: an empty square is a gap in the register, and the grid can say "nothing here" (D3).
+* **A square is not a container.** It has no slots for terrain, furniture, traps or items. A
+  square carries `Position` and the values computed for it, and nothing else. Everything
+  standing on it is a separate entity whose position equals the square, so a square can hold
+  any number of things and knows nothing about any of them (D3).
+* **Ground is a thing like any other, so the ground is an entity.** It can be looked at,
+  walked on, bashed, dug and burnt, and all of those are rules acting on it. It is spawned
+  with the level, sits on its square like every other thing, and its terrain, furniture and
+  trap values are components on it. It is not exempt and it is not stored off to the side.
+* **What may share a square is decided by the entities, not by the square.** An entity
+  carries its own rules as data: what it admits on its square, what it needs under it, and
+  how much it can support. One placement system asks the entities already there whether a
+  newcomer fits. Adding a kind of thing means giving it components, never editing a list of
+  kinds or adding a slot to a square.
 * **It does not mean separate containers per kind.** A container for creatures, another for
   items, another for fire is exactly the shape this decision rejects (see B below). Adding a
   kind of thing must not mean writing a container for it.
-* **It does not mean answers must be stored as things.** Brightness, visibility, "is this
-  square under a roof" are computed by systems and kept only as scratch that a later turn
-  overwrites.
-* **It does not mean the ground is exempt.** The ground of a square is a thing like any
-  other; it simply never moves, which makes where it is stored a plain storage question rather
-  than an architectural one.
+* **It does not mean computed values are things.** Brightness, visibility and "is this square
+  under a roof" are components written by one system and overwritten on the next recompute.
+  They live on the square's entity because that is the addressable place to put them, but no
+  rule reads them as input and they are never saved.
 
 ---
 

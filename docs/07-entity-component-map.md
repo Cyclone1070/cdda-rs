@@ -13,8 +13,9 @@ Full per-class tables:
 
 Read [03-decisions.md](03-decisions.md) first, section "What the ECS decision means, in
 plain words". The three sentences that matter: **things are nouns, systems are verbs, answers
-are neither.** Smoke, fire, blood, acid, people, items and walls are things. Brightness and
-visibility are answers a system computes. A cache that disagrees with the store is wrong.
+are neither.** Smoke, fire, blood, acid, people, items, walls and the ground of a square are
+things. Brightness and visibility are answers a system computes and stores on the square's
+entity, never as truth. A cache that disagrees with the store is wrong.
 
 Method: for each stateful class, read its data members and classify. Verdicts are
 per class, and mixed classes are split rather than forced into one bucket.
@@ -95,8 +96,9 @@ Each of these is the same fact stored twice. In the port each gets exactly one h
 | Light at a square | **nothing** | the per-level light array is the only copy, and it is a cache by construction |
 
 The light case is the sharpest: the reference has no authoritative lighting store,
-only a rebuildable one. The design must state explicitly whether light is a
-component (authoritative) or a cache (derived) — see §6.
+only a rebuildable one. It is settled here: light is a component on the square's
+entity, written by the lighting system and overwritten on the next recompute, never
+saved and never read as input by a rule.
 
 ---
 
@@ -120,7 +122,7 @@ one instance and asserts the other instances are untouched.
 
 | # | Question | How to settle |
 |---|---|---|
-| Q1 | Is light a component or a cache? | Decide from gameplay: anything that reads light without a rebuild must be listed first |
+| Q1 | Is light a component or a cache? | **Settled:** a component on the square's entity, recomputed by one system, never saved |
 | Q2 | Is the reality bubble an entity, or a query window over the store? | Prototype both; measure the cost of the window's rebuild |
 | Q3 | Is scent authoritative (it survives shifting) or per-turn state? | Compare against how the reference discards it on map shift |
 | Q4 | Do embedded-by-value collections (cities, hordes, camps) become entities? | Count how often each is addressed individually during a turn |

@@ -30,7 +30,7 @@ saves/           fixture worlds the sessions start from
 crates/
   core-types/    coordinates, ids, units, calendar, rng, diagnostics
   data/          json reader, prototypes, inheritance, mods
-  world/         grid, environment, map memory
+  world/         entity store, index, environment
   items/         items, containers, crafting, interaction
   actors/        creatures, body, effects, combat, ai
   sim/           the schedule and every system registered in it
@@ -75,7 +75,7 @@ not when the code compiles.
 |---|---|---|
 | P0 Foundation | RNG, text and JSON parity | Draw-for-draw comparison log; accept/reject corpus result |
 | P1 Registry & saves | Prototype digest equal; oracle self-consistent | Digest file; Gate 0 report |
-| P2 World grid | Environment sessions replay equal | Per-turn hash chain for N sessions |
+| P2 World store | Environment sessions replay equal | Per-turn hash chain for N sessions |
 | P3 Items | Item/crafting sessions replay equal | Same, plus re-expressed reference tests |
 | P4 Creatures | Combat sessions replay equal | Same |
 | P5 Spells | Spell/enchantment sessions replay equal | Same |

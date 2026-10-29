@@ -122,11 +122,11 @@ a Linux desktop and runs every gate there in about thirty seconds, so the same 1
 Linux on each run.
 
 **P2 stands here.** Read this against `03-decisions.md`: things are nouns, systems are verbs,
-and answers are neither. T1 (the ground of a square), T2 (positions come from the register, the
-grid is rebuilt from it) and T3 (answers and their caches) are done.
+and answers are neither. T1 (a square and the ground on it are entities), T2 (positions come from the store, and the
+index is rebuilt from it) and T3 (computed values and their caches) are done.
 
 **`bevy_ecs` is now the backbone** (P2-T0a): the World is the store, entities are the ids,
-components are the columns, and the schedule is data. The register (P2-T0b) is done and
+components are the columns, and the schedule is data. The entity store (P2-T0b) is done and
 smoke has begun to move onto it (P2-T0c): a field is an entity with a square, a strength and an
 age, and the field system walks it. The old per-square container is **deleted**: the map
 layer no longer stores fields, and the lighting system reads smoke from the store instead of a
@@ -134,10 +134,11 @@ copy. Two sources of truth became one.
 
 The rest of P2-T0c is done too: the sun writes into the same `Light` answer as the torches
 (`cast_sunlight`), so daylight and lamps meet in one place instead of two that a reader has to
-reconcile. The ground is still a per-square store, which the decision explicitly allows. Every
-map-shaped structure that exists today was written before that task existed, which is how the
-plan and the decision drifted apart: the register is what makes "adding a kind of thing" not
-mean "writing a container for it".
+reconcile. The ground is still held in per-square arrays, which is the one remaining violation
+of the decision: it becomes an entity when the ground task lands. Every map-shaped structure
+that exists today was written before that task existed, which is how the plan and the decision
+drifted apart: one store is what makes "adding a kind of thing" not mean "writing a container
+for it".
 
 T4 has its first processor: smoke and the rest decay, and gas now spreads to a neighbour with
 the reference's thinning rule - the fraction of age that moves is the age divided by the

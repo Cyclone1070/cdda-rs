@@ -20,9 +20,8 @@ reference implementation and deciding what to keep and what to change.
 1. **One entity store is the source of truth.** Terrain, furniture, fields, items,
    creatures, vehicles and projectiles are all entities. There is no second class
    of thing.
-2. **One derived position index** answers "what is at this square?" It holds either
-   nothing or a ticket to an entity. It is rebuilt from the store, never
-   authoritative.
+2. **One derived index** answers "what is at this square?" It holds either nothing or
+   a list of entity ids. It is rebuilt from the store, never authoritative.
 3. **Components decide behaviour, not storage.** A wall has opacity and hardness; a
    dog has action points and a brain. "Scenery" is simply the entities that no
    system queries for action points.

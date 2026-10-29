@@ -36,7 +36,7 @@ Written down before any test is. Every field falls into exactly one bucket.
 |---|---|---|
 | **Exact** | Must match bit-for-bit after normalisation | positions, health, item contents, field strength, RNG state, message text |
 | **Tolerant** | Must match within a stated epsilon | accumulated temperature, float-derived stats |
-| **Ignored** | May differ freely; excluded from the digest | entity ticket values, cache contents, draw order, memory layout, timing |
+| **Ignored** | May differ freely; excluded from the digest | entity id values, cache contents, draw order, memory layout, timing |
 
 Without this table every run "fails" on meaningless differences, and the gate gets
 switched off within a week.
