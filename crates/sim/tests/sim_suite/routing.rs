@@ -78,3 +78,38 @@ fn the_scorer_charges_what_combined_move_cost_says() {
     );
     let _ = Direction::North;
 }
+
+/// A prototype becomes a code in exactly one place, and its move cost comes with it.
+///
+/// The fixture is written here rather than read from the corpus dump on purpose: the dump states
+/// `"kind"` where the loader reads `"type"` (`mapdata.cpp`'s own field name), so the two cannot be
+/// joined without deciding which is right. That decision is recorded in parity instead of being made
+/// by a test. What this pins is the part that is settled - the table takes the cost off the prototype
+/// and hands back the code the square will use.
+#[test]
+fn a_prototype_becomes_a_code_and_keeps_its_move_cost() {
+    // The symbols are strings, as the loader reads them (`symbol entries must be strings`): the
+    // corpus dump writes code points instead, which is the second reason the dump's shape and the
+    // loader's shape are not the same question.
+    let text = r#"[
+        {"type":"terrain","id":"t_floor","name":"floor","symbol":".","color":"c_cyan","move_cost":2,"light":0,"coverage":0,"transparent":true,"flags":[]},
+        {"type":"terrain","id":"t_wall","name":"wall","symbol":"X","color":"c_light_gray","move_cost":0,"light":0,"coverage":0,"transparent":false,"flags":[]}
+    ]"#;
+    let loaded = cdda_content::mapdata::load_objects(
+        &cdda_json::parse(text.as_bytes()).expect("the fixture parses"),
+        "fixture",
+    )
+    .expect("the fixture loads");
+    let terrain: Vec<cdda_content::mapdata::MapData> = loaded
+        .into_iter()
+        .filter(|prototype| prototype.kind == cdda_content::mapdata::MapDataKind::Terrain)
+        .collect();
+    assert_eq!(terrain.len(), 2, "both prototypes are terrain");
+
+    let (table, codes) = cdda_sim::terrain_table::TerrainTable::from_map_data(terrain);
+
+    let floor = codes.get("t_floor").copied().expect("the floor got a code");
+    assert_eq!(table.move_cost(floor), Some(2), "and kept its cost");
+    let wall = codes.get("t_wall").copied().expect("the wall got a code");
+    assert_eq!(table.move_cost(wall), Some(0), "a wall costs nothing to stand on, which means never");
+}

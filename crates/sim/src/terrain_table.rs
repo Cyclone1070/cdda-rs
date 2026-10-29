@@ -49,6 +49,34 @@ impl TerrainTable {
         }
     }
 
+    /// Builds a table from map prototypes, handing back the code each id was given.
+    ///
+    /// This is the one place a prototype becomes a code, so the table, the square and the route all
+    /// agree on what code five means. The reference does the same thing with its own id-to-index map
+    /// (`mapdata.cpp`); the port keeps it in one function rather than in every loader that needs it.
+    ///
+    /// Reference for the numbers: `ter_t` and `furn_t` read `transparent`, `light_emitted`,
+    /// `symbol` and `move_cost` from the same JSON object (`mapdata.cpp:1225` and around it).
+    pub fn from_map_data(
+        entries: impl IntoIterator<Item = cdda_content::mapdata::MapData>,
+    ) -> (Self, std::collections::BTreeMap<String, u32>) {
+        let mut table = Self::new();
+        let mut codes = std::collections::BTreeMap::new();
+        for (index, prototype) in entries.into_iter().enumerate() {
+            let Ok(code) = u32::try_from(index + 1) else {
+                break;
+            };
+            table.insert(code, prototype.transparent);
+            table.insert_light(code, f32::from(i16::try_from(prototype.light).unwrap_or(0)));
+            table.insert_move_cost(code, prototype.move_cost);
+            if let Some(symbol) = prototype.symbol.first().and_then(|value| u8::try_from(*value).ok()) {
+                table.insert_symbol(code, char::from(symbol));
+            }
+            codes.insert(prototype.id, code);
+        }
+        (table, codes)
+    }
+
     /// Records that a code is, or is not, flagged as indoors.
     ///
     /// Reference: `TFLAG_INDOORS` on either layer, read by `build_outside_cache` (`map.cpp:9291-9293`) to decide which squares are under open sky. A code the table has not
