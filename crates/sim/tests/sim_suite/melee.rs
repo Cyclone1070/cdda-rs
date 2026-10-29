@@ -16,8 +16,8 @@
 
 use cdda_sim::CreatureSize;
 use cdda_sim::melee::{
-    Damage, dice_total, dodge_roll, dodged, hit_spread, is_a_hit, monster_melee_damage,
-    size_melee_penalty,
+    Damage, after_armour, dice_total, dodge_roll, dodged, effective_resist, hit_spread, is_a_hit,
+    monster_melee_damage, size_melee_penalty,
 };
 
 #[test]
@@ -69,6 +69,31 @@ fn zero_is_a_dodge_and_a_hit() {
     assert!(dodged(-1));
     assert!(is_a_hit(1), "one point over hits and is not a dodge");
     assert!(!dodged(1));
+}
+
+/// Armour takes off what it can and never more than the blow had.
+///
+/// Reference: `monster::absorb_hit` (`monster.cpp:2085`) - `elem.amount -= std::min( r.get_effective_resist(
+/// elem ) + get_worn_armor_val( elem.type ), elem.amount )` - where `get_effective_resist` is
+/// `std::max( type_resist( du.type ) - du.res_pen, 0 )` (`damage.cpp:724-727`).
+///
+/// Two separate facts hide in that line: penetration eats the resistance *before* the subtraction, and
+/// the whole result is clamped by the damage, so armour can leave a blow at zero but never below it.
+#[test]
+fn armour_resists_less_whatever_the_attack_penetrates() {
+    assert_eq!(effective_resist(5.0, 0.0), 5.0, "plain resistance");
+    assert_eq!(effective_resist(5.0, 2.0), 3.0, "two points of penetration take two off");
+    assert_eq!(effective_resist(5.0, 5.0), 0.0, "exactly through");
+    assert_eq!(effective_resist(5.0, 9.0), 0.0, "and never negative");
+}
+
+#[test]
+fn a_blow_can_be_stopped_but_never_reversed() {
+    assert_eq!(after_armour(10.0, 5.0, 0.0, 0.0), 5.0, "half of it gets through");
+    assert_eq!(after_armour(10.0, 5.0, 2.0, 0.0), 3.0, "worn armour adds to the resist");
+    assert_eq!(after_armour(10.0, 5.0, 0.0, 3.0), 8.0, "penetration takes from the resist");
+    assert_eq!(after_armour(4.0, 5.0, 2.0, 0.0), 0.0, "and armour thicker than the blow leaves nothing");
+    assert_eq!(after_armour(10.0, 0.0, 0.0, 0.0), 10.0, "no armour, no reduction");
 }
 
 /// The damage a monster's claws do, before armour: its type's own damage plus dice.

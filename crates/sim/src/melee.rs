@@ -99,6 +99,28 @@ pub struct Damage {
     pub penetration: i32,
 }
 
+/// What armour resists, after the attack's own penetration.
+///
+/// Reference: `resistances::get_effective_resist` (`damage.cpp:724-727`) is
+/// `std::max( type_resist( du.type ) - du.res_pen, 0 )`. The clamp is the reference's: penetration eats
+/// resistance down to nothing and never turns armour into a weakness.
+#[must_use]
+pub fn effective_resist(resist: f32, penetration: f32) -> f32 {
+    (resist - penetration).max(0.0)
+}
+
+/// What is left of a blow after armour.
+///
+/// Reference: `monster::absorb_hit` (`monster.cpp:2085`) subtracts
+/// `min( effective_resist + worn_armour, amount )` - so armour can stop a blow entirely but cannot push it
+/// below zero and heal the target. The `min` is on the *resistance*, not on the result; the two are the
+/// same arithmetic, but only one of them says what the reference meant.
+#[must_use]
+pub fn after_armour(amount: f32, resist: f32, worn_armour: f32, penetration: f32) -> f32 {
+    let resisted = effective_resist(resist, penetration) + worn_armour;
+    amount - resisted.min(amount)
+}
+
 /// The sum of `number` dice with `sides` faces.
 ///
 /// Reference: `dice` (`rng.cpp:211-218`) - `rng( 1, sides )` drawn `number` times and added. Each die is
