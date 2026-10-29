@@ -9,7 +9,8 @@
 
 use bevy_ecs::prelude::*;
 use cdda_sim::creature::{
-    Creature, Moves, bank_a_turn, creature_at, give_moves, scaled_speed, set_speed, spawn_creature,
+    Creature, Moves, StepOutcome, bank_a_turn, creature_at, give_moves, run_cost, scaled_speed,
+    set_speed, spawn_creature, try_step,
 };
 use cdda_sim::{Position, singletons};
 
@@ -90,6 +91,63 @@ fn the_monster_speed_option_scales_speed_and_truncates() {
     assert_eq!(scaled_speed(100, 33), 33, "a third, truncated");
     assert_eq!(scaled_speed(130, 75), 97, "97.5 truncates to 97");
     assert_eq!(scaled_speed(70, 100), 70, "and a speed that needs no scaling keeps its value");
+}
+
+/// What a step costs, as the reference works it out.
+///
+/// Reference: `Character::run_cost` (`src/character.cpp:10363-10374`): the cost is divided by the
+/// square root of two on a diagonal, effects are applied, and it is multiplied by the root again
+/// before the result is truncated to an integer. With no effects the round trip is *almost* the
+/// identity, and the truncation is what makes it not quite: a hundred divides to 70.7106781 and comes
+/// back as 99.9999999, which is 99. That one-point difference is the reference's behaviour, so it is
+/// what the test pins - writing the "obvious" identity here would have quietly corrected upstream.
+#[test]
+fn a_diagonal_step_round_trips_through_the_root_of_two_and_truncates() {
+    for cost in (100..=400).step_by(50) {
+        let straight = run_cost(cost, false);
+        let diagonal = run_cost(cost, true);
+        assert_eq!(straight, cost, "a straight step is the square's cost");
+        assert!(diagonal <= straight, "a diagonal is never dearer than a straight step");
+        assert!(
+            straight - diagonal <= 1,
+            "and never more than a point cheaper: {cost} came back as {diagonal}"
+        );
+    }
+    assert_eq!(run_cost(100, true), 99, "a hundred comes back as ninety-nine");
+}
+
+#[test]
+fn a_creature_moves_when_it_can_pay_for_the_step() {
+    let mut world = World::new();
+    let you = spawn_creature(&mut world, "the survivor", (5, 5, 0));
+    give_moves(&mut world, you, 100);
+
+    let outcome = try_step(&mut world, you, (6, 5, 0), 100);
+
+    assert_eq!(outcome, StepOutcome::Moved, "a hundred moves buys a hundred-move step");
+    assert_eq!(
+        creature_at(&world, (6, 5, 0)),
+        vec![you],
+        "it stands where it stepped"
+    );
+    assert!(
+        creature_at(&world, (5, 5, 0)).is_empty(),
+        "and no longer where it was: the index learned about it"
+    );
+    assert_eq!(moves_of(&world, you), 0, "the step spent every point");
+}
+
+#[test]
+fn a_creature_without_the_points_stays_where_it_is() {
+    let mut world = World::new();
+    let you = spawn_creature(&mut world, "the survivor", (5, 5, 0));
+    give_moves(&mut world, you, 99);
+
+    let outcome = try_step(&mut world, you, (6, 5, 0), 100);
+
+    assert_eq!(outcome, StepOutcome::TooSlow, "ninety-nine cannot pay for a hundred");
+    assert_eq!(creature_at(&world, (5, 5, 0)), vec![you], "it did not move");
+    assert_eq!(moves_of(&world, you), 99, "and it was not charged for trying");
 }
 
 /// The action points a creature has left.

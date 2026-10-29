@@ -101,6 +101,70 @@ pub fn bank_a_turn(world: &mut World) {
     }
 }
 
+/// Whether a creature moved.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StepOutcome {
+    /// It took the step and paid for it.
+    Moved,
+    /// It had fewer points than the step costs, so it stayed where it was and paid nothing.
+    TooSlow,
+}
+
+/// What a step costs, after the effects a diagonal applies.
+///
+/// Reference: `Character::run_cost` (`src/character.cpp:10363-10374`). The cost is divided by the
+/// square root of two when the step is diagonal, effect modifiers are applied between the two
+/// multiplications, and the result is truncated to an integer. The port has no run-cost effects yet, so
+/// the divide and multiply cancel and the answer is the square's own cost - which is the behaviour,
+/// not a shortcut: the reference's own comment says the division exists so effect arithmetic can assume
+/// a hundred-point base.
+#[must_use]
+pub fn run_cost(base_cost: i32, diagonal: bool) -> i32 {
+    let mut move_cost = f64::from(base_cost);
+    if diagonal {
+        move_cost /= std::f64::consts::SQRT_2;
+    }
+    // Where `run_cost_effects` will go: additive and multiplicative modifiers, in the reference's order.
+    if diagonal {
+        move_cost *= std::f64::consts::SQRT_2;
+    }
+    #[allow(clippy::cast_possible_truncation)]
+    let cost = move_cost as i32;
+    cost
+}
+
+/// Moves a creature one square, spending what the step costs.
+///
+/// The cost is the caller's, because what a square costs to enter is the map's answer
+/// (`map::move_cost`), and the creature only decides whether it can pay. On success the entity's
+/// [`Position`] and the index are both updated: the index is derived, and leaving it behind would make
+/// it a second source of truth.
+pub fn try_step(world: &mut World, entity: Entity, to: (i32, i32, i32), cost: i32) -> StepOutcome {
+    let Some(moves) = world.get::<Moves>(entity).copied() else {
+        return StepOutcome::TooSlow;
+    };
+    if moves.left < cost {
+        return StepOutcome::TooSlow;
+    }
+    let from = {
+        let Some(mut position) = world.get_mut::<Position>(entity) else {
+            return StepOutcome::TooSlow;
+        };
+        let from = (position.x, position.y, position.z);
+        position.x = to.0;
+        position.y = to.1;
+        position.z = to.2;
+        from
+    };
+    if let Some(mut moves) = world.get_mut::<Moves>(entity) {
+        moves.left -= cost;
+    }
+    let mut index = crate::singletons::index_mut(world);
+    index.remove(entity, (from.0, from.1, from.2));
+    index.insert(entity, to);
+    StepOutcome::Moved
+}
+
 /// Puts a creature in the world, standing on `square`.
 ///
 /// The square is written twice - as the entity's [`Position`] and into the index - because the index is

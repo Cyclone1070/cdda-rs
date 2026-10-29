@@ -125,6 +125,16 @@ impl PositionIndex {
         }
     }
 
+    /// Takes a thing out of one square, so a move does not leave it in two places at once.
+    pub fn remove(&mut self, entity: Entity, square: (i32, i32, i32)) {
+        if let Some(occupants) = self.squares.get_mut(&square) {
+            occupants.retain(|occupant| *occupant != entity);
+            if occupants.is_empty() {
+                self.squares.remove(&square);
+            }
+        }
+    }
+
     /// How many squares hold anything at all.
     #[must_use]
     pub fn occupied_squares(&self) -> usize {
