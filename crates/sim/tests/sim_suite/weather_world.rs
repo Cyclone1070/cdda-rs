@@ -19,7 +19,7 @@ use bevy_ecs::prelude::*;
 use cdda_content::weather::{Rules, WeatherType};
 use cdda_core_types::level::Level;
 use cdda_sim::weather_gen::{CommonData, Generator};
-use cdda_sim::{Climate, Forecast, Map, Prototypes, Weather, tick_climate};
+use cdda_sim::{Climate, Forecast, Map, Prototypes, Weather, climate, climate_read, set_climate, tick_climate};
 
 fn world(rules: Rules) -> World {
     let mut world = World::new();
@@ -33,7 +33,7 @@ fn world(rules: Rules) -> World {
     world.insert_resource(Map(level));
     world.insert_resource(Prototypes::default());
     world.insert_resource(Weather::clear());
-    world.insert_resource(Climate::new(rules));
+    set_climate(&mut world, Climate::new(rules));
     world
 }
 
@@ -67,7 +67,7 @@ fn a_sky_that_dims_the_light_reaches_the_world_s_weather_and_its_map() {
     let weather = world.get_resource::<Weather>().expect("the weather").sight_penalty();
     assert_eq!(weather, 1.7, "the world is foggy");
     assert!(world.get_resource::<Map>().expect("the map").light_is_stale(), "and the light knows it");
-    let climate = world.get_resource::<Climate>().expect("the climate");
+    let climate = climate_read(&world).expect("the climate");
     assert_eq!(climate.weather(), Some("fog"), "the id is the world's, not the test's");
 }
 
@@ -95,7 +95,7 @@ fn the_world_s_wind_comes_from_the_weather_and_not_from_the_caller() {
     let mut roll = |low: i32, high: i32| low.midpoint(high);
     let mut sector = |_season: usize| 9;
     tick_climate(&mut world, &forecast(0), &mut roll, &mut sector);
-    let climate = world.get_resource::<Climate>().expect("the climate");
+    let climate = climate_read(&world).expect("the climate");
     let expected = cdda_sim::weather_gen::wind_power(
         forecast(0).generator,
         &forecast(0).common,
@@ -113,7 +113,7 @@ fn the_world_s_wind_wins_over_the_one_a_caller_passes() {
     let mut roll = |low: i32, high: i32| low.midpoint(high);
     let mut sector = |_season: usize| 9;
     tick_climate(&mut with_climate, &forecast(0), &mut roll, &mut sector);
-    let from_climate = with_climate.get_resource::<Climate>().expect("the climate").windpower();
+    let from_climate = climate_read(&with_climate).expect("the climate").windpower();
     assert_eq!(cdda_sim::wind_of(&with_climate, 99), from_climate, "the climate's wind");
     let without = World::new();
     assert_eq!(cdda_sim::wind_of(&without, 99), 99, "and the caller's, where there is no climate");
@@ -195,7 +195,7 @@ fn ten_recorded_days_replay_through_the_world_hour_by_hour() {
     let penalty = |id: &str| -> f32 { cdda_content::weather::WeatherRules::sight_penalty(&rules, id) };
     let first = &hours[0];
     {
-        let mut climate = world.get_resource_mut::<Climate>().expect("the climate");
+        let mut climate = climate(&mut world).expect("the climate");
         climate.system.manager.weather = Some(id_of(first));
         climate.system.manager.point = Some(cdda_content::weather::Point {
             turn: number(first, "turn") as i64,
@@ -252,7 +252,7 @@ fn ten_recorded_days_replay_through_the_world_hour_by_hour() {
         if let cdda_content::weather::Change::Weather { sight_changed: true } = change {
             flushes += 1;
         }
-        let climate = world.get_resource::<Climate>().expect("the climate");
+        let climate = climate_read(&world).expect("the climate");
         let point = climate.system.manager.point.expect("a point");
         let mut note = |what: &str, ours: String, theirs: String| {
             if ours != theirs && wrong.len() < 8 {

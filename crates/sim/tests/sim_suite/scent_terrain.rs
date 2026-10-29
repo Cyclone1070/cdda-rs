@@ -10,6 +10,7 @@ use bevy_ecs::prelude::*;
 use cdda_core_types::level::Level;
 use cdda_sim::scent::{advance_scent, decay_scent, marks_at, reset_scent, scent_at, set_scent_at};
 use cdda_sim::scent_table::ScentTable;
+use cdda_sim::set_scent_table;
 use cdda_sim::{Map, Prototypes};
 
 const AIR: u32 = 1;
@@ -35,7 +36,7 @@ fn world(marks: &[(i32, i32, u32)]) -> World {
     scent.insert(AIR, false, false);
     scent.insert(WALL, true, false);
     scent.insert(DOOR, false, true);
-    world.insert_resource(scent);
+    set_scent_table(&mut world, scent);
     reset_scent(&mut world);
     world
 }
@@ -64,7 +65,7 @@ fn the_marks_come_from_the_table_rather_than_from_the_code_number() {
     let mut reversed = world(&[(6, 5, AIR)]);
     let mut table = ScentTable::new();
     table.insert(AIR, true, false);
-    reversed.insert_resource(table);
+    set_scent_table(&mut reversed, table);
     reset_scent(&mut reversed);
     assert_eq!(marks_at(&reversed, (6, 5)), (true, false));
 }

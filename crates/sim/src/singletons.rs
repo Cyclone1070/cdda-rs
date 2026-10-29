@@ -18,6 +18,8 @@ use bevy_ecs::prelude::*;
 use crate::SupportLost;
 use crate::falling::FieldRules;
 use crate::memory::Memory;
+use crate::scent_table::ScentTable;
+use crate::weather::Climate;
 use crate::radiation::Radiation;
 
 /// Marks the one entity that carries the falling queue.
@@ -125,6 +127,55 @@ pub fn field_rules(world: &mut World) -> Mut<'_, FieldRules> {
 pub fn set_field_rules(world: &mut World, rules: FieldRules) {
     *field_rules(world) = rules;
 }
+
+/// Marks the one entity that carries the weather's own clock.
+#[derive(Debug, Default, Component)]
+pub struct TheClimate;
+
+/// The climate, if the world has one.
+#[must_use]
+pub fn climate_read(world: &World) -> Option<&Climate> {
+    world.iter_entities().find_map(|entity| entity.get::<Climate>())
+}
+
+/// The climate, if the world has one, ready to be changed.
+pub fn climate(world: &mut World) -> Option<Mut<'_, Climate>> {
+    let entity = world
+        .query_filtered::<Entity, With<TheClimate>>()
+        .iter(world)
+        .next()?;
+    world.get_mut::<Climate>(entity)
+}
+
+/// Replaces the climate, which is what a world with loaded weather rules does once.
+pub fn set_climate(world: &mut World, climate: Climate) {
+    let entity = singleton::<Climate, TheClimate>(world);
+    if let Some(mut slot) = world.get_mut::<Climate>(entity) {
+        *slot = climate;
+    }
+}
+
+/// Marks the one entity that carries the terrain's scent flags.
+#[derive(Debug, Default, Component)]
+pub struct TheScentTable;
+
+/// The scent flags, if the world loaded them.
+#[must_use]
+pub fn scent_table(world: &World) -> Option<&ScentTable> {
+    world.iter_entities().find_map(|entity| entity.get::<ScentTable>())
+}
+
+/// Replaces the scent flags, which is what a loaded content set does once.
+pub fn set_scent_table(world: &mut World, table: ScentTable) {
+    let entity = singleton::<ScentTable, TheScentTable>(world);
+    if let Some(mut slot) = world.get_mut::<ScentTable>(entity) {
+        *slot = table;
+    }
+}
+
+/// Marks the one entity that carries the level's scent grid.
+#[derive(Debug, Default, Component)]
+pub struct TheScent;
 
 /// Queues one square whose support went away.
 pub fn queue_support_loss(world: &mut World, square: (i32, i32, i32)) {

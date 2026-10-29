@@ -17,9 +17,11 @@ pub mod effects;
 pub mod singletons;
 pub mod skills;
 pub use singletons::{
-    TheFallingQueue, TheFieldRules, TheMemory, TheRadiation, adjust_radiation,
+    TheFallingQueue, TheFieldRules, TheMemory, TheRadiation, TheScent, TheScentTable, TheClimate,
+    adjust_radiation,
     falling_queue_entity, field_rules, memory, memory_entity, queue_support_loss, radiation,
-    set_field_rules, singleton, support_lost,
+    climate, climate_read, scent_table, set_climate, set_field_rules, set_scent_table,
+    singleton, support_lost,
 };
 pub mod food_summary;
 pub mod frame;

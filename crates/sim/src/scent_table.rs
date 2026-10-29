@@ -7,7 +7,10 @@
 use std::collections::BTreeMap;
 
 /// The two scent flags of each terrain code.
-#[derive(Debug, Clone, Default, bevy_ecs::prelude::Resource)]
+///
+/// A component on the one entity [`TheScentTable`] marks: a table the world loaded is a thing the
+/// world holds, not a side channel beside the store.
+#[derive(Debug, Clone, Default, bevy_ecs::prelude::Component)]
 pub struct ScentTable {
     by_code: BTreeMap<u32, (bool, bool)>,
 }

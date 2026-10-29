@@ -143,7 +143,7 @@ impl System {
 /// The reference keeps the same facts in `weather_manager`'s globals and reads them where they are needed - `get_weather().windspeed` in the field sweep, the type's `sight_penalty`
 /// in the light. Putting them in a resource is what lets a turn take one borrow instead of reaching for a singleton, and it is where the *last computed* values live between the
 /// hourly updates: a turn that does not recompute still has a wind to spread smoke with.
-#[derive(Debug, Clone, bevy_ecs::prelude::Resource)]
+#[derive(Debug, Clone, bevy_ecs::prelude::Component)]
 pub struct Climate {
     /// The tick itself: manager, remembered wind direction, and rules.
     pub system: System,
@@ -199,7 +199,7 @@ pub fn tick_climate(
     roll: &mut dyn FnMut(i32, i32) -> i32,
     sector: &mut dyn FnMut(usize) -> usize,
 ) -> cdda_content::weather::Change {
-    let Some(mut climate) = world.remove_resource::<Climate>() else {
+    let Some(mut climate) = crate::singletons::climate(world) else {
         return cdda_content::weather::Change::None;
     };
     let change = climate.system.tick(forecast, roll, sector);
@@ -207,13 +207,21 @@ pub fn tick_climate(
         if let Some(point) = climate.system.manager.point {
             climate.windpower = point.windpower;
         }
-        climate.weather.clone_from(&climate.system.manager.weather);
-        if let Some(id) = climate.weather.as_deref() {
-            climate.sight_penalty = cdda_content::weather::WeatherRules::sight_penalty(&climate.system.rules, id);
+        // The stored weather is copied out before it is written back: `climate` is a borrowed
+        // component now, so the source and the destination cannot both be held at once.
+        let named = climate.system.manager.weather.clone();
+        climate.weather = named;
+        if let Some(id) = climate.weather.clone() {
+            let penalty = cdda_content::weather::WeatherRules::sight_penalty(
+                &climate.system.rules,
+                &id,
+            );
+            climate.sight_penalty = penalty;
         }
     }
     let penalty = climate.sight_penalty;
-    world.insert_resource(climate);
+    // `climate` is a `Mut` handed out by `world`, so the borrow ends when the guard is dropped at
+    // the end of this scope; the reads below take their own.
     if let Some(mut map) = world.get_resource_mut::<crate::Map>() {
         map.on_weather_change(change);
     }
@@ -229,5 +237,8 @@ pub fn tick_climate(
 /// back to what its caller passed, which is why the fallback is explicit instead of a zero.
 #[must_use]
 pub fn wind_of(world: &bevy_ecs::prelude::World, fallback: i32) -> i32 {
-    world.get_resource::<Climate>().map_or(fallback, Climate::windpower)
+    match crate::singletons::climate_read(world) {
+        Some(climate) => climate.windpower,
+        None => fallback,
+    }
 }

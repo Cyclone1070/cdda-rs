@@ -263,14 +263,11 @@ fn no_entity_is_an_empty_shelf() {
 /// The globals that stand beside the store today. Each should become an entity with a marker
 /// component, so this list may only ever shrink.
 const GLOBALS: &[&str] = &[
-    "Climate",
     "FieldTable",
     "Light",
     "Map",
     "PositionIndex",
     "Prototypes",
-    "Scent",
-    "ScentTable",
     "Weather",
 ];
 
