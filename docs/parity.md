@@ -19,7 +19,7 @@ The field container was not an isolated slip, so the same question was asked of 
 | Question | Answer |
 |---|---|
 Does `Level` hold anything the store owns? | nothing but terrain and two caches - and the caches say in their own docs that they are answers, not authority |
-Is terrain readable from two places? | no: `Map` wraps the one `Level`, and every reader goes through it |
+Is terrain readable from two places? | no: there is no `Map` any more. A loaded level is entities - one square, one piece of ground, one piece of furniture per square - and every reader asks the store |
 Do two functions walk fields? | there were **two** - `process_fields` aged and despawned, `process_field_turns` did the same plus processors - so the first is now a call to the second with no processors registered, rather than a second implementation that would drift |
 Dead state from the deleted container? | one leftover struct, `FieldProcessing`, which nothing read; removed |
 
