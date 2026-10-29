@@ -18,6 +18,7 @@ pub fn spread_seed(attempt: u32) -> u32 {
 }
 
 mod acid_vent;
+mod architecture;
 mod bash_hits;
 mod blast;
 mod body;
@@ -50,6 +51,7 @@ mod eating;
 mod effect_activated;
 mod effect_chances;
 mod effect_derived;
+mod skill_level;
 mod effect_decay;
 mod effect_merge;
 mod extinguisher;

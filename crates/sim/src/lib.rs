@@ -14,6 +14,7 @@ pub mod radiation;
 pub mod body;
 pub mod digest;
 pub mod effects;
+pub mod skills;
 pub mod food_summary;
 pub mod frame;
 pub mod needs;

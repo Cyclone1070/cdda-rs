@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-29 05:26:59
-@@ -0,0 +1,6140 @@
++++ oracle/src/src/harness.cpp	2026-10-29 08:11:53
+@@ -0,0 +1,6222 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +
@@ -387,6 +387,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 +#include "avatar.h"
 +#include "calendar.h"
++#include "skill.h"
 +#include "do_turn.h"
 +#include "game.h"
 +#include "fault.h"
@@ -2586,6 +2587,87 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +                      rng( 1, 100 ), rng( 1, 100 ) );
 +        ( void )u;
 +        first = false;
++    }
++    std::fprintf( out, "]}\n" );
++    std::fclose( out );
++}
++
++/// One skill level after one experience change, twice: once spending the excess and once crossing levels with it.
++///
++/// The arithmetic is entirely in `SkillLevel` (`src/skill.cpp:444-480`), and its thresholds are squares: ten thousand points for the first level, forty for the second,
++/// ninety for the third. The dump walks both settings over the same list of raw values - including values one below and one above each threshold, the cap, and the
++/// negatives that take a level away - so the port can be compared step for step rather than by the story the code tells.
++void dump_skill_level( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    // No negative values: at level zero, `on_exercise_change` sets the experience to `-1` and the level to `-1`, after which `exercise()` divides by
++    // `100 * ( level + 1 )^2` = zero and the reference dies of SIGFPE. That is a defect in the reference, not a rule to copy - see docs/parity.md.
++    const std::vector<int> raws = { 0, 1, 99, 100, 9999, 10000, 10001, 39999, 40000, 40001, 89999,
++                                    90000, 140000, 159999, 160000, 1000000, 100000000
++                                  };
++    std::fprintf( out, "{\"harness\":\"skill-level\",\"version\":1,\"max_skill\":%d,\"cases\":[\n", MAX_SKILL );
++    bool first = true;
++    for( const int raw : raws ) {
++        // `set_exercise` goes through `on_exercise_change( true )` - multi-level allowed - which is the path recorded here. The single-level path is `train`'s, and it
++        // needs the `SKILL_TRAINING_SPEED` option, so it stays a declared gap rather than being recorded with an option value the dump happens to have.
++        SkillLevel level;
++        level.set_exercise( raw, true );
++        std::fprintf( out,
++                      "%s{\"raw\":%d,\"level\":%d,\"exercise_raw\":%d,\"exercise\":%d,"
++                      "\"knowledge_level\":%d,\"knowledge_raw\":%d,\"exercised_level\":%d}",
++                      first ? "" : ",\n", raw, level.level(), level.exercise( true ),
++                      level.exercise( false ), level.knowledgeLevel(), level.knowledgeExperience( true ),
++                      level.exercised_level() );
++        first = false;
++    }
++    // And the training path, which is where the excess is **spent**: `train` reads `SKILL_TRAINING_SPEED`, and the default of one is what the cases below run with.
++    struct TrainCase {
++        int amount;
++        float catchup;
++        float knowledge;
++        int multilevel;
++        int repeats;
++        // Knowledge experience laid down first, through `knowledge_train`: without it the cap on the knowledge addition cannot be seen, because levelling a skill
++        // **resets** its knowledge experience (`src/skill.cpp:462-465`).
++        int knowledge_first;
++    };
++    const std::vector<TrainCase> trains = {
++        { 0, 1.0f, 1.0f, 0, 1, 0 },     { 1, 1.0f, 1.0f, 0, 1, 0 },     { 100, 1.0f, 1.0f, 0, 1, 0 },
++        { 9999, 1.0f, 1.0f, 0, 1, 0 },  { 10000, 1.0f, 1.0f, 0, 1, 0 }, { 10001, 1.0f, 1.0f, 0, 1, 0 },
++        { 40000, 1.0f, 1.0f, 0, 1, 0 }, { 40000, 1.0f, 1.0f, 1, 1, 0 }, { 40000, 0.5f, 1.5f, 0, 1, 0 },
++        { 40000, 0.5f, 1.5f, 1, 1, 0 }, { 10000, 1.0f, 1.0f, 0, 2, 0 }, { 10000, 1.0f, 1.0f, 1, 3, 0 },
++        { 100, 1.0f, 1.0f, 1, 5, 0 },   { 25000, 2.0f, 0.25f, 0, 2, 0 },
++        // Knowledge experience ahead of practice, which is the branch where the ninety-percent cap can actually be seen: the knowledge addition is larger than the
++        // catch-up, so only the cap keeps it from pulling ahead.
++        { 10000, 0.1f, 1.0f, 1, 1, 0 }, { 10000, 0.5f, 1.5f, 1, 1, 0 },
++        // Knowledge laid down first, so the ninety-percent cap has something to hold back.
++        { 100, 0.05f, 1.5f, 1, 1, 5000 }, { 100, 0.05f, 1.5f, 0, 1, 5000 },
++        { 1000, 0.05f, 1.5f, 1, 3, 5000 },
++    };
++    std::fprintf( out, "\n],\"trains\":[" );
++    bool first_train = true;
++    for( const TrainCase &item : trains ) {
++        SkillLevel level;
++        if( item.knowledge_first > 0 ) {
++            level.knowledge_train( item.knowledge_first );
++        }
++        for( int repeat = 0; repeat < item.repeats; ++repeat ) {
++            level.train( item.amount, item.catchup, item.knowledge, item.multilevel != 0 );
++        }
++        std::fprintf( out,
++                      "%s{\"amount\":%d,\"catchup\":%.9g,\"knowledge\":%.9g,\"multilevel\":%d,\"repeats\":%d,\"knowledge_first\":%d,"
++                      "\"level\":%d,\"exercise_raw\":%d,\"knowledge_level\":%d,\"knowledge_raw\":%d,"
++                      "\"rust\":%d,\"exercised_level\":%d}",
++                      first_train ? "" : ",\n", item.amount, static_cast<double>( item.catchup ),
++                      static_cast<double>( item.knowledge ), item.multilevel, item.repeats, item.knowledge_first,
++                      level.level(),
++                      level.exercise( true ), level.knowledgeLevel(), level.knowledgeExperience( true ),
++                      level.rustAccumulator(), level.exercised_level() );
++        first_train = false;
 +    }
 +    std::fprintf( out, "]}\n" );
 +    std::fclose( out );
@@ -6502,8 +6584,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-29 05:12:38
-@@ -0,0 +1,390 @@
++++ oracle/src/src/harness.h	2026-10-29 06:01:57
+@@ -0,0 +1,393 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -6711,6 +6793,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +
 +/** Answers whether reseeding the engine changes the next die, as `--dump-rng-probe`. */
 +void dump_rng_probe( const std::string &path );
++
++/** Writes one skill level after one experience change, as `--dump-skill-level`. */
++void dump_skill_level( const std::string &path );
 +
 +/** Writes the small rules an effect answers about itself, as `--dump-effect-derived`. */
 +void dump_effect_derived( const std::string &path );
@@ -7068,7 +7153,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-29 05:12:38
++++ oracle/src/src/main.cpp	2026-10-29 06:01:57
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -7079,7 +7164,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,141 @@
+@@ -272,6 +275,142 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -7167,6 +7252,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_bound_mod;
 +    std::string dump_per_turn;
 +    std::string dump_effect_derived;
++    std::string dump_skill_level;
 +    std::string dump_rng_probe;
 +    std::string dump_consume_drugs;
 +    std::string dump_link_ups;
@@ -7221,7 +7307,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +438,1230 @@
+@@ -300,6 +439,1240 @@
                  }
              },
              {
@@ -7622,6 +7708,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_rng_probe = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-skill-level", "<file>",
++                "Writes one skill level after one experience change",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_skill_level = params[0];
 +                    return 1;
 +                }
 +            },
@@ -8452,7 +8548,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2148,658 @@
+@@ -786,6 +2159,663 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -8882,6 +8978,11 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            test_mode = true;
 +            g->check_mod_data( { mod_id( "dda" ) } );
 +            harness::dump_rng_probe( cli.dump_rng_probe );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_skill_level.empty() ) {
++            test_mode = true;
++            harness::dump_skill_level( cli.dump_skill_level );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_effect_derived.empty() ) {
