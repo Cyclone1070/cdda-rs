@@ -47,6 +47,7 @@ mod creatures;
 mod pathfinding;
 mod routing;
 mod walking;
+mod melee;
 mod death;
 mod degradation;
 mod digest;
