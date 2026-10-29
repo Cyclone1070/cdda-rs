@@ -28,7 +28,7 @@ fn world(terrain: &[(i32, i32, u32)]) -> World {
     for (x, y, code) in terrain {
         level.set_terrain(*x, *y, *code, FLOOR);
     }
-    cdda_sim::load_level(&mut world, level);
+    cdda_sim::load_level(&mut world, &level);
 
     let mut ground = TerrainTable::new();
     ground.insert(FLOOR, true);

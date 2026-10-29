@@ -222,7 +222,7 @@ fn the_port_prints_every_plain_square_the_way_the_reference_prints_it() {
     }
 
     let mut world = World::new();
-    cdda_sim::load_level(&mut world, level);
+    cdda_sim::load_level(&mut world, &level);
     cdda_sim::set_prototypes(&mut world, Prototypes {
         terrain,
         furniture: TerrainTable::new(),

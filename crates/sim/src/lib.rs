@@ -22,7 +22,8 @@ pub use singletons::{
     TheFallingQueue, TheFieldRules, TheMemory, TheRadiation, TheScent, TheIndex, ThePrototypes, TheSightCasts, SightCasts, TheScentTable, TheClimate, TheFieldTable, TheLight, TheWeather,
     adjust_radiation,
     falling_queue_entity, field_rules, memory, memory_entity, queue_support_loss, radiation,
-    climate, climate_read, count_sight_cast, field_table, index, index_mut, light, light_mut,
+    climate, climate_read, count_sight_cast, field_table, index, index_mut, light,
+    light_is_stale, light_mut, light_rebuilds, mark_light_stale,
     prototypes, sight_casts,
     set_field_table,
     set_prototypes, set_weather, scent_table, weather, set_climate, set_field_rules, set_scent_table,
@@ -107,6 +108,17 @@ impl PositionIndex {
     #[must_use]
     pub fn at_level(&self, x: i32, y: i32, z: i32) -> &[Entity] {
         self.squares.get(&(x, y, z)).map_or(&[], Vec::as_slice)
+    }
+
+    /// Adds one entity to the index, which is what a change to one square needs.
+    ///
+    /// The whole index is rebuilt when a world is loaded; a single write is not a load, and
+    /// rebuilding for it would make every terrain change cost the level.
+    pub fn insert(&mut self, entity: Entity, square: (i32, i32, i32)) {
+        let occupants = self.squares.entry(square).or_default();
+        if !occupants.contains(&entity) {
+            occupants.push(entity);
+        }
     }
 
     /// How many squares hold anything at all.
@@ -1093,9 +1105,38 @@ pub struct LightSource {
 #[derive(Debug, Clone, Default, Component)]
 pub struct Light {
     squares: BTreeMap<(i32, i32), FourQuadrants>,
+    /// Whether something has changed that the answer does not account for yet.
+    stale: bool,
+    /// How many times the answer has been built, which is the light's own receipt.
+    rebuilds: u32,
 }
 
 impl Light {
+    /// Whether the answer has to be rebuilt before it can be trusted.
+    #[must_use]
+    pub fn is_stale(&self) -> bool {
+        self.stale
+    }
+
+    /// Notes that something changed which the answer does not account for.
+    ///
+    /// Reference: the weather's sight penalty dirties every level's light (`weather.cpp:938-941`).
+    pub fn mark_stale(&mut self) {
+        self.stale = true;
+    }
+
+    /// Records that the answer was just built.
+    pub fn note_build(&mut self) {
+        self.stale = false;
+        self.rebuilds = self.rebuilds.saturating_add(1);
+    }
+
+    /// How many times the answer has been built.
+    #[must_use]
+    pub fn rebuilds(&self) -> u32 {
+        self.rebuilds
+    }
+
     /// The quarters of a square, if anything lights it.
     #[must_use]
     pub fn at(&self, x: i32, y: i32) -> Option<FourQuadrants> {
@@ -1147,37 +1188,21 @@ impl Light {
 /// casts every source and applies the sun. The store is the authority for what is where: the
 /// terrain comes from the level resource, and smoke dims a square by being an entity standing
 /// on it, not by being a copy of the level's own map.
-#[derive(Debug, Resource)]
-pub struct Map(pub cdda_core_types::level::Level);
-
-impl std::ops::Deref for Map {
-    type Target = cdda_core_types::level::Level;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl std::ops::DerefMut for Map {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-
-impl Map {
-    /// Applies what a weather update reported, and answers whether the map was flushed.
-    ///
-    /// Reference: `weather.cpp:938-941`. The condition is the **sight penalty**, not the weather: `sunny` to `clear` changes the sky and costs nothing, while `clear` to `fog` dims
-    /// every ray on the level and has to dirty every level's cache. The port's map holds one level today, so the reference's loop over `-OVERMAP_DEPTH..=OVERMAP_HEIGHT` is a single
-    /// mark; when the levels exist, this is the place that grows the loop.
-    pub fn on_weather_change(&mut self, change: cdda_content::weather::Change) -> bool {
-        match change {
-            cdda_content::weather::Change::Weather { sight_changed: true } => {
-                self.0.mark_weather_changed();
-                true
-            }
-            _ => false,
+/// Applies what a weather update reported, and answers whether the light was flushed.
+///
+/// Reference: `weather.cpp:938-941`. The condition is the **sight penalty**, not the weather:
+/// `sunny` to `clear` changes the sky and costs nothing, while `clear` to `fog` dims every ray and
+/// has to dirty the light.
+pub fn apply_weather_change(
+    world: &mut bevy_ecs::prelude::World,
+    change: cdda_content::weather::Change,
+) -> bool {
+    match change {
+        cdda_content::weather::Change::Weather { sight_changed: true } => {
+            singletons::mark_light_stale(world);
+            true
         }
+        _ => false,
     }
 }
 
@@ -1309,20 +1334,22 @@ pub fn cast_lights_with(world: &mut World) {
         },
         |prototypes| (prototypes.terrain.clone(), prototypes.furniture.clone()),
     );
-    let mut side = 0;
-    let mut indoors = Vec::new();
-    if let Some(map) = world.get_resource::<Map>() {
-        let level = &map.0;
-        side = bounds_of(level);
-        indoors = vec![false; side * side];
-        for y in 0..side {
-            for x in 0..side {
-                let terrain_code = level.terrain_at(as_i32(x), as_i32(y)).unwrap_or(0);
-                let furniture_code = level.furniture_at(as_i32(x), as_i32(y)).unwrap_or(0);
-                if let Some(slot) = indoors.get_mut(x * side + y) {
-                    *slot =
-                        terrain.is_indoors(terrain_code) || furniture.is_indoors(furniture_code);
-                }
+    let terrain_codes = crate::square::terrain_by_square(world);
+    let furniture_codes = crate::square::furniture_by_square(world);
+    let side = crate::square::extent(world);
+    let mut indoors = vec![false; side * side];
+    for y in 0..side {
+        for x in 0..side {
+            let terrain_code = terrain_codes
+                .get(&(as_i32(x), as_i32(y)))
+                .copied()
+                .unwrap_or(0);
+            let furniture_code = furniture_codes
+                .get(&(as_i32(x), as_i32(y)))
+                .copied()
+                .unwrap_or(0);
+            if let Some(slot) = indoors.get_mut(x * side + y) {
+                *slot = terrain.is_indoors(terrain_code) || furniture.is_indoors(furniture_code);
             }
         }
     }
@@ -1379,22 +1406,37 @@ fn light_sources(world: &mut World) -> LightSources {
     // The world's own emitters, gathered the way `map::generate_lightmap` gathers them (`lightmap.cpp:525-547`): a burning square is a light, a lamp terrain is a light,
     // and the number is each one's own data rather than something a caller placed.
     let mut emitters: BTreeMap<(i32, i32), f32> = BTreeMap::new();
-    if let Some(map) = world.get_resource::<Map>() {
-        let side = bounds_of(&map.0);
-        for y in 0..side {
-            for x in 0..side {
-                let code = map.0.terrain_at(as_i32(x), as_i32(y)).unwrap_or(0);
-                let furniture_code = map.0.furniture_at(as_i32(x), as_i32(y)).unwrap_or(0);
-                let emitted = singletons::prototypes(world)
-                    .map_or(0.0, |prototypes| {
-                        prototypes
-                            .terrain
-                            .light(code)
-                            .max(prototypes.furniture.light(furniture_code))
-                    });
-                if emitted > 0.0 {
-                    emitters.insert((as_i32(x), as_i32(y)), emitted);
-                }
+    {
+        // **The squares that exist, not a rectangle around them.** A level is a set of squares, and
+        // walking the box they fit in would ask about every hole - and ask the world for the
+        // prototypes once per hole, which is how a bulk loop turns into a stall. The tables come out
+        // once, outside the walk.
+        let terrain_codes = crate::square::terrain_by_square(world);
+        let furniture_codes = crate::square::furniture_by_square(world);
+        let (terrain, furniture) = singletons::prototypes(world).map_or_else(
+            || {
+                (
+                    terrain_table::TerrainTable::new(),
+                    terrain_table::TerrainTable::new(),
+                )
+            },
+            |prototypes| (prototypes.terrain.clone(), prototypes.furniture.clone()),
+        );
+        for (square, code) in &terrain_codes {
+            let furniture_code = furniture_codes.get(square).copied().unwrap_or(0);
+            let emitted = terrain.light(*code).max(furniture.light(furniture_code));
+            if emitted > 0.0 {
+                emitters.insert(*square, emitted);
+            }
+        }
+        // Furniture on a square with no ground is still something the data can light.
+        for (square, code) in &furniture_codes {
+            if terrain_codes.contains_key(square) {
+                continue;
+            }
+            let emitted = furniture.light(*code);
+            if emitted > 0.0 {
+                emitters.insert(*square, emitted);
             }
         }
     }
@@ -1468,65 +1510,66 @@ fn cast_lights_inner(
 
     let (buffered, placed) = light_sources(world);
 
-    let mut terrains: BTreeMap<(i32, i32), u32> = BTreeMap::new();
-    // The furniture layer is read while the level is borrowed mutably below, so both layers are snapshotted first: 0 means no furniture, which is transparent anyway.
-    let mut furniture: BTreeMap<(i32, i32), u32> = BTreeMap::new();
-    if let Some(map) = world.get_resource::<Map>() {
-        for (x, y, _) in buffered.iter().chain(placed.iter()) {
-            for dy in -12..=12 {
-                for dx in -12..=12 {
-                    let at = (x + dx, y + dy);
-                    if let Some(id) = map.0.terrain_at(at.0, at.1) {
-                        terrains.insert(at, id);
-                    }
-                }
-            }
-        }
-        for (x, y, _) in buffered.iter().chain(placed.iter()) {
-            for dy in -12..=12 {
-                for dx in -12..=12 {
-                    let at = (x + dx, y + dy);
-                    if let Some(code) = map.0.furniture_at(at.0, at.1) {
-                        furniture.insert(at, code);
-                    }
-                }
-            }
-        }
-    }
+    // Both layers come out of the store in one sweep each, before any casting: the cast walks the
+    // window per source, and reading a map is far cheaper than asking the store per ray.
+    let terrains: BTreeMap<(i32, i32), u32> = crate::square::terrain_by_square(world);
+    let furniture: BTreeMap<(i32, i32), u32> = crate::square::furniture_by_square(world);
+    // A square the world has made is a square; one it has not is solid, which `transparency_grid`
+    // enforces on its own.
+    let exists = |x: i32, y: i32| terrains.contains_key(&(x, y));
+    let facts = |field_x: i32, field_y: i32| cdda_core_types::transparency::SquareFacts {
+        terrain_transparent: terrains
+            .get(&(field_x, field_y))
+            .is_none_or(|id| terrain_transparency(*id) > 0.0),
+        // The conjunction of the two layers (`lightmap.cpp:146-149`): either one being opaque stops the ray.
+        furniture_transparent: furniture
+            .get(&(field_x, field_y))
+            .is_none_or(|code| furniture_transparency(*code) > 0.0),
+        outside: outside_of_square(field_x, field_y),
+        fields: dimming
+            .get(&(field_x, field_y))
+            .cloned()
+            .unwrap_or_default(),
+    };
     let mut light: BTreeMap<(i32, i32), cdda_core_types::shadowcasting::FourQuadrants> =
         BTreeMap::new();
-    if let Some(mut map) = world.remove_resource::<Map>() {
-        let level = &mut map.0;
-        let facts = |field_x: i32, field_y: i32| cdda_core_types::transparency::SquareFacts {
-            // A square the world has not made is not a square: `transparency_grid` reports it solid on its own.
-            terrain_transparent: terrains
-                .get(&(field_x, field_y))
-                .is_none_or(|id| terrain_transparency(*id) > 0.0),
-            // The conjunction of the two layers (`lightmap.cpp:146-149`): either one being opaque stops the ray.
-            furniture_transparent: furniture
-                .get(&(field_x, field_y))
-                .is_none_or(|code| furniture_transparency(*code) > 0.0),
-            outside: outside_of_square(field_x, field_y),
-            fields: dimming
-                .get(&(field_x, field_y))
-                .cloned()
-                .unwrap_or_default(),
-        };
-        // **Record first, cast second** (`lightmap.cpp:463-464`, `654-659`): every source the map itself emits is buffered, and only then applied, so each square can ask
-        // whether a neighbour is already lit at least as brightly before deciding which directions are worth casting into.
-        for (x, y, luminance) in buffered {
-            level.add_light_source((x, y), luminance);
+    // **Record first, cast second** (`lightmap.cpp:463-464`, `654-659`): every source the map itself emits is buffered, and only then applied, so each square can ask
+    // whether a neighbour is already lit at least as brightly before deciding which directions are worth casting into.
+    let mut buffer: BTreeMap<(i32, i32), f32> = BTreeMap::new();
+    for (x, y, luminance) in buffered {
+        let entry = buffer.entry((x, y)).or_insert(0.0);
+        if luminance > *entry {
+            *entry = luminance;
         }
-        level.apply_buffered_sources(sight_penalty, facts, &mut light);
-        // Then the sources a caller placed, which the reference casts immediately and does not buffer.
-        for (x, y, luminance) in placed {
-            level.apply_light_source_with((x, y), luminance, sight_penalty, facts, &mut light);
-        }
-        world.insert_resource(map);
+    }
+    cdda_core_types::level::apply_buffered_sources(
+        &buffer,
+        sight_penalty,
+        &exists,
+        facts,
+        &mut light,
+    );
+    // Then the sources a caller placed, which the reference casts immediately and does not buffer.
+    for (x, y, luminance) in placed {
+        cdda_core_types::level::cast_light_source(
+            &cdda_core_types::level::Source {
+                at: (x, y),
+                luminance,
+                sight_penalty,
+                facts: &facts,
+            },
+            &exists,
+            &mut light,
+            [true; cdda_core_types::shadowcasting::OCTANTS],
+        );
     }
     // Sources merge rather than replace: the sun may already have written an answer this
     // turn, and a torch does not undo the daylight.
-    singletons::light_mut(world).merge(light);
+    {
+        let mut answer = singletons::light_mut(world);
+        answer.merge(light);
+        answer.note_build();
+    }
 }
 
 /// Works out the sunlight on the level and raises [`Light`] by it.
@@ -1639,10 +1682,10 @@ fn run_sunlight(
     sight_penalty: f32,
     outside: impl Fn(i32, i32) -> bool,
 ) {
-    let Some(map) = world.get_resource::<Map>() else {
+    let side = crate::square::extent(world);
+    if side == 0 {
         return;
-    };
-    let side = bounds_of(&map.0);
+    }
     let cells = side * side;
     let mut layer = cdda_core_types::sunlight_cache::SunLayer {
         side,

@@ -9,7 +9,7 @@
 //! The grid is a component on the one entity [`crate::TheScent`] marks, so it is a thing in the world
 //! like any other. Reading does not create it: a world with no scent entity simply has no scent.
 
-use crate::{Map, TheScent};
+use crate::TheScent;
 use bevy_ecs::prelude::*;
 use cdda_core_types::scent::ScentCell;
 
@@ -50,37 +50,29 @@ pub fn scent_mut(world: &mut World) -> Mut<'_, Scent> {
 /// default that quietly pretends the level is one square.
 #[must_use]
 pub fn scent_grid(world: &mut World) -> Scent {
-    let mut sides = std::collections::BTreeMap::new();
-    {
-        let mut query = world.query_filtered::<&Map, ()>();
-        if let Some(map) = query.iter(world).next() {
-            sides.insert(0, crate::bounds_of_public(&map.0));
-        }
-    }
-    let Some(&side) = sides.get(&0) else {
+    // One sweep of the store: the marks are per square, and every square that has ground is a square
+    // the diffuser can move through or be stopped by.
+    let terrain_by_square = crate::square::terrain_by_square(world);
+    let Some(side) = terrain_by_square
+        .keys()
+        .map(|(x, y)| {
+            let column = usize::try_from(*x).unwrap_or(0);
+            let row = usize::try_from(*y).unwrap_or(0);
+            column.max(row) + 1
+        })
+        .max()
+    else {
         return Scent::default();
     };
     let table = crate::singletons::scent_table(world).cloned();
-    let mut terrain = vec![0_u32; side * side];
-    {
-        let mut query = world.query_filtered::<&Map, ()>();
-        if let Some(map) = query.iter(world).next() {
-            for y in 0..side {
-                for x in 0..side {
-                    let (Ok(xi), Ok(yi)) = (i32::try_from(x), i32::try_from(y)) else {
-                        continue;
-                    };
-                    if let (Some(code), Some(slot)) =
-                        (map.0.terrain_at(xi, yi), terrain.get_mut(y * side + x))
-                    {
-                        *slot = code;
-                    }
-                }
-            }
-        }
-    }
     let mut cells = vec![ScentCell::default(); side * side];
-    for (cell, code) in cells.iter_mut().zip(terrain) {
+    for (square, code) in terrain_by_square {
+        let (Ok(x), Ok(y)) = (usize::try_from(square.0), usize::try_from(square.1)) else {
+            continue;
+        };
+        let Some(cell) = cells.get_mut(y * side + x) else {
+            continue;
+        };
         let (blocks, reduces) = table.as_ref().map_or((false, false), |table| table.marks(code));
         cell.blocks = blocks;
         cell.reduces = reduces;

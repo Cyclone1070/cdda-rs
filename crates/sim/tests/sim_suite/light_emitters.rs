@@ -10,7 +10,7 @@ use cdda_core_types::field::{FieldEntry, FieldId};
 use cdda_core_types::level::Level;
 use cdda_sim::field_table::FieldTable;
 use cdda_sim::terrain_table::TerrainTable;
-use cdda_sim::{Field, Map, Position, Prototypes, cast_lights_with, clear_light, set_field_table};
+use cdda_sim::{Field, Position, Prototypes, cast_lights_with, clear_light, set_field_table};
 use cdda_sim::{light};
 
 const FLOOR: u32 = 1;
@@ -29,7 +29,7 @@ fn world(marks: &[(i32, i32, u32)]) -> World {
     for (x, y, code) in marks {
         level.set_terrain(*x, *y, *code, FLOOR);
     }
-    cdda_sim::load_level(&mut world, level);
+    cdda_sim::load_level(&mut world, &level);
 
     let mut terrain = TerrainTable::new();
     terrain.insert(FLOOR, true);
@@ -151,6 +151,12 @@ fn two_lamps_beside_each_other_light_the_room_and_leave_no_buffer_behind() {
         "and the room east of the pair keeps the lamp's light: {}",
         light.max_at(9, 5)
     );
-    let map = world.resource::<Map>();
-    assert_eq!(map.0.buffered_sources(), 0, "the buffer is drained");
+    // The cast keeps its own buffer now, so "drained" is not a number to read: the answer is that a
+    // second cast changes nothing, because nothing was left over from the first.
+    let once = cdda_sim::light(&world).max_at(5, 5);
+    cast_lights_with(&mut world);
+    assert!(
+        (cdda_sim::light(&world).max_at(5, 5) - once).abs() < f32::EPSILON,
+        "a second cast changes nothing, because the first left nothing behind"
+    );
 }

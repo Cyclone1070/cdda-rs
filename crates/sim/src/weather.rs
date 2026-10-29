@@ -222,9 +222,7 @@ pub fn tick_climate(
     let penalty = climate.sight_penalty;
     // `climate` is a `Mut` handed out by `world`, so the borrow ends when the guard is dropped at
     // the end of this scope; the reads below take their own.
-    if let Some(mut map) = world.get_resource_mut::<crate::Map>() {
-        map.on_weather_change(change);
-    }
+    crate::apply_weather_change(world, change);
     crate::singletons::set_weather(world, crate::Weather::with_sight_penalty(penalty.max(1.0)));
     change
 }

@@ -283,7 +283,7 @@ fn the_port_s_cast_puts_the_fire_s_light_where_the_reference_put_it() {
             level.set_terrain(x - ORIGIN.0, y - ORIGIN.1, terrain, terrain);
             level.set_furniture(x - ORIGIN.0, y - ORIGIN.1, furniture, furniture);
         }
-        cdda_sim::load_level(&mut world, level);
+        cdda_sim::load_level(&mut world, &level);
         cdda_sim::set_prototypes(&mut world, Prototypes {
             terrain: prototypes_table.terrain.clone(),
             furniture: prototypes_table.furniture.clone(),

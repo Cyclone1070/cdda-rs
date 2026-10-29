@@ -10,7 +10,7 @@ use cdda_sim::set_field_table;
 use cdda_sim::terrain_table::TerrainTable;
 use cdda_sim::{
     light,
-    Field, LightSource, Map, Position, Prototypes, SOLID_TERRAIN, cast_lights_with,
+    Field, LightSource, Position, Prototypes, SOLID_TERRAIN, cast_lights_with,
     clear_light,
 };
 
@@ -40,7 +40,7 @@ fn world_with_floor() -> World {
             level.set_terrain(x, y, 1, 1);
         }
     }
-    cdda_sim::load_level(&mut world, level);
+    cdda_sim::load_level(&mut world, &level);
     cdda_sim::set_prototypes(&mut world, prototypes());
     set_field_table(&mut world, field_table());
     world
@@ -107,10 +107,8 @@ fn smoke_standing_on_a_square_dims_the_light_that_crosses_it() {
 #[test]
 fn a_wall_in_the_store_stops_the_light_it_shadows() {
     let mut world = world_with_floor();
-    if let Some(mut map) = world.get_resource_mut::<Map>() {
-        for y in 0..12 {
-            map.0.set_terrain(8, y, SOLID_TERRAIN, 1);
-        }
+    for y in 0..12 {
+        cdda_sim::square::set_terrain(&mut world, (8, y, 0), SOLID_TERRAIN);
     }
     world.spawn((
         Position { x: 5, y: 5, z: 0 },

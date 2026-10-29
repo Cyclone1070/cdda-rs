@@ -78,7 +78,7 @@ fn fog_dims_a_lamp_by_the_absorption_it_adds_to_every_square() {
                 level.set_terrain(x, y, 1, 1);
             }
         }
-        cdda_sim::load_level(&mut world, level);
+        cdda_sim::load_level(&mut world, &level);
         set_weather(&mut world, the_sky);
         world.spawn((
             Position { x: 5, y: 5, z: 0 },

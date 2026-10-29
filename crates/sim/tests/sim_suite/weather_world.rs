@@ -20,7 +20,7 @@ use cdda_content::weather::{Rules, WeatherType};
 use cdda_core_types::level::Level;
 use cdda_sim::weather_gen::{CommonData, Generator};
 use cdda_sim::{
-    Climate, Forecast, Map, Prototypes, Weather, climate, climate_read, set_climate, set_weather,
+    Climate, Forecast, Prototypes, Weather, climate, climate_read, set_climate, set_weather,
     tick_climate, weather,
 };
 
@@ -33,7 +33,7 @@ fn world(rules: Rules) -> World {
             level.set_terrain(x, y, 1, 1);
         }
     }
-    cdda_sim::load_level(&mut world, level);
+    cdda_sim::load_level(&mut world, &level);
     cdda_sim::set_prototypes(&mut world, Prototypes::default());
     set_weather(&mut world, Weather::clear());
     set_climate(&mut world, Climate::new(rules));
@@ -69,7 +69,7 @@ fn a_sky_that_dims_the_light_reaches_the_world_s_weather_and_its_map() {
     tick_climate(&mut world, &forecast(0), &mut roll, &mut sector);
     let weather = weather(&world).expect("the weather").sight_penalty();
     assert_eq!(weather, 1.7, "the world is foggy");
-    assert!(world.get_resource::<Map>().expect("the map").light_is_stale(), "and the light knows it");
+    assert!(cdda_sim::light_is_stale(&world), "and the light knows it");
     let climate = climate_read(&world).expect("the climate");
     assert_eq!(climate.weather(), Some("fog"), "the id is the world's, not the test's");
 }
@@ -82,11 +82,11 @@ fn a_sky_with_the_same_absorption_leaves_the_light_alone() {
     let mut sector = |_season: usize| 9;
     tick_climate(&mut world, &forecast(0), &mut roll, &mut sector);
     // Build the light so the staleness question has an answer that means something.
-    world.get_resource_mut::<Map>().expect("the map").cached_visibility((5, 5), 2, |_code| false);
-    assert!(!world.get_resource::<Map>().expect("the map").light_is_stale(), "the build cleared the mark");
+    cdda_sim::cast_lights_with(&mut world);
+    assert!(!cdda_sim::light_is_stale(&world), "the build cleared the mark");
     tick_climate(&mut world, &forecast(400), &mut roll, &mut sector);
     assert!(
-        !world.get_resource::<Map>().expect("the map").light_is_stale(),
+        !cdda_sim::light_is_stale(&world),
         "fog to fog: a new update with the same penalty does not dirty the light"
     );
 }

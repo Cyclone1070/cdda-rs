@@ -17,7 +17,7 @@
 use bevy_ecs::prelude::*;
 use cdda_content::weather::Change;
 use cdda_core_types::level::Level;
-use cdda_sim::{Map, Prototypes};
+use cdda_sim::Prototypes;
 
 fn world() -> World {
     let mut world = World::new();
@@ -28,36 +28,42 @@ fn world() -> World {
             level.set_terrain(x, y, 1, 1);
         }
     }
-    cdda_sim::load_level(&mut world, level);
+    cdda_sim::load_level(&mut world, &level);
     cdda_sim::set_prototypes(&mut world, Prototypes::default());
     world
 }
 
-fn solid(_code: u32) -> bool {
-    false
-}
-
 #[test]
-fn only_a_sight_change_dirties_the_map() {
+fn only_a_sight_change_dirties_the_light() {
     let mut world = world();
-    {
-        let mut map = world.get_resource_mut::<Map>().expect("the map");
-        map.cached_visibility((5, 5), 4, solid);
-    }
-    let builds = world.get_resource::<Map>().expect("the map").light_rebuilds();
-    // `sunny` to `clear`: a different sky with the same absorption. The reference does not touch the map, and neither does the port.
-    {
-        let mut map = world.get_resource_mut::<Map>().expect("the map");
-        assert!(!map.on_weather_change(Change::Weather { sight_changed: false }), "nothing to flush");
-        assert!(!map.light_is_stale() || builds > 0, "the light is still the one that was built");
-    }
-    // `clear` to `fog`: every ray is dimmed, so every level's light is rebuilt.
-    {
-        let mut map = world.get_resource_mut::<Map>().expect("the map");
-        assert!(map.on_weather_change(Change::Weather { sight_changed: true }), "the flush happened");
-        assert!(map.light_is_stale(), "and the light will be rebuilt before it is read");
-    }
-    let mut map = world.get_resource_mut::<Map>().expect("the map");
-    map.cached_visibility((5, 5), 4, solid);
-    assert_eq!(map.light_rebuilds(), builds + 1, "exactly one rebuild");
+    cdda_sim::cast_lights_with(&mut world);
+    assert!(!cdda_sim::light_is_stale(&world), "a fresh answer is not stale");
+    let builds = cdda_sim::light_rebuilds(&world);
+    assert_eq!(builds, 1, "the answer was built once");
+
+    // `sunny` to `clear`: a different sky with the same absorption. The reference does not touch the
+    // light, and neither does the port.
+    assert!(
+        !cdda_sim::apply_weather_change(&mut world, Change::Weather { sight_changed: false }),
+        "nothing to flush"
+    );
+    assert!(!cdda_sim::light_is_stale(&world), "the answer is still trusted");
+
+    // `clear` to `fog`: every ray is dimmed, so the light has to be rebuilt.
+    assert!(
+        cdda_sim::apply_weather_change(&mut world, Change::Weather { sight_changed: true }),
+        "the flush happened"
+    );
+    assert!(
+        cdda_sim::light_is_stale(&world),
+        "and the light will be rebuilt before it is read"
+    );
+
+    cdda_sim::cast_lights_with(&mut world);
+    assert_eq!(
+        cdda_sim::light_rebuilds(&world),
+        builds + 1,
+        "exactly one rebuild"
+    );
+    assert!(!cdda_sim::light_is_stale(&world), "and the answer is fresh again");
 }

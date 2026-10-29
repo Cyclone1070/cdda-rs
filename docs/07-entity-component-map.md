@@ -156,3 +156,16 @@ carrying the same `Position`.
 
 Three tests in `crates/sim/tests/sim_suite/squares.rs` hold this: the count, the doctrine (a query
 for `Square` and `Terrain` together finds nothing), and furniture being its own entity.
+
+### Changing the level after it is loaded
+
+| Verb | What it writes |
+|---|---|
+| `square::set_terrain(world, square, code)` | the ground entity's `Terrain`, making ground if the square has none |
+| `square::set_furniture(world, square, code)` | the furniture entity's `Furniture`, removing it on a code of zero |
+| `square::terrain_by_square` / `furniture_by_square` | one sweep of the store, for the systems that work a whole level |
+| `square::extent` | how far the squares reach |
+
+There is no second copy to keep in step: the ground entity *is* the square's terrain. A test that
+edits a level after loading and then asks a system a question is a test that has two sources of
+truth, and two of them failed exactly that way when the light and the sun moved onto the store.

@@ -136,8 +136,8 @@ fn a_world_of_entities_alone_answers_what_a_character_can_see() {
     );
 
     assert!(
-        world.get_resource::<cdda_sim::Map>().is_none(),
-        "the test world holds no level resource to fall back on"
+        !cdda_sim::square::squares(&world).is_empty(),
+        "the world's squares are entities and nothing else stands behind them"
     );
     assert!(
         !cdda_sim::sees_through_fields(&world, (3, 3), (9, 3), 20, false),

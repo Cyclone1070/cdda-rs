@@ -24,7 +24,7 @@ fn world() -> World {
             level.set_terrain(x, y, 1, 1);
         }
     }
-    cdda_sim::load_level(&mut world, level);
+    cdda_sim::load_level(&mut world, &level);
     cdda_sim::set_prototypes(&mut world, Prototypes::default());
     set_field_table(&mut world, FieldTable::new());
     world

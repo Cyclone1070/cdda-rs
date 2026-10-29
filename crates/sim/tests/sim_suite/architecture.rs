@@ -262,9 +262,7 @@ fn no_entity_is_an_empty_shelf() {
 
 /// The globals that stand beside the store today. Each should become an entity with a marker
 /// component, so this list may only ever shrink.
-const GLOBALS: &[&str] = &[
-    "Map",
-];
+const GLOBALS: &[&str] = &[];
 
 fn workspace() -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

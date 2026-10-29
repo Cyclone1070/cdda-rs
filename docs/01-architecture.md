@@ -128,10 +128,17 @@ pattern is the same one as for a wall:
 `field_rules` are the first four converted. Asking twice returns the same entity, which is how
 "there is exactly one" is tested rather than assumed.
 
-Twelve of the thirteen have moved: `SupportLost` (the falling queue), `Radiation`, `Memory`,
-`FieldRules`, `Scent`, `ScentTable`, `Climate`, `FieldTable`, `Weather`, `Light`, `Prototypes` and
-`PositionIndex`. One is left: `Map`, whose per-square ground store is the next piece of work. The
-architecture gate counts what remains and it may only shrink.
+All thirteen have moved: `SupportLost` (the falling queue), `Radiation`, `Memory`, `FieldRules`,
+`Scent`, `ScentTable`, `Climate`, `FieldTable`, `Weather`, `Light`, `Prototypes`, `PositionIndex`
+and `Map`. The ledger the architecture gate checks is now empty, and it stays that way: a new
+`#[derive(Resource)]` anywhere in the workspace fails the build.
+
+`Map` was the last and the hardest, because it held the level itself. The level is now read once
+when a world is loaded - `load_level` materialises a square entity per square, a ground entity per
+piece of ground and a furniture entity per piece of furniture - and then dropped. Everything the
+level's methods did is a function of that store: `seen_grid`, `transparency_grid`,
+`cast_light_source` and `apply_buffered_sources` take the answers they need as closures, and the
+systems supply them from components.
 
 ### Rules are data carried by entities
 

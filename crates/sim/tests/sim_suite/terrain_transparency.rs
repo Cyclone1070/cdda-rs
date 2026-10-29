@@ -14,7 +14,7 @@ use cdda_core_types::field::{FieldEntry, FieldId};
 use cdda_core_types::light::TRANSPARENCY_OPEN_AIR;
 use cdda_sim::field_table::FieldTable;
 use cdda_sim::terrain_table::TerrainTable;
-use cdda_sim::{Field, LightSource, Map, Position, Prototypes, Weather, cast_lights_with, set_weather, set_field_table};
+use cdda_sim::{Field, LightSource, Position, Prototypes, Weather, cast_lights_with, set_weather, set_field_table};
 use cdda_sim::{light};
 
 /// A level whose square `(5, 5)` is the given terrain code, with a lamp west of it.
@@ -28,7 +28,7 @@ fn level_with(code: u32) -> World {
         }
     }
     level.set_terrain(5, 5, code, 1);
-    cdda_sim::load_level(&mut world, level);
+    cdda_sim::load_level(&mut world, &level);
     world.spawn((
         Position { x: 2, y: 5, z: 0 },
         LightSource { luminance: 10.0 },
@@ -187,7 +187,7 @@ fn an_opaque_table_on_a_glass_floor_is_opaque() {
             terrain: table.clone(),
             furniture: table.clone(),
         });
-        world.resource_mut::<Map>().0.set_furniture(5, 5, 9, 1);
+        cdda_sim::square::set_furniture(&mut world, (5, 5, 0), 9);
         cast_lights_with(&mut world);
         light(&world).max_at(8, 5)
     };
@@ -220,7 +220,7 @@ fn furniture_that_is_see_through_does_not_stop_the_ray() {
             terrain: table.clone(),
             furniture: table.clone(),
         });
-        world.resource_mut::<Map>().0.set_furniture(5, 5, 8, 1);
+        cdda_sim::square::set_furniture(&mut world, (5, 5, 0), 8);
         cast_lights_with(&mut world);
         light(&world).max_at(8, 5)
     };

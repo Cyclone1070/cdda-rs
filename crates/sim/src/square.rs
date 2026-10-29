@@ -87,13 +87,11 @@ pub fn materialise(world: &mut World, level: &cdda_core_types::level::Level) -> 
 }
 /// Loads a level into the world: entities for every square and everything standing on them.
 ///
-/// The level itself stays in the world as well **for now**, because the light engine still reads it
-/// for its caches; a caller that wants the store alone materialises without loading. When the light
-/// engine has moved onto the store this stops inserting the level, and nothing else has to change.
-pub fn load_level(world: &mut World, level: cdda_core_types::level::Level) -> Materialised {
-    let made = materialise(world, &level);
-    world.insert_resource(crate::Map(level));
-    made
+/// After this call the level value is gone: everything it held lives in entities.
+pub fn load_level(world: &mut World, level: &cdda_core_types::level::Level) -> Materialised {
+    // The level is read here and then dropped: after this call the store is the only place the
+    // level's contents exist, which is what "one source of truth" means.
+    materialise(world, level)
 }
 
 /// Every square entity in the store.
@@ -107,10 +105,13 @@ pub fn squares(world: &World) -> Vec<Entity> {
 }
 
 /// The entities standing at a square, in the order the index holds them.
-fn entities_at(world: &World, square: (i32, i32, i32)) -> Vec<Entity> {
+///
+/// A slice rather than a copy: this is asked once per ray and once per drawn square, and an
+/// allocation per question is the difference between a sweep and a stutter.
+fn entities_at(world: &World, square: (i32, i32, i32)) -> &[Entity] {
     match crate::singletons::index(world) {
-        Some(index) => index.at_level(square.0, square.1, square.2).to_vec(),
-        None => Vec::new(),
+        Some(index) => index.at_level(square.0, square.1, square.2),
+        None => &[],
     }
 }
 
@@ -118,16 +119,16 @@ fn entities_at(world: &World, square: (i32, i32, i32)) -> Vec<Entity> {
 #[must_use]
 pub fn terrain_at(world: &World, square: (i32, i32, i32)) -> Option<u32> {
     entities_at(world, square)
-        .into_iter()
-        .find_map(|entity| world.get::<Terrain>(entity).map(|terrain| terrain.code))
+        .iter()
+        .find_map(|entity| world.get::<Terrain>(*entity).map(|terrain| terrain.code))
 }
 
 /// The furniture code of a square, if any furniture stands on it.
 #[must_use]
 pub fn furniture_at(world: &World, square: (i32, i32, i32)) -> Option<u32> {
     entities_at(world, square)
-        .into_iter()
-        .find_map(|entity| world.get::<Furniture>(entity).map(|piece| piece.code))
+        .iter()
+        .find_map(|entity| world.get::<Furniture>(*entity).map(|piece| piece.code))
 }
 
 /// Writes a square's terrain code onto its ground, making ground if the square has none.
@@ -136,7 +137,8 @@ pub fn furniture_at(world: &World, square: (i32, i32, i32)) -> Option<u32> {
 /// ground entity *is* the square's terrain.
 pub fn set_terrain(world: &mut World, square: (i32, i32, i32), code: u32) {
     let ground = entities_at(world, square)
-        .into_iter()
+        .iter()
+        .copied()
         .find(|entity| world.get::<Terrain>(*entity).is_some());
     if let Some(entity) = ground {
         if let Some(mut terrain) = world.get_mut::<Terrain>(entity) {
@@ -144,16 +146,51 @@ pub fn set_terrain(world: &mut World, square: (i32, i32, i32), code: u32) {
         }
         return;
     }
-    world.spawn((
-        Position {
-            x: square.0,
-            y: square.1,
-            z: square.2,
-        },
-        Ground,
-        Terrain { code },
-    ));
-    crate::PositionIndex::rebuild(world);
+    let entity = world
+        .spawn((
+            Position {
+                x: square.0,
+                y: square.1,
+                z: square.2,
+            },
+            Ground,
+            Terrain { code },
+        ))
+        .id();
+    crate::singletons::index_mut(world).insert(entity, square);
+}
+
+/// Writes a square's furniture code onto its furniture, making furniture if the square has none.
+///
+/// A furniture code of zero takes the furniture away, which is what "nothing stands here" means.
+pub fn set_furniture(world: &mut World, square: (i32, i32, i32), code: u32) {
+    let standing = entities_at(world, square)
+        .iter()
+        .copied()
+        .find(|entity| world.get::<Furniture>(*entity).is_some());
+    if let Some(entity) = standing {
+        if code == 0 {
+            world.entity_mut(entity).despawn();
+            crate::PositionIndex::rebuild(world);
+        } else if let Some(mut piece) = world.get_mut::<Furniture>(entity) {
+            piece.code = code;
+        }
+        return;
+    }
+    if code == 0 {
+        return;
+    }
+    let entity = world
+        .spawn((
+            Position {
+                x: square.0,
+                y: square.1,
+                z: square.2,
+            },
+            Furniture { code },
+        ))
+        .id();
+    crate::singletons::index_mut(world).insert(entity, square);
 }
 
 /// The terrain code of every square that has ground on it.
@@ -213,6 +250,7 @@ pub fn extent(world: &World) -> usize {
 #[must_use]
 pub fn square_at(world: &World, square: (i32, i32, i32)) -> Option<Entity> {
     entities_at(world, square)
-        .into_iter()
+        .iter()
+        .copied()
         .find(|entity| world.get::<Square>(*entity).is_some())
 }

@@ -30,7 +30,7 @@ fn world() -> World {
         level.set_terrain(6, y, WALL, FLOOR);
     }
     level.set_terrain(4, 4, LAMP, FLOOR);
-    cdda_sim::load_level(&mut world, level);
+    cdda_sim::load_level(&mut world, &level);
 
     let mut terrain = TerrainTable::new();
     terrain.insert(FLOOR, true);

@@ -56,7 +56,7 @@ fn world() -> World {
             level.set_terrain(x, y, FLOOR, FLOOR);
         }
     }
-    cdda_sim::load_level(&mut world, level);
+    cdda_sim::load_level(&mut world, &level);
     let mut terrain = TerrainTable::new();
     terrain.insert(FLOOR, true);
     cdda_sim::set_prototypes(&mut world, Prototypes {

@@ -246,6 +246,24 @@ pub fn light_mut(world: &mut World) -> Mut<'_, Light> {
     }
 }
 
+/// How many times the light answer has been built, and whether it is stale.
+#[must_use]
+pub fn light_rebuilds(world: &World) -> u32 {
+    let answer = light(world);
+    answer.rebuilds()
+}
+
+/// Whether the light answer has to be rebuilt before it can be trusted.
+#[must_use]
+pub fn light_is_stale(world: &World) -> bool {
+    light(world).is_stale()
+}
+
+/// Marks the light answer stale, which is what a changed sight penalty does.
+pub fn mark_light_stale(world: &mut World) {
+    light_mut(world).mark_stale();
+}
+
 /// Marks the one entity that carries what the sky is doing.
 #[derive(Debug, Default, Component)]
 pub struct TheWeather;
