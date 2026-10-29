@@ -10,7 +10,8 @@ use cdda_core_types::field::{FieldEntry, FieldId};
 use cdda_core_types::level::Level;
 use cdda_sim::field_table::FieldTable;
 use cdda_sim::terrain_table::TerrainTable;
-use cdda_sim::{Field, Light, Map, Position, Prototypes, cast_lights_with, clear_light, set_field_table};
+use cdda_sim::{Field, Map, Position, Prototypes, cast_lights_with, clear_light, set_field_table};
+use cdda_sim::{light};
 
 const FLOOR: u32 = 1;
 const LAMP: u32 = 2;
@@ -54,9 +55,9 @@ fn a_lamp_terrain_lights_its_own_square() {
     let mut world = world(&[(5, 5, LAMP)]);
     cast_lights_with(&mut world);
     assert!(
-        world.resource::<Light>().max_at(5, 5) > 50.0,
+        light(&world).max_at(5, 5) > 50.0,
         "the lamp terrain is bright: {}",
-        world.resource::<Light>().max_at(5, 5)
+        light(&world).max_at(5, 5)
     );
 }
 
@@ -64,7 +65,7 @@ fn a_lamp_terrain_lights_its_own_square() {
 fn a_plain_floor_emits_nothing() {
     let mut world = world(&[]);
     cast_lights_with(&mut world);
-    assert_eq!(world.resource::<Light>().max_at(5, 5), 0.0);
+    assert_eq!(light(&world).max_at(5, 5), 0.0);
 }
 
 #[test]
@@ -82,13 +83,13 @@ fn a_fire_field_lights_the_room_by_its_own_intensity() {
         },
     ));
     cast_lights_with(&mut world);
-    let at_the_fire = world.resource::<Light>().max_at(5, 5);
-    let across_the_room = world.resource::<Light>().max_at(8, 5);
+    let at_the_fire = light(&world).max_at(5, 5);
+    let across_the_room = light(&world).max_at(8, 5);
 
     clear_light(&mut world);
     let mut dim = world_spawn(1);
     cast_lights_with(&mut dim);
-    let dim_at_the_fire = dim.resource::<Light>().max_at(5, 5);
+    let dim_at_the_fire = light(&dim).max_at(5, 5);
 
     assert!(
         at_the_fire > dim_at_the_fire,
@@ -134,7 +135,7 @@ fn two_lamps_beside_each_other_light_the_room_and_leave_no_buffer_behind() {
     ));
     cast_lights_with(&mut world);
 
-    let light = world.resource::<Light>();
+    let light = light(&world);
     assert!(
         light.max_at(5, 5) >= 100.0,
         "the lamp's own square: {}",

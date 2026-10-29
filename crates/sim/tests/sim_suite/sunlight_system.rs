@@ -8,7 +8,8 @@ use cdda_core_types::shadowcasting::Quadrant;
 use cdda_sim::field_table::FieldTable;
 use cdda_sim::terrain_table::TerrainTable;
 use cdda_sim::{
-    Light, LightSource, Map, Position, Prototypes, cast_lights_with, cast_sunlight,
+    light,
+ LightSource, Map, Position, Prototypes, cast_lights_with, cast_sunlight,
     cast_sunlight_with, clear_light, set_field_table};
 
 const NOON: f64 = 12.0 * 3600.0;
@@ -34,13 +35,13 @@ fn open_sky_is_bright_at_noon_and_black_at_midnight() {
     let mut world = world();
     cast_sunlight(&mut world, NOON, 0.0, |_, _| true);
     assert!(
-        world.resource::<Light>().max_at(5, 5) > 50.0,
+        light(&world).max_at(5, 5) > 50.0,
         "noon overhead"
     );
 
     clear_light(&mut world);
     cast_sunlight(&mut world, MIDNIGHT, 0.0, |_, _| true);
-    assert_eq!(world.resource::<Light>().max_at(5, 5), 0.0, "midnight");
+    assert_eq!(light(&world).max_at(5, 5), 0.0, "midnight");
 }
 
 #[test]
@@ -58,11 +59,11 @@ fn a_torch_indoors_adds_where_the_sun_cannot_reach() {
     let _ = torch;
 
     cast_sunlight(&mut world, NOON, 0.0, |_, _| false);
-    let indoors_only = world.resource::<Light>().max_at(6, 5);
+    let indoors_only = light(&world).max_at(6, 5);
     assert_eq!(indoors_only, 0.0, "no open sky, no daylight");
 
     cast_lights_with(&mut world);
-    let with_torch = world.resource::<Light>().max_at(6, 5);
+    let with_torch = light(&world).max_at(6, 5);
     assert!(with_torch > 0.0, "the torch lights it");
 }
 
@@ -74,9 +75,9 @@ fn outside_torchlight_never_outshines_daylight() {
         LightSource { luminance: 10.0 },
     ));
     cast_sunlight(&mut world, NOON, 0.0, |_, _| true);
-    let day = world.resource::<Light>().max_at(5, 5);
+    let day = light(&world).max_at(5, 5);
     cast_lights_with(&mut world);
-    let both = world.resource::<Light>().max_at(5, 5);
+    let both = light(&world).max_at(5, 5);
     assert!(
         both >= day,
         "the answer does not fall when a torch is added"
@@ -91,10 +92,10 @@ fn outside_torchlight_never_outshines_daylight() {
 fn clearing_the_answer_leaves_nothing_behind() {
     let mut world = world();
     cast_sunlight(&mut world, NOON, 0.0, |_, _| true);
-    assert!(world.resource::<Light>().lit_squares() > 0);
+    assert!(light(&world).lit_squares() > 0);
     clear_light(&mut world);
     assert_eq!(
-        world.resource::<Light>().lit_squares(),
+        light(&world).lit_squares(),
         0,
         "a stale answer is not an answer"
     );
@@ -128,7 +129,7 @@ fn daylight_reaches_a_square_just_inside_a_doorway_and_stops_one_step_further_in
     }
 
     cast_sunlight_with(&mut world, NOON);
-    let light = world.resource::<Light>();
+    let light = light(&world);
 
     let doorway_square = light.at(5, 4).expect("the square inside the door");
     // An interior square, all four of whose cardinals are roofed: nothing can spill into it.
@@ -165,8 +166,8 @@ fn a_roofed_square_takes_the_indoors_light_and_an_open_one_takes_the_sun() {
     }
     cast_sunlight_with(&mut world, NOON);
 
-    let open = world.resource::<Light>().max_at(0, 0);
-    let roofed = world.resource::<Light>().max_at(4, 4);
+    let open = light(&world).max_at(0, 0);
+    let roofed = light(&world).max_at(4, 4);
     assert!(open > 50.0, "noon outside: {open}");
     assert!(
         (3.0..open).contains(&roofed),
@@ -182,7 +183,7 @@ fn the_old_entry_point_speaks_the_cascade_now_and_keeps_the_quarter_shape() {
     let mut world = world();
     cast_sunlight(&mut world, NOON, 0.0, |x, y| (x, y) == (6, 5));
 
-    let light = world.resource::<Light>();
+    let light = light(&world);
     let inside = light.at(5, 5).expect("the square inside the doorway");
     assert!(
         inside.get(Quadrant::SouthEast) > inside.get(Quadrant::NorthWest),

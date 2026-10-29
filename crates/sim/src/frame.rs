@@ -244,7 +244,7 @@ pub fn frame(
             cells: Vec::new(),
         },
     };
-    let light = world.get_resource::<Light>().cloned().unwrap_or_default();
+    let light = crate::singletons::light(world);
 
     let side = usize::try_from(radius * 2 + 1).unwrap_or(0);
     // **The memory is taken off its entity while the frame is drawn**, for the same reason the level is: the loop both reads it and writes to it, and a component borrow

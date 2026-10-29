@@ -20,6 +20,7 @@ use crate::falling::FieldRules;
 use crate::memory::Memory;
 use crate::field_table::FieldTable;
 use crate::weather::Weather;
+use crate::Light;
 use crate::scent_table::ScentTable;
 use crate::weather::Climate;
 use crate::radiation::Radiation;
@@ -128,6 +129,36 @@ pub fn field_rules(world: &mut World) -> Mut<'_, FieldRules> {
 /// Replaces the falling rules, which is what a loaded content set does once.
 pub fn set_field_rules(world: &mut World, rules: FieldRules) {
     *field_rules(world) = rules;
+}
+
+/// Marks the one entity that carries the light answer.
+#[derive(Debug, Default, Component)]
+pub struct TheLight;
+
+/// The light answer, or an empty one when nothing has computed it.
+///
+/// Returned by value because the answer is a small map and a caller that reads it usually keeps it
+/// across a loop that also writes the world.
+#[must_use]
+pub fn light(world: &World) -> Light {
+    world
+        .iter_entities()
+        .find_map(|entity| entity.get::<Light>().cloned())
+        .unwrap_or_default()
+}
+
+/// The light answer, made empty if nothing has written it yet.
+///
+/// # Panics
+///
+/// Panics if the entity found does not carry the answer, which cannot happen: it is found by
+/// having it, and spawned with it.
+pub fn light_mut(world: &mut World) -> Mut<'_, Light> {
+    let entity = singleton::<Light, TheLight>(world);
+    match world.get_mut::<Light>(entity) {
+        Some(light) => light,
+        None => unreachable!("the light entity was just spawned with its answer"),
+    }
 }
 
 /// Marks the one entity that carries what the sky is doing.

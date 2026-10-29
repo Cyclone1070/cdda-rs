@@ -17,10 +17,10 @@ pub mod effects;
 pub mod singletons;
 pub mod skills;
 pub use singletons::{
-    TheFallingQueue, TheFieldRules, TheMemory, TheRadiation, TheScent, TheScentTable, TheClimate, TheFieldTable, TheWeather,
+    TheFallingQueue, TheFieldRules, TheMemory, TheRadiation, TheScent, TheScentTable, TheClimate, TheFieldTable, TheLight, TheWeather,
     adjust_radiation,
     falling_queue_entity, field_rules, memory, memory_entity, queue_support_loss, radiation,
-    climate, climate_read, field_table, set_field_table, set_weather, scent_table, weather, set_climate, set_field_rules, set_scent_table,
+    climate, climate_read, field_table, light, light_mut, set_field_table, set_weather, scent_table, weather, set_climate, set_field_rules, set_scent_table,
     singleton, support_lost,
 };
 pub mod food_summary;
@@ -1085,7 +1085,7 @@ pub struct LightSource {
 ///
 /// An answer, not a thing: written by the lighting system whenever something that casts light
 /// has moved or died, and thrown away when it is stale.
-#[derive(Debug, Clone, Default, Resource)]
+#[derive(Debug, Clone, Default, Component)]
 pub struct Light {
     squares: BTreeMap<(i32, i32), FourQuadrants>,
 }
@@ -1525,13 +1525,7 @@ fn cast_lights_inner(
     }
     // Sources merge rather than replace: the sun may already have written an answer this
     // turn, and a torch does not undo the daylight.
-    if let Some(mut existing) = world.get_resource_mut::<Light>() {
-        existing.merge(light);
-    } else {
-        let mut answer = Light::default();
-        answer.merge(light);
-        world.insert_resource(answer);
-    }
+    singletons::light_mut(world).merge(light);
 }
 
 /// Works out the sunlight on the level and raises [`Light`] by it.
@@ -1736,13 +1730,7 @@ fn run_sunlight_layers(
             }
         }
     }
-    if let Some(mut light) = world.get_resource_mut::<Light>() {
-        light.merge(daylight);
-    } else {
-        let mut light = Light::default();
-        light.merge(daylight);
-        world.insert_resource(light);
-    }
+    singletons::light_mut(world).merge(daylight);
 }
 
 /// Builds the ground layer and the sky-or-roof layer above it.
@@ -1804,9 +1792,7 @@ fn sunlayers(
 
 /// Clears the answer before a turn recomputes it, so nothing survives from the last turn.
 pub fn clear_light(world: &mut World) {
-    if let Some(mut light) = world.get_resource_mut::<Light>() {
-        *light = Light::default();
-    }
+    *singletons::light_mut(world) = Light::default();
 }
 
 /// Moves part of a field onto a neighbouring square: the arithmetic of `map::gas_spread_to`

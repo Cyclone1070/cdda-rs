@@ -28,7 +28,8 @@ use cdda_core_types::level::Level;
 use cdda_core_types::light::{light_at, LitLevel};
 use cdda_sim::field_table::FieldTable;
 use cdda_sim::terrain_table::TerrainTable;
-use cdda_sim::{Prototypes, add_field_strength, cast_lights_with, Light, Map, set_field_table};
+use cdda_sim::{Prototypes, add_field_strength, cast_lights_with, Map, set_field_table};
+use cdda_sim::{light};
 
 /// Where the recorded window starts, so the level can be built from zero.
 const ORIGIN: (i32, i32) = (60, 69);
@@ -298,7 +299,7 @@ fn the_port_s_cast_puts_the_fire_s_light_where_the_reference_put_it() {
             );
         }
         cast_lights_with(&mut world);
-        let light = world.resource::<Light>().clone();
+        let light = light(&world).clone();
         for square in &turn.squares {
             let (lx, ly) = (square.x - ORIGIN.0, square.y - ORIGIN.1);
             // The port's own light for the square: its cast, or the sky it was given, whichever is brighter.

@@ -6,6 +6,7 @@
 #![allow(clippy::panic, clippy::float_cmp, clippy::expect_used)]
 
 use cdda_sim::Weather;
+use cdda_sim::{light};
 
 #[test]
 fn a_clear_sky_costs_nothing() {
@@ -66,7 +67,7 @@ fn fog_dims_a_lamp_by_the_absorption_it_adds_to_every_square() {
     use cdda_core_types::level::Level;
     use cdda_core_types::light::TRANSPARENCY_OPEN_AIR;
     use cdda_sim::weather::Weather;
-    use cdda_sim::{Light, LightSource, Map, Position, cast_lights_with, set_weather};
+    use cdda_sim::{LightSource, Map, Position, cast_lights_with, set_weather};
 
     fn lit_in(the_sky: Weather) -> f32 {
         let mut world = World::new();
@@ -84,7 +85,7 @@ fn fog_dims_a_lamp_by_the_absorption_it_adds_to_every_square() {
             LightSource { luminance: 20.0 },
         ));
         cast_lights_with(&mut world);
-        world.resource::<Light>().max_at(10, 5)
+        light(&world).max_at(10, 5)
     }
 
     let clear = lit_in(Weather::clear());

@@ -10,7 +10,8 @@ use cdda_core_types::level::Level;
 use cdda_core_types::light::LitLevel;
 use cdda_sim::frame::frame;
 use cdda_sim::terrain_table::TerrainTable;
-use cdda_sim::{Light, Map, Prototypes, cast_lights_with};
+use cdda_sim::{Map, Prototypes, cast_lights_with};
+use cdda_sim::{light};
 
 const FLOOR: u32 = 1;
 const WALL: u32 = 2;
@@ -116,7 +117,7 @@ fn the_frame_prints_rows_of_glyphs() {
         text.lines().all(|row| row.chars().count() == 5),
         "five columns: {text}"
     );
-    let _ = world.resource::<Light>();
+    let _ = light(&world);
 }
 
 #[test]

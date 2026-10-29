@@ -70,7 +70,7 @@ fn a_square_seen_once_is_drawn_from_memory_when_the_light_goes_out() {
     );
 
     // The second frame: no light at all, so the grass is unlit - `DARK` in the reference's terms - and the draw path reaches for the memory.
-    world.insert_resource(cdda_sim::Light::default());
+    cdda_sim::clear_light(&mut world);
     let second = frame(&mut world, (4, 4), 12, 1.0, 3.0);
     let cell = second.at(9, 4).expect("the grass");
     assert!(cell.from_memory, "the square is drawn from memory");
@@ -80,7 +80,7 @@ fn a_square_seen_once_is_drawn_from_memory_when_the_light_goes_out() {
 #[test]
 fn a_square_never_seen_is_a_space() {
     let mut world = world();
-    world.insert_resource(cdda_sim::Light::default());
+    cdda_sim::clear_light(&mut world);
     let dark = frame(&mut world, (4, 4), 12, 1.0, 3.0);
     let cell = dark.at(9, 4).expect("the grass");
     assert!(!cell.from_memory, "nothing was ever memorized");

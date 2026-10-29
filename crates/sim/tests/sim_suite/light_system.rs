@@ -9,7 +9,8 @@ use cdda_sim::field_table::FieldTable;
 use cdda_sim::set_field_table;
 use cdda_sim::terrain_table::TerrainTable;
 use cdda_sim::{
-    Field, Light, LightSource, Map, Position, Prototypes, SOLID_TERRAIN, cast_lights_with,
+    light,
+    Field, LightSource, Map, Position, Prototypes, SOLID_TERRAIN, cast_lights_with,
     clear_light,
 };
 
@@ -54,7 +55,7 @@ fn a_torch_lights_the_squares_around_it() {
     ));
     cast_lights_with(&mut world);
 
-    let light = world.resource::<Light>();
+    let light = light(&world);
     assert!(light.lit_squares() > 0, "something is lit");
     assert!(light.max_at(6, 5) > 0.0, "the square next door");
     assert!(
@@ -73,7 +74,7 @@ fn smoke_standing_on_a_square_dims_the_light_that_crosses_it() {
         LightSource { luminance: 10.0 },
     ));
     cast_lights_with(&mut world);
-    let clear = world.resource::<Light>().max_at(6, 5);
+    let clear = light(&world).max_at(6, 5);
 
     // Intensity two: the data gives smoke a translucency of ten there, which dims without stopping. Intensity three is zero and would make the square solid, which is
     // the next test's business rather than this one's.
@@ -96,7 +97,7 @@ fn smoke_standing_on_a_square_dims_the_light_that_crosses_it() {
     clear_light(&mut world);
     cast_lights_with(&mut world);
 
-    let smoked = world.resource::<Light>().max_at(6, 5);
+    let smoked = light(&world).max_at(6, 5);
     assert!(
         smoked < clear && smoked > 0.0,
         "dimmer, not dark: {smoked} against {clear}"
@@ -117,7 +118,7 @@ fn a_wall_in_the_store_stops_the_light_it_shadows() {
     ));
     cast_lights_with(&mut world);
 
-    let light = world.resource::<Light>();
+    let light = light(&world);
     assert!(light.max_at(7, 5) > 0.0, "in front of the wall");
     assert_eq!(light.max_at(10, 5), 0.0, "behind it");
 }
@@ -126,5 +127,5 @@ fn a_wall_in_the_store_stops_the_light_it_shadows() {
 fn with_nothing_shining_the_answer_is_empty() {
     let mut world = world_with_floor();
     cast_lights_with(&mut world);
-    assert_eq!(world.resource::<Light>().lit_squares(), 0);
+    assert_eq!(light(&world).lit_squares(), 0);
 }
