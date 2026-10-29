@@ -48,6 +48,7 @@ mod pathfinding;
 mod routing;
 mod walking;
 mod melee;
+mod melee_rolls;
 mod death;
 mod degradation;
 mod digest;

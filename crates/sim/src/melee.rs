@@ -11,6 +11,19 @@
 
 use crate::CreatureSize;
 
+/// The accuracy roll an attack makes, from a creature's accuracy.
+///
+/// Reference: `melee::melee_hit_range` (`melee.cpp:2912`) is `normal_roll( accuracy * 5, 25 )` - five
+/// points of roll per point of accuracy, with a deviation of twenty-five. That wide deviation is why a
+/// good attacker still misses: two thirds of its rolls land within twenty-five points of its mean.
+pub fn melee_hit_range(rolls: &mut cdda_core_types::rng::Rolls, accuracy: f32) -> f32 {
+    // The reference keeps the roll as a `float` and the generator as a `double`, so the narrowing is
+    // the reference's own; twenty-five is its deviation, not a number chosen here.
+    #[allow(clippy::cast_possible_truncation)]
+    let value = rolls.normal_roll(f64::from(accuracy) * 5.0, 25.0) as f32;
+    value
+}
+
 /// What a creature's dodge is worth against an attack.
 ///
 /// Reference: `monster::dodge_roll` (`monster.cpp:2717`): `get_dodge() * 5`. Five, because the attacker's
