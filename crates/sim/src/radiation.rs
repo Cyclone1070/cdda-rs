@@ -10,7 +10,10 @@
 use std::collections::BTreeMap;
 
 /// How much radiation every square that has any carries.
-#[derive(Debug, Clone, Default, bevy_ecs::prelude::Resource)]
+///
+/// A component on the one entity [`TheRadiation`] marks: a store that belongs to the world is a
+/// thing in the world, and the architecture has one place for things.
+#[derive(Debug, Clone, Default, bevy_ecs::prelude::Component)]
 pub struct Radiation {
     squares: BTreeMap<(i32, i32, i32), i32>,
 }

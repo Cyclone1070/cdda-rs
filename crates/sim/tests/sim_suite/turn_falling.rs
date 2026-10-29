@@ -14,7 +14,7 @@ use cdda_core_types::fire::{Ground, Neighbour};
 use cdda_core_types::rng::Rolls;
 use cdda_sim::falling::FieldRules;
 use cdda_sim::{
-    run_environment_turn, Field, FireMap, GroundItem, ItemTypeId, Position, SupportLost,
+    queue_support_loss, run_environment_turn, set_field_rules, support_lost, Field, FireMap, GroundItem, ItemTypeId, Position,
 };
 
 /// A map with one hole in it: the squares in `holes` have no floor, everything else does.
@@ -88,14 +88,12 @@ fn an_item_above_a_hole_falls_in_the_turn_and_the_queue_is_emptied() {
     };
     let mut world = World::new();
     let item = item_at(&mut world, 0, 0, 0);
-    let mut lost = SupportLost::default();
-    lost.queue((0, 0, 0));
-    world.insert_resource(lost);
+    queue_support_loss(&mut world, (0, 0, 0));
     quiet_turn(&mut world, &map);
     // The floor under the hole is the level below, one step down: the map says -1 has a floor.
     assert_eq!(square_of(&world, item), (0, 0, -1), "the item fell one level");
     assert!(
-        world.resource::<SupportLost>().squares.is_empty(),
+        support_lost(&mut world).squares.is_empty(),
         "and the queue was emptied, so a square is asked once"
     );
     // A second turn moves nothing, which is the whole difference between a queue and a standing instruction.
@@ -108,13 +106,11 @@ fn an_item_on_a_square_with_a_floor_does_not_fall() {
     let map = Holed { holes: vec![] };
     let mut world = World::new();
     let item = item_at(&mut world, 0, 0, 0);
-    let mut lost = SupportLost::default();
-    lost.queue((0, 0, 0));
-    world.insert_resource(lost);
+    queue_support_loss(&mut world, (0, 0, 0));
     quiet_turn(&mut world, &map);
     assert_eq!(square_of(&world, item), (0, 0, 0), "the square holds it up");
     assert!(
-        world.resource::<SupportLost>().squares.is_empty(),
+        support_lost(&mut world).squares.is_empty(),
         "and asking the question spends the square either way"
     );
 }
@@ -143,13 +139,14 @@ fn a_cosmetic_field_above_a_hole_falls_with_the_item() {
         ))
         .id();
     let item = item_at(&mut world, 30, 30, 0);
-    world.insert_resource(FieldRules {
-        falls: BTreeSet::from([smoke]),
-        gas: BTreeSet::from([smoke]),
-    });
-    let mut lost = SupportLost::default();
-    lost.queue((30, 30, 0));
-    world.insert_resource(lost);
+    set_field_rules(
+        &mut world,
+        FieldRules {
+            falls: BTreeSet::from([smoke]),
+            gas: BTreeSet::from([smoke]),
+        },
+    );
+    queue_support_loss(&mut world, (30, 30, 0));
     quiet_turn(&mut world, &map);
     let field_at = world.get::<Position>(field).expect("the field exists");
     assert_eq!(

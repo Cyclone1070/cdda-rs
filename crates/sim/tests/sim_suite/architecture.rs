@@ -264,17 +264,13 @@ fn no_entity_is_an_empty_shelf() {
 /// component, so this list may only ever shrink.
 const GLOBALS: &[&str] = &[
     "Climate",
-    "FieldRules",
     "FieldTable",
     "Light",
     "Map",
-    "Memory",
     "PositionIndex",
     "Prototypes",
-    "Radiation",
     "Scent",
     "ScentTable",
-    "SupportLost",
     "Weather",
 ];
 

@@ -12,7 +12,7 @@
 use bevy_ecs::prelude::*;
 use cdda_core_types::level::Level;
 use cdda_sim::frame::frame;
-use cdda_sim::memory::Memory;
+use cdda_sim::memory;
 use cdda_sim::terrain_table::TerrainTable;
 use cdda_sim::{Map, Prototypes, cast_lights_with};
 
@@ -49,7 +49,7 @@ fn world() -> World {
         terrain,
         furniture: TerrainTable::new(),
     });
-    world.insert_resource(Memory::default());
+    memory(&mut world);
     world
 }
 

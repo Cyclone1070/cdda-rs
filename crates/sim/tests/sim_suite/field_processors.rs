@@ -11,7 +11,7 @@
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::FieldId;
 use cdda_core_types::rng::Rolls;
-use cdda_sim::radiation::Radiation;
+use cdda_sim::radiation;
 use cdda_sim::{Field, Position, add_field_strength, process_extra_radiation, process_wandering_field};
 
 const NUKE_GAS: FieldId = FieldId(84);
@@ -19,8 +19,8 @@ const SMOKE_VENT: FieldId = FieldId(92);
 const SMOKE: FieldId = FieldId(91);
 
 /// How much radiation a square holds, zero when it holds none.
-fn radiation(world: &World, square: (i32, i32, i32)) -> i32 {
-    world.resource::<Radiation>().get(square)
+fn radiation_at(world: &mut World, square: (i32, i32, i32)) -> i32 {
+    radiation(world).get(square)
 }
 
 /// The intensity of a field on a square, zero when the square has no field of that kind.
@@ -38,22 +38,21 @@ fn a_radiating_field_adds_what_it_rolls_and_a_field_that_does_not_draws_nothing(
     // roll, so a square of ordinary fog costs the RNG stream nothing. A port that rolled first and multiplied by zero afterwards would produce the same radiation and a
     // different world, which is the kind of difference that only shows up when the stream is compared.
     let mut world = World::new();
-    world.insert_resource(Radiation::new());
-    add_field_strength(&mut world, (0, 0, 0), NUKE_GAS, 3);
+        add_field_strength(&mut world, (0, 0, 0), NUKE_GAS, 3);
     let mut rolls = Rolls::new(41);
     let drawn = rolls.rng(0, 3);
     let mut replay = Rolls::new(41);
 
     process_extra_radiation(&mut world, (0, 0, 0), 0, 3, &mut replay);
     assert_eq!(
-        radiation(&world, (0, 0, 0)),
+        radiation_at(&mut world, (0, 0, 0)),
         drawn,
         "the square holds exactly what the processor rolled"
     );
 
     let mut quiet = Rolls::new(41);
     process_extra_radiation(&mut world, (1, 0, 0), 0, 0, &mut quiet);
-    assert_eq!(radiation(&world, (1, 0, 0)), 0, "a level that radiates nothing adds nothing");
+    assert_eq!(radiation_at(&mut world, (1, 0, 0)), 0, "a level that radiates nothing adds nothing");
     assert_eq!(
         quiet.rng(0, 3),
         Rolls::new(41).rng(0, 3),
@@ -66,17 +65,16 @@ fn radiation_accumulates_on_the_square_it_radiates() {
     // `adjust_radiation` **adds** to the submap's value (`src/map.cpp:4893-4904`) and the store is a plain `int` array (`submap.h:69`), with no clamp: two turns of
     // radiating are two additions, and the number is the square's total, not the last processor's opinion.
     let mut world = World::new();
-    world.insert_resource(Radiation::new());
-    let mut rolls = Rolls::new(9);
+        let mut rolls = Rolls::new(9);
     for _ in 0..4 {
         process_extra_radiation(&mut world, (2, 3, 0), 0, 3, &mut rolls);
     }
     assert!(
-        radiation(&world, (2, 3, 0)) > 0,
+        radiation_at(&mut world, (2, 3, 0)) > 0,
         "four rolls of 0 to 3 leave something behind"
     );
     // A neighbouring square is untouched: radiation is per square, not per field.
-    assert_eq!(radiation(&world, (2, 4, 0)), 0);
+    assert_eq!(radiation_at(&mut world, (2, 4, 0)), 0);
 }
 
 #[test]
@@ -149,8 +147,7 @@ fn a_turn_runs_both_processors_where_the_reference_puts_them() {
     // radiation before the wandering field; a turn then runs the list. A port whose processors are correct but never called would pass every test above and simulate
     // nothing.
     let mut world = World::new();
-    world.insert_resource(Radiation::new());
-    add_field_strength(&mut world, (5, 5, 0), SMOKE_VENT, 2);
+        add_field_strength(&mut world, (5, 5, 0), SMOKE_VENT, 2);
     add_field_strength(&mut world, (40, 40, 0), NUKE_GAS, 3);
     let context = cdda_sim::TurnContext {
         now: 100,
@@ -182,7 +179,7 @@ fn a_turn_runs_both_processors_where_the_reference_puts_them() {
         "the vent wandered into the diagonal square"
     );
     assert!(
-        radiation(&world, (40, 40, 0)) > 0,
+        radiation_at(&mut world, (40, 40, 0)) > 0,
         "the radiating field added radiation on its own square"
     );
 }

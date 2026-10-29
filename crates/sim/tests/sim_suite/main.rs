@@ -132,6 +132,7 @@ mod pocket_session;
 mod push_items;
 mod reference_session;
 mod register;
+mod singletons;
 mod replay_digest;
 mod scent_session;
 mod scent_terrain;

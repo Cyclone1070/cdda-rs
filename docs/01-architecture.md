@@ -113,6 +113,25 @@ when the level is materialised, and it exists so that per-square values have an 
 to live at. Once ground is an entity, a level of 132 × 132 squares holds 17,424 square
 entities plus the entities standing on them.
 
+### Things that exist once are entities too
+
+A singleton is not a second kind of storage. It is an entity with a marker component, and the
+pattern is the same one as for a wall:
+
+| Piece | What it is |
+|---|---|
+| the data | a normal component, e.g. `SupportLost`, `Radiation`, `Memory`, `FieldRules` |
+| the marker | a component that only this entity carries, e.g. `TheFallingQueue` |
+| the helper | `singleton::<T, M>` — finds the entity, or spawns it with a default the first time |
+
+`crates/sim/src/singletons.rs` holds the helpers, and `support_lost`, `radiation`, `memory` and
+`field_rules` are the first four converted. Asking twice returns the same entity, which is how
+"there is exactly one" is tested rather than assumed.
+
+The rest of the globals are still globals: `Climate`, `FieldTable`, `Light`, `Map`,
+`PositionIndex`, `Prototypes`, `Scent`, `ScentTable`, `Weather`. The architecture gate counts
+them and they may only shrink.
+
 ### Rules are data carried by entities
 
 Coexistence is a rule of the entities involved, never of the square.

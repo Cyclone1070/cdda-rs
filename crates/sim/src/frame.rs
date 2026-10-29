@@ -247,13 +247,17 @@ pub fn frame(
     let light = world.get_resource::<Light>().cloned().unwrap_or_default();
 
     let side = usize::try_from(radius * 2 + 1).unwrap_or(0);
-    // **The memory is taken out of the world while the frame is drawn**, for the same reason the level is: the loop both reads it and writes to it, and a resource borrow
-    // held across the walk cannot be handed back to the caller. A world with no memory resource still draws; it just never remembers anything.
-    let mut memory = world.remove_resource::<Memory>();
+    // **The memory is taken off its entity while the frame is drawn**, for the same reason the level is: the loop both reads it and writes to it, and a component borrow
+    // held across the walk cannot be handed back to the caller. A world with no memory entity still draws; it just never remembers anything.
+    let memory_entity = world
+        .query_filtered::<Entity, With<crate::TheMemory>>()
+        .iter(world)
+        .next();
+    let mut memory = memory_entity.and_then(|entity| world.entity_mut(entity).take::<Memory>());
     let Some(map) = world.get_resource::<Map>() else {
         // The memory goes back even on the early return: a frame that took it and dropped it would quietly empty the character's map.
-        if let Some(memory) = memory {
-            world.insert_resource(memory);
+        if let (Some(entity), Some(memory)) = (memory_entity, memory) {
+            world.entity_mut(entity).insert(memory);
         }
         return Frame {
             origin,
@@ -272,8 +276,8 @@ pub fn frame(
         radius,
         side,
     );
-    if let Some(memory) = memory {
-        world.insert_resource(memory);
+    if let (Some(entity), Some(memory)) = (memory_entity, memory) {
+        world.entity_mut(entity).insert(memory);
     }
     Frame {
         origin,

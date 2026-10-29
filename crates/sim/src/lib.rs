@@ -14,7 +14,13 @@ pub mod radiation;
 pub mod body;
 pub mod digest;
 pub mod effects;
+pub mod singletons;
 pub mod skills;
+pub use singletons::{
+    TheFallingQueue, TheFieldRules, TheMemory, TheRadiation, adjust_radiation,
+    falling_queue_entity, field_rules, memory, memory_entity, queue_support_loss, radiation,
+    set_field_rules, singleton, support_lost,
+};
 pub mod food_summary;
 pub mod frame;
 pub mod needs;
@@ -302,7 +308,11 @@ impl TerrainFacts {
 /// Reference: `map::support_cache_dirty` (`src/map.h:1637`) filled by `map::support_dirty` (`src/map.cpp:3018-3035`). A square whose support goes away is queued, and the
 /// next turn's `process_falling` takes the queue **whole** (`std::set<tripoint_bub_ms> last_cache = std::move( support_cache_dirty )`) and clears it - so a square that
 /// falls is asked once, and a square that keeps falling is re-queued by whatever breaks under it next.
-#[derive(Debug, Clone, Default, PartialEq, Eq, bevy_ecs::prelude::Resource)]
+///
+/// A component, on the one entity [`TheFallingQueue`] marks: the architecture is one store, and a
+/// queue is a thing like any other. The reference keeps it as a member of the map, which is the
+/// structure this port deliberately does not copy.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Component)]
 pub struct SupportLost {
     /// The squares waiting to be asked whether anything on them still has a floor.
     pub squares: BTreeSet<(i32, i32, i32)>,
@@ -2341,23 +2351,17 @@ pub fn run_environment_turn(
 /// The rules come from a [`falling::FieldRules`] resource when the world has one; without it nothing accelerates, so only items fall. A world that has loaded its field
 /// prototypes should insert it.
 pub fn process_falling_turn(world: &mut World, map: &impl FireMap) {
-    let mut queue = world.remove_resource::<SupportLost>().unwrap_or_default();
-    if queue.squares.is_empty() {
-        world.insert_resource(queue);
+    let squares: Vec<(i32, i32, i32)> = singletons::support_lost(world).squares.iter().copied().collect();
+    if squares.is_empty() {
         return;
     }
-    let rules = world
-        .get_resource::<falling::FieldRules>()
-        .cloned()
-        .unwrap_or_default();
+    let rules = singletons::field_rules(world).clone();
     let floors = MapFloors { map };
-    let squares: Vec<(i32, i32, i32)> = queue.squares.iter().copied().collect();
     for square in squares {
         falling::drop_everything(world, &floors, &rules, square);
     }
     // The queue is empty for the next turn: `support_cache_dirty.clear()` after the copy was taken.
-    queue.squares.clear();
-    world.insert_resource(queue);
+    singletons::support_lost(world).squares.clear();
 }
 
 /// The map as [`falling::Floors`] asks it: two questions, both the map's own.
@@ -3017,11 +3021,7 @@ pub fn process_extra_radiation(
         return;
     }
     let extra_radiation = rolls.rng(min, max);
-    if !world.contains_resource::<radiation::Radiation>() {
-        world.insert_resource(radiation::Radiation::new());
-    }
-    let mut store = world.resource_mut::<radiation::Radiation>();
-    store.adjust(square, extra_radiation);
+    singletons::adjust_radiation(world, square, extra_radiation);
 }
 
 
