@@ -15,6 +15,7 @@ pub mod body;
 pub mod digest;
 pub mod effects;
 pub mod singletons;
+pub mod square;
 pub mod skills;
 pub use singletons::{
     TheFallingQueue, TheFieldRules, TheMemory, TheRadiation, TheScent, TheIndex, ThePrototypes, TheScentTable, TheClimate, TheFieldTable, TheLight, TheWeather,

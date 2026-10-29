@@ -140,3 +140,19 @@ one instance and asserts the other instances are untouched.
   is still a reading judgement.
 - Nothing here was compiled or run: the map describes structure, not behaviour.
   Behaviour is what the gates in [09-testing-plan.md](09-testing-plan.md) measure.
+
+## The level, materialised
+
+`crates/sim/src/square.rs` turns a loaded level into entities, once: one entity per square
+(`Square`), one per piece of ground (`Ground` + `Terrain { code }`), one per piece of furniture
+(`Furniture { code }`). Nothing is stored in a slot on the square; the ground is simply an entity
+carrying the same `Position`.
+
+| Question | Answer |
+|---|---|
+| how many squares has a level? | one per square of its extent - twelve on a side per submap |
+| where is a square's terrain? | on the ground entity standing there, never on the square |
+| how does a square answer? | `terrain_at`, `furniture_at` and `square_at` read the index, then the components |
+
+Three tests in `crates/sim/tests/sim_suite/squares.rs` hold this: the count, the doctrine (a query
+for `Square` and `Terrain` together finds nothing), and furniture being its own entity.

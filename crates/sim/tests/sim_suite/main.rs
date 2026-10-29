@@ -133,6 +133,7 @@ mod push_items;
 mod reference_session;
 mod register;
 mod singletons;
+mod squares;
 mod replay_digest;
 mod scent_session;
 mod scent_terrain;
