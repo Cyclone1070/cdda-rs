@@ -1574,19 +1574,26 @@ pub fn cast_sunlight_with(world: &mut World, turns: f64) {
     let inside_light =
         cdda_core_types::sunlight_cache::inside_light_level(STREET_LEVEL, outside_light);
 
-    let Some(map) = world.get_resource::<Map>() else {
+    let terrain_codes = crate::square::terrain_by_square(world);
+    let furniture_codes = crate::square::furniture_by_square(world);
+    if terrain_codes.is_empty() {
         return;
-    };
-    let level = &map.0;
-    let side = bounds_of(level);
+    }
+    let side = crate::square::extent(world);
     let cells = side * side;
 
     // The sky: open where the outside cache says so, roofed where it does not.
     let mut indoors = vec![false; cells];
     for y in 0..side {
         for x in 0..side {
-            let terrain_code = level.terrain_at(as_i32(x), as_i32(y)).unwrap_or(0);
-            let furniture_code = level.furniture_at(as_i32(x), as_i32(y)).unwrap_or(0);
+            let terrain_code = terrain_codes
+                .get(&(as_i32(x), as_i32(y)))
+                .copied()
+                .unwrap_or(0);
+            let furniture_code = furniture_codes
+                .get(&(as_i32(x), as_i32(y)))
+                .copied()
+                .unwrap_or(0);
             if let Some(slot) = indoors.get_mut(x * side + y) {
                 *slot = terrain.is_indoors(terrain_code) || furniture.is_indoors(furniture_code);
             }
@@ -1601,7 +1608,8 @@ pub fn cast_sunlight_with(world: &mut World, turns: f64) {
     );
 
     let (layer, above) = sunlayers(
-        level,
+        &terrain_codes,
+        &furniture_codes,
         &terrain,
         &furniture,
         side,
@@ -1739,8 +1747,10 @@ fn run_sunlight_layers(
 /// Two different questions, deliberately answered from two different places: the **roof** above a square is what its own `INDOORS` flag says, while whether the square is
 /// *charged for the weather* is what the outside cache's three-square stamp says (`build_outside_cache`). Reading the stamp for the roof would give every wall one square
 /// of phantom ceiling and seal every doorway - which is exactly what a test caught.
+#[allow(clippy::too_many_arguments)]
 fn sunlayers(
-    level: &cdda_core_types::level::Level,
+    terrain_codes: &BTreeMap<(i32, i32), u32>,
+    furniture_codes: &BTreeMap<(i32, i32), u32>,
     terrain: &terrain_table::TerrainTable,
     furniture: &terrain_table::TerrainTable,
     side: usize,
@@ -1767,8 +1777,14 @@ fn sunlayers(
     for y in 0..side {
         for x in 0..side {
             let index = x * side + y;
-            let terrain_code = level.terrain_at(as_i32(x), as_i32(y)).unwrap_or(0);
-            let furniture_code = level.furniture_at(as_i32(x), as_i32(y)).unwrap_or(0);
+            let terrain_code = terrain_codes
+                .get(&(as_i32(x), as_i32(y)))
+                .copied()
+                .unwrap_or(0);
+            let furniture_code = furniture_codes
+                .get(&(as_i32(x), as_i32(y)))
+                .copied()
+                .unwrap_or(0);
             let transparency = terrain
                 .transparency(terrain_code)
                 .min(furniture.transparency(furniture_code));

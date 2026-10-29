@@ -130,6 +130,85 @@ pub fn furniture_at(world: &World, square: (i32, i32, i32)) -> Option<u32> {
         .find_map(|entity| world.get::<Furniture>(entity).map(|piece| piece.code))
 }
 
+/// Writes a square's terrain code onto its ground, making ground if the square has none.
+///
+/// This is the only way terrain changes after loading. There is no second copy to keep in step: the
+/// ground entity *is* the square's terrain.
+pub fn set_terrain(world: &mut World, square: (i32, i32, i32), code: u32) {
+    let ground = entities_at(world, square)
+        .into_iter()
+        .find(|entity| world.get::<Terrain>(*entity).is_some());
+    if let Some(entity) = ground {
+        if let Some(mut terrain) = world.get_mut::<Terrain>(entity) {
+            terrain.code = code;
+        }
+        return;
+    }
+    world.spawn((
+        Position {
+            x: square.0,
+            y: square.1,
+            z: square.2,
+        },
+        Ground,
+        Terrain { code },
+    ));
+    crate::PositionIndex::rebuild(world);
+}
+
+/// The terrain code of every square that has ground on it.
+///
+/// One sweep of the store, for the systems that work the whole level at once - the sun, the scent
+/// table, the field sweep. A point question stays a point question: [`terrain_at`].
+#[must_use]
+pub fn terrain_by_square(world: &World) -> std::collections::BTreeMap<(i32, i32), u32> {
+    let mut found = std::collections::BTreeMap::new();
+    let mut query = world.try_query::<(&Position, &Terrain)>();
+    let Some(query) = query.as_mut() else {
+        return found;
+    };
+    for (position, terrain) in query.iter(world) {
+        found.insert((position.x, position.y), terrain.code);
+    }
+    found
+}
+
+/// The furniture code of every square that has furniture on it.
+#[must_use]
+pub fn furniture_by_square(world: &World) -> std::collections::BTreeMap<(i32, i32), u32> {
+    let mut found = std::collections::BTreeMap::new();
+    let mut query = world.try_query::<(&Position, &Furniture)>();
+    let Some(query) = query.as_mut() else {
+        return found;
+    };
+    for (position, piece) in query.iter(world) {
+        found.insert((position.x, position.y), piece.code);
+    }
+    found
+}
+
+/// How far the squares reach, as the side of the square area that holds them.
+///
+/// A level is the submaps it has, so its extent is the squares it holds and not a number to guess.
+#[must_use]
+pub fn extent(world: &World) -> usize {
+    let mut query = world.try_query::<&Position>();
+    let Some(query) = query.as_mut() else {
+        return 0;
+    };
+    let mut extent = 0;
+    for position in query.iter(world) {
+        let Ok(x) = usize::try_from(position.x) else {
+            continue;
+        };
+        let Ok(y) = usize::try_from(position.y) else {
+            continue;
+        };
+        extent = extent.max(x + 1).max(y + 1);
+    }
+    extent
+}
+
 /// The square entity at a position, if the level covers it.
 #[must_use]
 pub fn square_at(world: &World, square: (i32, i32, i32)) -> Option<Entity> {

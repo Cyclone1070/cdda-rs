@@ -9,7 +9,7 @@ use cdda_sim::field_table::FieldTable;
 use cdda_sim::terrain_table::TerrainTable;
 use cdda_sim::{
     light,
- LightSource, Map, Position, Prototypes, cast_lights_with, cast_sunlight,
+ LightSource, Position, Prototypes, cast_lights_with, cast_sunlight,
     cast_sunlight_with, clear_light, set_field_table};
 
 const NOON: f64 = 12.0 * 3600.0;
@@ -118,13 +118,13 @@ fn daylight_reaches_a_square_just_inside_a_doorway_and_stops_one_step_further_in
     });
     for y in 0..12 {
         for x in 0..12 {
-            world.resource_mut::<Map>().0.set_terrain(x, y, 1, 1);
+            cdda_sim::square::set_terrain(&mut world, (x, y, 0), 1);
         }
     }
     // A room: everything from x=2 to x=5 and y=3 to y=7 is roofed, and the square at (6,4) is its doorway.
     for y in 3..=7 {
         for x in 2..=5 {
-            world.resource_mut::<Map>().0.set_terrain(x, y, 7, 1);
+            cdda_sim::square::set_terrain(&mut world, (x, y, 0), 7);
         }
     }
 
@@ -161,7 +161,7 @@ fn a_roofed_square_takes_the_indoors_light_and_an_open_one_takes_the_sun() {
     // A roofed room with an interior square, so that nothing spills in from the open.
     for y in 3..=6 {
         for x in 3..=6 {
-            world.resource_mut::<Map>().0.set_terrain(x, y, 7, 1);
+            cdda_sim::square::set_terrain(&mut world, (x, y, 0), 7);
         }
     }
     cast_sunlight_with(&mut world, NOON);

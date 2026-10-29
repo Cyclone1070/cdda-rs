@@ -148,3 +148,26 @@ fn a_world_of_entities_alone_answers_what_a_character_can_see() {
         "and the near square is in plain sight"
     );
 }
+
+#[test]
+fn setting_the_terrain_writes_the_ground_and_not_a_copy() {
+    // The world after loading has one source for terrain: the ground entities. A change has to go
+    // there, or a system reading the store and a test reading the level would disagree.
+    let mut world = World::new();
+    materialise(&mut world, &level(&[(1, 1, WALL)]));
+    assert_eq!(terrain_at(&world, (1, 1, 0)), Some(WALL));
+
+    cdda_sim::square::set_terrain(&mut world, (1, 1, 0), AIR);
+
+    assert_eq!(
+        terrain_at(&world, (1, 1, 0)),
+        Some(AIR),
+        "the ground entity carries the new code"
+    );
+    let mut grounds = world.query_filtered::<Entity, (With<Ground>, With<Terrain>)>();
+    assert_eq!(
+        grounds.iter(&world).count(),
+        usize::try_from(SIDE * SIDE).unwrap_or(0),
+        "and no second piece of ground was made on that square"
+    );
+}
