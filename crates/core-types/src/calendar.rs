@@ -1174,6 +1174,45 @@ fn sun_at_altitude(
     initial_approximation + correction_offset_time
 }
 
+/// The six numbers the sun's position is computed from, for one time point.
+///
+/// Reference: `harness_sun_internals` (`src/calendar.cpp:192`), compiled only under `CATA_HARNESS`.
+/// It exists because the chain from a time point to a sunrise is six steps long, and a disagreement
+/// at the end of it says nothing about which step is fed wrongly. Comparing the six numbers instead
+/// of the one answer is what turns "sunrise is 3,422 turns out" into "this input is wrong".
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SunInternals {
+    /// Right ascension, in degrees.
+    pub right_ascension: f64,
+    /// Declination, in degrees.
+    pub declination: f64,
+    /// Sidereal time, in degrees.
+    pub sidereal_time: f64,
+    /// Sidereal time minus right ascension, in degrees.
+    pub hour_angle: f64,
+    /// Days since the epoch, with the timezone removed.
+    pub days_since_epoch: f64,
+    /// The location's latitude, in degrees.
+    pub latitude: f64,
+}
+
+/// The six numbers the sun's position is computed from at `point`.
+#[must_use]
+pub fn sun_internals(point: TimePoint, config: &CalendarConfig) -> SunInternals {
+    let time = season_effective_time(point, config);
+    let timezone = angle_to_time(longitude_of(config));
+    let (right_ascension, declination) = sun_ra_declination(time, timezone, config);
+    let sidereal_time = sidereal_time_at(time, longitude_of(config), timezone, config);
+    SunInternals {
+        right_ascension: right_ascension.to_degrees(),
+        declination: declination.to_degrees(),
+        sidereal_time: sidereal_time.to_degrees(),
+        hour_angle: (sidereal_time - right_ascension).to_degrees(),
+        days_since_epoch: (time - TimePoint::TURN_ZERO - timezone).to_days_f64(),
+        latitude: f64::from(config.latitude),
+    }
+}
+
 /// The angle the reference defines sunrise at, -1 degree.
 ///
 /// Reference: `calendar.cpp:42` (`sunrise_angle`).
