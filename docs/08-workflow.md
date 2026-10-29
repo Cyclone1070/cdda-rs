@@ -264,6 +264,7 @@ a dump is. Verified by decoding: a 104x104 capture decompresses to 43,368 bytes,
 ```text
 check                                                   cases  result
 corpus: every JSON file parses                           115  pass
+oracle: 2 recorded session(s) replay turn for turn        12  pass
 scenarios: every playtest passes                           2  pass
 index: every positioned thing is found where it stands   433  pass
 ```
@@ -272,3 +273,12 @@ Every check answers the same three things: what it looked at, how many cases it 
 did not hold. **A check that compared nothing is a failure, not a pass** - a gate that reads zero
 files and calls itself green is the worst thing in a repository, so `Check::green` requires
 `cases > 0`.
+
+The `oracle:` row is the one that makes the table evidence of parity rather than self-consistency:
+it loads each fixture named in `corpus/fields/replayable.txt`, replays it through the port, and
+compares the fires after every turn with what the reference recorded. The loader lives in
+`crates/oracle` so the tests and the binary cannot drift apart - a comparison only one of them can
+run is one the other will eventually disagree with.
+
+A broken rule can make a replay ask for a die the recording does not have, so the check catches the
+panic and reports it. A runner that dies on the first bad check reports nothing about the rest.

@@ -55,7 +55,7 @@ struct Takes {
 }
 
 impl Takes {
-    fn load(session: &crate::reference_session::Session, name: &str) -> Self {
+    fn load(session: &cdda_oracle::session::Session, name: &str) -> Self {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/terrain.json");
         let _ = name;
         let text = std::fs::read_to_string(path).expect("the terrain prototypes");
@@ -201,7 +201,7 @@ fn run_port_sweep(
 /// A gas on a roof and one in the cellar under it are in different winds on the same turn, and the recorded number is what the reference's own `get_local_windpower`
 /// answered for that square - so it is read per square and never averaged into one figure for the turn.
 fn wind_at(
-    recorded: &[crate::reference_session::Placed],
+    recorded: &[cdda_oracle::session::Placed],
     direction: i32,
 ) -> impl Fn((i32, i32, i32)) -> cdda_sim::Wind + Copy + '_ {
     move |square: (i32, i32, i32)| {
@@ -231,7 +231,7 @@ struct GasType {
 ///
 /// The reference's `field_type::half_life` (`src/field_type.h:217`) is the clock a field's decay is arithmetic on, and a newborn mist must be born with its type's,
 /// not with a placeholder: the extinguisher loses a level every ten turns, and a port that gave it a million keeps it alive for the rest of the session.
-fn gas_type(session: &crate::reference_session::Session) -> GasType {
+fn gas_type(session: &cdda_oracle::session::Session) -> GasType {
     let Some(kind) = session
         .turns
         .first()
@@ -316,7 +316,7 @@ struct Spent {
 }
 
 fn replay(name: &str) -> Spent {
-    let session = crate::reference_session::Session::load(name);
+    let session = cdda_oracle::session::Session::load(name);
     assert!(
         !session.dice_by_turn.is_empty(),
         "{name} labels its turns, so each turn's dice are its own"

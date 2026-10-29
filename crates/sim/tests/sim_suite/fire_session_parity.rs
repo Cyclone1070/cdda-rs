@@ -8,7 +8,7 @@
 
 #![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
-use crate::reference_session::{facts_for, terrain_flags};
+use cdda_oracle::session::{facts_for, terrain_flags};
 use cdda_sim::FireMap;
 
 #[test]
@@ -24,7 +24,7 @@ fn the_terrain_the_recording_names_is_the_terrain_the_port_reads() {
     );
     assert!(!wall.flammable_hard, "but not FLAMMABLE_HARD");
 
-    let session = crate::reference_session::Session::load("fire-floor-offset");
+    let session = cdda_oracle::session::Session::load("fire-floor-offset");
     assert_eq!(session.grid.len(), 49, "seven by seven around the fire");
     assert_eq!(
         session.turns.len(),

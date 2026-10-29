@@ -13,6 +13,7 @@ cdda-content = { path = "../content" }
 
 [dev-dependencies]
 cdda-json = { path = "../json" }
+cdda-oracle = { path = "../oracle" }
 
 [lints]
 workspace = true

@@ -112,6 +112,12 @@ pub struct Wind {
 
 impl Session {
     /// Loads `corpus/fields/{name}.json` and its sibling recording.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the fixture or its recording is missing or malformed. A corpus file that cannot be
+    /// read is a broken repository, not a case to carry on past: the session is the specification.
+    #[must_use]
     pub fn load(name: &str) -> Session {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/fields");
         let fixture = value(&root.join(format!("{name}.json")));
@@ -323,6 +329,73 @@ impl Session {
     }
 }
 
+/// How one replay compared with the reference.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Comparison {
+    /// The fixture's name.
+    pub name: String,
+    /// How many turns the port and the reference both took.
+    pub turns: usize,
+    /// The first turn that disagreed, written out, if any did.
+    pub first_difference: Option<String>,
+    /// Dice the port did not spend.
+    pub dice_left: usize,
+}
+
+impl Comparison {
+    /// Whether the replay agreed on every turn and spent every die.
+    #[must_use]
+    pub fn agrees(&self) -> bool {
+        self.first_difference.is_none() && self.dice_left == 0
+    }
+}
+
+/// The fixtures under `corpus/fields/replayable.txt`, in the order the list gives them.
+#[must_use]
+pub fn replayable() -> Vec<String> {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/fields/replayable.txt");
+    let Ok(text) = std::fs::read_to_string(path) else {
+        return Vec::new();
+    };
+    text.lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .map(str::to_string)
+        .collect()
+}
+
+/// Replays a fixture and says how it compared with the reference.
+#[must_use]
+pub fn compare(name: &str) -> Comparison {
+    let session = Session::load(name);
+    let replay = session.replay_fires();
+    let mut turns = 0;
+    let mut first_difference = None;
+    for (index, played) in replay.turns.iter().enumerate() {
+        turns += 1;
+        let recorded = session.fires_at(index + 1);
+        if *played != recorded && first_difference.is_none() {
+            first_difference = Some(format!(
+                "turn {}: the reference held {recorded:?}, the port held {played:?}",
+                index + 1
+            ));
+        }
+    }
+    if first_difference.is_none() && replay.dice_left != 0 {
+        first_difference = Some(format!(
+            "{} dice left unspent, so the replay only approached the session",
+            replay.dice_left
+        ));
+    }
+    Comparison {
+        name: name.to_string(),
+        turns,
+        first_difference,
+        dice_left: replay.dice_left,
+    }
+}
+
 /// What the port made of a session: its answer per turn, and how much of the recording it left unspent.
 pub struct Replay {
     /// The fires the port held after each turn, in the same shape as [`Session::fires_at`].
@@ -384,6 +457,11 @@ fn object(value: &Value) -> &cdda_json::Object {
 }
 
 /// The prototype flags, by terrain id.
+///
+/// # Panics
+///
+/// Panics when the dumped prototype file is missing or malformed, which is a broken corpus.
+#[must_use]
 pub fn terrain_flags() -> BTreeMap<String, Vec<String>> {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../corpus/prototypes/terrain.json");
@@ -408,6 +486,7 @@ pub fn terrain_flags() -> BTreeMap<String, Vec<String>> {
 }
 
 /// One terrain's answers, read from its prototype flags rather than written by hand.
+#[must_use]
 pub fn facts_for(id: &str, flags: &BTreeMap<String, Vec<String>>) -> TerrainFacts {
     let has = |flag: &str| {
         flags
@@ -514,6 +593,10 @@ pub struct Catalogue {
 
 impl Catalogue {
     /// Reads `corpus/prototypes/{materials,items}.json`.
+    ///
+    /// # Panics
+    ///
+    /// Panics when either prototype dump is missing or malformed, which is a broken corpus.
     #[must_use]
     pub fn load() -> Self {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes");

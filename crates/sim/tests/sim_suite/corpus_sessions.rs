@@ -1,12 +1,12 @@
 //! Every fixture in the manifest replays, turn by turn, without a test written for it.
 //!
-//! This is the point of the machinery in [`crate::reference_session`]: a new rule gets a new fixture, not a new test. `corpus/fields/replayable.txt` names
+//! This is the point of the machinery in [`cdda_oracle::session`]: a new rule gets a new fixture, not a new test. `corpus/fields/replayable.txt` names
 //! the sessions whose dice are the fields' own; each one is loaded with its terrain grid, its prototypes and its recorded dice, played turn by turn, and
 //! compared with what the reference dumped after every turn.
 
 #![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
-use crate::reference_session::Session;
+use cdda_oracle::session::Session;
 
 fn manifest() -> Vec<String> {
     let path =

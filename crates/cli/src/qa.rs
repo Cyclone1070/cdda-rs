@@ -122,6 +122,34 @@ pub fn scenarios(root: &Path) -> Check {
     }
 }
 
+/// Every replayable session in the corpus, replayed and compared with the reference turn by turn.
+#[must_use]
+pub fn oracle_sessions() -> Check {
+    let mut failures = Vec::new();
+    let names = cdda_oracle::session::replayable();
+    let mut cases = 0;
+    for name in &names {
+        // A broken port can make a replay ask for a die the recording does not have, and a QA runner
+        // that dies on the first bad check reports nothing about the rest. The failure is caught and
+        // named; the report keeps going.
+        let compared = std::panic::catch_unwind(|| cdda_oracle::session::compare(name));
+        match compared {
+            Ok(comparison) => {
+                cases += comparison.turns;
+                if let Some(difference) = comparison.first_difference {
+                    failures.push(format!("{}: {difference}", comparison.name));
+                }
+            }
+            Err(_) => failures.push(format!("{name}: the replay panicked before it finished")),
+        }
+    }
+    Check {
+        name: format!("oracle: {} recorded session(s) replay turn for turn", names.len()),
+        cases,
+        failures,
+    }
+}
+
 /// Every positioned thing is where the index says it is, and the index holds nothing else.
 #[must_use]
 pub fn index_matches_the_store(world: &mut bevy_ecs::prelude::World) -> Check {
