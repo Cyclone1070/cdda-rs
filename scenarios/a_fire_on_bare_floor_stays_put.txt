@@ -1,0 +1,6 @@
+# A fire on floor that cannot burn has nothing to eat, so it does not make anything new.
+world 12 bare
+seed 3
+fire 6 6 2 500
+turn 2
+expect fire 6 6

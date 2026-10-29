@@ -30,6 +30,7 @@ fn main() {
             print!("{}", cdda_sim::inspect::store_report(&world));
         }
         "square" => square(&rest[..]),
+        "playtest" => playtest(&rest[..]),
         "index" => index(),
         other => {
             eprintln!("unknown command `{other}`");
@@ -110,6 +111,43 @@ fn play(args: &[String]) {
                 format!(", first at {changed:?}")
             }
         );
+    }
+}
+
+fn playtest(args: &[String]) {
+    let Some(path) = args.first() else {
+        eprintln!("playtest needs a file");
+        std::process::exit(2);
+    };
+    let text = match std::fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(error) => {
+            eprintln!("cannot read `{path}`: {error}");
+            std::process::exit(2);
+        }
+    };
+    match cdda_cli::run(&text) {
+        Ok(outcome) => {
+            for line in &outcome.lines {
+                println!("{line}");
+            }
+            for failure in &outcome.failures {
+                println!("FAILED: {failure}");
+            }
+            println!(
+                "{}\n",
+                if outcome.passed() {
+                    "the scenario passed"
+                } else {
+                    "the scenario failed"
+                }
+            );
+            std::process::exit(i32::from(!outcome.passed()));
+        }
+        Err(error) => {
+            eprintln!("{error}");
+            std::process::exit(2);
+        }
     }
 }
 

@@ -212,3 +212,31 @@ reporting comes from `cdda_sim::inspect`, which names components from its own ta
 name them when built with a debug feature this port does not need) and fingerprints a square by its
 entities and their values, so `play` can say which squares a turn changed rather than only that
 something happened.
+
+## Scripted playtests (`scenarios/`)
+
+A scenario is plain text, one verb per line, and `cdda-cli playtest <file>` plays it:
+
+```text
+world 12 flammable
+seed 7
+fire 6 6 2 500
+turn 3
+expect changed 1
+expect fire 6 6
+```
+
+| Verb | Means |
+|---|---|
+| `world SIDE flammable\|bare` | a world of `SIDE` by `SIDE` squares of floor |
+| `seed N` | the dice every later draw comes from |
+| `scent X Y` | where the character lays its smell |
+| `fire X Y INTENSITY AGE` | a fire on a square |
+| `turn N` | take `N` turns |
+| `expect changed N` | the last turn changed exactly `N` squares |
+| `expect fire X Y` / `expect no fire X Y` | whether anything burns there |
+
+A line nobody understands stops the run and names the line and the word; a scenario that silently
+ignored half its lines would be worse than one that refuses to start. Every scenario committed in
+`scenarios/` is run by `cargo test -p cdda-cli`, so a playtest that no longer holds fails the suite
+instead of sitting in the tree unexecuted.

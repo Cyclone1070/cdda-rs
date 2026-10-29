@@ -5,6 +5,14 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[lib]
+name = "cdda_cli"
+path = "src/lib.rs"
+
+[[bin]]
+name = "cdda-cli"
+path = "src/main.rs"
+
 [dependencies]
 bevy_ecs = { version = "0.20.0", default-features = false }
 cdda-core-types = { path = "../core-types" }

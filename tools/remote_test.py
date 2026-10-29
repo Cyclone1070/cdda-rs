@@ -29,6 +29,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 # Everything the gates read, and nothing else. `references/Cataclysm-DDA` is 6 GB of checkout; only `data` is corpus.
 SYNC = [
+    "scenarios",
     "Cargo.toml",
     "Cargo.lock",
     "crates",

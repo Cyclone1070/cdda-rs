@@ -51,6 +51,20 @@ pub fn fire_facts_at(world: &World, square: (i32, i32, i32)) -> TerrainFacts {
         .unwrap_or_default()
 }
 
+/// The fire on a square, as its intensity and age, if one is burning there.
+#[must_use]
+pub fn fire_at(world: &World, square: (i32, i32, i32)) -> Option<(i32, i64)> {
+    entities_at(world, square).iter().find_map(|entity| {
+        world.get::<crate::Field>(*entity).and_then(|field| {
+            if field.id == crate::FIRE {
+                Some((field.entry.intensity(), field.entry.age()))
+            } else {
+                None
+            }
+        })
+    })
+}
+
 /// How many squares carry facts, which a caller can check rather than assume.
 #[must_use]
 pub fn fire_facts_squares(world: &World) -> usize {

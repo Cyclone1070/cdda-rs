@@ -1,0 +1,11 @@
+# A fire on flammable floor eats its fuel and grows.
+#
+# The numbers are the port's own: the assertion is about the shape of the behaviour - a fire takes
+# turns, the turns change something, and it is still where it was put - not about a recorded draw.
+world 12 flammable
+seed 7
+scent 6 6
+fire 6 6 2 500
+turn 3
+expect changed 1
+expect fire 6 6
