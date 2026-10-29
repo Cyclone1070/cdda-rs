@@ -5,6 +5,7 @@
 #![allow(clippy::panic, clippy::expect_used)]
 
 use cdda_core_types::level::Level;
+use cdda_core_types::light::TRANSPARENCY_OPEN_AIR;
 
 const OPEN: u32 = 1;
 const WALL: u32 = 2;
@@ -207,4 +208,35 @@ fn a_cast_can_be_built_from_a_table_of_transparencies_the_caller_already_has() {
         (grid.at((6, 5)) - (-TRANSPARENCY_OPEN_AIR).exp()).abs() < 0.02,
         "open air one square away attenuates once"
     );
+}
+
+#[test]
+fn the_cast_alone_answers_the_same_grid_as_the_level_method() {
+    // The cast is a function of the transparency table and nothing else, which is what lets a store
+    // that holds its squares as entities use it. The level's method is kept as the counting wrapper,
+    // so the two must agree square for square on the same table.
+    let mut level = Level::new();
+    level.ensure(0, 0, OPEN);
+    let mut transparencies = std::collections::BTreeMap::new();
+    for y in 0..12 {
+        for x in 0..12 {
+            transparencies.insert((x, y), TRANSPARENCY_OPEN_AIR);
+        }
+    }
+    transparencies.insert((7, 5), 0.0);
+
+    let from_level = level.seen_grid_of((5, 5), 6, &transparencies);
+    let alone = cdda_core_types::level::seen_grid((5, 5), 6, &transparencies);
+
+    let mut checked = 0;
+    for y in 0..12 {
+        for x in 0..12 {
+            assert!(
+                (from_level.at((x, y)) - alone.at((x, y))).abs() < f32::EPSILON,
+                "square ({x}, {y}) disagrees"
+            );
+            checked += 1;
+        }
+    }
+    assert_eq!(checked, 144, "every square of the level was compared");
 }

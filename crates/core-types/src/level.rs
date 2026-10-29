@@ -361,7 +361,27 @@ impl Level {
         radius: i32,
         transparency: &BTreeMap<(i32, i32), f32>,
     ) -> SeenGrid {
-        assert!(radius >= 0, "a negative view distance is a caller bug");
+        self.sight_casts = self.sight_casts.saturating_add(1);
+        seen_grid(origin, radius, transparency)
+    }
+}
+
+/// The sight cast on its own: a function of the transparency table and nothing else.
+///
+/// The level's method is this plus a counter, which is what lets a store that keeps its squares as
+/// entities ask for the same grid without a level behind it.
+///
+/// # Panics
+///
+/// Panics if the radius is negative.
+#[must_use]
+#[allow(clippy::indexing_slicing)]
+pub fn seen_grid(
+    origin: (i32, i32),
+    radius: i32,
+    transparency: &BTreeMap<(i32, i32), f32>,
+) -> SeenGrid {
+    assert!(radius >= 0, "a negative view distance is a caller bug");
         let Ok(side) = usize::try_from(radius * 2 + 1) else {
             return SeenGrid {
                 origin,
@@ -404,7 +424,6 @@ impl Level {
             1.0,
             crate::zlight::VerticalDirection::Both,
         );
-        self.sight_casts = self.sight_casts.saturating_add(1);
         let mut rows = vec![vec![0.0_f32; side]; side];
         for (grid_y, row) in rows.iter_mut().enumerate() {
             for (grid_x, cell) in row.iter_mut().enumerate() {
@@ -415,13 +434,14 @@ impl Level {
                 *cell = values.get(&(square.0, square.1, 0)).copied().unwrap_or(0.0);
             }
         }
-        SeenGrid {
-            origin,
-            radius,
-            rows,
-        }
+    SeenGrid {
+        origin,
+        radius,
+        rows,
     }
+}
 
+impl Level {
     /// Records a buffered light source, without casting it.
     ///
     /// Reference: `map::add_light_source` (`src/lightmap.cpp:666-670`): the buffer keeps the **brighter** of two sources on one square, because two fires on a square are one
