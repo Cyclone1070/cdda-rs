@@ -1,7 +1,7 @@
 //! The turn runs as a schedule, and the order it declares is the order it executes.
 //!
 //! Reference: `game::do_turn` (`src/do_turn.cpp:642-655`) runs the scent, then what fell, then the
-//! fields, then rebuilds the light. The port states that order once, as system sets, so a stage
+//! fields, then `monmove` - which is where creatures act - and only then rebuilds the light. The port states that order once, as system sets, so a stage
 //! cannot be quietly reordered by moving a line in a function.
 
 #![allow(clippy::expect_used, clippy::panic)]
@@ -30,8 +30,9 @@ fn the_declared_order_is_the_one_the_reference_names() {
             TurnStage::Scent,
             TurnStage::Falling,
             TurnStage::Fields,
+            TurnStage::Creatures,
             TurnStage::Light,
         ],
-        "scent, then what fell, then the fields, then the light"
+        "scent, then what fell, then the fields, then the creatures, then the light"
     );
 }

@@ -183,6 +183,53 @@ pub fn try_step(world: &mut World, entity: Entity, to: (i32, i32, i32), cost: i3
     StepOutcome::Moved
 }
 
+/// Where a creature is trying to get to.
+///
+/// Reference: a monster's `goal` (`src/monster.h`), which `monster::move` walks towards and drops when it
+/// arrives. Kept as its own component so a creature with no goal has nothing to do and needs no flag.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Goal {
+    /// The square it is heading for.
+    pub square: (i32, i32, i32),
+}
+
+/// Sets the square a creature is heading for.
+pub fn set_goal(world: &mut World, entity: Entity, square: (i32, i32, i32)) {
+    if let Some(mut goal) = world.get_mut::<Goal>(entity) {
+        goal.square = square;
+    } else {
+        world.entity_mut(entity).insert(Goal { square });
+    }
+}
+
+/// Gives every creature its speed and lets each one with a goal take one step.
+pub fn take_turns(world: &mut World) {
+    bank_a_turn(world);
+    let walkers: Vec<(Entity, (i32, i32, i32))> = world
+        .query::<(Entity, &Goal)>()
+        .iter(world)
+        .map(|(entity, goal)| (entity, goal.square))
+        .collect();
+    for (entity, goal) in walkers {
+        let bounds = walk_bounds(world);
+        let outcome = crate::routing::walk_towards(world, entity, goal, bounds);
+        if matches!(outcome, crate::routing::Walk::Arrived | crate::routing::Walk::NoRoute) {
+            world.entity_mut(entity).remove::<Goal>();
+        }
+    }
+}
+
+/// The rectangle a walk is allowed to search: far enough for any level the store holds.
+fn walk_bounds(world: &World) -> (i32, i32) {
+    let mut widest = (0, 0);
+    for square in crate::square::squares(world) {
+        if let Some(position) = world.get::<Position>(square) {
+            widest = (widest.0.max(position.x + 1), widest.1.max(position.y + 1));
+        }
+    }
+    widest
+}
+
 /// Puts a creature in the world, standing on `square`.
 ///
 /// The square is written twice - as the entity's [`Position`] and into the index - because the index is

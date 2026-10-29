@@ -76,3 +76,47 @@ fn a_creature_will_not_step_where_it_cannot_afford_or_cannot_go() {
     let no_way = walk_towards(&mut walled, stuck, (2, 0, 0), (3, 1));
     assert_eq!(no_way, Walk::NoRoute, "a wall across the corridor is not a detour");
 }
+
+/// The creature turn is a stage in the schedule, in a declared place, and it acts inside `run_turn`.
+///
+/// Reference: `game::monmove` runs during the turn, after the fields have taken theirs and before the
+/// light is recomputed - a monster that walks into a fire is burned by the fire that was already there
+/// this turn, not one that lights afterwards.
+#[test]
+fn creature_turns_run_in_the_declared_stage_of_a_real_turn() {
+    use cdda_sim::turn::TurnStage;
+
+    let order = TurnStage::order();
+    let creatures = order
+        .iter()
+        .position(|stage| *stage == TurnStage::Creatures)
+        .expect("the turn has a creature stage");
+    let fields = order
+        .iter()
+        .position(|stage| *stage == TurnStage::Fields)
+        .expect("the turn has a field stage");
+    let light = order
+        .iter()
+        .position(|stage| *stage == TurnStage::Light)
+        .expect("the turn has a light stage");
+    assert!(
+        fields < creatures && creatures < light,
+        "creatures act after the fields and before the light: {order:?}"
+    );
+
+    let mut world = corridor(3, &[]);
+    let you = spawn_creature(&mut world, "a shambler", (0, 0, 0));
+    give_moves(&mut world, you, 0);
+    cdda_sim::creature::set_speed(&mut world, you, 100, 0);
+    cdda_sim::creature::set_goal(&mut world, you, (2, 0, 0));
+
+    cdda_sim::turn::run_turn(&mut world);
+    assert_eq!(
+        creature_at(&world, (1, 0, 0)),
+        vec![you],
+        "one turn of banking its own speed and walking one step"
+    );
+
+    cdda_sim::turn::run_turn(&mut world);
+    assert_eq!(creature_at(&world, (2, 0, 0)), vec![you], "and the next turn arrives");
+}

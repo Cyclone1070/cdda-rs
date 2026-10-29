@@ -8,6 +8,11 @@ varies is the shape of the query:
 | Shape | Selects | Used when | Example |
 |---|---|---|---|
 | **Entity query** | entities having a component set | the work is per thing | creatures act, items tick |
+
+The declared order is now five stages: `Scent`, `Falling`, `Fields`, `Creatures`, `Light`. `Creatures` is
+where `monmove` sits in the reference - after the fields have burned this turn and before the light is
+recomputed - and `TurnStage::order()` states it once, for the schedule, the trace and the test that
+writes it out by hand.
 | **Square pass** | squares in fixed order | the *result* is a value per square | light, vision, scent, floors |
 | **Global** | nothing; whole-world state | the work is one thing | clock, weather, save |
 

@@ -21,6 +21,11 @@ pub enum TurnStage {
     Falling,
     /// Every field takes its turn: fires, incendiaries, gases, then ageing.
     Fields,
+    /// Every creature banks its speed and takes its step.
+    ///
+    /// Reference: `game::monmove` runs inside the turn, after the fields have had theirs and before the
+    /// light is recomputed (`do_turn.cpp`). The order is declared here rather than implied by the code.
+    Creatures,
     /// The light the turn left behind is recomputed.
     Light,
 }
@@ -97,6 +102,7 @@ pub fn environment_schedule() -> Schedule {
             TurnStage::Scent,
             TurnStage::Falling,
             TurnStage::Fields,
+            TurnStage::Creatures,
             TurnStage::Light,
         )
             .chain(),
@@ -106,6 +112,7 @@ pub fn environment_schedule() -> Schedule {
             scent_stage.in_set(TurnStage::Scent),
             falling_stage.in_set(TurnStage::Falling),
             fields_stage.in_set(TurnStage::Fields),
+            creatures_stage.in_set(TurnStage::Creatures),
             light_stage.in_set(TurnStage::Light),
         ),
     );
@@ -116,6 +123,11 @@ pub fn environment_schedule() -> Schedule {
 pub fn run_turn(world: &mut World) {
     let mut schedule = environment_schedule();
     schedule.run(world);
+}
+
+fn creatures_stage(world: &mut World) {
+    note(world, TurnStage::Creatures);
+    crate::creature::take_turns(world);
 }
 
 fn note(world: &mut World, stage: TurnStage) {
@@ -158,8 +170,14 @@ fn light_stage(world: &mut World) {
 impl TurnStage {
     /// The stages in the order they run, for a reader that wants to check the schedule.
     #[must_use]
-    pub fn order() -> [Self; 4] {
-        [Self::Scent, Self::Falling, Self::Fields, Self::Light]
+    pub fn order() -> [Self; 5] {
+        [
+            Self::Scent,
+            Self::Falling,
+            Self::Fields,
+            Self::Creatures,
+            Self::Light,
+        ]
     }
 }
 
