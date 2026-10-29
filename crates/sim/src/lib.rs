@@ -403,6 +403,45 @@ impl MapFacts {
     }
 }
 
+impl MapFacts {
+    /// Reads the world into a map the fire rules can be asked about.
+    ///
+    /// The store is the authority; this is the question sheet for one turn, built from it and
+    /// thrown away afterwards. Everything it holds was in the world: the ground's answers from the
+    /// `FireFacts` components, the items from the ground items, the fires from the fire fields.
+    #[must_use]
+    pub fn from_world(world: &bevy_ecs::prelude::World) -> Self {
+        let mut map = Self::new();
+        let mut ground = world.try_query::<(&Position, &fire_facts::FireFacts)>();
+        if let Some(query) = ground.as_mut() {
+            for (position, held) in query.iter(world) {
+                map.set_terrain((position.x, position.y, position.z), held.facts);
+            }
+        }
+        let mut items = world.try_query::<(&Position, &GroundItem)>();
+        if let Some(query) = items.as_mut() {
+            for (position, item) in query.iter(world) {
+                if item.burn.is_some() {
+                    map.set_items((position.x, position.y, position.z), true);
+                }
+            }
+        }
+        let mut fires = world.try_query::<(&Position, &Field)>();
+        if let Some(query) = fires.as_mut() {
+            for (position, field) in query.iter(world) {
+                if field.id == FIRE {
+                    map.note_fire(
+                        (position.x, position.y, position.z),
+                        field.entry.intensity(),
+                        field.entry.age(),
+                    );
+                }
+            }
+        }
+        map
+    }
+}
+
 impl FireMap for MapFacts {
     fn adjacent_fires(&self, square: (i32, i32, i32)) -> i32 {
         let mut count = 0;
@@ -2292,6 +2331,27 @@ fn fire_discharge(
 ///
 /// `can_take` answers whether one square's gas may move onto another; the environment layer owns that question because it is about terrain and fields on
 /// the destination square.
+/// Runs one environment turn with the world's own answers, and no map handed in.
+///
+/// The fire rules are asked through a question sheet built from the store at the start of the turn
+/// (`MapFacts::from_world`), so a world loaded into entities needs nothing else to take a turn.
+pub fn run_environment_turn_from_store(
+    world: &mut World,
+    windpower: i32,
+    scent_center: (i32, i32),
+    scent_deposit: i32,
+    can_take: impl Fn((i32, i32, i32), (i32, i32, i32)) -> bool + Copy,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) {
+    let facts = MapFacts::from_world(world);
+    run_environment_turn(world, &facts, windpower, scent_center, scent_deposit, can_take, rolls);
+}
+
+/// Runs one environment turn against a map the caller supplies.
+///
+/// The rule-level entry point: a replay or a unit test hands over the answers it wants the rules to
+/// see. A world loaded into entities uses [`run_environment_turn_from_store`] instead, which builds
+/// those answers from the store.
 pub fn run_environment_turn(
     world: &mut World,
     map: &impl FireMap,

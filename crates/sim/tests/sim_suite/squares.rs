@@ -7,6 +7,7 @@
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::level::Level;
+use cdda_sim::FireMap as _;
 use cdda_sim::square::{Furniture, Ground, Square, Terrain, materialise, squares, terrain_at};
 use cdda_sim::Position;
 
@@ -201,5 +202,91 @@ fn the_fire_facts_of_a_square_are_a_component_on_it() {
         cdda_sim::fire_facts::fire_facts_squares(&world),
         1,
         "only the square that was told about carries facts"
+    );
+}
+
+#[test]
+fn the_turn_s_questions_about_fire_come_from_the_world() {
+    // The store is the authority: a world built out of facts and fires, with no map handed to it,
+    // still describes itself completely enough for the fire rules to be asked.
+    let mut world = World::new();
+    materialise(&mut world, &level(&[]));
+    cdda_sim::fire_facts::set_fire_facts(
+        &mut world,
+        (5, 5, 0),
+        cdda_sim::TerrainFacts {
+            flammable: true,
+            ..cdda_sim::TerrainFacts::default()
+        },
+    );
+    let mut entry = cdda_core_types::field::FieldEntry::new(3, 1_000_000, false, true);
+    entry.set_age(500);
+    entry.set_intensity(2);
+    world.spawn((
+        cdda_sim::Field {
+            id: cdda_sim::FIRE,
+            entry,
+            priority: 0,
+        },
+        Position { x: 6, y: 5, z: 0 },
+    ));
+
+    let facts = cdda_sim::MapFacts::from_world(&world);
+
+    assert!(
+        facts.can_burn((5, 5, 0)),
+        "the ground's own answer is in the sheet"
+    );
+    assert!(!facts.can_burn((5, 6, 0)), "and the square beside it is bare");
+    assert_eq!(
+        facts.adjacent_fires((5, 5, 0)),
+        1,
+        "the fire standing beside it is counted"
+    );
+    assert!(facts.neighbour((6, 5, 0)).has_fire, "and is found where it is");
+}
+
+#[test]
+fn a_turn_runs_on_a_world_that_is_only_entities() {
+    // No map is handed to the turn: the fire's ground, the fire itself and the square's answers all
+    // come out of the store, which is what makes the turn callable by a game loop.
+    let mut world = World::new();
+    materialise(&mut world, &level(&[]));
+    cdda_sim::fire_facts::set_fire_facts(
+        &mut world,
+        (5, 5, 0),
+        cdda_sim::TerrainFacts {
+            flammable: true,
+            ..cdda_sim::TerrainFacts::default()
+        },
+    );
+    let mut entry = cdda_core_types::field::FieldEntry::new(3, 1_000_000, false, true);
+    entry.set_age(500);
+    entry.set_intensity(2);
+    let fire = world
+        .spawn((
+            cdda_sim::Field {
+                id: cdda_sim::FIRE,
+                entry,
+                priority: 0,
+            },
+            Position { x: 5, y: 5, z: 0 },
+        ))
+        .id();
+
+    let mut rolls = cdda_core_types::rng::Rolls::new(7);
+    cdda_sim::run_environment_turn_from_store(
+        &mut world,
+        0,
+        (5, 5),
+        0,
+        |_, _| false,
+        &mut rolls,
+    );
+
+    let aged = world.get::<cdda_sim::Field>(fire).map(|field| field.entry.age());
+    assert!(
+        aged.is_some_and(|age| age != 500),
+        "the fire took its turn: the store supplied its fuel"
     );
 }
