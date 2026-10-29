@@ -41,6 +41,66 @@ pub struct Moves {
     pub left: i32,
 }
 
+/// How fast a creature moves, in action points per turn.
+///
+/// Reference: `Creature::get_speed` is `get_speed_base() + get_speed_bonus()` (`src/creature.cpp`),
+/// and a monster's base comes from its type, scaled once at load time by the `MONSTER_SPEED` option.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Speed {
+    /// The speed its type gives it.
+    pub base: i32,
+    /// What effects and enchantments add or take away.
+    pub bonus: i32,
+}
+
+/// Speed as the reference scales it by the `MONSTER_SPEED` option.
+///
+/// Reference: `monstergenerator.cpp:346` - `mon.speed *= get_option<int>( "MONSTER_SPEED" ) / 100.0;`
+/// on an `int`, so the product is truncated toward zero rather than rounded: a hundred and thirty at
+/// seventy-five percent is ninety-seven, not ninety-eight.
+#[must_use]
+pub fn scaled_speed(speed: i32, monster_speed_percent: i32) -> i32 {
+    let percent = f64::from(monster_speed_percent) / 100.0;
+    #[allow(clippy::cast_possible_truncation)]
+    let scaled = (f64::from(speed) * percent) as i32;
+    scaled
+}
+
+/// Sets a creature's speed.
+pub fn set_speed(world: &mut World, entity: Entity, base: i32, bonus: i32) {
+    if let Some(mut speed) = world.get_mut::<Speed>(entity) {
+        speed.base = base;
+        speed.bonus = bonus;
+    }
+}
+
+/// What a creature's speed is now.
+#[must_use]
+pub fn speed_of(world: &World, entity: Entity) -> i32 {
+    world.get::<Speed>(entity).map_or(0, |speed| speed_now(*speed))
+}
+
+/// The speed a [`Speed`] adds up to: base plus bonus, in one place so the two callers cannot drift.
+fn speed_now(speed: Speed) -> i32 {
+    speed.base + speed.bonus
+}
+
+/// Gives every creature the action points its speed earns for one turn.
+///
+/// Reference: the turn loop adds each creature's speed to its banked moves and lets it spend them
+/// (`game.cpp`, `monster::move`). Here it is one system-shaped function over the store: no list of
+/// creatures is kept beside it, because the query is the list.
+pub fn bank_a_turn(world: &mut World) {
+    let earned: Vec<(Entity, i32)> = world
+        .query::<(Entity, &Speed)>()
+        .iter(world)
+        .map(|(entity, speed)| (entity, speed_now(*speed)))
+        .collect();
+    for (entity, points) in earned {
+        give_moves(world, entity, points);
+    }
+}
+
 /// Puts a creature in the world, standing on `square`.
 ///
 /// The square is written twice - as the entity's [`Position`] and into the index - because the index is
@@ -59,6 +119,7 @@ pub fn spawn_creature(world: &mut World, name: &str, square: (i32, i32, i32)) ->
                 size: CreatureSize::Medium,
             },
             Moves::default(),
+            Speed::default(),
         ))
         .id();
     crate::singletons::index_mut(world).insert(entity, square);
