@@ -13,12 +13,11 @@
 #![allow(clippy::expect_used)]
 
 use bevy_ecs::prelude::*;
-use cdda_sim::radiation::Radiation;
 use cdda_core_types::field::FieldId;
 use cdda_sim::falling::FieldRules;
 use cdda_sim::{
-    SupportLost, TheFallingQueue, TheFieldRules, TheMemory, TheRadiation, adjust_radiation,
-    falling_queue_entity, field_rules, memory, memory_entity, queue_support_loss, radiation,
+    SupportLost, TheFallingQueue, TheFieldRules, TheMemory, adjust_radiation,
+    falling_queue_entity, field_rules, memory, memory_entity, queue_support_loss,
     set_field_rules, support_lost,
 };
 use std::collections::BTreeSet;
@@ -73,26 +72,40 @@ fn queueing_a_square_writes_the_component_and_no_global() {
 }
 
 #[test]
-fn a_per_square_store_is_an_entity_too() {
+fn a_square_s_dose_is_carried_by_the_square() {
+    // Radiation is a property of a place, so it is a component on the thing that stands there -
+    // not an array of squares held somewhere else.
     let mut world = World::new();
 
     adjust_radiation(&mut world, (1, 2, 0), 5);
-    adjust_radiation(&mut world, (1, 2, 0), -5);
 
     assert_eq!(
-        radiation(&mut world).get((1, 2, 0)),
-        0,
-        "the store adds deltas and a square that returns to zero is dropped"
+        cdda_sim::radiation::dose_at(&world, (1, 2, 0)),
+        5,
+        "the square carries what was put on it"
     );
     assert_eq!(
-        world
-            .query_filtered::<Entity, With<TheRadiation>>()
-            .iter(&world)
-            .count(),
+        cdda_sim::radiation::squares_with_radiation(&world),
         1,
-        "one entity carries the radiation store, however often it is written"
+        "one square holds it"
     );
-    let _ = Radiation::new();
+
+    adjust_radiation(&mut world, (1, 2, 0), 3);
+
+    assert_eq!(
+        cdda_sim::radiation::squares_with_radiation(&world),
+        1,
+        "adding to the same square writes the square, it does not make a second one"
+    );
+    assert_eq!(cdda_sim::radiation::dose_at(&world, (1, 2, 0)), 8, "5 + 3");
+
+    adjust_radiation(&mut world, (1, 2, 0), -8);
+
+    assert_eq!(
+        cdda_sim::radiation::squares_with_radiation(&world),
+        0,
+        "a square that returns to zero carries nothing at all"
+    );
 }
 
 #[test]

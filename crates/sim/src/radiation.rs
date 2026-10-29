@@ -1,52 +1,82 @@
-//! The radiation a square carries.
+//! The radiation a square carries, as a component on the square.
 //!
-//! Reference: `submap::get_radiation` and `set_radiation` (`src/submap.h:166-176`) and `map::adjust_radiation` (`src/map.cpp:4893-4904`), which adds a delta to the
-//! square's value. The store is a plain per-square `int` with no clamp - `rad` is `cata::mdarray<int, point_sm_ms>` (`src/submap.h:69`) - so this keeps the same
-//! shape: a map from square to total, and a processor that adds.
+//! Reference: `submap::get_radiation` and `set_radiation` (`src/submap.h:166-176`) and
+//! `map::adjust_radiation` (`src/map.cpp:4893-4904`), which reads the square's value, adds a delta
+//! and writes it back. The reference stores it in a per-square array; this port puts it on the thing
+//! standing there, because how much radiation a place carries is a property of the place.
 //!
-//! Only three things in the data write radiation: `fd_nuke_gas` at its three higher intensities, and whatever consumes the value later. Nothing reads it yet, which is
-//! why this is a store rather than a system: the reading side is the character's own dose, and that needs a character.
+//! A square that returns to zero carries nothing: the component is taken off rather than left at
+//! zero, so "this square is hot" and "this square is not" are the same question.
 
-use std::collections::BTreeMap;
+use crate::Position;
+use bevy_ecs::prelude::*;
 
-/// How much radiation every square that has any carries.
-///
-/// A component on the one entity [`TheRadiation`] marks: a store that belongs to the world is a
-/// thing in the world, and the architecture has one place for things.
-#[derive(Debug, Clone, Default, bevy_ecs::prelude::Component)]
+/// How much radiation one square carries, in the reference's units.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Component)]
 pub struct Radiation {
-    squares: BTreeMap<(i32, i32, i32), i32>,
+    /// The dose, which is never negative in the reference's own use.
+    pub dose: i32,
 }
 
-impl Radiation {
-    /// An empty store, which is what an untouched map has.
-    #[must_use]
-    pub fn new() -> Self {
-        Self::default()
-    }
+/// The radiation on a square, zero when it carries none.
+#[must_use]
+pub fn dose_at(world: &World, square: (i32, i32, i32)) -> i32 {
+    entities_at(world, square)
+        .iter()
+        .find_map(|entity| world.get::<Radiation>(*entity).map(|held| held.dose))
+        .unwrap_or(0)
+}
 
-    /// The radiation on a square, in the reference's units, zero when it has none.
-    #[must_use]
-    pub fn get(&self, square: (i32, i32, i32)) -> i32 {
-        self.squares.get(&square).copied().unwrap_or(0)
-    }
-
-    /// Adds to a square's radiation.
-    ///
-    /// Reference: `map::adjust_radiation` (`src/map.cpp:4893-4904`), which reads the submap's value, adds the delta and writes it back. A square left at zero is
-    /// dropped from the store, so an untouched map holds nothing and a square that has been cleaned up costs nothing either.
-    pub fn adjust(&mut self, square: (i32, i32, i32), delta: i32) {
-        let total = self.get(square) + delta;
-        if total == 0 {
-            self.squares.remove(&square);
-        } else {
-            self.squares.insert(square, total);
+/// Adds to a square's radiation, as `map::adjust_radiation` does.
+///
+/// A square left at zero loses the component, so an untouched map holds nothing and a square that has
+/// been cleaned up costs nothing either.
+pub fn adjust(world: &mut World, square: (i32, i32, i32), delta: i32) {
+    let total = dose_at(world, square) + delta;
+    let standing = entities_at(world, square)
+        .iter()
+        .copied()
+        .find(|entity| world.get::<Radiation>(*entity).is_some());
+    match (standing, total) {
+        (Some(entity), 0) => {
+            world.despawn(entity);
+        }
+        (Some(entity), total) => {
+            if let Some(mut held) = world.get_mut::<Radiation>(entity) {
+                held.dose = total;
+            }
+        }
+        (None, 0) => {}
+        (None, total) => {
+            let entity = world
+                .spawn((
+                    Position {
+                        x: square.0,
+                        y: square.1,
+                        z: square.2,
+                    },
+                    Radiation { dose: total },
+                ))
+                .id();
+            crate::singletons::index_mut(world).insert(entity, square);
         }
     }
+}
 
-    /// How many squares hold radiation, which is what lets a gate say it compared something.
-    #[must_use]
-    pub fn squares_with_radiation(&self) -> usize {
-        self.squares.len()
+/// How many squares carry radiation, which is what lets a gate say it compared something.
+#[must_use]
+pub fn squares_with_radiation(world: &World) -> usize {
+    let mut query = world.try_query::<&Radiation>();
+    let Some(query) = query.as_mut() else {
+        return 0;
+    };
+    query.iter(world).count()
+}
+
+/// The entities standing at a square, in the order the index holds them.
+fn entities_at(world: &World, square: (i32, i32, i32)) -> &[Entity] {
+    match crate::singletons::index(world) {
+        Some(index) => index.at_level(square.0, square.1, square.2),
+        None => &[],
     }
 }

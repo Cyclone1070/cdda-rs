@@ -169,3 +169,4 @@ for `Square` and `Terrain` together finds nothing), and furniture being its own 
 There is no second copy to keep in step: the ground entity *is* the square's terrain. A test that
 edits a level after loading and then asks a system a question is a test that has two sources of
 truth, and two of them failed exactly that way when the light and the sun moved onto the store.
+| radiation on a square | `Radiation { dose }` on an entity at the square: how much a place carries is a property of the place, and a square that returns to zero loses the component rather than holding a zero |

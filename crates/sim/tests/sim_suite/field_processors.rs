@@ -11,7 +11,6 @@
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::FieldId;
 use cdda_core_types::rng::Rolls;
-use cdda_sim::radiation;
 use cdda_sim::{Field, Position, add_field_strength, process_extra_radiation, process_wandering_field};
 
 const NUKE_GAS: FieldId = FieldId(84);
@@ -20,7 +19,7 @@ const SMOKE: FieldId = FieldId(91);
 
 /// How much radiation a square holds, zero when it holds none.
 fn radiation_at(world: &mut World, square: (i32, i32, i32)) -> i32 {
-    radiation(world).get(square)
+    cdda_sim::radiation::dose_at(world, square)
 }
 
 /// The intensity of a field on a square, zero when the square has no field of that kind.

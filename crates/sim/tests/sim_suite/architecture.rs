@@ -392,7 +392,7 @@ fn the_simulation_holds_no_shared_or_raw_pointers() {
 /// The per-square arrays the simulation still holds, by type name. Like the global ledger this may
 /// only shrink: a result that is a property of a place is a component on the place, and a square is
 /// an entity like anything else.
-const PER_SQUARE_ARRAYS: &[&str] = &["MapFacts", "Radiation"];
+const PER_SQUARE_ARRAYS: &[&str] = &["MapFacts"];
 
 /// The index is the one array of the architecture: every square to the things standing on it. It is
 /// derived, it is never authoritative, and a gate below proves it agrees with the store. It is named
@@ -480,7 +480,7 @@ fn the_per_square_ledger_is_not_empty_by_accident() {
     // The gate above passes trivially if the scan finds nothing at all, so this proves it can see.
     let found = per_square_types();
     assert!(
-        found.contains_key("MapFacts") && found.contains_key("Radiation"),
+        found.contains_key("MapFacts"),
         "the scan must at least find the array that is still there: {found:?}"
     );
 }

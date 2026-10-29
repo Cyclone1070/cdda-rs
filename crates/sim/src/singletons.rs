@@ -23,7 +23,6 @@ use crate::weather::Weather;
 use crate::{Light, PositionIndex, Prototypes};
 use crate::scent_table::ScentTable;
 use crate::weather::Climate;
-use crate::radiation::Radiation;
 
 /// Marks the one entity that carries the falling queue.
 #[derive(Debug, Default, Component)]
@@ -62,27 +61,12 @@ pub fn support_lost(world: &mut World) -> Mut<'_, SupportLost> {
     }
 }
 
-/// Marks the one entity that carries the radiation store.
-#[derive(Debug, Default, Component)]
-pub struct TheRadiation;
-
-/// The radiation store, spawned on first use.
-///
-/// # Panics
-///
-/// Panics if the entity [`singleton`] returned does not carry the store, which cannot happen: the
-/// helper is the only thing that creates it, and it creates it with both.
-pub fn radiation(world: &mut World) -> Mut<'_, Radiation> {
-    let entity = singleton::<Radiation, TheRadiation>(world);
-    match world.get_mut::<Radiation>(entity) {
-        Some(store) => store,
-        None => unreachable!("the radiation entity was just spawned with its store"),
-    }
-}
-
 /// Adds a dose to a square, which is `map::adjust_radiation`.
+///
+/// The dose is a component on the square itself, so this is a thin verb over
+/// [`crate::radiation::adjust`] and there is no store to reach for.
 pub fn adjust_radiation(world: &mut World, square: (i32, i32, i32), delta: i32) {
-    radiation(world).adjust(square, delta);
+    crate::radiation::adjust(world, square, delta);
 }
 
 /// Marks the one entity that carries the character's memory.
