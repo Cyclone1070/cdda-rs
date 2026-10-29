@@ -169,3 +169,39 @@ fn a_dead_creature_does_not_take_its_turn() {
         "it is gone before it could walk, because the turn reaps before creatures act"
     );
 }
+
+/// A body that had a kind behind it leaves a corpse item, and one that did not leaves nothing.
+///
+/// Reference: `monster::die` drops `item::make_corpse`, so the corpse is an **item** on the square - the same
+/// `CorpseOf` the item layer already measures for volume. A survivor the port invented has no prototype, so
+/// there is nothing to name a body with and nothing is left.
+#[test]
+fn a_creature_with_a_kind_leaves_a_corpse_behind() {
+    let mut world = corridor(3, &[]);
+    let shambler = spawn_creature(&mut world, "a shambler", (1, 0, 0));
+    cdda_sim::creature::set_kind(&mut world, shambler, cdda_sim::MonsterKindId(42));
+    cdda_sim::creature::set_health(&mut world, shambler, 0);
+    let survivor = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::creature::set_health(&mut world, survivor, 0);
+
+    let corpse_kind = cdda_sim::ItemTypeId(7);
+    let cleared = cdda_sim::creature::reap_dead_creatures_as_corpses(&mut world, corpse_kind, |_| 62_500);
+
+    assert_eq!(cleared, 2, "both bodies were cleared");
+    assert_eq!(
+        cdda_sim::corpses_at(&mut world, (1, 0)),
+        1,
+        "the one with a kind left a body on its square"
+    );
+    assert_eq!(
+        cdda_sim::corpse_kind_at(&mut world, (1, 0)),
+        Some(cdda_sim::MonsterKindId(42)),
+        "and it says what it was"
+    );
+    assert_eq!(
+        cdda_sim::corpses_at(&mut world, (0, 0)),
+        0,
+        "the survivor had no kind, so there is nothing to name a body with"
+    );
+    assert!(creature_at(&world, (1, 0, 0)).is_empty(), "no creature remains");
+}

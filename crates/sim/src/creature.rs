@@ -252,6 +252,59 @@ pub fn reap_dead_creatures(world: &mut World) -> usize {
     dead.len()
 }
 
+/// What kind of creature this is, when the content said so.
+///
+/// Reference: a `monster`'s `type` (`src/monster.h`), which `monster::die` reads to make the corpse
+/// (`item::make_corpse`). Optional, because a creature the port invented - a test's survivor - has no
+/// prototype behind it, and inventing a kind for it would put a number in the world that content never gave.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CreatureKind(pub crate::MonsterKindId);
+
+/// Says what kind of creature this is, so that its death can leave the right body.
+pub fn set_kind(world: &mut World, entity: Entity, kind: crate::MonsterKindId) {
+    world.entity_mut(entity).insert(CreatureKind(kind));
+}
+
+/// Clears the dead, leaving a corpse item wherever one had a kind behind it.
+///
+/// Reference: `monster::die` calls `m.add_item_or_charges( pos, item::make_corpse( ... ) )`, so the body is an
+/// **item**, not a creature the world keeps around. The corpse carries what it was and how much room it took
+/// up, which is what `item::corpse_volume` measures later.
+///
+/// A creature with no [`CreatureKind`] is cleared like any other and leaves nothing: there is no prototype to
+/// name the body with, and a test's survivor is not a monster that died.
+pub fn reap_dead_creatures_as_corpses(
+    world: &mut World,
+    corpse_kind: crate::ItemTypeId,
+    volume_of: impl Fn(crate::MonsterKindId) -> i64,
+) -> usize {
+    type Dead = (Entity, (i32, i32, i32), Option<crate::MonsterKindId>);
+    let dead: Vec<Dead> = world
+        .query::<(Entity, &Health, &Position, Option<&CreatureKind>)>()
+        .iter(world)
+        .filter(|(_, health, _, _)| health.hp <= 0)
+        .map(|(entity, _, position, kind)| {
+            (
+                entity,
+                (position.x, position.y, position.z),
+                kind.map(|kind| kind.0),
+            )
+        })
+        .collect();
+    for (entity, square, kind) in &dead {
+        crate::singletons::index_mut(world).remove(*entity, *square);
+        world.despawn(*entity);
+        if let Some(kind) = kind {
+            let corpse = crate::drop_item(world, (square.0, square.1), corpse_kind, 1);
+            world.entity_mut(corpse).insert(crate::CorpseOf {
+                kind: *kind,
+                monster_volume_ml: volume_of(*kind),
+            });
+        }
+    }
+    dead.len()
+}
+
 /// Where a creature is trying to get to.
 ///
 /// Reference: a monster's `goal` (`src/monster.h`), which `monster::move` walks towards and drops when it
