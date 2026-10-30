@@ -51,6 +51,7 @@ mod pathfinding;
 mod routing;
 mod walking;
 mod wear_what_you_find;
+mod wearing_takes_turns;
 mod wield;
 mod worn_armour;
 mod wounds;

@@ -449,6 +449,12 @@ pub fn finish_activity(world: &mut World, creature: Entity, activity: &str, subj
         crate::crafting::finish_craft_in_store(world, creature);
         return;
     }
+    if let ("wear", Some(item)) = (activity, subject) {
+        // Reference: `wear_activity_actor::do_turn` calls `who.wear_item`, which is `put_on` here - the time is already
+        // spent, so the store changes without being charged twice.
+        put_on(world, creature, item);
+        return;
+    }
     if let ("pickup", Some(item)) = (activity, subject)
         && let Some(place) = world
             .get::<Position>(creature)
@@ -1080,9 +1086,63 @@ pub fn wear(world: &mut World, wearer: Entity, item: Entity) -> Wore {
         return Wore::TooSlow;
     }
     give_moves(world, wearer, -cost);
+    put_on(world, wearer, item);
+    Wore::Worn
+}
+
+/// Puts a garment on without asking what it costs.
+///
+/// The half of [`wear`] that changes the store, kept apart because the wearing activity has already paid: `ACT_WEAR`
+/// spends its own time (`activity_actor.cpp:7001-7035`) and then calls `wear_item`, which does not charge again.
+fn put_on(world: &mut World, wearer: Entity, item: Entity) -> Wore {
+    if world.get::<Garment>(item).is_none() {
+        return Wore::NotAWearable;
+    }
+    if world.get::<WornBy>(item).is_some() {
+        return Wore::AlreadyWorn;
+    }
     world.entity_mut(item).insert(WornBy(wearer));
+    world.entity_mut(item).remove::<InPocket>();
+    world.entity_mut(item).remove::<WieldedBy>();
     dress(world);
     Wore::Worn
+}
+
+/// Starts putting a garment on, as something that takes time.
+///
+/// Reference: `inventory_ui.cpp:4355` assigns `wear_activity_actor`, and its `do_turn`
+/// (`activity_actor.cpp:7001-7035`) puts the thing on while the character has moves left. The port charges
+/// [`wear_cost`] as the activity's length instead - one garment, one activity - because a queue of garments is a menu's
+/// business and the port has no menu.
+pub fn begin_wear(
+    world: &mut World,
+    creature: Entity,
+    item: Entity,
+    volume_ml: i32,
+    layer: Layering,
+) -> Began {
+    if world.get::<Doing>(creature).is_some() {
+        return Began::Busy;
+    }
+    if world.get::<Garment>(item).is_none() {
+        return Began::NotHere;
+    }
+    if world.get::<WornBy>(item).is_some() {
+        return Began::AlreadyCarried;
+    }
+    let cost = wear_cost(volume_ml, layer);
+    if moves_left(world, creature) >= cost {
+        give_moves(world, creature, -cost);
+        put_on(world, creature, item);
+        return Began::Done;
+    }
+    world.entity_mut(creature).insert(Doing {
+        activity: "wear".to_owned(),
+        moves_left: cost,
+        basis: Basis::Time,
+        subject: Some(item),
+    });
+    Began::Started
 }
 
 /// Takes a thing off, whoever is wearing it.
