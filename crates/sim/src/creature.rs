@@ -512,6 +512,44 @@ pub fn volume_capacity(
     total
 }
 
+/// Which pocket a thing would go in, if any.
+///
+/// Reference: `Character::can_stash` -> `best_pocket` (`character.cpp:1571-1574`), which walks the pockets of everything
+/// worn and asks `can_contain`. The port asks the same question in the same order - the worn things in no particular
+/// order, their pockets in the order the data lists them - and answers which pocket took it, because a caller that only
+/// learns "yes" cannot say where the thing went.
+///
+/// The pockets are all treated as empty: a carried thing is an entity that points at the creature, and nothing records
+/// which pocket it is in. That is the next rule, not this one.
+#[must_use]
+pub fn can_stash(
+    world: &mut World,
+    creature: Entity,
+    names: &crate::item_registry::ItemNames,
+    volume_ml: i32,
+    weight_g: i64,
+) -> Option<(Entity, usize)> {
+    let worn: Vec<(Entity, crate::ItemTypeId)> = {
+        let mut query = world.query::<(Entity, &WornBy, &crate::GroundItem)>();
+        query
+            .iter(world)
+            .filter(|(_, worn_by, _)| worn_by.0 == creature)
+            .map(|(entity, _, item)| (entity, item.kind))
+            .collect()
+    };
+    let weight_g = i32::try_from(weight_g).unwrap_or(i32::MAX);
+    for (entity, kind) in worn {
+        for (index, pocket) in names.pockets_of(kind).iter().enumerate() {
+            if crate::pockets::fits(*pocket, crate::pockets::Contents::default(), volume_ml, weight_g)
+                == crate::pockets::Fits::Yes
+            {
+                return Some((entity, index));
+            }
+        }
+    }
+    None
+}
+
 /// How strong a creature is.
 ///
 /// Reference: `Character::get_str_base`, which the reference initialises to eight and raises with mutations and
@@ -541,11 +579,10 @@ pub fn pick_up_in_store(world: &mut World, creature: Entity, item: Entity) -> Pi
     if held + this > carrying_capacity(world, creature) {
         return Picked::TooHeavy;
     }
-    // Reference: `Character::can_pickVolume` - a thing has to fit somewhere, and what a survivor is wearing is all the
-    // room there is.
-    let room = volume_capacity(world, creature, &names);
-    let already = crate::inventory::volume_carried(world, creature, &names);
-    if already + i64::from(volume) > room {
+    // Reference: `Character::can_stash` - something has to be able to take it, and what a survivor is wearing is all the
+    // room there is. Asked pocket by pocket rather than as one total, because a hundred litres of room in fifty pockets
+    // cannot hold a thing that fits none of them.
+    if can_stash(world, creature, &names, volume, this).is_none() {
         return Picked::TooBig;
     }
     pick_up(world, creature, item, volume)

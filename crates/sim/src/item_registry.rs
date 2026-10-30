@@ -10,6 +10,7 @@
 use bevy_ecs::prelude::*;
 use std::collections::BTreeMap;
 
+use crate::pockets::Pocket;
 use crate::singletons;
 use crate::ItemTypeId;
 
@@ -39,6 +40,10 @@ pub struct ItemTypes {
     /// `Character::volume_capacity` (`character.cpp:8883-8889`), so a coat with no pockets adds nothing and a backpack
     /// adds a lot.
     holds_ml: Vec<i32>,
+    /// The pockets each kind has, in registry order.
+    ///
+    /// Reference: `itype::pockets`, which is where a thing goes once a survivor picks it up.
+    pockets: Vec<Vec<Pocket>>,
 }
 
 /// Marks the entity carrying [`ItemTypes`].
@@ -49,22 +54,47 @@ pub struct TheItemTypes;
 ///
 /// Later calls replace it, which is what a second world load does. The null item stays at zero whatever the data says,
 /// because a stack with no kind has to have a number that means nothing.
-pub fn set_item_types(world: &mut World, kinds: &[(&str, i64, i64, i64)]) {
+/// One kind of thing, as the registry needs to know it.
+///
+/// Taken as a struct rather than a tuple because the tuple had grown to four anonymous numbers and was about to grow a
+/// fifth: `("boots", 2_000, 800, 1_500)` does not tell a reader which number is which, and a name for each is cheaper
+/// than a comment saying so.
+#[derive(Debug, Clone, Copy)]
+pub struct Kind<'a> {
+    /// The id the data uses.
+    pub id: &'a str,
+    /// How much room it takes, in millilitres.
+    pub volume_ml: i64,
+    /// What it weighs, in grams.
+    pub weight_g: i64,
+    /// The pockets it has.
+    pub pockets: &'a [Pocket],
+}
+
+/// Installs the registry the store will answer from.
+///
+/// Later calls replace it, which is what a second world load does. The null item stays at zero whatever the data says,
+/// because a stack with no kind has to have a number that means nothing.
+pub fn set_item_types(world: &mut World, kinds: &[Kind<'_>]) {
     let mut names = vec![String::new()];
     let mut by_name = BTreeMap::new();
     let mut volumes_ml = vec![0];
     let mut weights_g = vec![0];
     let mut holds_ml = vec![0];
-    for (id, volume, weight, holds) in kinds {
+    let mut pockets_by_kind = vec![Vec::new()];
+    // Named apart from the loop variable so the borrow of the pocket slice outlives the numbers taken from it.
+    for each in kinds {
+        let (id, volume, weight) = (each.id, each.volume_ml, each.weight_g);
         #[allow(clippy::cast_possible_truncation)]
         let number = ItemTypeId(names.len() as u32);
-        by_name.insert((*id).to_owned(), number);
-        names.push((*id).to_owned());
+        by_name.insert(id.to_owned(), number);
+        names.push(id.to_owned());
         #[allow(clippy::cast_possible_truncation)]
-        volumes_ml.push(*volume as i32);
-        weights_g.push(*weight);
-        #[allow(clippy::cast_possible_truncation)]
-        holds_ml.push(*holds as i32);
+        volumes_ml.push(volume as i32);
+        weights_g.push(weight);
+        // Reference: `item::get_total_capacity` - a thing can hold as much as its pockets can.
+        holds_ml.push(each.pockets.iter().map(|pocket| pocket.capacity_ml).sum());
+        pockets_by_kind.push(each.pockets.to_vec());
     }
     let entity = singletons::singleton::<ItemTypes, TheItemTypes>(world);
     world.entity_mut(entity).insert(ItemTypes {
@@ -73,6 +103,7 @@ pub fn set_item_types(world: &mut World, kinds: &[(&str, i64, i64, i64)]) {
         volumes_ml,
         weights_g,
         holds_ml,
+        pockets: pockets_by_kind,
     });
 }
 
@@ -104,6 +135,8 @@ pub struct ItemNames {
     pub weights_g: Vec<i64>,
     /// How much each kind can hold, in millilitres, in registry order.
     pub holds_ml: Vec<i32>,
+    /// The pockets each kind has, in registry order.
+    pub pockets: Vec<Vec<crate::pockets::Pocket>>,
 }
 
 impl ItemNames {
@@ -139,6 +172,12 @@ impl ItemNames {
     pub fn holds_ml(&self, kind: ItemTypeId) -> i32 {
         self.holds_ml.get(kind.0 as usize).copied().unwrap_or(0)
     }
+
+    /// The pockets of a kind.
+    #[must_use]
+    pub fn pockets_of(&self, kind: ItemTypeId) -> &[Pocket] {
+        self.pockets.get(kind.0 as usize).map_or(&[], Vec::as_slice)
+    }
 }
 
 /// Takes a copy of the registry.
@@ -151,6 +190,7 @@ pub fn snapshot(world: &mut World) -> ItemNames {
         volumes_ml: registry.volumes_ml.clone(),
         weights_g: registry.weights_g.clone(),
         holds_ml: registry.holds_ml.clone(),
+        pockets: registry.pockets.clone(),
     })
 }
 
@@ -188,6 +228,16 @@ pub fn holds_ml(world: &mut World, kind: ItemTypeId) -> i32 {
         .get::<ItemTypes>(entity)
         .and_then(|registry| registry.holds_ml.get(kind.0 as usize).copied())
         .unwrap_or(0)
+}
+
+/// The pockets of a kind.
+#[must_use]
+pub fn pockets_of(world: &mut World, kind: ItemTypeId) -> Vec<Pocket> {
+    let entity = singletons::singleton::<ItemTypes, TheItemTypes>(world);
+    world
+        .get::<ItemTypes>(entity)
+        .and_then(|registry| registry.pockets.get(kind.0 as usize).cloned())
+        .unwrap_or_default()
 }
 
 /// How many kinds the registry knows, not counting the null item.

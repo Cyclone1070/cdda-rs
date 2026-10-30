@@ -8,14 +8,48 @@
 
 use bevy_ecs::prelude::*;
 use cdda_sim::item_registry::{self, ItemNames};
+use cdda_sim::pockets::Pocket;
 use cdda_sim::{ItemTypeId, crafting};
+
+/// Turns built kinds into the borrowed slices the registry takes.
+fn kinds_as(kinds: &[(String, i64, i64, Vec<Pocket>)]) -> Vec<item_registry::Kind<'_>> {
+    kinds
+        .iter()
+        .map(|(id, volume, weight, pockets)| item_registry::Kind {
+            id,
+            volume_ml: *volume,
+            weight_g: *weight,
+            pockets,
+        })
+        .collect()
+}
+
+/// A kind with one plain pocket of the given size, so a worn thing has somewhere to put things.
+fn bag(id: &str, volume_ml: i64, weight_g: i64, pocket_ml: i64) -> (String, i64, i64, Vec<Pocket>) {
+    (
+        id.to_owned(),
+        volume_ml,
+        weight_g,
+        if pocket_ml > 0 {
+            vec![Pocket {
+                capacity_ml: i32::try_from(pocket_ml).expect("a pocket that fits in an i32"),
+                max_weight_g: 0,
+                max_item_ml: None,
+                holster: false,
+            }]
+        } else {
+            Vec::new()
+        },
+    )
+}
 
 
 
 #[test]
 fn a_kind_can_be_looked_up_by_number_and_by_name() {
     let mut world = World::new();
-    item_registry::set_item_types(&mut world, &[("rag", 250, 100, 0), ("rope", 500, 200, 0), ("rock", 1_000, 5_000, 0)]);
+    let kinds = [bag("rag", 250, 100, 0), bag("rope", 500, 200, 0), bag("rock", 1_000, 5_000, 0)];
+    item_registry::set_item_types(&mut world, &kinds_as(&kinds));
 
     assert_eq!(item_registry::count(&mut world), 3, "three kinds, not counting the null item");
     assert_eq!(item_registry::id_of(&mut world, "rope"), Some(ItemTypeId(2)));
@@ -42,8 +76,10 @@ fn a_kind_can_be_looked_up_by_number_and_by_name() {
 #[test]
 fn installing_a_second_registry_replaces_the_first() {
     let mut world = World::new();
-    item_registry::set_item_types(&mut world, &[("rag", 250, 100, 0)]);
-    item_registry::set_item_types(&mut world, &[("rope", 500, 200, 0)]);
+    let kinds = [bag("rag", 250, 100, 0)];
+    item_registry::set_item_types(&mut world, &kinds_as(&kinds));
+    let kinds = [bag("rope", 500, 200, 0)];
+    item_registry::set_item_types(&mut world, &kinds_as(&kinds));
     assert_eq!(item_registry::id_of(&mut world, "rag"), None, "a second load is not a merge");
     assert_eq!(item_registry::id_of(&mut world, "rope"), Some(ItemTypeId(1)));
 }
@@ -51,7 +87,8 @@ fn installing_a_second_registry_replaces_the_first() {
 #[test]
 fn a_craft_can_be_finished_without_a_caller_supplying_the_item_table() {
     let mut world = World::new();
-    item_registry::set_item_types(&mut world, &[("rag", 250, 100, 0), ("rope", 500, 200, 0)]);
+    let kinds = [bag("rag", 250, 100, 0), bag("rope", 500, 200, 0)];
+    item_registry::set_item_types(&mut world, &kinds_as(&kinds));
 
     let crafter = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     let mut recipe = cdda_content::recipes::Recipe {
@@ -120,10 +157,8 @@ fn a_pickup_reads_the_size_of_what_it_is_lifting() {
     );
     singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
     // A four-litre thing: 100 + 200 moves, the most the volume term can be.
-    item_registry::set_item_types(
-        &mut world,
-        &[("jerrycan", 4_000, 2_000, 0), ("coat", 1_000, 1_000, 6_000)],
-    );
+    let kinds = [bag("jerrycan", 4_000, 2_000, 0), bag("coat", 1_000, 1_000, 6_000)];
+    item_registry::set_item_types(&mut world, &kinds_as(&kinds));
 
     let survivor = spawn_creature(&mut world, "the survivor", (1, 0, 0));
     give_moves(&mut world, survivor, 500);
@@ -210,7 +245,8 @@ fn too_heavy_is_refused_and_costs_nothing() {
     );
     singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
     // An anvil: fifty kilos, and a survivor can carry forty-five.
-    item_registry::set_item_types(&mut world, &[("anvil", 20_000, 50_000, 0)]);
+    let kinds = [bag("anvil", 20_000, 50_000, 0)];
+    item_registry::set_item_types(&mut world, &kinds_as(&kinds));
 
     let survivor = spawn_creature(&mut world, "the survivor", (1, 0, 0));
     world.entity_mut(survivor).insert(Strength { base: 8 });
@@ -259,7 +295,8 @@ fn the_turn_loop_finishes_what_it_started() {
         },
     );
     singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
-    item_registry::set_item_types(&mut world, &[("rag", 250, 100, 0), ("rope", 500, 200, 0)]);
+    let kinds = [bag("rag", 250, 100, 0), bag("rope", 500, 200, 0)];
+    item_registry::set_item_types(&mut world, &kinds_as(&kinds));
 
     let crafter = spawn_creature(&mut world, "the survivor", (0, 0, 0));
     set_speed(&mut world, crafter, 100, 0);
@@ -330,10 +367,8 @@ fn you_can_only_carry_what_you_have_room_for() {
         },
     );
     singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
-    item_registry::set_item_types(
-        &mut world,
-        &[("jerrycan", 3_000, 1_000, 0), ("backpack", 2_000, 500, 5_000)],
-    );
+    let kinds = [bag("jerrycan", 3_000, 1_000, 0), bag("backpack", 2_000, 500, 5_000)];
+    item_registry::set_item_types(&mut world, &kinds_as(&kinds));
     let names = item_registry::snapshot(&mut world);
 
     let survivor = spawn_creature(&mut world, "the survivor", (1, 0, 0));
@@ -362,4 +397,85 @@ fn you_can_only_carry_what_you_have_room_for() {
         3_000,
         "three of the five litres are now taken"
     );
+}
+
+/// Room is asked pocket by pocket, not added up.
+///
+/// A survivor wearing a hundred small pockets and one big one: the big one takes the thing, and a thing too big for any
+/// pocket is refused **even though the total room is plenty**. A port that compared totals would let a rifle slide into
+/// twenty pockets at once, which is the mistake this test exists to catch.
+#[test]
+fn a_thing_needs_one_pocket_that_takes_it_and_not_a_total() {
+    use cdda_core_types::level::Level;
+    use cdda_sim::creature::{Picked, WornBy, can_stash, give_moves, pick_up_in_store, spawn_creature};
+    use cdda_sim::terrain_table::TerrainTable;
+    use cdda_sim::{Prototypes, singletons};
+
+    let mut world = World::new();
+    let mut level = Level::new();
+    for x in 0..4 {
+        level.set_terrain(x, 0, 1, 1);
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let mut terrain = TerrainTable::new();
+    terrain.insert(1, true);
+    terrain.insert_move_cost(1, 2);
+    cdda_sim::set_prototypes(
+        &mut world,
+        Prototypes {
+            terrain,
+            furniture: TerrainTable::new(),
+        },
+    );
+    singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
+
+    // A vest of twenty small pockets, a hundred millilitres each: two litres of room in total, and no single pocket
+    // that takes more than a hundred millilitres.
+    let small = Pocket {
+        capacity_ml: 100,
+        max_weight_g: 0,
+        max_item_ml: Some(100),
+        holster: false,
+    };
+    let wanted = Pocket {
+        capacity_ml: 4_000,
+        max_weight_g: 0,
+        max_item_ml: None,
+        holster: false,
+    };
+    let kinds = [
+        (String::from("rifle"), 3_000, 4_000, Vec::new()),
+        (String::from("vest"), 1_000, 1_000, vec![small; 20]),
+        (String::from("holster_rig"), 1_000, 1_000, vec![wanted]),
+    ];
+    item_registry::set_item_types(&mut world, &kinds_as(&kinds));
+    let names = item_registry::snapshot(&mut world);
+
+    let survivor = spawn_creature(&mut world, "the survivor", (1, 0, 0));
+    give_moves(&mut world, survivor, 5_000);
+    let vest = cdda_sim::drop_item(&mut world, (1, 0), ItemTypeId(2), 1);
+    world.entity_mut(vest).remove::<cdda_sim::Position>();
+    world.entity_mut(vest).insert(WornBy(survivor));
+    let rifle = cdda_sim::drop_item(&mut world, (1, 0), ItemTypeId(1), 1);
+
+    assert_eq!(
+        can_stash(&mut world, survivor, &names, 3_000, 4_000),
+        None,
+        "two litres of room in twenty pockets still cannot hold a rifle"
+    );
+    assert_eq!(
+        pick_up_in_store(&mut world, survivor, rifle),
+        Picked::TooBig,
+        "and the pickup says so"
+    );
+
+    // One pocket that takes it, and the same rifle goes in.
+    let rig = cdda_sim::drop_item(&mut world, (1, 0), ItemTypeId(3), 1);
+    world.entity_mut(rig).remove::<cdda_sim::Position>();
+    world.entity_mut(rig).insert(WornBy(survivor));
+    assert!(
+        can_stash(&mut world, survivor, &names, 3_000, 4_000).is_some(),
+        "the rig's one big pocket takes it"
+    );
+    assert_eq!(pick_up_in_store(&mut world, survivor, rifle), Picked::Taken);
 }
