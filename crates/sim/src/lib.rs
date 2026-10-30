@@ -6946,6 +6946,11 @@ pub struct TurnRules<'a> {
     pub armour_of: &'a dyn Fn(MonsterKindId) -> i32,
     /// Whether the terrain lets a creature through.
     pub passable: &'a dyn Fn(u32) -> bool,
+    /// The player's accuracy in tenths, which sets the mean of its attack roll.
+    ///
+    /// The reference takes this from the character's melee skill and its weapon (`Character::melee_attack`), and
+    /// without it a blow cannot be dodged, only absorbed - which is why it is a rule and not a constant.
+    pub player_accuracy_tenths: i32,
 }
 
 /// Gives every creature a turn, and lets its attacks land on whoever is standing where it strikes.
@@ -7203,12 +7208,27 @@ pub fn player_turn(
         let Some(victim) = victim else {
             break;
         };
-        let armour = world
-            .get::<crate::creature::CreatureKind>(victim)
-            .map_or(0, |kind| (rules.armour_of)(kind.0));
+        // The player's blow goes through exactly the rules a monster's does: a roll against the target's dodge
+        // and size, and then the armour. A second path here would have been a second set of numbers.
         let (dice, sides, bonus) = blow;
-        let damage = melee_blow(rolls, dice, sides, bonus);
-        strike(world, victim, damage, armour);
+        let attack = crate::melee::Attack {
+            accuracy_tenths: rules.player_accuracy_tenths,
+            fixed: crate::melee::Damage {
+                bash: bonus,
+                cut: 0,
+                penetration: 0,
+            },
+            dice,
+            sides,
+        };
+        let swung = crate::melee::strike(
+            rolls,
+            attack,
+            crate::creature::defence_of(world, victim),
+        );
+        if swung.hit {
+            crate::creature::hurt(world, victim, swung.damage);
+        }
         landed += 1;
     }
     crate::creature::set_moves(world, entity, turn.moves);

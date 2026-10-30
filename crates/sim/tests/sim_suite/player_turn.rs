@@ -28,6 +28,8 @@ fn rules() -> TurnRules<'static> {
         blow_of: &|_| (1, 4, 0),
         armour_of: &|_| 0,
         passable: &|terrain| terrain == FLOOR,
+        // A skilled survivor: accuracy four, which is a mean roll of twenty.
+        player_accuracy_tenths: 40,
     }
 }
 
@@ -144,4 +146,41 @@ fn a_fight_runs_both_ways_and_the_same_seed_replays_it() {
     assert_eq!(first, fight(77), "the same seed is the same fight");
     assert!(first.0 < 80, "the player was hurt: {}", first.0);
     assert!(first.1 < 30, "and so was the zombie: {}", first.1);
+}
+
+/// The player's blow is dodgeable, because it goes through the same rules a monster's does.
+///
+/// Reference: `Character::melee_attack` makes the same roll `monster::melee_attack` does - the attacker's
+/// accuracy against the target's dodge - so a nimble target avoids a survivor's swing exactly as it avoids a
+/// zombie's. Before this, the player's path took armour off a blow and never asked whether it landed, which
+/// meant no target could dodge the avatar at all.
+#[test]
+fn a_dodging_monster_avoids_the_player_s_blow() {
+    let mut world = World::new();
+    let me = spawn_player(&mut world, (0, 0), 80, 0);
+    cdda_sim::creature::set_moves(&mut world, me, 100);
+    let plain = spawn_monster(&mut world, (1, 0), MonsterKindId(2), 100);
+    let mut rolls = Rolls::new(9);
+    player_turn(&mut world, (1, 0), (1, 4, 0), 100, &rules(), &mut rolls, &level());
+    let plain_left = monster_hp(&world, plain);
+
+    let mut world = World::new();
+    let me = spawn_player(&mut world, (0, 0), 80, 0);
+    cdda_sim::creature::set_moves(&mut world, me, 100);
+    let nimble = spawn_monster(&mut world, (1, 0), MonsterKindId(2), 100);
+    world
+        .entity_mut(nimble)
+        .insert(cdda_sim::creature::Dodge { points: 20 });
+    let mut rolls = Rolls::new(9);
+    player_turn(&mut world, (1, 0), (1, 4, 0), 100, &rules(), &mut rolls, &level());
+    let nimble_left = monster_hp(&world, nimble);
+
+    assert!(
+        plain_left < 100,
+        "a target with no dodge takes the blow: {plain_left} left"
+    );
+    assert_eq!(
+        nimble_left, 100,
+        "and twenty points of dodge - a hundred points of roll - turns it aside entirely"
+    );
 }

@@ -28,6 +28,8 @@ fn rules() -> TurnRules<'static> {
         blow_of: &|_| (1, 6, 0),
         armour_of: &|_| 0,
         passable: &|terrain| terrain == FLOOR,
+        // A skilled survivor: accuracy four, which is a mean roll of twenty.
+        player_accuracy_tenths: 40,
     }
 }
 
