@@ -249,12 +249,13 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
     // `math` guards (42 -> 45). A refusal that moves house is not the same as a program that starts running, and only one of the
     // thirty-six turned out to be otherwise complete.
     assert_eq!(
-        whole, 159,
-        "a hundred and fifty-nine run whole: the inline `run_eocs` form added fifty-nine, the chance guards three"
+        whole, 168,
+        "a hundred and sixty-eight run whole: the inline `run_eocs` form added fifty-nine, the chance guards three, `u_has_item` nine"
     );
-    assert_eq!(refused.get("effect"), Some(&329), "and the effect side is still the bigger refusal");
+    assert_eq!(refused.get("effect"), Some(&334), "and the effect side is still the bigger refusal");
     assert_eq!(refused.get("u_has_trait"), None, "traits are no longer blamed for anything");
-    assert_eq!(refused.get("math"), Some(&45), "`math` guards are the biggest single one");
+    assert_eq!(refused.get("math"), Some(&46), "`math` guards are the biggest single one");
+    assert_eq!(refused.get("u_has_item"), None, "carrying an item is no longer blamed for anything");
     // The chance guards now roll, so what is left of them is one program apiece - and the eight programs they freed are blamed on
     // what refused them next, which is the "moves house" pattern for the fifth time.
     assert_eq!(refused.get("one_in_chance"), Some(&1), "the dice no longer block the chance guards");
@@ -264,7 +265,7 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
     // not install them. The count of definitions was itself worth learning - the 712 in the earlier census counted objects, the
     // machine composes by name.
     assert_eq!(defined, 692, "the data defines 692 nameable effect-on-conditions");
-    assert_eq!(whole, 159, "and the port can run 159 of them whole");
+    assert_eq!(whole, 168, "and the port can run 168 of them whole");
 }
 
 /// A `run_eocs` entry can be a program written where it is used.

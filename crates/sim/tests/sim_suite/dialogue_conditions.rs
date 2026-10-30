@@ -186,7 +186,7 @@ fn the_port_answers_the_questions_it_can_and_says_how_many_that_is() {
     // before it. That is the whole point of a leaf: a combinator is only as readable as its parts, so one ported leaf is worth
     // several times itself.
     assert_eq!(
-        readable, 2123,
+        readable, 2201,
         "of which the port answers 1,501: `u_has_effect`, `compare_string`, `u_has_items`, the combinators, and the `math` expressions whose every name it knows"
     );
 }
@@ -479,4 +479,42 @@ fn a_chance_guard_rolls_and_a_chance_of_one_always_holds() {
         None,
         &nested
     ));
+}
+
+/// `u_has_item` asks whether any of an item is carried, by stack or by charge.
+///
+/// Reference: `f_has_item` (`condition.cpp:826-834`) answers `charges_of( id ) > 0 || has_amount( id, 1 )`, so a stack of a charge item
+/// still counts however few charges are left - which is why the port asks both numbers rather than the stack count alone.
+#[test]
+fn carrying_one_item_answers_the_guard() {
+    let mut world = World::new();
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[cdda_sim::item_registry::Kind {
+            id: "rag",
+            volume_ml: 250,
+            weight_g: 100,
+            pockets: &[],
+        }],
+    );
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let item = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 1);
+    world.entity_mut(item).insert(cdda_sim::creature::Carried(survivor));
+
+    assert!(holds(&world, survivor, &condition(r#"{"u_has_item": "rag"}"#)));
+    assert!(!holds(&world, survivor, &condition(r#"{"u_has_item": "rope"}"#)));
+
+    // The listener's own pockets are asked about when the guard names the listener.
+    let other = cdda_sim::creature::spawn_creature(&mut world, "a stranger", (0, 0, 0));
+    let listener_guard = condition(r#"{"npc_has_item": "rag"}"#);
+    assert!(
+        !cdda_sim::conditions::holds_with(&world, survivor, Some(other), &listener_guard),
+        "the stranger carries nothing"
+    );
+    let theirs = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 1);
+    world.entity_mut(theirs).insert(cdda_sim::creature::Carried(other));
+    assert!(
+        cdda_sim::conditions::holds_with(&world, survivor, Some(other), &listener_guard),
+        "and now the listener's own pocket answers yes"
+    );
 }

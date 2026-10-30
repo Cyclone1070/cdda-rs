@@ -87,6 +87,16 @@ pub enum Condition {
         /// How many charges must be carried, when the data states charges.
         charges: Option<i32>,
     },
+    /// A creature carries at least one of an item, by stack or by charge.
+    ///
+    /// Reference: `f_has_item` (`condition.cpp:826-834`) answers `charges_of( id ) > 0 || has_amount( id, 1 )`, so a partly used
+    /// stack of a charge item still counts.
+    HasItem {
+        /// The item's id, as the data writes it.
+        item: StringSource,
+        /// Whether it asks about the listener rather than the speaker.
+        listener: bool,
+    },
     /// At least two of these strings are the same.
     ///
     /// Reference: `conditional_fun::f_compare_string` (`condition.cpp:1900-1920`), which is not a comparison of two values
@@ -302,6 +312,15 @@ pub fn read_condition(value: &Value) -> Option<Condition> {
             x: Box::new(read_expression(chance.get("x")?)?),
             y: Box::new(read_expression(chance.get("y")?)?),
         });
+    }
+    // Reference: `f_has_item` (`condition.cpp:826-834`), the sibling of `u_has_items` that asks only "any at all".
+    for (member, listener) in [("u_has_item", false), ("npc_has_item", true)] {
+        if let Some(item) = object.get(member) {
+            return Some(Condition::HasItem {
+                item: read_string_source(item)?,
+                listener,
+            });
+        }
     }
     // Reference: `f_u_has_mission` (`condition.cpp:709-721`) answers about the **avatar's** active missions, not the speaker's.
     if let Some(Value::Str(mission)) = object.get("u_has_mission") {

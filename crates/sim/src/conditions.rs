@@ -32,6 +32,33 @@ pub fn holds_with(
     holds_drawing(world, speaker, listener, condition, &mut None)
 }
 
+
+/// Whether a creature carries at least one of an item, by stack or by charge.
+///
+/// Reference: `f_has_item` (`condition.cpp:826-834`) - `charges_of( id ) > 0 || has_amount( id, 1 )` - so a stack of a charge item
+/// counts however few charges are left.
+fn carries_one_of(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    item: &cdda_content::dialogue::StringSource,
+    about_listener: bool,
+) -> bool {
+    let creature = if about_listener {
+        match listener {
+            Some(creature) => creature,
+            None => return false,
+        }
+    } else {
+        speaker
+    };
+    let Some(name) = text_of(world, speaker, listener, item) else {
+        return false;
+    };
+    let (stacks, charges) = crate::inventory::count_of(world, creature, &name);
+    stacks > 0 || charges > 0
+}
+
 /// Whether a condition holds, taking the store's dice out for the length of the answer.
 ///
 /// This is the entry point for anything holding `&mut World` - the program runner and the effect runner. It exists so that a guard
@@ -149,8 +176,11 @@ pub fn holds_drawing(
             }
             false
         }
+        Condition::HasItem { item, listener: about_listener } => {
+            carries_one_of(world, speaker, listener, item, *about_listener)
+        }
         Condition::Math(expression) => matches!(
-            value(world, speaker, listener, expression),
+            value_drawing(world, speaker, listener, expression, false, draws.as_deref_mut()),
             Some(result) if result != 0.0
         ),
     }
