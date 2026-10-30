@@ -220,7 +220,9 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
     //
     // 742 after `run_eocs` learned the inline form: an entry may be a whole program written where it is used
     // (`load_eoc_vector_id_and_var`, `npctalk.cpp:512-541`), and 120 entries turned out to be exactly that.
-    assert_eq!(runnable, 742, "of which the port runs 742 entries");
+    // 751 after `time( '…' )` - the first math function whose argument is **text**, and the first the port had to parse rather than
+    // compute. Nine entries, and two programs.
+    assert_eq!(runnable, 751, "of which the port runs 751 entries");
 
     // And the ranking of what refuses, which is this census's real output: it says what to port next instead of what is used most.
     // `target_var` is the one entry the ranking cannot attribute on its own - a scan of the data shows 71 of those 98 are
@@ -233,8 +235,8 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
     assert_eq!(
         ranking,
         vec![
-            ("math".to_owned(), 113),
             ("mapgen_update".to_owned(), 107),
+            ("math".to_owned(), 104),
             ("bonus".to_owned(), 32),
             ("else".to_owned(), 32),
             ("duration".to_owned(), 31),
@@ -427,4 +429,48 @@ fn a_conditional_effect_runs_the_branch_its_condition_chooses() {
     )
     .expect("json");
     assert!(cdda_content::dialogue::read_effect(&half_read).is_none());
+}
+
+/// `time( '…' )` answers a duration in turns, which is the one math function whose argument is text.
+///
+/// Reference: `math_parser_diag.cpp`'s `time` answers the duration in turns, and the data uses it 19 times in effect-on-condition
+/// maths. The port refused it twice over: the parser had no way to keep a quoted literal as an argument, and the evaluator had no
+/// function to hand it to.
+#[test]
+fn a_time_argument_answers_the_duration_in_turns() {
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+
+    let statement = assignment("waiting = time('1 minutes')");
+    assert_eq!(
+        cdda_content::constructions::parse_duration("1 minutes"),
+        60,
+        "a minute is sixty turns"
+    );
+    assert_eq!(
+        run_assignment(&mut world, survivor, None, &statement),
+        Applied::Done
+    );
+    assert_eq!(
+        dialogue_values::number_of(&world, survivor, "waiting"),
+        Some(60.0)
+    );
+
+    // The literal is text, so a function expecting a number still refuses it rather than reading it as zero.
+    let misleading = cdda_json::parse(br#"{"math": ["x = abs('1 minutes')"]}"#.as_slice())
+        .expect("json");
+    assert!(
+        cdda_content::dialogue::read_effect(&misleading).is_some(),
+        "it parses - `abs` takes one argument of any shape"
+    );
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effects(
+            &mut world,
+            survivor,
+            None,
+            &[cdda_content::dialogue::read_effect(&misleading).expect("readable")]
+        ),
+        Applied::CannotAnswer,
+        "and refuses to evaluate, because text is not a number"
+    );
 }

@@ -137,7 +137,19 @@ pub fn value_with(
                 None => None,
             }
         }
+        Expression::Text(_) => None,
         Expression::Call { name, arguments } => {
+            // Reference: `time( '…' )` (`math_parser_diag.cpp`) answers the duration in turns, and it is the one function the port can
+            // answer from the data alone - the string is the only argument it takes.
+            // Reference: `time( '…' )` (`math_parser_diag.cpp`) answers a duration in turns, and it is the one function whose whole
+            // argument is text, so the port can answer it from the data alone.
+            if name == "time"
+                && let [Expression::Text(text)] = arguments.as_slice()
+            {
+                #[allow(clippy::cast_precision_loss)]
+                let turns = cdda_content::constructions::parse_duration(text) as f64;
+                return Some(turns);
+            }
             let arguments = arguments
                 .iter()
                 .map(|argument| value_with(world, speaker, listener, argument, unset_is_zero))

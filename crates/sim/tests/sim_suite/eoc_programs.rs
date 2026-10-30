@@ -249,10 +249,10 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
     // `math` guards (42 -> 45). A refusal that moves house is not the same as a program that starts running, and only one of the
     // thirty-six turned out to be otherwise complete.
     assert_eq!(
-        whole, 152,
-        "a hundred and fifty-two run whole: the inline `run_eocs` form alone added fifty-nine"
+        whole, 154,
+        "a hundred and fifty-four run whole: the inline `run_eocs` form alone added fifty-nine"
     );
-    assert_eq!(refused.get("effect"), Some(&320), "and the effect side is still the bigger refusal");
+    assert_eq!(refused.get("effect"), Some(&318), "and the effect side is still the bigger refusal");
     assert_eq!(refused.get("u_has_trait"), None, "traits are no longer blamed for anything");
     assert_eq!(refused.get("math"), Some(&46), "`math` guards are the biggest single one");
     assert_eq!(refused.get("u_at_om_location"), Some(&28), "with overmap location next");
@@ -260,7 +260,7 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
     // not install them. The count of definitions was itself worth learning - the 712 in the earlier census counted objects, the
     // machine composes by name.
     assert_eq!(defined, 692, "the data defines 692 nameable effect-on-conditions");
-    assert_eq!(whole, 152, "and the port can run 152 of them whole");
+    assert_eq!(whole, 154, "and the port can run 154 of them whole");
 }
 
 /// A `run_eocs` entry can be a program written where it is used.

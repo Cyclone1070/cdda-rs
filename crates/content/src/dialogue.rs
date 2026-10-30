@@ -102,7 +102,9 @@ pub enum Arity {
 pub fn math_function(name: &str) -> Option<Arity> {
     Some(match name {
         "abs" | "floor" | "trunc" | "ceil" | "round" | "sqrt" | "log" | "sin" | "cos" | "tan" | "celsius"
-        | "fahrenheit" | "from_celsius" | "from_fahrenheit" => Arity::Exactly(1),
+        // `time` takes a duration **string**, and parses like any other one-argument function: the argument's shape is checked
+        // when it is evaluated, not when it is read.
+        | "fahrenheit" | "from_celsius" | "from_fahrenheit" | "time" => Arity::Exactly(1),
         "clamp" => Arity::Exactly(3),
         "min" | "max" => Arity::AtLeast(1),
         _ => return None,
@@ -141,6 +143,11 @@ pub enum Expression {
         /// The variable's name.
         name: String,
     },
+    /// A quoted text used as an argument, which only the functions that take one can read.
+    ///
+    /// Reference: `time( '1 minutes' )` passes a **duration string**, and the reference hands it to the duration parser rather than to
+    /// arithmetic. The port keeps the literal as text so it survives parsing, and refuses it anywhere a number is wanted.
+    Text(String),
     /// A call to one of the reference's math functions.
     ///
     /// Reference: the `math_func` table (`math_parser_func.h:141-163`), which fixes each function's name and the number of
@@ -552,7 +559,21 @@ fn parse_primary(tokens: &[Token]) -> Option<(Expression, &[Token])> {
                 };
                 return Some((expression, after));
             };
+            // A single quoted literal is a text argument, not an expression: `time( '1 minutes' )`.
             let (argument_tokens, rest) = split_arguments(after_open)?;
+            if let [Token::Str(text)] = argument_tokens
+                && math_function(name).is_some()
+            {
+                {
+                    return Some((
+                        Expression::Call {
+                            name: name.clone(),
+                            arguments: vec![Expression::Text(text.clone())],
+                        },
+                        rest,
+                    ));
+                }
+            }
             if matches!(
                 name.as_str(),
                 "u_val" | "n_val" | "npc_val" | "global_val" | "var_val" | "context_val"
@@ -735,7 +756,10 @@ pub fn read_assignment(text: &str) -> Option<Assignment> {
         Expression::Variable { scope, name } => AssignmentTarget::Variable { scope, name },
         // A destination must be a variable: a number, a call or an operator chain is an expression, and a `math` statement
         // whose left-hand side is an expression has no place to put its answer.
-        Expression::Number(_) | Expression::Call { .. } | Expression::Binary { .. } => return None,
+        Expression::Number(_)
+        | Expression::Text(_)
+        | Expression::Call { .. }
+        | Expression::Binary { .. } => return None,
     };
     Some(Assignment {
         target,
