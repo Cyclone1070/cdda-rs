@@ -50,6 +50,31 @@ pub enum Condition {
     Math(Expression),
 }
 
+/// How many arguments a math function takes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Arity {
+    /// Exactly this many.
+    Exactly(usize),
+    /// This many or more, which is how `min` and `max` are written.
+    AtLeast(usize),
+}
+
+/// The math functions the port knows, and the arity of each.
+///
+/// Reference: `math_parser_func.h:141-163`. `rng` and `rand` are deliberately absent: they draw dice, and an expression that
+/// draws dice cannot be evaluated by a reader that holds the store by reference. They come when the dialogue machine can
+/// take the rolls, the way the spell effects already do.
+#[must_use]
+pub fn math_function(name: &str) -> Option<Arity> {
+    Some(match name {
+        "abs" | "floor" | "trunc" | "ceil" | "round" | "sqrt" | "log" | "sin" | "cos" | "tan" | "celsius"
+        | "fahrenheit" | "from_celsius" | "from_fahrenheit" => Arity::Exactly(1),
+        "clamp" => Arity::Exactly(3),
+        "min" | "max" => Arity::AtLeast(1),
+        _ => return None,
+    })
+}
+
 /// Somewhere a string comes from: written out, or named by a variable.
 ///
 /// Reference: `str_or_var` (`dialogue_helpers.h`), which is a string or an object naming a variable type.
@@ -81,6 +106,17 @@ pub enum Expression {
         scope: String,
         /// The variable's name.
         name: String,
+    },
+    /// A call to one of the reference's math functions.
+    ///
+    /// Reference: the `math_func` table (`math_parser_func.h:141-163`), which fixes each function's name and the number of
+    /// arguments it takes - `abs`, `floor`, `ceil`, `round`, `sqrt`, `log`, the trigonometric three, `clamp`, the variadic
+    /// `min` and `max`, and the four temperature conversions. A name that is not in that table is not a function.
+    Call {
+        /// The function's name.
+        name: String,
+        /// Its arguments, in the order the data writes them.
+        arguments: Vec<Expression>,
     },
     /// Two expressions and the operator between them.
     Binary {
@@ -244,8 +280,12 @@ pub fn read_string_source(value: &Value) -> Option<StringSource> {
 /// Reads an expression from a string, as the data's `math` members actually write them.
 ///
 /// Reference: the reference lexes these strings (`math_parser_lex.cpp`) and parses them with operator precedence
+/// Reads an expression from a string, as the data's `math` members actually write them.
+///
+/// Reference: the reference lexes these strings (`math_parser_lex.cpp`) and parses them by operator precedence
 /// (`math_parser_impl.h`). This is a precedence-climbing parser over the same surface: numbers, `scope('name')` calls, bare
-/// identifiers as the dialogue's own variables, parentheses, unary minus, and the arithmetic and comparison operators.
+/// identifiers as the dialogue's own variables, function calls from the math table, parentheses, unary minus, and the
+/// arithmetic and comparison operators.
 #[must_use]
 pub fn read_text_expression(text: &str) -> Option<Expression> {
     let tokens = tokenize(text)?;
@@ -262,14 +302,18 @@ pub fn read_text_expression(text: &str) -> Option<Expression> {
 enum Token {
     /// A number.
     Number(f64),
-    /// A name, with its argument when it was written as a call.
-    Name(String, Option<String>),
+    /// A name, whether a function's or a variable's.
+    Name(String),
+    /// A quoted string, which is how a variable's name is written inside a call.
+    Str(String),
     /// An operator, as spelled.
     Operator(String),
     /// `(`.
     Open,
     /// `)`.
     Close,
+    /// `,`, which separates a call's arguments.
+    Comma,
 }
 
 /// Splits an expression's text, or nothing when a character has no place in one.
@@ -278,17 +322,18 @@ fn tokenize(text: &str) -> Option<Vec<Token>> {
     let mut rest = text.trim();
     while !rest.is_empty() {
         let trimmed = rest.trim_start();
-        if let Some(after) = trimmed.strip_prefix('(') {
-            tokens.push(Token::Open);
-            rest = after;
-            continue;
+        for (spelling, token) in [("(", Token::Open), (")", Token::Close), (",", Token::Comma)] {
+            if let Some(after) = trimmed.strip_prefix(spelling) {
+                tokens.push(token);
+                rest = after;
+                break;
+            }
         }
-        if let Some(after) = trimmed.strip_prefix(')') {
-            tokens.push(Token::Close);
-            rest = after;
+        if rest.trim_start().len() != trimmed.len() {
             continue;
         }
         let (token, length) = read_operator(trimmed)
+            .or_else(|| read_quoted(trimmed))
             .or_else(|| read_number(trimmed))
             .or_else(|| read_name(trimmed))?;
         tokens.push(token);
@@ -307,6 +352,14 @@ fn read_operator(text: &str) -> Option<(Token, usize)> {
     None
 }
 
+/// The quoted string at the front of the text, either quote character allowed.
+fn read_quoted(text: &str) -> Option<(Token, usize)> {
+    let quote = text.chars().next().filter(|c| *c == '\'' || *c == '"')?;
+    let after = text.get(1..)?;
+    let close = after.find(quote)?;
+    Some((Token::Str(after.get(..close)?.to_owned()), close + 2))
+}
+
 /// The number at the front of the text.
 fn read_number(text: &str) -> Option<(Token, usize)> {
     let end = text
@@ -320,7 +373,7 @@ fn read_number(text: &str) -> Option<(Token, usize)> {
     Some((Token::Number(number), end))
 }
 
-/// The name at the front of the text, and its argument when it is written as a call.
+/// The name at the front of the text.
 fn read_name(text: &str) -> Option<(Token, usize)> {
     let end = text
         .char_indices()
@@ -329,25 +382,15 @@ fn read_name(text: &str) -> Option<(Token, usize)> {
     if end == 0 {
         return None;
     }
-    let name = text.get(..end)?.to_owned();
-    let after = text.get(end..)?;
-    let Some(after_open) = after.strip_prefix('(') else {
-        return Some((Token::Name(name, None), end));
-    };
-    let close = after_open.find(')')?;
-    let argument = after_open.get(..close)?.trim().trim_matches('\'').trim_matches('"');
-    Some((
-        Token::Name(name, Some(argument.to_owned())),
-        end + 1 + close + 1,
-    ))
+    Some((Token::Name(text.get(..end)?.to_owned()), end))
 }
 
 /// How tightly an operator binds: comparisons loosest, then addition, then multiplication.
-fn binding(spelling: &str) -> Option<(u8, bool)> {
+fn binding(spelling: &str) -> Option<u8> {
     Some(match spelling {
-        "<" | "<=" | ">" | ">=" | "==" | "!=" => (1, false),
-        "+" | "-" => (2, false),
-        "*" | "/" | "%" => (3, false),
+        "<" | "<=" | ">" | ">=" | "==" | "!=" => 1,
+        "+" | "-" => 2,
+        "*" | "/" | "%" => 3,
         _ => return None,
     })
 }
@@ -356,7 +399,9 @@ fn binding(spelling: &str) -> Option<(u8, bool)> {
 fn parse_precedence(tokens: &[Token], minimum: u8) -> Option<(Expression, &[Token])> {
     let (mut left, mut rest) = parse_primary(tokens)?;
     while let Some(Token::Operator(spelling)) = rest.first() {
-        let (binds, _) = binding(spelling)?;
+        let Some(binds) = binding(spelling) else {
+            break;
+        };
         if binds < minimum {
             break;
         }
@@ -372,39 +417,95 @@ fn parse_precedence(tokens: &[Token], minimum: u8) -> Option<(Expression, &[Toke
     Some((left, rest))
 }
 
-/// Parses one value: a number, a name, a parenthesised expression, or a negation.
+/// The tokens before the parenthesis that closes this one, and what comes after it.
+fn split_arguments(tokens: &[Token]) -> Option<(&[Token], &[Token])> {
+    let mut depth = 0usize;
+    for (at, token) in tokens.iter().enumerate() {
+        match token {
+            Token::Open => depth += 1,
+            Token::Close if depth == 0 => {
+                return Some((tokens.get(..at)?, tokens.get(at + 1..)?));
+            }
+            Token::Close => depth -= 1,
+            _ => {}
+        }
+    }
+    None
+}
+
+/// Splits a call's arguments at its top-level commas and reads each as an expression.
+fn read_arguments(tokens: &[Token]) -> Option<Vec<Expression>> {
+    if tokens.is_empty() {
+        return Some(Vec::new());
+    }
+    let mut arguments = Vec::new();
+    let mut depth = 0usize;
+    let mut from = 0usize;
+    for (at, token) in tokens.iter().enumerate() {
+        match token {
+            Token::Open => depth += 1,
+            Token::Close => depth = depth.checked_sub(1)?,
+            Token::Comma if depth == 0 => {
+                let (expression, rest) = parse_precedence(tokens.get(from..at)?, 0)?;
+                if !rest.is_empty() {
+                    return None;
+                }
+                arguments.push(expression);
+                from = at + 1;
+            }
+            _ => {}
+        }
+    }
+    let (expression, rest) = parse_precedence(tokens.get(from..)?, 0)?;
+    if !rest.is_empty() {
+        return None;
+    }
+    arguments.push(expression);
+    Some(arguments)
+}
+
+/// Parses one value: a number, a variable, a function call, a parenthesised expression, or a negation.
 fn parse_primary(tokens: &[Token]) -> Option<(Expression, &[Token])> {
     match tokens.first()? {
         Token::Number(number) => Some((Expression::Number(*number), tokens.get(1..)?)),
-        Token::Name(name, argument) => {
+        Token::Name(name) => {
             let after = tokens.get(1..)?;
-            Some(match argument {
-                None => (
-                    Expression::Variable {
-                        scope: "var_val".to_owned(),
-                        name: name.clone(),
-                    },
-                    after,
-                ),
-                // A call is a variable only when its name is one of the reference's five variable types. Anything else is
-                // a function - `ceil(...)`, `u_effect_intensity(...)` - and a function the port has no rule for must
-                // refuse the expression rather than read as a variable that happens to be named after it.
-                Some(name_argument) => {
-                    if !matches!(
-                        name.as_str(),
-                        "u_val" | "n_val" | "npc_val" | "global_val" | "var_val" | "context_val"
-                    ) {
-                        return None;
-                    }
-                    (
-                        Expression::Variable {
-                            scope: name.clone(),
-                            name: name_argument.clone(),
-                        },
-                        after,
-                    )
-                }
-            })
+            let Some(after_open) = after.strip_prefix(&[Token::Open]) else {
+                // A bare name is the dialogue's own variable: the reference looks it up in the dialogue's context first.
+                let expression = Expression::Variable {
+                    scope: "var_val".to_owned(),
+                    name: name.clone(),
+                };
+                return Some((expression, after));
+            };
+            let (argument_tokens, rest) = split_arguments(after_open)?;
+            if matches!(
+                name.as_str(),
+                "u_val" | "n_val" | "npc_val" | "global_val" | "var_val" | "context_val"
+            ) {
+                let [Token::Str(variable)] = argument_tokens else {
+                    return None;
+                };
+                let expression = Expression::Variable {
+                    scope: name.clone(),
+                    name: variable.clone(),
+                };
+                return Some((expression, rest));
+            }
+            let arity = math_function(name)?;
+            let arguments = read_arguments(argument_tokens)?;
+            match arity {
+                Arity::Exactly(wanted) if arguments.len() == wanted => {}
+                Arity::AtLeast(wanted) if arguments.len() >= wanted => {}
+                _ => return None,
+            }
+            Some((
+                Expression::Call {
+                    name: name.clone(),
+                    arguments,
+                },
+                rest,
+            ))
         }
         Token::Open => {
             let (inner, rest) = parse_precedence(tokens.get(1..)?, 0)?;

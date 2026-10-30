@@ -296,6 +296,21 @@ Three things the sweep settled that the code did not say:
 * **The damage that arrives is the damage the data states, to the point.** The 32 positive spells sum to exactly **100,016,638** - the data's own total - including the outlier `hallu_touch_suicide` at 100,000,000. Nothing in the path rounds, clamps or resists when there is no armour.
 * **The first version of the sweep measured nothing.** A creature built by `spawn_creature` has no body, so all 77 refusals said `NothingToHit` and the sweep "passed" its counts. It now gives the target a torso, which is the same lesson as the frame dump: a dump taken before the object is configured measures the harness.
 
+### The math function table, ported exactly and worth one condition (round 774)
+
+The reference's math functions (`math_parser_func.h:141-163`) are now a table and an evaluator: `abs`, `floor`, `trunc`, `ceil`, `round`, `sqrt`, `log`, `sin`, `cos`, `tan`, `clamp`, the variadic `min`/`max`, and the four temperature conversions with the reference's own constants (`273.150`, `1.8`, `459.67` - `units.h:397-424`). Arity is checked at read time, so `clamp(1, 2)` refuses.
+
+| Change | Readable conditions |
+|---|---|
+| after the second actor | 1,500 |
+| **plus the whole function table** | **1,501** |
+
+One condition. The reason is visible in what remains: `math` refusals fell 257 to 256, because the strings that call a ported function usually call an unported one too (`weather(...)`, `u_skill(...)`, `rng(...)`), and one unknown name refuses the whole expression.
+
+That is the honest state of the dialogue machine: **the deterministic half is close to complete** - combinators, four leaves, six variable namespaces, two actors, precedence, and the function table - and what is left needs *state the port does not have*: weather (25 uses), skills (3), distance (4), and dice (`rand` 4, `rng`). `rng`/`rand` are refused deliberately: they draw dice, and an expression evaluated behind a `&World` cannot.
+
+So the next dialogue work is a design decision, not another leaf: either the evaluator learns to take rolls (as the spell effects already do), or `math` stays at 1,501 and the port moves to the EOC **effect** list, where 913 effects-on-conditions are waiting with nothing to run.
+
 ### Two actors, and a gain that says what to port next (round 773)
 
 A conversation in the reference has two people: `actor( false )` is the player, `actor( true )` the NPC, and `read_var_info` (`condition.cpp:408-437`) classes `u_val` as one and `n_val`/`npc_val` as the other. The port had one actor, so every question about the NPC was unanswerable - and unanswerable is false, not "the player's value". `holds_with(world, speaker, listener, condition)` now carries both; `holds` is the one-actor form and delegates.

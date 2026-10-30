@@ -181,8 +181,8 @@ fn the_port_answers_the_questions_it_can_and_says_how_many_that_is() {
     // `compare_string` (238) and `u_has_items` (155) - which is the list of what to port next, by frequency.
     assert_eq!(seen, 3708, "the data asks 3,708 `condition` objects");
     assert_eq!(
-        readable, 1500,
-        "of which the port answers 1,500: `u_has_effect`, `compare_string`, `u_has_items`, the combinators, and the `math` expressions whose every name it knows"
+        readable, 1501,
+        "of which the port answers 1,501: `u_has_effect`, `compare_string`, `u_has_items`, the combinators, and the `math` expressions whose every name it knows"
     );
 }
 
@@ -307,4 +307,49 @@ fn the_npc_s_variables_are_not_the_player_s() {
         !holds(&world, player, &asks_the_npc),
         "with nobody to talk to, a question about the NPC is unanswerable - which is false, not the player's value"
     );
+}
+
+/// The math functions are the reference's, constants and all.
+///
+/// Reference: `math_parser_func.h:141-163` for the table and `units.h:397-424` for the four temperature conversions. The
+/// conversions are the ones most worth pinning, because their constants are spelled in the reference and a port that
+/// "cleaned them up" to 273.15 would be wrong by a hundredth of a degree everywhere.
+#[test]
+fn the_math_functions_answer_what_the_reference_s_table_answers() {
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+
+    // 300 kelvin is 26.85 celsius and 80.33 fahrenheit, and each converts back.
+    let kelvin = condition(r#"{"math": ["celsius(300)", ">", 26.84]}"#);
+    assert!(holds(&world, survivor, &kelvin));
+    let fahrenheit = condition(r#"{"math": ["fahrenheit(300)", ">", 80.32]}"#);
+    assert!(holds(&world, survivor, &fahrenheit));
+    let back = condition(r#"{"math": ["from_celsius(celsius(300))", "==", 300]}"#);
+    assert!(holds(&world, survivor, &back), "the two conversions invert each other");
+
+    // Rounding, and the three-argument clamp.
+    let rounded = condition(r#"{"math": ["round(2.5)", "==", 3]}"#);
+    assert!(holds(&world, survivor, &rounded));
+    let clamped = condition(r#"{"math": ["clamp(12, 0, 10)", "==", 10]}"#);
+    assert!(holds(&world, survivor, &clamped));
+
+    // The variadic pair.
+    let largest = condition(r#"{"math": ["max(1, 9, 4)", "==", 9]}"#);
+    assert!(holds(&world, survivor, &largest));
+    let smallest = condition(r#"{"math": ["min(1, 9, 4)", "==", 1]}"#);
+    assert!(holds(&world, survivor, &smallest));
+
+    // A wrong number of arguments is refused, and so is a function the port has no rule for - including the dice, which
+    // need rolls the reader does not hold.
+    for text in [
+        r#"{"math": ["clamp(1, 2)", "==", 1]}"#,
+        r#"{"math": ["rng(1, 6)", "==", 1]}"#,
+        r#"{"math": ["weather(temperature)", "==", 1]}"#,
+    ] {
+        let value = cdda_json::parse(text.as_bytes()).expect("json");
+        assert!(
+            cdda_content::dialogue::read_condition(&value).is_none(),
+            "{text} must be refused rather than answered"
+        );
+    }
 }

@@ -91,6 +91,13 @@ pub fn value(
             let holder = holder_of(world, speaker, listener, scope)?;
             crate::dialogue_values::number_of(world, holder, name)
         }
+        Expression::Call { name, arguments } => {
+            let arguments = arguments
+                .iter()
+                .map(|argument| value(world, speaker, listener, argument))
+                .collect::<Option<Vec<f64>>>()?;
+            apply_function(name, &arguments)
+        }
         Expression::Binary { op, left, right } => {
             let left = value(world, speaker, listener, left)?;
             let right = value(world, speaker, listener, right)?;
@@ -144,4 +151,37 @@ fn text_of(
             crate::dialogue_values::text_of(world, holder, name)
         }
     }
+}
+
+/// What one of the reference's math functions answers.
+///
+/// Reference: `math_parser_func.h:141-163`, transcribed function for function. The temperature conversions are the ones in
+/// `units.h:397-424`: `celsius` and `fahrenheit` turn kelvin into the other scale, and `from_celsius`/`from_fahrenheit` turn
+/// the other scale into kelvin, with the same constants the reference spells (`273.150`, `1.8`, `459.67`).
+fn apply_function(name: &str, arguments: &[f64]) -> Option<f64> {
+    let first = *arguments.first()?;
+    Some(match name {
+        "abs" => first.abs(),
+        "floor" => first.floor(),
+        "trunc" => first.trunc(),
+        "ceil" => first.ceil(),
+        "round" => first.round(),
+        "sqrt" => first.sqrt(),
+        "log" => first.ln(),
+        "sin" => first.sin(),
+        "cos" => first.cos(),
+        "tan" => first.tan(),
+        "clamp" => {
+            let low = *arguments.get(1)?;
+            let high = *arguments.get(2)?;
+            first.max(low).min(high)
+        }
+        "max" => arguments.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+        "min" => arguments.iter().copied().fold(f64::INFINITY, f64::min),
+        "celsius" => first - 273.150,
+        "fahrenheit" => first * 1.8 - 459.67,
+        "from_celsius" => first + 273.150,
+        "from_fahrenheit" => (first + 459.67) / 1.8,
+        _ => return None,
+    })
 }
