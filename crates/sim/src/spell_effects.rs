@@ -38,6 +38,7 @@ pub fn is_ported(name: &str) -> bool {
 /// Every effect kind the port can run, by the name the data gives it.
 pub const EFFECTS: &[(&str, Apply)] = &[
     ("attack", attack),
+    ("emit", emit),
     ("mod_moves", mod_moves),
     ("remove_effect", remove_effect),
     ("noise", noise),
@@ -79,6 +80,46 @@ fn attack(
     }
     crate::singletons::put_rolls(world, rolls);
     if hit == 0 {
+        Effective::NothingAffected
+    } else {
+        Effective::Done
+    }
+}
+
+/// An `emit` spell puts a field on every square of its area.
+///
+/// Reference: `spell_effect::emit` (`magic_spell_effect.cpp:1723-1729`) walks the area and calls `map::emit_field` on each
+/// square with the emit id the spell names. The emission's chance is asked **once per square**, so a thin emission covers part
+/// of the blast rather than all or none of it.
+fn emit(
+    world: &mut World,
+    _caster: Entity,
+    spell: &Spell,
+    level: i32,
+    centre: (i32, i32, i32),
+) -> Effective {
+    let Some(emissions) = crate::emit_registry::emissions_of(world, &spell.effect_str) else {
+        return Effective::NothingAffected;
+    };
+    let Some(mut rolls) = crate::singletons::take_rolls(world) else {
+        return Effective::NotPorted;
+    };
+    let squares = squares_in_area(spell, level, centre);
+    let mut placed = 0;
+    for square in squares {
+        for emission in &emissions {
+            // Reference: `rng( 1, 100 ) <= chance`, drawn per square per emission.
+            if rolls.rng(1, 100) > emission.chance {
+                continue;
+            }
+            if let Some(field) = crate::field_registry::id_of(world, &emission.field) {
+                crate::add_field_strength(world, square, field, emission.intensity);
+                placed += 1;
+            }
+        }
+    }
+    crate::singletons::put_rolls(world, rolls);
+    if placed == 0 {
         Effective::NothingAffected
     } else {
         Effective::Done
@@ -143,6 +184,21 @@ fn area_of(spell: &Spell, level: i32) -> i32 {
     #[allow(clippy::cast_possible_truncation)]
     let area = spell.area.at(level).unwrap_or(0.0).max(0.0) as i32;
     area
+}
+
+/// Every square a spell's area covers, which is what the area effects walk.
+///
+/// Reference: `spell_effect_area` (`magic_spell_effect.cpp`): a square is in the area when it is within the radius on both
+/// axes and on the same level - the same rule `creatures_in_reach` uses to pick creatures out of that area.
+fn squares_in_area(spell: &Spell, level: i32, centre: (i32, i32, i32)) -> Vec<(i32, i32, i32)> {
+    let area = area_of(spell, level);
+    let mut squares = Vec::new();
+    for dx in -area..=area {
+        for dy in -area..=area {
+            squares.push((centre.0 + dx, centre.1 + dy, centre.2));
+        }
+    }
+    squares
 }
 
 /// Reference: `spell_effect::remove_effect` (`magic_spell_effect.cpp:1712-1721`) - every creature in the spell's area

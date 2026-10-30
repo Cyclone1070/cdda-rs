@@ -296,6 +296,19 @@ Three things the sweep settled that the code did not say:
 * **The damage that arrives is the damage the data states, to the point.** The 32 positive spells sum to exactly **100,016,638** - the data's own total - including the outlier `hallu_touch_suicide` at 100,000,000. Nothing in the path rounds, clamps or resists when there is no armour.
 * **The first version of the sweep measured nothing.** A creature built by `spawn_creature` has no body, so all 77 refusals said `NothingToHit` and the sweep "passed" its counts. It now gives the target a torso, which is the same lesson as the frame dump: a dump taken before the object is configured measures the harness.
 
+### `emit`: a named emission, and the chance asked per square (round 780)
+
+A spell's `effect_str` on an `emit` effect is an **emission id** (`emit_toxic_blast`), not a field id, so the port needed the emit table before it could run one of the six: `content::emit::read_emit` (`emit.cpp`) reads a field, an intensity and a chance, and `sim::emit_registry` holds the emissions by id.
+
+The effect is then the reference's three lines: walk the area, ask the emission's chance **once per square**, place the field. That per-square draw is the part a port gets wrong - a blast that either happens or does not is a different spell - so it is what the test pins: a certain emission fills all nine squares of a blast of one, and an emission id the port does not know reports `NothingAffected` rather than a silent success.
+
+| Count | Value |
+|---|---|
+kinds the port runs | **7** (`attack`, `emit`, `mod_moves`, `noise`, `remove_effect`, `remove_field`, `summon`) |
+spells those seven cover | **135 of 245 (55.1%)** |
+
+Owed: the emissions are installed by hand in tests; `install_emit_data` beside `install_field_data` is what puts them in the running game.
+
 ### Sounds are events, and `noise` is one line (round 779)
 
 `noise` is 13 spells and the reference's whole rule is `sp.make_sound( target, sp.damage( caster ) )` (`magic_spell_effect.cpp:1435-1438`). The port had no sound at all, so this round added the smallest thing that could carry that rule: `sounds::Sound { position, volume }`, an entity the turn that made it can hear and the turn's end takes away.

@@ -139,8 +139,8 @@ fn the_port_can_do_one_effect_of_the_ones_the_game_names() {
     }
     assert_eq!(
         spell_effects::EFFECTS.len(),
-        6,
-        "six effects are ported, out of the {} the game names",
+        7,
+        "seven effects are ported, out of the {} the game names",
         named.len()
     );
 }
@@ -447,6 +447,57 @@ fn an_attack_spell_hits_everything_its_blast_reaches() {
     empty.effect_str = String::new();
     assert_eq!(
         spell_effects::apply(&mut world, caster, &empty, 0, (0, 0, 0)),
+        Effective::NothingAffected
+    );
+}
+
+/// An `emit` spell puts its field on every square its blast reaches, asking the chance once per square.
+///
+/// Reference: `spell_effect::emit` (`magic_spell_effect.cpp:1723-1729`) with `map::emit_field` (`emit.cpp`): the area decides
+/// the squares, the emission decides the field, the intensity and the chance - and the chance is drawn per square, so a thin
+/// emission covers part of the blast rather than all or none of it.
+#[test]
+fn an_emit_spell_fills_its_blast_with_the_field_the_emission_names() {
+    let mut world = World::new();
+    cdda_sim::field_registry::set_field_names(&mut world, &[("fd_null", 0), ("fd_toxic_gas", 20)]);
+    cdda_sim::emit_registry::set_emits(
+        &mut world,
+        &[(
+            "emit_toxic_blast".to_owned(),
+            vec![cdda_content::emit::Emission {
+                field: "fd_toxic_gas".to_owned(),
+                intensity: 1,
+                chance: 100,
+            }],
+        )],
+    );
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
+    let caster = cdda_sim::creature::spawn_creature(&mut world, "the caster", (0, 0, 0));
+
+    let mut spell = a_spell("emit", 0, 1);
+    spell.effect_str = "emit_toxic_blast".to_owned();
+    assert_eq!(
+        spell_effects::apply(&mut world, caster, &spell, 0, (0, 0, 0)),
+        Effective::Done
+    );
+
+    // A blast of one covers nine squares, and a certain emission fills all nine.
+    let gas = cdda_core_types::field::FieldId(20);
+    let mut filled = 0;
+    for x in -1..=1 {
+        for y in -1..=1 {
+            if cdda_sim::has_field_at(&world, (x, y, 0), gas) {
+                filled += 1;
+            }
+        }
+    }
+    assert_eq!(filled, 9, "every square of the blast holds the gas");
+
+    // An emission id the port does not know is nothing affected, not a silent success.
+    let mut unknown = a_spell("emit", 0, 1);
+    unknown.effect_str = "emit_nothing_at_all".to_owned();
+    assert_eq!(
+        spell_effects::apply(&mut world, caster, &unknown, 0, (0, 0, 0)),
         Effective::NothingAffected
     );
 }

@@ -7,6 +7,7 @@
 pub mod transform;
 pub mod blast;
 pub mod bash;
+pub mod emit_registry;
 pub mod falling;
 pub mod memory;
 pub mod field_registry;

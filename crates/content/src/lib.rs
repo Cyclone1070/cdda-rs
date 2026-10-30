@@ -23,6 +23,7 @@ pub mod enchantments;
 pub mod faults;
 pub mod dialogue;
 pub mod effects;
+pub mod emit;
 pub mod eocs;
 pub mod factory;
 pub mod fields;
