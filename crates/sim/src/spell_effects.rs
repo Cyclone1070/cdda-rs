@@ -26,6 +26,16 @@ type Apply = fn(&mut World, Entity, &Spell, i32, (i32, i32, i32)) -> Effective;
 /// Reference: the `spell_effect` subclasses (`magic_spell_effect.cpp`). A table rather than a match for the same reason
 /// the activity finishers are one: the answer to "what can a spell do in this port?" is a list, and a list can be
 /// counted.
+/// Whether the port has a rule for a named effect.
+///
+/// The table is the port's dispatch, and a name that is not in it is refused rather than answered weakly - which is what
+/// makes the spell census meaningful: "the port runs four of the data's 32 effect kinds" is a sentence a test checks.
+#[must_use]
+pub fn is_ported(name: &str) -> bool {
+    EFFECTS.iter().any(|(known, _)| *known == name)
+}
+
+/// Every effect kind the port can run, by the name the data gives it.
 pub const EFFECTS: &[(&str, Apply)] = &[
     ("mod_moves", mod_moves),
     ("remove_effect", remove_effect),

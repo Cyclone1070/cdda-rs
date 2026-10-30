@@ -296,6 +296,18 @@ Three things the sweep settled that the code did not say:
 * **The damage that arrives is the damage the data states, to the point.** The 32 positive spells sum to exactly **100,016,638** - the data's own total - including the outlier `hallu_touch_suicide` at 100,000,000. Nothing in the path rounds, clamps or resists when there is no armour.
 * **The first version of the sweep measured nothing.** A creature built by `spawn_creature` has no body, so all 77 refusals said `NothingToHit` and the sweep "passed" its counts. It now gives the target a torso, which is the same lesson as the frame dump: a dump taken before the object is configured measures the harness.
 
+### Spell effects: four of thirty-two, counted (round 777)
+
+`spells::the_dump_says_how_many_spells_there_are` reads the dump's `effect_name`; `spell_effects_coverage::the_port_runs_four_of_the_data_s_effect_kinds` compares it with the port's dispatch table:
+
+| Count | Value |
+|---|---|
+distinct effect kinds in the data | **32** |
+kinds the port runs | **4** (`mod_moves`, `remove_effect`, `remove_field`, `summon`) |
+spells those four cover | **39 of 245 (15.9%)** |
+
+So "spell effects are 1 of 33" - a phrase the roadmap has carried for a while - becomes "the port runs four of the data's thirty-two kinds, which 39 spells name". The difference matters for planning: `attack` (77 spells) and `effect_on_condition` (63) are 140 of the 245 between them, and both are refused today.
+
 ### The oracle disagreed with my scan, and the oracle wins (round 775)
 
 This round set out to check the ledger's claim that **63** of the game's spells are `effect_on_condition`, because a number in prose that nothing re-derives is a claim in trouble. A hand scan of the source JSON found **54**, and round 775's first commit believed the scan.
@@ -314,7 +326,7 @@ The census now reads the dump, not the sources:
 `explosion` | 5 |
 the remaining 27 kinds | 1-4 each |
 
-245 spells, 33 effect kinds - and that last number is why the port's spell-effect table is "1 of 33" in the roadmap, now checked rather than remembered.
+245 spells, and **32 distinct effect kinds** (the 33rd bucket is spells that name no effect at all).
 
 Two things follow. First, the dump already carries what the port needed: `effect_name` beside `effect_str`, which the spell loader reads but ignores. So the port can gate a spell's effect against the oracle without any oracle change - the earlier note in this ledger that the dump "does not carry the field" was a mistake produced by looking for a key named `effect`. Second, the lesson worth more than the numbers: **when a scan and the oracle disagree, the scan is wrong until proven otherwise**, and a port must never assume its own model of the data is the data.
 
