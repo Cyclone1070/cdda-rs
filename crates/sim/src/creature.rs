@@ -370,6 +370,48 @@ pub struct Garment {
     pub layers: Vec<(String, cdda_content::armour::Layer)>,
 }
 
+/// What came of trying to put something on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Wore {
+    /// It went on, and the wearer's armour now counts it.
+    Worn,
+    /// It is not a garment: nothing in the store says what it protects.
+    NotAWearable,
+    /// It is already being worn, by this creature or another.
+    AlreadyWorn,
+}
+
+/// Puts a thing on a creature, if it is a garment and not already being worn.
+///
+/// Reference: `Character::wear` refuses an item that is not armour and one that is already worn, and `dress` is what
+/// turns the list into the numbers a blow reads. The port keeps the refusal reasons as an answer rather than a
+/// message, because a caller may want to say something different - and because a silent failure to wear a vest would
+/// be the worst kind of bug in a game about vests.
+pub fn wear(world: &mut World, wearer: Entity, item: Entity) -> Wore {
+    if world.get::<Garment>(item).is_none() {
+        return Wore::NotAWearable;
+    }
+    if world.get::<WornBy>(item).is_some() {
+        return Wore::AlreadyWorn;
+    }
+    world.entity_mut(item).insert(WornBy(wearer));
+    dress(world);
+    Wore::Worn
+}
+
+/// Takes a thing off, whoever is wearing it.
+///
+/// Returns whether it was being worn at all. `dress` runs afterwards, so the armour goes with the garment - the
+/// answer is derived, and a derived answer that outlives its cause is the bug `dress` exists to prevent.
+pub fn take_off(world: &mut World, item: Entity) -> bool {
+    if world.get::<WornBy>(item).is_none() {
+        return false;
+    }
+    world.entity_mut(item).remove::<WornBy>();
+    dress(world);
+    true
+}
+
 /// Works out what every creature is wearing and writes it into [`PartArmour`].
 ///
 /// This is the answer-to-a-question shape the architecture asks for: `PartArmour` is derived, one system writes it,

@@ -8,7 +8,7 @@
 
 use bevy_ecs::prelude::*;
 use cdda_sim::creature::{
-    Body, Garment, PartArmour, WornBy, armour_on, dress, spawn_creature,
+    Body, Garment, PartArmour, Wore, WornBy, armour_on, dress, spawn_creature, take_off, wear,
 };
 use cdda_sim::hit_location::BodyPart;
 
@@ -102,4 +102,48 @@ fn two_layers_on_one_part_add_up() {
     dress(&mut world);
 
     assert_eq!(armour_on(&world, survivor, "torso"), 5, "three of steel and two of leather");
+}
+
+/// Putting something on and taking it off, which is what a survivor does with a vest.
+///
+/// Reference: `Character::wear` refuses an item that is not armour and one that is already worn, and the armour the
+/// blow reads is derived afterwards. The refusals are answers rather than silence: a game about scavenging that
+/// quietly failed to put a vest on would be a game with a bug nobody could see.
+#[test]
+fn a_garment_can_be_put_on_once_and_taken_off_again() {
+    let mut world = World::new();
+    let survivor = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let vest = world.spawn(vest()).id();
+    assert_eq!(armour_on(&world, survivor, "torso"), 0, "nothing on yet");
+
+    assert_eq!(wear(&mut world, survivor, vest), Wore::Worn);
+    assert_eq!(armour_on(&world, survivor, "torso"), 3, "half a millimetre of steel");
+    assert_eq!(
+        wear(&mut world, survivor, vest),
+        Wore::AlreadyWorn,
+        "and putting it on again is refused"
+    );
+    assert_eq!(
+        armour_on(&world, survivor, "torso"),
+        3,
+        "so the protection is not doubled by asking twice"
+    );
+
+    assert!(take_off(&mut world, vest), "it came off");
+    assert_eq!(armour_on(&world, survivor, "torso"), 0, "and the armour went with it");
+    assert!(!take_off(&mut world, vest), "taking it off twice is nothing to do");
+}
+
+#[test]
+fn something_that_is_not_a_garment_cannot_be_worn() {
+    let mut world = World::new();
+    let survivor = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let rock = world.spawn(()).id();
+    assert_eq!(
+        wear(&mut world, survivor, rock),
+        Wore::NotAWearable,
+        "a thing that says nothing about what it protects is not clothing"
+    );
+    assert!(world.get::<WornBy>(rock).is_none(), "and it is not worn either");
+    assert_eq!(armour_on(&world, survivor, "torso"), 0);
 }
