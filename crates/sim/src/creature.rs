@@ -436,32 +436,60 @@ pub fn begin_pick_up(world: &mut World, creature: Entity, item: Entity, volume_m
     Began::Started
 }
 
-/// Finishes an activity that has run out of moves.
+/// What finishing an activity does, once its time is spent.
+type Finish = fn(&mut World, Entity, Option<Entity>);
+
+/// The table of activities the port knows how to finish, by the id a [`Doing`] carries.
 ///
-/// Reference: `activity_handlers::finish` and its table, keyed by activity id. Only the one the port can already do is
-/// here - picking something up - and an activity the port does not know simply ends, which is the reference's own
-/// answer to an unhandled activity.
-pub fn finish_activity(world: &mut World, creature: Entity, activity: &str, subject: Option<Entity>) {
-    if activity == "craft" {
-        // Reference: `activity_handlers::craft_finish`. The store knows what items are, so the loop can finish the
-        // work itself: consume what the recipe asked for and hand over what it made. A world with no item registry
-        // knows no names, so nothing is consumed and nothing is made - which is the honest outcome, not a crash.
-        crate::crafting::finish_craft_in_store(world, creature);
+/// Reference: `activity_handlers::finish`'s dispatch table (`activity_handlers.cpp`), keyed by activity id. It is a
+/// table rather than a chain of `if let`s for the reason the reference has one: an activity is a name, and the thing a
+/// name does belongs beside every other name's answer, where a reader can see in one glance what the port can finish.
+///
+/// The list is a constant, so adding an activity in two places - a `begin_*` that starts it and an entry here - is the
+/// only way to add one at all, and a test counts them so a starter with no finisher cannot slip through.
+pub const FINISHERS: &[(&str, Finish)] = &[
+    ("craft", finish_crafting),
+    ("pickup", finish_pickup),
+    ("wear", finish_wearing),
+];
+
+/// Reference: `activity_handlers::craft_finish`. The store knows what items are, so the loop can finish the work
+/// itself: consume what the recipe asked for and hand over what it made. A world with no item registry knows no names,
+/// so nothing is consumed and nothing is made - which is the honest outcome, not a crash.
+fn finish_crafting(world: &mut World, creature: Entity, _subject: Option<Entity>) {
+    crate::crafting::finish_craft_in_store(world, creature);
+}
+
+/// Reference: `activity_handlers::pickup_finish`, which puts the item in the character's hands.
+fn finish_pickup(world: &mut World, creature: Entity, subject: Option<Entity>) {
+    let Some(item) = subject else {
         return;
-    }
-    if let ("wear", Some(item)) = (activity, subject) {
-        // Reference: `wear_activity_actor::do_turn` calls `who.wear_item`, which is `put_on` here - the time is already
-        // spent, so the store changes without being charged twice.
-        put_on(world, creature, item);
-        return;
-    }
-    if let ("pickup", Some(item)) = (activity, subject)
-        && let Some(place) = world
-            .get::<Position>(creature)
-            .map(|place| (place.x, place.y, place.z))
+    };
+    if let Some(place) = world
+        .get::<Position>(creature)
+        .map(|place| (place.x, place.y, place.z))
     {
         take_into_hand(world, creature, item, place);
     }
+}
+
+/// Reference: `wear_activity_actor::do_turn` calling `who.wear_item` - `put_on` here, because the time is already spent
+/// and the store must change without being charged a second time.
+fn finish_wearing(world: &mut World, creature: Entity, subject: Option<Entity>) {
+    if let Some(item) = subject {
+        put_on(world, creature, item);
+    }
+}
+
+/// Finishes an activity that has run out of moves.
+///
+/// Reference: `activity_handlers::finish`, which looks the activity up in its table and calls what it finds. An activity
+/// the port does not know simply ends, which is the reference's own answer to an unhandled activity.
+pub fn finish_activity(world: &mut World, creature: Entity, activity: &str, subject: Option<Entity>) {
+    let Some((_, finish)) = FINISHERS.iter().find(|(id, _)| *id == activity) else {
+        return;
+    };
+    finish(world, creature, subject);
 }
 
 /// Puts an item in a creature's hand, wherever it was.

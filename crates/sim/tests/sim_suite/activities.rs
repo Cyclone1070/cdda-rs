@@ -204,3 +204,44 @@ fn spending_a_turn_directly_moves_the_counter() {
     assert!(!finished);
     assert_eq!(world.get::<Doing>(busy).map(|doing| doing.moves_left), Some(100));
 }
+
+/// Every activity the port starts has something that finishes it, and the table is what says so.
+///
+/// The port used to finish activities with a chain of `if let`s on a string. That works until the second activity, and
+/// then it is a table written the long way: the reference keeps `activity_handlers::finish`'s dispatch table for exactly
+/// this reason. The count here is the gate - a `begin_*` added without an entry would start something nothing can end.
+#[test]
+fn every_activity_has_a_finisher() {
+    use cdda_sim::creature::FINISHERS;
+    use std::collections::BTreeSet;
+
+    let known: BTreeSet<&str> = FINISHERS.iter().map(|(id, _)| *id).collect();
+    assert_eq!(
+        known.len(),
+        FINISHERS.len(),
+        "no activity is listed twice, or one of them would never run"
+    );
+    // Every activity the port can start. This list is the assertion: adding a `begin_*` means adding its id here, and a
+    // missing finisher then fails this test instead of silently never finishing.
+    let started = ["craft", "pickup", "wear"];
+    assert_eq!(
+        known,
+        started.iter().copied().collect(),
+        "the table and the starters disagree"
+    );
+    assert_eq!(FINISHERS.len(), 3, "three activities can be finished");
+}
+
+/// An activity nobody knows simply ends, which is the reference's answer to an unhandled activity.
+#[test]
+fn an_unknown_activity_ends_and_changes_nothing() {
+    let mut world = World::new();
+    let creature = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let before = cdda_sim::inspect::world_fingerprints(&world);
+    cdda_sim::creature::finish_activity(&mut world, creature, "levitate", None);
+    assert_eq!(
+        before,
+        cdda_sim::inspect::world_fingerprints(&world),
+        "an activity with no handler must not touch the store"
+    );
+}
