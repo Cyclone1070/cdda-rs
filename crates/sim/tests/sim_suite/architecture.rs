@@ -488,3 +488,56 @@ fn the_per_square_ledger_is_not_empty_by_accident() {
         "the scan must at least find the array that is still there: {found:?}"
     );
 }
+
+/// Installing data twice leaves one entity holding it, for every registry the store has.
+///
+/// The registries are singletons - an entity with a marker beside the data - and the whole point of the pattern is that
+/// there is exactly one of each. A `set_` that spawned a second entity would give the store two answers to "which number
+/// is `fd_fire`", and every caller would keep whichever it happened to look up first.
+#[test]
+fn installing_a_registry_twice_leaves_one_of_it() {
+    use bevy_ecs::prelude::*;
+
+    let mut world = World::new();
+    cdda_sim::field_registry::set_field_names(&mut world, &[("fd_null", 0), ("fd_fire", 13)]);
+    cdda_sim::field_registry::set_field_names(&mut world, &[("fd_null", 0), ("fd_fire", 13)]);
+    cdda_sim::monster_registry::set_monster_types(
+        &mut world,
+        &[cdda_sim::monster_registry::MonsterKind {
+            id: "mon_zombie",
+            hp: 80,
+        }],
+    );
+    cdda_sim::monster_registry::set_monster_types(
+        &mut world,
+        &[cdda_sim::monster_registry::MonsterKind {
+            id: "mon_zombie",
+            hp: 80,
+        }],
+    );
+    let effect = cdda_json::parse(br#"{"id":"stunned","max_duration":"100 turns"}"#)
+        .expect("valid json");
+    let cdda_json::Value::Object(entry) = effect else {
+        panic!("an effect type is an object");
+    };
+    let kind = cdda_content::effects::read_one("stunned", &entry);
+    cdda_sim::effect_registry::set_effect_types(&mut world, std::slice::from_ref(&kind));
+    cdda_sim::effect_registry::set_effect_types(&mut world, std::slice::from_ref(&kind));
+
+    let fields = world
+        .query_filtered::<Entity, With<cdda_sim::field_registry::TheFieldNames>>()
+        .iter(&world)
+        .count();
+    let monsters = world
+        .query_filtered::<Entity, With<cdda_sim::monster_registry::TheMonsterTypes>>()
+        .iter(&world)
+        .count();
+    let effects = world
+        .query_filtered::<Entity, With<cdda_sim::effect_registry::TheEffectTypes>>()
+        .iter(&world)
+        .count();
+    assert_eq!((fields, monsters, effects), (1, 1, 1), "one entity per registry, after two installs each");
+    assert_eq!(cdda_sim::field_registry::count(&mut world), 2);
+    assert_eq!(cdda_sim::monster_registry::count(&mut world), 1);
+    assert_eq!(cdda_sim::effect_registry::count(&mut world), 1);
+}

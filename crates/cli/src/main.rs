@@ -107,6 +107,10 @@ fn play(args: &[String]) {
         Some(kinds) => println!("the store knows {kinds} kinds of thing"),
         None => println!("the store knows no things: the game data was not found"),
     }
+    match cdda_cli::install_field_data(&mut world) {
+        Some(fields) => println!("the store knows {fields} kinds of field"),
+        None => println!("the store knows no fields: the game data was not found"),
+    }
     cdda_sim::turn::set_random(&mut world, cdda_core_types::rng::Rolls::new(seed));
     cdda_sim::turn::set_scent_source(&mut world, (6, 6), 0);
     match &avatar {
@@ -208,6 +212,7 @@ fn craft(args: &[String]) {
     let mut world = World::new();
     load_demo_world(&mut world);
     cdda_cli::install_item_data(&mut world);
+    cdda_cli::install_field_data(&mut world);
     let me = {
         let mut query = world.query_filtered::<Entity, With<cdda_sim::Player>>();
         query.iter(&world).next()

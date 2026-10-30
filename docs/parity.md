@@ -296,6 +296,15 @@ Three things the sweep settled that the code did not say:
 * **The damage that arrives is the damage the data states, to the point.** The 32 positive spells sum to exactly **100,016,638** - the data's own total - including the outlier `hallu_touch_suicide` at 100,000,000. Nothing in the path rounds, clamps or resists when there is no armour.
 * **The first version of the sweep measured nothing.** A creature built by `spawn_creature` has no body, so all 77 refusals said `NothingToHit` and the sweep "passed" its counts. It now gives the target a torso, which is the same lesson as the frame dump: a dump taken before the object is configured measures the harness.
 
+### The registries are singletons, and the game installs them (round 766)
+
+Three registries now sit in the store beside items: `monster_registry` (kind id ↔ name ↔ hit points), `effect_registry` (effect type by id) and `field_registry` (field number ↔ name). All four follow the same pattern - a data component, a `The*` marker, and a `set_*` that installs into the singleton - so the store has one answer to each question rather than a table beside the truth.
+
+Two things are now gated that were true by convention only:
+
+* **Installing twice leaves one.** `architecture::installing_a_registry_twice_leaves_one_of_it` calls each `set_*` twice and counts the marker entities: three registries, one entity each. A `set_` that spawned a second entity would leave the store with two answers to "which number is `fd_fire`", and every caller would get whichever it looked up first.
+* **The game installs the field names.** `install_field_data` reads `corpus/field_types.json` and the CLI calls it on the `play` and `craft` paths beside `install_item_data`, so the running game's field numbers are the reference's rather than a test-only arrangement.
+
 ### Field numbers, and a bug the dump found (round 764)
 
 Spells that act on fields needed a way to turn `fd_fatigue` into a number, so `dump_fields` grew each field's own `num` - `field.id.id().to_i()`, the reference's `int_id` - and `corpus/field_types.json` was regenerated with all **145** fields carrying it.
