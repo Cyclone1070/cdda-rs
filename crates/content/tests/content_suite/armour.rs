@@ -175,3 +175,31 @@ fn a_garment_takes_four_steps_of_damage_and_breaks_on_the_fifth() {
     assert_eq!(damage_level(0, DAMAGE_MAX), 0, "an untouched garment is level zero");
     assert_eq!(damage_level(1, 0), 0, "and a thing with no maximum cannot be damaged");
 }
+
+/// The three flags that decide how hard a garment is to ruin exist in the data, and in sensible numbers.
+///
+/// Reference: `FRAGILE`, `STURDY` and `UNBREAKABLE` in `item::damage_armor_durability` (`item.cpp:9508-9532`). This
+/// gate is about **non-vacuity**: if the data carried none of them, every rule about them would be tested against
+/// nothing, and the armour model would look complete while being one branch short.
+#[test]
+fn the_data_carries_the_flags_that_decide_how_a_garment_wears_out() {
+    let items = corpus::items_loaded();
+    let count = |flag: &str| {
+        items
+            .iter()
+            .filter(|item| item.flags.contains(flag))
+            .count()
+    };
+    let fragile = count("FRAGILE");
+    let sturdy = count("STURDY");
+    let unbreakable = count("UNBREAKABLE");
+    assert!(
+        fragile > 5,
+        "only {fragile} things in the data are fragile, which is too few to be the game's"
+    );
+    assert!(sturdy > 5, "only {sturdy} things are sturdy");
+    assert!(
+        unbreakable > 0,
+        "nothing in the data is unbreakable, so that branch is tested against an empty set"
+    );
+}

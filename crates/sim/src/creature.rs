@@ -432,6 +432,37 @@ pub fn pick_up(world: &mut World, creature: Entity, item: Entity, volume_ml: i32
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Carried(pub Entity);
 
+/// What a garment's data says about how hard it is to ruin.
+///
+/// Reference: the `fragile`, `sturdy` and `unbreakable` flags, which `item::damage_armor_durability`
+/// (`item.cpp:9508-9532`) reads as: an unbreakable thing is never damaged; a fragile one counts its own resistance at
+/// two thirds; a sturdy one takes nothing at all until the blow beats its threshold. A garment with no `Toughness`
+/// component is treated exactly as one with all three flags clear, which is what a thing whose data says nothing gets.
+#[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Toughness {
+    /// Ruins easily: its resistance counts for two thirds.
+    pub fragile: bool,
+    /// Takes nothing from a blow it shrugs off.
+    pub sturdy: bool,
+    /// Never damaged at all.
+    pub unbreakable: bool,
+}
+
+impl Toughness {
+    /// Reads the three flags out of a thing's data.
+    ///
+    /// Reference: the flags are strings in the item's `flags` array; the reference's own constants are the names used
+    /// here, so a data file that says `"STURDY"` is understood without a second spelling list.
+    #[must_use]
+    pub fn of(flags: &std::collections::BTreeSet<String>) -> Self {
+        Self {
+            fragile: flags.contains("FRAGILE"),
+            sturdy: flags.contains("STURDY"),
+            unbreakable: flags.contains("UNBREAKABLE"),
+        }
+    }
+}
+
 /// How worn out a garment is.
 ///
 /// Reference: `item::damage_` (`item.cpp:9441-9452`) on the reference's scale of a thousand per step and four thousand
@@ -519,8 +550,8 @@ pub fn damage_worn(world: &mut World, item: Entity, blow: &GarmentBlow) -> Struc
 /// * `own_resist` is the layer's own protection - its material's resistance times its thickness - because the port
 ///   does not keep a garment's separate "resistance to being damaged" apart from what it grants its wearer, and the
 ///   reference's two are computed from the same materials;
-/// * `fragile` and `sturdy` are **false**, because the port does not load item flags yet and a flag invented here
-///   would make some garments indestructible for reasons no data said.
+/// * `fragile` and `sturdy` come from the worn thing's [`Toughness`], which content fills from the item's flags; a
+///   garment with none is treated as having all three clear.
 ///
 /// Returns how the first garment that was in the way fared, which is what a caller usually wants to report; every
 /// other garment on the part is damaged too, because that is what the reference does.
@@ -554,12 +585,19 @@ pub fn settle_armour(
             .map(|(covered, _)| covered.clone())
             .collect::<std::collections::BTreeSet<_>>()
             .len();
+        let toughness = world
+            .get::<Toughness>(item)
+            .copied()
+            .unwrap_or_default();
+        if toughness.unbreakable {
+            continue;
+        }
         let blow = GarmentBlow {
             premitigated,
             own_resist: layer.resist * f64::from(layer.thickness),
             covered_parts,
-            fragile: false,
-            sturdy: false,
+            fragile: toughness.fragile,
+            sturdy: toughness.sturdy,
             fraction,
         };
         let struck = damage_worn(world, item, &blow);

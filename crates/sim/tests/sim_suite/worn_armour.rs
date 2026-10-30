@@ -8,8 +8,8 @@
 
 use bevy_ecs::prelude::*;
 use cdda_sim::creature::{
-    Body, Garment, GarmentBlow, PartArmour, Struck, Wear, Wore, WornBy, armour_on, damage_worn, dress,
-    spawn_creature, take_off, wear,
+    Body, Garment, GarmentBlow, PartArmour, Struck, Toughness, Wear, Wore, WornBy, armour_on, damage_worn,
+    dress, settle_armour, spawn_creature, take_off, wear,
 };
 
 /// A blow of the given damage against a garment resisting one point, with a roll of zero - which meets any chance.
@@ -224,4 +224,77 @@ fn a_blow_that_misses_the_garment_leaves_it_whole() {
         "a sturdy thing under its threshold takes nothing"
     );
     assert_eq!(world.get::<Wear>(vest).map(|wear| wear.damage), None, "and no damage is recorded");
+}
+
+/// The flags a garment's data carries decide how hard it is to ruin - and the three of them together are not a
+/// nicety. A `STURDY` vest shrugs off the small blow that would wreck an ordinary one, and an `UNBREAKABLE` one
+/// never wears out at all.
+///
+/// Reference: `item::damage_armor_durability` (`item.cpp:9508-9532`).
+#[test]
+fn a_sturdy_garment_survives_what_ruins_an_ordinary_one() {
+    let mut world = World::new();
+    let ordinary = world.spawn(vest()).id();
+    let tough = world
+        .spawn((
+            vest(),
+            Toughness {
+                sturdy: true,
+                ..Toughness::default()
+            },
+        ))
+        .id();
+    // A small blow: five points against a garment resisting three.
+    let small = GarmentBlow {
+        premitigated: 5.0,
+        own_resist: 3.0,
+        covered_parts: 1,
+        fragile: false,
+        sturdy: true,
+        fraction: 0.0,
+    };
+    assert_eq!(
+        damage_worn(&mut world, tough, &small),
+        Struck::Untouched,
+        "sturdy and under its threshold is nothing"
+    );
+
+    // The same flags on the ordinary vest's blow - because the flags come from the component, not the blow - so the
+    // comparison is made by giving the ordinary one a blow of its own with the same numbers but no sturdiness.
+    let same_but_unsturdy = GarmentBlow {
+        sturdy: false,
+        ..small
+    };
+    assert_eq!(
+        damage_worn(&mut world, ordinary, &same_but_unsturdy),
+        Struck::Damaged,
+        "while the same blow damages something that is not sturdy"
+    );
+}
+
+#[test]
+fn an_unbreakable_garment_is_never_damaged() {
+    let mut world = World::new();
+    let survivor = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let garment = world
+        .spawn((
+            WornBy(survivor),
+            vest(),
+            Toughness {
+                unbreakable: true,
+                ..Toughness::default()
+            },
+        ))
+        .id();
+    dress(&mut world);
+
+    for _ in 0..10 {
+        assert_eq!(
+            settle_armour(&mut world, survivor, "torso", 500.0, 0.0),
+            Struck::Untouched,
+            "not once"
+        );
+    }
+    assert_eq!(world.get::<Wear>(garment).map(|wear| wear.damage), None);
+    assert_eq!(armour_on(&world, survivor, "torso"), 3, "and it still protects");
 }
