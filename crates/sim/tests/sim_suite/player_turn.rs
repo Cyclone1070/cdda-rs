@@ -44,7 +44,7 @@ fn monster_hp(world: &World, entity: Entity) -> i32 {
 fn the_player_walks_toward_where_it_is_aiming() {
     let mut world = World::new();
     let me = spawn_player(&mut world, (0, 0), 80, 0);
-    world.get_mut::<Player>(me).expect("a player").moves = 100;
+    cdda_sim::creature::set_moves(&mut world, me, 100);
     let mut rolls = Rolls::new(1);
     let landed = player_turn(
         &mut world,
@@ -68,7 +68,7 @@ fn the_player_walks_toward_where_it_is_aiming() {
 fn the_player_strikes_what_is_next_to_it() {
     let mut world = World::new();
     let me = spawn_player(&mut world, (0, 0), 80, 0);
-    world.get_mut::<Player>(me).expect("a player").moves = 100;
+    cdda_sim::creature::set_moves(&mut world, me, 100);
     let zombie = spawn_monster(&mut world, (1, 0), MonsterKindId(1), 30);
     let mut rolls = Rolls::new(2);
     let landed = player_turn(
@@ -88,7 +88,7 @@ fn the_player_strikes_what_is_next_to_it() {
 fn the_player_cannot_walk_into_the_zombie() {
     let mut world = World::new();
     let me = spawn_player(&mut world, (0, 0), 80, 0);
-    world.get_mut::<Player>(me).expect("a player").moves = 100;
+    cdda_sim::creature::set_moves(&mut world, me, 100);
     spawn_monster(&mut world, (1, 0), MonsterKindId(1), 30);
     let mut rolls = Rolls::new(3);
     // Aiming at an empty square behind the zombie: the step is blocked, and striking is not what was asked.
@@ -118,7 +118,7 @@ fn a_fight_runs_both_ways_and_the_same_seed_replays_it() {
         let mut rolls = Rolls::new(seed);
         for _ in 0..3 {
             // The world hands out moves, then both sides take their turn.
-            world.get_mut::<Player>(me).expect("a player").moves = 100;
+            cdda_sim::creature::set_moves(&mut world, me, 100);
             {
                 let mut monsters = world.query::<&mut cdda_sim::creature::Moves>();
                 for mut monster in monsters.iter_mut(&mut world) {
@@ -137,7 +137,7 @@ fn a_fight_runs_both_ways_and_the_same_seed_replays_it() {
             monster_turns_striking(&mut world, (0, 0), &rules(), &mut rolls, &level());
         }
         let me_entity = player(&mut world);
-        let my_hp = world.get::<Player>(me_entity).expect("a player").hp;
+        let my_hp = cdda_sim::creature::health_of(&world, me_entity).expect("a player");
         (my_hp, monster_hp(&world, zombie))
     };
     let first = fight(77);

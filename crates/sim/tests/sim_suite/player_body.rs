@@ -6,8 +6,8 @@ use bevy_ecs::prelude::*;
 use cdda_core_types::level::Level;
 use cdda_core_types::rng::Rolls;
 use cdda_sim::{
-    MonsterKindId, Player, TurnRules, monster_turns_striking, player_dead, spawn_monster,
-    spawn_player, strike_player,
+    MonsterKindId, TurnRules, monster_turns_striking, player_dead, spawn_monster, spawn_player,
+    strike_player,
 };
 
 const FLOOR: u32 = 1;
@@ -32,17 +32,18 @@ fn rules() -> TurnRules<'static> {
 }
 
 fn player_hp(world: &World, entity: Entity) -> i32 {
-    world.get::<Player>(entity).map_or(-1, |player| player.hp)
+    cdda_sim::creature::health_of(world, entity).unwrap_or(-1)
 }
 
 #[test]
 fn the_player_arrives_at_full_health_with_its_armour() {
     let mut world = World::new();
     let player = spawn_player(&mut world, (5, 5), 80, 2);
-    let state = world.get::<Player>(player).expect("a player");
-    assert_eq!(state.hp, 80);
-    assert_eq!(state.hp_max, 80);
-    assert_eq!(state.armour, 2);
+    assert_eq!(cdda_sim::creature::health_of(&world, player), Some(80), "eighty hit points");
+    let health = world.get::<cdda_sim::creature::Health>(player).expect("a body");
+    assert_eq!(health.max_hp, 80, "and eighty is its ceiling");
+    let armour = world.get::<cdda_sim::creature::Armour>(player).expect("worn armour");
+    assert_eq!(armour.bash, 2, "two points of armour against a blow");
     assert!(!player_dead(&mut world));
 }
 

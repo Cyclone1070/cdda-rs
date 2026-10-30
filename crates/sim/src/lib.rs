@@ -7025,8 +7025,10 @@ pub fn monster_turns_striking(
                         let mut players = world.query::<(Entity, &Position, &Player)>();
                         players
                             .iter(world)
-                            .find(|(_, position, player)| {
-                                (position.x, position.y) == target && player.hp > 0
+                            .find(|(entity, position, _)| {
+                                (position.x, position.y) == target
+                                    && crate::creature::health_of(world, *entity)
+                                        .is_none_or(|hp| hp > 0)
                             })
                             .map(|(victim, _, _)| (victim, true))
                     },
@@ -7067,51 +7069,61 @@ pub fn monster_turns_striking(
 /// can be struck like anything else. The port gives it the two facts the striking rules need now, and adds the
 /// rest as rules arrive that ask for them.
 #[derive(Debug, Clone, Copy, Component)]
-pub struct Player {
-    /// Hit points left.
-    pub hp: i32,
-    /// Hit points at full health.
-    pub hp_max: i32,
-    /// What armour takes off every blow.
-    pub armour: i32,
-    /// Moves left this turn; the reference's action points, like a monster's.
-    pub moves: i32,
-}
+pub struct Player;
 
 /// Puts the player in the world.
+///
+/// The avatar is a [`crate::creature::Creature`] like any other - same components, same systems - and [`Player`]
+/// is only the marker that says which one the player is looking through. That is the reference's own shape too:
+/// `avatar` is a `Character`, and a `Character` is a `Creature`.
 pub fn spawn_player(world: &mut World, square: (i32, i32), hp_max: i32, armour: i32) -> Entity {
-    world
+    let entity = world
         .spawn((
             Position {
                 x: square.0,
                 y: square.1,
                 z: 0,
             },
-            Player {
-                hp: hp_max,
-                hp_max,
-                armour,
-                moves: 0,
+            crate::creature::Creature {
+                name: "you".to_owned(),
+                size: crate::CreatureSize::Medium,
             },
+            crate::creature::Moves::default(),
+            crate::creature::Speed::default(),
+            crate::creature::Health {
+                hp: hp_max,
+                max_hp: hp_max,
+            },
+            crate::creature::Armour {
+                bash: armour,
+                cut: armour,
+            },
+            Player,
         ))
-        .id()
+        .id();
+    crate::singletons::index_mut(world).insert(entity, (square.0, square.1, 0));
+    entity
 }
 
 /// Whether the player is dead, which is the moment the reference ends the game.
 #[must_use]
 pub fn player_dead(world: &mut World) -> bool {
-    let mut query = world.query::<&Player>();
-    query.iter(world).any(|player| player.hp <= 0)
+    let mut query = world.query::<(Entity, &Player)>();
+    query
+        .iter(world)
+        .any(|(entity, _)| crate::creature::health_of(world, entity).is_none_or(|hp| hp <= 0))
 }
 
 /// Applies a blow to the player.
 pub fn strike_player(world: &mut World, target: Entity, blow: i32) -> bool {
-    let Some(mut player) = world.get_mut::<Player>(target) else {
+    let Some(hp) = crate::creature::health_of(world, target) else {
         return false;
     };
-    let dealt = through_armour(blow, player.armour);
-    player.hp = player.hp.saturating_sub(dealt);
-    player.hp <= 0
+    let armour = world.get::<crate::creature::Armour>(target).map_or(0, |worn| worn.bash);
+    let dealt = through_armour(blow, armour);
+    let left = hp.saturating_sub(dealt);
+    crate::creature::set_health_left(world, target, left);
+    left <= 0
 }
 
 /// Gives the player its turn, by the same ladder a monster uses: strike what is next to it, otherwise step
@@ -7132,8 +7144,14 @@ pub fn player_turn(
 ) -> i32 {
     let Some((entity, start, moves)) = ({
         let mut query = world.query::<(Entity, &Position, &Player)>();
-        query.iter(world).find_map(|(entity, position, player)| {
-            (player.hp > 0).then_some((entity, (position.x, position.y), player.moves))
+        query.iter(world).find_map(|(entity, position, _)| {
+            crate::creature::health_of(world, entity)
+                .is_none_or(|hp| hp > 0)
+                .then_some((
+                    entity,
+                    (position.x, position.y),
+                    crate::creature::moves_left(world, entity),
+                ))
         })
     }) else {
         return 0;
@@ -7150,11 +7168,13 @@ pub fn player_turn(
             .collect()
     };
     let mut players: std::collections::BTreeSet<(i32, i32)> = {
-        let mut query = world.query::<(&Position, &Player)>();
+        let mut query = world.query::<(Entity, &Position, &Player)>();
         query
             .iter(world)
-            .filter(|(_, player)| player.hp > 0)
-            .map(|(position, _)| (position.x, position.y))
+            .filter(|(entity, _, _)| {
+                crate::creature::health_of(world, *entity).is_none_or(|hp| hp > 0)
+            })
+            .map(|(_, position, _)| (position.x, position.y))
             .collect()
     };
     taken.append(&mut players);
@@ -7191,9 +7211,7 @@ pub fn player_turn(
         strike(world, victim, damage, armour);
         landed += 1;
     }
-    if let Some(mut player) = world.get_mut::<Player>(entity) {
-        player.moves = turn.moves;
-    }
+    crate::creature::set_moves(world, entity, turn.moves);
     if turn.position != start
         && let Some(mut position) = world.get_mut::<Position>(entity)
     {
