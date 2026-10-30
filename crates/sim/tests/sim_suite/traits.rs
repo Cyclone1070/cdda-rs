@@ -135,3 +135,77 @@ fn the_trait_ids_in_the_data_are_what_the_tests_use() {
     assert!(ids.contains("MARTIAL_ARTS4"), "and so is the second");
     assert!(ids.len() > 400, "the data defines the mutations a trait set would hold");
 }
+
+/// A program can give and take a trait, which is how the data's mutations happen.
+///
+/// Reference: `f_add_trait` (`npctalk.cpp:3498-3508`) calls `set_mutation`; `f_remove_trait` (3536-3543) calls `unset_mutation`. These
+/// are the first effects that change a creature rather than say something, and they are 139 of the data's 1,612 effect entries
+/// (36 `u_add_trait`, 103 `u_lose_trait`).
+#[test]
+fn a_program_can_give_and_take_a_trait() {
+    use cdda_sim::dialogue_effects::{run_effects, Applied};
+    use cdda_sim::messages;
+
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let ally = cdda_sim::creature::spawn_creature(&mut world, "the ally", (0, 0, 0));
+
+    let program = vec![
+        cdda_content::dialogue::read_effect(
+            &cdda_json::parse(br#"{"u_add_trait": "HALLUCINATION"}"#.as_slice()).expect("json"),
+        )
+        .expect("readable"),
+        cdda_content::dialogue::read_effect(
+            &cdda_json::parse(br#"{"npc_add_trait": "MARTIAL_ARTS4"}"#.as_slice()).expect("json"),
+        )
+        .expect("readable"),
+        cdda_content::dialogue::read_effect(
+            &cdda_json::parse(br#"{"u_message": "done"}"#.as_slice()).expect("json"),
+        )
+        .expect("readable"),
+    ];
+    assert_eq!(
+        run_effects(&mut world, survivor, Some(ally), &program),
+        Applied::Done
+    );
+    assert!(traits::has_trait(&world, survivor, "HALLUCINATION"));
+    assert!(
+        traits::has_trait(&world, ally, "MARTIAL_ARTS4"),
+        "the `npc_` spelling gives it to the listener"
+    );
+    assert_eq!(messages::lines(&world), vec!["done".to_owned()]);
+
+    let lose = vec![
+        cdda_content::dialogue::read_effect(
+            &cdda_json::parse(br#"{"u_lose_trait": "HALLUCINATION"}"#.as_slice()).expect("json"),
+        )
+        .expect("readable"),
+    ];
+    assert_eq!(
+        run_effects(&mut world, survivor, Some(ally), &lose),
+        Applied::Done
+    );
+    assert!(!traits::has_trait(&world, survivor, "HALLUCINATION"));
+
+    // Losing a trait it does not have is still a finished effect - `unset_mutation` does nothing and says nothing.
+    assert_eq!(
+        run_effects(&mut world, survivor, Some(ally), &lose),
+        Applied::Done
+    );
+
+    // An `npc_` effect with nobody listening cannot be done, and says so rather than changing the speaker by mistake.
+    let to_nobody = vec![
+        cdda_content::dialogue::read_effect(
+            &cdda_json::parse(br#"{"npc_lose_trait": "MARTIAL_ARTS4"}"#.as_slice()).expect("json"),
+        )
+        .expect("readable"),
+    ];
+    assert_eq!(
+        run_effects(&mut world, survivor, None, &to_nobody),
+        Applied::CannotAnswer
+    );
+    assert!(
+        traits::has_trait(&world, ally, "MARTIAL_ARTS4"),
+        "and the ally keeps the trait it had"
+    );
+}

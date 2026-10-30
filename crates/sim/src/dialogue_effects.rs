@@ -89,6 +89,18 @@ pub fn run_math(
     Applied::Done
 }
 
+/// Whose trait, effect or value an effect changes.
+///
+/// Reference: every `f_*` in `npctalk.cpp` takes an `is_npc` flag and asks `d.actor( is_npc )` - the listener for the `npc_`
+/// spelling, the speaker for the `u_` one. One helper, so a rule cannot get the two the wrong way round in one place and right in
+/// another.
+fn actor(speaker: Entity, listener: Option<Entity>, about_listener: bool) -> Option<Entity> {
+    if about_listener {
+        return listener;
+    }
+    Some(speaker)
+}
+
 /// Runs one effect entry.
 pub fn run_effect(
     world: &mut World,
@@ -100,6 +112,22 @@ pub fn run_effect(
         Effect::Math(assignments) => run_math(world, speaker, listener, assignments),
         Effect::Message(text) => {
             crate::messages::push(world, text);
+            Applied::Done
+        }
+        Effect::LearnTrait { trait_name, listener: about_listener } => {
+            let Some(creature) = actor(speaker, listener, *about_listener) else {
+                return Applied::CannotAnswer;
+            };
+            crate::traits::add_trait(world, creature, trait_name);
+            Applied::Done
+        }
+        Effect::LoseTrait { trait_name, listener: about_listener } => {
+            let Some(creature) = actor(speaker, listener, *about_listener) else {
+                return Applied::CannotAnswer;
+            };
+            // Reference: `unset_mutation` on a trait the creature does not have does nothing, and a `lose_trait` that finds
+            // nothing to lose has still done its job - so the answer is `Done` either way.
+            crate::traits::remove_trait(world, creature, trait_name);
             Applied::Done
         }
         // A named program needs the registry and a depth, which the program runner (`eoc_registry::run_program`) supplies. Reaching

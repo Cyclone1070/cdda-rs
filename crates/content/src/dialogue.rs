@@ -749,6 +749,25 @@ pub enum Effect {
     Math(Vec<Assignment>),
     /// A message to the player.
     Message(String),
+    /// Give a trait to a creature.
+    ///
+    /// Reference: `f_add_trait` (`npctalk.cpp:3498-3508`), which calls `set_mutation`. Its `variant` member is refused rather than
+    /// dropped: a variant changes which mutations are legal to take next, and the port has no mutation graph to change.
+    LearnTrait {
+        /// The trait's id.
+        trait_name: String,
+        /// Whether it goes to the listener rather than the speaker.
+        listener: bool,
+    },
+    /// Take a trait away from a creature.
+    ///
+    /// Reference: `f_remove_trait` (`npctalk.cpp:3536-3543`), which calls `unset_mutation`.
+    LoseTrait {
+        /// The trait's id.
+        trait_name: String,
+        /// Whether it goes from the listener rather than the speaker.
+        listener: bool,
+    },
     /// Run another effect-on-condition by id.
     ///
     /// Reference: `f_run_eocs` (`npctalk.cpp`) - the entry is a name, an array of names, or an object with `run_eocs` and
@@ -838,6 +857,31 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
     // table for - showing the id would be showing the wrong words.
     if matches!(object.get("snippet"), Some(Value::Bool(true))) {
         return None;
+    }
+    // Reference: `f_add_trait` and `f_remove_trait` (`npctalk.cpp:3498-3543`). A `variant` member is a mutation-graph change the port
+    // has no graph for, so an entry that states one is refused whole.
+    for (member, listener, learn) in [
+        ("u_add_trait", false, true),
+        ("npc_add_trait", true, true),
+        ("u_lose_trait", false, false),
+        ("npc_lose_trait", true, false),
+    ] {
+        if let Some(Value::Str(trait_name)) = object.get(member) {
+            if learn && object.get("variant").is_some() {
+                return None;
+            }
+            return Some(if learn {
+                Effect::LearnTrait {
+                    trait_name: trait_name.clone(),
+                    listener,
+                }
+            } else {
+                Effect::LoseTrait {
+                    trait_name: trait_name.clone(),
+                    listener,
+                }
+            });
+        }
     }
     for member in ["u_message", "npc_message"] {
         if let Some(value) = object.get(member) {

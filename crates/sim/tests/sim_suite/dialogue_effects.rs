@@ -166,7 +166,11 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
     // 399: 179 `math` statements, 184 messages, and 36 plain calls to another program now that `run_eocs` runs. The other 131
     // `run_eocs` entries are object forms with modifiers (`popup`, `variables`, `true_eocs`/`false_eocs`), which the port refuses
     // rather than reading only the part it recognises.
-    assert_eq!(runnable, 399, "of which the port runs 399 entries");
+    //
+    // 538 after the trait effects: 139 entries (36 `u_add_trait`, 103 `u_lose_trait`), the first effects that change a creature
+    // rather than say something. The count moved by exactly the number of entries the new readers cover, which is what a census
+    // should do - no drift, no estimate.
+    assert_eq!(runnable, 538, "of which the port runs 538 entries");
 }
 
 /// The other spelling of a destination: `u_val('x') = ...`, which the data also uses.

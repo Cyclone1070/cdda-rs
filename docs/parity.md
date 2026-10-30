@@ -328,6 +328,23 @@ entries the port can run | **363** |
 
 Reading both spellings of a destination - `"x = 1"` and `"u_val('x') = 1"`, which `read_var_info` (`condition.cpp:408-437`) treats as the same variable classed by the member that names it - took the count from 174 to 179. The 125 still refused are of two shapes, counted rather than guessed: **139 statements are pure expressions** with no assignment (`"u_val('stamina')"`, `"ps_str + 50"`), and **76 are bare operators** (`"*="`, `"+="`) that suggest a statement split across several entries of one list. Neither is run: a list whose meaning the port cannot read is refused whole, because "ignore the parts I do not understand" is how a program silently does half its job.
 
+### The first effects that change a creature (round 790)
+
+Traits arrived as a guard last round; this round they arrive as an **effect**. `f_add_trait` (`npctalk.cpp:3498-3508`) calls `set_mutation`; `f_remove_trait` (3536-3543) calls `unset_mutation`. They are 139 of the data's 1,612 effect entries - 36 `u_add_trait`, 103 `u_lose_trait` - and the first effects that mutate the store rather than say something into it.
+
+Three rules went in with them, each gated:
+
+* the `npc_` spelling changes the **listener**, and with nobody listening it refuses rather than changing the speaker by mistake;
+* losing a trait it does not have is still a **finished** effect, because `unset_mutation` does nothing and says nothing;
+* `u_add_trait` with a `variant` is **refused whole**, because a variant changes which mutations are legal to take next and the port has no mutation graph to change.
+
+| Count | Before | After |
+|---|---|---|
+effect entries runnable | 399 | **538** |
+programs runnable whole | 65 | **70** |
+
+The effect count moved by exactly the 139 entries the two readers cover - no drift and no estimate, which is what a census pinned to the reader gives you.
+
 ### Missions, and the difference between "the speaker" and "the player" (round 789)
 
 `u_has_mission` was the biggest single refused leaf: 281 occurrences, 114 condition objects, and the top of the refusal list once combinators were set aside.
@@ -407,7 +424,7 @@ refused for an effect | **374** |
 
 Reading a plain `run_eocs` name (one string, or a list of them) also took the effect count from 363 to **399**; the other 131 `run_eocs` entries are object forms with modifiers (`popup`, `variables`, `true_eocs`/`false_eocs`), which the port refuses rather than reading only the part it recognises.
 
-Both halves of the machine are now measured against each other: **2,089 of 3,708 conditions** answerable (1,501 three leaves ago), **399 of 1,612 effects** runnable, and the intersection is **65 of 692 programs** runnable whole.
+Both halves of the machine are now measured against each other: **2,089 of 3,708 conditions** answerable, **538 of 1,612 effects** runnable, and the intersection is **70 of 692 programs** runnable whole.
 
 ### Messages: the second effect, and the first that only speaks (round 785)
 
