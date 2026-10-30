@@ -502,6 +502,66 @@ fn cancel_crafting(world: &mut World, creature: Entity, _subject: Option<Entity>
 /// An activity that has not changed anything yet has nothing to undo.
 fn cancel_nothing(_world: &mut World, _creature: Entity, _subject: Option<Entity>) {}
 
+/// Something that happens to a creature while it is busy.
+///
+/// Reference: `distraction_type` (`src/player_activity.h`), which the activity decides whether to heed. The port keeps
+/// the three a survivor can be made to notice before P7's monsters exist to cause them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Distraction {
+    /// It was hurt.
+    Pain,
+    /// It heard something.
+    Sound,
+    /// It saw something.
+    Sight,
+}
+
+/// The activities that cannot be interrupted at all.
+///
+/// Reference: `activity_type::interruptable`, a data flag on the activity's type. Nothing the port can start is
+/// uninterruptible yet - a craft can be interrupted, and should be - so the list is empty rather than absent: the rule it
+/// stands for has to exist before there is anything to put in it.
+pub const UNINTERRUPTIBLE: &[&str] = &[];
+
+/// The distractions an activity does not heed.
+///
+/// Reference: `player_activity::ignored_distractions` filled from `activity_type::default_ignored_distractions()`
+/// (`player_activity.cpp:78-92`). Empty for the same reason as [`UNINTERRUPTIBLE`].
+pub const IGNORED: &[(&str, &[Distraction])] = &[];
+
+/// Whether an activity heeds a distraction.
+///
+/// Reference: `player_activity::is_distraction_ignored` (`player_activity.cpp:492-495`) - an activity that cannot be
+/// interrupted ignores everything, and an activity that names a distraction ignores that one. Everything else is
+/// interrupted, which is the default the reference gives a type with no opinion.
+#[must_use]
+pub fn heeds(activity: &str, distraction: Distraction) -> bool {
+    if UNINTERRUPTIBLE.contains(&activity) {
+        return false;
+    }
+    if let Some((_, ignored)) = IGNORED.iter().find(|(id, _)| *id == activity) {
+        return !ignored.contains(&distraction);
+    }
+    true
+}
+
+/// Interrupts what a creature is doing, if it is the sort of thing that can be.
+///
+/// Reference: the distraction path in `game.cpp` that calls `Character::cancel_activity` when a distraction is not
+/// ignored. Cancelling goes through [`stop_doing`], so an interrupted craft lands in the backlog with its progress
+/// rather than being lost - which is the reference's answer too (`character.cpp:9112-9115`).
+///
+/// Answers whether the interruption took.
+pub fn disturb(world: &mut World, creature: Entity, distraction: Distraction) -> bool {
+    let Some(activity) = world.get::<Doing>(creature).map(|doing| doing.activity.clone()) else {
+        return false;
+    };
+    if !heeds(&activity, distraction) {
+        return false;
+    }
+    stop_doing(world, creature)
+}
+
 /// The work a creature has paused, waiting to be picked up again.
 ///
 /// Reference: `Character::backlog` (`character.h`), a list of activities that can be resumed rather than redone. The

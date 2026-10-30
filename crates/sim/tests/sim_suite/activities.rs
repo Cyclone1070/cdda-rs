@@ -432,3 +432,96 @@ fn a_pickup_that_was_stopped_is_not_queued() {
         "a pickup has nothing to resume: the thing is still on the floor"
     );
 }
+
+/// Being hurt interrupts a craft, and the work goes to the backlog rather than being lost.
+///
+/// Reference: `player_activity::is_distraction_ignored` (`player_activity.cpp:492-495`) decides whether the activity
+/// heeds the distraction at all; the reference then cancels it, which for a resumable activity means it lands in the
+/// backlog with its progress (`character.cpp:9112-9115`). The three rules compose, and this is the composition: pain
+/// stops the work, and nothing is thrown away by being stopped.
+#[test]
+fn pain_interrupts_a_craft_and_the_work_is_kept() {
+    use cdda_sim::creature::{
+        Basis, Distraction, Doing, disturb, heeds, resume_backlog, spawn_creature,
+    };
+    use cdda_sim::crafting::{Craft, Making, begin_craft_from_carried};
+
+    let mut world = World::new();
+    let crafter = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let names = cdda_sim::item_registry::ItemNames {
+        names: vec![String::new(), "rag".to_owned(), "rope".to_owned()],
+        by_name: [
+            ("rag".to_owned(), cdda_sim::ItemTypeId(1)),
+            ("rope".to_owned(), cdda_sim::ItemTypeId(2)),
+        ]
+        .into_iter()
+        .collect(),
+        volumes_ml: vec![0, 250, 500],
+        weights_g: vec![0, 100, 200],
+        holds_ml: vec![0, 0, 0],
+        pockets: Vec::new(),
+        pocket_ranges: vec![(0, 0), (0, 0), (0, 0)],
+    };
+    for _ in 0..2 {
+        let rag = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 1);
+        world.entity_mut(rag).remove::<cdda_sim::Position>();
+        world
+            .entity_mut(rag)
+            .insert(cdda_sim::creature::Carried(crafter));
+    }
+    let recipe = cdda_content::recipes::Recipe {
+        id: "tie_a_rope".to_owned(),
+        result: "rope".to_owned(),
+        blacklisted: false,
+        components: vec![vec![cdda_content::recipes::Component {
+            item: "rag".to_owned(),
+            count: 2,
+        }]],
+        tools: Vec::new(),
+        qualities: Vec::new(),
+        skill: String::new(),
+        difficulty: 0,
+        time_moves: 20_000,
+    };
+    assert_eq!(
+        begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
+        Craft::Started
+    );
+    if let Some(mut doing) = world.get_mut::<Doing>(crafter) {
+        doing.moves_left = 8_000;
+    }
+
+    assert!(
+        disturb(&mut world, crafter, Distraction::Pain),
+        "pain is not something a craft heeds past"
+    );
+    assert!(world.get::<Doing>(crafter).is_none(), "the craft stopped");
+    assert!(world.get::<Making>(crafter).is_some(), "but the recipe is still theirs");
+    assert!(resume_backlog(&mut world, crafter));
+    assert_eq!(
+        world.get::<Doing>(crafter).map(|doing| doing.moves_left),
+        Some(8_000),
+        "and twelve thousand moves of work are still done"
+    );
+
+    // A creature doing nothing is not disturbed by anything.
+    cdda_sim::creature::stop_doing(&mut world, crafter);
+    assert!(!disturb(&mut world, crafter, Distraction::Pain));
+    // And an activity nobody has an opinion about is interrupted by default.
+    assert!(heeds("anything_at_all", Distraction::Sight));
+    // A pickup, interrupted, is not queued - so what waits to be resumed is still the craft, not the errand.
+    cdda_sim::creature::stop_doing(&mut world, crafter);
+    world.entity_mut(crafter).insert(Doing {
+        activity: "pickup".to_owned(),
+        moves_left: 50,
+        basis: Basis::Speed,
+        subject: None,
+    });
+    assert!(disturb(&mut world, crafter, Distraction::Pain));
+    assert!(resume_backlog(&mut world, crafter));
+    assert_eq!(
+        world.get::<Doing>(crafter).map(|doing| doing.activity.clone()),
+        Some("craft".to_owned()),
+        "the craft is what was waiting; the pickup left nothing behind"
+    );
+}
