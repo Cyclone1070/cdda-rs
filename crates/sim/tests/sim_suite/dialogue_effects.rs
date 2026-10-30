@@ -163,9 +163,10 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
     // **expressions** with no assignment at all (`"u_val('stamina')"`, `"ps_str + 50"`), and 76 are bare operators that suggest a
     // statement split across several entries in one list (`["...", "*=", "..."]`). Neither is run: a list whose meaning the port
     // cannot read is refused whole, because "ignore the parts I do not understand" is how a program silently does half its job.
-    // 363: the 179 `math` statements plus 184 messages. `u_message` is the second most used effect in the data (205 entries),
-    // and it needed only a log in the store - the first effect whose whole job is to say something.
-    assert_eq!(runnable, 363, "of which the port runs 363 entries");
+    // 399: 179 `math` statements, 184 messages, and 36 plain calls to another program now that `run_eocs` runs. The other 131
+    // `run_eocs` entries are object forms with modifiers (`popup`, `variables`, `true_eocs`/`false_eocs`), which the port refuses
+    // rather than reading only the part it recognises.
+    assert_eq!(runnable, 399, "of which the port runs 399 entries");
 }
 
 /// The other spelling of a destination: `u_val('x') = ...`, which the data also uses.

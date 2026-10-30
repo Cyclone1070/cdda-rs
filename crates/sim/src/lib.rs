@@ -22,6 +22,7 @@ pub mod digest;
 pub mod dialogue_effects;
 pub mod dialogue_values;
 pub mod effect_registry;
+pub mod eoc_registry;
 pub mod effects;
 pub mod singletons;
 pub mod square;

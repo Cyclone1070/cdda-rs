@@ -102,6 +102,9 @@ pub fn run_effect(
             crate::messages::push(world, text);
             Applied::Done
         }
+        // A named program needs the registry and a depth, which the program runner (`eoc_registry::run_program`) supplies. Reaching
+        // here means a list ran a program without one, which is a caller mistake, not a rule - so it refuses rather than guessing.
+        Effect::RunEoc(_) => Applied::CannotAnswer,
     }
 }
 

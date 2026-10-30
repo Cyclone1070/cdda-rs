@@ -18,6 +18,7 @@ pub fn spread_seed(attempt: u32) -> u32 {
 }
 
 mod acid_vent;
+mod eoc_programs;
 mod activities;
 mod applied_effects;
 mod architecture;

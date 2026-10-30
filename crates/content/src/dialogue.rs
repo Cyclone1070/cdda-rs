@@ -716,6 +716,56 @@ pub enum Effect {
     Math(Vec<Assignment>),
     /// A message to the player.
     Message(String),
+    /// Run another effect-on-condition by id.
+    ///
+    /// Reference: `f_run_eocs` (`npctalk.cpp`) - the entry is a name, an array of names, or an object with `run_eocs` and
+    /// modifiers. The port reads the two plain forms: one name, or a list of them.
+    RunEoc(Vec<String>),
+}
+
+/// One effect-on-condition, as the data defines it.
+///
+/// Reference: `effect_on_condition.cpp:119-133`. A named one has an `id`, a `condition` and an `effect` list; the port keeps
+/// the same three parts, and refuses a definition any of whose parts it cannot read rather than running half a program.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Program {
+    /// Its id, which is how another effect names it.
+    pub id: String,
+    /// What must hold before it runs, when it states a condition.
+    pub condition: Option<Condition>,
+    /// What it does when it runs.
+    pub effects: Vec<Effect>,
+}
+
+/// Reads an effect-on-condition definition, or nothing when the port cannot run it whole.
+#[must_use]
+pub fn read_program(value: &Value) -> Option<Program> {
+    let Value::Object(object) = value else {
+        return None;
+    };
+    let Some(Value::Str(id)) = object.get("id") else {
+        return None;
+    };
+    let condition = match object.get("condition") {
+        None => None,
+        Some(condition) => Some(read_condition(condition)?),
+    };
+    let entries = match object.get("effect") {
+        Some(Value::Array(entries)) => entries.as_slice(),
+        // An effect-on-condition with no `effect` still has a condition to ask; the reference runs nothing, which the port
+        // reads as an empty list rather than refusing the definition.
+        None => &[],
+        _ => return None,
+    };
+    let effects = entries
+        .iter()
+        .map(read_effect)
+        .collect::<Option<Vec<_>>>()?;
+    Some(Program {
+        id: id.clone(),
+        condition,
+        effects,
+    })
 }
 
 /// Reads one effect entry of an effect-on-condition, or nothing when the port has no rule for it.
@@ -724,9 +774,23 @@ pub enum Effect {
 /// read through the member that names the effect.
 #[must_use]
 pub fn read_effect(value: &Value) -> Option<Effect> {
+    // Reference: a bare name in an effect list runs that effect-on-condition.
+    if let Value::Str(name) = value {
+        return Some(Effect::RunEoc(vec![name.clone()]));
+    }
     let Value::Object(object) = value else {
         return None;
     };
+    if let Some(Value::Array(names)) = object.get("run_eocs") {
+        let names = names
+            .iter()
+            .map(|name| match name {
+                Value::Str(name) => Some(name.clone()),
+                _ => None,
+            })
+            .collect::<Option<Vec<_>>>()?;
+        return Some(Effect::RunEoc(names));
+    }
     if let Some(Value::Array(statements)) = object.get("math") {
         let statements = statements
             .iter()
