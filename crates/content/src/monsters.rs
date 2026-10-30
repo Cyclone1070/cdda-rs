@@ -35,6 +35,16 @@ pub struct MonsterType {
     pub melee_skill: i32,
     /// Dodge.
     pub dodge: i32,
+    /// How many dice of bonus bash its melee adds.
+    pub melee_dice: i32,
+    /// How many faces those dice have.
+    pub melee_sides: i32,
+    /// How much armour those dice ignore.
+    pub melee_dice_ap: i32,
+    /// Its resistance to bash.
+    pub armor_bash: i32,
+    /// Its resistance to cut.
+    pub armor_cut: i32,
     /// Morale.
     pub morale: i32,
     /// Aggression, from -100 to 100.
@@ -83,6 +93,45 @@ impl std::error::Error for LoadError {}
 ///
 /// Reports a file that cannot be read, or an object that names a base or a field
 /// the content does not define.
+/// Loads monster types from an already-parsed list of prototypes - the shape a dump holds.
+///
+/// The difference from [`load_paths`] is the filtering: a dump is the generator's own list, so every entry in
+/// it is a monster and there is no `type` field to look for. Everything after that is the same work - resolve
+/// inheritance, derive size from volume, and append the null monster the reference always has.
+///
+/// # Errors
+/// Returns the first prototype that could not be read.
+pub fn load_objects(prototypes: &[cdda_json::Value]) -> Result<Vec<MonsterType>, LoadError> {
+    let mut objects: BTreeMap<String, Object> = BTreeMap::new();
+    let mut order: Vec<String> = Vec::new();
+    for value in prototypes {
+        // Every prototype in a dump is a monster already: there is no `type` field to filter on, and the
+        // dump is the list the generator produced.
+        if let Value::Object(object) = value
+            && let Some(id) = string(object, "id")
+        {
+            if !objects.contains_key(&id) {
+                order.push(id.clone());
+            }
+            objects.insert(id, object.clone());
+        }
+    }
+    let mut out = Vec::new();
+    for id in &order {
+        let mut seen = Vec::new();
+        out.extend(resolve(id, &objects, &mut seen)?);
+    }
+    for monster in &mut out {
+        monster.size = size_from_volume(monster.volume);
+    }
+    out.push(null_monster());
+    Ok(out)
+}
+
+/// Loads every monster type under the given data directories, in the reference's load order.
+///
+/// # Errors
+/// Returns the first prototype that could not be read, or a directory that could not be listed.
 pub fn load_paths(dirs: &[&std::path::Path]) -> Result<Vec<MonsterType>, LoadError> {
     let mut objects: BTreeMap<String, Object> = BTreeMap::new();
     let mut order: Vec<String> = Vec::new();
@@ -245,6 +294,13 @@ fn apply(monster: &mut MonsterType, object: &Object, inherited: bool) -> Result<
     // would be reading something the reference ignores.
     monster.diff = count(object, "diff", monster.diff)?;
     monster.melee_skill = count(object, "melee_skill", monster.melee_skill)?;
+    monster.melee_dice = count(object, "melee_dice", monster.melee_dice)?;
+    monster.melee_sides = count(object, "melee_sides", monster.melee_sides)?;
+    monster.melee_dice_ap = count(object, "melee_dice_ap", monster.melee_dice_ap)?;
+    // Armour is read flat in the dump (`resistance_values` writes one integer per damage type) rather
+    // than as the `armor` object the game's JSON uses, because the dump is what this loader is fed.
+    monster.armor_bash = count(object, "armor_bash", monster.armor_bash)?;
+    monster.armor_cut = count(object, "armor_cut", monster.armor_cut)?;
     monster.dodge = count(object, "dodge", monster.dodge)?;
     monster.morale = count(object, "morale", monster.morale)?;
     monster.aggression = count(object, "aggression", monster.aggression)?;
@@ -452,6 +508,12 @@ impl MonsterType {
             dodge: 0,
             morale: 0,
             aggression: 0,
+            // The reference's own defaults: no dice (`mtype::melee_dice` starts at zero) and no armour.
+            melee_dice: 0,
+            melee_sides: 0,
+            melee_dice_ap: 0,
+            armor_bash: 0,
+            armor_cut: 0,
             // The reference's own defaults for a type that states neither.
             weight: 81_499_000,
             volume: 62_499,

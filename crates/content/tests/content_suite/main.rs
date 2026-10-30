@@ -101,6 +101,7 @@ mod monster_group_pick;
 mod monster_groups;
 mod monster_harvest;
 mod monsters;
+mod monster_attack;
 mod npc_classes;
 mod overmap;
 mod overmap_build;
