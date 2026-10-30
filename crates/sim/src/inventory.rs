@@ -56,6 +56,21 @@ pub fn weight_carried(world: &mut World, creature: Entity, names: &crate::item_r
     total
 }
 
+/// How much room everything a creature carries takes, in millilitres.
+///
+/// Reference: `Character::volume_carried`.
+#[must_use]
+pub fn volume_carried(world: &mut World, creature: Entity, names: &crate::item_registry::ItemNames) -> i64 {
+    let mut total = 0;
+    let mut query = world.query::<(&Carried, &GroundItem)>();
+    for (carried, item) in query.iter(world) {
+        if carried.0 == creature {
+            total += i64::from(names.volume_of(item.kind)) * i64::from(item.charges.max(1));
+        }
+    }
+    total
+}
+
 /// How many of one thing a creature is carrying.
 #[must_use]
 pub fn how_many(world: &mut World, creature: Entity, item: &str, name_of: impl Fn(crate::ItemTypeId) -> Option<String>) -> i32 {

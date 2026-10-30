@@ -15,7 +15,7 @@ use cdda_sim::{ItemTypeId, crafting};
 #[test]
 fn a_kind_can_be_looked_up_by_number_and_by_name() {
     let mut world = World::new();
-    item_registry::set_item_types(&mut world, &[("rag", 250, 100), ("rope", 500, 200), ("rock", 1_000, 5_000)]);
+    item_registry::set_item_types(&mut world, &[("rag", 250, 100, 0), ("rope", 500, 200, 0), ("rock", 1_000, 5_000, 0)]);
 
     assert_eq!(item_registry::count(&mut world), 3, "three kinds, not counting the null item");
     assert_eq!(item_registry::id_of(&mut world, "rope"), Some(ItemTypeId(2)));
@@ -42,8 +42,8 @@ fn a_kind_can_be_looked_up_by_number_and_by_name() {
 #[test]
 fn installing_a_second_registry_replaces_the_first() {
     let mut world = World::new();
-    item_registry::set_item_types(&mut world, &[("rag", 250, 100)]);
-    item_registry::set_item_types(&mut world, &[("rope", 500, 200)]);
+    item_registry::set_item_types(&mut world, &[("rag", 250, 100, 0)]);
+    item_registry::set_item_types(&mut world, &[("rope", 500, 200, 0)]);
     assert_eq!(item_registry::id_of(&mut world, "rag"), None, "a second load is not a merge");
     assert_eq!(item_registry::id_of(&mut world, "rope"), Some(ItemTypeId(1)));
 }
@@ -51,7 +51,7 @@ fn installing_a_second_registry_replaces_the_first() {
 #[test]
 fn a_craft_can_be_finished_without_a_caller_supplying_the_item_table() {
     let mut world = World::new();
-    item_registry::set_item_types(&mut world, &[("rag", 250, 100), ("rope", 500, 200)]);
+    item_registry::set_item_types(&mut world, &[("rag", 250, 100, 0), ("rope", 500, 200, 0)]);
 
     let crafter = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     let mut recipe = cdda_content::recipes::Recipe {
@@ -120,10 +120,19 @@ fn a_pickup_reads_the_size_of_what_it_is_lifting() {
     );
     singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
     // A four-litre thing: 100 + 200 moves, the most the volume term can be.
-    item_registry::set_item_types(&mut world, &[("jerrycan", 4_000, 2_000)]);
+    item_registry::set_item_types(
+        &mut world,
+        &[("jerrycan", 4_000, 2_000, 0), ("coat", 1_000, 1_000, 6_000)],
+    );
 
     let survivor = spawn_creature(&mut world, "the survivor", (1, 0, 0));
     give_moves(&mut world, survivor, 500);
+    // A coat with six litres of pockets: without one there is nowhere to put a four-litre can.
+    let coat = cdda_sim::drop_item(&mut world, (1, 0), ItemTypeId(2), 1);
+    world.entity_mut(coat).remove::<cdda_sim::Position>();
+    world
+        .entity_mut(coat)
+        .insert(cdda_sim::creature::WornBy(survivor));
     let can = cdda_sim::drop_item(&mut world, (1, 0), ItemTypeId(1), 1);
 
     assert_eq!(pick_up_in_store(&mut world, survivor, can), Picked::Taken);
@@ -201,7 +210,7 @@ fn too_heavy_is_refused_and_costs_nothing() {
     );
     singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
     // An anvil: fifty kilos, and a survivor can carry forty-five.
-    item_registry::set_item_types(&mut world, &[("anvil", 20_000, 50_000)]);
+    item_registry::set_item_types(&mut world, &[("anvil", 20_000, 50_000, 0)]);
 
     let survivor = spawn_creature(&mut world, "the survivor", (1, 0, 0));
     world.entity_mut(survivor).insert(Strength { base: 8 });
@@ -250,7 +259,7 @@ fn the_turn_loop_finishes_what_it_started() {
         },
     );
     singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
-    item_registry::set_item_types(&mut world, &[("rag", 250, 100), ("rope", 500, 200)]);
+    item_registry::set_item_types(&mut world, &[("rag", 250, 100, 0), ("rope", 500, 200, 0)]);
 
     let crafter = spawn_creature(&mut world, "the survivor", (0, 0, 0));
     set_speed(&mut world, crafter, 100, 0);
@@ -288,4 +297,69 @@ fn the_turn_loop_finishes_what_it_started() {
     assert_eq!(carried.get("rope"), Some(&1), "the loop made the rope itself");
     assert_eq!(carried.get("rag"), None, "and used both rags to do it");
     assert!(world.get::<crafting::Making>(crafter).is_none(), "nothing is still being made");
+}
+
+/// What you are wearing is where things go.
+///
+/// Reference: `Character::volume_capacity` (`character.cpp:8883-8889`) sums the capacity of what is worn, and
+/// `can_pickVolume` refuses what will not fit. The pair matters: a port that only counted weight would let a survivor put
+/// a jerrycan in a t-shirt pocket.
+#[test]
+fn you_can_only_carry_what_you_have_room_for() {
+    use cdda_core_types::level::Level;
+    use cdda_sim::creature::{
+        Picked, WornBy, give_moves, pick_up_in_store, spawn_creature, volume_capacity,
+    };
+    use cdda_sim::terrain_table::TerrainTable;
+    use cdda_sim::{Prototypes, singletons};
+
+    let mut world = World::new();
+    let mut level = Level::new();
+    for x in 0..4 {
+        level.set_terrain(x, 0, 1, 1);
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let mut terrain = TerrainTable::new();
+    terrain.insert(1, true);
+    terrain.insert_move_cost(1, 2);
+    cdda_sim::set_prototypes(
+        &mut world,
+        Prototypes {
+            terrain,
+            furniture: TerrainTable::new(),
+        },
+    );
+    singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
+    item_registry::set_item_types(
+        &mut world,
+        &[("jerrycan", 3_000, 1_000, 0), ("backpack", 2_000, 500, 5_000)],
+    );
+    let names = item_registry::snapshot(&mut world);
+
+    let survivor = spawn_creature(&mut world, "the survivor", (1, 0, 0));
+    give_moves(&mut world, survivor, 5_000);
+
+    assert_eq!(
+        volume_capacity(&mut world, survivor, &names),
+        0,
+        "a survivor wearing nothing has no room at all"
+    );
+    let can = cdda_sim::drop_item(&mut world, (1, 0), ItemTypeId(1), 1);
+    assert_eq!(
+        pick_up_in_store(&mut world, survivor, can),
+        Picked::TooBig,
+        "three litres into no pockets"
+    );
+
+    // Now with a backpack: five litres of room, which takes the three-litre can.
+    let pack = cdda_sim::drop_item(&mut world, (1, 0), ItemTypeId(2), 1);
+    world.entity_mut(pack).remove::<cdda_sim::Position>();
+    world.entity_mut(pack).insert(WornBy(survivor));
+    assert_eq!(volume_capacity(&mut world, survivor, &names), 5_000);
+    assert_eq!(pick_up_in_store(&mut world, survivor, can), Picked::Taken);
+    assert_eq!(
+        cdda_sim::inventory::volume_carried(&mut world, survivor, &names),
+        3_000,
+        "three of the five litres are now taken"
+    );
 }

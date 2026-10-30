@@ -488,6 +488,30 @@ pub fn carrying_capacity(world: &World, entity: Entity) -> i64 {
     base + i64::from(strength) * 4_000
 }
 
+/// How much room a creature has to put things in, in millilitres.
+///
+/// Reference: `Character::volume_capacity` (`character.cpp:8883-8889`) - `weapon.get_total_capacity()` plus
+/// `worn.volume_capacity()`. The port sums the worn items, because it has no separate weapon slot: a thing in a hand is
+/// either carried or worn, and neither had a capacity until now.
+///
+/// A creature wearing nothing can carry nothing, which is what the reference says too - pockets are where things go,
+/// and a survivor with no clothes has none.
+#[must_use]
+pub fn volume_capacity(
+    world: &mut World,
+    creature: Entity,
+    names: &crate::item_registry::ItemNames,
+) -> i64 {
+    let mut total = 0;
+    let mut query = world.query::<(&WornBy, &crate::GroundItem)>();
+    for (worn, item) in query.iter(world) {
+        if worn.0 == creature {
+            total += i64::from(names.holds_ml(item.kind));
+        }
+    }
+    total
+}
+
 /// How strong a creature is.
 ///
 /// Reference: `Character::get_str_base`, which the reference initialises to eight and raises with mutations and
@@ -517,6 +541,13 @@ pub fn pick_up_in_store(world: &mut World, creature: Entity, item: Entity) -> Pi
     if held + this > carrying_capacity(world, creature) {
         return Picked::TooHeavy;
     }
+    // Reference: `Character::can_pickVolume` - a thing has to fit somewhere, and what a survivor is wearing is all the
+    // room there is.
+    let room = volume_capacity(world, creature, &names);
+    let already = crate::inventory::volume_carried(world, creature, &names);
+    if already + i64::from(volume) > room {
+        return Picked::TooBig;
+    }
     pick_up(world, creature, item, volume)
 }
 
@@ -531,6 +562,8 @@ pub enum Picked {
     TooSlow,
     /// It would put the creature over what it can carry.
     TooHeavy,
+    /// It would not fit in what the creature is wearing.
+    TooBig,
     /// Somebody is already carrying it.
     AlreadyCarried,
 }
