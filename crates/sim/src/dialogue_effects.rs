@@ -31,13 +31,30 @@ pub fn run_assignment(
     listener: Option<Entity>,
     assignment: &Assignment,
 ) -> Applied {
-    let Some(value) = crate::conditions::value(world, speaker, listener, &assignment.expression)
+    // An assignment reads an unset variable as zero - `dialogue::get_value` answers a null value and the arithmetic treats it
+    // as nothing - so `"x = x + 20"` on an unset `x` writes 20 rather than refusing.
+    let Some(value) =
+        crate::conditions::value_with(world, speaker, listener, &assignment.expression, true)
     else {
         return Applied::CannotAnswer;
     };
+    // A destination naming a scope resolves the way the condition side resolves one: `global_val` is the shared map, and
+    // everything else is the speaker's own values.
+    let holder = match assignment.target.scope() {
+        Some("global_val") => match dialogue_values::global_holder(world) {
+            Some(global) => global,
+            None => return Applied::CannotAnswer,
+        },
+        Some("n_val" | "npc_val") => match listener {
+            Some(other) => other,
+            None => return Applied::CannotAnswer,
+        },
+        _ => speaker,
+    };
+    let name = assignment.target.name();
     let previous = match assignment.op {
         AssignmentOp::Set => 0.0,
-        _ => dialogue_values::number_of(world, speaker, &assignment.name).unwrap_or(0.0),
+        _ => dialogue_values::number_of(world, holder, name).unwrap_or(0.0),
     };
     let result = match assignment.op {
         AssignmentOp::Set | AssignmentOp::Add => previous + value,
@@ -50,7 +67,7 @@ pub fn run_assignment(
             previous / value
         }
     };
-    dialogue_values::set(world, speaker, &assignment.name, Value::Number(result));
+    dialogue_values::set(world, holder, name, Value::Number(result));
     Applied::Done
 }
 

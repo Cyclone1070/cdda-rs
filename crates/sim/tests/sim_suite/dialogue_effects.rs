@@ -21,6 +21,7 @@ fn a_math_statement_sets_a_dialogue_variable() {
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     let statement = assignment("void_spider_killed = 1");
     assert_eq!(statement.op, AssignmentOp::Set);
+    assert_eq!(statement.target.name(), "void_spider_killed");
     assert_eq!(run_assignment(&mut world, survivor, None, &statement), Applied::Done);
     assert_eq!(
         dialogue_values::number_of(&world, survivor, "void_spider_killed"),
@@ -51,13 +52,17 @@ fn a_statement_whose_value_cannot_be_worked_out_changes_nothing() {
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     dialogue_values::set(&mut world, survivor, "kept", Value::Number(7.0));
 
-    // `never_set` is nobody's value, so the assignment cannot be worked out - and the variable it would have changed stays put.
-    let unanswerable = assignment("kept = never_set + 1");
+    // An unset variable reads as **zero** in an assignment, which is the reference's arithmetic on a null value: `kept` becomes
+    // 1 rather than keeping its 7. This test used to assert a refusal, which was the port's guess rather than the reference's
+    // rule - the same shape of mistake as the `math` array shape two rounds ago.
+    let from_an_unset = assignment("kept = never_set + 1");
     assert_eq!(
-        run_assignment(&mut world, survivor, None, &unanswerable),
-        Applied::CannotAnswer
+        run_assignment(&mut world, survivor, None, &from_an_unset),
+        Applied::Done
     );
-    assert_eq!(dialogue_values::number_of(&world, survivor, "kept"), Some(7.0));
+    assert_eq!(dialogue_values::number_of(&world, survivor, "kept"), Some(1.0));
+
+    dialogue_values::set(&mut world, survivor, "kept", Value::Number(7.0));
 
     // Dividing by zero is the same shape of refusal rather than an infinity.
     let divide_by_zero = assignment("kept /= 0");
@@ -163,8 +168,34 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
     println!("eoc effects: {entries} entries, {runnable} runnable; most common refusals: {top:?}");
 
     assert_eq!(entries, 1612, "the data's effect-on-conditions hold 1,612 effects");
-    // 174, not the 304 `math` entries in the data: 130 of those assign to a **destination** the port cannot parse yet - the
-    // data writes both `"x = 1"` and `"u_val('x') = 1"`, and the second names its target in the expression language rather than
-    // with a bare identifier. The refusal list says so with `math` at 130, which is the next thing to read.
-    assert_eq!(runnable, 174, "of which the port runs 174 `math` entries");
+    // 179, not the 304 `math` entries in the data. Reading both spellings of a destination (`"x = 1"` and `"u_val('x') = 1"`)
+    // took it from 174 to 179, and the 125 still refused are of two shapes worth naming: 139 of the statements are pure
+    // **expressions** with no assignment at all (`"u_val('stamina')"`, `"ps_str + 50"`), and 76 are bare operators that suggest a
+    // statement split across several entries in one list (`["...", "*=", "..."]`). Neither is run: a list whose meaning the port
+    // cannot read is refused whole, because "ignore the parts I do not understand" is how a program silently does half its job.
+    assert_eq!(runnable, 179, "of which the port runs 179 `math` entries");
+}
+
+/// The other spelling of a destination: `u_val('x') = ...`, which the data also uses.
+///
+/// Reference: `read_var_info` (`condition.cpp:408-437`) classes a variable by the member that names it, so `u_val('x')` and a
+/// bare `x` are the same destination in two spellings. The port keeps both and resolves them the same way, which took the
+/// runnable count from 174 to 179 and stopped a whole class of statements from being refused for a spelling.
+#[test]
+fn a_destination_can_be_named_the_way_the_expression_language_names_it() {
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let statement = assignment("u_val('sleepiness') = min(u_val('sleepiness') + 20, 1200)");
+    assert_eq!(statement.target.scope(), Some("u_val"));
+    assert_eq!(run_assignment(&mut world, survivor, None, &statement), Applied::Done);
+    assert_eq!(
+        dialogue_values::number_of(&world, survivor, "sleepiness"),
+        Some(20.0),
+        "an unset variable is read as zero, then the assignment lands"
+    );
+    run_assignment(&mut world, survivor, None, &statement);
+    assert_eq!(
+        dialogue_values::number_of(&world, survivor, "sleepiness"),
+        Some(40.0)
+    );
 }

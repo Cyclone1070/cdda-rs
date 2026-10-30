@@ -85,22 +85,43 @@ pub fn value(
     listener: Option<Entity>,
     expression: &Expression,
 ) -> Option<f64> {
+    value_with(world, speaker, listener, expression, false)
+}
+
+/// What an expression works out to, with a choice about what an unset variable means.
+///
+/// The two callers disagree, and the reference is on both sides. A **condition** that names a variable nobody set has no answer
+/// (`maybe_get_value` answers a null pointer, `npctalk.cpp:2659-2662`), which the port reads as "cannot say" and a condition
+/// treats as false. An **assignment** reads it as zero, because `dialogue::get_value` answers a null value that the arithmetic
+/// treats as nothing - which is why `"u_val('x') = u_val('x') + 20"` on an unset `x` writes 20.
+#[must_use]
+pub fn value_with(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    expression: &Expression,
+    unset_is_zero: bool,
+) -> Option<f64> {
     match expression {
         Expression::Number(number) => Some(*number),
         Expression::Variable { scope, name } => {
             let holder = holder_of(world, speaker, listener, scope)?;
-            crate::dialogue_values::number_of(world, holder, name)
+            match crate::dialogue_values::number_of(world, holder, name) {
+                Some(number) => Some(number),
+                None if unset_is_zero => Some(0.0),
+                None => None,
+            }
         }
         Expression::Call { name, arguments } => {
             let arguments = arguments
                 .iter()
-                .map(|argument| value(world, speaker, listener, argument))
+                .map(|argument| value_with(world, speaker, listener, argument, unset_is_zero))
                 .collect::<Option<Vec<f64>>>()?;
             apply_function(name, &arguments)
         }
         Expression::Binary { op, left, right } => {
-            let left = value(world, speaker, listener, left)?;
-            let right = value(world, speaker, listener, right)?;
+            let left = value_with(world, speaker, listener, left, unset_is_zero)?;
+            let right = value_with(world, speaker, listener, right, unset_is_zero)?;
             Some(match op {
                 Operator::Add => left + right,
                 Operator::Subtract => left - right,

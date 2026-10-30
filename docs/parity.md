@@ -324,9 +324,15 @@ The data, measured across every effect-on-condition in every subdirectory: **712
 | Count | Value |
 |---|---|
 effect entries in the data | **1,612** |
-entries the port can run | **174** (the `math` statements it can read) |
+entries the port can run | **179** |
 
-The gap between 174 and the 304 `math` entries is itself the next measurement: 130 of them assign to a destination the port cannot parse - the data writes both `"x = 1"` and `"u_val('x') = 1"`, and the second names its target inside the expression language rather than with a bare identifier. That is on the refusal list, in first place, for the next round.
+Reading both spellings of a destination - `"x = 1"` and `"u_val('x') = 1"`, which `read_var_info` (`condition.cpp:408-437`) treats as the same variable classed by the member that names it - took the count from 174 to 179. The 125 still refused are of two shapes, counted rather than guessed: **139 statements are pure expressions** with no assignment (`"u_val('stamina')"`, `"ps_str + 50"`), and **76 are bare operators** (`"*="`, `"+="`) that suggest a statement split across several entries of one list. Neither is run: a list whose meaning the port cannot read is refused whole, because "ignore the parts I do not understand" is how a program silently does half its job.
+
+### An unset variable is zero in an assignment, and not in a condition (round 784)
+
+`value_with(..., unset_is_zero)` splits two readings that the reference makes differently and the port had conflated. A **condition** that names a variable nobody set has no answer - `maybe_get_value` answers a null pointer (`npctalk.cpp:2659-2662`) - and a condition treats "no answer" as false. An **assignment** reads it as zero, because `dialogue::get_value` answers a null value the arithmetic treats as nothing. So `"u_val('x') = u_val('x') + 20"` on an unset `x` writes 20, and `{"math": [u_val('x'), ">", 0]}` on the same unset `x` is false.
+
+A test had to be corrected for this: `kept = never_set + 1` was asserted to refuse, which was the port's guess rather than the reference's rule - the same shape of mistake as the `math` array shape in round 770.
 
 ### A field refuses entry, it does not seal a region (round 782)
 

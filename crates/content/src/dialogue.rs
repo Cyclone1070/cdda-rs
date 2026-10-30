@@ -608,28 +608,63 @@ pub enum AssignmentOp {
 /// read the `name = ...` half, which is why 304 effect entries were refused.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Assignment {
-    /// The variable's name, as the data spells it.
-    pub name: String,
+    /// Where the value is written.
+    pub target: AssignmentTarget,
     /// What is done to it.
     pub op: AssignmentOp,
     /// The value, worked out against the dialogue.
     pub expression: Expression,
 }
 
+/// Where a `math` statement writes its result.
+///
+/// The data uses both spellings: `"x = 1"` names a bare variable, and `"u_val('x') = 1"` names the variable the way the
+/// expression language does. They are the same thing - the reference's `read_var_info` resolves the second form to the same
+/// variable type the first implies (`condition.cpp:408-437`) - so the port keeps one target type with the scope recorded.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AssignmentTarget {
+    /// A bare name, which the dialogue looks up in its own context.
+    Bare(String),
+    /// A variable named the way the expression language names one: `u_val('x')`.
+    Variable {
+        /// The variable's type, as the data spells it.
+        scope: String,
+        /// The variable's name.
+        name: String,
+    },
+}
+
+impl AssignmentTarget {
+    /// The variable's name, whichever way it was written.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        match self {
+            Self::Bare(name) | Self::Variable { name, .. } => name,
+        }
+    }
+
+    /// The scope the target names, or nothing for a bare name.
+    #[must_use]
+    pub fn scope(&self) -> Option<&str> {
+        match self {
+            Self::Bare(_) => None,
+            Self::Variable { scope, .. } => Some(scope.as_str()),
+        }
+    }
+}
+
 /// Reads a `math` statement, or nothing when it is not an assignment the port can perform.
 #[must_use]
 pub fn read_assignment(text: &str) -> Option<Assignment> {
     let (name_part, op, rest) = split_assignment(text)?;
-    let name = name_part.trim();
-    if name.is_empty()
-        || !name
-            .chars()
-            .all(|character| character.is_alphanumeric() || character == '_')
-    {
-        return None;
-    }
+    let target = match read_text_expression(name_part.trim())? {
+        Expression::Variable { scope, name } => AssignmentTarget::Variable { scope, name },
+        // A destination must be a variable: a number, a call or an operator chain is an expression, and a `math` statement
+        // whose left-hand side is an expression has no place to put its answer.
+        Expression::Number(_) | Expression::Call { .. } | Expression::Binary { .. } => return None,
+    };
     Some(Assignment {
-        name: name.to_owned(),
+        target,
         op,
         expression: read_text_expression(rest)?,
     })
