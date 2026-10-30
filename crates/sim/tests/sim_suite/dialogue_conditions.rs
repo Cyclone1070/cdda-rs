@@ -176,8 +176,8 @@ fn the_port_answers_the_questions_it_can_and_says_how_many_that_is() {
     // `compare_string` (238) and `u_has_items` (155) - which is the list of what to port next, by frequency.
     assert_eq!(seen, 3708, "the data asks 3,708 `condition` objects");
     assert_eq!(
-        readable, 1300,
-        "of which the port answers 1,300: `u_has_effect`, `compare_string`, the combinators, and the `math` expressions whose every name it knows"
+        readable, 1494,
+        "of which the port answers 1,494: `u_has_effect`, `compare_string`, `u_has_items`, the combinators, and the `math` expressions whose every name it knows"
     );
 }
 
@@ -212,4 +212,62 @@ fn compare_string_looks_for_a_repeat_anywhere_in_the_list() {
     assert!(!holds(&world, survivor, &alone));
     let unset = condition(r#"{"compare_string": [{"u_val": "never_set"}, "marloss"]}"#);
     assert!(!holds(&world, survivor, &unset));
+}
+
+/// `u_has_items` counts what the creature actually carries, in stacks and in charges.
+///
+/// Reference: `conditional_fun::f_has_items` (`condition.cpp:836-865`). An object with neither `count` nor `charges` answers
+/// false without asking the inventory anything, and the port refuses to read it at all rather than answering a question the
+/// reference answers for a reason the port does not share.
+#[test]
+fn has_items_counts_the_stacks_and_the_charges_a_creature_carries() {
+    let mut world = World::new();
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[
+            cdda_sim::item_registry::Kind {
+                id: "rag",
+                volume_ml: 250,
+                weight_g: 100,
+                pockets: &[],
+            },
+            cdda_sim::item_registry::Kind {
+                id: "rope",
+                volume_ml: 500,
+                weight_g: 200,
+                pockets: &[],
+            },
+        ],
+    );
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    for _ in 0..2 {
+        let item = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 1);
+        world.entity_mut(item).insert(cdda_sim::creature::Carried(survivor));
+    }
+
+    let two_rags = condition(r#"{"u_has_items": {"item": "rag", "count": 2}}"#);
+    assert!(holds(&world, survivor, &two_rags), "two rag stacks are carried");
+
+    let three_rags = condition(r#"{"u_has_items": {"item": "rag", "count": 3}}"#);
+    assert!(!holds(&world, survivor, &three_rags), "and a third is not");
+
+    let two_charges = condition(r#"{"u_has_items": {"item": "rag", "charges": 2}}"#);
+    assert!(holds(&world, survivor, &two_charges), "each stack holds one charge here, so two stacks are two charges");
+
+    let some_rope = condition(r#"{"u_has_items": {"item": "rope", "count": 1}}"#);
+    assert!(!holds(&world, survivor, &some_rope), "no rope is carried");
+
+    // A requirement stating neither a count nor charges is not read: the reference answers false, the port refuses.
+    let empty = cdda_json::parse(br#"{"u_has_items": {"item": "rag"}}"#.as_slice()).expect("json");
+    assert!(cdda_content::dialogue::read_condition(&empty).is_none());
+
+    // A variable can name the item, which is what `str_or_var` means everywhere else in the data.
+    cdda_sim::dialogue_values::set(
+        &mut world,
+        survivor,
+        "wanted",
+        cdda_sim::dialogue_values::Value::Text("rag".to_owned()),
+    );
+    let by_variable = condition(r#"{"u_has_items": {"item": {"u_val": "wanted"}, "count": 2}}"#);
+    assert!(holds(&world, survivor, &by_variable));
 }

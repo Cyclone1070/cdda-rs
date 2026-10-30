@@ -27,6 +27,21 @@ pub fn holds(world: &World, creature: Entity, condition: &Condition) -> bool {
             .iter()
             .any(|condition| holds(world, creature, condition)),
         Condition::Not(inner) => !holds(world, creature, inner),
+        Condition::HasItems {
+            item,
+            count,
+            charges,
+        } => {
+            let Some(name) = text_of(world, creature, item) else {
+                return false;
+            };
+            let (stacks, total_charges) = crate::inventory::count_of(world, creature, &name);
+            // Reference: a stated `charges` is asked of the charges; otherwise the count is asked of the stacks, and a
+            // stated `charges` beside a stated count has to pass both.
+            let enough_charges = charges.is_none_or(|wanted| total_charges >= wanted);
+            let enough_count = count.is_none_or(|wanted| stacks >= wanted);
+            enough_charges && enough_count
+        }
         Condition::CompareString(sources) => {
             let mut seen: Vec<String> = Vec::with_capacity(sources.len());
             for source in sources {

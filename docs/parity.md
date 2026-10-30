@@ -296,6 +296,21 @@ Three things the sweep settled that the code did not say:
 * **The damage that arrives is the damage the data states, to the point.** The 32 positive spells sum to exactly **100,016,638** - the data's own total - including the outlier `hallu_touch_suicide` at 100,000,000. Nothing in the path rounds, clamps or resists when there is no armour.
 * **The first version of the sweep measured nothing.** A creature built by `spawn_creature` has no body, so all 77 refusals said `NothingToHit` and the sweep "passed" its counts. It now gives the target a torso, which is the same lesson as the frame dump: a dump taken before the object is configured measures the harness.
 
+### u_has_items: the first question about things (round 772)
+
+`u_has_items` is the first dialogue condition that asks the store about **entities** rather than numbers, and it needed an inventory count that a read-only pass could ask: `inventory::count_of(world: &World, creature, name) -> (stacks, charges)`, beside the existing `carried_by_id` which took `&mut World`. A question that needs a mutable world is a question no schedule can ask from inside a read pass, so the `&World` form is the one the dialogue machine uses.
+
+The rule is `f_has_items` (`condition.cpp:836-865`): an object naming an `item` and stating a `count` or a `charges`; a stated `charges` is asked of the charges, a count of the stacks, and stating both means both must pass. The `item` is a `str_or_var`, so a variable may name it.
+
+| Change | Readable conditions |
+|---|---|
+| after `compare_string` | 1,300 |
+| **plus `u_has_items`** | **1,494** |
+
+Dialogue coverage is now **1,494 of 3,708 (40.3%)**, from 11.7% at the start of the EOC work. Remaining refusals: `and` 1,044, `math` 263, `not` 251, `u_has_mission` 114, `npc_has_trait` 95.
+
+One deliberate divergence: a `u_has_items` object stating **neither** count nor charges is *refused* by the port, where the reference builds a closure that answers false. The reference does that because a malformed requirement should not crash the load; the port has no such requirement, and refusing is how it reports a shape it cannot answer.
+
 ### compare_string is a repeat-search, and the leaves compound (round 771)
 
 `compare_string` sounds like a comparison of two strings. It is not: `f_compare_string` (`condition.cpp:1900-1920`) takes a **list**, remembers what it has seen, and holds the moment a value comes round twice. The port implemented that rule, not the name's suggestion, and the measurement shows what one leaf is worth:

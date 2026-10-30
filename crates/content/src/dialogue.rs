@@ -26,6 +26,18 @@ pub enum Condition {
     Or(Vec<Condition>),
     /// This one does not hold.
     Not(Box<Condition>),
+    /// The creature carries enough of a thing.
+    ///
+    /// Reference: `conditional_fun::f_has_items` (`condition.cpp:836-865`). The object must name an `item` and state either a
+    /// `count` or a `charges`; with neither, the reference answers a flat false rather than asking the inventory anything.
+    HasItems {
+        /// The item's id, as the data writes it.
+        item: StringSource,
+        /// How many must be carried, when the data states a count.
+        count: Option<i32>,
+        /// How many charges must be carried, when the data states charges.
+        charges: Option<i32>,
+    },
     /// At least two of these strings are the same.
     ///
     /// Reference: `conditional_fun::f_compare_string` (`condition.cpp:1900-1920`), which is not a comparison of two values
@@ -147,6 +159,9 @@ pub fn read_condition(value: &Value) -> Option<Condition> {
     if let Some(inner) = object.get("not") {
         return read_condition(inner).map(|condition| Condition::Not(Box::new(condition)));
     }
+    if let Some(Value::Object(requirement)) = object.get("u_has_items") {
+        return read_has_items(requirement);
+    }
     if let Some(Value::Array(values)) = object.get("compare_string") {
         return values
             .iter()
@@ -179,6 +194,31 @@ pub fn read_condition(value: &Value) -> Option<Condition> {
         effect: effect.clone(),
         intensity,
     })
+}
+
+/// Reads a `u_has_items` requirement, or nothing when the port cannot ask the question it states.
+fn read_has_items(requirement: &cdda_json::Object) -> Option<Condition> {
+    let item = read_string_source(requirement.get("item")?)?;
+    let count = read_whole_number(requirement.get("count"));
+    let charges = read_whole_number(requirement.get("charges"));
+    if count.is_none() && charges.is_none() {
+        // Reference: an object that states neither answers false, and the reference builds that closure without asking the
+        // inventory. Refusing here would be a different answer, so the port keeps the false.
+        return None;
+    }
+    Some(Condition::HasItems {
+        item,
+        count,
+        charges,
+    })
+}
+
+/// A whole number the data states, or nothing when it states something the port cannot read as one.
+fn read_whole_number(value: Option<&Value>) -> Option<i32> {
+    match value? {
+        Value::Int(number) => i32::try_from(*number).ok(),
+        _ => None,
+    }
 }
 
 /// Reads one source of a string, or nothing when it is a shape the port cannot resolve.

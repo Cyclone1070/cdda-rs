@@ -177,7 +177,20 @@ impl ItemNames {
             .cloned()
     }
 
-    /// The kind a name refers to.
+    /// The name of a kind, asked without needing to change the store - the same answer as [`name_of`], for callers that only
+/// hold the world by reference.
+#[must_use]
+pub fn name_in(world: &World, kind: ItemTypeId) -> Option<String> {
+    let mut query = world.try_query_filtered::<&ItemTypes, With<TheItemTypes>>()?;
+    let registry = query.iter(world).next()?;
+    registry
+        .names
+        .get(kind.0 as usize)
+        .filter(|name| !name.is_empty())
+        .cloned()
+}
+
+/// The kind a name refers to.
     #[must_use]
     pub fn id_of(&self, name: &str) -> Option<ItemTypeId> {
         self.by_name.get(name).copied()
@@ -235,6 +248,19 @@ pub fn name_of(world: &mut World, kind: ItemTypeId) -> Option<String> {
     let entity = singletons::singleton::<ItemTypes, TheItemTypes>(world);
     let registry = world.get::<ItemTypes>(entity)?;
     registry.names.get(kind.0 as usize).filter(|name| !name.is_empty()).cloned()
+}
+
+/// The name of a kind, asked without needing to change the store - the same answer as [`name_of`], for callers that only
+/// hold the world by reference.
+#[must_use]
+pub fn name_in(world: &World, kind: ItemTypeId) -> Option<String> {
+    let mut query = world.try_query_filtered::<&ItemTypes, With<TheItemTypes>>()?;
+    let registry = query.iter(world).next()?;
+    registry
+        .names
+        .get(kind.0 as usize)
+        .filter(|name| !name.is_empty())
+        .cloned()
 }
 
 /// The kind a name refers to.

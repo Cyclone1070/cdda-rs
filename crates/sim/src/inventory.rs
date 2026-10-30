@@ -79,3 +79,28 @@ pub fn how_many(world: &mut World, creature: Entity, item: &str, name_of: impl F
         .copied()
         .unwrap_or(0)
 }
+
+/// How much of one named thing a creature carries: the stacks, and the charges in them.
+///
+/// This is the `&World` form of [`carried_by_id`], for callers that must not change the store - answering a dialogue
+/// question is one of those, and a question that needed a mutable world would be a question no schedule can ask from
+/// inside a read pass.
+#[must_use]
+pub fn count_of(world: &World, creature: Entity, name: &str) -> (i32, i32) {
+    let mut stacks = 0;
+    let mut charges = 0;
+    let Some(mut query) = world.try_query::<(&Carried, &GroundItem)>() else {
+        return (0, 0);
+    };
+    for (carried, item) in query.iter(world) {
+        if carried.0 != creature {
+            continue;
+        }
+        if crate::item_registry::name_in(world, item.kind).as_deref() != Some(name) {
+            continue;
+        }
+        stacks += 1;
+        charges += item.charges.max(1);
+    }
+    (stacks, charges)
+}
