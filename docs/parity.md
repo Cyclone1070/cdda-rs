@@ -296,6 +296,18 @@ Three things the sweep settled that the code did not say:
 * **The damage that arrives is the damage the data states, to the point.** The 32 positive spells sum to exactly **100,016,638** - the data's own total - including the outlier `hallu_touch_suicide` at 100,000,000. Nothing in the path rounds, clamps or resists when there is no armour.
 * **The first version of the sweep measured nothing.** A creature built by `spawn_creature` has no body, so all 77 refusals said `NothingToHit` and the sweep "passed" its counts. It now gives the target a torso, which is the same lesson as the frame dump: a dump taken before the object is configured measures the harness.
 
+### Dialogue variables, the store the questions needed (round 768)
+
+518 `math` conditions and 238 `compare_string` ones were refused for one reason: they name variables, and the port had nowhere to keep one. `dialogue_values` is `dialogue::get_value` / `set_value` (`dialogue.cpp`): a set of named values on the creature, and a **global** set in the store so a value written by one conversation is the value the next reads.
+
+Three answers are distinct and the store keeps them distinct:
+
+* a number, which arithmetic and comparisons read;
+* text, which `compare_string` reads;
+* **absent**, which is neither zero nor the empty string. `number_of` on a text value is `None`, and so is any read of a name nobody set - the same shape as the reference's `maybe_get_value` answering a null pointer.
+
+A `u_val` belongs to the speaker and a `global_val` is shared: the same name can hold different values in the two namespaces and neither shadows the other, which is gated.
+
 ### Effect-on-conditions: the first question (round 767)
 
 63 of the game's spells are `effect_on_condition`, and an EOC is a program: a condition, then a list of effects. The port had the *ids* of all 913 EOCs and could evaluate none of them. This round opens the first half - the condition - with the smallest honest slice:
