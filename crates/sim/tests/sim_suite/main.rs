@@ -49,6 +49,7 @@ mod creatures;
 mod pathfinding;
 mod routing;
 mod walking;
+mod worn_armour;
 mod wounds;
 mod hit_location;
 mod melee;

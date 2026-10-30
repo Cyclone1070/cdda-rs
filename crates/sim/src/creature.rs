@@ -351,6 +351,65 @@ pub fn armour_on(world: &World, entity: Entity, part: &str) -> i32 {
     world.get::<Armour>(entity).map_or(0, |armour| armour.bash)
 }
 
+/// A thing being worn, and by whom.
+///
+/// Reference: the reference keeps a `Character`'s worn items in a `wearable_item` list and asks `worn.damage_resist`
+/// for a part. The port keeps the **item** as an entity and the link as a component on it, so "what is this worn by"
+/// is one answer in one direction - a list on the wearer as well would be a second copy that could disagree.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WornBy(pub Entity);
+
+/// What a worn thing protects, part by part, as content worked it out.
+///
+/// The numbers come from the item's armour entries and its materials (`cdda_content::armour::layers_on`), which is
+/// content's business; this component carries the answer so the simulation never needs the material table to
+/// answer "what is on your torso".
+#[derive(Component, Debug, Clone, Default, PartialEq)]
+pub struct Garment {
+    /// The layers it puts in the way, per body part name.
+    pub layers: Vec<(String, cdda_content::armour::Layer)>,
+}
+
+/// Works out what every creature is wearing and writes it into [`PartArmour`].
+///
+/// This is the answer-to-a-question shape the architecture asks for: `PartArmour` is derived, one system writes it,
+/// and nothing else does. A creature with nothing on ends up with an empty map rather than a stale one from the turn
+/// before, which is the failure a store with two writers always has.
+pub fn dress(world: &mut World) {
+    // What each worn thing protects, gathered before anything is written.
+    let mut worn: Vec<(Entity, Vec<(String, cdda_content::armour::Layer)>)> = Vec::new();
+    {
+        let mut query = world.query::<(&WornBy, &Garment)>();
+        for (worn_by, garment) in query.iter(world) {
+            worn.push((worn_by.0, garment.layers.clone()));
+        }
+    }
+    let wearers: Vec<Entity> = {
+        let mut query = world.query::<(Entity, &Creature)>();
+        query.iter(world).map(|(entity, _)| entity).collect()
+    };
+    for wearer in wearers {
+        let mut armour: std::collections::BTreeMap<String, i32> = std::collections::BTreeMap::new();
+        for (owner, layers) in &worn {
+            if *owner != wearer {
+                continue;
+            }
+            for (part, layer) in layers {
+                // A hit that meets the layer is what the armour is for; the roll is the store being conservative
+                // (every layer counted) until a blow asks for a specific one.
+                #[allow(clippy::cast_possible_truncation)]
+                let added = cdda_content::armour::layer_resist(*layer, 0) as i32;
+                *armour.entry(part.clone()).or_insert(0) += added;
+            }
+        }
+        if armour.is_empty() {
+            world.entity_mut(wearer).remove::<PartArmour>();
+        } else {
+            world.entity_mut(wearer).insert(PartArmour(armour));
+        }
+    }
+}
+
 /// Where a creature has been hurt, part by part.
 ///
 /// Reference: `Creature::deal_damage` takes a `bodypart_id`, and the damage is recorded against it. The port keeps

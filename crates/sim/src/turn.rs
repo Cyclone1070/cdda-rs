@@ -127,6 +127,9 @@ pub fn run_turn(world: &mut World) {
 
 fn creatures_stage(world: &mut World) {
     note(world, TurnStage::Creatures);
+    // What every creature is wearing is worked out before anything acts: a blow this turn asks what the armour
+    // was at the start of it, not what it became afterwards.
+    crate::creature::dress(world);
     // The dead are cleared before anything acts, so a creature killed this turn does not also walk.
     crate::creature::reap_dead_creatures(world);
     crate::creature::take_turns(world);
