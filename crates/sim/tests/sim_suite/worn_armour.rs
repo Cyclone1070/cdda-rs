@@ -138,6 +138,7 @@ fn two_layers_on_one_part_add_up() {
 fn a_garment_can_be_put_on_once_and_taken_off_again() {
     let mut world = World::new();
     let survivor = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::creature::give_moves(&mut world, survivor, 1_000);
     let vest = world.spawn(vest()).id();
     assert_eq!(armour_on(&world, survivor, "torso"), 0, "nothing on yet");
 
@@ -182,6 +183,7 @@ fn something_that_is_not_a_garment_cannot_be_worn() {
 fn a_garment_wears_out_in_four_steps_and_is_gone_on_the_fifth() {
     let mut world = World::new();
     let survivor = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::creature::give_moves(&mut world, survivor, 1_000);
     let vest = world.spawn(vest()).id();
 
     assert_eq!(wear(&mut world, survivor, vest), Wore::Worn);
@@ -360,5 +362,51 @@ fn two_identical_blows_do_not_have_to_leave_the_same_vest() {
     assert!(
         damaged < 20,
         "all twenty draws damaged the vest, which is what a roll derived from the blow would do"
+    );
+}
+
+/// Putting a coat on takes time, and a skin-tight layer takes more of it than a loose one.
+///
+/// Reference: `Character::item_wear_cost` (`character_attire.cpp:459-500`), charged through
+/// `guy.mod_moves( -cost )` when the garment goes on (`:353`). The layer factors are the part worth pinning: they are
+/// easy to get backwards, and getting them backwards would make a wetsuit quicker to put on than a jacket.
+#[test]
+fn putting_something_on_costs_moves_by_its_layer() {
+    use cdda_sim::creature::{Layering, give_moves, moves_left, wear, wear_cost};
+
+    // A litre of anything costs a hundred and fifty moves to handle.
+    assert_eq!(wear_cost(1_000, Layering::Normal), 150, "ordinary clothes: as they come");
+    assert_eq!(
+        wear_cost(1_000, Layering::Skintight),
+        225,
+        "skin-tight is half again as slow"
+    );
+    assert_eq!(
+        wear_cost(1_000, Layering::Outer),
+        100,
+        "an outer layer is divided by one and a half"
+    );
+    assert_eq!(wear_cost(1_000, Layering::Belted), 75, "and a belt is halved");
+
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let shirt = world
+        .spawn((
+            cdda_sim::creature::Garment { layers: Vec::new() },
+            cdda_sim::creature::Carried(survivor),
+        ))
+        .id();
+    give_moves(&mut world, survivor, 50);
+    assert_eq!(
+        wear(&mut world, survivor, shirt),
+        cdda_sim::creature::Wore::TooSlow,
+        "fifty moves is not a hundred"
+    );
+    give_moves(&mut world, survivor, 200);
+    assert_eq!(wear(&mut world, survivor, shirt), cdda_sim::creature::Wore::Worn);
+    assert_eq!(
+        moves_left(&world, survivor),
+        150,
+        "and the hundred it costs for a litre of ordinary clothing was spent"
     );
 }

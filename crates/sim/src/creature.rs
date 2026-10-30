@@ -1007,14 +1007,60 @@ pub enum Wore {
     AlreadyWorn,
     /// It is lying on a square: it has to be in hand before it can go on.
     NotInHand,
+    /// There were not enough moves left to put it on.
+    TooSlow,
 }
 
 /// Puts a thing on a creature, if it is a garment and not already being worn.
+///
+/// Reference: `Character::wear` (`character_attire.cpp:340-353`): the refusals come first, then `item_wear_cost` is
+/// charged. A garment that cannot be worn therefore costs nothing, which is the order the reference uses and the order
+/// that stops a survivor losing a turn for trying a rock on as a hat.
 ///
 /// Reference: `Character::wear` refuses an item that is not armour and one that is already worn, and `dress` is what
 /// turns the list into the numbers a blow reads. The port keeps the refusal reasons as an answer rather than a
 /// message, because a caller may want to say something different - and because a silent failure to wear a vest would
 /// be the worst kind of bug in a game about vests.
+/// Which layer of clothing something is worn on.
+///
+/// Reference: `layer_level` (`src/bodypart.h`), which decides how long a garment takes to put on: skin-tight clothes are
+/// slower than loose ones, and a belt is quicker than both.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Layering {
+    /// Against the skin.
+    Skintight,
+    /// An ordinary shirt or trousers.
+    Normal,
+    /// Hanging off a belt.
+    Belted,
+    /// At the waist.
+    Waist,
+    /// The outside layer.
+    Outer,
+    /// Personal effects.
+    Personal,
+    /// Worn from an aura rather than clothing.
+    Aura,
+}
+
+/// How many moves putting a garment on costs.
+///
+/// Reference: `Character::item_wear_cost` (`character_attire.cpp:459-500`) - `item_handling_cost` times a layer factor:
+/// skin-tight is half again as slow, waist and outer layers are divided by one and a half, and a belted thing is halved.
+/// The encumbrance term the reference multiplies in is not here, because the port does not model encumbrance yet and a
+/// made-up factor would be worse than none.
+#[must_use]
+pub fn wear_cost(volume_ml: i32, layer: Layering) -> i32 {
+    let base = handling_cost(volume_ml);
+    match layer {
+        Layering::Skintight => base * 3 / 2,
+        Layering::Waist | Layering::Outer => base * 2 / 3,
+        Layering::Belted => base / 2,
+        Layering::Normal | Layering::Personal | Layering::Aura => base,
+    }
+}
+
+/// Puts a thing on, if it is a garment, not already worn, and the creature has the moves for it.
 pub fn wear(world: &mut World, wearer: Entity, item: Entity) -> Wore {
     if world.get::<Garment>(item).is_none() {
         return Wore::NotAWearable;
@@ -1027,6 +1073,13 @@ pub fn wear(world: &mut World, wearer: Entity, item: Entity) -> Wore {
     if world.get::<Position>(item).is_some() && world.get::<Carried>(item).is_none() {
         return Wore::NotInHand;
     }
+    // Reference: `Character::can_wear` is asked before the cost is charged (`character_attire.cpp:340-353`), so a thing
+    // that cannot be worn costs nothing.
+    let cost = wear_cost(0, Layering::Normal);
+    if moves_left(world, wearer) < cost {
+        return Wore::TooSlow;
+    }
+    give_moves(world, wearer, -cost);
     world.entity_mut(item).insert(WornBy(wearer));
     dress(world);
     Wore::Worn
