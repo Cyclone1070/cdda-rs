@@ -508,6 +508,68 @@ pub fn damage_worn(world: &mut World, item: Entity, blow: &GarmentBlow) -> Struc
     Struck::Damaged
 }
 
+/// Damages whatever a creature is wearing on the part a blow reached.
+///
+/// Reference: `Character::absorb_hit` (`character_armor.cpp`) walks the worn items that cover the struck part and,
+/// for each, tells `damage_armor_durability` what arrived **before** mitigation - a garment's own fate is decided by
+/// the whole blow, not by the part of it the garment happened to stop.
+///
+/// Two numbers the port has to approximate, and neither is a guess about arithmetic:
+///
+/// * `own_resist` is the layer's own protection - its material's resistance times its thickness - because the port
+///   does not keep a garment's separate "resistance to being damaged" apart from what it grants its wearer, and the
+///   reference's two are computed from the same materials;
+/// * `fragile` and `sturdy` are **false**, because the port does not load item flags yet and a flag invented here
+///   would make some garments indestructible for reasons no data said.
+///
+/// Returns how the first garment that was in the way fared, which is what a caller usually wants to report; every
+/// other garment on the part is damaged too, because that is what the reference does.
+pub fn settle_armour(
+    world: &mut World,
+    victim: Entity,
+    part: &str,
+    premitigated: f64,
+    fraction: f64,
+) -> Struck {
+    let mut in_the_way: Vec<(Entity, Vec<(String, cdda_content::armour::Layer)>)> = Vec::new();
+    {
+        let mut query = world.query::<(Entity, &WornBy, &Garment)>();
+        for (item, worn_by, garment) in query.iter(world) {
+            if worn_by.0 == victim {
+                in_the_way.push((item, garment.layers.clone()));
+            }
+        }
+    }
+    let mut worst = Struck::Untouched;
+    for (item, layers) in in_the_way {
+        let Some(layer) = layers
+            .iter()
+            .find(|(covered, _)| covered == part)
+            .map(|(_, layer)| *layer)
+        else {
+            continue;
+        };
+        let covered_parts = layers
+            .iter()
+            .map(|(covered, _)| covered.clone())
+            .collect::<std::collections::BTreeSet<_>>()
+            .len();
+        let blow = GarmentBlow {
+            premitigated,
+            own_resist: layer.resist * f64::from(layer.thickness),
+            covered_parts,
+            fragile: false,
+            sturdy: false,
+            fraction,
+        };
+        let struck = damage_worn(world, item, &blow);
+        if struck != Struck::Untouched {
+            worst = struck;
+        }
+    }
+    worst
+}
+
 /// What came of trying to put something on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Wore {
@@ -856,6 +918,16 @@ fn strike_what_the_goal_holds(world: &mut World, attacker: Entity, goal: (i32, i
     let swung = crate::melee::resolve(hitroll, rolled, defence);
     crate::singletons::put_rolls(world, rolls);
     if swung.hit {
+        if let Some(part) = landed_on.as_deref() {
+            // What arrived, before the armour took its share: a garment's own fate is decided by the whole blow
+            // (`character_armor.cpp`). `rolled` is that number, and the spread of the blow is the die for whether the
+            // garment is damaged at all.
+            let arrived = f64::from(rolled.bash.max(0) + rolled.cut.max(0));
+            // The roll for whether the garment is damaged is the margin the blow landed by over the hundred it
+            // needed: a blow that barely connected is less likely to ruin a coat than a solid one.
+            let fraction = (arrived / 100.0).clamp(0.0, 1.0);
+            settle_armour(world, victim, part, arrived, fraction);
+        }
         hurt(world, victim, swung.damage);
         if let Some(part) = landed_on {
             #[allow(clippy::cast_possible_truncation)]

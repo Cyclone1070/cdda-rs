@@ -221,3 +221,66 @@ fn the_same_seed_lands_the_blow_in_the_same_place() {
     // difference: a cast that drew from somewhere else would not answer the same twice.
     assert_eq!(cast_once(11), cast_once(11), "and so does another");
 }
+
+/// A vest that stops blow after blow eventually stops being a vest.
+///
+/// Reference: `Character::absorb_hit` (`character_armor.cpp`) asks every garment covering the struck part to survive
+/// the blow, using the damage that **arrived** rather than the damage that got through. The distinction is the whole
+/// test: the wearer is barely hurt in each of these casts, and the vest still comes apart.
+#[test]
+fn a_vest_that_stops_blow_after_blow_comes_apart_and_then_the_flesh_does() {
+    let (mut world, victim) = world_with_victim((1, 0));
+    let vest = world
+        .spawn((
+            WornBy(victim),
+            Garment {
+                layers: vec![(
+                    "torso".to_owned(),
+                    cdda_content::armour::Layer {
+                        resist: 5.0,
+                        thickness: 1.0,
+                        cover: 100,
+                    },
+                )],
+            },
+        ))
+        .id();
+    dress(&mut world);
+    set_health(&mut world, victim, 1_000);
+
+    // The first four casts each damage the vest; the wearer takes ten apiece either way.
+    for cast in 1..=4 {
+        let landed = cast_attack(&mut world, (0, 0, 0), &taser(), 0, victim, 0.0);
+        assert_eq!(
+            landed,
+            Cast::Hit {
+                part: "torso".to_owned(),
+                dealt: 10
+            },
+            "cast {cast} still meets five points of armour"
+        );
+    }
+    assert_eq!(health_of(&world, victim), Some(960));
+
+    // And the fifth ruins it.
+    let landed = cast_attack(&mut world, (0, 0, 0), &taser(), 0, victim, 0.0);
+    assert_eq!(
+        landed,
+        Cast::Hit {
+            part: "torso".to_owned(),
+            dealt: 10
+        },
+        "the fifth blow is still stopped - the vest is ruined *by* stopping it"
+    );
+    assert!(world.get_entity(vest).is_err(), "and the vest is gone");
+
+    let landed = cast_attack(&mut world, (0, 0, 0), &taser(), 0, victim, 0.0);
+    assert_eq!(
+        landed,
+        Cast::Hit {
+            part: "torso".to_owned(),
+            dealt: 15
+        },
+        "the next blow meets nothing at all"
+    );
+}

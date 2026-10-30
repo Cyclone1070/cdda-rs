@@ -73,7 +73,12 @@ pub fn cast_attack(
         return Cast::NothingToHit;
     };
     let armour = armour_on(world, target, &part);
-    let dealt = through_armour(damage.round() as i32, armour);
+    #[allow(clippy::cast_precision_loss)]
+    let arrived = damage.round() as i32;
+    // The garment that stopped the blow may not survive stopping it, and it is asked with what arrived rather than
+    // what got through (`character_armor.cpp`).
+    crate::creature::settle_armour(world, target, &part, damage, fraction);
+    let dealt = through_armour(arrived, armour);
     hurt(world, target, dealt as f32);
     Cast::Hit { part, dealt }
 }
