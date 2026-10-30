@@ -28,6 +28,7 @@ pub mod turn;
 pub mod inspect;
 pub mod inventory;
 pub mod item_registry;
+pub mod pockets;
 pub use square::load_level;
 pub mod skills;
 pub use singletons::{

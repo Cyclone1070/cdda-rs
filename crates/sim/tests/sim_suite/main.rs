@@ -138,6 +138,7 @@ mod needs;
 mod neighbour_order;
 mod per_turn;
 mod pickup;
+mod pockets;
 mod player_body;
 mod player_turn;
 mod pocket_accepts;
