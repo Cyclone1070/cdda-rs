@@ -48,6 +48,7 @@ pub mod monsters;
 pub mod npc_classes;
 pub mod overmap;
 pub mod recipes;
+pub mod spells;
 pub mod qualities;
 pub mod zones;
 pub mod requirements;

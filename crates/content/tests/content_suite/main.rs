@@ -121,6 +121,7 @@ mod recipe_requirements;
 mod recipe_skills;
 mod recipe_tools;
 mod recipes;
+mod spells;
 mod resolve_placeholders;
 mod rules;
 mod starting_kit;
