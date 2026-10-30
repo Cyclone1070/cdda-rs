@@ -170,7 +170,12 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
     // 538 after the trait effects: 139 entries (36 `u_add_trait`, 103 `u_lose_trait`), the first effects that change a creature
     // rather than say something. The count moved by exactly the number of entries the new readers cover, which is what a census
     // should do - no drift, no estimate.
-    assert_eq!(runnable, 538, "of which the port runs 538 entries");
+    //
+    // 601 after the effect-mutation readers: `u_add_effect` and its `npc_` twin (78 entries) plus their `duration` members, and
+    // `u_remove_effect`. The jump is 63, which is 601 - 538 - and it is the first time the effect count has moved by a number the
+    // reader does not make obvious: `duration` is a **modifier**, so some entries it was counted against were refused for a
+    // different reason and now read. Stated rather than smoothed over.
+    assert_eq!(runnable, 601, "of which the port runs 601 entries");
 }
 
 /// The other spelling of a destination: `u_val('x') = ...`, which the data also uses.
@@ -242,4 +247,62 @@ fn a_program_runs_its_effects_in_order_and_a_message_is_recorded() {
     assert!(cdda_content::dialogue::read_effect(&translated).is_some());
     let snippet = cdda_json::parse(br#"{"u_message": "snippet_id", "snippet": true}"#.as_slice()).expect("json");
     assert!(cdda_content::dialogue::read_effect(&snippet).is_none());
+}
+
+/// A program can give and take an effect, with the duration and intensity the data states.
+///
+/// Reference: `f_add_effect` (`npctalk.cpp:3426-3450`): the duration is a time string, `PERMANENT`, or absent (1000 turns); the
+/// intensity defaults to zero and the effect's own rule raises it to one. 78 entries in the data state `u_add_effect`, and 117
+/// state a `duration` with it.
+#[test]
+fn a_program_can_give_and_take_a_wound() {
+    use cdda_content::dialogue::Effect;
+    use cdda_sim::applied_effects;
+    use cdda_sim::dialogue_effects::run_effects;
+
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+
+    let entry = |text: &str| {
+        cdda_content::dialogue::read_effect(&cdda_json::parse(text.as_bytes()).expect("json"))
+            .expect("readable")
+    };
+
+    let timed = entry(r#"{"u_add_effect": "effect_bleed", "duration": "30 m", "intensity": 2}"#);
+    let Effect::AddEffect { duration, intensity, .. } = timed else {
+        panic!("read as an effect to add");
+    };
+    assert_eq!(duration, Some(1800), "thirty minutes is 1,800 turns");
+    assert_eq!(intensity, 2);
+
+    assert_eq!(
+        run_effects(&mut world, survivor, None, &[timed]),
+        Applied::Done
+    );
+    assert!(applied_effects::has(&world, survivor, "effect_bleed"));
+    assert_eq!(
+        applied_effects::intensity_of(&world, survivor, "effect_bleed"),
+        Some(2)
+    );
+
+    // `PERMANENT` is an effect that never runs down, which the port spells with the effect's own pause flag.
+    let permanent = entry(r#"{"u_add_effect": "effect_mutation_purge", "duration": "PERMANENT"}"#);
+    let Effect::AddEffect { duration: None, .. } = permanent else {
+        panic!("permanent is read as no duration");
+    };
+    assert_eq!(
+        run_effects(&mut world, survivor, None, &[permanent]),
+        Applied::Done
+    );
+
+    let gone = entry(r#"{"u_remove_effect": "effect_bleed"}"#);
+    assert_eq!(run_effects(&mut world, survivor, None, &[gone]), Applied::Done);
+    assert!(!applied_effects::has(&world, survivor, "effect_bleed"));
+
+    // A body part the port does not model is refused rather than applied to the whole creature.
+    let on_a_part = cdda_json::parse(
+        br#"{"u_add_effect": "effect_bleed", "target_part": "arm_l"}"#.as_slice(),
+    )
+    .expect("json");
+    assert!(cdda_content::dialogue::read_effect(&on_a_part).is_none());
 }

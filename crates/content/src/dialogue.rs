@@ -749,6 +749,29 @@ pub enum Effect {
     Math(Vec<Assignment>),
     /// A message to the player.
     Message(String),
+    /// Give a creature an effect.
+    ///
+    /// Reference: `f_add_effect` (`npctalk.cpp:3426-3450`). The duration is a time string, the word `PERMANENT`, or absent - in
+    /// which case it is 1000 turns. The intensity defaults to zero, which the effect's own rule raises to one.
+    AddEffect {
+        /// The effect's id.
+        effect: String,
+        /// How long it lasts, in turns, or nothing when it is permanent.
+        duration: Option<i64>,
+        /// How strong it is.
+        intensity: i32,
+        /// Whether it goes to the listener rather than the speaker.
+        listener: bool,
+    },
+    /// Take an effect away from a creature.
+    ///
+    /// Reference: `f_remove_effect` (`npctalk.cpp`), which calls `remove_effect` with the effect's own body part.
+    RemoveEffect {
+        /// The effect's id.
+        effect: String,
+        /// Whether it comes from the listener rather than the speaker.
+        listener: bool,
+    },
     /// Give a trait to a creature.
     ///
     /// Reference: `f_add_trait` (`npctalk.cpp:3498-3508`), which calls `set_mutation`. Its `variant` member is refused rather than
@@ -858,6 +881,9 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
     if matches!(object.get("snippet"), Some(Value::Bool(true))) {
         return None;
     }
+    if let Some(changed) = read_effect_change(object) {
+        return Some(changed);
+    }
     // Reference: `f_add_trait` and `f_remove_trait` (`npctalk.cpp:3498-3543`). A `variant` member is a mutation-graph change the port
     // has no graph for, so an entry that states one is refused whole.
     for (member, listener, learn) in [
@@ -888,6 +914,61 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
             return read_message(value).map(Effect::Message);
         }
     }
+    None
+}
+
+/// Reads an effect a program adds to or removes from a creature.
+///
+/// Reference: `f_add_effect` (`npctalk.cpp:3426-3450`). A duration of `PERMANENT` keeps the effect until something removes it, and
+/// an absent one is 1000 turns. A `target_part` other than `bp_null` names a body part the port does not model, so an entry that
+/// states one is refused rather than applied to the whole creature.
+fn read_effect_change(object: &cdda_json::Object) -> Option<Effect> {
+// Reference: `f_add_effect` (`npctalk.cpp:3426-3450`). A duration of `PERMANENT` keeps the effect until something removes it,
+// and an absent one is 1000 turns. A `target_part` other than `bp_null` names a body part the port does not model, so an entry
+// that states one is refused rather than applied to the whole creature.
+for (member, listener, learn) in [
+    ("u_add_effect", false, true),
+    ("npc_add_effect", true, true),
+    ("u_remove_effect", false, false),
+    ("npc_remove_effect", true, false),
+] {
+    if let Some(Value::Str(effect)) = object.get(member) {
+        if let Some(Value::Str(part)) = object.get("target_part")
+            && part != "bp_null"
+        {
+            return None;
+        }
+        if learn {
+            let duration = match object.get("duration") {
+                Some(Value::Str(text)) if text == "PERMANENT" => None,
+                Some(Value::Str(text)) => Some(crate::constructions::parse_duration(text)),
+                Some(Value::Int(turns)) => Some(*turns),
+                Some(_) => return None,
+                None => Some(1000),
+            };
+            let intensity = match object.get("intensity") {
+                Some(Value::Int(number)) => i32::try_from(*number).ok()?,
+                Some(Value::Float(number)) => {
+                    #[allow(clippy::cast_possible_truncation)]
+                    let whole = *number as i32;
+                    whole
+                }
+                Some(_) => return None,
+                None => 0,
+            };
+            return Some(Effect::AddEffect {
+                effect: effect.clone(),
+                duration,
+                intensity,
+                listener,
+            });
+        }
+        return Some(Effect::RemoveEffect {
+            effect: effect.clone(),
+            listener,
+        });
+    }
+}
     None
 }
 

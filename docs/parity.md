@@ -328,6 +328,19 @@ entries the port can run | **363** |
 
 Reading both spellings of a destination - `"x = 1"` and `"u_val('x') = 1"`, which `read_var_info` (`condition.cpp:408-437`) treats as the same variable classed by the member that names it - took the count from 174 to 179. The 125 still refused are of two shapes, counted rather than guessed: **139 statements are pure expressions** with no assignment (`"u_val('stamina')"`, `"ps_str + 50"`), and **76 are bare operators** (`"*="`, `"+="`) that suggest a statement split across several entries of one list. Neither is run: a list whose meaning the port cannot read is refused whole, because "ignore the parts I do not understand" is how a program silently does half its job.
 
+### Adding and removing effects, and a count that did not move by the obvious number (round 791)
+
+`f_add_effect` (`npctalk.cpp:3426-3450`) is where the data's wounds, poisons and buffs come from: an effect id, a `duration` that is a time string, the word `PERMANENT`, or absent (1,000 turns), and an `intensity` that defaults to zero and is raised to one by the effect's own rule.
+
+| Count | Before | After |
+|---|---|---|
+effect entries runnable | 538 | **601** |
+programs runnable whole | 70 | **87** |
+
+The jump is **63**, and it is the first time the effect count moved by a number the reader does not make obvious. `u_add_effect` and its `npc_` twin account for 78 entries and `duration` for 117; some of those `duration` entries belonged to effects that were refused for a *different* reason and now read. Seventeen programs became runnable whole on a 63-entry increase - the best conversion the effect side has had, because adding an effect is what most of the data's programs were waiting for.
+
+Three refusals came with it: a `target_part` other than `bp_null` is refused (the port models a creature, not its parts), a `duration` that is neither a time string nor `PERMANENT` is refused, and `u_remove_effect` names its effect the same way.
+
 ### The first effects that change a creature (round 790)
 
 Traits arrived as a guard last round; this round they arrive as an **effect**. `f_add_trait` (`npctalk.cpp:3498-3508`) calls `set_mutation`; `f_remove_trait` (3536-3543) calls `unset_mutation`. They are 139 of the data's 1,612 effect entries - 36 `u_add_trait`, 103 `u_lose_trait` - and the first effects that mutate the store rather than say something into it.
@@ -424,7 +437,7 @@ refused for an effect | **374** |
 
 Reading a plain `run_eocs` name (one string, or a list of them) also took the effect count from 363 to **399**; the other 131 `run_eocs` entries are object forms with modifiers (`popup`, `variables`, `true_eocs`/`false_eocs`), which the port refuses rather than reading only the part it recognises.
 
-Both halves of the machine are now measured against each other: **2,089 of 3,708 conditions** answerable, **538 of 1,612 effects** runnable, and the intersection is **70 of 692 programs** runnable whole.
+Both halves of the machine are now measured against each other: **2,089 of 3,708 conditions** answerable, **601 of 1,612 effects** runnable, and the intersection is **87 of 692 programs** runnable whole.
 
 ### Messages: the second effect, and the first that only speaks (round 785)
 

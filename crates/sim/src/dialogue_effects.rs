@@ -114,6 +114,35 @@ pub fn run_effect(
             crate::messages::push(world, text);
             Applied::Done
         }
+        Effect::AddEffect {
+            effect,
+            duration,
+            intensity,
+            listener: about_listener,
+        } => {
+            let Some(creature) = actor(speaker, listener, *about_listener) else {
+                return Applied::CannotAnswer;
+            };
+            let permanent = duration.is_none();
+            crate::applied_effects::add(
+                world,
+                creature,
+                crate::effects::ActiveEffect {
+                    id: effect.clone(),
+                    intensity: *intensity,
+                    duration: duration.unwrap_or(0),
+                    permanent,
+                },
+            );
+            Applied::Done
+        }
+        Effect::RemoveEffect { effect, listener: about_listener } => {
+            let Some(creature) = actor(speaker, listener, *about_listener) else {
+                return Applied::CannotAnswer;
+            };
+            crate::applied_effects::remove(world, creature, effect);
+            Applied::Done
+        }
         Effect::LearnTrait { trait_name, listener: about_listener } => {
             let Some(creature) = actor(speaker, listener, *about_listener) else {
                 return Applied::CannotAnswer;
