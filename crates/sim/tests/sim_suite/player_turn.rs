@@ -6,7 +6,7 @@ use bevy_ecs::prelude::*;
 use cdda_core_types::level::Level;
 use cdda_core_types::rng::Rolls;
 use cdda_sim::{
-    Monster, MonsterKindId, Player, Position, TurnRules, monster_turns_striking, player_turn,
+    MonsterKindId, Player, Position, TurnRules, monster_turns_striking, player_turn,
     spawn_monster, spawn_player,
 };
 
@@ -37,9 +37,7 @@ fn player(world: &mut World) -> Entity {
 }
 
 fn monster_hp(world: &World, entity: Entity) -> i32 {
-    world
-        .get::<Monster>(entity)
-        .map_or(-1, |monster| monster.hp)
+    cdda_sim::creature::health_of(world, entity).unwrap_or(-1)
 }
 
 #[test]
@@ -122,9 +120,9 @@ fn a_fight_runs_both_ways_and_the_same_seed_replays_it() {
             // The world hands out moves, then both sides take their turn.
             world.get_mut::<Player>(me).expect("a player").moves = 100;
             {
-                let mut monsters = world.query::<&mut Monster>();
+                let mut monsters = world.query::<&mut cdda_sim::creature::Moves>();
                 for mut monster in monsters.iter_mut(&mut world) {
-                    monster.moves = 100.0;
+                    monster.left = 100;
                 }
             }
             player_turn(

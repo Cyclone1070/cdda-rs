@@ -4,7 +4,7 @@
 
 use bevy_ecs::prelude::*;
 use cdda_sim::{
-    CorpseOf, ItemTypeId, Monster, MonsterKindId, corpse_kind_at, corpses_at, items_at, occupied,
+    CorpseOf, ItemTypeId, MonsterKindId, corpse_kind_at, corpses_at, items_at, occupied,
     reap_dead_monsters, spawn_monster, strike,
 };
 
@@ -103,7 +103,7 @@ fn the_dead_stop_taking_turns() {
     strike(&mut world, zombie, 5, 0);
     // The turn systems skip anything with no hit points, so this is about the corpse not becoming an actor.
     reap_dead_monsters(&mut world, CORPSE, |_| 62_499);
-    let mut monsters = world.query::<&Monster>();
+    let mut monsters = world.query::<&cdda_sim::creature::Creature>();
     assert_eq!(
         monsters.iter(&world).count(),
         0,

@@ -10,7 +10,7 @@ use bevy_ecs::prelude::*;
 use cdda_core_types::rng::Rolls;
 use cdda_sim::{
     ButcherAction, ButcherFinish, ButcherState, CorpseDamage, CreatureSize, GroundItem,
-    HarvestEntry, HarvestSpec, HarvestTable, ItemTypeId, Monster, MonsterKindId, Position,
+    HarvestEntry, HarvestSpec, HarvestTable, ItemTypeId, MonsterKindId, Position,
     butcher_finish, butchery_moves_left, butchery_turn, corpses_at, items_at, reap_dead_monsters,
     spawn_monster, start_butchery, strike,
 };
@@ -189,7 +189,7 @@ fn a_reaped_body_that_is_never_butchered_stays_a_corpse() {
     reap_dead_monsters(&mut world, CORPSE, |_| 62_499);
     assert_eq!(corpses_at(&mut world, (2, 2)), 1, "still lying there");
     assert!(items_at(&mut world, (2, 2)).len() == 1, "and nothing else");
-    let mut monsters = world.query::<&Monster>();
+    let mut monsters = world.query::<&cdda_sim::creature::Creature>();
     assert_eq!(
         monsters.iter(&world).count(),
         0,

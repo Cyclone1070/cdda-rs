@@ -7,9 +7,9 @@
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::rng::Rolls;
+use cdda_sim::creature::{health_of, moves_left};
 use cdda_sim::{
-    GasEffect, Monster, MonsterKindId, breathe_gas, nuke_gas_effect, spawn_monster,
-    toxic_gas_effect,
+    GasEffect, MonsterKindId, breathe_gas, nuke_gas_effect, spawn_monster, toxic_gas_effect,
 };
 
 /// The nuke gas rule as the C++ writes it.
@@ -102,12 +102,8 @@ fn breathing_a_gas_hurts_and_slows_the_creature_standing_in_it() {
         moves_penalty: 40.0,
     };
     assert!(!breathe_gas(&mut world, creature, &effect), "fifteen left");
-    let monster = world.get::<Monster>(creature).expect("still there");
-    assert_eq!(monster.hp, 15);
-    assert!(
-        (monster.moves - 60.0).abs() < 1e-9,
-        "moves went down by forty"
-    );
+    assert_eq!(health_of(&world, creature), Some(15), "fifteen left");
+    assert_eq!(moves_left(&world, creature), 60, "moves went down by forty");
 }
 
 #[test]
@@ -119,5 +115,5 @@ fn a_lethal_gas_breath_takes_the_creature_off_the_map() {
         moves_penalty: 10.0,
     };
     assert!(breathe_gas(&mut world, creature, &effect));
-    assert!(world.get::<Monster>(creature).is_none());
+    assert!(health_of(&world, creature).is_none(), "and it is gone");
 }

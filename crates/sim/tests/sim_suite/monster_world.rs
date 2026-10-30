@@ -4,7 +4,7 @@
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::level::Level;
-use cdda_sim::{Monster, MonsterKindId, Position, monster_turns, occupied, spawn_monster};
+use cdda_sim::{MonsterKindId, Position, monster_turns, occupied, spawn_monster};
 
 const FLOOR: u32 = 1;
 
@@ -49,7 +49,7 @@ fn a_square_with_a_creature_on_it_is_occupied_and_a_dead_one_does_not_count() {
     let monster = spawn_monster(&mut world, (3, 3), MonsterKindId(1), 10);
     assert!(occupied(&mut world, (3, 3)));
     assert!(!occupied(&mut world, (3, 4)));
-    world.get_mut::<Monster>(monster).expect("a monster").hp = 0;
+    cdda_sim::creature::set_health_left(&mut world, monster, 0);
     assert!(
         !occupied(&mut world, (3, 3)),
         "a corpse does not block the square"
@@ -93,9 +93,9 @@ fn a_creature_spends_its_moves_and_nothing_more() {
     let mut world = World::new();
     let monster = spawn_monster(&mut world, (0, 0), MonsterKindId(1), 10);
     monster_turns(&mut world, (9, 0), normal_speed, floor_only, &level());
-    let moves = world.get::<Monster>(monster).expect("a monster").moves;
+    let moves = cdda_sim::creature::moves_left(&world, monster);
     assert!(
-        moves < f64::EPSILON,
-        "one action at speed 100 costs all 100 moves: {moves}"
+        moves <= 0,
+        "one action at speed 100 costs all 100 moves: {moves} left"
     );
 }

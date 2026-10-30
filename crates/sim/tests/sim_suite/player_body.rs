@@ -6,7 +6,7 @@ use bevy_ecs::prelude::*;
 use cdda_core_types::level::Level;
 use cdda_core_types::rng::Rolls;
 use cdda_sim::{
-    Monster, MonsterKindId, Player, TurnRules, monster_turns_striking, player_dead, spawn_monster,
+    MonsterKindId, Player, TurnRules, monster_turns_striking, player_dead, spawn_monster,
     spawn_player, strike_player,
 };
 
@@ -95,9 +95,9 @@ fn the_player_stops_being_a_target_at_zero_health() {
     // test does what a world would: hand the monster its speed each turn.
     for _ in 0..20 {
         {
-            let mut monsters = world.query::<&mut Monster>();
+            let mut monsters = world.query::<&mut cdda_sim::creature::Moves>();
             for mut monster in monsters.iter_mut(&mut world) {
-                monster.moves = 100.0;
+                monster.left = 100;
             }
         }
         monster_turns_striking(&mut world, (1, 0), &rules(), &mut rolls, &level());

@@ -6,7 +6,7 @@ use bevy_ecs::prelude::*;
 use cdda_core_types::level::Level;
 use cdda_core_types::rng::Rolls;
 use cdda_sim::{
-    Monster, MonsterKindId, Position, TurnRules, monster_turns_striking, spawn_monster,
+    MonsterKindId, Position, TurnRules, monster_turns_striking, spawn_monster,
 };
 
 const FLOOR: u32 = 1;
@@ -32,9 +32,7 @@ fn rules() -> TurnRules<'static> {
 }
 
 fn hp(world: &World, entity: Entity) -> i32 {
-    world
-        .get::<Monster>(entity)
-        .map_or(-1, |monster| monster.hp)
+    cdda_sim::creature::health_of(world, entity).unwrap_or(-1)
 }
 
 #[test]

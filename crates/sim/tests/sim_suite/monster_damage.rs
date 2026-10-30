@@ -4,7 +4,7 @@
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::rng::Rolls;
-use cdda_sim::{Monster, MonsterKindId, melee_blow, spawn_monster, strike, through_armour};
+use cdda_sim::{MonsterKindId, melee_blow, spawn_monster, strike, through_armour};
 
 #[test]
 fn a_blow_is_its_dice_plus_its_bonus() {
@@ -64,9 +64,10 @@ fn a_struck_creature_loses_health_and_dies_at_zero() {
     let mut world = World::new();
     let monster = spawn_monster(&mut world, (0, 0), MonsterKindId(1), 10);
     assert!(!strike(&mut world, monster, 4, 0), "six left");
-    assert_eq!(world.get::<Monster>(monster).expect("a monster").hp, 6);
+    assert_eq!(cdda_sim::creature::health_of(&world, monster), Some(6));
     assert!(!strike(&mut world, monster, 4, 2), "two through: four left");
-    assert_eq!(world.get::<Monster>(monster).expect("a monster").hp, 4);
+    assert_eq!(cdda_sim::creature::health_of(&world, monster), Some(4));
     assert!(strike(&mut world, monster, 10, 0), "and this one kills it");
-    assert!(world.get::<Monster>(monster).expect("a monster").hp <= 0);
+    let left = cdda_sim::creature::health_of(&world, monster).expect("a monster");
+    assert!(left <= 0, "and this one kills it, leaving {left}");
 }

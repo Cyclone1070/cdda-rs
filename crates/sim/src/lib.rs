@@ -3608,42 +3608,25 @@ pub fn process_upgrade_intensity(
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct MonsterKindId(pub u32);
 
-/// A creature standing on a square.
+/// Puts a creature on a square, with a turn's worth of moves in hand.
 ///
-/// Reference: `monster` and `Creature` (`src/monster.h`). The port keeps the smallest thing a field
-/// processor can touch: what it is, how much health it has left, and where it stands. Speed, moves,
-/// armour and behaviour come as the systems that need them arrive.
-#[derive(Debug, Clone, Copy, Component)]
-pub struct Monster {
-    /// What kind of creature it is.
-    pub kind: MonsterKindId,
-    /// Hit points left.
-    pub hp: i32,
-    /// Moves left this turn; the reference's action points.
-    pub moves: f64,
-}
-
-/// Puts a creature on a square.
+/// Reference: `monster::monster` leaves `moves` at zero and the turn loop's `regen_moves` grants them before
+/// anything acts. This helper does that granting up front, because its callers spawn a creature and run its
+/// turn without a world in between.
 pub fn spawn_monster(
     world: &mut World,
     square: (i32, i32),
     kind: MonsterKindId,
     hp: i32,
 ) -> Entity {
-    world
-        .spawn((
-            Position {
-                x: square.0,
-                y: square.1,
-                z: 0,
-            },
-            Monster {
-                kind,
-                hp,
-                moves: 100.0,
-            },
-        ))
-        .id()
+    let entity = crate::creature::spawn_creature(world, "", (square.0, square.1, 0));
+    crate::creature::set_kind(world, entity, kind);
+    crate::creature::set_health(world, entity, hp);
+    // A creature made this way is one the world is about to give a turn to - the older callers spawn and act
+    // in the same breath, and a creature with no moves would silently stand still. `creature::spawn_creature`
+    // is the reference's own constructor and leaves moves at zero; this one is the "ready to act" door.
+    crate::creature::set_moves(world, entity, 100);
+    entity
 }
 
 /// Every creature standing on one square, in spawn order.
@@ -3651,7 +3634,7 @@ pub fn spawn_monster(
 pub fn monsters_at(world: &mut World, square: (i32, i32)) -> Vec<Entity> {
     let mut found = Vec::new();
     {
-        let mut query = world.query::<(Entity, &Position, &Monster)>();
+        let mut query = world.query::<(Entity, &Position, &crate::creature::Creature)>();
         for (entity, at, _) in query.iter(world) {
             if at.x == square.0 && at.y == square.1 {
                 found.push(entity);
@@ -3668,9 +3651,7 @@ pub fn monsters_at(world: &mut World, square: (i32, i32)) -> Vec<Entity> {
 /// `map_field::process_fields_in_submap` (`src/map_field.cpp:1900-1990`), which deals damage and
 /// takes moves in the same pass.
 pub fn breathe_gas(world: &mut World, entity: Entity, effect: &GasEffect) -> bool {
-    if let Some(mut monster) = world.get_mut::<Monster>(entity) {
-        monster.moves -= effect.moves_penalty;
-    }
+    crate::creature::spend_moves(world, entity, effect.moves_penalty);
     damage_monster(world, entity, effect.damage)
 }
 
@@ -3680,17 +3661,19 @@ pub fn breathe_gas(world: &mut World, entity: Entity, effect: &GasEffect) -> boo
 /// follows it (`src/monster.cpp`); the port keeps the part a field needs - damage goes in, and a
 /// creature at zero or below leaves the world.
 pub fn damage_monster(world: &mut World, entity: Entity, amount: i32) -> bool {
-    let Some(hp) = world.get::<Monster>(entity).map(|monster| monster.hp) else {
+    let Some(hp) = crate::creature::health_of(world, entity) else {
         return false;
     };
     let left = hp - amount.max(0);
     if left <= 0 {
+        // The index goes with the entity, or the square keeps claiming an occupant that no longer exists.
+        if let Some(place) = world.get::<Position>(entity).map(|place| (place.x, place.y, place.z)) {
+            crate::singletons::index_mut(world).remove(entity, place);
+        }
         world.despawn(entity);
         return true;
     }
-    if let Some(mut monster) = world.get_mut::<Monster>(entity) {
-        monster.hp = left;
-    }
+    crate::creature::set_health_left(world, entity, left);
     false
 }
 
@@ -6802,10 +6785,10 @@ pub fn take_turn_blocked(
 /// list kept alongside it: a second copy of where things are is a copy that can disagree.
 #[must_use]
 pub fn occupied(world: &mut World, square: (i32, i32)) -> bool {
-    let mut query = world.query::<(&Position, &Monster)>();
-    query
-        .iter(world)
-        .any(|(position, monster)| (position.x, position.y) == square && monster.hp > 0)
+    let mut query = world.query::<(Entity, &Position, &crate::creature::Creature)>();
+    query.iter(world).any(|(entity, position, _)| {
+        (position.x, position.y) == square && crate::creature::health_of(world, entity).is_none_or(|hp| hp > 0)
+    })
 }
 
 /// Rounds a creature's moves to the whole number the turn loop works in.
@@ -6850,25 +6833,31 @@ pub fn monster_turns(
     level: &cdda_core_types::level::Level,
 ) {
     let mut occupied_squares: std::collections::BTreeSet<(i32, i32)> = {
-        let mut query = world.query::<(&Position, &Monster)>();
+        let mut query = world.query::<(Entity, &Position, &crate::creature::Creature)>();
         query
             .iter(world)
-            .filter(|(_, monster)| monster.hp > 0)
-            .map(|(position, _)| (position.x, position.y))
+            .filter(|(entity, _, _)| {
+                crate::creature::health_of(world, *entity).is_none_or(|hp| hp > 0)
+            })
+            .map(|(_, position, _)| (position.x, position.y))
             .collect()
     };
     let creatures: Vec<CreatureTurn> = {
-        let mut query = world.query::<(Entity, &Position, &Monster)>();
+        let mut query = world.query::<(Entity, &Position, &crate::creature::Creature)>();
         query
             .iter(world)
-            .filter(|(_, _, monster)| monster.hp > 0)
-            .map(|(entity, position, monster)| CreatureTurn {
+            .filter(|(entity, _, _)| {
+                crate::creature::health_of(world, *entity).is_none_or(|hp| hp > 0)
+            })
+            .map(|(entity, position, _)| CreatureTurn {
                 entity,
                 start: (position.x, position.y),
                 // Moves are whole in practice. The conversion is explicit about what happens at the ends
                 // rather than letting a cast decide.
-                moves: whole_moves(monster.moves),
-                kind: monster.kind,
+                moves: whole_moves(f64::from(crate::creature::moves_left(world, entity))),
+                kind: world
+                    .get::<crate::creature::CreatureKind>(entity)
+                    .map_or(MonsterKindId(0), |kind| kind.0),
             })
             .collect()
     };
@@ -6889,9 +6878,7 @@ pub fn monster_turns(
             terrain_ok && !occupied_squares.contains(&square)
         };
         let turn = take_turn_blocked(start, target, moves, speed, can_enter);
-        if let Some(mut monster) = world.get_mut::<Monster>(entity) {
-            monster.moves = f64::from(turn.moves);
-        }
+        crate::creature::set_moves(world, entity, turn.moves);
         if turn.position != start {
             occupied_squares.remove(&start);
             occupied_squares.insert(turn.position);
@@ -6941,11 +6928,12 @@ pub fn through_armour(blow: i32, armour: i32) -> i32 {
 /// caller may want the corpse's square.
 pub fn strike(world: &mut World, target: Entity, blow: i32, armour: i32) -> bool {
     let dealt = through_armour(blow, armour);
-    let Some(mut monster) = world.get_mut::<Monster>(target) else {
+    let Some(hp) = crate::creature::health_of(world, target) else {
         return false;
     };
-    monster.hp = monster.hp.saturating_sub(dealt);
-    monster.hp <= 0
+    let left = hp.saturating_sub(dealt);
+    crate::creature::set_health_left(world, target, left);
+    left <= 0
 }
 
 /// The rules a creature's turn needs, gathered so the turn functions do not grow a parameter per fact.
@@ -6975,23 +6963,29 @@ pub fn monster_turns_striking(
     level: &cdda_core_types::level::Level,
 ) -> i32 {
     let mut occupied_squares: std::collections::BTreeSet<(i32, i32)> = {
-        let mut query = world.query::<(&Position, &Monster)>();
+        let mut query = world.query::<(Entity, &Position, &crate::creature::Creature)>();
         query
             .iter(world)
-            .filter(|(_, monster)| monster.hp > 0)
-            .map(|(position, _)| (position.x, position.y))
+            .filter(|(entity, _, _)| {
+                crate::creature::health_of(world, *entity).is_none_or(|hp| hp > 0)
+            })
+            .map(|(_, position, _)| (position.x, position.y))
             .collect()
     };
     let creatures: Vec<CreatureTurn> = {
-        let mut query = world.query::<(Entity, &Position, &Monster)>();
+        let mut query = world.query::<(Entity, &Position, &crate::creature::Creature)>();
         query
             .iter(world)
-            .filter(|(_, _, monster)| monster.hp > 0)
-            .map(|(entity, position, monster)| CreatureTurn {
+            .filter(|(entity, _, _)| {
+                crate::creature::health_of(world, *entity).is_none_or(|hp| hp > 0)
+            })
+            .map(|(entity, position, _)| CreatureTurn {
                 entity,
                 start: (position.x, position.y),
-                moves: whole_moves(monster.moves),
-                kind: monster.kind,
+                moves: whole_moves(f64::from(crate::creature::moves_left(world, entity))),
+                kind: world
+                    .get::<crate::creature::CreatureKind>(entity)
+                    .map_or(MonsterKindId(0), |kind| kind.0),
             })
             .collect()
     };
@@ -7017,11 +7011,13 @@ pub fn monster_turns_striking(
         // Every hit the turn produced lands on whoever stands on the target square.
         for _ in 0..turn.hits {
             let victim = {
-                let mut monsters = world.query::<(Entity, &Position, &Monster)>();
+                let mut monsters =
+                    world.query::<(Entity, &Position, &crate::creature::Creature)>();
                 let found = monsters
                     .iter(world)
-                    .find(|(_, position, monster)| {
-                        (position.x, position.y) == target && monster.hp > 0
+                    .find(|(entity, position, _)| {
+                        (position.x, position.y) == target
+                            && crate::creature::health_of(world, *entity).is_none_or(|hp| hp > 0)
                     })
                     .map(|(victim, _, _)| victim);
                 found.map_or_else(
@@ -7046,15 +7042,13 @@ pub fn monster_turns_striking(
                 strike_player(world, victim, blow);
             } else {
                 let armour = world
-                    .get::<Monster>(victim)
-                    .map_or(0, |monster| (rules.armour_of)(monster.kind));
+                    .get::<crate::creature::CreatureKind>(victim)
+                    .map_or(0, |kind| (rules.armour_of)(kind.0));
                 strike(world, victim, blow, armour);
             }
             landed += 1;
         }
-        if let Some(mut monster) = world.get_mut::<Monster>(entity) {
-            monster.moves = f64::from(turn.moves);
-        }
+        crate::creature::set_moves(world, entity, turn.moves);
         if turn.position != start {
             occupied_squares.remove(&start);
             occupied_squares.insert(turn.position);
@@ -7146,11 +7140,13 @@ pub fn player_turn(
     };
     // Occupancy is read once, because the turn loop asks its question many times and may not borrow the World.
     let mut taken: std::collections::BTreeSet<(i32, i32)> = {
-        let mut query = world.query::<(&Position, &Monster)>();
+        let mut query = world.query::<(Entity, &Position, &crate::creature::Creature)>();
         query
             .iter(world)
-            .filter(|(_, monster)| monster.hp > 0)
-            .map(|(position, _)| (position.x, position.y))
+            .filter(|(entity, _, _)| {
+                crate::creature::health_of(world, *entity).is_none_or(|hp| hp > 0)
+            })
+            .map(|(_, position, _)| (position.x, position.y))
             .collect()
     };
     let mut players: std::collections::BTreeSet<(i32, i32)> = {
@@ -7175,18 +7171,21 @@ pub fn player_turn(
     let mut landed = 0;
     for _ in 0..turn.hits {
         let victim = {
-            let mut query = world.query::<(Entity, &Position, &Monster)>();
+            let mut query = world.query::<(Entity, &Position, &crate::creature::Creature)>();
             query
                 .iter(world)
-                .find(|(_, position, monster)| (position.x, position.y) == target && monster.hp > 0)
+                .find(|(entity, position, _)| {
+                    (position.x, position.y) == target
+                        && crate::creature::health_of(world, *entity).is_none_or(|hp| hp > 0)
+                })
                 .map(|(victim, _, _)| victim)
         };
         let Some(victim) = victim else {
             break;
         };
         let armour = world
-            .get::<Monster>(victim)
-            .map_or(0, |monster| (rules.armour_of)(monster.kind));
+            .get::<crate::creature::CreatureKind>(victim)
+            .map_or(0, |kind| (rules.armour_of)(kind.0));
         let (dice, sides, bonus) = blow;
         let damage = melee_blow(rolls, dice, sides, bonus);
         strike(world, victim, damage, armour);
@@ -7545,23 +7544,9 @@ pub fn reap_dead_monsters(
     corpse_kind: ItemTypeId,
     volume_of: impl Fn(MonsterKindId) -> i64,
 ) -> usize {
-    let dead: Vec<(Entity, (i32, i32), MonsterKindId)> = {
-        let mut query = world.query::<(Entity, &Position, &Monster)>();
-        query
-            .iter(world)
-            .filter(|(_, _, monster)| monster.hp <= 0)
-            .map(|(entity, position, monster)| (entity, (position.x, position.y), monster.kind))
-            .collect()
-    };
-    for (entity, square, kind) in &dead {
-        world.despawn(*entity);
-        let corpse = drop_item(world, *square, corpse_kind, 1);
-        world.entity_mut(corpse).insert(CorpseOf {
-            kind: *kind,
-            monster_volume_ml: volume_of(*kind),
-        });
-    }
-    dead.len()
+    // One reaper, not two: this name is kept because the item and loot tests ask for it, and it now runs the
+    // creature module's own sweep, which also clears the index entry the store no longer justifies.
+    crate::creature::reap_dead_creatures_as_corpses(world, corpse_kind, volume_of)
 }
 
 /// How many corpses lie on a square.

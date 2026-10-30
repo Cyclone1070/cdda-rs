@@ -207,6 +207,34 @@ pub fn set_health(world: &mut World, entity: Entity, hp: i32) {
     }
 }
 
+/// Spends action points a creature has banked, keeping the count at zero or above.
+pub fn spend_moves(world: &mut World, entity: Entity, amount: f64) {
+    if let Some(mut moves) = world.get_mut::<Moves>(entity) {
+        // Moves are whole points in the port and so are a gas's penalty, but the reference spells both as
+        // `double`; the penalty is rounded as it is applied rather than being truncated twice.
+        #[allow(clippy::cast_possible_truncation)]
+        let whole = amount.round() as i32;
+        moves.left -= whole;
+    }
+}
+
+/// Sets how many action points a creature has.
+pub fn set_moves(world: &mut World, entity: Entity, left: i32) {
+    if let Some(mut moves) = world.get_mut::<Moves>(entity) {
+        moves.left = left;
+    }
+}
+
+/// Sets how much life a creature has left without touching its ceiling.
+///
+/// Used where a rule has already worked out the remainder - a gas's damage, say - and the ceiling is none of
+/// its business.
+pub fn set_health_left(world: &mut World, entity: Entity, hp: i32) {
+    if let Some(mut health) = world.get_mut::<Health>(entity) {
+        health.hp = hp;
+    }
+}
+
 /// Takes damage off a creature, never below zero.
 ///
 /// The reference's own arithmetic is `hp -= damage` on an int with the damage rounded down

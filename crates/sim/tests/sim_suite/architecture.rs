@@ -15,8 +15,8 @@
 #![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
+use cdda_sim::{GroundItem, ItemTypeId, Position, PositionIndex};
 use std::fmt::Write as _;
-use cdda_sim::{GroundItem, ItemTypeId, Monster, MonsterKindId, Position, PositionIndex};
 
 /// A world with things on it: two things on one square, one thing on another square, one thing a
 /// level down, one thing with no square at all, and one that is not in the world either.
@@ -44,11 +44,15 @@ fn populated() -> World {
         damage: 0,
         burn: None,
     },));
-    world.spawn((Monster {
-        kind: MonsterKindId(2),
-        hp: 4,
-        moves: 100.0,
-    },));
+    // A creature with **no** square, for the same reason as the held item: the fixture is four things with a
+    // square and two without, and a thing without one must not appear in the index at all.
+    world.spawn((
+        cdda_sim::creature::Creature {
+            name: "a zombie".to_owned(),
+            size: cdda_sim::CreatureSize::Medium,
+        },
+        cdda_sim::creature::Health { hp: 4, max_hp: 4 },
+    ));
     world
 }
 
@@ -194,7 +198,7 @@ fn a_thing_is_whatever_its_components_say() {
         .id();
 
     let items = |world: &mut World| world.query::<&GroundItem>().iter(world).count();
-    let monsters = |world: &mut World| world.query::<&Monster>().iter(world).count();
+    let monsters = |world: &mut World| world.query::<&cdda_sim::creature::Creature>().iter(world).count();
 
     assert_eq!(items(&mut world), 0);
     assert_eq!(monsters(&mut world), 0);
@@ -226,7 +230,7 @@ fn a_thing_is_whatever_its_components_say() {
 #[test]
 fn a_query_never_sees_what_it_did_not_ask_for() {
     let mut world = populated();
-    let mut query = world.query::<(Entity, &Monster)>();
+    let mut query = world.query::<(Entity, &cdda_sim::creature::Creature)>();
     let seen: Vec<Entity> = query.iter(&world).map(|(entity, _)| entity).collect();
     assert_eq!(seen.len(), 1, "the fixture holds exactly one creature");
     let with_squares = positioned(&mut world).len();
