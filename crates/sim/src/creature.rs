@@ -502,6 +502,25 @@ fn cancel_crafting(world: &mut World, creature: Entity, _subject: Option<Entity>
 /// An activity that has not changed anything yet has nothing to undo.
 fn cancel_nothing(_world: &mut World, _creature: Entity, _subject: Option<Entity>) {}
 
+/// The work a creature has paused, waiting to be picked up again.
+///
+/// Reference: `Character::backlog` (`character.h`), a list of activities that can be resumed rather than redone. The
+/// reference pushes an interrupted activity onto the **front** of it when the activity says it can resume
+/// (`character.cpp:9112-9115`), and puts it back only when the player asks (`resume_backlog_activity`,
+/// `character.cpp:9119-9126`) - so an interruption costs time, not the work.
+#[derive(Component, Debug, Clone, Default, PartialEq)]
+pub struct Backlog {
+    /// The paused activities, the most recently paused first.
+    pub paused: Vec<Doing>,
+}
+
+/// The activities whose work survives being paused.
+///
+/// Reference: `player_activity::can_resume`, which is a property of the actor rather than of the interruption. A craft
+/// can be put down and picked up again because its recipe and progress are its own; a pickup cannot, because the thing
+/// being picked up is still on the floor where it started.
+pub const RESUMABLE: &[&str] = &["craft"];
+
 /// Gives up on whatever a creature is doing.
 ///
 /// Reference: `Character::cancel_activity` (`character.cpp:9088-9100`) - the activity is cancelled, and it is the
@@ -510,10 +529,48 @@ pub fn stop_doing(world: &mut World, creature: Entity) -> bool {
     let Some(doing) = world.get::<Doing>(creature).cloned() else {
         return false;
     };
+    world.entity_mut(creature).remove::<Doing>();
+    if RESUMABLE.contains(&doing.activity.as_str()) {
+        // Reference: `character.cpp:9112-9115` - the interrupted activity goes to the front of the backlog with its
+        // progress intact, and the activity's own cancel is not run, because nothing is being given up.
+        let entity = crate::singletons::singleton::<Backlog, TheBacklog>(world);
+        let mut backlog = world
+            .get_mut::<Backlog>(entity)
+            .map(|mut backlog| std::mem::take(&mut backlog.paused))
+            .unwrap_or_default();
+        backlog.insert(0, doing);
+        if let Some(mut slot) = world.get_mut::<Backlog>(entity) {
+            slot.paused = backlog;
+        }
+        return true;
+    }
     if let Some((_, cancel)) = CANCELLERS.iter().find(|(id, _)| *id == doing.activity) {
         cancel(world, creature, doing.subject);
     }
-    world.entity_mut(creature).remove::<Doing>();
+    true
+}
+
+/// Marks the entity carrying a [`Backlog`].
+#[derive(Component, Debug, Clone, Copy, Default)]
+pub struct TheBacklog;
+
+/// Picks up the most recently paused activity where it was left.
+///
+/// Reference: `Character::resume_backlog_activity` (`character.cpp:9119-9126`): the front of the backlog becomes what the
+/// creature is doing again, and it keeps the moves it had left rather than starting over. Answers whether anything was
+/// resumed.
+pub fn resume_backlog(world: &mut World, creature: Entity) -> bool {
+    if world.get::<Doing>(creature).is_some() {
+        return false;
+    }
+    let entity = crate::singletons::singleton::<Backlog, TheBacklog>(world);
+    let Some(paused) = world
+        .get_mut::<Backlog>(entity)
+        .and_then(|mut backlog| (!backlog.paused.is_empty()).then(|| backlog.paused.remove(0)))
+    else {
+        return false;
+    };
+    world.entity_mut(creature).insert(paused);
     true
 }
 

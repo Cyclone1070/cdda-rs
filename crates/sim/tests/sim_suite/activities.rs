@@ -302,7 +302,10 @@ fn cancelling_a_craft_keeps_the_ingredients_and_loses_the_work() {
     assert!(stop_doing(&mut world, crafter), "there was something to give up on");
 
     assert!(world.get::<Doing>(crafter).is_none(), "the survivor is free");
-    assert!(world.get::<Making>(crafter).is_none(), "and nothing is being made");
+    assert!(
+        world.get::<Making>(crafter).is_some(),
+        "but the recipe is still theirs: a paused craft is not a lost one"
+    );
     let carried = cdda_sim::inventory::carried_by_id(&mut world, crafter, |kind| names.name_of(kind));
     assert_eq!(carried.get("rag"), Some(&2), "both rags are still in hand");
     assert_eq!(carried.get("rope"), None, "and no rope was made");
@@ -310,7 +313,7 @@ fn cancelling_a_craft_keeps_the_ingredients_and_loses_the_work() {
         !stop_doing(&mut world, crafter),
         "giving up on nothing answers that there was nothing"
     );
-    // Starting again costs the whole recipe: the work is not remembered.
+    // Starting again costs the whole recipe: a new craft is a new craft.
     assert_eq!(
         begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
         Craft::Started
@@ -338,4 +341,94 @@ fn every_activity_has_a_canceller() {
         "every activity that can end one way must be able to end the other"
     );
     assert_eq!(cancelled.len(), 3, "three activities");
+}
+
+/// Work that was paused is picked up where it was left, not redone.
+///
+/// Reference: `Character::backlog` and `resume_backlog_activity` (`character.cpp:9112-9126`). The distinction from
+/// starting again is the whole point: an interruption should cost a survivor time, not the twenty thousand moves they
+/// had already spent. A pickup, by contrast, cannot be resumed - the thing is still on the floor where it started - so
+/// it is not queued at all.
+#[test]
+fn a_paused_craft_is_resumed_where_it_stopped() {
+    use cdda_sim::creature::{Doing, resume_backlog, spawn_creature, stop_doing};
+    use cdda_sim::crafting::{Craft, begin_craft_from_carried};
+
+    let mut world = World::new();
+    let crafter = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let names = cdda_sim::item_registry::ItemNames {
+        names: vec![String::new(), "rag".to_owned(), "rope".to_owned()],
+        by_name: [
+            ("rag".to_owned(), cdda_sim::ItemTypeId(1)),
+            ("rope".to_owned(), cdda_sim::ItemTypeId(2)),
+        ]
+        .into_iter()
+        .collect(),
+        volumes_ml: vec![0, 250, 500],
+        weights_g: vec![0, 100, 200],
+        holds_ml: vec![0, 0, 0],
+        pockets: Vec::new(),
+        pocket_ranges: vec![(0, 0), (0, 0), (0, 0)],
+    };
+    for _ in 0..2 {
+        let rag = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 1);
+        world.entity_mut(rag).remove::<cdda_sim::Position>();
+        world
+            .entity_mut(rag)
+            .insert(cdda_sim::creature::Carried(crafter));
+    }
+    let recipe = cdda_content::recipes::Recipe {
+        id: "tie_a_rope".to_owned(),
+        result: "rope".to_owned(),
+        blacklisted: false,
+        components: vec![vec![cdda_content::recipes::Component {
+            item: "rag".to_owned(),
+            count: 2,
+        }]],
+        tools: Vec::new(),
+        qualities: Vec::new(),
+        skill: String::new(),
+        difficulty: 0,
+        time_moves: 20_000,
+    };
+    assert_eq!(
+        begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
+        Craft::Started
+    );
+    // Some of the work gets done, then something interrupts it.
+    if let Some(mut doing) = world.get_mut::<Doing>(crafter) {
+        doing.moves_left = 5_000;
+    }
+    assert!(stop_doing(&mut world, crafter));
+
+    assert!(resume_backlog(&mut world, crafter), "there is work to resume");
+    assert_eq!(
+        world.get::<Doing>(crafter).map(|doing| doing.moves_left),
+        Some(5_000),
+        "fifteen thousand moves of work are not thrown away"
+    );
+    // The backlog is empty now, and a busy creature cannot resume.
+    assert!(
+        !resume_backlog(&mut world, crafter),
+        "nothing is left to resume while the craft is under way again"
+    );
+}
+
+#[test]
+fn a_pickup_that_was_stopped_is_not_queued() {
+    use cdda_sim::creature::{Basis, Doing, resume_backlog, spawn_creature, stop_doing};
+
+    let mut world = World::new();
+    let creature = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    world.entity_mut(creature).insert(Doing {
+        activity: "pickup".to_owned(),
+        moves_left: 100,
+        basis: Basis::Speed,
+        subject: None,
+    });
+    assert!(stop_doing(&mut world, creature));
+    assert!(
+        !resume_backlog(&mut world, creature),
+        "a pickup has nothing to resume: the thing is still on the floor"
+    );
 }
