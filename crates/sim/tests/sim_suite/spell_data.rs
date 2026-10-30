@@ -1,94 +1,60 @@
-//! What the game's spell data actually says, counted rather than remembered.
+//! What the game's spells do, read from the oracle's own dump.
 //!
-//! The port's spell dump (`corpus/spells.json`) carries a spell's levels, damage, range and duration, but not its **effect**,
-//! which is the word that says whether the spell attacks, summons, or is an effect-on-condition. The only trustworthy answer
-//! to "how many spells are programs?" is therefore a scan of the source data, and this is that scan. It exists because a
-//! number in a document that nothing checked had drifted: the ledger said 63 spells name an effect-on-condition, and the
-//! data says 54.
+//! The dump (`corpus/spells.json`) is the reference engine's answer, taken after it has loaded, inherited and merged
+//! everything: 245 spells, and an `effect_name` for each. A hand scan of the source JSON agreed on 245 spells and on every
+//! effect kind **except one** - it found 54 `effect_on_condition` where the engine has 63, because nine of them reach their
+//! effect through `copy-from` and the scan's idea of "this object is a spell" was narrower than the loader's. The engine wins;
+//! this test pins the engine's numbers and says why.
+//!
+//! The lesson is worth the file: a scan is a model of the loader, and a model that disagrees with the loader is wrong until
+//! proven otherwise - the direction a port must never assume.
 
-#![allow(clippy::panic)]
+#![allow(clippy::panic, clippy::expect_used)]
 
 use std::collections::BTreeMap;
 
-/// Every spell object at any depth under the source data, by the `effect` it names.
-fn count_spell_effects() -> (usize, BTreeMap<String, usize>) {
-    fn walk(value: &cdda_json::Value, spells: &mut usize, effects: &mut BTreeMap<String, usize>) {
-        match value {
-            cdda_json::Value::Object(object) => {
-                let looks_like_a_spell = matches!(object.get("type"), Some(cdda_json::Value::Str(kind)) if kind == "SPELL")
-                    || (object.get("id").is_some()
-                        && object.get("max_level").is_some()
-                        && object.get("effect").is_some());
-                if looks_like_a_spell {
-                    *spells += 1;
-                    let effect = match object.get("effect") {
-                        Some(cdda_json::Value::Str(effect)) => effect.clone(),
-                        _ => "(none)".to_owned(),
-                    };
-                    *effects.entry(effect).or_insert(0) += 1;
-                }
-                for (_, member) in object.members() {
-                    walk(member, spells, effects);
-                }
-            }
-            cdda_json::Value::Array(entries) => {
-                for entry in entries {
-                    walk(entry, spells, effects);
-                }
-            }
-            _ => {}
-        }
-    }
-
-    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../oracle/src/data/json");
-    let mut spells = 0;
-    let mut effects = BTreeMap::new();
-    let mut stack = vec![data];
-    while let Some(directory) = stack.pop() {
-        let Ok(entries) = std::fs::read_dir(&directory) else {
-            continue;
+/// Every spell in the dump, by the effect it names.
+fn spells_by_effect() -> (usize, BTreeMap<String, usize>) {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/spells.json");
+    let text = std::fs::read_to_string(&path).expect("the spell dump is in the repository");
+    let value = cdda_json::parse(text.as_bytes()).expect("the spell dump is json");
+    let cdda_json::Value::Object(root) = &value else {
+        panic!("the dump is an object");
+    };
+    let Some(cdda_json::Value::Array(spells)) = root.get("spells") else {
+        panic!("the dump carries a list of spells");
+    };
+    let mut effects: BTreeMap<String, usize> = BTreeMap::new();
+    for spell in spells {
+        let effect = match spell {
+            cdda_json::Value::Object(fields) => match fields.get("effect_name") {
+                Some(cdda_json::Value::Str(effect)) => effect.clone(),
+                _ => "(none)".to_owned(),
+            },
+            _ => "(none)".to_owned(),
         };
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                stack.push(path);
-                continue;
-            }
-            if path.extension().and_then(std::ffi::OsStr::to_str) != Some("json") {
-                continue;
-            }
-            let Some(value) = cdda_content::read_json(&path) else {
-                continue;
-            };
-            walk(&value, &mut spells, &mut effects);
-        }
+        *effects.entry(effect).or_insert(0) += 1;
     }
-    (spells, effects)
+    (spells.len(), effects)
 }
 
-/// The counts the data states, pinned so the documents cannot drift from the game again.
+/// The counts the reference states, pinned so a document cannot drift from the engine again.
 #[test]
-fn the_data_says_how_many_spells_there_are_and_what_each_one_does() {
-    let (spells, effects) = count_spell_effects();
-    let top: Vec<(String, usize)> = {
-        let mut listed: Vec<(String, usize)> = effects
-            .iter()
-            .map(|(name, count)| (name.clone(), *count))
-            .collect();
-        listed.sort_by_key(|(_, count)| std::cmp::Reverse(*count));
-        listed
-    };
+fn the_dump_says_how_many_spells_there_are_and_what_each_one_does() {
+    let (spells, effects) = spells_by_effect();
+    let mut top: Vec<(String, usize)> = effects
+        .iter()
+        .map(|(name, count)| (name.clone(), *count))
+        .collect();
+    top.sort_by_key(|(_, count)| std::cmp::Reverse(*count));
     println!("spells: {spells}; effects: {top:?}");
 
-    assert_eq!(spells, 245, "the data defines 245 spells");
-    assert_eq!(
-        effects.get("attack").copied(),
-        Some(77),
-        "77 of them attack"
-    );
+    assert_eq!(spells, 245, "the engine has 245 spells");
+    assert_eq!(effects.get("attack").copied(), Some(77), "77 of them attack");
     assert_eq!(
         effects.get("effect_on_condition").copied(),
-        Some(54),
-        "and 54 are programs, which the ledger had counted as 63"
+        Some(63),
+        "and 63 are programs: nine more than a source scan finds, because nine inherit their effect"
     );
+    assert_eq!(effects.get("summon").copied(), Some(32));
 }

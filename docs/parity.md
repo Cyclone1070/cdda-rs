@@ -296,29 +296,27 @@ Three things the sweep settled that the code did not say:
 * **The damage that arrives is the damage the data states, to the point.** The 32 positive spells sum to exactly **100,016,638** - the data's own total - including the outlier `hallu_touch_suicide` at 100,000,000. Nothing in the path rounds, clamps or resists when there is no armour.
 * **The first version of the sweep measured nothing.** A creature built by `spawn_creature` has no body, so all 77 refusals said `NothingToHit` and the sweep "passed" its counts. It now gives the target a torso, which is the same lesson as the frame dump: a dump taken before the object is configured measures the harness.
 
-### A number in a document that nothing checked (round 775)
+### The oracle disagreed with my scan, and the oracle wins (round 775)
 
-The ledger has said since round 762 that **63** of the game's spells are `effect_on_condition`. The data says **54**, and the full distribution - pinned now by a test that scans the source JSON - is:
+This round set out to check the ledger's claim that **63** of the game's spells are `effect_on_condition`, because a number in prose that nothing re-derives is a claim in trouble. A hand scan of the source JSON found **54**, and round 775's first commit believed the scan.
+
+That was wrong, and the public record is the place to say so. The dump (`corpus/spells.json`, written by the reference engine after it has loaded, inherited and merged everything) says **63**. Nine of the spells reach their effect through `copy-from`, so they have no `effect` member of their own and the scan's idea of "this object is a spell" was narrower than the loader's. The engine is the oracle; a scan is only a model of it.
+
+The census now reads the dump, not the sources:
 
 | effect | spells |
 |---|---|
 `attack` | 77 |
-`effect_on_condition` | 54 |
+`effect_on_condition` | **63** |
 `summon` | 32 |
 `noise` | 13 |
-none stated | 11 |
 `emit`, `recover_energy` | 6 each |
 `explosion` | 5 |
-the remaining 25 kinds | 1-4 each |
+the remaining 27 kinds | 1-4 each |
 
-245 spells, 33 effect kinds. The drift was not a porting error but a *measurement* error: the count came from an early scan, was copied into prose, and nothing re-ran it.
+245 spells, 33 effect kinds - and that last number is why the port's spell-effect table is "1 of 33" in the roadmap, now checked rather than remembered.
 
-The deeper finding is why nothing could: the port's spell dump (`corpus/spells.json`) does **not carry `effect`** at all - all 245 entries have it absent - so the port's own loader cannot see the field that decides what a spell does. The scan works directly on the source files instead, which is the right shape for a data census: it reads the data the way the reference does rather than the way the port's dump happens to be shaped.
-
-Two consequences for the roadmap:
-
-* `spell_data::the_data_says_how_many_spells_there_are_and_what_each_one_does` now pins 245 / 77 / 54, so the next drift fails a test instead of entering a document.
-* adding `effect` to the spell dump is the next oracle change, and it is owed before the port can gate a spell's effect against the dump rather than against a scan.
+Two things follow. First, the dump already carries what the port needed: `effect_name` beside `effect_str`, which the spell loader reads but ignores. So the port can gate a spell's effect against the oracle without any oracle change - the earlier note in this ledger that the dump "does not carry the field" was a mistake produced by looking for a key named `effect`. Second, the lesson worth more than the numbers: **when a scan and the oracle disagree, the scan is wrong until proven otherwise**, and a port must never assume its own model of the data is the data.
 
 ### The math function table, ported exactly and worth one condition (round 774)
 
@@ -420,7 +418,7 @@ A `u_val` belongs to the speaker and a `global_val` is shared: the same name can
 
 ### Effect-on-conditions: the first question (round 767)
 
-54 of the game's spells are `effect_on_condition`, and an EOC is a program: a condition, then a list of effects. The port had the *ids* of all 913 EOCs and could evaluate none of them. This round opens the first half - the condition - with the smallest honest slice:
+63 of the game's spells are `effect_on_condition`, and an EOC is a program: a condition, then a list of effects. The port had the *ids* of all 913 EOCs and could evaluate none of them. This round opens the first half - the condition - with the smallest honest slice:
 
 * `content::dialogue::read_condition` is `conditional_t`'s loader (`condition.cpp:2660-2760`): the three combinators `and`, `or`, `not`, and the one leaf `u_has_effect`.
 * `sim::conditions::holds` answers it from the store: `f_has_effect` (`condition.cpp:980-996`) asks for the effect and compares **intensity as a floor**, not an equality, so `intensity: 2` is true for a worn intensity of 3 and false for 1.
