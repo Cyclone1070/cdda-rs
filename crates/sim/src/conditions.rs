@@ -30,6 +30,17 @@ pub fn holds_with(
     condition: &Condition,
 ) -> bool {
     match condition {
+        Condition::HasTrait { trait_name, listener: about_listener } => {
+            let creature = if *about_listener {
+                match listener {
+                    Some(other) => other,
+                    None => return false,
+                }
+            } else {
+                speaker
+            };
+            crate::traits::has_trait(world, creature, trait_name)
+        }
         Condition::HasEffect { effect, intensity } => {
             applied_effects::intensity_of(world, speaker, effect)
                 .is_some_and(|worn| *intensity <= worn)

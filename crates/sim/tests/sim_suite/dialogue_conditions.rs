@@ -88,12 +88,13 @@ fn a_condition_the_port_cannot_read_is_refused_rather_than_answered() {
         read_condition(&with_part).is_none(),
         "the reader refuses what it cannot evaluate"
     );
-    // And a verb nobody has ported is refused too.
-    let a_trait = cdda_json::parse(br#"{"u_has_trait": "TRAIT_FASTHEALER"}"#.as_slice()).expect("valid json");
-    assert!(read_condition(&a_trait).is_none());
+    // And a verb nobody has ported is refused too. `u_has_trait` used to be the example here; it answers now, so the example had
+    // to move to a verb that still refuses - which is what this test is for, and why it was worth keeping rather than deleting.
+    let a_bionic = cdda_json::parse(br#"{"u_has_bionics": "bio_power_storage"}"#.as_slice()).expect("valid json");
+    assert!(read_condition(&a_bionic).is_none());
     // A combination is only as readable as its parts.
     let mixed = cdda_json::parse(
-        br#"{"and": [{"u_has_effect": "effect_bleed"}, {"u_has_trait": "TRAIT_X"}]}"#.as_slice(),
+        br#"{"and": [{"u_has_effect": "effect_bleed"}, {"u_has_bionics": "bio_x"}]}"#.as_slice(),
     )
     .expect("valid json");
     assert!(
@@ -180,8 +181,10 @@ fn the_port_answers_the_questions_it_can_and_says_how_many_that_is() {
     // the refusals because a combinator is only as readable as its parts, and the parts refused most are `math` (518),
     // `compare_string` (238) and `u_has_items` (155) - which is the list of what to port next, by frequency.
     assert_eq!(seen, 3708, "the data asks 3,708 `condition` objects");
+    // 1,848 after `u_has_trait` — 347 more than the 1,501 before it, which is the whole point of a leaf: a combinator is only as
+    // readable as its parts, so one ported leaf is worth far more than itself.
     assert_eq!(
-        readable, 1501,
+        readable, 1848,
         "of which the port answers 1,501: `u_has_effect`, `compare_string`, `u_has_items`, the combinators, and the `math` expressions whose every name it knows"
     );
 }

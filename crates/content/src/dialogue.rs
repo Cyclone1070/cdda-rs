@@ -10,6 +10,16 @@ use cdda_json::Value;
 /// A condition the port can evaluate.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Condition {
+    /// A creature carries a trait.
+    ///
+    /// Reference: `f_has_trait` (`condition.cpp:580-586`), which asks `has_trait( trait_id( name ) )` of the actor the member
+    /// names - `u_has_trait` for the speaker, `npc_has_trait` for the listener.
+    HasTrait {
+        /// The trait's id.
+        trait_name: String,
+        /// Whether the question is about the listener rather than the speaker.
+        listener: bool,
+    },
     /// The creature wears an effect, at least as strongly as stated.
     ///
     /// Reference: `conditional_fun::f_has_effect` (`condition.cpp:980-996`): the effect must be there, and the stated
@@ -207,6 +217,16 @@ pub fn read_condition(value: &Value) -> Option<Condition> {
     }
     if let Some(math) = object.get("math") {
         return read_expression(math).map(Condition::Math);
+    }
+    // Reference: `f_has_trait` (`condition.cpp:580-586`) - the actor simply has to carry the trait. Measured against the data,
+    // this is the second biggest guard the port could not answer (36 programs).
+    for (member, listener) in [("u_has_trait", false), ("npc_has_trait", true)] {
+        if let Some(Value::Str(trait_name)) = object.get(member) {
+            return Some(Condition::HasTrait {
+                trait_name: trait_name.clone(),
+                listener,
+            });
+        }
     }
     let Some(Value::Str(effect)) = object.get("u_has_effect") else {
         return None;

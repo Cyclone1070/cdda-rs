@@ -32,6 +32,7 @@ pub mod creature;
 pub mod hit_location;
 pub mod melee;
 pub mod sounds;
+pub mod traits;
 pub mod spell_effects;
 pub mod spellcasting;
 pub mod pathfinding;

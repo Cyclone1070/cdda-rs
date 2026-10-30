@@ -328,6 +328,24 @@ entries the port can run | **363** |
 
 Reading both spellings of a destination - `"x = 1"` and `"u_val('x') = 1"`, which `read_var_info` (`condition.cpp:408-437`) treats as the same variable classed by the member that names it - took the count from 174 to 179. The 125 still refused are of two shapes, counted rather than guessed: **139 statements are pure expressions** with no assignment (`"u_val('stamina')"`, `"ps_str + 50"`), and **76 are bare operators** (`"*="`, `"+="`) that suggest a statement split across several entries of one list. Neither is run: a list whose meaning the port cannot read is refused whole, because "ignore the parts I do not understand" is how a program silently does half its job.
 
+### Traits: the guard that was second, and what porting it taught (round 788)
+
+`u_has_trait` (36 programs) is now a component - `traits::Traits` on the creature, a set of ids, one question asked of the store - and a condition, following `f_has_trait` (`condition.cpp:580-586`), which asks `has_trait` of the actor the member names.
+
+Porting it moved the census in a way that had to be recorded rather than celebrated:
+
+| Count | Before | After |
+|---|---|---|
+conditions readable across the data | 1,501 | **1,848** |
+programs runnable whole | 64 | **65** |
+refused for an effect | 374 | **397** |
+refused for a `math` guard | 42 | **45** |
+refused for `u_has_trait` | 36 | **0** |
+
+Thirty-six programs were blamed on traits; thirty-six stopped being blamed on traits; **one** of them turned out to be otherwise complete. The other thirty-five moved house and are now blamed on their effects and their `math` guards. A refusal that moves house is not the same thing as a program that starts running, and the only honest way to say so is with both columns.
+
+The test also caught an invention: the first version used trait ids of my own making (`TRAIT_PARKOUR`), and the assertion that the ids come from the data's 959 mutations failed. The data spells mutations bare - `HALLUCINATION`, `MARTIAL_ARTS4` - without the `TRAIT_` prefix the reference's `trait_id` adds in code.
+
 ### Which guard refuses: from 254 to a ranked list (round 787)
 
 The program census said 254 programs were refused for their condition, which is a number without a direction. Naming the **member that fails** turns it into work.
@@ -373,7 +391,7 @@ refused for an effect | **374** |
 
 Reading a plain `run_eocs` name (one string, or a list of them) also took the effect count from 363 to **399**; the other 131 `run_eocs` entries are object forms with modifiers (`popup`, `variables`, `true_eocs`/`false_eocs`), which the port refuses rather than reading only the part it recognises.
 
-Both halves of the machine are now measured against each other: **1,501 of 3,708 conditions** answerable, **399 of 1,612 effects** runnable, and the intersection is **64 of 692 programs** runnable whole.
+Both halves of the machine are now measured against each other: **1,848 of 3,708 conditions** answerable (1,501 before traits), **399 of 1,612 effects** runnable, and the intersection is **65 of 692 programs** runnable whole.
 
 ### Messages: the second effect, and the first that only speaks (round 785)
 

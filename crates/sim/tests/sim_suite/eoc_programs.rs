@@ -243,13 +243,19 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
     // The ranking is the round's deliverable: it says what to port next instead of what is most used. `math` guards are the
     // biggest single refusal (42 programs), then traits (36), then location (28) - none of which the earlier census could see,
     // because reporting the joiner (`and`, 157 programs) only said "somewhere in a list".
-    assert_eq!(refused.get("effect"), Some(&374), "the effect side is the bigger refusal overall");
-    assert_eq!(refused.get("math"), Some(&42), "and `math` guards are the biggest single one");
-    assert_eq!(refused.get("u_has_trait"), Some(&36), "with traits next");
-    assert_eq!(refused.get("u_at_om_location"), Some(&28), "and overmap location after that");
+    //
+    // Porting the trait guard moved three numbers at once, which is the census's own lesson: without it, 36 programs were blamed
+    // on `u_has_trait`; with it, those programs are blamed on what refused them **next** - mostly their effects (374 -> 397) and
+    // `math` guards (42 -> 45). A refusal that moves house is not the same as a program that starts running, and only one of the
+    // thirty-six turned out to be otherwise complete.
+    assert_eq!(whole, 65, "one more program runs whole once traits are readable");
+    assert_eq!(refused.get("effect"), Some(&397), "and the effect side is still the bigger refusal");
+    assert_eq!(refused.get("u_has_trait"), None, "traits are no longer blamed for anything");
+    assert_eq!(refused.get("math"), Some(&45), "`math` guards are the biggest single one");
+    assert_eq!(refused.get("u_at_om_location"), Some(&28), "with overmap location next");
     // 692, not the 712 effect-on-condition objects in the data: twenty carry no `id`, so nothing can name them and the port does
     // not install them. The count of definitions was itself worth learning - the 712 in the earlier census counted objects, the
     // machine composes by name.
     assert_eq!(defined, 692, "the data defines 692 nameable effect-on-conditions");
-    assert_eq!(whole, 64, "and the port can run 64 of them whole");
+    assert_eq!(whole, 65, "and the port can run 65 of them whole");
 }
