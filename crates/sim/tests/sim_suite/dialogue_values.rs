@@ -4,7 +4,7 @@
 //! a global one, the dialogue's context, or one addressed by name. The port had no store for them, which is why the 518
 //! `math` and 238 `compare_string` conditions were refused: they name variables nothing could answer for.
 
-#![allow(clippy::float_cmp)]
+#![allow(clippy::float_cmp, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_sim::dialogue_values::{self, Value};
@@ -80,4 +80,45 @@ fn a_value_can_be_replaced_and_the_kind_can_change() {
         "the last write decides the kind, as one map of one value per name does in the reference"
     );
     assert_eq!(dialogue_values::all(&world, survivor).len(), 1, "and one name holds one value");
+}
+
+/// An arithmetic condition works out its expression, and a variable it cannot read makes it unanswerable.
+///
+/// Reference: a `math` condition (`condition.cpp:194-196`) reads an array expression and holds when the result is non-zero.
+/// The array is fully parenthesised - `[left, op, right]` - so its nesting carries the order of operations.
+#[test]
+fn a_math_condition_does_the_arithmetic_the_data_writes() {
+    use cdda_sim::conditions::holds;
+
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+
+    let three_plus_four = cdda_json::parse(br#"{"math": [[3, "+", 4], "==", 7]}"#.as_slice()).expect("json");
+    let condition = cdda_content::dialogue::read_condition(&three_plus_four).expect("readable");
+    assert!(holds(&world, survivor, &condition), "three and four is seven");
+
+    // Nesting decides the order: (3 + 4) * 2 is 14, and 3 + (4 * 2) is 11.
+    let nested = cdda_json::parse(br#"{"math": [[[3, "+", 4], "*", 2], ">", 11]}"#.as_slice()).expect("json");
+    let condition = cdda_content::dialogue::read_condition(&nested).expect("readable");
+    assert!(holds(&world, survivor, &condition), "(3 + 4) * 2 is 14, which is more than 11");
+
+    // A variable the store holds.
+    dialogue_values::set(&mut world, survivor, "mission_counter", Value::Number(2.0));
+    let from_a_variable = cdda_json::parse(
+        br#"{"math": ["u_val('mission_counter')", ">=", 2]}"#.as_slice(),
+    )
+    .expect("json");
+    let condition = cdda_content::dialogue::read_condition(&from_a_variable).expect("readable");
+    assert!(holds(&world, survivor, &condition), "the counter is two, which is at least two");
+
+    // A variable nobody set makes the expression unanswerable, which is false rather than zero.
+    let unset = cdda_json::parse(br#"{"math": ["u_val('never_set')", ">", 0]}"#.as_slice()).expect("json");
+    let condition = cdda_content::dialogue::read_condition(&unset).expect("readable");
+    assert!(!holds(&world, survivor, &condition));
+
+    // An operator nobody ported, and a variable scope nobody ported, are both refused at read time.
+    let an_unknown_op = cdda_json::parse(br#"{"math": [1, "and", 1]}"#.as_slice()).expect("json");
+    assert!(cdda_content::dialogue::read_condition(&an_unknown_op).is_none());
+    let an_unknown_scope = cdda_json::parse(br#"{"math": ["var_val('x')", "==", 1]}"#.as_slice()).expect("json");
+    assert!(cdda_content::dialogue::read_condition(&an_unknown_scope).is_none());
 }

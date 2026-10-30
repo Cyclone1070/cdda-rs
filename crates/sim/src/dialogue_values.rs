@@ -85,6 +85,16 @@ pub fn set(world: &mut World, holder: Entity, name: &str, value: Value) {
 /// Reference: `read_var_info` (`condition.cpp:408-437`) classes a variable by which member names it, and `get_value` then
 /// reads it from the player, an NPC or the global map. The port has one creature and one global map, so the two cases the
 /// data uses most - `u_val` and `global_val` - both arrive here.
+/// The entity holding the global variables, without needing a creature to ask through.
+#[must_use]
+pub fn global_holder(world: &World) -> Option<Entity> {
+    let mut query = world.try_query_filtered::<Entity, With<TheGlobalValues>>()?;
+    query.iter(world).next()
+}
+
+/// The holder a variable's scope names, and nothing when the scope is one the port cannot resolve.
+///
+/// `holder_for` answers for a scope with a creature in hand; this one answers when there is none.
 #[must_use]
 pub fn holder_for(world: &mut World, creature: Entity, global: bool) -> Entity {
     if global {

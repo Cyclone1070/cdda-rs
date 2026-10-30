@@ -296,6 +296,19 @@ Three things the sweep settled that the code did not say:
 * **The damage that arrives is the damage the data states, to the point.** The 32 positive spells sum to exactly **100,016,638** - the data's own total - including the outlier `hallu_touch_suicide` at 100,000,000. Nothing in the path rounds, clamps or resists when there is no armour.
 * **The first version of the sweep measured nothing.** A creature built by `spawn_creature` has no body, so all 77 refusals said `NothingToHit` and the sweep "passed" its counts. It now gives the target a torso, which is the same lesson as the frame dump: a dump taken before the object is configured measures the harness.
 
+### Math conditions: the tree, and the discovery that the data does not use its shape (round 769)
+
+`math` is the largest refused class (518), so this round built the expression tree and evaluator: `Expression` with numbers, `scope('name')` variables and binary operators, `conditions::value` evaluating it against the store, and `{"math": …}` wired into `read_condition` so a condition holds when its result is non-zero.
+
+Then the sweep was re-run, and **the readable count did not move: still 435 of 3,708.** That is the useful result, not a failure to report around:
+
+* the port read `{"math": [left, op, right]}` triples - the shape a fully parenthesised array would have;
+* the data writes `{"math": ["Nemesis_iteration * -1"]}` and `{"math": ["u_effect_intensity('VITRIFYING') * -1 * (ceil(u_val('intelligence') / 6))"]}` - an array wrapping **strings**, each of which is an expression in the reference's own language, with function calls and precedence.
+
+So the tree is right and unreachable: answering the data needs the **lexer and precedence parser** (`math_parser_lex.cpp`, `math_parser_impl.h`), not the array form. Building the tree was not wasted - a parsed expression is what the lexer will produce - but the round's own measurement says plainly that the count is the thing to watch, and it watched it stay still.
+
+The evaluator's semantics are gated regardless: nesting carries the order of operations, a variable the store holds resolves, a variable nobody set makes the condition false rather than zero, and an unported operator or scope is refused at read time.
+
 ### Dialogue variables, the store the questions needed (round 768)
 
 518 `math` conditions and 238 `compare_string` ones were refused for one reason: they name variables, and the port had nowhere to keep one. `dialogue_values` is `dialogue::get_value` / `set_value` (`dialogue.cpp`): a set of named values on the creature, and a **global** set in the store so a value written by one conversation is the value the next reads.

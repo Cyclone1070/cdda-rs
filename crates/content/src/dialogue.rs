@@ -8,7 +8,7 @@
 use cdda_json::Value;
 
 /// A condition the port can evaluate.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Condition {
     /// The creature wears an effect, at least as strongly as stated.
     ///
@@ -26,6 +26,86 @@ pub enum Condition {
     Or(Vec<Condition>),
     /// This one does not hold.
     Not(Box<Condition>),
+    /// An arithmetic expression, which holds when its result is not zero.
+    ///
+    /// Reference: `conditional_t`'s `math` member (`condition.cpp:194-196`), read into a `math_exp` and evaluated as a
+    /// boolean.
+    Math(Expression),
+}
+
+/// An arithmetic expression, as the data writes one.
+///
+/// Reference: `math_exp` (`math_parser.cpp`), whose JSON form is an array: a fully parenthesised `[left, op, right]` triple,
+/// with numbers, nested arrays and `scope('name')` variable calls for leaves. The array's own nesting carries the order of
+/// operations, so there is no precedence table to get wrong.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Expression {
+    /// A number.
+    Number(f64),
+    /// A variable: `u_val('name')` or `global_val('name')`.
+    Variable {
+        /// Which namespace, as the call spells it: `u_val` or `global_val`.
+        scope: String,
+        /// The variable's name.
+        name: String,
+    },
+    /// Two expressions and the operator between them.
+    Binary {
+        /// One of `+ - * / %` and the comparisons `== != < <= > >=`.
+        op: Operator,
+        /// The left side.
+        left: Box<Expression>,
+        /// The right side.
+        right: Box<Expression>,
+    },
+}
+
+/// An operator an expression may use.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Operator {
+    /// Add.
+    Add,
+    /// Subtract.
+    Subtract,
+    /// Multiply.
+    Multiply,
+    /// Divide.
+    Divide,
+    /// Remainder.
+    Remainder,
+    /// Equal.
+    Equal,
+    /// Not equal.
+    NotEqual,
+    /// Less than.
+    Less,
+    /// At most.
+    AtMost,
+    /// Greater than.
+    Greater,
+    /// At least.
+    AtLeast,
+}
+
+impl Operator {
+    /// The operator a spelled operator names, or nothing when the port has no rule for it.
+    #[must_use]
+    pub fn named(spelling: &str) -> Option<Self> {
+        Some(match spelling {
+            "+" => Self::Add,
+            "-" => Self::Subtract,
+            "*" => Self::Multiply,
+            "/" => Self::Divide,
+            "%" => Self::Remainder,
+            "==" => Self::Equal,
+            "!=" => Self::NotEqual,
+            "<" => Self::Less,
+            "<=" => Self::AtMost,
+            ">" => Self::Greater,
+            ">=" => Self::AtLeast,
+            _ => return None,
+        })
+    }
 }
 
 /// Reads a condition, or nothing when the port has no rule for it.
@@ -45,6 +125,9 @@ pub fn read_condition(value: &Value) -> Option<Condition> {
     }
     if let Some(inner) = object.get("not") {
         return read_condition(inner).map(|condition| Condition::Not(Box::new(condition)));
+    }
+    if let Some(math) = object.get("math") {
+        return read_expression(math).map(Condition::Math);
     }
     let Some(Value::Str(effect)) = object.get("u_has_effect") else {
         return None;
@@ -67,6 +150,52 @@ pub fn read_condition(value: &Value) -> Option<Condition> {
     Some(Condition::HasEffect {
         effect: effect.clone(),
         intensity,
+    })
+}
+
+/// Reads an expression, or nothing when the port has no rule for its shape.
+#[must_use]
+pub fn read_expression(value: &Value) -> Option<Expression> {
+    match value {
+        Value::Int(number) => {
+            #[allow(clippy::cast_precision_loss)]
+            let as_float = *number as f64;
+            Some(Expression::Number(as_float))
+        }
+        Value::Float(number) => Some(Expression::Number(*number)),
+        Value::Str(text) => read_leaf(text),
+        Value::Array(parts) if parts.len() == 3 => {
+            let [left, spelling, right] = parts.as_slice() else {
+                return None;
+            };
+            let Value::Str(spelling) = spelling else {
+                return None;
+            };
+            Some(Expression::Binary {
+                op: Operator::named(spelling)?,
+                left: Box::new(read_expression(left)?),
+                right: Box::new(read_expression(right)?),
+            })
+        }
+        _ => None,
+    }
+}
+
+/// Reads a leaf that is written as text: a variable call, or nothing.
+///
+/// Reference: the `scope('name')` form the math parser's lexer reads, where the scope is the variable's type - `u_val`,
+/// `npc_val`, `global_val`, `context_val` or `var_val` (`dialogue_helpers.h:33-40`).
+fn read_leaf(text: &str) -> Option<Expression> {
+    let open = text.find('(')?;
+    let scope = &text[..open];
+    let rest = text.get(open + 1..)?.strip_suffix(')')?;
+    let name = rest.trim().trim_matches('\'').trim_matches('"');
+    if name.is_empty() || !matches!(scope, "u_val" | "npc_val" | "global_val") {
+        return None;
+    }
+    Some(Expression::Variable {
+        scope: scope.to_owned(),
+        name: name.to_owned(),
     })
 }
 

@@ -163,7 +163,13 @@ fn the_port_answers_the_questions_it_can_and_says_how_many_that_is() {
     let top: Vec<(&String, &usize)> = top.into_iter().take(5).collect();
     println!("conditions: {seen} found, {readable} readable; most common refusals: {top:?}");
 
-    // The numbers are the measurement: 3,708 questions in the data and 435 the port can answer today. `and` and `not` lead
+    // The numbers are the measurement, and this round did **not** move the readable count, which is itself the finding: the
+    // data's `math` conditions are not the `[left, op, right]` triples the port learned to read - they are arrays wrapping
+    // **strings** that are themselves expressions, like `["Nemesis_iteration * -1"]` and
+    // `["u_effect_intensity('VITRIFYING') * -1 * (ceil(u_val('intelligence') / 6))"]`. Answering those needs the reference's
+    // lexer, not its array form.
+    //
+    // 3,708 questions in the data and 435 the port can answer today. `and` and `not` lead
     // the refusals because a combinator is only as readable as its parts, and the parts refused most are `math` (518),
     // `compare_string` (238) and `u_has_items` (155) - which is the list of what to port next, by frequency.
     assert_eq!(seen, 3708, "the data asks 3,708 `condition` objects");
