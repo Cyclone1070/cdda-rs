@@ -30,6 +30,14 @@ pub fn holds_with(
     condition: &Condition,
 ) -> bool {
     match condition {
+        Condition::Simple { name } => match name.as_str() {
+            // Reference: `has_beta` asks whether a listener exists at all (`d.has_beta`).
+            "has_beta" => listener.is_some(),
+            // Reference: `u_is_avatar` / `u_is_character` ask what kind of talker the speaker is. The port knows one character
+            // kind, so both answer "is this the entity the player drives".
+            "u_is_avatar" | "u_is_character" => crate::missions::avatar(world) == Some(speaker),
+            _ => false,
+        },
         Condition::IsWeather { wanted } => crate::weather::id_of(world)
             .is_some_and(|happening| wanted.contains(&happening)),
         Condition::HasMission { mission } => {

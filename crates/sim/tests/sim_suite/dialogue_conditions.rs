@@ -358,3 +358,54 @@ fn the_math_functions_answer_what_the_reference_s_table_answers() {
         );
     }
 }
+
+/// A condition written as a bare name is an argument-less condition, and three of them can be answered.
+///
+/// Reference: `read_condition` (`condition.cpp:515-540`) hands a string to `conditional_t( std::string_view type )`
+/// (`condition.cpp:2783-2810`), which looks the name up among the **simple** parsers. The data's ten top-level guards of this shape
+/// name `has_beta`, `u_is_character`, `u_is_underwater`, `u_can_see`, `player_see_npc` and `u_is_avatar`; the port answers the three
+/// whose answers it already has and refuses the rest, so the census stays honest.
+#[test]
+fn a_bare_name_is_an_argument_less_condition() {
+    use cdda_content::dialogue::read_condition;
+
+    let mut world = World::new();
+    let player = cdda_sim::creature::spawn_creature(&mut world, "the player", (0, 0, 0));
+    let talker = cdda_sim::creature::spawn_creature(&mut world, "the talker", (0, 0, 0));
+
+    let avatar = read_condition(&cdda_json::parse(br#""u_is_avatar""#.as_slice()).expect("json"))
+        .expect("readable");
+    let beta = read_condition(&cdda_json::parse(br#""has_beta""#.as_slice()).expect("json"))
+        .expect("readable");
+
+    assert!(
+        !cdda_sim::conditions::holds(&world, player, &avatar),
+        "nobody has claimed to be the avatar yet"
+    );
+    cdda_sim::missions::set_avatar(&mut world, player);
+    assert!(cdda_sim::conditions::holds(&world, player, &avatar));
+    assert!(
+        !cdda_sim::conditions::holds(&world, talker, &avatar),
+        "and an NPC is not the avatar"
+    );
+
+    assert!(
+        !cdda_sim::conditions::holds_with(&world, player, None, &beta),
+        "with nobody listening there is no beta"
+    );
+    assert!(cdda_sim::conditions::holds_with(
+        &world,
+        player,
+        Some(talker),
+        &beta
+    ));
+
+    // A name the port has no rule for is refused, not answered false.
+    for unknown in ["u_can_see", "u_is_underwater", "player_see_npc"] {
+        let value = cdda_json::parse(format!(r#""{unknown}""#).as_bytes()).expect("json");
+        assert!(
+            read_condition(&value).is_none(),
+            "`{unknown}` is refused rather than quietly answered"
+        );
+    }
+}

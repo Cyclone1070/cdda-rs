@@ -328,6 +328,26 @@ entries the port can run | **363** |
 
 Reading both spellings of a destination - `"x = 1"` and `"u_val('x') = 1"`, which `read_var_info` (`condition.cpp:408-437`) treats as the same variable classed by the member that names it - took the count from 174 to 179. The 125 still refused are of two shapes, counted rather than guessed: **139 statements are pure expressions** with no assignment (`"u_val('stamina')"`, `"ps_str + 50"`), and **76 are bare operators** (`"*="`, `"+="`) that suggest a statement split across several entries of one list. Neither is run: a list whose meaning the port cannot read is refused whole, because "ignore the parts I do not understand" is how a program silently does half its job.
 
+### Bare-name conditions, and seven guards that moved house (round 797)
+
+A guard written as a string is not a program call, which the first reading of the data got wrong: `read_condition` (`condition.cpp:515-540`) hands a string to `conditional_t( std::string_view type )` (`condition.cpp:2783-2810`), which looks the name up among the **simple** parsers - the conditions that take no argument. The data's ten top-level guards of that shape name `has_beta` (3), `u_is_character` (2), `u_is_underwater` (2), `u_can_see`, `player_see_npc` and `u_is_avatar`.
+
+Three of those the port can already answer, and it now reads them and refuses the rest:
+
+| Name | Answer | Reference |
+|---|---|---|
+`has_beta` | a listener exists | `d.has_beta` |
+`u_is_avatar` | the speaker is the avatar | `is_avatar` |
+`u_is_character` | the speaker is the avatar | `is_character` |
+
+| Count | Before | After |
+|---|---|---|
+programs runnable whole | 87 | 87 |
+guards blamed on a bare name | 38 | **31** |
+guards blamed on an effect | 379 | **385** |
+
+Seven guards stopped being refused and no program started running - the "moves house" pattern for the fourth time, and by now the most predictable thing in the census. What it does buy is honesty: the seven named guards the port *cannot* answer (`u_can_see`, `u_is_underwater`, `player_see_npc`) are refused at read time rather than answered false, so the census's `<named>` column means what it says.
+
 ### The field cap comes from the data now (round 796)
 
 The divergence the sweep found is closed rather than noted. `field_type::get_max_intensity` is the number of a type's `intensity_levels`, and the dump carries them: `fd_bload` and `fd_web` have three, and **`fd_electricity` has ten**. The port clamped every field at a constant three until this round.

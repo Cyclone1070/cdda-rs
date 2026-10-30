@@ -10,6 +10,16 @@ use cdda_json::Value;
 /// A condition the port can evaluate.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Condition {
+    /// A condition written as a bare name, which the reference resolves to an argument-less condition.
+    ///
+    /// Reference: `read_condition` (`condition.cpp:515-540`) hands a string to `conditional_t( std::string_view type )`
+    /// (`condition.cpp:2783-2810`), which looks the name up among the **simple** parsers - the conditions that take no argument.
+    /// The port accepts the three whose answers it can already give and refuses the rest, so the census stays honest about which
+    /// names it can read.
+    Simple {
+        /// The name the guard uses.
+        name: String,
+    },
     /// The sky is doing one of these things.
     ///
     /// Reference: `f_is_weather` (`condition.cpp:1812-1818`).
@@ -207,6 +217,14 @@ impl Operator {
 /// every unread condition the weakest possible meaning.
 #[must_use]
 pub fn read_condition(value: &Value) -> Option<Condition> {
+    // Reference: a bare name is an argument-less condition (`condition.cpp:2783-2810`), and the port reads the three it can answer.
+    if let Value::Str(name) = value {
+        return matches!(
+            name.as_str(),
+            "has_beta" | "u_is_avatar" | "u_is_character"
+        )
+        .then(|| Condition::Simple { name: name.clone() });
+    }
     let Value::Object(object) = value else {
         return None;
     };
