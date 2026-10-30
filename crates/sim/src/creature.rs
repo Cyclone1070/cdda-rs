@@ -441,6 +441,8 @@ pub enum Wore {
     NotAWearable,
     /// It is already being worn, by this creature or another.
     AlreadyWorn,
+    /// It is lying on a square: it has to be in hand before it can go on.
+    NotInHand,
 }
 
 /// Puts a thing on a creature, if it is a garment and not already being worn.
@@ -455,6 +457,11 @@ pub fn wear(world: &mut World, wearer: Entity, item: Entity) -> Wore {
     }
     if world.get::<WornBy>(item).is_some() {
         return Wore::AlreadyWorn;
+    }
+    // Reference: `Character::wear` takes an item out of the inventory, so an item on the map is not a candidate
+    // until it has been picked up. Without this the port would let a survivor wear a jacket through the floor.
+    if world.get::<Position>(item).is_some() && world.get::<Carried>(item).is_none() {
+        return Wore::NotInHand;
     }
     world.entity_mut(item).insert(WornBy(wearer));
     dress(world);
