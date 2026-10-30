@@ -149,7 +149,8 @@ fn a_creature_with_no_body_takes_the_damage_and_records_no_part() {
 /// worlds on one seed land on the same part with the same dice, so the difference in damage is the armour alone.
 #[test]
 fn armour_protects_the_part_it_covers_and_no_other() {
-    fn blow_with(armour: cdda_sim::creature::PartArmour) -> i32 {
+    /// The damage a blow does to a survivor wearing the given garment, on one seed.
+    fn blow_with(garment: Option<cdda_sim::creature::Garment>) -> i32 {
         let mut world = corridor();
         let zombie_entity = spawn_creature(&mut world, "a zombie", (0, 0, 0));
         set_health(&mut world, zombie_entity, 20);
@@ -167,7 +168,12 @@ fn armour_protects_the_part_it_covers_and_no_other() {
         world
             .entity_mut(survivor)
             .insert(Body { parts: human_body() });
-        world.entity_mut(survivor).insert(armour);
+        if let Some(garment) = garment {
+            world.spawn((
+                cdda_sim::creature::WornBy(survivor),
+                garment,
+            ));
+        }
         set_goal(&mut world, zombie_entity, (1, 0, 0));
         singletons::put_rolls(&mut world, Rolls::new(11));
         cdda_sim::turn::run_turn(&mut world);
@@ -184,6 +190,20 @@ fn armour_protects_the_part_it_covers_and_no_other() {
             "{part} is not a part of a person"
         );
         amount
+    }
+
+    fn cover(part: &str) -> cdda_sim::creature::Garment {
+        cdda_sim::creature::Garment {
+            layers: vec![(
+                part.to_owned(),
+                cdda_content::armour::Layer {
+                    // Four per millimetre, one millimetre thick: four points.
+                    resist: 4.0,
+                    thickness: 1.0,
+                    cover: 100,
+                },
+            )],
+        }
     }
 
     let bare_part = {
@@ -211,29 +231,27 @@ fn armour_protects_the_part_it_covers_and_no_other() {
         wounds.0.iter().next().map(|(part, _)| part.clone()).expect("one part")
     };
 
-    let bare = blow_with(cdda_sim::creature::PartArmour::default());
+    let bare = blow_with(None);
     assert_eq!(bare, 6, "six dice of one face, nothing in the way");
 
-    // Cover **only** the part the same seed lands on: the blow meets that armour and nothing else's.
-    let mut on_the_part = std::collections::BTreeMap::new();
-    on_the_part.insert(bare_part.clone(), 4);
+    // Cover **only** the part the same seed lands on: the blow meets that armour and nothing else's. The armour is
+    // worn rather than set, because `PartArmour` is derived now - `creature::dress` writes it from the garments a
+    // creature has on, and a hand-written map would be the stale answer the derive exists to prevent.
     assert_eq!(
-        blow_with(cdda_sim::creature::PartArmour(on_the_part)),
+        blow_with(Some(cover(&bare_part))),
         2,
         "six through four points on the {bare_part} is two"
     );
 
     // And covering a part the blow does not reach changes nothing, which is the half a whole-body armour
     // number could never express.
-    let mut elsewhere = std::collections::BTreeMap::new();
     let other = human_body()
         .into_iter()
         .map(|part| part.name)
         .find(|name| name != &bare_part)
         .expect("a person has more than one part");
-    elsewhere.insert(other, 4);
     assert_eq!(
-        blow_with(cdda_sim::creature::PartArmour(elsewhere)),
+        blow_with(Some(cover(&other))),
         6,
         "armour on a part the blow misses is worth nothing"
     );
