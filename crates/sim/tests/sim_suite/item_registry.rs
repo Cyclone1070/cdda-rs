@@ -220,3 +220,72 @@ fn too_heavy_is_refused_and_costs_nothing() {
         "the anvil is still on the floor where it belongs"
     );
 }
+
+/// A craft started in the morning is finished by the turn loop, and the result is in hand.
+///
+/// This is the wire the last two rounds left unwired: `finish_activity` had a `craft` branch that only cleared the
+/// marker, because the lookups the finish needed lived in its callers. With the registry in the store, the loop closes
+/// the loop by itself.
+#[test]
+fn the_turn_loop_finishes_what_it_started() {
+    use cdda_core_types::level::Level;
+    use cdda_sim::creature::{Carried, set_speed, spawn_creature};
+    use cdda_sim::terrain_table::TerrainTable;
+    use cdda_sim::{Prototypes, singletons};
+
+    let mut world = World::new();
+    let mut level = Level::new();
+    for x in 0..4 {
+        level.set_terrain(x, 0, 1, 1);
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let mut terrain = TerrainTable::new();
+    terrain.insert(1, true);
+    terrain.insert_move_cost(1, 2);
+    cdda_sim::set_prototypes(
+        &mut world,
+        Prototypes {
+            terrain,
+            furniture: TerrainTable::new(),
+        },
+    );
+    singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
+    item_registry::set_item_types(&mut world, &[("rag", 250, 100), ("rope", 500, 200)]);
+
+    let crafter = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    set_speed(&mut world, crafter, 100, 0);
+    for _ in 0..2 {
+        let rag = cdda_sim::drop_item(&mut world, (0, 0), ItemTypeId(1), 1);
+        world.entity_mut(rag).remove::<cdda_sim::Position>();
+        world.entity_mut(rag).insert(Carried(crafter));
+    }
+    let names = item_registry::snapshot(&mut world);
+    let recipe = cdda_content::recipes::Recipe {
+        id: "tie_a_rope".to_owned(),
+        result: "rope".to_owned(),
+        blacklisted: false,
+        components: vec![vec![cdda_content::recipes::Component {
+            item: "rag".to_owned(),
+            count: 2,
+        }]],
+        tools: Vec::new(),
+        qualities: Vec::new(),
+        skill: String::new(),
+        difficulty: 0,
+        time_moves: 200,
+    };
+    assert_eq!(
+        crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
+        crafting::Craft::Started
+    );
+
+    cdda_sim::turn::run_turn(&mut world);
+    cdda_sim::turn::run_turn(&mut world);
+
+    let carried = cdda_sim::inventory::carried_by_id(&mut world, crafter, |kind| {
+        names.name_of(kind)
+    });
+    assert_eq!(carried.get("rope"), Some(&1), "the loop made the rope itself");
+    assert_eq!(carried.get("rag"), None, "and used both rags to do it");
+    assert!(world.get::<crafting::Making>(crafter).is_none(), "nothing is still being made");
+}

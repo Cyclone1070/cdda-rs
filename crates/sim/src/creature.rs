@@ -443,10 +443,10 @@ pub fn begin_pick_up(world: &mut World, creature: Entity, item: Entity, volume_m
 /// answer to an unhandled activity.
 pub fn finish_activity(world: &mut World, creature: Entity, activity: &str, subject: Option<Entity>) {
     if activity == "craft" {
-        // The craft's own finish: its components and its result are `crafting::finish_craft`'s business, and the
-        // lookups it needs are the item registry's, which the turn loop does not have. A craft that ends here has
-        // spent its time; the caller that started it is the one that knows how to hand out what it made.
-        world.entity_mut(creature).remove::<crate::crafting::Making>();
+        // Reference: `activity_handlers::craft_finish`. The store knows what items are, so the loop can finish the
+        // work itself: consume what the recipe asked for and hand over what it made. A world with no item registry
+        // knows no names, so nothing is consumed and nothing is made - which is the honest outcome, not a crash.
+        crate::crafting::finish_craft_in_store(world, creature);
         return;
     }
     if let ("pickup", Some(item)) = (activity, subject)
