@@ -27,6 +27,12 @@ pub struct ItemTypes {
     /// Reference: `itype::volume`, which is what `item::volume()` answers for a stack of one. Picking something up costs
     /// fifty moves a litre of it, and the store could not say how big anything was: every caller handed the number in.
     volumes_ml: Vec<i32>,
+    /// What each kind weighs, in grams, in registry order.
+    ///
+    /// Reference: `itype::weight`, which is what `item::weight()` answers for a stack of one. Carrying capacity is
+    /// measured against it, so a store that could not say how heavy a thing was could not tell you when you were
+    /// overloaded.
+    weights_g: Vec<i64>,
 }
 
 /// Marks the entity carrying [`ItemTypes`].
@@ -37,23 +43,26 @@ pub struct TheItemTypes;
 ///
 /// Later calls replace it, which is what a second world load does. The null item stays at zero whatever the data says,
 /// because a stack with no kind has to have a number that means nothing.
-pub fn set_item_types(world: &mut World, kinds: &[(&str, i64)]) {
+pub fn set_item_types(world: &mut World, kinds: &[(&str, i64, i64)]) {
     let mut names = vec![String::new()];
     let mut by_name = BTreeMap::new();
     let mut volumes_ml = vec![0];
-    for (id, volume) in kinds {
+    let mut weights_g = vec![0];
+    for (id, volume, weight) in kinds {
         #[allow(clippy::cast_possible_truncation)]
         let number = ItemTypeId(names.len() as u32);
         by_name.insert((*id).to_owned(), number);
         names.push((*id).to_owned());
         #[allow(clippy::cast_possible_truncation)]
         volumes_ml.push(*volume as i32);
+        weights_g.push(*weight);
     }
     let entity = singletons::singleton::<ItemTypes, TheItemTypes>(world);
     world.entity_mut(entity).insert(ItemTypes {
         names,
         by_name,
         volumes_ml,
+        weights_g,
     });
 }
 
@@ -81,6 +90,8 @@ pub struct ItemNames {
     pub by_name: BTreeMap<String, ItemTypeId>,
     /// How much room each kind takes, in millilitres, in registry order.
     pub volumes_ml: Vec<i32>,
+    /// What each kind weighs, in grams, in registry order.
+    pub weights_g: Vec<i64>,
 }
 
 impl ItemNames {
@@ -104,6 +115,12 @@ impl ItemNames {
     pub fn volume_of(&self, kind: ItemTypeId) -> i32 {
         self.volumes_ml.get(kind.0 as usize).copied().unwrap_or(0)
     }
+
+    /// What a kind weighs, in grams.
+    #[must_use]
+    pub fn weight_of(&self, kind: ItemTypeId) -> i64 {
+        self.weights_g.get(kind.0 as usize).copied().unwrap_or(0)
+    }
 }
 
 /// Takes a copy of the registry.
@@ -114,6 +131,7 @@ pub fn snapshot(world: &mut World) -> ItemNames {
         names: registry.names.clone(),
         by_name: registry.by_name.clone(),
         volumes_ml: registry.volumes_ml.clone(),
+        weights_g: registry.weights_g.clone(),
     })
 }
 
@@ -131,6 +149,16 @@ pub fn id_of(world: &mut World, name: &str) -> Option<ItemTypeId> {
     let entity = singletons::singleton::<ItemTypes, TheItemTypes>(world);
     let registry = world.get::<ItemTypes>(entity)?;
     registry.by_name.get(name).copied()
+}
+
+/// What a kind weighs, in grams.
+#[must_use]
+pub fn weight_of(world: &mut World, kind: ItemTypeId) -> i64 {
+    let entity = singletons::singleton::<ItemTypes, TheItemTypes>(world);
+    world
+        .get::<ItemTypes>(entity)
+        .and_then(|registry| registry.weights_g.get(kind.0 as usize).copied())
+        .unwrap_or(0)
 }
 
 /// How many kinds the registry knows, not counting the null item.

@@ -19,6 +19,7 @@ fn names_for(entries: &[(u32, &str)]) -> cdda_sim::item_registry::ItemNames {
         names: vec![String::new(); highest as usize + 1],
         by_name: std::collections::BTreeMap::new(),
         volumes_ml: vec![0; highest as usize + 1],
+        weights_g: vec![0; highest as usize + 1],
     };
     for (number, name) in entries {
         if let Some(slot) = names.names.get_mut(*number as usize) {

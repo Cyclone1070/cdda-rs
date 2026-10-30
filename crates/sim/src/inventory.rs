@@ -40,6 +40,22 @@ pub fn carried_by_id(
     counted
 }
 
+/// What everything a creature carries weighs, in grams.
+///
+/// Reference: `Character::weight_carried`, which sums the items in the inventory. The port sums the entities that point
+/// at the creature, which is the same set without a container to walk.
+#[must_use]
+pub fn weight_carried(world: &mut World, creature: Entity, names: &crate::item_registry::ItemNames) -> i64 {
+    let mut total = 0;
+    let mut query = world.query::<(&Carried, &GroundItem)>();
+    for (carried, item) in query.iter(world) {
+        if carried.0 == creature {
+            total += names.weight_of(item.kind) * i64::from(item.charges.max(1));
+        }
+    }
+    total
+}
+
 /// How many of one thing a creature is carrying.
 #[must_use]
 pub fn how_many(world: &mut World, creature: Entity, item: &str, name_of: impl Fn(crate::ItemTypeId) -> Option<String>) -> i32 {

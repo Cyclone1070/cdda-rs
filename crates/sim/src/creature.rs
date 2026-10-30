@@ -465,13 +465,58 @@ fn take_into_hand(world: &mut World, creature: Entity, item: Entity, from: (i32,
     world.entity_mut(item).insert(Carried(creature));
 }
 
+/// What a creature can carry, in grams.
+///
+/// Reference: `Creature::weight_capacity` (`creature.cpp:3246-3268`) - thirteen kilograms for a medium creature, halved
+/// for a small one, quartered for a tiny one, doubled for a large one and quadrupled for a huge one. The reference then
+/// adds four kilograms a point of strength in `Character::weight_capacity` (`character.cpp:3353-3361`), which the port
+/// adds when the creature carries a [`Strength`]: a creature with no strength stated is not a character, and thirteen
+/// kilograms is what a creature of that size can carry.
+#[must_use]
+pub fn carrying_capacity(world: &World, entity: Entity) -> i64 {
+    let size = world
+        .get::<Creature>(entity)
+        .map_or(crate::CreatureSize::Medium, |creature| creature.size);
+    let base = match size {
+        crate::CreatureSize::Tiny => 13_000 / 4,
+        crate::CreatureSize::Small => 13_000 / 2,
+        crate::CreatureSize::Medium => 13_000,
+        crate::CreatureSize::Large => 13_000 * 2,
+        crate::CreatureSize::Huge => 13_000 * 4,
+    };
+    let strength = world.get::<Strength>(entity).map_or(0, |strength| strength.base);
+    base + i64::from(strength) * 4_000
+}
+
+/// How strong a creature is.
+///
+/// Reference: `Character::get_str_base`, which the reference initialises to eight and raises with mutations and
+/// bionics. The port carries the base only: pain and temporary modifiers are not here, and inventing them would make a
+/// survivor's capacity wander for reasons nothing in the port models.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Strength {
+    /// The base strength.
+    pub base: i32,
+}
+
 /// Picks something up, charging what the store says it is worth in moves.
 ///
 /// The same rule as [`pick_up`], with the volume taken from [`crate::item_registry`] instead of from a caller - which is
 /// the difference between a pickup rule the game can run and one only a test could.
 pub fn pick_up_in_store(world: &mut World, creature: Entity, item: Entity) -> Picked {
-    let kind = world.get::<crate::GroundItem>(item).map(|held| held.kind);
-    let volume = kind.map_or(0, |kind| crate::item_registry::volume_of(world, kind));
+    let Some(kind) = world.get::<crate::GroundItem>(item).map(|held| held.kind) else {
+        return Picked::NotHere;
+    };
+    let volume = crate::item_registry::volume_of(world, kind);
+    // Reference: `Character::can_pickup` refuses what would put the character over `weight_capacity` before spending a
+    // single move on it.
+    let names = crate::item_registry::snapshot(world);
+    let held = crate::inventory::weight_carried(world, creature, &names);
+    let this = names.weight_of(kind)
+        * i64::from(world.get::<crate::GroundItem>(item).map_or(1, |held| held.charges.max(1)));
+    if held + this > carrying_capacity(world, creature) {
+        return Picked::TooHeavy;
+    }
     pick_up(world, creature, item, volume)
 }
 
@@ -484,6 +529,8 @@ pub enum Picked {
     NotHere,
     /// There were not enough action points left.
     TooSlow,
+    /// It would put the creature over what it can carry.
+    TooHeavy,
     /// Somebody is already carrying it.
     AlreadyCarried,
 }
