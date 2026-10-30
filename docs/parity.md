@@ -328,6 +328,17 @@ entries the port can run | **363** |
 
 Reading both spellings of a destination - `"x = 1"` and `"u_val('x') = 1"`, which `read_var_info` (`condition.cpp:408-437`) treats as the same variable classed by the member that names it - took the count from 174 to 179. The 125 still refused are of two shapes, counted rather than guessed: **139 statements are pure expressions** with no assignment (`"u_val('stamina')"`, `"ps_str + 50"`), and **76 are bare operators** (`"*="`, `"+="`) that suggest a statement split across several entries of one list. Neither is run: a list whose meaning the port cannot read is refused whole, because "ignore the parts I do not understand" is how a program silently does half its job.
 
+### The sweep reaches squares and creatures, and finds a hardcoded maximum (round 795)
+
+The singleton sweep now has a twin: every setter that writes **per square** or **per creature** is called on an empty store and read back through the module's own accessor - passage, fire facts, scent, a field's strength, a sound, health, moves, traits, missions, an applied effect, the weather's name.
+
+It found **no silent no-op** this time, which is the useful negative result: the per-square setters were written with the insert-when-absent shape from the start. Two of them answered something other than the test's first guess, and both answers are correct:
+
+* `scent::set_scent_at` refuses on a world with no level, because the grid has no extent until the level gives it one - it declines because there are no squares, not because the write path is broken;
+* `add_field_strength( …, 4 )` reads back **3**, because `FieldEntry::set_intensity` clamps at a constant three.
+
+The second is a divergence the sweep surfaced by accident and the round records rather than fixes: **the reference takes a field's maximum intensity from its own type data** - `intensity_levels`, which in the game's field types runs from 1 to **10** - and the port clamps every field at 3. `fd_blood` and `fd_web` have 3 levels, so the clamp is right for them and wrong for whatever has more. Naming it now means the next round can port `field_type`'s levels instead of discovering the cap mid-rule.
+
 ### The setter sweep, and a second setter with the same bug (round 794)
 
 `set_weather` was the fourth "did nothing, said nothing" bug in this port. Four instances of one failure mode is not bad luck, it is a shape - so instead of waiting for the fifth, this round swept **every** singleton setter.

@@ -95,3 +95,112 @@ fn every_singleton_setter_installs_what_it_claims_to() {
         "the dice survive a fresh store - this is the second setter the sweep found, and it had the same bug as the sky"
     );
 }
+
+/// The same sweep for the setters that write **per square** or **per creature** rather than into a singleton.
+///
+/// A per-square setter that silently no-ops would be harder to notice than a singleton one, because a square is usually written
+/// once and read by a rule several turns later. Each of these writes to an empty store and then reads the value back through the
+/// module's own accessor - the only way to see a write path that quietly declined to write.
+#[test]
+fn every_square_and_creature_setter_reads_back() {
+    let mut world = World::new();
+
+    cdda_sim::field_passage::set_passage(
+        &mut world,
+        (0, 0, 0),
+        cdda_sim::field_passage::FieldPassage {
+            impassable: true,
+            permeable: false,
+        },
+    );
+    assert!(
+        !cdda_sim::field_passage::may_enter(&world, (0, 0, 0)),
+        "an impassable square is impassable after being told so"
+    );
+
+    let facts = cdda_sim::TerrainFacts {
+        flammable: true,
+        ..cdda_sim::TerrainFacts::default()
+    };
+    cdda_sim::fire_facts::set_fire_facts(&mut world, (1, 0, 0), facts);
+    assert!(
+        cdda_sim::fire_facts::fire_facts_at(&world, (1, 0, 0)).flammable,
+        "fire facts survive on a fresh square"
+    );
+
+    // The scent grid has no extent until a level gives it one, so the honest answer on a fresh store is "nothing stored" rather
+    // than a write that silently vanishes. This is the one setter in the sweep whose refusal is correct: it declines because the
+    // world has no squares, not because the write path is broken.
+    cdda_sim::scent::set_scent_at(&mut world, (2, 0), 7);
+    assert_eq!(
+        cdda_sim::scent::scent_at(&world, (2, 0)),
+        0,
+        "a world with no level has no grid to hold scent, and says so by answering zero"
+    );
+
+    cdda_sim::add_field_strength(&mut world, (3, 0, 0), cdda_core_types::field::FieldId(13), 2);
+    assert_eq!(
+        cdda_sim::field_strength_at(&world, (3, 0, 0), cdda_core_types::field::FieldId(13)),
+        2,
+        "a field placed on a fresh square reads back at its strength"
+    );
+    // And a strength above the field rules' maximum is clamped rather than stored: asking for 4 on a world with the default rules
+    // gave 3, which is the cap rather than a lost write. The cap is the rules' number, so the test asks for the cap rather than
+    // guessing it.
+    cdda_sim::add_field_strength(&mut world, (3, 1, 0), cdda_core_types::field::FieldId(13), 99);
+    let cap = cdda_sim::field_strength_at(&world, (3, 1, 0), cdda_core_types::field::FieldId(13));
+    assert!(cap >= 1, "the field rules state some maximum, and it is at least one");
+    cdda_sim::add_field_strength(&mut world, (3, 2, 0), cdda_core_types::field::FieldId(13), cap);
+    assert_eq!(
+        cdda_sim::field_strength_at(&world, (3, 2, 0), cdda_core_types::field::FieldId(13)),
+        cap,
+        "and a strength at the cap is stored as asked"
+    );
+
+    cdda_sim::sounds::make_sound(&mut world, (4, 0, 0), 12);
+    assert_eq!(
+        cdda_sim::sounds::heard_this_turn(&mut world).len(),
+        1,
+        "a sound made on a fresh store is heard"
+    );
+
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (5, 0, 0));
+    cdda_sim::creature::set_health(&mut world, survivor, 12);
+    assert_eq!(
+        cdda_sim::creature::health_of(&world, survivor),
+        Some(12),
+        "health set on a fresh creature reads back"
+    );
+
+    cdda_sim::creature::set_moves(&mut world, survivor, 40);
+    assert_eq!(
+        cdda_sim::creature::moves_left(&world, survivor),
+        40,
+        "moves set on a fresh creature read back"
+    );
+
+    cdda_sim::traits::set_traits(&mut world, survivor, &["HALLUCINATION"]);
+    assert!(cdda_sim::traits::has_trait(&world, survivor, "HALLUCINATION"));
+
+    cdda_sim::missions::accept(&mut world, survivor, "MISSION_REACH_REFUGEE_CENTER");
+    assert!(cdda_sim::missions::has_mission(
+        &world,
+        survivor,
+        "MISSION_REACH_REFUGEE_CENTER"
+    ));
+
+    cdda_sim::applied_effects::add(
+        &mut world,
+        survivor,
+        cdda_sim::effects::ActiveEffect {
+            id: "effect_bleed".to_owned(),
+            intensity: 1,
+            duration: 100,
+            permanent: false,
+        },
+    );
+    assert!(cdda_sim::applied_effects::has(&world, survivor, "effect_bleed"));
+
+    cdda_sim::weather::set_id(&mut world, "rain");
+    assert_eq!(cdda_sim::weather::id_of(&world), Some("rain".to_owned()));
+}
