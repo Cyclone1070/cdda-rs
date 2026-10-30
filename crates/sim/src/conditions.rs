@@ -7,7 +7,6 @@ use bevy_ecs::prelude::*;
 
 use cdda_content::dialogue::{Condition, Expression, Operator, StringSource};
 
-use crate::applied_effects;
 
 /// Whether a condition holds for a creature talking to nobody in particular.
 ///
@@ -32,6 +31,81 @@ pub fn holds_with(
     holds_drawing(world, speaker, listener, condition, &mut None)
 }
 
+
+/// Whether one of the two chance guards rolls true.
+///
+/// Reference: `one_in_chance` (`condition.cpp:1760-1766` -> `one_in`, `src/rng.cpp:196-199`) and `x_in_y_chance`
+/// (`condition.cpp:1801-1810` -> `x_in_y`, `src/rng.cpp:206-209`). Both need the store's generator; a caller without one gets `false`.
+fn rolls_against(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    condition: &Condition,
+    draws: &mut Option<&mut cdda_core_types::rng::Rolls>,
+) -> bool {
+    let Some(dice) = draws.as_deref_mut() else {
+        return false;
+    };
+    match condition {
+        Condition::OneInChance(chance) => {
+            let Some(n) = value_drawing(world, speaker, listener, chance, false, None) else {
+                return false;
+            };
+            #[allow(clippy::cast_possible_truncation)]
+            let chance = n.round() as i32;
+            dice.one_in(chance)
+        }
+        Condition::XInYChance { x, y } => {
+            let (Some(x), Some(y)) = (
+                value_drawing(world, speaker, listener, x, false, None),
+                value_drawing(world, speaker, listener, y, false, None),
+            ) else {
+                return false;
+            };
+            dice.x_in_y(x, y)
+        }
+        _ => false,
+    }
+}
+
+/// Whether a creature carries enough of an item, in stacks and in charges.
+///
+/// Reference: `f_has_items` (`condition.cpp:836-865`) - a requirement that states `charges` asks about charges, one that states `count`
+/// asks about stacks, and one that states both must satisfy both.
+fn carries_enough(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    item: &cdda_content::dialogue::StringSource,
+    count: Option<i32>,
+    charges: Option<i32>,
+) -> bool {
+    let Some(name) = text_of(world, speaker, listener, item) else {
+        return false;
+    };
+    let (stacks, total_charges) = crate::inventory::count_of(world, speaker, &name);
+    let enough_charges = charges.is_none_or(|wanted| total_charges >= wanted);
+    let enough_count = count.is_none_or(|wanted| stacks >= wanted);
+    enough_charges && enough_count
+}
+
+/// Which creature a guard asks about, or nothing when it asks about a listener that is not there.
+fn actor_for(speaker: Entity, listener: Option<Entity>, about_listener: bool) -> Option<Entity> {
+    if about_listener { listener } else { Some(speaker) }
+}
+
+/// Whether any name in a list answers yes, resolving each name as the data wrote it.
+fn any_named(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    names: &[cdda_content::dialogue::StringSource],
+    mut holds: impl FnMut(String) -> bool,
+) -> bool {
+    names.iter().any(|wanted| {
+        text_of(world, speaker, listener, wanted).is_some_and(&mut holds)
+    })
+}
 
 /// Whether a creature carries at least one of an item, by stack or by charge.
 ///
@@ -91,28 +165,8 @@ pub fn holds_drawing(
     draws: &mut Option<&mut cdda_core_types::rng::Rolls>,
 ) -> bool {
     match condition {
-        Condition::OneInChance(chance) => {
-            let Some(dice) = draws.as_deref_mut() else {
-                return false;
-            };
-            let Some(n) = value_drawing(world, speaker, listener, chance, false, None) else {
-                return false;
-            };
-            #[allow(clippy::cast_possible_truncation)]
-            let chance = n.round() as i32;
-            dice.one_in(chance)
-        }
-        Condition::XInYChance { x, y } => {
-            let Some(dice) = draws.as_deref_mut() else {
-                return false;
-            };
-            let (Some(x), Some(y)) = (
-                value_drawing(world, speaker, listener, x, false, None),
-                value_drawing(world, speaker, listener, y, false, None),
-            ) else {
-                return false;
-            };
-            dice.x_in_y(x, y)
+        Condition::OneInChance(_) | Condition::XInYChance { .. } => {
+            rolls_against(world, speaker, listener, condition, draws)
         }
         Condition::Simple { name } => match name.as_str() {
             // Reference: `has_beta` asks whether a listener exists at all (`d.has_beta`).
@@ -128,21 +182,17 @@ pub fn holds_drawing(
             let holder = crate::missions::question_holder(world, speaker);
             crate::missions::has_mission(world, holder, mission)
         }
-        Condition::HasTrait { trait_name, listener: about_listener } => {
-            let creature = if *about_listener {
-                match listener {
-                    Some(other) => other,
-                    None => return false,
-                }
-            } else {
-                speaker
+        Condition::HasTrait {
+            trait_name,
+            listener: about_listener,
+        } => {
+            let Some(creature) = actor_for(speaker, listener, *about_listener) else {
+                return false;
             };
             crate::traits::has_trait(world, creature, trait_name)
         }
-        Condition::HasEffect { effect, intensity } => {
-            applied_effects::intensity_of(world, speaker, effect)
-                .is_some_and(|worn| *intensity <= worn)
-        }
+        Condition::HasEffect { effect, intensity } => crate::applied_effects::intensity_of(world, speaker, effect)
+            .is_some_and(|worn| *intensity <= worn),
         Condition::And(conditions) => {
             conditions_with_dice(world, speaker, listener, conditions, draws, true)
         }
@@ -154,15 +204,7 @@ pub fn holds_drawing(
             item,
             count,
             charges,
-        } => {
-            let Some(name) = text_of(world, speaker, listener, item) else {
-                return false;
-            };
-            let (stacks, total_charges) = crate::inventory::count_of(world, speaker, &name);
-            let enough_charges = charges.is_none_or(|wanted| total_charges >= wanted);
-            let enough_count = count.is_none_or(|wanted| stacks >= wanted);
-            enough_charges && enough_count
-        }
+        } => carries_enough(world, speaker, listener, item, *count, *charges),
         Condition::CompareString(sources) => {
             let mut seen: Vec<String> = Vec::with_capacity(sources.len());
             for source in sources {
@@ -175,6 +217,27 @@ pub fn holds_drawing(
                 seen.push(text);
             }
             false
+        }
+        Condition::HasAnyTrait {
+            traits,
+            listener: about_listener,
+        } => {
+            let Some(creature) = actor_for(speaker, listener, *about_listener) else {
+                return false;
+            };
+            let held = crate::traits::traits_held(world, creature);
+            any_named(world, speaker, listener, traits, |name| held.contains(&name))
+        }
+        Condition::HasAnyEffect {
+            effects,
+            listener: about_listener,
+        } => {
+            let Some(creature) = actor_for(speaker, listener, *about_listener) else {
+                return false;
+            };
+            any_named(world, speaker, listener, effects, |name| {
+                crate::applied_effects::has(world, creature, &name)
+            })
         }
         Condition::HasItem { item, listener: about_listener } => {
             carries_one_of(world, speaker, listener, item, *about_listener)

@@ -87,6 +87,24 @@ pub enum Condition {
         /// How many charges must be carried, when the data states charges.
         charges: Option<i32>,
     },
+    /// A creature holds at least one of these traits.
+    ///
+    /// Reference: `f_has_any_trait` (`condition.cpp:563-578`), which walks the list and holds as soon as one is held.
+    HasAnyTrait {
+        /// The trait names, any one of which answers true.
+        traits: Vec<StringSource>,
+        /// Whether it asks about the listener rather than the speaker.
+        listener: bool,
+    },
+    /// A creature is under at least one of these effects.
+    ///
+    /// Reference: `f_has_any_effect` (`condition.cpp:953-...`), the list form of `u_has_effect`, holding as soon as one is active.
+    HasAnyEffect {
+        /// The effect ids, any one of which answers true.
+        effects: Vec<StringSource>,
+        /// Whether it asks about the listener rather than the speaker.
+        listener: bool,
+    },
     /// A creature carries at least one of an item, by stack or by charge.
     ///
     /// Reference: `f_has_item` (`condition.cpp:826-834`) answers `charges_of( id ) > 0 || has_amount( id, 1 )`, so a partly used
@@ -313,6 +331,9 @@ pub fn read_condition(value: &Value) -> Option<Condition> {
             y: Box::new(read_expression(chance.get("y")?)?),
         });
     }
+    if let Some(list) = read_list_guard(object) {
+        return Some(list);
+    }
     // Reference: `f_has_item` (`condition.cpp:826-834`), the sibling of `u_has_items` that asks only "any at all".
     for (member, listener) in [("u_has_item", false), ("npc_has_item", true)] {
         if let Some(item) = object.get(member) {
@@ -362,6 +383,33 @@ pub fn read_condition(value: &Value) -> Option<Condition> {
     })
 }
 
+
+/// Reads the two guards whose member is a list of names: `u_has_any_trait` and `u_has_any_effect`.
+///
+/// Reference: `f_has_any_trait` (`condition.cpp:563-578`) and `f_has_any_effect` (`condition.cpp:953`), the list forms of the
+/// single-name guards, which hold as soon as one name matches.
+fn read_list_guard(object: &cdda_json::Object) -> Option<Condition> {
+    // Reference: `f_has_any_trait` (`condition.cpp:563-578`) and `f_has_any_effect` (`condition.cpp:953`) - the list forms of the two
+    // single-name guards, whose members are arrays of names.
+    for (member, listener) in [("u_has_any_trait", false), ("npc_has_any_trait", true)] {
+        if let Some(Value::Array(names)) = object.get(member) {
+            return Some(Condition::HasAnyTrait {
+                traits: read_string_sources(names)?,
+                listener,
+            });
+        }
+    }
+    for (member, listener) in [("u_has_any_effect", false), ("npc_has_any_effect", true)] {
+        if let Some(Value::Array(names)) = object.get(member) {
+            return Some(Condition::HasAnyEffect {
+                effects: read_string_sources(names)?,
+                listener,
+            });
+        }
+    }
+    None
+}
+
 /// Reads a `u_has_items` requirement, or nothing when the port cannot ask the question it states.
 fn read_has_items(requirement: &cdda_json::Object) -> Option<Condition> {
     let item = read_string_source(requirement.get("item")?)?;
@@ -388,6 +436,12 @@ fn read_whole_number(value: Option<&Value>) -> Option<i32> {
 }
 
 /// Reads one source of a string, or nothing when it is a shape the port cannot resolve.
+#[must_use]
+pub fn read_string_sources(values: &[Value]) -> Option<Vec<StringSource>> {
+    values.iter().map(read_string_source).collect()
+}
+
+/// Reads one string, or where it comes from.
 #[must_use]
 pub fn read_string_source(value: &Value) -> Option<StringSource> {
     match value {

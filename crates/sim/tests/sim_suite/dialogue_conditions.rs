@@ -186,7 +186,7 @@ fn the_port_answers_the_questions_it_can_and_says_how_many_that_is() {
     // before it. That is the whole point of a leaf: a combinator is only as readable as its parts, so one ported leaf is worth
     // several times itself.
     assert_eq!(
-        readable, 2201,
+        readable, 2229,
         "of which the port answers 1,501: `u_has_effect`, `compare_string`, `u_has_items`, the combinators, and the `math` expressions whose every name it knows"
     );
 }
@@ -517,4 +517,39 @@ fn carrying_one_item_answers_the_guard() {
         cdda_sim::conditions::holds_with(&world, survivor, Some(other), &listener_guard),
         "and now the listener's own pocket answers yes"
     );
+}
+
+/// The list forms of the trait and effect guards hold as soon as one name matches.
+///
+/// Reference: `f_has_any_trait` (`condition.cpp:563-578`) and `f_has_any_effect` (`condition.cpp:953`), both of which walk the list and
+/// answer true on the first match rather than requiring all of them.
+#[test]
+fn holding_any_of_a_list_answers_a_list_guard() {
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::traits::set_traits(&mut world, survivor, &["QUICK"]);
+    wearing(&mut world, survivor, "wet", 1);
+
+    assert!(holds(&world, survivor, &condition(r#"{"u_has_any_trait": ["QUICK", "TOUGH"]}"#)));
+    assert!(!holds(&world, survivor, &condition(r#"{"u_has_any_trait": ["TOUGH", "FAST"]}"#)));
+    assert!(holds(&world, survivor, &condition(r#"{"u_has_any_effect": ["wet", "downed"]}"#)));
+    assert!(!holds(&world, survivor, &condition(r#"{"u_has_any_effect": ["downed"]}"#)));
+
+    // Asked about a listener that is not there, both answer false rather than reaching for the speaker.
+    let npc_guard = condition(r#"{"npc_has_any_trait": ["QUICK"]}"#);
+    assert!(!cdda_sim::conditions::holds_with(&world, survivor, None, &npc_guard));
+    let stranger = cdda_sim::creature::spawn_creature(&mut world, "a stranger", (0, 0, 0));
+    assert!(!cdda_sim::conditions::holds_with(
+        &world,
+        survivor,
+        Some(stranger),
+        &npc_guard
+    ));
+    cdda_sim::traits::add_trait(&mut world, stranger, "QUICK");
+    assert!(cdda_sim::conditions::holds_with(
+        &world,
+        survivor,
+        Some(stranger),
+        &npc_guard
+    ));
 }
