@@ -201,3 +201,86 @@ fn a_recipe_is_satisfied_by_what_is_in_hand_and_nothing_else() {
         "one rag is not two"
     );
 }
+
+/// Finishing a craft takes what it used and puts what it made in your hands.
+///
+/// Reference: `activity_handlers::craft_finish` -> `recipe::create_results`. The two halves have to agree: a craft
+/// that produced without consuming would fill the world with free goods, and one that consumed without producing
+/// would be indistinguishable from a bug until you looked at your hands.
+#[test]
+fn finishing_a_craft_consumes_the_components_and_makes_the_result() {
+    let mut world = World::new();
+    let crafter = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let name_of = |kind: cdda_sim::ItemTypeId| match kind.0 {
+        7 => Some("rag".to_owned()),
+        11 => Some("rope".to_owned()),
+        _ => None,
+    };
+    let kind_of = |name: &str| match name {
+        "rag" => Some(cdda_sim::ItemTypeId(7)),
+        "rope" => Some(cdda_sim::ItemTypeId(11)),
+        _ => None,
+    };
+    // Two rags and a recipe that wants them.
+    let mut rags = Vec::new();
+    for _ in 0..2 {
+        let rag = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(7), 1);
+        world.entity_mut(rag).remove::<cdda_sim::Position>();
+        world.entity_mut(rag).insert(cdda_sim::creature::Carried(crafter));
+        rags.push(rag);
+    }
+    let mut recipe = recipe(100, "rag", 2);
+    recipe.result = "rope".to_owned();
+    assert_eq!(
+        cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, name_of),
+        Craft::Started
+    );
+
+    let made = cdda_sim::crafting::finish_craft(&mut world, crafter, name_of, kind_of);
+
+    assert_eq!(made.as_deref(), Some("rope"), "a rope was made");
+    assert!(
+        rags.iter().all(|rag| world.get_entity(*rag).is_err()),
+        "and both rags were used up"
+    );
+    let carried = cdda_sim::inventory::carried_by_id(&mut world, crafter, name_of);
+    assert_eq!(carried.get("rag"), None, "no rags left");
+    assert_eq!(carried.get("rope"), Some(&1), "one rope in hand");
+    assert!(world.get::<Making>(crafter).is_none(), "and the craft is over");
+}
+
+#[test]
+fn a_craft_that_lost_its_components_makes_nothing_and_takes_nothing() {
+    let mut world = World::new();
+    let crafter = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let name_of = |kind: cdda_sim::ItemTypeId| match kind.0 {
+        7 => Some("rag".to_owned()),
+        11 => Some("rope".to_owned()),
+        _ => None,
+    };
+    let kind_of = |name: &str| match name {
+        "rag" => Some(cdda_sim::ItemTypeId(7)),
+        "rope" => Some(cdda_sim::ItemTypeId(11)),
+        _ => None,
+    };
+    let rag = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(7), 1);
+    world.entity_mut(rag).remove::<cdda_sim::Position>();
+    world
+        .entity_mut(rag)
+        .insert(cdda_sim::creature::Carried(crafter));
+    let mut recipe = recipe(100, "rag", 2);
+    recipe.result = "rope".to_owned();
+    // Started with two, then one was dropped.
+    assert_eq!(
+        cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, name_of),
+        Craft::MissingComponents,
+        "this world only ever had one rag, so the craft never starts"
+    );
+    assert_eq!(
+        cdda_sim::crafting::finish_craft(&mut world, crafter, name_of, kind_of),
+        None,
+        "and finishing nothing makes nothing"
+    );
+    let carried = cdda_sim::inventory::carried_by_id(&mut world, crafter, name_of);
+    assert_eq!(carried.get("rag"), Some(&1), "the rag is still there");
+}

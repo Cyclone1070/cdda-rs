@@ -442,6 +442,13 @@ pub fn begin_pick_up(world: &mut World, creature: Entity, item: Entity, volume_m
 /// here - picking something up - and an activity the port does not know simply ends, which is the reference's own
 /// answer to an unhandled activity.
 pub fn finish_activity(world: &mut World, creature: Entity, activity: &str, subject: Option<Entity>) {
+    if activity == "craft" {
+        // The craft's own finish: its components and its result are `crafting::finish_craft`'s business, and the
+        // lookups it needs are the item registry's, which the turn loop does not have. A craft that ends here has
+        // spent its time; the caller that started it is the one that knows how to hand out what it made.
+        world.entity_mut(creature).remove::<crate::crafting::Making>();
+        return;
+    }
     if let ("pickup", Some(item)) = (activity, subject)
         && let Some(place) = world
             .get::<Position>(creature)

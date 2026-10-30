@@ -24,6 +24,97 @@ pub enum Craft {
     NoTimeToMakeIt,
 }
 
+/// Takes the components a recipe asks for out of a crafter's hands, and puts the result in them.
+///
+/// Reference: `activity_handlers::craft_finish` -> `Character::complete_craft` -> `recipe::create_results`, which
+/// consumes one alternative of each component group and makes `batch` of the result. The port removes the entities it
+/// consumes - a stack with more charges than the recipe needs loses them, a stack with exactly as many is despawned -
+/// and spawns the result in the crafter's hands, because a carried thing is an entity with a `Carried` link and no
+/// square.
+///
+/// Answers the item id that was made, or [`None`] when nothing could be made - in which case nothing is consumed
+/// either, because a craft that ate its components and produced nothing is worse than one that refused.
+pub fn finish_craft(
+    world: &mut World,
+    crafter: Entity,
+    name_of: impl Fn(crate::ItemTypeId) -> Option<String> + Copy,
+    kind_of: impl Fn(&str) -> Option<crate::ItemTypeId>,
+) -> Option<String> {
+    let making = world.get::<Making>(crafter).cloned()?;
+    world.entity_mut(crafter).remove::<Making>();
+    let on_hand = crate::inventory::carried_by_id(world, crafter, name_of);
+    if !making.recipe.components_available(making.batch, |item| {
+        on_hand.get(item).copied().unwrap_or(0)
+    }) {
+        return None;
+    }
+    // Which entity satisfies which group, decided before anything is removed: consuming while searching would let an
+    // earlier group eat what a later one needs.
+    let mut chosen: Vec<(crate::ItemTypeId, i32)> = Vec::new();
+    for alternatives in &making.recipe.components {
+        let mut took_any = false;
+        for component in alternatives {
+            let mut remaining = component.count.saturating_mul(making.batch.max(1));
+            if remaining <= 0 {
+                continue;
+            }
+            let mut stacks: Vec<(Entity, crate::ItemTypeId, i32)> = Vec::new();
+            {
+                let mut query = world.query::<(Entity, &crate::creature::Carried, &crate::GroundItem)>();
+                for (entity, carried, item) in query.iter(world) {
+                    if carried.0 == crafter && name_of(item.kind).as_deref() == Some(component.item.as_str()) {
+                        stacks.push((entity, item.kind, item.charges.max(1)));
+                    }
+                }
+            }
+            let available: i32 = stacks.iter().map(|(_, _, charges)| charges).sum();
+            if available < remaining {
+                continue;
+            }
+            for (entity, kind, charges) in stacks {
+                if remaining <= 0 {
+                    break;
+                }
+                let used = charges.min(remaining);
+                if used == charges {
+                    world.despawn(entity);
+                } else if let Some(mut item) = world.get_mut::<crate::GroundItem>(entity) {
+                    item.charges -= used;
+                }
+                chosen.push((kind, used));
+                remaining -= used;
+            }
+            took_any = true;
+            break;
+        }
+        if !took_any {
+            return None;
+        }
+    }
+    let _ = chosen;
+    let result = making.recipe.result.clone();
+    let Some(kind) = kind_of(&result) else {
+        // The result is not an item this world knows: the craft has already been paid for, so the honest answer is
+        // to say what could not be made rather than pretend a thing appeared.
+        return None;
+    };
+    let made = world
+        .spawn((
+            crate::creature::Carried(crafter),
+            crate::GroundItem {
+                kind,
+                charges: making.batch.max(1),
+                age: 0,
+                burnt: 0,
+                damage: 0,
+                burn: None,
+            },
+        ))
+        .id();
+    let _ = made;
+    Some(result)
+}
+
 /// Starts a craft using what is actually in the crafter's hands.
 ///
 /// The join the port was missing: [`crate::inventory::carried_by_id`] counts the carried items by their data ids, and
