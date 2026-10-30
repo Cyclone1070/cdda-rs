@@ -481,6 +481,42 @@ fn finish_wearing(world: &mut World, creature: Entity, subject: Option<Entity>) 
     }
 }
 
+/// The table of what undoing an activity does, by the id a [`Doing`] carries.
+///
+/// Reference: `player_activity::canceled` (`player_activity.cpp:420-428`), which hands the cancellation to the actor's
+/// own `canceled` - the same dispatch shape as the finishers, for the same reason: giving up on something is a behaviour
+/// of that something, and a craft that is abandoned has to hand back what it was using.
+pub const CANCELLERS: &[(&str, Finish)] = &[
+    ("craft", cancel_crafting),
+    ("pickup", cancel_nothing),
+    ("wear", cancel_nothing),
+];
+
+/// Reference: `craft_activity_actor::canceled`, which stops the work and leaves the components where they were. The port
+/// drops [`crate::crafting::Making`]; the ingredients are carried items and nothing consumed them until the finish, so
+/// there is nothing to hand back - which is a property of when the port consumes, not a shortcut.
+fn cancel_crafting(world: &mut World, creature: Entity, _subject: Option<Entity>) {
+    world.entity_mut(creature).remove::<crate::crafting::Making>();
+}
+
+/// An activity that has not changed anything yet has nothing to undo.
+fn cancel_nothing(_world: &mut World, _creature: Entity, _subject: Option<Entity>) {}
+
+/// Gives up on whatever a creature is doing.
+///
+/// Reference: `Character::cancel_activity` (`character.cpp:9088-9100`) - the activity is cancelled, and it is the
+/// activity's own business what that means. Answers whether there was anything to give up on.
+pub fn stop_doing(world: &mut World, creature: Entity) -> bool {
+    let Some(doing) = world.get::<Doing>(creature).cloned() else {
+        return false;
+    };
+    if let Some((_, cancel)) = CANCELLERS.iter().find(|(id, _)| *id == doing.activity) {
+        cancel(world, creature, doing.subject);
+    }
+    world.entity_mut(creature).remove::<Doing>();
+    true
+}
+
 /// Finishes an activity that has run out of moves.
 ///
 /// Reference: `activity_handlers::finish`, which looks the activity up in its table and calls what it finds. An activity

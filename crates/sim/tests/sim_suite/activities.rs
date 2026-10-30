@@ -245,3 +245,97 @@ fn an_unknown_activity_ends_and_changes_nothing() {
         "an activity with no handler must not touch the store"
     );
 }
+
+/// Giving up on a craft gives back everything it was using, and the work is lost.
+///
+/// Reference: `Character::cancel_activity` -> `player_activity::canceled` -> `craft_activity_actor::canceled`. The two
+/// halves matter equally: a craft that kept its ingredients after being cancelled would let a survivor make a thing by
+/// starting it and walking away, and one that consumed them would make cancelling a punishment the reference never
+/// intended.
+#[test]
+fn cancelling_a_craft_keeps_the_ingredients_and_loses_the_work() {
+    use cdda_sim::crafting::{Craft, Making, begin_craft_from_carried};
+    use cdda_sim::creature::{Doing, spawn_creature, stop_doing};
+
+    let mut world = World::new();
+    let crafter = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let names = cdda_sim::item_registry::ItemNames {
+        names: vec![String::new(), "rag".to_owned(), "rope".to_owned()],
+        by_name: [
+            ("rag".to_owned(), cdda_sim::ItemTypeId(1)),
+            ("rope".to_owned(), cdda_sim::ItemTypeId(2)),
+        ]
+        .into_iter()
+        .collect(),
+        volumes_ml: vec![0, 250, 500],
+        weights_g: vec![0, 100, 200],
+        holds_ml: vec![0, 0, 0],
+        pockets: Vec::new(),
+        pocket_ranges: vec![(0, 0), (0, 0), (0, 0)],
+    };
+    for _ in 0..2 {
+        let rag = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 1);
+        world.entity_mut(rag).remove::<cdda_sim::Position>();
+        world
+            .entity_mut(rag)
+            .insert(cdda_sim::creature::Carried(crafter));
+    }
+    let recipe = cdda_content::recipes::Recipe {
+        id: "tie_a_rope".to_owned(),
+        result: "rope".to_owned(),
+        blacklisted: false,
+        components: vec![vec![cdda_content::recipes::Component {
+            item: "rag".to_owned(),
+            count: 2,
+        }]],
+        tools: Vec::new(),
+        qualities: Vec::new(),
+        skill: String::new(),
+        difficulty: 0,
+        time_moves: 20_000,
+    };
+    assert_eq!(
+        begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
+        Craft::Started
+    );
+
+    assert!(stop_doing(&mut world, crafter), "there was something to give up on");
+
+    assert!(world.get::<Doing>(crafter).is_none(), "the survivor is free");
+    assert!(world.get::<Making>(crafter).is_none(), "and nothing is being made");
+    let carried = cdda_sim::inventory::carried_by_id(&mut world, crafter, |kind| names.name_of(kind));
+    assert_eq!(carried.get("rag"), Some(&2), "both rags are still in hand");
+    assert_eq!(carried.get("rope"), None, "and no rope was made");
+    assert!(
+        !stop_doing(&mut world, crafter),
+        "giving up on nothing answers that there was nothing"
+    );
+    // Starting again costs the whole recipe: the work is not remembered.
+    assert_eq!(
+        begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
+        Craft::Started
+    );
+    assert_eq!(
+        world.get::<Doing>(crafter).map(|doing| doing.moves_left),
+        Some(20_000),
+        "twenty thousand moves, not the remainder"
+    );
+}
+
+/// Every activity that can be finished can also be given up on.
+///
+/// The reference has a `canceled` on the actor for the same reason it has a `finish`: an activity that could only end by
+/// completing would be one a survivor could never change their mind about.
+#[test]
+fn every_activity_has_a_canceller() {
+    use cdda_sim::creature::{CANCELLERS, FINISHERS};
+    use std::collections::BTreeSet;
+
+    let finished: BTreeSet<&str> = FINISHERS.iter().map(|(id, _)| *id).collect();
+    let cancelled: BTreeSet<&str> = CANCELLERS.iter().map(|(id, _)| *id).collect();
+    assert_eq!(
+        finished, cancelled,
+        "every activity that can end one way must be able to end the other"
+    );
+    assert_eq!(cancelled.len(), 3, "three activities");
+}
