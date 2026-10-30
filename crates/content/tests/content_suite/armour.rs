@@ -78,3 +78,67 @@ fn a_real_garment_is_worth_what_its_materials_and_thickness_say() {
         "only {checked} garments cover a torso, which is too few to prove anything"
     );
 }
+
+/// Whether a blow ruins the garment that stopped it.
+///
+/// Reference: `item::damage_armor_durability` (`item.cpp:9481-9537`). Its comment states three numbers plainly -
+/// at most 80%, 40% when the blow is the garment's own resistance times 1.333, and a floor of ten points for
+/// anything not fragile - so those are what this pins. The constants matter: the floor of ten is why a t-shirt
+/// survives a punch, and dropping it would turn every fistfight into a naked one.
+#[test]
+fn a_blow_damages_a_garment_by_a_logistic_that_never_reaches_eighty_per_cent() {
+    let chance = cdda_content::armour::damage_chance;
+
+    // Not zero: the logistic never reaches zero, so a blow of nothing still has a sliver of a chance - about three
+    // in a hundred thousand. That is the reference's own behaviour (`x_in_y( damage_chance, 1.0 )`), and rounding it
+    // away here would be tidier and wrong.
+    let nothing = chance(10.0, 0.0, 1, false, false);
+    assert!(
+        nothing > 0.0 && nothing < 1e-4,
+        "a blow of nothing is not quite nothing: {nothing}"
+    );
+    let overwhelming = chance(10.0, 1_000.0, 1, false, false);
+    assert!(
+        overwhelming <= 0.8 && overwhelming > 0.79,
+        "a blow beyond any resistance approaches eighty per cent and never passes it: {overwhelming}"
+    );
+
+    // The floor of ten: a cotton shirt resists almost nothing, so its threshold is ten, not its own resistance.
+    let shirt = chance(0.5, 10.0, 1, false, false);
+    let shirt_without_floor = chance(0.5, 10.0, 1, true, false);
+    assert!(
+        shirt < shirt_without_floor,
+        "the floor of ten is why ordinary clothes survive a punch: {shirt} against {shirt_without_floor}"
+    );
+    assert!(shirt < 0.45, "and a punch is a coin toss at worst: {shirt}");
+
+    // At the threshold the logistic is at its midpoint: 0.8 / (1 + e^0) = 0.4.
+    let at_threshold = chance(0.0, 10.0, 1, false, false);
+    assert!(
+        (at_threshold - 0.4).abs() < 1e-9,
+        "a blow that exactly meets the floor is forty per cent: {at_threshold}"
+    );
+
+    // More of the garment in the way means less chance of ruining it.
+    let coat = chance(10.0, 20.0, 4, false, false);
+    let glove = chance(10.0, 20.0, 1, false, false);
+    assert!(coat * 4.0 - glove < 1e-9, "a garment covering four parts is a quarter as likely");
+}
+
+#[test]
+fn a_sturdy_garment_shrugs_off_a_blow_below_its_threshold() {
+    let chance = cdda_content::armour::damage_chance;
+    assert_eq!(
+        chance(20.0, 20.0, 1, false, true),
+        0.0,
+        "sturdy and under its own resistance is no damage at all"
+    );
+    assert!(
+        chance(20.0, 40.0, 1, false, true) > 0.5,
+        "but a blow past it is more likely to ruin the thing than not"
+    );
+    assert!(
+        chance(20.0, 20.0, 1, false, false) > 0.0,
+        "and the same garment without the flag is damaged by the same blow"
+    );
+}
