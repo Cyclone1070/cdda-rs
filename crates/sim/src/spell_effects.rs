@@ -26,7 +26,63 @@ type Apply = fn(&mut World, Entity, &Spell, i32, (i32, i32, i32)) -> Effective;
 /// Reference: the `spell_effect` subclasses (`magic_spell_effect.cpp`). A table rather than a match for the same reason
 /// the activity finishers are one: the answer to "what can a spell do in this port?" is a list, and a list can be
 /// counted.
-pub const EFFECTS: &[(&str, Apply)] = &[("mod_moves", mod_moves)];
+pub const EFFECTS: &[(&str, Apply)] = &[("mod_moves", mod_moves), ("summon", summon)];
+
+/// Reference: `spell_effect::summon` (`magic_spell_effect.cpp`), which spawns the monster the spell names, as many times as
+/// the spell's damage at that level, on free squares near the target. The port spawns them on the target square itself
+/// when it is free and on the nearest free square otherwise, because it has no path-finding to place a crowd yet.
+fn summon(
+    world: &mut World,
+    _caster: Entity,
+    spell: &Spell,
+    level: i32,
+    centre: (i32, i32, i32),
+) -> Effective {
+    let Some(how_many) = spell.damage.at(level) else {
+        return Effective::NothingAffected;
+    };
+    #[allow(clippy::cast_possible_truncation)]
+    let how_many = how_many.max(0.0) as i32;
+    let Some(kind) = crate::monster_registry::id_of(world, &spell.effect_str) else {
+        return Effective::NothingAffected;
+    };
+    let hp = crate::monster_registry::hit_points(world, kind);
+    let mut made = 0;
+    for step in 0..how_many {
+        // A ring of squares around the centre: the first is the centre itself, so a single summon lands where aimed.
+        let offset = ring_offset(step);
+        let square = (centre.0 + offset.0, centre.1 + offset.1);
+        if !crate::creature::creature_at(world, (square.0, square.1, centre.2)).is_empty() {
+            continue;
+        }
+        crate::spawn_monster(world, square, kind, hp);
+        made += 1;
+    }
+    if made == 0 {
+        Effective::NothingAffected
+    } else {
+        Effective::Done
+    }
+}
+
+/// The square to try when placing the `step`th summon: the centre, then its neighbours, then the next ring out.
+#[must_use]
+fn ring_offset(step: i32) -> (i32, i32) {
+    let mut left = step;
+    let mut radius = 0;
+    loop {
+        let side = radius * 2 + 1;
+        let in_ring = side * side;
+        if left < in_ring {
+            let along = left;
+            let row = along / side - radius;
+            let column = along % side - radius;
+            return if radius == 0 { (0, 0) } else { (row, column) };
+        }
+        left -= in_ring;
+        radius += 1;
+    }
+}
 
 /// Reference: `spell_effect::mod_moves` (`magic_spell_effect.cpp:1475-1490`) - every creature in the spell's area has
 /// its moves changed by `sp.damage( caster )`, which may be negative for a spell that slows a creature down.

@@ -93,12 +93,12 @@ fn an_effect_the_port_does_not_know_spends_nothing_and_says_so() {
     let mut world = World::new();
     let caster = cdda_sim::creature::spawn_creature(&mut world, "the caster", (0, 0, 0));
     let other = cdda_sim::creature::spawn_creature(&mut world, "other", (0, 0, 0));
-    let spell = a_spell("summon", 5, 0);
+    let spell = a_spell("explosion", 5, 0);
 
     assert_eq!(
         spell_effects::apply(&mut world, caster, &spell, 0, (0, 0, 0)),
         Effective::NotPorted,
-        "`summon` is in the data and not in the port, and it says so rather than pretending"
+        "`explosion` is in the data and not in the port, and it says so rather than pretending"
     );
     assert_eq!(
         cdda_sim::creature::moves_left(&world, other),
@@ -138,8 +138,85 @@ fn the_port_can_do_one_effect_of_the_ones_the_game_names() {
     }
     assert_eq!(
         spell_effects::EFFECTS.len(),
-        1,
-        "one effect is ported, out of the {} the game names",
+        2,
+        "two effects are ported, out of the {} the game names",
         named.len()
     );
+}
+
+/// A summoning spell puts monsters on the ground, and the store knows what a monster id means.
+///
+/// Reference: `spell_effect::summon` (`magic_spell_effect.cpp`) spawns `sp.damage( caster )` monsters of the type the
+/// spell names. The registry is the piece that makes that possible: `MonsterKindId` was a number with nothing behind it,
+/// so a spell could not say "a `mon_zombie`" and have anything happen.
+#[test]
+fn a_summoning_spell_brings_the_monster_it_names() {
+    use cdda_sim::monster_registry;
+    use cdda_sim::{MonsterKindId, monster_registry as registry};
+
+    let mut world = World::new();
+    let kinds = [
+        registry::MonsterKind {
+            id: "mon_zombie",
+            hp: 80,
+        },
+        registry::MonsterKind {
+            id: "mon_dog",
+            hp: 25,
+        },
+    ];
+    monster_registry::set_monster_types(&mut world, &kinds);
+    assert_eq!(monster_registry::count(&mut world), 2);
+    assert_eq!(
+        monster_registry::id_of(&mut world, "mon_dog"),
+        Some(MonsterKindId(2))
+    );
+    assert_eq!(
+        monster_registry::name_of(&mut world, MonsterKindId(1)).as_deref(),
+        Some("mon_zombie")
+    );
+    assert_eq!(monster_registry::hit_points(&mut world, MonsterKindId(1)), 80);
+
+    let caster = cdda_sim::creature::spawn_creature(&mut world, "the caster", (0, 0, 0));
+    let mut spell = a_spell("summon", 3, 1);
+    spell.effect_str = "mon_zombie".to_owned();
+
+    assert_eq!(
+        spell_effects::apply(&mut world, caster, &spell, 0, (5, 5, 0)),
+        Effective::Done,
+        "three zombies is a summoning that happened"
+    );
+    let near: Vec<bevy_ecs::prelude::Entity> = (4..=6)
+        .flat_map(|x| (4..=6).map(move |y| (x, y)))
+        .flat_map(|square| cdda_sim::creature::creature_at(&world, (square.0, square.1, 0)))
+        .collect();
+    assert_eq!(near.len(), 3, "three creatures appeared around (5,5)");
+    for zombie in &near {
+        assert_eq!(
+            world
+                .get::<cdda_sim::creature::CreatureKind>(*zombie)
+                .map(|kind| kind.0),
+            Some(MonsterKindId(1)),
+            "and every one of them is the kind the spell named"
+        );
+        assert_eq!(
+            cdda_sim::creature::health_of(&world, *zombie),
+            Some(80),
+            "with the hit points the registry says"
+        );
+    }
+}
+
+/// A spell naming a monster the store does not have summons nothing rather than a nameless thing.
+#[test]
+fn summoning_something_unknown_brings_nothing() {
+    let mut world = World::new();
+    let caster = cdda_sim::creature::spawn_creature(&mut world, "the caster", (0, 0, 0));
+    let mut spell = a_spell("summon", 2, 1);
+    spell.effect_str = "mon_does_not_exist".to_owned();
+    assert_eq!(
+        spell_effects::apply(&mut world, caster, &spell, 0, (3, 3, 0)),
+        Effective::NothingAffected
+    );
+    assert!(cdda_sim::creature::creature_at(&world, (3, 3, 0)).is_empty());
 }

@@ -30,6 +30,7 @@ pub mod inspect;
 pub mod inventory;
 pub mod item_data;
 pub mod item_registry;
+pub mod monster_registry;
 pub mod pockets;
 pub use square::load_level;
 pub mod skills;

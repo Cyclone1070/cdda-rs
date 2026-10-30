@@ -280,11 +280,22 @@ the layer that decides when to shift
 | System | Status | Gate | Notes |
 |---|---|---|---|
 | Spell types and casting | **partial: the data and the attack are in, the costs are not** | Spell replay (M3c) | 245 spells load from the oracle's dump (`corpus/spells.json`) with their scalings; `spellcasting::cast_attack` does range, damage, body part and armour. **Not ported:** the five cost kinds, so a cast is free |
-| Spell effects, shapes and targeting | **porting: 1 of the 33 effect names the data uses** | M3c | `spell_effects::EFFECTS` is a table with a stated length, holding `mod_moves` (`magic_spell_effect.cpp:1475-1490`); an unported effect answers `NotPorted` and spends nothing. Gated by `sim_suite/spell_effects.rs`, which counts the table against the names in the dump |
+| Spell effects, shapes and targeting | **porting: 2 of the 33 effect names the data uses** | M3c | `spell_effects::EFFECTS` is a table with a stated length, holding `mod_moves` (`magic_spell_effect.cpp:1475-1490`) and `summon`; an unported effect answers `NotPorted` and spends nothing. Gated by `sim_suite/spell_effects.rs`, which counts the table against the names in the dump |
 | Enchantments | not started | M3c | Feeds creature and item stats |
 | Terrain and furniture transforms | not started | M3c | |
 | Teleporter lists | not started | M3c | |
 | Relic generation | not started | M3c | |
+
+### Spell effects: two of thirty-three (rounds 756–757)
+
+`spell_effects::EFFECTS` is `magic_spell_effect.cpp`'s shape - one function per `effect_name`, dispatched by a table - and it holds two of the **33** names the data uses:
+
+* `mod_moves` (`magic_spell_effect.cpp:1475-1490`): every creature inside the spell's blast has its moves changed by the spell's damage at that level, caster excluded. A negative damage takes moves away, which is how a slowing spell works.
+* `summon`: the monster the spell names in `effect_str`, as many as the spell's damage, placed ring by ring from the target square and skipping occupied ones. Summoning needed a **monster registry** in the store first: `monster_registry` is `MonsterGenerator`'s table - number by name and back, with each kind's starting hit points - because `MonsterKindId` had been a number with nothing behind it, so a spell could not name a `mon_zombie` and have anything happen.
+
+An effect the port does not know answers `NotPorted` and spends nothing. A spell that silently does nothing is worse than one that says it cannot, because the first looks like it worked.
+
+The gates count. `EFFECTS.len()` is asserted, every name in the table must be a name the data uses (a typo would otherwise be a rule that never runs), and the number of distinct effect names in the dump is asserted too, so "we ported some effects" cannot quietly stop being true.
 
 ## P6 — Activities
 
