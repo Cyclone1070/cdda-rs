@@ -127,8 +127,13 @@ fn a_craft_can_be_finished_without_a_caller_supplying_the_item_table() {
     let carried = cdda_sim::inventory::carried_by_id(&mut world, crafter, |kind| {
         names.name_of(kind)
     });
-    assert_eq!(carried.get("rope"), Some(&1));
-    assert_eq!(carried.get("rag"), None);
+    assert_eq!(carried.get("rag"), None, "both rags were used up");
+    assert_eq!(carried.get("rope"), None, "the rope fits no pocket this survivor has");
+    assert_eq!(
+        cdda_sim::items_at(&mut world, (0, 0)).len(),
+        1,
+        "so it lies on the square the survivor stands on"
+    );
 }
 
 /// Picking something up costs what the store says it is, not what a caller claims.
@@ -331,8 +336,12 @@ fn the_turn_loop_finishes_what_it_started() {
     let carried = cdda_sim::inventory::carried_by_id(&mut world, crafter, |kind| {
         names.name_of(kind)
     });
-    assert_eq!(carried.get("rope"), Some(&1), "the loop made the rope itself");
-    assert_eq!(carried.get("rag"), None, "and used both rags to do it");
+    assert_eq!(carried.get("rag"), None, "the loop used both rags");
+    assert_eq!(
+        cdda_sim::items_at(&mut world, (0, 0)).len(),
+        1,
+        "and put the rope it made on the floor, since the survivor has no pockets"
+    );
     assert!(world.get::<crafting::Making>(crafter).is_none(), "nothing is still being made");
 }
 

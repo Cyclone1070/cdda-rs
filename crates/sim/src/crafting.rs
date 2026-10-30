@@ -98,6 +98,33 @@ pub fn finish_craft(world: &mut World, crafter: Entity, names: &crate::item_regi
     let size = names.volume_of(kind).saturating_mul(charges);
     let weight = names.weight_of(kind) * i64::from(charges);
     let pocket = crate::creature::can_stash(world, crafter, names, size, weight);
+    if pocket.is_none() {
+        // Reference: `i_add_or_drop` - what will not go in a pocket is put on the ground where the crafter stands, not
+        // into the character's hands. Every creature in the port has a square, so there is always somewhere to put it.
+        let placed = world.get::<crate::Position>(crafter).copied();
+        match placed {
+            Some(placed) => {
+                crate::drop_item(world, (placed.x, placed.y), kind, charges);
+            }
+            None => {
+                // A creature with no square at all is not standing anywhere, so the thing stays in hand rather than
+                // vanishing. Nothing in the port can be in this state; the branch exists so a missing position is a
+                // thing that does not disappear.
+                world.spawn((
+                    crate::creature::Carried(crafter),
+                    crate::GroundItem {
+                        kind,
+                        charges,
+                        age: 0,
+                        burnt: 0,
+                        damage: 0,
+                        burn: None,
+                    },
+                ));
+            }
+        }
+        return Some(result);
+    }
     let mut spawned = world.spawn((
         crate::creature::Carried(crafter),
         crate::GroundItem {

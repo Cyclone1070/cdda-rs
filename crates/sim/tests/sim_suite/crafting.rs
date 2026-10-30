@@ -256,7 +256,16 @@ fn finishing_a_craft_consumes_the_components_and_makes_the_result() {
     );
     let carried = cdda_sim::inventory::carried_by_id(&mut world, crafter, |kind| names.name_of(kind));
     assert_eq!(carried.get("rag"), None, "no rags left");
-    assert_eq!(carried.get("rope"), Some(&1), "one rope in hand");
+    assert_eq!(
+        carried.get("rope"),
+        None,
+        "and the rope is not in the hands of a survivor with no pockets - it was dropped"
+    );
+    assert_eq!(
+        cdda_sim::items_at(&mut world, (0, 0)).len(),
+        1,
+        "on the square the survivor stands on"
+    );
     assert!(world.get::<Making>(crafter).is_none(), "and the craft is over");
 }
 
@@ -360,20 +369,37 @@ fn a_crafted_thing_lands_in_a_pocket() {
     assert_eq!(pocket.index, 0);
 }
 
-/// With nothing to put it in, a crafted thing stays in hand rather than vanishing.
+/// What fits nowhere in your pockets lands at your feet.
 ///
-/// The reference drops it at your feet (`i_add_or_drop`); the port has no wield slot yet, so the honest answer is a
-/// thing in hand with no pocket - visibly different from a stashed one, and the gap is declared rather than hidden.
+/// Reference: `Character::i_add_or_drop` - the craft finish adds the result, the add fails for want of a pocket, and the
+/// thing goes on the ground rather than into the character's hands. The previous round left it in hand and declared the
+/// difference; this closes it, because the port does have a square to drop onto.
 #[test]
-fn with_no_pockets_a_crafted_thing_stays_in_hand() {
+fn what_fits_no_pocket_lands_at_your_feet() {
+    use cdda_core_types::level::Level;
+    use cdda_sim::terrain_table::TerrainTable;
+    use cdda_sim::{Prototypes, singletons};
+
     let mut world = World::new();
-    let crafter = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let mut level = Level::new();
+    for x in 0..4 {
+        level.set_terrain(x, 0, 1, 1);
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let mut terrain = TerrainTable::new();
+    terrain.insert(1, true);
+    terrain.insert_move_cost(1, 2);
+    cdda_sim::set_prototypes(
+        &mut world,
+        Prototypes {
+            terrain,
+            furniture: TerrainTable::new(),
+        },
+    );
+    singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
+
     let names = cdda_sim::item_registry::ItemNames {
-        names: vec![
-            String::new(),
-            "rag".to_owned(),
-            "rope".to_owned(),
-        ],
+        names: vec![String::new(), "rag".to_owned(), "rope".to_owned()],
         by_name: [
             ("rag".to_owned(), cdda_sim::ItemTypeId(1)),
             ("rope".to_owned(), cdda_sim::ItemTypeId(2)),
@@ -386,8 +412,27 @@ fn with_no_pockets_a_crafted_thing_stays_in_hand() {
         pockets: Vec::new(),
         pocket_ranges: vec![(0, 0), (0, 0), (0, 0)],
     };
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[
+            cdda_sim::item_registry::Kind {
+                id: "rag",
+                volume_ml: 250,
+                weight_g: 100,
+                pockets: &[],
+            },
+            cdda_sim::item_registry::Kind {
+                id: "rope",
+                volume_ml: 500,
+                weight_g: 200,
+                pockets: &[],
+            },
+        ],
+    );
+
+    let crafter = spawn_creature(&mut world, "the survivor", (2, 0, 0));
     for _ in 0..2 {
-        let rag = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 1);
+        let rag = cdda_sim::drop_item(&mut world, (2, 0), cdda_sim::ItemTypeId(1), 1);
         world.entity_mut(rag).remove::<cdda_sim::Position>();
         world
             .entity_mut(rag)
@@ -403,12 +448,9 @@ fn with_no_pockets_a_crafted_thing_stays_in_hand() {
         cdda_sim::crafting::finish_craft(&mut world, crafter, &names).as_deref(),
         Some("rope")
     );
+
     let carried = cdda_sim::inventory::carried_by_id(&mut world, crafter, |kind| names.name_of(kind));
-    assert_eq!(carried.get("rope"), Some(&1), "the rope is in hand");
-    let mut query = world.query::<&cdda_sim::creature::InPocket>();
-    assert_eq!(
-        query.iter(&world).count(),
-        0,
-        "and it is in no pocket, because there are none"
-    );
+    assert_eq!(carried.get("rope"), None, "it is not in the survivor's hands or pockets");
+    let on_the_floor = cdda_sim::items_at(&mut world, (2, 0));
+    assert_eq!(on_the_floor.len(), 1, "it is on the square the survivor stood on");
 }
