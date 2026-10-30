@@ -61,6 +61,21 @@ pub fn cast_attack(
     if f64::from(away) > reach {
         return Cast::OutOfRange;
     }
+    // Reference: `damage_targets` applies the spell's effect **before** it deals damage, and only when the spell names one
+    // (`magic_spell_effect.cpp:553-563`). The duration is the spell's own, scaled and clamped by the effect type's caps
+    // exactly as `Creature::add_effect` would.
+    if !spell.effect_str.is_empty()
+        && let Some(turns) = spell.duration.at(level)
+        && let Some(kind) = crate::effect_registry::kind_of(world, &spell.effect_str)
+    {
+        #[allow(clippy::cast_possible_truncation)]
+        let turns = turns.round() as i64;
+        crate::applied_effects::add(
+            world,
+            target,
+            crate::effects::ActiveEffect::new(&kind, turns, 1),
+        );
+    }
     let Some(body) = world.get::<Body>(target) else {
         return Cast::NothingToHit;
     };

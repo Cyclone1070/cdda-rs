@@ -5,7 +5,12 @@
 //! its level-scaled damage, the muzzle lands on one part of a body, and the armour on that part meets it - a vest
 //! stops a taser for the same reason it stops a fist.
 
-#![allow(clippy::panic, clippy::expect_used, clippy::float_cmp)]
+#![allow(
+    clippy::panic,
+    clippy::expect_used,
+    clippy::float_cmp,
+    clippy::indexing_slicing
+)]
 
 use bevy_ecs::prelude::*;
 use cdda_content::spells::Scaling;
@@ -284,4 +289,69 @@ fn a_vest_that_stops_blow_after_blow_comes_apart_and_then_the_flesh_does() {
         },
         "the next blow meets nothing at all"
     );
+}
+
+/// A spell that names an effect applies it, for the duration the spell states.
+///
+/// Reference: `damage_targets` (`magic_spell_effect.cpp:553-563`) calls `add_effect_to_target` for every valid target
+/// before it deals damage, so an effect lands even on a spell whose damage is zero or negative. Twenty-seven of the
+/// game's attack spells are in that shape - `AO_SLOW`, `AEA_CONFUSED`, `AEA_ADRENALINE` and the rest.
+#[test]
+fn a_spell_that_names_an_effect_puts_it_on_its_target() {
+    use cdda_sim::applied_effects::{self, AppliedEffects};
+
+    let mut world = World::new();
+    // The effect type the store will look the spell's `effect_str` up in. It is built by loading a dump entry, which is
+    // how a type reaches the store in the game - a literal here would be a second constructor the port does not have.
+    let loader = cdda_json::parse(
+        br#"{"id":"stunned","max_intensity":1,"max_duration":"100 turns"}"#,
+    )
+    .expect("valid json");
+    let cdda_json::Value::Object(entry) = loader else {
+        panic!("an effect type is an object");
+    };
+    let kind = cdda_content::effects::read_one("stunned", &entry);
+    cdda_sim::effect_registry::set_effect_types(&mut world, &[kind]);
+    let victim = spawn_creature(&mut world, "a zombie", (1, 0, 0));
+    world.entity_mut(victim).insert(torso_only());
+    set_health(&mut world, victim, 80);
+
+    let mut spell = taser();
+    spell.effect_str = "stunned".to_owned();
+    spell.duration = Scaling {
+        start: Some(40.0),
+        increment: Some(0.0),
+        end: Some(40.0),
+    };
+    spell.damage = Scaling {
+        start: Some(0.0),
+        increment: Some(0.0),
+        end: Some(0.0),
+    };
+
+    let cast = cast_attack(&mut world, (0, 0, 0), &spell, 0, victim, 0.0);
+    assert_eq!(
+        cast,
+        Cast::Hit {
+            part: "torso".to_owned(),
+            dealt: 0
+        },
+        "no damage, but the spell still landed"
+    );
+    let worn = world
+        .get::<AppliedEffects>(victim)
+        .expect("the effect is on the target");
+    assert_eq!(worn.0.len(), 1);
+    assert_eq!(worn.0[0].id, "stunned");
+    assert_eq!(worn.0[0].duration, 40, "forty turns, as the spell states");
+    assert!(applied_effects::has(&world, victim, "stunned"));
+
+    // An effect the store does not know is not invented: the blow still lands, and nothing is worn.
+    let other = spawn_creature(&mut world, "another", (1, 1, 0));
+    world.entity_mut(other).insert(torso_only());
+    set_health(&mut world, other, 80);
+    let mut unknown = spell.clone();
+    unknown.effect_str = "not_an_effect".to_owned();
+    let _ = cast_attack(&mut world, (0, 0, 0), &unknown, 0, other, 0.0);
+    assert!(!applied_effects::has(&world, other, "not_an_effect"));
 }
