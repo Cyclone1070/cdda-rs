@@ -32,6 +32,22 @@ pub fn holds_with(
 }
 
 
+/// Whether the date is in a named season.
+///
+/// Reference: `f_is_season` (`condition.cpp:1250-1260`), which compares `season_of_year( calendar::turn )` against the string the data
+/// writes - so a misspelt name answers false rather than failing to read.
+fn is_season(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    season: &cdda_content::dialogue::StringSource,
+) -> bool {
+    let Some(name) = text_of(world, speaker, listener, season) else {
+        return false;
+    };
+    crate::calendar::season_of_year(world).is_some_and(|now| now.name() == name)
+}
+
 /// Whether one of the two chance guards rolls true.
 ///
 /// Reference: `one_in_chance` (`condition.cpp:1760-1766` -> `one_in`, `src/rng.cpp:196-199`) and `x_in_y_chance`
@@ -200,6 +216,9 @@ fn holds_within(
         }
         Condition::OneInChance(_) | Condition::XInYChance { .. } => {
             rolls_against(world, speaker, listener, condition, draws)
+        }
+        Condition::IsSeason { season } => {
+            is_season(world, speaker, listener, season)
         }
         Condition::Simple { name } => match name.as_str() {
             // Reference: `has_beta` asks whether a listener exists at all (`d.has_beta`).

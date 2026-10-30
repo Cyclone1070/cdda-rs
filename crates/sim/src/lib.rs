@@ -6,6 +6,7 @@
 
 pub mod transform;
 pub mod blast;
+pub mod calendar;
 pub mod bash;
 pub mod emit_registry;
 pub mod falling;
@@ -7714,7 +7715,10 @@ pub fn is_corpse(
 }
 
 /// A day, in turns, which is the unit the reference measures rot in.
-pub const TURNS_PER_DAY: i64 = 24 * 60 * 60 / 6;
+///
+/// It used to say `24 * 60 * 60 / 6`, from an older Cataclysm whose turn was six seconds; the reference's `from_days` multiplies by
+/// sixty at every step (`calendar.h:214-234`), so a day is 86,400 turns and every duration measured in days was six times too short.
+pub use crate::calendar::TURNS_PER_DAY;
 
 /// How long a corpse has been lying there, in turns.
 #[must_use]

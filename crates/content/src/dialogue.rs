@@ -87,6 +87,14 @@ pub enum Condition {
         /// How many charges must be carried, when the data states charges.
         charges: Option<i32>,
     },
+    /// The date is in a named season.
+    ///
+    /// Reference: `f_is_season` (`condition.cpp:1250-1260`), which compares `season_of_year( calendar::turn )` against one of the four
+    /// names `"spring"`, `"summer"`, `"autumn"`, `"winter"`.
+    IsSeason {
+        /// The season's name, as the data writes it.
+        season: StringSource,
+    },
     /// Another program's own condition, asked in place.
     ///
     /// Reference: `f_test_eoc` (`condition.cpp:1949-1961`) looks the named effect-on-condition up and evaluates **its condition** - it
@@ -311,6 +319,11 @@ pub fn read_condition(value: &Value) -> Option<Condition> {
     }
     if let Some(math) = object.get("math") {
         return read_expression(math).map(Condition::Math);
+    }
+    if let Some(season) = object.get("is_season") {
+        return Some(Condition::IsSeason {
+            season: read_string_source(season)?,
+        });
     }
     if let Some(guard) = read_world_guard(object) {
         return Some(guard);

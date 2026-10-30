@@ -186,7 +186,7 @@ fn the_port_answers_the_questions_it_can_and_says_how_many_that_is() {
     // before it. That is the whole point of a leaf: a combinator is only as readable as its parts, so one ported leaf is worth
     // several times itself.
     assert_eq!(
-        readable, 2272,
+        readable, 2284,
         "of which the port answers 1,501: `u_has_effect`, `compare_string`, `u_has_items`, the combinators, and the `math` expressions whose every name it knows"
     );
 }
@@ -595,4 +595,46 @@ fn asking_another_program_condition_runs_nothing() {
 
     // A name nothing defines answers false rather than panicking.
     assert!(!holds(&world, survivor, &condition(r#"{"test_eoc": "EOC_MISSING"}"#)));
+}
+
+/// The clock answers the season, and a guard can ask for one.
+///
+/// Reference: `season_of_year` (`calendar.cpp`) divides the day of the year by the season length; `f_is_season` (`condition.cpp:1250-1260`)
+/// compares that against a name. The port had no clock at all - only a turn count inside systems - so this is the first question the
+/// calendar can answer.
+#[test]
+fn the_calendar_turns_days_into_seasons() {
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let day = cdda_sim::calendar::TURNS_PER_DAY;
+
+    assert!(
+        cdda_sim::calendar::season_of_year(&world).is_none(),
+        "a world nothing has told the time has no season"
+    );
+    assert!(!holds(&world, survivor, &condition(r#"{"is_season": "spring"}"#)));
+
+    cdda_sim::calendar::set_season_length(&mut world, 91);
+    for (days_in, wanted) in [(0, "spring"), (90, "spring"), (91, "summer"), (182, "autumn"), (273, "winter")] {
+        cdda_sim::calendar::set_turn(&mut world, days_in * day);
+        assert_eq!(
+            cdda_sim::calendar::season_of_year(&world).map(cdda_sim::calendar::Season::name),
+            Some(wanted),
+            "day {days_in} is in {wanted}"
+        );
+        assert!(
+            holds(&world, survivor, &condition(&format!(r#"{{"is_season": "{wanted}"}}"#))),
+            "and the guard agrees"
+        );
+    }
+
+    // The four seasons repeat, so day 364 is spring again.
+    cdda_sim::calendar::set_turn(&mut world, 364 * day);
+    assert_eq!(
+        cdda_sim::calendar::season_of_year(&world).map(cdda_sim::calendar::Season::name),
+        Some("spring")
+    );
+
+    // A day is 86,400 turns: the reference multiplies by sixty at every step (`calendar.h:214-234`).
+    assert_eq!(cdda_sim::calendar::TURNS_PER_DAY, 86_400);
 }
