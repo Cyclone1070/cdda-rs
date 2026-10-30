@@ -328,6 +328,24 @@ entries the port can run | **363** |
 
 Reading both spellings of a destination - `"x = 1"` and `"u_val('x') = 1"`, which `read_var_info` (`condition.cpp:408-437`) treats as the same variable classed by the member that names it - took the count from 174 to 179. The 125 still refused are of two shapes, counted rather than guessed: **139 statements are pure expressions** with no assignment (`"u_val('stamina')"`, `"ps_str + 50"`), and **76 are bare operators** (`"*="`, `"+="`) that suggest a statement split across several entries of one list. Neither is run: a list whose meaning the port cannot read is refused whole, because "ignore the parts I do not understand" is how a program silently does half its job.
 
+### The effect side gets the same ranking, and the line that had never run (round 798)
+
+The condition census has named the member that refuses since round 787. The effect census was supposed to do the same and **did not**: `blame_effect` existed, was correct, and was never called, so the refusal column counted every key of every refused entry instead of one leaf per entry. The ranking it printed - `run_eocs` 131, `math` 125, `mapgen_update` 103, `target_var` 98, `if` 96 - was a count of *members*, not of causes, and two of those five names are not effects at all.
+
+Wiring it properly changed the ranking:
+
+| Effect that refuses | Entries |
+|---|---|
+`math` | **130** |
+`run_eocs` | **128** |
+`mapgen_update` | **107** |
+`bonus` | 32 |
+`duration` | 31 |
+
+The top three are effects and are now trustworthy. The tail still is not: a refused entry reports its **first key**, so `bonus` and `duration` - modifiers that describe an effect rather than being one - reach the top of the tail. Skipping modifiers was attempted and did not change the printed ranking; rather than ship a refinement that does not do what it says, the simple rule is kept and its limit is stated here.
+
+This is the same failure the port keeps meeting in its *own* test scaffolding: a written rule that nothing calls. A census function is code, and code that nothing runs is indistinguishable from code that works.
+
 ### Bare-name conditions, and seven guards that moved house (round 797)
 
 A guard written as a string is not a program call, which the first reading of the data got wrong: `read_condition` (`condition.cpp:515-540`) hands a string to `conditional_t( std::string_view type )` (`condition.cpp:2783-2810`), which looks the name up among the **simple** parsers - the conditions that take no argument. The data's ten top-level guards of that shape name `has_beta` (3), `u_is_character` (2), `u_is_underwater` (2), `u_can_see`, `player_see_npc` and `u_is_avatar`.

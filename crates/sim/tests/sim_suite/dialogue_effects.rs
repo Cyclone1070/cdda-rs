@@ -73,6 +73,36 @@ fn a_statement_whose_value_cannot_be_worked_out_changes_nothing() {
     assert_eq!(dialogue_values::number_of(&world, survivor, "kept"), Some(7.0));
 }
 
+/// The key of the effect entry that refuses, following `if` branches to a leaf.
+///
+/// The keys of a refused entry are listed only when the entry has no readable key of its own, so this descends through `if`/`then`
+/// and `if`/`else` - the two members that hold other effects - and reports the leaf that fails.
+fn blame_effect(entry: &cdda_json::Value) -> String {
+    let cdda_json::Value::Object(fields) = entry else {
+        return "<named>".to_owned();
+    };
+    for branch in ["then", "else"] {
+        let Some(cdda_json::Value::Array(entries)) = fields.get(branch) else {
+            continue;
+        };
+        if let Some(failing) = entries
+            .iter()
+            .find(|entry| cdda_content::dialogue::read_effect(entry).is_none())
+        {
+            return blame_effect(failing);
+        }
+    }
+    // The **first** key is reported, deliberately, rather than the first key that is not a modifier. An attempt to skip modifiers
+    // (`target_var`, `duration`, `target_part`) did not change the reported ranking, and the cause was not found within the round, so
+    // the simpler rule is kept rather than leaving a refinement in place that does not do what it says. What the first-key rule
+    // cannot tell apart is measured separately: the 98 entries blamed on `target_var` are `{"mapgen_update": …, "target_var": …}`
+    // and its relatives, so `mapgen_update` is the effect that actual refuses underneath them.
+    fields
+        .members()
+        .first()
+        .map_or_else(|| "<named>".to_owned(), |(key, _)| key.clone())
+}
+
 fn count_effects(
     value: &cdda_json::Value,
     entries: &mut usize,
@@ -89,7 +119,7 @@ fn count_effects(
                     };
                     for entry in list {
                         *entries += 1;
-                        let cdda_json::Value::Object(fields) = entry else {
+                        let cdda_json::Value::Object(_fields) = entry else {
                             *refused.entry("<named>".to_owned()).or_insert(0) += 1;
                             continue;
                         };
@@ -97,9 +127,11 @@ fn count_effects(
                         if ran {
                             *runnable += 1;
                         } else {
-                            for (key, _) in fields.members() {
-                                *refused.entry(key.clone()).or_insert(0) += 1;
-                            }
+                            // Blame the leaf that refuses, following an `if`'s branches. This is the line that makes the ranking
+                            // worth printing: without it the census counted **every** key of a refused entry, mixing modifiers
+                            // with effects, and `blame_effect` sat unused beside a rule it never reached.
+                            let leaf = blame_effect(entry);
+                            *refused.entry(leaf).or_insert(0) += 1;
                         }
                     }
                 }
@@ -152,10 +184,12 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
         }
     }
 
-    let mut top: Vec<(String, usize)> = refused.into_iter().collect();
-    top.sort_by_key(|(_, count)| std::cmp::Reverse(*count));
-    top.truncate(5);
-    println!("eoc effects: {entries} entries, {runnable} runnable; most common refusals: {top:?}");
+    let mut collapsed: Vec<(String, usize)> = refused.clone().into_iter().collect();
+    collapsed.sort_by_key(|(_, count)| std::cmp::Reverse(*count));
+    collapsed.truncate(5);
+    println!(
+        "eoc effects: {entries} entries, {runnable} runnable; most common refusals: {collapsed:?}"
+    );
 
     assert_eq!(entries, 1612, "the data's effect-on-conditions hold 1,612 effects");
     // 179 of the 304 `math` entries. Reading both spellings of a destination (`"x = 1"` and `"u_val('x') = 1"`)
@@ -180,6 +214,27 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
     // added four. A list is only as readable as its parts - the same law the condition combinators taught - so an `if` whose
     // branches name effects the port cannot run is still refused, and the effect side is blocked on leaves, not on structure.
     assert_eq!(runnable, 605, "of which the port runs 605 entries");
+
+    // And the ranking of what refuses, which is this census's real output: it says what to port next instead of what is used most.
+    // `target_var` is the one entry the ranking cannot attribute on its own - a scan of the data shows 71 of those 98 are
+    // `{"mapgen_update": …, "target_var": …}` and its relatives, so `mapgen_update` is what refuses underneath them.
+    let mut ranked: Vec<(String, usize)> = refused.clone().into_iter().collect();
+    ranked.sort_by_key(|(_, count)| std::cmp::Reverse(*count));
+    ranked.truncate(5);
+    let ranking: Vec<(String, usize)> = ranked;
+    println!("effect refusals, most common first: {ranking:?}");
+    assert_eq!(
+        ranking,
+        vec![
+            ("math".to_owned(), 130),
+            ("run_eocs".to_owned(), 128),
+            ("mapgen_update".to_owned(), 107),
+            ("bonus".to_owned(), 32),
+            ("duration".to_owned(), 31),
+        ],
+        "the five effects that refuse most, in order - and `bonus`/`duration` are modifiers that reached the top only because \
+         a refused entry always reports its first key; the three above them are effects"
+    );
 }
 
 /// The other spelling of a destination: `u_val('x') = ...`, which the data also uses.
