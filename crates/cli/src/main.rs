@@ -102,6 +102,10 @@ fn play(args: &[String]) {
     let mut world = World::new();
     load_demo_world(&mut world);
     let avatar = give_the_avatar_a_body(&mut world);
+    match cdda_cli::install_item_data(&mut world) {
+        Some(kinds) => println!("the store knows {kinds} kinds of thing"),
+        None => println!("the store knows no things: the game data was not found"),
+    }
     cdda_sim::turn::set_random(&mut world, cdda_core_types::rng::Rolls::new(seed));
     cdda_sim::turn::set_scent_source(&mut world, (6, 6), 0);
     match &avatar {

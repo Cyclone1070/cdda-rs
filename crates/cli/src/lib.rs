@@ -252,6 +252,26 @@ pub fn take_turn(world: &mut World) -> usize {
 /// `creature::dress` reads.
 ///
 /// Returns a line describing what was worn, or nothing when the game data is not where the binary expects it.
+/// Installs the game's own item data, so the store can answer what things are, weigh and hold.
+///
+/// Reference: `item_factory` reading the JSON once at start-up. Everything the item layer does - picking up, stashing,
+/// wielding, crafting - asks the registry for names, volumes, weights and pockets, and until this ran a real game world
+/// had an empty one: a survivor could carry a hundred anvils and put a rifle in a vest with two litres of pocket.
+///
+/// Answers how many kinds were installed, or [`None`] when the data is not where the binary expects it.
+pub fn install_item_data(world: &mut World) -> Option<usize> {
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../oracle/src/data/json");
+    if !data.is_dir() {
+        return None;
+    }
+    let items = cdda_content::items::load_paths(&[&data]).ok()?;
+    cdda_sim::item_data::install(world, &items);
+    Some(items.len())
+}
+
+/// Puts a garment on the avatar, so the armour rules have something to work on.
+///
+/// Returns a line describing what was worn, or nothing when the game data is not where the binary expects it.
 pub fn dress_the_avatar(world: &mut World, avatar: bevy_ecs::entity::Entity) -> Option<String> {
     let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../oracle/src/data/json");
     if !data.is_dir() {
@@ -516,6 +536,39 @@ mod tests {
         assert!(
             error.contains("line 2") && error.contains("dance"),
             "the error names the line and the word: {error}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod item_data_tests {
+    #![allow(clippy::panic, clippy::expect_used)]
+    use bevy_ecs::prelude::*;
+
+    /// A playtest world knows what things are, because it loaded the game's own data.
+    ///
+    /// Without this the survivor could carry a hundred anvils: every item-layer rule asks the registry, and an empty
+    /// registry answers "weightless, takes no room, holds nothing" for everything, which looks like working code.
+    #[test]
+    fn the_binary_s_world_knows_the_game_s_items() {
+        let mut world = World::new();
+        let kinds = super::install_item_data(&mut world).expect("the game data is in the repository");
+        assert!(kinds > 9_000, "installed {kinds} kinds, which is too few");
+        assert_eq!(
+            cdda_sim::item_registry::count(&mut world),
+            kinds,
+            "and the store knows every one of them"
+        );
+        // A known item, by the name the data uses, weighs something and takes room - which is the whole point.
+        let two_by_four = cdda_sim::item_registry::id_of(&mut world, "2x4")
+            .expect("the data has a two by four");
+        assert!(
+            cdda_sim::item_registry::weight_of(&mut world, two_by_four) > 0,
+            "a two by four weighs something"
+        );
+        assert!(
+            cdda_sim::item_registry::volume_of(&mut world, two_by_four) > 0,
+            "and takes room"
         );
     }
 }
