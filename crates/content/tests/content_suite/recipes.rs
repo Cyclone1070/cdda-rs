@@ -174,3 +174,28 @@ fn a_tool_that_is_only_held_is_marked_with_minus_one() {
         "no tool has a zero count: the encoding has no other meaning"
     );
 }
+
+/// Every recipe says how long it takes, and the port reads that as moves.
+///
+/// Reference: `recipe::time` is `to_moves<int>( read_from_json_string<time_duration> )`, so `"20 m"` is a hundred and
+/// twenty thousand moves. A crafting activity whose duration came out as zero would finish instantly and no test of
+/// the *result* would notice, so the count of recipes with a real time is the gate's point.
+#[test]
+fn every_recipe_states_how_long_it_takes_in_moves() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/recipes.json");
+    let text = std::fs::read_to_string(path).expect("the recipe dump");
+    let value = cdda_json::parse(text.as_bytes()).expect("valid json");
+    let recipes = recipes::from_dump(&value).expect("the dump loads").0;
+    let timed = recipes.iter().filter(|recipe| recipe.time_moves > 0).count();
+    assert!(
+        timed > 5_000,
+        "only {timed} of {} recipes state a time, which cannot be right",
+        recipes.len()
+    );
+    assert!(
+        recipes
+            .iter()
+            .all(|recipe| recipe.time_moves % 100 == 0),
+        "a duration is a whole number of seconds, and a second is a hundred moves"
+    );
+}

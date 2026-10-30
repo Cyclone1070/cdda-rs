@@ -63,6 +63,12 @@ pub struct Recipe {
     pub skill: String,
     /// How skilled the crafter must be, on the reference's own scale.
     pub difficulty: i32,
+    /// How long one batch takes, in moves.
+    ///
+    /// Reference: `recipe::time`, read with `to_moves<int>( read_from_json_string<time_duration> )` - so `"20 m"` is
+    /// twelve hundred seconds and a hundred and twenty thousand moves. A recipe that states no time is zero, which the
+    /// reference would treat as instant, and no recipe in the data does.
+    pub time_moves: i64,
 }
 
 fn member<'a>(object: &'a Object, key: &str) -> Option<&'a Value> {
@@ -195,6 +201,12 @@ pub fn from_dump(value: &Value) -> Option<(Vec<Recipe>, usize)> {
             difficulty: match member(object, "difficulty") {
                 Some(Value::Int(value)) => i32::try_from(*value).unwrap_or(0),
                 _ => 0,
+            },
+            // From the oracle's dump when it is a dump (`time_moves`, already in moves), and from the game's own JSON
+            // otherwise, where it is a duration string.
+            time_moves: match member(object, "time_moves") {
+                Some(Value::Int(moves)) => *moves,
+                _ => member(object, "time").map_or(0, crate::constructions::duration_in_moves),
             },
         });
     }

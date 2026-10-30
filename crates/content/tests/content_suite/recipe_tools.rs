@@ -21,6 +21,7 @@ fn recipe(
         qualities,
         skill: String::new(),
         difficulty: 0,
+            time_moves: 0,
     }
 }
 

@@ -17,6 +17,7 @@ fn recipe(skill: &str, difficulty: i32) -> Recipe {
         qualities: Vec::new(),
         skill: skill.to_owned(),
         difficulty,
+        time_moves: 0,
     }
 }
 
