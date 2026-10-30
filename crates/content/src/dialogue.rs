@@ -34,6 +34,21 @@ pub enum Condition {
         /// The mission's type id.
         mission: String,
     },
+    /// A die rolled against a chance: true `one_in( n )` of the time.
+    ///
+    /// Reference: `f_one_in_chance` (`condition.cpp:1760-1766`) hands the value to `one_in` (`src/rng.cpp:196-199`), which is
+    /// `chance <= 1 || rng( 0, chance - 1 ) == 0` - so a chance of one or less always holds.
+    OneInChance(Box<Expression>),
+    /// A roll against `x` in `y`.
+    ///
+    /// Reference: `f_x_in_y_chance` (`condition.cpp:1801-1810`), whose object holds `x` and `y`, answered by `x_in_y`
+    /// (`src/rng.cpp:206-209`) as `rng_float( 0, 1 ) <= x / y`.
+    XInYChance {
+        /// The numerator.
+        x: Box<Expression>,
+        /// The denominator.
+        y: Box<Expression>,
+    },
     /// A creature carries a trait.
     ///
     /// Reference: `f_has_trait` (`condition.cpp:580-586`), which asks `has_trait( trait_id( name ) )` of the actor the member
@@ -276,6 +291,17 @@ pub fn read_condition(value: &Value) -> Option<Condition> {
             _ => return None,
         };
         return Some(Condition::IsWeather { wanted });
+    }
+    // Reference: `f_one_in_chance` (`condition.cpp:1760-1766`).
+    if let Some(chance) = object.get("one_in_chance") {
+        return Some(Condition::OneInChance(Box::new(read_expression(chance)?)));
+    }
+    // Reference: `f_x_in_y_chance` (`condition.cpp:1801-1810`), whose member is the object holding `x` and `y`.
+    if let Some(Value::Object(chance)) = object.get("x_in_y_chance") {
+        return Some(Condition::XInYChance {
+            x: Box::new(read_expression(chance.get("x")?)?),
+            y: Box::new(read_expression(chance.get("y")?)?),
+        });
     }
     // Reference: `f_u_has_mission` (`condition.cpp:709-721`) answers about the **avatar's** active missions, not the speaker's.
     if let Some(Value::Str(mission)) = object.get("u_has_mission") {

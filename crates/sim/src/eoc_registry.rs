@@ -74,7 +74,7 @@ pub fn run_program(
         return Applied::CannotAnswer;
     };
     if let Some(condition) = &program.condition
-        && !crate::conditions::holds_with(world, speaker, listener, condition)
+        && !crate::conditions::holds_in_store(world, speaker, listener, condition)
     {
         return Applied::Done;
     }
@@ -122,7 +122,7 @@ pub fn run_inline(
         return Applied::CannotAnswer;
     }
     if let Some(condition) = &program.condition
-        && !crate::conditions::holds_with(world, speaker, listener, condition)
+        && !crate::conditions::holds_in_store(world, speaker, listener, condition)
     {
         return Applied::Done;
     }

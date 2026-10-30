@@ -186,7 +186,7 @@ fn the_port_answers_the_questions_it_can_and_says_how_many_that_is() {
     // before it. That is the whole point of a leaf: a combinator is only as readable as its parts, so one ported leaf is worth
     // several times itself.
     assert_eq!(
-        readable, 2102,
+        readable, 2123,
         "of which the port answers 1,501: `u_has_effect`, `compare_string`, `u_has_items`, the combinators, and the `math` expressions whose every name it knows"
     );
 }
@@ -414,4 +414,69 @@ fn a_bare_name_is_an_argument_less_condition() {
             "`{unknown}` is refused rather than quietly answered"
         );
     }
+}
+
+/// The two chance guards roll, and a guard asked through the store can draw.
+///
+/// Reference: `f_one_in_chance` (`condition.cpp:1760-1766`) → `one_in` (`src/rng.cpp:196-199`) = `chance <= 1 || rng( 0, chance - 1 ) == 0`;
+/// `f_x_in_y_chance` (`condition.cpp:1801-1810`) → `x_in_y` (`src/rng.cpp:206-209`) = `rng_float( 0, 1 ) <= x / y`.
+#[test]
+fn a_chance_guard_rolls_and_a_chance_of_one_always_holds() {
+    use cdda_content::dialogue::read_condition;
+    use cdda_core_types::rng::Rolls;
+
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::singletons::put_rolls(&mut world, Rolls::new(11));
+
+    let sure = read_condition(&cdda_json::parse(br#"{"one_in_chance": 1}"#.as_slice()).expect("json"))
+        .expect("readable");
+    for _ in 0..50 {
+        assert!(
+            cdda_sim::conditions::holds_in_store(&mut world, survivor, None, &sure),
+            "a chance of one always holds"
+        );
+    }
+
+    // A chance of a hundred holds sometimes and not always, over a hundred draws.
+    let rare = read_condition(&cdda_json::parse(br#"{"one_in_chance": 100}"#.as_slice()).expect("json"))
+        .expect("readable");
+    let held = (0..500)
+        .filter(|_| cdda_sim::conditions::holds_in_store(&mut world, survivor, None, &rare))
+        .count();
+    assert!(
+        (1..500).contains(&held),
+        "one in a hundred held {held} times in five hundred"
+    );
+
+    // `x_in_y` with a numerator it cannot reach never holds; with `x >= y` it always does.
+    let never = read_condition(
+        &cdda_json::parse(br#"{"x_in_y_chance": {"x": 0, "y": 5}}"#.as_slice()).expect("json"),
+    )
+    .expect("readable");
+    let always = read_condition(
+        &cdda_json::parse(br#"{"x_in_y_chance": {"x": 5, "y": 5}}"#.as_slice()).expect("json"),
+    )
+    .expect("readable");
+    for _ in 0..50 {
+        assert!(!cdda_sim::conditions::holds_in_store(&mut world, survivor, None, &never));
+        assert!(cdda_sim::conditions::holds_in_store(&mut world, survivor, None, &always));
+    }
+
+    // Asked **without** the store, the guards answer false rather than inventing a roll.
+    assert!(!cdda_sim::conditions::holds_with(&world, survivor, None, &sure));
+
+    // And inside a combinator the dice still reach the guard.
+    let nested = read_condition(
+        &cdda_json::parse(br#"{"and": [{"one_in_chance": 1}, "u_is_avatar"]}"#.as_slice())
+            .expect("json"),
+    )
+    .expect("readable");
+    cdda_sim::missions::set_avatar(&mut world, survivor);
+    assert!(cdda_sim::conditions::holds_in_store(
+        &mut world,
+        survivor,
+        None,
+        &nested
+    ));
 }

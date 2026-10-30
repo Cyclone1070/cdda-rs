@@ -131,7 +131,7 @@ pub fn run_effect(
             then,
             otherwise,
         } => {
-            let branch = if crate::conditions::holds_with(world, speaker, listener, condition) {
+            let branch = if crate::conditions::holds_in_store(world, speaker, listener, condition) {
                 then
             } else {
                 otherwise

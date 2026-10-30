@@ -29,7 +29,64 @@ pub fn holds_with(
     listener: Option<Entity>,
     condition: &Condition,
 ) -> bool {
+    holds_drawing(world, speaker, listener, condition, &mut None)
+}
+
+/// Whether a condition holds, taking the store's dice out for the length of the answer.
+///
+/// This is the entry point for anything holding `&mut World` - the program runner and the effect runner. It exists so that a guard
+/// like `one_in_chance` draws from the game's own generator instead of being refused, and it puts the generator back whatever the
+/// answer was, so a caller never sees it left behind.
+pub fn holds_in_store(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    condition: &Condition,
+) -> bool {
+    let mut dice = crate::singletons::take_rolls(world);
+    let held = holds_drawing(world, speaker, listener, condition, &mut dice.as_mut());
+    if let Some(dice) = dice {
+        crate::singletons::put_rolls(world, dice);
+    }
+    held
+}
+
+/// Whether a condition holds, with dice available for the two guards that roll.
+///
+/// Reference: `one_in_chance` and `x_in_y_chance` (`condition.cpp:1760-1810`) draw a die, so they are answerable only where the
+/// store's generator can be borrowed - the same rule the effect side follows for `rng` and `rand`. A caller with no dice gets `false`
+/// rather than an invented answer.
+pub fn holds_drawing(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    condition: &Condition,
+    draws: &mut Option<&mut cdda_core_types::rng::Rolls>,
+) -> bool {
     match condition {
+        Condition::OneInChance(chance) => {
+            let Some(dice) = draws.as_deref_mut() else {
+                return false;
+            };
+            let Some(n) = value_drawing(world, speaker, listener, chance, false, None) else {
+                return false;
+            };
+            #[allow(clippy::cast_possible_truncation)]
+            let chance = n.round() as i32;
+            dice.one_in(chance)
+        }
+        Condition::XInYChance { x, y } => {
+            let Some(dice) = draws.as_deref_mut() else {
+                return false;
+            };
+            let (Some(x), Some(y)) = (
+                value_drawing(world, speaker, listener, x, false, None),
+                value_drawing(world, speaker, listener, y, false, None),
+            ) else {
+                return false;
+            };
+            dice.x_in_y(x, y)
+        }
         Condition::Simple { name } => match name.as_str() {
             // Reference: `has_beta` asks whether a listener exists at all (`d.has_beta`).
             "has_beta" => listener.is_some(),
@@ -59,13 +116,13 @@ pub fn holds_with(
             applied_effects::intensity_of(world, speaker, effect)
                 .is_some_and(|worn| *intensity <= worn)
         }
-        Condition::And(conditions) => conditions
-            .iter()
-            .all(|condition| holds_with(world, speaker, listener, condition)),
-        Condition::Or(conditions) => conditions
-            .iter()
-            .any(|condition| holds_with(world, speaker, listener, condition)),
-        Condition::Not(inner) => !holds_with(world, speaker, listener, inner),
+        Condition::And(conditions) => {
+            conditions_with_dice(world, speaker, listener, conditions, draws, true)
+        }
+        Condition::Or(conditions) => {
+            conditions_with_dice(world, speaker, listener, conditions, draws, false)
+        }
+        Condition::Not(inner) => !holds_drawing(world, speaker, listener, inner, draws),
         Condition::HasItems {
             item,
             count,
@@ -346,4 +403,22 @@ fn apply_function(name: &str, arguments: &[f64]) -> Option<f64> {
         "from_fahrenheit" => (first + 459.67) / 1.8,
         _ => return None,
     })
+}
+
+/// Every one of a list of conditions, or any one of them, with the dice passed along.
+fn conditions_with_dice(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    conditions: &[Condition],
+    draws: &mut Option<&mut cdda_core_types::rng::Rolls>,
+    all: bool,
+) -> bool {
+    for condition in conditions {
+        let held = holds_drawing(world, speaker, listener, condition, draws);
+        if held != all {
+            return held;
+        }
+    }
+    all
 }
