@@ -296,6 +296,19 @@ Three things the sweep settled that the code did not say:
 * **The damage that arrives is the damage the data states, to the point.** The 32 positive spells sum to exactly **100,016,638** - the data's own total - including the outlier `hallu_touch_suicide` at 100,000,000. Nothing in the path rounds, clamps or resists when there is no armour.
 * **The first version of the sweep measured nothing.** A creature built by `spawn_creature` has no body, so all 77 refusals said `NothingToHit` and the sweep "passed" its counts. It now gives the target a torso, which is the same lesson as the frame dump: a dump taken before the object is configured measures the harness.
 
+### Sounds are events, and `noise` is one line (round 779)
+
+`noise` is 13 spells and the reference's whole rule is `sp.make_sound( target, sp.damage( caster ) )` (`magic_spell_effect.cpp:1435-1438`). The port had no sound at all, so this round added the smallest thing that could carry that rule: `sounds::Sound { position, volume }`, an entity the turn that made it can hear and the turn's end takes away.
+
+The reference's shape is why it is an event and not a permanent thing: `sounds::sound` puts an entry in `sounds_since_last_turn`, which the turn loop drains (`sounds.cpp:317-336`). In the store that is an entity with no age, and [`sounds::clear`] despawns it, so "a sound lasts less than a turn" is a property of the code rather than a note someone must remember.
+
+| Count | Value |
+|---|---|
+kinds the port runs | **6** (`attack`, `mod_moves`, `noise`, `remove_effect`, `remove_field`, `summon`) |
+spells those six cover | **129 of 245 (52.7%)** |
+
+Gated: volume at a distance is `volume - distance` measured on the larger axis (the reference's `sound_distance`), floored at zero; a negative volume creates nothing; and the end of a turn empties the store.
+
 ### `attack`, the bucket that pays (round 778)
 
 `attack` is 77 spells - the largest effect kind - and the port already had every part of it: `damage_targets`' order (effect, then body part, then damage through armour), the area shapes, the level scaling, the ceiling sweep. What was missing was a way to apply damage to **one** target without re-checking range, because a blast decides who is hit, not the reach.

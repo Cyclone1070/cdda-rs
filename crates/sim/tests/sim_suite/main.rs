@@ -177,6 +177,7 @@ mod vision_levels;
 mod weather;
 mod spell_effects;
 mod spell_effects_coverage;
+mod sounds;
 mod spell_data;
 mod spellcasting;
 mod weather_flush;

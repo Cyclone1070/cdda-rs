@@ -40,6 +40,7 @@ pub const EFFECTS: &[(&str, Apply)] = &[
     ("attack", attack),
     ("mod_moves", mod_moves),
     ("remove_effect", remove_effect),
+    ("noise", noise),
     ("remove_field", remove_field),
     ("summon", summon),
 ];
@@ -81,6 +82,30 @@ fn attack(
         Effective::NothingAffected
     } else {
         Effective::Done
+    }
+}
+
+/// A `noise` spell makes a sound as loud as the damage it would have dealt.
+///
+/// Reference: `spell_effect::noise` (`magic_spell_effect.cpp:1435-1438`) - one line, `sp.make_sound( target, sp.damage(
+/// caster ) )`. The port reads the volume from the spell's damage at the level it was cast at, and refuses the spell when the
+/// damage is not a number it can read, because a sound of unknown volume is a sound of any volume.
+fn noise(
+    world: &mut World,
+    _caster: Entity,
+    spell: &Spell,
+    level: i32,
+    centre: (i32, i32, i32),
+) -> Effective {
+    let Some(damage) = spell.damage.at(level) else {
+        return Effective::NothingAffected;
+    };
+    #[allow(clippy::cast_possible_truncation)]
+    let volume = damage.round() as i32;
+    if crate::sounds::make_sound(world, centre, volume).is_some() {
+        Effective::Done
+    } else {
+        Effective::NothingAffected
     }
 }
 
