@@ -34,15 +34,10 @@ pub enum Craft {
 ///
 /// Answers the item id that was made, or [`None`] when nothing could be made - in which case nothing is consumed
 /// either, because a craft that ate its components and produced nothing is worse than one that refused.
-pub fn finish_craft(
-    world: &mut World,
-    crafter: Entity,
-    name_of: impl Fn(crate::ItemTypeId) -> Option<String> + Copy,
-    kind_of: impl Fn(&str) -> Option<crate::ItemTypeId>,
-) -> Option<String> {
+pub fn finish_craft(world: &mut World, crafter: Entity, names: &crate::item_registry::ItemNames) -> Option<String> {
     let making = world.get::<Making>(crafter).cloned()?;
     world.entity_mut(crafter).remove::<Making>();
-    let on_hand = crate::inventory::carried_by_id(world, crafter, name_of);
+    let on_hand = crate::inventory::carried_by_id(world, crafter, |kind| names.name_of(kind));
     if !making.recipe.components_available(making.batch, |item| {
         on_hand.get(item).copied().unwrap_or(0)
     }) {
@@ -50,7 +45,6 @@ pub fn finish_craft(
     }
     // Which entity satisfies which group, decided before anything is removed: consuming while searching would let an
     // earlier group eat what a later one needs.
-    let mut chosen: Vec<(crate::ItemTypeId, i32)> = Vec::new();
     for alternatives in &making.recipe.components {
         let mut took_any = false;
         for component in alternatives {
@@ -58,20 +52,20 @@ pub fn finish_craft(
             if remaining <= 0 {
                 continue;
             }
-            let mut stacks: Vec<(Entity, crate::ItemTypeId, i32)> = Vec::new();
+            let mut stacks: Vec<(Entity, i32)> = Vec::new();
             {
                 let mut query = world.query::<(Entity, &crate::creature::Carried, &crate::GroundItem)>();
                 for (entity, carried, item) in query.iter(world) {
-                    if carried.0 == crafter && name_of(item.kind).as_deref() == Some(component.item.as_str()) {
-                        stacks.push((entity, item.kind, item.charges.max(1)));
+                    if carried.0 == crafter && names.name_of(item.kind).as_deref() == Some(component.item.as_str()) {
+                        stacks.push((entity, item.charges.max(1)));
                     }
                 }
             }
-            let available: i32 = stacks.iter().map(|(_, _, charges)| charges).sum();
+            let available: i32 = stacks.iter().map(|(_, charges)| charges).sum();
             if available < remaining {
                 continue;
             }
-            for (entity, kind, charges) in stacks {
+            for (entity, charges) in stacks {
                 if remaining <= 0 {
                     break;
                 }
@@ -81,7 +75,6 @@ pub fn finish_craft(
                 } else if let Some(mut item) = world.get_mut::<crate::GroundItem>(entity) {
                     item.charges -= used;
                 }
-                chosen.push((kind, used));
                 remaining -= used;
             }
             took_any = true;
@@ -91,28 +84,34 @@ pub fn finish_craft(
             return None;
         }
     }
-    let _ = chosen;
     let result = making.recipe.result.clone();
-    let Some(kind) = kind_of(&result) else {
-        // The result is not an item this world knows: the craft has already been paid for, so the honest answer is
-        // to say what could not be made rather than pretend a thing appeared.
+    let Some(kind) = names.id_of(&result) else {
+        // The result is not an item this world knows: the components have already been decided, so the honest answer
+        // is to say what could not be made rather than pretend a thing appeared.
         return None;
     };
-    let made = world
-        .spawn((
-            crate::creature::Carried(crafter),
-            crate::GroundItem {
-                kind,
-                charges: making.batch.max(1),
-                age: 0,
-                burnt: 0,
-                damage: 0,
-                burn: None,
-            },
-        ))
-        .id();
-    let _ = made;
+    world.spawn((
+        crate::creature::Carried(crafter),
+        crate::GroundItem {
+            kind,
+            charges: making.batch.max(1),
+            age: 0,
+            burnt: 0,
+            damage: 0,
+            burn: None,
+        },
+    ));
     Some(result)
+}
+
+/// Finishes a craft using the store's own knowledge of what items are.
+///
+/// The same rule as [`finish_craft`], with the two lookups taken from [`crate::item_registry`] instead of from a
+/// caller. That is what lets the turn loop, a playtest or the headless binary finish a craft without being handed the
+/// item table first.
+pub fn finish_craft_in_store(world: &mut World, crafter: Entity) -> Option<String> {
+    let names = crate::item_registry::snapshot(world);
+    finish_craft(world, crafter, &names)
 }
 
 /// Starts a craft using what is actually in the crafter's hands.
@@ -125,9 +124,9 @@ pub fn begin_craft_from_carried(
     crafter: Entity,
     recipe: &Recipe,
     batch: i32,
-    name_of: impl Fn(crate::ItemTypeId) -> Option<String>,
+    names: &crate::item_registry::ItemNames,
 ) -> Craft {
-    let on_hand = crate::inventory::carried_by_id(world, crafter, name_of);
+    let on_hand = crate::inventory::carried_by_id(world, crafter, |kind| names.name_of(kind));
     begin_craft(world, crafter, recipe, batch, |item| {
         on_hand.get(item).copied().unwrap_or(0)
     })

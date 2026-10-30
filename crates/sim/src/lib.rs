@@ -27,6 +27,7 @@ pub mod fire_facts;
 pub mod turn;
 pub mod inspect;
 pub mod inventory;
+pub mod item_registry;
 pub use square::load_level;
 pub mod skills;
 pub use singletons::{

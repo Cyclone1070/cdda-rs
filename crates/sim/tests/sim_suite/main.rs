@@ -117,6 +117,7 @@ mod item_measures;
 mod item_stacking;
 mod item_volume;
 mod item_weight;
+mod item_registry;
 mod kill_to_loot;
 mod level_turn;
 mod levels;
