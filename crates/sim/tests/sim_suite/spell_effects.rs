@@ -468,6 +468,7 @@ fn an_emit_spell_fills_its_blast_with_the_field_the_emission_names() {
                 field: "fd_toxic_gas".to_owned(),
                 intensity: 1,
                 chance: 100,
+                qty: 1,
             }],
         )],
     );
@@ -500,4 +501,52 @@ fn an_emit_spell_fills_its_blast_with_the_field_the_emission_names() {
         spell_effects::apply(&mut world, caster, &unknown, 0, (0, 0, 0)),
         Effective::NothingAffected
     );
+}
+
+/// An emission of a quantity is poured out, which is what the game's `emit` spells actually ask for.
+///
+/// Reference: `map::emit_field` (`map_field.cpp:2212-2224`): a chance, then `propagate_field` with the emission's quantity as
+/// the amount. The six `emit` spells name emissions like `emit_toxic_blast`, whose `qty` is what makes the blast a cloud
+/// rather than one thick square - so a port that placed a single unit would get every one of them wrong while looking right.
+#[test]
+fn an_emission_of_a_quantity_spreads_over_the_squares_it_can_reach() {
+    let mut world = World::new();
+    cdda_sim::field_registry::set_field_names(&mut world, &[("fd_null", 0), ("fd_toxic_gas", 20)]);
+    cdda_sim::emit_registry::set_emits(
+        &mut world,
+        &[(
+            "emit_toxic_blast".to_owned(),
+            vec![cdda_content::emit::Emission {
+                field: "fd_toxic_gas".to_owned(),
+                intensity: 3,
+                chance: 100,
+                qty: 12,
+            }],
+        )],
+    );
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(5));
+    let caster = cdda_sim::creature::spawn_creature(&mut world, "the caster", (0, 0, 0));
+
+    let mut spell = a_spell("emit", 0, 0);
+    spell.effect_str = "emit_toxic_blast".to_owned();
+    assert_eq!(
+        spell_effects::apply(&mut world, caster, &spell, 0, (0, 0, 0)),
+        Effective::Done
+    );
+
+    let gas = cdda_core_types::field::FieldId(20);
+    let mut squares = 0;
+    let mut total = 0;
+    for x in -4..=4 {
+        for y in -4..=4 {
+            let here = cdda_sim::field_strength_at(&world, (x, y, 0), gas);
+            if here > 0 {
+                squares += 1;
+                total += here;
+                assert!(here <= 3, "and no square exceeds the emission's intensity");
+            }
+        }
+    }
+    assert!(squares > 1, "the gas spread over {squares} squares, not one");
+    assert_eq!(total, 12, "holding exactly the quantity the emission stated");
 }

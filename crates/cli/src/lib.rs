@@ -924,17 +924,19 @@ mod field_data_tests {
         // The data defines 61 emission ids, and 48 of them are emissions of **things** - they carry a `qty`, which the port
         // refuses rather than placing one of something where the data says three. So the field emissions the port can run are
         // 13, and the number is the honest size of the `emit` machine as ported.
-        assert_eq!(count, 13, "the port installs the 13 emissions that place a field");
+        assert_eq!(count, 61, "the data defines 61 emission ids, all of them installed");
         let Some(gas) = cdda_sim::emit_registry::emissions_of(&world, "emit_toxic_leak") else {
             panic!("the toxic leak emission is defined");
         };
         assert!(!gas.is_empty(), "and it puts something down");
-        // The six `emit` spells name ids that carry a `qty`, which the reference feeds to `map::propagate_field`
-        // (`map_field.cpp:2212-2224`) - a gas spread the port has not written. Refusing them is the honest state: the effect
-        // exists, and the data it would run does not.
+        // The six `emit` spells name ids that carry a `qty`, which the reference spreads with `map::propagate_field`
+        // (`map_field.cpp:2212-2224`); those are installed too, with their quantity kept, and spread by the effect.
+        let Some(blast) = cdda_sim::emit_registry::emissions_of(&world, "emit_toxic_blast") else {
+            panic!("the toxic blast emission is installed");
+        };
         assert!(
-            cdda_sim::emit_registry::emissions_of(&world, "emit_toxic_blast").is_none(),
-            "an emission of a quantity is refused until propagate_field is ported"
+            blast.iter().any(|emission| emission.qty > 1),
+            "and it carries a quantity, which is what makes a blast a cloud"
         );
         assert!(
             cdda_sim::emit_registry::emissions_of(&world, "emit_nothing_at_all").is_none(),

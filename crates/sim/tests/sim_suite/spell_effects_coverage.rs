@@ -67,9 +67,16 @@ fn the_port_runs_seven_of_the_data_s_effect_kinds() {
     // 135 are refused at the data rather than run, and the honest count of spells the port can actually perform is 129.
     let emit_spells = effects.get("emit").copied().unwrap_or(0);
     assert_eq!(emit_spells, 6, "six spells name `emit`");
+    // `emit` was the exception for one round: its six spells name emissions of a quantity, and the port now spreads those
+    // with `field_spread::propagate` (the reference's `map::propagate_field`), so they are runnable and the table's count is
+    // also the reachable count.
     assert_eq!(
         spells_covered - emit_spells,
         129,
-        "so 129 spells are reachable today"
+        "129 are runnable without `emit`"
+    );
+    assert_eq!(
+        spells_covered, 135,
+        "and all 135 are runnable now that an emission of a quantity spreads"
     );
 }

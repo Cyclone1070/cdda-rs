@@ -296,6 +296,23 @@ Three things the sweep settled that the code did not say:
 * **The damage that arrives is the damage the data states, to the point.** The 32 positive spells sum to exactly **100,016,638** - the data's own total - including the outlier `hallu_touch_suicide` at 100,000,000. Nothing in the path rounds, clamps or resists when there is no armour.
 * **The first version of the sweep measured nothing.** A creature built by `spawn_creature` has no body, so all 77 refusals said `NothingToHit` and the sweep "passed" its counts. It now gives the target a torso, which is the same lesson as the frame dump: a dump taken before the object is configured measures the harness.
 
+### `propagate_field`, and the six spells it woke up (round 781)
+
+The last round ended with a measured blocker: `emit` ran, and all six of its spells were refused because their emissions carry a `qty` which the reference spreads with `map::propagate_field` (`map_field.cpp:2226-2299`). That function is now `sim::field_spread::propagate`.
+
+The rule is not a flood-fill with a distance falloff, which is what a port is tempted to write. It is:
+
+* squares at the **same distance** from the centre are served **together**, each front splitting the remaining amount (`increment = max( 1, amount / front_size )`);
+* a square holds at most the field's maximum intensity, and the rest of the amount carries on to the next ring;
+* the field enters only squares it can pass - an impassable wall stops it unless the terrain is `PERMEABLE`, which the port states as a closure because the store knows terrain by entity;
+* the order **within** a front is a draw (`random_entry_removed`), taken from the store's generator so a seed replays the cloud.
+
+Gated: nine units at a maximum of three fill `total = 9` across the squares with the centre at the cap - the property a flood-fill would fail - a wall the field cannot enter leaves the far side at zero, and pouring nothing places nothing.
+
+Emission `qty` is read now instead of refused, and an emission of more than one unit is poured out with this spread. **All 61 emission ids install, the six `emit` spells run, and the coverage count is 135 of 245 (55.1%)** - for the first time without an asterisk.
+
+Two divergences to record: the port has no terrain permeability yet, so the `passable` closure answers "yes" everywhere; and the spread does not merge fields of the same type already on a square the way `mod_field_intensity` does when a field has a priority clash. Both are noted, neither is silent.
+
 ### `emit`: a named emission, and the chance asked per square (round 780)
 
 A spell's `effect_str` on an `emit` effect is an **emission id** (`emit_toxic_blast`), not a field id, so the port needed the emit table before it could run one of the six: `content::emit::read_emit` (`emit.cpp`) reads a field, an intensity and a chance, and `sim::emit_registry` holds the emissions by id.

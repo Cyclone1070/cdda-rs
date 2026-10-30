@@ -15,13 +15,17 @@ pub struct Emission {
     pub intensity: i32,
     /// The chance in a hundred that it is placed at all.
     pub chance: i32,
+    /// How much of it to pour out, when the emission states a quantity.
+    ///
+    /// Reference: `emit.h:40-42` - `qty` default 1, fed to `map::propagate_field` (`map_field.cpp:2221-2222`) so that a gas
+    /// spreads over the squares it can reach instead of thickening one.
+    pub qty: i32,
 }
 
 /// Reads one `emit` entry, or nothing when the port cannot use it.
 ///
-/// Reference: `emit::load` (`emit.cpp`), which requires `field` and takes `intensity` and `chance` with defaults of one and
-/// a hundred. An entry with a `qty` is an emission of things rather than of a field; the port refuses those rather than
-/// dropping the quantity and placing one.
+/// Reference: `emit::load` (`emit.cpp`), which requires `field` and takes `intensity`, `chance` and `qty` with defaults of
+/// one, a hundred and one.
 #[must_use]
 pub fn read_emit(value: &Value) -> Option<Emission> {
     let Value::Object(object) = value else {
@@ -30,13 +34,11 @@ pub fn read_emit(value: &Value) -> Option<Emission> {
     let Some(Value::Str(field)) = object.get("field") else {
         return None;
     };
-    if object.get("qty").is_some() {
-        return None;
-    }
     Some(Emission {
         field: field.clone(),
         intensity: read_whole(object.get("intensity")).unwrap_or(1),
         chance: read_whole(object.get("chance")).unwrap_or(100),
+        qty: read_whole(object.get("qty")).unwrap_or(1),
     })
 }
 

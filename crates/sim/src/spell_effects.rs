@@ -112,7 +112,26 @@ fn emit(
             if rolls.rng(1, 100) > emission.chance {
                 continue;
             }
-            if let Some(field) = crate::field_registry::id_of(world, &emission.field) {
+            let Some(field) = crate::field_registry::id_of(world, &emission.field) else {
+                continue;
+            };
+            // Reference: `map::emit_field` on a square (`map_field.cpp:2212-2224`) - the chance decides whether anything is
+            // placed, and the quantity is then **poured out** from that square with `propagate_field`, so a gas spreads over
+            // the squares it can reach rather than thickening only the one it was emitted on.
+            if let Some(qty) = emission_qty(emission) {
+                let poured = crate::field_spread::propagate(
+                    world,
+                    square,
+                    field,
+                    qty,
+                    emission.intensity,
+                    &mut rolls,
+                    |_, _, _| true,
+                );
+                if poured > 0 {
+                    placed += 1;
+                }
+            } else {
                 crate::add_field_strength(world, square, field, emission.intensity);
                 placed += 1;
             }
@@ -124,6 +143,14 @@ fn emit(
     } else {
         Effective::Done
     }
+}
+
+/// How much of an emission to pour out, or nothing when it places a single unit.
+///
+/// A quantity of one is the reference's default and is placed directly; anything larger is a spread, which is why the
+/// distinction is here rather than at the call site.
+fn emission_qty(emission: &cdda_content::emit::Emission) -> Option<i32> {
+    (emission.qty > 1).then_some(emission.qty)
 }
 
 /// A `noise` spell makes a sound as loud as the damage it would have dealt.

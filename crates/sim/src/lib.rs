@@ -11,6 +11,7 @@ pub mod emit_registry;
 pub mod falling;
 pub mod memory;
 pub mod field_registry;
+pub mod field_spread;
 pub mod field_table;
 pub mod radiation;
 pub mod applied_effects;
@@ -3247,6 +3248,23 @@ pub fn has_field_at(world: &World, square: (i32, i32, i32), id: FieldId) -> bool
                 .iter(world)
                 .any(|(_, at, field)| (at.x, at.y, at.z) == square && field.id == id)
         })
+}
+
+/// How strongly a field sits on a square, or zero when it is not there.
+///
+/// The reader beside [`add_field_strength`], needed by anything that asks "how thick is it here" - the field spread does, once
+/// per square, the way the reference's `get_field_intensity` does.
+#[must_use]
+pub fn field_strength_at(world: &World, square: (i32, i32, i32), id: FieldId) -> i32 {
+    let Some(mut query) = world.try_query::<(&Position, &Field)>() else {
+        return 0;
+    };
+    query
+        .iter(world)
+        .filter(|(at, field)| (at.x, at.y, at.z) == square && field.id == id)
+        .map(|(_, field)| field.entry.intensity())
+        .max()
+        .unwrap_or(0)
 }
 
 /// Takes a field type off a square, answering whether there was one.
