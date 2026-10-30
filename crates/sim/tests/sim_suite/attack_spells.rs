@@ -239,3 +239,42 @@ fn at_its_ceiling_every_attack_spell_deals_the_damage_the_data_states() {
         "and for the spells that climb, the total is the data's own sum of max_damage"
     );
 }
+
+/// The effects the attack spells apply are in the corpus, and the port can say how long each lasts.
+///
+/// Reference: `add_effect_to_target` (`magic_spell_effect.cpp:499-520`) turns `spell::duration` into the effect's
+/// lifetime. The port does not apply them yet - this is the measurement that says how many are waiting, and the check
+/// that the duration the loader reads is the reference's own number rather than a default standing in for one.
+#[test]
+fn the_attack_spells_that_apply_an_effect_say_for_how_long() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/spells.json");
+    let text = std::fs::read_to_string(path).expect("the spell dump");
+    let value = cdda_json::parse(text.as_bytes()).expect("valid json");
+    let spells = cdda_content::spells::load_dump(&value).expect("the dump loads");
+
+    let named: Vec<&cdda_content::spells::Spell> = spells
+        .iter()
+        .filter(|spell| spell.effect_name == "attack" && !spell.effect_str.is_empty())
+        .collect();
+    assert_eq!(
+        named.len(),
+        27,
+        "twenty-seven of the game's attack spells apply an effect as well as dealing damage"
+    );
+    let timed = named
+        .iter()
+        .filter(|spell| spell.duration.at(0).is_some_and(|turns| turns > 0.0))
+        .count();
+    assert_eq!(
+        timed, 25,
+        "twenty-five of them last a stated time; the other two name an effect with no duration"
+    );
+    // One of them, to prove the number is the reference's and not a placeholder: the adrenaline artifact lasts two
+    // thousand turns, the same figure the dump carries.
+    let adrenaline = named
+        .iter()
+        .find(|spell| spell.effect_str == "adrenaline")
+        .expect("the adrenaline artifact is an attack spell");
+    assert_eq!(adrenaline.duration.at(0), Some(120_000.0));
+    assert_eq!(adrenaline.id, "AEA_ADRENALINE");
+}

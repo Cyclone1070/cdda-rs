@@ -48,6 +48,7 @@ fn taser() -> cdda_content::spells::Spell {
         },
         area: Scaling::default(),
         energy: Scaling::default(),
+        duration: Scaling::default(),
         casting_time: Scaling::default(),
         difficulty: None,
         max_level: None,

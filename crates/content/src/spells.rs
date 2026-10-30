@@ -70,6 +70,13 @@ pub struct Spell {
     pub area: Scaling,
     /// Energy, as it grows with level: the base, the increment and the final value.
     pub energy: Scaling,
+    /// How long the effect it applies lasts, as it grows with level.
+    ///
+    /// Reference: `spell_type::min_duration`, `duration_increment` and `max_duration` (`magic.h:291-296`), read by
+    /// `spell::duration` and used by `add_effect_to_target` (`magic_spell_effect.cpp:499-520`). A dump written before
+    /// the harness emitted these three fields answers `None` here, which is why [`Scaling::at`] answers `None` rather than
+    /// zero: "the data did not say" and "it lasts no time" are different answers.
+    pub duration: Scaling,
     /// Casting time in moves, as it grows with level.
     pub casting_time: Scaling,
     /// The difficulty of casting it.
@@ -106,6 +113,7 @@ pub fn read_spell(object: &Object) -> Result<Spell, LoadError> {
         range: scaling("min_range", "range_increment", "max_range"),
         area: scaling("min_aoe", "aoe_increment", "max_aoe"),
         energy: scaling("base_energy_cost", "energy_increment", "final_energy_cost"),
+        duration: scaling("min_duration", "duration_increment", "max_duration"),
         casting_time: scaling(
             "base_casting_time",
             "casting_time_increment",

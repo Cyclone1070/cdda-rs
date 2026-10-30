@@ -34,6 +34,7 @@ fn a_spell(effect_name: &str, damage: i64, area: i64) -> Spell {
         range: scaling(3),
         area: scaling(area),
         energy: scaling(0),
+        duration: scaling(10),
         casting_time: scaling(0),
         difficulty: Some(0.0),
         max_level: Some(10.0),

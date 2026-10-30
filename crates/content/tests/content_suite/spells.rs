@@ -109,3 +109,50 @@ fn a_known_spell_reads_as_the_reference_wrote_it() {
     assert_eq!(taser.shape, "blast", "and a blast shape");
     assert_eq!(taser.energy_source, "BIONIC", "paid for out of a bionic");
 }
+
+/// A spell's effect duration is read from the three fields the harness emits.
+///
+/// Reference: `spell_type::min_duration`, `duration_increment` and `max_duration` (`magic.h:291-296`), which
+/// `add_effect_to_target` (`magic_spell_effect.cpp:499-520`) turns into how long the effect a spell applies will last. The
+/// dump did not carry them until round 762, so this is the loader catching up with the oracle rather than the other way
+/// round.
+#[test]
+fn a_spell_carries_how_long_its_effect_lasts() {
+    let spell = cdda_content::spells::read_spell(&a_spell_with(&[
+        ("id", cdda_json::Value::Str("test_spell".to_owned())),
+        ("min_duration", cdda_json::Value::Float(5.0)),
+        ("duration_increment", cdda_json::Value::Float(2.0)),
+        ("max_duration", cdda_json::Value::Float(20.0)),
+    ]))
+    .expect("the spell reads");
+    assert_eq!(spell.duration.start, Some(5.0));
+    assert_eq!(spell.duration.increment, Some(2.0));
+    assert_eq!(spell.duration.end, Some(20.0));
+    assert_eq!(
+        spell.duration.at(3),
+        Some(11.0),
+        "five turns plus two a level, three levels in"
+    );
+    assert_eq!(
+        spell.duration.at(100),
+        Some(20.0),
+        "clamped at the maximum, as every scaling is"
+    );
+
+    // A dump written before the duration was emitted says nothing, which is not the same as lasting no time.
+    let old = cdda_content::spells::read_spell(&a_spell_with(&[(
+        "id",
+        cdda_json::Value::Str("old_spell".to_owned()),
+    )]))
+    .expect("the spell reads");
+    assert_eq!(old.duration.at(0), None);
+}
+
+/// An object with the given members, in the order the store keeps them.
+fn a_spell_with(members: &[(&str, cdda_json::Value)]) -> cdda_json::Object {
+    let mut object = cdda_json::Object::default();
+    for (key, value) in members {
+        object.insert((*key).to_owned(), value.clone());
+    }
+    object
+}
