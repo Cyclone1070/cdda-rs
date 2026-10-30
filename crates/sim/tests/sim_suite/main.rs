@@ -176,6 +176,7 @@ mod turn_light;
 mod vision_levels;
 mod weather;
 mod spell_effects;
+mod spell_data;
 mod spellcasting;
 mod weather_flush;
 mod weather_gen;

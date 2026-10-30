@@ -296,6 +296,30 @@ Three things the sweep settled that the code did not say:
 * **The damage that arrives is the damage the data states, to the point.** The 32 positive spells sum to exactly **100,016,638** - the data's own total - including the outlier `hallu_touch_suicide` at 100,000,000. Nothing in the path rounds, clamps or resists when there is no armour.
 * **The first version of the sweep measured nothing.** A creature built by `spawn_creature` has no body, so all 77 refusals said `NothingToHit` and the sweep "passed" its counts. It now gives the target a torso, which is the same lesson as the frame dump: a dump taken before the object is configured measures the harness.
 
+### A number in a document that nothing checked (round 775)
+
+The ledger has said since round 762 that **63** of the game's spells are `effect_on_condition`. The data says **54**, and the full distribution - pinned now by a test that scans the source JSON - is:
+
+| effect | spells |
+|---|---|
+`attack` | 77 |
+`effect_on_condition` | 54 |
+`summon` | 32 |
+`noise` | 13 |
+none stated | 11 |
+`emit`, `recover_energy` | 6 each |
+`explosion` | 5 |
+the remaining 25 kinds | 1-4 each |
+
+245 spells, 33 effect kinds. The drift was not a porting error but a *measurement* error: the count came from an early scan, was copied into prose, and nothing re-ran it.
+
+The deeper finding is why nothing could: the port's spell dump (`corpus/spells.json`) does **not carry `effect`** at all - all 245 entries have it absent - so the port's own loader cannot see the field that decides what a spell does. The scan works directly on the source files instead, which is the right shape for a data census: it reads the data the way the reference does rather than the way the port's dump happens to be shaped.
+
+Two consequences for the roadmap:
+
+* `spell_data::the_data_says_how_many_spells_there_are_and_what_each_one_does` now pins 245 / 77 / 54, so the next drift fails a test instead of entering a document.
+* adding `effect` to the spell dump is the next oracle change, and it is owed before the port can gate a spell's effect against the dump rather than against a scan.
+
 ### The math function table, ported exactly and worth one condition (round 774)
 
 The reference's math functions (`math_parser_func.h:141-163`) are now a table and an evaluator: `abs`, `floor`, `trunc`, `ceil`, `round`, `sqrt`, `log`, `sin`, `cos`, `tan`, `clamp`, the variadic `min`/`max`, and the four temperature conversions with the reference's own constants (`273.150`, `1.8`, `459.67` - `units.h:397-424`). Arity is checked at read time, so `clamp(1, 2)` refuses.
@@ -396,7 +420,7 @@ A `u_val` belongs to the speaker and a `global_val` is shared: the same name can
 
 ### Effect-on-conditions: the first question (round 767)
 
-63 of the game's spells are `effect_on_condition`, and an EOC is a program: a condition, then a list of effects. The port had the *ids* of all 913 EOCs and could evaluate none of them. This round opens the first half - the condition - with the smallest honest slice:
+54 of the game's spells are `effect_on_condition`, and an EOC is a program: a condition, then a list of effects. The port had the *ids* of all 913 EOCs and could evaluate none of them. This round opens the first half - the condition - with the smallest honest slice:
 
 * `content::dialogue::read_condition` is `conditional_t`'s loader (`condition.cpp:2660-2760`): the three combinators `and`, `or`, `not`, and the one leaf `u_has_effect`.
 * `sim::conditions::holds` answers it from the store: `f_has_effect` (`condition.cpp:980-996`) asks for the effect and compares **intensity as a floor**, not an equality, so `intensity: 2` is true for a worn intensity of 3 and false for 1.
