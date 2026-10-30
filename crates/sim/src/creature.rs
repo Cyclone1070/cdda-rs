@@ -954,17 +954,15 @@ fn strike_what_the_goal_holds(world: &mut World, attacker: Entity, goal: (i32, i
     let defence = crate::melee::Defence { resist, ..defence };
     let rolled = crate::melee::monster_melee_damage(&mut rolls, attack.0.fixed, attack.0.dice, attack.0.sides);
     let swung = crate::melee::resolve(hitroll, rolled, defence);
+    // A garment's own fate is decided by the whole blow, before the armour took its share
+    // (`character_armor.cpp`), and by a **fresh** draw of its own: `damage_armor_durability` calls `x_in_y` after
+    // the damage has been worked out, so this draw belongs after `resolve` and before the rolls go back.
+    let garment_roll = f64::from(rolls.rng_bits()) / f64::from(u32::MAX);
     crate::singletons::put_rolls(world, rolls);
     if swung.hit {
         if let Some(part) = landed_on.as_deref() {
-            // What arrived, before the armour took its share: a garment's own fate is decided by the whole blow
-            // (`character_armor.cpp`). `rolled` is that number, and the spread of the blow is the die for whether the
-            // garment is damaged at all.
             let arrived = f64::from(rolled.bash.max(0) + rolled.cut.max(0));
-            // The roll for whether the garment is damaged is the margin the blow landed by over the hundred it
-            // needed: a blow that barely connected is less likely to ruin a coat than a solid one.
-            let fraction = (arrived / 100.0).clamp(0.0, 1.0);
-            settle_armour(world, victim, part, arrived, fraction);
+            settle_armour(world, victim, part, arrived, garment_roll);
         }
         hurt(world, victim, swung.damage);
         if let Some(part) = landed_on {

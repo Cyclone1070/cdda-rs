@@ -298,3 +298,67 @@ fn an_unbreakable_garment_is_never_damaged() {
     assert_eq!(world.get::<Wear>(garment).map(|wear| wear.damage), None);
     assert_eq!(armour_on(&world, survivor, "torso"), 3, "and it still protects");
 }
+
+/// Whether a garment is damaged is a draw of its own, not a function of how hard the blow was.
+///
+/// Reference: `item::damage_armor_durability`'s `x_in_y( damage_chance, 1.0 )` (`item.cpp:9531`) - a fresh uniform
+/// draw taken *after* the damage is known, so two identical blows can leave one vest whole and the next in pieces.
+///
+/// The old implementation used the arrived damage over a hundred as the roll, which made the outcome a function of
+/// the blow: with a chance near 0.8 every blow that arrived with more than eighty points was refused, and every
+/// other blow was accepted, every single time. This test would have passed forever against that, so it asserts the
+/// only thing that distinguishes them: over twenty blows, **some vests are left whole**.
+#[test]
+fn two_identical_blows_do_not_have_to_leave_the_same_vest() {
+    let vest_state = |seed: u32| {
+        let mut world = World::new();
+        cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(seed));
+        let survivor = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+        // A vest that resists one point: the blow that arrives at it is worth about eighty per cent of a chance.
+        let garment = world
+            .spawn((
+                WornBy(survivor),
+                Garment {
+                    layers: vec![(
+                        "torso".to_owned(),
+                        cdda_content::armour::Layer {
+                            resist: 1.0,
+                            thickness: 1.0,
+                            cover: 100,
+                        },
+                    )],
+                },
+            ))
+            .id();
+        dress(&mut world);
+        // The store's own draw, taken the way the melee path takes it.
+        let mut rolls = cdda_sim::singletons::take_rolls(&mut world).expect("a generator");
+        let fraction = f64::from(rolls.rng_bits()) / f64::from(u32::MAX);
+        cdda_sim::singletons::put_rolls(&mut world, rolls);
+        let struck = damage_worn(
+            &mut world,
+            garment,
+            &GarmentBlow {
+                // A blow exactly at the garment's threshold: a forty per cent chance, so twenty draws split both ways
+                // with almost no luck at all (the odds of all twenty landing the same way are one in a hundred
+                // million either way).
+                premitigated: 10.0,
+                own_resist: 1.0,
+                covered_parts: 1,
+                fragile: false,
+                sturdy: false,
+                fraction,
+            },
+        );
+        struck != Struck::Untouched
+    };
+    let damaged = (0..20).filter(|seed| vest_state(*seed)).count();
+    assert!(
+        damaged > 0,
+        "twenty draws and not one vest damaged: the roll is not being taken"
+    );
+    assert!(
+        damaged < 20,
+        "all twenty draws damaged the vest, which is what a roll derived from the blow would do"
+    );
+}
