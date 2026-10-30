@@ -301,6 +301,33 @@ pub struct Body {
     pub parts: Vec<crate::hit_location::BodyPart>,
 }
 
+/// Builds a creature's body from content: an anatomy's membership and the numbers each part states.
+///
+/// This is the join the reference makes once at load time (`anatomy::finalize`, `anatomy.cpp:78-90`, which resolves
+/// its part ids and keeps the ones that exist). It answers `None` when the anatomy is unknown **or** when it lists a
+/// part the content does not describe: a body with a hole in it would make every later rule quietly wrong, and the
+/// reference's own answer to that case is a debug message rather than a smaller body.
+#[must_use]
+pub fn body_named(
+    anatomy: &str,
+    anatomies: &[cdda_content::anatomies::Anatomy],
+    parts: &[cdda_content::body_parts::BodyPartType],
+) -> Option<Body> {
+    let wanted = anatomies.iter().find(|one| one.id == anatomy)?;
+    let mut built = Vec::with_capacity(wanted.parts.len());
+    for id in &wanted.parts {
+        let found = parts.iter().find(|part| &part.id == id)?;
+        built.push(crate::hit_location::BodyPart {
+            name: found.name.clone(),
+            hit_size: found.hit_size,
+            hit_difficulty: found.hit_difficulty,
+            upper: found.upper,
+            lower: found.lower,
+        });
+    }
+    Some(Body { parts: built })
+}
+
 /// What armour a creature has on each part of its body.
 ///
 /// Reference: `Character::get_armor_type( dt, bp )` (`character_armor.cpp:70-86`) - armour is asked **per body

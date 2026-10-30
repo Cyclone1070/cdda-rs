@@ -99,8 +99,13 @@ fn play(args: &[String]) {
     let seed = number(args, "--seed").unwrap_or(1);
     let mut world = World::new();
     load_demo_world(&mut world);
+    let avatar = give_the_avatar_a_body(&mut world);
     cdda_sim::turn::set_random(&mut world, cdda_core_types::rng::Rolls::new(seed));
     cdda_sim::turn::set_scent_source(&mut world, (6, 6), 0);
+    match &avatar {
+        Some(body) => println!("the avatar has {body} parts of its body"),
+        None => println!("the avatar has no body: the corpus did not describe one"),
+    }
     for turn in 1..=turns {
         let before = cdda_sim::inspect::world_fingerprints(&world);
         cdda_sim::turn::run_turn(&mut world);
@@ -116,6 +121,37 @@ fn play(args: &[String]) {
             }
         );
     }
+}
+
+/// Puts the avatar in the demo world with the body the corpus describes.
+///
+/// The reference gives a character its anatomy once, at load (`anatomy::finalize`), and every later rule - which
+/// part a blow lands on, what armour covers it - reads that. A port that only gave bodies to tests would have a game
+/// where a person is an unarmoured point, so the demo world builds one from the same two corpus files the gates use.
+///
+/// Returns the number of parts, or nothing when the corpus is not where the binary expects it.
+fn give_the_avatar_a_body(world: &mut World) -> Option<usize> {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus");
+    let anatomies_text = std::fs::read_to_string(root.join("anatomy-parts.json")).ok()?;
+    let parts_text = std::fs::read_to_string(root.join("anatomy.json")).ok()?;
+    let cdda_json::Value::Array(anatomies) = cdda_json::parse(anatomies_text.as_bytes()).ok()? else {
+        return None;
+    };
+    let parts_document = cdda_json::parse(parts_text.as_bytes()).ok()?;
+    let cdda_json::Value::Object(root_object) = parts_document else {
+        return None;
+    };
+    let Some(cdda_json::Value::Array(parts)) = root_object.get("parts") else {
+        return None;
+    };
+    let anatomies = cdda_content::anatomies::load_objects(&anatomies).ok()?;
+    let parts = cdda_content::body_parts::load_objects(parts).ok()?;
+    let body = cdda_sim::creature::body_named("human_anatomy", &anatomies, &parts)?;
+
+    let avatar = cdda_sim::spawn_player(world, (0, 0), 80, 0);
+    let count = body.parts.len();
+    world.entity_mut(avatar).insert(body);
+    Some(count)
 }
 
 fn playtest(args: &[String]) {
