@@ -249,23 +249,24 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
     // `math` guards (42 -> 45). A refusal that moves house is not the same as a program that starts running, and only one of the
     // thirty-six turned out to be otherwise complete.
     assert_eq!(
-        whole, 170,
-        "a hundred and seventy run whole: inline `run_eocs` added fifty-nine, `u_has_item` nine, the list guards two"
+        whole, 173,
+        "a hundred and seventy-three run whole: inline `run_eocs` added fifty-nine, `u_has_item` nine, `test_eoc` three"
     );
-    assert_eq!(refused.get("effect"), Some(&338), "and the effect side is still the bigger refusal");
+    assert_eq!(refused.get("effect"), Some(&343), "and the effect side is still the bigger refusal");
     assert_eq!(refused.get("u_has_trait"), None, "traits are no longer blamed for anything");
     assert_eq!(refused.get("math"), Some(&46), "`math` guards are the biggest single one");
     assert_eq!(refused.get("u_has_item"), None, "carrying an item is no longer blamed for anything");
     // The chance guards now roll, so what is left of them is one program apiece - and the eight programs they freed are blamed on
     // what refused them next, which is the "moves house" pattern for the fifth time.
     assert_eq!(refused.get("one_in_chance"), Some(&1), "the dice no longer block the chance guards");
+    assert_eq!(refused.get("test_eoc"), None, "and `test_eoc` no longer blocks anything");
     assert_eq!(refused.get("x_in_y_chance"), Some(&1), "both of them, down to one each");
     assert_eq!(refused.get("u_at_om_location"), Some(&28), "with overmap location next");
     // 692, not the 712 effect-on-condition objects in the data: twenty carry no `id`, so nothing can name them and the port does
     // not install them. The count of definitions was itself worth learning - the 712 in the earlier census counted objects, the
     // machine composes by name.
     assert_eq!(defined, 692, "the data defines 692 nameable effect-on-conditions");
-    assert_eq!(whole, 170, "and the port can run 170 of them whole");
+    assert_eq!(whole, 173, "and the port can run 173 of them whole");
 }
 
 /// A `run_eocs` entry can be a program written where it is used.

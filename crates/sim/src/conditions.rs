@@ -164,7 +164,40 @@ pub fn holds_drawing(
     condition: &Condition,
     draws: &mut Option<&mut cdda_core_types::rng::Rolls>,
 ) -> bool {
+    holds_within(world, speaker, listener, condition, draws, 0)
+}
+
+/// How deep `test_eoc` may follow one program's condition into another's.
+///
+/// Reference: `f_test_eoc` has no guard (`condition.cpp:1949-1961`), and a cycle in the data would recurse until the stack ran out.
+/// The port follows at most this far and refuses beyond, which is the same deliberate divergence as the program runner's own limit.
+pub const TEST_EOC_DEPTH_LIMIT: usize = 16;
+
+/// The body of [`holds_drawing`], with the depth `test_eoc` has reached.
+fn holds_within(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    condition: &Condition,
+    draws: &mut Option<&mut cdda_core_types::rng::Rolls>,
+    depth: usize,
+) -> bool {
     match condition {
+        Condition::TestEoc { id } => {
+            if depth >= TEST_EOC_DEPTH_LIMIT {
+                return false;
+            }
+            let Some(name) = text_of(world, speaker, listener, id) else {
+                return false;
+            };
+            let Some(program) = crate::eoc_registry::program_of(world, &name) else {
+                return false;
+            };
+            let Some(inner) = program.condition.clone() else {
+                return false;
+            };
+            holds_within(world, speaker, listener, &inner, draws, depth + 1)
+        }
         Condition::OneInChance(_) | Condition::XInYChance { .. } => {
             rolls_against(world, speaker, listener, condition, draws)
         }

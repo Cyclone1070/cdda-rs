@@ -186,7 +186,7 @@ fn the_port_answers_the_questions_it_can_and_says_how_many_that_is() {
     // before it. That is the whole point of a leaf: a combinator is only as readable as its parts, so one ported leaf is worth
     // several times itself.
     assert_eq!(
-        readable, 2229,
+        readable, 2272,
         "of which the port answers 1,501: `u_has_effect`, `compare_string`, `u_has_items`, the combinators, and the `math` expressions whose every name it knows"
     );
 }
@@ -552,4 +552,47 @@ fn holding_any_of_a_list_answers_a_list_guard() {
         Some(stranger),
         &npc_guard
     ));
+}
+
+/// `test_eoc` asks another program's own condition without running it.
+///
+/// Reference: `f_test_eoc` (`condition.cpp:1949-1961`) looks the program up and evaluates **its condition**; the program's effects never
+/// run, so a `test_eoc` cannot change anything.
+#[test]
+fn asking_another_program_condition_runs_nothing() {
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let program = cdda_content::dialogue::read_program(
+        &cdda_json::parse(
+            br#"{"type": "effect_on_condition", "id": "EOC_TARGET",
+                 "condition": {"math": ["armed", "==", 1]},
+                 "effect": [{"u_message": "fired"}]}"#
+                .as_slice(),
+        )
+        .expect("json"),
+    )
+    .expect("readable");
+    cdda_sim::eoc_registry::set_programs(&mut world, std::slice::from_ref(&program));
+
+    let guard = condition(r#"{"test_eoc": "EOC_TARGET"}"#);
+    assert!(!holds(&world, survivor, &guard), "the target's condition is false");
+    assert!(
+        cdda_sim::messages::lines(&world).is_empty(),
+        "and asking ran nothing"
+    );
+
+    cdda_sim::dialogue_values::set(
+        &mut world,
+        survivor,
+        "armed",
+        cdda_sim::dialogue_values::Value::Number(1.0),
+    );
+    assert!(holds(&world, survivor, &guard), "and now it is true");
+    assert!(
+        cdda_sim::messages::lines(&world).is_empty(),
+        "still without running the program"
+    );
+
+    // A name nothing defines answers false rather than panicking.
+    assert!(!holds(&world, survivor, &condition(r#"{"test_eoc": "EOC_MISSING"}"#)));
 }

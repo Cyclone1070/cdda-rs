@@ -87,6 +87,14 @@ pub enum Condition {
         /// How many charges must be carried, when the data states charges.
         charges: Option<i32>,
     },
+    /// Another program's own condition, asked in place.
+    ///
+    /// Reference: `f_test_eoc` (`condition.cpp:1949-1961`) looks the named effect-on-condition up and evaluates **its condition** - it
+    /// does not run the program, so nothing it would do happens.
+    TestEoc {
+        /// The program's id, as the data writes it.
+        id: StringSource,
+    },
     /// A creature holds at least one of these traits.
     ///
     /// Reference: `f_has_any_trait` (`condition.cpp:563-578`), which walks the list and holds as soon as one is held.
@@ -304,35 +312,8 @@ pub fn read_condition(value: &Value) -> Option<Condition> {
     if let Some(math) = object.get("math") {
         return read_expression(math).map(Condition::Math);
     }
-    // Reference: `f_is_weather` (`condition.cpp:1812-1818`) compares the happening weather's id with the one the guard names. The data
-    // writes both a bare string and a list of them, and the reference's `get_str_or_var` reads a list as "any of these".
-    if let Some(named) = object.get("is_weather") {
-        let wanted = match named {
-            Value::Str(id) => vec![id.clone()],
-            Value::Array(ids) => ids
-                .iter()
-                .map(|id| match id {
-                    Value::Str(id) => Some(id.clone()),
-                    _ => None,
-                })
-                .collect::<Option<Vec<_>>>()?,
-            _ => return None,
-        };
-        return Some(Condition::IsWeather { wanted });
-    }
-    // Reference: `f_one_in_chance` (`condition.cpp:1760-1766`).
-    if let Some(chance) = object.get("one_in_chance") {
-        return Some(Condition::OneInChance(Box::new(read_expression(chance)?)));
-    }
-    // Reference: `f_x_in_y_chance` (`condition.cpp:1801-1810`), whose member is the object holding `x` and `y`.
-    if let Some(Value::Object(chance)) = object.get("x_in_y_chance") {
-        return Some(Condition::XInYChance {
-            x: Box::new(read_expression(chance.get("x")?)?),
-            y: Box::new(read_expression(chance.get("y")?)?),
-        });
-    }
-    if let Some(list) = read_list_guard(object) {
-        return Some(list);
+    if let Some(guard) = read_world_guard(object) {
+        return Some(guard);
     }
     // Reference: `f_has_item` (`condition.cpp:826-834`), the sibling of `u_has_items` that asks only "any at all".
     for (member, listener) in [("u_has_item", false), ("npc_has_item", true)] {
@@ -383,6 +364,49 @@ pub fn read_condition(value: &Value) -> Option<Condition> {
     })
 }
 
+
+
+/// Reads the guards that ask about the world rather than a creature: the weather and the avatar's missions.
+///
+/// Reference: `f_is_weather` (`condition.cpp:1812-1818`) and `f_u_has_mission` (`condition.cpp:709-721`).
+fn read_world_guard(object: &cdda_json::Object) -> Option<Condition> {
+    // Reference: `f_is_weather` (`condition.cpp:1812-1818`) compares the happening weather's id with the one the guard names. The data
+    // writes both a bare string and a list of them, and the reference's `get_str_or_var` reads a list as "any of these".
+    if let Some(named) = object.get("is_weather") {
+        let wanted = match named {
+            Value::Str(id) => vec![id.clone()],
+            Value::Array(ids) => ids
+                .iter()
+                .map(|id| match id {
+                    Value::Str(id) => Some(id.clone()),
+                    _ => None,
+                })
+                .collect::<Option<Vec<_>>>()?,
+            _ => return None,
+        };
+        return Some(Condition::IsWeather { wanted });
+    }
+    // Reference: `f_one_in_chance` (`condition.cpp:1760-1766`).
+    if let Some(chance) = object.get("one_in_chance") {
+        return Some(Condition::OneInChance(Box::new(read_expression(chance)?)));
+    }
+    // Reference: `f_x_in_y_chance` (`condition.cpp:1801-1810`), whose member is the object holding `x` and `y`.
+    if let Some(Value::Object(chance)) = object.get("x_in_y_chance") {
+        return Some(Condition::XInYChance {
+            x: Box::new(read_expression(chance.get("x")?)?),
+            y: Box::new(read_expression(chance.get("y")?)?),
+        });
+    }
+    if let Some(id) = object.get("test_eoc") {
+        return Some(Condition::TestEoc {
+            id: read_string_source(id)?,
+        });
+    }
+    if let Some(list) = read_list_guard(object) {
+        return Some(list);
+    }
+    None
+}
 
 /// Reads the two guards whose member is a list of names: `u_has_any_trait` and `u_has_any_effect`.
 ///
