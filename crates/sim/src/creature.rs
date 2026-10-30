@@ -389,22 +389,30 @@ pub fn dress(world: &mut World) {
         query.iter(world).map(|(entity, _)| entity).collect()
     };
     for wearer in wearers {
-        let mut armour: std::collections::BTreeMap<String, i32> = std::collections::BTreeMap::new();
+        let mut tenths_of: std::collections::BTreeMap<String, i32> = std::collections::BTreeMap::new();
         for (owner, layers) in &worn {
             if *owner != wearer {
                 continue;
             }
             for (part, layer) in layers {
                 // A hit that meets the layer is what the armour is for; the roll is the store being conservative
-                // (every layer counted) until a blow asks for a specific one.
+                // (every layer counted) until a blow asks for a specific one. The sum is kept in tenths of a point
+                // because a garment's protection is a fraction - a shirt is a third of a point - and truncating each
+                // layer as it is added would throw away the difference between one shirt and three.
                 #[allow(clippy::cast_possible_truncation)]
-                let added = cdda_content::armour::layer_resist(*layer, 0) as i32;
-                *armour.entry(part.clone()).or_insert(0) += added;
+                let tenths = (cdda_content::armour::layer_resist(*layer, 0) * 10.0).round() as i32;
+                *tenths_of.entry(part.clone()).or_insert(0) += tenths;
             }
         }
-        if armour.is_empty() {
+        if tenths_of.is_empty() {
             world.entity_mut(wearer).remove::<PartArmour>();
         } else {
+            // One conversion at the end, the way `Character::get_armor_type` returns an `int`: the fraction is kept
+            // while the layers are added and dropped once, so two thin layers can make a point between them.
+            let armour = tenths_of
+                .into_iter()
+                .map(|(part, tenths)| (part, tenths / 10))
+                .collect();
             world.entity_mut(wearer).insert(PartArmour(armour));
         }
     }

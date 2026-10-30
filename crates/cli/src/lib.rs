@@ -244,10 +244,116 @@ pub fn take_turn(world: &mut World) -> usize {
     cdda_sim::inspect::squares_that_differ(&before, &after).len()
 }
 
+/// Puts clothes on the avatar from the game's own item data.
+///
+/// The reference dresses a character from the item factory, and an item's protection is not a field on the item but
+/// a sum over its materials and their thickness (`item::_resist`). That work is `cdda_content::armour`'s; this only
+/// has to choose something to wear and hand it to the store as an item with a `WornBy` link, which is then what
+/// `creature::dress` reads.
+///
+/// Returns a line describing what was worn, or nothing when the game data is not where the binary expects it.
+pub fn dress_the_avatar(world: &mut World, avatar: bevy_ecs::entity::Entity) -> Option<String> {
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../oracle/src/data/json");
+    if !data.is_dir() {
+        return None;
+    }
+    let materials = cdda_content::materials::load_paths(&[&data]).ok()?;
+    let items = cdda_content::items::load_paths(&[&data]).ok()?;
+
+    // The garment that covers the most of a body, chosen by id to break ties: a playtest that dressed itself
+    // differently each time would be no playtest at all, and "the first item with any torso armour" is a canteen.
+    let covering = |item: &cdda_content::items::ItemType| -> std::collections::BTreeSet<String> {
+        item.armor_parts
+            .iter()
+            .filter(|entry| !cdda_content::armour::layers_on(item, &materials, "torso", false).is_empty()
+                || entry.thickness > 0.0)
+            .flat_map(|entry| entry.covers.clone())
+            .collect()
+    };
+    let candidates: Vec<(std::collections::BTreeSet<String>, &cdda_content::items::ItemType)> = items
+        .iter()
+        .filter(|item| !cdda_content::armour::layers_on(item, &materials, "torso", false).is_empty())
+        .map(|item| (covering(item), item))
+        .collect();
+    // Among the garments that cover a torso **and** an arm - which rules out a canteen on a strap - take the least
+    // protective one: a survivor starts dressed, not armoured. Ties go by id so two runs pick the same thing, and a
+    // playtest that dressed itself differently each time would be no playtest at all.
+    let protection = |item: &cdda_content::items::ItemType, part: &str| -> f64 {
+        cdda_content::armour::resist_of(
+            &cdda_content::armour::layers_on(item, &materials, part, false),
+            0,
+        )
+    };
+    let mut shirts: Vec<&cdda_content::items::ItemType> = candidates
+        .into_iter()
+        .filter(|(parts, _)| parts.contains("torso") && (parts.contains("arm_l") || parts.contains("arm_r")))
+        .map(|(_, item)| item)
+        // A garment whose materials add up to nothing protects nothing, whatever its data claims it covers;
+        // wearing it would make the avatar look dressed and be bare.
+        .filter(|item| protection(item, "torso") > 0.0)
+        .collect();
+    // The one closest to a jacket's weight - five points. This is a **demo choice, not a reference rule**: the
+    // reference gives a character the clothes its profession names, and no profession has been ported. The least
+    // protective garment rounds to nothing and the most protective is heavy plate, so a band in the middle is what
+    // leaves a survivor who can be hit and survive it. Ties go by id.
+    let weight = |item: &cdda_content::items::ItemType| (protection(item, "torso") - 5.0).abs();
+    shirts.sort_by(|left, right| {
+        weight(left)
+            .partial_cmp(&weight(right))
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| left.id.cmp(&right.id))
+    });
+    let shirt = shirts.first()?;
+
+    let mut parts: Vec<String> = shirt
+        .armor_parts
+        .iter()
+        .flat_map(|entry| entry.covers.clone())
+        .collect();
+    parts.sort();
+    parts.dedup();
+    let mut layers = Vec::new();
+    for part in parts {
+        for layer in cdda_content::armour::layers_on(shirt, &materials, &part, false) {
+            layers.push((part.clone(), layer));
+        }
+    }
+    if layers.is_empty() {
+        return None;
+    }
+    world.spawn((
+        cdda_sim::creature::WornBy(avatar),
+        cdda_sim::creature::Garment {
+            layers: layers.clone(),
+        },
+    ));
+    cdda_sim::creature::dress(world);
+    let torso = world
+        .get::<cdda_sim::creature::PartArmour>(avatar)
+        .and_then(|armour| armour.0.get("torso").copied())
+        .unwrap_or(0);
+    Some(format!("{} — {torso} point(s) on the torso", shirt.id))
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::panic, clippy::expect_used)]
     use super::*;
+
+    #[test]
+    fn the_avatar_can_be_dressed_from_the_game_s_data() {
+        let mut world = World::new();
+        let avatar = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
+        let worn = dress_the_avatar(&mut world, avatar).expect("the game data is in the repository");
+        assert!(worn.contains("point"), "the line says what it is worth: {worn}");
+        let torso = cdda_sim::creature::armour_on(&world, avatar, "torso");
+        assert!(torso >= 1, "a garment that protects nothing is not a garment: {worn}");
+        assert_eq!(
+            cdda_sim::creature::armour_on(&world, avatar, "foot_l"),
+            0,
+            "and it says nothing about a part it does not cover"
+        );
+    }
 
     #[test]
     fn a_scenario_that_says_what_it_means_runs_and_passes() {

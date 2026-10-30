@@ -106,6 +106,16 @@ fn play(args: &[String]) {
         Some(body) => println!("the avatar has {body} parts of its body"),
         None => println!("the avatar has no body: the corpus did not describe one"),
     }
+    let me = {
+        let mut query = world.query_filtered::<Entity, With<cdda_sim::Player>>();
+        query.iter(&world).next()
+    };
+    if let Some(me) = me {
+        match cdda_cli::dress_the_avatar(&mut world, me) {
+            Some(worn) => println!("the avatar wears {worn}"),
+            None => println!("the avatar wears nothing: the game data was not found"),
+        }
+    }
     for turn in 1..=turns {
         let before = cdda_sim::inspect::world_fingerprints(&world);
         cdda_sim::turn::run_turn(&mut world);
