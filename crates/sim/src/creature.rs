@@ -291,6 +291,48 @@ pub struct Dodge {
     pub points: i32,
 }
 
+/// The parts of a creature's body a blow can land on.
+///
+/// Reference: a `Creature`'s anatomy (`src/anatomy.h`). A monster has none this port knows about, so the component
+/// is absent rather than empty - "no body to record" and "a body with no parts" are different answers.
+#[derive(Component, Debug, Clone, PartialEq)]
+pub struct Body {
+    /// The parts, in the order the anatomy lists them.
+    pub parts: Vec<crate::hit_location::BodyPart>,
+}
+
+/// Where a creature has been hurt, part by part.
+///
+/// Reference: `Creature::deal_damage` takes a `bodypart_id`, and the damage is recorded against it. The port keeps
+/// the running total per part, which is what a wound is: a value the store holds, written once by the blow that
+/// caused it and read by anything that cares how hurt an arm is.
+#[derive(Component, Debug, Clone, Default, PartialEq, Eq)]
+pub struct Wounds(pub std::collections::BTreeMap<String, i32>);
+
+/// What a creature's part has taken so far.
+#[must_use]
+pub fn wound_on(world: &World, entity: Entity, part: &str) -> i32 {
+    world
+        .get::<Wounds>(entity)
+        .and_then(|wounds| wounds.0.get(part).copied())
+        .unwrap_or(0)
+}
+
+/// Records a blow against a part of a body.
+///
+/// Reference: `Creature::deal_damage` (`creature.cpp`) adds the damage to the part it was dealt to. A blow that
+/// rolls no part - a creature with no body, or one whose parts the rule refused - is still damage, so it is counted
+/// against nothing rather than silently dropped from the world's books.
+pub fn wound(world: &mut World, entity: Entity, part: &str, damage: i32) {
+    if let Some(mut wounds) = world.get_mut::<Wounds>(entity) {
+        *wounds.0.entry(part.to_owned()).or_insert(0) += damage;
+    } else {
+        let mut fresh = Wounds::default();
+        fresh.0.insert(part.to_owned(), damage);
+        world.entity_mut(entity).insert(fresh);
+    }
+}
+
 /// The attack a creature swings, taken from its type.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MeleeAttack(pub crate::melee::Attack);
@@ -483,9 +525,21 @@ fn strike_what_the_goal_holds(world: &mut World, attacker: Entity, goal: (i32, i
     };
     let defence = defence_of(world, victim);
     let swung = crate::melee::strike(&mut rolls, attack.0, defence);
+    // Which part it landed on is asked only of a creature that has a body, and with the margin the blow landed by -
+    // `Creature::deal_melee_hit` (`creature.cpp:959`) passes the spread as the roll that tilts the choice.
+    let landed_on = world.get::<Body>(victim).map(|body| body.parts.clone()).and_then(|parts| {
+        let fraction = f64::from(rolls.rng_bits()) / f64::from(u32::MAX);
+        crate::hit_location::struck_part(&parts, swung.spread, false, fraction)
+            .map(|part| part.name.clone())
+    });
     crate::singletons::put_rolls(world, rolls);
     if swung.hit {
         hurt(world, victim, swung.damage);
+        if let Some(part) = landed_on {
+            #[allow(clippy::cast_possible_truncation)]
+            let dealt = swung.damage as i32;
+            wound(world, victim, &part, dealt);
+        }
     }
     true
 }

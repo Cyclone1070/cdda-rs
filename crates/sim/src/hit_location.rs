@@ -112,3 +112,18 @@ pub fn select_body_part(
         .collect();
     pick_by_weight(&weights, fraction).and_then(|index| survivors.get(index).copied())
 }
+
+/// The part a blow landed on, given the margin it landed by.
+///
+/// Reference: `Creature::deal_melee_hit` (`creature.cpp:959`) - `select_body_part( -1, -1, source->can_attack_high(),
+/// hit_spread )`, so a blow is offered every part it can reach and the margin it landed by is what tilts the choice
+/// towards the small ones.
+#[must_use]
+pub fn struck_part(
+    parts: &[BodyPart],
+    spread: i32,
+    can_attack_high: bool,
+    fraction: f64,
+) -> Option<&BodyPart> {
+    select_body_part(parts, -1, -1, can_attack_high, spread, fraction)
+}
