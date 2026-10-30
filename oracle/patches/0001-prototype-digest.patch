@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-31 00:42:33
-@@ -0,0 +1,6481 @@
++++ oracle/src/src/harness.cpp	2026-10-31 02:25:03
+@@ -0,0 +1,6482 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +
@@ -1395,11 +1395,12 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    std::fprintf( out, "{\"harness\":\"fields\",\"version\":5,\n\"prototypes\":[\n" );
 +    bool first = true;
 +    for( const field_type &field : get_all_field_types().get_all() ) {
-+        std::fprintf( out, "%s\n{\"id\":\"%s\",\"priority\":%d,"
++        std::fprintf( out, "%s\n{\"id\":\"%s\",\"num\":%d,\"priority\":%d,"
 +                      "\"underwater_age_speedup\":%d,\"outdoor_age_speedup\":%d,"
 +                      "\"percent_spread\":%d,\"half_life\":%d,\"linear_half_life\":%s,"
 +                      "\"wandering_field\":\"%s\",\"accelerated_decay\":%s,\"phase\":\"%s\",\"levels\":[",
-+                      first ? "" : ",", harness_escape( field.id.str() ).c_str(), field.priority,
++                      first ? "" : ",", harness_escape( field.id.str() ).c_str(),
++                      static_cast<int>( field.id.id().to_i() ), field.priority,
 +                      to_turns<int>( field.underwater_age_speedup ),
 +                      to_turns<int>( field.outdoor_age_speedup ),
 +                      field.percent_spread, to_turns<int>( field.half_life ),

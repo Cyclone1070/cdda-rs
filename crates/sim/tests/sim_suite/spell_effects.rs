@@ -139,8 +139,8 @@ fn the_port_can_do_one_effect_of_the_ones_the_game_names() {
     }
     assert_eq!(
         spell_effects::EFFECTS.len(),
-        3,
-        "three effects are ported, out of the {} the game names",
+        4,
+        "four effects are ported, out of the {} the game names",
         named.len()
     );
 }
@@ -264,4 +264,140 @@ fn a_spell_takes_one_effect_off_and_leaves_the_rest() {
         spell_effects::apply(&mut world, caster, &spell, 0, (0, 0, 0)),
         Effective::NothingAffected
     );
+}
+
+/// A spell that removes a field takes it off every square it reaches, and leaves the rest.
+///
+/// Reference: `spell_effect::remove_field` (`magic_spell_effect.cpp:1010-1028`), whose one user is `AO_CLOSE_TEAR` removing
+/// `fd_fatigue`. This needed the field names, which the port had as numbers and could not look up: a spell names a field
+/// and nothing in the store could say which number that was.
+#[test]
+fn a_spell_takes_one_field_off_the_squares_it_reaches() {
+    use cdda_core_types::field::FieldId;
+    use cdda_sim::field_registry;
+
+    let mut world = World::new();
+    // The first names in the reference's registry order, which is what the numbers mean.
+    field_registry::set_field_names(
+        &mut world,
+        &[("fd_null", 0), ("fd_fatigue", 30), ("fd_fire", 14)],
+    );
+    assert_eq!(field_registry::count(&mut world), 3);
+    assert_eq!(
+        field_registry::id_of(&mut world, "fd_fatigue"),
+        Some(FieldId(30))
+    );
+    assert_eq!(
+        field_registry::name_of(&mut world, FieldId(14)).as_deref(),
+        Some("fd_fire")
+    );
+
+    let tear: FieldId = field_registry::id_of(&mut world, "fd_fatigue").expect("named");
+    let fire: FieldId = field_registry::id_of(&mut world, "fd_fire").expect("named");
+    cdda_sim::add_field_strength(&mut world, (0, 0, 0), tear, 1);
+    cdda_sim::add_field_strength(&mut world, (1, 0, 0), tear, 1);
+    cdda_sim::add_field_strength(&mut world, (0, 0, 0), fire, 2);
+    cdda_sim::add_field_strength(&mut world, (9, 9, 0), tear, 1);
+
+    let caster = cdda_sim::creature::spawn_creature(&mut world, "the caster", (0, 0, 0));
+    let mut spell = a_spell("remove_field", 0, 1);
+    spell.effect_str = "fd_fatigue".to_owned();
+
+    assert_eq!(
+        spell_effects::apply(&mut world, caster, &spell, 0, (0, 0, 0)),
+        Effective::Done
+    );
+    assert!(
+        !cdda_sim::has_field_at(&world, (0, 0, 0), tear),
+        "the tear at the centre is gone"
+    );
+    assert!(
+        !cdda_sim::has_field_at(&world, (1, 0, 0), tear),
+        "and so is the one beside it, inside a blast of one"
+    );
+    assert!(
+        cdda_sim::has_field_at(&world, (0, 0, 0), fire),
+        "the fire on the same square stays"
+    );
+    assert!(
+        cdda_sim::has_field_at(&world, (9, 9, 0), tear),
+        "and a tear nine squares away is out of reach"
+    );
+
+    // A field name the store does not know removes nothing and says so.
+    spell.effect_str = "fd_not_a_field".to_owned();
+    assert_eq!(
+        spell_effects::apply(&mut world, caster, &spell, 0, (0, 0, 0)),
+        Effective::NothingAffected
+    );
+}
+
+/// The field numbers the port already used are the oracle's own ordering.
+///
+/// Fourteen field constants existed before the registry did - `FIRE` at 14, `HOT_AIR_4` at 61 and the rest, each picked
+/// out of the reference while porting fire and gas. Now that `corpus/field_types.json` carries the reference's list, the
+/// two can be compared: every constant must be the position of its name **plus one**, and the count says how many were
+/// checked. If the offset were wrong by one, all fourteen would disagree at once.
+#[test]
+fn the_field_numbers_the_port_uses_are_the_oracles_order() {
+    use cdda_core_types::field::FieldId;
+
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/field_types.json");
+    let text = std::fs::read_to_string(path).expect("the field dump");
+    let value = cdda_json::parse(text.as_bytes()).expect("valid json");
+    let cdda_json::Value::Object(root) = &value else {
+        panic!("a field dump is an object");
+    };
+    let Some(cdda_json::Value::Array(rows)) = root.get("prototypes") else {
+        panic!("a field dump has prototypes");
+    };
+    assert_eq!(rows.len(), 145, "the reference has 145 field types");
+
+    // Each prototype carries its own number, which is the answer a position cannot give: the list holds an entry whose
+    // place and whose number disagree, so counting positions would be wrong for it and everything after.
+    let mut by_name: Vec<(&str, u32)> = Vec::with_capacity(rows.len());
+    for row in rows {
+        let cdda_json::Value::Object(object) = row else {
+            continue;
+        };
+        let Some(cdda_json::Value::Str(id)) = object.get("id") else {
+            continue;
+        };
+        let Some(cdda_json::Value::Int(num)) = object.get("num") else {
+            panic!("{id} states its number");
+        };
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        by_name.push((id.as_str(), *num as u32));
+    }
+    assert_eq!(by_name.len(), 145, "every one of the 145 fields states a number");
+
+    let constants: [(&str, FieldId); 14] = [
+        ("fd_fire", cdda_sim::FIRE),
+        ("fd_smoke", cdda_sim::SMOKE),
+        ("fd_extinguisher", cdda_sim::EXTINGUISHER),
+        ("fd_flame_burst", cdda_sim::FLAME_BURST),
+        ("fd_fire_vent", cdda_sim::FIRE_VENT),
+        ("fd_acid_vent", cdda_sim::ACID_VENT),
+        ("fd_shock_vent", cdda_sim::SHOCK_VENT),
+        ("fd_electricity", cdda_sim::ELECTRICITY),
+        ("fd_incendiary", cdda_sim::INCENDIARY),
+        ("fd_push_items", cdda_sim::PUSH_ITEMS),
+        ("fd_hot_air1", cdda_sim::HOT_AIR_1),
+        ("fd_hot_air2", cdda_sim::HOT_AIR_2),
+        ("fd_hot_air3", cdda_sim::HOT_AIR_3),
+        ("fd_hot_air4", cdda_sim::HOT_AIR_4),
+    ];
+    for (name, constant) in constants {
+        let from_the_data = by_name
+            .iter()
+            .find(|(listed, _)| *listed == name)
+            .unwrap_or_else(|| panic!("{name} is in the reference's list"))
+            .1;
+        assert_eq!(
+            constant.0,
+            from_the_data + 1,
+            "{name} is numbered {from_the_data} by the reference, so the port's constant is {}",
+            from_the_data + 1
+        );
+    }
 }

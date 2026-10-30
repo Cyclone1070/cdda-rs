@@ -9,6 +9,7 @@ pub mod blast;
 pub mod bash;
 pub mod falling;
 pub mod memory;
+pub mod field_registry;
 pub mod field_table;
 pub mod radiation;
 pub mod applied_effects;
@@ -2653,7 +2654,12 @@ pub fn process_acid_vent(
 }
 
 /// The incendiary field, as the field registry numbers it.
-pub const INCENDIARY: FieldId = FieldId(30);
+///
+/// The port's field numbers are the reference's **plus one** - its constants run one above `get_all_field_types()`
+/// because the list starts at `fd_null` while the numbering starts past it - and a test checks all fourteen of them
+/// against `corpus/field_types.json`. This one said thirty for two rounds and was the only constant that disagreed:
+/// thirty is the reference's fatigue field, so `process_incendiary` was walking the squares of a field nobody puts down.
+pub const INCENDIARY: FieldId = FieldId(48);
 
 /// An incendiary field sets fire to one neighbour, and warms its own square either way.
 ///
@@ -3227,7 +3233,43 @@ pub fn process_wandering_field(
     }
 }
 
-/// Adds or strengthens a field on a square, keeping the stronger of what is there and what arrives.
+/// Whether a square has a field of a given type on it.
+#[must_use]
+pub fn has_field_at(world: &World, square: (i32, i32, i32), id: FieldId) -> bool {
+    world
+        .try_query::<(Entity, &Position, &Field)>()
+        .is_some_and(|mut query| {
+            query
+                .iter(world)
+                .any(|(_, at, field)| (at.x, at.y, at.z) == square && field.id == id)
+        })
+}
+
+/// Takes a field type off a square, answering whether there was one.
+///
+/// Reference: `map::remove_field( pos, field_type_id )` (`src/map.cpp`), which erases that field's entry and leaves every
+/// other field on the square alone.
+pub fn remove_field(world: &mut World, square: (i32, i32, i32), id: FieldId) -> bool {
+    let found: Option<Entity> = {
+        let mut query = world.query::<(Entity, &Position, &Field)>();
+        query
+            .iter(world)
+            .find(|(_, at, field)| (at.x, at.y, at.z) == square && field.id == id)
+            .map(|(entity, _, _)| entity)
+    };
+    match found {
+        Some(entity) => {
+            world.despawn(entity);
+            true
+        }
+        None => false,
+    }
+}
+
+/// Adds or strengthens a field on a square: a field already there gets thicker, and an empty square grows one.
+///
+/// Reference: `map::add_field` (`src/map.cpp`), which adds the arriving strength to what is there and lets the setter
+/// clamp it.
 pub fn add_field_strength(world: &mut World, square: (i32, i32, i32), id: FieldId, strength: i32) {
     let existing = {
         let mut query = world.query::<(Entity, &Position, &Field)>();

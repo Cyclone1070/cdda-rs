@@ -296,7 +296,18 @@ Three things the sweep settled that the code did not say:
 * **The damage that arrives is the damage the data states, to the point.** The 32 positive spells sum to exactly **100,016,638** - the data's own total - including the outlier `hallu_touch_suicide` at 100,000,000. Nothing in the path rounds, clamps or resists when there is no armour.
 * **The first version of the sweep measured nothing.** A creature built by `spawn_creature` has no body, so all 77 refusals said `NothingToHit` and the sweep "passed" its counts. It now gives the target a torso, which is the same lesson as the frame dump: a dump taken before the object is configured measures the harness.
 
-### The attack spells at their ceilings (round 761)
+### Field numbers, and a bug the dump found (round 764)
+
+Spells that act on fields needed a way to turn `fd_fatigue` into a number, so `dump_fields` grew each field's own `num` - `field.id.id().to_i()`, the reference's `int_id` - and `corpus/field_types.json` was regenerated with all **145** fields carrying it.
+
+That made the port's fourteen field constants checkable for the first time, and they were wrong in one place:
+
+* **Thirteen of the fourteen are the reference's number plus one** - `fd_fire` is 13 and the port says 14, `fd_hot_air4` is 60 and the port says 61. That offset is a property of `get_all_field_types().get_all()`, which starts at `fd_null`, and it is harmless *because* the port is self-consistent about it: the field table, the light map and every constant are keyed the same way.
+* **`INCENDIARY` was 30 when the reference numbers `fd_incendiary` 47**, so under the port's own convention it should have been 48. Thirty is `fd_fatigue`'s number plus one - meaning `process_incendiary` had been walking the squares of a field nothing in the game puts down. Nothing failed, because a rule that never matches anything is silent, and the fire tests never put an incendiary field on the ground.
+
+The test that caught it asserts all fourteen constants against the dump's numbers and states how many it looked at. The registry now takes **stated** numbers rather than deriving them from list positions - the list has an entry whose place and number disagree, which is exactly how the offset got assumed in the first place.
+
+
 
 The level-0 sweep only proved the floor, where 43 of the 77 attack spells deal nothing because they scale up from zero. A second sweep casts each spell at **its own `max_level`** and compares the damage against the dump's own numbers, computed in the test from `min_damage`, `damage_increment` and `max_damage` by transcribing `spell::damage` (`magic.cpp:816-837`).
 

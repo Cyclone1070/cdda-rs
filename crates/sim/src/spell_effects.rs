@@ -29,8 +29,45 @@ type Apply = fn(&mut World, Entity, &Spell, i32, (i32, i32, i32)) -> Effective;
 pub const EFFECTS: &[(&str, Apply)] = &[
     ("mod_moves", mod_moves),
     ("remove_effect", remove_effect),
+    ("remove_field", remove_field),
     ("summon", summon),
 ];
+
+/// Reference: `spell_effect::remove_field` (`magic_spell_effect.cpp:1010-1028`) - the field the spell names in
+/// `effect_str` (`fd_fatigue` for the one spell that uses it) comes off every square in the blast, and each square keeps
+/// whatever else was on it.
+fn remove_field(
+    world: &mut World,
+    _caster: Entity,
+    spell: &Spell,
+    level: i32,
+    centre: (i32, i32, i32),
+) -> Effective {
+    let Some(field) = crate::field_registry::id_of(world, &spell.effect_str) else {
+        return Effective::NothingAffected;
+    };
+    let area = area_of(spell, level);
+    let mut took = 0;
+    for x in (centre.0 - area)..=(centre.0 + area) {
+        for y in (centre.1 - area)..=(centre.1 + area) {
+            if crate::remove_field(world, (x, y, centre.2), field) {
+                took += 1;
+            }
+        }
+    }
+    if took == 0 {
+        Effective::NothingAffected
+    } else {
+        Effective::Done
+    }
+}
+
+/// How far a spell reaches from its centre, in squares.
+fn area_of(spell: &Spell, level: i32) -> i32 {
+    #[allow(clippy::cast_possible_truncation)]
+    let area = spell.area.at(level).unwrap_or(0.0).max(0.0) as i32;
+    area
+}
 
 /// Reference: `spell_effect::remove_effect` (`magic_spell_effect.cpp:1712-1721`) - every creature in the spell's area
 /// loses the effect the spell names in `effect_str`, and nothing else about it changes.
