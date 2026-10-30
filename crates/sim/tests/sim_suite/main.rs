@@ -165,6 +165,7 @@ mod inspect_surface;
 mod turn_light;
 mod vision_levels;
 mod weather;
+mod spellcasting;
 mod weather_flush;
 mod weather_gen;
 mod weather_session;
