@@ -238,3 +238,34 @@ pub fn wind_of(world: &bevy_ecs::prelude::World, fallback: i32) -> i32 {
         None => fallback,
     }
 }
+
+/// The name of the weather that is happening, which is what a dialogue asks about.
+///
+/// Reference: `f_is_weather` (`condition.cpp:1812-1818`) compares `get_weather().weather_id` with the id the guard names. The port's
+/// [`Weather`] carries only the sight penalty the light needs, so the id lives beside it as its own component: the id is data, the
+/// penalty is a number, and a rule that wants one should not have to carry the other.
+#[derive(Debug, Clone, PartialEq, Eq, Default, bevy_ecs::prelude::Component)]
+pub struct WeatherId {
+    /// The `weather_type` id, as the data spells it.
+    pub id: String,
+}
+
+/// Says what the sky is called, adding the component if the world has not named it yet.
+pub fn set_id(world: &mut bevy_ecs::prelude::World, id: &str) {
+    let entity = crate::singletons::singleton::<WeatherId, crate::singletons::TheWeather>(world);
+    if let Some(mut held) = world.get_mut::<WeatherId>(entity) {
+        held.id.clone_from(&id.to_owned());
+        return;
+    }
+    world
+        .entity_mut(entity)
+        .insert(WeatherId { id: id.to_owned() });
+}
+
+/// What the sky is called, or nothing when nobody has named it.
+#[must_use]
+pub fn id_of(world: &bevy_ecs::prelude::World) -> Option<String> {
+    world
+        .iter_entities()
+        .find_map(|entity| entity.get::<WeatherId>().map(|held| held.id.clone()))
+}

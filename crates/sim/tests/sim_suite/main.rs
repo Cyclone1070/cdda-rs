@@ -18,6 +18,7 @@ pub fn spread_seed(attempt: u32) -> u32 {
 }
 
 mod acid_vent;
+mod weather_conditions;
 mod missions;
 mod traits;
 mod eoc_programs;

@@ -249,7 +249,7 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
     // `math` guards (42 -> 45). A refusal that moves house is not the same as a program that starts running, and only one of the
     // thirty-six turned out to be otherwise complete.
     assert_eq!(whole, 87, "seventeen more programs run whole once effects can be added and removed");
-    assert_eq!(refused.get("effect"), Some(&375), "and the effect side is still the bigger refusal");
+    assert_eq!(refused.get("effect"), Some(&379), "and the effect side is still the bigger refusal");
     assert_eq!(refused.get("u_has_trait"), None, "traits are no longer blamed for anything");
     assert_eq!(refused.get("math"), Some(&45), "`math` guards are the biggest single one");
     assert_eq!(refused.get("u_at_om_location"), Some(&28), "with overmap location next");

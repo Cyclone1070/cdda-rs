@@ -10,6 +10,13 @@ use cdda_json::Value;
 /// A condition the port can evaluate.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Condition {
+    /// The sky is doing one of these things.
+    ///
+    /// Reference: `f_is_weather` (`condition.cpp:1812-1818`).
+    IsWeather {
+        /// The weather ids any of which answers true.
+        wanted: Vec<String>,
+    },
     /// The player has taken a mission.
     ///
     /// Reference: `f_u_has_mission` (`condition.cpp:709-721`), which walks the avatar's active missions for a matching type id.
@@ -224,6 +231,22 @@ pub fn read_condition(value: &Value) -> Option<Condition> {
     }
     if let Some(math) = object.get("math") {
         return read_expression(math).map(Condition::Math);
+    }
+    // Reference: `f_is_weather` (`condition.cpp:1812-1818`) compares the happening weather's id with the one the guard names. The data
+    // writes both a bare string and a list of them, and the reference's `get_str_or_var` reads a list as "any of these".
+    if let Some(named) = object.get("is_weather") {
+        let wanted = match named {
+            Value::Str(id) => vec![id.clone()],
+            Value::Array(ids) => ids
+                .iter()
+                .map(|id| match id {
+                    Value::Str(id) => Some(id.clone()),
+                    _ => None,
+                })
+                .collect::<Option<Vec<_>>>()?,
+            _ => return None,
+        };
+        return Some(Condition::IsWeather { wanted });
     }
     // Reference: `f_u_has_mission` (`condition.cpp:709-721`) answers about the **avatar's** active missions, not the speaker's.
     if let Some(Value::Str(mission)) = object.get("u_has_mission") {

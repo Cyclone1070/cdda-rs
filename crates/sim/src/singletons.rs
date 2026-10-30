@@ -263,7 +263,11 @@ pub fn set_weather(world: &mut World, weather: Weather) {
     let entity = singleton::<Weather, TheWeather>(world);
     if let Some(mut slot) = world.get_mut::<Weather>(entity) {
         *slot = weather;
+        return;
     }
+    // A world that had no sky gets one. Without this the setter was silent on a fresh store - it only ever wrote to a component that
+    // already existed, so `set_weather` on a new world did nothing at all and said nothing about it.
+    world.entity_mut(entity).insert(weather);
 }
 
 /// Marks the one entity that carries the weather's own clock.

@@ -30,6 +30,8 @@ pub fn holds_with(
     condition: &Condition,
 ) -> bool {
     match condition {
+        Condition::IsWeather { wanted } => crate::weather::id_of(world)
+            .is_some_and(|happening| wanted.contains(&happening)),
         Condition::HasMission { mission } => {
             let holder = crate::missions::question_holder(world, speaker);
             crate::missions::has_mission(world, holder, mission)

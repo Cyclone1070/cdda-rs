@@ -181,11 +181,12 @@ fn the_port_answers_the_questions_it_can_and_says_how_many_that_is() {
     // the refusals because a combinator is only as readable as its parts, and the parts refused most are `math` (518),
     // `compare_string` (238) and `u_has_items` (155) - which is the list of what to port next, by frequency.
     assert_eq!(seen, 3708, "the data asks 3,708 `condition` objects");
-    // 2,089 after `u_has_mission` — 241 more than the 1,848 that `u_has_trait` reached, which was itself 347 more than the 1,501
+    // 2,094 after `is_weather` - five, because most of the 41 `is_weather` guards in the data sit inside programs whose effects
+    // still refuse, so they are counted where they are asked and not where they would have mattered. 2,089 after `u_has_mission` — 241 more than the 1,848 that `u_has_trait` reached, which was itself 347 more than the 1,501
     // before it. That is the whole point of a leaf: a combinator is only as readable as its parts, so one ported leaf is worth
     // several times itself.
     assert_eq!(
-        readable, 2089,
+        readable, 2094,
         "of which the port answers 1,501: `u_has_effect`, `compare_string`, `u_has_items`, the combinators, and the `math` expressions whose every name it knows"
     );
 }

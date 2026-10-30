@@ -328,6 +328,22 @@ entries the port can run | **363** |
 
 Reading both spellings of a destination - `"x = 1"` and `"u_val('x') = 1"`, which `read_var_info` (`condition.cpp:408-437`) treats as the same variable classed by the member that names it - took the count from 174 to 179. The 125 still refused are of two shapes, counted rather than guessed: **139 statements are pure expressions** with no assignment (`"u_val('stamina')"`, `"ps_str + 50"`), and **76 are bare operators** (`"*="`, `"+="`) that suggest a statement split across several entries of one list. Neither is run: a list whose meaning the port cannot read is refused whole, because "ignore the parts I do not understand" is how a program silently does half its job.
 
+### `is_weather`, and a setter that had never worked (round 793)
+
+`f_is_weather` (`condition.cpp:1812-1818`) compares `get_weather().weather_id` with the id a guard names, and the data writes both a bare string and a list of them.
+
+The port's `Weather` carried only the sight penalty the light needs, so the id arrived as its own component - `weather::WeatherId`, data beside a number. Reading it bought **five** condition objects, which looks small until the reason is stated: most `is_weather` guards sit inside programs whose effects still refuse, so they are counted where they are **asked**, not where they would matter.
+
+| Count | Before | After |
+|---|---|---|
+conditions readable | 2,089 | **2,094** |
+programs runnable whole | 87 | 87 |
+refused for an effect | 375 | **379** |
+
+That last row is the "moves house" pattern for the third time: five guards stopped refusing, and the programs they belonged to are now blamed on their effects instead.
+
+The round also found a failure that had been there unseen: **`singletons::set_weather` never worked on a world that had no weather.** It wrote only to a component that already existed, so on a fresh store it did nothing and said nothing. The test written for `is_weather` caught it, because it set the sky and then asked what the sky's penalty was. Every "the code did nothing wrong and did nothing" instance so far has been found by a test that asked a question the code could answer silently; this is the fourth.
+
 ### `if`: the first effect with a body, and why it bought four entries (round 792)
 
 `f_if` (`npctalk.cpp:6977-6993`) is the first effect that holds others: `if` is a condition, `then` runs when it holds, `else` when it does not, and an absent `else` runs nothing. 100 of the data's 1,612 effect entries are one of these.
@@ -452,7 +468,7 @@ refused for an effect | **374** |
 
 Reading a plain `run_eocs` name (one string, or a list of them) also took the effect count from 363 to **399**; the other 131 `run_eocs` entries are object forms with modifiers (`popup`, `variables`, `true_eocs`/`false_eocs`), which the port refuses rather than reading only the part it recognises.
 
-Both halves of the machine are now measured against each other: **2,089 of 3,708 conditions** answerable, **605 of 1,612 effects** runnable, and the intersection is **87 of 692 programs** runnable whole.
+Both halves of the machine are now measured against each other: **2,094 of 3,708 conditions** answerable, **605 of 1,612 effects** runnable, and the intersection is **87 of 692 programs** runnable whole.
 
 ### Messages: the second effect, and the first that only speaks (round 785)
 
