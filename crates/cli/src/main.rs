@@ -31,6 +31,7 @@ fn main() {
         }
         "square" => square(&rest[..]),
         "cast" => cast(&rest[..]),
+        "craft" => craft(&rest[..]),
         "playtest" => playtest(&rest[..]),
         "shot" => shot(&rest[..]),
         "qa" => qa(),
@@ -198,6 +199,22 @@ fn cast(args: &[String]) {
     match cdda_cli::cast_at_nearest(&mut world, avatar, &spell, level) {
         Some(said) => println!("{said}"),
         None => println!("no such spell, or nothing in reach"),
+    }
+}
+
+fn craft(args: &[String]) {
+    let recipe = args.first().cloned().unwrap_or_default();
+    let turns = i32::try_from(number(args, "--turns").unwrap_or(1_000)).unwrap_or(i32::MAX);
+    let mut world = World::new();
+    load_demo_world(&mut world);
+    cdda_cli::install_item_data(&mut world);
+    let me = {
+        let mut query = world.query_filtered::<Entity, With<cdda_sim::Player>>();
+        query.iter(&world).next()
+    };
+    match me.and_then(|me| cdda_cli::craft_a_recipe(&mut world, me, &recipe, turns)) {
+        Some(line) => println!("{line}"),
+        None => println!("no recipe named {recipe}, or no survivor to make it"),
     }
 }
 

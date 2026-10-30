@@ -269,6 +269,78 @@ pub fn install_item_data(world: &mut World) -> Option<usize> {
     Some(items.len())
 }
 
+/// Makes a recipe the game's data describes, and says what came of it.
+///
+/// The recipes come from `corpus/recipes.json`, the reference's own `--dump-recipes` output, because the port's recipe
+/// loader reads that dump rather than the raw JSON: the dump is what the crafts are measured against, so a playtest that
+/// used a different reader would be testing a different rule.
+///
+/// The components are put in the avatar's hands first - a survivor who had nothing could not craft anything, and the
+/// point of this is to watch the craft itself run: the recipe's own duration, the turns it takes, and what appears at
+/// the end.
+pub fn craft_a_recipe(
+    world: &mut World,
+    avatar: bevy_ecs::entity::Entity,
+    recipe_id: &str,
+    turns: i32,
+) -> Option<String> {
+    let dump = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/recipes.json");
+    let text = std::fs::read_to_string(dump).ok()?;
+    let value = cdda_json::parse(text.as_bytes()).ok()?;
+    let (recipes, _) = cdda_content::recipes::from_dump(&value)?;
+    let recipe = recipes.iter().find(|recipe| recipe.id == recipe_id)?.clone();
+
+    let names = cdda_sim::item_registry::snapshot(world);
+    for group in &recipe.components {
+        let Some(component) = group.first() else {
+            continue;
+        };
+        let kind = names.id_of(&component.item)?;
+        for _ in 0..component.count.max(1) {
+            let item = cdda_sim::drop_item(world, (0, 0), kind, 1);
+            world.entity_mut(item).remove::<cdda_sim::Position>();
+            world
+                .entity_mut(item)
+                .insert(cdda_sim::creature::Carried(avatar));
+        }
+    }
+
+    let started = cdda_sim::crafting::begin_craft_from_carried(world, avatar, &recipe, 1, &names);
+    if started != cdda_sim::crafting::Craft::Started {
+        return Some(format!("{recipe_id} could not be started: {started:?}"));
+    }
+    let moves = cdda_sim::creature::moves_left(world, avatar);
+    let mut spent = 0;
+    while spent < turns && world.get::<cdda_sim::crafting::Making>(avatar).is_some() {
+        cdda_sim::turn::run_turn(world);
+        spent += 1;
+    }
+    let after = cdda_sim::item_registry::snapshot(world);
+    let carried = cdda_sim::inventory::carried_by_id(world, avatar, |kind| after.name_of(kind));
+    let made = carried
+        .get(&recipe.result)
+        .copied()
+        .unwrap_or_else(|| ground_of(world, &recipe.result, &after));
+    let _ = moves;
+    Some(format!(
+        "{} -> {} x{} after {spent} turn(s)",
+        recipe.id, recipe.result, made
+    ))
+}
+
+/// How many of a named thing are lying on the square under the avatar.
+fn ground_of(world: &mut World, name: &str, names: &cdda_sim::item_registry::ItemNames) -> i32 {
+    let Some(wanted) = names.id_of(name) else {
+        return 0;
+    };
+    let mut query = world.query::<(&cdda_sim::Position, &cdda_sim::GroundItem)>();
+    query
+        .iter(world)
+        .filter(|(_, item)| item.kind == wanted)
+        .map(|(_, item)| item.charges.max(1))
+        .sum()
+}
+
 /// Puts a garment on the avatar, so the armour rules have something to work on.
 ///
 /// Returns a line describing what was worn, or nothing when the game data is not where the binary expects it.
@@ -570,5 +642,41 @@ mod item_data_tests {
             cdda_sim::item_registry::volume_of(&mut world, two_by_four) > 0,
             "and takes room"
         );
+    }
+}
+
+#[cfg(test)]
+mod craft_tests {
+    #![allow(clippy::panic, clippy::expect_used)]
+    use bevy_ecs::prelude::*;
+
+    /// A survivor with the ingredients can make a thing the game's data describes, and the turns it takes are the
+    /// recipe's own.
+    ///
+    /// `leather` is one fur into one leather and takes 36,000 moves, which is 360 turns at a hundred a turn - so this
+    /// also proves the craft is not finishing early.
+    #[test]
+    fn a_real_recipe_runs_to_its_result() {
+        let mut world = World::new();
+        cdda_sim::turn::set_random(&mut world, cdda_core_types::rng::Rolls::new(1));
+        super::install_item_data(&mut world).expect("the game data is in the repository");
+        let avatar = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
+        cdda_sim::creature::set_speed(&mut world, avatar, 100, 0);
+
+        let line = super::craft_a_recipe(&mut world, avatar, "leather", 400)
+            .expect("the data has a leather recipe");
+
+        assert!(line.starts_with("leather -> leather"), "unexpected line: {line}");
+        assert!(
+            line.contains("x1"),
+            "one leather came out of it, not nothing: {line}"
+        );
+        let turns: i32 = line
+            .rsplit("after ")
+            .next()
+            .and_then(|rest| rest.split_whitespace().next())
+            .and_then(|count| count.parse().ok())
+            .expect("the line states how many turns it took");
+        assert_eq!(turns, 360, "36,000 moves is 360 turns at a hundred a turn");
     }
 }
