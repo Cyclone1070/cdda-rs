@@ -46,6 +46,7 @@ mod craft_activity;
 mod craft_progress;
 mod craft_time;
 mod crafting;
+mod dialogue_conditions;
 mod body_from_content;
 mod creature_fight;
 mod creatures;

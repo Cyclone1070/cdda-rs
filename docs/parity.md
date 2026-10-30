@@ -296,6 +296,24 @@ Three things the sweep settled that the code did not say:
 * **The damage that arrives is the damage the data states, to the point.** The 32 positive spells sum to exactly **100,016,638** - the data's own total - including the outlier `hallu_touch_suicide` at 100,000,000. Nothing in the path rounds, clamps or resists when there is no armour.
 * **The first version of the sweep measured nothing.** A creature built by `spawn_creature` has no body, so all 77 refusals said `NothingToHit` and the sweep "passed" its counts. It now gives the target a torso, which is the same lesson as the frame dump: a dump taken before the object is configured measures the harness.
 
+### Effect-on-conditions: the first question (round 767)
+
+63 of the game's spells are `effect_on_condition`, and an EOC is a program: a condition, then a list of effects. The port had the *ids* of all 913 EOCs and could evaluate none of them. This round opens the first half - the condition - with the smallest honest slice:
+
+* `content::dialogue::read_condition` is `conditional_t`'s loader (`condition.cpp:2660-2760`): the three combinators `and`, `or`, `not`, and the one leaf `u_has_effect`.
+* `sim::conditions::holds` answers it from the store: `f_has_effect` (`condition.cpp:980-996`) asks for the effect and compares **intensity as a floor**, not an equality, so `intensity: 2` is true for a worn intensity of 3 and false for 1.
+* **A condition the port cannot read is refused, not answered.** `read_condition` answers `None` for a body part, an unported verb, or a combinator with an unreadable part - because "false" and "cannot say" are different answers, and a port that conflated them would make every unported condition quietly deny.
+
+The measurement, over every `condition` object in the game's JSON:
+
+| Count | Value |
+|---|---|
+conditions in the data | **3,708** |
+the port answers | **435** |
+most common refusals | `and` 1,299 (a combinator with unreadable parts), `math` 518, `not` 392, `compare_string` 238, `u_has_items` 155 |
+
+That last column is the porting order for the next rounds, chosen by frequency rather than by what looked easiest.
+
 ### The registries are singletons, and the game installs them (round 766)
 
 Three registries now sit in the store beside items: `monster_registry` (kind id ↔ name ↔ hit points), `effect_registry` (effect type by id) and `field_registry` (field number ↔ name). All four follow the same pattern - a data component, a `The*` marker, and a `set_*` that installs into the singleton - so the store has one answer to each question rather than a table beside the truth.

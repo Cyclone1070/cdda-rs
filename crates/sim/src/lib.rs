@@ -19,6 +19,7 @@ pub mod effect_registry;
 pub mod effects;
 pub mod singletons;
 pub mod square;
+pub mod conditions;
 pub mod crafting;
 pub mod creature;
 pub mod hit_location;
