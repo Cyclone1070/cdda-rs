@@ -33,7 +33,7 @@ fn spells_by_effect() -> BTreeMap<String, usize> {
 
 /// The count of kinds the port runs, and the count of spells those kinds belong to.
 #[test]
-fn the_port_runs_four_of_the_data_s_effect_kinds() {
+fn the_port_runs_five_of_the_data_s_effect_kinds() {
     let effects = spells_by_effect();
     let ported: Vec<(&String, &usize)> = effects
         .iter()
@@ -57,9 +57,9 @@ fn the_port_runs_four_of_the_data_s_effect_kinds() {
         32,
         "the data's spells name 32 distinct effect kinds"
     );
-    assert_eq!(ported.len(), 4, "the port runs four of them");
+    assert_eq!(ported.len(), 5, "the port runs five of them");
     assert_eq!(
-        spells_covered, 39,
-        "and those four are what 39 of the 245 spells name"
+        spells_covered, 116,
+        "and those five are what 116 of the 245 spells name"
     );
 }

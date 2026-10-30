@@ -61,6 +61,22 @@ pub fn cast_attack(
     if f64::from(away) > reach {
         return Cast::OutOfRange;
     }
+    damage_one(world, spell, level, target, fraction)
+}
+
+/// Applies an `attack` spell to one creature, once the cast has decided it is in reach.
+///
+/// Reference: `damage_targets` (`magic_spell_effect.cpp:546-563`), which is what every attack does to each thing it reaches:
+/// the effect first, then a body part, then the damage that gets through. Split out of [`cast_attack`] because a spell whose
+/// area covers several creatures applies this to each of them without asking about reach again - the area is what decided,
+/// not the range.
+pub fn damage_one(
+    world: &mut World,
+    spell: &Spell,
+    level: i32,
+    target: Entity,
+    fraction: f64,
+) -> Cast {
     // Reference: `damage_targets` applies the spell's effect **before** it deals damage, and only when the spell names one
     // (`magic_spell_effect.cpp:553-563`). The duration is the spell's own, scaled and clamped by the effect type's caps
     // exactly as `Creature::add_effect` would.
@@ -88,13 +104,15 @@ pub fn cast_attack(
         return Cast::NothingToHit;
     };
     let armour = armour_on(world, target, &part);
-    #[allow(clippy::cast_precision_loss)]
+    #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
     let arrived = damage.round() as i32;
     // The garment that stopped the blow may not survive stopping it, and it is asked with what arrived rather than
     // what got through (`character_armor.cpp`).
     crate::creature::settle_armour(world, target, &part, damage, fraction);
     let dealt = through_armour(arrived, armour);
-    hurt(world, target, dealt as f32);
+    #[allow(clippy::cast_precision_loss)]
+    let as_float = dealt as f32;
+    hurt(world, target, as_float);
     Cast::Hit { part, dealt }
 }
 

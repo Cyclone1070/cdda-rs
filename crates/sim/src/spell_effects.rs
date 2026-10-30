@@ -37,11 +37,52 @@ pub fn is_ported(name: &str) -> bool {
 
 /// Every effect kind the port can run, by the name the data gives it.
 pub const EFFECTS: &[(&str, Apply)] = &[
+    ("attack", attack),
     ("mod_moves", mod_moves),
     ("remove_effect", remove_effect),
     ("remove_field", remove_field),
     ("summon", summon),
 ];
+
+/// An `attack` spell damages everything its area covers.
+///
+/// Reference: `spell_effect::attack` (`magic_spell_effect.cpp:530-545`), which asks `damage_targets` for each creature in
+/// the area. Each target draws its own body part from the same generator the cast used, so a seed replays the whole blast - and
+/// the area decides who is hit, not the range, which is why this calls [`crate::spellcasting::damage_one`] rather than the
+/// range-checked `cast_attack`.
+fn attack(
+    world: &mut World,
+    caster: Entity,
+    spell: &Spell,
+    level: i32,
+    centre: (i32, i32, i32),
+) -> Effective {
+    // The only effect so far that draws: each target's body part comes from the same generator the cast used. Taking it here
+    // rather than in the dispatch keeps every effect that does not draw free of the store's randomness.
+    let Some(mut rolls) = crate::singletons::take_rolls(world) else {
+        return Effective::NotPorted;
+    };
+    let targets = creatures_in_reach(world, caster, spell, level, centre);
+    let mut hit = 0;
+    for target in targets {
+        // Reference: `Creature::get_random_body_part()` draws over the parts' hit sizes, which `lands_on` replays from a unit
+        // draw - the same phrasing `cast_at` uses, so a spell cast both ways draws alike.
+        #[allow(clippy::cast_precision_loss)]
+        let fraction = f64::from(rolls.rng_bits()) / f64::from(u32::MAX);
+        if matches!(
+            crate::spellcasting::damage_one(world, spell, level, target, fraction),
+            crate::spellcasting::Cast::Hit { .. }
+        ) {
+            hit += 1;
+        }
+    }
+    crate::singletons::put_rolls(world, rolls);
+    if hit == 0 {
+        Effective::NothingAffected
+    } else {
+        Effective::Done
+    }
+}
 
 /// Reference: `spell_effect::remove_field` (`magic_spell_effect.cpp:1010-1028`) - the field the spell names in
 /// `effect_str` (`fd_fatigue` for the one spell that uses it) comes off every square in the blast, and each square keeps

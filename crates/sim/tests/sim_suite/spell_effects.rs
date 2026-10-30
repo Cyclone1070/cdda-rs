@@ -139,8 +139,8 @@ fn the_port_can_do_one_effect_of_the_ones_the_game_names() {
     }
     assert_eq!(
         spell_effects::EFFECTS.len(),
-        4,
-        "four effects are ported, out of the {} the game names",
+        5,
+        "five effects are ported, out of the {} the game names",
         named.len()
     );
 }
@@ -399,4 +399,54 @@ fn the_field_numbers_the_port_uses_are_the_oracles_order() {
             constant.0
         );
     }
+}
+
+/// An `attack` spell damages every creature its area covers, and the blast decides who, not the range.
+///
+/// Reference: `spell_effect::attack` (`magic_spell_effect.cpp:530-545`) hands each creature in the area to `damage_targets`.
+/// The port splits that into `damage_one`, so the area is what reaches a target - a spell with a blast of one hits the
+/// creature next to the centre, and a spell with a blast of zero hits nobody, however close the caster stands.
+#[test]
+fn an_attack_spell_hits_everything_its_blast_reaches() {
+    let mut world = World::new();
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(7));
+    let caster = cdda_sim::creature::spawn_creature(&mut world, "the caster", (0, 0, 0));
+    let near = cdda_sim::creature::spawn_creature(&mut world, "near", (1, 0, 0));
+    let far = cdda_sim::creature::spawn_creature(&mut world, "far", (9, 0, 0));
+    for creature in [caster, near, far] {
+        world.entity_mut(creature).insert(cdda_sim::creature::Body {
+            parts: vec![cdda_sim::hit_location::BodyPart {
+                name: "torso".to_owned(),
+                hit_size: 1.0,
+                hit_difficulty: 1.0,
+                upper: false,
+                lower: false,
+            }],
+        });
+        world
+            .entity_mut(creature)
+            .insert(cdda_sim::creature::Health { hp: 100, max_hp: 100 });
+    }
+
+    let mut spell = a_spell("attack", 10, 1);
+    spell.effect_str = String::new();
+    let outcome = spell_effects::apply(&mut world, caster, &spell, 0, (0, 0, 0));
+    assert_eq!(outcome, Effective::Done, "the neighbour was hit");
+
+    let hurt = |world: &World, who: Entity| {
+        world
+            .get::<cdda_sim::creature::Health>(who)
+            .map_or(100, |health| health.hp)
+    };
+    assert!(hurt(&world, near) < 100, "the neighbour lost health");
+    assert_eq!(hurt(&world, far), 100, "and the creature out of the blast did not");
+    assert_eq!(hurt(&world, caster), 100, "nor did the caster");
+
+    // A blast of nothing reaches nobody, which is `NothingAffected` rather than a cast that silently did nothing.
+    let mut empty = a_spell("attack", 10, 0);
+    empty.effect_str = String::new();
+    assert_eq!(
+        spell_effects::apply(&mut world, caster, &empty, 0, (0, 0, 0)),
+        Effective::NothingAffected
+    );
 }

@@ -296,6 +296,19 @@ Three things the sweep settled that the code did not say:
 * **The damage that arrives is the damage the data states, to the point.** The 32 positive spells sum to exactly **100,016,638** - the data's own total - including the outlier `hallu_touch_suicide` at 100,000,000. Nothing in the path rounds, clamps or resists when there is no armour.
 * **The first version of the sweep measured nothing.** A creature built by `spawn_creature` has no body, so all 77 refusals said `NothingToHit` and the sweep "passed" its counts. It now gives the target a torso, which is the same lesson as the frame dump: a dump taken before the object is configured measures the harness.
 
+### `attack`, the bucket that pays (round 778)
+
+`attack` is 77 spells - the largest effect kind - and the port already had every part of it: `damage_targets`' order (effect, then body part, then damage through armour), the area shapes, the level scaling, the ceiling sweep. What was missing was a way to apply damage to **one** target without re-checking range, because a blast decides who is hit, not the reach.
+
+So `cast_attack` was split: the range check stays, and `spellcasting::damage_one` is the rest of it. `spell_effects::attack` sweeps `creatures_in_reach` and calls `damage_one` for each, drawing a body part per target from the store's generator - the only effect that draws, so it fetches the rolls itself rather than making every dice-free effect carry them.
+
+| Count | Value |
+|---|---|
+kinds the port runs | **5** (`attack`, `mod_moves`, `remove_effect`, `remove_field`, `summon`) |
+spells those five cover | **116 of 245 (47.3%)** |
+
+Both numbers are gated: the behavioural test hits a neighbour but not a creature outside the blast, and not the caster.
+
 ### Spell effects: four of thirty-two, counted (round 777)
 
 `spells::the_dump_says_how_many_spells_there_are` reads the dump's `effect_name`; `spell_effects_coverage::the_port_runs_four_of_the_data_s_effect_kinds` compares it with the port's dispatch table:
