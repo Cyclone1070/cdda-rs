@@ -479,3 +479,88 @@ fn a_thing_needs_one_pocket_that_takes_it_and_not_a_total() {
     );
     assert_eq!(pick_up_in_store(&mut world, survivor, rifle), Picked::Taken);
 }
+
+/// A pocket fills up, and a full pocket is not made roomier by the other pockets.
+///
+/// Reference: an item lives inside an `item_pocket`, so the second bottle does not fit where the first one is. The
+/// arithmetic that proves this matters: two pockets of a litre each hold two six-hundred-millilitre bottles and not
+/// three, even though the survivor has two litres of room and only 1.8 litres carried. A port that added the total up
+/// would let the third bottle in and be wrong in a way nothing would notice until a survivor carried six bottles in one
+/// pocket.
+#[test]
+fn a_pocket_fills_up() {
+    use cdda_core_types::level::Level;
+    use cdda_sim::creature::{
+        InPocket, Picked, WornBy, give_moves, pick_up_in_store, pocket_contents, spawn_creature,
+    };
+    use cdda_sim::terrain_table::TerrainTable;
+    use cdda_sim::{Prototypes, singletons};
+
+    let mut world = World::new();
+    let mut level = Level::new();
+    for x in 0..4 {
+        level.set_terrain(x, 0, 1, 1);
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let mut terrain = TerrainTable::new();
+    terrain.insert(1, true);
+    terrain.insert_move_cost(1, 2);
+    cdda_sim::set_prototypes(
+        &mut world,
+        Prototypes {
+            terrain,
+            furniture: TerrainTable::new(),
+        },
+    );
+    singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
+
+    let one_litre = Pocket {
+        capacity_ml: 1_000,
+        max_weight_g: 0,
+        max_item_ml: None,
+        holster: false,
+    };
+    let kinds = [
+        (String::from("bottle"), 600, 600, Vec::new()),
+        (String::from("two_pocket_vest"), 1_000, 1_000, vec![one_litre; 2]),
+    ];
+    item_registry::set_item_types(&mut world, &kinds_as(&kinds));
+    let names = item_registry::snapshot(&mut world);
+
+    let survivor = spawn_creature(&mut world, "the survivor", (1, 0, 0));
+    give_moves(&mut world, survivor, 9_000);
+    let vest = cdda_sim::drop_item(&mut world, (1, 0), ItemTypeId(2), 1);
+    world.entity_mut(vest).remove::<cdda_sim::Position>();
+    world.entity_mut(vest).insert(WornBy(survivor));
+
+    let first_bottle = cdda_sim::drop_item(&mut world, (1, 0), ItemTypeId(1), 1);
+    let second_bottle = cdda_sim::drop_item(&mut world, (1, 0), ItemTypeId(1), 1);
+    let third_bottle = cdda_sim::drop_item(&mut world, (1, 0), ItemTypeId(1), 1);
+    assert_eq!(pick_up_in_store(&mut world, survivor, first_bottle), Picked::Taken);
+    assert_eq!(pick_up_in_store(&mut world, survivor, second_bottle), Picked::Taken);
+    assert_eq!(
+        pick_up_in_store(&mut world, survivor, third_bottle),
+        Picked::TooBig,
+        "two pockets of a litre, two bottles of six hundred: the third has nowhere to go"
+    );
+
+    let filled = pocket_contents(&mut world, survivor, &names);
+    assert_eq!(filled.len(), 2, "both pockets are taken");
+    assert!(
+        filled.values().all(|counted| counted.count == 1 && counted.volume_ml == 600),
+        "one bottle in each, and neither pocket is over its litre"
+    );
+    let first = world
+        .get::<InPocket>(first_bottle)
+        .copied()
+        .expect("the first bottle is in a pocket");
+    let second = world
+        .get::<InPocket>(second_bottle)
+        .copied()
+        .expect("and so is the second");
+    assert_ne!(
+        (first.worn, first.index),
+        (second.worn, second.index),
+        "in different pockets, because one pocket cannot hold two of them"
+    );
+}

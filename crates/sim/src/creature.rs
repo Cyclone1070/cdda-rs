@@ -512,6 +512,47 @@ pub fn volume_capacity(
     total
 }
 
+/// Which pocket of which worn thing a carried item is in.
+///
+/// Reference: an item lives inside an `item_pocket`, and the pockets are reached through what is worn. The port keeps
+/// the same fact as a link: the carried thing points at the worn thing and says which of its pockets. Without it a
+/// pocket could never fill up, and a survivor could put a hundred bottles in one bottle pocket as long as the totals
+/// worked out.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InPocket {
+    /// The worn item the pocket belongs to.
+    pub worn: Entity,
+    /// Which of its pockets, in the order the data lists them.
+    pub index: usize,
+}
+
+/// What is already in one pocket.
+///
+/// Reference: `item_pocket::contents`, reduced to what the fit rule asks - how many things, how much room and how much
+/// weight they take.
+#[must_use]
+pub fn pocket_contents(
+    world: &mut World,
+    creature: Entity,
+    names: &crate::item_registry::ItemNames,
+) -> std::collections::BTreeMap<(Entity, usize), crate::pockets::Contents> {
+    let mut filled: std::collections::BTreeMap<(Entity, usize), crate::pockets::Contents> =
+        std::collections::BTreeMap::new();
+    let mut query = world.query::<(&Carried, &InPocket, &crate::GroundItem)>();
+    for (carried, pocket, item) in query.iter(world) {
+        if carried.0 != creature {
+            continue;
+        }
+        let entry = filled.entry((pocket.worn, pocket.index)).or_default();
+        entry.count += 1;
+        entry.volume_ml += names.volume_of(item.kind) * item.charges.max(1);
+        #[allow(clippy::cast_possible_truncation)]
+        let weight = names.weight_of(item.kind) * i64::from(item.charges.max(1));
+        entry.weight_g += i32::try_from(weight).unwrap_or(i32::MAX);
+    }
+    filled
+}
+
 /// Which pocket a thing would go in, if any.
 ///
 /// Reference: `Character::can_stash` -> `best_pocket` (`character.cpp:1571-1574`), which walks the pockets of everything
@@ -538,11 +579,11 @@ pub fn can_stash(
             .collect()
     };
     let weight_g = i32::try_from(weight_g).unwrap_or(i32::MAX);
+    let filled = pocket_contents(world, creature, names);
     for (entity, kind) in worn {
         for (index, pocket) in names.pockets_of(kind).iter().enumerate() {
-            if crate::pockets::fits(*pocket, crate::pockets::Contents::default(), volume_ml, weight_g)
-                == crate::pockets::Fits::Yes
-            {
+            let held = filled.get(&(entity, index)).copied().unwrap_or_default();
+            if crate::pockets::fits(*pocket, held, volume_ml, weight_g) == crate::pockets::Fits::Yes {
                 return Some((entity, index));
             }
         }
@@ -582,10 +623,16 @@ pub fn pick_up_in_store(world: &mut World, creature: Entity, item: Entity) -> Pi
     // Reference: `Character::can_stash` - something has to be able to take it, and what a survivor is wearing is all the
     // room there is. Asked pocket by pocket rather than as one total, because a hundred litres of room in fifty pockets
     // cannot hold a thing that fits none of them.
-    if can_stash(world, creature, &names, volume, this).is_none() {
+    let Some((worn, index)) = can_stash(world, creature, &names, volume, this) else {
         return Picked::TooBig;
+    };
+    let picked = pick_up(world, creature, item, volume);
+    if picked == Picked::Taken {
+        world
+            .entity_mut(item)
+            .insert(InPocket { worn, index });
     }
-    pick_up(world, creature, item, volume)
+    picked
 }
 
 /// What came of trying to pick something up.
