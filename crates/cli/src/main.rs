@@ -30,6 +30,7 @@ fn main() {
             print!("{}", cdda_sim::inspect::store_report(&world));
         }
         "square" => square(&rest[..]),
+        "cast" => cast(&rest[..]),
         "playtest" => playtest(&rest[..]),
         "shot" => shot(&rest[..]),
         "qa" => qa(),
@@ -48,6 +49,7 @@ fn usage() {
          \n\
          commands:\n\
          \x20 play [--turns N] [--seed S]   run turns and report what each one changed\n\
+         \x20 cast --spell <id>               cast a spell at what is next to the avatar\n\
          \x20 store                          what the world holds, by kind\n\
          \x20 square X Y Z                   everything standing on one square\n\
          \x20 index                          whether the index agrees with the store\n\
@@ -162,6 +164,36 @@ fn give_the_avatar_a_body(world: &mut World) -> Option<usize> {
     let count = body.parts.len();
     world.entity_mut(avatar).insert(body);
     Some(count)
+}
+
+/// Casts a spell from the game's own data at whatever is nearest the avatar.
+///
+/// A QA verb rather than a rule: the rule is `cdda_sim::spellcasting`, and this exists so a spell can be exercised
+/// from a terminal the way `play` exercises a turn.
+fn cast(args: &[String]) {
+    let spell = flag(args, "--spell").unwrap_or_else(|| "bio_taser_spell".to_owned());
+    #[allow(clippy::cast_possible_wrap)]
+    let level = flag(args, "--level")
+        .and_then(|value| value.parse::<i32>().ok())
+        .unwrap_or(0);
+    let mut world = World::new();
+    load_demo_world(&mut world);
+    let avatar = cdda_sim::spawn_player(&mut world, (6, 6), 80, 0);
+    let torso = cdda_sim::hit_location::BodyPart {
+        name: "torso".to_owned(),
+        hit_size: 36.0,
+        hit_difficulty: 1.0,
+        upper: false,
+        lower: false,
+    };
+    let zombie = cdda_sim::spawn_monster(&mut world, (7, 6), cdda_sim::MonsterKindId(0), 30);
+    world
+        .entity_mut(zombie)
+        .insert(cdda_sim::creature::Body { parts: vec![torso] });
+    match cdda_cli::cast_at_nearest(&mut world, avatar, &spell, level) {
+        Some(said) => println!("{said}"),
+        None => println!("no such spell, or nothing in reach"),
+    }
 }
 
 fn playtest(args: &[String]) {
@@ -283,6 +315,18 @@ fn index() {
 }
 
 /// Reads `--name value` from a command line, answering `None` when it is absent or unreadable.
+/// The word after a flag, if the flag is there.
+fn flag(args: &[String], name: &str) -> Option<String> {
+    let mut found = None;
+    let mut rest = args.iter();
+    while let Some(arg) = rest.next() {
+        if arg == name {
+            found = rest.next().cloned();
+        }
+    }
+    found
+}
+
 fn number(args: &[String], name: &str) -> Option<u32> {
     let mut found = None;
     let mut rest = args.iter();

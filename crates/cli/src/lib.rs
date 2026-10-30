@@ -335,6 +335,70 @@ pub fn dress_the_avatar(world: &mut World, avatar: bevy_ecs::entity::Entity) -> 
     Some(format!("{} — {torso} point(s) on the torso", shirt.id))
 }
 
+/// Finds a spell in the game's dump by id.
+///
+/// The dump is the oracle's own answer for every `spell_type`, so the game casts the spell the reference would, not a
+/// copy of it written out by hand.
+#[must_use]
+pub fn spell_named(id: &str) -> Option<cdda_content::spells::Spell> {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/spells.json");
+    let text = std::fs::read_to_string(path).ok()?;
+    let value = cdda_json::parse(text.as_bytes()).ok()?;
+    let all = cdda_content::spells::load_dump(&value).ok()?;
+    all.into_iter().find(|spell| spell.id == id)
+}
+
+/// Casts a spell from the avatar at the nearest creature, and says what happened in a line.
+///
+/// This is the QA surface's side of P5: the rule lives in `cdda_sim::spellcasting`, and this only has to find a
+/// target and report the answer. Returns nothing when there is no such spell or nothing in reach - a cast that
+/// silently did nothing would be the hardest kind of bug to see in a playthrough.
+pub fn cast_at_nearest(
+    world: &mut World,
+    avatar: bevy_ecs::entity::Entity,
+    spell_id: &str,
+    level: i32,
+) -> Option<String> {
+    let spell = spell_named(spell_id)?;
+    let caster = world
+        .get::<cdda_sim::Position>(avatar)
+        .map(|place| (place.x, place.y, place.z))?;
+    let mut nearest: Option<(i64, bevy_ecs::entity::Entity)> = None;
+    // Creatures only: every square, wall and dropped rock carries a `Position` too, and the nearest of those would
+    // be the floor the avatar is standing on rather than anything worth casting at.
+    let mut query = world
+        .query_filtered::<(bevy_ecs::entity::Entity, &cdda_sim::Position), With<cdda_sim::creature::Creature>>();
+    let mut found = Vec::new();
+    for (entity, place) in query.iter(world) {
+        if entity == avatar {
+            continue;
+        }
+        found.push((entity, place.x, place.y));
+    }
+    for (entity, x, y) in found {
+        let away = i64::from((x - caster.0).abs().max((y - caster.1).abs()));
+        if nearest.is_none_or(|(best, _)| away < best) {
+            nearest = Some((away, entity));
+        }
+    }
+    let (_, target) = nearest?;
+    let outcome = cdda_sim::spellcasting::cast_attack(world, caster, &spell, level, target, 0.0);
+    Some(match outcome {
+        cdda_sim::spellcasting::Cast::Hit { part, dealt } => {
+            format!("{} hits the {part} for {dealt}", spell.name)
+        }
+        cdda_sim::spellcasting::Cast::NotAnAttack => {
+            format!("{} is not an attack spell", spell.name)
+        }
+        cdda_sim::spellcasting::Cast::OutOfRange => {
+            format!("{} does not reach", spell.name)
+        }
+        cdda_sim::spellcasting::Cast::NothingToHit => {
+            format!("{} has nothing to hit", spell.name)
+        }
+    })
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::panic, clippy::expect_used)]
@@ -352,6 +416,33 @@ mod tests {
             cdda_sim::creature::armour_on(&world, avatar, "foot_l"),
             0,
             "and it says nothing about a part it does not cover"
+        );
+    }
+
+    #[test]
+    fn the_avatar_can_cast_the_taser_from_the_game_s_data_at_what_is_next_to_it() {
+        let mut world = World::new();
+        let avatar = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
+        let torso = cdda_sim::hit_location::BodyPart {
+            name: "torso".to_owned(),
+            hit_size: 36.0,
+            hit_difficulty: 1.0,
+            upper: false,
+            lower: false,
+        };
+        let zombie = cdda_sim::spawn_monster(&mut world, (1, 0), cdda_sim::MonsterKindId(0), 30);
+        world
+            .entity_mut(zombie)
+            .insert(cdda_sim::creature::Body { parts: vec![torso] });
+
+        let said = cast_at_nearest(&mut world, avatar, "bio_taser_spell", 0)
+            .expect("the dump has the taser and the zombie is next to the avatar");
+
+        assert!(said.contains("torso"), "the line names where it landed: {said}");
+        assert_eq!(
+            cdda_sim::creature::health_of(&world, zombie),
+            Some(15),
+            "fifteen off thirty, because the zombie brought no armour"
         );
     }
 
