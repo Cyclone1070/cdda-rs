@@ -125,6 +125,37 @@ fn a_program_using_a_condition_the_port_cannot_read_is_refused_whole() {
     let _ = program;
 }
 
+/// The first member of a guard that the port does not read, for ranking the refusals.
+///
+/// Deliberately cheap: it names the **top-level** member of the guard, which is enough to choose the next round's work and
+/// makes no claim about nested members. Asking one member at a time in isolation was tried and was wrong - a single-member
+/// object is not the same question as the object it came from (an `and` whose members are each readable can still be refused),
+/// so the port reports what it knows instead of a guess dressed as a diagnosis.
+fn blame(condition: Option<&cdda_json::Value>) -> String {
+    match condition {
+        Some(cdda_json::Value::Object(object)) => {
+            let Some((key, value)) = object.members().first() else {
+                return "condition".to_owned();
+            };
+            // A joiner is not the thing that failed - the member inside it is, and reporting `and` for 157 programs would only
+            // say "somewhere in a list". The items are already values, so no reconstruction is needed to ask about them.
+            match key.as_str() {
+                "and" | "or" => match value {
+                    cdda_json::Value::Array(items) => items
+                        .iter()
+                        .find(|item| cdda_content::dialogue::read_condition(item).is_none())
+                        .map_or_else(|| key.clone(), |item| blame(Some(item))),
+                    _ => key.clone(),
+                },
+                "not" => blame(Some(value)),
+                _ => key.clone(),
+            }
+        }
+        Some(cdda_json::Value::Str(_)) => "<named>".to_owned(),
+        _ => "condition".to_owned(),
+    }
+}
+
 fn collect(
     value: &cdda_json::Value,
     defined: &mut usize,
@@ -150,8 +181,12 @@ fn collect(
                                 cdda_content::dialogue::read_condition(condition).is_some()
                             }
                         };
-                        let blocked = if condition_ok { "effect" } else { "condition" };
-                        *refused.entry(blocked.to_owned()).or_insert(0) += 1;
+                        let blocked = if condition_ok {
+                            "effect".to_owned()
+                        } else {
+                            blame(object.get("condition"))
+                        };
+                        *refused.entry(blocked).or_insert(0) += 1;
                 }
             }
             for (_, member) in object.members() {
@@ -204,6 +239,14 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
     }
 
     println!("eoc programs: {defined} defined, {whole} runnable whole; refusals: {refused:?}");
+
+    // The ranking is the round's deliverable: it says what to port next instead of what is most used. `math` guards are the
+    // biggest single refusal (42 programs), then traits (36), then location (28) - none of which the earlier census could see,
+    // because reporting the joiner (`and`, 157 programs) only said "somewhere in a list".
+    assert_eq!(refused.get("effect"), Some(&374), "the effect side is the bigger refusal overall");
+    assert_eq!(refused.get("math"), Some(&42), "and `math` guards are the biggest single one");
+    assert_eq!(refused.get("u_has_trait"), Some(&36), "with traits next");
+    assert_eq!(refused.get("u_at_om_location"), Some(&28), "and overmap location after that");
     // 692, not the 712 effect-on-condition objects in the data: twenty carry no `id`, so nothing can name them and the port does
     // not install them. The count of definitions was itself worth learning - the 712 in the earlier census counted objects, the
     // machine composes by name.

@@ -328,6 +328,30 @@ entries the port can run | **363** |
 
 Reading both spellings of a destination - `"x = 1"` and `"u_val('x') = 1"`, which `read_var_info` (`condition.cpp:408-437`) treats as the same variable classed by the member that names it - took the count from 174 to 179. The 125 still refused are of two shapes, counted rather than guessed: **139 statements are pure expressions** with no assignment (`"u_val('stamina')"`, `"ps_str + 50"`), and **76 are bare operators** (`"*="`, `"+="`) that suggest a statement split across several entries of one list. Neither is run: a list whose meaning the port cannot read is refused whole, because "ignore the parts I do not understand" is how a program silently does half its job.
 
+### Which guard refuses: from 254 to a ranked list (round 787)
+
+The program census said 254 programs were refused for their condition, which is a number without a direction. Naming the **member that fails** turns it into work.
+
+The first attempt was wrong and worth recording: it rebuilt each guard one member at a time and asked whether that single-member object read. That is not the same question as the object it came from - an `and` whose members are each readable can still fail - so it answered "condition" for all 254 and looked like a bug in the data. The second attempt reports the **top-level** member, which is honest but useless: 157 programs came back as `and`, which says only "somewhere in a list".
+
+The third works because a joiner's items are already values: descend into `and`/`or`/`not` and ask about each item as it stands, no reconstruction. That is what produced a ranking at all.
+
+| Guard member that refuses | Programs |
+|---|---|
+`math` | **42** |
+`u_has_trait` | **36** |
+`<named>` (a program calling another by name) | 34 |
+`u_at_om_location` | 28 |
+`u_has_item` | **16** |
+`is_weather` | 15 |
+`test_eoc` | 13 |
+`expects_vars` | 11 |
+`range` | 10 |
+`u_has_bionics` | 10 |
+(effect side) | **374** |
+
+None of these was visible two ways of measuring ago, and the ranking changes the order of work: `math` guards outrank the traits and location checks that looked more obvious.
+
 ### Programs compose: 64 of 692 runnable whole (round 786)
 
 `run_eocs` is 167 of the effect entries, and it is the effect that makes the machine a machine: a program naming another program. Until this round every effect was a leaf.
