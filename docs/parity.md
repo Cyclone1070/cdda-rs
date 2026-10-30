@@ -328,6 +328,22 @@ entries the port can run | **363** |
 
 Reading both spellings of a destination - `"x = 1"` and `"u_val('x') = 1"`, which `read_var_info` (`condition.cpp:408-437`) treats as the same variable classed by the member that names it - took the count from 174 to 179. The 125 still refused are of two shapes, counted rather than guessed: **139 statements are pure expressions** with no assignment (`"u_val('stamina')"`, `"ps_str + 50"`), and **76 are bare operators** (`"*="`, `"+="`) that suggest a statement split across several entries of one list. Neither is run: a list whose meaning the port cannot read is refused whole, because "ignore the parts I do not understand" is how a program silently does half its job.
 
+### Inline programs: the largest single gain of the dialogue phase (round 800)
+
+`load_eoc_vector_id_and_var` (`npctalk.cpp:512-541`) accepts a `run_eocs` entry as a **name** or as an **object**, and an object without an `id` is an inline effect-on-condition loaded where it is used (`load_inline_eoc`). The port only knew names.
+
+That one shape was worth more than everything since the effect side opened:
+
+| Count | Before | After |
+|---|---|---|
+effect entries runnable | 622 | **742** |
+programs runnable whole | 93 | **152** |
+programs refused for an effect | 379 | **320** |
+
+**+120 effect entries, +59 programs.** Inline programs are how the data writes small guarded steps - a condition and two effects in the middle of a list - and there are a lot of them.
+
+Three rules came with it, all gated: an inline program runs **without being installed** (it has no id anything could name), its own condition is respected, and an entry carrying `variables` is **refused** - those context values reach the program through a scope the port has not ported, and reading the entry while dropping them would run a program the data did not write.
+
 ### The `math` array is a token list, not a program (round 799)
 
 The biggest effect leaf the ranking named was `math`, 130 entries, and the reason turned out to be a shape the port had read backwards.
@@ -560,7 +576,7 @@ refused for an effect | **374** |
 
 Reading a plain `run_eocs` name (one string, or a list of them) also took the effect count from 363 to **399**; the other 131 `run_eocs` entries are object forms with modifiers (`popup`, `variables`, `true_eocs`/`false_eocs`), which the port refuses rather than reading only the part it recognises.
 
-Both halves of the machine are now measured against each other: **2,094 of 3,708 conditions** answerable, **622 of 1,612 effects** runnable, and the intersection is **93 of 692 programs** runnable whole.
+Both halves of the machine are now measured against each other: **2,094 of 3,708 conditions** answerable, **742 of 1,612 effects** runnable, and the intersection is **152 of 692 programs** runnable whole.
 
 ### Messages: the second effect, and the first that only speaks (round 785)
 

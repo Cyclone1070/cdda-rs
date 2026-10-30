@@ -80,10 +80,65 @@ pub fn run_program(
     }
     for effect in &program.effects {
         match effect {
-            cdda_content::dialogue::Effect::RunEoc(names) => {
-                for name in names {
-                    if run_program(world, speaker, listener, name, depth + 1) == Applied::CannotAnswer
-                    {
+            cdda_content::dialogue::Effect::RunEoc(programs) => {
+                for program in programs {
+                    let started = match program {
+                        cdda_content::dialogue::ProgramRef::Named(name) => {
+                            run_program(world, speaker, listener, name, depth + 1)
+                        }
+                        cdda_content::dialogue::ProgramRef::Inline(inline) => {
+                            run_inline(world, speaker, listener, inline, depth + 1)
+                        }
+                    };
+                    if started == Applied::CannotAnswer {
+                        return Applied::CannotAnswer;
+                    }
+                }
+            }
+            other => {
+                if crate::dialogue_effects::run_effect(world, speaker, listener, other)
+                    == Applied::CannotAnswer
+                {
+                    return Applied::CannotAnswer;
+                }
+            }
+        }
+    }
+    Applied::Done
+}
+
+/// Runs a program written where it is used.
+///
+/// Reference: `load_inline_eoc` (`npctalk.cpp:512-541`), which turns an inline object into an effect-on-condition with a derived id and
+/// runs it in place. The port runs it without installing it, because an inline program has no id anything else can name.
+pub fn run_inline(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    program: &Program,
+    depth: usize,
+) -> Applied {
+    if depth >= DEPTH_LIMIT {
+        return Applied::CannotAnswer;
+    }
+    if let Some(condition) = &program.condition
+        && !crate::conditions::holds_with(world, speaker, listener, condition)
+    {
+        return Applied::Done;
+    }
+    for effect in &program.effects {
+        match effect {
+            cdda_content::dialogue::Effect::RunEoc(programs) => {
+                for named in programs {
+                    let started = match named {
+                        cdda_content::dialogue::ProgramRef::Named(name) => {
+                            run_program(world, speaker, listener, name, depth + 1)
+                        }
+                        cdda_content::dialogue::ProgramRef::Inline(inline) => {
+                            run_inline(world, speaker, listener, inline, depth + 1)
+                        }
+                    };
+                    if started == Applied::CannotAnswer {
                         return Applied::CannotAnswer;
                     }
                 }

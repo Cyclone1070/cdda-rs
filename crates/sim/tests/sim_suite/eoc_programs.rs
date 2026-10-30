@@ -248,8 +248,11 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
     // on `u_has_trait`; with it, those programs are blamed on what refused them **next** - mostly their effects (374 -> 397) and
     // `math` guards (42 -> 45). A refusal that moves house is not the same as a program that starts running, and only one of the
     // thirty-six turned out to be otherwise complete.
-    assert_eq!(whole, 93, "ninety-three run whole, six more than before the math array was read as one statement");
-    assert_eq!(refused.get("effect"), Some(&379), "and the effect side is still the bigger refusal");
+    assert_eq!(
+        whole, 152,
+        "a hundred and fifty-two run whole: the inline `run_eocs` form alone added fifty-nine"
+    );
+    assert_eq!(refused.get("effect"), Some(&320), "and the effect side is still the bigger refusal");
     assert_eq!(refused.get("u_has_trait"), None, "traits are no longer blamed for anything");
     assert_eq!(refused.get("math"), Some(&46), "`math` guards are the biggest single one");
     assert_eq!(refused.get("u_at_om_location"), Some(&28), "with overmap location next");
@@ -257,5 +260,49 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
     // not install them. The count of definitions was itself worth learning - the 712 in the earlier census counted objects, the
     // machine composes by name.
     assert_eq!(defined, 692, "the data defines 692 nameable effect-on-conditions");
-    assert_eq!(whole, 93, "and the port can run 93 of them whole");
+    assert_eq!(whole, 152, "and the port can run 152 of them whole");
+}
+
+/// A `run_eocs` entry can be a program written where it is used.
+///
+/// Reference: `load_eoc_vector_id_and_var` (`npctalk.cpp:512-541`) accepts a name or an object, and an object without an `id` is an
+/// **inline** effect-on-condition (`load_inline_eoc`) run on the spot. The port runs it without installing it, because an inline
+/// program has no id anything else could name.
+#[test]
+fn a_program_can_run_another_written_where_it_is_used() {
+    let (mut world, survivor) = world_with(
+        r#"[
+            {"type": "effect_on_condition", "id": "EOC_CALLER",
+             "effect": [{"run_eocs": [{"effect": [{"u_message": "inline"}, {"math": ["count += 2"]}]}]}]}
+        ]"#,
+    );
+    assert_eq!(
+        eoc_registry::run_program(&mut world, survivor, None, "EOC_CALLER", 0),
+        Applied::Done
+    );
+    assert_eq!(messages::lines(&world), vec!["inline".to_owned()]);
+    assert_eq!(
+        dialogue_values::number_of(&world, survivor, "count"),
+        Some(2.0),
+        "and the inline program changed the caller's own values"
+    );
+
+    // An inline program with a condition of its own is respected.
+    let (mut world, survivor) = world_with(
+        r#"[
+            {"type": "effect_on_condition", "id": "EOC_GUARDED_CALL",
+             "effect": [{"run_eocs": [{"condition": {"math": ["armed", "==", 1]},
+                                      "effect": [{"u_message": "bang"}]}]}]}
+        ]"#,
+    );
+    eoc_registry::run_program(&mut world, survivor, None, "EOC_GUARDED_CALL", 0);
+    assert!(messages::lines(&world).is_empty(), "the guard held it back");
+
+    // An entry carrying `variables` is refused: those values reach the program through a scope the port has not ported, and reading it
+    // while dropping them would run a different program.
+    let value = cdda_json::parse(
+        br#"{"run_eocs": [{"id": "EOC_X", "variables": {"who": "u"}}]}"#.as_slice(),
+    )
+    .expect("json");
+    assert!(cdda_content::dialogue::read_effect(&value).is_none());
 }

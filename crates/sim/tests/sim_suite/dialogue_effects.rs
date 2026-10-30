@@ -217,7 +217,10 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
     // 622 after the `math` array was read the way the reference reads it: `eoc_math::from_json` (condition.cpp:2494-2502)
     // **concatenates** the array's strings and parses one statement, so `["x", " *= ", "3"]` is an assignment and a port reading one
     // statement per element refused every split one.
-    assert_eq!(runnable, 622, "of which the port runs 622 entries");
+    //
+    // 742 after `run_eocs` learned the inline form: an entry may be a whole program written where it is used
+    // (`load_eoc_vector_id_and_var`, `npctalk.cpp:512-541`), and 120 entries turned out to be exactly that.
+    assert_eq!(runnable, 742, "of which the port runs 742 entries");
 
     // And the ranking of what refuses, which is this census's real output: it says what to port next instead of what is used most.
     // `target_var` is the one entry the ranking cannot attribute on its own - a scan of the data shows 71 of those 98 are
@@ -230,10 +233,10 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
     assert_eq!(
         ranking,
         vec![
-            ("run_eocs".to_owned(), 128),
             ("math".to_owned(), 113),
             ("mapgen_update".to_owned(), 107),
             ("bonus".to_owned(), 32),
+            ("else".to_owned(), 32),
             ("duration".to_owned(), 31),
         ],
         "the five effects that refuse most, in order - and `bonus`/`duration` are modifiers that reached the top only because \

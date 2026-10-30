@@ -845,11 +845,24 @@ pub enum Effect {
         /// Whether it goes from the listener rather than the speaker.
         listener: bool,
     },
-    /// Run another effect-on-condition by id.
+    /// Run another effect-on-condition, by id or as a program written where it is used.
     ///
     /// Reference: `f_run_eocs` (`npctalk.cpp`) - the entry is a name, an array of names, or an object with `run_eocs` and
     /// modifiers. The port reads the two plain forms: one name, or a list of them.
-    RunEoc(Vec<String>),
+    RunEoc(Vec<ProgramRef>),
+}
+
+/// What a `run_eocs` entry names.
+///
+/// Reference: `load_eoc_vector_id_and_var` (`npctalk.cpp:512-541`) accepts a **name** or an **object**, and an object without an `id`
+/// is an **inline** effect-on-condition loaded on the spot (`load_inline_eoc`). The port keeps both shapes; an object carrying
+/// `variables` is refused, because its context values live in a scope the port has not ported.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ProgramRef {
+    /// An effect-on-condition the data defines elsewhere.
+    Named(String),
+    /// A program written where it is used.
+    Inline(Box<Program>),
 }
 
 /// One effect-on-condition, as the data defines it.
@@ -905,7 +918,7 @@ pub fn read_program(value: &Value) -> Option<Program> {
 pub fn read_effect(value: &Value) -> Option<Effect> {
     // Reference: a bare name in an effect list runs that effect-on-condition.
     if let Value::Str(name) = value {
-        return Some(Effect::RunEoc(vec![name.clone()]));
+        return Some(Effect::RunEoc(vec![ProgramRef::Named(name.clone())]));
     }
     let Value::Object(object) = value else {
         return None;
@@ -923,15 +936,16 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
             otherwise,
         });
     }
-    if let Some(Value::Array(names)) = object.get("run_eocs") {
-        let names = names
+    if let Some(names) = object.get("run_eocs") {
+        let entries = match names {
+            Value::Array(entries) => entries.as_slice(),
+            other => std::slice::from_ref(other),
+        };
+        let programs = entries
             .iter()
-            .map(|name| match name {
-                Value::Str(name) => Some(name.clone()),
-                _ => None,
-            })
+            .map(read_program_ref)
             .collect::<Option<Vec<_>>>()?;
-        return Some(Effect::RunEoc(names));
+        return Some(Effect::RunEoc(programs));
     }
     if let Some(Value::Array(statements)) = object.get("math") {
         // Reference: `eoc_math::from_json` (`condition.cpp:2494-2502`) **concatenates** the array's strings and parses the result as
@@ -996,6 +1010,33 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
 fn read_effect_list(value: Option<&Value>) -> Option<Vec<Effect>> {
     match value {
         Some(Value::Array(entries)) => entries.iter().map(read_effect).collect(),
+        _ => None,
+    }
+}
+
+/// Reads one `run_eocs` entry: a name, or a program written inline.
+///
+/// Reference: `load_eoc_vector_id_and_var` (`npctalk.cpp:512-541`). An object with `variables` carries context values, which reach a
+/// program through a scope the port has not ported; refusing it is honest, and reading it while dropping the variables would run a
+/// different program from the one the data wrote.
+fn read_program_ref(value: &Value) -> Option<ProgramRef> {
+    match value {
+        Value::Str(name) => Some(ProgramRef::Named(name.clone())),
+        Value::Object(object) => {
+            if object.get("variables").is_some() {
+                return None;
+            }
+            let effects = read_effect_list(object.get("effect"))?;
+            let condition = match object.get("condition") {
+                None => None,
+                Some(condition) => Some(read_condition(condition)?),
+            };
+            Some(ProgramRef::Inline(Box::new(Program {
+                id: String::new(),
+                condition,
+                effects,
+            })))
+        }
         _ => None,
     }
 }
