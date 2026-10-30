@@ -18,6 +18,7 @@ pub mod radiation;
 pub mod applied_effects;
 pub mod body;
 pub mod digest;
+pub mod dialogue_effects;
 pub mod dialogue_values;
 pub mod effect_registry;
 pub mod effects;

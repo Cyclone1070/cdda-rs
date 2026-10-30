@@ -585,3 +585,88 @@ fn read_leaf(text: &str) -> Option<Expression> {
 fn read_all(entries: &[Value]) -> Option<Vec<Condition>> {
     entries.iter().map(read_condition).collect()
 }
+
+/// An operation a `math` effect performs on a variable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AssignmentOp {
+    /// `x = e`
+    Set,
+    /// `x += e`
+    Add,
+    /// `x -= e`
+    Subtract,
+    /// `x *= e`
+    Multiply,
+    /// `x /= e`
+    Divide,
+}
+
+/// A `math` effect's statement: a variable and the expression that changes it.
+///
+/// Reference: the `math` effect (`npctalk_funcs.cpp`) reads one string per entry, and the string is an **assignment** - the
+/// data writes `"void_spider_killed = 1"`, not a bare expression. The port had an expression parser and nothing that could
+/// read the `name = ...` half, which is why 304 effect entries were refused.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Assignment {
+    /// The variable's name, as the data spells it.
+    pub name: String,
+    /// What is done to it.
+    pub op: AssignmentOp,
+    /// The value, worked out against the dialogue.
+    pub expression: Expression,
+}
+
+/// Reads a `math` statement, or nothing when it is not an assignment the port can perform.
+#[must_use]
+pub fn read_assignment(text: &str) -> Option<Assignment> {
+    let (name_part, op, rest) = split_assignment(text)?;
+    let name = name_part.trim();
+    if name.is_empty()
+        || !name
+            .chars()
+            .all(|character| character.is_alphanumeric() || character == '_')
+    {
+        return None;
+    }
+    Some(Assignment {
+        name: name.to_owned(),
+        op,
+        expression: read_text_expression(rest)?,
+    })
+}
+
+/// Splits `name OP expression` at its top-level assignment operator, longest operator first.
+fn split_assignment(text: &str) -> Option<(&str, AssignmentOp, &str)> {
+    let mut depth = 0i32;
+    let bytes = text.as_bytes();
+    let mut at = 0usize;
+    while at < bytes.len() {
+        let character = bytes.get(at).copied()?;
+        match character {
+            b'(' => depth += 1,
+            b')' => depth -= 1,
+            b'=' if depth == 0 => {
+                let (op, width) = match (at.checked_sub(1).and_then(|before| bytes.get(before)), bytes.get(at + 1)) {
+                    (Some(b'+'), _) => (AssignmentOp::Add, 2),
+                    (Some(b'-'), _) => (AssignmentOp::Subtract, 2),
+                    (Some(b'*'), _) => (AssignmentOp::Multiply, 2),
+                    (Some(b'/'), _) => (AssignmentOp::Divide, 2),
+                    (_, Some(b'=')) => return None,
+                    _ => (AssignmentOp::Set, 1),
+                };
+                let before_op = match op {
+                    AssignmentOp::Set => at,
+                    _ => at.checked_sub(1)?,
+                };
+                return Some((
+                    text.get(..before_op)?,
+                    op,
+                    text.get(at + width..)?,
+                ));
+            }
+            _ => {}
+        }
+        at += 1;
+    }
+    None
+}

@@ -1,0 +1,170 @@
+//! What a `math` effect does: change a dialogue variable.
+//!
+//! Reference: `npctalk_funcs.cpp`'s `math` effect, whose data is an assignment per entry - `{"math": ["void_spider_killed = 1"]}`.
+//! It is the most used effect in the game's 712 effect-on-conditions (304 of 1,612 entries), and the port could read the
+//! expression half of it for three rounds without being able to run one.
+
+#![allow(clippy::panic, clippy::expect_used, clippy::float_cmp)]
+
+use bevy_ecs::prelude::*;
+use cdda_content::dialogue::{AssignmentOp, read_assignment};
+use cdda_sim::dialogue_effects::{Applied, run_assignment};
+use cdda_sim::dialogue_values::{self, Value};
+
+fn assignment(text: &str) -> cdda_content::dialogue::Assignment {
+    read_assignment(text).expect("the port reads this statement")
+}
+
+#[test]
+fn a_math_statement_sets_a_dialogue_variable() {
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let statement = assignment("void_spider_killed = 1");
+    assert_eq!(statement.op, AssignmentOp::Set);
+    assert_eq!(run_assignment(&mut world, survivor, None, &statement), Applied::Done);
+    assert_eq!(
+        dialogue_values::number_of(&world, survivor, "void_spider_killed"),
+        Some(1.0)
+    );
+}
+
+#[test]
+fn the_compound_operators_start_from_zero_when_the_variable_is_unset() {
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+
+    run_assignment(&mut world, survivor, None, &assignment("counter += 2"));
+    assert_eq!(dialogue_values::number_of(&world, survivor, "counter"), Some(2.0));
+    run_assignment(&mut world, survivor, None, &assignment("counter += 3"));
+    assert_eq!(dialogue_values::number_of(&world, survivor, "counter"), Some(5.0));
+    run_assignment(&mut world, survivor, None, &assignment("counter -= 4"));
+    assert_eq!(dialogue_values::number_of(&world, survivor, "counter"), Some(1.0));
+    run_assignment(&mut world, survivor, None, &assignment("counter *= 6"));
+    assert_eq!(dialogue_values::number_of(&world, survivor, "counter"), Some(6.0));
+    run_assignment(&mut world, survivor, None, &assignment("counter /= 3"));
+    assert_eq!(dialogue_values::number_of(&world, survivor, "counter"), Some(2.0));
+}
+
+#[test]
+fn a_statement_whose_value_cannot_be_worked_out_changes_nothing() {
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    dialogue_values::set(&mut world, survivor, "kept", Value::Number(7.0));
+
+    // `never_set` is nobody's value, so the assignment cannot be worked out - and the variable it would have changed stays put.
+    let unanswerable = assignment("kept = never_set + 1");
+    assert_eq!(
+        run_assignment(&mut world, survivor, None, &unanswerable),
+        Applied::CannotAnswer
+    );
+    assert_eq!(dialogue_values::number_of(&world, survivor, "kept"), Some(7.0));
+
+    // Dividing by zero is the same shape of refusal rather than an infinity.
+    let divide_by_zero = assignment("kept /= 0");
+    assert_eq!(
+        run_assignment(&mut world, survivor, None, &divide_by_zero),
+        Applied::CannotAnswer
+    );
+    assert_eq!(dialogue_values::number_of(&world, survivor, "kept"), Some(7.0));
+}
+
+fn count_effects(
+    value: &cdda_json::Value,
+    entries: &mut usize,
+    runnable: &mut usize,
+    refused: &mut std::collections::BTreeMap<String, usize>,
+) {
+    match value {
+        cdda_json::Value::Object(object) => {
+            let is_eoc = matches!(object.get("type"), Some(cdda_json::Value::Str(kind)) if kind == "effect_on_condition");
+            if is_eoc {
+                for slot in ["effect", "true_effect", "false_effect"] {
+                    let Some(cdda_json::Value::Array(list)) = object.get(slot) else {
+                        continue;
+                    };
+                    for entry in list {
+                        *entries += 1;
+                        let cdda_json::Value::Object(fields) = entry else {
+                            *refused.entry("<named>".to_owned()).or_insert(0) += 1;
+                            continue;
+                        };
+                        let ran = match fields.get("math") {
+                            Some(cdda_json::Value::Array(statements)) => statements.iter().all(|statement| {
+                                match statement {
+                                    cdda_json::Value::Str(text) => {
+                                        cdda_content::dialogue::read_assignment(text).is_some()
+                                    }
+                                    _ => false,
+                                }
+                            }),
+                            _ => false,
+                        };
+                        if ran {
+                            *runnable += 1;
+                        } else {
+                            for (key, _) in fields.members() {
+                                *refused.entry(key.clone()).or_insert(0) += 1;
+                            }
+                        }
+                    }
+                }
+            }
+            for (_, member) in object.members() {
+                count_effects(member, entries, runnable, refused);
+            }
+        }
+        cdda_json::Value::Array(items) => {
+            for item in items {
+                count_effects(item, entries, runnable, refused);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// How much of the game's effect-on-condition machinery the port can execute, counted against the data.
+///
+/// The effect side has its own census, the way the condition side has had since round 767: 712 named effect-on-conditions hold
+/// 1,612 effect entries, and the port can run the ones whose name it knows. Printing the top of the refusal list is what
+/// chooses the next effect to port - by frequency, not by what looks easy.
+#[test]
+fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
+    use std::collections::BTreeMap;
+
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../oracle/src/data/json");
+    let mut entries = 0usize;
+    let mut runnable = 0usize;
+    let mut refused: BTreeMap<String, usize> = BTreeMap::new();
+
+    let mut stack = vec![data];
+    while let Some(directory) = stack.pop() {
+        let Ok(entries_at) = std::fs::read_dir(&directory) else {
+            continue;
+        };
+        for entry in entries_at.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            if path.extension().and_then(std::ffi::OsStr::to_str) != Some("json") {
+                continue;
+            }
+            let Some(value) = cdda_content::read_json(&path) else {
+                continue;
+            };
+            count_effects(&value, &mut entries, &mut runnable, &mut refused);
+        }
+    }
+
+    let mut top: Vec<(String, usize)> = refused.into_iter().collect();
+    top.sort_by_key(|(_, count)| std::cmp::Reverse(*count));
+    top.truncate(5);
+    println!("eoc effects: {entries} entries, {runnable} runnable; most common refusals: {top:?}");
+
+    assert_eq!(entries, 1612, "the data's effect-on-conditions hold 1,612 effects");
+    // 174, not the 304 `math` entries in the data: 130 of those assign to a **destination** the port cannot parse yet - the
+    // data writes both `"x = 1"` and `"u_val('x') = 1"`, and the second names its target in the expression language rather than
+    // with a bare identifier. The refusal list says so with `math` at 130, which is the next thing to read.
+    assert_eq!(runnable, 174, "of which the port runs 174 `math` entries");
+}

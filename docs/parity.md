@@ -313,6 +313,21 @@ Emission `qty` is read now instead of refused, and an emission of more than one 
 
 One divergence remains: the spread does not merge fields already on a square the way `mod_field_intensity` does when priorities clash. The other - terrain permeability - is closed in round 782.
 
+### The effect half begins: `math`, 174 of 1,612 (round 783)
+
+Six rounds have built the dialogue machine's **question** half. This one opens the **effect** half with the effect the data uses most, and with its own census, the way conditions have had one since round 767.
+
+The data, measured across every effect-on-condition in every subdirectory: **712 named EOCs holding 1,612 effect entries**, with the commonest keys `math` 304, `u_message` 205, `run_eocs` 167, `type` 133, `duration` 117, `mapgen_update` 103, `u_lose_trait` 103, `if`/`then` 100, `u_add_effect` 78.
+
+`math` turned out to be an **assignment**, not an expression: the data writes `{"math": ["void_spider_killed = 1"]}`, so the port needed `name OP expression` - `= += -= *= /=` - on top of the expression parser it already had. `dialogue_effects::run_assignment` then sets the variable, with the reference's arithmetic on an unset variable read as zero.
+
+| Count | Value |
+|---|---|
+effect entries in the data | **1,612** |
+entries the port can run | **174** (the `math` statements it can read) |
+
+The gap between 174 and the 304 `math` entries is itself the next measurement: 130 of them assign to a destination the port cannot parse - the data writes both `"x = 1"` and `"u_val('x') = 1"`, and the second names its target inside the expression language rather than with a bare identifier. That is on the refusal list, in first place, for the next round.
+
 ### A field refuses entry, it does not seal a region (round 782)
 
 `field_passage::FieldPassage { impassable, permeable }` is the reference's entry test (`map_field.cpp:2264-2270`): `!impassable || permeable`, with a square nobody told answering "open". `blocked_within(world, centre, radius)` collects the refusals **before** the spread starts, because placing a field is a write and asking the store the same question through the same `&mut World` is not allowed - a borrow the compiler enforced, and a good thing for it to have enforced.
