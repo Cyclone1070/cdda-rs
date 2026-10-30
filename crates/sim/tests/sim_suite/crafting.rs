@@ -286,3 +286,129 @@ fn a_craft_that_lost_its_components_makes_nothing_and_takes_nothing() {
     let carried = cdda_sim::inventory::carried_by_id(&mut world, crafter, |kind| names.name_of(kind));
     assert_eq!(carried.get("rag"), Some(&1), "the rag is still there");
 }
+
+/// A crafted thing goes where a found thing goes.
+///
+/// Reference: `Character::i_add` -> `add_item`, which stashes the result in a pocket like any other item. The port
+/// spawned its result straight into the hands, which was the one place in the item layer that contradicted the pocket
+/// rule: a survivor with pockets could craft something and have it exist nowhere.
+#[test]
+fn a_crafted_thing_lands_in_a_pocket() {
+    let mut world = World::new();
+    let crafter = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    // A pack with one two-litre pocket, and the rope is half a litre.
+    let pack = cdda_sim::pockets::Pocket {
+        capacity_ml: 2_000,
+        max_weight_g: 0,
+        max_item_ml: None,
+        holster: false,
+    };
+    let kinds = [
+        (String::from("rag"), 250, 100, Vec::new()),
+        (String::from("rope"), 500, 200, Vec::new()),
+        (String::from("pack"), 1_000, 500, vec![pack]),
+    ];
+    let registry: Vec<cdda_sim::item_registry::Kind<'_>> = kinds
+        .iter()
+        .map(|(id, volume, weight, pockets)| cdda_sim::item_registry::Kind {
+            id,
+            volume_ml: *volume,
+            weight_g: *weight,
+            pockets,
+        })
+        .collect();
+    cdda_sim::item_registry::set_item_types(&mut world, &registry);
+    let names = cdda_sim::item_registry::snapshot(&mut world);
+
+    let worn = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(3), 1);
+    world.entity_mut(worn).remove::<cdda_sim::Position>();
+    world
+        .entity_mut(worn)
+        .insert(cdda_sim::creature::WornBy(crafter));
+    for _ in 0..2 {
+        let rag = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 1);
+        world.entity_mut(rag).remove::<cdda_sim::Position>();
+        world
+            .entity_mut(rag)
+            .insert(cdda_sim::creature::Carried(crafter));
+    }
+
+    let mut recipe = recipe(100, "rag", 2);
+    recipe.result = "rope".to_owned();
+    assert_eq!(
+        cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
+        Craft::Started
+    );
+    assert_eq!(
+        cdda_sim::crafting::finish_craft(&mut world, crafter, &names).as_deref(),
+        Some("rope")
+    );
+
+    let made = {
+        let mut query = world.query::<(bevy_ecs::prelude::Entity, &cdda_sim::GroundItem)>();
+        query
+            .iter(&world)
+            .find(|(_, item)| item.kind == cdda_sim::ItemTypeId(2))
+            .map(|(entity, _)| entity)
+            .expect("the rope exists")
+    };
+    let pocket = world
+        .get::<cdda_sim::creature::InPocket>(made)
+        .copied()
+        .expect("and it is in the pack's pocket, not loose in the hands");
+    assert_eq!(pocket.worn, worn, "the pack is what holds it");
+    assert_eq!(pocket.index, 0);
+}
+
+/// With nothing to put it in, a crafted thing stays in hand rather than vanishing.
+///
+/// The reference drops it at your feet (`i_add_or_drop`); the port has no wield slot yet, so the honest answer is a
+/// thing in hand with no pocket - visibly different from a stashed one, and the gap is declared rather than hidden.
+#[test]
+fn with_no_pockets_a_crafted_thing_stays_in_hand() {
+    let mut world = World::new();
+    let crafter = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let names = cdda_sim::item_registry::ItemNames {
+        names: vec![
+            String::new(),
+            "rag".to_owned(),
+            "rope".to_owned(),
+        ],
+        by_name: [
+            ("rag".to_owned(), cdda_sim::ItemTypeId(1)),
+            ("rope".to_owned(), cdda_sim::ItemTypeId(2)),
+        ]
+        .into_iter()
+        .collect(),
+        volumes_ml: vec![0, 250, 500],
+        weights_g: vec![0, 100, 200],
+        holds_ml: vec![0, 0, 0],
+        pockets: Vec::new(),
+        pocket_ranges: vec![(0, 0), (0, 0), (0, 0)],
+    };
+    for _ in 0..2 {
+        let rag = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 1);
+        world.entity_mut(rag).remove::<cdda_sim::Position>();
+        world
+            .entity_mut(rag)
+            .insert(cdda_sim::creature::Carried(crafter));
+    }
+    let mut recipe = recipe(100, "rag", 2);
+    recipe.result = "rope".to_owned();
+    assert_eq!(
+        cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
+        Craft::Started
+    );
+    assert_eq!(
+        cdda_sim::crafting::finish_craft(&mut world, crafter, &names).as_deref(),
+        Some("rope")
+    );
+    let carried = cdda_sim::inventory::carried_by_id(&mut world, crafter, |kind| names.name_of(kind));
+    assert_eq!(carried.get("rope"), Some(&1), "the rope is in hand");
+    let mut query = world.query::<&cdda_sim::creature::InPocket>();
+    assert_eq!(
+        query.iter(&world).count(),
+        0,
+        "and it is in no pocket, because there are none"
+    );
+}

@@ -90,17 +90,28 @@ pub fn finish_craft(world: &mut World, crafter: Entity, names: &crate::item_regi
         // is to say what could not be made rather than pretend a thing appeared.
         return None;
     };
-    world.spawn((
+    let charges = making.batch.max(1);
+    // Reference: `Character::i_add` -> `add_item` puts the result in a pocket, and only what fits nowhere is held
+    // instead. The port asks `can_stash` the same question a pickup asks, so a crafted thing lands where a found thing
+    // would; the surviving difference is what happens when nothing fits - the reference drops it at your feet, and the
+    // port has no wield slot to put it in, so it stays in hand and says so by carrying no pocket.
+    let size = names.volume_of(kind).saturating_mul(charges);
+    let weight = names.weight_of(kind) * i64::from(charges);
+    let pocket = crate::creature::can_stash(world, crafter, names, size, weight);
+    let mut spawned = world.spawn((
         crate::creature::Carried(crafter),
         crate::GroundItem {
             kind,
-            charges: making.batch.max(1),
+            charges,
             age: 0,
             burnt: 0,
             damage: 0,
             burn: None,
         },
     ));
+    if let Some((worn, index)) = pocket {
+        spawned.insert(crate::creature::InPocket { worn, index });
+    }
     Some(result)
 }
 
