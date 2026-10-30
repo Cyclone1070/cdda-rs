@@ -4,7 +4,7 @@
 //! the count is the gate: a table of effects has to say how long it is, or "we ported some effects" stops meaning
 //! anything.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_content::spells::Spell;
@@ -138,8 +138,8 @@ fn the_port_can_do_one_effect_of_the_ones_the_game_names() {
     }
     assert_eq!(
         spell_effects::EFFECTS.len(),
-        2,
-        "two effects are ported, out of the {} the game names",
+        3,
+        "three effects are ported, out of the {} the game names",
         named.len()
     );
 }
@@ -219,4 +219,48 @@ fn summoning_something_unknown_brings_nothing() {
         Effective::NothingAffected
     );
     assert!(cdda_sim::creature::creature_at(&world, (3, 3, 0)).is_empty());
+}
+
+/// A spell that removes an effect takes it off everyone it reaches, and nothing else.
+///
+/// Reference: `spell_effect::remove_effect` (`magic_spell_effect.cpp:1712-1721`). This is the first effect that changes
+/// something the port already tracked rather than adding state, so the gate has to show both halves: the named effect
+/// goes, and the creature's other effects do not.
+#[test]
+fn a_spell_takes_one_effect_off_and_leaves_the_rest() {
+    use cdda_sim::applied_effects::{self, AppliedEffects};
+    use cdda_sim::effects::ActiveEffect;
+
+    let mut world = World::new();
+    let caster = cdda_sim::creature::spawn_creature(&mut world, "the caster", (0, 0, 0));
+    let victim = cdda_sim::creature::spawn_creature(&mut world, "victim", (1, 0, 0));
+    for id in ["effect_vomit", "effect_bleed"] {
+        applied_effects::add(
+            &mut world,
+            victim,
+            ActiveEffect {
+                id: id.to_owned(),
+                intensity: 2,
+                duration: 10,
+                permanent: false,
+            },
+        );
+    }
+    let mut spell = a_spell("remove_effect", 0, 1);
+    spell.effect_str = "effect_vomit".to_owned();
+
+    assert_eq!(
+        spell_effects::apply(&mut world, caster, &spell, 0, (0, 0, 0)),
+        Effective::Done
+    );
+    let worn = world.get::<AppliedEffects>(victim).expect("still wearing something");
+    assert_eq!(worn.0.len(), 1, "one effect came off and one stayed");
+    assert_eq!(worn.0[0].id, "effect_bleed", "the bleeding stayed");
+    assert_eq!(worn.0[0].intensity, 2, "and kept its numbers");
+
+    // A second cast finds nothing to take off, and says so rather than claiming success.
+    assert_eq!(
+        spell_effects::apply(&mut world, caster, &spell, 0, (0, 0, 0)),
+        Effective::NothingAffected
+    );
 }

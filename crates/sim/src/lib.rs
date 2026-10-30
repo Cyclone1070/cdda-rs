@@ -11,6 +11,7 @@ pub mod falling;
 pub mod memory;
 pub mod field_table;
 pub mod radiation;
+pub mod applied_effects;
 pub mod body;
 pub mod digest;
 pub mod effects;

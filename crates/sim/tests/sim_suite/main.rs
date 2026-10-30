@@ -19,6 +19,7 @@ pub fn spread_seed(attempt: u32) -> u32 {
 
 mod acid_vent;
 mod activities;
+mod applied_effects;
 mod architecture;
 mod bash_hits;
 mod blast;

@@ -26,7 +26,34 @@ type Apply = fn(&mut World, Entity, &Spell, i32, (i32, i32, i32)) -> Effective;
 /// Reference: the `spell_effect` subclasses (`magic_spell_effect.cpp`). A table rather than a match for the same reason
 /// the activity finishers are one: the answer to "what can a spell do in this port?" is a list, and a list can be
 /// counted.
-pub const EFFECTS: &[(&str, Apply)] = &[("mod_moves", mod_moves), ("summon", summon)];
+pub const EFFECTS: &[(&str, Apply)] = &[
+    ("mod_moves", mod_moves),
+    ("remove_effect", remove_effect),
+    ("summon", summon),
+];
+
+/// Reference: `spell_effect::remove_effect` (`magic_spell_effect.cpp:1712-1721`) - every creature in the spell's area
+/// loses the effect the spell names in `effect_str`, and nothing else about it changes.
+fn remove_effect(
+    world: &mut World,
+    caster: Entity,
+    spell: &Spell,
+    level: i32,
+    centre: (i32, i32, i32),
+) -> Effective {
+    let affected = creatures_in_reach(world, caster, spell, level, centre);
+    let mut took = 0;
+    for creature in &affected {
+        if crate::applied_effects::remove(world, *creature, &spell.effect_str) {
+            took += 1;
+        }
+    }
+    if took == 0 {
+        Effective::NothingAffected
+    } else {
+        Effective::Done
+    }
+}
 
 /// Reference: `spell_effect::summon` (`magic_spell_effect.cpp`), which spawns the monster the spell names, as many times as
 /// the spell's damage at that level, on free squares near the target. The port spawns them on the target square itself
