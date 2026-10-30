@@ -286,6 +286,16 @@ the layer that decides when to shift
 | Teleporter lists | not started | M3c | |
 | Relic generation | not started | M3c | |
 
+### The attack spells, measured (round 760)
+
+"Attack spells are ported" became a measurement: `attack_spells` casts **all 77** of the data's `attack` spells at a single unarmoured torso on the caster's own square and counts what happens. All 77 land; none is out of range or finds nothing to hit.
+
+Three things the sweep settled that the code did not say:
+
+* **32 of the 77 carry damage at level 0**, 43 scale from zero with level, and **2 carry negative damage** - `AEA_HEAL` at -2 and `spur_shrill` at -100. The reference deals damage only `if( sp.damage( caster ) > 0 )` (`magic_spell_effect.cpp:563`), so a negative spell deals none of it and applies an effect instead. The port matches on the damage half; adding the effect is a declared gap.
+* **The damage that arrives is the damage the data states, to the point.** The 32 positive spells sum to exactly **100,016,638** - the data's own total - including the outlier `hallu_touch_suicide` at 100,000,000. Nothing in the path rounds, clamps or resists when there is no armour.
+* **The first version of the sweep measured nothing.** A creature built by `spawn_creature` has no body, so all 77 refusals said `NothingToHit` and the sweep "passed" its counts. It now gives the target a torso, which is the same lesson as the frame dump: a dump taken before the object is configured measures the harness.
+
 ### Spell effects: three of thirty-three (rounds 756–758)
 
 `spell_effects::EFFECTS` is `magic_spell_effect.cpp`'s shape - one function per `effect_name`, dispatched by a table - and it holds two of the **33** names the data uses:

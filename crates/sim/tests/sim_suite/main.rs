@@ -21,6 +21,7 @@ mod acid_vent;
 mod activities;
 mod applied_effects;
 mod architecture;
+mod attack_spells;
 mod bash_hits;
 mod blast;
 mod body;
