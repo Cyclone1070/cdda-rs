@@ -431,11 +431,65 @@ pub fn take_turns(world: &mut World) {
         .map(|(entity, goal)| (entity, goal.square))
         .collect();
     for (entity, goal) in walkers {
+        // A creature that can reach its goal this step hits whoever is on it instead of walking into them.
+        // Reference: `monster::move_to` refuses a square another creature holds, and `monster::attack` is what
+        // it does instead - the swing is the move.
+        if strike_what_the_goal_holds(world, entity, goal) {
+            continue;
+        }
         let bounds = walk_bounds(world);
         let outcome = crate::routing::walk_towards(world, entity, goal, bounds);
         if matches!(outcome, crate::routing::Walk::Arrived | crate::routing::Walk::NoRoute) {
             world.entity_mut(entity).remove::<Goal>();
         }
+    }
+}
+
+/// Hits whatever stands on a creature's goal square, when it is next to it.
+///
+/// Returns whether a blow was swung, which is what decides between attacking and walking. The defence comes
+/// from the target's own components - its size, its armour, and the fact that nothing here is immobile.
+fn strike_what_the_goal_holds(world: &mut World, attacker: Entity, goal: (i32, i32, i32)) -> bool {
+    let Some(attack) = world.get::<MeleeAttack>(attacker).copied() else {
+        return false;
+    };
+    let Some(place) = world.get::<Position>(attacker).map(|place| (place.x, place.y, place.z))
+    else {
+        return false;
+    };
+    let reach = (place.0 - goal.0).abs() + (place.1 - goal.1).abs() + (place.2 - goal.2).abs();
+    if reach > 1 {
+        return false;
+    }
+    let Some(victim) = creature_at(world, goal).first().copied() else {
+        return false;
+    };
+    let Some(mut rolls) = crate::singletons::take_rolls(world) else {
+        return false;
+    };
+    let defence = defence_of(world, victim);
+    let swung = crate::melee::strike(&mut rolls, attack.0, defence);
+    crate::singletons::put_rolls(world, rolls);
+    if swung.hit {
+        hurt(world, victim, swung.damage);
+    }
+    true
+}
+
+/// What a creature brings to being hit, read from the components it carries.
+#[must_use]
+pub fn defence_of(world: &World, entity: Entity) -> crate::melee::Defence {
+    let size = world
+        .get::<Creature>(entity)
+        .map_or(crate::CreatureSize::Medium, |creature| creature.size);
+    let armour = world.get::<Armour>(entity).copied().unwrap_or_default();
+    crate::melee::Defence {
+        dodge: 0,
+        size,
+        #[allow(clippy::cast_precision_loss)]
+        resist: armour.bash as f32,
+        worn_armour: 0.0,
+        immobile: false,
     }
 }
 

@@ -43,6 +43,7 @@ mod craft_activity;
 mod craft_progress;
 mod craft_time;
 mod crafting;
+mod creature_fight;
 mod creatures;
 mod pathfinding;
 mod routing;
