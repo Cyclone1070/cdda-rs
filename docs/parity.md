@@ -311,7 +311,13 @@ Gated: nine units at a maximum of three fill `total = 9` across the squares with
 
 Emission `qty` is read now instead of refused, and an emission of more than one unit is poured out with this spread. **All 61 emission ids install, the six `emit` spells run, and the coverage count is 135 of 245 (55.1%)** - for the first time without an asterisk.
 
-Two divergences to record: the port has no terrain permeability yet, so the `passable` closure answers "yes" everywhere; and the spread does not merge fields of the same type already on a square the way `mod_field_intensity` does when a field has a priority clash. Both are noted, neither is silent.
+One divergence remains: the spread does not merge fields already on a square the way `mod_field_intensity` does when priorities clash. The other - terrain permeability - is closed in round 782.
+
+### A field refuses entry, it does not seal a region (round 782)
+
+`field_passage::FieldPassage { impassable, permeable }` is the reference's entry test (`map_field.cpp:2264-2270`): `!impassable || permeable`, with a square nobody told answering "open". `blocked_within(world, centre, radius)` collects the refusals **before** the spread starts, because placing a field is a write and asking the store the same question through the same `&mut World` is not allowed - a borrow the compiler enforced, and a good thing for it to have enforced.
+
+The test taught the more interesting lesson: **a wall is not a seal.** A flood over eight neighbours walks around the end of any finite wall, so the assertion that the far side stays empty was wrong - gas legitimately reached it by going round. What the rule actually says is that the field refuses *entry* to an impassable square unless it is permeable, so that is what is asserted: the solid squares stay empty, and the permeable screen door fills. The first version of this test failed three times, once for each of: a barrier too short, a spread too thin to reach it, and an assertion about a property the rule never claimed.
 
 ### `emit`: a named emission, and the chance asked per square (round 780)
 

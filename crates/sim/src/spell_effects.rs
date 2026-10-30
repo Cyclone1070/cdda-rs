@@ -119,6 +119,9 @@ fn emit(
             // placed, and the quantity is then **poured out** from that square with `propagate_field`, so a gas spreads over
             // the squares it can reach rather than thickening only the one it was emitted on.
             if let Some(qty) = emission_qty(emission) {
+                // Reference: `map::propagate_field` stops at an impassable square unless it is `PERMEABLE`
+                // (`map_field.cpp:2264-2270`). The blocked squares are collected first, because placing the field is a write.
+                let blocked = crate::field_passage::blocked_within(world, square, qty);
                 let poured = crate::field_spread::propagate(
                     world,
                     square,
@@ -126,7 +129,7 @@ fn emit(
                     qty,
                     emission.intensity,
                     &mut rolls,
-                    |_, _, _| true,
+                    |x, y, z| !blocked.contains(&(x, y, z)),
                 );
                 if poured > 0 {
                     placed += 1;
