@@ -432,6 +432,72 @@ pub fn pick_up(world: &mut World, creature: Entity, item: Entity, volume_ml: i32
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Carried(pub Entity);
 
+/// What an activity's moves are counted in.
+///
+/// Reference: `based_on_type` (`player_activity.h`). A `Time` activity takes a hundred moves a turn whatever the
+/// creature's speed; a `Speed` activity takes whatever moves the creature has, so a quick one finishes sooner.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Basis {
+    /// A hundred moves a turn, however fast the creature is.
+    Time,
+    /// Every move the creature has.
+    Speed,
+}
+
+/// Something a creature is doing that takes more than one turn.
+///
+/// Reference: `player_activity` - an id, the moves it still needs, and what those moves are counted in. The port keeps
+/// it as a component because that is all it is: a creature doing something is a creature with an activity on it, and
+/// the thing is over when the component is gone.
+#[derive(Component, Debug, Clone, PartialEq, Eq)]
+pub struct Doing {
+    /// Which activity it is.
+    pub activity: String,
+    /// How many moves it still needs.
+    pub moves_left: i32,
+    /// What those moves are counted in.
+    pub basis: Basis,
+}
+
+/// Spends one turn's moves on what a creature is doing, and says whether it is finished.
+///
+/// Reference: `player_activity::do_turn` (`player_activity.cpp:276-294`), with the exertion multiplier left out because
+/// the port has no exertion:
+///
+/// * `Time`: a hundred moves a turn come off the activity, and the creature's turn is spent;
+/// * `Speed`: as many moves come off the activity as the creature had, however many that is.
+///
+/// Returns `true` when nothing is left to do, and in that case the caller clears the activity - finishing is the
+/// stored decision, not this rule's.
+pub fn spend_a_turn_on(world: &mut World, creature: Entity) -> bool {
+    let Some(doing) = world.get::<Doing>(creature).cloned() else {
+        return false;
+    };
+    let moves = moves_left(world, creature).max(0);
+    let spent = match doing.basis {
+        Basis::Time => {
+            let hundred = 100.min(doing.moves_left);
+            // A time-based activity eats a hundred moves whether or not the creature has them; the turn is spent
+            // either way, which is what makes reading a book take the same time for a quick reader.
+            spend_moves(world, creature, f64::from(hundred));
+            hundred
+        }
+        Basis::Speed => {
+            spend_moves(world, creature, f64::from(moves));
+            moves.min(doing.moves_left)
+        }
+    };
+    let left = doing.moves_left - spent;
+    if left <= 0 {
+        world.entity_mut(creature).remove::<Doing>();
+        return true;
+    }
+    if let Some(mut working) = world.get_mut::<Doing>(creature) {
+        working.moves_left = left;
+    }
+    false
+}
+
 /// What a garment's data says about how hard it is to ruin.
 ///
 /// Reference: the `fragile`, `sturdy` and `unbreakable` flags, which `item::damage_armor_durability`
@@ -885,12 +951,27 @@ pub fn set_goal(world: &mut World, entity: Entity, square: (i32, i32, i32)) {
 /// Gives every creature its speed and lets each one with a goal take one step.
 pub fn take_turns(world: &mut World) {
     bank_a_turn(world);
+    // A creature that is busy spends its turn on what it is busy with, and does not walk. Reference:
+    // `player_activity::do_turn` runs as the character's turn, which is why an activity and a step cannot happen in
+    // the same turn.
+    let busy: Vec<Entity> = world
+        .query_filtered::<Entity, With<Doing>>()
+        .iter(world)
+        .collect();
+    let mut working = std::collections::BTreeSet::new();
+    for entity in busy {
+        spend_a_turn_on(world, entity);
+        working.insert(entity);
+    }
     let walkers: Vec<(Entity, (i32, i32, i32))> = world
         .query::<(Entity, &Goal)>()
         .iter(world)
         .map(|(entity, goal)| (entity, goal.square))
         .collect();
     for (entity, goal) in walkers {
+        if working.contains(&entity) {
+            continue;
+        }
         // A creature that can reach its goal this step hits whoever is on it instead of walking into them.
         // Reference: `monster::move_to` refuses a square another creature holds, and `monster::attack` is what
         // it does instead - the swing is the move.
