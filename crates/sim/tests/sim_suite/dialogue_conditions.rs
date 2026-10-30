@@ -169,12 +169,47 @@ fn the_port_answers_the_questions_it_can_and_says_how_many_that_is() {
     // What is left in `math` (263) is mostly calls into the reference's function table, `u_effect_intensity(...)` and
     // friends, each of which refuses the whole expression until the port knows the name.
     //
-    // 3,708 questions in the data and 768 the port can answer today. `and` and `not` lead
+    // 3,708 questions in the data and 1,300 the port can answer today, after `compare_string` - a repeat-search over a
+    // list, not a comparison of two values - took it from 768. `not` fell from 392 refusals to 258 for the same reason: a
+    // combinator is only as readable as its parts, so every leaf ported is worth more than itself. `and` and `not` lead
     // the refusals because a combinator is only as readable as its parts, and the parts refused most are `math` (518),
     // `compare_string` (238) and `u_has_items` (155) - which is the list of what to port next, by frequency.
     assert_eq!(seen, 3708, "the data asks 3,708 `condition` objects");
     assert_eq!(
-        readable, 768,
-        "of which the port answers 768: `u_has_effect`, the combinators, and the `math` expressions whose every name it knows"
+        readable, 1300,
+        "of which the port answers 1,300: `u_has_effect`, `compare_string`, the combinators, and the `math` expressions whose every name it knows"
     );
+}
+
+/// `compare_string` holds when a string comes round twice, not when two chosen strings are equal.
+///
+/// Reference: `conditional_fun::f_compare_string` (`condition.cpp:1900-1920`) - it walks the list, remembering what it has
+/// seen, and returns true the moment a repeat appears. The name reads like a comparison and the rule is a search, which is
+/// exactly the kind of difference a port gets wrong by trusting the name.
+#[test]
+fn compare_string_looks_for_a_repeat_anywhere_in_the_list() {
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::dialogue_values::set(
+        &mut world,
+        survivor,
+        "chosen_side",
+        cdda_sim::dialogue_values::Value::Text("marloss".to_owned()),
+    );
+
+    let repeats = condition(r#"{"compare_string": ["marloss", "mycus", "marloss"]}"#);
+    assert!(holds(&world, survivor, &repeats), "the first and last match");
+
+    let all_different = condition(r#"{"compare_string": ["marloss", "mycus", "zombie"]}"#);
+    assert!(!holds(&world, survivor, &all_different));
+
+    // A variable is read when the question is asked, and a literal that equals it is a repeat.
+    let with_variable = condition(r#"{"compare_string": [{"u_val": "chosen_side"}, "marloss"]}"#);
+    assert!(holds(&world, survivor, &with_variable));
+
+    // One string on its own can never repeat, and a variable the store cannot answer makes the condition false.
+    let alone = condition(r#"{"compare_string": ["marloss"]}"#);
+    assert!(!holds(&world, survivor, &alone));
+    let unset = condition(r#"{"compare_string": [{"u_val": "never_set"}, "marloss"]}"#);
+    assert!(!holds(&world, survivor, &unset));
 }

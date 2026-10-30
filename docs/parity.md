@@ -296,6 +296,19 @@ Three things the sweep settled that the code did not say:
 * **The damage that arrives is the damage the data states, to the point.** The 32 positive spells sum to exactly **100,016,638** - the data's own total - including the outlier `hallu_touch_suicide` at 100,000,000. Nothing in the path rounds, clamps or resists when there is no armour.
 * **The first version of the sweep measured nothing.** A creature built by `spawn_creature` has no body, so all 77 refusals said `NothingToHit` and the sweep "passed" its counts. It now gives the target a torso, which is the same lesson as the frame dump: a dump taken before the object is configured measures the harness.
 
+### compare_string is a repeat-search, and the leaves compound (round 771)
+
+`compare_string` sounds like a comparison of two strings. It is not: `f_compare_string` (`condition.cpp:1900-1920`) takes a **list**, remembers what it has seen, and holds the moment a value comes round twice. The port implemented that rule, not the name's suggestion, and the measurement shows what one leaf is worth:
+
+| Change | Readable conditions |
+|---|---|
+| after the math parser | 768 |
+| **plus `compare_string`** | **1,300** |
+
+The gain is larger than `compare_string`'s own 238 refusals, because a combinator is only as readable as its parts: `not` fell from 392 refusals to 258 in the same step. Every leaf ported is worth more than itself, which is why the refusal list is sorted by frequency and read as a work queue.
+
+A variable inside the list is read when the question is asked, a list of one can never repeat, and a variable the store cannot answer makes the condition false - all gated.
+
 ### The math parser, and the one-element array that was the gate (round 770)
 
 `content::dialogue::read_text_expression` is a precedence-climbing parser over the reference's expression language: numbers, `scope('name')` calls for the five variable types, bare identifiers as the dialogue's own variables (`const_dialogue::maybe_get_value` looks a bare name up in the context, `npctalk.cpp:2659-2662`), parentheses, unary minus, and `+ - * / % == != < <= > >=`. A call whose name is **not** one of the five variable types is a function, and an unknown function refuses the whole expression rather than being read as a variable named after it.

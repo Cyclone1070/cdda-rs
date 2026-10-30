@@ -26,11 +26,32 @@ pub enum Condition {
     Or(Vec<Condition>),
     /// This one does not hold.
     Not(Box<Condition>),
+    /// At least two of these strings are the same.
+    ///
+    /// Reference: `conditional_fun::f_compare_string` (`condition.cpp:1900-1920`), which is not a comparison of two values
+    /// but a search for a repeat: it walks the list and holds as soon as a value it has already seen comes round again.
+    CompareString(Vec<StringSource>),
     /// An arithmetic expression, which holds when its result is not zero.
     ///
     /// Reference: `conditional_t`'s `math` member (`condition.cpp:194-196`), read into a `math_exp` and evaluated as a
     /// boolean.
     Math(Expression),
+}
+
+/// Somewhere a string comes from: written out, or named by a variable.
+///
+/// Reference: `str_or_var` (`dialogue_helpers.h`), which is a string or an object naming a variable type.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StringSource {
+    /// A string the data writes out.
+    Literal(String),
+    /// A variable, read at the moment the question is asked.
+    Variable {
+        /// Which namespace, as the data spells it.
+        scope: String,
+        /// The variable's name.
+        name: String,
+    },
 }
 
 /// An arithmetic expression, as the data writes one.
@@ -126,6 +147,13 @@ pub fn read_condition(value: &Value) -> Option<Condition> {
     if let Some(inner) = object.get("not") {
         return read_condition(inner).map(|condition| Condition::Not(Box::new(condition)));
     }
+    if let Some(Value::Array(values)) = object.get("compare_string") {
+        return values
+            .iter()
+            .map(read_string_source)
+            .collect::<Option<Vec<_>>>()
+            .map(Condition::CompareString);
+    }
     if let Some(math) = object.get("math") {
         return read_expression(math).map(Condition::Math);
     }
@@ -151,6 +179,26 @@ pub fn read_condition(value: &Value) -> Option<Condition> {
         effect: effect.clone(),
         intensity,
     })
+}
+
+/// Reads one source of a string, or nothing when it is a shape the port cannot resolve.
+#[must_use]
+pub fn read_string_source(value: &Value) -> Option<StringSource> {
+    match value {
+        Value::Str(text) => Some(StringSource::Literal(text.clone())),
+        Value::Object(object) => {
+            for scope in ["u_val", "npc_val", "global_val", "var_val", "context_val"] {
+                if let Some(Value::Str(name)) = object.get(scope) {
+                    return Some(StringSource::Variable {
+                        scope: scope.to_owned(),
+                        name: name.clone(),
+                    });
+                }
+            }
+            None
+        }
+        _ => None,
+    }
 }
 
 /// Reads an expression from a string, as the data's `math` members actually write them.

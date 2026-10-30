@@ -5,7 +5,7 @@
 
 use bevy_ecs::prelude::*;
 
-use cdda_content::dialogue::{Condition, Expression, Operator};
+use cdda_content::dialogue::{Condition, Expression, Operator, StringSource};
 
 use crate::applied_effects;
 
@@ -27,6 +27,19 @@ pub fn holds(world: &World, creature: Entity, condition: &Condition) -> bool {
             .iter()
             .any(|condition| holds(world, creature, condition)),
         Condition::Not(inner) => !holds(world, creature, inner),
+        Condition::CompareString(sources) => {
+            let mut seen: Vec<String> = Vec::with_capacity(sources.len());
+            for source in sources {
+                let Some(text) = text_of(world, creature, source) else {
+                    return false;
+                };
+                if seen.contains(&text) {
+                    return true;
+                }
+                seen.push(text);
+            }
+            false
+        }
         // Reference: a `math` condition holds when its expression is non-zero, and an expression the store cannot answer
         // holds no more than a zero one does.
         Condition::Math(expression) => {
@@ -70,6 +83,21 @@ pub fn value(world: &World, creature: Entity, expression: &Expression) -> Option
                 Operator::Greater => f64::from(u8::from(left > right)),
                 Operator::AtLeast => f64::from(u8::from(left >= right)),
             })
+        }
+    }
+}
+
+/// The text a string source names, or nothing when the store cannot answer for it.
+fn text_of(world: &World, creature: Entity, source: &StringSource) -> Option<String> {
+    match source {
+        StringSource::Literal(text) => Some(text.clone()),
+        StringSource::Variable { scope, name } => {
+            let holder = if scope == "global_val" {
+                crate::dialogue_values::global_holder(world)?
+            } else {
+                creature
+            };
+            crate::dialogue_values::text_of(world, holder, name)
         }
     }
 }
