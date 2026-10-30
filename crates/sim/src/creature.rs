@@ -1576,6 +1576,16 @@ pub fn take_turns(world: &mut World) {
     // A creature that is busy spends its turn on what it is busy with, and does not walk. Reference:
     // `player_activity::do_turn` runs as the character's turn, which is why an activity and a step cannot happen in
     // the same turn.
+    // Every creature alive spends a turn of its effects before it acts, so a blow this turn meets the effect that had not
+    // yet expired this turn. Reference: `Character::process_turn` processes effects at the start of the character's turn
+    // (`character.cpp:3930-3960`), and `Creature::process_effects` is what does it.
+    let wearing: Vec<Entity> = world
+        .query_filtered::<Entity, (With<crate::creature::Creature>, With<crate::applied_effects::AppliedEffects>)>()
+        .iter(world)
+        .collect();
+    for creature in wearing {
+        crate::applied_effects::spend_a_turn(world, creature);
+    }
     let busy: Vec<(Entity, String, Option<Entity>)> = world
         .query::<(Entity, &Doing)>()
         .iter(world)

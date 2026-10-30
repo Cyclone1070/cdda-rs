@@ -76,3 +76,48 @@ fn taking_off_an_effect_answers_whether_there_was_one() {
     assert!(!applied_effects::remove(&mut world, creature, "effect_vomit"));
     assert!(world.get::<AppliedEffects>(creature).is_some_and(|worn| worn.0.is_empty()));
 }
+
+/// Effects age in the turn loop, not only when a test ages them.
+///
+/// Reference: `Character::process_turn` processes the character's effects at the start of its turn
+/// (`character.cpp:3930-3960`), which is why an effect applied for three turns is gone after three turns and not after
+/// three visits from a test. Without this wiring the component existed and nothing in the game ever grew or shed it - the
+/// same class of mistake as a distraction path with no caller.
+#[test]
+fn an_effect_runs_out_as_the_turns_pass() {
+    use cdda_sim::applied_effects::{self, AppliedEffects};
+
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    applied_effects::add(
+        &mut world,
+        survivor,
+        ActiveEffect {
+            id: "effect_vomit".to_owned(),
+            intensity: 1,
+            duration: 3,
+            permanent: false,
+        },
+    );
+
+    cdda_sim::turn::run_turn(&mut world);
+    assert!(applied_effects::has(&world, survivor, "effect_vomit"), "one turn of three spent");
+    cdda_sim::turn::run_turn(&mut world);
+    assert!(applied_effects::has(&world, survivor, "effect_vomit"), "two of three");
+    assert_eq!(
+        world
+            .get::<AppliedEffects>(survivor)
+            .and_then(|worn| worn.0.first())
+            .map(|worn| worn.duration),
+        Some(1),
+        "two turns spent, one left"
+    );
+    cdda_sim::turn::run_turn(&mut world);
+    assert!(
+        !applied_effects::has(&world, survivor, "effect_vomit"),
+        "gone after three turns, without anyone telling it to go"
+    );
+    assert!(world
+        .get::<AppliedEffects>(survivor)
+        .is_some_and(|worn| worn.0.is_empty()));
+}
