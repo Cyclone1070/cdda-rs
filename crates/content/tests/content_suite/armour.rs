@@ -142,3 +142,36 @@ fn a_sturdy_garment_shrugs_off_a_blow_below_its_threshold() {
         "and the same garment without the flag is damaged by the same blow"
     );
 }
+
+/// A garment wears out in four steps and is ruined by the fifth.
+///
+/// Reference: `itype::damage_scale` 1000 and `itype::damage_max_` 4000 (`itype.h:1568-1588`), with
+/// `item::mod_damage` (`item.cpp:9441-9452`) reporting a destroy when `damage_ + qty > max_damage()` - **passing**,
+/// not reaching. So an untouched garment takes four steps and breaks on the fifth; a `>=` would break it on the
+/// fourth, and this test is the only thing standing between the two.
+#[test]
+fn a_garment_takes_four_steps_of_damage_and_breaks_on_the_fifth() {
+    use cdda_content::armour::{DAMAGE_MAX, DAMAGE_SCALE, damage_level};
+
+    let mut damage = 0;
+    for step in 1..=4 {
+        damage += DAMAGE_SCALE;
+        let ruined = damage > DAMAGE_MAX;
+        assert!(!ruined, "step {step} is damage {damage}, which does not pass {DAMAGE_MAX}");
+    }
+    assert_eq!(damage, DAMAGE_MAX, "four steps is exactly the maximum");
+    assert_eq!(
+        damage_level(damage, DAMAGE_MAX),
+        5,
+        "and the reference's scale calls the maximum five - the top of its five steps"
+    );
+
+    damage += DAMAGE_SCALE;
+    assert!(
+        damage > DAMAGE_MAX,
+        "the fifth step passes the maximum, which is what ruins the garment"
+    );
+
+    assert_eq!(damage_level(0, DAMAGE_MAX), 0, "an untouched garment is level zero");
+    assert_eq!(damage_level(1, 0), 0, "and a thing with no maximum cannot be damaged");
+}

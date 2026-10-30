@@ -40,6 +40,29 @@ pub fn resist_of(layers: &[Layer], roll: i32) -> f64 {
         .sum()
 }
 
+/// One step of damage a garment takes, and the point past which it is ruined.
+///
+/// Reference: `itype::damage_scale` and `itype::damage_max_` (`itype.h:1568-1588`). A garment damaged by a blow takes
+/// one whole step, and is destroyed when its damage would pass the maximum rather than when it reaches it - so it
+/// survives exactly `damage_max / damage_scale` steps, which is four, and breaks on the fifth.
+pub const DAMAGE_SCALE: i32 = 1000;
+
+/// The damage at which a garment is ruined.
+pub const DAMAGE_MAX: i32 = 4000;
+
+/// How damaged a garment is, on the reference's five-step scale.
+///
+/// Reference: `itype::damage_level` (`itype.cpp:117-126`) - zero for an untouched thing, then one plus four steps of
+/// damage over the maximum, clamped. The reference answers **five** for a thing counted by charges, which cannot be
+/// damaged at all; the port has no charged garments, and a caller with no maximum gets zero rather than a worry.
+#[must_use]
+pub fn damage_level(damage: i32, maximum: i32) -> i32 {
+    if damage == 0 || maximum <= 0 {
+        return 0;
+    }
+    (1 + 4 * damage / maximum).clamp(0, 5)
+}
+
 /// How likely a garment is to be damaged by a blow that reaches it.
 ///
 /// Reference: `item::damage_armor_durability` (`item.cpp:9481-9537`). The chance is a logistic in the damage the hit

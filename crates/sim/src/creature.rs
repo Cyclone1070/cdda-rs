@@ -432,6 +432,82 @@ pub fn pick_up(world: &mut World, creature: Entity, item: Entity, volume_ml: i32
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Carried(pub Entity);
 
+/// How worn out a garment is.
+///
+/// Reference: `item::damage_` (`item.cpp:9441-9452`) on the reference's scale of a thousand per step and four thousand
+/// to ruin. The port keeps the number on the **item** because that is where the reference keeps it, and a garment's
+/// condition is a fact about the garment and not about the person wearing it.
+#[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Wear {
+    /// How far gone it is, on the reference's scale.
+    pub damage: i32,
+}
+
+/// What a blow did to the thing that stopped it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Struck {
+    /// The blow did not damage it: the roll missed, or it is sturdy and the blow was small.
+    Untouched,
+    /// It took a step of damage and is still wearable.
+    Damaged,
+    /// It took the step that passed its maximum, and is gone.
+    Ruined,
+}
+
+/// The blow a garment is asked to survive: what it took, what it resists, and how the dice fell.
+///
+/// One struct rather than six parameters because these numbers only mean anything together - a resistance without the
+/// damage that met it, or a chance without the roll, is not a question anybody asks.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GarmentBlow {
+    /// The damage that arrived, before anything stopped it.
+    pub premitigated: f64,
+    /// What the garment itself resists, which is not what it grants its wearer.
+    pub own_resist: f64,
+    /// How many parts of a body it covers.
+    pub covered_parts: usize,
+    /// Whether the data calls it fragile.
+    pub fragile: bool,
+    /// Whether the data calls it sturdy.
+    pub sturdy: bool,
+    /// The roll, 0 to 1.
+    pub fraction: f64,
+}
+
+/// Damages a worn thing with the blow it just stopped.
+///
+/// Reference: `item::damage_armor_durability` (`item.cpp:9481-9537`), which computes a chance from the logistic in
+/// [`cdda_content::armour::damage_chance`], rolls it with `x_in_y`, and calls `mod_damage` - whose "destroy" is
+/// `damage + qty > max_damage()`, a **passing** comparison. The garment is despawned when it is ruined, because a
+/// ruined garment protects nothing and leaving it in the store with its armour intact is the stale answer `dress`
+/// exists to prevent.
+///
+/// `fraction` is the roll, passed in like every other roll in the port.
+pub fn damage_worn(world: &mut World, item: Entity, blow: &GarmentBlow) -> Struck {
+    if world.get::<Garment>(item).is_none() {
+        return Struck::Untouched;
+    }
+    let chance = cdda_content::armour::damage_chance(
+        blow.own_resist,
+        blow.premitigated,
+        blow.covered_parts,
+        blow.fragile,
+        blow.sturdy,
+    );
+    if blow.fraction >= chance {
+        return Struck::Untouched;
+    }
+    let damage = world.get::<Wear>(item).map_or(0, |wear| wear.damage)
+        + cdda_content::armour::DAMAGE_SCALE;
+    if damage > cdda_content::armour::DAMAGE_MAX {
+        world.despawn(item);
+        dress(world);
+        return Struck::Ruined;
+    }
+    world.entity_mut(item).insert(Wear { damage });
+    Struck::Damaged
+}
+
 /// What came of trying to put something on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Wore {
