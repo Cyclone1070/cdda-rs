@@ -588,6 +588,11 @@ pub struct ArmorPart {
     pub covers: Vec<String>,
     /// The sub-locations it covers on each of them, as entry indices.
     pub entry: usize,
+    /// The percentage of that part this material covers (`covered_by_mat`, `item_factory.cpp:3136`), which decides
+    /// whether a given hit meets it at all. The reference defaults it to 100 and refuses a file that states
+    /// anything outside 1..=100; the port keeps whatever the file says so that a bad value shows up in the
+    /// arithmetic rather than being quietly repaired here.
+    pub cover: i32,
 }
 
 impl ItemType {
@@ -1527,11 +1532,17 @@ fn apply_armor_slots(item: &mut ItemType, object: &Object) {
                 };
                 #[allow(clippy::cast_possible_truncation)]
                 let thickness = material.get("thickness").and_then(numeric).unwrap_or(0.0) as f32;
+                #[allow(clippy::cast_possible_truncation)]
+                let cover = material
+                    .get("covered_by_mat")
+                    .and_then(numeric)
+                    .unwrap_or(100.0) as i32;
                 item.armor_parts.push(ArmorPart {
                     material: name.clone(),
                     thickness,
                     covers: covers.clone(),
                     entry: index,
+                    cover,
                 });
             }
         }
