@@ -280,6 +280,17 @@ pub fn reap_dead_creatures(world: &mut World) -> usize {
     dead.len()
 }
 
+/// How hard a creature is to hit, in points.
+///
+/// Reference: `monster::get_dodge_base()` is `type->sk_dodge` (`monster.cpp:2643-2646`), and each point is
+/// worth five on the attacker's roll (see [`crate::melee::dodge_roll`]). A creature with no `Dodge` is not
+/// dodging at all rather than dodging invisibly.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Dodge {
+    /// Points of dodge.
+    pub points: i32,
+}
+
 /// The attack a creature swings, taken from its type.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MeleeAttack(pub crate::melee::Attack);
@@ -327,6 +338,9 @@ pub fn spawn_monster_of_type(
         Armour {
             bash: monster_type.armor_bash,
             cut: monster_type.armor_cut,
+        },
+        Dodge {
+            points: monster_type.dodge,
         },
     ));
     if let Some(size) = size_named(&monster_type.size)
@@ -484,7 +498,7 @@ pub fn defence_of(world: &World, entity: Entity) -> crate::melee::Defence {
         .map_or(crate::CreatureSize::Medium, |creature| creature.size);
     let armour = world.get::<Armour>(entity).copied().unwrap_or_default();
     crate::melee::Defence {
-        dodge: 0,
+        dodge: world.get::<Dodge>(entity).map_or(0, |dodge| dodge.points),
         size,
         #[allow(clippy::cast_precision_loss)]
         resist: armour.bash as f32,

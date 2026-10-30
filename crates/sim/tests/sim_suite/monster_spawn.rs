@@ -77,3 +77,16 @@ fn the_speed_option_scales_what_the_type_states() {
     let fast = spawn_monster_of_type(&mut world, MonsterKindId(1), &monster_type, (0, 0, 0), 200);
     assert_eq!(speed_of(&world, fast), 140, "and double");
 }
+
+/// A type's dodge reaches the creature it makes.
+#[test]
+fn a_spawned_monster_dodges_as_much_as_its_type_does() {
+    let monster_type = zombie_type();
+    let mut world = World::new();
+    let zombie = spawn_monster_of_type(&mut world, MonsterKindId(1), &monster_type, (0, 0, 0), 100);
+    let defence = cdda_sim::creature::defence_of(&world, zombie);
+    assert_eq!(
+        defence.dodge, monster_type.dodge,
+        "its dodge is what the type states"
+    );
+}

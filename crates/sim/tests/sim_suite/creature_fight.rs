@@ -135,3 +135,41 @@ fn a_creature_with_no_goal_does_nothing() {
     assert_eq!(creature_at(&world, (0, 0, 0)), vec![zombie_entity], "it stayed");
     assert_eq!(health_of(&world, survivor), Some(30), "and nobody was hit");
 }
+
+/// A dodging creature is harder to hit, and the number comes from its type.
+///
+/// Reference: `monster::get_dodge_base()` is `type->sk_dodge` (`monster.cpp:2643-2646`), and
+/// `Creature::deal_melee_attack` takes that off the attacker's roll at five points each - which is the same
+/// five that accuracy is multiplied by, so a point of dodge cancels a point of skill exactly.
+#[test]
+fn a_dodging_creature_takes_points_off_the_attacker_s_roll() {
+    let mut world = World::new();
+    let dodger = spawn_creature(&mut world, "a dodger", (0, 0, 0));
+    let stumbler = spawn_creature(&mut world, "a stumbler", (1, 0, 0));
+    world.entity_mut(dodger).insert(cdda_sim::creature::Dodge { points: 3 });
+
+    let swinging = cdda_sim::melee::Attack {
+        accuracy_tenths: 40,
+        fixed: cdda_sim::melee::Damage::default(),
+        dice: 2,
+        sides: 3,
+    };
+    let mut rolls = Rolls::new(1);
+    let against_dodger = cdda_sim::melee::strike(
+        &mut rolls,
+        swinging,
+        cdda_sim::creature::defence_of(&world, dodger),
+    );
+    let mut rolls = Rolls::new(1);
+    let against_stumbler = cdda_sim::melee::strike(
+        &mut rolls,
+        swinging,
+        cdda_sim::creature::defence_of(&world, stumbler),
+    );
+
+    assert_eq!(
+        against_stumbler.spread - against_dodger.spread,
+        15,
+        "three points of dodge at five each, on the same seed"
+    );
+}
