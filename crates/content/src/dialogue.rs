@@ -227,7 +227,7 @@ pub fn read_string_source(value: &Value) -> Option<StringSource> {
     match value {
         Value::Str(text) => Some(StringSource::Literal(text.clone())),
         Value::Object(object) => {
-            for scope in ["u_val", "npc_val", "global_val", "var_val", "context_val"] {
+            for scope in ["u_val", "n_val", "npc_val", "global_val", "var_val", "context_val"] {
                 if let Some(Value::Str(name)) = object.get(scope) {
                     return Some(StringSource::Variable {
                         scope: scope.to_owned(),
@@ -392,7 +392,7 @@ fn parse_primary(tokens: &[Token]) -> Option<(Expression, &[Token])> {
                 Some(name_argument) => {
                     if !matches!(
                         name.as_str(),
-                        "u_val" | "npc_val" | "global_val" | "var_val" | "context_val"
+                        "u_val" | "n_val" | "npc_val" | "global_val" | "var_val" | "context_val"
                     ) {
                         return None;
                     }
@@ -469,7 +469,7 @@ fn read_leaf(text: &str) -> Option<Expression> {
     if name.is_empty()
         || !matches!(
             scope,
-            "u_val" | "npc_val" | "global_val" | "var_val" | "context_val"
+            "u_val" | "n_val" | "npc_val" | "global_val" | "var_val" | "context_val"
         )
     {
         return None;

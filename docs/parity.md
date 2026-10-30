@@ -296,6 +296,19 @@ Three things the sweep settled that the code did not say:
 * **The damage that arrives is the damage the data states, to the point.** The 32 positive spells sum to exactly **100,016,638** - the data's own total - including the outlier `hallu_touch_suicide` at 100,000,000. Nothing in the path rounds, clamps or resists when there is no armour.
 * **The first version of the sweep measured nothing.** A creature built by `spawn_creature` has no body, so all 77 refusals said `NothingToHit` and the sweep "passed" its counts. It now gives the target a torso, which is the same lesson as the frame dump: a dump taken before the object is configured measures the harness.
 
+### Two actors, and a gain that says what to port next (round 773)
+
+A conversation in the reference has two people: `actor( false )` is the player, `actor( true )` the NPC, and `read_var_info` (`condition.cpp:408-437`) classes `u_val` as one and `n_val`/`npc_val` as the other. The port had one actor, so every question about the NPC was unanswerable - and unanswerable is false, not "the player's value". `holds_with(world, speaker, listener, condition)` now carries both; `holds` is the one-actor form and delegates.
+
+| Change | Readable conditions |
+|---|---|
+| after `u_has_items` | 1,494 |
+| **plus the second actor and `n_val`** | **1,500** |
+
+Six conditions. That is the useful number: the data's `n_val` strings overwhelmingly also call `weather(...)`, `rand(...)`, `u_skill(...)` and friends, and one unknown name refuses the whole expression. Refusing honestly is what makes the count informative - a port that answered those as zero would have shown 100% and been wrong everywhere the weather mattered.
+
+The next leaves to port are therefore **functions, not shapes**: `weather` (25 uses), `rand` (4), `from_fahrenheit`/`celsius` (6), `distance` (4), `value_or` (4), `u_skill` (3).
+
 ### u_has_items: the first question about things (round 772)
 
 `u_has_items` is the first dialogue condition that asks the store about **entities** rather than numbers, and it needed an inventory count that a read-only pass could ask: `inventory::count_of(world: &World, creature, name) -> (stacks, charges)`, beside the existing `carried_by_id` which took `&mut World`. A question that needs a mutable world is a question no schedule can ask from inside a read pass, so the `&World` form is the one the dialogue machine uses.

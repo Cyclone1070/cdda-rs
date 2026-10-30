@@ -169,6 +169,11 @@ fn the_port_answers_the_questions_it_can_and_says_how_many_that_is() {
     // What is left in `math` (263) is mostly calls into the reference's function table, `u_effect_intensity(...)` and
     // friends, each of which refuses the whole expression until the port knows the name.
     //
+    // Up to 1,500 with the conversation's two actors: `n_val` reads the listener. The gain from that was six conditions,
+    // because the strings that name `n_val` also call `weather(...)` and friends, and one unknown name refuses the whole
+    // expression - which is the price of refusing honestly, and the reason the next leaves to port are functions rather
+    // than more shapes.
+    //
     // 3,708 questions in the data and 1,300 the port can answer today, after `compare_string` - a repeat-search over a
     // list, not a comparison of two values - took it from 768. `not` fell from 392 refusals to 258 for the same reason: a
     // combinator is only as readable as its parts, so every leaf ported is worth more than itself. `and` and `not` lead
@@ -176,8 +181,8 @@ fn the_port_answers_the_questions_it_can_and_says_how_many_that_is() {
     // `compare_string` (238) and `u_has_items` (155) - which is the list of what to port next, by frequency.
     assert_eq!(seen, 3708, "the data asks 3,708 `condition` objects");
     assert_eq!(
-        readable, 1494,
-        "of which the port answers 1,494: `u_has_effect`, `compare_string`, `u_has_items`, the combinators, and the `math` expressions whose every name it knows"
+        readable, 1500,
+        "of which the port answers 1,500: `u_has_effect`, `compare_string`, `u_has_items`, the combinators, and the `math` expressions whose every name it knows"
     );
 }
 
@@ -270,4 +275,36 @@ fn has_items_counts_the_stacks_and_the_charges_a_creature_carries() {
     );
     let by_variable = condition(r#"{"u_has_items": {"item": {"u_val": "wanted"}, "count": 2}}"#);
     assert!(holds(&world, survivor, &by_variable));
+}
+
+/// A conversation has two people, and `n_val` reads the other one.
+///
+/// Reference: a `const_dialogue` holds `actor( false )` (the player) and `actor( true )` (the NPC), and `read_var_info`
+/// (`condition.cpp:408-437`) classes `u_val` as one and `n_val`/`npc_val` as the other. The port had one actor, which made
+/// every question about the NPC unanswerable - and unanswerable is false, not "the player's value".
+#[test]
+fn the_npc_s_variables_are_not_the_player_s() {
+    use cdda_sim::conditions::holds_with;
+
+    let mut world = World::new();
+    let player = cdda_sim::creature::spawn_creature(&mut world, "the player", (0, 0, 0));
+    let trader = cdda_sim::creature::spawn_creature(&mut world, "the trader", (1, 0, 0));
+    cdda_sim::dialogue_values::set(&mut world, player, "price", cdda_sim::dialogue_values::Value::Number(10.0));
+    cdda_sim::dialogue_values::set(&mut world, trader, "price", cdda_sim::dialogue_values::Value::Number(25.0));
+
+    let asks_the_npc = condition(r#"{"math": ["n_val('price')", "==", 25]}"#);
+    let asks_the_player = condition(r#"{"math": ["u_val('price')", "==", 10]}"#);
+
+    assert!(
+        holds_with(&world, player, Some(trader), &asks_the_npc),
+        "n_val is the other actor's"
+    );
+    assert!(
+        holds_with(&world, player, Some(trader), &asks_the_player),
+        "u_val is the speaker's"
+    );
+    assert!(
+        !holds(&world, player, &asks_the_npc),
+        "with nobody to talk to, a question about the NPC is unanswerable - which is false, not the player's value"
+    );
 }
