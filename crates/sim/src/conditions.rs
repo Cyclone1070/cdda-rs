@@ -30,6 +30,10 @@ pub fn holds_with(
     condition: &Condition,
 ) -> bool {
     match condition {
+        Condition::HasMission { mission } => {
+            let holder = crate::missions::question_holder(world, speaker);
+            crate::missions::has_mission(world, holder, mission)
+        }
         Condition::HasTrait { trait_name, listener: about_listener } => {
             let creature = if *about_listener {
                 match listener {

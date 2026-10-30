@@ -328,6 +328,22 @@ entries the port can run | **363** |
 
 Reading both spellings of a destination - `"x = 1"` and `"u_val('x') = 1"`, which `read_var_info` (`condition.cpp:408-437`) treats as the same variable classed by the member that names it - took the count from 174 to 179. The 125 still refused are of two shapes, counted rather than guessed: **139 statements are pure expressions** with no assignment (`"u_val('stamina')"`, `"ps_str + 50"`), and **76 are bare operators** (`"*="`, `"+="`) that suggest a statement split across several entries of one list. Neither is run: a list whose meaning the port cannot read is refused whole, because "ignore the parts I do not understand" is how a program silently does half its job.
 
+### Missions, and the difference between "the speaker" and "the player" (round 789)
+
+`u_has_mission` was the biggest single refused leaf: 281 occurrences, 114 condition objects, and the top of the refusal list once combinators were set aside.
+
+It also carries a distinction the port had not needed before. `f_u_has_mission` (`condition.cpp:709-721`) walks **`get_avatar()`**'s active missions - so an NPC's dialogue asking `u_has_mission` is asking about the *player*, not about itself. A port that asked the speaker would answer correctly in every test that has one character and wrongly in the game.
+
+`missions::TheAvatar` is a marker for "the character the player is", and `question_holder` prefers it, falling back to the speaker when nobody has claimed the role. The fallback is a **divergence**, recorded rather than hidden: it lets a test ask the question without building a player, and it is wrong in exactly the case the marker exists for.
+
+| Count | Before | After |
+|---|---|---|
+conditions readable across the data | 1,848 | **2,089** |
+programs runnable whole | 65 | 65 |
+refused for `u_has_mission` | 114 | **0** |
+
+Another **241** condition objects became answerable, and no program did - because the programs that use this guard are still refused for their effects. Two leaves in a row have now bought a lot of conditions and almost no programs, which says where the next work is: the effect side, at 397 refusals.
+
 ### Traits: the guard that was second, and what porting it taught (round 788)
 
 `u_has_trait` (36 programs) is now a component - `traits::Traits` on the creature, a set of ids, one question asked of the store - and a condition, following `f_has_trait` (`condition.cpp:580-586`), which asks `has_trait` of the actor the member names.
@@ -391,7 +407,7 @@ refused for an effect | **374** |
 
 Reading a plain `run_eocs` name (one string, or a list of them) also took the effect count from 363 to **399**; the other 131 `run_eocs` entries are object forms with modifiers (`popup`, `variables`, `true_eocs`/`false_eocs`), which the port refuses rather than reading only the part it recognises.
 
-Both halves of the machine are now measured against each other: **1,848 of 3,708 conditions** answerable (1,501 before traits), **399 of 1,612 effects** runnable, and the intersection is **65 of 692 programs** runnable whole.
+Both halves of the machine are now measured against each other: **2,089 of 3,708 conditions** answerable (1,501 three leaves ago), **399 of 1,612 effects** runnable, and the intersection is **65 of 692 programs** runnable whole.
 
 ### Messages: the second effect, and the first that only speaks (round 785)
 

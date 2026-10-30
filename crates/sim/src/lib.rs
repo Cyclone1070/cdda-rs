@@ -11,6 +11,7 @@ pub mod emit_registry;
 pub mod falling;
 pub mod memory;
 pub mod messages;
+pub mod missions;
 pub mod field_passage;
 pub mod field_registry;
 pub mod field_spread;
