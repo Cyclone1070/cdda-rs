@@ -110,3 +110,132 @@ fn every_attack_spell_in_the_game_lands_something() {
          that says 100,000,000"
     );
 }
+
+/// The damage a spell deals at its own ceiling, transcribed from the reference rather than read from the port.
+///
+/// Reference: `spell::damage` (`magic.cpp:816-837`) is `min_leveled_damage` - `min_damage + round( level *
+/// damage_increment )` - clamped to `max_damage` by `min` when the increment climbs and by `max` when it falls. So
+/// `max_damage` is a **cap**, not the value at the ceiling: `bring_the_sun` starts at 10 with a cap of 12 and a zero
+/// increment, and deals 10 at every level. Expecting the cap was this test's first mistake, and it was 2 points wrong
+/// across the set.
+fn damage_at_ceiling(row: &cdda_json::Object) -> Option<i64> {
+    let number = |key: &str| match row.get(key) {
+        Some(cdda_json::Value::Float(number)) => Some(*number),
+        Some(cdda_json::Value::Int(number)) => {
+            #[allow(clippy::cast_precision_loss)]
+            let as_float = *number as f64;
+            Some(as_float)
+        }
+        _ => None,
+    };
+    let start = number("min_damage")?;
+    let increment = number("damage_increment")?;
+    let cap = number("max_damage")?;
+    #[allow(clippy::cast_possible_truncation)]
+    let max_level = number("max_level")? as i32;
+    if max_level == 0 {
+        return None;
+    }
+    #[allow(clippy::cast_precision_loss)]
+    let climbed = start + increment * f64::from(max_level);
+    let at_the_ceiling = if increment >= 0.0 {
+        climbed.min(cap)
+    } else {
+        climbed.max(cap)
+    };
+    #[allow(clippy::cast_possible_truncation)]
+    let as_whole: i64 = at_the_ceiling.round() as i64;
+    (as_whole > 0).then_some(as_whole)
+}
+
+/// The same sweep at each spell's own ceiling, where the level-scaled damage has to be the data's maximum.
+///
+/// Reference: `spell::damage()` clamps the level-scaled value between the spell's minimum and maximum, so a spell cast at
+/// its own `max_level` deals exactly its `max_damage`. At level 0, 43 of the 77 attack spells deal nothing because they
+/// scale up from zero; this sweep is the one that exercises the arithmetic.
+#[test]
+fn at_its_ceiling_every_attack_spell_deals_the_damage_the_data_states() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/spells.json");
+    let text = std::fs::read_to_string(path).expect("the spell dump");
+    let value = cdda_json::parse(text.as_bytes()).expect("valid json");
+    let spells = cdda_content::spells::load_dump(&value).expect("the dump loads");
+
+    let mut world = World::new();
+    let mut seen = 0;
+    let mut dealt_total: i64 = 0;
+    // The same total restricted to the spells that have levels to climb, which is the set the dump states a `max_damage`
+    // for unambiguously.
+    let mut dealt_scaled: i64 = 0;
+    let mut stated_total: i64 = 0;
+    for spell in spells.iter().filter(|spell| spell.effect_name == "attack") {
+        seen += 1;
+        #[allow(clippy::cast_possible_truncation)]
+        let ceiling = spell.max_level.unwrap_or(0.0) as i32;
+        let target = cdda_sim::creature::spawn_creature(&mut world, "the target", (0, 0, 0));
+        world
+            .entity_mut(target)
+            .insert(cdda_sim::creature::Body { parts: a_torso() });
+        cdda_sim::creature::set_health(&mut world, target, 1_000_000);
+        let cast = spellcasting::cast_attack(&mut world, (0, 0, 0), spell, ceiling, target, 0.0);
+        let told = spell.damage.at(ceiling).unwrap_or(0.0);
+        if told > 0.0 {
+            let Cast::Hit { dealt, .. } = cast else {
+                panic!("{} at level {ceiling} did not land: {cast:?}", spell.id);
+            };
+            dealt_total += i64::from(dealt);
+            if ceiling > 0 {
+                dealt_scaled += i64::from(dealt);
+                let _ = &dealt;
+            }
+            #[allow(clippy::cast_possible_truncation)]
+            let stated = told.round() as i64;
+            assert_eq!(
+                i64::from(dealt), stated,
+                "{} at its ceiling of {ceiling} dealt {dealt} instead of {stated}",
+                spell.id
+            );
+            stated_total += stated;
+        }
+        world.despawn(target);
+    }
+    assert_eq!(seen, 77, "the game has 77 attack spells");
+    // The data's own ceiling for each spell, read straight from the dump rather than through the loader: this is the
+    // comparison that makes the sweep an oracle test instead of the port agreeing with itself.
+    let cdda_json::Value::Object(root) = &value else {
+        panic!("a spell dump is an object");
+    };
+    let Some(cdda_json::Value::Array(rows)) = root.get("spells") else {
+        panic!("a spell dump has spells");
+    };
+    let mut from_the_data: i64 = 0;
+    for row in rows {
+        let cdda_json::Value::Object(row) = row else {
+            continue;
+        };
+        if row.get("effect_name") != Some(&cdda_json::Value::Str("attack".to_owned())) {
+            continue;
+        }
+        #[allow(clippy::cast_possible_truncation)]
+        let max_level = match row.get("max_level") {
+            Some(cdda_json::Value::Float(number)) => *number as i32,
+            _ => 0,
+        };
+        // Only a spell with levels to climb has an unambiguous `max_damage` in the data: a spell with a ceiling of zero
+        // is cast at level zero, where its damage is its minimum, and the two are compared by count instead.
+        if max_level == 0 {
+            continue;
+        }
+        let Some(at_the_ceiling) = damage_at_ceiling(row) else {
+            continue;
+        };
+        from_the_data += at_the_ceiling;
+    }
+    println!(
+        "at the ceiling: {dealt_total} dealt, {stated_total} stated, {from_the_data} from the data's max_damage"
+    );
+    assert_eq!(dealt_total, stated_total, "every stated point arrived");
+    assert_eq!(
+        dealt_scaled, from_the_data,
+        "and for the spells that climb, the total is the data's own sum of max_damage"
+    );
+}

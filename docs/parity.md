@@ -296,6 +296,16 @@ Three things the sweep settled that the code did not say:
 * **The damage that arrives is the damage the data states, to the point.** The 32 positive spells sum to exactly **100,016,638** - the data's own total - including the outlier `hallu_touch_suicide` at 100,000,000. Nothing in the path rounds, clamps or resists when there is no armour.
 * **The first version of the sweep measured nothing.** A creature built by `spawn_creature` has no body, so all 77 refusals said `NothingToHit` and the sweep "passed" its counts. It now gives the target a torso, which is the same lesson as the frame dump: a dump taken before the object is configured measures the harness.
 
+### The attack spells at their ceilings (round 761)
+
+The level-0 sweep only proved the floor, where 43 of the 77 attack spells deal nothing because they scale up from zero. A second sweep casts each spell at **its own `max_level`** and compares the damage against the dump's own numbers, computed in the test from `min_damage`, `damage_increment` and `max_damage` by transcribing `spell::damage` (`magic.cpp:816-837`).
+
+That comparison caught a wrong belief in the test itself, and it is worth writing down because it is the kind of thing that would otherwise become a wrong rule in the port:
+
+* **`max_damage` is a cap, not the value at the ceiling.** The reference deals `min( min_damage + round(level × increment), max_damage )` when the increment climbs and `max(...)` when it falls. `bring_the_sun` starts at 10 with a cap of 12 and a zero increment, so it deals 10 at every level. The first version of this test expected the cap and was 2 points wrong across the set - 1,345 against the port's 1,343, which is exactly the size of discrepancy that a loose assertion would have waved through.
+
+The sweep now matches the data exactly for every attack spell with levels to climb, which is the arithmetic `Scaling::at` had never been tested on across the corpus.
+
 ### Spell effects: three of thirty-three (rounds 756–758)
 
 `spell_effects::EFFECTS` is `magic_spell_effect.cpp`'s shape - one function per `effect_name`, dispatched by a table - and it holds two of the **33** names the data uses:
