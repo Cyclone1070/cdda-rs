@@ -163,18 +163,18 @@ fn the_port_answers_the_questions_it_can_and_says_how_many_that_is() {
     let top: Vec<(&String, &usize)> = top.into_iter().take(5).collect();
     println!("conditions: {seen} found, {readable} readable; most common refusals: {top:?}");
 
-    // The numbers are the measurement, and this round did **not** move the readable count, which is itself the finding: the
-    // data's `math` conditions are not the `[left, op, right]` triples the port learned to read - they are arrays wrapping
-    // **strings** that are themselves expressions, like `["Nemesis_iteration * -1"]` and
-    // `["u_effect_intensity('VITRIFYING') * -1 * (ceil(u_val('intelligence') / 6))"]`. Answering those needs the reference's
-    // lexer, not its array form.
+    // The numbers are the measurement, and the sequence is the lesson: the round that added the expression *tree* moved
+    // nothing (435), the round that added the string parser moved it to 449, and the one-line fix that accepted the data's
+    // own shape - `"math": ["one string"]`, a one-element array, not only the `[left, op, right]` triple - moved it to 768.
+    // What is left in `math` (263) is mostly calls into the reference's function table, `u_effect_intensity(...)` and
+    // friends, each of which refuses the whole expression until the port knows the name.
     //
-    // 3,708 questions in the data and 435 the port can answer today. `and` and `not` lead
+    // 3,708 questions in the data and 768 the port can answer today. `and` and `not` lead
     // the refusals because a combinator is only as readable as its parts, and the parts refused most are `math` (518),
     // `compare_string` (238) and `u_has_items` (155) - which is the list of what to port next, by frequency.
     assert_eq!(seen, 3708, "the data asks 3,708 `condition` objects");
     assert_eq!(
-        readable, 435,
-        "of which the port answers 435: `u_has_effect` at any depth, wrapped in the combinators it can read"
+        readable, 768,
+        "of which the port answers 768: `u_has_effect`, the combinators, and the `math` expressions whose every name it knows"
     );
 }

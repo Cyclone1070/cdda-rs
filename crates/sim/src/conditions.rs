@@ -44,6 +44,9 @@ pub fn value(world: &World, creature: Entity, expression: &Expression) -> Option
     match expression {
         Expression::Number(number) => Some(*number),
         Expression::Variable { scope, name } => {
+            // Reference: a bare identifier is looked up in the dialogue's context and then the globals
+            // (`const_dialogue::maybe_get_value`, `npctalk.cpp:2659-2662`). The port has one context - the creature's own
+            // values - so `var_val` and `u_val` both read there, and `global_val` reads the shared map.
             let holder = if scope == "global_val" {
                 crate::dialogue_values::global_holder(world)?
             } else {

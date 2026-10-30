@@ -296,6 +296,23 @@ Three things the sweep settled that the code did not say:
 * **The damage that arrives is the damage the data states, to the point.** The 32 positive spells sum to exactly **100,016,638** - the data's own total - including the outlier `hallu_touch_suicide` at 100,000,000. Nothing in the path rounds, clamps or resists when there is no armour.
 * **The first version of the sweep measured nothing.** A creature built by `spawn_creature` has no body, so all 77 refusals said `NothingToHit` and the sweep "passed" its counts. It now gives the target a torso, which is the same lesson as the frame dump: a dump taken before the object is configured measures the harness.
 
+### The math parser, and the one-element array that was the gate (round 770)
+
+`content::dialogue::read_text_expression` is a precedence-climbing parser over the reference's expression language: numbers, `scope('name')` calls for the five variable types, bare identifiers as the dialogue's own variables (`const_dialogue::maybe_get_value` looks a bare name up in the context, `npctalk.cpp:2659-2662`), parentheses, unary minus, and `+ - * / % == != < <= > >=`. A call whose name is **not** one of the five variable types is a function, and an unknown function refuses the whole expression rather than being read as a variable named after it.
+
+Then the measurement, which is the round's real story:
+
+| Change | Readable conditions |
+|---|---|
+before any expression work | 435 |
+expression tree, array triples only | 435 |
+string parser | 449 |
+**accepting the data's own shape - a one-element array wrapping a string** | **768** |
+
+The last line is a two-line fix and it is worth more than the parser: the data writes `"math": ["Nemesis_iteration * -1"]`, and the reader was only looking for `[left, op, right]`. `math` refusals fell from 518 to 263, and what remains is calls into the reference's function table (`u_effect_intensity`, `ceil`, ...), each of which refuses the whole expression until the port knows the name.
+
+**A refusal that is right is still invisible if the reader never reaches the question.** Three rounds of this class of bug - a field number nobody compared, a rule that matched nothing, a shape nobody read - all share the same property: the code did nothing wrong, and did nothing.
+
 ### Math conditions: the tree, and the discovery that the data does not use its shape (round 769)
 
 `math` is the largest refused class (518), so this round built the expression tree and evaluator: `Expression` with numbers, `scope('name')` variables and binary operators, `conditions::value` evaluating it against the store, and `{"math": …}` wired into `read_condition` so a condition holds when its result is non-zero.

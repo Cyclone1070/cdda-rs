@@ -119,6 +119,15 @@ fn a_math_condition_does_the_arithmetic_the_data_writes() {
     // An operator nobody ported, and a variable scope nobody ported, are both refused at read time.
     let an_unknown_op = cdda_json::parse(br#"{"math": [1, "and", 1]}"#.as_slice()).expect("json");
     assert!(cdda_content::dialogue::read_condition(&an_unknown_op).is_none());
-    let an_unknown_scope = cdda_json::parse(br#"{"math": ["var_val('x')", "==", 1]}"#.as_slice()).expect("json");
-    assert!(cdda_content::dialogue::read_condition(&an_unknown_scope).is_none());
+    // A function call is not a variable: `ceil(3.5)` names a function the port has no rule for, and reading it as a
+    // variable called `ceil` would answer a question nobody asked.
+    let a_function = cdda_json::parse(br#"{"math": ["ceil(3.5)", "==", 4]}"#.as_slice()).expect("json");
+    assert!(cdda_content::dialogue::read_condition(&a_function).is_none());
+    // The five variable types are all readable, bare identifiers included - the reference looks a bare name up in the
+    // dialogue's context (`const_dialogue::maybe_get_value`, `npctalk.cpp:2659-2662`).
+    let a_context_variable =
+        cdda_json::parse(br#"{"math": ["context_val('x')", "==", 1]}"#.as_slice()).expect("json");
+    assert!(cdda_content::dialogue::read_condition(&a_context_variable).is_some());
+    let bare = cdda_json::parse(br#"{"math": ["Nemesis_iteration * -1"]}"#.as_slice()).expect("json");
+    assert!(cdda_content::dialogue::read_condition(&bare).is_some());
 }
