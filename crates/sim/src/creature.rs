@@ -301,6 +301,29 @@ pub struct Body {
     pub parts: Vec<crate::hit_location::BodyPart>,
 }
 
+/// What armour a creature has on each part of its body.
+///
+/// Reference: `Character::get_armor_type( dt, bp )` (`character_armor.cpp:70-86`) - armour is asked **per body
+/// part**, because that is the whole reason a blow asks which part it landed on. The port keeps the total for
+/// bash per part; the pieces the reference adds together (worn, bionic, mutation, the part's own resistance) are
+/// already summed by the time they reach here, which is the same arithmetic with one fewer place to disagree.
+#[derive(Component, Debug, Clone, Default, PartialEq, Eq)]
+pub struct PartArmour(pub std::collections::BTreeMap<String, i32>);
+
+/// How much a part of a creature resists a blow.
+///
+/// Falls back to the creature's whole-body [`Armour`] when the part states nothing, and to nothing at all when
+/// neither does: a bare arm and an unstated arm are the same arm, not one of them invulnerable.
+#[must_use]
+pub fn armour_on(world: &World, entity: Entity, part: &str) -> i32 {
+    if let Some(armour) = world.get::<PartArmour>(entity)
+        && let Some(found) = armour.0.get(part)
+    {
+        return *found;
+    }
+    world.get::<Armour>(entity).map_or(0, |armour| armour.bash)
+}
+
 /// Where a creature has been hurt, part by part.
 ///
 /// Reference: `Creature::deal_damage` takes a `bodypart_id`, and the damage is recorded against it. The port keeps
@@ -524,14 +547,32 @@ fn strike_what_the_goal_holds(world: &mut World, attacker: Entity, goal: (i32, i
         return false;
     };
     let defence = defence_of(world, victim);
-    let swung = crate::melee::strike(&mut rolls, attack.0, defence);
-    // Which part it landed on is asked only of a creature that has a body, and with the margin the blow landed by -
-    // `Creature::deal_melee_hit` (`creature.cpp:959`) passes the spread as the roll that tilts the choice.
+    // The roll, the landing place and the armour are asked in the order the reference asks them: the margin is
+    // known before the part, and the part is known before what protects it - `Creature::deal_melee_hit` picks the
+    // part from the spread (`creature.cpp:959`) and `absorb_hit` is told which part it was.
+    #[allow(clippy::cast_precision_loss)]
+    let accuracy = attack.0.accuracy_tenths as f32 / 10.0;
+    let hitroll = crate::melee::melee_hit_range(&mut rolls, accuracy);
+    #[allow(clippy::cast_possible_truncation)]
+    let spread = crate::melee::hit_spread(
+        hitroll as i32,
+        crate::melee::dodge_roll(defence.dodge),
+        defence.size,
+        defence.immobile,
+    );
     let landed_on = world.get::<Body>(victim).map(|body| body.parts.clone()).and_then(|parts| {
         let fraction = f64::from(rolls.rng_bits()) / f64::from(u32::MAX);
-        crate::hit_location::struck_part(&parts, swung.spread, false, fraction)
+        crate::hit_location::struck_part(&parts, spread, false, fraction)
             .map(|part| part.name.clone())
     });
+    let resist = landed_on.as_deref().map_or(defence.resist, |part| {
+        #[allow(clippy::cast_precision_loss)]
+        let armour = armour_on(world, victim, part) as f32;
+        armour
+    });
+    let defence = crate::melee::Defence { resist, ..defence };
+    let rolled = crate::melee::monster_melee_damage(&mut rolls, attack.0.fixed, attack.0.dice, attack.0.sides);
+    let swung = crate::melee::resolve(hitroll, rolled, defence);
     crate::singletons::put_rolls(world, rolls);
     if swung.hit {
         hurt(world, victim, swung.damage);
