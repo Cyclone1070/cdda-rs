@@ -2778,7 +2778,10 @@ fn lay_electricity(world: &mut World, square: (i32, i32), strength: i32) {
         }
         return;
     }
-    let mut entry = FieldEntry::new(3, 100, true, false);
+    // The square's cap comes from the field **type**, not from a constant: `field_type::get_max_intensity` is the number of the
+    // type's intensity levels, and the data's fields run from one to ten of them.
+    let cap = crate::field_registry::max_intensity_of(world, ELECTRICITY);
+    let mut entry = FieldEntry::new(cap, 100, true, false);
     entry.set_intensity(strength);
     world.spawn((
         Position {
@@ -3314,7 +3317,10 @@ pub fn add_field_strength(world: &mut World, square: (i32, i32, i32), id: FieldI
         }
         return;
     }
-    let mut entry = FieldEntry::new(3, 100, true, false);
+    // The square's cap comes from the field **type**, not from a constant: `field_type::get_max_intensity` is the number of the
+    // type's intensity levels, and the data's fields run from one to ten of them.
+    let cap = crate::field_registry::max_intensity_of(world, id);
+    let mut entry = FieldEntry::new(cap, 100, true, false);
     entry.set_intensity(strength);
     world.spawn((
         Position {

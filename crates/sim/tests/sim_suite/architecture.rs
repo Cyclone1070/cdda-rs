@@ -499,8 +499,8 @@ fn installing_a_registry_twice_leaves_one_of_it() {
     use bevy_ecs::prelude::*;
 
     let mut world = World::new();
-    cdda_sim::field_registry::set_field_names(&mut world, &[("fd_null", 0), ("fd_fire", 13)]);
-    cdda_sim::field_registry::set_field_names(&mut world, &[("fd_null", 0), ("fd_fire", 13)]);
+    cdda_sim::field_registry::set_field_names(&mut world, &[("fd_null", 0, 3), ("fd_fire", 13, 3)]);
+    cdda_sim::field_registry::set_field_names(&mut world, &[("fd_null", 0, 3), ("fd_fire", 13, 3)]);
     cdda_sim::monster_registry::set_monster_types(
         &mut world,
         &[cdda_sim::monster_registry::MonsterKind {

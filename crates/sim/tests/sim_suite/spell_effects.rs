@@ -280,7 +280,7 @@ fn a_spell_takes_one_field_off_the_squares_it_reaches() {
     // The first names in the reference's registry order, which is what the numbers mean.
     field_registry::set_field_names(
         &mut world,
-        &[("fd_null", 0), ("fd_fatigue", 30), ("fd_fire", 14)],
+        &[("fd_null", 0, 3), ("fd_fatigue", 30, 3), ("fd_fire", 14, 3)],
     );
     assert_eq!(field_registry::count(&mut world), 3);
     assert_eq!(
@@ -459,7 +459,7 @@ fn an_attack_spell_hits_everything_its_blast_reaches() {
 #[test]
 fn an_emit_spell_fills_its_blast_with_the_field_the_emission_names() {
     let mut world = World::new();
-    cdda_sim::field_registry::set_field_names(&mut world, &[("fd_null", 0), ("fd_toxic_gas", 20)]);
+    cdda_sim::field_registry::set_field_names(&mut world, &[("fd_null", 0, 3), ("fd_toxic_gas", 20, 3)]);
     cdda_sim::emit_registry::set_emits(
         &mut world,
         &[(
@@ -511,7 +511,7 @@ fn an_emit_spell_fills_its_blast_with_the_field_the_emission_names() {
 #[test]
 fn an_emission_of_a_quantity_spreads_over_the_squares_it_can_reach() {
     let mut world = World::new();
-    cdda_sim::field_registry::set_field_names(&mut world, &[("fd_null", 0), ("fd_toxic_gas", 20)]);
+    cdda_sim::field_registry::set_field_names(&mut world, &[("fd_null", 0, 3), ("fd_toxic_gas", 20, 3)]);
     cdda_sim::emit_registry::set_emits(
         &mut world,
         &[(

@@ -435,7 +435,7 @@ pub fn install_field_data(world: &mut World) -> Option<usize> {
     let cdda_json::Value::Array(rows) = root.get("prototypes")? else {
         return None;
     };
-    let mut kinds: Vec<(String, u32)> = Vec::with_capacity(rows.len());
+    let mut kinds: Vec<(String, u32, i32)> = Vec::with_capacity(rows.len());
     for row in rows {
         let cdda_json::Value::Object(object) = row else {
             continue;
@@ -448,9 +448,17 @@ pub fn install_field_data(world: &mut World) -> Option<usize> {
         };
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let number = *num as u32;
-        kinds.push((id.clone(), number));
+        // The type's level count is its maximum intensity (`field_type::get_max_intensity`), and it is what the runtime clamps to.
+        let levels = match object.get("levels") {
+            Some(cdda_json::Value::Array(levels)) => i32::try_from(levels.len()).unwrap_or(1),
+            _ => 1,
+        };
+        kinds.push((id.clone(), number, levels));
     }
-    let named: Vec<(&str, u32)> = kinds.iter().map(|(id, num)| (id.as_str(), *num)).collect();
+    let named: Vec<(&str, u32, i32)> = kinds
+        .iter()
+        .map(|(id, num, levels)| (id.as_str(), *num, *levels))
+        .collect();
     cdda_sim::field_registry::set_field_names(world, &named);
     Some(named.len())
 }
@@ -957,6 +965,25 @@ mod field_data_tests {
             panic!("the field dump is present");
         };
         assert_eq!(count, 145, "the reference has 145 field types");
+
+        // The level counts come from the dump, not from a constant: `fd_electricity` carries ten intensity levels, so its maximum
+        // intensity is ten. Before this round every field clamped at three - right for `fd_blood`, wrong for this one.
+        let Some(electricity) = cdda_sim::field_registry::id_of(&mut world, "fd_electricity") else {
+            panic!("the field is installed");
+        };
+        assert_eq!(
+            cdda_sim::field_registry::max_intensity_of(&mut world, electricity),
+            10,
+            "a ten-level field holds ten, which is the data's number"
+        );
+        let Some(blood) = cdda_sim::field_registry::id_of(&mut world, "fd_blood") else {
+            panic!("the field is installed");
+        };
+        assert_eq!(
+            cdda_sim::field_registry::max_intensity_of(&mut world, blood),
+            3,
+            "and a three-level field still holds three"
+        );
 
         assert_eq!(
             cdda_sim::field_registry::id_of(&mut world, "fd_fire"),

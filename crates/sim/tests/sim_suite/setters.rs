@@ -144,17 +144,31 @@ fn every_square_and_creature_setter_reads_back() {
         2,
         "a field placed on a fresh square reads back at its strength"
     );
-    // And a strength above the field rules' maximum is clamped rather than stored: asking for 4 on a world with the default rules
-    // gave 3, which is the cap rather than a lost write. The cap is the rules' number, so the test asks for the cap rather than
-    // guessing it.
-    cdda_sim::add_field_strength(&mut world, (3, 1, 0), cdda_core_types::field::FieldId(13), 99);
-    let cap = cdda_sim::field_strength_at(&world, (3, 1, 0), cdda_core_types::field::FieldId(13));
-    assert!(cap >= 1, "the field rules state some maximum, and it is at least one");
-    cdda_sim::add_field_strength(&mut world, (3, 2, 0), cdda_core_types::field::FieldId(13), cap);
+    // And a strength above the field **type's** level count is clamped rather than stored. The cap comes from the data - a field
+    // with ten levels holds ten - so the test installs two fields with different counts and checks both.
+    cdda_sim::field_registry::set_field_names(
+        &mut world,
+        &[("fd_null", 0, 1), ("fd_blood", 1, 3), ("fd_ten", 2, 10)],
+    );
+    let blood = cdda_core_types::field::FieldId(1);
+    let ten = cdda_core_types::field::FieldId(2);
+    cdda_sim::add_field_strength(&mut world, (3, 1, 0), blood, 99);
     assert_eq!(
-        cdda_sim::field_strength_at(&world, (3, 2, 0), cdda_core_types::field::FieldId(13)),
-        cap,
-        "and a strength at the cap is stored as asked"
+        cdda_sim::field_strength_at(&world, (3, 1, 0), blood),
+        3,
+        "a field with three levels clamps at three"
+    );
+    cdda_sim::add_field_strength(&mut world, (3, 2, 0), ten, 99);
+    assert_eq!(
+        cdda_sim::field_strength_at(&world, (3, 2, 0), ten),
+        10,
+        "and a field with ten levels clamps at ten, which a constant three could never have said"
+    );
+    cdda_sim::add_field_strength(&mut world, (3, 3, 0), ten, 7);
+    assert_eq!(
+        cdda_sim::field_strength_at(&world, (3, 3, 0), ten),
+        7,
+        "a strength under the cap is stored as asked"
     );
 
     cdda_sim::sounds::make_sound(&mut world, (4, 0, 0), 12);

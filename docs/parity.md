@@ -328,6 +328,19 @@ entries the port can run | **363** |
 
 Reading both spellings of a destination - `"x = 1"` and `"u_val('x') = 1"`, which `read_var_info` (`condition.cpp:408-437`) treats as the same variable classed by the member that names it - took the count from 174 to 179. The 125 still refused are of two shapes, counted rather than guessed: **139 statements are pure expressions** with no assignment (`"u_val('stamina')"`, `"ps_str + 50"`), and **76 are bare operators** (`"*="`, `"+="`) that suggest a statement split across several entries of one list. Neither is run: a list whose meaning the port cannot read is refused whole, because "ignore the parts I do not understand" is how a program silently does half its job.
 
+### The field cap comes from the data now (round 796)
+
+The divergence the sweep found is closed rather than noted. `field_type::get_max_intensity` is the number of a type's `intensity_levels`, and the dump carries them: `fd_bload` and `fd_web` have three, and **`fd_electricity` has ten**. The port clamped every field at a constant three until this round.
+
+`FieldNames` now carries a level count per type, `install_field_data` reads it from `corpus/field_types.json`, and `add_field_strength` and `lay_electricity` take their cap from the type instead of a literal.
+
+| Field | Levels | Clamp before | Clamp now |
+|---|---|---|---|
+`fd_blood` | 3 | 3 | 3 |
+`fd_electricity` | **10** | 3 | **10** |
+
+Gated twice: a unit test installs fields with one, three and ten levels and checks each clamps at its own count, and the CLI test asserts the real dump gives `fd_electricity` ten and `fd_blood` three. A constant three cannot produce that pair from the data, which is what makes the test worth keeping.
+
 ### The sweep reaches squares and creatures, and finds a hardcoded maximum (round 795)
 
 The singleton sweep now has a twin: every setter that writes **per square** or **per creature** is called on an empty store and read back through the module's own accessor - passage, fire facts, scent, a field's strength, a sound, health, moves, traits, missions, an applied effect, the weather's name.

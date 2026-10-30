@@ -21,6 +21,12 @@ pub struct FieldNames {
     names: Vec<String>,
     /// The number of each field, by name.
     by_name: BTreeMap<String, FieldId>,
+    /// How many intensity levels each field has, which is the most it can hold.
+    ///
+    /// Reference: `field_type::intensity_levels` (`src/field_type.h`) and `field_type::get_max_intensity`, which answers
+    /// `intensity_levels.size()`. The port had a constant three here, which is right for `fd_blood` and wrong for the fields in the
+    /// data that carry ten levels.
+    max_intensity: BTreeMap<FieldId, i32>,
 }
 
 /// Marks the entity carrying [`FieldNames`].
@@ -32,13 +38,16 @@ pub struct TheFieldNames;
 /// The numbers are **stated**, not derived from the list's order: the reference's list contains an entry whose position and
 /// whose number disagree, and a port that counted positions instead would key every field rule to the wrong field by one.
 /// `dump_fields` now carries each field's own `num`, so the caller hands over what the reference says rather than a guess.
-pub fn set_field_names(world: &mut World, kinds: &[(&str, u32)]) {
+pub fn set_field_names(world: &mut World, kinds: &[(&str, u32, i32)]) {
     let mut by_name = BTreeMap::new();
-    let highest = kinds.iter().map(|(_, num)| *num).max().unwrap_or(0);
+    let mut max_intensity = BTreeMap::new();
+    let highest = kinds.iter().map(|(_, num, _)| *num).max().unwrap_or(0);
     #[allow(clippy::cast_possible_truncation)]
     let mut names = vec![String::new(); highest as usize + 1];
-    for (name, num) in kinds {
+    for (name, num, levels) in kinds {
         by_name.insert((*name).to_owned(), FieldId(*num));
+        // A field's level count is its maximum intensity, and a field with no levels stated holds one.
+        max_intensity.insert(FieldId(*num), (*levels).max(1));
         #[allow(clippy::cast_possible_truncation)]
         let at = *num as usize;
         if let Some(slot) = names.get_mut(at) {
@@ -46,7 +55,9 @@ pub fn set_field_names(world: &mut World, kinds: &[(&str, u32)]) {
         }
     }
     let entity = singletons::singleton::<FieldNames, TheFieldNames>(world);
-    world.entity_mut(entity).insert(FieldNames { names, by_name });
+    world
+        .entity_mut(entity)
+        .insert(FieldNames { names, by_name, max_intensity });
 }
 
 /// The number a field name refers to, or nothing when the store has never heard of it.
@@ -75,4 +86,18 @@ pub fn count(world: &mut World) -> usize {
     world
         .get::<FieldNames>(entity)
         .map_or(0, |names| names.by_name.len())
+}
+
+/// How strong a field of this type can get.
+///
+/// Reference: `field_type::get_max_intensity` (`src/field_type.h`), which is the number of the type's `intensity_levels`. A field the
+/// store has never been told about answers three, which is the reference's usual count for the fields the port does know; it is a
+/// fallback rather than a rule, and it is stated here so a caller can see it.
+#[must_use]
+pub fn max_intensity_of(world: &mut World, field: FieldId) -> i32 {
+    let entity = singletons::singleton::<FieldNames, TheFieldNames>(world);
+    world
+        .get::<FieldNames>(entity)
+        .and_then(|names| names.max_intensity.get(&field).copied())
+        .unwrap_or(3)
 }
