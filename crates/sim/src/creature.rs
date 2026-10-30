@@ -465,6 +465,16 @@ fn take_into_hand(world: &mut World, creature: Entity, item: Entity, from: (i32,
     world.entity_mut(item).insert(Carried(creature));
 }
 
+/// Picks something up, charging what the store says it is worth in moves.
+///
+/// The same rule as [`pick_up`], with the volume taken from [`crate::item_registry`] instead of from a caller - which is
+/// the difference between a pickup rule the game can run and one only a test could.
+pub fn pick_up_in_store(world: &mut World, creature: Entity, item: Entity) -> Picked {
+    let kind = world.get::<crate::GroundItem>(item).map(|held| held.kind);
+    let volume = kind.map_or(0, |kind| crate::item_registry::volume_of(world, kind));
+    pick_up(world, creature, item, volume)
+}
+
 /// What came of trying to pick something up.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Picked {

@@ -22,6 +22,11 @@ pub struct ItemTypes {
     names: Vec<String>,
     /// The number of each kind, by name.
     by_name: BTreeMap<String, ItemTypeId>,
+    /// How much room each kind takes, in millilitres, in registry order.
+    ///
+    /// Reference: `itype::volume`, which is what `item::volume()` answers for a stack of one. Picking something up costs
+    /// fifty moves a litre of it, and the store could not say how big anything was: every caller handed the number in.
+    volumes_ml: Vec<i32>,
 }
 
 /// Marks the entity carrying [`ItemTypes`].
@@ -32,19 +37,36 @@ pub struct TheItemTypes;
 ///
 /// Later calls replace it, which is what a second world load does. The null item stays at zero whatever the data says,
 /// because a stack with no kind has to have a number that means nothing.
-pub fn set_item_types(world: &mut World, ids: &[&str]) {
+pub fn set_item_types(world: &mut World, kinds: &[(&str, i64)]) {
     let mut names = vec![String::new()];
     let mut by_name = BTreeMap::new();
-    for id in ids {
+    let mut volumes_ml = vec![0];
+    for (id, volume) in kinds {
         #[allow(clippy::cast_possible_truncation)]
         let number = ItemTypeId(names.len() as u32);
         by_name.insert((*id).to_owned(), number);
         names.push((*id).to_owned());
+        #[allow(clippy::cast_possible_truncation)]
+        volumes_ml.push(*volume as i32);
     }
     let entity = singletons::singleton::<ItemTypes, TheItemTypes>(world);
+    world.entity_mut(entity).insert(ItemTypes {
+        names,
+        by_name,
+        volumes_ml,
+    });
+}
+
+/// How much room a kind takes, in millilitres.
+///
+/// A kind nobody numbered takes no room, which is the same answer the reference gives for the null item.
+#[must_use]
+pub fn volume_of(world: &mut World, kind: ItemTypeId) -> i32 {
+    let entity = singletons::singleton::<ItemTypes, TheItemTypes>(world);
     world
-        .entity_mut(entity)
-        .insert(ItemTypes { names, by_name });
+        .get::<ItemTypes>(entity)
+        .and_then(|registry| registry.volumes_ml.get(kind.0 as usize).copied())
+        .unwrap_or(0)
 }
 
 /// A copy of the registry that rules can hold while they work on the store.
@@ -57,6 +79,8 @@ pub struct ItemNames {
     pub names: Vec<String>,
     /// The number of each kind, by name.
     pub by_name: BTreeMap<String, ItemTypeId>,
+    /// How much room each kind takes, in millilitres, in registry order.
+    pub volumes_ml: Vec<i32>,
 }
 
 impl ItemNames {
@@ -74,6 +98,12 @@ impl ItemNames {
     pub fn id_of(&self, name: &str) -> Option<ItemTypeId> {
         self.by_name.get(name).copied()
     }
+
+    /// How much room a kind takes, in millilitres.
+    #[must_use]
+    pub fn volume_of(&self, kind: ItemTypeId) -> i32 {
+        self.volumes_ml.get(kind.0 as usize).copied().unwrap_or(0)
+    }
 }
 
 /// Takes a copy of the registry.
@@ -83,6 +113,7 @@ pub fn snapshot(world: &mut World) -> ItemNames {
     world.get::<ItemTypes>(entity).map_or_else(ItemNames::default, |registry| ItemNames {
         names: registry.names.clone(),
         by_name: registry.by_name.clone(),
+        volumes_ml: registry.volumes_ml.clone(),
     })
 }
 
