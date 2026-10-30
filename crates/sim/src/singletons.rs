@@ -367,7 +367,13 @@ pub fn put_rolls(world: &mut World, rolls: cdda_core_types::rng::Rolls) {
     let entity = singleton::<crate::turn::Random, crate::turn::TheRandom>(world);
     if let Some(mut random) = world.get_mut::<crate::turn::Random>(entity) {
         random.rolls = Some(rolls);
+        return;
     }
+    // A world that had no dice gets them. This is the same shape of bug `set_weather` had: the setter wrote only to a component that
+    // already existed, so on a fresh store the draw the store was handed went nowhere and every `take_rolls` answered nothing.
+    world.entity_mut(entity).insert(crate::turn::Random {
+        rolls: Some(rolls),
+    });
 }
 
 /// The turn's receipt, spawned on first use.

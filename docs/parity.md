@@ -328,6 +328,18 @@ entries the port can run | **363** |
 
 Reading both spellings of a destination - `"x = 1"` and `"u_val('x') = 1"`, which `read_var_info` (`condition.cpp:408-437`) treats as the same variable classed by the member that names it - took the count from 174 to 179. The 125 still refused are of two shapes, counted rather than guessed: **139 statements are pure expressions** with no assignment (`"u_val('stamina')"`, `"ps_str + 50"`), and **76 are bare operators** (`"*="`, `"+="`) that suggest a statement split across several entries of one list. Neither is run: a list whose meaning the port cannot read is refused whole, because "ignore the parts I do not understand" is how a program silently does half its job.
 
+### The setter sweep, and a second setter with the same bug (round 794)
+
+`set_weather` was the fourth "did nothing, said nothing" bug in this port. Four instances of one failure mode is not bad luck, it is a shape - so instead of waiting for the fifth, this round swept **every** singleton setter.
+
+`crates/sim/tests/sim_suite/setters.rs` calls each setter on a **fresh** world and then asks the store what it holds: field names, item types, monster types, effect types, emissions, programs, the sky, a character's own dialogue values. `set_field_rules`, `set_prototypes` and `set_climate` install types the module keeps private and are noted as excluded rather than quietly skipped.
+
+The sweep found one more, immediately:
+
+* **`singletons::put_rolls` had the same bug as `set_weather`** - it wrote only to an already-existing `Random` component, so on a fresh world the dice a caller handed to the store went nowhere. Every `take_rolls` then answered nothing, which in this port means a rule that needs a die gets none and refuses rather than rolls. Nothing failed loudly; the whole RNG surface was simply inert until something had created the component some other way.
+
+Both setters now insert when the component is absent, and the sweep is the gate that keeps the fifth instance from arriving unnoticed.
+
 ### `is_weather`, and a setter that had never worked (round 793)
 
 `f_is_weather` (`condition.cpp:1812-1818`) compares `get_weather().weather_id` with the id a guard names, and the data writes both a bare string and a list of them.
