@@ -370,6 +370,68 @@ pub struct Garment {
     pub layers: Vec<(String, cdda_content::armour::Layer)>,
 }
 
+/// How long it takes to pick something up, in action points.
+///
+/// Reference: `Character::item_handling_cost` (`character.cpp:7283-7290`) - a base cost plus fifty moves per litre
+/// of the thing, capped at two hundred at four litres. The hand-encumbrance overhead the reference adds afterwards
+/// is not here yet: the port has no encumbrance, and a term that is always zero would be a lie about work done.
+#[must_use]
+pub fn handling_cost(volume_ml: i32) -> i32 {
+    const BASE: i32 = 100;
+    BASE + (volume_ml / 20).min(200)
+}
+
+/// What came of trying to pick something up.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Picked {
+    /// It is in hand, and no longer on the square.
+    Taken,
+    /// It is not on the creature's square.
+    NotHere,
+    /// There were not enough action points left.
+    TooSlow,
+    /// Somebody is already carrying it.
+    AlreadyCarried,
+}
+
+/// Takes something off the square a creature is standing on.
+///
+/// Reference: `Character::pick_up` moves an item from the map into the character's inventory and charges
+/// `item_handling_cost` for it. The port's inventory is not here yet, so what "carrying" means is a `Carried` link and
+/// the loss of the item's `Position` - which is what takes it out of the index, the one place that says what is on a
+/// square. An item carried that still had a square would be on two surfaces at once, which is the ghost the
+/// architecture gate exists for.
+pub fn pick_up(world: &mut World, creature: Entity, item: Entity, volume_ml: i32) -> Picked {
+    if world.get::<Carried>(item).is_some() {
+        return Picked::AlreadyCarried;
+    }
+    let Some(here) = world.get::<Position>(creature).map(|place| (place.x, place.y, place.z)) else {
+        return Picked::NotHere;
+    };
+    let Some(there) = world.get::<Position>(item).map(|place| (place.x, place.y, place.z)) else {
+        return Picked::NotHere;
+    };
+    if here != there {
+        return Picked::NotHere;
+    }
+    let cost = handling_cost(volume_ml);
+    if moves_left(world, creature) < cost {
+        return Picked::TooSlow;
+    }
+    spend_moves(world, creature, f64::from(cost));
+    crate::singletons::index_mut(world).remove(item, there);
+    world.entity_mut(item).remove::<Position>();
+    world.entity_mut(item).insert(Carried(creature));
+    Picked::Taken
+}
+
+/// A thing somebody is carrying.
+///
+/// Reference: the item being in a character's inventory. A carried item has no square, which is the whole of what
+/// "in hand" means to the index and to every rule that asks what is on a square.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Carried(pub Entity);
+
 /// What came of trying to put something on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Wore {

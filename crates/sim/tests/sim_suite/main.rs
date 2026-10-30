@@ -134,6 +134,7 @@ mod monster_world;
 mod needs;
 mod neighbour_order;
 mod per_turn;
+mod pickup;
 mod player_body;
 mod player_turn;
 mod pocket_accepts;
