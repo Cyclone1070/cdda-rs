@@ -17,6 +17,7 @@ pub mod effects;
 pub mod singletons;
 pub mod square;
 pub mod creature;
+pub mod hit_location;
 pub mod melee;
 pub mod pathfinding;
 pub mod routing;
