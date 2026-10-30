@@ -252,6 +252,76 @@ pub fn reap_dead_creatures(world: &mut World) -> usize {
     dead.len()
 }
 
+/// The attack a creature swings, taken from its type.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MeleeAttack(pub crate::melee::Attack);
+
+/// What a creature's own body resists.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Armour {
+    /// Resistance to blunt damage.
+    pub bash: i32,
+    /// Resistance to cutting damage.
+    pub cut: i32,
+}
+
+/// Puts a monster on a square with everything its type says it has.
+///
+/// Reference: `monster::monster( const mtype * )` gives a creature its hit points, its speed, its melee dice
+/// and its armour from the type, and `monster::get_speed()` scales that base by the `MONSTER_SPEED` option -
+/// which this takes as a parameter because options are content, not a constant.
+///
+/// The creature is left with **no** goal: what it wants to do is a system's business, and a monster that has
+/// just been placed has not decided anything yet.
+pub fn spawn_monster_of_type(
+    world: &mut World,
+    kind: crate::MonsterKindId,
+    monster_type: &cdda_content::monsters::MonsterType,
+    square: (i32, i32, i32),
+    monster_speed_percent: i32,
+) -> Entity {
+    let entity = spawn_creature(world, &monster_type.name, square);
+    set_kind(world, entity, kind);
+    set_health(world, entity, monster_type.hp);
+    set_speed(
+        world,
+        entity,
+        scaled_speed(monster_type.speed, monster_speed_percent),
+        0,
+    );
+    world.entity_mut(entity).insert((
+        MeleeAttack(crate::melee::Attack {
+            accuracy_tenths: monster_type.melee_skill * 10,
+            fixed: crate::melee::Damage::default(),
+            dice: monster_type.melee_dice,
+            sides: monster_type.melee_sides,
+        }),
+        Armour {
+            bash: monster_type.armor_bash,
+            cut: monster_type.armor_cut,
+        },
+    ));
+    if let Some(size) = size_named(&monster_type.size)
+        && let Some(mut creature) = world.get_mut::<Creature>(entity)
+    {
+        creature.size = size;
+    }
+    entity
+}
+
+/// The size a name stands for, or nothing when it is a name the reference does not use.
+#[must_use]
+pub fn size_named(name: &str) -> Option<crate::CreatureSize> {
+    match name {
+        "tiny" => Some(crate::CreatureSize::Tiny),
+        "small" => Some(crate::CreatureSize::Small),
+        "medium" => Some(crate::CreatureSize::Medium),
+        "large" => Some(crate::CreatureSize::Large),
+        "huge" => Some(crate::CreatureSize::Huge),
+        _ => None,
+    }
+}
+
 /// What kind of creature this is, when the content said so.
 ///
 /// Reference: a `monster`'s `type` (`src/monster.h`), which `monster::die` reads to make the corpse
