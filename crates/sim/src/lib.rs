@@ -16,6 +16,7 @@ pub mod digest;
 pub mod effects;
 pub mod singletons;
 pub mod square;
+pub mod crafting;
 pub mod creature;
 pub mod hit_location;
 pub mod melee;
