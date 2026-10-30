@@ -300,10 +300,13 @@ Three things the sweep settled that the code did not say:
 
 Spells that act on fields needed a way to turn `fd_fatigue` into a number, so `dump_fields` grew each field's own `num` - `field.id.id().to_i()`, the reference's `int_id` - and `corpus/field_types.json` was regenerated with all **145** fields carrying it.
 
-That made the port's fourteen field constants checkable for the first time, and they were wrong in one place:
+That made the port's fourteen field constants checkable for the first time. Round 765 finished the job, and the answer was worse than one wrong constant - the port's **whole numbering convention was off by one**:
 
-* **Thirteen of the fourteen are the reference's number plus one** - `fd_fire` is 13 and the port says 14, `fd_hot_air4` is 60 and the port says 61. That offset is a property of `get_all_field_types().get_all()`, which starts at `fd_null`, and it is harmless *because* the port is self-consistent about it: the field table, the light map and every constant are keyed the same way.
-* **`INCENDIARY` was 30 when the reference numbers `fd_incendiary` 47**, so under the port's own convention it should have been 48. Thirty is `fd_fatigue`'s number plus one - meaning `process_incendiary` had been walking the squares of a field nothing in the game puts down. Nothing failed, because a rule that never matches anything is silent, and the fire tests never put an incendiary field on the ground.
+* **Every constant was the reference's number plus one** - `fd_fire` is 13 and the port said 14, `fd_hot_air4` is 60 and the port said 61. The source was `FieldRegistry::new`, which numbered fields `index + 1`; the reference numbers them `index`, because the list begins at `fd_null` and `fd_null` is zero. It was invisible while the constants were the only opinion in the port.
+* **`INCENDIARY` was 30 when the reference numbers `fd_incendiary` 47** - so it was wrong twice over: once by the shared offset and once on its own, pointing at `fd_fatigue`. `process_incendiary` had been sweeping for a field nothing in the game puts down, silently, because a rule that never matches anything reports nothing.
+* The fix is one numbering: the reference's. The registry numbers by position, the fourteen constants are the reference's numbers, and the CLI installs the names from `corpus/field_types.json` so the store's idea of "which number is `fd_fire`" is the reference's answer rather than a transcription.
+
+Two tests were themselves wrong, and both had enshrined the invented convention: one asserted `fd_null` gets a *real* id (the reference gives it zero), and the incendiary tests hardcoded `59` for the hot-air field, which is only right under the old offset. They now assert what the data says.
 
 The test that caught it asserts all fourteen constants against the dump's numbers and states how many it looked at. The registry now takes **stated** numbers rather than deriving them from list positions - the list has an entry whose place and number disagree, which is exactly how the offset got assumed in the first place.
 

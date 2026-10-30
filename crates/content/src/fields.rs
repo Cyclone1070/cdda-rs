@@ -281,11 +281,16 @@ pub struct FieldRegistry {
 
 impl FieldRegistry {
     /// Builds the registry from a loaded field list.
+    ///
+    /// A field's number is its **position** in the reference's list, not one past it: the list begins at `fd_null`, which
+    /// is zero, so `fd_blood` is one and `fd_fire` is thirteen. Counting from one made every field a number higher than
+    /// the reference's, which was invisible while the constants were the only opinion in the port and became a disagreement
+    /// the moment the oracle reported `field.id.id().to_i()` (`corpus/field_types.json`).
     #[must_use]
     pub fn new(fields: &[FieldType]) -> Self {
         let mut ids = std::collections::HashMap::with_capacity(fields.len());
         for (index, field) in fields.iter().enumerate() {
-            let Ok(id) = u32::try_from(index + 1) else {
+            let Ok(id) = u32::try_from(index) else {
                 continue;
             };
             ids.insert(field.id.clone(), id);

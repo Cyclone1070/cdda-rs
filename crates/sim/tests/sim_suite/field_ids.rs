@@ -17,15 +17,32 @@ fn registry() -> FieldRegistry {
     FieldRegistry::new(&fields::from_dump(&value).expect("the dump loads"))
 }
 
+/// The reference's `fd_null` **is** zero, and no other field is.
+///
+/// This test used to assert the opposite - that `fd_null` got a real id and zero meant "no field" - which was true of the
+/// port's own numbering and false of the reference's: `dump_fields` reports `fd_null` as 0 and `fd_blood` as 1. The
+/// invented rule was harmless until the oracle's numbers arrived, and then the two could not both be right.
 #[test]
-fn the_null_field_is_zero_and_never_assigned() {
+fn the_null_field_is_zero_and_no_other_field_is() {
     let registry = registry();
-    assert!(
-        registry
-            .id_of("fd_null")
-            .is_some_and(|id| id != cdda_core_types::field::FieldId::NULL),
-        "the data's fd_null still gets a real id, so the zero slot means 'no field'"
+    assert_eq!(
+        registry.id_of("fd_null"),
+        Some(cdda_core_types::field::FieldId::NULL),
+        "the reference numbers fd_null zero"
     );
+    let mut seen = std::collections::HashSet::new();
+    assert!(
+        seen.insert(cdda_core_types::field::FieldId::NULL),
+        "and only one field may hold the zero slot"
+    );
+    for name in ["fd_blood", "fd_fire", "fd_smoke"] {
+        let id = registry.id_of(name).expect("present");
+        assert_ne!(
+            id,
+            cdda_core_types::field::FieldId::NULL,
+            "{name} must not be the null field"
+        );
+    }
 }
 
 #[test]

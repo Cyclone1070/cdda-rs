@@ -394,10 +394,9 @@ fn the_field_numbers_the_port_uses_are_the_oracles_order() {
             .unwrap_or_else(|| panic!("{name} is in the reference's list"))
             .1;
         assert_eq!(
-            constant.0,
-            from_the_data + 1,
-            "{name} is numbered {from_the_data} by the reference, so the port's constant is {}",
-            from_the_data + 1
+            constant.0, from_the_data,
+            "{name} is numbered {from_the_data} by the reference and {} by the port",
+            constant.0
         );
     }
 }

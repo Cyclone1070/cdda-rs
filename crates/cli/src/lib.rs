@@ -420,6 +420,41 @@ pub fn install_item_data(world: &mut World) -> Option<usize> {
     Some(items.len())
 }
 
+/// Installs the field names, and with them the numbers every field rule is keyed to.
+///
+/// The names come from `corpus/field_types.json` - the reference's `--dump-fields` output, which carries each field's own
+/// `int_id` - so the store's idea of "which number is `fd_fire`" is the reference's answer rather than a constant someone
+/// transcribed. Returns how many fields were installed.
+pub fn install_field_data(world: &mut World) -> Option<usize> {
+    let dump = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/field_types.json");
+    let text = std::fs::read_to_string(dump).ok()?;
+    let value = cdda_json::parse(text.as_bytes()).ok()?;
+    let cdda_json::Value::Object(root) = &value else {
+        return None;
+    };
+    let cdda_json::Value::Array(rows) = root.get("prototypes")? else {
+        return None;
+    };
+    let mut kinds: Vec<(String, u32)> = Vec::with_capacity(rows.len());
+    for row in rows {
+        let cdda_json::Value::Object(object) = row else {
+            continue;
+        };
+        let Some(cdda_json::Value::Str(id)) = object.get("id") else {
+            continue;
+        };
+        let Some(cdda_json::Value::Int(num)) = object.get("num") else {
+            continue;
+        };
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let number = *num as u32;
+        kinds.push((id.clone(), number));
+    }
+    let named: Vec<(&str, u32)> = kinds.iter().map(|(id, num)| (id.as_str(), *num)).collect();
+    cdda_sim::field_registry::set_field_names(world, &named);
+    Some(named.len())
+}
+
 /// Makes a recipe the game's data describes, and says what came of it.
 ///
 /// The recipes come from `corpus/recipes.json`, the reference's own `--dump-recipes` output, because the port's recipe
@@ -834,5 +869,78 @@ mod craft_tests {
             .and_then(|count| count.parse().ok())
             .expect("the line states how many turns it took");
         assert_eq!(turns, 360, "36,000 moves is 360 turns at a hundred a turn");
+    }
+}
+
+#[cfg(test)]
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod field_data_tests {
+    use super::*;
+    use bevy_ecs::prelude::World;
+    use cdda_core_types::field::FieldId;
+
+    /// The store's field numbers are the reference's, read from its dump rather than transcribed.
+    ///
+    /// The port kept fourteen field constants and, until `corpus/field_types.json` carried each field's own `int_id`, nothing
+    /// could check them. One of them was wrong for two rounds and nothing failed, because a rule keyed to a field that is
+    /// never placed on a map has nothing to do. This installs the numbers the reference states and asks the store what it
+    /// believes - the constants have to agree with the data.
+    #[test]
+    fn the_installed_field_names_carry_the_reference_numbers() {
+        let mut world = World::new();
+        let Some(count) = install_field_data(&mut world) else {
+            panic!("the field dump is present");
+        };
+        assert_eq!(count, 145, "the reference has 145 field types");
+
+        assert_eq!(
+            cdda_sim::field_registry::id_of(&mut world, "fd_fire"),
+            Some(cdda_sim::FIRE),
+            "fire is the constant fire"
+        );
+        assert_eq!(
+            cdda_sim::field_registry::id_of(&mut world, "fd_incendiary"),
+            Some(cdda_sim::INCENDIARY),
+            "and the incendiary field is the one the rule sweeps for"
+        );
+        assert_eq!(
+            cdda_sim::field_registry::id_of(&mut world, "fd_null"),
+            Some(FieldId(0)),
+            "null is zero"
+        );
+        assert_eq!(
+            cdda_sim::field_registry::name_of(&mut world, cdda_sim::SMOKE).as_deref(),
+            Some("fd_smoke"),
+            "and the name comes back for a number"
+        );
+        // Every constant the port has must be one the data names, and both directions must agree.
+        for (name, constant) in [
+            ("fd_fire", cdda_sim::FIRE),
+            ("fd_smoke", cdda_sim::SMOKE),
+            ("fd_extinguisher", cdda_sim::EXTINGUISHER),
+            ("fd_flame_burst", cdda_sim::FLAME_BURST),
+            ("fd_fire_vent", cdda_sim::FIRE_VENT),
+            ("fd_acid_vent", cdda_sim::ACID_VENT),
+            ("fd_shock_vent", cdda_sim::SHOCK_VENT),
+            ("fd_electricity", cdda_sim::ELECTRICITY),
+            ("fd_incendiary", cdda_sim::INCENDIARY),
+            ("fd_push_items", cdda_sim::PUSH_ITEMS),
+            ("fd_hot_air1", cdda_sim::HOT_AIR_1),
+            ("fd_hot_air2", cdda_sim::HOT_AIR_2),
+            ("fd_hot_air3", cdda_sim::HOT_AIR_3),
+            ("fd_hot_air4", cdda_sim::HOT_AIR_4),
+        ] {
+            assert_eq!(
+                cdda_sim::field_registry::id_of(&mut world, name),
+                Some(constant),
+                "{name}"
+            );
+            assert_eq!(
+                cdda_sim::field_registry::name_of(&mut world, constant).as_deref(),
+                Some(name),
+                "and back again for {name}"
+            );
+        }
     }
 }

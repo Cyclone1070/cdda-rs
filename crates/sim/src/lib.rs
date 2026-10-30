@@ -2124,9 +2124,9 @@ fn transform_field(
 /// field_ids.rs` checks every constant here against the registry the data produces. The previous
 /// values were 900 and up, and moving them exposed two tests that had quietly assumed the
 /// placeholders' *ordering* - one filtering an inclusive range, one filtering a numeric span.
-pub const FLAME_BURST: FieldId = FieldId(28);
+pub const FLAME_BURST: FieldId = FieldId(27);
 /// See [`FLAME_BURST`].
-pub const FIRE_VENT: FieldId = FieldId(26);
+pub const FIRE_VENT: FieldId = FieldId(25);
 
 /// A flame burst burns down, and when it has burnt out it becomes a fire vent.
 ///
@@ -2554,24 +2554,24 @@ pub fn hot_air_id(intensity: i32) -> Option<FieldId> {
 }
 
 /// Hot air a fire of intensity 1 leaves behind (`fd_hot_air1`).
-pub const HOT_AIR_1: FieldId = FieldId(58);
+pub const HOT_AIR_1: FieldId = FieldId(57);
 /// See [`HOT_AIR_1`].
 /// Hot air a fire of intensity 2 leaves behind (`fd_hot_air2`).
-pub const HOT_AIR_2: FieldId = FieldId(59);
+pub const HOT_AIR_2: FieldId = FieldId(58);
 /// See [`HOT_AIR_1`].
 /// Hot air a fire of intensity 3 leaves behind (`fd_hot_air3`).
-pub const HOT_AIR_3: FieldId = FieldId(60);
+pub const HOT_AIR_3: FieldId = FieldId(59);
 /// See [`HOT_AIR_1`].
 /// Hot air a fire of intensity 4 leaves behind (`fd_hot_air4`).
-pub const HOT_AIR_4: FieldId = FieldId(61);
+pub const HOT_AIR_4: FieldId = FieldId(60);
 
 /// Smoke, as the field registry numbers it.
-pub const SMOKE: FieldId = FieldId(19);
+pub const SMOKE: FieldId = FieldId(18);
 
 /// Fire, as the field registry numbers it.
-pub const FIRE: FieldId = FieldId(14);
+pub const FIRE: FieldId = FieldId(13);
 /// An extinguisher's cloud, as the field registry numbers it.
-pub const EXTINGUISHER: FieldId = FieldId(16);
+pub const EXTINGUISHER: FieldId = FieldId(15);
 
 /// An extinguisher cloud fights fire on its own square, one intensity for one intensity.
 ///
@@ -2618,7 +2618,7 @@ pub fn process_extinguisher(world: &mut World, entity: Entity) {
 }
 
 /// An acid vent, as the field registry numbers it.
-pub const ACID_VENT: FieldId = FieldId(33);
+pub const ACID_VENT: FieldId = FieldId(32);
 
 /// A vent that is at full strength thins once its age passes a minute; a spent one refills.
 ///
@@ -2653,13 +2653,13 @@ pub fn process_acid_vent(
     }
 }
 
-/// The incendiary field, as the field registry numbers it.
+/// The incendiary field, as the reference numbers it.
 ///
-/// The port's field numbers are the reference's **plus one** - its constants run one above `get_all_field_types()`
-/// because the list starts at `fd_null` while the numbering starts past it - and a test checks all fourteen of them
-/// against `corpus/field_types.json`. This one said thirty for two rounds and was the only constant that disagreed:
-/// thirty is the reference's fatigue field, so `process_incendiary` was walking the squares of a field nobody puts down.
-pub const INCENDIARY: FieldId = FieldId(48);
+/// The numbers are the reference's own - `field.id.id().to_i()` as `dump_fields` reports it, checked against
+/// `corpus/field_types.json` for all fourteen constants. This one said thirty for two rounds: an off-by-one convention that
+/// held for thirteen other constants, and here pointed `process_incendiary` at `fd_fatigue`, a field nothing in the game
+/// puts down.
+pub const INCENDIARY: FieldId = FieldId(47);
 
 /// An incendiary field sets fire to one neighbour, and warms its own square either way.
 ///
@@ -2689,9 +2689,9 @@ pub fn process_incendiary(
 }
 
 /// Electricity, as the field registry numbers it.
-pub const ELECTRICITY: FieldId = FieldId(29);
+pub const ELECTRICITY: FieldId = FieldId(28);
 /// A shock vent, as the field registry numbers it.
-pub const SHOCK_VENT: FieldId = FieldId(32);
+pub const SHOCK_VENT: FieldId = FieldId(31);
 
 /// A shock vent thins one time in five, and when spent erupts into lightning bolts.
 ///
@@ -3506,7 +3506,7 @@ pub fn process_fire(
 }
 
 /// A field that throws rocks around.
-pub const PUSH_ITEMS: FieldId = FieldId(31);
+pub const PUSH_ITEMS: FieldId = FieldId(30);
 
 /// A push-items field hurls aged rocks at its neighbours that also hold one.
 ///

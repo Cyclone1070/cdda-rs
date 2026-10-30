@@ -13,7 +13,8 @@ use cdda_core_types::field::FieldId;
 use cdda_sim::{FIRE, Field, Position, TerrainFacts, process_incendiary};
 
 /// The incendiary field, as the registry numbers it.
-const INCENDIARY: FieldId = FieldId(30);
+// The reference's number for `fd_incendiary`, as `corpus/field_types.json` states it and as the sim's constant has it.
+const INCENDIARY: FieldId = cdda_sim::INCENDIARY;
 
 fn spawn(world: &mut World, intensity: i32) -> Entity {
     let mut entry = FieldEntry::new(4, 100, true, false);
@@ -86,7 +87,7 @@ fn a_flammable_neighbour_catches_fire_and_the_dice_come_first() {
         vec![
             (4, 6, 0, FIRE.0, 1),
             (5, 5, 0, INCENDIARY.0, 2),
-            (5, 5, 0, 59, 3),
+            (5, 5, 0, cdda_sim::HOT_AIR_2.0, 3),
         ],
         "the neighbour caught fire and the hot air is capped at the type's three levels"
     );
@@ -107,8 +108,8 @@ fn a_neighbour_that_cannot_burn_gets_no_fire_but_the_hot_air_still_comes() {
         fields(&mut world),
         vec![
             (5, 5, 0, INCENDIARY.0, 2),
-            (5, 5, 0, 59, 3),
-            (6, 6, 0, 59, 1),
+            (5, 5, 0, cdda_sim::HOT_AIR_2.0, 3),
+            (6, 6, 0, cdda_sim::HOT_AIR_2.0, 1),
         ],
         "nothing burned, and the hot air is unconditional"
     );
