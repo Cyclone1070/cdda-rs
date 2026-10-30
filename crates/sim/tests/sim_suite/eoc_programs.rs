@@ -248,8 +248,8 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
     // on `u_has_trait`; with it, those programs are blamed on what refused them **next** - mostly their effects (374 -> 397) and
     // `math` guards (42 -> 45). A refusal that moves house is not the same as a program that starts running, and only one of the
     // thirty-six turned out to be otherwise complete.
-    assert_eq!(whole, 87, "seventeen more programs run whole once effects can be added and removed");
-    assert_eq!(refused.get("effect"), Some(&385), "and the effect side is still the bigger refusal");
+    assert_eq!(whole, 93, "ninety-three run whole, six more than before the math array was read as one statement");
+    assert_eq!(refused.get("effect"), Some(&379), "and the effect side is still the bigger refusal");
     assert_eq!(refused.get("u_has_trait"), None, "traits are no longer blamed for anything");
     assert_eq!(refused.get("math"), Some(&46), "`math` guards are the biggest single one");
     assert_eq!(refused.get("u_at_om_location"), Some(&28), "with overmap location next");
@@ -257,5 +257,5 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
     // not install them. The count of definitions was itself worth learning - the 712 in the earlier census counted objects, the
     // machine composes by name.
     assert_eq!(defined, 692, "the data defines 692 nameable effect-on-conditions");
-    assert_eq!(whole, 87, "and the port can run 87 of them whole");
+    assert_eq!(whole, 93, "and the port can run 93 of them whole");
 }

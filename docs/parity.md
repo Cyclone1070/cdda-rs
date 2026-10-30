@@ -328,6 +328,24 @@ entries the port can run | **363** |
 
 Reading both spellings of a destination - `"x = 1"` and `"u_val('x') = 1"`, which `read_var_info` (`condition.cpp:408-437`) treats as the same variable classed by the member that names it - took the count from 174 to 179. The 125 still refused are of two shapes, counted rather than guessed: **139 statements are pure expressions** with no assignment (`"u_val('stamina')"`, `"ps_str + 50"`), and **76 are bare operators** (`"*="`, `"+="`) that suggest a statement split across several entries of one list. Neither is run: a list whose meaning the port cannot read is refused whole, because "ignore the parts I do not understand" is how a program silently does half its job.
 
+### The `math` array is a token list, not a program (round 799)
+
+The biggest effect leaf the ranking named was `math`, 130 entries, and the reason turned out to be a shape the port had read backwards.
+
+`eoc_math::from_json` (`condition.cpp:2494-2502`) **concatenates** the array's strings - `combined.append( objects.get_string( i ) )`, nothing between them - and parses the result as **one** expression with `math_type_t::assign`. `["x", " *= ", "3"]` and `["x *= 3"]` are the same effect. The port read one statement per element, so every split statement was refused, and the measurement of those refusals ("139 pure expressions") was a measurement of the wrong reading.
+
+Reading it the reference's way:
+
+| Count | Before | After |
+|---|---|---|
+effect entries runnable | 605 | **622** |
+programs runnable whole | 87 | **93** |
+entries refused for `math` | 130 | **113** |
+
+Six programs on a seventeen-entry increase, which is the best conversion the effect side has had since effects became mutable.
+
+The lesson repeats the one from round 770, where `"math": ["…"]` needed one-element-array support: **the array is the reference's token list, and every shape question about it should start from `from_json` rather than from how the port happens to split strings.**
+
 ### The effect side gets the same ranking, and the line that had never run (round 798)
 
 The condition census has named the member that refuses since round 787. The effect census was supposed to do the same and **did not**: `blame_effect` existed, was correct, and was never called, so the refusal column counted every key of every refused entry instead of one leaf per entry. The ranking it printed - `run_eocs` 131, `math` 125, `mapgen_update` 103, `target_var` 98, `if` 96 - was a count of *members*, not of causes, and two of those five names are not effects at all.
@@ -542,7 +560,7 @@ refused for an effect | **374** |
 
 Reading a plain `run_eocs` name (one string, or a list of them) also took the effect count from 363 to **399**; the other 131 `run_eocs` entries are object forms with modifiers (`popup`, `variables`, `true_eocs`/`false_eocs`), which the port refuses rather than reading only the part it recognises.
 
-Both halves of the machine are now measured against each other: **2,094 of 3,708 conditions** answerable, **605 of 1,612 effects** runnable, and the intersection is **87 of 692 programs** runnable whole.
+Both halves of the machine are now measured against each other: **2,094 of 3,708 conditions** answerable, **622 of 1,612 effects** runnable, and the intersection is **93 of 692 programs** runnable whole.
 
 ### Messages: the second effect, and the first that only speaks (round 785)
 

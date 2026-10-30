@@ -934,14 +934,18 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
         return Some(Effect::RunEoc(names));
     }
     if let Some(Value::Array(statements)) = object.get("math") {
-        let statements = statements
-            .iter()
-            .map(|statement| match statement {
-                Value::Str(text) => read_assignment(text),
-                _ => None,
-            })
-            .collect::<Option<Vec<_>>>()?;
-        return Some(Effect::Math(statements));
+        // Reference: `eoc_math::from_json` (`condition.cpp:2494-2502`) **concatenates** the array's strings and parses the result as
+        // one statement - `combined.append( objects.get_string( i ) )` with nothing between them, then one `defer_math`. So
+        // `["x", " *= ", "3"]` and `["x *= 3"]` are the same effect, and a port that read one statement per element would refuse
+        // every split one. The array is a token list, not a program.
+        let mut joined = String::new();
+        for statement in statements {
+            let Value::Str(text) = statement else {
+                return None;
+            };
+            joined.push_str(text);
+        }
+        return read_assignment(&joined).map(|one| Effect::Math(vec![one]));
     }
     // Reference: `f_message` takes `snippet` separately from the message itself, and a snippet names text the port has no
     // table for - showing the id would be showing the wrong words.

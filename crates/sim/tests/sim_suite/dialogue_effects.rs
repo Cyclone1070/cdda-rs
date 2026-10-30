@@ -213,7 +213,11 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
     // 605 after `if`, which is a **negative** result worth keeping: 100 of the data's effect entries are an `if`, and reading it
     // added four. A list is only as readable as its parts - the same law the condition combinators taught - so an `if` whose
     // branches name effects the port cannot run is still refused, and the effect side is blocked on leaves, not on structure.
-    assert_eq!(runnable, 605, "of which the port runs 605 entries");
+    //
+    // 622 after the `math` array was read the way the reference reads it: `eoc_math::from_json` (condition.cpp:2494-2502)
+    // **concatenates** the array's strings and parses one statement, so `["x", " *= ", "3"]` is an assignment and a port reading one
+    // statement per element refused every split one.
+    assert_eq!(runnable, 622, "of which the port runs 622 entries");
 
     // And the ranking of what refuses, which is this census's real output: it says what to port next instead of what is used most.
     // `target_var` is the one entry the ranking cannot attribute on its own - a scan of the data shows 71 of those 98 are
@@ -226,8 +230,8 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
     assert_eq!(
         ranking,
         vec![
-            ("math".to_owned(), 130),
             ("run_eocs".to_owned(), 128),
+            ("math".to_owned(), 113),
             ("mapgen_update".to_owned(), 107),
             ("bonus".to_owned(), 32),
             ("duration".to_owned(), 31),
