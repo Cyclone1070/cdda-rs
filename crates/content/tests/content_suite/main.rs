@@ -100,6 +100,7 @@ mod mods;
 mod monster_group_pick;
 mod monster_groups;
 mod monster_harvest;
+mod anatomies;
 mod body_parts;
 mod monsters;
 mod monster_attack;
