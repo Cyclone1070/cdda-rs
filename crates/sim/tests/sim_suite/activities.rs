@@ -41,6 +41,7 @@ fn doing(activity: &str, moves: i32, basis: Basis) -> Doing {
         activity: activity.to_owned(),
         moves_left: moves,
         basis,
+        subject: None,
     }
 }
 
@@ -120,4 +121,86 @@ fn a_busy_creature_does_not_walk() {
         "a creature doing something spends its turn on that, not on walking"
     );
     assert!(moves_left(&world, busy) <= 0, "and it has no moves left to spend");
+}
+
+/// An activity that finishes does what it was for.
+///
+/// Reference: `activity_handlers::pickup_finish` - the transfer happens when the activity ends, not when it starts.
+/// The gate walks the whole errand: something too heavy to handle in one turn, a job that takes two, and the item in
+/// hand at the end with the floor empty.
+#[test]
+fn a_pickup_too_heavy_for_one_turn_finishes_on_the_turn_it_should() {
+    let mut world = a_world();
+    let survivor = spawn_creature(&mut world, "the survivor", (1, 0, 0));
+    // A hundred moves a turn, banked by the turn loop itself rather than handed over here.
+    set_speed(&mut world, survivor, 100, 0);
+    // No moves given: each turn the creature banks its own hundred, so two litres of handling cost - two hundred
+    // moves - is two turns' work. (Giving it a hundred up front would bank a second hundred on the first turn and
+    // finish in one, which is the reference's own accounting, not a shortcut.)
+    // Two litres: 100 + 100 moves.
+    let rock = cdda_sim::drop_item(&mut world, (1, 0), cdda_sim::ItemTypeId(9), 1);
+
+    assert_eq!(
+        cdda_sim::creature::begin_pick_up(&mut world, survivor, rock, 2_000),
+        cdda_sim::creature::Began::Started,
+        "it does not fit in the moves the creature has"
+    );
+    assert_eq!(
+        cdda_sim::items_at(&mut world, (1, 0)).len(),
+        1,
+        "so it is still on the floor"
+    );
+
+    cdda_sim::turn::run_turn(&mut world);
+    assert!(
+        world.get::<cdda_sim::creature::Doing>(survivor).is_some(),
+        "one turn is not enough"
+    );
+    assert_eq!(cdda_sim::items_at(&mut world, (1, 0)).len(), 1);
+
+    cdda_sim::turn::run_turn(&mut world);
+    assert!(
+        world.get::<cdda_sim::creature::Doing>(survivor).is_none(),
+        "the second turn finishes it"
+    );
+    assert_eq!(
+        cdda_sim::items_at(&mut world, (1, 0)).len(),
+        0,
+        "and the item is off the floor"
+    );
+    assert_eq!(
+        world.get::<cdda_sim::creature::Carried>(rock),
+        Some(&cdda_sim::creature::Carried(survivor)),
+        "in the survivor's hands"
+    );
+}
+
+#[test]
+fn something_light_enough_to_handle_at_once_is_not_an_activity() {
+    let mut world = a_world();
+    let survivor = spawn_creature(&mut world, "the survivor", (1, 0, 0));
+    give_moves(&mut world, survivor, 500);
+    let rock = cdda_sim::drop_item(&mut world, (1, 0), cdda_sim::ItemTypeId(9), 1);
+
+    assert_eq!(
+        cdda_sim::creature::begin_pick_up(&mut world, survivor, rock, 250),
+        cdda_sim::creature::Began::Done,
+        "a quarter of a litre is a hundred and twelve moves, and the creature has five hundred"
+    );
+    assert!(world.get::<cdda_sim::creature::Doing>(survivor).is_none(), "no activity was needed");
+    assert_eq!(cdda_sim::items_at(&mut world, (1, 0)).len(), 0, "and it is in hand already");
+}
+
+/// The rule on its own, without the turn loop around it.
+#[test]
+fn spending_a_turn_directly_moves_the_counter() {
+    let mut world = a_world();
+    let busy = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    give_moves(&mut world, busy, 100);
+    world
+        .entity_mut(busy)
+        .insert(doing("digging", 200, Basis::Speed));
+    let finished = cdda_sim::creature::spend_a_turn_on(&mut world, busy);
+    assert!(!finished);
+    assert_eq!(world.get::<Doing>(busy).map(|doing| doing.moves_left), Some(100));
 }

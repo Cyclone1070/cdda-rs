@@ -382,6 +382,83 @@ pub fn handling_cost(volume_ml: i32) -> i32 {
 }
 
 /// What came of trying to pick something up.
+///
+/// [`Picked::Started`] is the case the port had no word for until activities existed: the job is real, it has begun,
+/// and it is not finished.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Began {
+    /// It is in hand already: the job fitted in the moves the creature had.
+    Done,
+    /// It has begun and will take more turns.
+    Started,
+    /// It is not on the creature's square.
+    NotHere,
+    /// Somebody is already carrying it.
+    AlreadyCarried,
+    /// The creature is already busy with something else.
+    Busy,
+}
+
+/// Starts picking something up, as an activity when it will not fit in one turn.
+///
+/// Reference: `game::pickup` assigns `ACT_PICKUP` with `item_handling_cost` moves and `activity_handlers::pickup_finish`
+/// does the transfer when the activity ends. The port does the same, with the difference that an item light enough to
+/// handle inside the moves the creature already has finishes at once - the reference charges the same cost either way,
+/// and a one-turn activity is a turn spent for nothing.
+pub fn begin_pick_up(world: &mut World, creature: Entity, item: Entity, volume_ml: i32) -> Began {
+    if world.get::<Doing>(creature).is_some() {
+        return Began::Busy;
+    }
+    if world.get::<Carried>(item).is_some() {
+        return Began::AlreadyCarried;
+    }
+    let Some(here) = world.get::<Position>(creature).map(|place| (place.x, place.y, place.z)) else {
+        return Began::NotHere;
+    };
+    let Some(there) = world.get::<Position>(item).map(|place| (place.x, place.y, place.z)) else {
+        return Began::NotHere;
+    };
+    if here != there {
+        return Began::NotHere;
+    }
+    let cost = handling_cost(volume_ml);
+    if moves_left(world, creature) >= cost {
+        spend_moves(world, creature, f64::from(cost));
+        take_into_hand(world, creature, item, there);
+        return Began::Done;
+    }
+    world.entity_mut(creature).insert(Doing {
+        activity: "pickup".to_owned(),
+        moves_left: cost,
+        basis: Basis::Speed,
+        subject: Some(item),
+    });
+    Began::Started
+}
+
+/// Finishes an activity that has run out of moves.
+///
+/// Reference: `activity_handlers::finish` and its table, keyed by activity id. Only the one the port can already do is
+/// here - picking something up - and an activity the port does not know simply ends, which is the reference's own
+/// answer to an unhandled activity.
+pub fn finish_activity(world: &mut World, creature: Entity, activity: &str, subject: Option<Entity>) {
+    if let ("pickup", Some(item)) = (activity, subject)
+        && let Some(place) = world
+            .get::<Position>(creature)
+            .map(|place| (place.x, place.y, place.z))
+    {
+        take_into_hand(world, creature, item, place);
+    }
+}
+
+/// Puts an item in a creature's hand, wherever it was.
+fn take_into_hand(world: &mut World, creature: Entity, item: Entity, from: (i32, i32, i32)) {
+    crate::singletons::index_mut(world).remove(item, from);
+    world.entity_mut(item).remove::<Position>();
+    world.entity_mut(item).insert(Carried(creature));
+}
+
+/// What came of trying to pick something up.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Picked {
     /// It is in hand, and no longer on the square.
@@ -419,9 +496,7 @@ pub fn pick_up(world: &mut World, creature: Entity, item: Entity, volume_ml: i32
         return Picked::TooSlow;
     }
     spend_moves(world, creature, f64::from(cost));
-    crate::singletons::index_mut(world).remove(item, there);
-    world.entity_mut(item).remove::<Position>();
-    world.entity_mut(item).insert(Carried(creature));
+    take_into_hand(world, creature, item, there);
     Picked::Taken
 }
 
@@ -457,6 +532,11 @@ pub struct Doing {
     pub moves_left: i32,
     /// What those moves are counted in.
     pub basis: Basis,
+    /// What it is being done to, when it is being done to one thing.
+    ///
+    /// Reference: `player_activity` keeps its target as an index into a list, because the reference's items live in
+    /// containers. The port's items are entities, so the target is an entity - the same fact, without the list.
+    pub subject: Option<Entity>,
 }
 
 /// Spends one turn's moves on what a creature is doing, and says whether it is finished.
@@ -954,13 +1034,16 @@ pub fn take_turns(world: &mut World) {
     // A creature that is busy spends its turn on what it is busy with, and does not walk. Reference:
     // `player_activity::do_turn` runs as the character's turn, which is why an activity and a step cannot happen in
     // the same turn.
-    let busy: Vec<Entity> = world
-        .query_filtered::<Entity, With<Doing>>()
+    let busy: Vec<(Entity, String, Option<Entity>)> = world
+        .query::<(Entity, &Doing)>()
         .iter(world)
+        .map(|(entity, doing)| (entity, doing.activity.clone(), doing.subject))
         .collect();
     let mut working = std::collections::BTreeSet::new();
-    for entity in busy {
-        spend_a_turn_on(world, entity);
+    for (entity, activity, subject) in busy {
+        if spend_a_turn_on(world, entity) {
+            finish_activity(world, entity, &activity, subject);
+        }
         working.insert(entity);
     }
     let walkers: Vec<(Entity, (i32, i32, i32))> = world
