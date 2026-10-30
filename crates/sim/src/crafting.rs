@@ -24,6 +24,24 @@ pub enum Craft {
     NoTimeToMakeIt,
 }
 
+/// Starts a craft using what is actually in the crafter's hands.
+///
+/// The join the port was missing: [`crate::inventory::carried_by_id`] counts the carried items by their data ids, and
+/// this hands that count to [`begin_craft`]'s availability rule - so a recipe is satisfied by things the creature is
+/// really holding, not by a number a test made up.
+pub fn begin_craft_from_carried(
+    world: &mut World,
+    crafter: Entity,
+    recipe: &Recipe,
+    batch: i32,
+    name_of: impl Fn(crate::ItemTypeId) -> Option<String>,
+) -> Craft {
+    let on_hand = crate::inventory::carried_by_id(world, crafter, name_of);
+    begin_craft(world, crafter, recipe, batch, |item| {
+        on_hand.get(item).copied().unwrap_or(0)
+    })
+}
+
 /// A craft in progress.
 ///
 /// Reference: the `ACT_CRAFT` activity carries the recipe it is making and how many of it. The port keeps that on the

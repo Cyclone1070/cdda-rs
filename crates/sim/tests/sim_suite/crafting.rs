@@ -151,3 +151,53 @@ fn the_craft_takes_the_turns_it_said_it_would() {
         "the third turn finishes what the recipe said would take three"
     );
 }
+
+/// A recipe is satisfied by what the creature is really holding.
+///
+/// The last round's `begin_craft` took the count as a closure, so any caller could answer for any number: a rule about
+/// availability that no store ever had to back. This walks the join - items carried as entities, counted by the id the
+/// data uses, then handed to the availability rule - and refuses when one is short.
+#[test]
+fn a_recipe_is_satisfied_by_what_is_in_hand_and_nothing_else() {
+    let mut world = World::new();
+    let crafter = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    // Kind 7 is "rag" in this test's registry; kind 9 is a rock, which no recipe here wants.
+    let name_of = |kind: cdda_sim::ItemTypeId| match kind.0 {
+        7 => Some("rag".to_owned()),
+        9 => Some("rock".to_owned()),
+        _ => None,
+    };
+    let recipe = recipe(20_000, "rag", 2);
+
+    // One rag in each hand, as two separate entities.
+    for _ in 0..2 {
+        let rag = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(7), 1);
+        world
+            .entity_mut(rag)
+            .remove::<cdda_sim::Position>();
+        world
+            .entity_mut(rag)
+            .insert(cdda_sim::creature::Carried(crafter));
+    }
+    let carried = cdda_sim::inventory::carried_by_id(&mut world, crafter, name_of);
+    assert_eq!(carried.get("rag"), Some(&2), "two rags are in hand");
+
+    assert_eq!(
+        cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, name_of),
+        Craft::Started,
+        "and the recipe wants two"
+    );
+
+    // A second creature with one rag is short, and the same rule refuses it.
+    let other = spawn_creature(&mut world, "another survivor", (1, 0, 0));
+    let rag = cdda_sim::drop_item(&mut world, (1, 0), cdda_sim::ItemTypeId(7), 1);
+    world.entity_mut(rag).remove::<cdda_sim::Position>();
+    world
+        .entity_mut(rag)
+        .insert(cdda_sim::creature::Carried(other));
+    assert_eq!(
+        cdda_sim::crafting::begin_craft_from_carried(&mut world, other, &recipe, 1, name_of),
+        Craft::MissingComponents,
+        "one rag is not two"
+    );
+}
