@@ -60,6 +60,43 @@ pub enum Step {
     ExpectFireAt(i32, i32),
     /// Nothing burns on this square.
     ExpectNoFireAt(i32, i32),
+    /// Put a survivor on the square, which is who the item steps act through.
+    Survivor {
+        /// The square's x.
+        x: i32,
+        /// The square's y.
+        y: i32,
+    },
+    /// Install the game's own item data, so the store knows what things are.
+    Items,
+    /// Put one of a thing in the survivor's hands.
+    Give {
+        /// The item's id, as the data spells it.
+        item: String,
+        /// How many.
+        count: i32,
+    },
+    /// Make a recipe, running up to this many turns for it.
+    Craft {
+        /// The recipe's id, as the data spells it.
+        recipe: String,
+        /// How many turns to give it.
+        turns: u32,
+    },
+    /// Exactly this many of a thing are lying on the square under the survivor.
+    ExpectFloor {
+        /// The item's id.
+        item: String,
+        /// How many.
+        count: i32,
+    },
+    /// The survivor is carrying exactly this many of a thing.
+    ExpectCarried {
+        /// The item's id.
+        item: String,
+        /// How many.
+        count: i32,
+    },
 }
 
 /// What running a scenario did.
@@ -121,6 +158,27 @@ pub fn parse(text: &str) -> Result<Vec<Step>, String> {
             ["expect", "no", "fire", x, y] => {
                 Step::ExpectNoFireAt(number_of(x, number, "x")?, number_of(y, number, "y")?)
             }
+            ["survivor", x, y] => Step::Survivor {
+                x: number_of(x, number, "x")?,
+                y: number_of(y, number, "y")?,
+            },
+            ["items"] => Step::Items,
+            ["give", item, count] => Step::Give {
+                item: (*item).to_owned(),
+                count: number_of(count, number, "count")?,
+            },
+            ["craft", recipe, turns] => Step::Craft {
+                recipe: (*recipe).to_owned(),
+                turns: number_of(turns, number, "turns")?,
+            },
+            ["expect", "floor", item, count] => Step::ExpectFloor {
+                item: (*item).to_owned(),
+                count: number_of(count, number, "count")?,
+            },
+            ["expect", "carried", item, count] => Step::ExpectCarried {
+                item: (*item).to_owned(),
+                count: number_of(count, number, "count")?,
+            },
             _ => return Err(format!("line {}: `{line}` is not a step I know", number + 1)),
         };
         steps.push(step);
@@ -190,9 +248,102 @@ pub fn run(text: &str) -> Result<Outcome, String> {
                     outcome.failures.push(format!("expected no fire at ({x}, {y})"));
                 }
             }
+            other => {
+                // The item steps are a group of their own: they all ask the registry, and keeping them in one place is
+                // what stops this match from becoming a list of everything the runner can do.
+                take_item_step(&mut world, &other, &mut outcome);
+            }
         }
     }
     Ok(outcome)
+}
+
+/// Runs one of the steps that act on items, answering whether it was one of them.
+///
+/// Kept apart from [`run`]'s match for one reason worth writing down: those arms all ask the item registry, and a match
+/// that grows a dozen item arms stops being readable as the shape of a scenario.
+fn take_item_step(world: &mut World, step: &Step, outcome: &mut Outcome) -> bool {
+    match step {
+        Step::Survivor { x, y } => {
+                let survivor = cdda_sim::spawn_player(world, (*x, *y), 80, 0);
+                cdda_sim::creature::set_speed(world, survivor, 100, 0);
+                outcome.lines.push(format!("survivor: at ({x}, {y})"));
+            }
+        Step::Items => {
+                match install_item_data(world) {
+                    Some(kinds) => outcome.lines.push(format!("items: {kinds} kinds")),
+                    None => outcome.failures
+                        .push("the game's item data is not where the scenario expects it".to_owned()),
+                }
+            }
+        Step::Give { item, count } => {
+                let names = cdda_sim::item_registry::snapshot(world);
+                let Some(kind) = names.id_of(item) else {
+                    outcome.failures.push(format!("no item called {item}"));
+                    return true;
+                };
+                let Some(survivor) = survivor(world) else {
+                    outcome.failures.push("there is no survivor".to_owned());
+                    return true;
+                };
+                for _ in 0..*count {
+                    let spawned = cdda_sim::drop_item(world, (0, 0), kind, 1);
+                    world.entity_mut(spawned).remove::<cdda_sim::Position>();
+                    world
+                        .entity_mut(spawned)
+                        .insert(cdda_sim::creature::Carried(survivor));
+                }
+            }
+        Step::Craft { recipe, turns } => {
+                let Some(survivor) = survivor(world) else {
+                    outcome.failures.push("there is no survivor".to_owned());
+                    return true;
+                };
+                let allowance = i32::try_from(*turns).unwrap_or(i32::MAX);
+                match craft_a_recipe(world, survivor, recipe, allowance) {
+                    Some(line) => outcome.lines.push(format!("craft: {line}")),
+                    None => outcome
+                        .failures
+                        .push(format!("no recipe named {recipe}")),
+                }
+            }
+        Step::ExpectFloor { item, count } => {
+                let names = cdda_sim::item_registry::snapshot(world);
+                let lying = ground_of(world, item, &names);
+                if lying != *count {
+                    outcome
+                        .failures
+                        .push(format!("expected {count} {item} on the floor, found {lying}"));
+                }
+            }
+        Step::ExpectCarried { item, count } => {
+            let names = cdda_sim::item_registry::snapshot(world);
+                let held = survivor(world).map_or(0, |survivor| {
+                    cdda_sim::inventory::how_many(world, survivor, item, |kind| names.name_of(kind))
+                });
+                if held != *count {
+                    outcome
+                        .failures
+                        .push(format!("expected {count} {item} carried, found {held}"));
+                }
+            }
+        _ => return false,
+    }
+    true
+}
+
+/// The survivor a scenario acts through: the marked player, or the first creature when there is none marked.
+#[must_use]
+pub fn survivor(world: &mut World) -> Option<bevy_ecs::entity::Entity> {
+    let marked = {
+        let mut query = world.query_filtered::<bevy_ecs::entity::Entity, With<cdda_sim::Player>>();
+        query.iter(world).next()
+    };
+    marked.or_else(|| {
+        let mut query =
+            world.query_filtered::<bevy_ecs::entity::Entity, With<cdda_sim::creature::Creature>>();
+        query.iter(world).next()
+    })
 }
 
 /// Builds a world of `side` by `side` squares, which is what a scenario starts from.
@@ -291,7 +442,10 @@ pub fn craft_a_recipe(
     let recipe = recipes.iter().find(|recipe| recipe.id == recipe_id)?.clone();
 
     let names = cdda_sim::item_registry::snapshot(world);
-    for group in &recipe.components {
+    // A craft already under way is continued rather than begun again: a scenario that splits a long recipe across two
+    // lines is asking about the same craft, and `Busy` would make the second line do nothing.
+    let already_making = world.get::<cdda_sim::crafting::Making>(avatar).is_some();
+    for group in recipe.components.iter().take(usize::from(!already_making)) {
         let Some(component) = group.first() else {
             continue;
         };
@@ -305,9 +459,11 @@ pub fn craft_a_recipe(
         }
     }
 
-    let started = cdda_sim::crafting::begin_craft_from_carried(world, avatar, &recipe, 1, &names);
-    if started != cdda_sim::crafting::Craft::Started {
-        return Some(format!("{recipe_id} could not be started: {started:?}"));
+    if !already_making {
+        let started = cdda_sim::crafting::begin_craft_from_carried(world, avatar, &recipe, 1, &names);
+        if started != cdda_sim::crafting::Craft::Started {
+            return Some(format!("{recipe_id} could not be started: {started:?}"));
+        }
     }
     let moves = cdda_sim::creature::moves_left(world, avatar);
     let mut spent = 0;
