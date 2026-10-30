@@ -512,6 +512,67 @@ pub fn volume_capacity(
     total
 }
 
+/// Marks the thing a creature is holding in its hands.
+///
+/// Reference: `Character::weapon`. It is the third of the reference's three item sets - carried, worn, wielded - and the
+/// port had two and a half: a thing "in hand" was anything carried, which is why stashing a crafted thing had nowhere
+/// honest to put a thing that fitted no pocket. A wielded thing is carried **and** marked, and it is in no pocket.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WieldedBy(pub Entity);
+
+/// What came of trying to take something in hand.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Wielded {
+    /// It is now in the creature's hands.
+    Done,
+    /// It is not carried, so it cannot be wielded.
+    NotInHand,
+    /// There were not enough moves left to take it in hand.
+    TooSlow,
+}
+
+/// Takes a carried thing in hand.
+///
+/// Reference: `Character::wield` (`character.cpp:13150-13200`), which charges `item_handling_cost` for the fumbling and
+/// keeps exactly one thing in the hands: whatever was held before stays carried and stops being wielded. The port has
+/// none of the reference's limb, bionic and two-handed checks - they need anatomy and flags this port does not model -
+/// so what is here is the cost, the one-at-a-time rule, and the fact that a wielded thing is not in a pocket.
+pub fn wield(world: &mut World, creature: Entity, item: Entity, volume_ml: i32) -> Wielded {
+    if world.get::<Carried>(item).map(|carried| carried.0) != Some(creature) {
+        return Wielded::NotInHand;
+    }
+    let cost = handling_cost(volume_ml);
+    if moves_left(world, creature) < cost {
+        return Wielded::TooSlow;
+    }
+    give_moves(world, creature, -cost);
+    // One thing in the hands at a time: whatever was held is still carried, and no longer wielded.
+    let previous: Vec<Entity> = {
+        let mut query = world.query::<(Entity, &WieldedBy)>();
+        query
+            .iter(world)
+            .filter(|(_, wielded)| wielded.0 == creature)
+            .map(|(entity, _)| entity)
+            .collect()
+    };
+    for old in previous {
+        world.entity_mut(old).remove::<WieldedBy>();
+    }
+    world.entity_mut(item).remove::<InPocket>();
+    world.entity_mut(item).insert(WieldedBy(creature));
+    Wielded::Done
+}
+
+/// What a creature is holding in its hands, if anything.
+#[must_use]
+pub fn wielding(world: &mut World, creature: Entity) -> Option<Entity> {
+    let mut query = world.query::<(Entity, &WieldedBy)>();
+    query
+        .iter(world)
+        .find(|(_, wielded)| wielded.0 == creature)
+        .map(|(entity, _)| entity)
+}
+
 /// Which pocket of which worn thing a carried item is in.
 ///
 /// Reference: an item lives inside an `item_pocket`, and the pockets are reached through what is worn. The port keeps
