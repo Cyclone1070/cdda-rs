@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-29 08:11:53
-@@ -0,0 +1,6222 @@
++++ oracle/src/src/harness.cpp	2026-10-31 00:42:33
+@@ -0,0 +1,6481 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +
@@ -384,6 +384,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 +#include <algorithm>
 +#include <array>
++#include "anatomy.h"
++#include "melee.h"
 +
 +#include "avatar.h"
 +#include "calendar.h"
@@ -711,6 +713,141 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    std::fclose( out );
 +}
 +
++namespace
++{
++/// One prototype in the shape `map_data_common_t::load` reads: `type` rather than `kind`, and `symbol`
++/// as a string rather than code points. The other dumps describe what the reference holds; this one is
++/// the file the game itself would load, which is what lets the port's loader be pointed at the
++/// reference's own data instead of at a hand-written fixture.
++/// Escapes a string for JSON. Terrain symbols include `"` and `\\` in the real data - a railroad tie
++/// has a backslash - so a dump that prints them raw is not JSON at all.
++std::string escaped( const std::string &raw )
++{
++    std::string out;
++    for( const char c : raw ) {
++        if( c == '"' || c == '\\' ) {
++            out.push_back( '\\' );
++        }
++        out.push_back( c );
++    }
++    return out;
++}
++
++template<typename T>
++void write_for_loader( std::FILE *out, const T &proto, const char *type, bool &first )
++{
++    std::fprintf( out, "%s\n{\"type\":\"%s\",\"id\":\"%s\",\"name\":\"%s\",",
++                  first ? "" : ",", type, escaped( proto.id.str() ).c_str(),
++                  escaped( proto.name() ).c_str() );
++    std::fprintf( out, "\"symbol\":\"%s\",\"color\":\"%s\",\"move_cost\":%d,"
++                  "\"light\":%d,\"coverage\":%d,\"transparent\":%s,\"flags\":[",
++                  escaped( std::string( 1, static_cast<char>( proto.symbol_[0] ) ) ).c_str(),
++                  string_from_color( proto.color() ).c_str(), proto.movecost,
++                  proto.light_emitted, proto.coverage,
++                  proto.transparent ? "true" : "false" );
++    bool first_flag = true;
++    for( const std::string &flag : proto.get_flags() ) {
++        std::fprintf( out, "%s\"%s\"", first_flag ? "" : ",", flag.c_str() );
++        first_flag = false;
++    }
++    std::fprintf( out, "]}" );
++    first = false;
++}
++} // namespace
++
++void dump_melee_rolls( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    // `melee_hit_range` is `normal_roll( accuracy * 5, 25 )` (`melee.cpp:2912`): the only randomness in
++    // deciding whether an attack connects. Dumping it per seed pins both numbers, because a wrong mean
++    // or a wrong deviation moves every value.
++    std::fprintf( out, "{\"harness\":\"melee-rolls\",\"version\":1,\n\"samples\":[" );
++    bool first = true;
++    for( unsigned seed : { 1u, 12345u, 999u } ) {
++        for( float accuracy : { 1.0f, 2.5f, 6.0f } ) {
++            rng_set_engine_seed( seed );
++            std::fprintf( out, "%s\n{\"seed\":%u,\"accuracy\":%.6f,\"rolls\":[",
++                          first ? "" : ",", seed, static_cast<double>( accuracy ) );
++            for( int i = 0; i < 4; i++ ) {
++                std::fprintf( out, "%s%.6f", i == 0 ? "" : ",",
++                              static_cast<double>( melee::melee_hit_range( accuracy ) ) );
++            }
++            std::fprintf( out, "]}" );
++            first = false;
++        }
++    }
++    std::fprintf( out, "]}\n" );
++    std::fclose( out );
++}
++
++void dump_mapdata( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    // No wrapper object: this is the file the game would load, so it is a bare array of prototypes.
++    std::fprintf( out, "[\n" );
++    bool first = true;
++    for( const ter_t *proto : harness_all_terrains() ) {
++        write_for_loader( out, *proto, "terrain", first );
++    }
++    for( const furn_t *proto : harness_all_furniture() ) {
++        write_for_loader( out, *proto, "furniture", first );
++    }
++    std::fprintf( out, "]\n" );
++    std::fclose( out );
++}
++
++void dump_sun_internals( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    // **The calendar is set from the option before sampling**, because it is not set yet when this
++    // dump runs: `calendar::year_length()` is still the unconfigured four days, while the options
++    // table already answers ninety-one. Without this line the samples are computed on a four-day
++    // year and agree with nothing that runs later.
++    calendar::set_season_length( ::get_option<int>( "SEASON_LENGTH" ) );
++
++    // The options the run used, because the numbers below depend on them: the year length enters
++    // `angle_per_day` directly, so a sample taken with one-day seasons and a sample taken with
++    // ninety-one-day seasons are not comparable at all.
++    std::fprintf( out,
++                  "{\"harness\":\"sun-internals\",\"version\":2,\n"
++                  "\"options\":{\"SEASON_LENGTH\":%d,\"ETERNAL_SEASON\":%s},\n\"samples\":[",
++                  ::get_option<int>( "SEASON_LENGTH" ),
++                  calendar::eternal_season() ? "true" : "false" );
++    bool first = true;
++    // The turns around the sunrise the environment dump disagreed about: one every hundred turns
++    // across the first hour after midnight, plus the reference's own sunrise for that day.
++    std::vector<int> turns;
++    for( int turn = 0; turn <= 4 * 3600; turn += 100 ) {
++        turns.push_back( turn );
++    }
++    turns.push_back( to_turn<int>( sunrise( calendar::turn_zero ) ) );
++    turns.push_back( to_turn<int>( sunset( calendar::turn_zero ) ) );
++    for( int turn : turns ) {
++        const time_point t = calendar::turn_zero + time_duration::from_turns( turn );
++        const std::array<double, 6> internals = harness_sun_internals( t );
++        std::fprintf( out,
++                      "%s\n{\"turn\":%d,\"ra\":%.9f,\"dec\":%.9f,\"sidereal\":%.9f,"
++                      "\"hour_angle\":%.9f,\"days\":%.12f,\"latitude\":%.9f}",
++                      first ? "" : ",", turn, internals[0], internals[1], internals[2],
++                      internals[3], internals[4], internals[5] );
++        first = false;
++    }
++    std::fprintf( out, "]}\n" );
++    std::fclose( out );
++}
++
 +void dump_environment( const std::string &path )
 +{
 +    std::FILE *out = std::fopen( path.c_str(), "wb" );
@@ -719,7 +856,12 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        return;
 +    }
 +
-+    std::fprintf( out, "{\"harness\":\"environment\",\"version\":1,\n" );
++    // **The calendar is set from the option before anything is read from it**, for the same reason
++    // the sun-internals probe does it: at this point `calendar::year_length()` is still the
++    // unconfigured four days, so a sunrise taken here is a sunrise on a four-day year.
++    calendar::set_season_length( ::get_option<int>( "SEASON_LENGTH" ) );
++
++    std::fprintf( out, "{\"harness\":\"environment\",\"version\":2,\n" );
 +
 +    // The engine's position, fingerprinted by drawing from a copy so that the
 +    // game's own stream is not advanced by measuring it.
@@ -1168,10 +1310,14 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +            }
 +            std::fprintf( out, "]" );
 +        }
-+        // What the recipe asks of the crafter: the skill it trains and how hard it is
-+        // (`recipe.h:133-137` and `:188`).
-+        std::fprintf( out, "],\"skill\":\"%s\",\"difficulty\":%d}",
-+                      harness_escape( r.skill_used.str() ).c_str(), r.difficulty );
++        // What the recipe asks of the crafter: the skill it trains, how hard it is, and how long one batch takes
++        // (`recipe.h:133-137`, `:188`, and `time`, which is a `time_duration` in moves).
++        std::fprintf( out, "],\"skill\":\"%s\",\"difficulty\":%d,\"time_moves\":%d}",
++                      harness_escape( r.skill_used.str() ).c_str(), r.difficulty,
++                      // The moves one batch takes for an ordinary crafter: `time_to_craft_moves` returns `time`
++                      // itself when proficiencies are ignored (`recipe.cpp:100-106`), and `time` is private.
++                      static_cast<int>( r.time_to_craft_moves(
++                                            get_player_character(), recipe_time_flag::ignore_proficiencies ) ) );
 +        first = false;
 +    }
 +    std::fprintf( out, "\n],\"count\":%zu}\n", recipe_dict.size() );
@@ -5983,6 +6129,112 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +{
 +
 +// Every resolved monster type, with the fields the port loads first.
++/// Every anatomy and the numbers a blow's landing place is chosen from.
++///
++/// Reference: `anatomy` (`src/anatomy.h:20-64`) holds a list of `bodypart_id`, and `anatomy::select_body_part`
++/// (`anatomy.cpp:208-256`) weighs each by `bodypart_type::hit_size`, filters on `min_hit`/`max_hit`, drops
++/// `LIMB_UPPER` parts for a short attacker, triples `LIMB_LOWER` ones and scales by
++/// `hit_roll ^ hit_difficulty`. A gate that built its own parts would prove the arithmetic and not the data, so
++/// this dumps both: which parts each anatomy has, and what each part states.
++void dump_anatomy( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    std::fprintf( out, "{\"harness\":\"anatomy\",\"version\":1,\n\"parts\":[\n" );
++    bool first = true;
++    for( const body_part_type &part : body_part_type::get_all() ) {
++        const bool upper = part.has_flag( json_character_flag( "LIMB_UPPER" ) );
++        const bool lower = part.has_flag( json_character_flag( "LIMB_LOWER" ) );
++        std::fprintf( out,
++                      "%s\n{\"id\":\"%s\",\"name\":\"%s\",\"hit_size\":%.6f,"
++                      "\"hit_difficulty\":%.6f,\"upper\":%s,\"lower\":%s}",
++                      first ? "" : ",", harness_escape( part.id.str() ).c_str(),
++                      harness_escape( part.name.translated() ).c_str(),
++                      static_cast<double>( part.hit_size ),
++                      static_cast<double>( part.hit_difficulty ),
++                      upper ? "true" : "false", lower ? "true" : "false" );
++        first = false;
++    }
++    // The anatomy list is deliberately not dumped: `anatomy_factory` is a file-local static in `anatomy.cpp`
++    // and the harness may not reach into the reference's internals. Which parts an anatomy has is data the port
++    // loads from the game's JSON; what those parts *are* is what this file answers.
++    std::fprintf( out, "\n]}\n" );
++    std::fclose( out );
++}
++
++/// What every spell's numbers are, as the reference resolved them.
++///
++/// `spell_type` holds most of its numbers as `dbl_or_var`, which is either a constant or a dice/arithmetic
++/// expression. Only the constants are dumped as numbers: an expression is written as `null`, because a loader that
++/// silently read a dice expression as its mean would be wrong in a way no test could see. The port's spells are
++/// data-driven off these numbers; what a spell *does* is `effect_name`, which is a string the port dispatches on.
++static void dump_one_number( std::FILE *out, const char *key, const dbl_or_var &value, bool &first )
++{
++    std::fprintf( out, "%s\"%s\":", first ? "" : ",", key );
++    if( value.is_constant() ) {
++        std::fprintf( out, "%.6f", static_cast<double>( value.constant() ) );
++    } else {
++        std::fprintf( out, "null" );
++    }
++    first = false;
++}
++
++void dump_spells( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    std::fprintf( out, "{\"harness\":\"spells\",\"version\":1,\n\"spells\":[\n" );
++    bool first_spell = true;
++    for( const spell_type &spell : spell_type::get_all() ) {
++        if( spell.id.is_null() ) {
++            continue;
++        }
++        std::fprintf( out, "%s\n{\"id\":\"%s\",\"name\":\"%s\",\"effect_name\":\"%s\"",
++                      first_spell ? "" : ",", harness_escape( spell.id.str() ).c_str(),
++                      harness_escape( spell.name.translated() ).c_str(),
++                      harness_escape( spell.effect_name ).c_str() );
++        bool first = false;
++        std::fprintf( out, ",\"effect_str\":\"%s\"", harness_escape( spell.effect_str ).c_str() );
++        std::fprintf( out, ",\"damage_type\":\"%s\"", harness_escape( spell.dmg_type.str() ).c_str() );
++        std::fprintf( out, ",\"shape\":\"%s\"",
++                      harness_escape( io::enum_to_string( spell.spell_area ) ).c_str() );
++        dump_one_number( out, "min_damage", spell.min_damage, first );
++        // The effect's duration, which `add_effect_to_target` (`magic_spell_effect.cpp:499-520`) needs and the dump did
++        // not carry: without it a port can say a spell applies an effect but not for how long.
++        dump_one_number( out, "min_duration", spell.min_duration, first );
++        dump_one_number( out, "duration_increment", spell.duration_increment, first );
++        dump_one_number( out, "max_duration", spell.max_duration, first );
++        dump_one_number( out, "damage_increment", spell.damage_increment, first );
++        dump_one_number( out, "max_damage", spell.max_damage, first );
++        dump_one_number( out, "min_range", spell.min_range, first );
++        dump_one_number( out, "range_increment", spell.range_increment, first );
++        dump_one_number( out, "max_range", spell.max_range, first );
++        dump_one_number( out, "min_aoe", spell.min_aoe, first );
++        dump_one_number( out, "aoe_increment", spell.aoe_increment, first );
++        dump_one_number( out, "max_aoe", spell.max_aoe, first );
++        dump_one_number( out, "base_energy_cost", spell.base_energy_cost, first );
++        dump_one_number( out, "energy_increment", spell.energy_increment, first );
++        dump_one_number( out, "final_energy_cost", spell.final_energy_cost, first );
++        dump_one_number( out, "difficulty", spell.difficulty, first );
++        dump_one_number( out, "max_level", spell.max_level, first );
++        dump_one_number( out, "base_casting_time", spell.base_casting_time, first );
++        dump_one_number( out, "casting_time_increment", spell.casting_time_increment, first );
++        dump_one_number( out, "final_casting_time", spell.final_casting_time, first );
++        std::fprintf( out, ",\"energy_source\":\"%s\"",
++                      harness_escape( io::enum_to_string( spell.get_energy_source() ) ).c_str() );
++        std::fprintf( out, "}" );
++        first_spell = false;
++    }
++    std::fprintf( out, "\n]}\n" );
++    std::fclose( out );
++}
++
 +void dump_monsters( const std::string &path )
 +{
 +    std::FILE *out = std::fopen( path.c_str(), "wb" );
@@ -5990,7 +6242,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        std::fprintf( stderr, "harness: cannot open %s\n", path.c_str() );
 +        return;
 +    }
-+    std::fprintf( out, "{\"harness\":\"monsters\",\"version\":1,\n\"prototypes\":[\n" );
++    std::fprintf( out, "{\"harness\":\"monsters\",\"version\":2,\n\"prototypes\":[\n" );
 +    bool first = true;
 +    for( const mtype &proto : MonsterGenerator::generator().get_all_mtypes() ) {
 +        std::fprintf( out, "%s\n{\"id\":\"%s\",\"name\":\"%s\",\"symbol\":\"%s\",\"color\":\"%s\","
@@ -6037,10 +6289,17 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +            case creature_size::huge:  size_name = "huge";  break;
 +            default: break;
 +        }
-+        std::fprintf( out, "],\"harvest\":\"%s\",\"dissect\":\"%s\",\"size\":\"%s\"}",
++        // Version two adds what an attack needs and what armour it must get through: the melee dice and
++        // their faces, the dice's armour penetration, and the monster's own resistance to bash and cut.
++        std::fprintf( out, "],\"harvest\":\"%s\",\"dissect\":\"%s\",\"size\":\"%s\","
++                      "\"melee_dice\":%d,\"melee_sides\":%d,\"melee_dice_ap\":%d,"
++                      "\"armor_bash\":%d,\"armor_cut\":%d}",
 +                      harness_escape( proto.harvest.str() ).c_str(),
 +                      harness_escape( proto.dissect.str() ).c_str(),
-+                      size_name );
++                      size_name,
++                      proto.melee_dice, proto.melee_sides, proto.melee_dice_ap,
++                      static_cast<int>( proto.armor.type_resist( damage_type_id( "bash" ) ) ),
++                      static_cast<int>( proto.armor.type_resist( damage_type_id( "cut" ) ) ) );
 +        first = false;
 +    }
 +    std::fprintf( out, "\n]}\n" );
@@ -6584,8 +6843,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-29 06:01:57
-@@ -0,0 +1,393 @@
++++ oracle/src/src/harness.h	2026-10-30 16:20:55
+@@ -0,0 +1,398 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -6645,6 +6904,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +// on. This is the first, smallest state fingerprint: two runs of the same build
 +// with the same seed must agree on every field.
 +void dump_environment( const std::string &path );
++void dump_sun_internals( const std::string &path );
++void dump_mapdata( const std::string &path );
++void dump_melee_rolls( const std::string &path );
 +/// `--dump-astronomy <file>`: the sun's altitude and the light it gives, over a year.
 +void dump_astronomy( const std::string &path );
 +
@@ -6873,6 +7135,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +void dump_item_measures( const std::string &path );
 +// Writes every resolved monster type.
 +void dump_monsters( const std::string &path );
++void dump_anatomy( const std::string &path );
++void dump_spells( const std::string &path );
 +
 +// `--dump-state <file>`: the world the reference actually produced — random
 +// stream position, calendar, avatar, and a tile-level digest of the reality
@@ -7153,7 +7417,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-29 06:01:57
++++ oracle/src/src/main.cpp	2026-10-30 18:13:01
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -7164,7 +7428,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,142 @@
+@@ -272,6 +275,152 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -7174,6 +7438,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_prototype_ids;
 +    // Harness: the state that exists before any world does.
 +    std::string dump_env;
++    // Harness: the intermediate values the sun's position is computed from.
++    std::string dump_sun_internals;
++    // Harness: the terrain and furniture prototypes in the shape the loader reads.
++    std::string dump_mapdata;
++    // Harness: the accuracy rolls a melee attack makes.
++    std::string dump_melee_rolls;
++    // Harness: anatomies and the body part numbers a hit location is chosen from.
++    std::string dump_anatomy;
++    // Harness: every spell's numbers.
++    std::string dump_spells;
 +    // Harness: the state of a freshly started game.
 +    std::string dump_state;
 +    // Harness: every weather type, with the numbers the game reads off it.
@@ -7307,10 +7581,60 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +439,1240 @@
+@@ -300,6 +449,1290 @@
                  }
              },
              {
++                "--dump-spells", "<file>",
++                "Writes every spell's numbers: damage, range, area, energy, casting time, difficulty, shape",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_spells = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-anatomy", "<file>",
++                "Writes every anatomy and every body part's hit size, difficulty and limb flags",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_anatomy = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-melee-rolls", "<file>",
++                "Writes melee accuracy rolls per seed, which pins the normal distribution",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_melee_rolls = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-mapdata", "<file>",
++                "Writes every terrain and furniture prototype in the loader's own shape",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_mapdata = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-sun-internals", "<file>",
++                "Writes the sun's intermediate values for a few days around turn zero",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_sun_internals = params[0];
++                    return 1;
++                }
++            },
++            {
 +                "--dump-prototype-digest", "<file>",
 +                "Writes a digest of every loaded prototype to <file> and exits",
 +                section_default,
@@ -8548,7 +8872,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2159,663 @@
+@@ -786,6 +2219,695 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -9172,6 +9496,34 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            harness::dump_monsters( cli.dump_monsters );
 +            exit_handler( 0 );
 +        }
++        if( !cli.dump_anatomy.empty() ) {
++            // After the data is loaded: body parts come from the JSON like every other prototype, and a dump
++            // taken before the load measured an empty list - the same trap as the mapdata probe.
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_anatomy( cli.dump_anatomy );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_spells.empty() ) {
++            // After the data is loaded: spells are prototypes like everything else, and a probe that runs before the
++            // load measures an empty registry - the trap this file has fallen into three times now.
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_spells( cli.dump_spells );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_melee_rolls.empty() ) {
++            harness::dump_melee_rolls( cli.dump_melee_rolls );
++            exit( 0 );
++        }
++        if( !cli.dump_mapdata.empty() ) {
++            // After the data is loaded, because the prototypes are what it dumps: the same trap the
++            // sun-internals probe fell into, where a dump taken early measured an empty world.
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_mapdata( cli.dump_mapdata );
++            exit_handler( 0 );
++        }
 +        if( !cli.dump_terrain.empty() ) {
 +            test_mode = true;
 +            g->check_mod_data( { mod_id( "dda" ) } );
@@ -9185,6 +9537,10 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +        if( !cli.dump_geometry.empty() ) {
 +            harness::dump_geometry( cli.dump_geometry );
 +            exit_handler( 0 );
++        }
++        if( !cli.dump_sun_internals.empty() ) {
++            harness::dump_sun_internals( cli.dump_sun_internals );
++            exit( 0 );
 +        }
 +        if( !cli.dump_env.empty() ) {
 +            harness::dump_environment( cli.dump_env );
@@ -9502,7 +9858,7 @@ diff -ruN references/Cataclysm-DDA/src/map_memory.h oracle/src/src/map_memory.h
          bool save( const tripoint_abs_ms &pos );
 diff -ruN references/Cataclysm-DDA/src/mapdata.cpp oracle/src/src/mapdata.cpp
 --- references/Cataclysm-DDA/src/mapdata.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/mapdata.cpp	2026-10-25 20:07:31
++++ oracle/src/src/mapdata.cpp	2026-10-30 06:50:39
 @@ -1,4 +1,8 @@
  #include "mapdata.h"
 +#ifdef CATA_HARNESS

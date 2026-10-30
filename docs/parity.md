@@ -306,6 +306,19 @@ That comparison caught a wrong belief in the test itself, and it is worth writin
 
 The sweep now matches the data exactly for every attack spell with levels to climb, which is the arithmetic `Scaling::at` had never been tested on across the corpus.
 
+### What the attack spells still cannot do: apply an effect (round 762)
+
+The ceiling sweep raised the next question and answered it before any code was written. Reference `damage_targets` (`magic_spell_effect.cpp:546-563`) does two things per target, in this order:
+
+1. `if( !sp.effect_data().empty() ) add_effect_to_target( target, sp, caster );`
+2. `if( sp.damage( caster ) > 0 )` - deal the damage.
+
+The port does only the second. **27 of the 77 attack spells name an effect in `effect_str`** (`AO_TELEPORTITIS`, `AO_SLOW`, `AEA_CONFUSED` and twenty-four more), so a quarter of the attack spells in the game currently deal their damage and skip their effect. The two negative-damage spells are *not* part of that gap: both have an **empty** `effect_str`, so the reference applies no effect and deals no damage - it does nothing at all, which is what the port does too.
+
+The effect's duration is what blocked the port, and it was missing from the oracle: `spell_type` has `min_duration`, `duration_increment` and `max_duration` (`magic.h:291-296`) and `dump_spells` did not emit them. The harness now does, and the patch reproduces byte for byte (`apply_harness_patches.py --verify`). The corpus regeneration and the port of `add_effect_to_target` follow next.
+
+That ordering is the project's rule working as intended: **keep the oracle ahead of every loader.** A port written before the duration was dumped would have had to invent a duration, and an invented duration is a silent divergence in every one of the 27 spells.
+
 ### Spell effects: three of thirty-three (rounds 756–758)
 
 `spell_effects::EFFECTS` is `magic_spell_effect.cpp`'s shape - one function per `effect_name`, dispatched by a table - and it holds two of the **33** names the data uses:
