@@ -508,7 +508,7 @@ fn pain_interrupts_a_craft_and_the_work_is_kept() {
     cdda_sim::creature::stop_doing(&mut world, crafter);
     assert!(!disturb(&mut world, crafter, Distraction::Pain));
     // And an activity nobody has an opinion about is interrupted by default.
-    assert!(heeds("anything_at_all", Distraction::Sight));
+    assert!(heeds("anything_at_all", Distraction::Noise));
     // A pickup, interrupted, is not queued - so what waits to be resumed is still the craft, not the errand.
     cdda_sim::creature::stop_doing(&mut world, crafter);
     world.entity_mut(crafter).insert(Doing {
@@ -523,5 +523,79 @@ fn pain_interrupts_a_craft_and_the_work_is_kept() {
         world.get::<Doing>(crafter).map(|doing| doing.activity.clone()),
         Some("craft".to_owned()),
         "the craft is what was waiting; the pickup left nothing behind"
+    );
+}
+
+/// Being hit stops the work, and the world does the hitting rather than a test.
+///
+/// Reference: `Character::on_hurt` (`character.cpp:8564-8590`) raises `distraction_type::attacked` after damage lands.
+/// The previous round ported the distraction path but nothing in the game called it; this is the caller, and the gate is
+/// that harm arriving through `hurt` - the function every blow already goes through - is enough on its own.
+#[test]
+fn a_blow_stops_a_craft_without_anyone_asking_it_to() {
+    use cdda_sim::creature::{Doing, health_of, hurt, resume_backlog, spawn_creature};
+    use cdda_sim::crafting::{Craft, Making, begin_craft_from_carried};
+
+    let mut world = World::new();
+    let crafter = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    world
+        .entity_mut(crafter)
+        .insert(cdda_sim::creature::Health { hp: 80, max_hp: 80 });
+    let names = cdda_sim::item_registry::ItemNames {
+        names: vec![String::new(), "rag".to_owned(), "rope".to_owned()],
+        by_name: [
+            ("rag".to_owned(), cdda_sim::ItemTypeId(1)),
+            ("rope".to_owned(), cdda_sim::ItemTypeId(2)),
+        ]
+        .into_iter()
+        .collect(),
+        volumes_ml: vec![0, 250, 500],
+        weights_g: vec![0, 100, 200],
+        holds_ml: vec![0, 0, 0],
+        pockets: Vec::new(),
+        pocket_ranges: vec![(0, 0), (0, 0), (0, 0)],
+    };
+    for _ in 0..2 {
+        let rag = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 1);
+        world.entity_mut(rag).remove::<cdda_sim::Position>();
+        world
+            .entity_mut(rag)
+            .insert(cdda_sim::creature::Carried(crafter));
+    }
+    let recipe = cdda_content::recipes::Recipe {
+        id: "tie_a_rope".to_owned(),
+        result: "rope".to_owned(),
+        blacklisted: false,
+        components: vec![vec![cdda_content::recipes::Component {
+            item: "rag".to_owned(),
+            count: 2,
+        }]],
+        tools: Vec::new(),
+        qualities: Vec::new(),
+        skill: String::new(),
+        difficulty: 0,
+        time_moves: 20_000,
+    };
+    assert_eq!(
+        begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
+        Craft::Started
+    );
+
+    hurt(&mut world, crafter, 9.0);
+
+    assert_eq!(health_of(&world, crafter), Some(71), "nine points of harm landed");
+    assert!(world.get::<Doing>(crafter).is_none(), "and stopped the craft");
+    assert!(world.get::<Making>(crafter).is_some(), "without losing the recipe");
+    assert!(resume_backlog(&mut world, crafter), "the work is waiting");
+    assert_eq!(
+        world.get::<Doing>(crafter).map(|doing| doing.moves_left),
+        Some(20_000),
+        "the craft had not begun to be paid down in this test, so all of it is left"
+    );
+    // A blow that does no harm is not a distraction.
+    hurt(&mut world, crafter, 0.0);
+    assert!(
+        world.get::<Doing>(crafter).is_some(),
+        "a scratch that takes nothing off does not interrupt anything"
     );
 }

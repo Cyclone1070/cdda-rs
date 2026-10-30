@@ -245,6 +245,12 @@ pub fn hurt(world: &mut World, entity: Entity, damage: f32) {
     if let Some(mut health) = world.get_mut::<Health>(entity) {
         health.hp -= whole;
     }
+    if whole > 0 {
+        // Reference: `Character::on_hurt` (`character.cpp:8564-8590`) raises `distraction_type::attacked` after the
+        // damage lands, which is what makes being hit stop what you were doing. Only a creature that is doing
+        // something is bothered; `disturb` answers `false` for the rest and changes nothing.
+        disturb(world, entity, Distraction::Attacked);
+    }
 }
 
 /// What a creature has left, or nothing when it has no [`Health`] at all.
@@ -511,9 +517,9 @@ pub enum Distraction {
     /// It was hurt.
     Pain,
     /// It heard something.
-    Sound,
-    /// It saw something.
-    Sight,
+    Noise,
+    /// It was attacked, which the reference distinguishes from pain: a blow can land and still not hurt.
+    Attacked,
 }
 
 /// The activities that cannot be interrupted at all.
