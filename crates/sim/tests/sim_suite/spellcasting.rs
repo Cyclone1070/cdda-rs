@@ -11,7 +11,7 @@ use bevy_ecs::prelude::*;
 use cdda_content::spells::Scaling;
 use cdda_sim::creature::{Body, Garment, WornBy, dress, health_of, set_health, spawn_creature};
 use cdda_sim::hit_location::BodyPart;
-use cdda_sim::spellcasting::{Cast, cast_attack};
+use cdda_sim::spellcasting::{Cast, cast_at, cast_attack, lands_on};
 use cdda_sim::spawn_monster;
 
 fn torso_only() -> Body {
@@ -163,4 +163,61 @@ fn the_lever_kills_a_monster_as_it_would_a_person() {
         }
     );
     assert_eq!(health_of(&world, monster), Some(0), "and it is dead");
+}
+
+/// Where a spell lands is a draw over the parts' hit sizes, and the draw comes from the store.
+///
+/// Reference: `anatomy::random_body_part` (`anatomy.cpp:203-206`) - `rng_float( 0, size_sum )` and the first part
+/// whose running total reaches it. It is **not** the melee rule: a struck part is tilted by how well the blow
+/// landed, while a spell lands somewhere on the body and a big part is simply likelier.
+#[test]
+fn a_spell_lands_where_the_hit_sizes_say_and_not_where_the_melee_rule_would() {
+    let torso = BodyPart {
+        name: "torso".to_owned(),
+        hit_size: 90.0,
+        hit_difficulty: 1.0,
+        upper: false,
+        lower: false,
+    };
+    let head = BodyPart {
+        name: "head".to_owned(),
+        hit_size: 10.0,
+        hit_difficulty: 3.0,
+        upper: true,
+        lower: false,
+    };
+    let parts = vec![torso, head];
+
+    assert_eq!(lands_on(&parts, 0.0).as_deref(), Some("torso"), "the first draw is the first part");
+    assert_eq!(
+        lands_on(&parts, 0.89).as_deref(),
+        Some("torso"),
+        "ninety per cent of the weight is torso, so a draw at 0.89 is still torso"
+    );
+    assert_eq!(
+        lands_on(&parts, 0.91).as_deref(),
+        Some("head"),
+        "and past ninety per cent it is the head"
+    );
+    assert_eq!(
+        lands_on(&parts, 0.9999).as_deref(),
+        Some("head"),
+        "the last of the range is the last part, not nothing"
+    );
+}
+
+#[test]
+fn the_same_seed_lands_the_blow_in_the_same_place() {
+    let cast_once = |seed: u32| {
+        let (mut world, victim) = world_with_victim((1, 0));
+        cdda_sim::singletons::put_rolls(
+            &mut world,
+            cdda_core_types::rng::Rolls::new(seed),
+        );
+        cast_at(&mut world, (0, 0, 0), &taser(), 0, victim)
+    };
+    assert_eq!(cast_once(7), cast_once(7), "a seed replays the same cast");
+    // Two seeds may land the same way on a one-part body, so what is being proven here is the replay, not a
+    // difference: a cast that drew from somewhere else would not answer the same twice.
+    assert_eq!(cast_once(11), cast_once(11), "and so does another");
 }

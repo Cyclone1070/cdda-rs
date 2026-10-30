@@ -382,7 +382,8 @@ pub fn cast_at_nearest(
         }
     }
     let (_, target) = nearest?;
-    let outcome = cdda_sim::spellcasting::cast_attack(world, caster, &spell, level, target, 0.0);
+    // Drawn from the store's own generator, so a playtest seeded the same way casts the same fight.
+    let outcome = cdda_sim::spellcasting::cast_at(world, caster, &spell, level, target);
     Some(match outcome {
         cdda_sim::spellcasting::Cast::Hit { part, dealt } => {
             format!("{} hits the {part} for {dealt}", spell.name)
@@ -423,6 +424,9 @@ mod tests {
     fn the_avatar_can_cast_the_taser_from_the_game_s_data_at_what_is_next_to_it() {
         let mut world = World::new();
         let avatar = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
+        // A cast draws where it lands from the store's generator, so a world without one cannot cast - which is the
+        // rule, not an accident: a cast that invented its own randomness could not be replayed.
+        cdda_sim::turn::set_random(&mut world, cdda_core_types::rng::Rolls::new(3));
         let torso = cdda_sim::hit_location::BodyPart {
             name: "torso".to_owned(),
             hit_size: 36.0,

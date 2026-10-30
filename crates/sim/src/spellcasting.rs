@@ -10,7 +10,6 @@ use bevy_ecs::prelude::*;
 use cdda_content::spells::Spell;
 
 use crate::creature::{Body, PartArmour, armour_on, hurt};
-use crate::hit_location::struck_part;
 use crate::through_armour;
 
 /// What came of casting.
@@ -65,10 +64,9 @@ pub fn cast_attack(
     let Some(body) = world.get::<Body>(target) else {
         return Cast::NothingToHit;
     };
-    let Some(part) = struck_part(&body.parts, 0, false, fraction) else {
+    let Some(part) = lands_on(&body.parts, fraction) else {
         return Cast::NothingToHit;
     };
-    let part = part.name.clone();
     let Some(damage) = spell.damage.at(level) else {
         // An expression the loader would not read as a number: the port cannot say what the spell does, and a guess
         // here would be a silent divergence in every fight that involves it.
@@ -78,6 +76,49 @@ pub fn cast_attack(
     let dealt = through_armour(damage.round() as i32, armour);
     hurt(world, target, dealt as f32);
     Cast::Hit { part, dealt }
+}
+
+/// Casts an `attack` spell at a creature, drawing where it lands from the store's own randomness.
+///
+/// Reference: `spell_effect::target_attack` asks `Creature::get_random_body_part()`, which is
+/// `anatomy::random_body_part` (`anatomy.cpp:203-206`) - a draw over the sum of the parts' `hit_size`, picking the
+/// first part whose running total reaches it. Nothing about that draw is the melee rule: a struck body part is
+/// tilted by how well the blow landed, while a spell simply lands somewhere on the body.
+///
+/// This is [`cast_attack`] with the fraction taken from `Rolls` instead of from a caller, so a seed replays the
+/// fight exactly - which is the whole reason the port passes rolls around instead of reaching for a global generator.
+pub fn cast_at(
+    world: &mut World,
+    caster: (i32, i32, i32),
+    spell: &Spell,
+    level: i32,
+    target: Entity,
+) -> Cast {
+    let Some(mut rolls) = crate::singletons::take_rolls(world) else {
+        // No generator in the store: the port refuses to invent one, because a cast that used a different
+        // generator than the turn would make a replay disagree with itself.
+        return Cast::NothingToHit;
+    };
+    // The reference draws `rng_float( 0, size_sum )`; a unit draw scaled by the total weight is the same thing,
+    // because `pick_by_weight` scales it back up. `rng_bits` over `u32::MAX` is the port's idiom for that draw and
+    // is what makes a recording replay it.
+    let fraction = f64::from(rolls.rng_bits()) / f64::from(u32::MAX);
+    crate::singletons::put_rolls(world, rolls);
+    let landed = cast_attack(world, caster, spell, level, target, fraction);
+    match landed {
+        Cast::Hit { .. } => landed,
+        other => other,
+    }
+}
+
+/// The body part a spell lands on, given a draw over the sum of the parts' hit sizes.
+///
+/// Reference: `anatomy::random_body_part` - weighted by `hit_size`, not by how well anything landed.
+#[must_use]
+pub fn lands_on(parts: &[crate::hit_location::BodyPart], fraction: f64) -> Option<String> {
+    let weights: Vec<f32> = parts.iter().map(|part| part.hit_size).collect();
+    let index = crate::hit_location::pick_by_weight(&weights, fraction)?;
+    parts.get(index).map(|part| part.name.clone())
 }
 
 /// The armour a creature has on a part, for a caller that wants to know before casting.

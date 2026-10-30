@@ -186,6 +186,7 @@ fn cast(args: &[String]) {
         upper: false,
         lower: false,
     };
+    cdda_sim::turn::set_random(&mut world, cdda_core_types::rng::Rolls::new(1));
     let zombie = cdda_sim::spawn_monster(&mut world, (7, 6), cdda_sim::MonsterKindId(0), 30);
     world
         .entity_mut(zombie)
