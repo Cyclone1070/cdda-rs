@@ -279,8 +279,8 @@ the layer that decides when to shift
 
 | System | Status | Gate | Notes |
 |---|---|---|---|
-| Spell types and casting | not started | Spell replay (M3c) | Five cost kinds; mana is one |
-| Spell effects, shapes and targeting | not started | M3c | |
+| Spell types and casting | **partial: the data and the attack are in, the costs are not** | Spell replay (M3c) | 245 spells load from the oracle's dump (`corpus/spells.json`) with their scalings; `spellcasting::cast_attack` does range, damage, body part and armour. **Not ported:** the five cost kinds, so a cast is free |
+| Spell effects, shapes and targeting | **porting: 1 of the 33 effect names the data uses** | M3c | `spell_effects::EFFECTS` is a table with a stated length, holding `mod_moves` (`magic_spell_effect.cpp:1475-1490`); an unported effect answers `NotPorted` and spends nothing. Gated by `sim_suite/spell_effects.rs`, which counts the table against the names in the dump |
 | Enchantments | not started | M3c | Feeds creature and item stats |
 | Terrain and furniture transforms | not started | M3c | |
 | Teleporter lists | not started | M3c | |
@@ -290,10 +290,10 @@ the layer that decides when to shift
 
 | System | Status | Gate | Notes |
 |---|---|---|---|
-| Activity actors | **partial: butchery is one, and it runs over turns** | Activity replay (M3d) | `ButcherState` is an entity's activity: `start_butchery` begins it, `butchery_turn` takes one turn of it, and `butchery_moves_left` says how much is left - gated by `sim_suite/butchery_activity.rs`. **Not ported:** the actor framework itself (the 69 classes' common shape), which arrives when there are creatures to act |
-| Activity handlers | not started | M3d | |
-| Activity record and suspension | not started | M3d | Three concurrent slots today |
-| Pickup and movement modes | not started | M3d | |
+| Activity actors | **partial: an activity is a name, a duration, a basis and a subject** | Activity replay (M3d) | `creature::Doing` is the payload every activity shares, with the finisher and canceller tables behind it; butchery keeps its own state in `ButcherState` and is scheduled separately. **Not ported:** the 69 actor classes as such - the port has one shape where the reference has a hierarchy, on purpose |
+| Activity handlers | **partial: three activities, two tables** | M3d | `creature::FINISHERS` and `CANCELLERS` are the reference's dispatch tables (`activity_handlers::finish`, `player_activity::canceled`) for `craft`, `pickup` and `wear`; the two tables must hold **the same ids**, gated by `sim_suite/activities.rs`. **Not ported:** the other sixty-odd activities |
+| Activity record and suspension | **partial: durations, interruption and a backlog** | M3d | `Doing` is the activity record (duration, `Basis`, subject); `Backlog` is `Character::backlog` with resumption at the moves it had left; `disturb` is the distraction path, called by `hurt` so being hit breaks the work (`Character::on_hurt`). Gated by `sim_suite/activities.rs` |
+| Pickup and movement modes | **partial: pickup is an activity** | M3d | `begin_pick_up`/`finish_pickup`; walking still happens in the walker loop rather than through an activity |
 | Action pipeline | not started | M3d | |
 
 ## P7 — AI and scripting
