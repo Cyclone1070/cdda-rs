@@ -113,6 +113,64 @@ pub fn value(
     value_with(world, speaker, listener, expression, false)
 }
 
+/// What a special function had to say about a call.
+enum Answer {
+    /// It answered.
+    Value(f64),
+    /// It recognised its own name and could not work out an answer, which is a refusal rather than a zero.
+    Refused,
+    /// The name is not one of these, so the caller should look in the ordinary function table.
+    NotMine,
+}
+
+/// The functions that are neither arithmetic nor a variable lookup: `rand`, `rng`, and `time`.
+fn special_function(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    name: &str,
+    arguments: &[Expression],
+    unset_is_zero: bool,
+    draws: &mut Option<&mut cdda_core_types::rng::Rolls>,
+) -> Answer {
+    // A reborrow, so the caller keeps ownership of the dice: `as_deref_mut` on this type is already a reborrow in everything but
+    // name, and clippy reads it as one.
+    if let Some(dice) = draws.as_mut().map(|dice| &mut **dice) {
+        match (name, arguments) {
+            ("rand", [argument]) => {
+                let dice: &mut cdda_core_types::rng::Rolls = dice;
+                let Some(n) = value_drawing(world, speaker, listener, argument, unset_is_zero, None)
+                else {
+                    return Answer::Refused;
+                };
+                #[allow(clippy::cast_possible_truncation)]
+                let high = n.round() as i32;
+                return Answer::Value(f64::from(dice.rng(0, high)));
+            }
+            ("rng", [low, high]) => {
+                let (Some(low), Some(high)) = (
+                    value_drawing(world, speaker, listener, low, unset_is_zero, None),
+                    value_drawing(world, speaker, listener, high, unset_is_zero, None),
+                ) else {
+                    return Answer::Refused;
+                };
+                #[allow(clippy::cast_possible_truncation)]
+                let (low, high) = (low.round() as i32, high.round() as i32);
+                return Answer::Value(f64::from(dice.rng(low, high)));
+            }
+            _ => {}
+        }
+    }
+    if name == "time"
+        && let [Expression::Text(text)] = arguments
+    {
+        #[allow(clippy::cast_precision_loss)]
+        let turns = cdda_content::constructions::parse_duration(text) as f64;
+        return Answer::Value(turns);
+    }
+    Answer::NotMine
+}
+
 /// What an expression works out to, with a choice about what an unset variable means.
 ///
 /// The two callers disagree, and the reference is on both sides. A **condition** that names a variable nobody set has no answer
@@ -127,6 +185,25 @@ pub fn value_with(
     expression: &Expression,
     unset_is_zero: bool,
 ) -> Option<f64> {
+    value_drawing(world, speaker, listener, expression, unset_is_zero, None)
+}
+
+/// What an expression works out to, with dice available.
+///
+/// Reference: `rng( lo, hi )` and `rand( n )` are in the reference's math function table (`math_parser_func.h:141-163`), and they are the
+/// only two that change the store while answering: a draw advances the game's generator. The port cannot draw through `&World`, so the
+/// dice are **taken out** of the store by the caller, handed in here, and put back - the same shape every other rule that rolls uses.
+/// A caller with no dice to offer gets a refusal rather than a zero, because a `rng` that quietly answered nothing would make a
+/// condition false for a reason nobody could see.
+#[must_use]
+pub fn value_drawing(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    expression: &Expression,
+    unset_is_zero: bool,
+    mut draws: Option<&mut cdda_core_types::rng::Rolls>,
+) -> Option<f64> {
     match expression {
         Expression::Number(number) => Some(*number),
         Expression::Variable { scope, name } => {
@@ -139,26 +216,53 @@ pub fn value_with(
         }
         Expression::Text(_) => None,
         Expression::Call { name, arguments } => {
-            // Reference: `time( '…' )` (`math_parser_diag.cpp`) answers the duration in turns, and it is the one function the port can
-            // answer from the data alone - the string is the only argument it takes.
-            // Reference: `time( '…' )` (`math_parser_diag.cpp`) answers a duration in turns, and it is the one function whose whole
-            // argument is text, so the port can answer it from the data alone.
-            if name == "time"
-                && let [Expression::Text(text)] = arguments.as_slice()
-            {
-                #[allow(clippy::cast_precision_loss)]
-                let turns = cdda_content::constructions::parse_duration(text) as f64;
-                return Some(turns);
+            match special_function(
+                world,
+                speaker,
+                listener,
+                name,
+                arguments,
+                unset_is_zero,
+                &mut draws,
+            ) {
+                Answer::Value(number) => return Some(number),
+                Answer::Refused => return None,
+                Answer::NotMine => {}
             }
             let arguments = arguments
                 .iter()
-                .map(|argument| value_with(world, speaker, listener, argument, unset_is_zero))
+                .map(|argument| {
+                    value_drawing(
+                        world,
+                        speaker,
+                        listener,
+                        argument,
+                        unset_is_zero,
+                        draws.as_deref_mut(),
+                    )
+                })
                 .collect::<Option<Vec<f64>>>()?;
             apply_function(name, &arguments)
         }
         Expression::Binary { op, left, right } => {
-            let left = value_with(world, speaker, listener, left, unset_is_zero)?;
-            let right = value_with(world, speaker, listener, right, unset_is_zero)?;
+            // Two operands, one borrow: the dice move into a local and are reborrowed for each side.
+            let mut dice = draws;
+            let left = value_drawing(
+                world,
+                speaker,
+                listener,
+                left,
+                unset_is_zero,
+                dice.as_deref_mut(),
+            )?;
+            let right = value_drawing(
+                world,
+                speaker,
+                listener,
+                right,
+                unset_is_zero,
+                dice,
+            )?;
             Some(match op {
                 Operator::Add => left + right,
                 Operator::Subtract => left - right,

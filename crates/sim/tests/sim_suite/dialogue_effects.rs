@@ -222,7 +222,9 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
     // (`load_eoc_vector_id_and_var`, `npctalk.cpp:512-541`), and 120 entries turned out to be exactly that.
     // 751 after `time( '…' )` - the first math function whose argument is **text**, and the first the port had to parse rather than
     // compute. Nine entries, and two programs.
-    assert_eq!(runnable, 751, "of which the port runs 751 entries");
+    // 757 after `rng`/`rand`: the first math functions that **change the store** while answering, so the dice are taken out for the
+    // length of the evaluation and put back.
+    assert_eq!(runnable, 757, "of which the port runs 757 entries");
 
     // And the ranking of what refuses, which is this census's real output: it says what to port next instead of what is used most.
     // `target_var` is the one entry the ranking cannot attribute on its own - a scan of the data shows 71 of those 98 are
@@ -236,7 +238,7 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
         ranking,
         vec![
             ("mapgen_update".to_owned(), 107),
-            ("math".to_owned(), 104),
+            ("math".to_owned(), 98),
             ("bonus".to_owned(), 32),
             ("else".to_owned(), 32),
             ("duration".to_owned(), 31),
@@ -473,4 +475,61 @@ fn a_time_argument_answers_the_duration_in_turns() {
         Applied::CannotAnswer,
         "and refuses to evaluate, because text is not a number"
     );
+}
+
+/// A `math` statement can draw, and the draw comes from the store's own generator.
+///
+/// Reference: `rng( lo, hi )` is uniform and inclusive (`src/rng.cpp`), and `rand( n )` is `rng( 0, round( n ) )` (`math_parser_func.h:57-60`).
+/// They are the only two math functions that change the store while answering, so the dice are taken out for the length of the
+/// evaluation and put back afterwards - the same shape every other rolling rule in the port uses.
+#[test]
+fn a_statement_can_roll_both_ends_inclusive() {
+    use cdda_core_types::rng::Rolls;
+
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::singletons::put_rolls(&mut world, Rolls::new(7));
+
+    // `rng(1, 3)` must be able to reach both ends, and must never leave them.
+    let mut seen: std::collections::BTreeSet<i32> = std::collections::BTreeSet::new();
+    for _ in 0..200 {
+        assert_eq!(
+            run_assignment(&mut world, survivor, None, &assignment("roll = rng(1, 3)")),
+            Applied::Done
+        );
+        let value = dialogue_values::number_of(&world, survivor, "roll").expect("a number");
+        #[allow(clippy::cast_possible_truncation)]
+        let whole = value as i32;
+        assert!((1..=3).contains(&whole), "rng(1, 3) gave {whole}");
+        seen.insert(whole);
+    }
+    assert_eq!(
+        seen.into_iter().collect::<Vec<_>>(),
+        vec![1, 2, 3],
+        "and two hundred rolls reached all three answers"
+    );
+
+    // `rand(0)` is the degenerate case the reference allows: `rng(0, 0)` is always zero.
+    assert_eq!(
+        run_assignment(&mut world, survivor, None, &assignment("zero = rand(0)")),
+        Applied::Done
+    );
+    assert_eq!(
+        dialogue_values::number_of(&world, survivor, "zero"),
+        Some(0.0)
+    );
+
+    // The same seed replays the same sequence, which is what taking the dice out of the store buys.
+    let mut first = Vec::new();
+    let mut second = Vec::new();
+    for into in [&mut first, &mut second] {
+        let mut world = World::new();
+        let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+        cdda_sim::singletons::put_rolls(&mut world, Rolls::new(99));
+        for _ in 0..5 {
+            run_assignment(&mut world, survivor, None, &assignment("r = rand(100)"));
+            into.push(dialogue_values::number_of(&world, survivor, "r"));
+        }
+    }
+    assert_eq!(first, second, "a seed replays the same five draws");
 }

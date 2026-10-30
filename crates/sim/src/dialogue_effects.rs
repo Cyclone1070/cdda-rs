@@ -33,9 +33,21 @@ pub fn run_assignment(
 ) -> Applied {
     // An assignment reads an unset variable as zero - `dialogue::get_value` answers a null value and the arithmetic treats it
     // as nothing - so `"x = x + 20"` on an unset `x` writes 20 rather than refusing.
-    let Some(value) =
-        crate::conditions::value_with(world, speaker, listener, &assignment.expression, true)
-    else {
+    // The dice come out of the store for the length of the evaluation and go back afterwards, so a `rng` inside a `math` statement
+    // draws from the game's own generator and the sequence stays replayable.
+    let mut dice = crate::singletons::take_rolls(world);
+    let drawn = crate::conditions::value_drawing(
+        world,
+        speaker,
+        listener,
+        &assignment.expression,
+        true,
+        dice.as_mut(),
+    );
+    if let Some(dice) = dice.take() {
+        crate::singletons::put_rolls(world, dice);
+    }
+    let Some(value) = drawn else {
         return Applied::CannotAnswer;
     };
     // A destination naming a scope resolves the way the condition side resolves one: `global_val` is the shared map, and

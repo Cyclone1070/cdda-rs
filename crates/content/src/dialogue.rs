@@ -104,8 +104,12 @@ pub fn math_function(name: &str) -> Option<Arity> {
         "abs" | "floor" | "trunc" | "ceil" | "round" | "sqrt" | "log" | "sin" | "cos" | "tan" | "celsius"
         // `time` takes a duration **string**, and parses like any other one-argument function: the argument's shape is checked
         // when it is evaluated, not when it is read.
-        | "fahrenheit" | "from_celsius" | "from_fahrenheit" | "time" => Arity::Exactly(1),
+        | "fahrenheit" | "from_celsius" | "from_fahrenheit" | "time"
+        // `rand( n )` (`math_parser_func.h:57-60`) is one argument too; it is refused at run time only when the caller has no dice.
+        | "rand" => Arity::Exactly(1),
         "clamp" => Arity::Exactly(3),
+        // Reference: `rng( lo, hi )` (`math_parser_func.h:141-163`).
+        "rng" => Arity::Exactly(2),
         "min" | "max" => Arity::AtLeast(1),
         _ => return None,
     })

@@ -328,6 +328,22 @@ entries the port can run | **363** |
 
 Reading both spellings of a destination - `"x = 1"` and `"u_val('x') = 1"`, which `read_var_info` (`condition.cpp:408-437`) treats as the same variable classed by the member that names it - took the count from 174 to 179. The 125 still refused are of two shapes, counted rather than guessed: **139 statements are pure expressions** with no assignment (`"u_val('stamina')"`, `"ps_str + 50"`), and **76 are bare operators** (`"*="`, `"+="`) that suggest a statement split across several entries of one list. Neither is run: a list whose meaning the port cannot read is refused whole, because "ignore the parts I do not understand" is how a program silently does half its job.
 
+### Dice inside an expression: the evaluator learns to draw (round 802)
+
+`rng( lo, hi )` and `rand( n )` are the only two math functions that **change the store while answering** - a draw advances the game's generator - and the port's evaluator had no way to do that: it took `&World` and nothing else.
+
+The shape chosen is the one every rolling rule in the port already uses: the dice are **taken out** of the store for the length of the evaluation and **put back** afterwards, so `value_drawing` takes `Option<&mut Rolls>` and a caller with no dice gets a refusal rather than a zero.
+
+| Count | Before | After |
+|---|---|---|
+effect entries runnable | 751 | **757** |
+programs runnable whole | 154 | **156** |
+entries refused for `math` | 104 | **98** |
+
+Gated: two hundred `rng(1, 3)` draws reach all three answers and never leave them; `rand(0)` is always zero; and the same seed replays the same five draws - which is the property that makes taking the dice out of the store worth anything.
+
+What this does **not** yet do is draw inside a **condition**. `holds_with` still takes `&World` and refuses `rng`, because a guard is asked in places that have no dice to offer. That is the next structural step, and it is named here rather than discovered later.
+
 ### `time( '…' )`: the first math function whose argument is text (round 801)
 
 The data's effect maths call `time( '1 minutes' )` 19 times, and the port refused it twice over: the parser had no way to keep a quoted literal as an argument, and the evaluator had no function to hand it to. An expression could hold numbers, variables, calls and operators - nothing else.
@@ -590,7 +606,7 @@ refused for an effect | **374** |
 
 Reading a plain `run_eocs` name (one string, or a list of them) also took the effect count from 363 to **399**; the other 131 `run_eocs` entries are object forms with modifiers (`popup`, `variables`, `true_eocs`/`false_eocs`), which the port refuses rather than reading only the part it recognises.
 
-Both halves of the machine are now measured against each other: **2,094 of 3,708 conditions** answerable, **751 of 1,612 effects** runnable, and the intersection is **154 of 692 programs** runnable whole.
+Both halves of the machine are now measured against each other: **2,094 of 3,708 conditions** answerable, **757 of 1,612 effects** runnable, and the intersection is **156 of 692 programs** runnable whole.
 
 ### Messages: the second effect, and the first that only speaks (round 785)
 

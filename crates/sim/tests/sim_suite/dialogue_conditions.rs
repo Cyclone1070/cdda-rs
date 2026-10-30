@@ -186,7 +186,7 @@ fn the_port_answers_the_questions_it_can_and_says_how_many_that_is() {
     // before it. That is the whole point of a leaf: a combinator is only as readable as its parts, so one ported leaf is worth
     // several times itself.
     assert_eq!(
-        readable, 2099,
+        readable, 2102,
         "of which the port answers 1,501: `u_has_effect`, `compare_string`, `u_has_items`, the combinators, and the `math` expressions whose every name it knows"
     );
 }
@@ -344,11 +344,17 @@ fn the_math_functions_answer_what_the_reference_s_table_answers() {
     let smallest = condition(r#"{"math": ["min(1, 9, 4)", "==", 1]}"#);
     assert!(holds(&world, survivor, &smallest));
 
-    // A wrong number of arguments is refused, and so is a function the port has no rule for - including the dice, which
-    // need rolls the reader does not hold.
+    // The dice parse like any other function and are refused at **run** time, because a draw changes the store and a guard
+    // holds only `&World`. A guard asked here answers nothing rather than a zero.
+    let dice = condition(r#"{"math": ["rng(1, 6)", "==", 1]}"#);
+    assert!(
+        !holds(&world, survivor, &dice),
+        "a guard with no dice to offer cannot be answered"
+    );
+
+    // A wrong number of arguments is refused, and so is a function the port has no rule for.
     for text in [
         r#"{"math": ["clamp(1, 2)", "==", 1]}"#,
-        r#"{"math": ["rng(1, 6)", "==", 1]}"#,
         r#"{"math": ["weather(temperature)", "==", 1]}"#,
     ] {
         let value = cdda_json::parse(text.as_bytes()).expect("json");
