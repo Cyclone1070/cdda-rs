@@ -307,7 +307,10 @@ The effect is then the reference's three lines: walk the area, ask the emission'
 kinds the port runs | **7** (`attack`, `emit`, `mod_moves`, `noise`, `remove_effect`, `remove_field`, `summon`) |
 spells those seven cover | **135 of 245 (55.1%)** |
 
-Owed: the emissions are installed by hand in tests; `install_emit_data` beside `install_field_data` is what puts them in the running game.
+Two things came out of wiring it into the game (`install_emit_data`, beside `install_field_data`):
+
+* of the data's **61 emission ids, 13 place a field** and 48 carry a `qty` - an emission of a *quantity*, which the reference feeds to `map::propagate_field` (`map_field.cpp:2212-2224`). The port refuses those rather than placing one of something the data says three of.
+* **all six `emit` spells name quantity emissions**, so the effect runs but covers none of its six spells until `propagate_field` is ported. The coverage count therefore stays at 129, not 135: a kind in the table is not a spell that works, and counting the table entry as coverage would be the same self-flattery the field-number bug was made of.
 
 ### Sounds are events, and `noise` is one line (round 779)
 

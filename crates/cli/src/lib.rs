@@ -872,13 +872,75 @@ mod craft_tests {
     }
 }
 
-#[cfg(test)]
+/// Installs the data's emissions, so an `emit` spell has a table to look its `effect_str` up in.
+///
+/// The same shape as [`install_field_data`] and the same reason: an effect that reads a table the tests build by hand is right
+/// in the tests and empty in the game, which is a difference no behaviour test can see.
+pub fn install_emit_data(world: &mut World) -> Option<usize> {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../oracle/src/data/json/emit.json");
+    let text = std::fs::read_to_string(path).ok()?;
+    let value = cdda_json::parse(text.as_bytes()).ok()?;
+    let cdda_json::Value::Array(rows) = &value else {
+        return None;
+    };
+    let mut emits: Vec<(String, Vec<cdda_content::emit::Emission>)> = Vec::new();
+    for row in rows {
+        let Some(emission) = cdda_content::emit::read_emit(row) else {
+            continue;
+        };
+        let cdda_json::Value::Object(object) = row else {
+            continue;
+        };
+        let Some(cdda_json::Value::Str(id)) = object.get("id") else {
+            continue;
+        };
+        match emits.iter_mut().find(|(known, _)| known == id) {
+            Some((_, emissions)) => emissions.push(emission),
+            None => emits.push((id.clone(), vec![emission])),
+        }
+    }
+    cdda_sim::emit_registry::set_emits(world, &emits);
+    Some(emits.len())
+}
+
 #[cfg(test)]
 #[allow(clippy::panic)]
 mod field_data_tests {
     use super::*;
     use bevy_ecs::prelude::World;
     use cdda_core_types::field::FieldId;
+
+    /// The emissions the data defines are installed, and each keeps every row that names it.
+    ///
+    /// The same gap the field numbers had: the emit table was built by hand in tests, so every `emit` spelling worked in the
+    /// test and none in the game. This is the wiring that makes the difference visible.
+    #[allow(clippy::panic)]
+    #[test]
+    fn the_installed_emissions_come_from_the_data() {
+        let mut world = World::new();
+        let Some(count) = install_emit_data(&mut world) else {
+            panic!("the emit data is in the repository");
+        };
+        // The data defines 61 emission ids, and 48 of them are emissions of **things** - they carry a `qty`, which the port
+        // refuses rather than placing one of something where the data says three. So the field emissions the port can run are
+        // 13, and the number is the honest size of the `emit` machine as ported.
+        assert_eq!(count, 13, "the port installs the 13 emissions that place a field");
+        let Some(gas) = cdda_sim::emit_registry::emissions_of(&world, "emit_toxic_leak") else {
+            panic!("the toxic leak emission is defined");
+        };
+        assert!(!gas.is_empty(), "and it puts something down");
+        // The six `emit` spells name ids that carry a `qty`, which the reference feeds to `map::propagate_field`
+        // (`map_field.cpp:2212-2224`) - a gas spread the port has not written. Refusing them is the honest state: the effect
+        // exists, and the data it would run does not.
+        assert!(
+            cdda_sim::emit_registry::emissions_of(&world, "emit_toxic_blast").is_none(),
+            "an emission of a quantity is refused until propagate_field is ported"
+        );
+        assert!(
+            cdda_sim::emit_registry::emissions_of(&world, "emit_nothing_at_all").is_none(),
+            "an id nobody defines is absent rather than empty"
+        );
+    }
 
     /// The store's field numbers are the reference's, read from its dump rather than transcribed.
     ///

@@ -60,6 +60,16 @@ fn the_port_runs_seven_of_the_data_s_effect_kinds() {
     assert_eq!(ported.len(), 7, "the port runs seven of them");
     assert_eq!(
         spells_covered, 135,
-        "and those seven are what 135 of the 245 spells name"
+        "135 spells name an effect kind the port has a rule for"
+    );
+    // Not the same thing as reachable. `emit` is in the table, and every one of its six spells names an emission of a
+    // *quantity*, which the reference spreads with `map::propagate_field` - a machine the port has not written. So six of the
+    // 135 are refused at the data rather than run, and the honest count of spells the port can actually perform is 129.
+    let emit_spells = effects.get("emit").copied().unwrap_or(0);
+    assert_eq!(emit_spells, 6, "six spells name `emit`");
+    assert_eq!(
+        spells_covered - emit_spells,
+        129,
+        "so 129 spells are reachable today"
     );
 }
