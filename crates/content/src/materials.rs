@@ -19,6 +19,10 @@ pub struct Material {
     pub density: f64,
     /// Resistance of the item itself to physical damage.
     pub chip_resist: i32,
+    /// Its resistance to bash, per millimetre of thickness (`material::resist` on bash).
+    pub bash_resist: f64,
+    /// Its resistance to cut, per millimetre of thickness.
+    pub cut_resist: f64,
     /// How breathable the material is, as the reference reports it.
     pub breathability: i32,
     /// Specific heat as a liquid, in the reference's units.
@@ -71,6 +75,8 @@ fn defaults(id: &str) -> Material {
         name: String::new(),
         density: 1.0,
         chip_resist: 0,
+        bash_resist: 0.0,
+        cut_resist: 0.0,
         breathability: 0,
         specific_heat_liquid: 0.0,
         specific_heat_solid: 0.0,
@@ -126,6 +132,22 @@ impl std::fmt::Display for LoadError {
 }
 
 impl std::error::Error for LoadError {}
+
+/// The material's resistances, from the `resist` object (`material::load`).
+///
+/// Only bash and cut are read: they are the two an ordinary blow carries, and storing a type the port has no rule
+/// for would be keeping a number nothing reads.
+fn resistances(material: &mut Material, object: &Object) {
+    let Some(Value::Object(resist)) = object.get("resist") else {
+        return;
+    };
+    if let Some(bash) = number(resist, "bash") {
+        material.bash_resist = bash;
+    }
+    if let Some(cut) = number(resist, "cut") {
+        material.cut_resist = cut;
+    }
+}
 
 fn collect(value: &Value, out: &mut BTreeMap<String, Object>, order: &mut Vec<String>) {
     match value {
@@ -190,6 +212,7 @@ fn apply(material: &mut Material, object: &Object) -> Result<(), LoadError> {
     if let Some(chip) = integer(object, "chip_resist") {
         material.chip_resist = chip;
     }
+    resistances(material, object);
     if let Some(breathability) = string(object, "breathability") {
         material.breathability = breathability_rating(&breathability).ok_or_else(|| LoadError {
             message: format!(

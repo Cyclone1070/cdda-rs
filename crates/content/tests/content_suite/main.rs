@@ -102,6 +102,7 @@ mod monster_groups;
 mod monster_harvest;
 mod anatomies;
 mod body_parts;
+mod material_resist;
 mod monsters;
 mod monster_attack;
 mod npc_classes;
