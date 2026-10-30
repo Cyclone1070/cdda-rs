@@ -749,6 +749,19 @@ pub enum Effect {
     Math(Vec<Assignment>),
     /// A message to the player.
     Message(String),
+    /// Run one list of effects or another, depending on a condition.
+    ///
+    /// Reference: `f_if` (`npctalk.cpp:6977-6993`): the `if` member is a condition, `then` is the list run when it holds, and `else`
+    /// is the list run when it does not - absent, it runs nothing. 100 of the data's effect entries are one of these, and each is
+    /// worth more than itself because it can hold any other effect.
+    If {
+        /// What decides which list runs.
+        condition: Box<Condition>,
+        /// The effects run when the condition holds.
+        then: Vec<Effect>,
+        /// The effects run when it does not.
+        otherwise: Vec<Effect>,
+    },
     /// Give a creature an effect.
     ///
     /// Reference: `f_add_effect` (`npctalk.cpp:3426-3450`). The duration is a time string, the word `PERMANENT`, or absent - in
@@ -856,6 +869,19 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
     let Value::Object(object) = value else {
         return None;
     };
+    if let Some(condition) = object.get("if") {
+        let then = read_effect_list(object.get("then"))?;
+        // An absent `else` runs nothing, which the reference allows; a present one that the port cannot read refuses the whole.
+        let otherwise = match object.get("else") {
+            None => Vec::new(),
+            Some(entries) => read_effect_list(Some(entries))?,
+        };
+        return Some(Effect::If {
+            condition: Box::new(read_condition(condition)?),
+            then,
+            otherwise,
+        });
+    }
     if let Some(Value::Array(names)) = object.get("run_eocs") {
         let names = names
             .iter()
@@ -915,6 +941,18 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
         }
     }
     None
+}
+
+/// Reads a list of effects, refusing the whole list when any entry in it is refused.
+///
+/// Reference: `talk_effect_t::load_effect` (`npctalk.cpp`), which reads an array or a single entry. The port reads an array, and an
+/// entry that is not an array is refused rather than read as a one-element list - the data always writes arrays here, so a
+/// non-array is a shape the port has not seen rather than a shape it should guess at.
+fn read_effect_list(value: Option<&Value>) -> Option<Vec<Effect>> {
+    match value {
+        Some(Value::Array(entries)) => entries.iter().map(read_effect).collect(),
+        _ => None,
+    }
 }
 
 /// Reads an effect a program adds to or removes from a creature.

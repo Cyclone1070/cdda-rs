@@ -328,6 +328,21 @@ entries the port can run | **363** |
 
 Reading both spellings of a destination - `"x = 1"` and `"u_val('x') = 1"`, which `read_var_info` (`condition.cpp:408-437`) treats as the same variable classed by the member that names it - took the count from 174 to 179. The 125 still refused are of two shapes, counted rather than guessed: **139 statements are pure expressions** with no assignment (`"u_val('stamina')"`, `"ps_str + 50"`), and **76 are bare operators** (`"*="`, `"+="`) that suggest a statement split across several entries of one list. Neither is run: a list whose meaning the port cannot read is refused whole, because "ignore the parts I do not understand" is how a program silently does half its job.
 
+### `if`: the first effect with a body, and why it bought four entries (round 792)
+
+`f_if` (`npctalk.cpp:6977-6993`) is the first effect that holds others: `if` is a condition, `then` runs when it holds, `else` when it does not, and an absent `else` runs nothing. 100 of the data's 1,612 effect entries are one of these.
+
+Reading it added **four**.
+
+| Count | Before | After |
+|---|---|---|
+effect entries runnable | 601 | **605** |
+programs runnable whole | 87 | 87 |
+
+That is the combinator law measured on the effect side for the first time. On the condition side a ported leaf bought hundreds, because a combinator is only as readable as its parts and most parts were already readable. Here the parts are **effects**, and 96 of the 100 `if` entries contain at least one effect the port cannot run - so the structure arrived and the count barely moved.
+
+The lesson is not that the work was wasted: `if` is a multiplier that pays out as leaves arrive, exactly as `and`/`or`/`not` paid out when traits and missions landed. But it changes the next move. The effect side is blocked on **leaves**, and the refusals name them: `one_in_chance` 7, `x_in_y_chance` 7, `range` 12, `is_season` 8, `is_weather` 17, `u_has_flag` 7 - small, independent, and each worth more than itself once it sits inside an `if`.
+
 ### Adding and removing effects, and a count that did not move by the obvious number (round 791)
 
 `f_add_effect` (`npctalk.cpp:3426-3450`) is where the data's wounds, poisons and buffs come from: an effect id, a `duration` that is a time string, the word `PERMANENT`, or absent (1,000 turns), and an `intensity` that defaults to zero and is raised to one by the effect's own rule.
@@ -437,7 +452,7 @@ refused for an effect | **374** |
 
 Reading a plain `run_eocs` name (one string, or a list of them) also took the effect count from 363 to **399**; the other 131 `run_eocs` entries are object forms with modifiers (`popup`, `variables`, `true_eocs`/`false_eocs`), which the port refuses rather than reading only the part it recognises.
 
-Both halves of the machine are now measured against each other: **2,089 of 3,708 conditions** answerable, **601 of 1,612 effects** runnable, and the intersection is **87 of 692 programs** runnable whole.
+Both halves of the machine are now measured against each other: **2,089 of 3,708 conditions** answerable, **605 of 1,612 effects** runnable, and the intersection is **87 of 692 programs** runnable whole.
 
 ### Messages: the second effect, and the first that only speaks (round 785)
 

@@ -175,7 +175,11 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
     // `u_remove_effect`. The jump is 63, which is 601 - 538 - and it is the first time the effect count has moved by a number the
     // reader does not make obvious: `duration` is a **modifier**, so some entries it was counted against were refused for a
     // different reason and now read. Stated rather than smoothed over.
-    assert_eq!(runnable, 601, "of which the port runs 601 entries");
+    //
+    // 605 after `if`, which is a **negative** result worth keeping: 100 of the data's effect entries are an `if`, and reading it
+    // added four. A list is only as readable as its parts - the same law the condition combinators taught - so an `if` whose
+    // branches name effects the port cannot run is still refused, and the effect side is blocked on leaves, not on structure.
+    assert_eq!(runnable, 605, "of which the port runs 605 entries");
 }
 
 /// The other spelling of a destination: `u_val('x') = ...`, which the data also uses.
@@ -305,4 +309,60 @@ fn a_program_can_give_and_take_a_wound() {
     )
     .expect("json");
     assert!(cdda_content::dialogue::read_effect(&on_a_part).is_none());
+}
+
+/// An `if` effect runs one list or the other, and each list can hold anything.
+///
+/// Reference: `f_if` (`npctalk.cpp:6977-6993`): `if` is a condition, `then` runs when it holds, `else` when it does not, and an absent
+/// `else` runs nothing. 100 of the data's effect entries are one of these, and each is worth more than itself because it can hold any
+/// other effect - which is what makes this the first effect with a body rather than a payload.
+#[test]
+fn a_conditional_effect_runs_the_branch_its_condition_chooses() {
+    use cdda_sim::dialogue_effects::run_effects;
+    use cdda_sim::messages;
+
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let entry = |text: &str| {
+        cdda_content::dialogue::read_effect(&cdda_json::parse(text.as_bytes()).expect("json"))
+            .expect("readable")
+    };
+
+    let guarded = entry(
+        r#"{"if": {"math": ["armed", "==", 1]},
+            "then": [{"u_message": "the safety clicks off"}, {"math": ["shots = 1"]}],
+            "else": [{"u_message": "nothing happens"}]}"#,
+    );
+    assert_eq!(
+        run_effects(&mut world, survivor, None, std::slice::from_ref(&guarded)),
+        Applied::Done
+    );
+    assert_eq!(messages::lines(&world), vec!["nothing happens".to_owned()]);
+
+    messages::clear(&mut world);
+    dialogue_values::set(&mut world, survivor, "armed", Value::Number(1.0));
+    assert_eq!(run_effects(&mut world, survivor, None, &[guarded]), Applied::Done);
+    assert_eq!(
+        messages::lines(&world),
+        vec!["the safety clicks off".to_owned()],
+        "and the branch ran as a list, in order"
+    );
+    assert_eq!(
+        dialogue_values::number_of(&world, survivor, "shots"),
+        Some(1.0)
+    );
+
+    // An absent `else` runs nothing rather than refusing the effect.
+    let no_else = entry(r#"{"if": {"math": ["never", "==", 1]}, "then": [{"u_message": "no"}]}"#);
+    messages::clear(&mut world);
+    assert_eq!(run_effects(&mut world, survivor, None, &[no_else]), Applied::Done);
+    assert!(messages::lines(&world).is_empty());
+
+    // A branch the port cannot read refuses the whole `if`, rather than running the readable half.
+    let half_read = cdda_json::parse(
+        br#"{"if": {"math": ["a", "==", 1]}, "then": [{"u_message": "yes"}, {"u_has_bionics": "bio_x"}]}"#
+            .as_slice(),
+    )
+    .expect("json");
+    assert!(cdda_content::dialogue::read_effect(&half_read).is_none());
 }

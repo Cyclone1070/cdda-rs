@@ -114,6 +114,18 @@ pub fn run_effect(
             crate::messages::push(world, text);
             Applied::Done
         }
+        Effect::If {
+            condition,
+            then,
+            otherwise,
+        } => {
+            let branch = if crate::conditions::holds_with(world, speaker, listener, condition) {
+                then
+            } else {
+                otherwise
+            };
+            run_effects(world, speaker, listener, branch)
+        }
         Effect::AddEffect {
             effect,
             duration,
