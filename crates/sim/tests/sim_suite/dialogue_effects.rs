@@ -93,17 +93,7 @@ fn count_effects(
                             *refused.entry("<named>".to_owned()).or_insert(0) += 1;
                             continue;
                         };
-                        let ran = match fields.get("math") {
-                            Some(cdda_json::Value::Array(statements)) => statements.iter().all(|statement| {
-                                match statement {
-                                    cdda_json::Value::Str(text) => {
-                                        cdda_content::dialogue::read_assignment(text).is_some()
-                                    }
-                                    _ => false,
-                                }
-                            }),
-                            _ => false,
-                        };
+                        let ran = cdda_content::dialogue::read_effect(entry).is_some();
                         if ran {
                             *runnable += 1;
                         } else {
@@ -168,12 +158,14 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
     println!("eoc effects: {entries} entries, {runnable} runnable; most common refusals: {top:?}");
 
     assert_eq!(entries, 1612, "the data's effect-on-conditions hold 1,612 effects");
-    // 179, not the 304 `math` entries in the data. Reading both spellings of a destination (`"x = 1"` and `"u_val('x') = 1"`)
+    // 179 of the 304 `math` entries. Reading both spellings of a destination (`"x = 1"` and `"u_val('x') = 1"`)
     // took it from 174 to 179, and the 125 still refused are of two shapes worth naming: 139 of the statements are pure
     // **expressions** with no assignment at all (`"u_val('stamina')"`, `"ps_str + 50"`), and 76 are bare operators that suggest a
     // statement split across several entries in one list (`["...", "*=", "..."]`). Neither is run: a list whose meaning the port
     // cannot read is refused whole, because "ignore the parts I do not understand" is how a program silently does half its job.
-    assert_eq!(runnable, 179, "of which the port runs 179 `math` entries");
+    // 363: the 179 `math` statements plus 184 messages. `u_message` is the second most used effect in the data (205 entries),
+    // and it needed only a log in the store - the first effect whose whole job is to say something.
+    assert_eq!(runnable, 363, "of which the port runs 363 entries");
 }
 
 /// The other spelling of a destination: `u_val('x') = ...`, which the data also uses.
@@ -198,4 +190,51 @@ fn a_destination_can_be_named_the_way_the_expression_language_names_it() {
         dialogue_values::number_of(&world, survivor, "sleepiness"),
         Some(40.0)
     );
+}
+
+/// A program of effects runs in order, and a message lands in the log the interface would drain.
+///
+/// Reference: `talk_effect_t::apply` (`npctalk.cpp`) walks the list; `f_message` (`npctalk.cpp:5312-5331`) shows a translation.
+/// The port has no window to draw into, so the log is the store's own record - and a headless run reading it is the only way a
+/// test can see what the game said.
+#[test]
+fn a_program_runs_its_effects_in_order_and_a_message_is_recorded() {
+    use cdda_sim::dialogue_effects::{run_effects, Applied};
+    use cdda_sim::messages;
+
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+
+    let program = vec![
+        cdda_content::dialogue::read_effect(
+            &cdda_json::parse(br#"{"math": ["visits = 0"]}"#.as_slice()).expect("json"),
+        )
+        .expect("readable"),
+        cdda_content::dialogue::read_effect(
+            &cdda_json::parse(br#"{"u_message": "The spiders are quiet."}"#.as_slice()).expect("json"),
+        )
+        .expect("readable"),
+        cdda_content::dialogue::read_effect(
+            &cdda_json::parse(br#"{"math": ["visits += 1"]}"#.as_slice()).expect("json"),
+        )
+        .expect("readable"),
+    ];
+    assert_eq!(run_effects(&mut world, survivor, None, &program), Applied::Done);
+    assert_eq!(
+        dialogue_values::number_of(&world, survivor, "visits"),
+        Some(1.0),
+        "the statements ran in order: set, message, increment"
+    );
+    assert_eq!(messages::lines(&world), vec!["The spiders are quiet.".to_owned()]);
+
+    // The log is drained, not appended to forever.
+    messages::clear(&mut world);
+    assert!(messages::lines(&world).is_empty());
+
+    // A message written as a translation object reads too, and a snippet does not: the port has no snippet table, and showing a
+    // snippet's id would be showing the wrong text.
+    let translated = cdda_json::parse(br#"{"npc_message": {"str": "Rough weather."}}"#.as_slice()).expect("json");
+    assert!(cdda_content::dialogue::read_effect(&translated).is_some());
+    let snippet = cdda_json::parse(br#"{"u_message": "snippet_id", "snippet": true}"#.as_slice()).expect("json");
+    assert!(cdda_content::dialogue::read_effect(&snippet).is_none());
 }

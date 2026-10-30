@@ -705,3 +705,63 @@ fn split_assignment(text: &str) -> Option<(&str, AssignmentOp, &str)> {
     }
     None
 }
+
+/// An effect a dialogue program can run.
+///
+/// Reference: `talk_effect_fun_t`'s table (`npctalk.cpp:8039-8135`), which maps each member name to a function. The port keeps
+/// the same shape - a name, a function - and grows one name at a time, counting what it can run against the data.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Effect {
+    /// A `math` statement list: one or more assignments to dialogue variables.
+    Math(Vec<Assignment>),
+    /// A message to the player.
+    Message(String),
+}
+
+/// Reads one effect entry of an effect-on-condition, or nothing when the port has no rule for it.
+///
+/// A named entry (`"EOC_something"`) is a call to another effect-on-condition, which the port does not run yet; an object is
+/// read through the member that names the effect.
+#[must_use]
+pub fn read_effect(value: &Value) -> Option<Effect> {
+    let Value::Object(object) = value else {
+        return None;
+    };
+    if let Some(Value::Array(statements)) = object.get("math") {
+        let statements = statements
+            .iter()
+            .map(|statement| match statement {
+                Value::Str(text) => read_assignment(text),
+                _ => None,
+            })
+            .collect::<Option<Vec<_>>>()?;
+        return Some(Effect::Math(statements));
+    }
+    // Reference: `f_message` takes `snippet` separately from the message itself, and a snippet names text the port has no
+    // table for - showing the id would be showing the wrong words.
+    if matches!(object.get("snippet"), Some(Value::Bool(true))) {
+        return None;
+    }
+    for member in ["u_message", "npc_message"] {
+        if let Some(value) = object.get(member) {
+            return read_message(value).map(Effect::Message);
+        }
+    }
+    None
+}
+
+/// Reads a message's text, or nothing when it is written in a shape the port cannot render.
+///
+/// Reference: `f_message` (`npctalk.cpp:5312-5331`) takes a translation - a string, or an object with `str` - and separately
+/// takes `snippet`, which names a snippet the port has no table for. A snippet is refused rather than shown as its own id.
+#[must_use]
+pub fn read_message(value: &Value) -> Option<String> {
+    match value {
+        Value::Str(text) => Some(text.clone()),
+        Value::Object(object) => match object.get("str") {
+            Some(Value::Str(text)) => Some(text.clone()),
+            _ => None,
+        },
+        _ => None,
+    }
+}

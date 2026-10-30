@@ -6,7 +6,7 @@
 
 use bevy_ecs::prelude::*;
 
-use cdda_content::dialogue::{Assignment, AssignmentOp};
+use cdda_content::dialogue::{Assignment, AssignmentOp, Effect};
 
 use crate::dialogue_values::{self, Value};
 
@@ -83,6 +83,40 @@ pub fn run_math(
 ) -> Applied {
     for assignment in assignments {
         if run_assignment(world, speaker, listener, assignment) == Applied::CannotAnswer {
+            return Applied::CannotAnswer;
+        }
+    }
+    Applied::Done
+}
+
+/// Runs one effect entry.
+pub fn run_effect(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
+    match effect {
+        Effect::Math(assignments) => run_math(world, speaker, listener, assignments),
+        Effect::Message(text) => {
+            crate::messages::push(world, text);
+            Applied::Done
+        }
+    }
+}
+
+/// Runs a list of effects in order, stopping at the first the store cannot answer.
+///
+/// Reference: `talk_effect_t::apply` walks its list and runs each; the port stops early on a refusal for the same reason it
+/// stops inside a `math` list - a later effect that assumed an earlier one's work would otherwise run on nothing.
+pub fn run_effects(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effects: &[Effect],
+) -> Applied {
+    for effect in effects {
+        if run_effect(world, speaker, listener, effect) == Applied::CannotAnswer {
             return Applied::CannotAnswer;
         }
     }

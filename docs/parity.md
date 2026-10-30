@@ -324,9 +324,22 @@ The data, measured across every effect-on-condition in every subdirectory: **712
 | Count | Value |
 |---|---|
 effect entries in the data | **1,612** |
-entries the port can run | **179** |
+entries the port can run | **363** |
 
 Reading both spellings of a destination - `"x = 1"` and `"u_val('x') = 1"`, which `read_var_info` (`condition.cpp:408-437`) treats as the same variable classed by the member that names it - took the count from 174 to 179. The 125 still refused are of two shapes, counted rather than guessed: **139 statements are pure expressions** with no assignment (`"u_val('stamina')"`, `"ps_str + 50"`), and **76 are bare operators** (`"*="`, `"+="`) that suggest a statement split across several entries of one list. Neither is run: a list whose meaning the port cannot read is refused whole, because "ignore the parts I do not understand" is how a program silently does half its job.
+
+### Messages: the second effect, and the first that only speaks (round 785)
+
+`u_message` is 205 of the data's 1,612 effect entries, and its whole job is to say something. The port had nowhere to say it - a `println!` inside a rule is a side effect no test can see, and a headless run has no window to draw into.
+
+`sim::messages` is the log the interface would drain: a `MessageLog` singleton with `push`, `lines` and `clear`. `dialogue_effects::run_effects` walks a program in order, and `content::dialogue::read_effect` reads an entry as a `math` list or a message - refusing one written as a **snippet**, because a snippet names text the port has no table for and showing the id would be showing the wrong words.
+
+| Count | Value |
+|---|---|
+effect entries in the data | **1,612** |
+entries the port can run | **363** (179 `math`, 184 messages) |
+
+The census now asks `read_effect` rather than pattern-matching `math` by hand, which is what made the difference visible: the same sweep that reported 179 with a hand-written check reported 363 through the reader. A census that reimplements the reader measures the census.
 
 ### An unset variable is zero in an assignment, and not in a condition (round 784)
 
