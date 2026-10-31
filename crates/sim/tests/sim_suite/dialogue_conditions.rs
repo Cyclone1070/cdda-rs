@@ -606,6 +606,8 @@ fn asking_another_program_condition_runs_nothing() {
 fn the_calendar_turns_days_into_seasons() {
     let mut world = World::new();
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    // Turns count in seconds and a day is 86,400 of them, so every number here is exact in a double.
+    #[allow(clippy::cast_precision_loss)]
     let day = cdda_sim::calendar::TURNS_PER_DAY;
 
     assert!(
@@ -973,4 +975,74 @@ fn a_worn_flag_asks_the_items_type_and_not_the_creature() {
         !cdda_sim::conditions::holds(&world, elsewhere, &guard),
         "the blindfold is worn by the survivor, not by everyone"
     );
+}
+
+/// `time_since` counts from a named point on the clock, or from a turn the expression spells.
+///
+/// Reference: `time_since_eval` (`math_parser_diag.cpp:1173-1200`): `cataclysm`, `midnight` and `noon` are named counts, a number counts from that turn,
+/// and a name that is not one of the three is not a time at all. `unit` is not read because the data never passes one.
+#[test]
+fn time_since_counts_from_a_named_point_or_a_turn() {
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    // Ten turns past the second noon since the story began: two and a half days in, so the clock has run past two midnights and two noons.
+    // Turns count in seconds and a day is 86,400 of them, so every number here is exact in a double.
+    #[allow(clippy::cast_precision_loss)]
+    let day = cdda_sim::calendar::TURNS_PER_DAY as f64;
+    cdda_sim::calendar::set_start_of_cataclysm(&mut world, 0);
+    #[allow(clippy::cast_possible_truncation)]
+    let clock = (day + day / 2.0 + 10.0) as i64;
+    cdda_sim::calendar::set_turn(&mut world, clock);
+    assert_eq!(cdda_sim::calendar::of(&world).map(|calendar| calendar.turn), Some(clock));
+
+    let count = |world: &mut World, text: &str| {
+        cdda_sim::conditions::value(
+            world,
+            survivor,
+            None,
+            &cdda_content::dialogue::read_text_expression(text).expect("readable"),
+        )
+    };
+
+    assert_eq!(
+        count(&mut world, "time_since('cataclysm')"),
+        Some(day + day / 2.0 + 10.0),
+        "since the story began"
+    );
+    assert_eq!(
+        count(&mut world, "time_since('midnight')"),
+        Some(day / 2.0 + 10.0),
+        "since the last midnight"
+    );
+    assert_eq!(
+        count(&mut world, "time_since('noon')"),
+        Some(10.0),
+        "since the last noon, which is ten turns back"
+    );
+
+    // A turn the expression spells counts from there, and the answer moves with the clock.
+    cdda_sim::dialogue_values::set(
+        &mut world,
+        survivor,
+        "then",
+        cdda_sim::dialogue_values::Value::Number(day),
+    );
+    assert_eq!(count(&mut world, "time_since(u_val('then'))"), Some(day / 2.0 + 10.0));
+    #[allow(clippy::cast_possible_truncation)]
+    let two_days = (day * 2.0) as i64;
+    cdda_sim::calendar::set_turn(&mut world, two_days);
+    assert_eq!(
+        count(&mut world, "time_since(u_val('then'))"),
+        Some(day),
+        "an hour later the same answer is a day older"
+    );
+
+    // Before noon the count is negative: the reference subtracts the noon it has not reached yet and keeps the sign, and the data relies on it.
+    #[allow(clippy::cast_possible_truncation)]
+    let just_after_midnight = (day + 100.0) as i64;
+    cdda_sim::calendar::set_turn(&mut world, just_after_midnight);
+    assert_eq!(count(&mut world, "time_since('noon')"), Some(100.0 - day / 2.0));
+
+    // A name that is not a time is not answered.
+    assert_eq!(count(&mut world, "time_since('teatime')"), None);
 }

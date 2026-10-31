@@ -221,6 +221,8 @@ pub fn math_function(name: &str) -> Option<Arity> {
         // `time` takes a duration **string**, and parses like any other one-argument function: the argument's shape is checked
         // when it is evaluated, not when it is read.
         | "fahrenheit" | "from_celsius" | "from_fahrenheit" | "time"
+        // `time_since( x )` (`math_parser_diag.cpp:1173`) takes the point to count from: a name (`cataclysm`, `midnight`, `noon`) or a turn.
+        | "time_since"
         // `rand( n )` (`math_parser_func.h:57-60`) is one argument too; it is refused at run time only when the caller has no dice.
         | "rand" => Arity::Exactly(1),
         // The creature's own numbers: `u_hp` takes a body part the port does not model, so it is read with none or with one and answered from the

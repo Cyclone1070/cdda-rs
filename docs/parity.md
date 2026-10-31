@@ -5769,3 +5769,34 @@ fault: they are rules the port does not have.
 
 Cost: 57 s, because every program gets a world with the data's 4,487 mapgens installed. Recorded here so the next person knows what the number costs
 before moving it.
+
+## `time_since` (round 847)
+
+`time_since_eval` (`math_parser_diag.cpp:1173-1200`) counts turns from a point: `cataclysm` (the story's start), `midnight`, `noon`, or a number the
+expression spells. All three named points are subtractions on the clock the port already keeps, so this was three small functions and one dispatch - 184
+calls in the data, the largest single math function the port was missing.
+
+Two details are the rule and not decoration:
+
+- the count since **noon is signed** - before noon it is negative, because the reference subtracts the noon of the day rather than the last noon passed;
+- `unit` is **not read**. The reference accepts an `unit` keyword argument, and the data never passes one (184 calls, zero with a unit), so reading one
+  would be writing a rule nobody has stated down.
+
+| Count | Before | After |
+|---|---|---|
+conditions the port reads | 2,542 | **2,610** |
+unreadable leaves | 946 | **943** |
+one-gap programs | 164 | **166** |
+effect-blamed programs | 293 | **296** |
+programs readable | 299 | **299** |
+**capability** | 180 | **180** |
+
+The 68 conditions came with no programs, because `time_since` guards sit inside programs that refuse for something else - the same shape as `moon_phase`.
+The effect-blamed count went **up** by three, which is worth stating: with `time_since` readable, three programs now get past their condition and fail on
+an effect instead. A refusal that moves is still a refusal, and the census counts where it stopped, not how far it got.
+
+`Calendar` also gained `start_of_cataclysm`, which a world sets when it starts. The port has no world-creation step that sets it yet, so it defaults to
+zero - recorded rather than hidden, because `time_since("cataclysm")` is meaningless until a world says when it began.
+
+Gated: the three named points on a known clock; a turn the expression spells; the same variable one day later; a negative count before noon; and a name
+that is not a time refusing.

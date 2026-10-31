@@ -30,6 +30,8 @@ pub struct Calendar {
     pub turn: i64,
     /// Days in a season.
     pub season_length_days: i64,
+    /// The turn the world's story began, which `time_since("cataclysm")` counts from.
+    pub start_of_cataclysm: i64,
 }
 
 impl Default for Calendar {
@@ -37,6 +39,7 @@ impl Default for Calendar {
         Self {
             turn: 0,
             season_length_days: DEFAULT_SEASON_LENGTH_DAYS,
+            start_of_cataclysm: 0,
         }
     }
 }
@@ -146,3 +149,37 @@ pub fn season_of_year(world: &World) -> Option<Season> {
 /// Marks the calendar, the way every other singleton is marked.
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct TheCalendar;
+
+/// Marks the turn the story began, which is what has to be set for `time_since("cataclysm")` to mean anything.
+///
+/// Reference: `calendar::start_of_cataclysm`, set once when a world begins. The port has no world-creation step that sets it yet, so it defaults to zero
+/// and a world that wants the reference's answer sets it when it starts.
+pub fn set_start_of_cataclysm(world: &mut World, turn: i64) {
+    let entity = crate::singletons::singleton::<Calendar, TheCalendar>(world);
+    if let Some(mut calendar) = world.get_mut::<Calendar>(entity) {
+        calendar.start_of_cataclysm = turn;
+    }
+}
+
+/// How many turns have passed since the most recent midnight.
+#[must_use]
+pub fn turns_since_midnight(world: &World) -> Option<i64> {
+    of(world).map(|calendar| calendar.turn.rem_euclid(TURNS_PER_DAY))
+}
+
+/// How many turns have passed since the most recent noon, which is **negative** before noon.
+///
+/// Reference: `noon( const time_point & )` (`calendar.cpp`), which returns noon of the day containing the turn; the difference is signed, and the data
+/// relies on that sign.
+#[must_use]
+pub fn turns_since_noon(world: &World) -> Option<i64> {
+    let calendar = of(world)?;
+    let midnight = calendar.turn - calendar.turn.rem_euclid(TURNS_PER_DAY);
+    Some(calendar.turn - (midnight + TURNS_PER_DAY / 2))
+}
+
+/// How many turns have passed since the story began.
+#[must_use]
+pub fn turns_since_cataclysm(world: &World) -> Option<i64> {
+    of(world).map(|calendar| calendar.turn - calendar.start_of_cataclysm)
+}

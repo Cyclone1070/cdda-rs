@@ -497,6 +497,34 @@ fn special_function(
         }
         _ => {}
     }
+    if name == "time_since"
+        && let [point] = arguments
+    {
+        // Reference: `time_since_eval` (`math_parser_diag.cpp:1173-1200`): a name counts from that point on the clock, and a number counts from the turn
+        // it spells. No `unit` kwarg is read because the data never passes one - 184 calls, none with a unit - so reading one would be writing a rule
+        // nobody has stated.
+        let turns: Option<f64> = match point {
+            Expression::Text(named) => match named.as_str() {
+                "cataclysm" => crate::calendar::turns_since_cataclysm(world),
+                "midnight" => crate::calendar::turns_since_midnight(world),
+                "noon" => crate::calendar::turns_since_noon(world),
+                _ => None,
+            }
+            .map(|turns| {
+                #[allow(clippy::cast_precision_loss)]
+                let turns = turns as f64;
+                turns
+            }),
+            other => crate::calendar::of(world)
+                .zip(value(world, speaker, listener, other))
+                .map(|(calendar, from)| {
+                    #[allow(clippy::cast_precision_loss)]
+                    let now = calendar.turn as f64;
+                    now - from
+                }),
+        };
+        return turns.map_or(Answer::NotMine, Answer::Value);
+    }
     if name == "time"
         && let [Expression::Text(text)] = arguments
     {
