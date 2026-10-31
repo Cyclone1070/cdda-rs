@@ -143,6 +143,19 @@ pub enum Condition {
     ///
     /// Reference: `f_has_item` (`condition.cpp:826-834`) answers `charges_of( id ) > 0 || has_amount( id, 1 )`, so a partly used
     /// stack of a charge item still counts.
+    /// Whether a creature has a bionic installed.
+    ///
+    /// Reference: `f_has_bionics` (`condition.cpp:940-951`): the member names a bionic id, or the word `ANY`, which holds when the creature has
+    /// any bionic at all or a full power store.
+    HasBionics {
+        /// The bionic's id, or `ANY`.
+        bionic: StringSource,
+        /// Whether the question is about the listener rather than the speaker.
+        listener: bool,
+    },
+    /// Whether a creature is carrying an item.
+    ///
+    /// Reference: `f_has_item` (`condition.cpp`), which asks the talker's inventory for the id.
     HasItem {
         /// The item's id, as the data writes it.
         item: StringSource,
@@ -360,6 +373,9 @@ pub fn read_condition(value: &Value) -> Option<Condition> {
         return Some(guard);
     }
     // Reference: `f_has_item` (`condition.cpp:826-834`), the sibling of `u_has_items` that asks only "any at all".
+    if let Some(bionic) = read_bionic_condition(object) {
+        return Some(bionic);
+    }
     for (member, listener) in [("u_has_item", false), ("npc_has_item", true)] {
         if let Some(item) = object.get(member) {
             return Some(Condition::HasItem {
@@ -448,6 +464,22 @@ fn read_world_guard(object: &cdda_json::Object) -> Option<Condition> {
     }
     if let Some(list) = read_list_guard(object) {
         return Some(list);
+    }
+    None
+}
+
+
+/// Reads the two guards that ask about a bionic, `u_has_bionics` and `npc_has_bionics`.
+///
+/// Reference: `f_has_bionics` (`condition.cpp:940-951`).
+fn read_bionic_condition(object: &cdda_json::Object) -> Option<Condition> {
+    for (member, listener) in [("u_has_bionics", false), ("npc_has_bionics", true)] {
+        if let Some(bionic) = object.get(member) {
+            return Some(Condition::HasBionics {
+                bionic: read_string_source(bionic)?,
+                listener,
+            });
+        }
     }
     None
 }

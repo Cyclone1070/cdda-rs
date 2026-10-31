@@ -57,6 +57,59 @@ fn at_om_location(
         .is_some_and(|terrain| crate::overmap::base_terrain(terrain) == name)
 }
 
+
+
+/// Whether the program a condition names holds.
+///
+/// Reference: `f_test_eoc` (`condition.cpp`): using a program as a condition means asking its own condition, and running past the depth limit
+/// answers no rather than looping.
+fn tests_program(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    id: &cdda_content::dialogue::StringSource,
+    draws: &mut Option<&mut cdda_core_types::rng::Rolls>,
+    depth: usize,
+) -> bool {
+    if depth >= TEST_EOC_DEPTH_LIMIT {
+        return false;
+    }
+    let Some(name) = text_of(world, speaker, listener, id) else {
+        return false;
+    };
+    let Some(program) = crate::eoc_registry::program_of(world, &name) else {
+        return false;
+    };
+    let Some(inner) = program.condition.clone() else {
+        return false;
+    };
+    holds_within(world, speaker, listener, &inner, draws, depth + 1)
+}
+
+/// Whether a creature has the bionic a condition names, reading the name as a variable when it is not one.
+///
+/// Reference: `f_has_bionics` (`condition.cpp:943`) reads its member with `get_str_or_var(…, true)`, so a member may name a bionic directly or
+/// name a dialogue variable holding one - the port tries the literal first and the variable second.
+fn has_bionic(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    bionic: &cdda_content::dialogue::StringSource,
+    about_listener: bool,
+) -> bool {
+    let Some(creature) = actor_for(speaker, listener, about_listener) else {
+        return false;
+    };
+    let Some(name) = text_of(world, speaker, listener, bionic) else {
+        return false;
+    };
+    if crate::bionics::has(world, creature, &name) {
+        return true;
+    }
+    crate::dialogue_values::text_of(world, creature, &name)
+        .is_some_and(|bound| crate::bionics::has(world, creature, &bound))
+}
+
 /// Whether every name a program states is set in the call's context.
 ///
 /// Reference: `f_expects_vars` (`condition.cpp:1111-1131`), which answers false when any named value is missing - it is how a program
@@ -240,21 +293,11 @@ fn holds_within(
     depth: usize,
 ) -> bool {
     match condition {
-        Condition::TestEoc { id } => {
-            if depth >= TEST_EOC_DEPTH_LIMIT {
-                return false;
-            }
-            let Some(name) = text_of(world, speaker, listener, id) else {
-                return false;
-            };
-            let Some(program) = crate::eoc_registry::program_of(world, &name) else {
-                return false;
-            };
-            let Some(inner) = program.condition.clone() else {
-                return false;
-            };
-            holds_within(world, speaker, listener, &inner, draws, depth + 1)
-        }
+        Condition::HasBionics {
+            bionic,
+            listener: about_listener,
+        } => has_bionic(world, speaker, listener, bionic, *about_listener),
+        Condition::TestEoc { id } => tests_program(world, speaker, listener, id, draws, depth),
         Condition::OneInChance(_) | Condition::XInYChance { .. } => {
             rolls_against(world, speaker, listener, condition, draws)
         }

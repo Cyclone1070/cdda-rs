@@ -90,11 +90,11 @@ fn a_condition_the_port_cannot_read_is_refused_rather_than_answered() {
     );
     // And a verb nobody has ported is refused too. `u_has_trait` used to be the example here; it answers now, so the example had
     // to move to a verb that still refuses - which is what this test is for, and why it was worth keeping rather than deleting.
-    let a_bionic = cdda_json::parse(br#"{"u_has_bionics": "bio_power_storage"}"#.as_slice()).expect("valid json");
-    assert!(read_condition(&a_bionic).is_none());
+    let a_flag = cdda_json::parse(br#"{"u_has_flag": "GRABS"}"#.as_slice()).expect("valid json");
+    assert!(read_condition(&a_flag).is_none());
     // A combination is only as readable as its parts.
     let mixed = cdda_json::parse(
-        br#"{"and": [{"u_has_effect": "effect_bleed"}, {"u_has_bionics": "bio_x"}]}"#.as_slice(),
+        br#"{"and": [{"u_has_effect": "effect_bleed"}, {"u_has_flag": "GRABS"}]}"#.as_slice(),
     )
     .expect("valid json");
     assert!(
@@ -186,7 +186,7 @@ fn the_port_answers_the_questions_it_can_and_says_how_many_that_is() {
     // before it. That is the whole point of a leaf: a combinator is only as readable as its parts, so one ported leaf is worth
     // several times itself.
     assert_eq!(
-        readable, 2342,
+        readable, 2360,
         "of which the port answers 1,501: `u_has_effect`, `compare_string`, `u_has_items`, the combinators, and the `math` expressions whose every name it knows"
     );
 }
@@ -683,4 +683,54 @@ fn standing_on_an_overmap_tile_answers_the_guard() {
         None,
         &condition(r#"{"u_at_om_location": "house"}"#)
     ));
+}
+
+/// Whether a condition the test writes holds for a creature.
+fn asked_about_bionic(world: &World, creature: bevy_ecs::prelude::Entity, text: &str) -> bool {
+        let value = cdda_json::parse(text.as_bytes()).expect("json");
+        let condition = cdda_content::dialogue::read_condition(&value)
+            .unwrap_or_else(|| panic!("{text} must read"));
+        cdda_sim::conditions::holds(world, creature, &condition)
+    }
+
+/// `u_has_bionics` asks about the bionic a creature carries, and `ANY` asks about any of them.
+///
+/// Reference: `f_has_bionics` (`condition.cpp:940-951`): a named bionic holds when the creature has it installed, and `ANY` holds when the creature
+/// has any bionic at all or a full power store - the power half is a divergence recorded in `docs/parity.md`.
+#[test]
+fn a_bionic_condition_asks_what_the_creature_carries() {
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    assert!(!asked_about_bionic(&world, survivor, r#"{"u_has_bionics": "bio_power_storage"}"#), "nothing installed yet");
+    assert!(!asked_about_bionic(&world, survivor, r#"{"u_has_bionics": "ANY"}"#), "and no bionic at all");
+
+    cdda_sim::bionics::install(&mut world, survivor, "bio_power_storage");
+    assert!(
+        asked_about_bionic(&world, survivor, r#"{"u_has_bionics": "bio_power_storage"}"#),
+        "the named bionic is installed"
+    );
+    assert!(
+        !asked_about_bionic(&world, survivor, r#"{"u_has_bionics": "bio_night_vision"}"#),
+        "a bionic it does not have does not hold"
+    );
+    assert!(asked_about_bionic(&world, survivor, r#"{"u_has_bionics": "ANY"}"#), "ANY holds with one installed");
+
+    // The list keeps no duplicates, so installing twice changes nothing.
+    cdda_sim::bionics::install(&mut world, survivor, "bio_power_storage");
+    assert_eq!(
+        cdda_sim::bionics::bionics_of(&world, survivor),
+        vec!["bio_power_storage".to_owned()]
+    );
+
+    // A bionic named by a variable holds too.
+    cdda_sim::dialogue_values::set(
+        &mut world,
+        survivor,
+        "wanted",
+        cdda_sim::dialogue_values::Value::Text("bio_power_storage".to_owned()),
+    );
+    assert!(
+        asked_about_bionic(&world, survivor, r#"{"u_has_bionics": "wanted"}"#),
+        "a variable naming a bionic reads as that bionic"
+    );
 }

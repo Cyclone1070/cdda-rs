@@ -5133,3 +5133,24 @@ The guard is now a reader, and the store built in round 818 made that a two-line
 Gated: 200 snippet picks never take a weight-zero line and the heavier line wins more; `same_snippet` says the same line twice; an unknown category
 **refuses**; a reader accepts the same object with its members in either order; `"18 hours"` becomes 64,800 turns of an effect; an intensity of
 `{"math": ["strong"]}` becomes whatever `strong` holds; and a duration range `[10, 20]` rolls between both ends over eighty draws.
+
+## Bionics (round 820)
+
+`f_has_bionics` (`condition.cpp:940-951`) asks whether a creature carries a named bionic, or `ANY`, which also accepts a full power store.
+
+Bionics are a component - `Bionics(Vec<String>)` - with `install` keeping the list free of duplicates, so "does this creature have that bionic" is a
+question about one entity's data. A member may name a bionic directly or name a dialogue variable holding one (`get_str_or_var(…, true)`), so the
+condition tries the literal first and the variable second.
+
+| Count | Before | After |
+|---|---|---|
+condition entries answerable | 2,342 | **2,360** |
+programs runnable whole | 217 | **219** |
+readable programs that run in a fresh world | 112 | **114** |
+unreadable leaves | 919 | **908** |
+
+**Divergence:** `ANY` asks only about the list. The reference also accepts a full power store, and the port has no power store, so that half is
+unanswered rather than guessed.
+
+Gated: nothing installed holds for neither the name nor `ANY`; one installed holds for its name and for `ANY` but not for another bionic; installing
+twice keeps one entry; and a variable naming a bionic holds through the variable.

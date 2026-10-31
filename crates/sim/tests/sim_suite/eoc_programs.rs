@@ -249,12 +249,12 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
     // `math` guards (42 -> 45). A refusal that moves house is not the same as a program that starts running, and only one of the
     // thirty-six turned out to be otherwise complete.
     assert_eq!(
-        whole, 217,
+        whole, 219,
         "two hundred and seventeen run whole: morale added fourteen, snippets eight"
     );
-    assert_eq!(refused.get("effect"), Some(&344), "and the effect side is still the bigger refusal");
+    assert_eq!(refused.get("effect"), Some(&353), "and the effect side is still the bigger refusal");
     assert_eq!(refused.get("u_has_trait"), None, "traits are no longer blamed for anything");
-    assert_eq!(refused.get("math"), Some(&46), "`math` guards are the biggest single one");
+    assert_eq!(refused.get("math"), Some(&47), "`math` guards are the biggest single one");
     assert_eq!(refused.get("u_has_item"), None, "carrying an item is no longer blamed for anything");
     // The chance guards now roll, so what is left of them is one program apiece - and the eight programs they freed are blamed on
     // what refused them next, which is the "moves house" pattern for the fifth time.
@@ -268,7 +268,7 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
     // not install them. The count of definitions was itself worth learning - the 712 in the earlier census counted objects, the
     // machine composes by name.
     assert_eq!(defined, 692, "the data defines 692 nameable effect-on-conditions");
-    assert_eq!(whole, 217, "and the port can run 217 of them whole");
+    assert_eq!(whole, 219, "and the port can run 219 of them whole");
 }
 
 /// A `run_eocs` entry can be a program written where it is used.
@@ -441,8 +441,8 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
     );
 
     assert_eq!(defined, 692, "the data defines 692 nameable effect-on-conditions");
-    assert_eq!(readable.len(), 217, "the port reads 217 of them");
-    assert_eq!(ran, 112, "a hundred and twelve of the readable programs also ran");
+    assert_eq!(readable.len(), 219, "the port reads 219 of them");
+    assert_eq!(ran, 114, "a hundred and fourteen of the readable programs also ran");
     assert_eq!(refused, 105, "and a hundred and five refused at run time");
     assert_eq!(ran + refused, readable.len(), "every readable program did one or the other");
 }
@@ -591,7 +591,7 @@ fn the_call_graph_says_which_missing_program_blocks_the_most() {
     );
 
     assert_eq!(defined, 692, "the data defines 692 nameable effect-on-conditions");
-    assert_eq!(readable.len(), 217, "the port reads 217 of them");
+    assert_eq!(readable.len(), 219, "the port reads 219 of them");
     assert!(!ranked.is_empty(), "and something is blocking something");
 }
 
@@ -723,19 +723,19 @@ fn the_programs_one_gap_away_say_what_to_port_next() {
     // The ranking's tail still carries two modifier names - `duration` and `bonus` - because a refused entry reports its first key, and a
     // modifier leads the object it sits in. They are listed so the number can be read honestly rather than silently dropped: the effect
     // refusing underneath them is what a round would have to port.
-    assert_eq!(gaps_total, 919, "the data's programs hold 919 unreadable leaves");
-    assert_eq!(single, 140, "a hundred and forty programs are one leaf away");
+    assert_eq!(gaps_total, 908, "the data's programs hold 908 unreadable leaves");
+    assert_eq!(single, 142, "a hundred and forty-two programs are one leaf away");
     assert_eq!(
         ranked,
         vec![
             ("<nested>".to_owned(), 36),
             ("mapgen_update".to_owned(), 32),
-            ("condition".to_owned(), 31),
-            ("u_add_effect".to_owned(), 12),
-            ("math".to_owned(), 10),
+            ("condition".to_owned(), 29),
+            ("math".to_owned(), 13),
+            ("u_add_effect".to_owned(), 13),
             ("hallucination_count".to_owned(), 7),
             ("max_radius".to_owned(), 6),
-            ("u_lose_effect".to_owned(), 6),
+            ("type".to_owned(), 6),
         ],
         "the members that would finish the most programs, single gaps first"
     );

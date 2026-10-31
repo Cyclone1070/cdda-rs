@@ -6,6 +6,7 @@
 
 pub mod transform;
 pub mod blast;
+pub mod bionics;
 pub mod calendar;
 pub mod dialogue_context;
 pub mod overmap;
