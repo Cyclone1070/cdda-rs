@@ -5907,3 +5907,26 @@ The built-world census moved with it - 199 of 319 against 195 fresh - so the fou
 
 Gated: the default range of one; a wider range finding the same tile; a name that is not there answering no rather than refusing; `road_north` answering
 for `road`; the listener's tile being the one asked about; and both camp names refusing.
+
+## `skill`, and a round that moved no count (round 852)
+
+`skill_eval` (`math_parser_diag.cpp:961-965`) answers a character's level in a named skill, and `Character::get_skill_level` answers **level 0** for a skill the
+character has never practised - so a survivor with no training reads zero rather than "cannot say". 36 uses in the data.
+
+`cdda_sim::skills_of` now holds a creature's levels, `skill('bashing')` answers the speaker's and `npc_skill` the listener's.
+
+| Count | Before | After |
+|---|---|---|
+conditions the port reads | 2,631 | **2,631** |
+programs readable | 319 | **319** |
+**capability** | 195 | **195** |
+
+**Nothing moved.** The 36 uses all sit inside expressions that refuse for a different reason - `n_npc_anger` (111 uses) is the neighbour they sit beside, and
+`u_vitamin` (108) and `n_npc_value` (79) are the next two. So this round bought a rule and no measurable capability, which is the honest description.
+
+The survey that produced it is worth keeping, because it is the queue for the next rounds: after `math`, the biggest unported functions are
+`n_npc_anger` 111, `u_vitamin` 108, `n_npc_value` 79, `u_skill` 36 (this round), `weather` 33, `u_pain` 29, `u_health` 26. Each needs a small store the port
+does not have yet - anger and value on the NPC, vitamins on the body, precise weather on the sky - which is why they have waited while the guards moved.
+
+Gated: an unpractised skill is zero; a practised one is its level; a different skill stays zero; and `npc_skill` asks the listener while `skill` asks the
+speaker.

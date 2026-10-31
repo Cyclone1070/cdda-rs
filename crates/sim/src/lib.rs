@@ -59,6 +59,7 @@ pub mod monster_registry;
 pub mod pockets;
 pub use square::load_level;
 pub mod skills;
+pub mod skills_of;
 pub use singletons::{
     TheFallingQueue, TheFieldRules, TheMemory, TheScent, TheIndex, ThePrototypes, TheSightCasts, SightCasts, TheScentTable, TheClimate, TheFieldTable, TheLight, TheWeather,
     adjust_radiation,

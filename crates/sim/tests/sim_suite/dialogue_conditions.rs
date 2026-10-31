@@ -1111,3 +1111,70 @@ fn a_nearby_overmap_terrain_guard_looks_within_its_range() {
         assert!(cdda_content::dialogue::read_condition(&value).is_none(), "{camp}");
     }
 }
+
+/// `skill('bashing')` answers a character's level in a skill, and an unpractised skill is level **0** rather than unknown.
+///
+/// Reference: `skill_eval` (`math_parser_diag.cpp:961-965`) with `Character::get_skill_level`: the character's map answers a default entry for a skill it has
+/// never practised, which is why a survivor with no training reads 0 and not "cannot say".
+#[test]
+fn a_skill_question_answers_zero_for_an_unpractised_skill() {
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let talker = cdda_sim::creature::spawn_creature(&mut world, "the talker", (0, 1, 0));
+    let answer = |world: &World, text: &str, listener: Option<bevy_ecs::prelude::Entity>| {
+        cdda_sim::conditions::value(
+            world,
+            survivor,
+            listener,
+            &cdda_content::dialogue::read_text_expression(text).expect("readable"),
+        )
+    };
+
+    assert_eq!(
+        cdda_sim::conditions::value(
+            &world,
+            survivor,
+            None,
+            &cdda_content::dialogue::read_text_expression("skill('bashing')").expect("readable"),
+        ),
+        Some(0.0),
+        "an unpractised skill is level zero, which is an answer"
+    );
+
+    cdda_sim::skills_of::set_level(&mut world, survivor, "bashing", 4);
+    assert_eq!(cdda_sim::skills_of::level_of(&world, survivor, "bashing"), 4);
+    assert_eq!(
+        cdda_sim::conditions::value(
+            &world,
+            survivor,
+            None,
+            &cdda_content::dialogue::read_text_expression("skill('bashing')").expect("readable"),
+        ),
+        Some(4.0)
+    );
+
+    // The other skill is still zero, so the answer is about the skill asked and not about the creature in general.
+    assert_eq!(
+        cdda_sim::conditions::value(
+            &world,
+            survivor,
+            None,
+            &cdda_content::dialogue::read_text_expression("skill('cooking')").expect("readable"),
+        ),
+        Some(0.0)
+    );
+
+    // The listener's spelling asks about the other creature, which has practised nothing.
+    cdda_sim::skills_of::set_level(&mut world, talker, "bashing", 7);
+    let about_talker = cdda_content::dialogue::read_text_expression("npc_skill('bashing')").expect("readable");
+    assert_eq!(
+        cdda_sim::conditions::value(&world, survivor, Some(talker), &about_talker),
+        Some(7.0),
+        "npc_skill asks about the listener"
+    );
+    assert_eq!(
+        answer(&world, "skill('bashing')", Some(talker)),
+        Some(4.0),
+        "and skill still asks about the speaker"
+    );
+}

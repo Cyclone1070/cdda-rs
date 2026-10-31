@@ -48,6 +48,30 @@ fn creature_flag(world: &World, speaker: Entity, listener: Option<Entity>, condi
         .is_some_and(|actor| crate::creature_flags::has_flag(world, actor, flag))
 }
 
+/// A character's level in a named skill, which is what `skill( 'bashing' )` asks.
+///
+/// Reference: `skill_eval` (`math_parser_diag.cpp:961-965`): the answer is the character's level, and an unpractised skill is level **0** rather than unknown.
+fn answer_skill(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    name: &str,
+    arguments: &[Expression],
+) -> Option<f64> {
+    if !matches!(name, "skill" | "npc_skill") {
+        return None;
+    }
+    let [Expression::Text(skill)] = arguments else {
+        return None;
+    };
+    let actor = if name == "npc_skill" {
+        listener?
+    } else {
+        speaker
+    };
+    Some(f64::from(crate::skills_of::level_of(world, actor, skill)))
+}
+
 /// Whether a named overmap terrain is within a range of the actor.
 ///
 /// Reference: `f_near_om_location` (`condition.cpp:1074`): every overmap tile within `range` is compared against the name, and the guard holds on the first
@@ -547,6 +571,9 @@ fn special_function(
             return Answer::Value(if held { 1.0 } else { 0.0 });
         }
         _ => {}
+    }
+    if let Some(level) = answer_skill(world, speaker, listener, name, arguments) {
+        return Answer::Value(level);
     }
     if name == "time_since"
         && let [point] = arguments

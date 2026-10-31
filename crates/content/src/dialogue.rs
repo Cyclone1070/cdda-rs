@@ -235,6 +235,8 @@ pub fn math_function(name: &str) -> Option<Arity> {
         | "fahrenheit" | "from_celsius" | "from_fahrenheit" | "time"
         // `time_since( x )` (`math_parser_diag.cpp:1173`) takes the point to count from: a name (`cataclysm`, `midnight`, `noon`) or a turn.
         | "time_since"
+        // `skill( 'bashing' )` (`math_parser_diag.cpp:961`) answers a character's level in a named skill.
+        | "skill" | "npc_skill"
         // `rand( n )` (`math_parser_func.h:57-60`) is one argument too; it is refused at run time only when the caller has no dice.
         | "rand" => Arity::Exactly(1),
         // The creature's own numbers: `u_hp` takes a body part the port does not model, so it is read with none or with one and answered from the
