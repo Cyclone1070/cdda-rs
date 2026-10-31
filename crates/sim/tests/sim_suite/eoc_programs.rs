@@ -736,12 +736,12 @@ fn the_programs_one_gap_away_say_what_to_port_next() {
         ranked,
         vec![
             ("mapgen_update".to_owned(), 33),
-            ("condition".to_owned(), 31),
-            ("math".to_owned(), 13),
+            ("math".to_owned(), 16),
             ("u_add_effect".to_owned(), 13),
             ("hallucination_count".to_owned(), 7),
             ("max_radius".to_owned(), 6),
             ("type".to_owned(), 6),
+            ("u_can_see".to_owned(), 6),
             ("u_lose_effect".to_owned(), 6),
         ],
         "the members that would finish the most programs, single gaps first"
@@ -757,7 +757,8 @@ fn unreadable_members(definition: &cdda_json::Value) -> Vec<String> {
     if let Some(condition) = member(definition, "condition")
         && cdda_content::dialogue::read_condition(condition).is_none()
     {
-        gaps.push("condition".to_owned());
+        // Name the **condition** that refuses rather than the slot it sits in: "condition" as a gap told the port nothing about what to port.
+        gaps.push(first_refusing_condition(condition));
     }
     for slot in ["effect", "true_effect", "false_effect"] {
         let Some(effects) = member(definition, slot) else {
@@ -787,6 +788,36 @@ fn is_descriptor(key: &str) -> bool {
 /// A container's own name is reported as a residue (`<nested>`) so the table does not promise a rule that does not exist.
 fn is_container_member(key: &str) -> bool {
     matches!(key, "then" | "else" | "cases" | "true_eocs" | "false_eocs")
+}
+
+/// The member of a refused condition that refuses, following `and`/`or`/`not` to a leaf.
+fn first_refusing_condition(condition: &cdda_json::Value) -> String {
+    // A condition written as a bare name is the whole of itself, so the name is the gap.
+    if let cdda_json::Value::Str(name) = condition {
+        return name.clone();
+    }
+    let cdda_json::Value::Object(object) = condition else {
+        return "condition".to_owned();
+    };
+    for (member, _) in object.members() {
+        if let Some(cdda_json::Value::Array(parts)) = object.get(member)
+            && matches!(member.as_str(), "and" | "or")
+            && let Some(failing) = parts
+                .iter()
+                .find(|part| cdda_content::dialogue::read_condition(part).is_none())
+        {
+            return first_refusing_condition(failing);
+        }
+        if member == "not"
+            && let Some(inner) = object.get("not")
+        {
+            return first_refusing_condition(inner);
+        }
+    }
+    object
+        .members()
+        .first()
+        .map_or_else(|| "condition".to_owned(), |(key, _)| key.clone())
 }
 
 /// The members that hold further effects, and the members that hold those.

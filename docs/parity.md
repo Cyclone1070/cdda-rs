@@ -5203,3 +5203,27 @@ is now counted before truncation - 198 - while those eight members would finish 
 
 Both errors are the same shape as ones already recorded here: a measurement that quietly answers a *nearby* question. A census line should say what it
 counts, and "sum of the top eight" is not "programs one gap away".
+
+## The census names the condition that refuses (round 823)
+
+A refused **condition** was blamed as `condition`, which told the port nothing: the bucket held thirty-one programs and named no member. The blame now
+names the condition itself - the first member of a refused `and`/`or`, the inside of a `not`, or the bare name when the condition is a string.
+
+The bucket emptied, and what was behind it was ordinary named work:
+
+| Member | Programs it would finish |
+|---|---|
+`mapgen_update` | 33 |
+`math` (inside a condition) | 16 |
+`u_add_effect` | 13 |
+`hallucination_count` | 7 |
+`max_radius` | 6 |
+`type` (a sound effect) | 6 |
+`u_can_see` | 6 |
+`u_lose_effect` | 6 |
+
+Totals unchanged - 1,190 leaves, 198 programs one leaf away - because this was a **naming** fix, not a count fix. That is the point: the earlier bucket
+could have been read as "conditions are hard" and sent a round at the wrong thing; the split shows the truth is the same long tail of ordinary members
+the effect side has.
+
+Two of them are cheap and now visible: `u_can_see` (6) and `type`/`npc_make_sound` (6), both needing state the port already keeps - sight and sounds.
