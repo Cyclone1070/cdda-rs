@@ -44,18 +44,18 @@ pub struct Census {
 /// constants are the numbers those prints last said.
 pub const NOW: Census = Census {
     defined: 692,
-    readable: 325,
-    ran: 196,
+    readable: 331,
+    ran: 202,
     // The same programs run in a world that has terrain, an overmap and a player who answers, which is what a game has.
-    ran_in_a_built_world: 200,
+    ran_in_a_built_world: 206,
     refused_at_run: 129,
-    leaves: 853,
+    leaves: 834,
     one_gap: 161,
     effects_runnable: 1_140,
     effects_defined: 1_612,
-    effect_blamed: 282,
+    effect_blamed: 293,
     math_blamed: 42,
-    conditions_readable: 2_631,
+    conditions_readable: 2_649,
 };
 
 impl Census {

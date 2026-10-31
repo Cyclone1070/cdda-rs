@@ -72,6 +72,26 @@ fn answer_skill(
     Some(f64::from(crate::skills_of::level_of(world, actor, skill)))
 }
 
+/// Whether the actor is standing under the sky.
+///
+/// Reference: `is_creature_outside` (`weather.cpp:76-82`): the actor's square is outside **and** the level is at or above street level - a creature below ground
+/// is under rock however open the square above it is.
+fn is_outside(world: &World, speaker: Entity, listener: Option<Entity>, condition: &Condition) -> bool {
+    let Condition::IsOutside {
+        listener: about_listener,
+    } = condition
+    else {
+        return false;
+    };
+    let Some(actor) = actor_for(speaker, listener, *about_listener) else {
+        return false;
+    };
+    let Some(at) = world.get::<crate::Position>(actor).copied() else {
+        return false;
+    };
+    at.z >= 0 && crate::outdoors::is_outside(world, (at.x, at.y, at.z))
+}
+
 /// Whether a named overmap terrain is within a range of the actor.
 ///
 /// Reference: `f_near_om_location` (`condition.cpp:1074`): every overmap tile within `range` is compared against the name, and the guard holds on the first
@@ -389,6 +409,7 @@ fn holds_within(
             is_season(world, speaker, listener, season)
         }
         Condition::NearOmLocation { .. } => near_om_location(world, speaker, listener, condition),
+        Condition::IsOutside { .. } => is_outside(world, speaker, listener, condition),
         Condition::HasWornWithFlag { .. } => worn_flag(world, speaker, listener, condition),
         Condition::HasFlag { .. } => creature_flag(world, speaker, listener, condition),
         Condition::CanSee { listener: about_listener } => actor_for(speaker, listener, *about_listener)

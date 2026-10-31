@@ -6038,3 +6038,33 @@ that spawns cannot say what it spawns. Capability moved by one because one of th
 `u_is_outside` (6 one-gap programs) is now a one-function step, since `outdoors::is_outside` exists and the condition is the same question.
 
 Gated: a bare square is outside and one off the level is not; an outdoor spawn lands and says the plural line exactly once; and both flags at once is refused.
+
+## `u_is_outside`, and the shape that keeps catching me (round 857)
+
+`f_is_outside` (`condition.cpp:2650`) asks whether a creature stands under the sky, and `is_creature_outside` (`weather.cpp:76-82`) is the rule: the creature's
+square is outside **and** the level is at or above street level - a cellar answers no however open the square above it is.
+
+`cdda_sim::outdoors::is_outside` answers the square half from the terrain and furniture `INDOORS` flags, which is where the light cast's outside cache starts.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 325 | **331** |
+**capability** | 196 | **202** |
+conditions the port reads | 2,631 | **2,649** |
+unreadable leaves | 853 | **834** |
+effect-blamed programs | 282 | **293** |
+
+Six programs and six capability, which is the best single round this session - and it nearly did not happen. I wrote the member form first
+(`{"u_is_outside": true}`), measured, and got **nothing**: no program, no condition, and `u_is_outside` still sitting at 6 on the one-gap list. The data writes
+it as a **bare name in an `or` list** - `{ "or": [ { "math": [...] }, "u_is_outside" ] }` in `haunting.json` - because it takes no argument, so there is
+nothing to be the value.
+
+That is the same shape as `u_can_see` four rounds ago, and the same shape as a bare `u_val` in a list. The lesson is not "remember the bare form"; it is that
+**a reader that only accepts the member form looks exactly like a reader that is missing the rule**, and the census cannot tell them apart either - both show
+the member name as a refusal.
+
+The tell was cheap: the member form moved nothing while the rule was demonstrably correct and gated. A rule that reads correctly, passes its test, and moves no
+count is the signal to go and look at how the data spells it.
+
+Gated: an open square is outside; a creature below ground never is; a square whose terrain carries the indoors flag is not; and the listener's spelling asks
+about the listener's level.

@@ -10,6 +10,13 @@ use cdda_json::Value;
 /// A condition the port can evaluate.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Condition {
+    /// Whether a creature is standing under the sky.
+    ///
+    /// Reference: `f_is_outside` (`condition.cpp:2650`) with `is_creature_outside` (`weather.cpp:76`), which asks the map about the creature's own square.
+    IsOutside {
+        /// Whether it is the listener rather than the speaker.
+        listener: bool,
+    },
     /// Whether a named overmap terrain is within a range of the actor.
     ///
     /// Reference: `f_near_om_location` (`condition.cpp:1074`) for `u_near_om_location` and `npc_near_om_location`: every overmap tile within `range` is
@@ -370,6 +377,12 @@ fn read_bare_condition(name: &str) -> Option<Condition> {
     match name {
         "u_can_see" => return Some(Condition::CanSee { listener: false }),
         "npc_can_see" => return Some(Condition::CanSee { listener: true }),
+        // Some argument-less guards are written as **bare names** inside an `or`, not as members: `"u_is_outside"` with no value (`haunting.json`).
+        "u_is_outside" | "npc_is_outside" => {
+            return Some(Condition::IsOutside {
+                listener: name == "npc_is_outside",
+            });
+        }
         _ => {}
     }
     matches!(name, "has_beta" | "u_is_avatar" | "u_is_character").then(|| Condition::Simple {
@@ -434,6 +447,7 @@ pub fn read_condition(value: &Value) -> Option<Condition> {
         return Some(guard);
     }
     // Reference: `f_has_item` (`condition.cpp:826-834`), the sibling of `u_has_items` that asks only "any at all".
+    if let Some(outside) = read_outside_condition(object) { return Some(outside); }
     if let Some(nearby) = read_near_om_condition(object) {
         return Some(nearby);
     }
@@ -580,6 +594,18 @@ fn read_near_om_condition(object: &cdda_json::Object) -> Option<Condition> {
             range,
             listener,
         });
+    }
+    None
+}
+
+/// Reads the two guards that ask whether a creature is under the sky.
+///
+/// Reference: `f_is_outside` (`condition.cpp:2650`), which takes no argument - the question is about the creature's own square.
+fn read_outside_condition(object: &cdda_json::Object) -> Option<Condition> {
+    for (member, listener) in [("u_is_outside", false), ("npc_is_outside", true)] {
+        if object.get(member).is_some() {
+            return Some(Condition::IsOutside { listener });
+        }
     }
     None
 }

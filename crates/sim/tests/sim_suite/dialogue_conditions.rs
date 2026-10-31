@@ -1178,3 +1178,63 @@ fn a_skill_question_answers_zero_for_an_unpractised_skill() {
         "and skill still asks about the speaker"
     );
 }
+
+/// `u_is_outside` asks whether the creature is under the sky, and a creature below ground never is.
+///
+/// Reference: `f_is_outside` (`condition.cpp:2650`) with `is_creature_outside` (`weather.cpp:76-82`): the actor's square is outside **and** the level is at or
+/// above street level, so a cellar answers no however open the square above it is.
+#[test]
+fn an_outside_guard_asks_about_the_square_and_the_level() {
+    use cdda_sim::singletons::set_prototypes;
+    use cdda_sim::Prototypes;
+
+    let mut world = World::new();
+    let mut level = cdda_core_types::level::Level::new();
+    for x in -8..8 {
+        for y in -8..8 {
+            for z in 0..2 {
+                level.set_terrain(x, y, z, 1);
+            }
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (2, 2, 0));
+
+    let outside = cdda_content::dialogue::read_condition(
+        &cdda_json::parse(br#"{"u_is_outside": true}"#.as_slice()).expect("json"),
+    )
+    .expect("readable");
+    assert!(
+        cdda_sim::conditions::holds(&world, survivor, &outside),
+        "a square with nothing over it is under the sky"
+    );
+
+    // Below ground is never outside, even though the square above is open.
+    let below = cdda_sim::creature::spawn_creature(&mut world, "the digger", (2, 2, -1));
+    assert!(!cdda_sim::conditions::holds(&world, below, &outside));
+
+    // A square whose terrain carries the indoors flag is not outside either.
+    let mut prototypes = Prototypes::default();
+    prototypes.terrain.insert_indoors(1, true);
+    set_prototypes(&mut world, prototypes);
+    assert!(
+        !cdda_sim::conditions::holds(&world, survivor, &outside),
+        "the indoors flag on the terrain is the answer"
+    );
+
+    // The guard needs no argument: a member with a value is still the same question, and the listener's spelling asks about the other creature.
+    let mut clear = Prototypes::default();
+    clear.terrain.insert_indoors(1, false);
+    set_prototypes(&mut world, clear);
+    let theirs = cdda_content::dialogue::read_condition(
+        &cdda_json::parse(br#"{"npc_is_outside": true}"#.as_slice()).expect("json"),
+    )
+    .expect("readable");
+    let talker = cdda_sim::creature::spawn_creature(&mut world, "the talker", (3, 3, 0));
+    assert!(cdda_sim::conditions::holds_with(&world, survivor, Some(talker), &theirs));
+    let buried = cdda_sim::creature::spawn_creature(&mut world, "the buried", (3, 3, -1));
+    assert!(
+        !cdda_sim::conditions::holds_with(&world, survivor, Some(buried), &theirs),
+        "the listener's level is the one that counts"
+    );
+}
