@@ -1189,6 +1189,20 @@ pub enum Effect {
         /// Whether the player may walk away without choosing.
         allow_cancel: bool,
     },
+    /// Store the nearest overmap tile of a terrain in a dialogue variable.
+    ///
+    /// Reference: `f_location_variable` (`npctalk.cpp:4194`) with a `target_params` naming an overmap terrain: the search runs over the overmap and the
+    /// variable holds the square it found.
+    LocationVariableSearch {
+        /// The variable's type, as the data spells it.
+        scope: String,
+        /// The variable's name.
+        name: String,
+        /// The overmap terrain to look for.
+        om_terrain: String,
+        /// Whether the square goes to the listener's variables rather than the speaker's.
+        listener: bool,
+    },
     /// Take several effects away from a creature, which the data writes as an array.
     RemoveEffects {
         /// The effects' ids.
@@ -1343,7 +1357,7 @@ impl Effect {
             Self::LoseTrait { .. } => "u_lose_trait",
             Self::RunEoc(_) => "run_eocs",
             Self::Switch { .. } => "switch",
-            Self::LocationVariable { .. } => "u_location_variable",
+            Self::LocationVariable { .. } | Self::LocationVariableSearch { .. } => "u_location_variable",
             Self::WeightedList(_) => "weighted_list_eocs",
             Self::OpenDialogue { .. } => "open_dialogue",
             Self::AddMorale { .. } => "u_add_morale",
@@ -1860,6 +1874,31 @@ fn read_location_variable(object: &cdda_json::Object) -> Option<Effect> {
         let Some(Value::Object(target)) = object.get(member) else {
             continue;
         };
+        // The one search the port can answer: a mission target naming an **overmap terrain and nothing else**, which is a search of the overmap
+        // for the nearest tile of it - the same walk `om_terrain` aiming uses. Every other filter (a monster, a field, a zone, a reveal radius, a search
+        // range) is a different question and is refused rather than answered with the wrong square.
+        if let Some(Value::Object(params)) = object.get("target_params")
+            && let Some(Value::Str(wanted)) = params.get("om_terrain")
+            && params.members().len() == 1
+        {
+            let (scope, name) = target.members().iter().find_map(|(scope, value)| match value {
+                Value::Str(name) => Some((scope.clone(), name.clone())),
+                _ => None,
+            })?;
+            if SEARCHING
+                .iter()
+                .filter(|key| **key != "target_params")
+                .any(|key| object.get(key).is_some())
+            {
+                return None;
+            }
+            return Some(Effect::LocationVariableSearch {
+                scope,
+                name,
+                om_terrain: wanted.clone(),
+                listener,
+            });
+        }
         if SEARCHING.iter().any(|key| object.get(key).is_some()) {
             return None;
         }

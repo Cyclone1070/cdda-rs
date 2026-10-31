@@ -5689,3 +5689,30 @@ programs were one aim away from running, and they ran.
 
 Gated: an aim that finds no tile of that terrain refuses rather than creating one; two tiles of it, one nearer, and the update lands on the nearer - at
 whose top-left square the test asserts byte for byte (`24 * 1`, since one overmap tile is two submaps each way).
+
+## A location variable that searches the overmap (round 844)
+
+`f_location_variable` (`npctalk.cpp:4194`) has two halves - storing a square and **searching** for one. The searching half is the larger one in the
+data: 40 of 90 entries name a `target_params`, and the port refused all of them.
+
+The port now answers the one search it can answer exactly: a `target_params` naming an **overmap terrain and nothing else**. It reuses the same walk
+`om_terrain` aiming uses, and stores the tile's top-left square - the square a mapgen update lands on when that tile is its target, so a program can
+search once and aim many times.
+
+Everything else refuses, and each for its own reason: a `search_range`, a `reveal_radius`, a monster, a field, a zone, a species. Those are not
+approximations of the terrain search, they are different questions.
+
+| Count | Before | After |
+|---|---|---|
+effect entries runnable | 1,037 | **1,039** |
+unreadable leaves | 974 | **972** |
+one-gap programs | 161 | **163** |
+programs readable | 299 | **299** |
+**capability** | 180 | **180** |
+
+Two entries moved, which is close to nothing - the terrain-only target is rarer in the data than the count of `target_params` suggests. This round is
+recorded as a **small** one on purpose: it settles the rule and the refusal boundary, and it turns out the boundary is where almost all of the 40 entries
+sit.
+
+Gated: no tile of that terrain refuses; one tile stores its top-left square; a target with a search range, a radius, or a monster filter is refused rather
+than answered with the actor's own square.

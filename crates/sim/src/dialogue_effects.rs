@@ -221,6 +221,49 @@ fn say_snippet(
 }
 
 
+/// Stores the nearest overmap tile of a terrain in a dialogue variable.
+///
+/// Reference: `f_location_variable` (`npctalk.cpp:4194`) with a `target_params` naming an overmap terrain. The port searches the overmap the way
+/// `om_terrain` aiming does, and stores the tile's **top-left square**, which is the square a mapgen update lands on when that tile is its target.
+fn search_location(world: &mut World, speaker: Entity, effect: &Effect) -> Applied {
+    let Effect::LocationVariableSearch {
+        scope,
+        name,
+        om_terrain,
+        ..
+    } = effect
+    else {
+        return Applied::CannotAnswer;
+    };
+    let Some(at) = world.get::<crate::Position>(speaker).copied() else {
+        return Applied::CannotAnswer;
+    };
+    let tile = crate::overmap::tile_of(at.x, at.y);
+    let Some((x, y)) = crate::overmap::nearest_with_terrain(world, tile, om_terrain, SEARCH_RANGE)
+    else {
+        return Applied::CannotAnswer;
+    };
+    let square = (
+        x * crate::overmap::SQUARES_PER_OMT,
+        y * crate::overmap::SQUARES_PER_OMT,
+        at.z,
+    );
+    let Some(holder) = crate::conditions::holder_for_scope(world, speaker, None, scope) else {
+        return Applied::CannotAnswer;
+    };
+    crate::dialogue_values::set(
+        world,
+        holder,
+        name,
+        crate::dialogue_values::Value::Position {
+            x: square.0,
+            y: square.1,
+            z: square.2,
+        },
+    );
+    Applied::Done
+}
+
 /// Offers a menu of programs and runs the one that was picked.
 ///
 /// Reference: `f_run_eoc_selector` (`npctalk.cpp:6385`): the player picks one of the programs, or walks away when `allow_cancel` says they may. The
@@ -666,6 +709,26 @@ fn run_switch(
         }
     }
 
+/// Runs one of an `if`'s two lists, whichever its condition picks.
+///
+/// Reference: `f_if` (`npctalk.cpp:6977-6993`): `if` is a condition, `then` runs when it holds, `else` when it does not, and an absent `else` runs nothing.
+fn run_branch(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::If {
+        condition,
+        then,
+        otherwise,
+    } = effect
+    else {
+        return Applied::CannotAnswer;
+    };
+    let branch = if crate::conditions::holds_in_store(world, speaker, listener, condition) {
+        then
+    } else {
+        otherwise
+    };
+    run_effects(world, speaker, listener, branch)
+}
+
 /// Runs one effect entry.
 pub fn run_effect(
     world: &mut World,
@@ -706,6 +769,7 @@ pub fn run_effect(
                 about_listener: *about_listener,
             },
         ),
+        Effect::LocationVariableSearch { .. } => search_location(world, speaker, effect),
         Effect::RunEocSelector { .. } => run_selector(world, speaker, listener, effect),
         Effect::RemoveEffects { .. } => run_remove_effects(world, speaker, listener, effect),
         Effect::MapgenUpdate { .. } => run_mapgen_update(world, speaker, listener, effect),
@@ -734,18 +798,7 @@ pub fn run_effect(
         Effect::WeightedList(weighted) => run_weighted_list(world, speaker, listener, weighted, 0),
         Effect::LocationVariable { .. } => store_location(world, speaker, listener, effect),
         Effect::Switch { on, cases } => run_switch(world, speaker, listener, on, cases),
-        Effect::If {
-            condition,
-            then,
-            otherwise,
-        } => {
-            let branch = if crate::conditions::holds_in_store(world, speaker, listener, condition) {
-                then
-            } else {
-                otherwise
-            };
-            run_effects(world, speaker, listener, branch)
-        }
+        Effect::If { .. } => run_branch(world, speaker, listener, effect),
         Effect::AddEffect {
             effect,
             duration,

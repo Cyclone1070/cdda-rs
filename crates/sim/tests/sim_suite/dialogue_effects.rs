@@ -639,9 +639,10 @@ fn a_location_variable_holds_the_actors_square() {
         Some(cdda_sim::dialogue_values::Value::Position { x: 3, y: 4, z: 0 })
     );
 
-    // The searching forms are refused rather than answered with the actor's own square.
+    // The searching forms are refused rather than answered with the actor's own square. A `target_params` naming an overmap terrain and **nothing
+    // else** is no longer one of them - the port searches the overmap for it - but every filter still is.
     for text in [
-        r#"{"u_location_variable": {"u_val": "x"}, "target_params": {"om_terrain": "field"}}"#,
+        r#"{"u_location_variable": {"u_val": "x"}, "target_params": {"om_terrain": "field", "search_range": 20}}"#,
         r#"{"u_location_variable": {"u_val": "x"}, "terrain": "t_grass"}"#,
         r#"{"u_location_variable": {"u_val": "x"}, "min_radius": 3}"#,
     ] {
@@ -1215,13 +1216,13 @@ fn a_mapgen_update_writes_its_terrain_where_the_speaker_stands() {
     // An update aimed by a member the port has not built is refused rather than applied in the wrong place. This list keeps shrinking as the aiming
     // forms land - `target_var`, then `om_terrain` - and what is left is the whole mission target: search range, filters, reveal, and a create step the
     // port does not have.
-    for text in [r#"{"mapgen_update": "lab_wall_opens", "target_params": {"om_terrain": "field"}}"#] {
-        let value = cdda_json::parse(text.as_bytes()).expect("json");
-        assert!(
-            cdda_content::dialogue::read_effect(&value).is_none(),
-            "{text} must be refused"
-        );
-    }
+    let whole_target =
+        cdda_json::parse(br#"{"mapgen_update": "lab_wall_opens", "target_params": {"om_terrain": "field"}}"#.as_slice())
+            .expect("json");
+    assert!(
+        cdda_content::dialogue::read_effect(&whole_target).is_none(),
+        "a whole mission target is refused rather than applied in the wrong place"
+    );
 }
 
 /// An update mapgen may place fields instead of terrain, which is how a scenario fills a room with smoke.
@@ -1620,4 +1621,63 @@ fn an_om_terrain_aim_lands_on_the_nearest_tile_of_that_terrain() {
         Some(0),
         "and not at the far tile"
     );
+}
+
+/// A location variable can hold the nearest overmap tile of a terrain, which is what a mission target names.
+///
+/// Reference: `f_location_variable` (`npctalk.cpp:4194`) with a `target_params` naming an overmap terrain: the search runs over the overmap and the
+/// variable holds the square it found. Every other filter is a different question and is refused.
+#[test]
+fn a_location_variable_can_hold_the_nearest_tile_of_a_terrain() {
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (1, 1, 0));
+
+    let store = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(
+            br#"{"u_location_variable": {"u_val": "lab"}, "target_params": {"om_terrain": "lab_finale"}}"#
+                .as_slice(),
+        )
+        .expect("json"),
+    )
+    .expect("a terrain target is readable");
+
+    // Nothing of that terrain on the overmap: the port refuses rather than inventing a square.
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &store),
+        Applied::CannotAnswer
+    );
+
+    cdda_sim::overmap::set_terrain(&mut world, (2, 1), "lab_finale");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &store),
+        Applied::Done
+    );
+    let stored = cdda_sim::dialogue_values::position_of(
+        &mut world,
+        survivor,
+        None,
+        &cdda_content::dialogue::AssignmentTarget::Variable {
+            scope: "u_val".to_owned(),
+            name: "lab".to_owned(),
+        },
+    )
+    .expect("the variable holds a square");
+    assert_eq!(
+        stored,
+        (2 * cdda_sim::overmap::SQUARES_PER_OMT, cdda_sim::overmap::SQUARES_PER_OMT, 0),
+        "the square is the tile's top-left, which is where a mapgen update lands"
+    );
+
+    // A target that asks a question the port cannot answer is refused, not answered approximately.
+    for text in [
+        r#"{"u_location_variable": {"u_val": "x"}, "target_params": {"om_terrain": "lab_finale", "search_range": 30}}"#,
+        r#"{"u_location_variable": {"u_val": "x"}, "target_params": {"om_terrain": "lab_finale"}, "min_radius": 4}"#,
+        r#"{"u_location_variable": {"u_val": "x"}, "monster": "mon_zombie"}"#,
+    ] {
+        let value = cdda_json::parse(text.as_bytes()).expect("json");
+        assert!(
+            cdda_content::dialogue::read_effect(&value).is_none(),
+            "{text} asks something the port cannot answer"
+        );
+    }
 }
