@@ -169,6 +169,86 @@ fn run_weighted_list(
     }
 }
 
+
+/// Gives a creature an effect, with the duration and intensity the data states.
+///
+/// Reference: `f_add_effect` (`npctalk.cpp:3426-3450`): the duration may be a range, which is rolled, and the intensity is an expression
+/// evaluated at the moment it is applied.
+fn add_effect(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &str,
+    duration: cdda_content::dialogue::EffectDuration,
+    intensity: Option<&cdda_content::dialogue::Expression>,
+    about_listener: bool,
+) -> Applied {
+    let Some(creature) = actor(speaker, listener, about_listener) else {
+        return Applied::CannotAnswer;
+    };
+    let intensity = match intensity {
+        Some(expression) => {
+            let Some(value) = draw(world, speaker, listener, expression) else {
+                return Applied::CannotAnswer;
+            };
+            as_whole(value)
+        }
+        None => 0,
+    };
+    let (duration, permanent) = match duration {
+        cdda_content::dialogue::EffectDuration::Permanent => (0, true),
+        cdda_content::dialogue::EffectDuration::Turns(turns) => (turns.unwrap_or(0), false),
+        cdda_content::dialogue::EffectDuration::Range(shortest, longest) => {
+            let mut dice = crate::singletons::take_rolls(world);
+            let rolled = dice
+                .as_mut()
+                .map(|dice| i64::from(dice.rng(as_turns(shortest), as_turns(longest))));
+            if let Some(dice) = dice.take() {
+                crate::singletons::put_rolls(world, dice);
+            }
+            (rolled.unwrap_or(shortest), false)
+        }
+    };
+    crate::applied_effects::add(
+        world,
+        creature,
+        crate::effects::ActiveEffect {
+            id: effect.to_owned(),
+            intensity,
+            duration,
+            permanent,
+        },
+    );
+    Applied::Done
+}
+
+/// An expression's value as a whole number, which is what an intensity is.
+#[allow(clippy::cast_possible_truncation)]
+fn as_whole(value: f64) -> i32 {
+    value.round() as i32
+}
+
+/// An expression's value, with the store's dice taken out for the evaluation and put back after.
+fn draw(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    expression: &cdda_content::dialogue::Expression,
+) -> Option<f64> {
+    let mut dice = crate::singletons::take_rolls(world);
+    let value = crate::conditions::value_drawing(world, speaker, listener, expression, true, dice.as_mut());
+    if let Some(dice) = dice.take() {
+        crate::singletons::put_rolls(world, dice);
+    }
+    value
+}
+
+/// A number of turns as the generator's integer, which is what every roll takes.
+#[allow(clippy::cast_possible_truncation)]
+fn as_turns(turns: i64) -> i32 {
+    turns as i32
+}
+
 /// Stores the actor's square in a dialogue variable.
 ///
 /// Reference: `f_location_variable` (`npctalk.cpp:4194`), plain form: the value is `d.const_actor( is_npc )->pos_abs()`, and the scope names where
@@ -307,23 +387,7 @@ pub fn run_effect(
             duration,
             intensity,
             listener: about_listener,
-        } => {
-            let Some(creature) = actor(speaker, listener, *about_listener) else {
-                return Applied::CannotAnswer;
-            };
-            let permanent = duration.is_none();
-            crate::applied_effects::add(
-                world,
-                creature,
-                crate::effects::ActiveEffect {
-                    id: effect.clone(),
-                    intensity: *intensity,
-                    duration: duration.unwrap_or(0),
-                    permanent,
-                },
-            );
-            Applied::Done
-        }
+        } => add_effect(world, speaker, listener, effect, *duration, intensity.as_ref(), *about_listener),
         Effect::RemoveEffect { effect, listener: about_listener } => {
             let Some(creature) = actor(speaker, listener, *about_listener) else {
                 return Applied::CannotAnswer;

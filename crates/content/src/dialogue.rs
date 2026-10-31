@@ -793,6 +793,26 @@ fn parse_primary(tokens: &[Token]) -> Option<(Expression, &[Token])> {
     }
 }
 
+/// Reads an expression, which the data may also wrap in a `math` object.
+///
+/// The dialogue writes a value that needs computing as `{"math": ["…"]}` - the same shape a condition uses for its expressions - so a member
+/// like `intensity` can be either a number and an expression or an object holding one.
+fn read_math_expression(value: &Value) -> Option<Expression> {
+    if let Value::Object(object) = value
+        && let Some(Value::Array(statements)) = object.get("math")
+    {
+        let mut joined = String::new();
+        for statement in statements {
+            let Value::Str(text) = statement else {
+                return None;
+            };
+            joined.push_str(text);
+        }
+        return read_text_expression(&joined);
+    }
+    read_expression(value)
+}
+
 /// Reads an expression, or nothing when the port has no rule for its shape.
 #[must_use]
 pub fn read_expression(value: &Value) -> Option<Expression> {
@@ -975,6 +995,20 @@ fn split_assignment(text: &str) -> Option<(&str, AssignmentOp, &str)> {
     None
 }
 
+/// How long an added effect lasts.
+///
+/// Reference: `f_add_effect` (`npctalk.cpp:3426-3450`) and `get_duration_or_var`, which accept a duration string, a number of turns, an array
+/// of two ends, or `PERMANENT`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum EffectDuration {
+    /// It lasts until something removes it.
+    Permanent,
+    /// A fixed number of turns, or the reference's default when the data states none.
+    Turns(Option<i64>),
+    /// A roll between two ends, inclusive.
+    Range(i64, i64),
+}
+
 /// An effect a dialogue program can run.
 ///
 /// Reference: `talk_effect_fun_t`'s table (`npctalk.cpp:8039-8135`), which maps each member name to a function. The port keeps
@@ -1005,10 +1039,10 @@ pub enum Effect {
     AddEffect {
         /// The effect's id.
         effect: String,
-        /// How long it lasts, in turns, or nothing when it is permanent.
-        duration: Option<i64>,
-        /// How strong it is.
-        intensity: i32,
+        /// How long it lasts.
+        duration: EffectDuration,
+        /// How strong it is, as an expression the reference evaluates when the effect is applied.
+        intensity: Option<Expression>,
         /// Whether it goes to the listener rather than the speaker.
         listener: bool,
     },
@@ -1504,22 +1538,39 @@ for (member, listener, learn) in [
             return None;
         }
         if learn {
+            // Reference: `get_duration_or_var` (`npctalk.cpp:3426-3450`) accepts a duration **string**, a number of turns, or an
+            // array of two of either, which the reference rolls between. The port reads all three; a roll is made at run time.
             let duration = match object.get("duration") {
-                Some(Value::Str(text)) if text == "PERMANENT" => None,
-                Some(Value::Str(text)) => Some(crate::constructions::parse_duration(text)),
-                Some(Value::Int(turns)) => Some(*turns),
-                Some(_) => return None,
-                None => Some(1000),
-            };
-            let intensity = match object.get("intensity") {
-                Some(Value::Int(number)) => i32::try_from(*number).ok()?,
-                Some(Value::Float(number)) => {
+                Some(Value::Str(text)) if text == "PERMANENT" => EffectDuration::Permanent,
+                Some(Value::Str(text)) => EffectDuration::Turns(Some(crate::constructions::parse_duration(text))),
+                Some(Value::Int(turns)) => EffectDuration::Turns(Some(*turns)),
+                Some(Value::Float(turns)) => {
                     #[allow(clippy::cast_possible_truncation)]
-                    let whole = *number as i32;
-                    whole
+                    let whole = *turns as i64;
+                    EffectDuration::Turns(Some(whole))
+                }
+                // An array is a range: the reference rolls a duration between the two ends.
+                Some(Value::Array(ends)) => {
+                    let rolls = ends
+                        .iter()
+                        .map(|end| match end {
+                            Value::Int(turns) => Some(*turns),
+                            Value::Str(text) => Some(crate::constructions::parse_duration(text)),
+                            _ => None,
+                        })
+                        .collect::<Option<Vec<_>>>()?;
+                    let [shortest, longest] = rolls.as_slice() else {
+                        return None;
+                    };
+                    EffectDuration::Range(*shortest, *longest)
                 }
                 Some(_) => return None,
-                None => 0,
+                None => EffectDuration::Turns(Some(1000)),
+            };
+            // Reference: `get_dbl_or_var( jo, "intensity" )` - an intensity may be an expression, evaluated when the effect is applied.
+            let intensity = match object.get("intensity") {
+                Some(value) => Some(read_math_expression(value)?),
+                None => None,
             };
             return Some(Effect::AddEffect {
                 effect: effect.clone(),

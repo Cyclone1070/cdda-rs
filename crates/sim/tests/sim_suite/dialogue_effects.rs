@@ -226,7 +226,7 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
     // length of the evaluation and put back.
     // 792 after location variables: the plain form stores the actor's square, and the searching forms are still refused.
     // 805 after `open_dialogue`: the branch rule runs exactly, and the conversation itself is not opened (no interface to open it).
-    assert_eq!(runnable, 805, "of which the port runs 805 entries");
+    assert_eq!(runnable, 815, "of which the port runs 815 entries");
 
     // And the ranking of what refuses, which is this census's real output: it says what to port next instead of what is used most.
     // `target_var` is the one entry the ranking cannot attribute on its own - a scan of the data shows 71 of those 98 are
@@ -243,7 +243,7 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
             ("math".to_owned(), 98),
             ("bonus".to_owned(), 32),
             ("else".to_owned(), 32),
-            ("duration".to_owned(), 31),
+            ("u_lose_effect".to_owned(), 29),
         ],
         "the five effects that refuse most, in order - and `bonus`/`duration` are modifiers that reached the top only because \
          a refused entry always reports its first key; the three above them are effects"
@@ -341,11 +341,19 @@ fn a_program_can_give_and_take_a_wound() {
     };
 
     let timed = entry(r#"{"u_add_effect": "effect_bleed", "duration": "30 m", "intensity": 2}"#);
-    let Effect::AddEffect { duration, intensity, .. } = timed else {
+    let Effect::AddEffect { duration, intensity, .. } = timed.clone() else {
         panic!("read as an effect to add");
     };
-    assert_eq!(duration, Some(1800), "thirty minutes is 1,800 turns");
-    assert_eq!(intensity, 2);
+    assert_eq!(
+        duration,
+        cdda_content::dialogue::EffectDuration::Turns(Some(1800)),
+        "thirty minutes is 1,800 turns"
+    );
+    assert_eq!(
+        intensity,
+        Some(cdda_content::dialogue::Expression::Number(2.0)),
+        "and the intensity is the expression the data wrote"
+    );
 
     assert_eq!(
         run_effects(&mut world, survivor, None, &[timed]),
@@ -359,9 +367,10 @@ fn a_program_can_give_and_take_a_wound() {
 
     // `PERMANENT` is an effect that never runs down, which the port spells with the effect's own pause flag.
     let permanent = entry(r#"{"u_add_effect": "effect_mutation_purge", "duration": "PERMANENT"}"#);
-    let Effect::AddEffect { duration: None, .. } = permanent else {
-        panic!("permanent is read as no duration");
+    let Effect::AddEffect { duration, .. } = permanent else {
+        panic!("read as an effect to add");
     };
+    assert_eq!(duration, cdda_content::dialogue::EffectDuration::Permanent);
     assert_eq!(
         run_effects(&mut world, survivor, None, &[permanent]),
         Applied::Done
@@ -781,4 +790,70 @@ fn opening_a_conversation_runs_the_branch_that_says_whether_it_could() {
         Applied::Done
     );
     assert!(cdda_sim::messages::lines(&world).is_empty());
+}
+
+/// An added effect's duration and intensity come from the data, including a range and an expression.
+///
+/// Reference: `f_add_effect` (`npctalk.cpp:3426-3450`) with `get_duration_or_var` and `get_dbl_or_var( "intensity" )`: the duration may be a
+/// string, a number of turns, an array of two ends (rolled between), or `PERMANENT`; the intensity may be an expression.
+#[test]
+fn an_added_effect_reads_its_duration_and_intensity_from_the_data() {
+    use cdda_core_types::rng::Rolls;
+
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::singletons::put_rolls(&mut world, Rolls::new(3));
+
+    let add = |text: &str| {
+        cdda_content::dialogue::read_effect(&cdda_json::parse(text.as_bytes()).expect("json"))
+            .expect("readable")
+    };
+
+    // A duration string.
+    let hours = add(r#"{"u_add_effect": "nightmares", "duration": "18 hours"}"#);
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &hours),
+        Applied::Done
+    );
+    let worn = cdda_sim::applied_effects::worn(&world, survivor);
+    let nightmare = worn
+        .iter()
+        .find(|effect| effect.id == "nightmares")
+        .expect("the effect is worn");
+    assert_eq!(nightmare.duration, 18 * 3600, "eighteen hours of turns");
+
+    // An intensity written as an expression.
+    cdda_sim::dialogue_values::set(
+        &mut world,
+        survivor,
+        "strong",
+        cdda_sim::dialogue_values::Value::Number(3.0),
+    );
+    let expressive = add(r#"{"u_add_effect": "taint", "intensity": {"math": ["strong"]}}"#);
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &expressive),
+        Applied::Done
+    );
+    let worn = cdda_sim::applied_effects::worn(&world, survivor);
+    let taint = worn
+        .iter()
+        .find(|effect| effect.id == "taint")
+        .expect("the effect is worn");
+    assert_eq!(taint.intensity, 3, "the expression's value became the intensity");
+
+    // A range is rolled between its ends, both of which are reachable.
+    let ranged = add(r#"{"u_add_effect": "wet", "duration": [10, 20]}"#);
+    let mut seen = std::collections::BTreeSet::new();
+    for _ in 0..80 {
+        cdda_sim::applied_effects::remove(&mut world, survivor, "wet");
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &ranged);
+        let worn = cdda_sim::applied_effects::worn(&world, survivor);
+        let wet = worn
+            .iter()
+            .find(|effect| effect.id == "wet")
+            .expect("the effect is worn");
+        assert!((10..=20).contains(&wet.duration), "rolled {}", wet.duration);
+        seen.insert(wet.duration);
+    }
+    assert!(seen.len() > 1, "eighty rolls reached more than one answer");
 }

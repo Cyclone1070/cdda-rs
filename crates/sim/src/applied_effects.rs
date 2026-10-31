@@ -13,6 +13,14 @@ use crate::effects::ActiveEffect;
 #[derive(Component, Debug, Clone, Default, PartialEq, Eq)]
 pub struct AppliedEffects(pub Vec<ActiveEffect>);
 
+/// Every effect a creature is wearing.
+#[must_use]
+pub fn worn(world: &World, creature: Entity) -> Vec<ActiveEffect> {
+    world
+        .get::<AppliedEffects>(creature)
+        .map_or_else(Vec::new, |worn| worn.0.clone())
+}
+
 /// Puts an effect on a creature.
 ///
 /// Reference: `Creature::add_effect` - an effect the creature does not have is added, and one it does have has its
