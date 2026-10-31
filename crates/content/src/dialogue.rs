@@ -1248,6 +1248,7 @@ impl Effect {
             Self::Message(_) | Self::Snippet { .. } => "u_message",
             Self::If { .. } => "if",
             Self::AddEffect { .. } => "u_add_effect",
+            // Both are the same member: the data writes one effect or an array of them under one name.
             Self::RemoveEffect { .. } | Self::RemoveEffects { .. } => "u_lose_effect",
             Self::LearnTrait { .. } => "u_add_trait",
             Self::LoseTrait { .. } => "u_lose_trait",
@@ -1257,7 +1258,7 @@ impl Effect {
             Self::WeightedList(_) => "weighted_list_eocs",
             Self::OpenDialogue { .. } => "open_dialogue",
             Self::AddMorale { .. } => "u_add_morale",
-            Self::MakeSound { .. } => "u_sound",
+            Self::MakeSound { .. } => "u_make_sound",
             Self::MapgenUpdate { .. } => "mapgen_update",
         }
     }

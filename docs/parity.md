@@ -5413,3 +5413,21 @@ unreadable leaves | 1,127 | **1,096** |
 
 Gated on all three shapes in one test: the singular member, the array member, and the listener's `npc_lose_effect` spelling. Each is read, each is
 kinded `u_lose_effect`, and a creature carrying two effects loses both while an effect it never had is not a failure.
+
+## A gate on member names (round 833)
+
+`u_lose_effect` refused 29 entries for a whole release because the port asked for `u_remove_effect`. From outside, that is indistinguishable from a rule
+the port has not written: both appear as "refused", and the census ranks them the same way. So the naming is now **gated**.
+
+`crates/content/tests/content_suite/dialogue_members.rs` reads the reference's own tables - the effect table in `npctalk.cpp` and the condition table in
+`condition.cpp` - collects every member name they define, collects every `u_`/`npc_` name the port's readers ask for, and fails if the port asks for a
+name the reference does not define.
+
+Mutation-checked, as every rule here is: renaming `u_lose_effect` to `u_lose_efect` in the reader makes the test fail and name the misspelling. A test
+that cannot fail proves nothing, and this one is a spelling test, so it had to be shown to catch a spelling.
+
+Four names are listed with the reason they are not table members - the `u_remove_effect` alias kept after the fix, and the `u_val`/`npc_val` variable
+scopes, which are named by the variable reader rather than by either table. The list is deliberately short: an allowlist that grows is how this gate
+would quietly stop gating.
+
+The audit also caught a smaller thing: `Effect::MakeSound`'s kind said `u_sound`, which is not a member the data writes. It now says `u_make_sound`.
