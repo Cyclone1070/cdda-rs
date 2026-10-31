@@ -268,6 +268,61 @@ fn search_location(world: &mut World, speaker: Entity, effect: &Effect) -> Appli
     Applied::Done
 }
 
+/// Stores a square found by looking around the actor.
+///
+/// Reference: `f_location_variable` (`npctalk.cpp`), the `max_radius > 0` block: up to **25** draws of a square within `max_radius`, taking the first at
+/// least `min_radius` away, and refusing when none of the 25 is. The draws are the world's dice, so a replay looks in the same places.
+fn nearby_location(world: &mut World, speaker: Entity, effect: &Effect) -> Applied {
+    let Effect::LocationVariableRadius {
+        scope,
+        name,
+        min_radius,
+        max_radius,
+        ..
+    } = effect
+    else {
+        return Applied::CannotAnswer;
+    };
+    let Some(at) = world.get::<crate::Position>(speaker).copied() else {
+        return Applied::CannotAnswer;
+    };
+    let mut dice = crate::singletons::take_rolls(world);
+    let Some(dice) = dice.as_mut() else {
+        return Applied::CannotAnswer;
+    };
+    let mut found = None;
+    for _ in 0..25 {
+        let x = at.x + dice.rng(-*max_radius, *max_radius);
+        let y = at.y + dice.rng(-*max_radius, *max_radius);
+        // A square the level does not hold is not a place to send anybody, and the reference's `rl_dist` is the same step count the port uses.
+        if crate::square::terrain_at(world, (x, y, at.z)).is_none() {
+            continue;
+        }
+        if (x - at.x).abs().max((y - at.y).abs()) < *min_radius {
+            continue;
+        }
+        found = Some((x, y, at.z));
+        break;
+    }
+    let Some(holder) = crate::conditions::holder_for_scope(world, speaker, None, scope) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(square) = found else {
+        return Applied::CannotAnswer;
+    };
+    crate::dialogue_values::set(
+        world,
+        holder,
+        name,
+        crate::dialogue_values::Value::Position {
+            x: square.0,
+            y: square.1,
+            z: square.2,
+        },
+    );
+    Applied::Done
+}
+
 /// Sets a dialogue variable.
 ///
 /// Reference: `f_add_var` (`npctalk.cpp:3589-3610`): `time: true` stores the current turn, `possible_values` draws one of its texts, and a plain `value`
@@ -845,6 +900,7 @@ pub fn run_effect(
         Effect::AddVar { .. } => add_var(world, speaker, listener, effect),
         Effect::LoseVar { name, scope } => lose_var(world, speaker, listener, name, scope),
         Effect::LocationVariableSearch { .. } => search_location(world, speaker, effect),
+        Effect::LocationVariableRadius { .. } => nearby_location(world, speaker, effect),
         Effect::RunEocSelector { .. } => run_selector(world, speaker, listener, effect),
         Effect::RemoveEffects { .. } => run_remove_effects(world, speaker, listener, effect),
         Effect::MapgenUpdate { .. } => run_mapgen_update(world, speaker, listener, effect),

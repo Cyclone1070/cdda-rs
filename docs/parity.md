@@ -5849,3 +5849,32 @@ The pair sits behind one dispatch (`read_variable_effect`), matching the referen
 
 Gated: a plain value; the clock, and the clock moving it; a drawn choice, the same seed drawing the same one twice; and a member with neither a value nor
 `time` refusing.
+
+## The radius search, and two searches that are really two steps (round 850)
+
+`f_location_variable`'s `max_radius` block (`npctalk.cpp`) draws up to **25** squares within `max_radius`, takes the first at least `min_radius` away, and
+refuses when none of the 25 is. The draws are the world's dice, so a replay looks in the same places - which is what makes a scripted playtest comparable.
+
+| Count | Before | After |
+|---|---|---|
+effect entries runnable | 1,119 | **1,128** |
+`max_radius` among effect refusals | 29 | **20** |
+programs readable | 312 | **312** |
+**capability** | 188 | **188** |
+
+Nine entries, from the eight that ask only for a radius and one more.
+
+**What the refactor taught me, and it is the reason this round is worth recording.** Pulling the two searches out of `read_location_variable` (which had
+crossed the line cap) exposed that my extracted terrain-target reader accepted a `target_params` **with a `min_radius` beside it** - and the counts moved:
+leaves 878 → 874 with `readable` unchanged. That is the signature of a **classification** change, not new capability, and it was my reader widening the
+rule by accident.
+
+The reference applies both: it searches for the tile, then draws within the radius **of what it found**. Two searches, in order. The port has the two
+searches and not their order, so the combination is refused rather than answered with the first half. Counts returned to where they were, and the refusal
+list grew the case with a comment saying why.
+
+That is the third time this session that a permissive reader accepted something the rule does not allow, and the first time the **census counts** caught it
+rather than a test: a leaf count moving without `readable` moving is a shape worth watching for.
+
+Gated: a square within the radii and at least `min_radius` out; the same seed twice; and a radius that reaches past the level refusing rather than storing
+the actor's own square.

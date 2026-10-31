@@ -1302,6 +1302,21 @@ pub enum Effect {
         /// Whether the variable gets the clock instead of a value from the data.
         timed: bool,
     },
+    /// Store a square found by looking around the actor.
+    ///
+    /// Reference: `f_location_variable` (`npctalk.cpp`) draws up to 25 squares within `max_radius` and takes the first at least `min_radius` away.
+    LocationVariableRadius {
+        /// The variable's type, as the data spells it.
+        scope: String,
+        /// The variable's name.
+        name: String,
+        /// How near a square may be and still count.
+        min_radius: i32,
+        /// How far out to look.
+        max_radius: i32,
+        /// Whether the square goes to the listener's variables rather than the speaker's.
+        listener: bool,
+    },
     /// Forget a dialogue variable.
     ///
     /// Reference: `f_remove_var` (`npctalk.cpp:3656`) for `u_lose_var`, `npc_lose_var` and `global_lose_var`: the member names the variable to drop.
@@ -1465,7 +1480,9 @@ impl Effect {
             Self::LoseTrait { .. } => "u_lose_trait",
             Self::RunEoc(_) => "run_eocs",
             Self::Switch { .. } => "switch",
-            Self::LocationVariable { .. } | Self::LocationVariableSearch { .. } => "u_location_variable",
+            Self::LocationVariable { .. }
+            | Self::LocationVariableSearch { .. }
+            | Self::LocationVariableRadius { .. } => "u_location_variable",
             Self::WeightedList(_) => "weighted_list_eocs",
             Self::OpenDialogue { .. } => "open_dialogue",
             Self::AddMorale { .. } => "u_add_morale",
@@ -1967,6 +1984,112 @@ fn read_switch(object: &cdda_json::Object) -> Option<Effect> {
 /// Reference: `f_location_variable` (`npctalk.cpp:4194`). The searching forms (`target_params`, a `terrain`/`furniture`/`field`/`monster`/`npc`/
 /// `species`/`trap`/`zone` list, radii) walk the overmap and the map for the nearest match, which nothing in the port can do yet - and answering
 /// them with the actor's own square would be a wrong answer that looked right.
+/// Reads the search that names an **overmap terrain and nothing else** - the same walk `om_terrain` aiming uses - or nothing.
+///
+/// Reference: `f_location_variable` (`npctalk.cpp:4194`) with a `target_params` (`mission_util.cpp:425-450`): a range, a minimum distance and a level.
+fn read_terrain_target(
+    object: &cdda_json::Object,
+    target: &cdda_json::Object,
+    listener: bool,
+) -> Option<Effect> {
+    let Value::Object(params) = object.get("target_params")? else {
+        return None;
+    };
+    // A radius beside a target search is not a different search, it is a **second** step: the reference searches for the tile and then draws within the
+    // radius of what it found. The port has the two searches and not their order, so it refuses the combination rather than answering the first half.
+    if object.get("min_radius").is_some() || object.get("max_radius").is_some() {
+        return None;
+    }
+    let Value::Str(wanted) = params.get("om_terrain")? else {
+        return None;
+    };
+    if !params
+        .members()
+        .iter()
+        .all(|(key, _)| matches!(key.as_str(), "om_terrain" | "z" | "min_distance" | "search_range"))
+    {
+        return None;
+    }
+    // A fractional range or distance is not a whole number of tiles, so the port refuses rather than rounding one: the reference evaluates these as
+    // doubles and rounds where it uses them, and a silent round here would be a guess about which way.
+    let whole = |key: &str, fallback: i32| match params.get(key) {
+        None => Some(fallback),
+        Some(Value::Int(number)) => i32::try_from(*number).ok(),
+        Some(_) => None,
+    };
+    let search_range = whole("search_range", DEFAULT_SEARCH_RANGE)?;
+    let min_distance = whole("min_distance", 0)?;
+    let z = match params.get("z") {
+        None => None,
+        Some(Value::Int(number)) => Some(i32::try_from(*number).ok()?),
+        Some(_) => return None,
+    };
+    let (scope, name) = named_variable(target)?;
+    Some(Effect::LocationVariableSearch {
+        scope,
+        name,
+        om_terrain: wanted.clone(),
+        search_range,
+        min_distance,
+        z,
+        listener,
+    })
+}
+
+/// Reads the search that looks around the actor within a radius, or nothing.
+///
+/// Reference: `f_location_variable` (`npctalk.cpp`), the `max_radius > 0` block: up to 25 draws inside the radius, taking the first far enough out.
+fn read_radius_search(
+    object: &cdda_json::Object,
+    target: &cdda_json::Object,
+    listener: bool,
+) -> Option<Effect> {
+    let radii = object.get("min_radius").or_else(|| object.get("max_radius"))?;
+    let _ = radii;
+    // Nothing else may be asked: a terrain, a monster or a mission target is a different search with its own rules.
+    for asked in [
+        "target_params",
+        "terrain",
+        "furniture",
+        "field",
+        "monster",
+        "npc",
+        "species",
+        "trap",
+        "zone",
+    ] {
+        if object.get(asked).is_some() {
+            return None;
+        }
+    }
+    let whole = |key: &str| match object.get(key) {
+        None => Some(0),
+        Some(Value::Int(number)) => i32::try_from(*number).ok(),
+        Some(_) => None,
+    };
+    let min_radius = whole("min_radius")?;
+    let max_radius = whole("max_radius")?;
+    if max_radius <= 0 {
+        return None;
+    }
+    let (scope, name) = named_variable(target)?;
+    Some(Effect::LocationVariableRadius {
+        scope,
+        name,
+        min_radius,
+        max_radius,
+        listener,
+    })
+}
+
+/// The one variable a location member names, as its namespace and its name.
+fn named_variable(target: &cdda_json::Object) -> Option<(String, String)> {
+    target.members().iter().find_map(|(scope, value)| match value {
+        Value::Str(name) => Some((scope.clone(), name.clone())),
+        _ => None,
+    })
+}
+
 fn read_location_variable(object: &cdda_json::Object) -> Option<Effect> {
     /// The members that turn the effect into a search.
     const SEARCHING: [&str; 11] = [
@@ -1986,50 +2109,11 @@ fn read_location_variable(object: &cdda_json::Object) -> Option<Effect> {
         let Some(Value::Object(target)) = object.get(member) else {
             continue;
         };
-        // The one search the port can answer: a mission target naming an **overmap terrain and nothing else**, which is a search of the overmap
-        // for the nearest tile of it - the same walk `om_terrain` aiming uses. Every other filter (a monster, a field, a zone, a reveal radius, a search
-        // range) is a different question and is refused rather than answered with the wrong square.
-        if let Some(Value::Object(params)) = object.get("target_params")
-            && let Some(Value::Str(wanted)) = params.get("om_terrain")
-            && params
-                .members()
-                .iter()
-                .all(|(key, _)| matches!(key.as_str(), "om_terrain" | "z" | "min_distance" | "search_range"))
-        {
-            let whole = |key: &str, fallback: i32| match params.get(key) {
-                None => Some(fallback),
-                Some(Value::Int(number)) => i32::try_from(*number).ok(),
-                // A fractional range or distance is not a whole number of tiles, so the port refuses rather than rounding one: the reference
-                // evaluates these as doubles and rounds where it uses them, and a silent round here would be a guess about which way.
-                Some(_) => None,
-            };
-            let search_range = whole("search_range", DEFAULT_SEARCH_RANGE)?;
-            let min_distance = whole("min_distance", 0)?;
-            let z = match params.get("z") {
-                None => None,
-                Some(Value::Int(number)) => Some(i32::try_from(*number).ok()?),
-                Some(_) => return None,
-            };
-            let (scope, name) = target.members().iter().find_map(|(scope, value)| match value {
-                Value::Str(name) => Some((scope.clone(), name.clone())),
-                _ => None,
-            })?;
-            if SEARCHING
-                .iter()
-                .filter(|key| **key != "target_params")
-                .any(|key| object.get(key).is_some())
-            {
-                return None;
-            }
-            return Some(Effect::LocationVariableSearch {
-                scope,
-                name,
-                om_terrain: wanted.clone(),
-                search_range,
-                min_distance,
-                z,
-                listener,
-            });
+        if let Some(found) = read_terrain_target(object, target, listener) {
+            return Some(found);
+        }
+        if let Some(found) = read_radius_search(object, target, listener) {
+            return Some(found);
         }
         if SEARCHING.iter().any(|key| object.get(key).is_some()) {
             return None;

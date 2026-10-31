@@ -1860,3 +1860,76 @@ fn adding_a_variable_stores_a_value_the_clock_or_a_drawn_choice() {
     let nothing = cdda_json::parse(br#"{"u_add_var": "mood"}"#.as_slice()).expect("json");
     assert!(cdda_content::dialogue::read_effect(&nothing).is_none());
 }
+
+/// A location variable can hold a square found by looking around the actor, which is the radii form.
+///
+/// Reference: `f_location_variable` (`npctalk.cpp`), the `max_radius > 0` block: up to 25 draws within `max_radius`, taking the first at least
+/// `min_radius` away, and refusing when none of the 25 is. The draws are the world's dice, so a replay looks in the same places.
+#[test]
+fn a_radius_search_stores_a_square_within_it() {
+    let mut world = World::new();
+    let mut level = cdda_core_types::level::Level::new();
+    for x in -32..32 {
+        for y in -32..32 {
+            level.set_terrain(x, y, 0, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+
+    let store = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(
+            br#"{"u_location_variable": {"u_val": "hereabouts"}, "min_radius": 3, "max_radius": 12}"#.as_slice(),
+        )
+        .expect("json"),
+    )
+    .expect("a radius search is readable");
+    let read = |world: &mut World| {
+        cdda_sim::dialogue_values::position_of(
+            world,
+            survivor,
+            None,
+            &cdda_content::dialogue::AssignmentTarget::Variable {
+                scope: "u_val".to_owned(),
+                name: "hereabouts".to_owned(),
+            },
+        )
+    };
+
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(11));
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &store),
+        Applied::Done
+    );
+    let Some((x, y, z)) = read(&mut world) else {
+        panic!("the search stored a square");
+    };
+    let step = x.abs().max(y.abs());
+    assert!(
+        (3..=12).contains(&step),
+        "the square is between the radii: {x}, {y} is {step} steps out"
+    );
+    assert_eq!(z, 0, "the search stays on the actor's level");
+
+    // The same seed looks in the same place, which is what lets a replay be compared at all.
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(11));
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &store),
+        Applied::Done
+    );
+    assert_eq!(read(&mut world), Some((x, y, z)));
+
+    // A radius that reaches past the level finds nothing it may store, and says so rather than storing the actor's own square.
+    let nowhere = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(
+            br#"{"u_location_variable": {"u_val": "nowhere"}, "min_radius": 200, "max_radius": 400}"#.as_slice(),
+        )
+        .expect("json"),
+    )
+    .expect("readable");
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(3));
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &nowhere),
+        Applied::CannotAnswer
+    );
+}
