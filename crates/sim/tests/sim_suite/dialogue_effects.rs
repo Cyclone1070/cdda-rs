@@ -1177,6 +1177,7 @@ fn a_mapgen_update_writes_its_terrain_where_the_speaker_stands() {
             .collect::<BTreeMap<char, String>>(),
         furniture: BTreeMap::new(),
         weight: 100,
+        fields: Vec::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("lab_wall_opens".to_owned(), mapgen)]);
     cdda_sim::mapgen_update::set_terrain_codes(
@@ -1221,4 +1222,72 @@ fn a_mapgen_update_writes_its_terrain_where_the_speaker_stands() {
             "{text} must be refused"
         );
     }
+}
+
+/// An update mapgen may place fields instead of terrain, which is how a scenario fills a room with smoke.
+///
+/// Reference: `mapgen::place_fields` (`mapgen.cpp`): `repeat` patches inside a rectangle, each at a strength rolled between the two ends, and a
+/// patch on a square that already holds the field makes it stronger rather than replacing it.
+#[test]
+fn a_mapgen_update_may_place_fields_instead_of_terrain() {
+    use cdda_core_types::rng::Rolls;
+    use std::collections::BTreeMap;
+
+    let mut world = World::new();
+    let mut level = cdda_core_types::level::Level::new();
+    for x in 0..8 {
+        for y in 0..8 {
+            level.set_terrain(x, y, 0, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (2, 2, 0));
+    cdda_sim::singletons::put_rolls(&mut world, Rolls::new(5));
+    cdda_sim::field_registry::set_field_names(&mut world, &[("fd_smoke", 1, 3)]);
+
+    // The data's own shape: an update mapgen with no rows at all.
+    let mapgen = cdda_content::mapgen::MapgenObject {
+        om_terrain: "SCENARIO_SMOKE".to_owned(),
+        rows: Vec::new(),
+        terrain: BTreeMap::new(),
+        furniture: BTreeMap::new(),
+        weight: 1000,
+        fields: vec![cdda_content::mapgen::Placement {
+            field: "fd_smoke".to_owned(),
+            x: (0, 3),
+            y: (0, 3),
+            intensity: (1, 3),
+            repeat: 6,
+        }],
+    };
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("SCENARIO_SMOKE".to_owned(), mapgen)]);
+
+    let effect = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(br#"{"mapgen_update": "SCENARIO_SMOKE"}"#.as_slice()).expect("json"),
+    )
+    .expect("readable");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        Applied::Done
+    );
+
+    // Six patches landed on squares of the 4x4 rectangle the update named, each between one and three.
+    let mut patches = 0;
+    let mut strengths = std::collections::BTreeSet::new();
+    let mut query = world.query::<(&cdda_sim::Position, &cdda_sim::Field)>() ;
+    for (position, field) in query.iter(&world) {
+        assert!(
+            (2..=5).contains(&position.x) && (2..=5).contains(&position.y),
+            "a patch landed inside the rectangle, at ({}, {})",
+            position.x,
+            position.y
+        );
+        patches += usize::try_from(field.entry.intensity()).unwrap_or(0);
+        strengths.insert(field.entry.intensity());
+    }
+    assert!(patches >= 6, "six patches were placed, got strength total {patches}");
+    assert!(
+        strengths.iter().all(|strength| (1..=3).contains(strength)),
+        "every patch is within the intensity range the data states: {strengths:?}"
+    );
 }

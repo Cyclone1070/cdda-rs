@@ -5326,3 +5326,31 @@ The collector was reverted rather than committed: sixty lines of test plumbing t
 stayed, gated behind an environment variable like `CDDA_SHOW_NESTED`, because it is what answered the question.
 
 No counts changed this round.
+
+## `place_fields`, and the eight programs that stopped refusing (round 829)
+
+An update mapgen may place **fields** instead of terrain - `SCENARIO_SMOKE` is nothing but `place_fields` - and the loader required `om_terrain` plus
+`rows`, so it built no object for any of them. That is why installing mapgens changed nothing last round: there was nothing to install.
+
+Two fixes, both in the loader:
+
+- a mapgen is now filed under `om_terrain`, **`update_mapgen_id` or `nested_mapgen_id`**, which is what the reference names it by;
+- `rows` is optional, because an update that only fills a room with smoke has none.
+
+And one new rule, in the sim: `mapgen::place_fields` (`mapgen.cpp`) - `repeat` patches inside a rectangle, each strength rolled between the two ends,
+and a patch on a square that already holds the field makes it **stronger** rather than replacing it.
+
+The census world now installs the data's mapgens, terrain codes and field names, which is the state a real world starts with.
+
+| Count | Before | After |
+|---|---|---|
+mapgen objects the loader reads | 1,071 | **4,487** |
+programs readable | 231 | 231 |
+**readable programs that run in a fresh world** | **122** | **130** |
+runtime refusals | 109 | **101** |
+
+**Capability rose by eight and readability did not move at all** - the first round in this session where that is true. `mapgen_update` left the runtime
+refusal list entirely.
+
+Gated: an update with no rows and only `place_fields` places six smoke patches inside the 4×4 rectangle the data names, every strength within the range
+the data states, and the field registry resolves the name the data uses.

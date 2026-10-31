@@ -132,6 +132,26 @@ pub struct MapgenObject {
     pub furniture: BTreeMap<char, String>,
     /// How likely this one is when several build the same terrain.
     pub weight: i32,
+    /// The fields the mapgen places, which is how an update fills a room with smoke rather than writing terrain.
+    pub fields: Vec<Placement>,
+}
+
+/// One `place_fields` entry: a field scattered over a rectangle.
+///
+/// Reference: `mapgen::place_fields` (`mapgen.cpp`): `x`, `y` and `intensity` are each a number or a `[low, high]` pair rolled between, and
+/// `repeat` says how many squares get a patch.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Placement {
+    /// The field's id, as the data writes it.
+    pub field: String,
+    /// The columns it may land on.
+    pub x: (i32, i32),
+    /// The rows it may land on.
+    pub y: (i32, i32),
+    /// The strength each patch starts with.
+    pub intensity: (i32, i32),
+    /// How many patches.
+    pub repeat: i32,
 }
 
 impl MapgenObject {
@@ -164,6 +184,63 @@ impl MapgenObject {
     }
 }
 
+
+/// The fields a mapgen places, as the data writes them.
+fn read_placements(inner: &Object) -> Vec<Placement> {
+    let Some(cdda_json::Value::Array(entries)) = inner.get("place_fields") else {
+        return Vec::new();
+    };
+    let mut placed = Vec::new();
+    for entry in entries {
+        let cdda_json::Value::Object(one) = entry else {
+            continue;
+        };
+        let Some(cdda_json::Value::Str(field)) = one.get("field") else {
+            continue;
+        };
+        placed.push(Placement {
+            field: field.clone(),
+            x: span(one.get("x")),
+            y: span(one.get("y")),
+            intensity: span(one.get("intensity")),
+            repeat: whole(one.get("repeat")).unwrap_or(1),
+        });
+    }
+    placed
+}
+
+/// A number or a `[low, high]` pair, as a span. A missing one is a single square at zero, which is what the reference's default is.
+fn span(value: Option<&cdda_json::Value>) -> (i32, i32) {
+    match value {
+        Some(cdda_json::Value::Array(ends)) => {
+            let low = ends.first().and_then(|end| whole(Some(end))).unwrap_or(0);
+            let high = ends.get(1).and_then(|end| whole(Some(end))).unwrap_or(low);
+            (low.min(high), low.max(high))
+        }
+        other => {
+            let only = whole(other).unwrap_or(0);
+            (only, only)
+        }
+    }
+}
+
+/// A whole number from the data, refusing a fractional one rather than rounding a value nobody meant to be fractional.
+fn whole(value: Option<&cdda_json::Value>) -> Option<i32> {
+    match value {
+        Some(cdda_json::Value::Int(number)) => i32::try_from(*number).ok(),
+        Some(cdda_json::Value::Float(number)) => as_whole(*number),
+        Some(cdda_json::Value::Str(text)) => text.parse::<i32>().ok(),
+        _ => None,
+    }
+}
+
+/// A fractional number as a whole one, or nothing when it is out of range.
+#[allow(clippy::cast_possible_truncation)]
+fn as_whole(number: f64) -> Option<i32> {
+    let rounded = number.round();
+    (rounded.abs() < f64::from(i32::MAX)).then_some(rounded as i32)
+}
+
 /// Reads every JSON mapgen in load order.
 #[must_use]
 pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
@@ -186,7 +263,14 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
         {
             continue;
         }
-        let Some(cdda_json::Value::Str(om_terrain)) = object.get("om_terrain") else {
+        let Some(id) = object
+            .get("om_terrain")
+            .or_else(|| object.get("update_mapgen_id"))
+            .or_else(|| object.get("nested_mapgen_id"))
+        else {
+            continue;
+        };
+        let cdda_json::Value::Str(om_terrain) = id else {
             continue;
         };
         // The rows live under `object`, not beside `om_terrain`: a mapgen entry looks like
@@ -195,8 +279,11 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
         let Some(cdda_json::Value::Object(inner)) = object.get("object") else {
             continue;
         };
-        let Some(cdda_json::Value::Array(rows)) = inner.get("rows") else {
-            continue;
+        // An **update** mapgen may place fields and no terrain at all, which is why the rows are optional here: the reference allows an update
+        // that only fills a room with smoke, and refusing it at the loader is what made eight programs refuse at run time.
+        let rows = match inner.get("rows") {
+            Some(cdda_json::Value::Array(rows)) => rows,
+            _ => &Vec::new(),
         };
         let rows: Vec<String> = rows
             .iter()
@@ -223,6 +310,7 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
             rows,
             terrain: symbols("terrain"),
             furniture: symbols("furniture"),
+            fields: read_placements(inner),
             weight: match object.get("weight") {
                 Some(cdda_json::Value::Int(value)) => i32::try_from(*value).unwrap_or(1000),
                 _ => 1000,

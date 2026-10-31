@@ -71,6 +71,44 @@ pub fn apply(world: &mut World, update: &str, origin: (i32, i32, i32)) -> Option
     Some(written)
 }
 
+/// Places the fields a mapgen scatters, answering how many patches landed.
+///
+/// Reference: `mapgen::place_fields` (`mapgen.cpp`): `repeat` patches on squares chosen inside the rectangle, each at a strength rolled between
+/// the two ends - and a patch on a square that already holds the field makes it stronger rather than replacing it.
+pub fn place_fields(world: &mut World, update: &str, origin: (i32, i32, i32)) -> Option<usize> {
+    let mapgen = crate::singletons::holder::<TheMapgens>(world)
+        .and_then(|holder| world.get::<Mapgens>(holder))
+        .and_then(|mapgens| mapgens.0.get(update).cloned())?;
+    if mapgen.fields.is_empty() {
+        return Some(0);
+    }
+    let mut placed = 0;
+    for placement in &mapgen.fields {
+        let Some(field) = crate::field_registry::id_of(world, &placement.field) else {
+            continue;
+        };
+        for _ in 0..placement.repeat.max(0) {
+            let mut dice = crate::singletons::take_rolls(world);
+            let drawn = dice.as_mut().map(|dice| {
+                (
+                    dice.rng(placement.x.0, placement.x.1),
+                    dice.rng(placement.y.0, placement.y.1),
+                    dice.rng(placement.intensity.0, placement.intensity.1),
+                )
+            });
+            if let Some(dice) = dice.take() {
+                crate::singletons::put_rolls(world, dice);
+            }
+            let Some((x, y, strength)) = drawn else {
+                return Some(placed);
+            };
+            crate::add_field_strength(world, (origin.0 + x, origin.1 + y, origin.2), field, strength);
+            placed += 1;
+        }
+    }
+    Some(placed)
+}
+
 /// A row or column as a world offset, or nothing when it is too large to be one.
 fn offset(index: usize) -> Option<i32> {
     i32::try_from(index).ok()

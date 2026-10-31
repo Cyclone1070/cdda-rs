@@ -234,7 +234,12 @@ fn run_mapgen_update(world: &mut World, speaker: Entity, listener: Option<Entity
     let Some(position) = world.get::<crate::Position>(speaker).copied() else {
         return Applied::CannotAnswer;
     };
-    match crate::mapgen_update::apply(world, &name, (position.x, position.y, position.z)) {
+    let place = (position.x, position.y, position.z);
+    let Some(_) = crate::mapgen_update::apply(world, &name, place) else {
+        return Applied::CannotAnswer;
+    };
+    // An update may place fields as well as terrain, and an update that does only one is still an update.
+    match crate::mapgen_update::place_fields(world, &name, place) {
         Some(_) => Applied::Done,
         None => Applied::CannotAnswer,
     }

@@ -89,7 +89,10 @@ fn the_reference_tree_holds_the_maps_it_says_it_does() {
             }
         }
     }
-    assert_eq!(total, 1_071, "mapgen objects in the reference tree");
+    // 4,487 since the loader stopped requiring `om_terrain`: an **update** mapgen is filed under `update_mapgen_id` or `nested_mapgen_id` and may
+    // carry no rows at all, which is how eight dialogue programs refused at run time. Skipping them made the loader look tidier and the world
+    // poorer.
+    assert_eq!(total, 4_487, "mapgen objects in the reference tree");
     // Three maps in the reference tree are not rectangular by character count. The reference loads them
     // anyway, so this is a fact about the content rather than a fault in the loader - pinned here so it
     // cannot quietly grow.

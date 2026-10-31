@@ -217,7 +217,7 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
     let mut refused: BTreeMap<String, usize> = BTreeMap::new();
 
     let mut programs = Vec::new();
-    let mut stack = vec![data];
+    let mut stack = vec![data.clone()];
     while let Some(directory) = stack.pop() {
         let Ok(entries_at) = std::fs::read_dir(&directory) else {
             continue;
@@ -377,7 +377,7 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
     let mut defined = 0usize;
     let mut readable: Vec<cdda_content::dialogue::Program> = Vec::new();
 
-    let mut stack = vec![data];
+    let mut stack = vec![data.clone()];
     while let Some(directory) = stack.pop() {
         let Ok(entries_at) = std::fs::read_dir(&directory) else {
             continue;
@@ -409,6 +409,23 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
     // Every readable program is installed in the world each one runs in, because that is what a world is: the data's whole set of
     // programs, with any of them callable. Installing only the program under test made ninety of the ninety-eight refusals a `run_eocs`
     // call to a program that was simply not there - a fact about the census, not about the port.
+    // The world the game has: the data's mapgens and fields, so an update a program applies has something to apply.
+    let mapgens = collect_mapgens(&data);
+    let mut codes: std::collections::BTreeMap<String, u32> = std::collections::BTreeMap::new();
+    let mut fields: Vec<(String, u32)> = Vec::new();
+    for (_, mapgen) in &mapgens {
+        for terrain in mapgen.terrain.values() {
+            let next = u32::try_from(codes.len() + 1).unwrap_or(1);
+            codes.entry(terrain.clone()).or_insert(next);
+        }
+        for placement in &mapgen.fields {
+            if !fields.iter().any(|(known, _)| known == &placement.field) {
+                let next = u32::try_from(fields.len() + 1).unwrap_or(1);
+                fields.push((placement.field.clone(), next));
+            }
+        }
+    }
+
     let mut ran = 0usize;
     let mut refused = 0usize;
     let mut runtime_blame: std::collections::BTreeMap<String, usize> =
@@ -418,6 +435,7 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
         let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
         cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
         cdda_sim::eoc_registry::set_programs(&mut world, &readable);
+        install_data(&mut world, &mapgens, &codes, &fields);
         if eoc_registry::run_program(&mut world, survivor, None, &program.id, 0) == Applied::Done {
             ran += 1;
             continue;
@@ -437,6 +455,7 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
             let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
             cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
             cdda_sim::eoc_registry::set_programs(&mut world, &readable);
+        install_data(&mut world, &mapgens, &codes, &fields);
             if eoc_registry::run_program(&mut world, survivor, None, &program.id, 0) == Applied::Done {
                 continue;
             }
@@ -459,9 +478,62 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
 
     assert_eq!(defined, 692, "the data defines 692 nameable effect-on-conditions");
     assert_eq!(readable.len(), 231, "the port reads 231 of them");
-    assert_eq!(ran, 122, "a hundred and twenty-two of the readable programs also ran");
-    assert_eq!(refused, 109, "and a hundred and nine refused at run time");
+    assert_eq!(ran, 130, "a hundred and thirty of the readable programs also ran");
+    assert_eq!(refused, 101, "and a hundred and one refused at run time");
     assert_eq!(ran + refused, readable.len(), "every readable program did one or the other");
+}
+
+/// Installs the data's mapgens, terrain codes and fields into a world, which is the state a real world starts with.
+fn install_data(
+    world: &mut bevy_ecs::prelude::World,
+    mapgens: &[(String, cdda_content::mapgen::MapgenObject)],
+    codes: &std::collections::BTreeMap<String, u32>,
+    fields: &[(String, u32)],
+) {
+    cdda_sim::mapgen_update::set_mapgens(world, mapgens.to_vec());
+    cdda_sim::mapgen_update::set_terrain_codes(world, codes.clone());
+    let named: Vec<(&str, u32, i32)> = fields
+        .iter()
+        .map(|(name, id)| (name.as_str(), *id, 3))
+        .collect();
+    cdda_sim::field_registry::set_field_names(world, &named);
+}
+
+/// Every mapgen in the data, keyed by the id it is filed under.
+fn collect_mapgens(data: &std::path::Path) -> Vec<(String, cdda_content::mapgen::MapgenObject)> {
+    let mut found = Vec::new();
+    let mut stack = vec![data.to_path_buf()];
+    while let Some(directory) = stack.pop() {
+        let Ok(entries_at) = std::fs::read_dir(&directory) else {
+            continue;
+        };
+        for entry in entries_at.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            if path.extension().and_then(std::ffi::OsStr::to_str) != Some("json") {
+                continue;
+            }
+            let Some(value) = cdda_content::read_json(&path) else {
+                continue;
+            };
+            let entries = match &*value {
+                cdda_json::Value::Array(items) => items.clone(),
+                other => vec![other.clone()],
+            };
+            for entry in entries {
+                if !matches!(&entry, cdda_json::Value::Object(_)) {
+                    continue;
+                }
+                for mapgen in cdda_content::mapgen::load_objects(&entry) {
+                    found.push((mapgen.om_terrain.clone(), mapgen));
+                }
+            }
+        }
+    }
+    found
 }
 
 /// The effect that refuses, following a `run_eocs` call into the program it names.
@@ -552,7 +624,7 @@ fn the_call_graph_says_which_missing_program_blocks_the_most() {
     let mut readable: BTreeSet<String> = BTreeSet::new();
     let mut edges: BTreeMap<String, Vec<String>> = BTreeMap::new();
 
-    let mut stack = vec![data];
+    let mut stack = vec![data.clone()];
     while let Some(directory) = stack.pop() {
         let Ok(entries_at) = std::fs::read_dir(&directory) else {
             continue;
@@ -691,7 +763,7 @@ fn the_programs_one_gap_away_say_what_to_port_next() {
     let mut one_gap: BTreeMap<String, usize> = BTreeMap::new();
     let mut gaps_total = 0usize;
 
-    let mut stack = vec![data];
+    let mut stack = vec![data.clone()];
     while let Some(directory) = stack.pop() {
         let Ok(entries_at) = std::fs::read_dir(&directory) else {
             continue;
