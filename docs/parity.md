@@ -5154,3 +5154,29 @@ unanswered rather than guessed.
 
 Gated: nothing installed holds for neither the name nor `ANY`; one installed holds for its name and for `ANY` but not for another bionic; installing
 twice keeps one entry; and a variable naming a bionic holds through the variable.
+
+## A branch may be one effect (round 821)
+
+The census's `<nested>` residue - 36 programs whose single gap it could not name - turned out to be the census's own blind spot **and** a real reader
+gap at the same time. A diagnostic printed the entries behind it:
+
+```
+{"if": {"one_in_chance": 4}, "then": {...}, "else": {...}}
+```
+
+Every one of them writes an `if`'s branch as a **single effect object**, and `read_effect_list` accepted only arrays - so the whole entry refused,
+and the census, which also only descended into arrays, could not say why.
+
+Reference: `talk_effect_t::load_effect` (`npctalk.cpp`) reads an array *or a single entry*, and the data writes both.
+
+| Count | Before | After |
+|---|---|---|
+effect entries runnable | 861 | **866** |
+programs runnable whole | 219 | **222** |
+readable programs that run in a fresh world | 114 | **121** |
+unreadable leaves | 908 | **901** |
+`<nested>` residue | 36 | **34** |
+
+Seven programs that run, three that read: a small gain, but the residue fell and the two readers now agree.
+
+Gated: an `if` with a single-object `then`/`else` reads as a one-entry list, and the same `if` written with arrays reads identically.

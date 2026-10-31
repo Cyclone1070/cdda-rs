@@ -1392,9 +1392,12 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
 /// entry that is not an array is refused rather than read as a one-element list - the data always writes arrays here, so a
 /// non-array is a shape the port has not seen rather than a shape it should guess at.
 fn read_effect_list(value: Option<&Value>) -> Option<Vec<Effect>> {
+    // Reference: `talk_effect_t::load_effect` (`npctalk.cpp`) reads an array **or a single entry**, so `"then": {...}` is a one-entry list
+    // rather than a shape the port should refuse. The data writes both.
     match value {
         Some(Value::Array(entries)) => entries.iter().map(read_effect).collect(),
-        _ => None,
+        Some(single) => Some(vec![read_effect(single)?]),
+        None => None,
     }
 }
 

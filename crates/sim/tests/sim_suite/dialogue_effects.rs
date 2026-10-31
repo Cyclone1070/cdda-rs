@@ -226,7 +226,7 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
     // length of the evaluation and put back.
     // 792 after location variables: the plain form stores the actor's square, and the searching forms are still refused.
     // 805 after `open_dialogue`: the branch rule runs exactly, and the conversation itself is not opened (no interface to open it).
-    assert_eq!(runnable, 861, "of which the port runs 861 entries");
+    assert_eq!(runnable, 866, "of which the port runs 866 entries");
 
     // And the ranking of what refuses, which is this census's real output: it says what to port next instead of what is used most.
     // `target_var` is the one entry the ranking cannot attribute on its own - a scan of the data shows 71 of those 98 are
@@ -241,7 +241,7 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
         vec![
             ("mapgen_update".to_owned(), 111),
             ("math".to_owned(), 98),
-            ("else".to_owned(), 32),
+            ("else".to_owned(), 30),
             ("u_lose_effect".to_owned(), 29),
             ("max_radius".to_owned(), 28),
         ],
@@ -1041,5 +1041,26 @@ fn snippet_line(id: &str, text: &str, weight: i32) -> cdda_sim::snippets::Snippe
         id: id.to_owned(),
         text: text.to_owned(),
         weight,
+    }
+}
+
+/// A branch of an `if` may be a single effect, not only a list of them.
+///
+/// Reference: `talk_effect_t::load_effect` (`npctalk.cpp`) reads an array **or a single entry**, and the data writes both - so `"then": {...}`
+/// is a one-entry list rather than a shape the reader should refuse.
+#[test]
+fn a_branch_may_be_one_effect_or_a_list_of_them() {
+    for text in [
+        r#"{"if": {"one_in_chance": 4}, "then": {"u_message": "one"}, "else": {"u_message": "other"}}"#,
+        r#"{"if": {"one_in_chance": 4}, "then": [{"u_message": "one"}], "else": [{"u_message": "other"}]}"#,
+    ] {
+        let value = cdda_json::parse(text.as_bytes()).expect("json");
+        let effect = cdda_content::dialogue::read_effect(&value)
+            .unwrap_or_else(|| panic!("{text} must read"));
+        let cdda_content::dialogue::Effect::If { then, otherwise, .. } = effect else {
+            panic!("{text} must read as a branch");
+        };
+        assert_eq!(then.len(), 1, "one entry either way");
+        assert_eq!(otherwise.len(), 1, "and the other branch too");
     }
 }
