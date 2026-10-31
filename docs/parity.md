@@ -606,7 +606,7 @@ refused for an effect | **374** |
 
 Reading a plain `run_eocs` name (one string, or a list of them) also took the effect count from 363 to **399**; the other 131 `run_eocs` entries are object forms with modifiers (`popup`, `variables`, `true_eocs`/`false_eocs`), which the port refuses rather than reading only the part it recognises.
 
-Both halves of the machine are now measured against each other: **2,094 of 3,708 conditions** answerable, **757 of 1,612 effects** runnable, and the intersection is **156 of 692 programs** runnable whole.
+Both halves of the machine are now measured against each other: **2,094 of 3,708 conditions** answerable, **767 of 1,612 effects** runnable, and the intersection is **156 of 692 programs** runnable whole.
 
 ### Messages: the second effect, and the first that only speaks (round 785)
 

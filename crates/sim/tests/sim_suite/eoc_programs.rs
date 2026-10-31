@@ -364,3 +364,106 @@ fn a_call_hands_the_program_its_values_and_takes_them_back() {
         "an unmet expectation stopped the program rather than reading a zero"
     );
 }
+
+/// How many readable programs actually **run** in a fresh world, which the readability census cannot say.
+///
+/// The census above counts a program as runnable whole when its condition and every effect can be *read*. That is a statement about the
+/// data, not about behaviour: `u_at_om_location` reads now, but a world nothing has generated answers it false, and an effect can read and
+/// still refuse at run time (`rng` with no dice, a context value nobody handed in). This test runs every readable program against a fresh
+/// world and counts what came back, so the two numbers can never again be confused for each other.
+#[test]
+fn the_readable_programs_also_run_in_a_fresh_world() {
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../oracle/src/data/json");
+    let mut defined = 0usize;
+    let mut readable = 0usize;
+    let mut ran = 0usize;
+    let mut refused = 0usize;
+
+    let mut stack = vec![data];
+    while let Some(directory) = stack.pop() {
+        let Ok(entries_at) = std::fs::read_dir(&directory) else {
+            continue;
+        };
+        for entry in entries_at.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            if path.extension().and_then(std::ffi::OsStr::to_str) != Some("json") {
+                continue;
+            }
+            let Some(value) = cdda_content::read_json(&path) else {
+                continue;
+            };
+            for definition in definitions_in(&value) {
+                let Some(cdda_json::Value::Str(id)) = member(definition, "id") else {
+                    continue;
+                };
+                defined += 1;
+                let Some(program) = cdda_content::dialogue::read_program(definition) else {
+                    continue;
+                };
+                readable += 1;
+                let mut world = World::new();
+                let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+                cdda_sim::singletons::put_rolls(
+                    &mut world,
+                    cdda_core_types::rng::Rolls::new(1),
+                );
+                cdda_sim::eoc_registry::set_programs(&mut world, std::slice::from_ref(&program));
+                if eoc_registry::run_program(&mut world, survivor, None, id, 0) == Applied::Done {
+                    ran += 1;
+                } else {
+                    refused += 1;
+                }
+            }
+        }
+    }
+
+    println!(
+        "of {defined} programs: {readable} readable, {ran} ran in a fresh world, {refused} refused at run time"
+    );
+    assert_eq!(defined, 692, "the data defines 692 nameable effect-on-conditions");
+    assert_eq!(readable, 181, "the port reads 181 of them");
+    // **Eighty-three, not 181.** Reading a program and running it are different facts, and this is the first place the port says
+    // both out loud. Ninety-eight programs read and then refuse at run time: a guard that needs a world nothing has generated
+    // (`u_at_om_location`), an effect that needs a caller's context, a `rng` with no dice. The readability census cannot see any of
+    // that, which is why it is not the number to quote as capability.
+    assert_eq!(ran, 83, "eighty-three of the readable programs also ran");
+    assert_eq!(refused, 98, "and ninety-eight refused at run time");
+    assert_eq!(ran + refused, readable, "every readable program did one or the other");
+}
+
+/// One member of a JSON object, or nothing when the value is not an object.
+fn member<'a>(value: &'a cdda_json::Value, key: &str) -> Option<&'a cdda_json::Value> {
+    match value {
+        cdda_json::Value::Object(object) => object.get(key),
+        _ => None,
+    }
+}
+
+/// Every effect-on-condition object directly inside a JSON value, without descending into the ones it finds.
+fn definitions_in(value: &cdda_json::Value) -> Vec<&cdda_json::Value> {
+    let mut found = Vec::new();
+    let mut stack = vec![value];
+    while let Some(value) = stack.pop() {
+        match value {
+            cdda_json::Value::Array(items) => stack.extend(items.iter()),
+            cdda_json::Value::Object(object) => {
+                if matches!(
+                    object.get("type"),
+                    Some(cdda_json::Value::Str(kind)) if kind == "effect_on_condition"
+                ) {
+                    found.push(value);
+                    continue;
+                }
+                for (_, member) in object.members() {
+                    stack.push(member);
+                }
+            }
+            _ => {}
+        }
+    }
+    found
+}
