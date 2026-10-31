@@ -633,7 +633,6 @@ fn read_spawn_monster(object: &cdda_json::Object) -> Option<Effect> {
             "group",
             "single_target",
             "target_range",
-            "lifespan",
             "target_var",
             "mon_variables",
             "spawn_message",
@@ -657,12 +656,23 @@ fn read_spawn_monster(object: &cdda_json::Object) -> Option<Effect> {
             Some(Value::Int(number)) => i32::try_from(*number).ok(),
             Some(_) => None,
         };
+        // Reference: `get_duration_or_var( jo, "lifespan", false, 0_seconds )` - a duration string, and zero means "no summon time".
+        let lifespan = match object.get("lifespan") {
+            None => None,
+            Some(Value::Str(text)) => {
+                let turns = crate::constructions::parse_duration(text);
+                (turns > 0).then_some(turns)
+            }
+            Some(Value::Int(turns)) => turns.checked_abs().filter(|turns| *turns > 0),
+            Some(_) => return None,
+        };
         return Some(Effect::SpawnMonster {
             monster,
             real_count,
             hallucination_count,
             min_radius: radius("min_radius", 1)?,
             max_radius: radius("max_radius", 10)?,
+            lifespan,
         });
     }
     None
@@ -1451,6 +1461,8 @@ pub enum Effect {
         min_radius: i32,
         /// How far from the actor they may appear.
         max_radius: i32,
+        /// How long a summon lasts, in turns, when the data says - zero or absent means it stays.
+        lifespan: Option<i64>,
     },
     /// Store a square found by looking around the actor.
     ///

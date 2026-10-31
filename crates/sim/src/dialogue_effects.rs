@@ -349,6 +349,7 @@ fn spawn_monsters(world: &mut World, speaker: Entity, listener: Option<Entity>, 
         hallucination_count,
         min_radius,
         max_radius,
+        lifespan,
     } = effect
     else {
         return Applied::CannotAnswer;
@@ -401,6 +402,13 @@ fn spawn_monsters(world: &mut World, speaker: Entity, listener: Option<Entity>, 
             world
                 .entity_mut(made_entity)
                 .insert(crate::monster_spawning::Hallucination);
+        }
+        // Reference: `spawned->set_summon_time( lifespan )` when the data gives one, and both real and imagined spawns take it.
+        if let Some(turns) = lifespan
+            && let Some(calendar) = crate::calendar::of(world)
+        {
+            let until = calendar.turn + turns;
+            crate::monster_spawning::summon_until(world, made_entity, until);
         }
     }
     Applied::Done

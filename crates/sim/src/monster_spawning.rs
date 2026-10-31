@@ -10,6 +10,40 @@ use bevy_ecs::prelude::*;
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Hallucination;
 
+/// A monster that was summoned for a while and will go when its time is up.
+///
+/// Reference: `monster::set_summon_time( time_duration )` (`monster.cpp`), which stores the turn a summoned monster expires, and the summon-expiry check that
+/// removes it. The port keeps the expiry as a component, so "what is about to go" is a query rather than a scan of every monster.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Summoned {
+    /// The turn it stops existing at.
+    pub until: i64,
+}
+
+/// Notes that a monster was summoned until a given turn.
+pub fn summon_until(world: &mut World, creature: Entity, until: i64) {
+    world.entity_mut(creature).insert(Summoned { until });
+}
+
+/// Removes every summon whose time has come, answering how many went.
+///
+/// Reference: the summon expiry in `monster::die`/`game::monmove`, which compares the summon time against the clock and erases the monster. The port answers
+/// with a count so the caller can say what happened, and so a test can see the number rather than the absence.
+pub fn expire_summonings(world: &mut World, now: i64) -> usize {
+    let Some(mut query) = world.try_query::<(Entity, &Summoned)>() else {
+        return 0;
+    };
+    let gone: Vec<Entity> = query
+        .iter(world)
+        .filter(|(_, summoned)| summoned.until <= now)
+        .map(|(entity, _)| entity)
+        .collect();
+    for entity in &gone {
+        world.entity_mut(*entity).despawn();
+    }
+    gone.len()
+}
+
 /// Whether a creature is a hallucination.
 #[must_use]
 pub fn is_hallucination(world: &World, creature: Entity) -> bool {

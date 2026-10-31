@@ -5983,3 +5983,28 @@ outdoor/indoor/friendly flags. That is why `hallucination_count` still sits on t
 **The bug worth recording:** the first version drew every square from a fresh dice stream, because `draw_near` took the rolls and never put them back - so each
 attempt re-rolled from the same seed and the ring search could not find a square the level held. The test caught it as a refusal, and the diagnostic
 (`CDDA_SHOW_SPAWN=1`) said "no square in ring" rather than leaving me guessing. One stream now serves every square a single spawn draws.
+
+## Lifespan on a summon, and a hypothesis that was wrong (round 855)
+
+`f_spawn_monster` gives a summon a time to go: `spawned->set_summon_time( lifespan )` when the data names one (`npctalk.cpp:7552-7554`), and the summon-expiry
+check erases the monster once the clock passes it. `cdda_sim::monster_spawning::Summoned` holds the expiry turn and `expire_summonings( world, now )` removes
+what is due, answering how many went.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 323 | **323** |
+effect entries runnable | 1,137 | **1,137** |
+unreadable leaves | 856 | **856** |
+one-gap programs | 162 | **162** |
+
+**Nothing moved, and last round's explanation for it was wrong.** I wrote that the eight `hallucination_count` programs were blocked by `lifespan`. They are
+not: with `lifespan` read, the census still blames them the same way. The data says why - every one of those entries also carries `outdoor_only`,
+`spawn_message`/`spawn_message_plural`, and two of them `target_range`, which are members the port still refuses.
+
+That is the second time this session I have explained a refusal by the member the *census* named rather than checking the entry. The census names the first
+member it cannot read, and that member is usually not the only one.
+
+Corrected plan for the spawn system's remaining members, in the data's own order of frequency: `outdoor_only`/`indoor_only` (needs a square's outdoor
+answer, which the port has for light), `spawn_message` (a message, which the port has), `target_range`, then `group` and `mon_variables`.
+
+Gated: a summon with a lifespan expires exactly at its time and not a turn before; and a summon with none survives as long as the clock runs.

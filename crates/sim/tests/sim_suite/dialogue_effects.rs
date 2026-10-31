@@ -2082,10 +2082,67 @@ fn spawning_monsters_makes_the_real_ones_and_the_imagined_ones() {
     // The members the port cannot carry out are refused at read time rather than ignored.
     for text in [
         r#"{"u_spawn_monster": "mon_test", "group": true}"#,
-        r#"{"u_spawn_monster": "mon_test", "lifespan": "5 seconds"}"#,
         r#"{"u_spawn_monster": "mon_test", "spawn_message": "it appears"}"#,
     ] {
         let value = cdda_json::parse(text.as_bytes()).expect("json");
         assert!(cdda_content::dialogue::read_effect(&value).is_none(), "{text}");
     }
+}
+
+/// A spawned monster can be given a lifespan, and the clock takes it away.
+///
+/// Reference: `f_spawn_monster` (`npctalk.cpp:7552-7554`): `spawned->set_summon_time( lifespan )` when the data gives one, and the summon-expiry check
+/// erases the monster once the clock passes it.
+#[test]
+fn a_summon_goes_when_its_lifespan_runs_out() {
+    let mut world = World::new();
+    let mut level = cdda_core_types::level::Level::new();
+    for x in -24..48 {
+        for y in -24..48 {
+            level.set_terrain(x, y, 0, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let kind = cdda_content::monsters::load_objects(&[cdda_json::parse(
+        br#"{"id": "mon_test", "name": "a test thing", "hp": 12, "speed": 100, "symbol": "t", "color": "white"}"#.as_slice(),
+    )
+    .expect("json")])
+    .expect("readable")
+    .into_iter()
+    .next()
+    .expect("one type");
+    cdda_sim::monster_registry::set_monster_types(
+        &mut world,
+        &[cdda_sim::monster_registry::MonsterKind { id: "mon_test", hp: 12 }],
+    );
+    cdda_sim::monster_catalog::set_types(&mut world, vec![kind]);
+
+    cdda_sim::calendar::set_turn(&mut world, 1_000);
+    let limited = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(br#"{"u_spawn_monster": "mon_test", "real_count": 1, "lifespan": "5 seconds"}"#.as_slice())
+            .expect("json"),
+    )
+    .expect("a lifespan is readable");
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(17));
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &limited),
+        Applied::Done
+    );
+
+    // One turn before its time it is still there, and at its time it is gone: the boundary is the rule, not a round number.
+    assert_eq!(cdda_sim::monster_spawning::expire_summonings(&mut world, 1_004), 0);
+    assert_eq!(cdda_sim::monster_spawning::expire_summonings(&mut world, 1_005), 1);
+
+    // A spawn with no lifespan stays, however long the clock runs.
+    let lasting = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(br#"{"u_spawn_monster": "mon_test", "real_count": 1}"#.as_slice()).expect("json"),
+    )
+    .expect("readable");
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(19));
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &lasting),
+        Applied::Done
+    );
+    assert_eq!(cdda_sim::monster_spawning::expire_summonings(&mut world, 999_999), 0);
 }
