@@ -249,10 +249,10 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
     // `math` guards (42 -> 45). A refusal that moves house is not the same as a program that starts running, and only one of the
     // thirty-six turned out to be otherwise complete.
     assert_eq!(
-        whole, 195,
-        "a hundred and ninety-five run whole: data-driven durations and intensities added five"
+        whole, 209,
+        "two hundred and nine run whole: morale added fourteen, data-driven durations five"
     );
-    assert_eq!(refused.get("effect"), Some(&366), "and the effect side is still the bigger refusal");
+    assert_eq!(refused.get("effect"), Some(&352), "and the effect side is still the bigger refusal");
     assert_eq!(refused.get("u_has_trait"), None, "traits are no longer blamed for anything");
     assert_eq!(refused.get("math"), Some(&46), "`math` guards are the biggest single one");
     assert_eq!(refused.get("u_has_item"), None, "carrying an item is no longer blamed for anything");
@@ -268,7 +268,7 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
     // not install them. The count of definitions was itself worth learning - the 712 in the earlier census counted objects, the
     // machine composes by name.
     assert_eq!(defined, 692, "the data defines 692 nameable effect-on-conditions");
-    assert_eq!(whole, 195, "and the port can run 195 of them whole");
+    assert_eq!(whole, 209, "and the port can run 209 of them whole");
 }
 
 /// A `run_eocs` entry can be a program written where it is used.
@@ -441,8 +441,8 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
     );
 
     assert_eq!(defined, 692, "the data defines 692 nameable effect-on-conditions");
-    assert_eq!(readable.len(), 195, "the port reads 195 of them");
-    assert_eq!(ran, 92, "ninety-two of the readable programs also ran");
+    assert_eq!(readable.len(), 209, "the port reads 209 of them");
+    assert_eq!(ran, 106, "a hundred and six of the readable programs also ran");
     assert_eq!(refused, 103, "and a hundred and three refused at run time");
     assert_eq!(ran + refused, readable.len(), "every readable program did one or the other");
 }
@@ -591,7 +591,7 @@ fn the_call_graph_says_which_missing_program_blocks_the_most() {
     );
 
     assert_eq!(defined, 692, "the data defines 692 nameable effect-on-conditions");
-    assert_eq!(readable.len(), 195, "the port reads 195 of them");
+    assert_eq!(readable.len(), 209, "the port reads 209 of them");
     assert!(!ranked.is_empty(), "and something is blocking something");
 }
 
@@ -723,19 +723,19 @@ fn the_programs_one_gap_away_say_what_to_port_next() {
     // The ranking's tail still carries two modifier names - `duration` and `bonus` - because a refused entry reports its first key, and a
     // modifier leads the object it sits in. They are listed so the number can be read honestly rather than silently dropped: the effect
     // refusing underneath them is what a round would have to port.
-    assert_eq!(gaps_total, 979, "the data's programs hold 979 unreadable leaves");
-    assert_eq!(single, 144, "a hundred and forty-four programs are one leaf away");
+    assert_eq!(gaps_total, 950, "the data's programs hold 950 unreadable leaves");
+    assert_eq!(single, 143, "a hundred and forty-three programs are one leaf away");
     assert_eq!(
         ranked,
         vec![
             ("<nested>".to_owned(), 36),
             ("mapgen_update".to_owned(), 32),
-            ("condition".to_owned(), 22),
-            ("snippet".to_owned(), 14),
-            ("decay_start".to_owned(), 12),
+            ("condition".to_owned(), 24),
+            ("snippet".to_owned(), 17),
             ("u_add_effect".to_owned(), 11),
             ("math".to_owned(), 10),
             ("hallucination_count".to_owned(), 7),
+            ("max_radius".to_owned(), 6),
         ],
         "the members that would finish the most programs, single gaps first"
     );

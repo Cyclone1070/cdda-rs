@@ -170,6 +170,89 @@ fn run_weighted_list(
 }
 
 
+
+/// One morale point to add, with its numbers still to be computed.
+struct MoraleRequest<'a> {
+    kind: &'a cdda_content::dialogue::StringSource,
+    bonus: &'a cdda_content::dialogue::Expression,
+    max_bonus: &'a cdda_content::dialogue::Expression,
+    duration: cdda_content::dialogue::EffectDuration,
+    decay_start: cdda_content::dialogue::EffectDuration,
+    capped: bool,
+    about_listener: bool,
+}
+
+/// Adds a morale point, computing its numbers from the data.
+///
+/// Reference: `f_add_morale` (`npctalk.cpp:7177-7195`): the type may be a variable, and the bonus, cap and both times are evaluated at the moment
+/// the point is added. A time written as a range is rolled, the same way an effect's duration is.
+fn add_morale(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    request: &MoraleRequest<'_>,
+) -> Applied {
+    let Some(creature) = actor(speaker, listener, request.about_listener) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(kind) = crate::conditions::text_of(world, speaker, listener, request.kind) else {
+        return Applied::CannotAnswer;
+    };
+    let mut numbers = Vec::new();
+    for expression in [request.bonus, request.max_bonus] {
+        let Some(value) = draw(world, speaker, listener, expression) else {
+            return Applied::CannotAnswer;
+        };
+        numbers.push(as_whole(value));
+    }
+    let Some(bonus) = numbers.first().copied() else {
+        return Applied::CannotAnswer;
+    };
+    let Some(max_bonus) = numbers.get(1).copied() else {
+        return Applied::CannotAnswer;
+    };
+    let mut times = Vec::new();
+    for time in [request.duration, request.decay_start] {
+        let Some(turns) = roll_duration(world, time) else {
+            return Applied::CannotAnswer;
+        };
+        times.push(turns);
+    }
+    let (duration, decay_start) = (times.first().copied().unwrap_or(0), times.get(1).copied().unwrap_or(0));
+    crate::morale::add(
+        world,
+        creature,
+        crate::morale::MoralePoint {
+            kind,
+            bonus,
+            max_bonus,
+            duration,
+            decay_start,
+            age: 0,
+            capped: request.capped,
+        },
+    );
+    Applied::Done
+}
+
+/// A duration the data states, as turns, rolling a range.
+fn roll_duration(world: &mut World, duration: cdda_content::dialogue::EffectDuration) -> Option<i64> {
+    match duration {
+        cdda_content::dialogue::EffectDuration::Permanent => Some(0),
+        cdda_content::dialogue::EffectDuration::Turns(turns) => turns,
+        cdda_content::dialogue::EffectDuration::Range(shortest, longest) => {
+            let mut dice = crate::singletons::take_rolls(world);
+            let rolled = dice
+                .as_mut()
+                .map(|dice| i64::from(dice.rng(as_turns(shortest), as_turns(longest))));
+            if let Some(dice) = dice.take() {
+                crate::singletons::put_rolls(world, dice);
+            }
+            rolled.or(Some(shortest))
+        }
+    }
+}
+
 /// Gives a creature an effect, with the duration and intensity the data states.
 ///
 /// Reference: `f_add_effect` (`npctalk.cpp:3426-3450`): the duration may be a range, which is rolled, and the intensity is an expression
@@ -342,6 +425,28 @@ pub fn run_effect(
             crate::messages::push(world, text);
             Applied::Done
         }
+        Effect::AddMorale {
+            kind,
+            bonus,
+            max_bonus,
+            duration,
+            decay_start,
+            capped,
+            listener: about_listener,
+        } => add_morale(
+            world,
+            speaker,
+            listener,
+            &MoraleRequest {
+                kind,
+                bonus,
+                max_bonus,
+                duration: *duration,
+                decay_start: *decay_start,
+                capped: *capped,
+                about_listener: *about_listener,
+            },
+        ),
         Effect::OpenDialogue {
             topic: _,
             then,

@@ -1092,6 +1092,25 @@ pub enum Effect {
     /// Reference: `f_weighted_list_eocs` (`npctalk.cpp:6950-6975`): each entry is a `[ program, weight ]` pair, the weights are evaluated and one
     /// program is picked by them - so an entry with weight zero is never picked, and the heavier an entry the likelier it is.
     WeightedList(Vec<(ProgramRef, Expression)>),
+    /// Give a creature a morale point.
+    ///
+    /// Reference: `f_add_morale` (`npctalk.cpp:7177-7195`), whose defaults are a one-hour duration and a half-hour decay start.
+    AddMorale {
+        /// The morale type's id, which is what stacks.
+        kind: StringSource,
+        /// How much it is worth before decay.
+        bonus: Expression,
+        /// The cap it may reach.
+        max_bonus: Expression,
+        /// How long it lasts.
+        duration: EffectDuration,
+        /// The age at which it starts to fade.
+        decay_start: EffectDuration,
+        /// Whether the cap applies even at zero.
+        capped: bool,
+        /// Whether it goes to the listener rather than the speaker.
+        listener: bool,
+    },
     /// Put a location into a dialogue variable.
     ///
     /// Reference: `f_location_variable` (`npctalk.cpp:4194`). The port reads the plain form - the actor's own square - and refuses the
@@ -1142,6 +1161,7 @@ impl Effect {
             Self::LocationVariable { .. } => "u_location_variable",
             Self::WeightedList(_) => "weighted_list_eocs",
             Self::OpenDialogue { .. } => "open_dialogue",
+            Self::AddMorale { .. } => "u_add_morale",
         }
     }
 }
@@ -1254,6 +1274,9 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
             .collect::<Option<Vec<_>>>()?;
         return Some(Effect::RunEoc(programs));
     }
+    if let Some(morale) = read_add_morale(object) {
+        return Some(morale);
+    }
     if let Some(dialogue) = read_open_dialogue(object) {
         return Some(dialogue);
     }
@@ -1336,6 +1359,59 @@ fn read_effect_list(value: Option<&Value>) -> Option<Vec<Effect>> {
 
 
 
+
+
+/// Reads a morale point being added, which may name its type with a variable and compute its numbers.
+///
+/// Reference: `f_add_morale` (`npctalk.cpp:7177-7195`): the type is a `str_or_var`, the bonus and cap are `dbl_or_var`, and the two times
+/// default to an hour and half an hour.
+fn read_add_morale(object: &cdda_json::Object) -> Option<Effect> {
+    for (member, listener) in [("u_add_morale", false), ("npc_add_morale", true)] {
+        let Some(kind) = object.get(member) else {
+            continue;
+        };
+        return Some(Effect::AddMorale {
+            kind: read_string_source(kind)?,
+            bonus: read_math_expression(object.get("bonus")?)?,
+            max_bonus: read_math_expression(object.get("max_bonus")?)?,
+            duration: read_effect_duration(object.get("duration"), EffectDuration::Turns(Some(3600)))?,
+            decay_start: read_effect_duration(object.get("decay_start"), EffectDuration::Turns(Some(1800)))?,
+            capped: matches!(object.get("capped"), Some(Value::Bool(true))),
+            listener,
+        });
+    }
+    None
+}
+
+/// Reads a duration member: a string, a number of turns, two ends, or the default the caller names.
+fn read_effect_duration(value: Option<&Value>, fallback: EffectDuration) -> Option<EffectDuration> {
+    match value {
+        None => Some(fallback),
+        Some(Value::Str(text)) if text == "PERMANENT" => Some(EffectDuration::Permanent),
+        Some(Value::Str(text)) => Some(EffectDuration::Turns(Some(crate::constructions::parse_duration(text)))),
+        Some(Value::Int(turns)) => Some(EffectDuration::Turns(Some(*turns))),
+        Some(Value::Float(turns)) => {
+            #[allow(clippy::cast_possible_truncation)]
+            let whole = *turns as i64;
+            Some(EffectDuration::Turns(Some(whole)))
+        }
+        Some(Value::Array(ends)) => {
+            let rolls = ends
+                .iter()
+                .map(|end| match end {
+                    Value::Int(turns) => Some(*turns),
+                    Value::Str(text) => Some(crate::constructions::parse_duration(text)),
+                    _ => None,
+                })
+                .collect::<Option<Vec<_>>>()?;
+            let [shortest, longest] = rolls.as_slice() else {
+                return None;
+            };
+            Some(EffectDuration::Range(*shortest, *longest))
+        }
+        Some(_) => None,
+    }
+}
 
 /// Reads an `open_dialogue`, which may name a topic or carry its own branches.
 ///

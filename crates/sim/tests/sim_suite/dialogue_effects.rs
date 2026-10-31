@@ -226,7 +226,7 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
     // length of the evaluation and put back.
     // 792 after location variables: the plain form stores the actor's square, and the searching forms are still refused.
     // 805 after `open_dialogue`: the branch rule runs exactly, and the conversation itself is not opened (no interface to open it).
-    assert_eq!(runnable, 815, "of which the port runs 815 entries");
+    assert_eq!(runnable, 840, "of which the port runs 840 entries");
 
     // And the ranking of what refuses, which is this census's real output: it says what to port next instead of what is used most.
     // `target_var` is the one entry the ranking cannot attribute on its own - a scan of the data shows 71 of those 98 are
@@ -241,9 +241,9 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
         vec![
             ("mapgen_update".to_owned(), 107),
             ("math".to_owned(), 98),
-            ("bonus".to_owned(), 32),
             ("else".to_owned(), 32),
             ("u_lose_effect".to_owned(), 29),
+            ("max_radius".to_owned(), 28),
         ],
         "the five effects that refuse most, in order - and `bonus`/`duration` are modifiers that reached the top only because \
          a refused entry always reports its first key; the three above them are effects"
@@ -856,4 +856,86 @@ fn an_added_effect_reads_its_duration_and_intensity_from_the_data() {
         seen.insert(wet.duration);
     }
     assert!(seen.len() > 1, "eighty rolls reached more than one answer");
+}
+
+/// Adds a morale point through the dialogue effect, failing the test when it refuses.
+fn add_morale_point(
+    world: &mut World,
+    creature: bevy_ecs::prelude::Entity,
+    kind: &str,
+    bonus: f64,
+    max_bonus: f64,
+    duration: &str,
+    decay: &str,
+) {
+    let text = format!(
+        r#"{{"u_add_morale": "{kind}", "bonus": {bonus}, "max_bonus": {max_bonus},
+             "duration": "{duration}", "decay_start": "{decay}"}}"#
+    );
+    let effect =
+        cdda_content::dialogue::read_effect(&cdda_json::parse(text.as_bytes()).expect("json"))
+            .expect("readable");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(world, creature, None, &effect),
+        Applied::Done
+    );
+}
+
+/// A morale point fades along the reference's logistic curve, and stacking uses the square root of the sum of squares.
+///
+/// Reference: `player_morale::morale_point` (`morale.cpp:130-240`): a point keeps its whole bonus until `decay_start`, fades by
+/// `logarithmic_range` to nothing at `duration`, and two points of the same sign stack as `sqrt(a² + b²)` rather than `a + b`.
+#[test]
+fn a_morale_point_keeps_its_bonus_then_fades_along_the_reference_curve() {
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+
+    add_morale_point(&mut world, survivor, "morale_feeling_good", 20.0, 50.0, "6 hours", "3 hours");
+    assert_eq!(cdda_sim::morale::net_bonus_of(&world, survivor), 20, "the whole bonus at once");
+
+    // Aged to exactly the decay start, it still gives everything.
+    for _ in 0..3 * 3600 {
+        cdda_sim::morale::age_morale(&mut world);
+    }
+    assert_eq!(
+        cdda_sim::morale::net_bonus_of(&world, survivor),
+        20,
+        "nothing has faded yet at the decay start"
+    );
+
+    // Halfway between decay start and the end it has fallen, but not to nothing.
+    for _ in 0..90 * 60 {
+        cdda_sim::morale::age_morale(&mut world);
+    }
+    let halfway = cdda_sim::morale::net_bonus_of(&world, survivor);
+    assert!(halfway < 20 && halfway > 0, "half faded, not gone: {halfway}");
+
+    // At its end it is gone, and the point is dropped.
+    for _ in 0..3 * 3600 {
+        cdda_sim::morale::age_morale(&mut world);
+    }
+    assert_eq!(cdda_sim::morale::net_bonus_of(&world, survivor), 0);
+    assert!(
+        cdda_sim::morale::points_of(&world, survivor).is_empty(),
+        "an expired point is dropped rather than kept at zero"
+    );
+
+    // Two of the same sign stack as the square root of the sum of squares: 3 and 4 feel like 5, not 7.
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    add_morale_point(&mut world, survivor, "morale_good", 3.0, 50.0, "6 hours", "3 hours");
+    add_morale_point(&mut world, survivor, "morale_good", 4.0, 50.0, "6 hours", "3 hours");
+    assert_eq!(
+        cdda_sim::morale::net_bonus_of(&world, survivor),
+        5,
+        "sqrt(3² + 4²) is 5"
+    );
+
+    // A cap holds the stack down.
+    add_morale_point(&mut world, survivor, "morale_good", 50.0, 6.0, "6 hours", "3 hours");
+    assert_eq!(
+        cdda_sim::morale::net_bonus_of(&world, survivor),
+        6,
+        "the cap wins over the stack"
+    );
 }
