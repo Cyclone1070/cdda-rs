@@ -224,7 +224,8 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
     // compute. Nine entries, and two programs.
     // 757 after `rng`/`rand`: the first math functions that **change the store** while answering, so the dice are taken out for the
     // length of the evaluation and put back.
-    assert_eq!(runnable, 767, "of which the port runs 767 entries");
+    // 792 after location variables: the plain form stores the actor's square, and the searching forms are still refused.
+    assert_eq!(runnable, 792, "of which the port runs 792 entries");
 
     // And the ranking of what refuses, which is this census's real output: it says what to port next instead of what is used most.
     // `target_var` is the one entry the ranking cannot attribute on its own - a scan of the data shows 71 of those 98 are
@@ -584,4 +585,55 @@ fn a_switch_runs_the_last_case_the_value_reaches() {
         Vec::<String>::new(),
         "and a value below every case runs nothing at all"
     );
+}
+
+/// A location variable holds the actor's square, and the searching forms are refused.
+///
+/// Reference: `f_location_variable` (`npctalk.cpp:4194`). The plain form is the actor's own position; the searching forms walk the overmap and
+/// the map for the nearest match (`target_params`, a terrain/furniture/monster list, radii), which nothing in the port can do yet.
+#[test]
+fn a_location_variable_holds_the_actors_square() {
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (7, 9, -1));
+    let other = cdda_sim::creature::spawn_creature(&mut world, "a stranger", (3, 4, 0));
+
+    let plain = cdda_json::parse(
+        br#"{"u_location_variable": {"u_val": "here"}}"#.as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&plain).expect("readable");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, Some(other), &effect),
+        Applied::Done
+    );
+    assert_eq!(
+        cdda_sim::dialogue_values::value_of(&world, survivor, "here"),
+        Some(cdda_sim::dialogue_values::Value::Position { x: 7, y: 9, z: -1 }),
+        "the speaker's own square"
+    );
+
+    // With `use_beta`-style naming the listener's square is the one stored.
+    let theirs = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(br#"{"npc_location_variable": {"npc_val": "there"}}"#.as_slice())
+            .expect("json"),
+    )
+    .expect("readable");
+    cdda_sim::dialogue_effects::run_effect(&mut world, survivor, Some(other), &theirs);
+    assert_eq!(
+        cdda_sim::dialogue_values::value_of(&world, other, "there"),
+        Some(cdda_sim::dialogue_values::Value::Position { x: 3, y: 4, z: 0 })
+    );
+
+    // The searching forms are refused rather than answered with the actor's own square.
+    for text in [
+        r#"{"u_location_variable": {"u_val": "x"}, "target_params": {"om_terrain": "field"}}"#,
+        r#"{"u_location_variable": {"u_val": "x"}, "terrain": "t_grass"}"#,
+        r#"{"u_location_variable": {"u_val": "x"}, "min_radius": 3}"#,
+    ] {
+        let value = cdda_json::parse(text.as_bytes()).expect("json");
+        assert!(
+            cdda_content::dialogue::read_effect(&value).is_none(),
+            "{text} must be refused"
+        );
+    }
 }

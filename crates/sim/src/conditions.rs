@@ -458,7 +458,7 @@ pub fn value_drawing(
                 let held = crate::dialogue_context::values(world, speaker).remove(name)?;
                 return held.parse::<f64>().ok().or(if unset_is_zero { Some(0.0) } else { None });
             }
-            let holder = holder_of(world, speaker, listener, scope)?;
+            let holder = holder_for_scope(world, speaker, listener, scope)?;
             match crate::dialogue_values::number_of(world, holder, name) {
                 Some(number) => Some(number),
                 None if unset_is_zero => Some(0.0),
@@ -537,7 +537,7 @@ pub fn value_drawing(
 /// `const_dialogue` then reads it from `actor( false )` or `actor( true )`. A bare identifier is looked up in the dialogue's
 /// own context (`const_dialogue::maybe_get_value`, `npctalk.cpp:2659-2662`), which the port keeps on the speaker - the one
 /// dialoguer that always exists.
-fn holder_of(
+pub fn holder_for_scope(
     world: &World,
     speaker: Entity,
     listener: Option<Entity>,
@@ -560,7 +560,7 @@ pub fn text_of(
     match source {
         StringSource::Literal(text) => Some(text.clone()),
         StringSource::Variable { scope, name } => {
-            let holder = holder_of(world, speaker, listener, scope)?;
+            let holder = holder_for_scope(world, speaker, listener, scope)?;
             crate::dialogue_values::text_of(world, holder, name)
         }
     }

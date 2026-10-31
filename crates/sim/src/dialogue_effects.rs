@@ -113,6 +113,87 @@ fn actor(speaker: Entity, listener: Option<Entity>, about_listener: bool) -> Opt
     Some(speaker)
 }
 
+
+/// Stores the actor's square in a dialogue variable.
+///
+/// Reference: `f_location_variable` (`npctalk.cpp:4194`), plain form: the value is `d.const_actor( is_npc )->pos_abs()`, and the scope names where
+/// it goes the same way `math` names its target.
+fn store_location(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    scope: &str,
+    name: &str,
+    about_listener: bool,
+) -> Applied {
+    let Some(creature) = actor(speaker, listener, about_listener) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(position) = world.get::<crate::Position>(creature).copied() else {
+        return Applied::CannotAnswer;
+    };
+    let Some(holder) = crate::conditions::holder_for_scope(world, speaker, listener, scope) else {
+        return Applied::CannotAnswer;
+    };
+    crate::dialogue_values::set(
+        world,
+        holder,
+        name,
+        crate::dialogue_values::Value::Position {
+            x: position.x,
+            y: position.y,
+            z: position.z,
+        },
+    );
+    Applied::Done
+}
+
+/// Runs the **last** case a switch's value reaches.
+///
+/// Reference: `f_switch` (`npctalk.cpp:6998-7020`): every case is tried in the data's order and each one the value reaches replaces the chosen
+/// one, so the last match runs - not the first, and not the nearest.
+fn run_switch(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    on: &cdda_content::dialogue::Expression,
+    cases: &[(cdda_content::dialogue::Expression, Vec<Effect>)],
+) -> Applied {
+
+        let drawn = |world: &mut World, expression: &cdda_content::dialogue::Expression| {
+            let mut dice = crate::singletons::take_rolls(world);
+            let value = crate::conditions::value_drawing(
+                world,
+                speaker,
+                listener,
+                expression,
+                true,
+                dice.as_mut(),
+            );
+            if let Some(dice) = dice.take() {
+                crate::singletons::put_rolls(world, dice);
+            }
+            value
+        };
+        let Some(switched) = drawn(world, on) else {
+            return Applied::CannotAnswer;
+        };
+        // Reference: every case the value reaches replaces the chosen one, so the **last** match runs.
+        let mut chosen: Option<&Vec<Effect>> = None;
+        for (case, effects) in cases {
+            let Some(reached) = drawn(world, case) else {
+                return Applied::CannotAnswer;
+            };
+            if switched >= reached {
+                chosen = Some(effects);
+            }
+        }
+        match chosen {
+            Some(effects) => run_effects(world, speaker, listener, effects),
+            None => Applied::Done,
+        }
+    }
+
 /// Runs one effect entry.
 pub fn run_effect(
     world: &mut World,
@@ -126,40 +207,12 @@ pub fn run_effect(
             crate::messages::push(world, text);
             Applied::Done
         }
-        Effect::Switch { on, cases } => {
-            let drawn = |world: &mut World, expression: &cdda_content::dialogue::Expression| {
-                let mut dice = crate::singletons::take_rolls(world);
-                let value = crate::conditions::value_drawing(
-                    world,
-                    speaker,
-                    listener,
-                    expression,
-                    true,
-                    dice.as_mut(),
-                );
-                if let Some(dice) = dice.take() {
-                    crate::singletons::put_rolls(world, dice);
-                }
-                value
-            };
-            let Some(switched) = drawn(world, on) else {
-                return Applied::CannotAnswer;
-            };
-            // Reference: every case the value reaches replaces the chosen one, so the **last** match runs.
-            let mut chosen: Option<&Vec<Effect>> = None;
-            for (case, effects) in cases {
-                let Some(reached) = drawn(world, case) else {
-                    return Applied::CannotAnswer;
-                };
-                if switched >= reached {
-                    chosen = Some(effects);
-                }
-            }
-            match chosen {
-                Some(effects) => run_effects(world, speaker, listener, effects),
-                None => Applied::Done,
-            }
-        }
+        Effect::LocationVariable {
+            scope,
+            name,
+            listener: about_listener,
+        } => store_location(world, speaker, listener, scope, name, *about_listener),
+        Effect::Switch { on, cases } => run_switch(world, speaker, listener, on, cases),
         Effect::If {
             condition,
             then,

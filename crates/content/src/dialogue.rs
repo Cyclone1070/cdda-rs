@@ -1040,6 +1040,19 @@ pub enum Effect {
         /// Whether it goes from the listener rather than the speaker.
         listener: bool,
     },
+    /// Put a location into a dialogue variable.
+    ///
+    /// Reference: `f_location_variable` (`npctalk.cpp:4194`). The port reads the plain form - the actor's own square - and refuses the
+    /// searching forms (`target_params`, `terrain`/`furniture`/`field`/`monster`/`npc`/`species`/`trap`/`zone`, radii): those walk the overmap
+    /// and the map for the nearest match, which nothing in the port can do yet.
+    LocationVariable {
+        /// The variable's scope, as the data spells it: `u_val`, `npc_val`, `global_val`.
+        scope: String,
+        /// The variable's name.
+        name: String,
+        /// Whether the location is the listener's rather than the speaker's.
+        listener: bool,
+    },
     /// Run the last case whose value is at most the switch's value.
     ///
     /// Reference: `f_switch` (`npctalk.cpp:6998-7020`): each case is tried in order, and **every** case whose number the switch value
@@ -1074,6 +1087,7 @@ impl Effect {
             Self::LoseTrait { .. } => "u_lose_trait",
             Self::RunEoc(_) => "run_eocs",
             Self::Switch { .. } => "switch",
+            Self::LocationVariable { .. } => "u_location_variable",
         }
     }
 }
@@ -1186,26 +1200,11 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
             .collect::<Option<Vec<_>>>()?;
         return Some(Effect::RunEoc(programs));
     }
-    if let Some(on) = object.get("switch") {
-        let Some(Value::Array(cases)) = object.get("cases") else {
-            return None;
-        };
-        let cases = cases
-            .iter()
-            .map(|case| {
-                let Value::Object(case) = case else {
-                    return None;
-                };
-                Some((
-                    read_expression(case.get("case")?)?,
-                    read_effect_list(case.get("effect"))?,
-                ))
-            })
-            .collect::<Option<Vec<_>>>()?;
-        return Some(Effect::Switch {
-            on: read_expression(on)?,
-            cases,
-        });
+    if let Some(location) = read_location_variable(object) {
+        return Some(location);
+    }
+    if let Some(switched) = read_switch(object) {
+        return Some(switched);
     }
     if let Some(Value::Array(statements)) = object.get("math") {
         // Reference: `eoc_math::from_json` (`condition.cpp:2494-2502`) **concatenates** the array's strings and parses the result as
@@ -1272,6 +1271,76 @@ fn read_effect_list(value: Option<&Value>) -> Option<Vec<Effect>> {
         Some(Value::Array(entries)) => entries.iter().map(read_effect).collect(),
         _ => None,
     }
+}
+
+
+
+/// Reads a `switch`, whose cases each hold effects of their own.
+///
+/// Reference: `f_switch` (`npctalk.cpp:6998-7020`): the cases are tried in the data's order and the **last** one the value reaches runs.
+fn read_switch(object: &cdda_json::Object) -> Option<Effect> {
+    if let Some(on) = object.get("switch") {
+        let Some(Value::Array(cases)) = object.get("cases") else {
+            return None;
+        };
+        let cases = cases
+            .iter()
+            .map(|case| {
+                let Value::Object(case) = case else {
+                    return None;
+                };
+                Some((
+                    read_expression(case.get("case")?)?,
+                    read_effect_list(case.get("effect"))?,
+                ))
+            })
+            .collect::<Option<Vec<_>>>()?;
+        return Some(Effect::Switch {
+            on: read_expression(on)?,
+            cases,
+        });
+    }
+    None
+}
+
+/// Reads the plain form of a location variable, refusing the searching forms.
+///
+/// Reference: `f_location_variable` (`npctalk.cpp:4194`). The searching forms (`target_params`, a `terrain`/`furniture`/`field`/`monster`/`npc`/
+/// `species`/`trap`/`zone` list, radii) walk the overmap and the map for the nearest match, which nothing in the port can do yet - and answering
+/// them with the actor's own square would be a wrong answer that looked right.
+fn read_location_variable(object: &cdda_json::Object) -> Option<Effect> {
+    /// The members that turn the effect into a search.
+    const SEARCHING: [&str; 11] = [
+        "target_params",
+        "terrain",
+        "furniture",
+        "field",
+        "monster",
+        "npc",
+        "species",
+        "trap",
+        "zone",
+        "min_radius",
+        "max_radius",
+    ];
+    for (member, listener) in [("u_location_variable", false), ("npc_location_variable", true)] {
+        let Some(Value::Object(target)) = object.get(member) else {
+            continue;
+        };
+        if SEARCHING.iter().any(|key| object.get(key).is_some()) {
+            return None;
+        }
+        let (scope, name) = target.members().iter().find_map(|(scope, value)| match value {
+            Value::Str(name) => Some((scope.clone(), name.clone())),
+            _ => None,
+        })?;
+        return Some(Effect::LocationVariable {
+            scope,
+            name,
+            listener,
+        });
+    }
+    None
 }
 
 /// Reads a call's `variables`, which become the context values the program sees.
