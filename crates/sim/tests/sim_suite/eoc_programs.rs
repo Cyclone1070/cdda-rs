@@ -375,9 +375,7 @@ fn a_call_hands_the_program_its_values_and_takes_them_back() {
 fn the_readable_programs_also_run_in_a_fresh_world() {
     let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../oracle/src/data/json");
     let mut defined = 0usize;
-    let mut readable = 0usize;
-    let mut ran = 0usize;
-    let mut refused = 0usize;
+    let mut readable: Vec<cdda_content::dialogue::Program> = Vec::new();
 
     let mut stack = vec![data];
     while let Some(directory) = stack.pop() {
@@ -397,42 +395,97 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
                 continue;
             };
             for definition in definitions_in(&value) {
-                let Some(cdda_json::Value::Str(id)) = member(definition, "id") else {
+                if member(definition, "id").is_none() {
                     continue;
-                };
+                }
                 defined += 1;
-                let Some(program) = cdda_content::dialogue::read_program(definition) else {
-                    continue;
-                };
-                readable += 1;
-                let mut world = World::new();
-                let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
-                cdda_sim::singletons::put_rolls(
-                    &mut world,
-                    cdda_core_types::rng::Rolls::new(1),
-                );
-                cdda_sim::eoc_registry::set_programs(&mut world, std::slice::from_ref(&program));
-                if eoc_registry::run_program(&mut world, survivor, None, id, 0) == Applied::Done {
-                    ran += 1;
-                } else {
-                    refused += 1;
+                if let Some(program) = cdda_content::dialogue::read_program(definition) {
+                    readable.push(program);
                 }
             }
         }
     }
 
+    // Every readable program is installed in the world each one runs in, because that is what a world is: the data's whole set of
+    // programs, with any of them callable. Installing only the program under test made ninety of the ninety-eight refusals a `run_eocs`
+    // call to a program that was simply not there - a fact about the census, not about the port.
+    let mut ran = 0usize;
+    let mut refused = 0usize;
+    let mut runtime_blame: std::collections::BTreeMap<String, usize> =
+        std::collections::BTreeMap::new();
+    for program in &readable {
+        let mut world = World::new();
+        let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+        cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
+        cdda_sim::eoc_registry::set_programs(&mut world, &readable);
+        if eoc_registry::run_program(&mut world, survivor, None, &program.id, 0) == Applied::Done {
+            ran += 1;
+            continue;
+        }
+        refused += 1;
+        // Name the effect that refused **at run time**, by running them one at a time in their own fresh world. This is the same device
+        // as the read-side blame, one level down: the read census says which member cannot be understood, this says which one cannot be
+        // carried out.
+        if let Some(culprit) = first_refusing_effect(program, &readable, 0) {
+            *runtime_blame.entry(culprit).or_insert(0) += 1;
+        }
+    }
+
+    let mut ranked: Vec<(String, usize)> = runtime_blame.into_iter().collect();
+    ranked.sort_by_key(|(_, count)| std::cmp::Reverse(*count));
+    ranked.truncate(6);
     println!(
-        "of {defined} programs: {readable} readable, {ran} ran in a fresh world, {refused} refused at run time"
+        "of {defined} programs: {} readable, {ran} ran in a fresh world, {refused} refused at run time; \
+         the effects that refused: {ranked:?}",
+        readable.len()
     );
+
     assert_eq!(defined, 692, "the data defines 692 nameable effect-on-conditions");
-    assert_eq!(readable, 181, "the port reads 181 of them");
-    // **Eighty-three, not 181.** Reading a program and running it are different facts, and this is the first place the port says
-    // both out loud. Ninety-eight programs read and then refuse at run time: a guard that needs a world nothing has generated
-    // (`u_at_om_location`), an effect that needs a caller's context, a `rng` with no dice. The readability census cannot see any of
-    // that, which is why it is not the number to quote as capability.
-    assert_eq!(ran, 83, "eighty-three of the readable programs also ran");
-    assert_eq!(refused, 98, "and ninety-eight refused at run time");
-    assert_eq!(ran + refused, readable, "every readable program did one or the other");
+    assert_eq!(readable.len(), 181, "the port reads 181 of them");
+    assert_eq!(ran, 84, "eighty-four of the readable programs also ran");
+    assert_eq!(refused, 97, "and ninety-seven refused at run time");
+    assert_eq!(ran + refused, readable.len(), "every readable program did one or the other");
+}
+
+/// The effect that refuses, following a `run_eocs` call into the program it names.
+///
+/// A program that calls another inherits the callee's refusal, so reporting `run_eocs` would say only "somewhere below" - the same trap as
+/// reporting the joiner `and`. The search therefore descends into the callee and names the effect that actually refused.
+fn first_refusing_effect(
+    program: &cdda_content::dialogue::Program,
+    installed: &[cdda_content::dialogue::Program],
+    depth: usize,
+) -> Option<String> {
+    if depth >= 8 {
+        return Some("run_eocs".to_owned());
+    }
+    for effect in &program.effects {
+        let mut alone = World::new();
+        let survivor = cdda_sim::creature::spawn_creature(&mut alone, "the survivor", (0, 0, 0));
+        cdda_sim::singletons::put_rolls(&mut alone, cdda_core_types::rng::Rolls::new(1));
+        cdda_sim::eoc_registry::set_programs(&mut alone, installed);
+        if cdda_sim::dialogue_effects::run_effect(&mut alone, survivor, None, effect)
+            != Applied::CannotAnswer
+        {
+            continue;
+        }
+        return match effect {
+            cdda_content::dialogue::Effect::RunEoc(calls) => calls
+                .iter()
+                .find_map(|call| match call {
+                    cdda_content::dialogue::ProgramRef::Named { id, .. } => installed
+                        .iter()
+                        .find(|program| program.id == *id)
+                        .and_then(|program| first_refusing_effect(program, installed, depth + 1)),
+                    cdda_content::dialogue::ProgramRef::Inline { program, .. } => {
+                        first_refusing_effect(program, installed, depth + 1)
+                    }
+                })
+                .or_else(|| Some("run_eocs(calls a program that is not installed)".to_owned())),
+            _ => Some(effect.kind().to_owned()),
+        };
+    }
+    None
 }
 
 /// One member of a JSON object, or nothing when the value is not an object.

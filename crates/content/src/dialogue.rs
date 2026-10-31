@@ -1047,6 +1047,26 @@ pub enum Effect {
     RunEoc(Vec<ProgramRef>),
 }
 
+impl Effect {
+    /// The member the data spells this effect with, for a report about one.
+    ///
+    /// The names are the data's own - `math`, `u_message`, `run_eocs`, `u_add_effect`, `u_learn_trait` - so a report can be read beside the
+    /// JSON it came from without a translation table. The two the reference spells with a shared name have the name the reader uses.
+    #[must_use]
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Self::Math(_) => "math",
+            Self::Message(_) => "u_message",
+            Self::If { .. } => "if",
+            Self::AddEffect { .. } => "u_add_effect",
+            Self::RemoveEffect { .. } => "u_lose_effect",
+            Self::LearnTrait { .. } => "u_add_trait",
+            Self::LoseTrait { .. } => "u_lose_trait",
+            Self::RunEoc(_) => "run_eocs",
+        }
+    }
+}
+
 /// What a `run_eocs` entry names.
 ///
 /// Reference: `load_eoc_vector_id_and_var` (`npctalk.cpp:512-541`) accepts a **name** or an **object**, and an object without an `id`
