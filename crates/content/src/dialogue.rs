@@ -1273,6 +1273,8 @@ pub enum Effect {
         update: StringSource,
         /// The square to apply it at, when the data names one; the speaker's own square otherwise.
         target: Option<AssignmentTarget>,
+        /// The overmap terrain to apply it at, found by searching; the speaker's own square when neither this nor `target` is named.
+        om_terrain: Option<StringSource>,
     },
     /// Give a creature a morale point.
     ///
@@ -1582,8 +1584,9 @@ fn read_snippet(object: &cdda_json::Object) -> Option<Effect> {
 /// somewhere else, and the port refuses those rather than applying the update in the wrong place.
 fn read_mapgen_update(object: &cdda_json::Object) -> Option<Effect> {
     let update = object.get("mapgen_update")?;
-    // A `target_var` names a square the dialogue already holds; the other aiming forms need an overmap walk the port has not built.
-    for aiming in ["om_terrain", "target_params", "mapgen_update_variables"] {
+    // A `target_var` names a square the dialogue already holds and `om_terrain` names a tile to search for; `target_params` is a whole mission
+    // target - search range, filters, reveal - which the port has not built.
+    for aiming in ["target_params", "mapgen_update_variables"] {
         if object.get(aiming).is_some() {
             return None;
         }
@@ -1592,9 +1595,14 @@ fn read_mapgen_update(object: &cdda_json::Object) -> Option<Effect> {
         Some(value) => Some(read_variable_target(value)?),
         None => None,
     };
+    let om_terrain = match object.get("om_terrain") {
+        Some(value) => Some(read_string_source(value)?),
+        None => None,
+    };
     Some(Effect::MapgenUpdate {
         update: read_string_source(update)?,
         target,
+        om_terrain,
     })
 }
 

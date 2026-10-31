@@ -281,20 +281,50 @@ fn run_remove_effects(world: &mut World, speaker: Entity, listener: Option<Entit
     Applied::Done
 }
 
+/// How far an `om_terrain` search reaches, in overmap tiles.
+///
+/// Reference: `mission_util.cpp:429` reads `search_range` with a default of `OMAPX * 3`, and `map_scale_constants.h:37` says `OMAPX = 180` - so the
+/// reference searches **540** tiles each way unless the data says otherwise. The first version of this constant said 60, which was a plausible number
+/// nobody wrote down; the citation is why it is 540.
+const SEARCH_RANGE: i32 = 540;
+
 /// Applies an update mapgen where the speaker stands.
 ///
 /// Reference: `f_mapgen_update` (`npctalk.cpp`): with no target named, the update is applied at the speaker's own overmap tile.
 fn run_mapgen_update(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::MapgenUpdate { update, target } = effect else {
+    let Effect::MapgenUpdate {
+        update,
+        target,
+        om_terrain,
+    } = effect
+    else {
         return Applied::CannotAnswer;
     };
     let Some(name) = crate::conditions::text_of(world, speaker, listener, update) else {
         return Applied::CannotAnswer;
     };
-    // A `target_var` names a square the dialogue already holds; without one the update lands where the speaker stands.
-    let placed = match target {
-        Some(target) => crate::dialogue_values::position_of(world, speaker, listener, target),
-        None => world.get::<crate::Position>(speaker).copied().map(|at| (at.x, at.y, at.z)),
+    // Three ways to aim an update, in the reference's own precedence: a `target_var` names a square the dialogue already holds, an `om_terrain`
+    // names a tile to search for, and with neither the update lands where the speaker stands.
+    let here = world.get::<crate::Position>(speaker).copied();
+    let placed = if let Some(target) = target {
+        crate::dialogue_values::position_of(world, speaker, listener, target)
+    } else if let Some(wanted) = om_terrain {
+        let Some(at) = here else {
+            return Applied::CannotAnswer;
+        };
+        let Some(name) = crate::conditions::text_of(world, speaker, listener, wanted) else {
+            return Applied::CannotAnswer;
+        };
+        let tile = crate::overmap::tile_of(at.x, at.y);
+        crate::overmap::nearest_with_terrain(world, tile, &name, SEARCH_RANGE).map(|(x, y)| {
+            (
+                x * crate::overmap::SQUARES_PER_OMT,
+                y * crate::overmap::SQUARES_PER_OMT,
+                at.z,
+            )
+        })
+    } else {
+        here.map(|at| (at.x, at.y, at.z))
     };
     let Some(place) = placed else {
         return Applied::CannotAnswer;

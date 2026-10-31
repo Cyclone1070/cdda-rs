@@ -41,6 +41,41 @@ pub fn set_terrain(world: &mut World, tile: (i32, i32), terrain: &str) {
     }
 }
 
+/// The nearest tile within a radius whose terrain is the one wanted.
+///
+/// Reference: `mission_util::find_or_create_om_terrain` (`mission_util.cpp:321`), the search half: it walks outward from the origin and takes the first
+/// tile that matches. The port **searches only**: it never generates an overmap tile to satisfy a search, because generating world is world generation's
+/// job and a dialogue effect that quietly builds a forest is not a search. A tile that is not there is `None`, and the caller refuses.
+#[must_use]
+pub fn nearest_with_terrain(
+    world: &World,
+    origin: (i32, i32),
+    wanted: &str,
+    radius: i32,
+) -> Option<(i32, i32)> {
+    // Ring by ring, so the first match is the nearest and a search that is over a small area stays cheap: a box scan of the reference's default 540-tile
+    // radius is over a million lookups per call, and a dialogue that applies a mapgen should not cost that.
+    for step in 0..=radius {
+        for x in (origin.0 - step)..=(origin.0 + step) {
+            for y in (origin.1 - step)..=(origin.1 + step) {
+                // The ring, not the square: only the outermost rows and columns are new at this distance.
+                if step > 0
+                    && x != origin.0 - step
+                    && x != origin.0 + step
+                    && y != origin.1 - step
+                    && y != origin.1 + step
+                {
+                    continue;
+                }
+                if terrain_at(world, (x, y)) == Some(wanted) {
+                    return Some((x, y));
+                }
+            }
+        }
+    }
+    None
+}
+
 /// The terrain of one overmap tile, or nothing when nothing has placed one.
 #[must_use]
 pub fn terrain_at(world: &World, tile: (i32, i32)) -> Option<&str> {

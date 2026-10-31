@@ -1212,12 +1212,10 @@ fn a_mapgen_update_writes_its_terrain_where_the_speaker_stands() {
         Applied::CannotAnswer
     );
 
-    // An update aimed by a member the port has not built is refused rather than applied in the wrong place. `target_var` is no longer one of
-    // them: it names a square the dialogue already holds, which the port reads.
-    for text in [
-        r#"{"mapgen_update": "lab_wall_opens", "om_terrain": "field"}"#,
-        r#"{"mapgen_update": "lab_wall_opens", "target_params": {"om_terrain": "field"}}"#,
-    ] {
+    // An update aimed by a member the port has not built is refused rather than applied in the wrong place. This list keeps shrinking as the aiming
+    // forms land - `target_var`, then `om_terrain` - and what is left is the whole mission target: search range, filters, reveal, and a create step the
+    // port does not have.
+    for text in [r#"{"mapgen_update": "lab_wall_opens", "target_params": {"om_terrain": "field"}}"#] {
         let value = cdda_json::parse(text.as_bytes()).expect("json");
         assert!(
             cdda_content::dialogue::read_effect(&value).is_none(),
@@ -1556,5 +1554,70 @@ fn a_menu_of_programs_runs_the_one_that_was_picked() {
         cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &no_escape),
         Applied::CannotAnswer,
         "and refusing cancel is refusing cancel"
+    );
+}
+
+/// An `om_terrain` aim applies the update at the nearest tile of that terrain, and refuses when there is none.
+///
+/// Reference: `f_mapgen_update` (`npctalk.cpp`) with `om_terrain` calls `mission_util::get_om_terrain_pos` (`mission_util.cpp:321`), which searches
+/// outward from the speaker's overmap tile. The port **searches only** - it never generates a tile to satisfy a search.
+#[test]
+fn an_om_terrain_aim_lands_on_the_nearest_tile_of_that_terrain() {
+    use std::collections::BTreeMap;
+
+    let mut world = World::new();
+    let mut level = cdda_core_types::level::Level::new();
+    for x in 0..96 {
+        for y in 0..48 {
+            level.set_terrain(x, y, 0, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    // A survivor in overmap tile (0, 0): one overmap tile is 24 squares, two submaps each way (`SQUARES_PER_OMT`).
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (1, 1, 0));
+
+    let mapgen = cdda_content::mapgen::MapgenObject {
+        om_terrain: "lab_finale".to_owned(),
+        rows: vec!["A".to_owned()],
+        terrain: [('A', "t_rock".to_owned())].into_iter().collect::<BTreeMap<char, String>>(),
+        furniture: BTreeMap::new(),
+        weight: 100,
+        fields: Vec::new(),
+    };
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("lab_finale".to_owned(), mapgen)]);
+    cdda_sim::mapgen_update::set_terrain_codes(
+        &mut world,
+        [("t_rock".to_owned(), 9u32)].into_iter().collect(),
+    );
+
+    let aimed = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(br#"{"mapgen_update": "lab_finale", "om_terrain": "lab_finale"}"#.as_slice())
+            .expect("json"),
+    )
+    .expect("an om_terrain aim is readable");
+
+    // No tile of that terrain anywhere: the port refuses rather than creating one.
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &aimed),
+        Applied::CannotAnswer,
+        "a search that finds nothing refuses"
+    );
+
+    // Two tiles of it, one nearer: the nearer is the one the update lands on.
+    cdda_sim::overmap::set_terrain(&mut world, (1, 0), "lab_finale");
+    cdda_sim::overmap::set_terrain(&mut world, (3, 0), "lab_finale");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &aimed),
+        Applied::Done
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (24, 0, 0)),
+        Some(9),
+        "the update landed at overmap tile (1, 0), whose top-left square is 24 * 1 = 24, 0"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (72, 0, 0)),
+        Some(0),
+        "and not at the far tile"
     );
 }

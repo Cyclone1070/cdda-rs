@@ -5662,3 +5662,30 @@ unreadable leaves | 1,039 | **1,033** |
 
 Gated: wearing nothing answers no; a blindfold with the flag answers yes; a hood without it answers yes only for its own flag; the **creature** does not
 acquire the item's flag; and an item lying on the ground does not answer for a creature that is not wearing it.
+
+## Aiming a mapgen update at an overmap tile (round 843)
+
+`f_mapgen_update` with `om_terrain` is the aiming form the port refused longest - 23 programs sat one member short of running because of it. The reference
+hands it to `mission_util::get_om_terrain_pos` (`mission_util.cpp:321`), which searches outward from the speaker's overmap tile.
+
+The port **searches only**. The reference's `create_if_necessary` defaults to true and will generate world to satisfy a search; a dialogue effect that
+quietly builds a forest is not a search, so a tile that is not there is `None` and the caller refuses. The search is ring by ring, because a box scan of
+the reference's default radius is over a million lookups per call.
+
+The radius is a **checked** constant this time: `mission_util.cpp:429` reads `search_range` with a default of `OMAPX * 3`, and `map_scale_constants.h:37`
+says `OMAPX = 180`, so 540 tiles each way. My first version said 60 - a plausible number nobody wrote down - and the citation is why it says 540.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 273 | **299** |
+**capability** | 164 | **180** |
+effect entries runnable | 992 | **1,037** |
+unreadable leaves | 1,033 | **974** |
+one-gap programs | 174 | **161** |
+`mapgen_update` among one-gap members | 23 | **0** |
+
+This is the first round in a while where capability moved by double figures, and it moved because the member was a **system** rather than a guard: 23
+programs were one aim away from running, and they ran.
+
+Gated: an aim that finds no tile of that terrain refuses rather than creating one; two tiles of it, one nearer, and the update lands on the nearer - at
+whose top-left square the test asserts byte for byte (`24 * 1`, since one overmap tile is two submaps each way).
