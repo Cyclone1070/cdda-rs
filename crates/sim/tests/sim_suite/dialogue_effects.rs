@@ -226,7 +226,7 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
     // length of the evaluation and put back.
     // 792 after location variables: the plain form stores the actor's square, and the searching forms are still refused.
     // 805 after `open_dialogue`: the branch rule runs exactly, and the conversation itself is not opened (no interface to open it).
-    assert_eq!(runnable, 866, "of which the port runs 866 entries");
+    assert_eq!(runnable, 872, "of which the port runs 872 entries");
 
     // And the ranking of what refuses, which is this census's real output: it says what to port next instead of what is used most.
     // `target_var` is the one entry the ranking cannot attribute on its own - a scan of the data shows 71 of those 98 are
@@ -1063,4 +1063,90 @@ fn a_branch_may_be_one_effect_or_a_list_of_them() {
         assert_eq!(then.len(), 1, "one entry either way");
         assert_eq!(otherwise.len(), 1, "and the other branch too");
     }
+}
+
+/// A sound is made where its maker stands, and speech is said while background noise is not.
+///
+/// Reference: `f_make_sound` (`npctalk.cpp:6131-6200`): the volume is a `dbl_or_var`, the type names what sort of sound it is, and the member is
+/// either the words or - with `snippet: true` - the category they are picked from.
+#[test]
+fn a_sound_is_made_where_its_maker_stands_and_speech_is_said() {
+    use cdda_core_types::rng::Rolls;
+
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (4, 6, 0));
+    cdda_sim::singletons::put_rolls(&mut world, Rolls::new(2));
+    let read = |text: &str| {
+        cdda_content::dialogue::read_effect(&cdda_json::parse(text.as_bytes()).expect("json"))
+            .expect("readable")
+    };
+
+    // Background noise: heard, but nothing is said.
+    let bang = read(r#"{"u_make_sound": "a bang", "volume": 12, "type": "background"}"#);
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &bang),
+        Applied::Done
+    );
+    let heard = cdda_sim::sounds::heard_this_turn(&mut world);
+    let [only] = heard.as_slice() else {
+        panic!("one sound was made, got {heard:?}");
+    };
+    assert_eq!(only.position, (4, 6, 0), "where its maker stands");
+    assert_eq!(only.volume, 12, "at the volume it was given");
+    assert!(cdda_sim::messages::lines(&world).is_empty(), "no words");
+
+    // Speech is said as well as heard.
+    cdda_sim::sounds::clear(&mut world);
+    let shout = read(r#"{"u_make_sound": "Get out of here!", "volume": 20, "type": "speech"}"#);
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &shout),
+        Applied::Done
+    );
+    assert_eq!(
+        cdda_sim::messages::lines(&world),
+        vec!["Get out of here!".to_owned()]
+    );
+    let heard = cdda_sim::sounds::heard_this_turn(&mut world);
+    assert_eq!(heard.first().map(|sound| sound.volume), Some(20));
+
+    // A snippet sound says a line from its category.
+    cdda_sim::messages::clear(&mut world);
+    cdda_sim::sounds::clear(&mut world);
+    cdda_sim::snippets::set_snippets(
+        &mut world,
+        [("shouts".to_owned(), snippet_line("only", "Oi!", 1))],
+    );
+    let snip = read(r#"{"u_make_sound": "shouts", "volume": 8, "type": "alarm", "snippet": true}"#);
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &snip),
+        Applied::Done
+    );
+    assert_eq!(cdda_sim::messages::lines(&world), vec!["Oi!".to_owned()]);
+    assert_eq!(cdda_sim::sounds::heard_this_turn(&mut world).len(), 1);
+
+    // The npc form makes the sound where the *listener* stands.
+    cdda_sim::sounds::clear(&mut world);
+    let other = cdda_sim::creature::spawn_creature(&mut world, "a stranger", (9, 9, 0));
+    let theirs = read(r#"{"npc_make_sound": "a bang", "volume": 3}"#);
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, Some(other), &theirs),
+        Applied::Done
+    );
+    let heard = cdda_sim::sounds::heard_this_turn(&mut world);
+    assert_eq!(heard.first().map(|sound| sound.position), Some((9, 9, 0)));
+
+    // A volume written as an expression is evaluated, and an unknown type is refused rather than guessed.
+    let loud = read(r#"{"u_make_sound": "x", "volume": {"math": ["6 + 6"]}}"#);
+    assert!(matches!(
+        loud,
+        cdda_content::dialogue::Effect::MakeSound { .. }
+    ));
+    let unknown = cdda_json::parse(
+        br#"{"u_make_sound": "x", "volume": 4, "type": "shouting"}"#.as_slice(),
+    )
+    .expect("json");
+    assert!(
+        cdda_content::dialogue::read_effect(&unknown).is_none(),
+        "a type the port does not know is refused"
+    );
 }

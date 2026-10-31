@@ -1027,6 +1027,21 @@ fn split_assignment(text: &str) -> Option<(&str, AssignmentOp, &str)> {
     None
 }
 
+/// What sort of sound an effect makes.
+///
+/// Reference: `sounds::sound_t` (`sounds.h`), whose names the data writes out: `background`, `speech`, `alarm`, `order`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SoundKind {
+    /// Noise with no words: a door banging, a distant engine.
+    Background,
+    /// Somebody talking.
+    Speech,
+    /// Something that tells everyone nearby to look.
+    Alarm,
+    /// Something a leader tells its followers.
+    Order,
+}
+
 /// How long an added effect lasts.
 ///
 /// Reference: `f_add_effect` (`npctalk.cpp:3426-3450`) and `get_duration_or_var`, which accept a duration string, a number of turns, an array
@@ -1136,6 +1151,24 @@ pub enum Effect {
         /// Whether it goes to the listener's log rather than the speaker's.
         listener: bool,
     },
+    /// Make a sound, which may be a snippet the port picks from a category.
+    ///
+    /// Reference: `f_make_sound` (`npctalk.cpp:6131-6200`): the volume is a `dbl_or_var` and required, the type names what sort of sound it is
+    /// (background, speech, alarm, order), and the message may be a snippet or a `same_snippet` repeat.
+    MakeSound {
+        /// The words, when the sound is speech.
+        words: Option<StringSource>,
+        /// The snippet category, when the sound is a snippet.
+        snippet: Option<StringSource>,
+        /// Whether a snippet pick is remembered.
+        same_snippet: bool,
+        /// How loud, in the reference's units - a radius as much as a loudness.
+        volume: Expression,
+        /// What sort of sound it is.
+        kind: SoundKind,
+        /// Whether it is the listener that makes it.
+        listener: bool,
+    },
     /// Give a creature a morale point.
     ///
     /// Reference: `f_add_morale` (`npctalk.cpp:7177-7195`), whose defaults are a one-hour duration and a half-hour decay start.
@@ -1206,6 +1239,7 @@ impl Effect {
             Self::WeightedList(_) => "weighted_list_eocs",
             Self::OpenDialogue { .. } => "open_dialogue",
             Self::AddMorale { .. } => "u_add_morale",
+            Self::MakeSound { .. } => "u_sound",
         }
     }
 }
@@ -1318,6 +1352,9 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
             .collect::<Option<Vec<_>>>()?;
         return Some(Effect::RunEoc(programs));
     }
+    if let Some(sound) = read_make_sound(object) {
+        return Some(sound);
+    }
     if let Some(morale) = read_add_morale(object) {
         return Some(morale);
     }
@@ -1420,6 +1457,40 @@ fn read_snippet(object: &cdda_json::Object) -> Option<Effect> {
             category: read_string_source(value)?,
             same: matches!(object.get("same_snippet"), Some(Value::Bool(true))),
             listener: member == "npc_message",
+        });
+    }
+    None
+}
+
+
+/// Reads a sound: a message or a snippet, a volume, and a kind.
+///
+/// Reference: `f_make_sound` (`npctalk.cpp:6131-6200`): `volume` is required, `type` defaults to `background`, and the member itself is either
+/// the words or - with `snippet: true` - the category they are picked from.
+fn read_make_sound(object: &cdda_json::Object) -> Option<Effect> {
+    for (member, listener) in [("u_make_sound", false), ("npc_make_sound", true)] {
+        let Some(words) = object.get(member) else {
+            continue;
+        };
+        let snippet = matches!(object.get("snippet"), Some(Value::Bool(true)));
+        let kind = match object.get("type") {
+            Some(Value::Str(name)) => match name.as_str() {
+                "speech" => SoundKind::Speech,
+                "alarm" => SoundKind::Alarm,
+                "order" => SoundKind::Order,
+                "background" => SoundKind::Background,
+                _ => return None,
+            },
+            Some(_) => return None,
+            None => SoundKind::Background,
+        };
+        return Some(Effect::MakeSound {
+            words: if snippet { None } else { Some(read_string_source(words)?) },
+            snippet: if snippet { Some(read_string_source(words)?) } else { None },
+            same_snippet: matches!(object.get("same_snippet"), Some(Value::Bool(true))),
+            volume: read_math_expression(object.get("volume")?)?,
+            kind,
+            listener,
         });
     }
     None

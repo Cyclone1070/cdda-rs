@@ -5227,3 +5227,25 @@ could have been read as "conditions are hard" and sent a round at the wrong thin
 the effect side has.
 
 Two of them are cheap and now visible: `u_can_see` (6) and `type`/`npc_make_sound` (6), both needing state the port already keeps - sight and sounds.
+
+## Sounds from dialogue (round 824)
+
+`f_make_sound` (`npctalk.cpp:6131-6200`): the volume is a required `dbl_or_var`, `type` names what sort of sound it is (`background`, `speech`,
+`alarm`, `order`), and the member is either the words or - with `snippet: true` - the category they are picked from.
+
+A sound is not a thing in the world here: the port keeps it as an entity carrying `Sound` for the turn that made it, at its maker's own square, with
+the volume as a radius. Words are shown for speech, alarms and orders, and not for background noise. A snippet sound picks its line by weight, and
+`same_snippet` remembers the pick in the maker's `<category>_snippet_id` value - the same rule a snippet message follows.
+
+| Count | Before | After |
+|---|---|---|
+effect entries runnable | 866 | **872** |
+programs runnable whole | 222 | **223** |
+readable programs that run in a fresh world | 121 | **122** |
+unreadable leaves | 1,190 | **1,182** |
+
+Six effect entries and one program. `type` left the one-leaf list entirely.
+
+Gated: background noise is heard but says nothing; speech is said and heard; a snippet sound says a line from its category; the `npc_` form sounds
+where the **listener** stands; a volume written as `{"math": […]}` is evaluated; and a `type` the port does not know is **refused** rather than
+guessed at.

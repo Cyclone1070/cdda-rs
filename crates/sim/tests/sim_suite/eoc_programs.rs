@@ -249,10 +249,10 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
     // `math` guards (42 -> 45). A refusal that moves house is not the same as a program that starts running, and only one of the
     // thirty-six turned out to be otherwise complete.
     assert_eq!(
-        whole, 222,
+        whole, 223,
         "two hundred and seventeen run whole: morale added fourteen, snippets eight"
     );
-    assert_eq!(refused.get("effect"), Some(&350), "and the effect side is still the bigger refusal");
+    assert_eq!(refused.get("effect"), Some(&349), "and the effect side is still the bigger refusal");
     assert_eq!(refused.get("u_has_trait"), None, "traits are no longer blamed for anything");
     assert_eq!(refused.get("math"), Some(&47), "`math` guards are the biggest single one");
     assert_eq!(refused.get("u_has_item"), None, "carrying an item is no longer blamed for anything");
@@ -268,7 +268,7 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
     // not install them. The count of definitions was itself worth learning - the 712 in the earlier census counted objects, the
     // machine composes by name.
     assert_eq!(defined, 692, "the data defines 692 nameable effect-on-conditions");
-    assert_eq!(whole, 222, "and the port can run 222 of them whole");
+    assert_eq!(whole, 223, "and the port can run 223 of them whole");
 }
 
 /// A `run_eocs` entry can be a program written where it is used.
@@ -441,8 +441,8 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
     );
 
     assert_eq!(defined, 692, "the data defines 692 nameable effect-on-conditions");
-    assert_eq!(readable.len(), 222, "the port reads 222 of them");
-    assert_eq!(ran, 121, "a hundred and twenty-one of the readable programs also ran");
+    assert_eq!(readable.len(), 223, "the port reads 223 of them");
+    assert_eq!(ran, 122, "a hundred and twenty-two of the readable programs also ran");
     assert_eq!(refused, 101, "and a hundred and one refused at run time");
     assert_eq!(ran + refused, readable.len(), "every readable program did one or the other");
 }
@@ -591,7 +591,7 @@ fn the_call_graph_says_which_missing_program_blocks_the_most() {
     );
 
     assert_eq!(defined, 692, "the data defines 692 nameable effect-on-conditions");
-    assert_eq!(readable.len(), 222, "the port reads 222 of them");
+    assert_eq!(readable.len(), 223, "the port reads 223 of them");
     assert!(!ranked.is_empty(), "and something is blocking something");
 }
 
@@ -728,7 +728,7 @@ fn the_programs_one_gap_away_say_what_to_port_next() {
     // 1,190 leaves once the descent follows **membership** rather than member order. The old count was lower because an `if` written
     // `{"else": …, "if": …, "then": …}` had its branches skipped and counted as one unnameable gap; now every gap names a member that could be
     // ported, and the `<nested>` residue is zero.
-    assert_eq!(gaps_total, 1190, "the data's programs hold 1,190 unreadable leaves");
+    assert_eq!(gaps_total, 1182, "the data's programs hold 1,182 unreadable leaves");
     // 198 programs are one leaf away, but the eight members above would finish only 115 of them - the rest sit behind a long tail. Reading the
     // printed line as "the top eight members would finish" is the honest reading, not "there are 115 such programs".
     assert_eq!(single, 198, "a hundred and ninety-eight programs are one leaf away");
@@ -740,9 +740,9 @@ fn the_programs_one_gap_away_say_what_to_port_next() {
             ("u_add_effect".to_owned(), 13),
             ("hallucination_count".to_owned(), 7),
             ("max_radius".to_owned(), 6),
-            ("type".to_owned(), 6),
             ("u_can_see".to_owned(), 6),
             ("u_lose_effect".to_owned(), 6),
+            ("allow_cancel".to_owned(), 5),
         ],
         "the members that would finish the most programs, single gaps first"
     );

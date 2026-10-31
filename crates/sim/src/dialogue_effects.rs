@@ -220,6 +220,85 @@ fn say_snippet(
     Applied::Done
 }
 
+/// Makes a sound where its maker stands, saying its words or a line from its snippet category.
+///
+/// Reference: `f_make_sound` (`npctalk.cpp:6131-6200`): the sound is placed at the maker's own square with the stated volume, and the words are
+/// shown when it is speech, an alarm or an order. A snippet sound picks its line by weight, and `same_snippet` remembers the pick.
+fn make_sound_effect(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::MakeSound {
+        words,
+        snippet,
+        same_snippet,
+        volume,
+        kind,
+        listener: about_listener,
+    } = effect
+    else {
+        return Applied::CannotAnswer;
+    };
+    let Some(creature) = actor(speaker, listener, *about_listener) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(position) = world.get::<crate::Position>(creature).copied() else {
+        return Applied::CannotAnswer;
+    };
+    let Some(loudness) = draw(world, speaker, listener, volume) else {
+        return Applied::CannotAnswer;
+    };
+    let place = (position.x, position.y, position.z);
+    if crate::sounds::make_sound(world, place, as_whole(loudness)).is_none() {
+        return Applied::CannotAnswer;
+    }
+    if matches!(kind, cdda_content::dialogue::SoundKind::Background) {
+        return Applied::Done;
+    }
+    let said = sound_words(world, speaker, listener, creature, words.as_ref(), snippet.as_ref(), *same_snippet);
+    if let Some(said) = said {
+        crate::messages::push(world, &said);
+    }
+    Applied::Done
+}
+
+/// The words a sound says: its own, or a line picked from its snippet category.
+fn sound_words(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    maker: Entity,
+    words: Option<&cdda_content::dialogue::StringSource>,
+    snippet: Option<&cdda_content::dialogue::StringSource>,
+    same_snippet: bool,
+) -> Option<String> {
+    if let Some(words) = words {
+        return crate::conditions::text_of(world, speaker, listener, words);
+    }
+    let name = crate::conditions::text_of(world, speaker, listener, snippet?)?;
+    let remembered = format!("{name}_snippet_id");
+    if same_snippet
+        && let Some(known) = crate::dialogue_values::text_of(world, maker, &remembered)
+        && let Some(line) = crate::snippets::category(world, &name)
+            .into_iter()
+            .find(|line| line.id == known)
+    {
+        return Some(line.text);
+    }
+    let mut dice = crate::singletons::take_rolls(world);
+    let picked = crate::snippets::pick(world, &name, dice.as_mut());
+    if let Some(dice) = dice.take() {
+        crate::singletons::put_rolls(world, dice);
+    }
+    let line = picked?;
+    if same_snippet {
+        crate::dialogue_values::set(
+            world,
+            maker,
+            &remembered,
+            crate::dialogue_values::Value::Text(line.id.clone()),
+        );
+    }
+    Some(line.text)
+}
+
 /// One morale point to add, with its numbers still to be computed.
 struct MoraleRequest<'a> {
     kind: &'a cdda_content::dialogue::StringSource,
@@ -385,15 +464,16 @@ fn as_turns(turns: i64) -> i32 {
 ///
 /// Reference: `f_location_variable` (`npctalk.cpp:4194`), plain form: the value is `d.const_actor( is_npc )->pos_abs()`, and the scope names where
 /// it goes the same way `math` names its target.
-fn store_location(
-    world: &mut World,
-    speaker: Entity,
-    listener: Option<Entity>,
-    scope: &str,
-    name: &str,
-    about_listener: bool,
-) -> Applied {
-    let Some(creature) = actor(speaker, listener, about_listener) else {
+fn store_location(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::LocationVariable {
+        scope,
+        name,
+        listener: about_listener,
+    } = effect
+    else {
+        return Applied::CannotAnswer;
+    };
+    let Some(creature) = actor(speaker, listener, *about_listener) else {
         return Applied::CannotAnswer;
     };
     let Some(position) = world.get::<crate::Position>(creature).copied() else {
@@ -501,6 +581,7 @@ pub fn run_effect(
                 about_listener: *about_listener,
             },
         ),
+        Effect::MakeSound { .. } => make_sound_effect(world, speaker, listener, effect),
         Effect::OpenDialogue {
             topic: _,
             then,
@@ -523,11 +604,7 @@ pub fn run_effect(
             Applied::Done
         }
         Effect::WeightedList(weighted) => run_weighted_list(world, speaker, listener, weighted, 0),
-        Effect::LocationVariable {
-            scope,
-            name,
-            listener: about_listener,
-        } => store_location(world, speaker, listener, scope, name, *about_listener),
+        Effect::LocationVariable { .. } => store_location(world, speaker, listener, effect),
         Effect::Switch { on, cases } => run_switch(world, speaker, listener, on, cases),
         Effect::If {
             condition,
