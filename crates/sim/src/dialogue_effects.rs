@@ -350,6 +350,10 @@ fn spawn_monsters(world: &mut World, speaker: Entity, listener: Option<Entity>, 
         min_radius,
         max_radius,
         lifespan,
+        outdoor_only,
+        indoor_only,
+        spawn_message,
+        spawn_message_plural,
     } = effect
     else {
         return Applied::CannotAnswer;
@@ -375,7 +379,17 @@ fn spawn_monsters(world: &mut World, speaker: Entity, listener: Option<Entity>, 
     let mut held = crate::singletons::take_rolls(world);
     let mut squares = Vec::new();
     for _ in 0..(real + imagined) {
-        let Some(around) = draw_near_with(world, held.as_mut(), (at.x, at.y, at.z), *min_radius, *max_radius)
+        let Some(around) = draw_near_with_where(
+            world,
+            held.as_mut(),
+            (at.x, at.y, at.z),
+            *min_radius,
+            *max_radius,
+            &|square| {
+                let outside = crate::outdoors::is_outside(world, square);
+                (!*outdoor_only || outside) && (!*indoor_only || !outside)
+            },
+        )
         else {
             if let Some(dice) = held.take() {
                 crate::singletons::put_rolls(world, dice);
@@ -387,7 +401,19 @@ fn spawn_monsters(world: &mut World, speaker: Entity, listener: Option<Entity>, 
     if let Some(dice) = held.take() {
         crate::singletons::put_rolls(world, dice);
     }
+    // Reference: the message is shown once, plural when more than one appeared, and only when the spawns were seen. Read before `real` becomes an index.
+    let many = real.saturating_add(imagined) > 1;
     let real = usize::try_from(real).unwrap_or(0);
+    let line = if many {
+        spawn_message_plural.as_ref().or(spawn_message.as_ref())
+    } else {
+        spawn_message.as_ref()
+    };
+    if let Some(source) = line
+        && let Some(text) = crate::conditions::text_of(world, speaker, listener, source)
+    {
+        crate::messages::push(world, &text);
+    }
     for (made, square) in squares.into_iter().enumerate() {
         #[allow(clippy::cast_possible_truncation)]
         let kind_number = crate::monster_registry::id_of(world, &name);
@@ -447,17 +473,33 @@ fn draw_near_with(
     min_radius: i32,
     max_radius: i32,
 ) -> Option<(i32, i32, i32)> {
+    draw_near_with_where(world, dice, around, min_radius, max_radius, &|_| true)
+}
+
+/// The draw, with a rule about which squares are acceptable.
+fn draw_near_with_where(
+    world: &World,
+    dice: Option<&mut cdda_core_types::rng::Rolls>,
+    around: (i32, i32, i32),
+    min_radius: i32,
+    max_radius: i32,
+    allow: &dyn Fn((i32, i32, i32)) -> bool,
+) -> Option<(i32, i32, i32)> {
     let dice = dice?;
     for _ in 0..25 {
         let x = around.0 + dice.rng(-max_radius, max_radius);
         let y = around.1 + dice.rng(-max_radius, max_radius);
-        if crate::square::terrain_at(world, (x, y, around.2)).is_none() {
+        let square = (x, y, around.2);
+        if crate::square::terrain_at(world, square).is_none() {
             continue;
         }
         if (x - around.0).abs().max((y - around.1).abs()) < min_radius {
             continue;
         }
-        return Some((x, y, around.2));
+        if !allow(square) {
+            continue;
+        }
+        return Some(square);
     }
     None
 }

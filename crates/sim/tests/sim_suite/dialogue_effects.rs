@@ -2079,10 +2079,11 @@ fn spawning_monsters_makes_the_real_ones_and_the_imagined_ones() {
         Applied::CannotAnswer
     );
 
-    // The members the port cannot carry out are refused at read time rather than ignored.
+    // The members the port cannot carry out are refused at read time rather than ignored. `spawn_message`, `outdoor_only` and `lifespan` have left this list
+    // as their rules landed; `group` has not, because choosing a member of a group needs the group tables.
     for text in [
         r#"{"u_spawn_monster": "mon_test", "group": true}"#,
-        r#"{"u_spawn_monster": "mon_test", "spawn_message": "it appears"}"#,
+        r#"{"u_spawn_monster": "mon_test", "mon_variables": {"x": "1"}}"#,
     ] {
         let value = cdda_json::parse(text.as_bytes()).expect("json");
         assert!(cdda_content::dialogue::read_effect(&value).is_none(), "{text}");
@@ -2145,4 +2146,66 @@ fn a_summon_goes_when_its_lifespan_runs_out() {
         Applied::Done
     );
     assert_eq!(cdda_sim::monster_spawning::expire_summonings(&mut world, 999_999), 0);
+}
+
+/// A spawn can be asked for under the sky or under a roof, and it says a line when it happens.
+///
+/// Reference: `f_spawn_monster` (`npctalk.cpp:7371-7420`): `outdoor_only` and `indoor_only` are refused together, the square drawn must satisfy them, and
+/// `spawn_message` (plural when more than one appears) is the line the player reads.
+#[test]
+fn a_spawn_can_ask_for_the_sky_or_a_roof_and_say_a_line() {
+    let mut world = World::new();
+    let mut level = cdda_core_types::level::Level::new();
+    for x in -24..48 {
+        for y in -24..48 {
+            level.set_terrain(x, y, 0, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let kind = cdda_content::monsters::load_objects(&[cdda_json::parse(
+        br#"{"id": "mon_test", "name": "a test thing", "hp": 12, "speed": 100, "symbol": "t", "color": "white"}"#.as_slice(),
+    )
+    .expect("json")])
+    .expect("readable")
+    .into_iter()
+    .next()
+    .expect("one type");
+    cdda_sim::monster_registry::set_monster_types(
+        &mut world,
+        &[cdda_sim::monster_registry::MonsterKind { id: "mon_test", hp: 12 }],
+    );
+    cdda_sim::monster_catalog::set_types(&mut world, vec![kind]);
+
+    // A square with nothing on it is under the sky.
+    assert!(cdda_sim::outdoors::is_outside(&world, (5, 5, 0)));
+    assert!(!cdda_sim::outdoors::is_outside(&world, (900, 900, 0)), "a square the level does not hold is nowhere");
+
+    let outside_spawn = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(
+            br#"{"u_spawn_monster": "mon_test", "real_count": 2, "outdoor_only": true, "spawn_message": "one appears", "spawn_message_plural": "several appear"}"#.as_slice(),
+        )
+        .expect("json"),
+    )
+    .expect("an outdoor spawn is readable");
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(23));
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &outside_spawn),
+        Applied::Done
+    );
+
+    // Two appeared, so the plural line is the one said - once, not twice.
+    let said = cdda_sim::messages::lines(&world);
+    assert_eq!(said.len(), 1, "one line for the whole spawn: {said:?}");
+    assert!(
+        said.iter().any(|line| line.contains("several appear")),
+        "the plural line is used when more than one appears: {said:?}"
+    );
+
+    // Both flags at once is no square at all, so the reference refuses it and so does the port.
+    let both = cdda_json::parse(
+        br#"{"u_spawn_monster": "mon_test", "outdoor_only": true, "indoor_only": true}"#.as_slice(),
+    )
+    .expect("json");
+    assert!(cdda_content::dialogue::read_effect(&both).is_none());
 }

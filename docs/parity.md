@@ -6008,3 +6008,33 @@ Corrected plan for the spawn system's remaining members, in the data's own order
 answer, which the port has for light), `spawn_message` (a message, which the port has), `target_range`, then `group` and `mon_variables`.
 
 Gated: a summon with a lifespan expires exactly at its time and not a turn before; and a summon with none survives as long as the clock runs.
+
+## A spawn that asks for the sky, and says a line (round 856)
+
+The corrected plan from last round, taken: `outdoor_only`, `indoor_only`, `spawn_message` and `spawn_message_plural` are read, and `target_range` is accepted
+because without `single_target` it has no effect at all - refusing it would be refusing a member that does nothing.
+
+Rules worth having read rather than guessed:
+
+- `outdoor_only` and `indoor_only` **together** are refused, because no square is both under the sky and under a roof (`npctalk.cpp` throws on it);
+- the message is said **once** for the whole spawn, and the plural form is used when more than one appears;
+- the square drawn must satisfy the flag, so a rejected draw costs one of the 25 attempts rather than being accepted and ignored.
+
+`cdda_sim::outdoors::is_outside` answers from the terrain and furniture `INDOORS` flags - the same flags the light cast's outside cache starts from. A square
+the level does not hold is **not** outside: there is nowhere to stand, so no monster may be put there.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 323 | **325** |
+**capability** | 195 | **196** |
+effect entries runnable | 1,137 | **1,140** |
+unreadable leaves | 856 | **853** |
+one-gap programs | 162 | **161** |
+effect-blamed programs | 284 | **282** |
+
+The census now shows `u_spawn_monster` **refusing at run time** in five programs, which is the right answer: the census world has no monster catalog, so a rule
+that spawns cannot say what it spawns. Capability moved by one because one of those five needed nothing else.
+
+`u_is_outside` (6 one-gap programs) is now a one-function step, since `outdoors::is_outside` exists and the condition is the same question.
+
+Gated: a bare square is outside and one off the level is not; an outdoor spawn lands and says the plural line exactly once; and both flags at once is refused.

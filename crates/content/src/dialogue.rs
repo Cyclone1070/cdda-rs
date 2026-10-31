@@ -635,10 +635,6 @@ fn read_spawn_monster(object: &cdda_json::Object) -> Option<Effect> {
             "target_range",
             "target_var",
             "mon_variables",
-            "spawn_message",
-            "spawn_message_plural",
-            "outdoor_only",
-            "indoor_only",
             "open_air_allowed",
             "friendly",
             "summoner_is_alpha",
@@ -666,6 +662,16 @@ fn read_spawn_monster(object: &cdda_json::Object) -> Option<Effect> {
             Some(Value::Int(turns)) => turns.checked_abs().filter(|turns| *turns > 0),
             Some(_) => return None,
         };
+        let flag = |key: &str| matches!(object.get(key), Some(Value::Bool(true)));
+        let (outdoor_only, indoor_only) = (flag("outdoor_only"), flag("indoor_only"));
+        // Reference: `f_spawn_monster` throws when both are set, because no square is both under the sky and under a roof.
+        if outdoor_only && indoor_only {
+            return None;
+        }
+        let message = |key: &str| match object.get(key) {
+            None => Some(None),
+            Some(value) => Some(Some(read_string_source(value)?)),
+        };
         return Some(Effect::SpawnMonster {
             monster,
             real_count,
@@ -673,6 +679,10 @@ fn read_spawn_monster(object: &cdda_json::Object) -> Option<Effect> {
             min_radius: radius("min_radius", 1)?,
             max_radius: radius("max_radius", 10)?,
             lifespan,
+            outdoor_only,
+            indoor_only,
+            spawn_message: message("spawn_message")?,
+            spawn_message_plural: message("spawn_message_plural")?,
         });
     }
     None
@@ -1463,6 +1473,14 @@ pub enum Effect {
         max_radius: i32,
         /// How long a summon lasts, in turns, when the data says - zero or absent means it stays.
         lifespan: Option<i64>,
+        /// Whether the spawn must be under the sky, or must not be.
+        outdoor_only: bool,
+        /// Whether the spawn must be under a roof, or must not be.
+        indoor_only: bool,
+        /// The line the player reads when they see it happen.
+        spawn_message: Option<StringSource>,
+        /// The line for when more than one appears.
+        spawn_message_plural: Option<StringSource>,
     },
     /// Store a square found by looking around the actor.
     ///
