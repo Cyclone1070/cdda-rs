@@ -5483,3 +5483,23 @@ named it. What the world still lacks is exactly what `run_eocs(calls a program t
 bucket, and it is not missing data: those programs are genuinely unreadable, so they cannot be installed.
 
 Gated: the reader's three shapes in one test, with the id and weight rules pinned.
+
+## A round that produced nothing, and why (round 836)
+
+I set out to port two input shapes for `u_add_effect`: a `target_part` (which 14 entries write and the reader refuses) and a duration written as an
+expression - `{"duration": {"math": ["( 1 - u_coverage('eyes') / 100 ) * rand(345600) + 86400"]}}`. Both are real, both are refused today, and the data
+shows 14 entries using the second.
+
+I did not land it. The cause is procedural, and it is the same failure this session already recorded once: **I edited a thousand-line file by
+string replacement, in four partial attempts, without building between them.** `EffectDuration` lost `Copy` when it gained a `Computed` variant, which
+turned four call sites into borrow errors, and my replacements for those sites silently failed to match - so each fix attempt rebuilt against a file
+that had drifted, and by the fourth the file held two copies of the same helper.
+
+I reverted both files rather than leave a tree that does not compile. Nothing changed this round: no counts, no rules, no tests.
+
+The rule that would have prevented it is already written in this document - **extract before adding, build between every step** - and I broke it by
+treating a string-replacing script as if it were a compiler-checked edit. The specific trap: a `git checkout --` revert is cheap, but only if the
+half-finished work is *all* of the round's work. Four partial edits across two files are not.
+
+**Next round starts this feature again, in this order**: add `Computed` and fix its four call sites in one edit, build; then add the reader shape, build;
+then the `target_part` relaxation, build; then the test. Four builds, four calls, and a tree that compiles at every step.
