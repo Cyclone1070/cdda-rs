@@ -520,3 +520,142 @@ fn definitions_in(value: &cdda_json::Value) -> Vec<&cdda_json::Value> {
     }
     found
 }
+
+/// Which unreadable program blocks the most callers, so the next leaf is chosen by leverage rather than by frequency.
+///
+/// The runtime census showed ninety of ninety-seven refusals are a call to a program the port cannot read. A call graph makes that
+/// actionable: for every readable program, the programs reachable from it that the port cannot read are the reason it will not run, and
+/// counting how many readable programs reach each unreadable one says which single gap is worth closing first.
+#[test]
+fn the_call_graph_says_which_missing_program_blocks_the_most() {
+    use std::collections::{BTreeMap, BTreeSet};
+
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../oracle/src/data/json");
+    let mut defined = 0usize;
+    let mut readable: BTreeSet<String> = BTreeSet::new();
+    let mut edges: BTreeMap<String, Vec<String>> = BTreeMap::new();
+
+    let mut stack = vec![data];
+    while let Some(directory) = stack.pop() {
+        let Ok(entries_at) = std::fs::read_dir(&directory) else {
+            continue;
+        };
+        for entry in entries_at.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            if path.extension().and_then(std::ffi::OsStr::to_str) != Some("json") {
+                continue;
+            }
+            let Some(value) = cdda_content::read_json(&path) else {
+                continue;
+            };
+            for definition in definitions_in(&value) {
+                let Some(cdda_json::Value::Str(id)) = member(definition, "id") else {
+                    continue;
+                };
+                defined += 1;
+                if cdda_content::dialogue::read_program(definition).is_some() {
+                    readable.insert(id.clone());
+                }
+                edges.insert(id.clone(), programs_called(definition));
+            }
+        }
+    }
+
+    // For each readable program, which unreadable programs does it reach?
+    let mut blocked_by: BTreeMap<String, usize> = BTreeMap::new();
+    for root in &readable {
+        let mut seen: BTreeSet<String> = BTreeSet::new();
+        let mut queue: Vec<String> = edges.get(root).cloned().unwrap_or_default();
+        while let Some(next) = queue.pop() {
+            if !seen.insert(next.clone()) {
+                continue;
+            }
+            if !readable.contains(&next) {
+                *blocked_by.entry(next).or_insert(0) += 1;
+                continue;
+            }
+            queue.extend(edges.get(&next).cloned().unwrap_or_default());
+        }
+    }
+
+    let mut ranked: Vec<(String, usize)> = blocked_by.into_iter().collect();
+    ranked.sort_by_key(|(name, count)| (std::cmp::Reverse(*count), name.clone()));
+    ranked.truncate(8);
+    println!(
+        "of {defined} programs, {} readable; the unreadable programs that block the most readable callers: {ranked:?}",
+        readable.len()
+    );
+
+    assert_eq!(defined, 692, "the data defines 692 nameable effect-on-conditions");
+    assert_eq!(readable.len(), 181, "the port reads 181 of them");
+    assert!(!ranked.is_empty(), "and something is blocking something");
+}
+
+/// Every program id a definition calls, through `run_eocs` and `test_eoc`, at any depth inside it.
+fn programs_called(definition: &cdda_json::Value) -> Vec<String> {
+    let mut found = Vec::new();
+    let mut stack = vec![definition];
+    while let Some(value) = stack.pop() {
+        match value {
+            cdda_json::Value::Array(items) => stack.extend(items.iter()),
+            cdda_json::Value::Object(object) => {
+                for (key, member) in object.members() {
+                    if key == "run_eocs" || key == "test_eoc" {
+                        collect_called_ids(member, &mut found);
+                    }
+                    stack.push(member);
+                }
+            }
+            _ => {}
+        }
+    }
+    found
+}
+
+/// The ids a `run_eocs` or `test_eoc` member names, in any of its three shapes.
+fn collect_called_ids(value: &cdda_json::Value, found: &mut Vec<String>) {
+    match value {
+        cdda_json::Value::Str(id) => found.push(id.clone()),
+        cdda_json::Value::Array(items) => {
+            for item in items {
+                collect_called_ids(item, found);
+            }
+        }
+        cdda_json::Value::Object(object) => {
+            if let Some(cdda_json::Value::Str(id)) = object.get("id") {
+                found.push(id.clone());
+            }
+            for (_, member) in object.members() {
+                if member != value {
+                    stack_member(member, found);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Follows one member of a call object, looking for a further `run_eocs` or `test_eoc` inside it.
+fn stack_member(value: &cdda_json::Value, found: &mut Vec<String>) {
+    match value {
+        cdda_json::Value::Array(items) => {
+            for item in items {
+                stack_member(item, found);
+            }
+        }
+        cdda_json::Value::Object(object) => {
+            for (key, member) in object.members() {
+                if key == "run_eocs" || key == "test_eoc" {
+                    collect_called_ids(member, found);
+                } else {
+                    stack_member(member, found);
+                }
+            }
+        }
+        _ => {}
+    }
+}

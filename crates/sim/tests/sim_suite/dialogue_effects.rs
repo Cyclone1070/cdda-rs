@@ -533,3 +533,55 @@ fn a_statement_can_roll_both_ends_inclusive() {
     }
     assert_eq!(first, second, "a seed replays the same five draws");
 }
+
+/// A `switch` runs the **last** case whose number the value reaches.
+///
+/// Reference: `f_switch` (`npctalk.cpp:6998-7020`): every case is tried in the data's order and each one the value reaches replaces the chosen
+/// one, so the last match runs - not the first, and not the nearest.
+#[test]
+fn a_switch_runs_the_last_case_the_value_reaches() {
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+
+    let effect = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(
+            br#"{"switch": ["rung"], "cases": [
+                    {"case": 0, "effect": [{"u_message": "ground"}]},
+                    {"case": 1, "effect": [{"u_message": "first"}]},
+                    {"case": 2, "effect": [{"u_message": "second"}]}
+                ]}"#
+                .as_slice(),
+        )
+        .expect("json"),
+    )
+    .expect("readable");
+
+    let climb = |world: &mut World, rung: f64| {
+        cdda_sim::dialogue_values::set(
+            world,
+            survivor,
+            "rung",
+            cdda_sim::dialogue_values::Value::Number(rung),
+        );
+        cdda_sim::messages::clear(world);
+        let effects = std::slice::from_ref(&effect);
+        assert_eq!(
+            cdda_sim::dialogue_effects::run_effects(world, survivor, None, effects),
+            Applied::Done
+        );
+        cdda_sim::messages::lines(world)
+    };
+
+    assert_eq!(climb(&mut world, 0.0), vec!["ground".to_owned()], "exactly zero reaches the first case");
+    assert_eq!(
+        climb(&mut world, 1.0),
+        vec!["first".to_owned()],
+        "one reaches the first two, and the last of them runs"
+    );
+    assert_eq!(climb(&mut world, 7.0), vec!["second".to_owned()], "seven reaches all three");
+    assert_eq!(
+        climb(&mut world, -1.0),
+        Vec::<String>::new(),
+        "and a value below every case runs nothing at all"
+    );
+}

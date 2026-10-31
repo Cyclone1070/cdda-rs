@@ -1040,6 +1040,16 @@ pub enum Effect {
         /// Whether it goes from the listener rather than the speaker.
         listener: bool,
     },
+    /// Run the last case whose value is at most the switch's value.
+    ///
+    /// Reference: `f_switch` (`npctalk.cpp:6998-7020`): each case is tried in order, and **every** case whose number the switch value
+    /// reaches replaces the chosen one - so the *last* matching case runs, not the first, and the cases need not be sorted.
+    Switch {
+        /// The value being switched on.
+        on: Expression,
+        /// The cases, in the data's order.
+        cases: Vec<(Expression, Vec<Effect>)>,
+    },
     /// Run another effect-on-condition, by id or as a program written where it is used.
     ///
     /// Reference: `f_run_eocs` (`npctalk.cpp`) - the entry is a name, an array of names, or an object with `run_eocs` and
@@ -1063,6 +1073,7 @@ impl Effect {
             Self::LearnTrait { .. } => "u_add_trait",
             Self::LoseTrait { .. } => "u_lose_trait",
             Self::RunEoc(_) => "run_eocs",
+            Self::Switch { .. } => "switch",
         }
     }
 }
@@ -1174,6 +1185,27 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
             .map(read_program_ref)
             .collect::<Option<Vec<_>>>()?;
         return Some(Effect::RunEoc(programs));
+    }
+    if let Some(on) = object.get("switch") {
+        let Some(Value::Array(cases)) = object.get("cases") else {
+            return None;
+        };
+        let cases = cases
+            .iter()
+            .map(|case| {
+                let Value::Object(case) = case else {
+                    return None;
+                };
+                Some((
+                    read_expression(case.get("case")?)?,
+                    read_effect_list(case.get("effect"))?,
+                ))
+            })
+            .collect::<Option<Vec<_>>>()?;
+        return Some(Effect::Switch {
+            on: read_expression(on)?,
+            cases,
+        });
     }
     if let Some(Value::Array(statements)) = object.get("math") {
         // Reference: `eoc_math::from_json` (`condition.cpp:2494-2502`) **concatenates** the array's strings and parses the result as

@@ -126,6 +126,40 @@ pub fn run_effect(
             crate::messages::push(world, text);
             Applied::Done
         }
+        Effect::Switch { on, cases } => {
+            let drawn = |world: &mut World, expression: &cdda_content::dialogue::Expression| {
+                let mut dice = crate::singletons::take_rolls(world);
+                let value = crate::conditions::value_drawing(
+                    world,
+                    speaker,
+                    listener,
+                    expression,
+                    true,
+                    dice.as_mut(),
+                );
+                if let Some(dice) = dice.take() {
+                    crate::singletons::put_rolls(world, dice);
+                }
+                value
+            };
+            let Some(switched) = drawn(world, on) else {
+                return Applied::CannotAnswer;
+            };
+            // Reference: every case the value reaches replaces the chosen one, so the **last** match runs.
+            let mut chosen: Option<&Vec<Effect>> = None;
+            for (case, effects) in cases {
+                let Some(reached) = drawn(world, case) else {
+                    return Applied::CannotAnswer;
+                };
+                if switched >= reached {
+                    chosen = Some(effects);
+                }
+            }
+            match chosen {
+                Some(effects) => run_effects(world, speaker, listener, effects),
+                None => Applied::Done,
+            }
+        }
         Effect::If {
             condition,
             then,

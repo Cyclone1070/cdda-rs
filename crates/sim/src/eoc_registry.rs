@@ -80,6 +80,39 @@ pub fn run_program(
     }
     for effect in &program.effects {
         match effect {
+            cdda_content::dialogue::Effect::Switch { on, cases } => {
+                // Reference: every case the value reaches replaces the chosen one, so the **last** match runs.
+                let mut dice = crate::singletons::take_rolls(world);
+                let switched =
+                    crate::conditions::value_drawing(world, speaker, listener, on, true, dice.as_mut());
+                if let Some(dice) = dice.take() {
+                    crate::singletons::put_rolls(world, dice);
+                }
+                let Some(switched) = switched else {
+                    return Applied::CannotAnswer;
+                };
+                let mut chosen: Option<&Vec<cdda_content::dialogue::Effect>> = None;
+                for (case, effects) in cases {
+                    let mut dice = crate::singletons::take_rolls(world);
+                    let reached =
+                        crate::conditions::value_drawing(world, speaker, listener, case, true, dice.as_mut());
+                    if let Some(dice) = dice.take() {
+                        crate::singletons::put_rolls(world, dice);
+                    }
+                    let Some(reached) = reached else {
+                        return Applied::CannotAnswer;
+                    };
+                    if switched >= reached {
+                        chosen = Some(effects);
+                    }
+                }
+                if let Some(effects) = chosen
+                    && crate::dialogue_effects::run_effects(world, speaker, listener, effects)
+                        == Applied::CannotAnswer
+                {
+                    return Applied::CannotAnswer;
+                }
+            }
             cdda_content::dialogue::Effect::RunEoc(programs) => {
                 for program in programs {
                     let started = run_ref(world, speaker, listener, program, depth + 1);
