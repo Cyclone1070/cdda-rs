@@ -232,6 +232,8 @@ fn search_location(world: &mut World, speaker: Entity, effect: &Effect) -> Appli
         om_terrain,
         search_range,
         min_distance,
+        min_radius,
+        max_radius,
         z,
         ..
     } = effect
@@ -247,11 +249,21 @@ fn search_location(world: &mut World, speaker: Entity, effect: &Effect) -> Appli
     else {
         return Applied::CannotAnswer;
     };
-    let square = (
+    let found = (
         x * crate::overmap::SQUARES_PER_OMT,
         y * crate::overmap::SQUARES_PER_OMT,
         z.unwrap_or(at.z),
     );
+    // The second step: the reference draws within a radius of what the search found (`npctalk.cpp`, the `max_radius > 0` block, which runs after the target
+    // search and moves `talker_pos` to the found square first). With no radius to draw, the found square is the answer.
+    let square = if *max_radius > 0 {
+        let Some(drawn) = draw_near(world, found, *min_radius, *max_radius) else {
+            return Applied::CannotAnswer;
+        };
+        drawn
+    } else {
+        found
+    };
     let Some(holder) = crate::conditions::holder_for_scope(world, speaker, None, scope) else {
         return Applied::CannotAnswer;
     };
@@ -321,6 +333,24 @@ fn nearby_location(world: &mut World, speaker: Entity, effect: &Effect) -> Appli
         },
     );
     Applied::Done
+}
+
+/// Draws a square within `max_radius` of `around` and at least `min_radius` away, up to 25 times, as the reference does.
+fn draw_near(world: &mut World, around: (i32, i32, i32), min_radius: i32, max_radius: i32) -> Option<(i32, i32, i32)> {
+    let mut dice = crate::singletons::take_rolls(world);
+    let dice = dice.as_mut()?;
+    for _ in 0..25 {
+        let x = around.0 + dice.rng(-max_radius, max_radius);
+        let y = around.1 + dice.rng(-max_radius, max_radius);
+        if crate::square::terrain_at(world, (x, y, around.2)).is_none() {
+            continue;
+        }
+        if (x - around.0).abs().max((y - around.1).abs()) < min_radius {
+            continue;
+        }
+        return Some((x, y, around.2));
+    }
+    None
 }
 
 /// Sets a dialogue variable.

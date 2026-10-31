@@ -5930,3 +5930,27 @@ does not have yet - anger and value on the NPC, vitamins on the body, precise we
 
 Gated: an unpractised skill is zero; a practised one is its level; a different skill stays zero; and `npc_skill` asks the listener while `skill` asks the
 speaker.
+
+## Two searches, in the order the reference does them (round 853)
+
+Last round ended with a refusal that named the gap: a `target_params` with a `min_radius` beside it was refused because the port had both searches and not
+their **order**. The reference runs them in sequence - find the tile, move the actor's position to it, then draw within the radius of *what was found*
+(`npctalk.cpp`, the `max_radius > 0` block after the target search).
+
+| Count | Before | After |
+|---|---|---|
+effect entries runnable | 1,128 | **1,131** |
+unreadable leaves | 866 | **862** |
+one-gap programs | 163 | **164** |
+programs readable | 319 | **319** |
+**capability** | 195 | **195** |
+
+Three entries, and the test that gates it is the interesting part: it asserts the square is two to six steps from the **found tile** and more than six from
+the **actor**. A port that drew around the actor would pass a laxer test and answer the wrong square, so the second assertion is the one that tells the two
+steps apart.
+
+Both searches now share `draw_near`, so the radius draw has one implementation: 25 attempts, a square the level holds, and at least `min_radius` out.
+
+What is left under `max_radius` (19 refusals) is almost entirely **`u_spawn_monster`'s** own radius, not the location search's: spawning needs monster
+prototypes, real versus hallucinated counts, lifespans and spawn messages. That is the next system rather than the next guard, and `hallucination_count` (8
+one-gap programs) sits inside it.

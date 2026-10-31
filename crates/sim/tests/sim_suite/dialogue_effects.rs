@@ -1671,7 +1671,6 @@ fn a_location_variable_can_hold_the_nearest_tile_of_a_terrain() {
     // A target that asks a question the port cannot answer is refused, not answered approximately.
     for text in [
         r#"{"u_location_variable": {"u_val": "x"}, "target_params": {"om_terrain": "lab_finale", "om_special": "hospital"}}"#,
-        r#"{"u_location_variable": {"u_val": "x"}, "target_params": {"om_terrain": "lab_finale"}, "min_radius": 4}"#,
         r#"{"u_location_variable": {"u_val": "x"}, "monster": "mon_zombie"}"#,
     ] {
         let value = cdda_json::parse(text.as_bytes()).expect("json");
@@ -1931,5 +1930,62 @@ fn a_radius_search_stores_a_square_within_it() {
     assert_eq!(
         cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &nowhere),
         Applied::CannotAnswer
+    );
+}
+
+/// A target search and a radius are two steps in order: find the tile, then draw around **what was found**.
+///
+/// Reference: `f_location_variable` (`npctalk.cpp`): the target search moves `talker_pos` to the found position, and the `max_radius > 0` block then draws
+/// around that. A port that drew around the actor instead would answer a question the data did not ask.
+#[test]
+fn a_target_search_then_a_radius_draws_around_what_was_found() {
+    let mut world = World::new();
+    let mut level = cdda_core_types::level::Level::new();
+    for x in -48..144 {
+        for y in -48..144 {
+            level.set_terrain(x, y, 0, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    // The survivor in overmap tile (0, 0); the terrain to find is at tile (3, 0), whose top-left square is 72.
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (1, 1, 0));
+    cdda_sim::overmap::set_terrain(&mut world, (3, 0), "lab_finale");
+
+    let store = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(
+            br#"{"u_location_variable": {"u_val": "spot"}, "target_params": {"om_terrain": "lab_finale"}, "min_radius": 2, "max_radius": 6}"#
+                .as_slice(),
+        )
+        .expect("json"),
+    )
+    .expect("a target with a radius is readable");
+
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(5));
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &store),
+        Applied::Done
+    );
+    let found = cdda_sim::dialogue_values::position_of(
+        &mut world,
+        survivor,
+        None,
+        &cdda_content::dialogue::AssignmentTarget::Variable {
+            scope: "u_val".to_owned(),
+            name: "spot".to_owned(),
+        },
+    )
+    .expect("the variable holds a square");
+
+    // The square is drawn around the found tile (72, 0), not around the survivor at (1, 1).
+    let from_tile = (found.0 - 72).abs().max(found.1.abs());
+    assert!(
+        (2..=6).contains(&from_tile),
+        "the square is two to six steps from the found tile: {:?} is {from_tile}",
+        (found.0, found.1)
+    );
+    let from_actor = (found.0 - 1).abs().max((found.1 - 1).abs());
+    assert!(
+        from_actor > 6,
+        "and it is nowhere near the actor, which is what tells the two steps apart: {from_actor}"
     );
 }

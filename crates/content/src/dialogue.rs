@@ -1329,6 +1329,10 @@ pub enum Effect {
         search_range: i32,
         /// How near a tile may be and still count; closer ones are skipped.
         min_distance: i32,
+        /// How near the drawn square may be to the tile found; zero when the data draws none.
+        min_radius: i32,
+        /// How far from the tile found the square may be drawn; zero when the data draws none.
+        max_radius: i32,
         /// The map level to search on, when the data names one.
         z: Option<i32>,
         /// Whether the square goes to the listener's variables rather than the speaker's.
@@ -2041,11 +2045,7 @@ fn read_terrain_target(
     let Value::Object(params) = object.get("target_params")? else {
         return None;
     };
-    // A radius beside a target search is not a different search, it is a **second** step: the reference searches for the tile and then draws within the
-    // radius of what it found. The port has the two searches and not their order, so it refuses the combination rather than answering the first half.
-    if object.get("min_radius").is_some() || object.get("max_radius").is_some() {
-        return None;
-    }
+
     let Value::Str(wanted) = params.get("om_terrain")? else {
         return None;
     };
@@ -2070,6 +2070,15 @@ fn read_terrain_target(
         Some(Value::Int(number)) => Some(i32::try_from(*number).ok()?),
         Some(_) => return None,
     };
+    // A radius beside a target search is a **second** step, not a different search: the reference finds the tile and then draws within the radius of what
+    // it found (`npctalk.cpp`, the `max_radius > 0` block runs after the target search). Both are read here, and the runner does them in that order.
+    let whole_radius = |key: &str| match object.get(key) {
+        None => Some(0),
+        Some(Value::Int(number)) => i32::try_from(*number).ok(),
+        Some(_) => None,
+    };
+    let min_radius = whole_radius("min_radius")?;
+    let max_radius = whole_radius("max_radius")?;
     let (scope, name) = named_variable(target)?;
     Some(Effect::LocationVariableSearch {
         scope,
@@ -2077,6 +2086,8 @@ fn read_terrain_target(
         om_terrain: wanted.clone(),
         search_range,
         min_distance,
+        min_radius,
+        max_radius,
         z,
         listener,
     })
