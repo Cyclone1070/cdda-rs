@@ -1066,3 +1066,108 @@ fn line(id: &str, text: &str, weight: i32) -> cdda_sim::snippets::SnippetLine {
         weight,
     }
 }
+
+/// A world with terrain, an overmap and a player at the menus still refuses nothing new - and this measures how much the census world was starving.
+///
+/// The fresh-world census answers "can the port carry this out with nothing to work on". That is the right question for a guard and the wrong one for a
+/// program that applies a mapgen, stores a searched square, or offers a menu: those need a world to act in and somebody to answer. This census builds
+/// one - terrain under the player, an overmap tile of every terrain the mapgens name, and a queue of answers - and reports how many programs run.
+#[test]
+fn a_built_world_runs_the_programs_the_fresh_one_could_not() {
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../oracle/src/data/json");
+    let mut readable: Vec<cdda_content::dialogue::Program> = Vec::new();
+    let mut stack = vec![data.clone()];
+    while let Some(directory) = stack.pop() {
+        let Ok(entries_at) = std::fs::read_dir(&directory) else {
+            continue;
+        };
+        for entry in entries_at.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            if path.extension().and_then(std::ffi::OsStr::to_str) != Some("json") {
+                continue;
+            }
+            let Ok(bytes) = std::fs::read(&path) else {
+                continue;
+            };
+            let Ok(value) = cdda_json::parse(&bytes) else {
+                continue;
+            };
+            let mut defined_here = 0usize;
+            let mut whole_here = 0usize;
+            let mut refused_here = std::collections::BTreeMap::new();
+            collect(&value, &mut defined_here, &mut whole_here, &mut refused_here, &mut readable);
+        }
+    }
+
+    let mapgens = collect_mapgens(&data);
+    let mut codes: std::collections::BTreeMap<String, u32> = std::collections::BTreeMap::new();
+    let mut fields: Vec<(String, u32)> = Vec::new();
+    for (_, mapgen) in &mapgens {
+        for terrain in mapgen.terrain.values() {
+            let next = u32::try_from(codes.len() + 1).unwrap_or(1);
+            codes.entry(terrain.clone()).or_insert(next);
+        }
+        for placement in &mapgen.fields {
+            if !fields.iter().any(|(known, _)| known == &placement.field) {
+                let next = u32::try_from(fields.len() + 1).unwrap_or(1);
+                fields.push((placement.field.clone(), next));
+            }
+        }
+    }
+    let snippets = collect_snippets(&data);
+
+    // One pass over the readable programs in a world that has something in it. The fresh-world census is the baseline, so the built world only has to
+    // beat it - and saying how many more run is the whole point of the measurement.
+    let mut ran = 0usize;
+    for program in &readable {
+        let mut built = World::new();
+        let survivor = cdda_sim::creature::spawn_creature(&mut built, "the survivor", (12, 12, 0));
+        cdda_sim::singletons::put_rolls(&mut built, cdda_core_types::rng::Rolls::new(1));
+        cdda_sim::eoc_registry::set_programs(&mut built, &readable);
+        install_data(&mut built, &mapgens, &codes, &fields);
+        install_snippets(&mut built, &snippets);
+        build_a_world(&mut built, &mapgens, &codes);
+        if eoc_registry::run_program(&mut built, survivor, None, &program.id, 0) == Applied::Done {
+            ran += 1;
+        }
+    }
+
+    println!(
+        "of {} readable programs, {ran} run in a built world (fresh world: {})",
+        readable.len(),
+        crate::numbers::NOW.ran
+    );
+    assert_eq!(
+        ran,
+        crate::numbers::NOW.ran_in_a_built_world,
+        "the number of programs a world with terrain, an overmap and a player can carry out"
+    );
+}
+
+/// Gives a world the things a program acts on: terrain under the player, an overmap tile of every terrain the mapgens name, and queued answers.
+fn build_a_world(
+    world: &mut World,
+    mapgens: &[(String, cdda_content::mapgen::MapgenObject)],
+    codes: &std::collections::BTreeMap<String, u32>,
+) {
+    let mut level = cdda_core_types::level::Level::new();
+    for x in -24..96 {
+        for y in -24..96 {
+            for (_, code) in codes.iter().take(1) {
+                level.set_terrain(x, y, 0, *code);
+            }
+        }
+    }
+    cdda_sim::load_level(world, &level);
+    // One overmap tile of every terrain the mapgens write, so a search for a named tile finds one.
+    for (at, (_, mapgen)) in mapgens.iter().enumerate() {
+        let tile = (i32::try_from(at % 5).unwrap_or(0) + 1, i32::try_from(at / 5).unwrap_or(0) + 1);
+        cdda_sim::overmap::set_terrain(world, tile, &mapgen.om_terrain);
+    }
+    // A player who answers whatever is asked, several times over, and who never walks away from a menu that forbids it.
+    cdda_sim::choices::set_choices(world, [0; 64]);
+}

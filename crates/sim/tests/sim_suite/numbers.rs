@@ -18,6 +18,8 @@ pub struct Census {
     pub readable: usize,
     /// Readable programs that also ran to completion in a fresh world.
     pub ran: usize,
+    /// Readable programs that ran in a world with terrain, an overmap and a player who answers - what a game has.
+    pub ran_in_a_built_world: usize,
     /// Readable programs that refused at run time.
     pub refused_at_run: usize,
     /// Unreadable members across every program.
@@ -44,6 +46,8 @@ pub const NOW: Census = Census {
     defined: 692,
     readable: 299,
     ran: 180,
+    // The same programs run in a world that has terrain, an overmap and a player who answers, which is what a game has.
+    ran_in_a_built_world: 183,
     refused_at_run: 119,
     leaves: 946,
     one_gap: 164,

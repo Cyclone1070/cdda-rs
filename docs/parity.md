@@ -5745,3 +5745,27 @@ that use it need a world with an overmap, which is what the headless playtests w
 
 Gated: no match refuses; a nearer tile with no minimum distance wins; a minimum distance of two skips it and lands on the far one; a level the data names is
 carried into the stored square; and a minimum distance past every candidate refuses rather than offering the closest thing.
+
+## A second census: the world a program actually needs (round 846)
+
+For three rounds I have written "capability did not move because the census world is starving" as an assumption. This round measures it.
+
+`a_built_world_runs_the_programs_the_fresh_one_could_not` builds a world a program can act in - terrain under the player, an overmap tile of every
+terrain the data's mapgens name, and a queue of 64 answers for any menu - and runs every readable program in it.
+
+| World | Programs that run, of 299 |
+|---|---|
+fresh (nothing to act on) | 180 |
+**built (terrain, overmap, a player)** | **183** |
+
+**Three.** The starvation is worth 3 programs out of 119 that refuse, so the fresh-world number was measuring capability almost exactly, and my assumption
+was wrong in the port's favour - the gap is not the measurement, it is the port.
+
+The three that need a world are `EOC_SMARTPHONE_EOCS`, `EOC_selector_test_hidden` and `use_hair_dye_kit`: a menu, and two programs that act on a world
+that has one.
+
+That is worth pinning precisely because it **rejects** a story I could have told for several more rounds. The remaining 116 refusals are not the census's
+fault: they are rules the port does not have.
+
+Cost: 57 s, because every program gets a world with the data's 4,487 mapgens installed. Recorded here so the next person knows what the number costs
+before moving it.
