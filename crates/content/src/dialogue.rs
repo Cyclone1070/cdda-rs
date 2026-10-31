@@ -1040,6 +1040,11 @@ pub enum Effect {
         /// Whether it goes from the listener rather than the speaker.
         listener: bool,
     },
+    /// Run one of several programs, chosen by weight.
+    ///
+    /// Reference: `f_weighted_list_eocs` (`npctalk.cpp:6950-6975`): each entry is a `[ program, weight ]` pair, the weights are evaluated and one
+    /// program is picked by them - so an entry with weight zero is never picked, and the heavier an entry the likelier it is.
+    WeightedList(Vec<(ProgramRef, Expression)>),
     /// Put a location into a dialogue variable.
     ///
     /// Reference: `f_location_variable` (`npctalk.cpp:4194`). The port reads the plain form - the actor's own square - and refuses the
@@ -1088,6 +1093,7 @@ impl Effect {
             Self::RunEoc(_) => "run_eocs",
             Self::Switch { .. } => "switch",
             Self::LocationVariable { .. } => "u_location_variable",
+            Self::WeightedList(_) => "weighted_list_eocs",
         }
     }
 }
@@ -1200,6 +1206,9 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
             .collect::<Option<Vec<_>>>()?;
         return Some(Effect::RunEoc(programs));
     }
+    if let Some(weighted) = read_weighted_list(object) {
+        return Some(weighted);
+    }
     if let Some(location) = read_location_variable(object) {
         return Some(location);
     }
@@ -1274,6 +1283,29 @@ fn read_effect_list(value: Option<&Value>) -> Option<Vec<Effect>> {
 }
 
 
+
+
+/// Reads a `weighted_list_eocs`, whose entries are `[ program, weight ]` pairs.
+///
+/// Reference: `f_weighted_list_eocs` (`npctalk.cpp:6950-6975`), where the program may be a name or an inline effect-on-condition.
+fn read_weighted_list(object: &cdda_json::Object) -> Option<Effect> {
+    let Some(Value::Array(entries)) = object.get("weighted_list_eocs") else {
+        return None;
+    };
+    let weighted = entries
+        .iter()
+        .map(|entry| {
+            let Value::Array(pair) = entry else {
+                return None;
+            };
+            let [program, weight] = pair.as_slice() else {
+                return None;
+            };
+            Some((read_program_ref(program)?, read_expression(weight)?))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some(Effect::WeightedList(weighted))
+}
 
 /// Reads a `switch`, whose cases each hold effects of their own.
 ///

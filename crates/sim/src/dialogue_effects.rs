@@ -114,6 +114,61 @@ fn actor(speaker: Entity, listener: Option<Entity>, about_listener: bool) -> Opt
 }
 
 
+/// Runs one of several programs, chosen by weight.
+///
+/// Reference: `f_weighted_list_eocs` (`npctalk.cpp:6950-6975`) builds a weighted list and picks from it, so the draw is uniform over the **total**
+/// weight and an entry of weight zero is never picked. A list with no weight at all refuses rather than picking nothing.
+fn run_weighted_list(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    weighted: &[(cdda_content::dialogue::ProgramRef, cdda_content::dialogue::Expression)],
+    depth: usize,
+) -> Applied {
+    let mut dice = crate::singletons::take_rolls(world);
+    let mut weights = Vec::with_capacity(weighted.len());
+    for (_, weight) in weighted {
+        let drawn = crate::conditions::value_drawing(world, speaker, listener, weight, true, dice.as_mut());
+        let Some(weight) = drawn else {
+            if let Some(dice) = dice.take() {
+                crate::singletons::put_rolls(world, dice);
+            }
+            return Applied::CannotAnswer;
+        };
+        #[allow(clippy::cast_possible_truncation)]
+        weights.push(weight.max(0.0) as i32);
+    }
+    let total: i32 = weights.iter().sum();
+    let picked = if total <= 0 {
+        None
+    } else {
+        let Some(dice) = dice.as_mut() else {
+            return Applied::CannotAnswer;
+        };
+        let roll = dice.rng(0, total - 1);
+        let mut running = 0;
+        let mut picked = None;
+        for (index, weight) in weights.iter().enumerate() {
+            running += weight;
+            if roll < running {
+                picked = Some(index);
+                break;
+            }
+        }
+        picked
+    };
+    if let Some(dice) = dice.take() {
+        crate::singletons::put_rolls(world, dice);
+    }
+    let Some(index) = picked else {
+        return Applied::CannotAnswer;
+    };
+    match weighted.get(index) {
+        Some((program, _)) => crate::eoc_registry::run_ref(world, speaker, listener, program, depth + 1),
+        None => Applied::CannotAnswer,
+    }
+}
+
 /// Stores the actor's square in a dialogue variable.
 ///
 /// Reference: `f_location_variable` (`npctalk.cpp:4194`), plain form: the value is `d.const_actor( is_npc )->pos_abs()`, and the scope names where
@@ -207,6 +262,7 @@ pub fn run_effect(
             crate::messages::push(world, text);
             Applied::Done
         }
+        Effect::WeightedList(weighted) => run_weighted_list(world, speaker, listener, weighted, 0),
         Effect::LocationVariable {
             scope,
             name,

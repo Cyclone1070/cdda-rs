@@ -225,7 +225,7 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
     // 757 after `rng`/`rand`: the first math functions that **change the store** while answering, so the dice are taken out for the
     // length of the evaluation and put back.
     // 792 after location variables: the plain form stores the actor's square, and the searching forms are still refused.
-    assert_eq!(runnable, 792, "of which the port runs 792 entries");
+    assert_eq!(runnable, 803, "of which the port runs 803 entries");
 
     // And the ranking of what refuses, which is this census's real output: it says what to port next instead of what is used most.
     // `target_var` is the one entry the ranking cannot attribute on its own - a scan of the data shows 71 of those 98 are
@@ -636,4 +636,79 @@ fn a_location_variable_holds_the_actors_square() {
             "{text} must be refused"
         );
     }
+}
+
+/// `weighted_list_eocs` picks a program by weight, and a weight of zero is never picked.
+///
+/// Reference: `f_weighted_list_eocs` (`npctalk.cpp:6950-6975`), which builds a `weighted_int_list` and picks from it - uniform over the total
+/// weight, so an entry's chance is its weight against the sum.
+#[test]
+fn a_weighted_list_picks_by_weight_and_never_picks_nothing() {
+    use cdda_core_types::rng::Rolls;
+
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::singletons::put_rolls(&mut world, Rolls::new(5));
+    let effect = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(
+            br#"{"weighted_list_eocs": [
+                    [{"effect": [{"u_message": "one"}]}, 1],
+                    [{"effect": [{"u_message": "two"}]}, 2],
+                    [{"effect": [{"u_message": "never"}]}, 0]
+                ]}"#
+                .as_slice(),
+        )
+        .expect("json"),
+    )
+    .expect("readable");
+
+    let mut seen: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+    for _ in 0..300 {
+        cdda_sim::messages::clear(&mut world);
+        assert_eq!(
+            cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+            Applied::Done
+        );
+        let lines = cdda_sim::messages::lines(&world);
+        let [line] = lines.as_slice() else {
+            panic!("one message per run, got {lines:?}");
+        };
+        *seen.entry(line.clone()).or_insert(0) += 1;
+    }
+    assert_eq!(seen.get("never"), None, "a weight of zero is never picked");
+    let one = seen.get("one").copied().unwrap_or(0);
+    let two = seen.get("two").copied().unwrap_or(0);
+    assert_eq!(one + two, 300, "and one of the two weighted entries always runs");
+    assert!(
+        two > one,
+        "the heavier entry came up more often: {two} against {one}"
+    );
+
+    // A list whose weights are all zero refuses rather than picking nothing.
+    let empty = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(
+            br#"{"weighted_list_eocs": [[{"effect": [{"u_message": "x"}]}, 0]]}"#.as_slice(),
+        )
+        .expect("json"),
+    )
+    .expect("readable");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &empty),
+        Applied::CannotAnswer
+    );
+
+    // The same seed replays the same picks, which is what taking the dice out of the store buys.
+    let replay = || {
+        let mut world = World::new();
+        let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+        cdda_sim::singletons::put_rolls(&mut world, Rolls::new(5));
+        let mut picks = Vec::new();
+        for _ in 0..10 {
+            cdda_sim::messages::clear(&mut world);
+            cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect);
+            picks.push(cdda_sim::messages::lines(&world));
+        }
+        picks
+    };
+    assert_eq!(replay(), replay(), "a seed replays the same ten picks");
 }
