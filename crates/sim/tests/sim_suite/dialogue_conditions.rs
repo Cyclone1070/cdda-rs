@@ -917,3 +917,60 @@ fn a_creature_flag_answers_no_when_the_creature_does_not_carry_it() {
     assert!(cdda_sim::creature_flags::remove_flag(&mut world, survivor, "GRAB"));
     assert!(!cdda_sim::conditions::holds_with(&world, survivor, Some(talker), &grabs));
 }
+
+/// A worn flag is a flag on a **worn item's type**, not on the creature.
+///
+/// Reference: `f_has_worn_with_flag` with `Character::worn_with_flag`: the reference walks the character's worn list and asks each item's type. The port
+/// has no list on the wearer - an item is an entity and `WornBy` says who wears it - so the walk is over items.
+#[test]
+fn a_worn_flag_asks_the_items_type_and_not_the_creature() {
+    use cdda_sim::ItemTypeId;
+
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::item_registry::set_item_flags(
+        &mut world,
+        &[(ItemTypeId(1), &["BLIND"]), (ItemTypeId(2), &["HOOD"])],
+    );
+
+    let guard = cdda_content::dialogue::read_condition(
+        &cdda_json::parse(br#"{"u_has_worn_with_flag": "BLIND"}"#.as_slice()).expect("json"),
+    )
+    .expect("readable");
+    assert!(
+        !cdda_sim::conditions::holds(&world, survivor, &guard),
+        "wearing nothing is an answer, not a refusal"
+    );
+
+    // A blindfold with the flag: true. A hood without it: still false.
+    let blindfold = cdda_sim::drop_item(&mut world, (0, 0), ItemTypeId(1), 1);
+    world.entity_mut(blindfold).insert(cdda_sim::creature::WornBy(survivor));
+    assert!(cdda_sim::conditions::holds(&world, survivor, &guard));
+    assert_eq!(
+        cdda_sim::worn_flags::worn_flags_of(&world, survivor),
+        vec!["BLIND".to_owned()]
+    );
+
+    let hood = cdda_sim::drop_item(&mut world, (0, 0), ItemTypeId(2), 1);
+    world.entity_mut(hood).insert(cdda_sim::creature::WornBy(survivor));
+    let hooded = cdda_content::dialogue::read_condition(
+        &cdda_json::parse(br#"{"u_has_worn_with_flag": "HOOD"}"#.as_slice()).expect("json"),
+    )
+    .expect("readable");
+    assert!(cdda_sim::conditions::holds(&world, survivor, &hooded));
+
+    // The creature's own flags are a different question, and this one does not answer for them.
+    assert!(
+        !cdda_sim::creature_flags::has_flag(&world, survivor, "BLIND"),
+        "wearing something with a flag does not give the creature the flag"
+    );
+
+    // An item lying on the ground is not worn, so it does not answer.
+    let spare = cdda_sim::drop_item(&mut world, (3, 3), ItemTypeId(1), 1);
+    world.entity_mut(spare).remove::<cdda_sim::creature::WornBy>();
+    let elsewhere = cdda_sim::creature::spawn_creature(&mut world, "someone else", (5, 5, 0));
+    assert!(
+        !cdda_sim::conditions::holds(&world, elsewhere, &guard),
+        "the blindfold is worn by the survivor, not by everyone"
+    );
+}

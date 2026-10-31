@@ -69,6 +69,39 @@ impl ItemTypes {
 #[derive(Component, Debug, Clone, Copy, Default)]
 pub struct TheItemTypes;
 
+/// The flags each item kind carries, filed by the number the registry gave it.
+///
+/// Reference: `item::has_flag` (`item.cpp`), which looks a flag up on the item's type. Kept apart from [`ItemTypes`] because the registry is built from
+/// a small [`Kind`] and flags are a separate question with their own loader - and a second installer cannot disagree with the first about a number.
+#[derive(Debug, Clone, Default, PartialEq, Component)]
+pub struct ItemFlags(pub std::collections::BTreeMap<ItemTypeId, std::collections::BTreeSet<String>>);
+
+/// Marks the entity holding the item flags.
+#[derive(Debug, Clone, Copy, Default, Component)]
+pub struct TheItemFlags;
+
+/// Installs what flags each item kind carries.
+pub fn set_item_flags(world: &mut World, flags: &[(ItemTypeId, &[&str])]) {
+    let holder = singletons::singleton::<ItemFlags, TheItemFlags>(world);
+    let mut by_kind = std::collections::BTreeMap::new();
+    for (kind, names) in flags {
+        by_kind.insert(
+            *kind,
+            names.iter().map(|name| (*name).to_owned()).collect(),
+        );
+    }
+    world.entity_mut(holder).insert(ItemFlags(by_kind));
+}
+
+/// Whether an item kind carries a flag.
+#[must_use]
+pub fn kind_has_flag(world: &World, kind: ItemTypeId, flag: &str) -> bool {
+    singletons::holder::<TheItemFlags>(world)
+        .and_then(|holder| world.get::<ItemFlags>(holder))
+        .and_then(|flags| flags.0.get(&kind))
+        .is_some_and(|names| names.contains(flag))
+}
+
 /// Installs the registry the store will answer from.
 ///
 /// Later calls replace it, which is what a second world load does. The null item stays at zero whatever the data says,

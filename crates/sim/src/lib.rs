@@ -80,6 +80,7 @@ pub mod scent;
 pub mod scent_table;
 pub mod temperature;
 pub mod weather;
+pub mod worn_flags;
 pub mod weather_gen;
 pub use weather::{Climate, Forecast, System, Weather, tick_climate, wind_of};
 

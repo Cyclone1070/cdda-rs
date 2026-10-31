@@ -42,16 +42,16 @@ pub struct Census {
 /// constants are the numbers those prints last said.
 pub const NOW: Census = Census {
     defined: 692,
-    readable: 272,
-    ran: 163,
+    readable: 273,
+    ran: 164,
     refused_at_run: 109,
-    leaves: 1_039,
-    one_gap: 178,
+    leaves: 1_033,
+    one_gap: 174,
     effects_runnable: 992,
     effects_defined: 1_612,
-    effect_blamed: 314,
+    effect_blamed: 319,
     math_blamed: 48,
-    conditions_readable: 2_527,
+    conditions_readable: 2_542,
 };
 
 impl Census {

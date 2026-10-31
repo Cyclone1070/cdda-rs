@@ -10,6 +10,15 @@ use cdda_json::Value;
 /// A condition the port can evaluate.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Condition {
+    /// Whether anything a creature wears carries a flag.
+    ///
+    /// Reference: `f_has_worn_with_flag` (`condition.cpp`), which asks `worn_with_flag` - a flag on a **worn item's type**, not on the creature.
+    HasWornWithFlag {
+        /// The flag's name.
+        flag: String,
+        /// Whether it is the listener rather than the speaker.
+        listener: bool,
+    },
     /// Whether a creature carries a flag.
     ///
     /// Reference: `f_has_flag` (`condition.cpp:2529`): a creature's flag, which its mutations and worn items give it.
@@ -528,6 +537,14 @@ fn read_bionic_condition(object: &cdda_json::Object) -> Option<Condition> {
 /// Reference: `f_has_flag` (`condition.cpp:2529`): the member names the flag, and a **missing** flag is an answer, not a refusal - which is what the
 /// data leans on when it asks a plain survivor about `GRAB_FILTER`.
 fn read_flag_condition(object: &cdda_json::Object) -> Option<Condition> {
+    for (member, listener) in [("u_has_worn_with_flag", false), ("npc_has_worn_with_flag", true)] {
+        if let Some(cdda_json::Value::Str(flag)) = object.get(member) {
+            return Some(Condition::HasWornWithFlag {
+                flag: flag.clone(),
+                listener,
+            });
+        }
+    }
     for (member, listener) in [("u_has_flag", false), ("npc_has_flag", true)] {
         if let Some(cdda_json::Value::Str(flag)) = object.get(member) {
             return Some(Condition::HasFlag {

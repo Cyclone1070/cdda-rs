@@ -5642,3 +5642,23 @@ census world queues no answers. A fresh world with no player has nobody to ask -
 
 Gated: no answer refuses; a picked entry runs **that** program and not the other; `allow_cancel` permits walking away, and refusing cancel is refusing
 cancel.
+
+## `u_has_worn_with_flag` (round 842)
+
+`f_has_worn_with_flag` asks whether anything a creature **wears** carries a flag - a flag on a worn item's **type**, not on the creature. The two questions
+look alike and are not: a creature wearing a blindfold has the blindfold's flag, not its own.
+
+The port has no worn list on the wearer. An item is an entity and `WornBy` on the item says who wears it, so the walk is over items - one pass, one
+direction, no second copy that could disagree. Item flags live in their own installer (`set_item_flags`) rather than in `Kind`, because `Kind` is a small
+struct built by many callers and flags answer a different question; a second installer cannot disagree with the first about a number.
+
+| Count | Before | After |
+|---|---|---|
+conditions the port reads | 2,527 | **2,542** |
+programs readable | 272 | **273** |
+**capability** | 163 | **164** |
+unreadable leaves | 1,039 | **1,033** |
+`u_has_worn_with_flag` among program refusals | 6 | **0** |
+
+Gated: wearing nothing answers no; a blindfold with the flag answers yes; a hood without it answers yes only for its own flag; the **creature** does not
+acquire the item's flag; and an item lying on the ground does not answer for a creature that is not wearing it.
