@@ -113,6 +113,30 @@ pub fn set_season_length(world: &mut World, days: i64) {
     }
 }
 
+/// Which phase the moon is in, or nothing when nothing has set the clock.
+///
+/// Reference: `moon_phase()` (`math_parser_diag.cpp:862`) answers `get_moon_phase( calendar::turn )` as a number - the phase **index**, which is what
+/// the data compares against.
+#[must_use]
+pub fn moon_phase_now(world: &World) -> Option<i32> {
+    let calendar = of(world)?;
+    let turn = i32::try_from(calendar.turn).ok()?;
+    let phase = cdda_core_types::calendar::get_moon_phase(
+        cdda_core_types::calendar::TimePoint::from_turn(turn),
+        &cdda_core_types::calendar::CalendarConfig::default(),
+    );
+    Some(match phase {
+        cdda_core_types::calendar::MoonPhase::New => 0,
+        cdda_core_types::calendar::MoonPhase::WaxingCrescent => 1,
+        cdda_core_types::calendar::MoonPhase::HalfMoonWaxing => 2,
+        cdda_core_types::calendar::MoonPhase::WaxingGibbous => 3,
+        cdda_core_types::calendar::MoonPhase::Full => 4,
+        cdda_core_types::calendar::MoonPhase::WaningGibbous => 5,
+        cdda_core_types::calendar::MoonPhase::HalfMoonWaning => 6,
+        cdda_core_types::calendar::MoonPhase::WaningCrescent => 7,
+    })
+}
+
 /// Which season it is now, or nothing when nothing has set the clock.
 #[must_use]
 pub fn season_of_year(world: &World) -> Option<Season> {

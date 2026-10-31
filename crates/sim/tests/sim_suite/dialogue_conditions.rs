@@ -837,3 +837,42 @@ fn the_creatures_own_numbers_answer_in_math() {
         "set to zero is still set"
     );
 }
+
+/// The moon's phase is a number the data compares against, and it moves with the clock.
+///
+/// Reference: `moon_phase()` (`math_parser_diag.cpp:862`) answers `get_moon_phase( calendar::turn )` as the phase **index**; the phase flips at noon
+/// and the lunar month is 29.530588853 days (`calendar.cpp:54-106`).
+#[test]
+fn the_moon_phase_is_the_index_the_data_compares_against() {
+    use cdda_content::dialogue::read_text_expression;
+
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let phase = read_text_expression("moon_phase()").expect("readable");
+
+    // No clock set: the function refuses rather than answering a phase nobody set.
+    assert_eq!(cdda_sim::conditions::value(&world, survivor, None, &phase), None);
+
+    cdda_sim::calendar::set_turn(&mut world, 0);
+    let at_zero = cdda_sim::conditions::value(&world, survivor, None, &phase).expect("answered");
+    // A full lunar month later is the same phase again, which is what makes the number a phase rather than a day count.
+    cdda_sim::calendar::set_turn(&mut world, 29 * 24 * 60 * 60);
+    let a_month_later =
+        cdda_sim::conditions::value(&world, survivor, None, &phase).expect("answered");
+    assert!(
+        (at_zero - a_month_later).abs() < f64::EPSILON,
+        "the cycle closes after one lunar month: {at_zero} and {a_month_later}"
+    );
+
+    // A quarter of a month on is a different phase, so the function is not constant.
+    cdda_sim::calendar::set_turn(&mut world, 7 * 24 * 60 * 60);
+    let a_week_later = cdda_sim::conditions::value(&world, survivor, None, &phase).expect("answered");
+    assert!(
+        (at_zero - a_week_later).abs() > f64::EPSILON,
+        "a week after the new moon the phase has moved: {at_zero} and {a_week_later}"
+    );
+    assert!(
+        (0.0..=7.0).contains(&a_week_later),
+        "the index is one of the eight phases, got {a_week_later}"
+    );
+}

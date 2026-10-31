@@ -5564,3 +5564,25 @@ is parsed out of a text expression, not looked up in the data - looked like a mi
 be allowlisted, and an audit that grows an allowlist per feature stops auditing.
 
 Gated: hit points, an effect's intensity both absent and present, and `has_var` separating unset from zero.
+
+## `moon_phase` (round 839)
+
+`moon_phase()` (`math_parser_diag.cpp:862`) answers `get_moon_phase( calendar::turn )` as the phase **index** - what the data compares against. The port
+already had the phase rule (`get_moon_phase`, `calendar.cpp:95-106`, with the noon flip and the 29.530588853-day lunar month); what it lacked was a
+function the expression language could call.
+
+`cdda_sim::calendar::moon_phase_now` reads the clock and answers the index 0-7, and **refuses** when nothing has set the clock rather than answering a
+phase nobody set.
+
+| Count | Before | After |
+|---|---|---|
+conditions the port reads | 2,421 | **2,472** |
+programs readable | 263 | **263** |
+**capability** | 162 | **162** |
+effect entries runnable | 983 | **983** |
+
+`moon_phase` appears in 51 math calls and moved **only the conditions column**: every guard that uses it sits in a program that refuses for another
+reason too. That is worth stating plainly rather than dressing up - the function is correct and gated, and this round bought no capability.
+
+Gated: no clock refuses; the same phase returns after one lunar month (the cycle closes); a week after the new moon the index has moved and is within
+0-7. The last two assertions are what stop the function from being a constant that happens to be in range.

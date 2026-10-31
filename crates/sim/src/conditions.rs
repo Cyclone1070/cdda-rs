@@ -474,6 +474,13 @@ fn special_function(
             let intensity = crate::applied_effects::intensity_of(world, creature, effect).unwrap_or(0);
             return Answer::Value(f64::from(intensity));
         }
+        // Reference: `moon_phase()` (`math_parser_diag.cpp:862`) answers the phase **index** at the current turn.
+        ("moon_phase", []) => {
+            let Some(phase) = crate::calendar::moon_phase_now(world) else {
+                return Answer::Refused;
+            };
+            return Answer::Value(f64::from(phase));
+        }
         // Reference: `has_var(name)` answers 1 when the dialogue holds that variable at all, and 0 when it holds none - which is how the data
         // tells "never set" apart from "set to zero".
         ("has_var", [Expression::Text(variable)]) => {

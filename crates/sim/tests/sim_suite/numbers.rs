@@ -51,7 +51,7 @@ pub const NOW: Census = Census {
     effects_defined: 1_612,
     effect_blamed: 321,
     math_blamed: 42,
-    conditions_readable: 2_421,
+    conditions_readable: 2_472,
 };
 
 impl Census {
