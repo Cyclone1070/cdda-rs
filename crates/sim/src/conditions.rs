@@ -22,6 +22,62 @@ pub fn holds(world: &World, creature: Entity, condition: &Condition) -> bool {
 /// The two dialoguers are the reference's `actor( false )` and `actor( true )`: `u_val` is the speaker's, `n_val` and
 /// `npc_val` are the listener's.
 #[must_use]
+/// Whether the actor wears anything carrying a flag.
+fn worn_flag(world: &World, speaker: Entity, listener: Option<Entity>, condition: &Condition) -> bool {
+    let Condition::HasWornWithFlag {
+        flag,
+        listener: about_listener,
+    } = condition
+    else {
+        return false;
+    };
+    actor_for(speaker, listener, *about_listener)
+        .is_some_and(|actor| crate::worn_flags::worn_with_flag(world, actor, flag))
+}
+
+/// Whether the actor carries a flag itself.
+fn creature_flag(world: &World, speaker: Entity, listener: Option<Entity>, condition: &Condition) -> bool {
+    let Condition::HasFlag {
+        flag,
+        listener: about_listener,
+    } = condition
+    else {
+        return false;
+    };
+    actor_for(speaker, listener, *about_listener)
+        .is_some_and(|actor| crate::creature_flags::has_flag(world, actor, flag))
+}
+
+/// Whether a named overmap terrain is within a range of the actor.
+///
+/// Reference: `f_near_om_location` (`condition.cpp:1074`): every overmap tile within `range` is compared against the name, and the guard holds on the first
+/// match. `oter_no_dir_or_connections` is why the comparison drops the direction - a tile spelled `road_north` answers for `road`.
+fn near_om_location(world: &World, speaker: Entity, listener: Option<Entity>, condition: &Condition) -> bool {
+    let Condition::NearOmLocation {
+        location,
+        range,
+        listener: about_listener,
+    } = condition
+    else {
+        return false;
+    };
+    let Some(actor) = actor_for(speaker, listener, *about_listener) else {
+        return false;
+    };
+    let (Some(wanted), Some(at)) = (
+        text_of(world, speaker, listener, location),
+        world.get::<crate::Position>(actor).copied(),
+    ) else {
+        return false;
+    };
+    let tile = crate::overmap::tile_of(at.x, at.y);
+    crate::overmap::tiles(world).into_iter().any(|(tile_at, terrain)| {
+        let step = (tile_at.0 - tile.0).abs().max((tile_at.1 - tile.1).abs());
+        step <= *range && (terrain == wanted || crate::overmap::base_terrain(&terrain) == wanted)
+    })
+}
+
+/// Whether a condition holds, with a listener to ask about.
 pub fn holds_with(
     world: &World,
     speaker: Entity,
@@ -308,14 +364,9 @@ fn holds_within(
         Condition::IsSeason { season } => {
             is_season(world, speaker, listener, season)
         }
-        Condition::HasWornWithFlag { flag, listener: about_listener } => {
-            actor_for(speaker, listener, *about_listener)
-                .is_some_and(|actor| crate::worn_flags::worn_with_flag(world, actor, flag))
-        }
-        Condition::HasFlag { flag, listener: about_listener } => {
-            actor_for(speaker, listener, *about_listener)
-                .is_some_and(|actor| crate::creature_flags::has_flag(world, actor, flag))
-        }
+        Condition::NearOmLocation { .. } => near_om_location(world, speaker, listener, condition),
+        Condition::HasWornWithFlag { .. } => worn_flag(world, speaker, listener, condition),
+        Condition::HasFlag { .. } => creature_flag(world, speaker, listener, condition),
         Condition::CanSee { listener: about_listener } => actor_for(speaker, listener, *about_listener)
             .is_some_and(|actor| crate::seeing::can_see(world, actor)),
         Condition::Simple { name } => match name.as_str() {

@@ -41,6 +41,21 @@ pub fn set_terrain(world: &mut World, tile: (i32, i32), terrain: &str) {
     }
 }
 
+/// Every tile the overmap holds, with its terrain, in a settled order.
+#[must_use]
+pub fn tiles(world: &World) -> Vec<((i32, i32), String)> {
+    let Some(terrains) = crate::singletons::holder::<TheOvermap>(world)
+        .and_then(|holder| world.get::<OvermapTerrains>(holder))
+    else {
+        return Vec::new();
+    };
+    terrains
+        .0
+        .iter()
+        .map(|(tile, terrain)| (*tile, terrain.clone()))
+        .collect()
+}
+
 /// Every tile the overmap holds with the terrain wanted, in a settled order.
 #[must_use]
 pub fn tiles_with_terrain(world: &World, wanted: &str) -> Vec<(i32, i32)> {

@@ -1046,3 +1046,68 @@ fn time_since_counts_from_a_named_point_or_a_turn() {
     // A name that is not a time is not answered.
     assert_eq!(count(&mut world, "time_since('teatime')"), None);
 }
+
+/// `u_near_om_location` asks whether a named overmap terrain is within a range, and answers about the tiles the overmap holds.
+///
+/// Reference: `f_near_om_location` (`condition.cpp:1074`): every overmap tile within `range` (default **1**) is compared against the name, and the guard
+/// holds on the first match. The comparison is against the name **without** its direction or connection suffixes.
+#[test]
+fn a_nearby_overmap_terrain_guard_looks_within_its_range() {
+    let mut world = World::new();
+    // The survivor in overmap tile (0, 0): a tile two steps away is out of the default range and in at three.
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (1, 1, 0));
+    cdda_sim::overmap::set_terrain(&mut world, (2, 0), "shelter");
+
+    let nearby = cdda_content::dialogue::read_condition(
+        &cdda_json::parse(br#"{"u_near_om_location": "shelter"}"#.as_slice()).expect("json"),
+    )
+    .expect("readable");
+    assert!(
+        !cdda_sim::conditions::holds(&world, survivor, &nearby),
+        "two tiles away is outside the default range of one"
+    );
+
+    let wider = cdda_content::dialogue::read_condition(
+        &cdda_json::parse(br#"{"u_near_om_location": "shelter", "range": 3}"#.as_slice()).expect("json"),
+    )
+    .expect("readable");
+    assert!(
+        cdda_sim::conditions::holds(&world, survivor, &wider),
+        "three tiles is inside a range of three"
+    );
+
+    // A different name is a different question, and a name that is not there answers no rather than refusing.
+    let elsewhere = cdda_content::dialogue::read_condition(
+        &cdda_json::parse(br#"{"u_near_om_location": "lab_finale", "range": 3}"#.as_slice()).expect("json"),
+    )
+    .expect("readable");
+    assert!(!cdda_sim::conditions::holds(&world, survivor, &elsewhere));
+
+    // The name is compared without its direction: a tile the overmap spells `road_north` answers for `road`.
+    cdda_sim::overmap::set_terrain(&mut world, (1, 1), "road_north");
+    let road = cdda_content::dialogue::read_condition(
+        &cdda_json::parse(br#"{"u_near_om_location": "road"}"#.as_slice()).expect("json"),
+    )
+    .expect("readable");
+    assert!(cdda_sim::conditions::holds(&world, survivor, &road));
+
+    // The listener's spelling asks about the other creature's tile.
+    let theirs = cdda_content::dialogue::read_condition(
+        &cdda_json::parse(br#"{"npc_near_om_location": "shelter", "range": 9}"#.as_slice()).expect("json"),
+    )
+    .expect("readable");
+    let talker = cdda_sim::creature::spawn_creature(&mut world, "the talker", (1, 1, 0));
+    assert!(cdda_sim::conditions::holds_with(&world, survivor, Some(talker), &theirs));
+    let far_away = cdda_sim::creature::spawn_creature(&mut world, "someone far", (600, 600, 0));
+    assert!(
+        !cdda_sim::conditions::holds_with(&world, survivor, Some(far_away), &theirs),
+        "a listener a hundred overmap tiles away has nothing nearby"
+    );
+
+    // A camp name is a question about camps, not about terrain, so it is refused rather than answered as terrain.
+    for camp in ["FACTION_CAMP_ANY", "FACTION_CAMP_START"] {
+        let text = format!(r#"{{"u_near_om_location": "{camp}"}}"#);
+        let value = cdda_json::parse(text.as_bytes()).expect("json");
+        assert!(cdda_content::dialogue::read_condition(&value).is_none(), "{camp}");
+    }
+}

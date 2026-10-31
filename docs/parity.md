@@ -5878,3 +5878,32 @@ rather than a test: a leaf count moving without `readable` moving is a shape wor
 
 Gated: a square within the radii and at least `min_radius` out; the same seed twice; and a radius that reaches past the level refusing rather than storing
 the actor's own square.
+
+## `u_near_om_location` (round 851)
+
+`f_near_om_location` (`condition.cpp:1074`) asks whether a named overmap terrain is within a **range** of the actor - 59 `u_` and 32 `npc_` uses, and the
+largest remaining condition family after `math`. Every overmap tile within the range is compared against the name, and the guard holds on the first match.
+
+Three details are the rule:
+
+- the range defaults to **1**, which is why the member is usually absent and the guard still means something;
+- the name is compared **without its direction or connection suffixes** (`oter_no_dir_or_connections`), so a tile the overmap spells `road_north` answers
+  for `road` - the same `base_terrain` list the port already had for terrain drawing;
+- `FACTION_CAMP_ANY` and `FACTION_CAMP_START` are not terrain names at all: they are questions about camps, so they are **refused** rather than answered
+  as though a camp were a kind of ground.
+
+| Count | Before | After |
+|---|---|---|
+conditions the port reads | 2,610 | **2,631** |
+programs readable | 312 | **319** |
+**capability** | 188 | **195** |
+unreadable leaves | 878 | **866** |
+one-gap programs | 169 | **163** |
+effect-blamed programs | 283 | **288** |
+
+Seven programs and seven capability, which is the best ratio this session: the guard sits in programs that were otherwise whole.
+
+The built-world census moved with it - 199 of 319 against 195 fresh - so the four-program gap is now the stable thing it has been for four rounds.
+
+Gated: the default range of one; a wider range finding the same tile; a name that is not there answering no rather than refusing; `road_north` answering
+for `road`; the listener's tile being the one asked about; and both camp names refusing.

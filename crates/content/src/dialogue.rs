@@ -10,6 +10,18 @@ use cdda_json::Value;
 /// A condition the port can evaluate.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Condition {
+    /// Whether a named overmap terrain is within a range of the actor.
+    ///
+    /// Reference: `f_near_om_location` (`condition.cpp:1074`) for `u_near_om_location` and `npc_near_om_location`: every overmap tile within `range` is
+    /// compared against the name, and the guard holds on the first match.
+    NearOmLocation {
+        /// The terrain name to look for.
+        location: StringSource,
+        /// How far to look, in overmap tiles.
+        range: i32,
+        /// Whether it is the listener rather than the speaker.
+        listener: bool,
+    },
     /// Whether anything a creature wears carries a flag.
     ///
     /// Reference: `f_has_worn_with_flag` (`condition.cpp`), which asks `worn_with_flag` - a flag on a **worn item's type**, not on the creature.
@@ -420,6 +432,9 @@ pub fn read_condition(value: &Value) -> Option<Condition> {
         return Some(guard);
     }
     // Reference: `f_has_item` (`condition.cpp:826-834`), the sibling of `u_has_items` that asks only "any at all".
+    if let Some(nearby) = read_near_om_condition(object) {
+        return Some(nearby);
+    }
     if let Some(flag) = read_flag_condition(object) {
         return Some(flag);
     }
@@ -538,6 +553,35 @@ fn read_bionic_condition(object: &cdda_json::Object) -> Option<Condition> {
 ///
 /// Reference: `f_has_flag` (`condition.cpp:2529`): the member names the flag, and a **missing** flag is an answer, not a refusal - which is what the
 /// data leans on when it asks a plain survivor about `GRAB_FILTER`.
+/// Reads the two guards that ask whether a named overmap terrain is nearby.
+///
+/// Reference: `f_near_om_location` (`condition.cpp:1074`): the member names the terrain and a sibling `range` says how far to look, defaulting to **1**.
+/// The two camp names (`FACTION_CAMP_ANY`, `FACTION_CAMP_START`) are questions about camps rather than about terrain, so they are refused here.
+fn read_near_om_condition(object: &cdda_json::Object) -> Option<Condition> {
+    for (member, listener) in [("u_near_om_location", false), ("npc_near_om_location", true)] {
+        let Some(value) = object.get(member) else {
+            continue;
+        };
+        let location = read_string_source(value)?;
+        if let StringSource::Literal(named) = &location
+            && (named == "FACTION_CAMP_ANY" || named == "FACTION_CAMP_START")
+        {
+            return None;
+        }
+        let range = match object.get("range") {
+            None => 1,
+            Some(Value::Int(number)) => i32::try_from(*number).ok()?,
+            Some(_) => return None,
+        };
+        return Some(Condition::NearOmLocation {
+            location,
+            range,
+            listener,
+        });
+    }
+    None
+}
+
 fn read_flag_condition(object: &cdda_json::Object) -> Option<Condition> {
     for (member, listener) in [("u_has_worn_with_flag", false), ("npc_has_worn_with_flag", true)] {
         if let Some(cdda_json::Value::Str(flag)) = object.get(member) {
