@@ -5180,3 +5180,26 @@ unreadable leaves | 908 | **901** |
 Seven programs that run, three that read: a small gain, but the residue fell and the two readers now agree.
 
 Gated: an `if` with a single-object `then`/`else` reads as a one-entry list, and the same `if` written with arrays reads identically.
+
+## The census descends by membership, and two numbers it had been reporting wrongly (round 822)
+
+The `<nested>` residue - programs whose single gap the census could not name - was the census looking at the **first** member of an object. The data
+writes `{"else": …, "if": …, "then": …}`, so a descent that keyed off the first member never saw the `if`, skipped both branches, and recorded one
+unnameable gap instead of the leaves inside.
+
+The descent now follows **membership**: if the object has an `if`, its branches are walked whichever order the members come in; likewise `switch`'s
+cases and `weighted_list_eocs`' entries. The residue is **zero**, and every gap now names a member that could be ported.
+
+Two numbers had been wrong, and the fix exposed both:
+
+| Count | Reported before | Correct |
+|---|---|---|
+unreadable leaves | 901 | **1,190** |
+programs one leaf away | 115 | **198** |
+
+The leaf count was low because the skipped branches were never counted. The program count was low for a different reason: it summed the **top eight**
+member buckets *after* the list was truncated for printing, so the printed number was really "programs the top eight members would finish". The total
+is now counted before truncation - 198 - while those eight members would finish 115 of them, with the rest behind a long tail.
+
+Both errors are the same shape as ones already recorded here: a measurement that quietly answers a *nearby* question. A census line should say what it
+counts, and "sum of the top eight" is not "programs one gap away".

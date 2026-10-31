@@ -709,9 +709,11 @@ fn the_programs_one_gap_away_say_what_to_port_next() {
     }
 
     let mut ranked: Vec<(String, usize)> = one_gap.into_iter().collect();
+    // The total is counted **before** the list is shortened for printing: summing the top eight and calling it "programs one gap away" would
+    // report a number that is really "programs the top eight members would finish".
+    let single: usize = ranked.iter().map(|(_, count)| count).sum();
     ranked.sort_by_key(|(name, count)| (std::cmp::Reverse(*count), name.clone()));
     ranked.truncate(8);
-    let single = ranked.iter().map(|(_, count)| count).sum::<usize>();
     println!(
         "of {defined} programs, {gaps_total} unreadable members in total; {single} programs are one gap away, and the members that \
          would finish them: {ranked:?}"
@@ -723,19 +725,24 @@ fn the_programs_one_gap_away_say_what_to_port_next() {
     // The ranking's tail still carries two modifier names - `duration` and `bonus` - because a refused entry reports its first key, and a
     // modifier leads the object it sits in. They are listed so the number can be read honestly rather than silently dropped: the effect
     // refusing underneath them is what a round would have to port.
-    assert_eq!(gaps_total, 901, "the data's programs hold 901 unreadable leaves");
-    assert_eq!(single, 142, "a hundred and forty-two programs are one leaf away");
+    // 1,190 leaves once the descent follows **membership** rather than member order. The old count was lower because an `if` written
+    // `{"else": …, "if": …, "then": …}` had its branches skipped and counted as one unnameable gap; now every gap names a member that could be
+    // ported, and the `<nested>` residue is zero.
+    assert_eq!(gaps_total, 1190, "the data's programs hold 1,190 unreadable leaves");
+    // 198 programs are one leaf away, but the eight members above would finish only 115 of them - the rest sit behind a long tail. Reading the
+    // printed line as "the top eight members would finish" is the honest reading, not "there are 115 such programs".
+    assert_eq!(single, 198, "a hundred and ninety-eight programs are one leaf away");
     assert_eq!(
         ranked,
         vec![
-            ("<nested>".to_owned(), 34),
-            ("mapgen_update".to_owned(), 32),
+            ("mapgen_update".to_owned(), 33),
             ("condition".to_owned(), 31),
             ("math".to_owned(), 13),
             ("u_add_effect".to_owned(), 13),
             ("hallucination_count".to_owned(), 7),
             ("max_radius".to_owned(), 6),
             ("type".to_owned(), 6),
+            ("u_lose_effect".to_owned(), 6),
         ],
         "the members that would finish the most programs, single gaps first"
     );
@@ -782,6 +789,17 @@ fn is_container_member(key: &str) -> bool {
     matches!(key, "then" | "else" | "cases" | "true_eocs" | "false_eocs")
 }
 
+/// The members that hold further effects, and the members that hold those.
+///
+/// The data writes an `if` as `{"else": …, "if": …, "then": …}`, so a descent keyed off the first member never sees the `if`.
+fn container_branches() -> [(&'static str, [&'static str; 2]); 3] {
+    [
+        ("if", ["then", "else"]),
+        ("switch", ["cases", "cases"]),
+        ("weighted_list_eocs", ["", ""]),
+    ]
+}
+
 /// Adds one gap name for every place inside an effect entry that the port cannot read.
 fn collect_leaves(entry: &cdda_json::Value, gaps: &mut Vec<String>) {
     if cdda_content::dialogue::read_effect(entry).is_some() {
@@ -795,87 +813,41 @@ fn collect_leaves(entry: &cdda_json::Value, gaps: &mut Vec<String>) {
         gaps.push("snippet".to_owned());
         return;
     }
-    let Some((key, value)) = object
-        .members()
-        .iter()
-        .find(|(key, _)| !is_descriptor(key))
-    else {
-        gaps.push("<named>".to_owned());
-        return;
-    };
-    // The containers an effect can hold: descend and count what refuses inside them.
-    let nested = match key.as_str() {
-        "if" => {
-            let mut found = Vec::new();
-            for branch in ["then", "else"] {
-                // A branch may be one entry as well as a list, so descend into either.
-                match object.get(branch) {
-                    Some(cdda_json::Value::Array(entries)) => {
-                        for entry in entries {
-                            collect_leaves(entry, &mut found);
-                        }
-                    }
-                    Some(single) => collect_leaves(single, &mut found),
-                    None => {}
-                }
-            }
-            Some(found)
+    // Descend by **membership**, not by which key happens to come first: the data writes `{"else": …, "if": …, "then": …}`, so a reader that
+    // looked only at the first member would never notice the `if`.
+    let mut found = Vec::new();
+    for (member, branches) in container_branches() {
+        if object.get(member).is_none() {
+            continue;
         }
-        "switch" => {
-            let mut found = Vec::new();
-            if let Some(cdda_json::Value::Array(cases)) = object.get("cases") {
-                for case in cases {
-                    let cdda_json::Value::Object(case) = case else {
-                        continue;
-                    };
-                    let effects = match case.get("effect") {
-                        Some(cdda_json::Value::Array(items)) => items.as_slice(),
-                        Some(other) => std::slice::from_ref(other),
-                        None => &[],
-                    };
-                    for entry in effects {
+        for branch in branches {
+            match object.get(branch) {
+                Some(cdda_json::Value::Array(entries)) => {
+                    for entry in entries {
                         collect_leaves(entry, &mut found);
                     }
                 }
+                Some(single) => collect_leaves(single, &mut found),
+                None => {}
             }
-            Some(found)
         }
-        "weighted_list_eocs" => {
-            let mut found = Vec::new();
-            if let Some(cdda_json::Value::Array(entries)) = object.get(key) {
-                for entry in entries {
-                    let cdda_json::Value::Array(pair) = entry else {
-                        continue;
-                    };
-                    if let Some(first) = pair.first() {
-                        collect_leaves(first, &mut found);
-                    }
-                }
-            }
-            Some(found)
-        }
-        _ => None,
-    };
-    if let Some(found) = nested
-        && !found.is_empty()
-    {
+    }
+    if !found.is_empty() {
         gaps.extend(found);
         return;
     }
-    let _ = value;
+    let Some((key, _)) = object.members().iter().find(|(key, _)| !is_descriptor(key)) else {
+        gaps.push("<named>".to_owned());
+        return;
+    };
     if is_container_member(key) {
-        if std::env::var("CDDA_SHOW_NESTED").is_ok() {
-            println!("NESTED ENTRY: {entry:?}");
-        }
         gaps.push("<nested>".to_owned());
     } else {
         gaps.push(key.clone());
     }
 }
 
-
-
-
+/// Adds one gap name for every place inside an effect entry that the port cannot read.
 /// The snippet store keeps the data's categories and picks from a category by weight.
 ///
 /// Reference: `snippet_library` (`text_snippets.cpp`): lines are grouped by `category`, each carries a weight, and a pick is uniform over the total.
