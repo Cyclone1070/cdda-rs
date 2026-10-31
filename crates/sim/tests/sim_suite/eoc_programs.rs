@@ -659,3 +659,132 @@ fn stack_member(value: &cdda_json::Value, found: &mut Vec<String>) {
         _ => {}
     }
 }
+
+/// How far each unreadable program is from being complete, which is what decides whether porting a member buys anything.
+///
+/// The call graph said which programs are blocked; it could not say whether one more rule would finish them. An effect list refuses as a whole,
+/// so a program with nine unreadable members gains nothing from the ninth being ported - while a program with **one** gap becomes runnable the day
+/// that gap closes. This census counts the gaps and reports the members that are the *only* thing standing between the port and a program.
+#[test]
+fn the_programs_one_gap_away_say_what_to_port_next() {
+    use std::collections::BTreeMap;
+
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../oracle/src/data/json");
+    let mut defined = 0usize;
+    let mut one_gap: BTreeMap<String, usize> = BTreeMap::new();
+    let mut gaps_total = 0usize;
+
+    let mut stack = vec![data];
+    while let Some(directory) = stack.pop() {
+        let Ok(entries_at) = std::fs::read_dir(&directory) else {
+            continue;
+        };
+        for entry in entries_at.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            if path.extension().and_then(std::ffi::OsStr::to_str) != Some("json") {
+                continue;
+            }
+            let Some(value) = cdda_content::read_json(&path) else {
+                continue;
+            };
+            for definition in definitions_in(&value) {
+                if member(definition, "id").is_none() {
+                    continue;
+                }
+                defined += 1;
+                if cdda_content::dialogue::read_program(definition).is_some() {
+                    continue;
+                }
+                let gaps = unreadable_members(definition);
+                gaps_total += gaps.len();
+                if let [only] = gaps.as_slice() {
+                    *one_gap.entry(only.clone()).or_insert(0) += 1;
+                }
+            }
+        }
+    }
+
+    let mut ranked: Vec<(String, usize)> = one_gap.into_iter().collect();
+    ranked.sort_by_key(|(name, count)| (std::cmp::Reverse(*count), name.clone()));
+    ranked.truncate(8);
+    let single = ranked.iter().map(|(_, count)| count).sum::<usize>();
+    println!(
+        "of {defined} programs, {gaps_total} unreadable members in total; {single} programs are one gap away, and the members that \
+         would finish them: {ranked:?}"
+    );
+
+    assert_eq!(defined, 692, "the data defines 692 nameable effect-on-conditions");
+    // 987 unreadable members across 511 programs, and 138 of those programs are **one member** from running.
+    //
+    // The ranking's tail still carries two modifier names - `duration` and `bonus` - because a refused entry reports its first key, and a
+    // modifier leads the object it sits in. They are listed so the number can be read honestly rather than silently dropped: the effect
+    // refusing underneath them is what a round would have to port.
+    assert_eq!(gaps_total, 987, "the data's programs hold 987 unreadable members");
+    assert_eq!(single, 138, "a hundred and thirty-eight programs are one gap away");
+    assert_eq!(
+        ranked,
+        vec![
+            ("mapgen_update".to_owned(), 33),
+            ("condition".to_owned(), 20),
+            ("snippet".to_owned(), 18),
+            ("duration".to_owned(), 16),
+            ("bonus".to_owned(), 14),
+            ("cases".to_owned(), 13),
+            ("weighted_list_eocs".to_owned(), 13),
+            ("math".to_owned(), 11),
+        ],
+        "the members that would finish the most programs, single gaps first"
+    );
+}
+
+/// Every member of a program the port cannot read, named the way the data spells it.
+fn unreadable_members(definition: &cdda_json::Value) -> Vec<String> {
+    let mut gaps = Vec::new();
+    if let Some(condition) = member(definition, "condition")
+        && cdda_content::dialogue::read_condition(condition).is_none()
+    {
+        gaps.push("condition".to_owned());
+    }
+    for slot in ["effect", "true_effect", "false_effect"] {
+        let Some(effects) = member(definition, slot) else {
+            continue;
+        };
+        let entries = match effects {
+            cdda_json::Value::Array(items) => items.as_slice(),
+            other => std::slice::from_ref(other),
+        };
+        for entry in entries {
+            if cdda_content::dialogue::read_effect(entry).is_some() {
+                continue;
+            }
+            gaps.push(first_refusing_key(entry));
+        }
+    }
+    gaps
+}
+
+/// The member of a refused effect entry that refuses, following an `if`'s branches to a leaf.
+fn first_refusing_key(entry: &cdda_json::Value) -> String {
+    let cdda_json::Value::Object(object) = entry else {
+        return "<named>".to_owned();
+    };
+    for branch in ["then", "else"] {
+        let Some(cdda_json::Value::Array(entries)) = object.get(branch) else {
+            continue;
+        };
+        if let Some(failing) = entries
+            .iter()
+            .find(|entry| cdda_content::dialogue::read_effect(entry).is_none())
+        {
+            return first_refusing_key(failing);
+        }
+    }
+    object
+        .members()
+        .first()
+        .map_or_else(|| "<named>".to_owned(), |(key, _)| key.clone())
+}
