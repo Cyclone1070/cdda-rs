@@ -865,3 +865,51 @@ fn collect_leaves(entry: &cdda_json::Value, gaps: &mut Vec<String>) {
     }
 }
 
+
+
+
+/// The snippet store keeps the data's categories and picks from a category by weight.
+///
+/// Reference: `snippet_library` (`text_snippets.cpp`): lines are grouped by `category`, each carries a weight, and a pick is uniform over the total.
+#[test]
+fn the_snippet_store_picks_a_line_by_weight_and_never_picks_a_weightless_one() {
+    use cdda_core_types::rng::Rolls;
+
+    let mut world = bevy_ecs::prelude::World::new();
+    cdda_sim::singletons::put_rolls(&mut world, Rolls::new(7));
+    cdda_sim::snippets::set_snippets(
+        &mut world,
+        [
+            ("notes".to_owned(), line("a", "The first note.", 1)),
+            ("notes".to_owned(), line("b", "The second note.", 3)),
+            ("notes".to_owned(), line("c", "Never read.", 0)),
+        ],
+    );
+    assert_eq!(cdda_sim::snippets::census(&world), (1, 3), "one category, three lines");
+
+    let mut seen: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+    let mut dice = Rolls::new(7);
+    for _ in 0..400 {
+        let picked = cdda_sim::snippets::pick(&mut world, "notes", Some(&mut dice)).expect("a line");
+        *seen.entry(picked.id).or_insert(0) += 1;
+    }
+    assert_eq!(seen.get("c"), None, "a line of weight zero is never picked");
+    let a = seen.get("a").copied().unwrap_or(0);
+    let b = seen.get("b").copied().unwrap_or(0);
+    assert_eq!(a + b, 400);
+    assert!(b > 2 * a, "the heavier line came up about three times as often: {b} to {a}");
+
+    assert!(
+        cdda_sim::snippets::pick(&mut world, "no_such_category", Some(&mut dice)).is_none(),
+        "an unknown category picks nothing rather than something wrong"
+    );
+}
+
+/// One snippet line, for the store's test.
+fn line(id: &str, text: &str, weight: i32) -> cdda_sim::snippets::SnippetLine {
+    cdda_sim::snippets::SnippetLine {
+        id: id.to_owned(),
+        text: text.to_owned(),
+        weight,
+    }
+}

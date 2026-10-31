@@ -16,6 +16,7 @@ pub mod memory;
 pub mod messages;
 pub mod missions;
 pub mod morale;
+pub mod snippets;
 pub mod field_passage;
 pub mod field_registry;
 pub mod field_spread;
