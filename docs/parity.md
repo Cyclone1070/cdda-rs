@@ -5269,3 +5269,29 @@ have caught this in one run asserts *both* the written square and the blank one 
 and nothing is added. That is the piece `mapgen_update` needs, and it waits only on the effect itself: resolve the mapgen by id, draw it, place it at
 the target tile.
 
+
+## Mapgen updates (round 827)
+
+`f_mapgen_update` (`npctalk.cpp`) applies an **update mapgen** - a mapgen that changes part of a tile rather than building one - at a target overmap
+tile, the speaker's own when the data names none. `mapgen::update` (`mapgen.cpp`) draws it and writes its terrain over the squares it covers, leaving
+the rest alone.
+
+The port reads the no-target form. `om_terrain`, `target_var`, `target_params` and `mapgen_update_variables` each aim the update somewhere else, and
+are **refused** rather than applied where the speaker happens to stand - an update in the wrong place is worse than no update.
+
+Two stores carry what it needs, each a component on one entity: `Mapgens` (the update mapgens by id) and `TerrainCodes` (what number the world calls
+each terrain). The write goes through `square::set_terrain` into the squares the world already holds, so a mapgen update is entities, not an array.
+
+| Count | Before | After |
+|---|---|---|
+effect entries runnable | 872 | **884** |
+programs runnable whole | 223 | **231** |
+readable programs that run in a fresh world | 122 | **122** |
+unreadable leaves | 1,182 | **1,170** |
+`mapgen_update` as a single leaf | 33 | **25** |
+
+Ten effect entries read and eight programs whole. Capability did not move: the runtime count still refuses eight programs on `mapgen_update`, because
+the census runs in a fresh world with no mapgens installed - which is honest, and the refusal is named rather than silent.
+
+Gated: a two-square update writes rock and rock floor where the speaker stands and leaves the next row alone; an update the world does not hold
+**refuses**; and all three aiming forms are refused at read time.

@@ -226,7 +226,7 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
     // length of the evaluation and put back.
     // 792 after location variables: the plain form stores the actor's square, and the searching forms are still refused.
     // 805 after `open_dialogue`: the branch rule runs exactly, and the conversation itself is not opened (no interface to open it).
-    assert_eq!(runnable, 872, "of which the port runs 872 entries");
+    assert_eq!(runnable, 884, "of which the port runs 884 entries");
 
     // And the ranking of what refuses, which is this census's real output: it says what to port next instead of what is used most.
     // `target_var` is the one entry the ranking cannot attribute on its own - a scan of the data shows 71 of those 98 are
@@ -239,7 +239,7 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
     assert_eq!(
         ranking,
         vec![
-            ("mapgen_update".to_owned(), 111),
+            ("mapgen_update".to_owned(), 99),
             ("math".to_owned(), 98),
             ("else".to_owned(), 30),
             ("u_lose_effect".to_owned(), 29),
@@ -1149,4 +1149,76 @@ fn a_sound_is_made_where_its_maker_stands_and_speech_is_said() {
         cdda_content::dialogue::read_effect(&unknown).is_none(),
         "a type the port does not know is refused"
     );
+}
+
+/// A mapgen update writes its terrain over the squares the speaker stands among.
+///
+/// Reference: `f_mapgen_update` (`npctalk.cpp`) with `mapgen::update` (`mapgen.cpp`): the update is drawn and its terrain written where it lands,
+/// leaving squares it says nothing about alone.
+#[test]
+fn a_mapgen_update_writes_its_terrain_where_the_speaker_stands() {
+    use std::collections::BTreeMap;
+
+    let mut world = World::new();
+    let mut level = cdda_core_types::level::Level::new();
+    for x in 0..6 {
+        for y in 0..6 {
+            level.set_terrain(x, y, 0, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (1, 1, 0));
+
+    let mapgen = cdda_content::mapgen::MapgenObject {
+        om_terrain: "lab_wall_opens".to_owned(),
+        rows: vec!["AB".to_owned()],
+        terrain: [('A', "t_rock".to_owned()), ('B', "t_rock_floor".to_owned())]
+            .into_iter()
+            .collect::<BTreeMap<char, String>>(),
+        furniture: BTreeMap::new(),
+        weight: 100,
+    };
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("lab_wall_opens".to_owned(), mapgen)]);
+    cdda_sim::mapgen_update::set_terrain_codes(
+        &mut world,
+        [("t_rock".to_owned(), 7u32), ("t_rock_floor".to_owned(), 8u32)]
+            .into_iter()
+            .collect(),
+    );
+    assert_eq!(cdda_sim::mapgen_update::census(&world), 1, "one mapgen installed");
+
+    let effect = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(br#"{"mapgen_update": "lab_wall_opens"}"#.as_slice()).expect("json"),
+    )
+    .expect("readable");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        Applied::Done
+    );
+    assert_eq!(cdda_sim::square::terrain_at(&world, (1, 1, 0)), Some(7), "A became rock");
+    assert_eq!(cdda_sim::square::terrain_at(&world, (2, 1, 0)), Some(8), "B became rock floor");
+    assert_eq!(cdda_sim::square::terrain_at(&world, (1, 2, 0)), Some(0), "the next row was left alone");
+
+    // A mapgen the world does not hold refuses rather than doing nothing quietly.
+    let missing = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(br#"{"mapgen_update": "no_such_update"}"#.as_slice()).expect("json"),
+    )
+    .expect("readable");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &missing),
+        Applied::CannotAnswer
+    );
+
+    // An update aimed somewhere else is refused rather than applied in the wrong place.
+    for text in [
+        r#"{"mapgen_update": "lab_wall_opens", "om_terrain": "field"}"#,
+        r#"{"mapgen_update": "lab_wall_opens", "target_var": {"global_val": "here"}}"#,
+        r#"{"mapgen_update": "lab_wall_opens", "target_params": {"om_terrain": "field"}}"#,
+    ] {
+        let value = cdda_json::parse(text.as_bytes()).expect("json");
+        assert!(
+            cdda_content::dialogue::read_effect(&value).is_none(),
+            "{text} must be refused"
+        );
+    }
 }

@@ -1169,6 +1169,15 @@ pub enum Effect {
         /// Whether it is the listener that makes it.
         listener: bool,
     },
+    /// Apply a mapgen update where the speaker stands.
+    ///
+    /// Reference: `f_mapgen_update` (`npctalk.cpp`): the member names an **update mapgen**, and it is applied at a target overmap tile - the
+    /// speaker's own when the data names none. The port reads the no-target form and refuses `om_terrain`, `target_var`, `target_params` and
+    /// `mapgen_update_variables`, which aim it somewhere else.
+    MapgenUpdate {
+        /// The update mapgen's id.
+        update: StringSource,
+    },
     /// Give a creature a morale point.
     ///
     /// Reference: `f_add_morale` (`npctalk.cpp:7177-7195`), whose defaults are a one-hour duration and a half-hour decay start.
@@ -1240,6 +1249,7 @@ impl Effect {
             Self::OpenDialogue { .. } => "open_dialogue",
             Self::AddMorale { .. } => "u_add_morale",
             Self::MakeSound { .. } => "u_sound",
+            Self::MapgenUpdate { .. } => "mapgen_update",
         }
     }
 }
@@ -1352,6 +1362,9 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
             .collect::<Option<Vec<_>>>()?;
         return Some(Effect::RunEoc(programs));
     }
+    if let Some(update) = read_mapgen_update(object) {
+        return Some(update);
+    }
     if let Some(sound) = read_make_sound(object) {
         return Some(sound);
     }
@@ -1462,6 +1475,28 @@ fn read_snippet(object: &cdda_json::Object) -> Option<Effect> {
     None
 }
 
+
+
+/// Reads a mapgen update that applies where the speaker stands.
+///
+/// Reference: `f_mapgen_update` (`npctalk.cpp`): a `target_var`, an `om_terrain`, `target_params` or `mapgen_update_variables` aim the update
+/// somewhere else, and the port refuses those rather than applying the update in the wrong place.
+fn read_mapgen_update(object: &cdda_json::Object) -> Option<Effect> {
+    let update = object.get("mapgen_update")?;
+    for aiming in [
+        "om_terrain",
+        "target_var",
+        "target_params",
+        "mapgen_update_variables",
+    ] {
+        if object.get(aiming).is_some() {
+            return None;
+        }
+    }
+    Some(Effect::MapgenUpdate {
+        update: read_string_source(update)?,
+    })
+}
 
 /// Reads a sound: a message or a snippet, a volume, and a kind.
 ///

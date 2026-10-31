@@ -220,6 +220,26 @@ fn say_snippet(
     Applied::Done
 }
 
+
+/// Applies an update mapgen where the speaker stands.
+///
+/// Reference: `f_mapgen_update` (`npctalk.cpp`): with no target named, the update is applied at the speaker's own overmap tile.
+fn run_mapgen_update(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::MapgenUpdate { update } = effect else {
+        return Applied::CannotAnswer;
+    };
+    let Some(name) = crate::conditions::text_of(world, speaker, listener, update) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(position) = world.get::<crate::Position>(speaker).copied() else {
+        return Applied::CannotAnswer;
+    };
+    match crate::mapgen_update::apply(world, &name, (position.x, position.y, position.z)) {
+        Some(_) => Applied::Done,
+        None => Applied::CannotAnswer,
+    }
+}
+
 /// Makes a sound where its maker stands, saying its words or a line from its snippet category.
 ///
 /// Reference: `f_make_sound` (`npctalk.cpp:6131-6200`): the sound is placed at the maker's own square with the stated volume, and the words are
@@ -581,6 +601,7 @@ pub fn run_effect(
                 about_listener: *about_listener,
             },
         ),
+        Effect::MapgenUpdate { .. } => run_mapgen_update(world, speaker, listener, effect),
         Effect::MakeSound { .. } => make_sound_effect(world, speaker, listener, effect),
         Effect::OpenDialogue {
             topic: _,
