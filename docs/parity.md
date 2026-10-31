@@ -5954,3 +5954,32 @@ Both searches now share `draw_near`, so the radius draw has one implementation: 
 What is left under `max_radius` (19 refusals) is almost entirely **`u_spawn_monster`'s** own radius, not the location search's: spawning needs monster
 prototypes, real versus hallucinated counts, lifespans and spawn messages. That is the next system rather than the next guard, and `hallucination_count` (8
 one-gap programs) sits inside it.
+
+## `u_spawn_monster` (round 854)
+
+`f_spawn_monster` (`npctalk.cpp:7371-7420`) is the largest effect the port was missing. The rule is a ring of monsters: `real_count` of the type appear, then
+`hallucination_count` more that look identical and are not, each on a square between `min_radius` and `max_radius` - whose defaults are **1** and **10**, not
+zero.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 319 | **323** |
+effect entries runnable | 1,131 | **1,137** |
+unreadable leaves | 862 | **856** |
+one-gap programs | 164 | **162** |
+**capability** | 195 | **195** |
+
+Spawning needed a store the port did not have: the **monster types themselves**. `monster_registry` only numbers the kinds, which is enough to say "there are
+seventeen kinds" and not enough to make one - hit points, speed, melee dice and the name a player reads all live on the type. `cdda_sim::monster_catalog`
+holds them now, the same shape as the item and terrain stores.
+
+A hallucination is a `Hallucination` **component**, so "is this real" is a query rather than a special case in whatever reads the monster next. What the port
+does not do yet is fade them: the reference removes a hallucination when the player gets a good look at it, and that is a system rather than this effect.
+Recorded as a divergence, not a hidden difference.
+
+Refused at read time, each named: `group`, `single_target`, `target_range`, `lifespan`, `target_var`, `mon_variables`, the spawn messages, and the
+outdoor/indoor/friendly flags. That is why `hallucination_count` still sits on the one-gap list with 8 programs - those entries also carry a `lifespan`.
+
+**The bug worth recording:** the first version drew every square from a fresh dice stream, because `draw_near` took the rolls and never put them back - so each
+attempt re-rolled from the same seed and the ring search could not find a square the level held. The test caught it as a refusal, and the diagnostic
+(`CDDA_SHOW_SPAWN=1`) said "no square in ring" rather than leaving me guessing. One stream now serves every square a single spawn draws.

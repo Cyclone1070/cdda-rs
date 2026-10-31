@@ -1989,3 +1989,103 @@ fn a_target_search_then_a_radius_draws_around_what_was_found() {
         "and it is nowhere near the actor, which is what tells the two steps apart: {from_actor}"
     );
 }
+
+/// `u_spawn_monster` makes real monsters and hallucinations, in a ring around the actor.
+///
+/// Reference: `f_spawn_monster` (`npctalk.cpp:7371-7420`): `real_count` monsters of the type, then `hallucination_count` more that look identical and are not,
+/// each on a square within `min_radius..max_radius` - whose defaults are **1** and **10**.
+#[test]
+fn spawning_monsters_makes_the_real_ones_and_the_imagined_ones() {
+    let mut world = World::new();
+    let mut level = cdda_core_types::level::Level::new();
+    for x in -24..48 {
+        for y in -24..48 {
+            level.set_terrain(x, y, 0, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let prototype = cdda_json::parse(
+        br#"{"id": "mon_test", "name": "a test thing", "hp": 12, "speed": 100, "symbol": "t", "color": "white"}"#.as_slice(),
+    )
+    .expect("json");
+    let kind = cdda_content::monsters::load_objects(&[prototype])
+        .expect("readable")
+        .into_iter()
+        .next()
+        .expect("one type");
+    cdda_sim::monster_registry::set_monster_types(
+        &mut world,
+        &[cdda_sim::monster_registry::MonsterKind {
+            id: "mon_test",
+            hp: 12,
+        }],
+    );
+    cdda_sim::monster_catalog::set_types(&mut world, vec![kind]);
+
+    let spawn = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(
+            br#"{"u_spawn_monster": "mon_test", "real_count": 2, "hallucination_count": [1, 1], "min_radius": 3, "max_radius": 5}"#
+                .as_slice(),
+        )
+        .expect("json"),
+    )
+    .expect("a spawn is readable");
+
+    assert!(
+        cdda_sim::monster_catalog::type_of(&world, "mon_test").is_some(),
+        "the catalog knows the type"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (4, 0, 0)),
+        Some(0),
+        "the level holds the squares the ring covers"
+    );
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(13));
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &spawn),
+        Applied::Done
+    );
+
+    // Three creatures were made - two real and one imagined - and the imagined one is marked.
+    let imagined = cdda_sim::monster_spawning::hallucinations(&world);
+    assert_eq!(imagined.len(), 1, "one hallucination");
+    let mut made = 0;
+    let mut query = world
+        .try_query::<(&cdda_sim::creature::CreatureKind, &cdda_sim::Position)>()
+        .expect("query");
+    for (_, at) in query.iter(&world) {
+        if at.x == 0 && at.y == 0 {
+            continue;
+        }
+        made += 1;
+        let step = at.x.abs().max(at.y.abs());
+        assert!(
+            (3..=5).contains(&step),
+            "every spawn lands in the ring: ({}, {}) is {step} steps out",
+            at.x,
+            at.y
+        );
+    }
+    assert_eq!(made, 3, "two real and one imagined");
+
+    // A type the world does not know refuses rather than making something else.
+    let unknown = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(br#"{"u_spawn_monster": "mon_not_here", "real_count": 1}"#.as_slice()).expect("json"),
+    )
+    .expect("readable");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &unknown),
+        Applied::CannotAnswer
+    );
+
+    // The members the port cannot carry out are refused at read time rather than ignored.
+    for text in [
+        r#"{"u_spawn_monster": "mon_test", "group": true}"#,
+        r#"{"u_spawn_monster": "mon_test", "lifespan": "5 seconds"}"#,
+        r#"{"u_spawn_monster": "mon_test", "spawn_message": "it appears"}"#,
+    ] {
+        let value = cdda_json::parse(text.as_bytes()).expect("json");
+        assert!(cdda_content::dialogue::read_effect(&value).is_none(), "{text}");
+    }
+}

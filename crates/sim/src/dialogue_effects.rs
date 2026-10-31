@@ -335,10 +335,111 @@ fn nearby_location(world: &mut World, speaker: Entity, effect: &Effect) -> Appli
     Applied::Done
 }
 
+/// Spawns real monsters and hallucinations around the actor.
+///
+/// Reference: `f_spawn_monster` (`npctalk.cpp:7475-7500`): `real_count` monsters of the type are made, then `hallucination_count` more that look identical
+/// and are not real. Each lands on a square within `min_radius..max_radius` of the actor.
+///
+/// The port marks a hallucination with a [`crate::monster_spawning::Hallucination`] component so anything that asks "is this real" can answer. What it does
+/// **not** do yet is fade them: the reference's hallucinations are removed when the player gets a good look, which is a system the port has not built.
+fn spawn_monsters(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::SpawnMonster {
+        monster,
+        real_count,
+        hallucination_count,
+        min_radius,
+        max_radius,
+    } = effect
+    else {
+        return Applied::CannotAnswer;
+    };
+    let Some(at) = world.get::<crate::Position>(speaker).copied() else {
+        if std::env::var("CDDA_SHOW_SPAWN").is_ok() { println!("spawn refused: no position"); }
+        return Applied::CannotAnswer;
+    };
+    let Some(name) = crate::conditions::text_of(world, speaker, listener, monster) else {
+        if std::env::var("CDDA_SHOW_SPAWN").is_ok() { println!("spawn refused: no name"); }
+        return Applied::CannotAnswer;
+    };
+    let Some(kind) = crate::monster_catalog::type_of(world, &name).cloned() else {
+        if std::env::var("CDDA_SHOW_SPAWN").is_ok() { println!("spawn refused: unknown type {name}"); }
+        return Applied::CannotAnswer;
+    };
+    let real = draw_count(world, real_count);
+    let imagined = draw_count(world, hallucination_count);
+    let (Some(real), Some(imagined)) = (real, imagined) else {
+        if std::env::var("CDDA_SHOW_SPAWN").is_ok() { println!("spawn refused: no count"); }
+        return Applied::CannotAnswer;
+    };
+    let mut held = crate::singletons::take_rolls(world);
+    let mut squares = Vec::new();
+    for _ in 0..(real + imagined) {
+        let Some(around) = draw_near_with(world, held.as_mut(), (at.x, at.y, at.z), *min_radius, *max_radius)
+        else {
+            if let Some(dice) = held.take() {
+                crate::singletons::put_rolls(world, dice);
+            }
+            return Applied::CannotAnswer;
+        };
+        squares.push(around);
+    }
+    if let Some(dice) = held.take() {
+        crate::singletons::put_rolls(world, dice);
+    }
+    let real = usize::try_from(real).unwrap_or(0);
+    for (made, square) in squares.into_iter().enumerate() {
+        #[allow(clippy::cast_possible_truncation)]
+        let kind_number = crate::monster_registry::id_of(world, &name);
+        let made_entity = crate::creature::spawn_monster_of_type(
+            world,
+            kind_number.unwrap_or(crate::MonsterKindId(0)),
+            &kind,
+            square,
+            100,
+        );
+        if made >= real {
+            world
+                .entity_mut(made_entity)
+                .insert(crate::monster_spawning::Hallucination);
+        }
+    }
+    Applied::Done
+}
+
+/// Draws how many of something the data asked for.
+fn draw_count(world: &mut World, count: &cdda_content::dialogue::CountRange) -> Option<i32> {
+    match count {
+        cdda_content::dialogue::CountRange::One(one) => Some(*one),
+        cdda_content::dialogue::CountRange::Between(lower, upper) => {
+            let mut dice = crate::singletons::take_rolls(world);
+            let drawn = dice.as_mut().map(|rolls| rolls.rng(*lower, *upper));
+            if let Some(dice) = dice.take() {
+                crate::singletons::put_rolls(world, dice);
+            }
+            drawn
+        }
+    }
+}
+
 /// Draws a square within `max_radius` of `around` and at least `min_radius` away, up to 25 times, as the reference does.
 fn draw_near(world: &mut World, around: (i32, i32, i32), min_radius: i32, max_radius: i32) -> Option<(i32, i32, i32)> {
-    let mut dice = crate::singletons::take_rolls(world);
-    let dice = dice.as_mut()?;
+    let mut held = crate::singletons::take_rolls(world);
+    let drawn = draw_near_with(world, held.as_mut(), around, min_radius, max_radius);
+    if let Some(dice) = held.take() {
+        crate::singletons::put_rolls(world, dice);
+    }
+    drawn
+}
+
+/// The draw itself, with the dice handed in, so a caller making many squares keeps one stream.
+fn draw_near_with(
+    world: &World,
+    dice: Option<&mut cdda_core_types::rng::Rolls>,
+    around: (i32, i32, i32),
+    min_radius: i32,
+    max_radius: i32,
+) -> Option<(i32, i32, i32)> {
+    let dice = dice?;
     for _ in 0..25 {
         let x = around.0 + dice.rng(-max_radius, max_radius);
         let y = around.1 + dice.rng(-max_radius, max_radius);
@@ -927,6 +1028,7 @@ pub fn run_effect(
                 about_listener: *about_listener,
             },
         ),
+        Effect::SpawnMonster { .. } => spawn_monsters(world, speaker, listener, effect),
         Effect::AddVar { .. } => add_var(world, speaker, listener, effect),
         Effect::LoseVar { name, scope } => lose_var(world, speaker, listener, name, scope),
         Effect::LocationVariableSearch { .. } => search_location(world, speaker, effect),

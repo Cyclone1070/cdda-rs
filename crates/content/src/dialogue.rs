@@ -608,6 +608,85 @@ fn read_flag_condition(object: &cdda_json::Object) -> Option<Condition> {
 ///
 /// Reference: `f_remove_var` (`npctalk.cpp:3656`). The scopes are the variable namespaces the port's resolver knows (`u_val`, `npc_val`, `global_val`), not
 /// the member prefixes: the member spells whose variable it is, and the resolver is what turns that into an actor.
+/// How many of something: one number, or a range to draw from.
+///
+/// Reference: `get_dbl_or_var` (`npctalk.cpp`), whose array form `[ a, b ]` is a **range** the game draws between, not a list of two choices.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CountRange {
+    /// The same number every time.
+    One(i32),
+    /// A number drawn between the two ends, both included.
+    Between(i32, i32),
+}
+
+/// Reads the two members that spawn monsters.
+///
+/// Reference: `f_spawn_monster` (`npctalk.cpp:7371-7420`): `min_radius` defaults to **1** and `max_radius` to **10**, both counts default to zero, and the
+/// members the port cannot carry out - `group`, `target_var`, `lifespan`, the spawn messages, `mon_variables`, and the outdoor flags - are refused rather
+/// than ignored.
+fn read_spawn_monster(object: &cdda_json::Object) -> Option<Effect> {
+    for (member, _) in [("u_spawn_monster", false), ("npc_spawn_monster", true)] {
+        let Some(monster) = object.get(member) else {
+            continue;
+        };
+        for refused in [
+            "group",
+            "single_target",
+            "target_range",
+            "lifespan",
+            "target_var",
+            "mon_variables",
+            "spawn_message",
+            "spawn_message_plural",
+            "outdoor_only",
+            "indoor_only",
+            "open_air_allowed",
+            "friendly",
+            "summoner_is_alpha",
+            "summoner_is_beta",
+        ] {
+            if object.get(refused).is_some() {
+                return None;
+            }
+        }
+        let monster = read_string_source(monster)?;
+        let real_count = read_count(object.get("real_count"))?;
+        let hallucination_count = read_count(object.get("hallucination_count"))?;
+        let radius = |key: &str, fallback: i32| match object.get(key) {
+            None => Some(fallback),
+            Some(Value::Int(number)) => i32::try_from(*number).ok(),
+            Some(_) => None,
+        };
+        return Some(Effect::SpawnMonster {
+            monster,
+            real_count,
+            hallucination_count,
+            min_radius: radius("min_radius", 1)?,
+            max_radius: radius("max_radius", 10)?,
+        });
+    }
+    None
+}
+
+/// Reads a count that may be one number, a `[ lower, upper ]` range, or absent.
+fn read_count(value: Option<&Value>) -> Option<CountRange> {
+    match value {
+        None => Some(CountRange::One(0)),
+        Some(Value::Int(number)) => i32::try_from(*number).ok().map(CountRange::One),
+        Some(Value::Array(ends)) => {
+            let [lower, upper] = ends.as_slice() else {
+                return None;
+            };
+            let (Value::Int(lower), Value::Int(upper)) = (lower, upper) else {
+                return None;
+            };
+            let (lower, upper) = (i32::try_from(*lower).ok()?, i32::try_from(*upper).ok()?);
+            Some(CountRange::Between(lower.min(upper), lower.max(upper)))
+        }
+        Some(_) => None,
+    }
+}
+
 /// What `u_add_var` stores: one text, or a list to draw one from.
 #[derive(Debug, Clone, PartialEq)]
 pub enum VarValue {
@@ -615,6 +694,11 @@ pub enum VarValue {
     One(StringSource),
     /// The `possible_values` to draw from.
     Many(Vec<StringSource>),
+}
+
+/// Reads the effects that act on what a creature carries or is: monsters it spawns, and the dialogue variables it holds.
+fn read_carried_effect(object: &cdda_json::Object) -> Option<Effect> {
+    read_spawn_monster(object).or_else(|| read_variable_effect(object))
 }
 
 /// Reads the members that set or forget a dialogue variable, which come as a pair in the reference's own table (`npctalk.cpp:8016-8017`).
@@ -1352,6 +1436,22 @@ pub enum Effect {
         /// Whether the variable gets the clock instead of a value from the data.
         timed: bool,
     },
+    /// Spawn monsters around the actor.
+    ///
+    /// Reference: `f_spawn_monster` (`npctalk.cpp:7371-7420`) for `u_spawn_monster` and `npc_spawn_monster`: a type, how many are real, how many are
+    /// hallucinations, and the ring around the actor they appear in.
+    SpawnMonster {
+        /// The monster type to make.
+        monster: StringSource,
+        /// How many real ones, which the data may give as a single number or as a range to draw from.
+        real_count: CountRange,
+        /// How many hallucinations, drawn the same way.
+        hallucination_count: CountRange,
+        /// How near the actor they may appear.
+        min_radius: i32,
+        /// How far from the actor they may appear.
+        max_radius: i32,
+    },
     /// Store a square found by looking around the actor.
     ///
     /// Reference: `f_location_variable` (`npctalk.cpp`) draws up to 25 squares within `max_radius` and takes the first at least `min_radius` away.
@@ -1541,6 +1641,7 @@ impl Effect {
             Self::RunEocSelector { .. } => "run_eoc_selector",
             Self::LoseVar { .. } => "u_lose_var",
             Self::AddVar { .. } => "u_add_var",
+            Self::SpawnMonster { .. } => "u_spawn_monster",
         }
     }
 }
@@ -1720,7 +1821,7 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
             });
         }
     }
-    if let Some(variable) = read_variable_effect(object) { return Some(variable); }
+    if let Some(carried) = read_carried_effect(object) { return Some(carried); }
     for member in ["u_message", "npc_message"] {
         if let Some(value) = object.get(member) {
             return read_message(value).map(Effect::Message);
@@ -1755,7 +1856,7 @@ fn read_effect_list(value: Option<&Value>) -> Option<Vec<Effect>> {
 /// Reference: `f_message` (`npctalk.cpp:5312-5405`): with `snippet: true` the member is a category of text, the line is picked from it by weight,
 /// and `same_snippet` remembers the pick so the same line repeats.
 fn read_snippet(object: &cdda_json::Object) -> Option<Effect> {
-    if let Some(variable) = read_variable_effect(object) { return Some(variable); }
+    if let Some(carried) = read_carried_effect(object) { return Some(carried); }
     for member in ["u_message", "npc_message"] {
         let Some(value) = object.get(member) else {
             continue;
