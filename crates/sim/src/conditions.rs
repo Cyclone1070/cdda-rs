@@ -451,6 +451,37 @@ fn special_function(
             _ => {}
         }
     }
+    // The creature's own numbers, which the data asks for constantly and the port already keeps on the creature.
+    match (name, arguments) {
+        // Reference: `u_hp` (`math_expressions` in `dialogue_helpers`), which takes a body part the port does not model and answers the whole
+        // creature's remaining hit points.
+        ("u_hp" | "npc_hp", _) => {
+            let creature = match name {
+                "npc_hp" => listener.unwrap_or(speaker),
+                _ => speaker,
+            };
+            let Some(health) = world.get::<crate::creature::Health>(creature) else {
+                return Answer::Value(0.0);
+            };
+            return Answer::Value(f64::from(health.hp));
+        }
+        // Reference: `u_effect_intensity(name)` answers how strong an effect is, and **zero** when it is not worn at all.
+        ("u_effect_intensity" | "npc_effect_intensity", [Expression::Text(effect)]) => {
+            let creature = match name {
+                "npc_effect_intensity" => listener.unwrap_or(speaker),
+                _ => speaker,
+            };
+            let intensity = crate::applied_effects::intensity_of(world, creature, effect).unwrap_or(0);
+            return Answer::Value(f64::from(intensity));
+        }
+        // Reference: `has_var(name)` answers 1 when the dialogue holds that variable at all, and 0 when it holds none - which is how the data
+        // tells "never set" apart from "set to zero".
+        ("has_var", [Expression::Text(variable)]) => {
+            let held = crate::dialogue_values::value_of(world, speaker, variable).is_some();
+            return Answer::Value(if held { 1.0 } else { 0.0 });
+        }
+        _ => {}
+    }
     if name == "time"
         && let [Expression::Text(text)] = arguments
     {

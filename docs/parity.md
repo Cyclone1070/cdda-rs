@@ -5533,3 +5533,34 @@ build; the relaxation, build; the test. Five builds, no reverted files.
 Gated: the data's own shape - `conjunctivitis` with a worked-out duration and `target_part: "eyes"` - reads, runs, and lands with the duration the
 expression worked out; both `target_part` and `bodypart` are readable for two effect families; and the older test that pinned the refusal now pins the
 opposite, with the reason beside it.
+
+## The creature's own numbers in math (round 838)
+
+The data makes 1,894 math calls across 76 distinct functions, and the port knew **14** of them. Three of the missing ones ask for numbers the port already
+keeps on the creature:
+
+| Function | Calls | Rule |
+|---|---|---|
+`u_hp` / `npc_hp` | 39 | remaining hit points (`Health.hp`) |
+`u_effect_intensity` | 61 | an effect's strength, and **zero** when not worn at all |
+`has_var` | 53 | 1 when the dialogue holds that variable, 0 when it holds none |
+
+`u_hp` takes a body part the port does not model, so it answers from the whole creature - the same divergence as `target_part` last round, for the same
+reason. `has_var` is what the data uses to tell "never set" from "set to zero", and the test pins exactly that: an unset name answers 0, an assignment
+to 0 answers 1.
+
+| Count | Before | After |
+|---|---|---|
+conditions the port reads | 2,367 | **2,421** |
+effect entries runnable | 964 | **983** |
+programs readable | 258 | **263** |
+**capability** | 158 | **162** |
+unreadable leaves | 1,075 | **1,050** |
+`math` refusals among effect entries | 98 | **92** |
+
+One gate had to be repaired rather than the code: the member-name audit scanned every `u_`-prefixed string in `dialogue.rs`, so a **math function** - which
+is parsed out of a text expression, not looked up in the data - looked like a misspelt member. It now counts only names the file looks up
+(`.get("u_…")`) or lists as a table pair (`("u_…", false…)`), which is what "member" means. Without that, every math function the port adds would have to
+be allowlisted, and an audit that grows an allowlist per feature stops auditing.
+
+Gated: hit points, an effect's intensity both absent and present, and `has_var` separating unset from zero.

@@ -186,7 +186,7 @@ fn the_port_answers_the_questions_it_can_and_says_how_many_that_is() {
     // before it. That is the whole point of a leaf: a combinator is only as readable as its parts, so one ported leaf is worth
     // several times itself.
     assert_eq!(
-        readable, 2_367,
+        readable, crate::numbers::NOW.conditions_readable,
         "of which the port answers 1,501: `u_has_effect`, `compare_string`, `u_has_items`, the combinators, and the `math` expressions whose every name it knows"
     );
 }
@@ -777,5 +777,63 @@ fn a_creature_asleep_cannot_see_and_one_awake_can() {
     assert!(
         cdda_sim::conditions::holds(&world, survivor, &bare),
         "awake again, so it sees again"
+    );
+}
+
+/// The creature's own numbers, which the data asks for in 1,894 math calls and the port keeps on the creature already.
+///
+/// Reference: the `math_expressions` table (`dialogue_helpers.cpp`): `u_hp` answers remaining hit points, `u_effect_intensity` answers an effect's
+/// strength and **zero** when it is not worn, and `has_var` tells "never set" apart from "set to zero".
+#[test]
+fn the_creatures_own_numbers_answer_in_math() {
+    use cdda_content::dialogue::read_text_expression;
+
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::creature::set_health(&mut world, survivor, 42);
+
+    let hp = read_text_expression("u_hp()").expect("readable");
+    assert_eq!(
+        cdda_sim::conditions::value(&world, survivor, None, &hp),
+        Some(42.0),
+        "the creature's hit points"
+    );
+
+    // Not worn at all is zero, not a refusal.
+    let indifferent = read_text_expression("u_effect_intensity('drunk')").expect("readable");
+    assert_eq!(
+        cdda_sim::conditions::value(&world, survivor, None, &indifferent),
+        Some(0.0)
+    );
+
+    let add = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(br#"{"u_add_effect": "drunk", "duration": 100, "intensity": 3}"#.as_slice())
+            .expect("json"),
+    )
+    .expect("readable");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &add),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    let worn = read_text_expression("u_effect_intensity('drunk')").expect("readable");
+    assert_eq!(
+        cdda_sim::conditions::value(&world, survivor, None, &worn),
+        Some(3.0),
+        "the intensity the effect was given"
+    );
+
+    // `has_var` separates unset from zero, which is the whole reason the data calls it.
+    let unset = read_text_expression("has_var('scouted')").expect("readable");
+    assert_eq!(cdda_sim::conditions::value(&world, survivor, None, &unset), Some(0.0));
+    let assignment = cdda_content::dialogue::read_assignment("u_val('scouted') = 0").expect("readable");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_assignment(&mut world, survivor, None, &assignment),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    let set = read_text_expression("has_var('scouted')").expect("readable");
+    assert_eq!(
+        cdda_sim::conditions::value(&world, survivor, None, &set),
+        Some(1.0),
+        "set to zero is still set"
     );
 }

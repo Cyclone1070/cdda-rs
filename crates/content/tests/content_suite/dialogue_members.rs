@@ -48,10 +48,19 @@ fn port_members() -> BTreeSet<String> {
         let Ok(text) = std::fs::read_to_string(root.join(file)) else {
             continue;
         };
-        for (index, piece) in text.split('"').enumerate() {
-            // Every other piece is inside a string literal.
-            if index % 2 == 1 && looks_like_a_member(piece) {
-                names.insert(piece.to_owned());
+        for line in text.lines() {
+            // A member is a key looked up in the data - `object.get("u_lose_effect")` - or one half of a table's two spellings,
+            // `("u_lose_effect", false, false)`. A **math function** is neither: it is parsed out of a text expression, so counting every
+            // `u_`-prefixed string in the file would make this audit a test about prose.
+            for (at, piece) in line.split('"').enumerate() {
+                if at % 2 == 0 || !looks_like_a_member(piece) {
+                    continue;
+                }
+                let lookup = line.contains(&format!(".get(\"{piece}\")"));
+                let pair = line.contains(&format!("(\"{piece}\","));
+                if lookup || pair {
+                    names.insert(piece.to_owned());
+                }
             }
         }
     }

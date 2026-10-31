@@ -205,6 +205,9 @@ pub fn math_function(name: &str) -> Option<Arity> {
         | "fahrenheit" | "from_celsius" | "from_fahrenheit" | "time"
         // `rand( n )` (`math_parser_func.h:57-60`) is one argument too; it is refused at run time only when the caller has no dice.
         | "rand" => Arity::Exactly(1),
+        // The creature's own numbers: `u_hp` takes a body part the port does not model, so it is read with none or with one and answered from the
+        // whole creature. `u_effect_intensity` and `has_var` take the name they ask about.
+        "u_hp" | "npc_hp" | "u_effect_intensity" | "npc_effect_intensity" | "has_var" => Arity::AtLeast(0),
         "clamp" => Arity::Exactly(3),
         // Reference: `rng( lo, hi )` (`math_parser_func.h:141-163`).
         "rng" => Arity::Exactly(2),
