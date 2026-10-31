@@ -723,25 +723,28 @@ fn the_programs_one_gap_away_say_what_to_port_next() {
     // The ranking's tail still carries two modifier names - `duration` and `bonus` - because a refused entry reports its first key, and a
     // modifier leads the object it sits in. They are listed so the number can be read honestly rather than silently dropped: the effect
     // refusing underneath them is what a round would have to port.
-    assert_eq!(gaps_total, 960, "the data's programs hold 960 unreadable members");
-    assert_eq!(single, 136, "a hundred and thirty-six programs are one gap away");
+    assert_eq!(gaps_total, 988, "the data's programs hold 988 unreadable leaves");
+    assert_eq!(single, 147, "a hundred and forty-seven programs are one leaf away");
     assert_eq!(
         ranked,
         vec![
-            ("mapgen_update".to_owned(), 34),
+            ("<nested>".to_owned(), 36),
+            ("mapgen_update".to_owned(), 32),
             ("condition".to_owned(), 21),
-            ("snippet".to_owned(), 18),
-            ("duration".to_owned(), 16),
-            ("bonus".to_owned(), 14),
-            ("cases".to_owned(), 13),
-            ("math".to_owned(), 11),
-            ("else".to_owned(), 9),
+            ("u_add_effect".to_owned(), 16),
+            ("snippet".to_owned(), 14),
+            ("decay_start".to_owned(), 12),
+            ("math".to_owned(), 9),
+            ("hallucination_count".to_owned(), 7),
         ],
         "the members that would finish the most programs, single gaps first"
     );
 }
 
 /// Every member of a program the port cannot read, named the way the data spells it.
+///
+/// A gap is counted per **leaf**, not per refused entry. An `open_dialogue` whose `true_eocs` cannot be read used to count as one gap and was
+/// really two, which made the "one gap away" column an upper bound on what a round could win - and it was wrong three rounds running.
 fn unreadable_members(definition: &cdda_json::Value) -> Vec<String> {
     let mut gaps = Vec::new();
     if let Some(condition) = member(definition, "condition")
@@ -758,33 +761,107 @@ fn unreadable_members(definition: &cdda_json::Value) -> Vec<String> {
             other => std::slice::from_ref(other),
         };
         for entry in entries {
-            if cdda_content::dialogue::read_effect(entry).is_some() {
-                continue;
-            }
-            gaps.push(first_refusing_key(entry));
+            collect_leaves(entry, &mut gaps);
         }
     }
     gaps
 }
 
-/// The member of a refused effect entry that refuses, following an `if`'s branches to a leaf.
-fn first_refusing_key(entry: &cdda_json::Value) -> String {
-    let cdda_json::Value::Object(object) = entry else {
-        return "<named>".to_owned();
-    };
-    for branch in ["then", "else"] {
-        let Some(cdda_json::Value::Array(entries)) = object.get(branch) else {
-            continue;
-        };
-        if let Some(failing) = entries
-            .iter()
-            .find(|entry| cdda_content::dialogue::read_effect(entry).is_none())
-        {
-            return first_refusing_key(failing);
-        }
-    }
-    object
-        .members()
-        .first()
-        .map_or_else(|| "<named>".to_owned(), |(key, _)| key.clone())
+/// Whether a key describes an effect rather than being one: such a member is never the reason an entry refuses.
+fn is_descriptor(key: &str) -> bool {
+    matches!(
+        key,
+        "duration" | "bonus" | "intensity" | "popup" | "sound" | "same_snippet" | "target_part" | "target_var"
+    )
 }
+
+/// Whether a key names a container rather than a member the port could port.
+///
+/// A container's own name is reported as a residue (`<nested>`) so the table does not promise a rule that does not exist.
+fn is_container_member(key: &str) -> bool {
+    matches!(key, "then" | "else" | "cases" | "true_eocs" | "false_eocs")
+}
+
+/// Adds one gap name for every place inside an effect entry that the port cannot read.
+fn collect_leaves(entry: &cdda_json::Value, gaps: &mut Vec<String>) {
+    if cdda_content::dialogue::read_effect(entry).is_some() {
+        return;
+    }
+    let cdda_json::Value::Object(object) = entry else {
+        gaps.push("<named>".to_owned());
+        return;
+    };
+    if matches!(object.get("snippet"), Some(cdda_json::Value::Bool(true))) {
+        gaps.push("snippet".to_owned());
+        return;
+    }
+    let Some((key, value)) = object
+        .members()
+        .iter()
+        .find(|(key, _)| !is_descriptor(key))
+    else {
+        gaps.push("<named>".to_owned());
+        return;
+    };
+    // The containers an effect can hold: descend and count what refuses inside them.
+    let nested = match key.as_str() {
+        "if" => {
+            let mut found = Vec::new();
+            for branch in ["then", "else"] {
+                if let Some(cdda_json::Value::Array(entries)) = object.get(branch) {
+                    for entry in entries {
+                        collect_leaves(entry, &mut found);
+                    }
+                }
+            }
+            Some(found)
+        }
+        "switch" => {
+            let mut found = Vec::new();
+            if let Some(cdda_json::Value::Array(cases)) = object.get("cases") {
+                for case in cases {
+                    let cdda_json::Value::Object(case) = case else {
+                        continue;
+                    };
+                    let effects = match case.get("effect") {
+                        Some(cdda_json::Value::Array(items)) => items.as_slice(),
+                        Some(other) => std::slice::from_ref(other),
+                        None => &[],
+                    };
+                    for entry in effects {
+                        collect_leaves(entry, &mut found);
+                    }
+                }
+            }
+            Some(found)
+        }
+        "weighted_list_eocs" => {
+            let mut found = Vec::new();
+            if let Some(cdda_json::Value::Array(entries)) = object.get(key) {
+                for entry in entries {
+                    let cdda_json::Value::Array(pair) = entry else {
+                        continue;
+                    };
+                    if let Some(first) = pair.first() {
+                        collect_leaves(first, &mut found);
+                    }
+                }
+            }
+            Some(found)
+        }
+        _ => None,
+    };
+    if let Some(found) = nested
+        && !found.is_empty()
+    {
+        gaps.extend(found);
+        return;
+    }
+    let _ = value;
+    if is_container_member(key) {
+        gaps.push("<nested>".to_owned());
+    } else {
+        gaps.push(key.clone());
+    }
+}
+
