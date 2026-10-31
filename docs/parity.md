@@ -5354,3 +5354,25 @@ refusal list entirely.
 
 Gated: an update with no rows and only `place_fields` places six smoke patches inside the 4×4 rectangle the data names, every strength within the range
 the data states, and the field registry resolves the name the data uses.
+
+## Aiming a mapgen update at a stored square (round 830)
+
+`f_mapgen_update`'s most common aiming form is `target_var` - a variable holding a square the dialogue already knows, which the update lands on.
+55 effect entries use it alone and 17 more beside an `om_terrain`; only `om_terrain` (95 entries) is more common, and that one needs an overmap walk
+the port has not built.
+
+The port reads `target_var` as `{"u_val": …}`, `{"npc_val": …}` or `{"global_val": …}`, resolves it to a square, and applies the update there. A
+variable that was never set **refuses** rather than falling back to the speaker's square - falling back is how an update lands on the wrong wall.
+
+| Count | Before | After |
+|---|---|---|
+effect entries runnable | 884 | **927** |
+programs readable | 231 | **239** |
+programs runnable whole | 231 | **239** |
+**capability** (readable that run) | 130 | **132** |
+unreadable leaves | 1,170 | **1,127** |
+`mapgen_update` as a single leaf | 25 | **23** |
+`mapgen_update` among effect refusals | 99 | **56** |
+
+Gated with a **discriminating** case: the square is stored, the speaker then walks five squares away, and the update must land on the stored square and
+*not* on the one under its feet. A test that left the two together would pass on a fallback that never read the variable.

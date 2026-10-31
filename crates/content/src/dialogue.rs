@@ -1177,6 +1177,8 @@ pub enum Effect {
     MapgenUpdate {
         /// The update mapgen's id.
         update: StringSource,
+        /// The square to apply it at, when the data names one; the speaker's own square otherwise.
+        target: Option<AssignmentTarget>,
     },
     /// Give a creature a morale point.
     ///
@@ -1483,19 +1485,42 @@ fn read_snippet(object: &cdda_json::Object) -> Option<Effect> {
 /// somewhere else, and the port refuses those rather than applying the update in the wrong place.
 fn read_mapgen_update(object: &cdda_json::Object) -> Option<Effect> {
     let update = object.get("mapgen_update")?;
-    for aiming in [
-        "om_terrain",
-        "target_var",
-        "target_params",
-        "mapgen_update_variables",
-    ] {
+    // A `target_var` names a square the dialogue already holds; the other aiming forms need an overmap walk the port has not built.
+    for aiming in ["om_terrain", "target_params", "mapgen_update_variables"] {
         if object.get(aiming).is_some() {
             return None;
         }
     }
+    let target = match object.get("target_var") {
+        Some(value) => Some(read_variable_target(value)?),
+        None => None,
+    };
     Some(Effect::MapgenUpdate {
         update: read_string_source(update)?,
+        target,
     })
+}
+
+
+/// Reads a `target_var`, which names a variable holding a square.
+///
+/// Reference: `read_var_value` (`npctalk.cpp`): the shape is `{"global_val": "here"}`, `{"u_val": …}` or `{"npc_val": …}`, which the port reads
+/// the same way `math` names its destination.
+fn read_variable_target(value: &Value) -> Option<AssignmentTarget> {
+    let Value::Object(object) = value else {
+        return None;
+    };
+    let (scope, target) = object.members().first()?;
+    let Value::Str(name) = target else {
+        return None;
+    };
+    match scope.as_str() {
+        "u_val" | "npc_val" | "global_val" | "n_val" => Some(AssignmentTarget::Variable {
+            scope: scope.clone(),
+            name: name.clone(),
+        }),
+        _ => None,
+    }
 }
 
 /// Reads a sound: a message or a snippet, a volume, and a kind.

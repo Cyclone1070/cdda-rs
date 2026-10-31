@@ -225,16 +225,20 @@ fn say_snippet(
 ///
 /// Reference: `f_mapgen_update` (`npctalk.cpp`): with no target named, the update is applied at the speaker's own overmap tile.
 fn run_mapgen_update(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::MapgenUpdate { update } = effect else {
+    let Effect::MapgenUpdate { update, target } = effect else {
         return Applied::CannotAnswer;
     };
     let Some(name) = crate::conditions::text_of(world, speaker, listener, update) else {
         return Applied::CannotAnswer;
     };
-    let Some(position) = world.get::<crate::Position>(speaker).copied() else {
+    // A `target_var` names a square the dialogue already holds; without one the update lands where the speaker stands.
+    let placed = match target {
+        Some(target) => crate::dialogue_values::position_of(world, speaker, listener, target),
+        None => world.get::<crate::Position>(speaker).copied().map(|at| (at.x, at.y, at.z)),
+    };
+    let Some(place) = placed else {
         return Applied::CannotAnswer;
     };
-    let place = (position.x, position.y, position.z);
     let Some(_) = crate::mapgen_update::apply(world, &name, place) else {
         return Applied::CannotAnswer;
     };

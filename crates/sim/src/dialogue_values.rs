@@ -55,7 +55,30 @@ pub fn all(world: &World, holder: Entity) -> BTreeMap<String, Value> {
         .map_or_else(BTreeMap::new, |values| values.values.clone())
 }
 
-/// The value a name holds, or nothing when it holds none.
+/// The square a variable holds, in the scope a target names.
+///
+/// Reference: `read_var_value` (`npctalk.cpp`) answering a `tripoint`, which is what a `target_var` is.
+#[must_use]
+pub fn position_of(
+    world: &mut bevy_ecs::prelude::World,
+    speaker: bevy_ecs::prelude::Entity,
+    listener: Option<bevy_ecs::prelude::Entity>,
+    target: &cdda_content::dialogue::AssignmentTarget,
+) -> Option<(i32, i32, i32)> {
+    let (holder, name) = match target {
+        cdda_content::dialogue::AssignmentTarget::Variable { scope, name } => (
+            crate::conditions::holder_for_scope(world, speaker, listener, scope)?,
+            name,
+        ),
+        cdda_content::dialogue::AssignmentTarget::Bare(name) => (speaker, name),
+    };
+    match value_of(world, holder, name) {
+        Some(Value::Position { x, y, z }) => Some((x, y, z)),
+        _ => None,
+    }
+}
+
+/// A variable's value, or nothing when the holder does not know it.
 #[must_use]
 pub fn value_of(world: &World, holder: Entity, name: &str) -> Option<Value> {
     world
