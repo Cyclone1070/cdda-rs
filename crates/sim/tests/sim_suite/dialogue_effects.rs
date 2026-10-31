@@ -2146,6 +2146,21 @@ fn a_summon_goes_when_its_lifespan_runs_out() {
         Applied::Done
     );
     assert_eq!(cdda_sim::monster_spawning::expire_summonings(&mut world, 999_999), 0);
+
+    // A lifespan given as a range is drawn between its ends, both included - the data writes `[ "5 seconds", "10 seconds" ]`.
+    let ranged = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(
+            br#"{"u_spawn_monster": "mon_test", "real_count": 1, "lifespan": ["5 seconds", "10 seconds"]}"#.as_slice(),
+        )
+        .expect("json"),
+    )
+    .expect("a ranged lifespan is readable");
+    for seed in 0..16 {
+        cdda_sim::calendar::set_turn(&mut world, 0);
+        cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(seed));
+        let drawn = cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &ranged);
+        assert_eq!(drawn, Applied::Done, "the draw must land inside the range, seed {seed}");
+    }
 }
 
 /// A spawn can be asked for under the sky or under a roof, and it says a line when it happens.

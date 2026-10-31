@@ -6068,3 +6068,23 @@ count is the signal to go and look at how the data spells it.
 
 Gated: an open square is outside; a creature below ground never is; a square whose terrain carries the indoors flag is not; and the listener's spelling asks
 about the listener's level.
+
+## A lifespan given as a range (round 858)
+
+Last round's lesson applied first: before writing anything, read how the data spells the member. `hallucination_count` sat at 11 one-gap programs with every
+other member of those entries already ported, so the spelling had to be the problem - and it was. `"lifespan": [ "5 seconds", "10 seconds" ]` in `spells.json`
+is a **range the game draws between**, not a list of choices: `get_duration_or_var` reads an array as two ends, exactly like `real_count`.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 331 | **334** |
+**capability** | 202 | **205** |
+unreadable leaves | 834 | **821** |
+one-gap programs | 161 | **155** |
+
+The draw itself is one call to the same dice stream the spawn uses, and a fixed lifespan is the range `[n, n]` rather than a second code path - the reference
+draws nothing when the two ends are equal, and the port returns the number without taking the dice, which is why a fixed lifespan does not shift the stream.
+
+Gated: sixteen seeds each spawn a summon whose range is accepted, the fixed form still expires at exactly its turn, and a summon with no lifespan outlives any
+clock. The reordering cost me one red run: the "no lifespan stays" assertion ran after sixteen ranged spawns had been made, so sixteen were due and it read 16
+instead of 0. **A test that counts what is in a world counts everything the test put there**, not just the last thing.

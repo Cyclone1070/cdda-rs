@@ -679,14 +679,11 @@ fn read_spawn_monster(object: &cdda_json::Object) -> Option<Effect> {
             Some(_) => None,
         };
         // Reference: `get_duration_or_var( jo, "lifespan", false, 0_seconds )` - a duration string, and zero means "no summon time".
+        // Reference: `get_duration_or_var( jo, "lifespan", false, 0_seconds )`. A string or a number is one duration; an array is the two ends of a range the
+        // game draws between (`"lifespan": [ "5 seconds", "10 seconds" ]` in `spells.json`), not a list of choices.
         let lifespan = match object.get("lifespan") {
             None => None,
-            Some(Value::Str(text)) => {
-                let turns = crate::constructions::parse_duration(text);
-                (turns > 0).then_some(turns)
-            }
-            Some(Value::Int(turns)) => turns.checked_abs().filter(|turns| *turns > 0),
-            Some(_) => return None,
+            Some(value) => Some(read_duration_range(value)?),
         };
         let flag = |key: &str| matches!(object.get(key), Some(Value::Bool(true)));
         let (outdoor_only, indoor_only) = (flag("outdoor_only"), flag("indoor_only"));
@@ -712,6 +709,28 @@ fn read_spawn_monster(object: &cdda_json::Object) -> Option<Effect> {
         });
     }
     None
+}
+
+/// Reads one duration, or the two ends of a range to draw between, in turns.
+fn read_duration_range(value: &Value) -> Option<(i64, i64)> {
+    let one = |value: &Value| match value {
+        Value::Str(text) => Some(crate::constructions::parse_duration(text)),
+        Value::Int(turns) => turns.checked_abs(),
+        _ => None,
+    };
+    match value {
+        Value::Array(ends) => {
+            let [lower, upper] = ends.as_slice() else {
+                return None;
+            };
+            let (lower, upper) = (one(lower)?, one(upper)?);
+            Some((lower.min(upper), lower.max(upper)))
+        }
+        other => {
+            let turns = one(other)?;
+            (turns > 0).then_some((turns, turns))
+        }
+    }
 }
 
 /// Reads a count that may be one number, a `[ lower, upper ]` range, or absent.
@@ -1497,8 +1516,8 @@ pub enum Effect {
         min_radius: i32,
         /// How far from the actor they may appear.
         max_radius: i32,
-        /// How long a summon lasts, in turns, when the data says - zero or absent means it stays.
-        lifespan: Option<i64>,
+        /// How long a summon lasts, in turns: one number, or the two ends of a range to draw between. Absent or zero means it stays.
+        lifespan: Option<(i64, i64)>,
         /// Whether the spawn must be under the sky, or must not be.
         outdoor_only: bool,
         /// Whether the spawn must be under a roof, or must not be.

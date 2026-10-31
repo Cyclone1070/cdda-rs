@@ -430,7 +430,8 @@ fn spawn_monsters(world: &mut World, speaker: Entity, listener: Option<Entity>, 
                 .insert(crate::monster_spawning::Hallucination);
         }
         // Reference: `spawned->set_summon_time( lifespan )` when the data gives one, and both real and imagined spawns take it.
-        if let Some(turns) = lifespan
+        if let Some((lower, upper)) = lifespan
+            && let Some(turns) = draw_between(world, *lower, *upper)
             && let Some(calendar) = crate::calendar::of(world)
         {
             let until = calendar.turn + turns;
@@ -438,6 +439,22 @@ fn spawn_monsters(world: &mut World, speaker: Entity, listener: Option<Entity>, 
         }
     }
     Applied::Done
+}
+
+/// Draws a number between two ends, both included.
+fn draw_between(world: &mut World, lower: i64, upper: i64) -> Option<i64> {
+    if lower == upper {
+        return Some(lower);
+    }
+    let (Ok(lower), Ok(upper)) = (i32::try_from(lower), i32::try_from(upper)) else {
+        return None;
+    };
+    let mut held = crate::singletons::take_rolls(world);
+    let drawn = held.as_mut().map(|rolls| rolls.rng(lower, upper));
+    if let Some(dice) = held.take() {
+        crate::singletons::put_rolls(world, dice);
+    }
+    drawn.map(i64::from)
 }
 
 /// Draws how many of something the data asked for.
