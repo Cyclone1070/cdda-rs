@@ -221,6 +221,46 @@ fn say_snippet(
 }
 
 
+/// Offers a menu of programs and runs the one that was picked.
+///
+/// Reference: `f_run_eoc_selector` (`npctalk.cpp:6385`): the player picks one of the programs, or walks away when `allow_cancel` says they may. The
+/// port takes the answer from the queued [`crate::choices`] rather than drawing a menu - and **refuses** when nothing was queued, because a question the
+/// game could not ask is not a player pressing escape.
+fn run_selector(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::RunEocSelector {
+        options,
+        allow_cancel,
+        ..
+    } = effect
+    else {
+        return Applied::CannotAnswer;
+    };
+    let Some(answer) = crate::choices::take(world) else {
+        return Applied::CannotAnswer;
+    };
+    if answer == crate::choices::CANCELLED {
+        return if *allow_cancel {
+            Applied::Done
+        } else {
+            Applied::CannotAnswer
+        };
+    }
+    let Ok(at) = usize::try_from(answer) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(choice) = options.get(at) else {
+        return Applied::CannotAnswer;
+    };
+    match choice {
+        cdda_content::dialogue::ProgramRef::Named { id, .. } => {
+            crate::eoc_registry::run_program(world, speaker, listener, id, 0)
+        }
+        cdda_content::dialogue::ProgramRef::Inline { program, .. } => {
+            run_effects(world, speaker, listener, &program.effects)
+        }
+    }
+}
+
 /// Takes several effects away, which the data writes as an array of names.
 ///
 /// Reference: `f_remove_effect` (`npctalk.cpp:8015`) with an array: each one is removed in turn, and one the creature does not have is not a failure.
@@ -636,6 +676,7 @@ pub fn run_effect(
                 about_listener: *about_listener,
             },
         ),
+        Effect::RunEocSelector { .. } => run_selector(world, speaker, listener, effect),
         Effect::RemoveEffects { .. } => run_remove_effects(world, speaker, listener, effect),
         Effect::MapgenUpdate { .. } => run_mapgen_update(world, speaker, listener, effect),
         Effect::MakeSound { .. } => make_sound_effect(world, speaker, listener, effect),

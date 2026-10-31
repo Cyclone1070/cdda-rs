@@ -1482,3 +1482,79 @@ fn a_math_duration_is_worked_out_and_a_body_part_is_ignored() {
         );
     }
 }
+
+/// A menu of programs runs the one that was picked, and refuses when nobody answered.
+///
+/// Reference: `f_run_eoc_selector` (`npctalk.cpp:6385`): the player picks one of the programs, or walks away when `allow_cancel` says they may. The port
+/// takes the answer from a queue rather than drawing a menu - and a **missing** answer refuses, because that is a question the game could not ask, not a
+/// player pressing escape.
+#[test]
+fn a_menu_of_programs_runs_the_one_that_was_picked() {
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let first = cdda_content::dialogue::read_program(
+        &cdda_json::parse(
+            br#"{"id": "MENU_FIRST", "effect": [{"math": ["u_val('picked') = 1"]}]}"#.as_slice(),
+        )
+        .expect("json"),
+    )
+    .expect("readable");
+    let second = cdda_content::dialogue::read_program(
+        &cdda_json::parse(
+            br#"{"id": "MENU_SECOND", "effect": [{"math": ["u_val('picked') = 2"]}]}"#.as_slice(),
+        )
+        .expect("json"),
+    )
+    .expect("readable");
+    cdda_sim::eoc_registry::set_programs(&mut world, &[first, second]);
+
+    let menu = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(
+            br#"{"run_eoc_selector": ["MENU_FIRST", "MENU_SECOND"], "names": ["first", "second"], "allow_cancel": true}"#
+                .as_slice(),
+        )
+        .expect("json"),
+    )
+    .expect("readable");
+
+    // Nobody answered: the game refuses rather than picking for the player.
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &menu),
+        Applied::CannotAnswer
+    );
+
+    // The second entry was picked, so the second program ran and the first did not.
+    cdda_sim::choices::set_choices(&mut world, [1]);
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &menu),
+        Applied::Done
+    );
+    assert_eq!(cdda_sim::choices::queued(&world), 0, "the answer was taken");
+    let picked = cdda_content::dialogue::read_text_expression("u_val('picked')").expect("readable");
+    assert_eq!(
+        cdda_sim::conditions::value(&world, survivor, None, &picked),
+        Some(2.0),
+        "the second program ran"
+    );
+
+    // Walking away is an answer when the data allows it, and not one when it does not.
+    cdda_sim::choices::set_choices(&mut world, [cdda_sim::choices::CANCELLED]);
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &menu),
+        Applied::Done,
+        "allow_cancel says walking away is allowed"
+    );
+    let no_escape = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(
+            br#"{"run_eoc_selector": ["MENU_FIRST"], "allow_cancel": false}"#.as_slice(),
+        )
+        .expect("json"),
+    )
+    .expect("readable");
+    cdda_sim::choices::set_choices(&mut world, [cdda_sim::choices::CANCELLED]);
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &no_escape),
+        Applied::CannotAnswer,
+        "and refusing cancel is refusing cancel"
+    );
+}

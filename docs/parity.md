@@ -5611,3 +5611,34 @@ and a limb score, and the port has neither - so the divergence recorded last rou
 
 Gated: a creature carrying no flags answers no; giving it one changes the answer; the listener's spelling asks about the other creature; taking the flag
 away puts the answer back.
+
+## `run_eoc_selector`, and a queue where a menu would be (round 841)
+
+`f_run_eoc_selector` (`npctalk.cpp:6385`) offers a list of programs, labels them with `names`/`descriptions`, and runs the one the player picks.
+`allow_cancel` says whether walking away is allowed.
+
+**The port cannot draw a menu, and must not quietly pick the first option.** So the answer is a queue: `cdda_sim::choices`, one entity holding the answers
+the game will be given, oldest first. A scripted playtest pushes what it would have typed; the UI pushes what the player clicked; both reach the game the
+same way. That is why it is a store rather than a parameter threaded through the runner - and it is the shape the headless QA surface needed anyway.
+
+Three answers, three meanings, and the differences are the whole feature:
+
+| Answer | Meaning |
+|---|---|
+a number | that entry's program runs |
+`CANCELLED` (-1) | walking away - **allowed** only when `allow_cancel` says so |
+nothing queued | the game could not ask, so it **refuses** - a missing step in a script is not a player pressing escape |
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 264 | **272** |
+effect entries runnable | 983 | **992** |
+unreadable leaves | 1,048 | **1,039** |
+one-gap programs | 186 | **178** |
+**capability** | 163 | **163** |
+
+Capability did not move, and the reason is honest: the eight programs that became readable now refuse at run time on `run_eoc_selector` itself, because the
+census world queues no answers. A fresh world with no player has nobody to ask - the refusal is correct, and it is named rather than silent.
+
+Gated: no answer refuses; a picked entry runs **that** program and not the other; `allow_cancel` permits walking away, and refusing cancel is refusing
+cancel.

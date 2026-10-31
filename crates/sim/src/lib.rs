@@ -38,6 +38,7 @@ pub mod singletons;
 pub mod square;
 pub mod conditions;
 pub mod crafting;
+pub mod choices;
 pub mod creature;
 pub mod creature_flags;
 pub mod hit_location;

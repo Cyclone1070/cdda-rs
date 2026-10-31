@@ -1159,6 +1159,19 @@ pub enum Effect {
         /// Whether it comes from the listener rather than the speaker.
         listener: bool,
     },
+    /// Offer a menu of programs and run the one the player picks.
+    ///
+    /// Reference: `f_run_eoc_selector` (`npctalk.cpp:6385`): the member is a list of programs, `names` and `descriptions` label them, and
+    /// `allow_cancel` says whether walking away is an option. The port asks a **queued choice** rather than drawing a menu, because the port is
+    /// headless: a scripted playtest or the UI both answer the same queue.
+    RunEocSelector {
+        /// The programs on the menu.
+        options: Vec<ProgramRef>,
+        /// What each one is called, in the same order.
+        names: Vec<StringSource>,
+        /// Whether the player may walk away without choosing.
+        allow_cancel: bool,
+    },
     /// Take several effects away from a creature, which the data writes as an array.
     RemoveEffects {
         /// The effects' ids.
@@ -1317,6 +1330,7 @@ impl Effect {
             Self::AddMorale { .. } => "u_add_morale",
             Self::MakeSound { .. } => "u_make_sound",
             Self::MapgenUpdate { .. } => "mapgen_update",
+            Self::RunEocSelector { .. } => "run_eoc_selector",
         }
     }
 }
@@ -1441,6 +1455,7 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
     if let Some(dialogue) = read_open_dialogue(object) {
         return Some(dialogue);
     }
+    if let Some(selector) = read_eoc_selector(object) {         return Some(selector); }
     if let Some(weighted) = read_weighted_list(object) {
         return Some(weighted);
     }
@@ -1712,6 +1727,43 @@ fn read_program_refs(value: Option<&Value>) -> Option<Vec<ProgramRef>> {
 /// Reads a `weighted_list_eocs`, whose entries are `[ program, weight ]` pairs.
 ///
 /// Reference: `f_weighted_list_eocs` (`npctalk.cpp:6950-6975`), where the program may be a name or an inline effect-on-condition.
+/// Reads a menu of programs: the reference's `run_eoc_selector`.
+///
+/// Reference: `f_run_eoc_selector` (`npctalk.cpp:6385-6440`): `names`, `descriptions` and `keys` must each be as long as the program list or absent, and
+/// the port refuses a mismatched menu rather than showing labels for the wrong entries.
+fn read_eoc_selector(object: &cdda_json::Object) -> Option<Effect> {
+    let options = read_program_refs(object.get("run_eoc_selector"))?;
+    if options.is_empty() {
+        return None;
+    }
+    let names = match object.get("names") {
+        None => Vec::new(),
+        Some(Value::Array(entries)) => {
+            if entries.len() != options.len() {
+                return None;
+            }
+            entries
+                .iter()
+                .map(read_string_source)
+                .collect::<Option<Vec<_>>>()?
+        }
+        Some(_) => return None,
+    };
+    // `descriptions` and `keys` are labels the headless port does not show; their presence is checked for length and otherwise ignored.
+    for labelled in ["descriptions", "keys"] {
+        if let Some(Value::Array(entries)) = object.get(labelled)
+            && entries.len() != options.len()
+        {
+            return None;
+        }
+    }
+    Some(Effect::RunEocSelector {
+        options,
+        names,
+        allow_cancel: matches!(object.get("allow_cancel"), Some(Value::Bool(true))),
+    })
+}
+
 fn read_weighted_list(object: &cdda_json::Object) -> Option<Effect> {
     let Some(Value::Array(entries)) = object.get("weighted_list_eocs") else {
         return None;
