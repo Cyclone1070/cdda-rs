@@ -82,14 +82,7 @@ pub fn run_program(
         match effect {
             cdda_content::dialogue::Effect::RunEoc(programs) => {
                 for program in programs {
-                    let started = match program {
-                        cdda_content::dialogue::ProgramRef::Named(name) => {
-                            run_program(world, speaker, listener, name, depth + 1)
-                        }
-                        cdda_content::dialogue::ProgramRef::Inline(inline) => {
-                            run_inline(world, speaker, listener, inline, depth + 1)
-                        }
-                    };
+                    let started = run_ref(world, speaker, listener, program, depth + 1);
                     if started == Applied::CannotAnswer {
                         return Applied::CannotAnswer;
                     }
@@ -130,14 +123,7 @@ pub fn run_inline(
         match effect {
             cdda_content::dialogue::Effect::RunEoc(programs) => {
                 for named in programs {
-                    let started = match named {
-                        cdda_content::dialogue::ProgramRef::Named(name) => {
-                            run_program(world, speaker, listener, name, depth + 1)
-                        }
-                        cdda_content::dialogue::ProgramRef::Inline(inline) => {
-                            run_inline(world, speaker, listener, inline, depth + 1)
-                        }
-                    };
+                    let started = run_ref(world, speaker, listener, named, depth + 1);
                     if started == Applied::CannotAnswer {
                         return Applied::CannotAnswer;
                     }
@@ -153,4 +139,44 @@ pub fn run_inline(
         }
     }
     Applied::Done
+}
+
+/// Runs one `run_eocs` entry, with the context values the call hands it.
+///
+/// Reference: `f_run_eocs` (`npctalk.cpp:6332-6338`) evaluates each `variables` member into the invocation's context, runs the program,
+/// and lets the context go - so a program called with values sees them, and its caller's own values come back afterwards.
+pub fn run_ref(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    reference: &cdda_content::dialogue::ProgramRef,
+    depth: usize,
+) -> Applied {
+    let (variables, id) = match reference {
+        cdda_content::dialogue::ProgramRef::Named { id, variables } => (variables, Some(id.clone())),
+        cdda_content::dialogue::ProgramRef::Inline { variables, .. } => (variables, None),
+    };
+    let handed: std::collections::BTreeMap<String, String> = variables
+        .iter()
+        .filter_map(|(name, source)| {
+            let value = crate::conditions::text_of(world, speaker, listener, source)?;
+            Some((name.clone(), value))
+        })
+        .collect();
+    let previous = if handed.is_empty() {
+        None
+    } else {
+        Some(crate::dialogue_context::put(world, speaker, handed))
+    };
+    let started = match (reference, id) {
+        (cdda_content::dialogue::ProgramRef::Inline { program, .. }, _) => {
+            run_inline(world, speaker, listener, program, depth)
+        }
+        (_, Some(id)) => run_program(world, speaker, listener, &id, depth),
+        _ => Applied::CannotAnswer,
+    };
+    if let Some(previous) = previous {
+        crate::dialogue_context::restore(world, speaker, previous);
+    }
+    started
 }

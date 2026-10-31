@@ -224,7 +224,7 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
     // compute. Nine entries, and two programs.
     // 757 after `rng`/`rand`: the first math functions that **change the store** while answering, so the dice are taken out for the
     // length of the evaluation and put back.
-    assert_eq!(runnable, 757, "of which the port runs 757 entries");
+    assert_eq!(runnable, 767, "of which the port runs 767 entries");
 
     // And the ranking of what refuses, which is this census's real output: it says what to port next instead of what is used most.
     // `target_var` is the one entry the ranking cannot attribute on its own - a scan of the data shows 71 of those 98 are

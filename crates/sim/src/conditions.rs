@@ -32,6 +32,22 @@ pub fn holds_with(
 }
 
 
+/// Whether every name a program states is set in the call's context.
+///
+/// Reference: `f_expects_vars` (`condition.cpp:1111-1131`), which answers false when any named value is missing - it is how a program
+/// declares what its caller must hand it.
+fn expects_vars(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    names: &[cdda_content::dialogue::StringSource],
+) -> bool {
+    names.iter().all(|name| {
+        text_of(world, speaker, listener, name)
+            .is_some_and(|name| crate::dialogue_context::knows(world, speaker, &name))
+    })
+}
+
 /// Whether the date is in a named season.
 ///
 /// Reference: `f_is_season` (`condition.cpp:1250-1260`), which compares `season_of_year( calendar::turn )` against the string the data
@@ -217,6 +233,7 @@ fn holds_within(
         Condition::OneInChance(_) | Condition::XInYChance { .. } => {
             rolls_against(world, speaker, listener, condition, draws)
         }
+        Condition::ExpectsVars { names } => expects_vars(world, speaker, listener, names),
         Condition::IsSeason { season } => {
             is_season(world, speaker, listener, season)
         }
@@ -409,6 +426,12 @@ pub fn value_drawing(
     match expression {
         Expression::Number(number) => Some(*number),
         Expression::Variable { scope, name } => {
+            // Reference: `context_val( '…' )` reads the invocation's context (`dialogue.h`), which a `run_eocs` call fills from its
+            // `variables` - so it is not a per-holder scope and has no holder to look up.
+            if scope == "context_val" {
+                let held = crate::dialogue_context::values(world, speaker).remove(name)?;
+                return held.parse::<f64>().ok().or(if unset_is_zero { Some(0.0) } else { None });
+            }
             let holder = holder_of(world, speaker, listener, scope)?;
             match crate::dialogue_values::number_of(world, holder, name) {
                 Some(number) => Some(number),
@@ -502,7 +525,7 @@ fn holder_of(
 }
 
 /// The text a string source names, or nothing when the store cannot answer for it.
-fn text_of(
+pub fn text_of(
     world: &World,
     speaker: Entity,
     listener: Option<Entity>,

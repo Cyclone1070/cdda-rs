@@ -249,25 +249,26 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
     // `math` guards (42 -> 45). A refusal that moves house is not the same as a program that starts running, and only one of the
     // thirty-six turned out to be otherwise complete.
     assert_eq!(
-        whole, 177,
-        "a hundred and seventy-seven run whole: inline `run_eocs` added fifty-nine, `u_has_item` nine, `is_season` four"
+        whole, 179,
+        "a hundred and seventy-nine run whole: inline `run_eocs` added fifty-nine, `u_has_item` nine, `is_season` four"
     );
-    assert_eq!(refused.get("effect"), Some(&347), "and the effect side is still the bigger refusal");
+    assert_eq!(refused.get("effect"), Some(&355), "and the effect side is still the bigger refusal");
     assert_eq!(refused.get("u_has_trait"), None, "traits are no longer blamed for anything");
     assert_eq!(refused.get("math"), Some(&46), "`math` guards are the biggest single one");
     assert_eq!(refused.get("u_has_item"), None, "carrying an item is no longer blamed for anything");
     // The chance guards now roll, so what is left of them is one program apiece - and the eight programs they freed are blamed on
     // what refused them next, which is the "moves house" pattern for the fifth time.
-    assert_eq!(refused.get("one_in_chance"), Some(&1), "the dice no longer block the chance guards");
+    assert_eq!(refused.get("one_in_chance"), Some(&2), "the dice no longer block the chance guards");
     assert_eq!(refused.get("test_eoc"), None, "and `test_eoc` no longer blocks anything");
     assert_eq!(refused.get("is_season"), None, "the season is answered now that the world has a clock");
+    assert_eq!(refused.get("expects_vars"), None, "and context values are handed over now");
     assert_eq!(refused.get("x_in_y_chance"), Some(&1), "both of them, down to one each");
     assert_eq!(refused.get("u_at_om_location"), Some(&28), "with overmap location next");
     // 692, not the 712 effect-on-condition objects in the data: twenty carry no `id`, so nothing can name them and the port does
     // not install them. The count of definitions was itself worth learning - the 712 in the earlier census counted objects, the
     // machine composes by name.
     assert_eq!(defined, 692, "the data defines 692 nameable effect-on-conditions");
-    assert_eq!(whole, 177, "and the port can run 177 of them whole");
+    assert_eq!(whole, 179, "and the port can run 179 of them whole");
 }
 
 /// A `run_eocs` entry can be a program written where it is used.
@@ -305,11 +306,61 @@ fn a_program_can_run_another_written_where_it_is_used() {
     eoc_registry::run_program(&mut world, survivor, None, "EOC_GUARDED_CALL", 0);
     assert!(messages::lines(&world).is_empty(), "the guard held it back");
 
-    // An entry carrying `variables` is refused: those values reach the program through a scope the port has not ported, and reading it
-    // while dropping them would run a different program.
+    // An entry carrying `variables` is read now that the port has a context scope: the values reach the program as its context, and
+    // go when the call returns (see `a_call_hands_the_program_its_values_and_takes_them_back`).
     let value = cdda_json::parse(
         br#"{"run_eocs": [{"id": "EOC_X", "variables": {"who": "u"}}]}"#.as_slice(),
     )
     .expect("json");
-    assert!(cdda_content::dialogue::read_effect(&value).is_none());
+    assert!(cdda_content::dialogue::read_effect(&value).is_some());
+}
+
+/// A call can hand a program context values, and the program can read them.
+///
+/// Reference: `f_run_eocs` (`npctalk.cpp:6332-6338`) evaluates each `variables` member into the invocation's context and lets it go when
+/// the call returns; `context_val( '…' )` reads it and `expects_vars` (`condition.cpp:1111-1131`) asks whether it is there.
+#[test]
+fn a_call_hands_the_program_its_values_and_takes_them_back() {
+    let (mut world, survivor) = world_with(
+        r#"[
+            {"type": "effect_on_condition", "id": "EOC_WORKER",
+             "condition": {"expects_vars": ["who"]},
+             "effect": [{"math": ["seen = context_val('who')"]}]},
+            {"type": "effect_on_condition", "id": "EOC_CALLER",
+             "effect": [{"run_eocs": [{"id": "EOC_WORKER", "variables": {"who": "7"}}]}]}
+        ]"#,
+    );
+    assert_eq!(
+        eoc_registry::run_program(&mut world, survivor, None, "EOC_CALLER", 0),
+        Applied::Done
+    );
+    assert_eq!(
+        dialogue_values::number_of(&world, survivor, "seen"),
+        Some(7.0),
+        "the program read the value the call handed it"
+    );
+    assert!(
+        cdda_sim::dialogue_context::values(&world, survivor).is_empty(),
+        "and the context was gone when the call returned"
+    );
+
+    // Called with nothing, the same program's `expects_vars` holds it back.
+    let (mut world, survivor) = world_with(
+        r#"[
+            {"type": "effect_on_condition", "id": "EOC_WORKER",
+             "condition": {"expects_vars": ["who"]},
+             "effect": [{"math": ["seen = context_val('who')"]}]},
+            {"type": "effect_on_condition", "id": "EOC_RUDE",
+             "effect": [{"run_eocs": ["EOC_WORKER"]}]}
+        ]"#,
+    );
+    assert_eq!(
+        eoc_registry::run_program(&mut world, survivor, None, "EOC_RUDE", 0),
+        Applied::Done
+    );
+    assert_eq!(
+        dialogue_values::number_of(&world, survivor, "seen"),
+        None,
+        "an unmet expectation stopped the program rather than reading a zero"
+    );
 }

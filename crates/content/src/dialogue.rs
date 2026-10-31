@@ -87,6 +87,14 @@ pub enum Condition {
         /// How many charges must be carried, when the data states charges.
         charges: Option<i32>,
     },
+    /// Every one of these variables is set in the dialogue's context.
+    ///
+    /// Reference: `f_expects_vars` (`condition.cpp:1111-1131`), which answers false when any named value is missing from the
+    /// invocation's context - it is how a program states what its caller must hand it.
+    ExpectsVars {
+        /// The names that must be present.
+        names: Vec<StringSource>,
+    },
     /// The date is in a named season.
     ///
     /// Reference: `f_is_season` (`condition.cpp:1250-1260`), which compares `season_of_year( calendar::turn )` against one of the four
@@ -319,6 +327,11 @@ pub fn read_condition(value: &Value) -> Option<Condition> {
     }
     if let Some(math) = object.get("math") {
         return read_expression(math).map(Condition::Math);
+    }
+    if let Some(Value::Array(names)) = object.get("expects_vars") {
+        return Some(Condition::ExpectsVars {
+            names: read_string_sources(names)?,
+        });
     }
     if let Some(season) = object.get("is_season") {
         return Some(Condition::IsSeason {
@@ -1024,9 +1037,19 @@ pub enum Effect {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProgramRef {
     /// An effect-on-condition the data defines elsewhere.
-    Named(String),
+    Named {
+        /// The program's id.
+        id: String,
+        /// The context values the call hands it, as `variables`.
+        variables: Vec<(String, StringSource)>,
+    },
     /// A program written where it is used.
-    Inline(Box<Program>),
+    Inline {
+        /// The program.
+        program: Box<Program>,
+        /// The context values the call hands it, as `variables`.
+        variables: Vec<(String, StringSource)>,
+    },
 }
 
 /// One effect-on-condition, as the data defines it.
@@ -1082,7 +1105,10 @@ pub fn read_program(value: &Value) -> Option<Program> {
 pub fn read_effect(value: &Value) -> Option<Effect> {
     // Reference: a bare name in an effect list runs that effect-on-condition.
     if let Value::Str(name) = value {
-        return Some(Effect::RunEoc(vec![ProgramRef::Named(name.clone())]));
+        return Some(Effect::RunEoc(vec![ProgramRef::Named {
+            id: name.clone(),
+            variables: Vec::new(),
+        }]));
     }
     let Value::Object(object) = value else {
         return None;
@@ -1178,6 +1204,21 @@ fn read_effect_list(value: Option<&Value>) -> Option<Vec<Effect>> {
     }
 }
 
+/// Reads a call's `variables`, which become the context values the program sees.
+///
+/// Reference: `f_run_eocs` (`npctalk.cpp:6332-6338`), which reads each member into the invocation's context map.
+fn read_variables(value: Option<&Value>) -> Option<Vec<(String, StringSource)>> {
+    match value {
+        None => Some(Vec::new()),
+        Some(Value::Object(variables)) => variables
+            .members()
+            .iter()
+            .map(|(name, source)| Some((name.clone(), read_string_source(source)?)))
+            .collect(),
+        Some(_) => None,
+    }
+}
+
 /// Reads one `run_eocs` entry: a name, or a program written inline.
 ///
 /// Reference: `load_eoc_vector_id_and_var` (`npctalk.cpp:512-541`). An object with `variables` carries context values, which reach a
@@ -1185,21 +1226,32 @@ fn read_effect_list(value: Option<&Value>) -> Option<Vec<Effect>> {
 /// different program from the one the data wrote.
 fn read_program_ref(value: &Value) -> Option<ProgramRef> {
     match value {
-        Value::Str(name) => Some(ProgramRef::Named(name.clone())),
+        Value::Str(name) => Some(ProgramRef::Named {
+            id: name.clone(),
+            variables: Vec::new(),
+        }),
         Value::Object(object) => {
-            if object.get("variables").is_some() {
-                return None;
+            let variables = read_variables(object.get("variables"))?;
+            // An entry naming an `id` runs that program; anything else is a program written here.
+            if let Some(Value::Str(id)) = object.get("id") {
+                return Some(ProgramRef::Named {
+                    id: id.clone(),
+                    variables,
+                });
             }
             let effects = read_effect_list(object.get("effect"))?;
             let condition = match object.get("condition") {
                 None => None,
                 Some(condition) => Some(read_condition(condition)?),
             };
-            Some(ProgramRef::Inline(Box::new(Program {
-                id: String::new(),
-                condition,
-                effects,
-            })))
+            Some(ProgramRef::Inline {
+                program: Box::new(Program {
+                    id: String::new(),
+                    condition,
+                    effects,
+                }),
+                variables,
+            })
         }
         _ => None,
     }
