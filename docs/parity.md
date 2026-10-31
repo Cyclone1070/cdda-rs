@@ -5824,3 +5824,28 @@ second assertion, not its first, because forgetting the speaker's copy happened 
 place where a wrong name looks like it works.
 
 Gated: each spelling forgets its own actor's variable and leaves the other's; losing what nobody set is still done; and `remove` says so.
+
+## `u_add_var` (round 849)
+
+`f_add_var` (`npctalk.cpp:3589-3610`) sets a dialogue variable, and the three ways it can are all in the data: 476 `u_add_var` and 226 `npc_add_var` with a
+plain `value`, two with `possible_values`, and `time: true` for the ones that record when something happened.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 303 | **312** |
+**capability** | 182 | **188** |
+effect entries runnable | 1,100 | **1,119** |
+unreadable leaves | 907 | **887** |
+one-gap programs | 169 | **167** |
+
+Rules worth stating because a guess would have been wrong:
+
+- `possible_values` **wins over** `value` when both are present, and an empty list is a variable with nothing to hold - refused, not set empty;
+- `time: true` stores the current turn **as text**, `"%d"` in the reference, which is why it is read back with `u_val` and compared as a string;
+- the draw comes from the world's dice, so the same seed says the same thing on a replay - which is what makes a scripted playtest comparable at all;
+- `value` beside `time` is **not** read, because the reference does not read one either.
+
+The pair sits behind one dispatch (`read_variable_effect`), matching the reference's own table where `u_add_var` and `u_lose_var` are adjacent rows.
+
+Gated: a plain value; the clock, and the clock moving it; a drawn choice, the same seed drawing the same one twice; and a member with neither a value nor
+`time` refusing.

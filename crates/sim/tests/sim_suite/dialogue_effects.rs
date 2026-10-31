@@ -1795,3 +1795,68 @@ fn losing_a_variable_forgets_it_and_only_where_it_was_set() {
         "never_set"
     ));
 }
+
+/// `u_add_var` stores a value, the clock, or one of several texts.
+///
+/// Reference: `f_add_var` (`npctalk.cpp:3589-3610`): `possible_values` wins over `value`, `time: true` stores the current turn instead of either, and the
+/// draw comes from the world's dice so the same seed gives the same choice.
+#[test]
+fn adding_a_variable_stores_a_value_the_clock_or_a_drawn_choice() {
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let text_of = |world: &World, holder: bevy_ecs::prelude::Entity, name: &str| {
+        cdda_sim::dialogue_values::text_of(world, holder, name)
+    };
+
+    let plain = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(br#"{"u_add_var": "mood", "value": "grim"}"#.as_slice()).expect("json"),
+    )
+    .expect("readable");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &plain),
+        Applied::Done
+    );
+    assert_eq!(text_of(&world, survivor, "mood").as_deref(), Some("grim"));
+
+    // `time: true` stores the clock, and the clock is what moves it afterwards.
+    cdda_sim::calendar::set_turn(&mut world, 4_242);
+    let timed = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(br#"{"u_add_var": "seen_at", "time": true}"#.as_slice()).expect("json"),
+    )
+    .expect("readable");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &timed),
+        Applied::Done
+    );
+    assert_eq!(text_of(&world, survivor, "seen_at").as_deref(), Some("4242"));
+
+    // A list of texts is drawn from, and it is the world's dice that choose.
+    let drawn = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(
+            br#"{"u_add_var": "weather_said", "possible_values": ["rain", "sun", "snow"]}"#.as_slice(),
+        )
+        .expect("json"),
+    )
+    .expect("readable");
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(7));
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &drawn),
+        Applied::Done
+    );
+    let first = text_of(&world, survivor, "weather_said");
+    assert!(
+        matches!(first.as_deref(), Some("rain" | "sun" | "snow")),
+        "the value came from the list: {first:?}"
+    );
+    // The same seed picks the same choice, so a replay says the same thing twice.
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(7));
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &drawn),
+        Applied::Done
+    );
+    assert_eq!(text_of(&world, survivor, "weather_said"), first);
+
+    // A member with neither a value nor `time` is a variable with nothing to hold, so it is refused rather than set empty.
+    let nothing = cdda_json::parse(br#"{"u_add_var": "mood"}"#.as_slice()).expect("json");
+    assert!(cdda_content::dialogue::read_effect(&nothing).is_none());
+}

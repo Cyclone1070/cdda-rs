@@ -562,6 +562,63 @@ fn read_flag_condition(object: &cdda_json::Object) -> Option<Condition> {
 ///
 /// Reference: `f_remove_var` (`npctalk.cpp:3656`). The scopes are the variable namespaces the port's resolver knows (`u_val`, `npc_val`, `global_val`), not
 /// the member prefixes: the member spells whose variable it is, and the resolver is what turns that into an actor.
+/// What `u_add_var` stores: one text, or a list to draw one from.
+#[derive(Debug, Clone, PartialEq)]
+pub enum VarValue {
+    /// The single `value` the data wrote.
+    One(StringSource),
+    /// The `possible_values` to draw from.
+    Many(Vec<StringSource>),
+}
+
+/// Reads the members that set or forget a dialogue variable, which come as a pair in the reference's own table (`npctalk.cpp:8016-8017`).
+fn read_variable_effect(object: &cdda_json::Object) -> Option<Effect> {
+    read_add_var(object).or_else(|| read_lose_var(object))
+}
+
+/// Reads what `u_add_var` stores.
+///
+/// `time: true` stores the clock, so a value beside it is not read - the reference does not read one either. `possible_values` wins over `value`, and an
+/// empty list is a variable with nothing to hold.
+fn read_add_var_value(object: &cdda_json::Object, timed: bool) -> Option<VarValue> {
+    if timed {
+        return Some(VarValue::One(StringSource::Literal(String::new())));
+    }
+    if let Some(Value::Array(choices)) = object.get("possible_values") {
+        let drawn: Vec<StringSource> = choices
+            .iter()
+            .map(read_string_source)
+            .collect::<Option<Vec<_>>>()?;
+        return (!drawn.is_empty()).then_some(VarValue::Many(drawn));
+    }
+    Some(VarValue::One(read_string_source(object.get("value")?)?))
+}
+
+/// Reads the three members that set a dialogue variable.
+///
+/// Reference: `f_add_var` (`npctalk.cpp:3589-3610`): `possible_values` wins over `value` when both are there, `time: true` stores the clock rather than
+/// either, and a member with neither a value nor `time` is a variable with nothing to hold.
+fn read_add_var(object: &cdda_json::Object) -> Option<Effect> {
+    for (member, scope) in [
+        ("u_add_var", "u_val"),
+        ("npc_add_var", "npc_val"),
+        ("global_add_var", "global_val"),
+    ] {
+        let Some(Value::Str(name)) = object.get(member) else {
+            continue;
+        };
+        let timed = matches!(object.get("time"), Some(Value::Bool(true)));
+        let value = read_add_var_value(object, timed)?;
+        return Some(Effect::AddVar {
+            name: name.clone(),
+            scope: scope.to_owned(),
+            value,
+            timed,
+        });
+    }
+    None
+}
+
 fn read_lose_var(object: &cdda_json::Object) -> Option<Effect> {
     for (member, scope) in [
         ("u_lose_var", "u_val"),
@@ -1231,6 +1288,20 @@ pub enum Effect {
         /// Whether the square goes to the listener's variables rather than the speaker's.
         listener: bool,
     },
+    /// Set a dialogue variable.
+    ///
+    /// Reference: `f_add_var` (`npctalk.cpp:3589`): the member names the variable, `value` gives it a text, `possible_values` gives it a choice of
+    /// texts and one is drawn, and `time: true` gives it the current turn instead of any value the data wrote.
+    AddVar {
+        /// The variable's name.
+        name: String,
+        /// Which actor's variables it belongs to, in the namespaces the resolver knows.
+        scope: String,
+        /// What to store: one text, or a list to draw from.
+        value: VarValue,
+        /// Whether the variable gets the clock instead of a value from the data.
+        timed: bool,
+    },
     /// Forget a dialogue variable.
     ///
     /// Reference: `f_remove_var` (`npctalk.cpp:3656`) for `u_lose_var`, `npc_lose_var` and `global_lose_var`: the member names the variable to drop.
@@ -1402,6 +1473,7 @@ impl Effect {
             Self::MapgenUpdate { .. } => "mapgen_update",
             Self::RunEocSelector { .. } => "run_eoc_selector",
             Self::LoseVar { .. } => "u_lose_var",
+            Self::AddVar { .. } => "u_add_var",
         }
     }
 }
@@ -1581,7 +1653,7 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
             });
         }
     }
-    if let Some(lost) = read_lose_var(object) { return Some(lost); }
+    if let Some(variable) = read_variable_effect(object) { return Some(variable); }
     for member in ["u_message", "npc_message"] {
         if let Some(value) = object.get(member) {
             return read_message(value).map(Effect::Message);
@@ -1616,7 +1688,7 @@ fn read_effect_list(value: Option<&Value>) -> Option<Vec<Effect>> {
 /// Reference: `f_message` (`npctalk.cpp:5312-5405`): with `snippet: true` the member is a category of text, the line is picked from it by weight,
 /// and `same_snippet` remembers the pick so the same line repeats.
 fn read_snippet(object: &cdda_json::Object) -> Option<Effect> {
-    if let Some(lost) = read_lose_var(object) { return Some(lost); }
+    if let Some(variable) = read_variable_effect(object) { return Some(variable); }
     for member in ["u_message", "npc_message"] {
         let Some(value) = object.get(member) else {
             continue;

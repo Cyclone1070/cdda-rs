@@ -268,6 +268,63 @@ fn search_location(world: &mut World, speaker: Entity, effect: &Effect) -> Appli
     Applied::Done
 }
 
+/// Sets a dialogue variable.
+///
+/// Reference: `f_add_var` (`npctalk.cpp:3589-3610`): `time: true` stores the current turn, `possible_values` draws one of its texts, and a plain `value`
+/// stores what the data wrote. The draw is the world's dice, so the same seed gives the same choice.
+fn add_var(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::AddVar {
+        name,
+        scope,
+        value,
+        timed,
+    } = effect
+    else {
+        return Applied::CannotAnswer;
+    };
+    let Some(holder) = crate::conditions::holder_for_scope(world, speaker, listener, scope) else {
+        return Applied::CannotAnswer;
+    };
+    let stored = if *timed {
+        let Some(calendar) = crate::calendar::of(world) else {
+            return Applied::CannotAnswer;
+        };
+        crate::dialogue_values::Value::Text(calendar.turn.to_string())
+    } else {
+        match value {
+            cdda_content::dialogue::VarValue::One(one) => {
+                let Some(text) = crate::conditions::text_of(world, speaker, listener, one) else {
+                    return Applied::CannotAnswer;
+                };
+                crate::dialogue_values::Value::Text(text)
+            }
+            cdda_content::dialogue::VarValue::Many(choices) => {
+                let mut dice = crate::singletons::take_rolls(world);
+                let last = i32::try_from(choices.len().saturating_sub(1)).ok();
+                let drawn = dice
+                    .as_mut()
+                    .zip(last)
+                    .map(|(rolls, last)| usize::try_from(rolls.rng(0, last)).unwrap_or(0));
+                if let Some(dice) = dice.take() {
+                    crate::singletons::put_rolls(world, dice);
+                }
+                let Some(at) = drawn else {
+                    return Applied::CannotAnswer;
+                };
+                let Some(choice) = choices.get(at) else {
+                    return Applied::CannotAnswer;
+                };
+                let Some(text) = crate::conditions::text_of(world, speaker, listener, choice) else {
+                    return Applied::CannotAnswer;
+                };
+                crate::dialogue_values::Value::Text(text)
+            }
+        }
+    };
+    crate::dialogue_values::set(world, holder, name, stored);
+    Applied::Done
+}
+
 /// Forgets a dialogue variable.
 ///
 /// Reference: `f_remove_var` (`npctalk.cpp:3656`): `u_lose_var` drops one of the speaker's, `npc_lose_var` one of the listener's, `global_lose_var` one of
@@ -785,6 +842,7 @@ pub fn run_effect(
                 about_listener: *about_listener,
             },
         ),
+        Effect::AddVar { .. } => add_var(world, speaker, listener, effect),
         Effect::LoseVar { name, scope } => lose_var(world, speaker, listener, name, scope),
         Effect::LocationVariableSearch { .. } => search_location(world, speaker, effect),
         Effect::RunEocSelector { .. } => run_selector(world, speaker, listener, effect),
