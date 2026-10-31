@@ -1102,6 +1102,13 @@ pub enum Effect {
         /// Whether it comes from the listener rather than the speaker.
         listener: bool,
     },
+    /// Take several effects away from a creature, which the data writes as an array.
+    RemoveEffects {
+        /// The effects' ids.
+        effects: Vec<String>,
+        /// Whether they come from the listener rather than the speaker.
+        listener: bool,
+    },
     /// Give a trait to a creature.
     ///
     /// Reference: `f_add_trait` (`npctalk.cpp:3498-3508`), which calls `set_mutation`. Its `variant` member is refused rather than
@@ -1241,7 +1248,7 @@ impl Effect {
             Self::Message(_) | Self::Snippet { .. } => "u_message",
             Self::If { .. } => "if",
             Self::AddEffect { .. } => "u_add_effect",
-            Self::RemoveEffect { .. } => "u_lose_effect",
+            Self::RemoveEffect { .. } | Self::RemoveEffects { .. } => "u_lose_effect",
             Self::LearnTrait { .. } => "u_add_trait",
             Self::LoseTrait { .. } => "u_lose_trait",
             Self::RunEoc(_) => "run_eocs",
@@ -1799,9 +1806,30 @@ fn read_effect_change(object: &cdda_json::Object) -> Option<Effect> {
 for (member, listener, learn) in [
     ("u_add_effect", false, true),
     ("npc_add_effect", true, true),
+    // Reference: `npctalk.cpp:8015` names these `u_lose_effect` / `npc_lose_effect`. The port read `u_remove_effect`, which the data never writes -
+    // so every one of the 29 `u_lose_effect` entries refused and the refusal was blamed on the effect rather than on the reader.
+    ("u_lose_effect", false, false),
+    ("npc_lose_effect", true, false),
     ("u_remove_effect", false, false),
     ("npc_remove_effect", true, false),
 ] {
+    if let Some(Value::Array(effects)) = object.get(member)
+        && !learn
+        && effects.iter().all(|effect| matches!(effect, Value::Str(_)))
+    {
+        // Reference: `f_remove_effect` takes the member as a variable string or an array of them, and removes each.
+        let names: Vec<String> = effects
+            .iter()
+            .filter_map(|effect| match effect {
+                Value::Str(text) => Some(text.clone()),
+                _ => None,
+            })
+            .collect();
+        return Some(Effect::RemoveEffects {
+            effects: names,
+            listener,
+        });
+    }
     if let Some(Value::Str(effect)) = object.get(member) {
         if let Some(Value::Str(part)) = object.get("target_part")
             && part != "bp_null"

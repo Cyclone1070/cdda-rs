@@ -5394,3 +5394,22 @@ at a time across four gate runs. That tax rises as the numbers move, so it was p
 
 The counts themselves stay exact, because a count that drifts unnoticed is how a census quietly stops measuring. The difference is that moving one is
 now a single line in one file.
+
+## `u_lose_effect`: the port was reading a member name the data never writes (round 832)
+
+Twenty-nine `u_lose_effect` entries refused, and the census blamed the **effect**. The reader was looking for `u_remove_effect`. Reference `npctalk.cpp:8015`
+names it `u_lose_effect` / `npc_lose_effect`, and that is what every data file writes.
+
+So this was not a missing rule. It was a misspelt one: 29 entries and six programs refused because a string did not match, and the refusal blamed the
+data for something the port got wrong. Six more entries write the member as an **array** of effect ids, which the reference accepts and removes each of.
+
+| Count | Before | After |
+|---|---|---|
+effect entries runnable | 927 | **955** |
+programs readable | 239 | **246** |
+**capability** (readable that run) | 132 | **139** |
+unreadable leaves | 1,127 | **1,096** |
+`u_lose_effect` among effect refusals | 29 | **0** |
+
+Gated on all three shapes in one test: the singular member, the array member, and the listener's `npc_lose_effect` spelling. Each is read, each is
+kinded `u_lose_effect`, and a creature carrying two effects loses both while an effect it never had is not a failure.

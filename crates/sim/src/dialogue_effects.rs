@@ -221,6 +221,26 @@ fn say_snippet(
 }
 
 
+/// Takes several effects away, which the data writes as an array of names.
+///
+/// Reference: `f_remove_effect` (`npctalk.cpp:8015`) with an array: each one is removed in turn, and one the creature does not have is not a failure.
+fn run_remove_effects(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::RemoveEffects { effects, listener: theirs } = effect else {
+        return Applied::CannotAnswer;
+    };
+    if actor(speaker, listener, *theirs).is_none() {
+        return Applied::CannotAnswer;
+    }
+    for name in effects {
+        let one = Effect::RemoveEffect {
+            effect: name.clone(),
+            listener: *theirs,
+        };
+        let _ = run_effect(world, speaker, listener, &one);
+    }
+    Applied::Done
+}
+
 /// Applies an update mapgen where the speaker stands.
 ///
 /// Reference: `f_mapgen_update` (`npctalk.cpp`): with no target named, the update is applied at the speaker's own overmap tile.
@@ -610,6 +630,7 @@ pub fn run_effect(
                 about_listener: *about_listener,
             },
         ),
+        Effect::RemoveEffects { .. } => run_remove_effects(world, speaker, listener, effect),
         Effect::MapgenUpdate { .. } => run_mapgen_update(world, speaker, listener, effect),
         Effect::MakeSound { .. } => make_sound_effect(world, speaker, listener, effect),
         Effect::OpenDialogue {

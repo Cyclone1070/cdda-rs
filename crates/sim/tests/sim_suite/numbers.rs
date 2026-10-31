@@ -28,6 +28,8 @@ pub struct Census {
     pub effects_runnable: usize,
     /// Effect entries the data holds.
     pub effects_defined: usize,
+    /// Programs whose first unreadable member is their effect list.
+    pub effect_blamed: usize,
 }
 
 /// The census as of the mapgen-update aiming port.
@@ -36,13 +38,14 @@ pub struct Census {
 /// constants are the numbers those prints last said.
 pub const NOW: Census = Census {
     defined: 692,
-    readable: 239,
-    ran: 132,
+    readable: 246,
+    ran: 139,
     refused_at_run: 107,
-    leaves: 1_127,
-    one_gap: 188,
-    effects_runnable: 927,
+    leaves: 1_096,
+    one_gap: 193,
+    effects_runnable: 955,
     effects_defined: 1_612,
+    effect_blamed: 326,
 };
 
 impl Census {

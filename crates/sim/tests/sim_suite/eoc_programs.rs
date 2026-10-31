@@ -252,7 +252,7 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
         whole, crate::numbers::NOW.readable,
         "two hundred and thirty-nine run whole: morale fourteen, snippets eight, mapgen updates eight, aiming six"
     );
-    assert_eq!(refused.get("effect"), Some(&333), "and the effect side is still the bigger refusal");
+    assert_eq!(refused.get("effect"), Some(&crate::numbers::NOW.effect_blamed), "and the effect side is still the bigger refusal");
     assert_eq!(refused.get("u_has_trait"), None, "traits are no longer blamed for anything");
     assert_eq!(refused.get("math"), Some(&47), "`math` guards are the biggest single one");
     assert_eq!(refused.get("u_has_item"), None, "carrying an item is no longer blamed for anything");
@@ -268,7 +268,7 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
     // not install them. The count of definitions was itself worth learning - the 712 in the earlier census counted objects, the
     // machine composes by name.
     assert_eq!(defined, crate::numbers::NOW.defined, "the data defines 692 nameable effect-on-conditions");
-    assert_eq!(whole, 239, "and the port can run 239 of them whole");
+    assert_eq!(whole, crate::numbers::NOW.readable, "and the port can run that many of them whole");
 }
 
 /// A `run_eocs` entry can be a program written where it is used.
