@@ -1068,7 +1068,7 @@ pub enum SoundKind {
 ///
 /// Reference: `f_add_effect` (`npctalk.cpp:3426-3450`) and `get_duration_or_var`, which accept a duration string, a number of turns, an array
 /// of two ends, or `PERMANENT`.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum EffectDuration {
     /// It lasts until something removes it.
     Permanent,
@@ -1076,6 +1076,8 @@ pub enum EffectDuration {
     Turns(Option<i64>),
     /// A roll between two ends, inclusive.
     Range(i64, i64),
+    /// A length the dialogue works out when the effect is applied - `{"math": ["rand(345600) + 86400"]}` in the data.
+    Computed(crate::dialogue::Expression),
 }
 
 /// An effect a dialogue program can run.
@@ -1854,11 +1856,10 @@ for (member, listener, learn) in [
         });
     }
     if let Some(Value::Str(effect)) = object.get(member) {
-        if let Some(Value::Str(part)) = object.get("target_part")
-            && part != "bp_null"
-        {
-            return None;
-        }
+        // A `target_part` names the body part an effect lands on. The port has no limb model - a creature is one thing, not a set of parts - so the part
+        // is **ignored rather than refused**: the effect lands on the creature, which is where the reference puts it once a part is chosen.
+        let _ = object.get("target_part");
+        let _ = object.get("bodypart");
         if learn {
             // Reference: `get_duration_or_var` (`npctalk.cpp:3426-3450`) accepts a duration **string**, a number of turns, or an
             // array of two of either, which the reference rolls between. The port reads all three; a roll is made at run time.
@@ -1870,6 +1871,10 @@ for (member, listener, learn) in [
                     #[allow(clippy::cast_possible_truncation)]
                     let whole = *turns as i64;
                     EffectDuration::Turns(Some(whole))
+                }
+                // Reference: `get_duration_or_var` also takes a **variable**, which the data writes as `{"math": [...]}`.
+                Some(value @ Value::Object(_)) => {
+                    EffectDuration::Computed(read_math_expression(value)?)
                 }
                 // An array is a range: the reference rolls a duration between the two ends.
                 Some(Value::Array(ends)) => {

@@ -389,8 +389,8 @@ fn add_morale(
         return Applied::CannotAnswer;
     };
     let mut times = Vec::new();
-    for time in [request.duration, request.decay_start] {
-        let Some(turns) = roll_duration(world, time) else {
+    for time in [&request.duration, &request.decay_start] {
+        let Some(turns) = roll_duration(world, speaker, listener, time) else {
             return Applied::CannotAnswer;
         };
         times.push(turns);
@@ -412,20 +412,32 @@ fn add_morale(
     Applied::Done
 }
 
-/// A duration the data states, as turns, rolling a range.
-fn roll_duration(world: &mut World, duration: cdda_content::dialogue::EffectDuration) -> Option<i64> {
+/// A duration the data states, as turns, rolling a range and working out an expression.
+///
+/// Reference: `get_duration_or_var` (`npctalk.cpp:3426-3450`) answers a fixed number, a range to roll, or a **variable** - which the port writes as
+/// `Computed` and works out here, because a variable's value is whatever the dialogue holds when the effect is applied.
+fn roll_duration(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    duration: &cdda_content::dialogue::EffectDuration,
+) -> Option<i64> {
     match duration {
         cdda_content::dialogue::EffectDuration::Permanent => Some(0),
-        cdda_content::dialogue::EffectDuration::Turns(turns) => turns,
+        cdda_content::dialogue::EffectDuration::Turns(turns) => *turns,
         cdda_content::dialogue::EffectDuration::Range(shortest, longest) => {
             let mut dice = crate::singletons::take_rolls(world);
             let rolled = dice
                 .as_mut()
-                .map(|dice| i64::from(dice.rng(as_turns(shortest), as_turns(longest))));
+                .map(|dice| i64::from(dice.rng(as_turns(*shortest), as_turns(*longest))));
             if let Some(dice) = dice.take() {
                 crate::singletons::put_rolls(world, dice);
             }
-            rolled.or(Some(shortest))
+            rolled.or(Some(*shortest))
+        }
+        cdda_content::dialogue::EffectDuration::Computed(expression) => {
+            let value = draw(world, speaker, listener, expression)?;
+            Some(i64::from(as_whole(value)))
         }
     }
 }
@@ -439,7 +451,7 @@ fn add_effect(
     speaker: Entity,
     listener: Option<Entity>,
     effect: &str,
-    duration: cdda_content::dialogue::EffectDuration,
+    duration: &cdda_content::dialogue::EffectDuration,
     intensity: Option<&cdda_content::dialogue::Expression>,
     about_listener: bool,
 ) -> Applied {
@@ -455,19 +467,13 @@ fn add_effect(
         }
         None => 0,
     };
+    // A range is rolled and an expression worked out; both go through the same reader, so `add_effect` states that once rather than twice.
     let (duration, permanent) = match duration {
         cdda_content::dialogue::EffectDuration::Permanent => (0, true),
-        cdda_content::dialogue::EffectDuration::Turns(turns) => (turns.unwrap_or(0), false),
-        cdda_content::dialogue::EffectDuration::Range(shortest, longest) => {
-            let mut dice = crate::singletons::take_rolls(world);
-            let rolled = dice
-                .as_mut()
-                .map(|dice| i64::from(dice.rng(as_turns(shortest), as_turns(longest))));
-            if let Some(dice) = dice.take() {
-                crate::singletons::put_rolls(world, dice);
-            }
-            (rolled.unwrap_or(shortest), false)
-        }
+        other => match roll_duration(world, speaker, listener, other) {
+            Some(turns) => (turns, false),
+            None => return Applied::CannotAnswer,
+        },
     };
     crate::applied_effects::add(
         world,
@@ -624,8 +630,8 @@ pub fn run_effect(
                 kind,
                 bonus,
                 max_bonus,
-                duration: *duration,
-                decay_start: *decay_start,
+                duration: duration.clone(),
+                decay_start: decay_start.clone(),
                 capped: *capped,
                 about_listener: *about_listener,
             },
@@ -674,7 +680,7 @@ pub fn run_effect(
             duration,
             intensity,
             listener: about_listener,
-        } => add_effect(world, speaker, listener, effect, *duration, intensity.as_ref(), *about_listener),
+        } => add_effect(world, speaker, listener, effect, duration, intensity.as_ref(), *about_listener),
         Effect::RemoveEffect { effect, listener: about_listener } => {
             let Some(creature) = actor(speaker, listener, *about_listener) else {
                 return Applied::CannotAnswer;

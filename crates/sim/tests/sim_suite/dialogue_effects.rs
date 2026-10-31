@@ -365,10 +365,10 @@ fn a_program_can_give_and_take_a_wound() {
 
     // `PERMANENT` is an effect that never runs down, which the port spells with the effect's own pause flag.
     let permanent = entry(r#"{"u_add_effect": "effect_mutation_purge", "duration": "PERMANENT"}"#);
-    let Effect::AddEffect { duration, .. } = permanent else {
+    let Effect::AddEffect { duration, .. } = &permanent else {
         panic!("read as an effect to add");
     };
-    assert_eq!(duration, cdda_content::dialogue::EffectDuration::Permanent);
+    assert_eq!(*duration, cdda_content::dialogue::EffectDuration::Permanent);
     assert_eq!(
         run_effects(&mut world, survivor, None, &[permanent]),
         Applied::Done
@@ -378,12 +378,19 @@ fn a_program_can_give_and_take_a_wound() {
     assert_eq!(run_effects(&mut world, survivor, None, &[gone]), Applied::Done);
     assert!(!applied_effects::has(&world, survivor, "effect_bleed"));
 
-    // A body part the port does not model is refused rather than applied to the whole creature.
+    // A body part the port does not model is **ignored**, and the effect lands on the creature. The reference places it on the part named; the port
+    // has no limbs, so the part is a name it cannot place and the creature is what is left. Refusing instead cost 14 effect entries and several
+    // programs for a distinction the port cannot draw anyway.
     let on_a_part = cdda_json::parse(
         br#"{"u_add_effect": "effect_bleed", "target_part": "arm_l"}"#.as_slice(),
     )
     .expect("json");
-    assert!(cdda_content::dialogue::read_effect(&on_a_part).is_none());
+    let welcomed = cdda_content::dialogue::read_effect(&on_a_part).expect("readable");
+    assert_eq!(run_effects(&mut world, survivor, None, &[welcomed]), Applied::Done);
+    assert!(
+        applied_effects::has(&world, survivor, "effect_bleed"),
+        "the effect landed on the creature, which is where the port can put it"
+    );
 }
 
 /// An `if` effect runs one list or the other, and each list can hold anything.
@@ -1426,4 +1433,52 @@ fn losing_effects_reads_the_name_the_data_writes_and_a_list_of_them() {
         Applied::Done,
         "losing an effect the creature does not have is not a failure"
     );
+}
+
+/// An effect's duration may be written as a variable, and a body part may be named.
+///
+/// Reference: `get_duration_or_var` (`npctalk.cpp:3426-3450`) takes a variable as well as a number or a range, and `f_add_effect` takes a `target_part`
+/// naming the body part it lands on. The data uses both - `{"u_add_effect": "conjunctivitis", "duration": {"math": ["rand(345600) + 86400"]},
+/// "target_part": "eyes"}` - and the port refused both shapes.
+#[test]
+fn a_math_duration_is_worked_out_and_a_body_part_is_ignored() {
+    use cdda_core_types::rng::Rolls;
+
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::singletons::put_rolls(&mut world, Rolls::new(3));
+
+    // The data's own shape: a worked-out duration and a body part.
+    let effect = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(
+            br#"{"u_add_effect": "conjunctivitis", "duration": {"math": ["1000 + 500"]}, "target_part": "eyes"}"#
+                .as_slice(),
+        )
+        .expect("json"),
+    )
+    .expect("a worked-out duration and a body part are both readable");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        Applied::Done
+    );
+    assert_eq!(
+        cdda_sim::applied_effects::worn(&world, survivor)
+            .iter()
+            .find(|worn| worn.id == "conjunctivitis")
+            .map(|worn| worn.duration),
+        Some(1_500),
+        "the duration is what the expression worked out"
+    );
+
+    // A body part the port knows nothing about is ignored rather than refused, for every effect family that takes one.
+    for text in [
+        r#"{"u_add_effect": "drunk", "duration": 10, "target_part": "torso"}"#,
+        r#"{"u_add_effect": "drunk", "duration": 10, "bodypart": "arm_l"}"#,
+    ] {
+        let value = cdda_json::parse(text.as_bytes()).expect("json");
+        assert!(
+            cdda_content::dialogue::read_effect(&value).is_some(),
+            "{text} is readable: the port has no limb model to place it on"
+        );
+    }
 }

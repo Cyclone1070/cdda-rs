@@ -5503,3 +5503,33 @@ half-finished work is *all* of the round's work. Four partial edits across two f
 
 **Next round starts this feature again, in this order**: add `Computed` and fix its four call sites in one edit, build; then add the reader shape, build;
 then the `target_part` relaxation, build; then the test. Four builds, four calls, and a tree that compiles at every step.
+
+## Worked-out durations, and a body part the port ignores (round 837)
+
+Two `u_add_effect` shapes refused, both of them real work in the data:
+
+- a duration written as a variable - `{"duration": {"math": ["( 1 - u_coverage('eyes') / 100 ) * rand(345600) + 86400"]}}`, 14 entries;
+- a `target_part` naming the body part the effect lands on, which the reader refused for every value but `bp_null`.
+
+`EffectDuration` gained `Computed(Expression)` for the first. Reference: `get_duration_or_var` (`npctalk.cpp:3426-3450`) answers a number, a range, or a
+**variable**, and the value is whatever the dialogue holds when the effect is applied - so it is worked out in `roll_duration`, beside the range roll,
+rather than turned into a number at read time.
+
+The body part is now **ignored rather than refused**. The port has no limb model: a creature is one thing, not a set of parts, so `arm_l` is a name the
+port cannot place and the effect lands on the creature - which is where the reference puts it once a part is chosen. Refusing cost 14 effect entries and
+several programs for a distinction the port cannot draw.
+
+| Count | Before | After |
+|---|---|---|
+effect entries runnable | 955 | **964** |
+programs readable | 252 | **258** |
+**capability** | 152 | **158** |
+unreadable leaves | 1,088 | **1,075** |
+one-gap programs | 188 | **181** |
+
+This is the round after one that produced nothing, done the way its note promised: `Computed` and its call sites in one edit, build; the reader shape,
+build; the relaxation, build; the test. Five builds, no reverted files.
+
+Gated: the data's own shape - `conjunctivitis` with a worked-out duration and `target_part: "eyes"` - reads, runs, and lands with the duration the
+expression worked out; both `target_part` and `bodypart` are readable for two effect families; and the older test that pinned the refusal now pins the
+opposite, with the reason beside it.
