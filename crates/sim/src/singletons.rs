@@ -31,6 +31,17 @@ pub struct TheFallingQueue;
 /// The entity carrying `T`, spawned with `T::default()` and the marker if it is not there yet.
 ///
 /// `T` and `M` are the pair that makes a singleton: the data, and the marker that names it.
+/// The entity a marker is on, if the world has one, without creating it.
+///
+/// The read half of [`singleton`]: a question asked of a singleton that nothing has set has no answer, and must not be answered by
+/// creating an empty one.
+#[must_use]
+pub fn holder<M: Component>(world: &World) -> Option<Entity> {
+    let mut query = world.try_query_filtered::<Entity, With<M>>()?;
+    query.iter(world).next()
+}
+
+/// The entity a marker is on, creating it with a default value when it is not there.
 pub fn singleton<T: Component + Default, M: Component + Default>(world: &mut World) -> Entity {
     let found = {
         let mut query = world.query_filtered::<Entity, With<M>>();

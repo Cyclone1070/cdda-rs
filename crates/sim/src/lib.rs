@@ -8,6 +8,7 @@ pub mod transform;
 pub mod blast;
 pub mod calendar;
 pub mod dialogue_context;
+pub mod overmap;
 pub mod bash;
 pub mod emit_registry;
 pub mod falling;

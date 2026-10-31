@@ -32,6 +32,31 @@ pub fn holds_with(
 }
 
 
+/// Whether a creature stands on an overmap tile of a named terrain.
+///
+/// Reference: `f_at_om_location` (`condition.cpp:1023-1046`): the tile of the actor's position, its terrain id with direction and connections
+/// stripped, compared to the string the data writes.
+fn at_om_location(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    place: &cdda_content::dialogue::StringSource,
+    about_listener: bool,
+) -> bool {
+    let Some(creature) = actor_for(speaker, listener, about_listener) else {
+        return false;
+    };
+    let Some(name) = text_of(world, speaker, listener, place) else {
+        return false;
+    };
+    let Some(position) = world.get::<crate::Position>(creature) else {
+        return false;
+    };
+    let tile = crate::overmap::tile_of(position.x, position.y);
+    crate::overmap::terrain_at(world, tile)
+        .is_some_and(|terrain| crate::overmap::base_terrain(terrain) == name)
+}
+
 /// Whether every name a program states is set in the call's context.
 ///
 /// Reference: `f_expects_vars` (`condition.cpp:1111-1131`), which answers false when any named value is missing - it is how a program
@@ -233,6 +258,9 @@ fn holds_within(
         Condition::OneInChance(_) | Condition::XInYChance { .. } => {
             rolls_against(world, speaker, listener, condition, draws)
         }
+        Condition::AtOmLocation { place, listener: about_listener } => {
+            at_om_location(world, speaker, listener, place, *about_listener)
+        }
         Condition::ExpectsVars { names } => expects_vars(world, speaker, listener, names),
         Condition::IsSeason { season } => {
             is_season(world, speaker, listener, season)
@@ -254,12 +282,10 @@ fn holds_within(
         Condition::HasTrait {
             trait_name,
             listener: about_listener,
-        } => {
-            let Some(creature) = actor_for(speaker, listener, *about_listener) else {
-                return false;
-            };
-            crate::traits::has_trait(world, creature, trait_name)
-        }
+        } => match actor_for(speaker, listener, *about_listener) {
+            Some(creature) => crate::traits::has_trait(world, creature, trait_name),
+            None => false,
+        },
         Condition::HasEffect { effect, intensity } => crate::applied_effects::intensity_of(world, speaker, effect)
             .is_some_and(|worn| *intensity <= worn),
         Condition::And(conditions) => {

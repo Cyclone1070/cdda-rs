@@ -87,6 +87,16 @@ pub enum Condition {
         /// How many charges must be carried, when the data states charges.
         charges: Option<i32>,
     },
+    /// The speaker stands on an overmap tile of a named terrain.
+    ///
+    /// Reference: `f_at_om_location` (`condition.cpp:1023-1046`), which reads the speaker's overmap tile and compares its terrain id - with
+    /// direction and connections stripped (`oter_no_dir_or_connections`) - against the string the data writes.
+    AtOmLocation {
+        /// The terrain id the data writes.
+        place: StringSource,
+        /// Whether it asks about the listener rather than the speaker.
+        listener: bool,
+    },
     /// Every one of these variables is set in the dialogue's context.
     ///
     /// Reference: `f_expects_vars` (`condition.cpp:1111-1131`), which answers false when any named value is missing from the
@@ -327,6 +337,14 @@ pub fn read_condition(value: &Value) -> Option<Condition> {
     }
     if let Some(math) = object.get("math") {
         return read_expression(math).map(Condition::Math);
+    }
+    for (member, listener) in [("u_at_om_location", false), ("npc_at_om_location", true)] {
+        if let Some(place) = object.get(member) {
+            return Some(Condition::AtOmLocation {
+                place: read_string_source(place)?,
+                listener,
+            });
+        }
     }
     if let Some(Value::Array(names)) = object.get("expects_vars") {
         return Some(Condition::ExpectsVars {

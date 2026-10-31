@@ -186,7 +186,7 @@ fn the_port_answers_the_questions_it_can_and_says_how_many_that_is() {
     // before it. That is the whole point of a leaf: a combinator is only as readable as its parts, so one ported leaf is worth
     // several times itself.
     assert_eq!(
-        readable, 2294,
+        readable, 2342,
         "of which the port answers 1,501: `u_has_effect`, `compare_string`, `u_has_items`, the combinators, and the `math` expressions whose every name it knows"
     );
 }
@@ -637,4 +637,50 @@ fn the_calendar_turns_days_into_seasons() {
 
     // A day is 86,400 turns: the reference multiplies by sixty at every step (`calendar.h:214-234`).
     assert_eq!(cdda_sim::calendar::TURNS_PER_DAY, 86_400);
+}
+
+/// `u_at_om_location` asks the overmap tile the speaker stands on.
+///
+/// Reference: `f_at_om_location` (`condition.cpp:1023-1046`) reads the actor's tile, strips direction and connections off its terrain id
+/// (`oter_no_dir_or_connections`) and compares that with the string the data writes.
+#[test]
+fn standing_on_an_overmap_tile_answers_the_guard() {
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (30, 4, 0));
+
+    // Nothing has generated a world, so no tile has a terrain and the guard answers false rather than inventing one.
+    assert!(!holds(&world, survivor, &condition(r#"{"u_at_om_location": "field"}"#)));
+
+    let tile = cdda_sim::overmap::tile_of(30, 4);
+    assert_eq!(tile, (1, 0), "a tile is twenty-four squares across");
+    cdda_sim::overmap::set_terrain(&mut world, tile, "field_north");
+    assert!(
+        holds(&world, survivor, &condition(r#"{"u_at_om_location": "field"}"#)),
+        "a rotated tile answers its base terrain"
+    );
+    assert!(!holds(&world, survivor, &condition(r#"{"u_at_om_location": "house"}"#)));
+
+    // A square in the next tile answers about that tile instead.
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::Position { x: 60, y: 4, z: 0 });
+    assert!(!holds(&world, survivor, &condition(r#"{"u_at_om_location": "field"}"#)));
+    cdda_sim::overmap::set_terrain(&mut world, cdda_sim::overmap::tile_of(60, 4), "house_east");
+    assert!(holds(&world, survivor, &condition(r#"{"u_at_om_location": "house"}"#)));
+
+    // The listener's own tile is asked about when the guard names the listener.
+    let npc_guard = condition(r#"{"npc_at_om_location": "house"}"#);
+    let stranger = cdda_sim::creature::spawn_creature(&mut world, "a stranger", (0, 0, 0));
+    assert!(!cdda_sim::conditions::holds_with(
+        &world,
+        survivor,
+        Some(stranger),
+        &npc_guard
+    ));
+    assert!(cdda_sim::conditions::holds_with(
+        &world,
+        survivor,
+        None,
+        &condition(r#"{"u_at_om_location": "house"}"#)
+    ));
 }
