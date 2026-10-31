@@ -1,0 +1,76 @@
+//! The five counts that move together, in one place.
+//!
+//! The dialogue censuses measure one body of data from four directions: how many programs the port can read, how many of those it can run, how many
+//! members refused, how many programs are one member away from running, and how many of the data's effects it can carry out. Porting **one** effect
+//! moves all of them, so a count hardcoded beside each assertion turns one feature into a dozen edits and a dozen gate runs.
+//!
+//! The counts live here and the censuses read them. Moving a count is one line; the censuses keep their invariants - everything is either runnable or
+//! refused, every refusal names something real, every program is readable or explains why not - which is what a census is for.
+
+/// What the dialogue census counted this time round.
+///
+/// Reference for what each one means: `docs/13-test-inventory.md` and the header of `eoc_programs.rs`.
+#[derive(Debug, Clone, Copy)]
+pub struct Census {
+    /// Programs the data names.
+    pub defined: usize,
+    /// Programs the reader can understand whole.
+    pub readable: usize,
+    /// Readable programs that also ran to completion in a fresh world.
+    pub ran: usize,
+    /// Readable programs that refused at run time.
+    pub refused_at_run: usize,
+    /// Unreadable members across every program.
+    pub leaves: usize,
+    /// Programs exactly one member short of readable.
+    pub one_gap: usize,
+    /// Effect entries the reader can carry out.
+    pub effects_runnable: usize,
+    /// Effect entries the data holds.
+    pub effects_defined: usize,
+}
+
+/// The census as of the mapgen-update aiming port.
+///
+/// Every one of these was measured, not estimated: `CDDA_SHOW_MAPGEN`-style prints and the census's own `println!` report them at run time, and these
+/// constants are the numbers those prints last said.
+pub const NOW: Census = Census {
+    defined: 692,
+    readable: 239,
+    ran: 132,
+    refused_at_run: 107,
+    leaves: 1_127,
+    one_gap: 188,
+    effects_runnable: 927,
+    effects_defined: 1_612,
+};
+
+impl Census {
+    /// The invariant every census shares, whatever the numbers are: nothing is unaccounted for.
+    ///
+    /// A count that fails this is not out of date, it is **wrong** - and the difference matters, because an out-of-date count means "port more", while a
+    /// broken invariant means "the census is measuring something other than what it says".
+    pub fn accounts_for_every_program(self) {
+        assert_eq!(
+            self.ran + self.refused_at_run,
+            self.readable,
+            "every readable program either ran or refused: {self:?}"
+        );
+        assert!(
+            self.readable <= self.defined,
+            "a program cannot be readable before it is defined: {self:?}"
+        );
+        assert!(
+            self.ran <= self.readable,
+            "a program cannot run before it can be read: {self:?}"
+        );
+        assert!(
+            self.one_gap <= self.defined,
+            "one-gap programs are programs: {self:?}"
+        );
+        assert!(
+            self.effects_runnable <= self.effects_defined,
+            "an effect cannot be carried out before it is defined: {self:?}"
+        );
+    }
+}

@@ -5376,3 +5376,21 @@ unreadable leaves | 1,170 | **1,127** |
 
 Gated with a **discriminating** case: the square is stored, the speaker then walks five squares away, and the update must land on the stored square and
 *not* on the one under its feet. A test that left the two together would pass on a fallback that never read the variable.
+
+## One place for the census counts (round 831)
+
+The dialogue censuses measure one body of data from four directions, and porting **one** effect moves all of them. With a count hardcoded beside each
+assertion, the `target_var` round cost twenty calls: four were the feature and sixteen were five censuses, six anchors each, fixed one failing assertion
+at a time across four gate runs. That tax rises as the numbers move, so it was paid down before the next leaf.
+
+`crates/sim/tests/sim_suite/numbers.rs` now holds one `Census` with the eight counts, and the censuses read it. Two things changed besides the moving:
+
+- **The one-gap ranking is printed, not pinned.** It is the list a round reads to choose the next leaf, and it moves whenever any leaf lands. Pinning it
+  to a literal vector made every feature edit seven lines that say nothing about the feature. It is now asserted non-empty and asserted that every ranked
+  member has at least one program behind it - and the printed line is where the round reads it.
+- **Every census asserts its invariants, not only its totals**: everything readable either ran or refused; nothing runs before it reads; nothing reads
+  before it is defined; no effect is carried out before it is defined. Those cannot "go out of date" - a failure means the census is measuring something
+  other than what it says.
+
+The counts themselves stay exact, because a count that drifts unnoticed is how a census quietly stops measuring. The difference is that moving one is
+now a single line in one file.

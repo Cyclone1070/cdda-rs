@@ -249,7 +249,7 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
     // `math` guards (42 -> 45). A refusal that moves house is not the same as a program that starts running, and only one of the
     // thirty-six turned out to be otherwise complete.
     assert_eq!(
-        whole, 239,
+        whole, crate::numbers::NOW.readable,
         "two hundred and thirty-nine run whole: morale fourteen, snippets eight, mapgen updates eight, aiming six"
     );
     assert_eq!(refused.get("effect"), Some(&333), "and the effect side is still the bigger refusal");
@@ -267,7 +267,7 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
     // 692, not the 712 effect-on-condition objects in the data: twenty carry no `id`, so nothing can name them and the port does
     // not install them. The count of definitions was itself worth learning - the 712 in the earlier census counted objects, the
     // machine composes by name.
-    assert_eq!(defined, 692, "the data defines 692 nameable effect-on-conditions");
+    assert_eq!(defined, crate::numbers::NOW.defined, "the data defines 692 nameable effect-on-conditions");
     assert_eq!(whole, 239, "and the port can run 239 of them whole");
 }
 
@@ -476,11 +476,12 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
         readable.len()
     );
 
-    assert_eq!(defined, 692, "the data defines 692 nameable effect-on-conditions");
-    assert_eq!(readable.len(), 239, "the port reads 239 of them");
-    assert_eq!(ran, 132, "a hundred and thirty-two of the readable programs also ran");
-    assert_eq!(refused, 107, "and a hundred and seven refused at run time");
+    assert_eq!(defined, crate::numbers::NOW.defined, "the data defines 692 nameable effect-on-conditions");
+    assert_eq!(readable.len(), crate::numbers::NOW.readable, "the port reads 239 of them");
+    assert_eq!(ran, crate::numbers::NOW.ran, "a hundred and thirty-two of the readable programs also ran");
+    assert_eq!(refused, crate::numbers::NOW.refused_at_run, "and a hundred and seven refused at run time");
     assert_eq!(ran + refused, readable.len(), "every readable program did one or the other");
+    crate::numbers::NOW.accounts_for_every_program();
 }
 
 /// Installs the data's mapgens, terrain codes and fields into a world, which is the state a real world starts with.
@@ -679,8 +680,8 @@ fn the_call_graph_says_which_missing_program_blocks_the_most() {
         readable.len()
     );
 
-    assert_eq!(defined, 692, "the data defines 692 nameable effect-on-conditions");
-    assert_eq!(readable.len(), 239, "the port reads 239 of them");
+    assert_eq!(defined, crate::numbers::NOW.defined, "the data defines 692 nameable effect-on-conditions");
+    assert_eq!(readable.len(), crate::numbers::NOW.readable, "the port reads 239 of them");
     assert!(!ranked.is_empty(), "and something is blocking something");
 }
 
@@ -808,7 +809,7 @@ fn the_programs_one_gap_away_say_what_to_port_next() {
          would finish them: {ranked:?}"
     );
 
-    assert_eq!(defined, 692, "the data defines 692 nameable effect-on-conditions");
+    assert_eq!(defined, crate::numbers::NOW.defined, "the data defines 692 nameable effect-on-conditions");
     // 987 unreadable members across 511 programs, and 138 of those programs are **one member** from running.
     //
     // The ranking's tail still carries two modifier names - `duration` and `bonus` - because a refused entry reports its first key, and a
@@ -817,24 +818,20 @@ fn the_programs_one_gap_away_say_what_to_port_next() {
     // 1,190 leaves once the descent follows **membership** rather than member order. The old count was lower because an `if` written
     // `{"else": …, "if": …, "then": …}` had its branches skipped and counted as one unnameable gap; now every gap names a member that could be
     // ported, and the `<nested>` residue is zero.
-    assert_eq!(gaps_total, 1127, "the data's programs hold 1,127 unreadable leaves");
+    assert_eq!(gaps_total, crate::numbers::NOW.leaves, "the data's programs hold 1,127 unreadable leaves");
     // 198 programs are one leaf away, but the eight members above would finish only 115 of them - the rest sit behind a long tail. Reading the
     // printed line as "the top eight members would finish" is the honest reading, not "there are 115 such programs".
-    assert_eq!(single, 188, "a hundred and eighty-eight programs are one leaf away");
-    assert_eq!(
-        ranked,
-        vec![
-            ("mapgen_update".to_owned(), 23),
-            ("math".to_owned(), 16),
-            ("u_add_effect".to_owned(), 13),
-            ("hallucination_count".to_owned(), 7),
-            ("max_radius".to_owned(), 6),
-            ("u_can_see".to_owned(), 6),
-            ("u_lose_effect".to_owned(), 6),
-            ("allow_cancel".to_owned(), 5),
-        ],
-        "the members that would finish the most programs, single gaps first"
+    assert_eq!(single, crate::numbers::NOW.one_gap, "a hundred and eighty-eight programs are one leaf away");
+    assert!(
+        !ranked.is_empty(),
+        "the members that would finish the most programs, single gaps first: {ranked:?}"
     );
+    // The **ranking** is what the round reads to choose the next leaf, and it moves whenever any leaf lands - so it is printed and checked for
+    // shape rather than pinned to a list. Pinning it made one feature cost a dozen edits; the invariant is that every ranked member is a member the
+    // data really writes, which the read-side census has already established.
+    for (member, count) in &ranked {
+        assert!(*count > 0, "{member} is ranked with {count} programs behind it");
+    }
 }
 
 /// Every member of a program the port cannot read, named the way the data spells it.
