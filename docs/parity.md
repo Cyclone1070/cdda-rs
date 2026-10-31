@@ -5249,3 +5249,26 @@ Six effect entries and one program. `type` left the one-leaf list entirely.
 Gated: background noise is heard but says nothing; speech is said and heard; a snippet sound says a line from its category; the `npc_` form sounds
 where the **listener** stands; a volume written as `{"math": […]}` is evaluated; and a `type` the port does not know is **refused** rather than
 guessed at.
+
+## A world-store discrepancy the mapgen bridge found (round 825)
+
+Before wiring `mapgen_update` - 33 single-leaf programs and 111 effect entries, the largest lever the census names - I wrote the bridge that would put a
+drawn chunk into the world: `draw_chunk` from the content crate, then `square::set_terrain` per square. The test drew a two-by-two chunk at an origin,
+asserted three squares were written, and then read them back.
+
+**The read-back disagreed with the write.** `place_drawn` reported writing three squares; `square::terrain_at` then answered `Some(0)` - the level's
+fill - where `1` had just been written.
+
+That is not a mapgen problem. `set_terrain` finds the Ground entity at a square through the position index and mutates its `Terrain`, and
+`terrain_at` finds it the same way - so a write and a read through the same index are disagreeing, which means either two Ground entities exist at
+one square or the index is stale after `materialise` rebuilt it. Both are world-store bugs, and both are exactly what the architecture gates exist to
+catch.
+
+I removed the half-built bridge rather than commit it. A bridge whose write cannot be read back is not a bridge, and pinning the test green by
+asserting the fill would have pinned the bug.
+
+**Next round starts here**: a focused test that a freshly loaded level has one Ground per square, that `set_terrain` then reads back as what it wrote,
+and, if two entities exist, whichever fix keeps the store's one-source-of-truth rule. `mapgen_update` waits behind it - it cannot be trusted on top of
+a store that disagrees with itself.
+
+No counts changed this round.
