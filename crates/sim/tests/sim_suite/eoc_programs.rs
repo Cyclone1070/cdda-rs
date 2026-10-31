@@ -431,6 +431,23 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
         }
     }
 
+    if std::env::var("CDDA_SHOW_MAPGEN").is_ok() {
+        for program in &readable {
+            let mut world = World::new();
+            let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+            cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
+            cdda_sim::eoc_registry::set_programs(&mut world, &readable);
+            if eoc_registry::run_program(&mut world, survivor, None, &program.id, 0) == Applied::Done {
+                continue;
+            }
+            if let Some(culprit) = first_refusing_effect(program, &readable, 0)
+                && culprit == "mapgen_update"
+            {
+                println!("MAPGEN REFUSED IN {}: {:?}", program.id, program.effects);
+            }
+        }
+    }
+
     let mut ranked: Vec<(String, usize)> = runtime_blame.into_iter().collect();
     ranked.sort_by_key(|(_, count)| std::cmp::Reverse(*count));
     ranked.truncate(6);

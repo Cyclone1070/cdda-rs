@@ -5295,3 +5295,34 @@ the census runs in a fresh world with no mapgens installed - which is honest, an
 
 Gated: a two-square update writes rock and rock floor where the speaker stands and leaves the next row alone; an update the world does not hold
 **refuses**; and all three aiming forms are refused at read time.
+
+## Why eight `mapgen_update` programs still refuse at run time (round 828)
+
+The runtime census refuses eight readable programs on `mapgen_update` in a fresh world, and the obvious reading — "the world has no mapgens installed" —
+turned out to be wrong. Installing every update mapgen the data holds, filed under its `update_mapgen_id` and with a terrain code for every id it
+names, changed the count by **nothing**: still 122 ran, 109 refused.
+
+A diagnostic gated behind `CDDA_SHOW_MAPGEN` printed what those programs actually ask for:
+
+```
+EOC_scenario_smoke  -> mapgen_update "SCENARIO_SMOKE"
+EOC_scenario_fire   -> mapgen_update "SCENARIO_FIRE"
+EOC_scenario_blood  -> mapgen_update "SCENARIO_BLOOD"
+EOC_BEM_ANCHOR_SELLER_GONE -> "nest_ancilla_bar_remove_BEM_anchor_seller"
+```
+
+and the data for `SCENARIO_SMOKE` is:
+
+```
+{"type": "mapgen", "update_mapgen_id": "SCENARIO_SMOKE",
+ "object": {"place_fields": [{"field": "fd_smoke", "x": [3, 20], "y": [3, 20], "intensity": [1, 3], "repeat": 60}]}}
+```
+
+**These updates place fields, not terrain.** The port's mapgen update writes terrain rows; a `place_fields` update has no rows at all, so the loader
+does not even build an object for it, and installing mapgens cannot help. What is missing is `place_fields` — and the port already has the field
+system (`field_registry`, `field_spread`, `field_table`), so this is a mapping job rather than a new subsystem.
+
+The collector was reverted rather than committed: sixty lines of test plumbing that changed no number and had no test of its own. The diagnostic
+stayed, gated behind an environment variable like `CDDA_SHOW_NESTED`, because it is what answered the question.
+
+No counts changed this round.
