@@ -171,6 +171,55 @@ fn run_weighted_list(
 
 
 
+
+/// Says a line picked from a snippet category.
+///
+/// Reference: `f_message` (`npctalk.cpp:5385-5400`) with `snippet: true`: the line is picked from the category by weight, and with `same_snippet`
+/// the pick is stored in the talker's `<category>_snippet_id` value so the next call says the same line.
+fn say_snippet(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    category: &cdda_content::dialogue::StringSource,
+    same: bool,
+    about_listener: bool,
+) -> Applied {
+    let Some(name) = crate::conditions::text_of(world, speaker, listener, category) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(holder) = actor(speaker, listener, about_listener) else {
+        return Applied::CannotAnswer;
+    };
+    let remembered = format!("{name}_snippet_id");
+    if same
+        && let Some(known) = crate::dialogue_values::text_of(world, holder, &remembered)
+        && let Some(line) = crate::snippets::category(world, &name)
+            .into_iter()
+            .find(|line| line.id == known)
+    {
+        crate::messages::push(world, &line.text);
+        return Applied::Done;
+    }
+    let mut dice = crate::singletons::take_rolls(world);
+    let picked = crate::snippets::pick(world, &name, dice.as_mut());
+    if let Some(dice) = dice.take() {
+        crate::singletons::put_rolls(world, dice);
+    }
+    let Some(line) = picked else {
+        return Applied::CannotAnswer;
+    };
+    if same {
+        crate::dialogue_values::set(
+            world,
+            holder,
+            &remembered,
+            crate::dialogue_values::Value::Text(line.id.clone()),
+        );
+    }
+    crate::messages::push(world, &line.text);
+    Applied::Done
+}
+
 /// One morale point to add, with its numbers still to be computed.
 struct MoraleRequest<'a> {
     kind: &'a cdda_content::dialogue::StringSource,
@@ -425,6 +474,11 @@ pub fn run_effect(
             crate::messages::push(world, text);
             Applied::Done
         }
+        Effect::Snippet {
+            category,
+            same,
+            listener: about_listener,
+        } => say_snippet(world, speaker, listener, category, *same, *about_listener),
         Effect::AddMorale {
             kind,
             bonus,

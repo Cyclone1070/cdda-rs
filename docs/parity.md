@@ -5104,3 +5104,32 @@ data - the largest piece - but not a chunk the game would agree with square for 
 
 **And the omission that nearly went out:** the first attempt at this entry edited a heading that does not exist, so the write succeeded and the commit found nothing to do. A commit
 that says "nothing to commit" is the cheapest possible check that the edit did not happen.
+
+## Dialogue effects: morale, data-driven numbers, and snippets (rounds 816-819)
+
+A short record of four rounds, because the numbers moved and one of them corrected a claim I had already written down.
+
+| Round | What was ported | Effects | Programs | That run |
+|---|---|---|---|---|
+| 816 | duration as a string, a range, or `PERMANENT`, and intensity as an expression (`f_add_effect`) | 815 | 195 | 92 |
+| 817 | **morale** - `morale_point`, its logistic fade, `sqrt(a²+b²)` stacking, the cap, `pick_time` | 840 | 209 | 106 |
+| 818 | the snippet **store** (a component, pick by weight); the effect refused, see below | 840 | 209 | 106 |
+| 819 | the snippet **effect**, replacing a guard that refused every snippet | 861 | 217 | 112 |
+
+**Morale** is the first time the leaf census led to a whole subsystem rather than a leaf: it named `decay_start`, which is not a rule but a member of
+`u_add_morale`. Morale is a component on the creature - `Morale(Vec<MoralePoint>)` - with `age_morale` the system that advances and expires points.
+
+**Round 818 reported a reader defect that was not there.** The census refused to move, a diagnostic found `{"snippet": true, "u_message": "play_piano"}`
+refused while the reverse order read, and the conclusion drawn - that `read_effect` dispatched on member order - was wrong. The cause was a deliberate
+guard: *"a snippet names text the port has no table for, so refuse it"*. The first order failed too; it had only ever passed because the snippet reader
+under test had been inserted **above** that guard, and reverting the reader put the guard back.
+
+The method failure is the part worth keeping: the diagnostic tested **one** order and compared it against a recollection of a passing run, instead of
+testing both orders in the same run. The differential would have shown at once that order was irrelevant. **Compare two shapes in one test; never one
+shape against a memory.**
+
+The guard is now a reader, and the store built in round 818 made that a two-line change - which is the store's justification, not its result.
+
+Gated: 200 snippet picks never take a weight-zero line and the heavier line wins more; `same_snippet` says the same line twice; an unknown category
+**refuses**; a reader accepts the same object with its members in either order; `"18 hours"` becomes 64,800 turns of an effect; an intensity of
+`{"math": ["strong"]}` becomes whatever `strong` holds; and a duration range `[10, 20]` rolls between both ends over eighty draws.

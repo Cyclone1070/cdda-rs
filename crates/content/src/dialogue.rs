@@ -1092,6 +1092,18 @@ pub enum Effect {
     /// Reference: `f_weighted_list_eocs` (`npctalk.cpp:6950-6975`): each entry is a `[ program, weight ]` pair, the weights are evaluated and one
     /// program is picked by them - so an entry with weight zero is never picked, and the heavier an entry the likelier it is.
     WeightedList(Vec<(ProgramRef, Expression)>),
+    /// Say a line picked from a snippet category.
+    ///
+    /// Reference: `f_message` (`npctalk.cpp:5312-5405`) with `snippet: true`: the member names a **category**, not a message, and the line is
+    /// picked from that category by weight. With `same_snippet` the pick is remembered so the same line repeats.
+    Snippet {
+        /// The snippet category to pick from.
+        category: StringSource,
+        /// Whether the pick is remembered rather than made afresh.
+        same: bool,
+        /// Whether it goes to the listener's log rather than the speaker's.
+        listener: bool,
+    },
     /// Give a creature a morale point.
     ///
     /// Reference: `f_add_morale` (`npctalk.cpp:7177-7195`), whose defaults are a one-hour duration and a half-hour decay start.
@@ -1150,7 +1162,7 @@ impl Effect {
     pub fn kind(&self) -> &'static str {
         match self {
             Self::Math(_) => "math",
-            Self::Message(_) => "u_message",
+            Self::Message(_) | Self::Snippet { .. } => "u_message",
             Self::If { .. } => "if",
             Self::AddEffect { .. } => "u_add_effect",
             Self::RemoveEffect { .. } => "u_lose_effect",
@@ -1303,10 +1315,8 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
         }
         return read_assignment(&joined).map(|one| Effect::Math(vec![one]));
     }
-    // Reference: `f_message` takes `snippet` separately from the message itself, and a snippet names text the port has no
-    // table for - showing the id would be showing the wrong words.
     if matches!(object.get("snippet"), Some(Value::Bool(true))) {
-        return None;
+        return read_snippet(object);
     }
     if let Some(changed) = read_effect_change(object) {
         return Some(changed);
@@ -1360,6 +1370,25 @@ fn read_effect_list(value: Option<&Value>) -> Option<Vec<Effect>> {
 
 
 
+
+
+/// Reads a message whose member names a **snippet category** rather than the text itself.
+///
+/// Reference: `f_message` (`npctalk.cpp:5312-5405`): with `snippet: true` the member is a category of text, the line is picked from it by weight,
+/// and `same_snippet` remembers the pick so the same line repeats.
+fn read_snippet(object: &cdda_json::Object) -> Option<Effect> {
+    for member in ["u_message", "npc_message"] {
+        let Some(value) = object.get(member) else {
+            continue;
+        };
+        return Some(Effect::Snippet {
+            category: read_string_source(value)?,
+            same: matches!(object.get("same_snippet"), Some(Value::Bool(true))),
+            listener: member == "npc_message",
+        });
+    }
+    None
+}
 
 /// Reads a morale point being added, which may name its type with a variable and compute its numbers.
 ///

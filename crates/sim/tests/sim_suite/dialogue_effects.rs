@@ -226,7 +226,7 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
     // length of the evaluation and put back.
     // 792 after location variables: the plain form stores the actor's square, and the searching forms are still refused.
     // 805 after `open_dialogue`: the branch rule runs exactly, and the conversation itself is not opened (no interface to open it).
-    assert_eq!(runnable, 840, "of which the port runs 840 entries");
+    assert_eq!(runnable, 861, "of which the port runs 861 entries");
 
     // And the ranking of what refuses, which is this census's real output: it says what to port next instead of what is used most.
     // `target_var` is the one entry the ranking cannot attribute on its own - a scan of the data shows 71 of those 98 are
@@ -239,7 +239,7 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
     assert_eq!(
         ranking,
         vec![
-            ("mapgen_update".to_owned(), 107),
+            ("mapgen_update".to_owned(), 111),
             ("math".to_owned(), 98),
             ("else".to_owned(), 32),
             ("u_lose_effect".to_owned(), 29),
@@ -313,12 +313,15 @@ fn a_program_runs_its_effects_in_order_and_a_message_is_recorded() {
     messages::clear(&mut world);
     assert!(messages::lines(&world).is_empty());
 
-    // A message written as a translation object reads too, and a snippet does not: the port has no snippet table, and showing a
-    // snippet's id would be showing the wrong text.
+    // A message written as a translation object reads too, and a snippet reads as a snippet: the member names a category of text rather than the
+    // text itself, which `a_snippet_message_picks_a_line_from_its_category_by_weight` covers.
     let translated = cdda_json::parse(br#"{"npc_message": {"str": "Rough weather."}}"#.as_slice()).expect("json");
     assert!(cdda_content::dialogue::read_effect(&translated).is_some());
     let snippet = cdda_json::parse(br#"{"u_message": "snippet_id", "snippet": true}"#.as_slice()).expect("json");
-    assert!(cdda_content::dialogue::read_effect(&snippet).is_none());
+    assert!(matches!(
+        cdda_content::dialogue::read_effect(&snippet),
+        Some(cdda_content::dialogue::Effect::Snippet { .. })
+    ));
 }
 
 /// A program can give and take an effect, with the duration and intensity the data states.
@@ -938,4 +941,105 @@ fn a_morale_point_keeps_its_bonus_then_fades_along_the_reference_curve() {
         6,
         "the cap wins over the stack"
     );
+}
+
+/// The reader dispatches on a member's **name**, never on the order the data happens to write its members in.
+///
+/// The real data writes the same object both ways - `{"u_message": "…", "snippet": true}` and `{"snippet": true, "u_message": "…"}` - so a reader
+/// that depended on order would refuse half of them and quietly shrink every census.
+#[test]
+fn a_reader_dispatches_on_member_names_not_on_the_order_the_data_writes_them() {
+    for text in [
+        r#"{"u_message": "play_piano", "snippet": true}"#,
+        r#"{"snippet": true, "u_message": "play_piano"}"#,
+        r#"{"u_message": "hello"}"#,
+        r#"{"u_add_effect": "wet", "duration": "1 hour"}"#,
+        r#"{"duration": "1 hour", "u_add_effect": "wet"}"#,
+    ] {
+        let value = cdda_json::parse(text.as_bytes()).expect("json");
+        assert!(
+            cdda_content::dialogue::read_effect(&value).is_some(),
+            "{text} must read whatever order its members come in"
+        );
+    }
+}
+
+/// A snippet message names a category, and the line is picked from it by weight.
+///
+/// Reference: `f_message` (`npctalk.cpp:5312-5405`): with `snippet: true` the member is a category, not a message, and the line comes from the
+/// snippet library by weight; with `same_snippet` the same line is said again.
+#[test]
+fn a_snippet_message_picks_a_line_from_its_category_by_weight() {
+    use cdda_core_types::rng::Rolls;
+
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::singletons::put_rolls(&mut world, Rolls::new(11));
+    cdda_sim::snippets::set_snippets(
+        &mut world,
+        [
+            ("files".to_owned(), snippet_line("first", "The first line.", 1)),
+            ("files".to_owned(), snippet_line("second", "The second line.", 3)),
+            ("files".to_owned(), snippet_line("never", "Never said.", 0)),
+        ],
+    );
+
+    let effect = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(br#"{"u_message": "files", "snippet": true}"#.as_slice()).expect("json"),
+    )
+    .expect("readable");
+
+    let mut said: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+    for _ in 0..200 {
+        cdda_sim::messages::clear(&mut world);
+        assert_eq!(
+            cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+            Applied::Done
+        );
+        let lines = cdda_sim::messages::lines(&world);
+        let [line] = lines.as_slice() else {
+            panic!("one message per run, got {lines:?}");
+        };
+        *said.entry(line.clone()).or_insert(0) += 1;
+    }
+    assert_eq!(said.get("Never said."), None, "a line of weight zero is never said");
+    let first = said.get("The first line.").copied().unwrap_or(0);
+    let second = said.get("The second line.").copied().unwrap_or(0);
+    assert_eq!(first + second, 200);
+    assert!(second > first, "the heavier line came up more: {second} to {first}");
+
+    // `same_snippet` says the same line twice.
+    let same = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(
+            br#"{"u_message": "files", "snippet": true, "same_snippet": true}"#.as_slice(),
+        )
+        .expect("json"),
+    )
+    .expect("readable");
+    cdda_sim::messages::clear(&mut world);
+    cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &same);
+    let once = cdda_sim::messages::lines(&world);
+    cdda_sim::messages::clear(&mut world);
+    cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &same);
+    assert_eq!(cdda_sim::messages::lines(&world), once, "the same line again");
+
+    // An unknown category refuses rather than saying nothing quietly.
+    let unknown = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(br#"{"u_message": "no_such_category", "snippet": true}"#.as_slice())
+            .expect("json"),
+    )
+    .expect("readable");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &unknown),
+        Applied::CannotAnswer
+    );
+}
+
+/// One snippet line, for the tests above.
+fn snippet_line(id: &str, text: &str, weight: i32) -> cdda_sim::snippets::SnippetLine {
+    cdda_sim::snippets::SnippetLine {
+        id: id.to_owned(),
+        text: text.to_owned(),
+        weight,
+    }
 }
