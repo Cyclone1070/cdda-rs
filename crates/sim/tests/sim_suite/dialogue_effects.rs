@@ -2224,3 +2224,38 @@ fn a_spawn_can_ask_for_the_sky_or_a_roof_and_say_a_line() {
     .expect("json");
     assert!(cdda_content::dialogue::read_effect(&both).is_none());
 }
+
+/// The bare `message` member says a line too, and it is the global form of `u_message`.
+///
+/// Reference: `f_message` is registered three times (`npctalk.cpp:8039` and `:8135`) - `u_message`, `npc_message`, and `message`, the last being the **global**
+/// form. The data writes it as one word for lines a program says rather than a talker, and reading only the two creature forms refuses five of the data's
+/// programs.
+#[test]
+fn the_global_message_member_says_a_line() {
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+
+    let spoken = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(br#"{"message": "the air shimmers"}"#.as_slice()).expect("json"),
+    )
+    .expect("the global form is readable");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &spoken),
+        Applied::Done
+    );
+    assert_eq!(
+        cdda_sim::messages::lines(&world),
+        vec!["the air shimmers".to_owned()]
+    );
+
+    // The translation object form reads as the same line, which is how the data writes a line with a `str` member.
+    let translated = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(br#"{"message": {"str": "a second line"}}"#.as_slice()).expect("json"),
+    )
+    .expect("the object form is readable");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &translated),
+        Applied::Done
+    );
+    assert_eq!(cdda_sim::messages::lines(&world).len(), 2);
+}

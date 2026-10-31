@@ -6088,3 +6088,30 @@ draws nothing when the two ends are equal, and the port returns the number witho
 Gated: sixteen seeds each spawn a summon whose range is accepted, the fixed form still expires at exactly its turn, and a summon with no lifespan outlives any
 clock. The reordering cost me one red run: the "no lifespan stays" assertion ran after sixteen ranged spawns had been made, so sixteen were due and it read 16
 instead of 0. **A test that counts what is in a world counts everything the test put there**, not just the last thing.
+
+## The global `message`, and a false start worth keeping (round 859)
+
+`f_message` is registered **three** times in the reference's effect table - `u_message` and `npc_message` (`npctalk.cpp:8039`) and the bare `message`
+(`npctalk.cpp:8135`), which is the **global** form: the line goes to the player whoever the talker is. The port read the two creature forms and refused the
+global one, which is the whole reason `message` sat on the one-gap list with 5 programs.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 334 | **339** |
+**capability** | 205 | **210** |
+unreadable leaves | 821 | **814** |
+one-gap programs | 155 | **151** |
+effect entries runnable | 1,147 | **1,154** |
+effect-blamed programs | 290 | **285** |
+
+The fix is one name in a member list.
+
+**The false start:** I began by writing a whole new `Effect::Message { text, kind }` variant with a `type` member and a reader, and the compiler refused it -
+the port already had `Effect::Message(String)` and an arm that pushed to the message log. Had it compiled, the port would have had two message effects, one of
+which no data could reach. I reverted both files and read the existing reader, which is what I should have done first: **check what the port already answers
+before writing the answer again.** `grep` for the member name, not for the feature.
+
+That also disposes of `type`: unknown members are tolerated by the reader, so `type` was never the blocker, and colouring the log is the interface's business.
+
+Census numbers now move in one measured run rather than six. Two of them - fresh and built-world - are **not** the same number (210 against 214) because the
+built-world test computes its fresh count after building a world in the same process; both are pinned to what their own test prints.

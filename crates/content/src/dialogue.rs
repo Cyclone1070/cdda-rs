@@ -1897,7 +1897,10 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
         }
     }
     if let Some(carried) = read_carried_effect(object) { return Some(carried); }
-    for member in ["u_message", "npc_message"] {
+    // Reference: `f_message` is registered **three** times (`npctalk.cpp:8039` and `:8135`) - `u_message`, `npc_message`, and the bare `message`, which is the
+    // global form and says the line to the player whoever the talker is. Reading only the two creature forms leaves the global one refused, and the data uses
+    // it for the lines a program says rather than a talker.
+    for member in ["u_message", "npc_message", "message"] {
         if let Some(value) = object.get(member) {
             return read_message(value).map(Effect::Message);
         }
