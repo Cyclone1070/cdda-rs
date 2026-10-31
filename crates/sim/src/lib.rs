@@ -14,6 +14,7 @@ pub mod bash;
 pub mod emit_registry;
 pub mod falling;
 pub mod memory;
+pub mod mapgen_place;
 pub mod messages;
 pub mod missions;
 pub mod morale;

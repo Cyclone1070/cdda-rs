@@ -541,3 +541,74 @@ fn installing_a_registry_twice_leaves_one_of_it() {
     assert_eq!(cdda_sim::monster_registry::count(&mut world), 1);
     assert_eq!(cdda_sim::effect_registry::count(&mut world), 1);
 }
+
+/// A drawn chunk lands as terrain on its own squares, and a square keeps exactly one ground.
+///
+/// Reference: `mapgen::draw_map` (`mapgen.cpp`) writes the chunk's terrain where the chunk was placed. The port writes into the store everything
+/// else lives in, so a generated chunk is entities rather than an array beside them - and the write must read back through the same index.
+#[test]
+fn a_drawn_chunk_lands_as_terrain_on_its_own_squares() {
+    use cdda_core_types::level::Level;
+
+    let mut world = World::new();
+    let mut level = Level::new();
+    for x in 0..6 {
+        for y in 0..6 {
+            level.set_terrain(x, y, 0, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let before = cdda_sim::square::extent(&world);
+
+    let symbol = |text: &str| match cdda_json::parse(text.as_bytes()).expect("json") {
+        cdda_json::Value::Object(found) => found,
+        _ => unreachable!("an object"),
+    };
+    let lookup = |name: &str| match name {
+        "t_grass" => Some(symbol(r#"{"id": "t_grass"}"#)),
+        "t_wall" => Some(symbol(r#"{"id": "t_wall"}"#)),
+        _ => None,
+    };
+    let symbols = symbol(r#"{"A": "t_grass", "B": "t_wall"}"#);
+    let drawn = cdda_content::mapgen::draw_chunk(
+        &["AB".to_owned(), " A".to_owned()],
+        Some(&symbols),
+        &[],
+        &lookup,
+        Some("t_dirt"),
+    )
+    .expect("drawn");
+    assert_eq!(cdda_sim::mapgen_place::drawn_extent(&drawn), (2, 2));
+
+    let code_of = |terrain: &str| match terrain {
+        "t_grass" => Some(1),
+        "t_wall" => Some(2),
+        _ => None,
+    };
+    let written = cdda_sim::mapgen_place::place_drawn(&mut world, &drawn, (1, 1, 0), &code_of);
+    assert_eq!(written, 3, "three symbols had terrain under them");
+
+    assert_eq!(cdda_sim::square::terrain_at(&world, (1, 1, 0)), Some(1), "A is grass");
+    assert_eq!(cdda_sim::square::terrain_at(&world, (2, 1, 0)), Some(2), "B is wall");
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (2, 2, 0)),
+        Some(1),
+        "the second row's A, one column right of the blank"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (1, 2, 0)),
+        Some(0),
+        "the blank square kept the level's own terrain"
+    );
+    assert_eq!(cdda_sim::square::extent(&world), before, "no square was added");
+
+    // And the store holds exactly one ground per square: a write that made a second one would read back whichever it found first.
+    let mut grounds: std::collections::BTreeMap<(i32, i32, i32), usize> = std::collections::BTreeMap::new();
+    let mut query = world.query::<(&cdda_sim::Position, Option<&cdda_sim::square::Terrain>)>();
+    for (position, terrain) in query.iter(&world) {
+        if terrain.is_some() {
+            *grounds.entry((position.x, position.y, position.z)).or_insert(0) += 1;
+        }
+    }
+    assert_eq!(grounds.values().filter(|count| **count > 1).count(), 0, "one ground per square");
+}

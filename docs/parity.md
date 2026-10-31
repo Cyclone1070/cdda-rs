@@ -5250,25 +5250,22 @@ Gated: background noise is heard but says nothing; speech is said and heard; a s
 where the **listener** stands; a volume written as `{"math": […]}` is evaluated; and a `type` the port does not know is **refused** rather than
 guessed at.
 
-## A world-store discrepancy the mapgen bridge found (round 825)
+## A world-store discrepancy that was not one (round 825-826)
 
-Before wiring `mapgen_update` - 33 single-leaf programs and 111 effect entries, the largest lever the census names - I wrote the bridge that would put a
-drawn chunk into the world: `draw_chunk` from the content crate, then `square::set_terrain` per square. The test drew a two-by-two chunk at an origin,
-asserted three squares were written, and then read them back.
+Before wiring `mapgen_update` - 33 single-leaf programs and 111 effect entries, the largest lever the census names - I wrote the bridge that puts a
+drawn chunk into the world: `draw_chunk` from the content crate, then `square::set_terrain` per square.
 
-**The read-back disagreed with the write.** `place_drawn` reported writing three squares; `square::terrain_at` then answered `Some(0)` - the level's
-fill - where `1` had just been written.
+The first attempt's test drew a two-by-two chunk, asserted three squares were written, and then read them back. The read-back disagreed, and round 825
+recorded that as a world-store bug: a write and a read through the same index answering differently.
 
-That is not a mapgen problem. `set_terrain` finds the Ground entity at a square through the position index and mutates its `Terrain`, and
-`terrain_at` finds it the same way - so a write and a read through the same index are disagreeing, which means either two Ground entities exist at
-one square or the index is stale after `materialise` rebuilt it. Both are world-store bugs, and both are exactly what the architecture gates exist to
-catch.
+**It was the test's arithmetic.** The chunk's second row is `" A"` - a blank, then `A` - so its `A` lands one **column** right of the first row's, at
+`(2, 2)`. The test asserted `(1, 2)`, which is the blank, and so read the level's own terrain back and called it a stale index. With the coordinate
+corrected the bridge is green, `terrain_at` answers what `set_terrain` wrote, and a count of ground entities per square confirms **one per square**.
 
-I removed the half-built bridge rather than commit it. A bridge whose write cannot be read back is not a bridge, and pinning the test green by
-asserting the fill would have pinned the bug.
+The lesson is the one this session already wrote down once and did not apply here: **a differential belongs in the same test**. The test that would
+have caught this in one run asserts *both* the written square and the blank one - which is exactly what it does now.
 
-**Next round starts here**: a focused test that a freshly loaded level has one Ground per square, that `set_terrain` then reads back as what it wrote,
-and, if two entities exist, whichever fix keeps the store's one-source-of-truth rule. `mapgen_update` waits behind it - it cannot be trusted on top of
-a store that disagrees with itself.
+`place_drawn` is now in the store's own terms: a drawn chunk is written into the squares that are already there, a blank keeps the level's terrain,
+and nothing is added. That is the piece `mapgen_update` needs, and it waits only on the effect itself: resolve the mapgen by id, draw it, place it at
+the target tile.
 
-No counts changed this round.
