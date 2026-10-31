@@ -5716,3 +5716,32 @@ sit.
 
 Gated: no tile of that terrain refuses; one tile stores its top-left square; a target with a search range, a radius, or a monster filter is refused rather
 than answered with the actor's own square.
+
+## The mission target, taken whole (round 845)
+
+Last round I counted the demand for `target_params` (40 entries) and then built the narrowest form of it (terrain, nothing else), which bought two entries.
+This round takes the rule as the data actually writes it. `mission_util::parse_mission_om_target` (`mission_util.cpp:425-450`) reads `search_range`
+(default `OMAPX * 3` = 540), `min_distance` and `z`, and `overmapbuffer::find_closest` (`overmapbuffer.cpp:1205-1230`) keeps only tiles at least
+`min_distance` out. Those three members are what 34 of the 35 remaining entries name, so those entries now read.
+
+Still refused, each for its own reason: `om_special` (needs the specials a world generator places), `cant_see`/`must_see` (needs overmap visibility),
+`reveal_radius` (needs the explored map), and a fractional range or distance - the reference evaluates those as doubles and rounds where it uses them, and
+a silent round here would be a guess about which way.
+
+**The search also changed shape.** It walked outward ring by ring, which cost 13.9 s for one test when the radius was 540 and the overmap was empty. Only a
+tile the overmap actually holds can match, so the candidates now come from the store: nearest first, then lower x and y, and the same test is 0.00 s. A
+search that finds nothing costs the size of the overmap, not the square of its radius.
+
+| Count | Before | After |
+|---|---|---|
+effect entries runnable | 1,039 | **1,064** |
+unreadable leaves | 972 | **946** |
+one-gap programs | 161 | **164** |
+programs readable | 299 | **299** |
+**capability** | 180 | **180** |
+
+Capability still did not move: these targets store a square that nothing in a fresh world consumes. The rule is right and the data reads; the programs
+that use it need a world with an overmap, which is what the headless playtests will give them.
+
+Gated: no match refuses; a nearer tile with no minimum distance wins; a minimum distance of two skips it and lands on the far one; a level the data names is
+carried into the stored square; and a minimum distance past every candidate refuses rather than offering the closest thing.

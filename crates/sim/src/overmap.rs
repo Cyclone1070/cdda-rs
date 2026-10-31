@@ -41,6 +41,22 @@ pub fn set_terrain(world: &mut World, tile: (i32, i32), terrain: &str) {
     }
 }
 
+/// Every tile the overmap holds with the terrain wanted, in a settled order.
+#[must_use]
+pub fn tiles_with_terrain(world: &World, wanted: &str) -> Vec<(i32, i32)> {
+    let Some(terrains) = crate::singletons::holder::<TheOvermap>(world)
+        .and_then(|holder| world.get::<OvermapTerrains>(holder))
+    else {
+        return Vec::new();
+    };
+    terrains
+        .0
+        .iter()
+        .filter(|(_, terrain)| terrain.as_str() == wanted)
+        .map(|(tile, _)| *tile)
+        .collect()
+}
+
 /// The nearest tile within a radius whose terrain is the one wanted.
 ///
 /// Reference: `mission_util::find_or_create_om_terrain` (`mission_util.cpp:321`), the search half: it walks outward from the origin and takes the first
@@ -52,28 +68,22 @@ pub fn nearest_with_terrain(
     origin: (i32, i32),
     wanted: &str,
     radius: i32,
+    min_distance: i32,
 ) -> Option<(i32, i32)> {
-    // Ring by ring, so the first match is the nearest and a search that is over a small area stays cheap: a box scan of the reference's default 540-tile
-    // radius is over a million lookups per call, and a dialogue that applies a mapgen should not cost that.
-    for step in 0..=radius {
-        for x in (origin.0 - step)..=(origin.0 + step) {
-            for y in (origin.1 - step)..=(origin.1 + step) {
-                // The ring, not the square: only the outermost rows and columns are new at this distance.
-                if step > 0
-                    && x != origin.0 - step
-                    && x != origin.0 + step
-                    && y != origin.1 - step
-                    && y != origin.1 + step
-                {
-                    continue;
-                }
-                if terrain_at(world, (x, y)) == Some(wanted) {
-                    return Some((x, y));
-                }
-            }
-        }
-    }
-    None
+    // Only a tile the overmap actually holds can match, so the candidates come from the store rather than from a ring of empty squares: a search that
+    // finds nothing costs the size of the overmap, not the square of its radius.
+    let placed = tiles_with_terrain(world, wanted);
+    placed
+        .into_iter()
+        .filter_map(|tile| {
+            let step = (tile.0 - origin.0).abs().max((tile.1 - origin.1).abs());
+            // `min_distance` skips the tiles nearest the searcher, which is how the data asks for somewhere *away* from the player
+            // (`overmapbuffer::find_closest`, `overmapbuffer.cpp:1229`).
+            (step <= radius && step >= min_distance).then_some((tile, step))
+        })
+        // Nearest first, then the lower x and y, so the same overmap always answers the same tile.
+        .min_by_key(|(tile, step)| (*step, *tile))
+        .map(|(tile, _)| tile)
 }
 
 /// The terrain of one overmap tile, or nothing when nothing has placed one.

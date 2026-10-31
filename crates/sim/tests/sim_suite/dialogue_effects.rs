@@ -639,10 +639,10 @@ fn a_location_variable_holds_the_actors_square() {
         Some(cdda_sim::dialogue_values::Value::Position { x: 3, y: 4, z: 0 })
     );
 
-    // The searching forms are refused rather than answered with the actor's own square. A `target_params` naming an overmap terrain and **nothing
-    // else** is no longer one of them - the port searches the overmap for it - but every filter still is.
+    // The searching forms are refused rather than answered with the actor's own square. A `target_params` naming an overmap terrain with a range, a
+    // distance and a level is no longer one of them - the port searches the overmap for it - but a special, a field or a zone still is.
     for text in [
-        r#"{"u_location_variable": {"u_val": "x"}, "target_params": {"om_terrain": "field", "search_range": 20}}"#,
+        r#"{"u_location_variable": {"u_val": "x"}, "target_params": {"om_terrain": "field", "om_special": "hospital"}}"#,
         r#"{"u_location_variable": {"u_val": "x"}, "terrain": "t_grass"}"#,
         r#"{"u_location_variable": {"u_val": "x"}, "min_radius": 3}"#,
     ] {
@@ -1670,7 +1670,7 @@ fn a_location_variable_can_hold_the_nearest_tile_of_a_terrain() {
 
     // A target that asks a question the port cannot answer is refused, not answered approximately.
     for text in [
-        r#"{"u_location_variable": {"u_val": "x"}, "target_params": {"om_terrain": "lab_finale", "search_range": 30}}"#,
+        r#"{"u_location_variable": {"u_val": "x"}, "target_params": {"om_terrain": "lab_finale", "om_special": "hospital"}}"#,
         r#"{"u_location_variable": {"u_val": "x"}, "target_params": {"om_terrain": "lab_finale"}, "min_radius": 4}"#,
         r#"{"u_location_variable": {"u_val": "x"}, "monster": "mon_zombie"}"#,
     ] {
@@ -1680,4 +1680,61 @@ fn a_location_variable_can_hold_the_nearest_tile_of_a_terrain() {
             "{text} asks something the port cannot answer"
         );
     }
+}
+
+/// A mission target names how far out to search, how near a tile may be, and which level - and the port reads all three.
+///
+/// Reference: `mission_util::parse_mission_om_target` (`mission_util.cpp:425-450`) reads `search_range` (default `OMAPX * 3`), `min_distance` and `z`;
+/// `overmapbuffer::find_closest` (`overmapbuffer.cpp:1205-1230`) keeps only tiles at least `min_distance` out.
+#[test]
+fn a_mission_target_names_its_range_its_distance_and_its_level() {
+    let mut world = World::new();
+    // The survivor stands in overmap tile (10, 10), so the near tile at (11, 10) is one step away and the far one is five.
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (240, 240, 0));
+    cdda_sim::overmap::set_terrain(&mut world, (11, 10), "lab_finale");
+    cdda_sim::overmap::set_terrain(&mut world, (15, 10), "lab_finale");
+
+    let store_in = |min_distance: &str, z: &str| {
+        let text = format!(
+            r#"{{"u_location_variable": {{"u_val": "lab"}}, "target_params": {{"om_terrain": "lab_finale", "min_distance": {min_distance}, "z": {z}}}}}"#
+        );
+        cdda_content::dialogue::read_effect(&cdda_json::parse(text.as_bytes()).expect("json"))
+            .expect("a target with range, distance and level is readable")
+    };
+    let read_square = |world: &mut World| {
+        cdda_sim::dialogue_values::position_of(
+            world,
+            survivor,
+            None,
+            &cdda_content::dialogue::AssignmentTarget::Variable {
+                scope: "u_val".to_owned(),
+                name: "lab".to_owned(),
+            },
+        )
+    };
+
+    // With no minimum distance the nearest tile wins, and the level is the one the data asked for.
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &store_in("0", "-1")),
+        Applied::Done
+    );
+    let near = cdda_sim::overmap::SQUARES_PER_OMT;
+    assert_eq!(
+        read_square(&mut world),
+        Some((11 * near, 10 * near, -1)),
+        "the nearest tile, on the level the target names"
+    );
+
+    // A minimum distance of two skips it and lands on the far one, which is five steps out.
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &store_in("2", "0")),
+        Applied::Done
+    );
+    assert_eq!(read_square(&mut world), Some((15 * near, 10 * near, 0)));
+
+    // A minimum distance past every candidate refuses: the search has nothing to offer rather than offering the closest thing.
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &store_in("9", "0")),
+        Applied::CannotAnswer
+    );
 }

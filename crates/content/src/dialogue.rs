@@ -1200,6 +1200,12 @@ pub enum Effect {
         name: String,
         /// The overmap terrain to look for.
         om_terrain: String,
+        /// How far out to search, in overmap tiles.
+        search_range: i32,
+        /// How near a tile may be and still count; closer ones are skipped.
+        min_distance: i32,
+        /// The map level to search on, when the data names one.
+        z: Option<i32>,
         /// Whether the square goes to the listener's variables rather than the speaker's.
         listener: bool,
     },
@@ -1879,8 +1885,25 @@ fn read_location_variable(object: &cdda_json::Object) -> Option<Effect> {
         // range) is a different question and is refused rather than answered with the wrong square.
         if let Some(Value::Object(params)) = object.get("target_params")
             && let Some(Value::Str(wanted)) = params.get("om_terrain")
-            && params.members().len() == 1
+            && params
+                .members()
+                .iter()
+                .all(|(key, _)| matches!(key.as_str(), "om_terrain" | "z" | "min_distance" | "search_range"))
         {
+            let whole = |key: &str, fallback: i32| match params.get(key) {
+                None => Some(fallback),
+                Some(Value::Int(number)) => i32::try_from(*number).ok(),
+                // A fractional range or distance is not a whole number of tiles, so the port refuses rather than rounding one: the reference
+                // evaluates these as doubles and rounds where it uses them, and a silent round here would be a guess about which way.
+                Some(_) => None,
+            };
+            let search_range = whole("search_range", DEFAULT_SEARCH_RANGE)?;
+            let min_distance = whole("min_distance", 0)?;
+            let z = match params.get("z") {
+                None => None,
+                Some(Value::Int(number)) => Some(i32::try_from(*number).ok()?),
+                Some(_) => return None,
+            };
             let (scope, name) = target.members().iter().find_map(|(scope, value)| match value {
                 Value::Str(name) => Some((scope.clone(), name.clone())),
                 _ => None,
@@ -1896,6 +1919,9 @@ fn read_location_variable(object: &cdda_json::Object) -> Option<Effect> {
                 scope,
                 name,
                 om_terrain: wanted.clone(),
+                search_range,
+                min_distance,
+                z,
                 listener,
             });
         }
@@ -1914,6 +1940,11 @@ fn read_location_variable(object: &cdda_json::Object) -> Option<Effect> {
     }
     None
 }
+
+/// How far a mission target searches when the data does not say, in overmap tiles.
+///
+/// Reference: `mission_util.cpp:429` reads `search_range` with a default of `OMAPX * 3` and `map_scale_constants.h:37` says `OMAPX = 180`, so 540.
+pub const DEFAULT_SEARCH_RANGE: i32 = 540;
 
 /// Reads a call's `variables`, which become the context values the program sees.
 ///

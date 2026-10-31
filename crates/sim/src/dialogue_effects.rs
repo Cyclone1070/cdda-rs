@@ -230,6 +230,9 @@ fn search_location(world: &mut World, speaker: Entity, effect: &Effect) -> Appli
         scope,
         name,
         om_terrain,
+        search_range,
+        min_distance,
+        z,
         ..
     } = effect
     else {
@@ -239,14 +242,15 @@ fn search_location(world: &mut World, speaker: Entity, effect: &Effect) -> Appli
         return Applied::CannotAnswer;
     };
     let tile = crate::overmap::tile_of(at.x, at.y);
-    let Some((x, y)) = crate::overmap::nearest_with_terrain(world, tile, om_terrain, SEARCH_RANGE)
+    let Some((x, y)) =
+        crate::overmap::nearest_with_terrain(world, tile, om_terrain, *search_range, *min_distance)
     else {
         return Applied::CannotAnswer;
     };
     let square = (
         x * crate::overmap::SQUARES_PER_OMT,
         y * crate::overmap::SQUARES_PER_OMT,
-        at.z,
+        z.unwrap_or(at.z),
     );
     let Some(holder) = crate::conditions::holder_for_scope(world, speaker, None, scope) else {
         return Applied::CannotAnswer;
@@ -359,7 +363,7 @@ fn run_mapgen_update(world: &mut World, speaker: Entity, listener: Option<Entity
             return Applied::CannotAnswer;
         };
         let tile = crate::overmap::tile_of(at.x, at.y);
-        crate::overmap::nearest_with_terrain(world, tile, &name, SEARCH_RANGE).map(|(x, y)| {
+        crate::overmap::nearest_with_terrain(world, tile, &name, SEARCH_RANGE, 0).map(|(x, y)| {
             (
                 x * crate::overmap::SQUARES_PER_OMT,
                 y * crate::overmap::SQUARES_PER_OMT,
