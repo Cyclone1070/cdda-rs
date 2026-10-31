@@ -186,7 +186,7 @@ fn the_port_answers_the_questions_it_can_and_says_how_many_that_is() {
     // before it. That is the whole point of a leaf: a combinator is only as readable as its parts, so one ported leaf is worth
     // several times itself.
     assert_eq!(
-        readable, 2360,
+        readable, 2_367,
         "of which the port answers 1,501: `u_has_effect`, `compare_string`, `u_has_items`, the combinators, and the `math` expressions whose every name it knows"
     );
 }
@@ -407,7 +407,7 @@ fn a_bare_name_is_an_argument_less_condition() {
     ));
 
     // A name the port has no rule for is refused, not answered false.
-    for unknown in ["u_can_see", "u_is_underwater", "player_see_npc"] {
+    for unknown in ["u_is_underwater", "player_see_npc", "u_is_on_furniture"] {
         let value = cdda_json::parse(format!(r#""{unknown}""#).as_bytes()).expect("json");
         assert!(
             read_condition(&value).is_none(),
@@ -732,5 +732,50 @@ fn a_bionic_condition_asks_what_the_creature_carries() {
     assert!(
         asked_about_bionic(&world, survivor, r#"{"u_has_bionics": "wanted"}"#),
         "a variable naming a bionic reads as that bionic"
+    );
+}
+
+/// A creature asleep cannot see, and one awake can.
+///
+/// Reference: `talker_character_const::can_see` (`talker_character.cpp:917`) with `Creature::in_sleep_state` (`creature.cpp:2221`), which is any of
+/// three effects. The data writes this as a bare string far more often than as an object, so both shapes are read.
+#[test]
+fn a_creature_asleep_cannot_see_and_one_awake_can() {
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+
+    let bare = cdda_content::dialogue::read_condition(
+        &cdda_json::parse(br#""u_can_see""#.as_slice()).expect("json"),
+    )
+    .expect("a bare name is readable");
+    assert!(cdda_sim::conditions::holds(&world, survivor, &bare), "awake, so it sees");
+
+    // Each of the three effects the reference counts as being asleep takes sight away, so each is exercised rather than a stand-in.
+    for asleep in cdda_sim::seeing::ASLEEP {
+        let add = cdda_content::dialogue::read_effect(
+            &cdda_json::parse(format!(r#"{{"u_add_effect": "{asleep}", "duration": "PERMANENT"}}"#).as_bytes())
+                .expect("json"),
+        )
+        .expect("readable");
+        assert_eq!(
+            cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &add),
+            cdda_sim::dialogue_effects::Applied::Done
+        );
+        assert!(
+            !cdda_sim::conditions::holds(&world, survivor, &bare),
+            "a creature with {asleep} cannot see"
+        );
+        let remove = cdda_content::dialogue::read_effect(
+            &cdda_json::parse(format!(r#"{{"u_lose_effect": "{asleep}"}}"#).as_bytes()).expect("json"),
+        )
+        .expect("readable");
+        assert_eq!(
+            cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &remove),
+            cdda_sim::dialogue_effects::Applied::Done
+        );
+    }
+    assert!(
+        cdda_sim::conditions::holds(&world, survivor, &bare),
+        "awake again, so it sees again"
     );
 }

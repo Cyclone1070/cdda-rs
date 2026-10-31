@@ -10,6 +10,14 @@ use cdda_json::Value;
 /// A condition the port can evaluate.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Condition {
+    /// Whether a creature can see.
+    ///
+    /// Reference: `talker_character_const::can_see` (`talker_character.cpp:917`): not blind, and either awake or bearing `SEESLEEP`. The data writes
+    /// this as a bare string - `"condition": "u_can_see"` - because the rule takes no value.
+    CanSee {
+        /// Whether it is the listener rather than the speaker.
+        listener: bool,
+    },
     /// A condition written as a bare name, which the reference resolves to an argument-less condition.
     ///
     /// Reference: `read_condition` (`condition.cpp:515-540`) hands a string to `conditional_t( std::string_view type )`
@@ -314,17 +322,31 @@ impl Operator {
 
 /// Reads a condition, or nothing when the port has no rule for it.
 ///
+/// Reads a condition written as a bare name, which the reference calls an argument-less condition.
+///
+/// Reference: `condition.cpp:2783-2810` looks a bare name up among the **simple** parsers. The port answers the ones it has a rule for and refuses the
+/// rest, so the census stays honest about which names it can read. `u_can_see` takes no value and is therefore bare far more often than not.
+#[must_use]
+fn read_bare_condition(name: &str) -> Option<Condition> {
+    match name {
+        "u_can_see" => return Some(Condition::CanSee { listener: false }),
+        "npc_can_see" => return Some(Condition::CanSee { listener: true }),
+        _ => {}
+    }
+    matches!(name, "has_beta" | "u_is_avatar" | "u_is_character").then(|| Condition::Simple {
+        name: name.to_owned(),
+    })
+}
+
+/// Reads a condition, or nothing when the port has no rule for it.
+///
 /// A `None` is not "false": it is "the port cannot answer", and a caller that treats the two the same would silently give
 /// every unread condition the weakest possible meaning.
 #[must_use]
 pub fn read_condition(value: &Value) -> Option<Condition> {
-    // Reference: a bare name is an argument-less condition (`condition.cpp:2783-2810`), and the port reads the three it can answer.
+    // Reference: a bare name is an argument-less condition (`condition.cpp:2783-2810`).
     if let Value::Str(name) = value {
-        return matches!(
-            name.as_str(),
-            "has_beta" | "u_is_avatar" | "u_is_character"
-        )
-        .then(|| Condition::Simple { name: name.clone() });
+        return read_bare_condition(name);
     }
     let Value::Object(object) = value else {
         return None;

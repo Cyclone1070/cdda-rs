@@ -5431,3 +5431,32 @@ scopes, which are named by the variable reader rather than by either table. The 
 would quietly stop gating.
 
 The audit also caught a smaller thing: `Effect::MakeSound`'s kind said `u_sound`, which is not a member the data writes. It now says `u_make_sound`.
+
+## `u_can_see` (round 834)
+
+`talker_character_const::can_see` (`talker_character.cpp:917`):
+
+```cpp
+return !is_blind() && ( !in_sleep_state() || has_flag( json_flag_SEESLEEP ) );
+```
+
+The data almost always writes it as a **bare string** - `"condition": "u_can_see"` - because the rule takes no value. The port now reads both spellings
+and answers it from `Creature::in_sleep_state` (`creature.cpp:2221`): asleep if the creature carries `sleep`, `lying_down` or `npc_suspend`, all of
+which are components the creature has, so that half is answered exactly.
+
+**Divergence, deliberate and recorded**: `is_blind` is answered **false**. The reference asks for a worn item's flag, a character flag and a limb score,
+and the port has no worn-item flags, no character flags and no limbs. A creature the reference would call blind, the port says can see. This is the
+same gap that makes `u_has_flag` refuse, and it closes when creature flags land - not before. `SEESLEEP` is likewise unavailable, for the same reason.
+
+| Count | Before | After |
+|---|---|---|
+conditions the port reads | 2,360 | **2,367** |
+programs readable | 246 | **252** |
+unreadable leaves | 1,096 | **1,088** |
+**capability** | 139 | **139** |
+
+Capability did not move, and the reason is worth naming: the six programs that became readable now refuse at run time on `u_message` (3 → 13 refusals),
+which is a **different** refusal - a runner shape the port cannot carry out, not a reader gap. The leaf was worth porting - six programs came off the
+unreadable list - but it moved the refusal from one column to another rather than into capability, and the census says so.
+
+Gated: a creature sees while awake; each of the three sleep effects takes sight away in turn and gives it back when removed.

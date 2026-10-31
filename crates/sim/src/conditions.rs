@@ -308,6 +308,8 @@ fn holds_within(
         Condition::IsSeason { season } => {
             is_season(world, speaker, listener, season)
         }
+        Condition::CanSee { listener: about_listener } => actor_for(speaker, listener, *about_listener)
+            .is_some_and(|actor| crate::seeing::can_see(world, actor)),
         Condition::Simple { name } => match name.as_str() {
             // Reference: `has_beta` asks whether a listener exists at all (`d.has_beta`).
             "has_beta" => listener.is_some(),
