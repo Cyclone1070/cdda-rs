@@ -5800,3 +5800,27 @@ zero - recorded rather than hidden, because `time_since("cataclysm")` is meaning
 
 Gated: the three named points on a known clock; a turn the expression spells; the same variable one day later; a negative count before noon; and a name
 that is not a time refusing.
+
+## `u_lose_var` (round 848)
+
+`f_remove_var` (`npctalk.cpp:3656`) forgets a dialogue variable: `u_lose_var` one of the speaker's, `npc_lose_var` one of the listener's, `global_lose_var`
+one of the world's. Dropping one that was never set is **not** an error - the reference's `remove_value` says nothing about it - so it is `Done`.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 299 | **303** |
+**capability** | 180 | **182** |
+effect entries runnable | 1,064 | **1,100** |
+unreadable leaves | 943 | **907** |
+one-gap programs | 166 | **169** |
+`u_lose_var` among effect refusals | 20 | **0** |
+
+Thirty-six effect entries and four programs from a rule with no numbers in it at all, which is the shape of most of what is left: the members are not hard,
+there are just a lot of them.
+
+**The bug worth recording is mine.** I first wrote the scope as the member prefix - `u_`, `npc_` - and the resolver in the port knows `u_val`, `npc_val`,
+`global_val`. Every spelling therefore fell through to the speaker, so `npc_lose_var` quietly forgot the *wrong actor's* variable. The test caught it on its
+second assertion, not its first, because forgetting the speaker's copy happened to be right in the first case. A resolver with a permissive default is a
+place where a wrong name looks like it works.
+
+Gated: each spelling forgets its own actor's variable and leaves the other's; losing what nobody set is still done; and `remove` says so.

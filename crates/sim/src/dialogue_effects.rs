@@ -268,6 +268,18 @@ fn search_location(world: &mut World, speaker: Entity, effect: &Effect) -> Appli
     Applied::Done
 }
 
+/// Forgets a dialogue variable.
+///
+/// Reference: `f_remove_var` (`npctalk.cpp:3656`): `u_lose_var` drops one of the speaker's, `npc_lose_var` one of the listener's, `global_lose_var` one of
+/// the world's. Dropping one that was never there is not an error - the reference's `remove_value` says nothing about it - so it is `Done`.
+fn lose_var(world: &mut World, speaker: Entity, listener: Option<Entity>, name: &str, scope: &str) -> Applied {
+    let Some(holder) = crate::conditions::holder_for_scope(world, speaker, listener, scope) else {
+        return Applied::CannotAnswer;
+    };
+    crate::dialogue_values::remove(world, holder, name);
+    Applied::Done
+}
+
 /// Offers a menu of programs and runs the one that was picked.
 ///
 /// Reference: `f_run_eoc_selector` (`npctalk.cpp:6385`): the player picks one of the programs, or walks away when `allow_cancel` says they may. The
@@ -773,6 +785,7 @@ pub fn run_effect(
                 about_listener: *about_listener,
             },
         ),
+        Effect::LoseVar { name, scope } => lose_var(world, speaker, listener, name, scope),
         Effect::LocationVariableSearch { .. } => search_location(world, speaker, effect),
         Effect::RunEocSelector { .. } => run_selector(world, speaker, listener, effect),
         Effect::RemoveEffects { .. } => run_remove_effects(world, speaker, listener, effect),

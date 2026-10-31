@@ -1738,3 +1738,60 @@ fn a_mission_target_names_its_range_its_distance_and_its_level() {
         Applied::CannotAnswer
     );
 }
+
+/// `u_lose_var` forgets a variable, and each spelling forgets the right actor's.
+///
+/// Reference: `f_remove_var` (`npctalk.cpp:3656`): `u_lose_var` drops one of the speaker's variables, `npc_lose_var` one of the listener's, and
+/// `global_lose_var` one of the world's. Dropping one that was never set is not an error - the reference's `remove_value` says nothing about it.
+#[test]
+fn losing_a_variable_forgets_it_and_only_where_it_was_set() {
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let talker = cdda_sim::creature::spawn_creature(&mut world, "the talker", (0, 1, 0));
+    for holder in [survivor, talker] {
+        cdda_sim::dialogue_values::set(
+            &mut world,
+            holder,
+            "remembered",
+            cdda_sim::dialogue_values::Value::Number(7.0),
+        );
+    }
+    let gone = |world: &World, holder: bevy_ecs::prelude::Entity| {
+        cdda_sim::dialogue_values::number_of(world, holder, "remembered")
+    };
+
+    // The speaker's spelling forgets the speaker's copy and leaves the listener's alone.
+    let mine = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(br#"{"u_lose_var": "remembered"}"#.as_slice()).expect("json"),
+    )
+    .expect("readable");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, Some(talker), &mine),
+        Applied::Done
+    );
+    assert_eq!(gone(&world, survivor), None, "the speaker's variable is gone");
+    assert_eq!(gone(&world, talker), Some(7.0), "the listener's is not touched");
+
+    // The listener's spelling forgets the other one.
+    let theirs = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(br#"{"npc_lose_var": "remembered"}"#.as_slice()).expect("json"),
+    )
+    .expect("readable");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, Some(talker), &theirs),
+        Applied::Done
+    );
+    assert_eq!(gone(&world, talker), None);
+
+    // Dropping what is not there is an answer, not a refusal: the reference removes unconditionally.
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, Some(talker), &mine),
+        Applied::Done,
+        "losing a variable nobody set is still done"
+    );
+    assert!(!cdda_sim::dialogue_values::remove(
+        &mut world,
+        survivor,
+        "never_set"
+    ));
+}

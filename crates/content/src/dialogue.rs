@@ -558,6 +558,26 @@ fn read_flag_condition(object: &cdda_json::Object) -> Option<Condition> {
     None
 }
 
+/// Reads the three members that forget a dialogue variable.
+///
+/// Reference: `f_remove_var` (`npctalk.cpp:3656`). The scopes are the variable namespaces the port's resolver knows (`u_val`, `npc_val`, `global_val`), not
+/// the member prefixes: the member spells whose variable it is, and the resolver is what turns that into an actor.
+fn read_lose_var(object: &cdda_json::Object) -> Option<Effect> {
+    for (member, scope) in [
+        ("u_lose_var", "u_val"),
+        ("npc_lose_var", "npc_val"),
+        ("global_lose_var", "global_val"),
+    ] {
+        if let Some(Value::Str(name)) = object.get(member) {
+            return Some(Effect::LoseVar {
+                name: name.clone(),
+                scope: scope.to_owned(),
+            });
+        }
+    }
+    None
+}
+
 /// Reads the two guards whose member is a list of names: `u_has_any_trait` and `u_has_any_effect`.
 ///
 /// Reference: `f_has_any_trait` (`condition.cpp:563-578`) and `f_has_any_effect` (`condition.cpp:953`), the list forms of the
@@ -1211,6 +1231,15 @@ pub enum Effect {
         /// Whether the square goes to the listener's variables rather than the speaker's.
         listener: bool,
     },
+    /// Forget a dialogue variable.
+    ///
+    /// Reference: `f_remove_var` (`npctalk.cpp:3656`) for `u_lose_var`, `npc_lose_var` and `global_lose_var`: the member names the variable to drop.
+    LoseVar {
+        /// The variable's name.
+        name: String,
+        /// Which actor's variables it belongs to, in the namespaces the resolver knows: `u_val`, `npc_val` or `global_val`.
+        scope: String,
+    },
     /// Take several effects away from a creature, which the data writes as an array.
     RemoveEffects {
         /// The effects' ids.
@@ -1372,6 +1401,7 @@ impl Effect {
             Self::MakeSound { .. } => "u_make_sound",
             Self::MapgenUpdate { .. } => "mapgen_update",
             Self::RunEocSelector { .. } => "run_eoc_selector",
+            Self::LoseVar { .. } => "u_lose_var",
         }
     }
 }
@@ -1551,6 +1581,7 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
             });
         }
     }
+    if let Some(lost) = read_lose_var(object) { return Some(lost); }
     for member in ["u_message", "npc_message"] {
         if let Some(value) = object.get(member) {
             return read_message(value).map(Effect::Message);
@@ -1585,6 +1616,7 @@ fn read_effect_list(value: Option<&Value>) -> Option<Vec<Effect>> {
 /// Reference: `f_message` (`npctalk.cpp:5312-5405`): with `snippet: true` the member is a category of text, the line is picked from it by weight,
 /// and `same_snippet` remembers the pick so the same line repeats.
 fn read_snippet(object: &cdda_json::Object) -> Option<Effect> {
+    if let Some(lost) = read_lose_var(object) { return Some(lost); }
     for member in ["u_message", "npc_message"] {
         let Some(value) = object.get(member) else {
             continue;

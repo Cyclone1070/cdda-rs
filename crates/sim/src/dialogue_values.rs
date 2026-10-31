@@ -115,6 +115,17 @@ pub fn set(world: &mut World, holder: Entity, name: &str, value: Value) {
     world.entity_mut(holder).insert(fresh);
 }
 
+/// Takes a variable away, answering whether it was there.
+///
+/// Reference: `dialogue::actor::remove_value` (`condition.cpp`), which `u_lose_var` (`npctalk.cpp:3656`) calls. Removing a variable that was never set is
+/// **not** an error in the reference, so it is not one here either.
+pub fn remove(world: &mut World, holder: Entity, name: &str) -> bool {
+    let Some(mut values) = world.get_mut::<DialogueValues>(holder) else {
+        return false;
+    };
+    values.values.remove(name).is_some()
+}
+
 /// The many-valued door: `u_val`, `npc_val` and `global_val` all resolve to a holder, and this is what they share.
 ///
 /// Reference: `read_var_info` (`condition.cpp:408-437`) classes a variable by which member names it, and `get_value` then
