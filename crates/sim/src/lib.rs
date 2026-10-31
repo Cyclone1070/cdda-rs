@@ -39,6 +39,7 @@ pub mod square;
 pub mod conditions;
 pub mod crafting;
 pub mod creature;
+pub mod creature_flags;
 pub mod hit_location;
 pub mod melee;
 pub mod sounds;

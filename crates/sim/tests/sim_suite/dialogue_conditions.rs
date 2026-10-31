@@ -88,13 +88,13 @@ fn a_condition_the_port_cannot_read_is_refused_rather_than_answered() {
         read_condition(&with_part).is_none(),
         "the reader refuses what it cannot evaluate"
     );
-    // And a verb nobody has ported is refused too. `u_has_trait` used to be the example here; it answers now, so the example had
-    // to move to a verb that still refuses - which is what this test is for, and why it was worth keeping rather than deleting.
-    let a_flag = cdda_json::parse(br#"{"u_has_flag": "GRABS"}"#.as_slice()).expect("valid json");
-    assert!(read_condition(&a_flag).is_none());
+    // And a verb nobody has ported is refused too. This example has moved twice now - `u_has_trait`, then `u_has_flag` - because each one answered
+    // as its rule landed, which is what the test is for and why it was worth keeping rather than deleting.
+    let unported = cdda_json::parse(br#"{"u_is_on_furniture": "f_chair"}"#.as_slice()).expect("valid json");
+    assert!(read_condition(&unported).is_none());
     // A combination is only as readable as its parts.
     let mixed = cdda_json::parse(
-        br#"{"and": [{"u_has_effect": "effect_bleed"}, {"u_has_flag": "GRABS"}]}"#.as_slice(),
+        br#"{"and": [{"u_has_effect": "effect_bleed"}, {"u_is_on_furniture": "f_chair"}]}"#.as_slice(),
     )
     .expect("valid json");
     assert!(
@@ -875,4 +875,45 @@ fn the_moon_phase_is_the_index_the_data_compares_against() {
         (0.0..=7.0).contains(&a_week_later),
         "the index is one of the eight phases, got {a_week_later}"
     );
+}
+
+/// A creature flag is a name, and a flag nobody gave the creature answers **no** rather than refusing.
+///
+/// Reference: `f_has_flag` (`condition.cpp:2529`) with `Creature::has_flag`: a plain survivor has no mutation flags, and 46 of the data's `u_has_flag`
+/// guards ask exactly that - `GRAB_FILTER` on a survivor who cannot grab.
+#[test]
+fn a_creature_flag_answers_no_when_the_creature_does_not_carry_it() {
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let talker = cdda_sim::creature::spawn_creature(&mut world, "the talker", (0, 1, 0));
+
+    let grabs = cdda_content::dialogue::read_condition(
+        &cdda_json::parse(br#"{"u_has_flag": "GRAB"}"#.as_slice()).expect("json"),
+    )
+    .expect("readable");
+    assert!(
+        !cdda_sim::conditions::holds_with(&world, survivor, Some(talker), &grabs),
+        "a survivor carries no GRAB flag, and that is an answer"
+    );
+
+    // The flag family is on the creature, so giving it one changes the answer without touching anything else.
+    cdda_sim::creature_flags::add_flag(&mut world, survivor, "GRAB");
+    assert_eq!(cdda_sim::creature_flags::flags_of(&world, survivor), vec!["GRAB".to_owned()]);
+    assert!(cdda_sim::conditions::holds_with(&world, survivor, Some(talker), &grabs));
+
+    // The listener's spelling asks about the other creature, which still carries none.
+    let theirs = cdda_content::dialogue::read_condition(
+        &cdda_json::parse(br#"{"npc_has_flag": "GRAB"}"#.as_slice()).expect("json"),
+    )
+    .expect("readable");
+    assert!(
+        !cdda_sim::conditions::holds_with(&world, survivor, Some(talker), &theirs),
+        "the guard asks about the listener, not the speaker"
+    );
+    cdda_sim::creature_flags::add_flag(&mut world, talker, "GRAB");
+    assert!(cdda_sim::conditions::holds_with(&world, survivor, Some(talker), &theirs));
+
+    // And taking it away puts the answer back, so the flag is what the guard reads.
+    assert!(cdda_sim::creature_flags::remove_flag(&mut world, survivor, "GRAB"));
+    assert!(!cdda_sim::conditions::holds_with(&world, survivor, Some(talker), &grabs));
 }

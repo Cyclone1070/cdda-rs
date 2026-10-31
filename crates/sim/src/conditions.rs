@@ -308,6 +308,10 @@ fn holds_within(
         Condition::IsSeason { season } => {
             is_season(world, speaker, listener, season)
         }
+        Condition::HasFlag { flag, listener: about_listener } => {
+            actor_for(speaker, listener, *about_listener)
+                .is_some_and(|actor| crate::creature_flags::has_flag(world, actor, flag))
+        }
         Condition::CanSee { listener: about_listener } => actor_for(speaker, listener, *about_listener)
             .is_some_and(|actor| crate::seeing::can_see(world, actor)),
         Condition::Simple { name } => match name.as_str() {

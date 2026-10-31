@@ -10,6 +10,15 @@ use cdda_json::Value;
 /// A condition the port can evaluate.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Condition {
+    /// Whether a creature carries a flag.
+    ///
+    /// Reference: `f_has_flag` (`condition.cpp:2529`): a creature's flag, which its mutations and worn items give it.
+    HasFlag {
+        /// The flag's name, as the data writes it (`GRAB`, `FLIES`).
+        flag: String,
+        /// Whether it is the listener rather than the speaker.
+        listener: bool,
+    },
     /// Whether a creature can see.
     ///
     /// Reference: `talker_character_const::can_see` (`talker_character.cpp:917`): not blind, and either awake or bearing `SEESLEEP`. The data writes
@@ -400,6 +409,9 @@ pub fn read_condition(value: &Value) -> Option<Condition> {
         return Some(guard);
     }
     // Reference: `f_has_item` (`condition.cpp:826-834`), the sibling of `u_has_items` that asks only "any at all".
+    if let Some(flag) = read_flag_condition(object) {
+        return Some(flag);
+    }
     if let Some(bionic) = read_bionic_condition(object) {
         return Some(bionic);
     }
@@ -504,6 +516,22 @@ fn read_bionic_condition(object: &cdda_json::Object) -> Option<Condition> {
         if let Some(bionic) = object.get(member) {
             return Some(Condition::HasBionics {
                 bionic: read_string_source(bionic)?,
+                listener,
+            });
+        }
+    }
+    None
+}
+
+/// Reads the two guards that ask about a creature flag, `u_has_flag` and `npc_has_flag`.
+///
+/// Reference: `f_has_flag` (`condition.cpp:2529`): the member names the flag, and a **missing** flag is an answer, not a refusal - which is what the
+/// data leans on when it asks a plain survivor about `GRAB_FILTER`.
+fn read_flag_condition(object: &cdda_json::Object) -> Option<Condition> {
+    for (member, listener) in [("u_has_flag", false), ("npc_has_flag", true)] {
+        if let Some(cdda_json::Value::Str(flag)) = object.get(member) {
+            return Some(Condition::HasFlag {
+                flag: flag.clone(),
                 listener,
             });
         }

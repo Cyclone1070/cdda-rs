@@ -5586,3 +5586,28 @@ reason too. That is worth stating plainly rather than dressing up - the function
 
 Gated: no clock refuses; the same phase returns after one lunar month (the cycle closes); a week after the new moon the index has moved and is within
 0-7. The last two assertions are what stop the function from being a constant that happens to be in range.
+
+## Creature flags (round 840)
+
+`f_has_flag` (`condition.cpp:2529`) asks whether a creature carries a flag - a **name with no number**: `GRAB`, `FLIES`, `SEESLEEP`, `GRAB_FILTER`. The
+reference builds the set from the creature's mutations; the port keeps it on the creature, as a `CreatureFlags` component, because that is the one store.
+
+The rule that matters is what a **missing** flag means: `false`, not "cannot say". 46 of the data's `u_has_flag` guards ask a plain survivor about
+`GRAB_FILTER` and expect no. Answering "cannot say" there would have refused every one of them for a fact the port knows perfectly well.
+
+| Count | Before | After |
+|---|---|---|
+conditions the port reads | 2,472 | **2,527** |
+programs readable | 263 | **264** |
+**capability** | 162 | **163** |
+unreadable leaves | 1,050 | **1,048** |
+`u_has_flag` among program refusals | 8 | **0** |
+
+Only one program became runnable, because most flag guards sit beside a `u_has_worn_with_flag` (6 still refuse) or a `mapgen_update`. The flag guard left
+the refusal map entirely, which is the durable half: it will not refuse again.
+
+This is the system `u_can_see` was waiting for. `can_see`'s `is_blind` half is still answered `false` because blindness asks for a **worn item's** flag
+and a limb score, and the port has neither - so the divergence recorded last round stands, but the flag half of it now exists.
+
+Gated: a creature carrying no flags answers no; giving it one changes the answer; the listener's spelling asks about the other creature; taking the flag
+away puts the answer back.
