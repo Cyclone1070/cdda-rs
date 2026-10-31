@@ -39,8 +39,8 @@ pub struct Census {
 pub const NOW: Census = Census {
     defined: 692,
     readable: 252,
-    ran: 139,
-    refused_at_run: 113,
+    ran: 152,
+    refused_at_run: 100,
     leaves: 1_088,
     one_gap: 188,
     effects_runnable: 955,

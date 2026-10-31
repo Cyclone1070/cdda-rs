@@ -5460,3 +5460,26 @@ which is a **different** refusal - a runner shape the port cannot carry out, not
 unreadable list - but it moved the refusal from one column to another rather than into capability, and the census says so.
 
 Gated: a creature sees while awake; each of the three sleep effects takes sight away in turn and gives it back when removed.
+
+## The data's snippets, and thirteen programs that only needed a world with data in it (round 835)
+
+The six programs `u_can_see` made readable refused at run time on `u_message`, and the port's message runner always succeeds - so the refusal was the
+*snippet* half: a message written as a `snippet` category names a line the world does not have, and a fresh census world had no categories at all.
+
+Snippets had been ported at the **store** level (`cdda_sim::snippets`) with tests that installed lines by hand, and there was no reader from the data
+into it. `cdda_content::snippets` now reads `/snippets/types` (`snippet.cpp`): a category's `text` is one string, a list of strings, or a list of objects
+with `id`/`text`/`weight`; a category written twice **appends**, and a line with no id is named after its category and its position, because
+`same_snippet` remembers a line by id.
+
+| Count | Before | After |
+|---|---|---|
+**capability** (readable that run) | 139 | **152** |
+runtime refusals | 113 | **100** |
+`u_message` among runtime refusals | 13 | **1** |
+
+This is the third time a run-time refusal turned out to be **missing world data rather than a missing rule** - mapgens, then fields, now snippets. The
+pattern is worth stating: the census world now holds programs, mapgens, terrain codes, fields and snippets, and each one was added because a refusal
+named it. What the world still lacks is exactly what `run_eocs(calls a program that is not installed)` measures - **81 refusals**, the largest remaining
+bucket, and it is not missing data: those programs are genuinely unreadable, so they cannot be installed.
+
+Gated: the reader's three shapes in one test, with the id and weight rules pinned.

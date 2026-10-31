@@ -92,6 +92,7 @@ mod mapgen_draw;
 mod mapgen_keys;
 mod dialogue_members;
 mod mapgen_objects;
+mod snippets;
 mod mapgen_place;
 mod material_vitamins;
 mod materials;

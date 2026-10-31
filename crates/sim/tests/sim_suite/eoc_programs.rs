@@ -426,6 +426,10 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
         }
     }
 
+    // The snippets the data holds, for the same reason as the mapgens: a program that says a line from a category refuses in a world that has no
+    // categories, and thirteen programs refused at run time on exactly that.
+    let snippets = collect_snippets(&data);
+
     let mut ran = 0usize;
     let mut refused = 0usize;
     let mut runtime_blame: std::collections::BTreeMap<String, usize> =
@@ -436,6 +440,7 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
         cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
         cdda_sim::eoc_registry::set_programs(&mut world, &readable);
         install_data(&mut world, &mapgens, &codes, &fields);
+        install_snippets(&mut world, &snippets);
         if eoc_registry::run_program(&mut world, survivor, None, &program.id, 0) == Applied::Done {
             ran += 1;
             continue;
@@ -456,6 +461,7 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
             cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
             cdda_sim::eoc_registry::set_programs(&mut world, &readable);
         install_data(&mut world, &mapgens, &codes, &fields);
+        install_snippets(&mut world, &snippets);
             if eoc_registry::run_program(&mut world, survivor, None, &program.id, 0) == Applied::Done {
                 continue;
             }
@@ -482,6 +488,56 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
     assert_eq!(refused, crate::numbers::NOW.refused_at_run, "and a hundred and seven refused at run time");
     assert_eq!(ran + refused, readable.len(), "every readable program did one or the other");
     crate::numbers::NOW.accounts_for_every_program();
+}
+
+/// Every snippet line in the data, filed under `category/id` the way the store expects.
+fn collect_snippets(data: &std::path::Path) -> Vec<(String, cdda_content::snippets::Line)> {
+    let mut found = Vec::new();
+    let mut stack = vec![data.to_path_buf()];
+    while let Some(directory) = stack.pop() {
+        let Ok(entries_at) = std::fs::read_dir(&directory) else {
+            continue;
+        };
+        for entry in entries_at.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            if path.extension().and_then(std::ffi::OsStr::to_str) != Some("json") {
+                continue;
+            }
+            let Some(value) = cdda_content::read_json(&path) else {
+                continue;
+            };
+            for (category, lines) in cdda_content::snippets::categories(&value) {
+                for line in lines {
+                    found.push((category.clone(), line));
+                }
+            }
+        }
+    }
+    found
+}
+
+/// Installs the data's snippet categories into a world.
+fn install_snippets(
+    world: &mut bevy_ecs::prelude::World,
+    snippets: &[(String, cdda_content::snippets::Line)],
+) {
+    cdda_sim::snippets::set_snippets(
+        world,
+        snippets.iter().map(|(category, line)| {
+            (
+                category.clone(),
+                cdda_sim::snippets::SnippetLine {
+                    id: line.id.clone(),
+                    text: line.text.clone(),
+                    weight: line.weight,
+                },
+            )
+        }),
+    );
 }
 
 /// Installs the data's mapgens, terrain codes and fields into a world, which is the state a real world starts with.
