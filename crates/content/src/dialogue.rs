@@ -1040,6 +1040,19 @@ pub enum Effect {
         /// Whether it goes from the listener rather than the speaker.
         listener: bool,
     },
+    /// Open a conversation, or run the branch that says it could not be opened.
+    ///
+    /// Reference: `f_open_dialogue` (`npctalk.cpp:5476-5502`): only the **avatar** can open one, so a speaker that is not the avatar runs
+    /// `false_eocs` and stops; otherwise the conversation opens and `true_eocs` run. The port runs the branch rule exactly and does not open a
+    /// conversation, because there is no dialogue interface to open (P10).
+    OpenDialogue {
+        /// The topic to open, when the data names one.
+        topic: Option<StringSource>,
+        /// The programs to run when the conversation opened.
+        then: Vec<ProgramRef>,
+        /// The programs to run when it did not.
+        otherwise: Vec<ProgramRef>,
+    },
     /// Run one of several programs, chosen by weight.
     ///
     /// Reference: `f_weighted_list_eocs` (`npctalk.cpp:6950-6975`): each entry is a `[ program, weight ]` pair, the weights are evaluated and one
@@ -1094,6 +1107,7 @@ impl Effect {
             Self::Switch { .. } => "switch",
             Self::LocationVariable { .. } => "u_location_variable",
             Self::WeightedList(_) => "weighted_list_eocs",
+            Self::OpenDialogue { .. } => "open_dialogue",
         }
     }
 }
@@ -1206,6 +1220,9 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
             .collect::<Option<Vec<_>>>()?;
         return Some(Effect::RunEoc(programs));
     }
+    if let Some(dialogue) = read_open_dialogue(object) {
+        return Some(dialogue);
+    }
     if let Some(weighted) = read_weighted_list(object) {
         return Some(weighted);
     }
@@ -1284,6 +1301,43 @@ fn read_effect_list(value: Option<&Value>) -> Option<Vec<Effect>> {
 
 
 
+
+
+/// Reads an `open_dialogue`, which may name a topic or carry its own branches.
+///
+/// Reference: `f_open_dialogue` (`npctalk.cpp:5476-5502`), whose member is a topic string or an object holding `topic`, `true_eocs` and
+/// `false_eocs`.
+fn read_open_dialogue(object: &cdda_json::Object) -> Option<Effect> {
+    let member = object.get("open_dialogue")?;
+    if let Value::Str(topic) = member {
+        return Some(Effect::OpenDialogue {
+            topic: Some(StringSource::Literal(topic.clone())),
+            then: Vec::new(),
+            otherwise: Vec::new(),
+        });
+    }
+    let Value::Object(inner) = member else {
+        return None;
+    };
+    let topic = match inner.get("topic") {
+        Some(value) => Some(read_string_source(value)?),
+        None => None,
+    };
+    Some(Effect::OpenDialogue {
+        topic,
+        then: read_program_refs(inner.get("true_eocs"))?,
+        otherwise: read_program_refs(inner.get("false_eocs"))?,
+    })
+}
+
+/// Reads a `true_eocs`/`false_eocs` list, which is a name, an array of them, or nothing.
+fn read_program_refs(value: Option<&Value>) -> Option<Vec<ProgramRef>> {
+    match value {
+        None => Some(Vec::new()),
+        Some(Value::Array(entries)) => entries.iter().map(read_program_ref).collect(),
+        Some(other) => Some(vec![read_program_ref(other)?]),
+    }
+}
 
 /// Reads a `weighted_list_eocs`, whose entries are `[ program, weight ]` pairs.
 ///

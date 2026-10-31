@@ -262,6 +262,27 @@ pub fn run_effect(
             crate::messages::push(world, text);
             Applied::Done
         }
+        Effect::OpenDialogue {
+            topic: _,
+            then,
+            otherwise,
+        } => {
+            // Reference: `f_open_dialogue` (`npctalk.cpp:5476-5502`) - only the avatar can open a conversation, and the branch says whether
+            // it did. The conversation itself is not opened: there is no dialogue interface to open.
+            let branch = if crate::missions::avatar(world) == Some(speaker) {
+                then
+            } else {
+                otherwise
+            };
+            for program in branch {
+                if crate::eoc_registry::run_ref(world, speaker, listener, program, 1)
+                    == Applied::CannotAnswer
+                {
+                    return Applied::CannotAnswer;
+                }
+            }
+            Applied::Done
+        }
         Effect::WeightedList(weighted) => run_weighted_list(world, speaker, listener, weighted, 0),
         Effect::LocationVariable {
             scope,

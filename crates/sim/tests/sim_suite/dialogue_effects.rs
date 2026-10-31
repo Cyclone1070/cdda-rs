@@ -225,7 +225,8 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
     // 757 after `rng`/`rand`: the first math functions that **change the store** while answering, so the dice are taken out for the
     // length of the evaluation and put back.
     // 792 after location variables: the plain form stores the actor's square, and the searching forms are still refused.
-    assert_eq!(runnable, 803, "of which the port runs 803 entries");
+    // 805 after `open_dialogue`: the branch rule runs exactly, and the conversation itself is not opened (no interface to open it).
+    assert_eq!(runnable, 805, "of which the port runs 805 entries");
 
     // And the ranking of what refuses, which is this census's real output: it says what to port next instead of what is used most.
     // `target_var` is the one entry the ranking cannot attribute on its own - a scan of the data shows 71 of those 98 are
@@ -711,4 +712,73 @@ fn a_weighted_list_picks_by_weight_and_never_picks_nothing() {
         picks
     };
     assert_eq!(replay(), replay(), "a seed replays the same ten picks");
+}
+
+/// `open_dialogue` runs the branch that says whether a conversation could open, and only the avatar can open one.
+///
+/// Reference: `f_open_dialogue` (`npctalk.cpp:5476-5502`): a speaker that is not the avatar runs `false_eocs` and stops; otherwise the
+/// conversation opens and `true_eocs` run. The port runs the branch rule exactly and does not open a conversation - there is no dialogue
+/// interface to open (P10) - which is recorded in `docs/parity.md`.
+#[test]
+fn opening_a_conversation_runs_the_branch_that_says_whether_it_could() {
+    let mut world = World::new();
+    let speaker = cdda_sim::creature::spawn_creature(&mut world, "a bystander", (0, 0, 0));
+    let programs = cdda_content::dialogue::read_program(
+        &cdda_json::parse(
+            br#"{"type": "effect_on_condition", "id": "EOC_OPENED",
+                 "effect": [{"u_message": "opened"}]}"#
+                .as_slice(),
+        )
+        .expect("json"),
+    )
+    .expect("readable");
+    let refused = cdda_content::dialogue::read_program(
+        &cdda_json::parse(
+            br#"{"type": "effect_on_condition", "id": "EOC_REFUSED",
+                 "effect": [{"u_message": "refused"}]}"#
+                .as_slice(),
+        )
+        .expect("json"),
+    )
+    .expect("readable");
+    cdda_sim::eoc_registry::set_programs(&mut world, &[programs, refused]);
+
+    let effect = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(
+            br#"{"open_dialogue": {"topic": "TALK_TEST",
+                                   "true_eocs": ["EOC_OPENED"],
+                                   "false_eocs": ["EOC_REFUSED"]}}"#
+                .as_slice(),
+        )
+        .expect("json"),
+    )
+    .expect("readable");
+
+    // Nobody is the avatar, so the false branch runs.
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, speaker, None, &effect),
+        Applied::Done
+    );
+    assert_eq!(cdda_sim::messages::lines(&world), vec!["refused".to_owned()]);
+
+    // With the speaker as the avatar, the true branch runs instead.
+    cdda_sim::messages::clear(&mut world);
+    cdda_sim::missions::set_avatar(&mut world, speaker);
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, speaker, None, &effect),
+        Applied::Done
+    );
+    assert_eq!(cdda_sim::messages::lines(&world), vec!["opened".to_owned()]);
+
+    // A topic on its own reads too, and runs no branch at all.
+    let plain = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(br#"{"open_dialogue": "TALK_TOPIC"}"#.as_slice()).expect("json"),
+    )
+    .expect("readable");
+    cdda_sim::messages::clear(&mut world);
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, speaker, None, &plain),
+        Applied::Done
+    );
+    assert!(cdda_sim::messages::lines(&world).is_empty());
 }

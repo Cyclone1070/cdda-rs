@@ -723,19 +723,19 @@ fn the_programs_one_gap_away_say_what_to_port_next() {
     // The ranking's tail still carries two modifier names - `duration` and `bonus` - because a refused entry reports its first key, and a
     // modifier leads the object it sits in. They are listed so the number can be read honestly rather than silently dropped: the effect
     // refusing underneath them is what a round would have to port.
-    assert_eq!(gaps_total, 972, "the data's programs hold 972 unreadable members");
-    assert_eq!(single, 135, "a hundred and thirty-five programs are one gap away");
+    assert_eq!(gaps_total, 960, "the data's programs hold 960 unreadable members");
+    assert_eq!(single, 136, "a hundred and thirty-six programs are one gap away");
     assert_eq!(
         ranked,
         vec![
-            ("mapgen_update".to_owned(), 33),
-            ("condition".to_owned(), 20),
+            ("mapgen_update".to_owned(), 34),
+            ("condition".to_owned(), 21),
             ("snippet".to_owned(), 18),
             ("duration".to_owned(), 16),
             ("bonus".to_owned(), 14),
             ("cases".to_owned(), 13),
             ("math".to_owned(), 11),
-            ("open_dialogue".to_owned(), 10),
+            ("else".to_owned(), 9),
         ],
         "the members that would finish the most programs, single gaps first"
     );
