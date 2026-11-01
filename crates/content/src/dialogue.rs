@@ -255,7 +255,9 @@ pub fn math_function(name: &str) -> Option<Arity> {
         | "npc_value" | "npc_anger" | "npc_trust" | "npc_fear" | "n_npc_value" | "n_npc_anger" | "n_npc_trust"
         | "n_npc_fear" | "u_npc_value" | "u_npc_anger" | "u_npc_trust" | "u_npc_fear"
         // Reference: `{ "monsters_nearby", { "ung", -1, ... } }` (`math_parser_diag.cpp:1719`) - any number of monster ids, plus keywords.
-        | "u_monsters_nearby" | "npc_monsters_nearby" | "monsters_nearby" => Arity::AtLeast(0),
+        | "u_monsters_nearby" | "npc_monsters_nearby" | "monsters_nearby"
+        // Reference: `{ "characters_nearby", { "ung", 0, ... } }` (`math_parser_diag.cpp:736`) - no positional arguments at all, only keywords.
+        | "u_characters_nearby" | "npc_characters_nearby" | "characters_nearby" => Arity::AtLeast(0),
         "clamp" => Arity::Exactly(3),
         // Reference: `rng( lo, hi )` (`math_parser_func.h:141-163`).
         // Reference: `{ "distance", { "g", 2, distance_eval } }` (`math_parser_diag.cpp:1690`) - two points, each a named actor or a stored location.

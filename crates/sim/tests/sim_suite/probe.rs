@@ -776,3 +776,40 @@ fn an_expression_can_be_written_as_an_object() {
         "the global's number, read through an object"
     );
 }
+
+/// `u_characters_nearby()` counts the other people within a radius.
+///
+/// Reference: `_characters_nearby_eval` (`math_parser_diag.cpp:688-734`): the characters within `radius` (default **1000**), filtered by `attitude` (default `any`).
+/// The port has no attitude between characters - no faction, no ally - so `any` is the only filter it can answer and the rest must refuse.
+#[test]
+fn people_are_counted_within_a_radius() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let mut level = cdda_core_types::level::Level::new();
+    for x in -24..48 {
+        for y in -24..48 {
+            level.set_terrain(x, y, 0, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    for (name, square) in [("the shopkeeper", (3, 4, 0)), ("the hermit", (40, 0, 0))] {
+        let person = cdda_sim::creature::spawn_creature(&mut world, name, square);
+        cdda_sim::npcs::make_npc(&mut world, person, "ID");
+    }
+
+    let asks = |world: &bevy_ecs::prelude::World, text: &str| {
+        let condition = cdda_json::parse(format!(r#"{{"math": ["{text}"]}}"#).as_bytes()).expect("json");
+        let read = cdda_content::dialogue::read_condition(&condition).expect("the condition reads");
+        cdda_sim::conditions::holds_with(world, survivor, None, &read)
+    };
+
+    assert!(asks(&world, "u_characters_nearby() == 2"), "both are inside the default radius");
+    assert!(asks(&world, "u_characters_nearby('radius': 5) == 1"), "only the shopkeeper is close");
+    assert!(asks(&world, "u_characters_nearby('attitude': 'any') == 2"), "`any` is the filter the port can answer");
+
+    // An attitude the port cannot judge refuses rather than counting everyone.
+    let allies =
+        cdda_json::parse(br#"{"math": ["u_characters_nearby('attitude': 'allies') > 0"]}"#.as_slice()).expect("json");
+    let read = cdda_content::dialogue::read_condition(&allies).expect("reads");
+    assert!(!cdda_sim::conditions::holds_with(&world, survivor, None, &read));
+}

@@ -6779,3 +6779,35 @@ them. `CDDA_SHOW_MATH` printing the whole refused **value** rather than its name
 
 One refusal left in the list that has not moved: `{"math": [...]}` nested inside a `condition` object - `get_condition` appeared once, which is a member name I have
 not seen before and will look at next.
+
+## `u_characters_nearby()` (round 883)
+
+Four refusals, six programs: `u_characters_nearby('radius': 30) > 0` asks whether anyone is close, which is the condition the data uses before it moves a person
+onto the scene.
+
+Reference: `_characters_nearby_eval` (`math_parser_diag.cpp:688-734`) counts the characters within `radius` - **default 1000**, the same unguessable default the
+monster count has - filtered by `attitude` (default `any`, with `allies`, `not_allies` and `hostile` accepted) and optionally by a stored `location`.
+
+The port answers `any` and refuses the rest. That is not laziness: there is **no attitude between characters** in the port - no faction, no ally relation - so
+`allies` would have to be answered "everyone", which is a wrong number wearing a right one's clothes. `location` refuses for the same reason the monster count
+refuses it: there is no stored point to count from yet.
+
+The radius is Chebyshev, matching `_filter_character`, and the test pins it by putting one person inside the radius and one far outside.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 388 | **394** |
+answered `Done` | 239 | **245** |
+did something | 95 | **101** |
+unreadable leaves | 603 | **597** |
+one-gap programs | 130 | **124** |
+programs blaming `math` | 25 | **19** |
+conditions readable | 2,911 | **2,917** |
+
+**Six programs from one function**, and the second time the same shape has paid: the monster count took four, this took six, and both are "count the things of a
+kind within a radius of an actor". The next one of these - `u_items_nearby`, which the data also uses - should now cost almost nothing, because the arithmetic is
+written once and the query is the only thing that differs.
+
+I also spent a cycle on a `usize` to `f64` conversion that clippy wanted explicit, and a cycle reverting an `u_skill` spelling change that turned out to be **inert**
+- the reader already accepted it, and the program it belonged to refuses for a different reason. Reverting was the right call: a change that moves no number and
+that I cannot name a rule for is not a change worth keeping.

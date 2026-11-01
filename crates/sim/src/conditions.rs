@@ -665,6 +665,57 @@ fn answer_pain(
     Answer::Value(f64::from(pain.0))
 }
 
+/// Counts the other characters near an actor, for `u_characters_nearby` and its listener spelling.
+///
+/// Reference: `_characters_nearby_eval` (`math_parser_diag.cpp:688-734`): the characters within `radius` (default **1000**), filtered by `attitude` (default
+/// `any`). The port has no attitude between characters - no faction, no ally - so `any` is the only filter it can answer, and the rest are refused rather than
+/// answered as if everyone were a stranger.
+fn answer_characters_nearby(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    name: &str,
+    keywords: &[(String, Expression)],
+) -> Answer {
+    if keywords.iter().any(|(name, _)| name == "location") {
+        return Answer::Refused;
+    }
+    if let Some(attitude) = keyword_text(world, speaker, listener, keywords, "attitude")
+        && attitude != "any"
+    {
+        return Answer::Refused;
+    }
+    let Some(radius) = keyword_number(world, speaker, listener, keywords, "radius", 1000.0) else {
+        return Answer::Refused;
+    };
+    let actor = match name {
+        "npc_characters_nearby" => listener.unwrap_or(speaker),
+        _ => speaker,
+    };
+    let Some(here) = world.get::<crate::Position>(actor).copied() else {
+        return Answer::Refused;
+    };
+    #[allow(clippy::cast_possible_truncation)]
+    let radius = radius.round() as i32;
+    let mut found = 0usize;
+    for (person, _) in crate::npcs::npcs(world) {
+        if person == actor {
+            continue;
+        }
+        let Some(there) = world.get::<crate::Position>(person).copied() else {
+            continue;
+        };
+        let step = (there.x - here.x)
+            .abs()
+            .max((there.y - here.y).abs())
+            .max((there.z - here.z).abs());
+        if step <= radius {
+            found += 1;
+        }
+    }
+    Answer::Value(f64::from(u32::try_from(found).unwrap_or(0)))
+}
+
 /// Counts the monsters near an actor, for `u_monsters_nearby` and its listener spelling.
 ///
 /// Reference: `_monsters_nearby_eval` (`math_parser_diag.cpp:800-840`): the monsters within `radius` (default **1000**), of any type the arguments name (none
@@ -854,6 +905,9 @@ fn special_function(
         // Reference: `u_hp` (`math_expressions` in `dialogue_helpers`), which takes a body part the port does not model and answers the whole
         // creature's remaining hit points.
         ("distance", [first, second]) => return distance_between(world, speaker, listener, first, second),
+        ("u_characters_nearby" | "npc_characters_nearby", _) => {
+            return answer_characters_nearby(world, speaker, listener, name, keywords);
+        }
         ("u_monsters_nearby" | "npc_monsters_nearby", _) => {
             return answer_monsters_nearby(world, speaker, listener, name, arguments, keywords);
         }
