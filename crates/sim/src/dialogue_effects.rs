@@ -553,6 +553,25 @@ fn pick_type(
     drawn
 }
 
+/// Schedules a named event a set time from now.
+///
+/// Reference: `f_alter_timed_events` (`npctalk.cpp:4879-4881`): `get_timed_events().set_all( key, now + time_in_future )`. The duration is parsed by the same
+/// reader the calendar uses, so a duration the port cannot parse is a refusal rather than a silent zero.
+fn alter_timed_events(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::AlterTimedEvents { key, time_in_future } = effect else {
+        return Applied::CannotAnswer;
+    };
+    let Some(named) = crate::conditions::text_of(world, speaker, listener, key) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(duration) = crate::conditions::text_of(world, speaker, listener, time_in_future) else {
+        return Applied::CannotAnswer;
+    };
+    let turns = cdda_content::constructions::parse_duration(&duration);
+    crate::timed_events::schedule(world, &named, turns);
+    Applied::Done
+}
+
 /// Copies one variable's value into another.
 ///
 /// Reference: `f_copy_var` (`npctalk.cpp:5797-5807`): `read_var_value` then `write_var_value`, with nothing drawn or interpreted in between. A source the store does
@@ -1502,6 +1521,30 @@ fn run_learn_recipe(
     Applied::Done
 }
 
+/// The effects that write the store directly: spawns, consumption, variables, timers, and the ones that change nothing at all.
+///
+/// These share no rule with the rest of the dispatch, and keeping them together is what stops the dispatch table from growing an arm for every store write in the
+/// game - the same reason [`answer_from_table`](crate::conditions) was split.
+fn run_store_effect(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Option<Applied> {
+    Some(match effect {
+        Effect::SpawnNpc { .. } => spawn_npcs(world, speaker, listener, effect),
+        Effect::SpawnItem { .. } => spawn_items(world, speaker, listener, effect),
+        Effect::ConsumeItem { .. } => consume_items(world, speaker, listener, effect),
+        Effect::SetStringVar { .. } => set_string_var(world, speaker, listener, effect),
+        Effect::CopyVar { .. } => copy_var(world, speaker, listener, effect),
+        Effect::AlterTimedEvents { .. } => alter_timed_events(world, speaker, listener, effect),
+        // Audio changes no game state, and the port has no audio: Done, not refused - nothing is missing from the simulation, only from the sound card. A
+        // comment-only entry does nothing, which the reference's loader also does with it.
+        Effect::PlaySoundEffect { .. } | Effect::Nothing => Applied::Done,
+        _ => return None,
+    })
+}
+
 /// Runs one effect entry.
 pub fn run_effect(
     world: &mut World,
@@ -1509,13 +1552,11 @@ pub fn run_effect(
     listener: Option<Entity>,
     effect: &Effect,
 ) -> Applied {
+    if let Some(done) = run_store_effect(world, speaker, listener, effect) { return done; }
     match effect {
         Effect::Math(assignments) => run_math(world, speaker, listener, assignments),
         Effect::LearnRecipe { recipe, forget } => run_learn_recipe(world, speaker, listener, recipe, *forget),
         Effect::Message(text) => { crate::messages::push(world, text); Applied::Done }
-        // A sound effect is audio: the reference changes no game state by playing one, and the port has no audio to play. Done, not refused - nothing is missing
-        // from the *simulation*, only from the sound card.
-        Effect::PlaySoundEffect { .. } | Effect::Nothing => Applied::Done,
         Effect::Snippet {
             category,
             same,
@@ -1544,11 +1585,6 @@ pub fn run_effect(
             },
         ),
         Effect::SpawnMonster { .. } => spawn_monsters(world, speaker, listener, effect),
-        Effect::SpawnNpc { .. } => spawn_npcs(world, speaker, listener, effect),
-        Effect::SpawnItem { .. } => spawn_items(world, speaker, listener, effect),
-        Effect::ConsumeItem { .. } => consume_items(world, speaker, listener, effect),
-        Effect::SetStringVar { .. } => set_string_var(world, speaker, listener, effect),
-        Effect::CopyVar { .. } => copy_var(world, speaker, listener, effect),
         Effect::Teleport { .. } => move_creature(world, speaker, listener, effect),
         Effect::AssignMission { .. } => give_mission(world, speaker, listener, effect),
         Effect::AddVar { .. } => add_var(world, speaker, listener, effect),
@@ -1613,11 +1649,9 @@ pub fn run_effect(
             crate::traits::remove_trait(world, creature, trait_name);
             Applied::Done
         }
-        // A named program needs the registry and a depth, which the program runner (`eoc_registry::run_program`) supplies. Reaching
-        // here means a list ran a program without one, which is a caller mistake, not a rule - so it refuses rather than guessing.
-        // A program's own effects are run by the program runner, which is the only caller that knows the depth it is at.
-        // Casting needs the spell's own effect table (`magic_spell_effect.cpp`), which the port has not ported, and the dialogue machine is the same gap.
-        Effect::CastSpell { .. } | Effect::RunEoc(_) | Effect::RunNpcEocs { .. } | Effect::RunMonsterEocs { .. } => Applied::CannotAnswer,
+        // A cast needs the spell effect table, a named program needs the registry and a depth only the program runner has, and everything else has a rule the port
+        // has not written. All of them refuse.
+        _ => Applied::CannotAnswer,
     }
 }
 

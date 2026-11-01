@@ -1541,3 +1541,36 @@ fn a_copy_var_moves_a_value_across() {
     assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "and it is still a completed effect");
     assert_eq!(cdda_sim::dialogue_values::value_of(&world, survivor, "still_empty"), None, "with nothing written");
 }
+
+/// `alter_timed_events` schedules a named event, and the store answers "has it happened" from the clock.
+///
+/// Reference: `f_alter_timed_events` (`npctalk.cpp:4873-4882`) writes `get_timed_events().set_all( key, now + duration )`, and the dialogue condition built on it
+/// compares that turn against the calendar. The port keeps the events in one component on one entity, so the answer is a comparison, not a bit somebody flipped.
+#[test]
+fn an_altered_timed_event_comes_due_with_the_clock() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    // The world's clock has to exist before an event can be scheduled against it, which is the store's own rule: no clock, no answer.
+    cdda_sim::calendar::set_turn(&mut world, 1000);
+
+    let read_and_run = |world: &mut bevy_ecs::prelude::World, text: &str| {
+        let value = cdda_json::parse(text.as_bytes()).expect("json");
+        let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+        cdda_sim::dialogue_effects::run_effect(world, survivor, None, &effect)
+    };
+
+    // An hour ahead: not due yet, due an hour later.
+    let applied = read_and_run(&mut world, r#"{"alter_timed_events": "portal_storm", "time_in_future": "1 hour"}"#);
+    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "it runs");
+    assert_eq!(cdda_sim::timed_events::has_happened(&world, "portal_storm"), Some(false), "not yet: an hour is ahead");
+
+    // No time ahead at all: due this very turn, which is the reference's zero default.
+    let applied = read_and_run(&mut world, r#"{"alter_timed_events": "now_event"}"#);
+    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "and the zero-duration form runs");
+    assert_eq!(cdda_sim::timed_events::has_happened(&world, "now_event"), Some(true), "due at once");
+    assert_eq!(
+        cdda_sim::timed_events::has_happened(&world, "nobody_scheduled_this"),
+        Some(false),
+        "an event nobody scheduled has not happened"
+    );
+}

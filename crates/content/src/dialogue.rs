@@ -1585,6 +1585,7 @@ fn read_unnamed_effect(object: &cdda_json::Object) -> Option<Effect> {
         .or_else(|| read_consume_item(object))
         .or_else(|| read_set_string_var(object))
         .or_else(|| read_copy_var(object))
+        .or_else(|| read_alter_timed_events(object))
 }
 
 /// Reads a `sound_effect` entry.
@@ -1602,6 +1603,21 @@ fn read_sound_effect(object: &cdda_json::Object) -> Option<Effect> {
             Some(value) => read_count(Some(value))?,
         },
         outdoor_event: matches!(object.get("outdoor_event"), Some(Value::Bool(true))),
+    })
+}
+
+/// Reads an `alter_timed_events` entry.
+///
+/// Reference: `f_alter_timed_events` (`npctalk.cpp:4873-4882`): the member names the event, `time_in_future` is a duration `get_duration_or_var` defaults to zero,
+/// and the text is parsed by the same duration reader the calendar uses.
+fn read_alter_timed_events(object: &cdda_json::Object) -> Option<Effect> {
+    let key = object.get("alter_timed_events")?;
+    Some(Effect::AlterTimedEvents {
+        key: read_string_source(key)?,
+        time_in_future: match object.get("time_in_future") {
+            None => StringSource::Literal("0".to_owned()),
+            Some(value) => read_string_source(value)?,
+        },
     })
 }
 
@@ -1949,6 +1965,16 @@ pub enum Effect {
         volume: CountRange,
         /// Whether it is only heard outdoors.
         outdoor_event: bool,
+    },
+    /// Schedules a named event to happen a set time from now.
+    ///
+    /// Reference: `f_alter_timed_events` (`npctalk.cpp:4873-4882`): the member names the event and `time_in_future` says how far ahead - a duration, defaulting to
+    /// zero, which schedules the event for **this turn**.
+    AlterTimedEvents {
+        /// The event's name.
+        key: StringSource,
+        /// How far ahead it is due.
+        time_in_future: StringSource,
     },
     /// Copies one variable's value into another.
     ///
@@ -2395,6 +2421,7 @@ impl Effect {
             Self::PlaySoundEffect { .. } => "sound_effect",
             Self::SetStringVar { .. } => "set_string_var",
             Self::CopyVar { .. } => "copy_var",
+            Self::AlterTimedEvents { .. } => "alter_timed_events",
             Self::SpawnItem { .. } => "u_spawn_item",
             Self::ConsumeItem { listener, .. } => {
                 if *listener {

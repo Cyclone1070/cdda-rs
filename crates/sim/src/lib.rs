@@ -47,6 +47,7 @@ pub mod creature_flags;
 pub mod hit_location;
 pub mod melee;
 pub mod sounds;
+pub mod timed_events;
 pub mod traits;
 pub mod spell_effects;
 pub mod spellcasting;
