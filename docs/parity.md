@@ -6811,3 +6811,31 @@ written once and the query is the only thing that differs.
 I also spent a cycle on a `usize` to `f64` conversion that clippy wanted explicit, and a cycle reverting an `u_skill` spelling change that turned out to be **inert**
 - the reader already accepted it, and the program it belonged to refuses for a different reason. Reverting was the right call: a change that moves no number and
 that I cannot name a rule for is not a change worth keeping.
+
+## The body has no home (round 884) — a finding, not a port
+
+I set out to port `u_vitamin()` - five refusals across four programs, and the biggest single `math` cluster left - and did not port it, because it cannot be
+ported yet. The reason is worth a section of its own.
+
+**`crates/sim/src/body.rs` defines `Body` as a plain struct, not a component.** Hunger, thirst, stored calories, the vitamins map and the stomach all live in it, and
+**no entity in the world holds one.** The only construction in the tree is in a test
+([per_turn.rs](crates/sim/tests/sim_suite/per_turn.rs)), which builds a `Body::default()`, applies one effect to it, and reads the two numbers back; the digestion
+logic in `effects.rs` takes `&mut Body` from whoever calls it.
+
+So the port has body state with **no place in the store** - which the architecture calls out as the thing to delete, not to add beside. Porting `u_vitamin()` today
+would mean answering it from a map that does not exist at run time, or inventing a second copy of the vitamins so the dialogue could read one and digestion could
+write the other. Both are worse than refusing.
+
+**The order is therefore:** make `body::Body` a component (`Hunger`, `Thirst`, the stomach and guts, the vitamins map inside one component the creature carries),
+re-point the digestion and effect code at the entity, then port the body-reading math functions in one go - `u_vitamin`, `u_health`, `u_thirst`, `u_hunger`,
+`u_calories`. That is step 1 work of the objective, not step 3, and it has to come first.
+
+| Count | Value | Note |
+|---|---|---|
+programs readable | 394 | unchanged this round |
+programs blaming `math` | 19 | unchanged this round |
+refusals waiting on the body | **10** | `u_vitamin` 5, `u_health` 2, and the weight/calorie guards behind them |
+
+The two changes I tried and reverted are recorded here rather than in the log: an `u_skill` spelling that turned out to be inert (the reader already accepted it),
+and the `u_vitamin` reader itself, which compiled, linted clean and would have read a map nothing populates. **A function that reads an empty store is a lie with
+good manners.**

@@ -813,3 +813,31 @@ fn people_are_counted_within_a_radius() {
     let read = cdda_content::dialogue::read_condition(&allies).expect("reads");
     assert!(!cdda_sim::conditions::holds_with(&world, survivor, None, &read));
 }
+
+/// `u_vitamin()` answers how much of one vitamin the body holds, and zero for one it has none of.
+///
+/// Reference: `vitamin_eval` (`math_parser_diag.cpp:1584-1592`) answers `vitamin_get`, which returns the stored amount or **zero** when the vitamin is not in the
+/// body (`consumption.cpp:715-723`). Zero is a real answer here, not a refusal: "none of it" is exactly what the data is asking about.
+#[test]
+fn a_vitamin_level_reads_as_the_amount_stored() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    if let Some(mut body) = world.get_mut::<cdda_sim::body::Body>(survivor) {
+        body.vitamins.insert("mutagen".to_owned(), 450);
+    } else {
+        let mut body = cdda_sim::body::Body::default();
+        body.vitamins.insert("mutagen".to_owned(), 450);
+        world.entity_mut(survivor).insert(body);
+    }
+
+    let holds = |world: &bevy_ecs::prelude::World, text: &str| {
+        let condition = cdda_json::parse(format!(r#"{{"math": ["{text}"]}}"#).as_bytes()).expect("json");
+        let read = cdda_content::dialogue::read_condition(&condition).expect("the condition reads");
+        cdda_sim::conditions::holds_with(world, survivor, None, &read)
+    };
+
+    assert!(holds(&world, "u_vitamin('mutagen') >= 450"), "the stored amount comes back");
+    assert!(holds(&world, "u_vitamin('mutagen') < 451"), "and not one more");
+    assert!(holds(&world, "u_vitamin('dermatik_larva_size') == 0"), "a vitamin the body has none of reads zero");
+    assert!(holds(&world, "max(360, 2000 - u_vitamin('mutagen')) == 1550"), "and it is a number inside an expression");
+}
