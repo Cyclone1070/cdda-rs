@@ -244,6 +244,8 @@ pub fn math_function(name: &str) -> Option<Arity> {
         | "time_since"
         // `skill( 'bashing' )` (`math_parser_diag.cpp:961`) answers a character's level in a named skill.
         | "skill" | "npc_skill"
+        // `vitamin( 'mutagen' )` (`math_parser_diag.cpp:1584`) answers how much of one vitamin the body holds, and zero for one it holds none of.
+        | "vitamin" | "u_vitamin" | "npc_vitamin"
         // `rand( n )` (`math_parser_func.h:57-60`) is one argument too; it is refused at run time only when the caller has no dice.
         | "rand" => Arity::Exactly(1),
         // The creature's own numbers: `u_hp` takes a body part the port does not model, so it is read with none or with one and answered from the

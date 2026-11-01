@@ -815,20 +815,17 @@ fn people_are_counted_within_a_radius() {
 }
 
 /// `u_vitamin()` answers how much of one vitamin the body holds, and zero for one it has none of.
+/// `u_vitamin()` answers how much of one vitamin the body holds, and zero for one it has none of.
 ///
-/// Reference: `vitamin_eval` (`math_parser_diag.cpp:1584-1592`) answers `vitamin_get`, which returns the stored amount or **zero** when the vitamin is not in the
-/// body (`consumption.cpp:715-723`). Zero is a real answer here, not a refusal: "none of it" is exactly what the data is asking about.
+/// Reference: `vitamin_eval` (`math_parser_diag.cpp:1584-1592`) answers `vitamin_get`, which is the stored amount or **zero** when the vitamin is not in the body
+/// (`consumption.cpp:715-723`). Zero is a real answer here rather than a refusal: "none of it" is exactly what the data asks about.
 #[test]
 fn a_vitamin_level_reads_as_the_amount_stored() {
     let mut world = bevy_ecs::prelude::World::new();
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
-    if let Some(mut body) = world.get_mut::<cdda_sim::body::Body>(survivor) {
+    assert!(cdda_sim::body::with_body_mut(&mut world, survivor, |body| {
         body.vitamins.insert("mutagen".to_owned(), 450);
-    } else {
-        let mut body = cdda_sim::body::Body::default();
-        body.vitamins.insert("mutagen".to_owned(), 450);
-        world.entity_mut(survivor).insert(body);
-    }
+    }));
 
     let holds = |world: &bevy_ecs::prelude::World, text: &str| {
         let condition = cdda_json::parse(format!(r#"{{"math": ["{text}"]}}"#).as_bytes()).expect("json");
@@ -838,6 +835,12 @@ fn a_vitamin_level_reads_as_the_amount_stored() {
 
     assert!(holds(&world, "u_vitamin('mutagen') >= 450"), "the stored amount comes back");
     assert!(holds(&world, "u_vitamin('mutagen') < 451"), "and not one more");
-    assert!(holds(&world, "u_vitamin('dermatik_larva_size') == 0"), "a vitamin the body has none of reads zero");
-    assert!(holds(&world, "max(360, 2000 - u_vitamin('mutagen')) == 1550"), "and it is a number inside an expression");
+    assert!(
+        holds(&world, "u_vitamin('dermatik_larva_size') == 0"),
+        "a vitamin the body has none of reads zero"
+    );
+    assert!(
+        holds(&world, "max(360, 2000 - u_vitamin('mutagen')) == 1550"),
+        "and it is a number inside an expression"
+    );
 }

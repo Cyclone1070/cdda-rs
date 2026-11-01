@@ -266,7 +266,7 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
     assert_eq!(refused.get("test_eoc"), None, "and `test_eoc` no longer blocks anything");
     assert_eq!(refused.get("is_season"), None, "the season is answered now that the world has a clock");
     assert_eq!(refused.get("expects_vars"), None, "and context values are handed over now");
-    assert_eq!(refused.get("x_in_y_chance"), Some(&1), "both of them, down to one each");
+    assert_eq!(refused.get("x_in_y_chance"), None, "the chance guards answer now that a variable can be written as an object");
     assert_eq!(refused.get("u_at_om_location"), None, "the overmap terrain answers now");
     // 692, not the 712 effect-on-condition objects in the data: twenty carry no `id`, so nothing can name them and the port does
     // not install them. The count of definitions was itself worth learning - the 712 in the earlier census counted objects, the

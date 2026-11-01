@@ -6839,3 +6839,32 @@ refusals waiting on the body | **10** | `u_vitamin` 5, `u_health` 2, and the wei
 The two changes I tried and reverted are recorded here rather than in the log: an `u_skill` spelling that turned out to be inert (the reader already accepted it),
 and the `u_vitamin` reader itself, which compiled, linted clean and would have read a map nothing populates. **A function that reads an empty store is a lie with
 good manners.**
+
+## The body becomes a component, and `u_vitamin()` with it (round 885)
+
+The finding from the last round is now fixed: **`Body` is a component**, every character spawned carries one, and `body_of` / `with_body_mut` are how a system
+reads and changes it. Hunger, thirst, stored calories, the vitamins and the stomach now have a home in the store instead of a struct passed by hand from a test.
+
+Two rules came out of the reference with it:
+
+* `vitamin_eval` (`math_parser_diag.cpp:1584-1592`) answers `vitamin_get`, which is the stored amount **or zero** when the body has none of it
+  (`consumption.cpp:715-723`). Zero is an answer here, not a refusal - "none of it" is exactly what the data asks.
+* A monster has no body of this kind. `body_of` answering `None` is a real "no" rather than a default, which is why `with_body_mut` reports whether it changed
+  anything instead of silently doing nothing.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 394 | **397** |
+answered `Done` | 245 | **248** |
+did something | 101 | **105** |
+unreadable leaves | 597 | **589** |
+programs blaming `math` | 19 | **15** |
+conditions readable | 2,917 | **2,967** |
+effect entries runnable | 1,217 | **1,219** |
+
+**Fifty conditions from one function**, which is the largest single win of the session and says something about where the remaining value is: the conditions table
+is 3,708 entries and most of them ask about a number the character carries. Each body number ported now is worth dozens of conditions.
+
+The cost side: **six cycles spent re-pinning counts**, each one a two-minute build to learn one integer, and four clippy cycles because `special_function` grew
+again - once for the 100-line cap, once for the arm merge that got it back under. The pinning is unavoidable while the census is a set of constants; a single
+`cargo test -- --nocapture` run that prints **all** the numbers at once would turn six cycles into one, and that is worth doing before the next port.

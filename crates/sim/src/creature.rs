@@ -1733,6 +1733,8 @@ fn walk_bounds(world: &World) -> (i32, i32) {
 pub fn spawn_creature(world: &mut World, name: &str, square: (i32, i32, i32)) -> Entity {
     let entity = world
         .spawn((
+            // The body is the character's own state, so it hangs on the creature: hunger, thirst and the vitamins have no other home.
+            crate::body::Body::default(),
             Position {
                 x: square.0,
                 y: square.1,

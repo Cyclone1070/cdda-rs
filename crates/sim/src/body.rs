@@ -27,7 +27,11 @@ use std::collections::BTreeMap;
 ///
 /// The four numbers are the ones the reference keeps as `hunger`, `thirst`, `stored_calories` and `vitamin_levels`; the two compartments are the stomach and the
 /// guts. Everything else about a character — traits, effects, mutations, bionics — reaches this rule only through [`BodyInputs`], which is what makes it testable.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+/// A character's body: hunger, thirst, stored energy, the vitamins it holds, its stomach and its guts.
+///
+/// This is a **component**, because it is the character's own state and the store is where a character's state lives. It used to be a free struct that no entity
+/// held, which meant the vitamins had no home at all - the dialogue could not read one and digestion could not keep one.
+#[derive(bevy_ecs::component::Component, Debug, Clone, Default, PartialEq, Eq)]
 pub struct Body {
     /// Hunger, from `-61` (engorged) up to `300` (famished).
     pub hunger: i32,
@@ -491,4 +495,25 @@ impl Body {
         let points = ((i64::from(self.thirst) + points).max(-100)) as i32;
         self.set_thirst(points);
     }
+}
+
+/// The body a creature carries, if it is a character rather than a monster.
+#[must_use]
+pub fn body_of(world: &bevy_ecs::prelude::World, creature: bevy_ecs::entity::Entity) -> Option<&Body> {
+    world.get::<Body>(creature)
+}
+
+/// Changes the body a creature carries, in one borrow, which is what a system needs.
+///
+/// Answers whether the change was made: a monster has no body of this kind, and a silent no-op would hide that.
+pub fn with_body_mut(
+    world: &mut bevy_ecs::prelude::World,
+    creature: bevy_ecs::entity::Entity,
+    change: impl FnOnce(&mut Body),
+) -> bool {
+    let Some(mut body) = world.get_mut::<Body>(creature) else {
+        return false;
+    };
+    change(&mut body);
+    true
 }

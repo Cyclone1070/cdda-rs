@@ -640,6 +640,24 @@ fn distance_between(
 ///
 /// Reference: `_filter_monster` (`math_parser_diag.cpp:781-794`): a creature counts when it **is a monster**, when its type is one the arguments name, and
 /// when `radius >= rl_dist(...)` - so the radius is a Chebyshev one, like `distance`, not a walked path.
+/// How much of one vitamin a character holds.
+///
+/// Reference: `vitamin_eval` (`math_parser_diag.cpp:1584-1592`) answers `vitamin_get`, which is the stored amount and **zero** for a vitamin the body has none of
+/// (`consumption.cpp:715-723`) - not a refusal, because "none of it" is a real answer.
+fn answer_vitamin(world: &World, speaker: Entity, listener: Option<Entity>, name: &str, arguments: &[Expression]) -> Option<f64> {
+    let [Expression::Text(vitamin)] = arguments else {
+        return None;
+    };
+    let creature = match name {
+        "npc_vitamin" => listener?,
+        _ => speaker,
+    };
+    let amount = crate::body::body_of(world, creature)
+        .and_then(|body| body.vitamins.get(vitamin).copied())
+        .unwrap_or(0);
+    Some(f64::from(amount))
+}
+
 /// How much pain a creature is in, for `u_pain` and its listener spelling.
 ///
 /// Reference: `pain_eval` (`math_parser_diag.cpp:869-882`): the actor's `pain_cur`, and `type: 'perceived'` asks for the pain as the character feels it. The port
@@ -663,6 +681,23 @@ fn answer_pain(
         .copied()
         .unwrap_or_default();
     Answer::Value(f64::from(pain.0))
+}
+
+/// Counts what is near an actor: monsters and characters answer from different queries and the same shape.
+fn answer_nearby(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    name: &str,
+    arguments: &[Expression],
+    keywords: &[(String, Expression)],
+) -> Answer {
+    match name {
+        "u_characters_nearby" | "npc_characters_nearby" => {
+            answer_characters_nearby(world, speaker, listener, name, keywords)
+        }
+        _ => answer_monsters_nearby(world, speaker, listener, name, arguments, keywords),
+    }
 }
 
 /// Counts the other characters near an actor, for `u_characters_nearby` and its listener spelling.
@@ -905,14 +940,16 @@ fn special_function(
         // Reference: `u_hp` (`math_expressions` in `dialogue_helpers`), which takes a body part the port does not model and answers the whole
         // creature's remaining hit points.
         ("distance", [first, second]) => return distance_between(world, speaker, listener, first, second),
-        ("u_characters_nearby" | "npc_characters_nearby", _) => {
-            return answer_characters_nearby(world, speaker, listener, name, keywords);
-        }
-        ("u_monsters_nearby" | "npc_monsters_nearby", _) => {
-            return answer_monsters_nearby(world, speaker, listener, name, arguments, keywords);
+        ("u_monsters_nearby" | "npc_monsters_nearby" | "u_characters_nearby" | "npc_characters_nearby", _) => {
+            return answer_nearby(world, speaker, listener, name, arguments, keywords);
         }
         // Reference: `{ "pain", { "un", 0, pain_eval, pain_ass } }` (`math_parser_diag.cpp:869-882`) - the actor's `pain_cur`, with `type: "perceived"` asking
         // for the pain as the character feels it instead. The port has no masking rule yet, so it refuses that form rather than answering the raw number for it.
+        ("vitamin" | "u_vitamin" | "npc_vitamin", _) => {
+            if let Some(amount) = answer_vitamin(world, speaker, listener, name, arguments) {
+                return Answer::Value(amount);
+            }
+        }
         ("u_pain" | "npc_pain", []) => {
             return answer_pain(world, speaker, listener, name, keywords);
         }
