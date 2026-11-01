@@ -112,3 +112,61 @@ fn programs_run_on_the_people_the_filters_leave() {
         cdda_sim::dialogue_effects::Applied::CannotAnswer
     );
 }
+
+/// `u_teleport` moves a creature to the square its variable holds.
+///
+/// Reference: `f_teleport` (`npctalk.cpp:7816-7845`): the member is an object naming the variable, and the creature's position becomes the point it holds.
+#[test]
+fn a_teleport_moves_to_the_stored_square() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let mut level = cdda_core_types::level::Level::new();
+    for x in -8..24 {
+        for y in -8..24 {
+            level.set_terrain(x, y, 0, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+
+    let runs = |world: &mut bevy_ecs::prelude::World, text: &str| {
+        let value = cdda_json::parse(text.as_bytes()).expect("json");
+        let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+        cdda_sim::dialogue_effects::run_effect(world, survivor, None, &effect)
+    };
+
+    // A variable holding a square is somewhere to go.
+    let holder = cdda_sim::dialogue_values::holder_for(&mut world, survivor, false);
+    cdda_sim::dialogue_values::set(
+        &mut world,
+        holder,
+        "place",
+        cdda_sim::dialogue_values::Value::Position { x: 7, y: 3, z: 0 },
+    );
+    assert_eq!(
+        runs(&mut world, r#"{"u_teleport": {"u_val": "place"}}"#),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    let at = world.get::<cdda_sim::Position>(survivor).copied().expect("a position");
+    assert_eq!((at.x, at.y, at.z), (7, 3, 0), "the creature stands where the variable said");
+
+    // A variable that holds no location is nowhere to go, so the effect refuses rather than leaving the creature put and claiming success.
+    cdda_sim::dialogue_values::set(
+        &mut world,
+        holder,
+        "a_number",
+        cdda_sim::dialogue_values::Value::Number(3.0),
+    );
+    assert_eq!(
+        runs(&mut world, r#"{"u_teleport": {"u_val": "a_number"}}"#),
+        cdda_sim::dialogue_effects::Applied::CannotAnswer
+    );
+    assert_eq!(
+        runs(&mut world, r#"{"u_teleport": {"u_val": "never_set"}}"#),
+        cdda_sim::dialogue_effects::Applied::CannotAnswer
+    );
+
+    // The outcome messages are members the port has no rule for, so an entry that states one is refused rather than half-run.
+    let with_message =
+        cdda_json::parse(br#"{"u_teleport": {"u_val": "place"}, "fail_message": "no"}"#.as_slice()).expect("json");
+    assert!(cdda_content::dialogue::read_effect(&with_message).is_none());
+}

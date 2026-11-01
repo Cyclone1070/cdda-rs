@@ -342,6 +342,38 @@ fn nearby_location(world: &mut World, speaker: Entity, effect: &Effect) -> Appli
 ///
 /// The port marks a hallucination with a [`crate::monster_spawning::Hallucination`] component so anything that asks "is this real" can answer. What it does
 /// **not** do yet is fade them: the reference's hallucinations are removed when the player gets a good look, which is a system the port has not built.
+/// Moves a creature to the square a variable holds.
+///
+/// Reference: `f_teleport` (`npctalk.cpp:7836-7845`): the variable is read as a point and the creature's position becomes it. A variable that holds no
+/// location - unset, or holding a number or a text - cannot answer where to go, so the effect refuses rather than leaving the creature where it was.
+fn move_creature(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::Teleport {
+        scope,
+        name,
+        listener: about_listener,
+    } = effect
+    else {
+        return Applied::CannotAnswer;
+    };
+    // The listener form moves the other creature, and without one there is nothing to move.
+    let actor = if *about_listener { listener } else { Some(speaker) };
+    let Some(actor) = actor else {
+        return Applied::CannotAnswer;
+    };
+    let holder = crate::dialogue_values::holder_for(world, actor, scope == "global_val");
+    let Some(crate::dialogue_values::Value::Position { x, y, z }) =
+        crate::dialogue_values::value_of(world, holder, name)
+    else {
+        return Applied::CannotAnswer;
+    };
+    if let Some(mut position) = world.get_mut::<crate::Position>(actor) {
+        position.x = x;
+        position.y = y;
+        position.z = z;
+    }
+    Applied::Done
+}
+
 fn spawn_monsters(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
     let Effect::SpawnMonster {
         monster,
@@ -1096,6 +1128,7 @@ pub fn run_effect(
             },
         ),
         Effect::SpawnMonster { .. } => spawn_monsters(world, speaker, listener, effect),
+        Effect::Teleport { .. } => move_creature(world, speaker, listener, effect),
         Effect::AddVar { .. } => add_var(world, speaker, listener, effect),
         Effect::LoseVar { name, scope } => lose_var(world, speaker, listener, name, scope),
         Effect::LocationVariableSearch { .. } => search_location(world, speaker, effect),

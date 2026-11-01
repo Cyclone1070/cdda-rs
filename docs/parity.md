@@ -6291,3 +6291,28 @@ being effects of their own.
 **The fixture lesson earned its keep.** This round I stopped hand-writing test programs and wrapped the effect in a program built from the same JSON shape the data
 uses, asserting each step - program reads, effect reads, effect runs - so a failure names its own step. Then the census said "nothing moved" and the data said
 why in one `grep`. The two together are worth more than either.
+
+## `u_teleport` (round 866)
+
+78 of the data's entries move a creature and the port refused every one of them. `f_teleport` (`npctalk.cpp:7816-7845`) is small: the member names a **variable** -
+`{ "u_teleport": { "u_val": "place" } }` - and the creature's position becomes the point it holds.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 348 | **357** |
+**capability** | 218 | **221** |
+unreadable leaves | 798 | **781** |
+one-gap programs | 146 | **142** |
+effect entries runnable | 1,167 | **1,182** |
+effect-blamed programs | 278 | **269** |
+
+Read on the first attempt, because the census data came first: one `grep` showed `u_teleport` is always an object with a scope-and-name pair, and the port already
+had that pair reader from `u_location_variable`. The previous round's three attempts were what a missing `grep` costs.
+
+Gated: a stored square moves the creature to it; a variable holding a number, or never set, **refuses** rather than leaving the creature put and claiming success;
+and an entry with `fail_message` is refused at read time, because the port has no rule for the line it would say. `force` is accepted and has nothing to override
+yet - no rule decides a destination is unsafe - and that is written down rather than left as a silent difference.
+
+**Two clippy extractions again** - the 100-line cap on `read_effect` and one needless closure - both of which would have been caught before a 15-minute remote
+cycle if the lints ran locally. They cannot, so the rule stays: after adding an arm, run `--clippy` *before* the census, because a lint failure costs the same
+cycle as a census and tells you less.

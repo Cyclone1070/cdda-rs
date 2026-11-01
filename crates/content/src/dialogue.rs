@@ -774,6 +774,7 @@ pub enum VarValue {
 fn read_carried_effect(object: &cdda_json::Object) -> Option<Effect> {
     read_spawn_monster(object)
         .or_else(|| read_run_npc_eocs(object))
+        .or_else(|| read_teleport(object))
         .or_else(|| read_variable_effect(object))
 }
 
@@ -1782,6 +1783,19 @@ pub enum Effect {
         /// Whether it goes to the listener rather than the speaker.
         listener: bool,
     },
+    /// Move a creature to the square a dialogue variable holds.
+    ///
+    /// Reference: `f_teleport` (`npctalk.cpp:7816-7845`): the member names the variable, `force` allows a destination the game would refuse, and
+    /// `fail_message`/`success_message` are lines for either outcome. The port reads the move; the two messages and `force_safe` are refused, and `force` is
+    /// accepted because with nothing yet deciding a destination is unsafe there is nothing for it to override.
+    Teleport {
+        /// The variable's scope, as the data spells it: `u_val`, `npc_val`, `global_val`.
+        scope: String,
+        /// The variable's name.
+        name: String,
+        /// Whether the creature moving is the listener rather than the speaker.
+        listener: bool,
+    },
     /// Put a location into a dialogue variable.
     ///
     /// Reference: `f_location_variable` (`npctalk.cpp:4194`). The port reads the plain form - the actor's own square - and refuses the
@@ -1831,6 +1845,7 @@ impl Effect {
             Self::LoseTrait { .. } => "u_lose_trait",
             Self::RunEoc(_) => "run_eocs",
             Self::Switch { .. } => "switch",
+            Self::Teleport { .. } => "u_teleport",
             Self::LocationVariable { .. }
             | Self::LocationVariableSearch { .. }
             | Self::LocationVariableRadius { .. } => "u_location_variable",
@@ -2054,6 +2069,33 @@ fn read_effect_list(value: Option<&Value>) -> Option<Vec<Effect>> {
 
 
 
+
+/// Reads `u_teleport` and its listener spelling.
+///
+/// Reference: `f_teleport` (`npctalk.cpp:7816-7845`), whose member is an object naming the variable to move to - `{ "u_val": "place" }`. The two outcome
+/// messages and `force_safe` are members the port has no rule for yet, so an entry stating one is refused rather than half-run.
+fn read_teleport(object: &cdda_json::Object) -> Option<Effect> {
+    for (member, listener) in [("u_teleport", false), ("npc_teleport", true)] {
+        let Some(Value::Object(target)) = object.get(member) else {
+            continue;
+        };
+        for refused in ["fail_message", "success_message", "force_safe"] {
+            if object.get(refused).is_some() {
+                return None;
+            }
+        }
+        let (scope, name) = target.members().iter().find_map(|(scope, value)| match value {
+            Value::Str(name) => Some((scope.clone(), name.clone())),
+            _ => None,
+        })?;
+        return Some(Effect::Teleport {
+            scope,
+            name,
+            listener,
+        });
+    }
+    None
+}
 
 /// Reads a message whose member names a **snippet category** rather than the text itself.
 ///
