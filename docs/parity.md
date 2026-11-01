@@ -6819,7 +6819,7 @@ ported yet. The reason is worth a section of its own.
 
 **`crates/sim/src/body.rs` defines `Body` as a plain struct, not a component.** Hunger, thirst, stored calories, the vitamins map and the stomach all live in it, and
 **no entity in the world holds one.** The only construction in the tree is in a test
-([per_turn.rs](crates/sim/tests/sim_suite/per_turn.rs)), which builds a `Body::default()`, applies one effect to it, and reads the two numbers back; the digestion
+(`crates/sim/tests/sim_suite/per_turn.rs`), which builds a `Body::default()`, applies one effect to it, and reads the two numbers back; the digestion
 logic in `effects.rs` takes `&mut Body` from whoever calls it.
 
 So the port has body state with **no place in the store** - which the architecture calls out as the thing to delete, not to add beside. Porting `u_vitamin()` today
