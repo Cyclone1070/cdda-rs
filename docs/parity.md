@@ -6343,3 +6343,31 @@ came from the same unasked question - *does the port already answer this?* - and
 
 Gated: the mission lands on the player although the shopkeeper speaks; the speaker keeps nothing; the same mission twice is one mission, because the store holds
 type ids; and an entry with `deadline` is refused at read time rather than assigned without it.
+
+## A count the world computes (round 868)
+
+`get_dbl_or_var` (`npctalk.cpp`) takes a number, a **two-end array**, or a `math` block - and the spawn data uses the third for a count that depends on the world:
+`"hallucination_count": { "math": [ "rand(2) + 1" ] }`. The port read the first two and refused the third, so every entry with a computed count was refused as if
+the count were the problem.
+
+`CountRange::Expression` holds the block and the runner evaluates it **where it is used**, which is the rule: the count is a fact about the world at spawn time,
+not about the data at load time.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 363 | **364** |
+**capability** | 226 | **226** |
+unreadable leaves | 770 | **768** |
+one-gap programs | 138 | **137** |
+effect entries runnable | 1,191 | **1,193** |
+effect-blamed programs | 263 | **262** |
+
+**+1 program and no capability, because the one program that now reads needs a monster group.** `u_spawn_monster` with `"group": true` names a **monster group**
+rather than a type (`GROUP_YOUR_FEARS`), and the port has no group table - so the rule justifies itself now and pays when the groups land. Six of the nine group
+spawns also carry computed counts, so this was the first half of that work rather than a detour.
+
+Nine entries in the data use `group: true`; the port's next store is the weighted monster-group table, and the reference's rule
+(`MonsterGroupManager::GetMonsterFromGroup`) picks by weight with sub-groups.
+
+Gated: a `{"math": ["2 + 3"]}` count makes exactly five creatures, which a fixed zero would not - so the test fails if the expression is ignored rather than
+evaluated.

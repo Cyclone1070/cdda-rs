@@ -419,8 +419,8 @@ fn spawn_monsters(world: &mut World, speaker: Entity, listener: Option<Entity>, 
         if std::env::var("CDDA_SHOW_SPAWN").is_ok() { println!("spawn refused: unknown type {name}"); }
         return Applied::CannotAnswer;
     };
-    let real = draw_count(world, real_count);
-    let imagined = draw_count(world, hallucination_count);
+    let real = draw_count(world, speaker, listener, real_count);
+    let imagined = draw_count(world, speaker, listener, hallucination_count);
     let (Some(real), Some(imagined)) = (real, imagined) else {
         if std::env::var("CDDA_SHOW_SPAWN").is_ok() { println!("spawn refused: no count"); }
         return Applied::CannotAnswer;
@@ -507,9 +507,21 @@ fn draw_between(world: &mut World, lower: i64, upper: i64) -> Option<i64> {
 }
 
 /// Draws how many of something the data asked for.
-fn draw_count(world: &mut World, count: &cdda_content::dialogue::CountRange) -> Option<i32> {
+fn draw_count(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    count: &cdda_content::dialogue::CountRange,
+) -> Option<i32> {
     match count {
         cdda_content::dialogue::CountRange::One(one) => Some(*one),
+        // Reference: `get_dbl_or_var` evaluates a `math` count where it is used, so the world it reads is the world at spawn time.
+        cdda_content::dialogue::CountRange::Expression(expression) => {
+            let drawn = crate::conditions::value(world, speaker, listener, expression)?;
+            #[allow(clippy::cast_possible_truncation)]
+            let drawn = drawn.round() as i32;
+            Some(drawn)
+        }
         cdda_content::dialogue::CountRange::Between(lower, upper) => {
             let mut dice = crate::singletons::take_rolls(world);
             let drawn = dice.as_mut().map(|rolls| rolls.rng(*lower, *upper));

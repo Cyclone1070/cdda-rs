@@ -646,12 +646,17 @@ fn read_flag_condition(object: &cdda_json::Object) -> Option<Condition> {
 /// How many of something: one number, or a range to draw from.
 ///
 /// Reference: `get_dbl_or_var` (`npctalk.cpp`), whose array form `[ a, b ]` is a **range** the game draws between, not a list of two choices.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum CountRange {
     /// The same number every time.
     One(i32),
     /// A number drawn between the two ends, both included.
     Between(i32, i32),
+    /// A number the data computes, as a `math` expression the game evaluates where it is used.
+    ///
+    /// Reference: `get_dbl_or_var` (`npctalk.cpp`) takes a number, an array of two ends, **or** a `math` expression - and the spawn data uses the third for a
+    /// count that depends on the world, such as `rand(2) + 1` hallucinations.
+    Expression(Box<Expression>),
 }
 
 /// Reads the two members that spawn monsters.
@@ -757,6 +762,9 @@ fn read_count(value: Option<&Value>) -> Option<CountRange> {
             let (lower, upper) = (i32::try_from(*lower).ok()?, i32::try_from(*upper).ok()?);
             Some(CountRange::Between(lower.min(upper), lower.max(upper)))
         }
+        Some(Value::Object(object)) if object.get("math").is_some() => Some(CountRange::Expression(Box::new(
+            read_expression(object.get("math")?)?,
+        ))),
         Some(_) => None,
     }
 }

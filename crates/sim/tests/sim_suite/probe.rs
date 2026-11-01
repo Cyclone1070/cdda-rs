@@ -216,3 +216,56 @@ fn a_mission_is_given_to_the_player() {
         cdda_json::parse(br#"{"assign_mission": "MISSION_x", "deadline": 100}"#.as_slice()).expect("json");
     assert!(cdda_content::dialogue::read_effect(&with_deadline).is_none());
 }
+
+/// A spawn count can be a `math` expression, which the game evaluates where it is used.
+///
+/// Reference: `get_dbl_or_var` (`npctalk.cpp`) takes a number, a two-end array, **or** a `math` block, and the spawn data uses the third for counts that depend
+/// on the world - `rand(2) + 1` hallucinations, for instance.
+#[test]
+fn a_spawn_count_can_be_computed() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let mut level = cdda_core_types::level::Level::new();
+    for x in -24..48 {
+        for y in -24..48 {
+            level.set_terrain(x, y, 0, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let kind = cdda_content::monsters::load_objects(&[cdda_json::parse(
+        br#"{"id": "mon_test", "name": "a test thing", "hp": 12, "speed": 100, "symbol": "t", "color": "white"}"#.as_slice(),
+    )
+    .expect("json")])
+    .expect("readable")
+    .into_iter()
+    .next()
+    .expect("one type");
+    cdda_sim::monster_registry::set_monster_types(
+        &mut world,
+        &[cdda_sim::monster_registry::MonsterKind { id: "mon_test", hp: 12 }],
+    );
+    cdda_sim::monster_catalog::set_types(&mut world, vec![kind]);
+
+    let spawn = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(
+            br#"{"u_spawn_monster": "mon_test", "real_count": {"math": ["2 + 3"]}}"#.as_slice(),
+        )
+        .expect("json"),
+    )
+    .expect("a computed count is readable");
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(31));
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &spawn),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+
+    // Five creatures exist because the expression said five, which a fixed count of zero would not produce.
+    let mut made = 0;
+    let mut query = world
+        .try_query::<&cdda_sim::creature::CreatureKind>()
+        .expect("query");
+    for _ in query.iter(&world) {
+        made += 1;
+    }
+    assert_eq!(made, 5, "the math count decided how many were made");
+}
