@@ -1689,10 +1689,26 @@ fn split_assignment(text: &str) -> Option<(&str, AssignmentOp, &str)> {
 pub enum SoundKind {
     /// Noise with no words: a door banging, a distant engine.
     Background,
+    /// The sky.
+    Weather,
+    /// Music playing from something.
+    Music,
+    /// Something moving.
+    Movement,
     /// Somebody talking.
     Speech,
+    /// Something electronic talking: a robot, a radio.
+    ElectronicSpeech,
+    /// Work being done.
+    Activity,
+    /// Work being done that breaks things.
+    DestructiveActivity,
     /// Something that tells everyone nearby to look.
     Alarm,
+    /// Fighting.
+    Combat,
+    /// Something loud enough to be noticed.
+    Alert,
     /// Something a leader tells its followers.
     Order,
 }
@@ -2545,12 +2561,24 @@ fn read_make_sound(object: &cdda_json::Object) -> Option<Effect> {
             continue;
         };
         let snippet = matches!(object.get("snippet"), Some(Value::Bool(true)));
+        // Reference: `f_make_sound` (`npctalk.cpp:6145-6171`) reads the sound's **kind** from `type`, and the list is longer than the four the port knew:
+        // `background`, `weather`, `music`, `movement`, `speech`, `electronic_speech`, `activity`, `destructive_activity`, `alarm`, `combat`, `alert`, `order`.
+        // A name outside that list is an error in the reference, and refusing it here is the same answer. The port's noise has no per-kind rule yet, so the
+        // kind is **carried** and not yet used - which is a gap in the noise model, not in the reader.
         let kind = match object.get("type") {
             Some(Value::Str(name)) => match name.as_str() {
-                "speech" => SoundKind::Speech,
-                "alarm" => SoundKind::Alarm,
-                "order" => SoundKind::Order,
                 "background" => SoundKind::Background,
+                "weather" => SoundKind::Weather,
+                "music" => SoundKind::Music,
+                "movement" => SoundKind::Movement,
+                "speech" => SoundKind::Speech,
+                "electronic_speech" => SoundKind::ElectronicSpeech,
+                "activity" => SoundKind::Activity,
+                "destructive_activity" => SoundKind::DestructiveActivity,
+                "alarm" => SoundKind::Alarm,
+                "combat" => SoundKind::Combat,
+                "alert" => SoundKind::Alert,
+                "order" => SoundKind::Order,
                 _ => return None,
             },
             Some(_) => return None,

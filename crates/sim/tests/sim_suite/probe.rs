@@ -1319,3 +1319,33 @@ fn a_spell_level_reads_from_the_creatures_own_store() {
     );
     assert_eq!(cdda_sim::known_spells::level_of(&world, talker, "spell_light"), 5, "the store took the step");
 }
+
+/// A sound's kind is read from all twelve names the reference accepts, not the four the port knew.
+///
+/// Reference: `f_make_sound` (`npctalk.cpp:6145-6171`) maps `type` onto `sounds::sound_t`, and the data uses `activity` and `destructive_activity` as well as
+/// `speech`, `alarm` and `order`. A name outside the list is an error in the reference, and the port refuses it for the same reason.
+#[test]
+fn a_sound_kind_reads_in_all_its_names() {
+    let reads = |kind: &str| {
+        let text = format!(r#"{{"u_make_sound": "a bang", "volume": 10, "type": "{kind}"}}"#);
+        let value = cdda_json::parse(text.as_bytes()).expect("json");
+        cdda_content::dialogue::read_effect(&value).is_some()
+    };
+    for kind in [
+        "background",
+        "weather",
+        "music",
+        "movement",
+        "speech",
+        "electronic_speech",
+        "activity",
+        "destructive_activity",
+        "alarm",
+        "combat",
+        "alert",
+        "order",
+    ] {
+        assert!(reads(kind), "{kind} is a sound kind the reference knows");
+    }
+    assert!(!reads("a_kind_nobody_has"), "and a name outside the list is refused");
+}

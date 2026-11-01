@@ -7429,3 +7429,32 @@ each instead of a fight.
   thing (`target_params`), which is a member the port does not know.
 
 Both are next round's work, and neither is a name to add to a table.
+
+## A sound has twelve kinds, and the port knew four (round 906)
+
+Reference: `f_make_sound` (`npctalk.cpp:6145-6171`) reads the sound's **kind** from the `type` member and maps twelve names onto `sounds::sound_t` - `background`,
+`weather`, `music`, `movement`, `speech`, `electronic_speech`, `activity`, `destructive_activity`, `alarm`, `combat`, `alert`, `order` - throwing on anything else.
+The port knew four of them, so an entry carrying `"type": "activity"` refused, and with it every program whose only effect it was.
+
+`SoundKind` now carries all twelve, and the reader maps them by name. An unknown name still refuses, which is the reference's own answer.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 468 | **473** |
+answered `Done` | 304 | **309** |
+did something | 151 | **156** |
+unreadable leaves | 393 | **383** |
+one-gap programs | 96 | **92** |
+effect entries runnable | 1,353 | **1,353** |
+effect census blaming `effect` | 206 | **201** |
+
+Five programs and seven effect entries from eight names - and, as with `is_day` last round, the arithmetic was never missing, only the table.
+
+**One honest gap recorded rather than papered over:** the port's noise has no per-kind rule, so the kind is *carried* and not yet *used*. A `combat` sound and a
+`weather` sound reach the same noise model here, which the reference does not do. That is a gap in the **noise model**, and the reader is right to stop at the point
+where the model begins: a reader that decided what a kind means would be guessing at a rule that lives in `sounds.cpp`.
+
+The one-gap list is now `id` (6), `max_radius` (6), `count` (5), `<nested>` (4), `mapgen_update` (4), then a long tail. **`max_radius` is the interesting one**: the
+port's `read_radius_search` reads both radii and then **refuses any object that also names a terrain, a furniture or `target_params`** - and the data's radius
+searches name a furniture. That is a design decision in the reader ("a terrain search is a different search") that the data does not share, and undoing it is the
+next round's work.
