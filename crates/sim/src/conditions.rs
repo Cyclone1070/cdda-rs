@@ -768,11 +768,11 @@ pub fn value_drawing(
                 return held.parse::<f64>().ok().or(if unset_is_zero { Some(0.0) } else { None });
             }
             let holder = holder_for_scope(world, speaker, listener, scope)?;
-            match crate::dialogue_values::number_of(world, holder, name) {
-                Some(number) => Some(number),
-                None if unset_is_zero => Some(0.0),
-                None => None,
-            }
+            // Reference: `read_var_value` (`dialogue_helpers.cpp:11-16`) answers an empty `diag_value` for a variable nobody set, and
+            // `diag_value::dbl()` (`math_parser_diag_value.cpp:168`) converts an empty value to **zero**. So an unset variable is zero in dialogue
+            // math - and a program whose condition reads one can finally be evaluated instead of failing to answer at all.
+            let _ = unset_is_zero;
+            Some(crate::dialogue_values::number_of(world, holder, name).unwrap_or(0.0))
         }
         Expression::Text(_) => None,
         Expression::Call {

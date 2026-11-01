@@ -6487,3 +6487,32 @@ that adding it helps** - the census is what says whether it does, and it said no
 
 Next step on this thread is a diagnostic, not a rule: print which seven programs changed, and look at the conditions they take. That is one cheap run
 (`CDDA_SHOW_*`-style), and it is the right way round - measure the seven, then decide.
+
+## The zero rule, landed - and the seven false passes it exposed (round 873)
+
+The rule is real: `read_var_value` (`dialogue_helpers.cpp:11-16`) answers an empty `diag_value` for a variable nobody set, and `diag_value::dbl()`
+(`math_parser_diag_value.cpp:168`) converts an empty value to **zero**. Last round I landed it, saw capability fall by seven, and reverted without knowing why.
+This round I measured first: `CDDA_SHOW_REFUSED=1` prints every program that refuses, so a run with the rule and a run without it diff cleanly.
+
+**The seven new refusals are the "before" being wrong, not the "after".**
+
+`EOC_BALTHAZAR_CHECK_PROGRESS` is the shape: its condition is `{"math": ["balthazar_destroyed != 1"]}`. Before the rule, that condition could not be evaluated, so
+the program **did nothing and reported success** - a false pass. With the rule, `balthazar_destroyed` is zero, the condition is true, the effects run, and the port
+hits a gap it had never reached: `run_eocs` into a program whose own condition then fails, or a `u_location_variable` that searches.
+
+| Count | Before this round | After |
+|---|---|---|
+programs readable | 367 | **367** |
+**capability**, as counted | 226 | **219** |
+refused at run time | 141 | **148** |
+ran in a built world | 230 | **221** |
+effects runnable | 1,197 | **1,197** |
+one-gap programs | 134 | **134** |
+
+**Capability went down by seven and the port got more correct.** That is not a paradox, it is the census counting a silent no-op as a run. Seven programs whose
+conditions read variables no world had set were "running" by doing nothing, and now they refuse honestly. The number is now smaller and true; the old one was larger
+and false.
+
+The next thing this thread wants is not another rule but a better census: "ran" should mean *ran and did something*, and a program that evaluates its condition and
+finds nothing to do needs to be distinguishable from one whose condition could not be read. Seven programs' worth of false passes says a count that cannot tell
+those apart is over-reporting, and I do not yet know by how much.

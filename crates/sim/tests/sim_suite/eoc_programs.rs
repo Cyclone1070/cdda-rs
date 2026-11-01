@@ -396,6 +396,9 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
             continue;
         }
         refused += 1;
+        if std::env::var("CDDA_SHOW_REFUSED").is_ok() {
+            println!("REFUSED {}", program.id);
+        }
         // Name the effect that refused **at run time**, by running them one at a time in their own fresh world. This is the same device
         // as the read-side blame, one level down: the read census says which member cannot be understood, this says which one cannot be
         // carried out.

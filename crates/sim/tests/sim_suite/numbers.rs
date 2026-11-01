@@ -45,10 +45,10 @@ pub struct Census {
 pub const NOW: Census = Census {
     defined: 692,
     readable: 367,
-    ran: 226,
+    ran: 219,
     // The same programs run in a world that has terrain, an overmap and a player who answers, which is what a game has.
-    ran_in_a_built_world: 230,
-    refused_at_run: 141,
+    ran_in_a_built_world: 221,
+    refused_at_run: 148,
     leaves: 763,
     one_gap: 134,
     effects_runnable: 1_197,

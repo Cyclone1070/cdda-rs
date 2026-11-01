@@ -378,3 +378,52 @@ fn a_monster_that_copies_from_another_loads() {
     assert!(ids.contains(&"mon_spider_cellar_giant"), "a base in another family loads");
     assert!(ids.len() > 1_000, "the whole catalogue is there: {}", ids.len());
 }
+
+/// In dialogue math, a variable nobody set is **zero**, so a program whose condition reads one can be evaluated.
+///
+/// Reference: `read_var_value` (`dialogue_helpers.cpp:11-16`) answers an empty `diag_value` for a variable that is not there, and `diag_value::dbl()`
+/// (`math_parser_diag_value.cpp:168`) turns an empty value into zero - so `never_set + 1` is 1 and a comparison against zero is true.
+#[test]
+fn an_unset_variable_reads_as_zero() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let mut level = cdda_core_types::level::Level::new();
+    for x in -24..48 {
+        for y in -24..48 {
+            level.set_terrain(x, y, 0, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let kind = cdda_content::monsters::load_objects(&[cdda_json::parse(
+        br#"{"id": "mon_test", "name": "a test thing", "hp": 12, "speed": 100, "symbol": "t", "color": "white"}"#.as_slice(),
+    )
+    .expect("json")])
+    .expect("readable")
+    .into_iter()
+    .next()
+    .expect("one type");
+    cdda_sim::monster_registry::set_monster_types(
+        &mut world,
+        &[cdda_sim::monster_registry::MonsterKind { id: "mon_test", hp: 12 }],
+    );
+    cdda_sim::monster_catalog::set_types(&mut world, vec![kind]);
+
+    let spawn = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(br#"{"u_spawn_monster": "mon_test", "real_count": {"math": ["never_set + 1"]}}"#.as_slice())
+            .expect("json"),
+    )
+    .expect("readable");
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(11));
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &spawn),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    let mut made = 0;
+    let mut query = world
+        .try_query::<&cdda_sim::creature::CreatureKind>()
+        .expect("query");
+    for _ in query.iter(&world) {
+        made += 1;
+    }
+    assert_eq!(made, 1, "an unset variable counted as zero, so one creature appeared");
+}
