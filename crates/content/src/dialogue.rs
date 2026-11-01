@@ -248,9 +248,12 @@ pub fn math_function(name: &str) -> Option<Arity> {
         | "rand" => Arity::Exactly(1),
         // The creature's own numbers: `u_hp` takes a body part the port does not model, so it is read with none or with one and answered from the
         // whole creature. `u_effect_intensity` and `has_var` take the name they ask about.
-        "u_hp" | "npc_hp" | "u_effect_intensity" | "npc_effect_intensity" | "has_var" | "moon_phase" => {
-            Arity::AtLeast(0)
-        }
+        // `u_hp` and its siblings take a body part the port does not model, so they are read with none or with one. The four opinion numbers
+        // (`math_parser_diag.cpp:1408-1440`) work the same way: the name's prefix says whose opinion it is (`n_npc_value()` asks the NPC's), and the data
+        // sometimes also passes a scope the prefix already said.
+        "u_hp" | "npc_hp" | "u_effect_intensity" | "npc_effect_intensity" | "has_var" | "moon_phase"
+        | "npc_value" | "npc_anger" | "npc_trust" | "npc_fear" | "n_npc_value" | "n_npc_anger" | "n_npc_trust"
+        | "n_npc_fear" | "u_npc_value" | "u_npc_anger" | "u_npc_trust" | "u_npc_fear" => Arity::AtLeast(0),
         "clamp" => Arity::Exactly(3),
         // Reference: `rng( lo, hi )` (`math_parser_func.h:141-163`).
         "rng" => Arity::Exactly(2),

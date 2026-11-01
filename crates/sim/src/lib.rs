@@ -9,6 +9,7 @@ pub mod blast;
 pub mod bionics;
 pub mod calendar;
 pub mod dialogue_context;
+pub mod npc_opinion;
 pub mod outdoors;
 pub mod overmap;
 pub mod bash;

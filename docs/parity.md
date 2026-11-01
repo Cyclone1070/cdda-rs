@@ -6181,3 +6181,29 @@ error's line still exists in the file before believing it.
 
 Refactors forced by the lints, all extractions rather than shaving: a `Call` struct so `special_function` stays under seven arguments, and a `CallArguments` type
 alias. Cost: four remote cycles for the argument cap alone, which is the price of a 100-line cap on a function that dispatches a table this wide.
+
+## The four opinion numbers (round 862)
+
+The refused-math dump named one cluster so large it dwarfed everything else: `n_npc_value()` 72, `n_npc_anger()` 81, `n_npc_trust()` 13 - **166 refusals from one
+family**. They are the reference's `npc_opinion` (`npc.h`): `value`, `anger`, `trust` and `fear`, read by `npc_value_eval` and its three siblings
+(`math_parser_diag.cpp:1408-1440`).
+
+`cdda_sim::npc_opinion` holds an `Opinion` component on the creature that has one, so "how does this NPC feel" is a query rather than a parallel table.
+
+| Count | Before | After |
+|---|---|---|
+conditions the port reads | 2,695 | **2,863** |
+conditions refused for `math` | 144 | **74** |
+programs readable | 341 | **341** |
+**capability** | 212 | **212** |
+
+**+168 conditions and not one program.** That is the honest reading: the opinion numbers sit inside conditions of programs that are refused by something else, so
+the win is in the questions the port can answer, not in the programs it can run. The capability column is the one that matters and it did not move.
+
+Two rules taken from the source rather than guessed: the name's **prefix** says whose opinion it is (`n_` the NPC, `u_` the player), and an actor that does not
+exist answers **zero** rather than failing - which is what lets a program ask an opinion in a dialogue with no listener at all. The test pins exactly that case,
+because it is the one a permissive default would get wrong in the other direction.
+
+Refactor of the round: `special_function` hit the 100-line cap again and `rand`/`rng` moved into `drawing_function`, taking the dice as a parameter. The dice
+branch had been written twice with the same reborrow dance; it is one function now, and `rng(0, 10)` - which the diagnostic showed and the port already
+supported - is reachable from the data at last.

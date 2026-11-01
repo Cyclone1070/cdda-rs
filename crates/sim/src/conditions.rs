@@ -518,6 +518,28 @@ enum Answer {
 }
 
 /// The functions that are neither arithmetic nor a variable lookup: `rand`, `rng`, and `time`.
+/// One of the four opinion numbers, read from the creature the name's prefix points at.
+///
+/// Reference: `npc_value_eval` and its three siblings (`math_parser_diag.cpp:1408-1440`): the name's scope prefix says whose opinion it is (`n_` the NPC, `u_`
+/// the player), and an actor that does not exist answers **zero** rather than failing.
+fn answer_opinion(world: &World, speaker: Entity, listener: Option<Entity>, name: &str) -> Option<Answer> {
+    let (which, about_listener) = match name {
+        "n_npc_value" | "npc_value" => (crate::npc_opinion::Feeling::Value, true),
+        "n_npc_anger" | "npc_anger" => (crate::npc_opinion::Feeling::Anger, true),
+        "n_npc_trust" | "npc_trust" => (crate::npc_opinion::Feeling::Trust, true),
+        "n_npc_fear" | "npc_fear" => (crate::npc_opinion::Feeling::Fear, true),
+        "u_npc_value" => (crate::npc_opinion::Feeling::Value, false),
+        "u_npc_anger" => (crate::npc_opinion::Feeling::Anger, false),
+        "u_npc_trust" => (crate::npc_opinion::Feeling::Trust, false),
+        "u_npc_fear" => (crate::npc_opinion::Feeling::Fear, false),
+        _ => return None,
+    };
+    // Nobody to ask answers zero rather than nothing: that is what lets a program check an opinion in a dialogue that has no listener at all.
+    let actor = actor_for(speaker, listener, about_listener);
+    let feeling = actor.map_or(0, |actor| crate::npc_opinion::feeling_of(world, actor, which));
+    Some(Answer::Value(f64::from(feeling)))
+}
+
 /// The unit a call asked its answer in, when it named one.
 fn unit_of(keywords: &[(String, Expression)]) -> Option<&str> {
     keywords.iter().find_map(|(name, value)| match (name.as_str(), value) {
@@ -553,6 +575,42 @@ struct Call<'a> {
     keywords: &'a [(String, Expression)],
 }
 
+/// The functions that need dice, answered while the caller holds them.
+///
+/// Reference: `rand( n )` and `rng( low, high )` (`math_parser_func.h:57-60`), which draw from the game's own generator rather than from a private one.
+fn drawing_function(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    name: &str,
+    arguments: &[Expression],
+    unset_is_zero: bool,
+    dice: &mut cdda_core_types::rng::Rolls,
+) -> Answer {
+    match (name, arguments) {
+        ("rand", [argument]) => {
+            let Some(n) = value_drawing(world, speaker, listener, argument, unset_is_zero, None) else {
+                return Answer::Refused;
+            };
+            #[allow(clippy::cast_possible_truncation)]
+            let high = n.round() as i32;
+            Answer::Value(f64::from(dice.rng(0, high)))
+        }
+        ("rng", [low, high]) => {
+            let (Some(low), Some(high)) = (
+                value_drawing(world, speaker, listener, low, unset_is_zero, None),
+                value_drawing(world, speaker, listener, high, unset_is_zero, None),
+            ) else {
+                return Answer::Refused;
+            };
+            #[allow(clippy::cast_possible_truncation)]
+            let (low, high) = (low.round() as i32, high.round() as i32);
+            Answer::Value(f64::from(dice.rng(low, high)))
+        }
+        _ => Answer::NotMine,
+    }
+}
+
 fn special_function(
     world: &World,
     speaker: Entity,
@@ -562,36 +620,17 @@ fn special_function(
     unset_is_zero: bool,
     draws: &mut Option<&mut cdda_core_types::rng::Rolls>,
 ) -> Answer {
-    // Reference: `math_parser` hands every call its named arguments and each function reads the ones it knows (`kwargs.kwarg_or`); a function that reads none
-    // ignores them, so the port passes them through rather than refusing them here.
+    // Named arguments are passed through: `math_parser` hands each function the names it knows (`kwargs.kwarg_or`) and one that reads none ignores them.
     let (arguments, keywords) = (call.arguments, call.keywords);
-    // A reborrow, so the caller keeps ownership of the dice: `as_deref_mut` on this type is already a reborrow in everything but
-    // name, and clippy reads it as one.
-    if let Some(dice) = draws.as_mut().map(|dice| &mut **dice) {
-        match (name, arguments) {
-            ("rand", [argument]) => {
-                let dice: &mut cdda_core_types::rng::Rolls = dice;
-                let Some(n) = value_drawing(world, speaker, listener, argument, unset_is_zero, None)
-                else {
-                    return Answer::Refused;
-                };
-                #[allow(clippy::cast_possible_truncation)]
-                let high = n.round() as i32;
-                return Answer::Value(f64::from(dice.rng(0, high)));
-            }
-            ("rng", [low, high]) => {
-                let (Some(low), Some(high)) = (
-                    value_drawing(world, speaker, listener, low, unset_is_zero, None),
-                    value_drawing(world, speaker, listener, high, unset_is_zero, None),
-                ) else {
-                    return Answer::Refused;
-                };
-                #[allow(clippy::cast_possible_truncation)]
-                let (low, high) = (low.round() as i32, high.round() as i32);
-                return Answer::Value(f64::from(dice.rng(low, high)));
-            }
-            _ => {}
-        }
+    if let Some(answer) = answer_opinion(world, speaker, listener, name) {
+        return answer;
+    }
+    // A reborrow, so the caller keeps ownership of the dice: `as_deref_mut` on this type is already a reborrow in everything but name.
+    if let Some(dice) = draws.as_mut().map(|dice| &mut **dice)
+        && let Answer::Value(drawn) =
+            drawing_function(world, speaker, listener, name, arguments, unset_is_zero, dice)
+    {
+        return Answer::Value(drawn);
     }
     // The creature's own numbers, which the data asks for constantly and the port already keeps on the creature.
     match (name, arguments) {

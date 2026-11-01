@@ -1286,3 +1286,69 @@ fn a_named_unit_scales_the_answer() {
         "a span the port cannot name answers nothing, not a wrong number"
     );
 }
+
+/// The four opinion numbers answer from the creature's own opinion, and zero when there is nobody to ask.
+///
+/// Reference: `npc_value_eval`/`npc_anger_eval`/`npc_trust_eval`/`npc_fear_eval` (`math_parser_diag.cpp:1408-1440`): the name's scope prefix says whose
+/// opinion it is, and an actor that does not exist answers **zero** rather than failing - which is what lets a program ask an opinion of a listener it may not have.
+#[test]
+fn an_opinion_number_comes_from_the_creature_and_is_zero_when_absent() {
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let talker = cdda_sim::creature::spawn_creature(&mut world, "the talker", (1, 0, 0));
+
+    let asks = |text: &str| {
+        cdda_content::dialogue::read_condition(
+            &cdda_json::parse(format!(r#"{{"math": ["{text}"]}}"#).as_bytes()).expect("json"),
+        )
+        .expect("readable")
+    };
+
+    // No opinion yet: every number is zero, which the guard reads as "not angry".
+    assert!(cdda_sim::conditions::holds_with(
+        &world,
+        survivor,
+        Some(talker),
+        &asks("n_npc_anger() < 5")
+    ));
+
+    cdda_sim::npc_opinion::set_opinion(
+        &mut world,
+        talker,
+        cdda_sim::npc_opinion::Opinion {
+            value: 3,
+            anger: 7,
+            trust: -2,
+            fear: 1,
+        },
+    );
+
+    // The NPC's numbers are the listener's; the `u_` form asks the speaker's, which has none.
+    assert!(cdda_sim::conditions::holds_with(
+        &world,
+        survivor,
+        Some(talker),
+        &asks("n_npc_value() >= 3")
+    ));
+    assert!(cdda_sim::conditions::holds_with(
+        &world,
+        survivor,
+        Some(talker),
+        &asks("n_npc_anger() >= 5")
+    ));
+    assert!(cdda_sim::conditions::holds_with(
+        &world,
+        survivor,
+        Some(talker),
+        &asks("n_npc_trust() < 0")
+    ));
+    assert!(cdda_sim::conditions::holds_with(
+        &world,
+        survivor,
+        Some(talker),
+        &asks("u_npc_value() == 0")
+    ));
+
+    // A dialogue with nobody on the other side answers zero rather than refusing.
+    assert!(cdda_sim::conditions::holds(&world, survivor, &asks("n_npc_value() == 0")));
+}
