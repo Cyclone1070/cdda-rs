@@ -1445,6 +1445,14 @@ pub fn value_drawing(
 ) -> Option<f64> {
     match expression {
         Expression::Number(number) => Some(*number),
+        // A pair draws between its ends, inclusive: `dbl_or_var::evaluate` (`condition.cpp`) answers `rng( min, max )` when the data wrote a pair. With no
+        // dice there is no draw, and a draw nobody made is not a number the port will invent.
+        Expression::Pair { low, high } => {
+            #[allow(clippy::cast_possible_truncation)]
+            let (low, high) = (low.round() as i32, high.round() as i32);
+            let dice = draws.as_mut()?;
+            Some(f64::from(dice.rng(low, high)))
+        }
         Expression::Variable { scope, name } => {
             // Reference: `context_val( '…' )` reads the invocation's context (`dialogue.h`), which a `run_eocs` call fills from its
             // `variables` - so it is not a per-holder scope and has no holder to look up.

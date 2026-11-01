@@ -331,6 +331,16 @@ pub enum Expression {
         /// The variable's name.
         name: String,
     },
+    /// A pair of numbers the data wrote as an array, which means a random draw between them.
+    ///
+    /// Reference: `get_dbl_or_var` (`condition.cpp:207-226`) - a member written as a two-element array sets `pair`, and `dbl_or_var::evaluate` draws
+    /// `rng( min, max )` instead of answering `min`. So `"bonus": [ -15, -30 ]` is a nightmare's morale hit drawn between two values, not a list.
+    Pair {
+        /// The low end of the draw, as written.
+        low: f64,
+        /// The high end of the draw, as written.
+        high: f64,
+    },
     /// A quoted text used as an argument, which only the functions that take one can read.
     ///
     /// Reference: `time( '1 minutes' )` passes a **duration string**, and the reference hands it to the duration parser rather than to
@@ -1429,6 +1439,19 @@ fn read_expression_inner(value: &Value) -> Option<Expression> {
         // The data's own shape: `"math"` holds a one-element array wrapping a string expression, and the array form
         // `[left, op, right]` is the fully parenthesised one the port also accepts.
         Value::Array(parts) if parts.len() == 1 => read_expression_inner(parts.first()?),
+        // A pair: two numbers where a number is expected, which the reference draws between (`dbl_or_var`'s `pair`).
+        Value::Array(parts) if parts.len() == 2 => {
+            let [low, high] = parts.as_slice() else {
+                return None;
+            };
+            let Expression::Number(low) = read_expression_inner(low)? else {
+                return None;
+            };
+            let Expression::Number(high) = read_expression_inner(high)? else {
+                return None;
+            };
+            Some(Expression::Pair { low, high })
+        }
         Value::Array(parts) if parts.len() == 3 => {
             let [left, spelling, right] = parts.as_slice() else {
                 return None;
@@ -1560,7 +1583,7 @@ pub fn read_assignment(text: &str) -> Option<Assignment> {
         // A destination must be a variable: a number, a call or an operator chain is an expression, and a `math` statement
         // whose left-hand side is an expression has no place to put its answer.
         Expression::Call { name, arguments, .. } => AssignmentTarget::Call { name, arguments },
-        Expression::Number(_) | Expression::Text(_) | Expression::Binary { .. } => return None,
+        Expression::Number(_) | Expression::Text(_) | Expression::Pair { .. } | Expression::Binary { .. } => return None,
     };
     Some(Assignment {
         target,

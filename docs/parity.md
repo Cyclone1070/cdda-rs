@@ -7279,3 +7279,30 @@ that changed no number either, which confirms the count above.
 **The lesson is about my selection method, not the port.** I have been picking the next function from a frequency count over data strings, and a frequency count says
 how often a name appears, not whether it is the *deciding* refusal. The census already answers the deciding question - `first refusing member` - and it is the only
 thing worth reading before choosing the next round's work.
+
+## A pair is a draw, not a list (round 901)
+
+Last round's lesson was to pick work from the census's **first refusing member** rather than from a frequency count. This round did that, and the census pointed at
+`math: [-15, -30]` - a two-integer array where the port expected an expression.
+
+Reference: `get_dbl_or_var` (`condition.cpp:207-226`) reads a member written as a **two-element array** as a `pair`, and `dbl_or_var::evaluate` answers
+`rng( min, max )` instead of `min`. So `"bonus": [ -15, -30 ]` is a nightmare's morale hit **drawn between two values**, not a list of two numbers. The port now has
+`Expression::Pair { low, high }`: the reader takes exactly two numbers, and the evaluator draws between them from the turn's dice - refusing when there are no dice,
+because a draw nobody made is not a number.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 428 | **429** |
+answered `Done` | 273 | **274** |
+did something | 124 | **125** |
+unreadable leaves | 478 | **477** |
+one-gap programs | 123 | **122** |
+effect entries runnable | 1,283 | **1,284** |
+effect census blaming `effect` | 240 | **239** |
+
+One program, and it is the first movement in five rounds - because for the first time the work came from the blame list rather than from a guess about what looked
+common.
+
+**The census's next target is honest but stubborn.** `math` still blocks 24 one-gap programs, and the definitions behind them are `"u_pain() > 0"` with
+`"u_pain()", "-=", "3"` - both of which the port now reads. The gap must be somewhere else in those definitions, and the diagnostic that names a member cannot name a
+**path**; finding it needs a reader that says which member of a definition is unreadable, not just its name. That is the next tool, not the next feature.
