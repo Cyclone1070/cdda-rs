@@ -976,3 +976,37 @@ fn a_field_strength_and_a_skill_level_are_numbers() {
     assert!(holds(&world, "u_skill('computer') < 5"), "and not one more");
     assert!(holds(&world, "skill('computer') == 4"), "the bare spelling is the same question");
 }
+
+/// `u_has_flag()` answers one or zero, and reads the flag name from a variable when the data writes one.
+///
+/// Reference: `has_flag_eval` (`math_parser_diag.cpp:1707-1717`) answers `actor->has_flag( flag )` as a number, because the data **adds** these together:
+/// `u_has_flag(_flag1) + u_has_flag(_flag2) + u_has_flag(_flag3)` counts how many of three flags the character carries.
+#[test]
+fn flags_count_as_numbers_and_may_be_named_by_a_variable() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::creature_flags::add_flag(&mut world, survivor, "WIELDED_ITEM");
+
+    let holds = |world: &bevy_ecs::prelude::World, text: &str| {
+        let condition = cdda_json::parse(format!(r#"{{"math": ["{text}"]}}"#).as_bytes()).expect("json");
+        let read = cdda_content::dialogue::read_condition(&condition).expect("the condition reads");
+        cdda_sim::conditions::holds_with(world, survivor, None, &read)
+    };
+
+    assert!(holds(&world, "u_has_flag('WIELDED_ITEM') == 1"), "a flag it carries");
+    assert!(holds(&world, "u_has_flag('MUTATION_THRESHOLD') == 0"), "a flag it does not");
+    assert!(
+        holds(&world, "u_has_flag('WIELDED_ITEM') + u_has_flag('MUTATION_THRESHOLD') == 1"),
+        "adding them counts how many it has"
+    );
+
+    // The data writes the flag through a variable, which is why the argument has to be evaluated rather than matched as text.
+    let scope = cdda_sim::dialogue_values::holder_for(&mut world, survivor, false);
+    cdda_sim::dialogue_values::set(
+        &mut world,
+        scope,
+        "_flag1",
+        cdda_sim::dialogue_values::Value::Text("WIELDED_ITEM".to_owned()),
+    );
+    assert!(holds(&world, "u_has_flag(_flag1) == 1"), "the same flag, named by a variable");
+}

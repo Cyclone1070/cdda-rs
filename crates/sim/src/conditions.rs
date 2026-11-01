@@ -683,6 +683,33 @@ fn answer_health(world: &World, speaker: Entity, listener: Option<Entity>, name:
     Answer::Value(f64::from(health))
 }
 
+/// Whether the actor carries a flag, as a number.
+///
+/// Reference: `has_flag_eval` (`math_parser_diag.cpp:1707-1717`): `actor->has_flag( flag )`, which is one or zero because the data **adds** these together
+/// (`u_has_flag(_flag1) + u_has_flag(_flag2) + ...`). The flag name may be written as a variable, which is why the argument is evaluated rather than matched.
+fn answer_has_flag(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    name: &str,
+    arguments: &[Expression],
+) -> Answer {
+    let [argument] = arguments else {
+        return Answer::Refused;
+    };
+    let Some(flag) = expression_text(world, speaker, listener, argument) else {
+        return Answer::Refused;
+    };
+    let Some(actor) = actor_for(speaker, listener, name == "npc_has_flag") else {
+        return Answer::Refused;
+    };
+    Answer::Value(if crate::creature_flags::has_flag(world, actor, &flag) {
+        1.0
+    } else {
+        0.0
+    })
+}
+
 /// How strong a field is on the actor's square.
 ///
 /// Reference: `field_strength_eval` (`math_parser_diag.cpp:330-355`): the intensity of the named field where the actor stands, and **zero** when that square has
@@ -1039,6 +1066,9 @@ fn answer_from_table(
         // Reference: `{ "pain", { "un", 0, pain_eval, pain_ass } }` (`math_parser_diag.cpp:869-882`) - the actor's `pain_cur`, with `type: "perceived"` asking
         // for the pain as the character feels it instead. The port has no masking rule yet, so it refuses that form rather than answering the raw number for it.
         ("health" | "u_health" | "npc_health", []) => return answer_health(world, speaker, listener, name),
+        ("has_flag" | "u_has_flag" | "npc_has_flag", _) => {
+            return answer_has_flag(world, speaker, listener, name, arguments);
+        }
         ("field_strength" | "u_field_strength" | "npc_field_strength", _) => {
             return answer_field_strength(world, speaker, listener, name, arguments, keywords);
         }

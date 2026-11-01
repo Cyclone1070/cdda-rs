@@ -6985,3 +6985,30 @@ what is left, not what was fixed, so a rising number here means the frontier mov
 
 This round the cycle discipline held - no 100-line cap, no lint cycle except a doc comment I displaced by inserting above another function. The lesson from last
 round (a new arm is a new function) was applied and cost nothing.
+
+## `u_has_flag()` as a number (round 890)
+
+Reference: `has_flag_eval` (`math_parser_diag.cpp:1707-1717`) answers `actor->has_flag( flag )` - as **one or zero**, because the data adds these together:
+`u_has_flag(_flag1) + u_has_flag(_flag2) + u_has_flag(_flag3)` counts how many of three flags a character carries. The port had the flag store and the condition form
+and not the arithmetic form.
+
+The other half of the rule is the argument: the data writes the flag **through a variable** (`_flag1` is a context value holding a flag id), so the argument is
+evaluated rather than matched as text. That is the general lesson of the round - an argument that names something is a value, not a spelling.
+
+| Count | Before | After |
+|---|---|---|
+conditions readable | 3,000 | **3,001** |
+programs blaming `math` (install census) | 12 | **11** |
+unreadable leaves | 554 | **552** |
+effect entries runnable | 1,233 | **1,234** |
+programs readable | 410 | 410 |
+
+**One condition and two leaves.** This is the frontier now: the readers that remain each unlock a handful of leaves and no programs, because the programs behind
+them refuse on their effects. The honest scoreboard for this round is "one rule ported, nothing runnable gained" - and the census says so rather than the summary.
+
+Two things I tried first and dropped, both worth recording so they are not re-attempted blind:
+
+* `u_coverage('eyes')` - the reference answers `coverage_at( bodypart )`, the percentage of the part that armour covers. The port has per-part **bash resistance**
+  and no coverage model, so answering would mean inventing a number. Refused, not ported.
+* the `u_addiction_*` family (five refusals) - needs an addiction store the port does not have at all, which is the same shape as the body finding: a store, not a
+  reader, and it needs its own round.
