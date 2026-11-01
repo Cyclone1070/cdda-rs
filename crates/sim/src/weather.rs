@@ -168,6 +168,23 @@ impl Climate {
         self.windpower
     }
 
+    /// Puts a point in the manager, for a caller that has the numbers from somewhere other than a tick.
+    ///
+    /// This is the test-and-replay door: a scenario that must answer `weather('temperature')` at a known turn does not need a whole weather simulation to say
+    /// what the sky was doing.
+    pub fn set_point_for_reading(&mut self, point: cdda_content::weather::Point) {
+        self.system.manager.point = Some(point);
+    }
+
+    /// The last point the weather computed, if it has computed one.
+    ///
+    /// Reference: `weather_manager::weather_precise`, the global the math parser reaches for when it answers `weather('temperature')`. The manager already keeps
+    /// it, so the port answers from there rather than copying it out.
+    #[must_use]
+    pub fn point(&self) -> Option<cdda_content::weather::Point> {
+        self.system.manager.point
+    }
+
     /// The weather's id.
     #[must_use]
     pub fn weather(&self) -> Option<&str> {

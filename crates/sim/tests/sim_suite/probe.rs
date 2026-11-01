@@ -1209,3 +1209,35 @@ fn the_short_listener_spelling_answers_about_the_other_creature() {
     assert!(holds(&world, r#"{"math": ["n_skill('fabrication') > u_skill('fabrication')"]}"#), "and not about the survivor");
     assert!(holds(&world, r#"{"math": ["u_skill('fabrication') == 0"]}"#), "the survivor still knows nothing");
 }
+
+/// `weather('temperature')` answers the precise weather, in kelvin.
+///
+/// Reference: `weather_eval` (`math_parser_diag.cpp:1497-1527`) answers aspects of `get_weather().weather_precise`, and `temperature` is returned in kelvin by
+/// `units::to_kelvin`. The port's climate keeps that point in its manager, which is why the reader asks the climate rather than a copy.
+#[test]
+fn the_weather_answers_its_precise_numbers() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let holder = cdda_sim::singletons::singleton::<cdda_sim::weather::Climate, cdda_sim::singletons::TheClimate>(&mut world);
+    let mut climate = world.get_mut::<cdda_sim::weather::Climate>(holder).expect("the climate");
+    climate.set_point_for_reading(cdda_content::weather::Point {
+        turn: 0,
+        temperature: 288.15,
+        humidity: 40.0,
+        pressure: 1013.0,
+        windpower: 7,
+        ..cdda_content::weather::Point::default()
+    });
+
+    let holds = |world: &bevy_ecs::prelude::World, text: &str| {
+        let value = cdda_json::parse(text.as_bytes()).expect("json");
+        let condition = cdda_content::dialogue::read_condition(&value).expect("the condition reads");
+        cdda_sim::conditions::holds_with(world, survivor, None, &condition)
+    };
+
+    assert!(holds(&world, r#"{"math": ["weather('temperature') == 288.15"]}"#), "15 celsius, in kelvin");
+    assert!(holds(&world, r#"{"math": ["weather('humidity') == 40"]}"#), "and the humidity");
+    assert!(holds(&world, r#"{"math": ["weather('windpower') == 7"]}"#), "and the wind");
+    // An aspect the port has no rule for refuses rather than answering zero.
+    assert!(!holds(&world, r#"{"math": ["weather('precipitation') == 0"]}"#), "no rule, no answer");
+}

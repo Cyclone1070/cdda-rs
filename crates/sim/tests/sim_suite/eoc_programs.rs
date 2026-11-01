@@ -507,6 +507,19 @@ impl Census {
         cdda_sim::monster_groups::set_groups(world, self.groups.clone());
         // The data's own math functions, read from the same files as everything else: `addiction_rational` and its fourteen siblings are what the addiction
         // programs call, and a census world without them refuses every one of those calls.
+        // A sky to ask about: `weather('temperature')` refuses with no climate, and 33 of the data's math statements ask the weather something. The point is a
+        // plain spring day rather than a simulation, because the census asks whether a guard **can be answered**, not whether the sky is right.
+        let holder = cdda_sim::singletons::singleton::<cdda_sim::weather::Climate, cdda_sim::singletons::TheClimate>(world);
+        if let Some(mut climate) = world.get_mut::<cdda_sim::weather::Climate>(holder) {
+            climate.set_point_for_reading(cdda_content::weather::Point {
+                turn: 0,
+                temperature: 288.15,
+                humidity: 50.0,
+                pressure: 1013.0,
+                windpower: 3,
+                ..cdda_content::weather::Point::default()
+            });
+        }
         let installed = cdda_sim::math_functions::install_from_values(world, &self.files).unwrap_or_default();
         if std::env::var("CDDA_SHOW_MATH").is_ok() {
             println!("math functions installed: {installed}");

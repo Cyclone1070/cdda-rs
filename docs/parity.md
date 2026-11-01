@@ -7253,3 +7253,29 @@ test caught it. The rule is now "a name with a long spelling is a scope", checke
 
 The lesson is the one this session keeps teaching: **a prefix is not a scope**. `n_` means "the listener" only where the remainder is a function; everywhere else it
 means "the other creature's opinion of you". The same string, two meanings, and only the table can tell them apart.
+
+## `weather('temperature')` answers, and the census cannot see it (round 900)
+
+Reference: `weather_eval` (`math_parser_diag.cpp:1497-1527`) answers five aspects of `get_weather().weather_precise` - `temperature` already in kelvin, plus
+`humidity`, `pressure`, `windpower`, `winddirection` - and `precipitation` from a different member. The port answers the first five through `Climate::point()`,
+which hands out the point the weather manager already keeps, and refuses `precipitation` and anything else rather than answering zero.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 428 | 428 |
+conditions readable | 3,195 | 3,195 |
+effect entries runnable | 1,283 | 1,283 |
+
+**No movement again, and this time the reason is worth writing down.** The 33 `weather(...)` calls in the data are inside the **data function bodies** (`dew_point`,
+`dprhx` and their siblings in `weather_type.json`), not inside EOC math statements. Those bodies were already answered by the content-side weather context, so the
+function was **already reachable** in the only place the census looks - and the dialogue-side reader I just wrote has no caller in the data at all.
+
+Three rounds in a row now: data functions installed (0), spellings normalized (0), weather answered (0). Each was correct, each was reasoned from the data, and each
+was **the wrong place to look** - because the census counts where a program *first* stops, and all three fixed refusals that were never first for any program.
+
+The census world also gained a sky (a plain spring day, set rather than simulated), so the guards that ask the weather have something to ask while the census runs;
+that changed no number either, which confirms the count above.
+
+**The lesson is about my selection method, not the port.** I have been picking the next function from a frequency count over data strings, and a frequency count says
+how often a name appears, not whether it is the *deciding* refusal. The census already answers the deciding question - `first refusing member` - and it is the only
+thing worth reading before choosing the next round's work.

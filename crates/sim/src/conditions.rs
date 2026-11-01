@@ -709,6 +709,33 @@ fn answer_health(world: &World, speaker: Entity, listener: Option<Entity>, name:
 
 /// A call to a function the **data** defined, evaluated with the data's own body.
 ///
+/// One number of the weather's precise state, as the data asks for it.
+///
+/// Reference: `weather_eval` (`math_parser_diag.cpp:1497-1527`) answers five aspects of `get_weather().weather_precise`: `temperature` (already in kelvin, which
+/// is what `units::to_kelvin` hands back), `windpower`, `humidity`, `pressure` and, from a different member, `precipitation`. The port keeps the point the last
+/// update computed, so a turn that recomputed nothing still answers; with no weather yet there is nothing to answer and the call refuses.
+fn answer_weather(world: &World, aspect: &Expression) -> Answer {
+    let Expression::Text(aspect) = aspect else {
+        return Answer::Refused;
+    };
+    let Some(climate) = crate::singletons::climate_read(world) else {
+        return Answer::Refused;
+    };
+    let Some(point) = climate.point() else {
+        return Answer::Refused;
+    };
+    match aspect.as_str() {
+        "temperature" => Answer::Value(point.temperature),
+        "humidity" => Answer::Value(point.humidity),
+        "pressure" => Answer::Value(point.pressure),
+        "windpower" => Answer::Value(f64::from(point.windpower)),
+        "winddirection" => Answer::Value(f64::from(point.winddirection)),
+        // Reference reads `winddirection` and `precipitation` from other members the port has no rule for yet; refusing is honest, and answering zero
+        // would be a number the data would believe.
+        _ => Answer::Refused,
+    }
+}
+
 /// Reference: `math_parser_jmath.cpp` - the data writes a body as an expression over `_0`, `_1`, ... and the reference calls it from the same table as its compiled
 /// functions. The port has both halves (`cdda_content::jmath` reads and calls, `math_expr` evaluates) and no bridge from the dialogue world into them, which is what
 /// this is: a context that answers the dialogue's own functions and lets `Bound` bind the parameters.
@@ -1269,14 +1296,12 @@ fn answer_from_table(
     keywords: &[(String, Expression)],
 ) -> Answer {
     match (name, arguments) {
-        // Reference: `u_hp` (`math_expressions` in `dialogue_helpers`), which takes a body part the port does not model and answers the whole
-        // creature's remaining hit points.
+        // Reference: `hp_eval`, which takes a body part the port does not model and answers the whole creature's remaining hit points.
         ("distance", [first, second]) => return distance_between(world, speaker, listener, first, second),
         ("u_monsters_nearby" | "npc_monsters_nearby" | "u_characters_nearby" | "npc_characters_nearby", _) => {
             return answer_nearby(world, speaker, listener, name, arguments, keywords);
         }
-        // Reference: `{ "pain", { "un", 0, pain_eval, pain_ass } }` (`math_parser_diag.cpp:869-882`) - the actor's `pain_cur`, with `type: "perceived"` asking
-        // for the pain as the character feels it instead. The port has no masking rule yet, so it refuses that form rather than answering the raw number for it.
+        // Reference: `pain_eval` (`math_parser_diag.cpp:869-882`) answers the actor's `pain_cur`; `type: "perceived"` wants the masked value, which the port has no rule for.
         ("health" | "u_health" | "npc_health", []) => return answer_health(world, speaker, listener, name),
         (
             addiction @ ("addiction_intensity"
@@ -1287,6 +1312,7 @@ fn answer_from_table(
             | "npc_addiction_turns"),
             _,
         ) => return answer_addiction(world, speaker, listener, addiction, arguments),
+        ("weather", [aspect]) => return answer_weather(world, aspect),
         ("has_flag" | "u_has_flag" | "npc_has_flag", _) => {
             return answer_has_flag(world, speaker, listener, name, arguments);
         }
@@ -1298,9 +1324,7 @@ fn answer_from_table(
         ("calories" | "u_calories" | "npc_calories", _) => {
             return answer_calories(world, speaker, listener, name, keywords);
         }
-        ("vitamin" | "u_vitamin" | "npc_vitamin", _) => {
-            return answer_vitamin(world, speaker, listener, name, arguments).map_or(Answer::Refused, Answer::Value);
-        }
+        ("vitamin" | "u_vitamin" | "npc_vitamin", _) => return answer_vitamin(world, speaker, listener, name, arguments).map_or(Answer::Refused, Answer::Value),
         ("u_pain" | "npc_pain", []) => {
             return answer_pain(world, speaker, listener, name, keywords);
         }
