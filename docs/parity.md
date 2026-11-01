@@ -6316,3 +6316,30 @@ yet - no rule decides a destination is unsafe - and that is written down rather 
 **Two clippy extractions again** - the 100-line cap on `read_effect` and one needless closure - both of which would have been caught before a 15-minute remote
 cycle if the lints ran locally. They cannot, so the rule stays: after adding an arm, run `--clippy` *before* the census, because a lint failure costs the same
 cycle as a census and tells you less.
+
+## `assign_mission`, and a file I nearly deleted (round 867)
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 357 | **363** |
+**capability** | 221 | **226** |
+unreadable leaves | 781 | **770** |
+one-gap programs | 142 | **138** |
+effect entries runnable | 1,182 | **1,191** |
+effect-blamed programs | 269 | **263** |
+
+The rule (`npctalk.cpp:5908-5926`): `assign_mission` names a mission type, which is reserved and assigned to `get_avatar()` - **not** to whoever is speaking, so an
+NPC's dialogue can hand the player a mission - and an optional `deadline` sets the due turn *after* assignment, because assigning copies the type's own deadline
+over it. The port takes the type and refuses `deadline`: its mission store keeps the ids a character has taken and no due turn, and assigning without the deadline
+would be a different mission from the one the data asked for.
+
+**I nearly destroyed a module by writing one.** `crates/sim/src/missions.rs` already existed - it holds `Missions`, `TheAvatar`, `accept`, `finish`,
+`has_mission`, `avatar` and `question_holder`, written rounds ago for `u_has_mission`. I wrote a *new* `missions.rs` over it from a stale idea of what the port
+had, and the compiler caught it a minute later with four unresolved names. Restored from `HEAD` and the whole round became a reader and a twelve-line runner
+instead of a store.
+
+That is the same mistake as the `Effect::Message` false start, one step worse: last time I duplicated a variant that existed; this time I overwrote a **file**. Both
+came from the same unasked question - *does the port already answer this?* - and the same two-second check answers both: `ls` the module, `grep` the member.
+
+Gated: the mission lands on the player although the shopkeeper speaks; the speaker keeps nothing; the same mission twice is one mission, because the store holds
+type ids; and an entry with `deadline` is refused at read time rather than assigned without it.

@@ -774,6 +774,7 @@ pub enum VarValue {
 fn read_carried_effect(object: &cdda_json::Object) -> Option<Effect> {
     read_spawn_monster(object)
         .or_else(|| read_run_npc_eocs(object))
+        .or_else(|| read_assign_mission(object))
         .or_else(|| read_teleport(object))
         .or_else(|| read_variable_effect(object))
 }
@@ -1783,6 +1784,14 @@ pub enum Effect {
         /// Whether it goes to the listener rather than the speaker.
         listener: bool,
     },
+    /// Give the player a mission.
+    ///
+    /// Reference: `f_assign_mission` (`npctalk.cpp:5908-5926`): the member names a mission type, which is reserved and assigned to the player, and an optional
+    /// `deadline` sets the turn it is due **after** assignment. The port takes the type; the deadline is refused because its store keeps no due turn yet.
+    AssignMission {
+        /// The mission type the data names.
+        id: StringSource,
+    },
     /// Move a creature to the square a dialogue variable holds.
     ///
     /// Reference: `f_teleport` (`npctalk.cpp:7816-7845`): the member names the variable, `force` allows a destination the game would refuse, and
@@ -1845,6 +1854,7 @@ impl Effect {
             Self::LoseTrait { .. } => "u_lose_trait",
             Self::RunEoc(_) => "run_eocs",
             Self::Switch { .. } => "switch",
+            Self::AssignMission { .. } => "assign_mission",
             Self::Teleport { .. } => "u_teleport",
             Self::LocationVariable { .. }
             | Self::LocationVariableSearch { .. }
@@ -2069,6 +2079,20 @@ fn read_effect_list(value: Option<&Value>) -> Option<Vec<Effect>> {
 
 
 
+
+/// Reads `assign_mission`.
+///
+/// Reference: `f_assign_mission` (`npctalk.cpp:5908-5926`). `deadline` is a member the port has no rule for - its mission store keeps no due turn - so an entry
+/// that states one is refused rather than assigned without it.
+fn read_assign_mission(object: &cdda_json::Object) -> Option<Effect> {
+    let value = object.get("assign_mission")?;
+    if object.get("deadline").is_some() {
+        return None;
+    }
+    Some(Effect::AssignMission {
+        id: read_string_source(value)?,
+    })
+}
 
 /// Reads `u_teleport` and its listener spelling.
 ///

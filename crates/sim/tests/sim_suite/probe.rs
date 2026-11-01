@@ -170,3 +170,49 @@ fn a_teleport_moves_to_the_stored_square() {
         cdda_json::parse(br#"{"u_teleport": {"u_val": "place"}, "fail_message": "no"}"#.as_slice()).expect("json");
     assert!(cdda_content::dialogue::read_effect(&with_message).is_none());
 }
+
+/// `assign_mission` gives the mission to the player, whoever is speaking.
+///
+/// Reference: `f_assign_mission` (`npctalk.cpp:5908-5926`): the type is reserved and assigned to `get_avatar()`, and a `deadline` sets the due turn after
+/// assignment. The port's mission store keeps the active ids, so the deadline is refused rather than dropped.
+#[test]
+fn a_mission_is_given_to_the_player() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let talker = cdda_sim::creature::spawn_creature(&mut world, "the shopkeeper", (1, 0, 0));
+    cdda_sim::missions::set_avatar(&mut world, survivor);
+
+    let runs = |world: &mut bevy_ecs::prelude::World, text: &str| {
+        let value = cdda_json::parse(text.as_bytes()).expect("json");
+        let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+        cdda_sim::dialogue_effects::run_effect(world, talker, None, &effect)
+    };
+
+    assert_eq!(
+        runs(&mut world, r#"{"assign_mission": "MISSION_shopkeeper_errand"}"#),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    assert!(
+        cdda_sim::missions::has_mission(&world, survivor, "MISSION_shopkeeper_errand"),
+        "the player holds it, though the shopkeeper was the one speaking"
+    );
+    assert!(
+        !cdda_sim::missions::has_mission(&world, talker, "MISSION_shopkeeper_errand"),
+        "the speaker does not keep a mission given to the player"
+    );
+
+    // The same mission twice is one mission, because the store holds the type ids a character has taken.
+    assert_eq!(
+        runs(&mut world, r#"{"assign_mission": "MISSION_shopkeeper_errand"}"#),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    assert_eq!(
+        cdda_sim::missions::active_missions(&world, survivor),
+        vec!["MISSION_shopkeeper_errand".to_owned()]
+    );
+
+    // A deadline is a member the port cannot carry out, so an entry stating one is refused rather than assigned without it.
+    let with_deadline =
+        cdda_json::parse(br#"{"assign_mission": "MISSION_x", "deadline": 100}"#.as_slice()).expect("json");
+    assert!(cdda_content::dialogue::read_effect(&with_deadline).is_none());
+}

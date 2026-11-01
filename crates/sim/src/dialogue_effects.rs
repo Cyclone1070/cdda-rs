@@ -346,6 +346,23 @@ fn nearby_location(world: &mut World, speaker: Entity, effect: &Effect) -> Appli
 ///
 /// Reference: `f_teleport` (`npctalk.cpp:7836-7845`): the variable is read as a point and the creature's position becomes it. A variable that holds no
 /// location - unset, or holding a number or a text - cannot answer where to go, so the effect refuses rather than leaving the creature where it was.
+/// Gives the player a mission.
+///
+/// Reference: `f_assign_mission` (`npctalk.cpp:5913-5925`): the mission is reserved and assigned to `get_avatar()`, not to whoever is speaking - an NPC's
+/// dialogue can hand the player a mission. The port asks the store who the avatar is and falls back to the speaker, which is the divergence recorded for
+/// `u_has_mission`.
+fn give_mission(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::AssignMission { id } = effect else {
+        return Applied::CannotAnswer;
+    };
+    let Some(mission) = crate::conditions::text_of(world, speaker, listener, id) else {
+        return Applied::CannotAnswer;
+    };
+    let holder = crate::missions::question_holder(world, speaker);
+    crate::missions::accept(world, holder, &mission);
+    Applied::Done
+}
+
 fn move_creature(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
     let Effect::Teleport {
         scope,
@@ -1129,6 +1146,7 @@ pub fn run_effect(
         ),
         Effect::SpawnMonster { .. } => spawn_monsters(world, speaker, listener, effect),
         Effect::Teleport { .. } => move_creature(world, speaker, listener, effect),
+        Effect::AssignMission { .. } => give_mission(world, speaker, listener, effect),
         Effect::AddVar { .. } => add_var(world, speaker, listener, effect),
         Effect::LoseVar { name, scope } => lose_var(world, speaker, listener, name, scope),
         Effect::LocationVariableSearch { .. } => search_location(world, speaker, effect),
