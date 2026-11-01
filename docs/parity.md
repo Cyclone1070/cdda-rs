@@ -6692,3 +6692,34 @@ appeared instead is `hallucination_count` at four, which is a spawn member rathe
 
 **Clippy was clean first try** - the rule from two rounds ago (lint after every match, before the census) held, and the census/Vitest pinning cost three cycles of
 its own, which is a different and cheaper kind of round trip.
+
+## A spawn that names no monster (round 880)
+
+`"u_spawn_monster": ""` looks like broken data and is not. Four programs refused on it, and the blame pointed at `hallucination_count` - which was a red herring
+twice over: the count read fine, and the member actually refused was `target_range`, which the port had listed as "accepted because it has no effect without
+`single_target`". That was wrong.
+
+Reference: `f_spawn_monster` (`npctalk.cpp:7433-7465`). When the member is **empty**, the game looks for hostile creatures within `target_range` of the player,
+excludes the player's own square, and copies one of them - which is exactly how the data makes a hallucination look like something the character can already see.
+One candidate means that one; several means one drawn at random; none means the effect's `false_eocs` run instead.
+
+The port now reads `target_range`, and an empty member copies a nearby monster, drawn with the world's own dice. No candidate **refuses**, because `false_eocs` is
+not read - and refusing is the honest version of "this would have done something else".
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 376 | **379** |
+answered `Done` | 228 | **233** |
+did something | 84 | **89** |
+refused at run time | 148 | **146** |
+unreadable leaves | 742 | **739** |
+one-gap programs | 134 | **131** |
+effect entries runnable | 1,203 | **1,206** |
+
+**Two lessons, and the second is the expensive one.** The first: `hallucination_count` in a blame list was the *symptom*, and reading the actual failing definition -
+one `CDDA_SHOW_GAP` print - found the cause in a minute after two wrong guesses. The second: a member recorded as "accepted because it does nothing" is a
+**deferred decision**, and when its meaning arrives it arrives as a silent wrongness rather than a refusal. `target_range` was in that bucket for rounds; it is now
+read, and the port is less wrong for it.
+
+I also spent two cycles on a clippy cast lint (`i32` to `usize`) that a signed `usize::try_from` answers in one line. The lint rule held; the habit of writing the
+cast before checking it did not.

@@ -677,7 +677,6 @@ fn read_spawn_monster(object: &cdda_json::Object) -> Option<Effect> {
         };
         for refused in [
             "single_target",
-            "target_range",
             "target_var",
             "mon_variables",
             "open_air_allowed",
@@ -716,9 +715,16 @@ fn read_spawn_monster(object: &cdda_json::Object) -> Option<Effect> {
         };
         // Reference: `group` (`npctalk.cpp:7390`) says the member names a group the game picks a monster from, not a type.
         let group = flag("group");
+        // Reference: `get_dbl_or_var( jo, "target_range", false, 0 )` - zero by default, and it only matters when the member names no monster at all.
+        let target_range = match object.get("target_range") {
+            None => None,
+            Some(Value::Int(range)) => Some(i32::try_from(*range).ok()?),
+            Some(_) => return None,
+        };
         return Some(Effect::SpawnMonster {
             monster,
             group,
+            target_range,
             real_count,
             hallucination_count,
             min_radius: radius("min_radius", 1)?,
@@ -1667,6 +1673,8 @@ pub enum Effect {
         monster: StringSource,
         /// Whether `monster` names a **monster group** rather than a type.
         group: bool,
+        /// How far to look for a creature to copy, when `monster` names none.
+        target_range: Option<i32>,
         /// How many real ones, which the data may give as a single number or as a range to draw from.
         real_count: CountRange,
         /// How many hallucinations, drawn the same way.

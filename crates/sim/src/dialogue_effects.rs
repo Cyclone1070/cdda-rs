@@ -391,11 +391,70 @@ fn move_creature(world: &mut World, speaker: Entity, listener: Option<Entity>, e
     Applied::Done
 }
 
+/// Picks a monster already standing within `range` of the speaker, to copy.
+///
+/// Reference: `f_spawn_monster` (`npctalk.cpp:7433-7465`): when the spawn names no monster, every hostile creature within `target_range` of the player is a
+/// candidate - the player's own square excluded - and one is drawn at random. No candidate is not an error in the reference: it runs the effect's `false_eocs`,
+/// which the port does not read, so here it refuses rather than claiming a spawn that did not happen.
+fn copy_a_nearby_monster(
+    world: &World,
+    speaker: Entity,
+    range: i32,
+    dice: &mut cdda_core_types::rng::Rolls,
+) -> Option<String> {
+    let holder = crate::singletons::holder::<crate::monster_registry::TheMonsterTypes>(world)
+        .and_then(|holder| world.get::<crate::monster_registry::MonsterTypes>(holder))?;
+    let here = world.get::<crate::Position>(speaker).copied()?;
+    let anchor = (here.x, here.y, here.z);
+    let mut candidates: Vec<String> = Vec::new();
+    if let Some(mut query) = world.try_query::<(&crate::creature::CreatureKind, &crate::Position)>() {
+        for (kind, position) in query.iter(world) {
+            if (position.x - anchor.0).abs().max((position.y - anchor.1).abs()) > range {
+                continue;
+            }
+            if (position.x, position.y) == (anchor.0, anchor.1) {
+                continue;
+            }
+            if let Some(name) = holder.name_of(kind.0) {
+                candidates.push(name.to_owned());
+            }
+        }
+    }
+    if candidates.is_empty() {
+        return None;
+    }
+    candidates.sort();
+    let last = i32::try_from(candidates.len() - 1).ok()?;
+    let at = dice.rng(0, last);
+    usize::try_from(at).ok().and_then(|at| candidates.get(at)).cloned()
+}
+
 /// Picks the monster type a spawn names: the member itself, or one drawn from the group it names.
 ///
 /// Reference: `f_spawn_monster` (`npctalk.cpp:7390`) reads `group` as "this member is a group", and `MonsterGroupManager::GetMonsterFromGroup` draws one of the
 /// group's monsters by weight. Without `group` the member is the type, so the two forms meet here and nowhere else.
-fn pick_type(world: &mut World, named: &str, group: bool) -> Option<String> {
+fn pick_type(
+    world: &mut World,
+    speaker: Entity,
+    named: &str,
+    group: bool,
+    target_range: Option<i32>,
+) -> Option<String> {
+    // Reference: `f_spawn_monster` (`npctalk.cpp:7433-7465`) - an **empty** member names no monster at all, and the game then copies one of the hostile
+    // creatures within `target_range`, so a hallucination looks like something that is already there.
+    if named.is_empty() && !group {
+        let mut held = crate::singletons::take_rolls(world);
+        let drawn = held
+            .as_mut()
+            .and_then(|dice| copy_a_nearby_monster(world, speaker, target_range.unwrap_or(0), dice));
+        if let Some(dice) = held.take() {
+            crate::singletons::put_rolls(world, dice);
+        }
+        if drawn.is_none() && std::env::var("CDDA_SHOW_SPAWN").is_ok() {
+            println!("spawn refused: no creature to copy within {target_range:?}");
+        }
+        return drawn;
+    }
     if !group {
         return Some(named.to_owned());
     }
@@ -416,6 +475,7 @@ fn spawn_monsters(world: &mut World, speaker: Entity, listener: Option<Entity>, 
     let Effect::SpawnMonster {
         monster,
         group,
+        target_range,
         real_count,
         hallucination_count,
         min_radius,
@@ -437,7 +497,7 @@ fn spawn_monsters(world: &mut World, speaker: Entity, listener: Option<Entity>, 
         if std::env::var("CDDA_SHOW_SPAWN").is_ok() { println!("spawn refused: no name"); }
         return Applied::CannotAnswer;
     };
-    let Some(name) = pick_type(world, &named, *group) else {
+    let Some(name) = pick_type(world, speaker, &named, *group, *target_range) else {
         return Applied::CannotAnswer;
     };
     let Some(kind) = crate::monster_catalog::type_of(world, &name).cloned() else {

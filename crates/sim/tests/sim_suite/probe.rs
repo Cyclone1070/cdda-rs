@@ -616,3 +616,87 @@ fn programs_run_on_the_monsters_the_filters_leave() {
     );
     assert_eq!(cdda_sim::messages::lines(&world).len(), 3, "three monsters share the level");
 }
+
+/// A parenthesised expression is a valid argument, so `max((ps_str/2), 1)` reads.
+///
+/// The spawn data writes exactly that as a count, and four programs refused on it: the count is fine, the expression inside it was not reading.
+#[test]
+fn a_parenthesised_argument_reads() {
+    for text in [
+        "max((ps_str/2), 1)",
+        "1 + rand(4)",
+        "rand(2) + 1",
+        "max(ps_str/2, 1)",
+        "(ps_str/2)",
+    ] {
+        let condition = cdda_json::parse(format!(r#"{{"math": ["{text}"]}}"#).as_bytes()).expect("json");
+        assert!(
+            cdda_content::dialogue::read_condition(&condition).is_some(),
+            "{text} reads"
+        );
+    }
+}
+
+/// A spawn that names no monster copies one that is already there.
+///
+/// Reference: `f_spawn_monster` (`npctalk.cpp:7433-7465`): with an empty member, every hostile creature within `target_range` is a candidate, the player's own
+/// square is excluded, and one is drawn - which is how the data makes a hallucination that looks like something the character can already see.
+#[test]
+fn a_spawn_that_names_nothing_copies_a_nearby_monster() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let mut level = cdda_core_types::level::Level::new();
+    for x in -24..48 {
+        for y in -24..48 {
+            level.set_terrain(x, y, 0, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::monster_registry::set_monster_types(
+        &mut world,
+        &[cdda_sim::monster_registry::MonsterKind { id: "mon_shadow", hp: 30 }],
+    );
+    let shadow = cdda_sim::monster_registry::id_of(&mut world, "mon_shadow").expect("a kind");
+    let kinds = cdda_content::monsters::load_objects(&[cdda_json::parse(
+        br#"{"id": "mon_shadow", "name": "a shadow", "hp": 30, "speed": 100, "symbol": "s", "color": "black"}"#
+            .as_slice(),
+    )
+    .expect("json")])
+    .expect("readable");
+    cdda_sim::monster_catalog::set_types(&mut world, kinds);
+    let existing = cdda_sim::creature::spawn_creature(&mut world, "a shadow", (4, 0, 0));
+    cdda_sim::creature::set_kind(&mut world, existing, shadow);
+
+    let spawn = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(
+            br#"{"u_spawn_monster": "", "hallucination_count": 2, "target_range": 10, "max_radius": 4}"#.as_slice(),
+        )
+        .expect("json"),
+    )
+    .expect("an empty monster with a target range reads");
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(3));
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &spawn),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    let mut made = 0;
+    let mut query = world
+        .try_query::<&cdda_sim::creature::CreatureKind>()
+        .expect("query");
+    for _ in query.iter(&world) {
+        made += 1;
+    }
+    assert_eq!(made, 3, "the shadow and two copies of it");
+
+    // Nothing to copy is not a spawn: the reference runs the effect's `false_eocs`, which the port cannot read, so it refuses.
+    let lonely = cdda_sim::creature::spawn_creature(&mut world, "someone else", (30, 30, 0));
+    let none = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(br#"{"u_spawn_monster": "", "hallucination_count": 1, "target_range": 2}"#.as_slice())
+            .expect("json"),
+    )
+    .expect("readable");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, lonely, None, &none),
+        cdda_sim::dialogue_effects::Applied::CannotAnswer
+    );
+}

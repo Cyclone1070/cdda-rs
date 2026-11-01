@@ -950,6 +950,10 @@ fn the_programs_one_gap_away_say_what_to_port_next() {
                 let gaps = unreadable_members(definition);
                 gaps_total += gaps.len();
                 if let [only] = gaps.as_slice() {
+                    if std::env::var("CDDA_SHOW_GAP").is_ok() && only == "hallucination_count" {
+                        let text = format!("{definition:?}");
+                        println!("GAP {only} :: {}", text.chars().take(900).collect::<String>());
+                    }
                     *one_gap.entry(only.clone()).or_insert(0) += 1;
                 }
             }
