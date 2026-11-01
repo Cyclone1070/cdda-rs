@@ -636,6 +636,169 @@ fn distance_between(
     Answer::Value(f64::from(dx.max(dy).max(dz)))
 }
 
+/// How many monsters stand within `radius` squares of a point, of the types the list names (all types when it is empty).
+///
+/// Reference: `_filter_monster` (`math_parser_diag.cpp:781-794`): a creature counts when it **is a monster**, when its type is one the arguments name, and
+/// when `radius >= rl_dist(...)` - so the radius is a Chebyshev one, like `distance`, not a walked path.
+/// How much pain a creature is in, for `u_pain` and its listener spelling.
+///
+/// Reference: `pain_eval` (`math_parser_diag.cpp:869-882`): the actor's `pain_cur`, and `type: 'perceived'` asks for the pain as the character feels it. The port
+/// has no masking rule yet, so that form is refused rather than answered with the raw number under another name.
+fn answer_pain(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    name: &str,
+    keywords: &[(String, Expression)],
+) -> Answer {
+    if keywords.iter().any(|(name, _)| name == "type") {
+        return Answer::Refused;
+    }
+    let creature = match name {
+        "npc_pain" => listener.unwrap_or(speaker),
+        _ => speaker,
+    };
+    let pain = world
+        .get::<crate::creature::Pain>(creature)
+        .copied()
+        .unwrap_or_default();
+    Answer::Value(f64::from(pain.0))
+}
+
+/// Counts the monsters near an actor, for `u_monsters_nearby` and its listener spelling.
+///
+/// Reference: `_monsters_nearby_eval` (`math_parser_diag.cpp:800-840`): the monsters within `radius` (default **1000**), of any type the arguments name (none
+/// means any), filtered by `attitude` (default `hostile`). The port has no friendly monster, so `both` and `hostile` answer the same and `friendly` is refused
+/// rather than answered with a number it does not have; `location` is refused too, because counting from a stored point is a rule the port has no square for.
+fn answer_monsters_nearby(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    name: &str,
+    arguments: &[Expression],
+    keywords: &[(String, Expression)],
+) -> Answer {
+    if keywords.iter().any(|(name, _)| name == "location") {
+        return Answer::Refused;
+    }
+    if let Some(attitude) = keyword_text(world, speaker, listener, keywords, "attitude")
+        && attitude != "hostile"
+        && attitude != "both"
+    {
+        return Answer::Refused;
+    }
+    let Some(radius) = keyword_number(world, speaker, listener, keywords, "radius", 1000.0) else {
+        return Answer::Refused;
+    };
+    let actor = match name {
+        "npc_monsters_nearby" => listener.unwrap_or(speaker),
+        _ => speaker,
+    };
+    let Some(here) = world.get::<crate::Position>(actor).copied() else {
+        return Answer::Refused;
+    };
+    let mut wanted = Vec::new();
+    for argument in arguments {
+        let Some(one) = expression_text(world, speaker, listener, argument) else {
+            return Answer::Refused;
+        };
+        wanted.push(one);
+    }
+    #[allow(clippy::cast_possible_truncation)]
+    let radius = radius.round() as i32;
+    Answer::Value(count_monsters_within(
+        world,
+        (here.x, here.y, here.z),
+        radius,
+        &wanted,
+    ))
+}
+
+fn count_monsters_within(
+    world: &World,
+    at: (i32, i32, i32),
+    radius: i32,
+    wanted: &[String],
+) -> f64 {
+    let kinds = crate::singletons::holder::<crate::monster_registry::TheMonsterTypes>(world)
+        .and_then(|holder| world.get::<crate::monster_registry::MonsterTypes>(holder));
+    let Some(mut query) = world.try_query::<(&crate::creature::CreatureKind, &crate::Position)>() else {
+        return 0.0;
+    };
+    let mut found = 0usize;
+    for (kind, position) in query.iter(world) {
+        let step = (position.x - at.0)
+            .abs()
+            .max((position.y - at.1).abs())
+            .max((position.z - at.2).abs());
+        if step > radius {
+            continue;
+        }
+        if wanted.is_empty() {
+            found += 1;
+            continue;
+        }
+        let named = kinds.and_then(|known| known.name_of(kind.0));
+        if named.is_some_and(|named| wanted.iter().any(|wanted| wanted == named)) {
+            found += 1;
+        }
+    }
+    f64::from(u32::try_from(found).unwrap_or(0))
+}
+
+/// The text an expression stands for, when it is text: a quoted string or a variable holding one.
+fn expression_text(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    expression: &Expression,
+) -> Option<String> {
+    match expression {
+        Expression::Text(text) => Some(text.clone()),
+        Expression::Variable { scope, name } => {
+            let holder = holder_for_scope(world, speaker, listener, scope)?;
+            match crate::dialogue_values::value_of(world, holder, name) {
+                Some(crate::dialogue_values::Value::Text(text)) => Some(text),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+/// The number a keyword holds, or the default when the keyword is absent.
+fn keyword_number(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    keywords: &[(String, Expression)],
+    name: &str,
+    fallback: f64,
+) -> Option<f64> {
+    for (keyword, expression) in keywords {
+        if keyword == name {
+            return value(world, speaker, listener, expression);
+        }
+    }
+    Some(fallback)
+}
+
+/// The text a keyword holds, when the keyword is there.
+fn keyword_text(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    keywords: &[(String, Expression)],
+    name: &str,
+) -> Option<String> {
+    for (keyword, expression) in keywords {
+        if keyword == name {
+            return expression_text(world, speaker, listener, expression);
+        }
+    }
+    None
+}
+
 /// One of `distance`'s two points: a named actor (`'u'`, `'npc'`) or a location a variable holds.
 ///
 /// Reference: `distance_eval`'s `get_pos` (`math_parser_diag.cpp:188-199`), which accepts a string naming an actor and throws for any other string.
@@ -691,18 +854,13 @@ fn special_function(
         // Reference: `u_hp` (`math_expressions` in `dialogue_helpers`), which takes a body part the port does not model and answers the whole
         // creature's remaining hit points.
         ("distance", [first, second]) => return distance_between(world, speaker, listener, first, second),
+        ("u_monsters_nearby" | "npc_monsters_nearby", _) => {
+            return answer_monsters_nearby(world, speaker, listener, name, arguments, keywords);
+        }
         // Reference: `{ "pain", { "un", 0, pain_eval, pain_ass } }` (`math_parser_diag.cpp:869-882`) - the actor's `pain_cur`, with `type: "perceived"` asking
         // for the pain as the character feels it instead. The port has no masking rule yet, so it refuses that form rather than answering the raw number for it.
         ("u_pain" | "npc_pain", []) => {
-            if keywords.iter().any(|(name, _)| name == "type") {
-                return Answer::Refused;
-            }
-            let creature = match name {
-                "npc_pain" => listener.unwrap_or(speaker),
-                _ => speaker,
-            };
-            let pain = world.get::<crate::creature::Pain>(creature).copied().unwrap_or_default();
-            return Answer::Value(f64::from(pain.0));
+            return answer_pain(world, speaker, listener, name, keywords);
         }
         ("u_hp" | "npc_hp", _) => {
             let creature = match name {

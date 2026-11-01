@@ -502,3 +502,51 @@ fn pain_is_a_number_the_condition_can_read() {
         "a refused function answers false rather than pretending"
     );
 }
+
+/// `u_monsters_nearby()` counts the monsters within a radius, which defaults to a thousand squares.
+///
+/// Reference: `_monsters_nearby_eval` (`math_parser_diag.cpp:800-840`): the radius comes from the `radius` keyword (default **1000**), an empty argument list
+/// counts every monster, and a named type counts only that type. `_filter_monster` compares with `rl_dist`, so the radius is a Chebyshev one.
+#[test]
+fn monsters_are_counted_within_a_radius() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let mut level = cdda_core_types::level::Level::new();
+    for x in -24..48 {
+        for y in -24..48 {
+            level.set_terrain(x, y, 0, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::monster_registry::set_monster_types(
+        &mut world,
+        &[
+            cdda_sim::monster_registry::MonsterKind { id: "mon_zombie", hp: 40 },
+            cdda_sim::monster_registry::MonsterKind { id: "mon_dog", hp: 20 },
+        ],
+    );
+    let zombie = cdda_sim::monster_registry::id_of(&mut world, "mon_zombie").expect("a kind");
+    let dog = cdda_sim::monster_registry::id_of(&mut world, "mon_dog").expect("a kind");
+    for (kind, square) in [(zombie, (2, 2, 0)), (zombie, (5, 0, 0)), (dog, (40, 0, 0))] {
+        let fresh = cdda_sim::creature::spawn_creature(&mut world, "a monster", square);
+        cdda_sim::creature::set_kind(&mut world, fresh, kind);
+    }
+
+    let asks = |world: &bevy_ecs::prelude::World, text: &str| {
+        let condition = cdda_json::parse(format!(r#"{{"math": ["{text}"]}}"#).as_bytes()).expect("json");
+        let read = cdda_content::dialogue::read_condition(&condition).expect("the condition reads");
+        cdda_sim::conditions::holds_with(world, survivor, None, &read)
+    };
+
+    assert!(asks(&world, "u_monsters_nearby() == 3"), "every monster is inside the default radius");
+    assert!(asks(&world, "u_monsters_nearby('mon_zombie') == 2"), "only the zombies");
+    assert!(asks(&world, "u_monsters_nearby('radius': 3) == 1"), "the diagonal one counts as two squares out");
+    assert!(asks(&world, "u_monsters_nearby('mon_dog', 'radius': 100) == 1"), "the dog is forty squares out");
+    assert!(!asks(&world, "u_monsters_nearby('mon_dog') == 0"), "and it is still inside a thousand");
+
+    // An attitude the port cannot mean is refused rather than answered with a number it does not have.
+    let friendly =
+        cdda_json::parse(br#"{"math": ["u_monsters_nearby('attitude': 'friendly') > 0"]}"#.as_slice()).expect("json");
+    let read = cdda_content::dialogue::read_condition(&friendly).expect("reads");
+    assert!(!cdda_sim::conditions::holds_with(&world, survivor, None, &read));
+}

@@ -6631,3 +6631,34 @@ one-gap bucket moved up by the same three, which is what a partial fix looks lik
 
 The store is the point. Pain is a number a rule raises when damage lands and a rule lowers each turn; putting it on the creature as a component means the future
 damage rule and the future decay rule both write to it and nothing has to remember to keep a second copy.
+
+## `u_monsters_nearby()` (round 878)
+
+Four programs away, and the four went straight through: `u_monsters_nearby('mon_lieutenant_shadow', 'radius': 60) > 0` is a condition the data uses to ask
+whether something awful is close.
+
+Reference: `_monsters_nearby_eval` (`math_parser_diag.cpp:800-840`) counts the monsters within `radius` - **default 1000**, which is not a number anyone would guess
+- whose type is one the arguments name (no arguments means any), filtered by `attitude` (default `hostile`). `_filter_monster` (`:781-794`) compares with
+`rl_dist`, so the radius is Chebyshev: the same rule `distance` needed two rounds ago, and the test pins it by putting a monster on the diagonal.
+
+`attitude: 'friendly'` is refused, not answered: the port has no friendly monster, and the honest answer to "how many friends are near" is "I cannot say" rather
+than zero. `location` is refused for the same reason - counting from a stored point is a rule the port has no square for yet.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 368 | **372** |
+answered `Done` | 220 | **224** |
+did something | 76 | **80** |
+unreadable leaves | 757 | **747** |
+programs blaming `math` | 34 | **25** |
+conditions readable | 2,898 | **2,910** |
+effect entries runnable | 1,197 | **1,198** |
+
+**Nine programs stopped blaming `math` and four now run.** The one-gap list changed shape too: `hallucination_count` and `monster_range` have appeared with four each,
+which is what a census looks like when one wall comes down and the next one becomes visible.
+
+The store did the work again. Counting monsters is a query over `CreatureKind` and `Position`, and the type names come from the registry that already existed - no
+list of monsters anywhere, which is why the count cannot go stale.
+
+**Clippy cost three cycles** - two mergeable arms and the 100-line cap - because I touched three matches and two functions without running the lint in between. The
+rule says run it after each match; I ran it after all three.

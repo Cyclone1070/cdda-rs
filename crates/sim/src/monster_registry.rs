@@ -35,6 +35,17 @@ pub struct MonsterTypes {
     by_name: BTreeMap<String, MonsterKindId>,
 }
 
+impl MonsterTypes {
+    /// The id of a kind, which is what a rule that names monster types compares against.
+    #[must_use]
+    pub fn name_of(&self, kind: crate::MonsterKindId) -> Option<&str> {
+        usize::try_from(kind.0)
+            .ok()
+            .and_then(|at| self.names.get(at))
+            .map(String::as_str)
+    }
+}
+
 /// Marks the entity carrying [`MonsterTypes`].
 #[derive(Component, Debug, Clone, Copy, Default)]
 pub struct TheMonsterTypes;
