@@ -125,6 +125,17 @@ pub fn run_program(
                     return Applied::CannotAnswer;
                 }
             }
+            cdda_content::dialogue::Effect::RunMonsterEocs {
+                programs,
+                mtype_ids,
+                monster_range,
+            } => {
+                if run_on_monsters(world, speaker, programs, mtype_ids, *monster_range, depth)
+                    == Applied::CannotAnswer
+                {
+                    return Applied::CannotAnswer;
+                }
+            }
             cdda_content::dialogue::Effect::RunEoc(programs) => {
                 for program in programs {
                     let started = run_ref(world, speaker, listener, program, depth + 1);
@@ -230,6 +241,55 @@ fn run_on_people(
     for person in people {
         for reference in programs {
             if run_ref(world, speaker, Some(person), reference, depth + 1) == Applied::CannotAnswer {
+                return Applied::CannotAnswer;
+            }
+        }
+    }
+    Applied::Done
+}
+
+/// Runs a list of programs on every monster the effect's filters leave.
+///
+/// Reference: `f_run_monster_eocs` (`npctalk.cpp:6654-6700`) asks `g->get_creatures_if` for the monsters its filters keep - the `mtype_ids` when given, a
+/// distance from the actor when `monster_range` is, and the actor's own level otherwise - and runs every program on each, with the monster as the listener.
+fn run_on_monsters(
+    world: &mut World,
+    speaker: Entity,
+    programs: &[cdda_content::dialogue::ProgramRef],
+    mtype_ids: &[cdda_content::dialogue::StringSource],
+    monster_range: Option<i32>,
+    depth: usize,
+) -> Applied {
+    let Some(at) = world.get::<crate::Position>(speaker).copied() else {
+        return Applied::CannotAnswer;
+    };
+    let wanted = mtype_ids
+        .iter()
+        .map(|id| crate::conditions::text_of(world, speaker, None, id))
+        .collect::<Option<Vec<_>>>();
+    let Some(wanted) = wanted else {
+        return Applied::CannotAnswer;
+    };
+    let kinds = crate::singletons::holder::<crate::monster_registry::TheMonsterTypes>(world)
+        .and_then(|holder| world.get::<crate::monster_registry::MonsterTypes>(holder));
+    let mut found: Vec<Entity> = Vec::new();
+    if let Some(mut query) = world.try_query::<(Entity, &crate::creature::CreatureKind, &crate::Position)>() {
+        for (entity, kind, square) in query.iter(world) {
+            let named = kinds.and_then(|known| known.name_of(kind.0).map(str::to_owned));
+            let type_matches = wanted.is_empty() || named.is_some_and(|named| wanted.contains(&named));
+            let same_level = square.z == at.z;
+            let near_matches = match monster_range {
+                Some(range) => (square.x - at.x).abs().max((square.y - at.y).abs()) <= range,
+                None => true,
+            };
+            if type_matches && same_level && near_matches {
+                found.push(entity);
+            }
+        }
+    }
+    for monster in found {
+        for reference in programs {
+            if run_ref(world, speaker, Some(monster), reference, depth + 1) == Applied::CannotAnswer {
                 return Applied::CannotAnswer;
             }
         }

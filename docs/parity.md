@@ -6662,3 +6662,33 @@ list of monsters anywhere, which is why the count cannot go stale.
 
 **Clippy cost three cycles** - two mergeable arms and the 100-line cap - because I touched three matches and two functions without running the lint in between. The
 rule says run it after each match; I ran it after all three.
+
+## `u_run_monster_eocs` (round 879)
+
+The monster analogue of `u_run_npc_eocs`, which the port already had: run a program on every nearby creature of a kind. It was four programs away, and it is the
+reason the yrax legs walk - the data uses it to hand each leg its identity.
+
+Reference: `f_run_monster_eocs` (`npctalk.cpp:6590-6700`) takes a program list, `mtype_ids` to narrow by monster type, `monster_range` for distance, and the z
+filters plus `monster_must_see`. The port reads the first three and refuses the last three, which is the same line the NPC version draws.
+
+**The level rule came across unchanged, and it is the one I got wrong there.** A monster has to be on the actor's own level *and* within `monster_range`; the range
+narrows the square, it does not reach up or down a storey. The NPC test caught that two rounds ago; this test asserts it from the start.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 372 | **376** |
+answered `Done` | 224 | **228** |
+did something | 80 | **84** |
+unreadable leaves | 747 | **742** |
+one-gap programs | 138 | **134** |
+effect entries runnable | 1,198 | **1,203** |
+effect-blamed programs | 269 | **265** |
+
+Four programs read, four run, and five more effect entries can be carried out - the arithmetic lines up because the same four programs are the ones holding those
+entries.
+
+`monster_range` and `mtype_ids` leave the one-gap list, which is the second time a port has made its own entries vanish from that list rather than shrinking it. What
+appeared instead is `hallucination_count` at four, which is a spawn member rather than a monster-filter one.
+
+**Clippy was clean first try** - the rule from two rounds ago (lint after every match, before the census) held, and the census/Vitest pinning cost three cycles of
+its own, which is a different and cheaper kind of round trip.

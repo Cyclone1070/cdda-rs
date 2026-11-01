@@ -550,3 +550,69 @@ fn monsters_are_counted_within_a_radius() {
     let read = cdda_content::dialogue::read_condition(&friendly).expect("reads");
     assert!(!cdda_sim::conditions::holds_with(&world, survivor, None, &read));
 }
+
+/// `u_run_monster_eocs` runs its program on the monsters the filters leave.
+///
+/// Reference: `f_run_monster_eocs` (`npctalk.cpp:6590-6700`): `mtype_ids` narrows by type, `monster_range` by Chebyshev distance from the actor, and the actor's
+/// own level always has to match - a range narrows the square, it does not reach up or down a storey.
+#[test]
+fn programs_run_on_the_monsters_the_filters_leave() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let mut level = cdda_core_types::level::Level::new();
+    for x in -24..48 {
+        for y in -24..48 {
+            level.set_terrain(x, y, 0, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::monster_registry::set_monster_types(
+        &mut world,
+        &[
+            cdda_sim::monster_registry::MonsterKind { id: "mon_quad_leg", hp: 10 },
+            cdda_sim::monster_registry::MonsterKind { id: "mon_zombie", hp: 40 },
+        ],
+    );
+    let leg = cdda_sim::monster_registry::id_of(&mut world, "mon_quad_leg").expect("a kind");
+    let zombie = cdda_sim::monster_registry::id_of(&mut world, "mon_zombie").expect("a kind");
+    for (kind, square) in [(leg, (1, 1, 0)), (leg, (20, 0, 0)), (zombie, (2, 0, 0))] {
+        let fresh = cdda_sim::creature::spawn_creature(&mut world, "a monster", square);
+        cdda_sim::creature::set_kind(&mut world, fresh, kind);
+    }
+
+    let mark = cdda_content::dialogue::read_program(
+        &cdda_json::parse(
+            br#"{"type": "effect_on_condition", "id": "EOC_mark", "effect": [{"u_message": "marked"}]}"#.as_slice(),
+        )
+        .expect("json"),
+    )
+    .expect("the program reads");
+    cdda_sim::eoc_registry::set_programs(&mut world, std::slice::from_ref(&mark));
+
+    let runs = |world: &mut bevy_ecs::prelude::World, text: &str| {
+        let wrapper = format!(r#"{{"type": "effect_on_condition", "id": "EOC_runner", "effect": [{text}]}}"#);
+        let value = cdda_json::parse(wrapper.as_bytes()).expect("json");
+        let program = cdda_content::dialogue::read_program(&value).expect("the program reads");
+        cdda_sim::eoc_registry::set_programs(world, &[program, mark.clone()]);
+        cdda_sim::eoc_registry::run_program(world, survivor, None, "EOC_runner", 0)
+    };
+
+    // Only the legs, and only the one close enough.
+    cdda_sim::messages::clear(&mut world);
+    assert_eq!(
+        runs(
+            &mut world,
+            r#"{"u_run_monster_eocs": ["EOC_mark"], "mtype_ids": ["mon_quad_leg"], "monster_range": 2}"#
+        ),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    assert_eq!(cdda_sim::messages::lines(&world).len(), 1, "one leg is within two squares");
+
+    // Without a type filter, every monster on the level is marked.
+    cdda_sim::messages::clear(&mut world);
+    assert_eq!(
+        runs(&mut world, r#"{"u_run_monster_eocs": ["EOC_mark"]}"#),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    assert_eq!(cdda_sim::messages::lines(&world).len(), 3, "three monsters share the level");
+}

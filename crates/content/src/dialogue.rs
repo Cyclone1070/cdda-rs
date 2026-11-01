@@ -790,6 +790,7 @@ pub enum VarValue {
 fn read_carried_effect(object: &cdda_json::Object) -> Option<Effect> {
     read_spawn_monster(object)
         .or_else(|| read_run_npc_eocs(object))
+        .or_else(|| read_run_monster_eocs(object))
         .or_else(|| read_assign_mission(object))
         .or_else(|| read_teleport(object))
         .or_else(|| read_variable_effect(object))
@@ -1543,6 +1544,19 @@ pub enum Effect {
     Math(Vec<Assignment>),
     /// A message to the player.
     Message(String),
+    /// Run a program on every nearby monster.
+    ///
+    /// Reference: `f_run_monster_eocs` (`npctalk.cpp:6590-6700`): a list of programs, the `mtype_ids` that narrow which monsters, `monster_range` for how far
+    /// from the actor, and the z filters and `monster_must_see`. The port reads the programs and the two narrowing members; the z filters and the sight test are
+    /// refused rather than ignored.
+    RunMonsterEocs {
+        /// The programs to run, one after another, on each monster.
+        programs: Vec<ProgramRef>,
+        /// The monster types to run on, all of them when empty.
+        mtype_ids: Vec<StringSource>,
+        /// How far from the actor a monster may be, or nothing for every monster on the actor's level.
+        monster_range: Option<i32>,
+    },
     /// Run a program on every nearby person.
     ///
     /// Reference: `f_run_npc_eocs` (`npctalk.cpp:6552-6600`): a list of programs, the `unique_ids` that narrow which people, `local` for whose square the range
@@ -1864,6 +1878,7 @@ impl Effect {
             Self::Math(_) => "math",
             Self::Message(_) | Self::Snippet { .. } => "u_message",
             Self::RunNpcEocs { .. } => "u_run_npc_eocs",
+            Self::RunMonsterEocs { .. } => "u_run_monster_eocs",
             Self::If { .. } => "if",
             Self::AddEffect { .. } => "u_add_effect",
             // Both are the same member: the data writes one effect or an array of them under one name.
@@ -2110,6 +2125,47 @@ fn read_assign_mission(object: &cdda_json::Object) -> Option<Effect> {
     Some(Effect::AssignMission {
         id: read_string_source(value)?,
     })
+}
+
+/// Reads `u_run_monster_eocs` and its listener spelling.
+///
+/// Reference: `f_run_monster_eocs` (`npctalk.cpp:6590-6700`). `mtype_ids` narrows by monster type and `monster_range` by distance; `z_min`, `z_max` and
+/// `monster_must_see` are members the port has no rule for yet, so an entry stating one is refused rather than half-run.
+fn read_run_monster_eocs(object: &cdda_json::Object) -> Option<Effect> {
+    for member in ["u_run_monster_eocs", "npc_run_monster_eocs"] {
+        let Some(value) = object.get(member) else {
+            continue;
+        };
+        for refused in ["z_min", "z_max", "monster_must_see"] {
+            if object.get(refused).is_some() {
+                return None;
+            }
+        }
+        let entries = match value {
+            Value::Array(entries) => entries.as_slice(),
+            other => std::slice::from_ref(other),
+        };
+        let programs = entries.iter().map(read_program_ref).collect::<Option<Vec<_>>>()?;
+        let mtype_ids = match object.get("mtype_ids") {
+            None => Vec::new(),
+            Some(Value::Array(ids)) => ids
+                .iter()
+                .map(read_string_source)
+                .collect::<Option<Vec<_>>>()?,
+            Some(_) => return None,
+        };
+        let monster_range = match object.get("monster_range") {
+            None => None,
+            Some(Value::Int(range)) => Some(i32::try_from(*range).ok()?),
+            Some(_) => return None,
+        };
+        return Some(Effect::RunMonsterEocs {
+            programs,
+            mtype_ids,
+            monster_range,
+        });
+    }
+    None
 }
 
 /// Reads `u_teleport` and its listener spelling.
