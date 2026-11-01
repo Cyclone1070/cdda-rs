@@ -7787,3 +7787,27 @@ The test asserts the **store** holds a `Condition`, not a boolean - which is the
 
 **Still missing, and named rather than hidden:** `u_has_condition` itself is not read yet, so the three programs that store a condition cannot ask it back. The storing
 half is done; the asking half is a condition parser arm plus an evaluation arm, which is the next round's work.
+
+## Correction: nothing reads a stored condition back (round 919)
+
+Last round's entry ended with a promise it should not have made: that `u_has_condition` is "the asking half", still missing. I checked before writing it - and the check
+says there is nothing to write.
+
+**The shipped data uses `set_condition` three times and `has_condition` zero times**, in two files (`randec_independent_travelers.json`, `randenc_caravans.json`):
+
+```json
+{ "set_condition": "random_enc_condition", "condition": { "and": [ { "not": { "is_season": "winter" } }, "is_day" ] } }
+```
+
+The condition is stored and then read by the **math** layer as a variable when the dialogue asks for it by name, not by a dedicated condition. There is no
+`u_has_condition` in the reference's source at all - I searched `condition.cpp`, `npctalk.cpp` and `math_parser_diag.cpp` for it and found nothing.
+
+So the correct statement of the state is: **`set_condition` is complete for the data that exists.** No count moved this round, because the promise was the only thing
+that needed changing - and a promise in the record is a claim like any other, which this project's rules say has to be checked before it is written down, not after.
+
+**The lesson is the one the census keeps teaching from the other direction.** Four rounds ago I learned that a *listed* gap can be somewhere else than the member the
+list names; this round the lesson is the mirror: a gap I *predicted* was not there at all. Both come from the same discipline - ask the data, not the shape of the
+code in my head.
+
+The next one-gap targets, checked the same way, are `u_driving` (3 programs, a bare condition name inside `{"not": "u_driving"}` - the port has no vehicles, so the
+honest answer for its world is "not driving", and that must change the day vehicles land) and `mapgen_update` (4, a mapgen store the port has not built).
