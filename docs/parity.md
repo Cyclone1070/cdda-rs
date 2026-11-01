@@ -7764,3 +7764,26 @@ distinction the census keeps: readable is a fact about the loader, runnable is a
 **A note on where the port's work actually goes.** Three of the last four rounds were "wire a store to a rule that already existed": the timed events map, this group
 map, and the spell levels. The pattern is the port's own shape - rules get written by the census, stores get built when a rule needs somewhere to stand - and it
 suggests the remaining one-gap list is mostly **stores**, not arithmetic.
+
+## `set_condition`: a stored condition is a condition, not a boolean (round 918)
+
+Three programs stalled on `set_condition`, and the shape of the fix is a decision worth naming: `f_set_condition` (`npctalk.cpp:5868-5880`) writes the **condition
+itself** into the dialogue's variables, and `u_has_condition` evaluates it later, at the turn it is asked. Storing the answer instead would freeze it - a named
+condition like `random_enc_condition` would keep saying whatever it said when it was stored, which is not what the data means by storing it.
+
+So `dialogue_values::Value` gained a `Condition(Box<Condition>)` variant, beside `Number`, `Text` and `Position` - the fourth kind of thing a dialogue variable can
+hold, and each of the four is what the reference's own variable map holds for that kind.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 498 | **501** |
+refused at run time | 171 | **174** |
+unreadable leaves | 310 | **307** |
+one-gap programs | 71 | **68** |
+effect entries runnable | 1,400 | **1,403** |
+effect census blaming `effect` | 176 | **173** |
+
+The test asserts the **store** holds a `Condition`, not a boolean - which is the assertion that would fail if somebody "simplified" the store later.
+
+**Still missing, and named rather than hidden:** `u_has_condition` itself is not read yet, so the three programs that store a condition cannot ask it back. The storing
+half is done; the asking half is a condition parser arm plus an evaluation arm, which is the next round's work.

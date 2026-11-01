@@ -20,6 +20,11 @@ pub enum Value {
     Number(f64),
     /// A string, which is what `compare_string` reads.
     Text(String),
+    /// A condition, which is what `set_condition` stores and `u_has_condition` evaluates.
+    ///
+    /// Reference: the dialogue's variable map holds a `condition` for these (`f_set_condition`, `npctalk.cpp:5868-5880`), so a stored condition is a value like
+    /// any other rather than a second kind of variable.
+    Condition(Box<cdda_content::dialogue::Condition>),
     /// A square, which is what a location variable holds.
     ///
     /// Reference: the dialogue's variable map holds a `tripoint` for these (`d.set_value( var, tripoint_abs_ms )`), so a location is a value

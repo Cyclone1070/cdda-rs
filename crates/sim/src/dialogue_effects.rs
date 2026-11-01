@@ -553,6 +553,29 @@ fn pick_type(
     drawn
 }
 
+/// Stores a named condition, to be asked later.
+///
+/// Reference: `f_set_condition` (`npctalk.cpp:5868-5880`): the condition is written into the dialogue's variables, and `u_has_condition` reads it back and evaluates
+/// it where it is asked - so the stored thing is the **condition**, not its answer at the time it was stored.
+fn set_condition(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::SetCondition { name, condition, scope } = effect else {
+        return Applied::CannotAnswer;
+    };
+    let Some(holder) = crate::conditions::holder_for_scope(world, speaker, listener, scope) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(stored) = crate::conditions::text_of(world, speaker, listener, name) else {
+        return Applied::CannotAnswer;
+    };
+    crate::dialogue_values::set(
+        world,
+        holder,
+        &stored,
+        crate::dialogue_values::Value::Condition(condition.clone()),
+    );
+    Applied::Done
+}
+
 /// Schedules a named event a set time from now.
 ///
 /// Reference: `f_alter_timed_events` (`npctalk.cpp:4879-4881`): `get_timed_events().set_all( key, now + time_in_future )`. The duration is parsed by the same
@@ -1558,6 +1581,7 @@ fn run_store_effect(
         Effect::SetStringVar { .. } => set_string_var(world, speaker, listener, effect),
         Effect::CopyVar { .. } => copy_var(world, speaker, listener, effect),
         Effect::AlterTimedEvents { .. } => alter_timed_events(world, speaker, listener, effect),
+        Effect::SetCondition { .. } => set_condition(world, speaker, listener, effect),
         // Audio changes no game state, and the port has no audio: Done, not refused - nothing is missing from the simulation, only from the sound card. A
         // comment-only entry does nothing, which the reference's loader also does with it.
         Effect::PlaySoundEffect { .. } | Effect::Nothing => Applied::Done,

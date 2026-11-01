@@ -1586,6 +1586,7 @@ fn read_unnamed_effect(object: &cdda_json::Object) -> Option<Effect> {
         .or_else(|| read_set_string_var(object))
         .or_else(|| read_copy_var(object))
         .or_else(|| read_alter_timed_events(object))
+        .or_else(|| read_set_condition(object))
 }
 
 /// Reads a `sound_effect` entry.
@@ -1603,6 +1604,25 @@ fn read_sound_effect(object: &cdda_json::Object) -> Option<Effect> {
             Some(value) => read_count(Some(value))?,
         },
         outdoor_event: matches!(object.get("outdoor_event"), Some(Value::Bool(true))),
+    })
+}
+
+/// Reads a `set_condition` entry.
+///
+/// Reference: `f_set_condition` (`npctalk.cpp:5868-5880`): the member is the name the condition is stored under, `condition` is the condition, and
+/// `target_var` - when the data gives one - says which scope holds it.
+fn read_set_condition(object: &cdda_json::Object) -> Option<Effect> {
+    let name = object.get("set_condition")?;
+    let condition = object.get("condition")?;
+    let scope = match object.get("target_var") {
+        None => "global_val".to_owned(),
+        Some(Value::Object(target)) => named_variable(target)?.0,
+        Some(_) => return None,
+    };
+    Some(Effect::SetCondition {
+        name: read_string_source(name)?,
+        condition: Box::new(read_condition(condition)?),
+        scope,
     })
 }
 
@@ -1967,6 +1987,18 @@ pub enum Effect {
         volume: CountRange,
         /// Whether it is only heard outdoors.
         outdoor_event: bool,
+    },
+    /// Stores a named condition, to be asked later.
+    ///
+    /// Reference: `f_set_condition` (`npctalk.cpp:5868-5880`): the member is the name and `condition` is the condition itself, stored in the dialogue's own
+    /// variables so `u_has_condition` can evaluate it at any later turn.
+    SetCondition {
+        /// The name it is stored under.
+        name: StringSource,
+        /// The condition to store.
+        condition: Box<Condition>,
+        /// The variable's type, as the data spells it.
+        scope: String,
     },
     /// Schedules a named event to happen a set time from now.
     ///
@@ -2433,6 +2465,7 @@ impl Effect {
             Self::SetStringVar { .. } => "set_string_var",
             Self::CopyVar { .. } => "copy_var",
             Self::AlterTimedEvents { .. } => "alter_timed_events",
+            Self::SetCondition { .. } => "set_condition",
             Self::SpawnItem { .. } => "u_spawn_item",
             Self::ConsumeItem { listener, .. } => {
                 if *listener {

@@ -1634,3 +1634,28 @@ fn a_spawn_from_an_item_group_produces_what_the_group_holds() {
     let mut items = world.query::<&cdda_sim::GroundItem>();
     assert_eq!(items.iter(&world).count(), 1, "one item, which is what the group holds");
 }
+
+/// `set_condition` stores the **condition**, not its answer, so the same stored name can be asked again at a later turn.
+///
+/// Reference: `f_set_condition` (`npctalk.cpp:5868-5880`) writes the condition into the dialogue's variables and `u_has_condition` evaluates it where it is asked.
+/// The test checks the store holds a condition, which is what makes the later question meaningful: a stored boolean would freeze the answer at the turn it was
+/// stored, which is exactly what the reference does not do.
+#[test]
+fn a_set_condition_stores_the_condition_itself() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let globals = cdda_sim::dialogue_values::holder_for(&mut world, survivor, true);
+
+    let value = cdda_json::parse(
+        br#"{"set_condition": "random_enc_condition", "condition": {"math": ["0 == 0"]}}"#.as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    let applied = cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect);
+    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "it runs");
+    let stored = cdda_sim::dialogue_values::value_of(&world, globals, "random_enc_condition");
+    assert!(
+        matches!(stored, Some(cdda_sim::dialogue_values::Value::Condition(_))),
+        "the store holds a condition, not a boolean: {stored:?}"
+    );
+}
