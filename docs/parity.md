@@ -7084,3 +7084,25 @@ two-integer array used as an expression. Each is its own round now.
 `addiction_turns` only), which silently deleted the `u_` and `npc_` forms - and the gate caught it because the test asks `u_addiction_intensity`. That is the
 second time this session a cap-driven rewrite dropped spellings; the fix is that a reader arm's name list is **data**, and data does not get shortened for line
 count.
+
+## The data's math functions exist and the dialogue cannot reach them (round 894)
+
+No capability this round, one finding, and a failure of my own worth more than the finding.
+
+**The finding.** `crates/content/src/jmath.rs` already implements the data's own math functions: `Function`, `Registry`, `read_json`, `read_entries`, and `call` with a
+`Bound` context that puts `_0`..`_n` in front of an outer one - including nested calls, because `dew_point_factor` calls `dew_point`, which calls `dprhx`, which
+reads the weather's humidity. It is used by `math_expr` and by `weather`.
+
+What it is **not** used by is the **dialogue** math evaluator, `crates/sim/src/conditions.rs`. That evaluator has its own `Expression` tree and its own `Answer` type,
+and it has never asked the registry anything, so every call to a data-defined function refuses there. The data defines **fifteen** of them and `addiction_rational`
+alone is called by three programs:
+`rand(800) <= addiction_rational(800, 20, u_addiction_intensity('marloss_r'))`.
+
+So the work is not "write the formula": it is **wire the existing registry into the dialogue evaluator** - a singleton beside the others, a `set_math_functions`, and a
+fallback in the `Call` path that binds the evaluated arguments to `_0`..`_n` and evaluates the body with the dialogue context. That is the next round, and it is one
+feature, not fifteen formulas.
+
+**The failure.** I wrote a new `crates/sim/src/jmath.rs`-shaped module into `crates/content/src/jmath.rs` **without checking that the file existed**. It did, and it was
+better than what I wrote: I overwrote a working registry with a reader that only parsed one definition. `git checkout` restored it and nothing was lost, but this is
+the **third wrong-file overwrite of the session**, and the rule I wrote down after the second one - run `ls` and `grep` for the name before writing a module - is
+exactly the rule I skipped because I was sure of the answer. Being sure is the tell: the overwrites have all happened when I was confident, never when I was checking.
