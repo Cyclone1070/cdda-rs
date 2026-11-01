@@ -1493,11 +1493,21 @@ pub struct Assignment {
 /// The data uses both spellings: `"x = 1"` names a bare variable, and `"u_val('x') = 1"` names the variable the way the
 /// expression language does. They are the same thing - the reference's `read_var_info` resolves the second form to the same
 /// variable type the first implies (`condition.cpp:408-437`) - so the port keeps one target type with the scope recorded.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum AssignmentTarget {
     /// A bare name, which the dialogue looks up in its own context.
     Bare(String),
-    /// A variable named the way the expression language names one: `u_val('x')`.
+    /// A function call whose answer is written back: `u_vitamin('x') = 5`.
+    ///
+    /// Reference: the math parser's setters (`vitamin_ass`, `hp_ass`, `skill_ass` in `math_parser_diag.cpp`) are registered beside its getters, so a body may
+    /// write to what it can read. The port's destinations are **stores**, not variables, so the target carries the call rather than a name.
+    Call {
+        /// The function's name, as the data spells it.
+        name: String,
+        /// Its arguments, unread until the write happens.
+        arguments: Vec<Expression>,
+    },
+    /// A variable named the way the expression language names it: `u_val('x')`.
     Variable {
         /// The variable's type, as the data spells it.
         scope: String,
@@ -1511,7 +1521,7 @@ impl AssignmentTarget {
     #[must_use]
     pub fn name(&self) -> &str {
         match self {
-            Self::Bare(name) | Self::Variable { name, .. } => name,
+            Self::Bare(name) | Self::Variable { name, .. } | Self::Call { name, .. } => name,
         }
     }
 
@@ -1519,7 +1529,7 @@ impl AssignmentTarget {
     #[must_use]
     pub fn scope(&self) -> Option<&str> {
         match self {
-            Self::Bare(_) => None,
+            Self::Bare(_) | Self::Call { .. } => None,
             Self::Variable { scope, .. } => Some(scope.as_str()),
         }
     }
@@ -1533,10 +1543,8 @@ pub fn read_assignment(text: &str) -> Option<Assignment> {
         Expression::Variable { scope, name } => AssignmentTarget::Variable { scope, name },
         // A destination must be a variable: a number, a call or an operator chain is an expression, and a `math` statement
         // whose left-hand side is an expression has no place to put its answer.
-        Expression::Number(_)
-        | Expression::Text(_)
-        | Expression::Call { .. }
-        | Expression::Binary { .. } => return None,
+        Expression::Call { name, arguments, .. } => AssignmentTarget::Call { name, arguments },
+        Expression::Number(_) | Expression::Text(_) | Expression::Binary { .. } => return None,
     };
     Some(Assignment {
         target,

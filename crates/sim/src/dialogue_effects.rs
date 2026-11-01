@@ -50,6 +50,11 @@ pub fn run_assignment(
     let Some(value) = drawn else {
         return Applied::CannotAnswer;
     };
+    // A destination that names a **store** rather than a variable: `u_vitamin('x') = 5`, `u_hp('torso') -= 3`. The reference registers a setter beside every
+    // getter it has, and the port's stores answer the same way - one function per store, so a store that cannot take the write refuses instead of guessing.
+    if let cdda_content::dialogue::AssignmentTarget::Call { name, arguments } = &assignment.target {
+        return write_to_store(world, speaker, listener, name, arguments, assignment.op, value);
+    }
     // A destination naming a scope resolves the way the condition side resolves one: `global_val` is the shared map, and
     // everything else is the speaker's own values.
     let holder = match assignment.target.scope() {
@@ -99,6 +104,67 @@ pub fn run_math(
         }
     }
     Applied::Done
+}
+
+/// Writes a value to the store a function name reads from.
+///
+/// Reference: the `_ass` half of `math_parser_diag.cpp` - `vitamin_ass`, `hp_ass`, `skill_ass` - each of which resolves its first argument to an id and then
+/// sets that store. The port answers the same three stores and **refuses the rest**, because a name with no setter is not a variable and has nowhere to go.
+fn write_to_store(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    name: &str,
+    arguments: &[cdda_content::dialogue::Expression],
+    op: cdda_content::dialogue::AssignmentOp,
+    value: f64,
+) -> Applied {
+    let Some(cdda_content::dialogue::Expression::Text(key)) = arguments.first() else {
+        return Applied::CannotAnswer;
+    };
+    let about_listener = name.starts_with("npc_");
+    let Some(target) = actor(speaker, listener, about_listener) else {
+        return Applied::CannotAnswer;
+    };
+    let store = name.trim_start_matches("npc_").trim_start_matches("u_");
+    let (current, writes) = match store {
+        "hp" => (crate::creature::health_of(world, target).map(f64::from), true),
+        "vitamin" => (crate::body::vitamin_of(world, target, key).map(f64::from), true),
+        "skill" => (Some(f64::from(crate::skills_of::level_of(world, target, key))), true),
+        _ => (None, false),
+    };
+    let (Some(current), true) = (current, writes) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(result) = apply_op(op, current, value) else {
+        return Applied::CannotAnswer;
+    };
+    #[allow(clippy::cast_possible_truncation)]
+    let rounded = result.round() as i32;
+    match store {
+        "hp" => crate::creature::set_health(world, target, rounded),
+        "vitamin" => {
+            crate::body::set_vitamin(world, target, key, rounded);
+        }
+        _ => crate::skills_of::set_level(world, target, key, rounded),
+    }
+    Applied::Done
+}
+
+/// The arithmetic an assignment operator means, given what the store held.
+fn apply_op(op: cdda_content::dialogue::AssignmentOp, current: f64, value: f64) -> Option<f64> {
+    match op {
+        cdda_content::dialogue::AssignmentOp::Set => Some(value),
+        cdda_content::dialogue::AssignmentOp::Add => Some(current + value),
+        cdda_content::dialogue::AssignmentOp::Subtract => Some(current - value),
+        cdda_content::dialogue::AssignmentOp::Multiply => Some(current * value),
+        cdda_content::dialogue::AssignmentOp::Divide => {
+            if value == 0.0 {
+                return None;
+            }
+            Some(current / value)
+        }
+    }
 }
 
 /// Whose trait, effect or value an effect changes.

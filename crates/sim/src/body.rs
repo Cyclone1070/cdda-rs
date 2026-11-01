@@ -522,3 +522,24 @@ pub fn with_body_mut(
     change(&mut body);
     true
 }
+
+/// What is stored of a vitamin, if the creature has a body that keeps any.
+#[must_use]
+pub fn vitamin_of(world: &bevy_ecs::prelude::World, creature: bevy_ecs::prelude::Entity, name: &str) -> Option<i32> {
+    body_of(world, creature).map(|body| body.vitamins.get(name).copied().unwrap_or(0))
+}
+
+/// Sets a vitamin's level, answering whether the creature has a body to store it in.
+///
+/// Reference: `Character::vitamin_set` (`vitamin.cpp`), which writes the level and lets the decay rule read it later. A monster has no vitamin store, so
+/// answering `false` here is a real "this creature cannot" and not a missing feature.
+pub fn set_vitamin(
+    world: &mut bevy_ecs::prelude::World,
+    creature: bevy_ecs::prelude::Entity,
+    name: &str,
+    amount: i32,
+) -> bool {
+    with_body_mut(world, creature, |body| {
+        body.vitamins.insert(name.to_owned(), amount);
+    })
+}

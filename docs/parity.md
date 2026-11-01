@@ -7168,3 +7168,37 @@ capability, and the only thing that made the round honest was measuring instead 
 One dependency moved for it: `cdda-json` was a **dev**-dependency of the sim and is now a real one, because the installer reads parsed data rather than only tests
 reading it. That is a small architectural addition - the sim already receives JSON-shaped data from `cdda_content` - and it keeps the JSON type out of the sim's own
 API: the installer takes `&[cdda_json::Value]` and nothing else in the crate names it.
+
+## A `math` statement writes to a store, not only to a variable (round 897)
+
+The round before last found the deciding refusal and did not fix it; this one does. Reference: the math parser registers a **setter beside every getter** it has
+(`vitamin_ass`, `hp_ass`, `skill_ass` in `math_parser_diag.cpp`), which is why the data writes `"u_vitamin('x') = 5"` and `"u_hp('torso') -= 3"`. The port's
+assignment target was a variable and nothing else, so those statements could not even be **read**.
+
+`AssignmentTarget::Call { name, arguments }` is the new shape: the destination carries the call, because a store is not a name. `write_to_store` resolves three -
+hit points, vitamins, skills - through the same components the read side uses, applies the operator against what the store holds, and **refuses a name with no
+setter** rather than creating a variable by accident. `body::vitamin_of` and `body::set_vitamin` are the vitamin store's two halves, and `set_vitamin` answers
+`false` for a monster, which is a real "this creature cannot" and not a missing feature.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 421 | **428** |
+answered `Done` | 267 | **273** |
+did something | 119 | **124** |
+refused at run time | 154 | **155** |
+unreadable leaves | 511 | **478** |
+one-gap programs | 125 | **123** |
+conditions readable | 3,056 | 3,056 |
+effect entries runnable | 1,264 | **1,283** |
+effect census blaming `math` | 67 | **48** |
+
+Nineteen effect entries and seven programs from one target shape. The `math` refusal in the effect census halved, and it halved **after** the round that installed
+the data functions changed nothing - the two rounds together are the point: the deciding refusal was the read, and the bridge was only worth having once the read
+stopped refusing.
+
+The remaining `math` refusals are now a different set: `u_proficiency`, `u_spell_level`, `u_spell_exp` (stores the port has no rule for yet) and the two-integer
+array. Each is its own round, and each needs a store before it needs a reader.
+
+**Clippy caught my own test**, not the code: I reached for `panic!` inside a closure to assert the effect shape. The workspace forbids it in production code and the
+test binary counts, so the closure returns `CannotAnswer` for a non-math effect instead - the test still fails loudly, and it fails through an assertion the linter
+allows.

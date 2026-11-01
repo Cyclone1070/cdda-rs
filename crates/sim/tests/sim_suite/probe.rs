@@ -1107,3 +1107,38 @@ fn a_data_defined_function_is_called_from_a_condition() {
     let read = cdda_content::dialogue::read_condition(&unknown).expect("the expression reads");
     assert!(!cdda_sim::conditions::holds_with(&world, survivor, None, &read), "no answer, so no pass");
 }
+
+/// A `math` statement can write to a **store** it can read, not only to a variable.
+///
+/// Reference: the math parser registers a setter beside every getter it has (`vitamin_ass`, `hp_ass`, `skill_ass` in `math_parser_diag.cpp`), which is why the
+/// data writes `"u_vitamin('x') = 5"` and `"u_hp('torso') -= 3"`. The port's stores are components, so the write resolves the same way the read does.
+#[test]
+fn a_math_statement_writes_to_a_store() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::creature::set_health(&mut world, survivor, 20);
+
+    let run = |world: &mut bevy_ecs::prelude::World, text: &str| {
+        let value = cdda_json::parse(format!(r#"{{"math": ["{text}"]}}"#).as_bytes()).expect("json");
+        let Some(cdda_content::dialogue::Effect::Math(statements)) = cdda_content::dialogue::read_effect(&value) else {
+            return cdda_sim::dialogue_effects::Applied::CannotAnswer;
+        };
+        cdda_sim::dialogue_effects::run_math(world, survivor, None, &statements)
+    };
+
+    assert_eq!(run(&mut world, "u_vitamin('mutagen') = 5"), cdda_sim::dialogue_effects::Applied::Done);
+    assert_eq!(cdda_sim::body::vitamin_of(&world, survivor, "mutagen"), Some(5), "the vitamin store took the write");
+
+    assert_eq!(run(&mut world, "u_hp('torso') -= 3"), cdda_sim::dialogue_effects::Applied::Done);
+    assert_eq!(cdda_sim::creature::health_of(&world, survivor), Some(17), "hit points subtract from what was left");
+
+    assert_eq!(run(&mut world, "u_skill('fabrication') = 4"), cdda_sim::dialogue_effects::Applied::Done);
+    assert_eq!(cdda_sim::skills_of::level_of(&world, survivor, "fabrication"), 4, "the skill store took the write");
+
+    // A name with no store behind it has nowhere to write, and says so rather than creating a variable by accident.
+    assert_eq!(
+        run(&mut world, "u_temperature('body') = 1"),
+        cdda_sim::dialogue_effects::Applied::CannotAnswer,
+        "a name with no setter refuses"
+    );
+}

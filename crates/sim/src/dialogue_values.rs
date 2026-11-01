@@ -83,6 +83,9 @@ pub fn position_of(
             name,
         ),
         cdda_content::dialogue::AssignmentTarget::Bare(name) => (speaker, name),
+        // A destination naming a store has no holder: its value lives in the creature's own components, which is why the write path answers it before
+        // asking for a variable at all.
+        cdda_content::dialogue::AssignmentTarget::Call { .. } => return None,
     };
     match value_of(world, holder, name) {
         Some(Value::Position { x, y, z }) => Some((x, y, z)),
