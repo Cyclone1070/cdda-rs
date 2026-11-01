@@ -683,6 +683,21 @@ fn answer_health(world: &World, speaker: Entity, listener: Option<Entity>, name:
     Answer::Value(f64::from(health))
 }
 
+/// A creature's hit points: what is left for `u_hp`, and the ceiling for `hp_max`.
+///
+/// Reference: `hp_eval` and `hp_max_eval` (`math_parser_diag.cpp:1714`) both take a body part; the port has no per-part hit points, so both answer the whole
+/// creature, and the two numbers stay apart because a health bar needs both.
+fn answer_hit_points(world: &World, speaker: Entity, listener: Option<Entity>, name: &str) -> Answer {
+    let Some(actor) = actor_for(speaker, listener, matches!(name, "npc_hp" | "npc_hp_max")) else {
+        return Answer::Refused;
+    };
+    let Some(health) = world.get::<crate::creature::Health>(actor) else {
+        return Answer::Value(0.0);
+    };
+    let ceiling = matches!(name, "hp_max" | "u_hp_max" | "npc_hp_max");
+    Answer::Value(f64::from(if ceiling { health.max_hp } else { health.hp }))
+}
+
 /// Whether the actor carries a flag, as a number.
 ///
 /// Reference: `has_flag_eval` (`math_parser_diag.cpp:1707-1717`): `actor->has_flag( flag )`, which is one or zero because the data **adds** these together
@@ -1083,15 +1098,8 @@ fn answer_from_table(
         ("u_pain" | "npc_pain", []) => {
             return answer_pain(world, speaker, listener, name, keywords);
         }
-        ("u_hp" | "npc_hp", _) => {
-            let creature = match name {
-                "npc_hp" => listener.unwrap_or(speaker),
-                _ => speaker,
-            };
-            let Some(health) = world.get::<crate::creature::Health>(creature) else {
-                return Answer::Value(0.0);
-            };
-            return Answer::Value(f64::from(health.hp));
+        ("u_hp" | "npc_hp" | "hp_max" | "u_hp_max" | "npc_hp_max", _) => {
+            return answer_hit_points(world, speaker, listener, name);
         }
         // Reference: `u_effect_intensity(name)` answers how strong an effect is, and **zero** when it is not worn at all.
         ("u_effect_intensity" | "npc_effect_intensity", [Expression::Text(effect)]) => {

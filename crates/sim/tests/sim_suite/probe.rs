@@ -1010,3 +1010,28 @@ fn flags_count_as_numbers_and_may_be_named_by_a_variable() {
     );
     assert!(holds(&world, "u_has_flag(_flag1) == 1"), "the same flag, named by a variable");
 }
+
+/// `u_hp_max()` answers the creature's hit-point ceiling, which is what a health bar is drawn against.
+///
+/// Reference: `hp_max_eval` (`math_parser_diag.cpp:1714-1719`) answers `get_hp_max( bodypart )`. The port has no per-part hit points, so it answers the whole
+/// creature's ceiling - the same line `u_hp` draws - and the test pins that the ceiling does not follow the current hit points down.
+#[test]
+fn the_hit_point_ceiling_is_a_separate_number() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::creature::set_health(&mut world, survivor, 40);
+    let holds = |world: &bevy_ecs::prelude::World, text: &str| {
+        let condition = cdda_json::parse(format!(r#"{{"math": ["{text}"]}}"#).as_bytes()).expect("json");
+        let read = cdda_content::dialogue::read_condition(&condition).expect("the condition reads");
+        cdda_sim::conditions::holds_with(world, survivor, None, &read)
+    };
+    assert!(holds(&world, "u_hp_max() == 40"), "the ceiling it was given");
+
+    // Losing hit points does not lower the ceiling: `hp` and `hp_max` are two numbers.
+    if let Some(mut health) = world.get_mut::<cdda_sim::creature::Health>(survivor) {
+        health.hp = 12;
+    }
+    assert!(holds(&world, "u_hp() == 12"), "what is left");
+    assert!(holds(&world, "u_hp_max() == 40"), "and what it started with");
+    assert!(holds(&world, "(u_hp() * 1.4) < u_hp_max()"), "the comparison the data writes");
+}

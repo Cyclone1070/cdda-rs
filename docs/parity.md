@@ -7032,3 +7032,25 @@ the same mistake in miniature). It now takes the member name as its value - `CDD
 command rather than a round. It printed **nothing** for `else`, which is the evidence that the blame lives in the effects census and not the program census.
 
 No count moved. The next round should attack the effect side where the real weight is: `math` (92 entries), `<named>` (22), `key` (15), `mapgen_update` (15).
+
+## `u_hp_max()` (round 892)
+
+One function, and it exists to keep two numbers apart that a health bar needs: `u_hp()` is what is left, `u_hp_max()` is what the creature started with, and losing hit
+points lowers the first without touching the second.
+
+Reference: `hp_max_eval` (`math_parser_diag.cpp:1714-1719`) answers `get_hp_max( bodypart )`. The port has no per-part hit points, so it answers the whole creature -
+the same line `u_hp` already drew - and the two arms are now one function so the pair can never drift apart.
+
+| Count | Before | After |
+|---|---|---|
+conditions readable | 3,001 | **3,002** |
+everything else | unchanged | unchanged |
+
+**One condition.** The effect census is where the weight is now (`math` 92, `<named>` 22, `else` 17, `key` 15, `mapgen_update` 15), and a single reader no longer
+moves it. I also ran out of the easy ones: what is left in `math` is `rand(6) < u_addiction_intensity('mutagen')` and its family, which needs an addiction store, and
+a two-integer array used as an expression, which is a shape question I have not yet confirmed against the reference.
+
+**Two cycles went on arity, again.** `hp_max` was registered with one required argument, the test called it with none (because the port answers the whole creature),
+and the fix was to move it into the `u_hp` group where the part is optional. That is the same mistake twice this session: reading `hp_max_eval`'s **one** parameter
+from the reference and writing it into the port whose rule is "the part is optional". The reference's arity is about the part; the port's is about the creature. Those
+are different rules with the same name, and I keep copying the first into the second.

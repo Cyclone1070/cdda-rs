@@ -265,7 +265,10 @@ pub fn math_function(name: &str) -> Option<Arity> {
         // `u_hp` and its siblings take a body part the port does not model, so they are read with none or with one. The four opinion numbers
         // (`math_parser_diag.cpp:1408-1440`) work the same way: the name's prefix says whose opinion it is (`n_npc_value()` asks the NPC's), and the data
         // sometimes also passes a scope the prefix already said.
-        "u_hp" | "npc_hp" | "u_effect_intensity" | "npc_effect_intensity" | "has_var" | "moon_phase"
+        // Reference: `{ "hp_max", { "un", 1, hp_max_eval } }` (`math_parser_diag.cpp:1714`) takes one body part; the port answers from the whole creature, so the
+        // part is optional here for the same reason it is on `u_hp`.
+        "hp_max" | "u_hp_max" | "npc_hp_max"
+        | "u_hp" | "npc_hp" | "u_effect_intensity" | "npc_effect_intensity" | "has_var" | "moon_phase"
         | "npc_value" | "npc_anger" | "npc_trust" | "npc_fear" | "n_npc_value" | "n_npc_anger" | "n_npc_trust"
         | "n_npc_fear" | "u_npc_value" | "u_npc_anger" | "u_npc_trust" | "u_npc_fear"
         // Reference: `{ "monsters_nearby", { "ung", -1, ... } }` (`math_parser_diag.cpp:1719`) - any number of monster ids, plus keywords.
