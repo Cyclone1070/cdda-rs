@@ -1858,6 +1858,12 @@ pub enum Effect {
         search_range: i32,
         /// How near a tile may be and still count; closer ones are skipped.
         min_distance: i32,
+        /// The furniture to look for inside the tile, when the data names one.
+        ///
+        /// Reference: `f_location_variable` (`npctalk.cpp:4200-4248`) accepts **one** of terrain, furniture, field, monster, species, trap, zone or npc as its
+        /// search target, and a second one is an error. The port reads the furniture case and refuses to run it, because its squares carry a furniture
+        /// **code** rather than the id this names - a store gap, not a reader gap.
+        furniture: Option<String>,
         /// How near the drawn square may be to the tile found; zero when the data draws none.
         min_radius: i32,
         /// How far from the tile found the square may be drawn; zero when the data draws none.
@@ -2821,8 +2827,20 @@ fn read_terrain_target(
     };
     let min_radius = whole_radius("min_radius")?;
     let max_radius = whole_radius("max_radius")?;
+    // One search target only, and the furniture case is the one the data uses beside an overmap tile: `f_chair` inside `horse_farm_isherwood_13`.
+    for asked in ["terrain", "field", "monster", "npc", "species", "trap", "zone"] {
+        if object.get(asked).is_some() {
+            return None;
+        }
+    }
+    let furniture = match object.get("furniture") {
+        None => None,
+        Some(Value::Str(id)) => Some(id.clone()),
+        Some(_) => return None,
+    };
     let (scope, name) = named_variable(target)?;
     Some(Effect::LocationVariableSearch {
+        furniture,
         scope,
         name,
         om_terrain: wanted.clone(),

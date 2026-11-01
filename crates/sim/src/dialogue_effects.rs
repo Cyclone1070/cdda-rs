@@ -311,6 +311,7 @@ fn search_location(world: &mut World, speaker: Entity, effect: &Effect) -> Appli
         min_radius,
         max_radius,
         z,
+        furniture,
         ..
     } = effect
     else {
@@ -319,6 +320,11 @@ fn search_location(world: &mut World, speaker: Entity, effect: &Effect) -> Appli
     let Some(at) = world.get::<crate::Position>(speaker).copied() else {
         return Applied::CannotAnswer;
     };
+    // A furniture search needs the furniture's **id** on a square, and the port's squares carry a code with no id beside it. Refusing here is the honest
+    // half-answer: the data asked a question the port's furniture store cannot be asked.
+    if furniture.is_some() {
+        return Applied::CannotAnswer;
+    }
     let tile = crate::overmap::tile_of(at.x, at.y);
     let Some((x, y)) =
         crate::overmap::nearest_with_terrain(world, tile, om_terrain, *search_range, *min_distance)

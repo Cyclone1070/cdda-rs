@@ -7458,3 +7458,31 @@ The one-gap list is now `id` (6), `max_radius` (6), `count` (5), `<nested>` (4),
 port's `read_radius_search` reads both radii and then **refuses any object that also names a terrain, a furniture or `target_params`** - and the data's radius
 searches name a furniture. That is a design decision in the reader ("a terrain search is a different search") that the data does not share, and undoing it is the
 next round's work.
+
+## The furniture search target, and why it changed nothing (round 907)
+
+The intent was the one last round named: `max_radius` blocks six one-gap programs, and the port's `read_radius_search` refused any object that also named a
+terrain, a furniture or `target_params`. The reference says something different, and reading it changed the shape of the fix:
+
+`f_location_variable` (`npctalk.cpp:4200-4420`) reads **one** search target out of terrain, furniture, field, monster, species, trap, zone or npc - a second is an
+error - then searches within `target_max_radius` of the tile, then **jitters** the found square by `min_radius`/`max_radius`. So the radii are not a filter and not a
+search: they are the last step of a search that already happened.
+
+`LocationVariableSearch` now carries `furniture` and accepts the member when no other target is named. **The count did not move.**
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 473 | 473 |
+one-gap programs | 92 | 92 |
+effect entries runnable | 1,353 | 1,353 |
+
+Two reasons, and both matter more than the change:
+
+1. **The `max_radius` gap is not in this reader.** Six programs still blame it after the reader accepts the member, so the object refusing is a different one - and
+   `CDDA_SHOW_GAP` prints the **leaf**, not its parent, which is exactly the limitation that hid the split math statements two rounds ago. The diagnostic needs the
+   same upgrade one level up: the object that contains the leaf.
+2. **The furniture search cannot be *run* even now.** The reference compares a square's `furniture_id`; the port's `Furniture` component is a `u32` **code** with no id
+   beside it (`square.rs:31-34`). So "find a chair inside this tile" is a question the port's furniture store cannot be asked at all - a store gap, and a real one:
+   the mapgen loader assigns codes, and nothing keeps the id the data wrote.
+
+The reader is refused at the runner with that reason written down, rather than answering a square that has no furniture in it.
