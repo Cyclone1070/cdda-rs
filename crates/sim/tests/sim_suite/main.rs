@@ -54,6 +54,7 @@ mod craft_time;
 mod crafting;
 mod dialogue_conditions;
 mod npcs;
+mod probe;
 mod dialogue_effects;
 mod dialogue_values;
 mod body_from_content;

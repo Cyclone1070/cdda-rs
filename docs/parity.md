@@ -6260,3 +6260,34 @@ are in the round's notes; the fixture is the next thing to fix, not the rule.
 
 That is the second time this session a fixture cost more than the rule. The lesson to act on: build the test's world from something already proven - a program
 from the corpus the census runs - rather than writing a new one inline and discovering the reader's edges through it.
+
+## `u_run_npc_eocs` (round 865)
+
+Six programs, and the reason it took three attempts: **the data does not pass program names**. `EOC_BARRY_CHECK_IF_HOME` writes
+
+```json
+{ "u_run_npc_eocs": [ { "id": "EOC_..._TRUE_EFFECT", "condition": {...}, "effect": [...] } ] }
+```
+
+- a program **written in place**. My first reader accepted only strings and moved nothing; the second accepted both and moved seven.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 341 | **348** |
+**capability** | 212 | **218** |
+unreadable leaves | 809 | **798** |
+one-gap programs | 151 | **146** |
+effect entries runnable | 1,157 | **1,167** |
+effect-blamed programs | 285 | **278** |
+
+The rule, read from `f_run_npc_eocs` (`npctalk.cpp:6552-6600`): the people are narrowed by `unique_ids` when given, by `npc_range` around the actor when given, and
+otherwise by the actor's own level - and the **level always has to match** unless a z filter is set, so a range narrows the square rather than reaching up or down a
+storey. The test caught exactly that: with `npc_range: 5` the digger one level down came along, because my first version let the range replace the level check
+instead of joining it.
+
+`z_min`, `z_max` and `npc_must_see` are refused, not ignored, and the ledger of members the port reads now explains why they are named in the reader without
+being effects of their own.
+
+**The fixture lesson earned its keep.** This round I stopped hand-writing test programs and wrapped the effect in a program built from the same JSON shape the data
+uses, asserting each step - program reads, effect reads, effect runs - so a failure names its own step. Then the census said "nothing moved" and the data said
+why in one `grep`. The two together are worth more than either.

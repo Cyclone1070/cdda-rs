@@ -113,6 +113,18 @@ pub fn run_program(
                     return Applied::CannotAnswer;
                 }
             }
+            cdda_content::dialogue::Effect::RunNpcEocs {
+                programs,
+                unique_ids,
+                npc_range,
+                local,
+            } => {
+                if run_on_people(world, speaker, programs, unique_ids, *npc_range, *local, depth)
+                    == Applied::CannotAnswer
+                {
+                    return Applied::CannotAnswer;
+                }
+            }
             cdda_content::dialogue::Effect::RunEoc(programs) => {
                 for program in programs {
                     let started = run_ref(world, speaker, listener, program, depth + 1);
@@ -168,6 +180,57 @@ pub fn run_inline(
                 {
                     return Applied::CannotAnswer;
                 }
+            }
+        }
+    }
+    Applied::Done
+}
+
+/// Runs a list of programs on every person the effect's filters leave.
+///
+/// Reference: `f_run_npc_eocs` (`npctalk.cpp:6552-6600`) asks `g->get_npcs_if` for the people its filters keep - the `unique_ids` when given, a distance from the
+/// actor when `npc_range` is, and the actor's own level otherwise - and runs every program on each of them with that person as the listener.
+fn run_on_people(
+    world: &mut World,
+    speaker: Entity,
+    programs: &[cdda_content::dialogue::ProgramRef],
+    unique_ids: &[cdda_content::dialogue::StringSource],
+    npc_range: Option<i32>,
+    local: bool,
+    depth: usize,
+) -> Applied {
+    let Some(at) = world.get::<crate::Position>(speaker).copied() else {
+        return Applied::CannotAnswer;
+    };
+    let _ = local;
+    let wanted = unique_ids
+        .iter()
+        .map(|id| crate::conditions::text_of(world, speaker, None, id))
+        .collect::<Option<Vec<_>>>();
+    let Some(wanted) = wanted else {
+        return Applied::CannotAnswer;
+    };
+    let people: Vec<Entity> = crate::npcs::npcs(world)
+        .into_iter()
+        .filter(|(entity, square)| {
+            let id_matches = wanted.is_empty()
+                || crate::npcs::unique_id_of(world, *entity)
+                    .is_some_and(|id| wanted.iter().any(|wanted| wanted == id));
+            // Reference: the level always has to match when no z filter is set - the range narrows the square, it does not reach up or down a storey.
+            let same_level = square.2 == at.z;
+            let near_matches = match npc_range {
+                Some(range) => (square.0 - at.x).abs().max((square.1 - at.y).abs()) <= range,
+                None => true,
+            };
+            id_matches && same_level && near_matches
+        })
+        .map(|(entity, _)| entity)
+        .filter(|entity| *entity != speaker)
+        .collect();
+    for person in people {
+        for reference in programs {
+            if run_ref(world, speaker, Some(person), reference, depth + 1) == Applied::CannotAnswer {
+                return Applied::CannotAnswer;
             }
         }
     }

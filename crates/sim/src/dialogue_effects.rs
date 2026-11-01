@@ -1160,7 +1160,8 @@ pub fn run_effect(
         }
         // A named program needs the registry and a depth, which the program runner (`eoc_registry::run_program`) supplies. Reaching
         // here means a list ran a program without one, which is a caller mistake, not a rule - so it refuses rather than guessing.
-        Effect::RunEoc(_) => Applied::CannotAnswer,
+        // A program's own effects are run by the program runner, which is the only caller that knows the depth it is at.
+        Effect::RunEoc(_) | Effect::RunNpcEocs { .. } => Applied::CannotAnswer,
     }
 }
 

@@ -772,7 +772,52 @@ pub enum VarValue {
 
 /// Reads the effects that act on what a creature carries or is: monsters it spawns, and the dialogue variables it holds.
 fn read_carried_effect(object: &cdda_json::Object) -> Option<Effect> {
-    read_spawn_monster(object).or_else(|| read_variable_effect(object))
+    read_spawn_monster(object)
+        .or_else(|| read_run_npc_eocs(object))
+        .or_else(|| read_variable_effect(object))
+}
+
+/// Reads `u_run_npc_eocs` and its listener spelling.
+///
+/// Reference: `f_run_npc_eocs` (`npctalk.cpp:6552-6600`). The programs are names (`load_eoc_vector`), `unique_ids` narrows the people, `npc_range` limits the
+/// distance and `local` says whose square that distance counts from. `z_min`, `z_max` and `npc_must_see` are members the port has no rule for yet.
+fn read_run_npc_eocs(object: &cdda_json::Object) -> Option<Effect> {
+    for (member, local) in [("u_run_npc_eocs", true), ("npc_run_npc_eocs", false)] {
+        let Some(value) = object.get(member) else {
+            continue;
+        };
+        for refused in ["z_min", "z_max", "npc_must_see"] {
+            if object.get(refused).is_some() {
+                return None;
+            }
+        }
+        let Value::Array(entries) = value else {
+            return None;
+        };
+        // Reference: `load_eoc_vector` reads each entry with `load_eoc`, which takes a name **or** a program written in place - and the data uses the second form
+        // for the guard programs, so reading only names leaves every one of them refused.
+        let programs = entries.iter().map(read_program_ref).collect::<Option<Vec<_>>>()?;
+        let unique_ids = match object.get("unique_ids") {
+            None => Vec::new(),
+            Some(Value::Array(ids)) => ids
+                .iter()
+                .map(read_string_source)
+                .collect::<Option<Vec<_>>>()?,
+            Some(_) => return None,
+        };
+        let npc_range = match object.get("npc_range") {
+            None => None,
+            Some(Value::Int(range)) => Some(i32::try_from(*range).ok()?),
+            Some(_) => return None,
+        };
+        return Some(Effect::RunNpcEocs {
+            programs,
+            unique_ids,
+            npc_range,
+            local,
+        });
+    }
+    None
 }
 
 /// Reads the members that set or forget a dialogue variable, which come as a pair in the reference's own table (`npctalk.cpp:8016-8017`).
@@ -1480,6 +1525,20 @@ pub enum Effect {
     Math(Vec<Assignment>),
     /// A message to the player.
     Message(String),
+    /// Run a program on every nearby person.
+    ///
+    /// Reference: `f_run_npc_eocs` (`npctalk.cpp:6552-6600`): a list of programs, the `unique_ids` that narrow which people, `local` for whose square the range
+    /// counts from, and `npc_range` for how far. The z filters and `npc_must_see` are refused rather than ignored.
+    RunNpcEocs {
+        /// The programs to run, one after another, on each person: names, or programs written where they are used.
+        programs: Vec<ProgramRef>,
+        /// The ids that pick out the people, all of them when empty.
+        unique_ids: Vec<StringSource>,
+        /// How far from the actor a person may be, or nothing for everyone on the actor's level.
+        npc_range: Option<i32>,
+        /// Whether the range counts from the speaker rather than from the world.
+        local: bool,
+    },
     /// Run one list of effects or another, depending on a condition.
     ///
     /// Reference: `f_if` (`npctalk.cpp:6977-6993`): the `if` member is a condition, `then` is the list run when it holds, and `else`
@@ -1763,6 +1822,7 @@ impl Effect {
         match self {
             Self::Math(_) => "math",
             Self::Message(_) | Self::Snippet { .. } => "u_message",
+            Self::RunNpcEocs { .. } => "u_run_npc_eocs",
             Self::If { .. } => "if",
             Self::AddEffect { .. } => "u_add_effect",
             // Both are the same member: the data writes one effect or an array of them under one name.

@@ -82,11 +82,16 @@ fn looks_like_a_member(text: &str) -> bool {
 ///
 /// Each entry says why: an **alias** the reference accepts elsewhere, or a **member of a structure** the tables do not list (a variable's scope, a
 /// target, a body part).
-const EXPLAINED: [(&str, &str); 4] = [
+const EXPLAINED: &[(&str, &str)] = &[
     ("u_remove_effect", "the spelling the port used to read; kept as an alias after the data proved it wrong"),
     ("npc_remove_effect", "the same alias for the listener"),
     ("u_val", "a variable's scope inside `{\"u_val\": \"x\"}`, defined by the variable reader rather than the effect table"),
     ("npc_val", "the listener's variable scope"),
+    ("unique_ids", "a member *inside* `u_run_npc_eocs`, which narrows the people it runs on, not an effect of its own"),
+    ("npc_range", "a member inside `u_run_npc_eocs`: how far from the actor a person may be"),
+    ("z_min", "a member inside `u_run_npc_eocs`, refused by the port until it can filter by level"),
+    ("z_max", "the same, for the top of the level filter"),
+    ("npc_must_see", "a member inside `u_run_npc_eocs`, refused until the port has a sight test per person"),
 ];
 
 #[test]
