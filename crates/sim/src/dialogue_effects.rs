@@ -133,6 +133,8 @@ fn write_to_store(
         "hp" => (crate::creature::health_of(world, target).map(f64::from), true),
         "vitamin" => (crate::body::vitamin_of(world, target, key).map(f64::from), true),
         "skill" => (Some(f64::from(crate::skills_of::level_of(world, target, key))), true),
+        "spell_level" => (Some(f64::from(crate::known_spells::level_of(world, target, key))), true),
+        "spell_exp" => (Some(f64::from(crate::known_spells::experience_of(world, target, key))), true),
         _ => (None, false),
     };
     let (Some(current), true) = (current, writes) else {
@@ -147,6 +149,12 @@ fn write_to_store(
         "hp" => crate::creature::set_health(world, target, rounded),
         "vitamin" => {
             crate::body::set_vitamin(world, target, key, rounded);
+        }
+        "spell_level" => {
+            crate::known_spells::set_level(world, target, key, rounded);
+        }
+        "spell_exp" => {
+            crate::known_spells::set_experience(world, target, key, rounded);
         }
         _ => crate::skills_of::set_level(world, target, key, rounded),
     }
@@ -1409,7 +1417,8 @@ pub fn run_effect(
         // A named program needs the registry and a depth, which the program runner (`eoc_registry::run_program`) supplies. Reaching
         // here means a list ran a program without one, which is a caller mistake, not a rule - so it refuses rather than guessing.
         // A program's own effects are run by the program runner, which is the only caller that knows the depth it is at.
-        Effect::RunEoc(_) | Effect::RunNpcEocs { .. } | Effect::RunMonsterEocs { .. } => Applied::CannotAnswer,
+        // Casting needs the spell's own effect table (`magic_spell_effect.cpp`), which the port has not ported, and the dialogue machine is the same gap.
+        Effect::CastSpell { .. } | Effect::RunEoc(_) | Effect::RunNpcEocs { .. } | Effect::RunMonsterEocs { .. } => Applied::CannotAnswer,
     }
 }
 

@@ -257,6 +257,8 @@ pub fn math_function(name: &str) -> Option<Arity> {
         | "time_since"
         // `skill( 'bashing' )` (`math_parser_diag.cpp:961`) answers a character's level in a named skill.
         | "skill" | "npc_skill" | "u_skill"
+        // Reference: `{ "spell_level", { "un", 1, spell_level_eval, spell_level_ass } }` and its `spell_exp` sibling (`math_parser_diag.cpp:1734-1737`).
+        | "spell_level" | "u_spell_level" | "npc_spell_level" | "spell_exp" | "u_spell_exp" | "npc_spell_exp"
         // Reference: `{ "field_strength", { "ung", 1, field_strength_eval, {}, { "location" } } }` (`math_parser_diag.cpp:1703`) - one field name.
         | "field_strength" | "u_field_strength" | "npc_field_strength"
         // Reference: `{ "has_flag", { "un", 1, has_flag_eval } }` (`math_parser_diag.cpp:1707`) - one flag name, which the data often writes as a variable.
@@ -1574,6 +1576,33 @@ impl AssignmentTarget {
     }
 }
 
+/// Reads a `u_cast_spell` / `npc_cast_spell` entry.
+///
+/// Reference: `f_cast_spell` (`npctalk.cpp:5414-5440`) reads a `fake_spell`, which the data writes either as a bare id or as `{ "id": ..., "hit_self": true }`.
+fn read_cast_spell(object: &cdda_json::Object) -> Option<Effect> {
+    let (spell, listener) = match (object.get("u_cast_spell"), object.get("npc_cast_spell")) {
+        (Some(value), _) => (value, false),
+        (_, Some(value)) => (value, true),
+        _ => return None,
+    };
+    let (spell, hit_self) = match spell {
+        Value::Str(id) => (id.clone(), false),
+        Value::Object(inside) => {
+            let Value::Str(id) = inside.get("id")? else {
+                return None;
+            };
+            let hit_self = matches!(inside.get("hit_self"), Some(Value::Bool(true)));
+            (id.clone(), hit_self)
+        }
+        _ => return None,
+    };
+    Some(Effect::CastSpell {
+        spell,
+        hit_self,
+        listener,
+    })
+}
+
 /// Joins a `math` array's pieces into one statement.
 ///
 /// Reference: `eoc_math::from_json` (`condition.cpp:2494-2502`) appends the pieces with nothing between them. The data splits at operator boundaries -
@@ -1703,6 +1732,19 @@ pub enum Effect {
         recipe: StringSource,
         /// Whether the effect takes the recipe away rather than teaching it.
         forget: bool,
+    },
+    /// Casts a spell at a target, or at the caster.
+    ///
+    /// Reference: `f_cast_spell` (`npctalk.cpp:5414-5440`), which reads a `fake_spell` - an `id` and a `hit_self` flag - and casts it through the dialogue's actor.
+    /// The port **reads** the effect and refuses to run it: casting needs the spell's own effect table, and answering "done" for a spell nobody cast would be a
+    /// silent lie the census would count as success.
+    CastSpell {
+        /// The spell's id.
+        spell: String,
+        /// Whether it lands on the caster rather than on a target.
+        hit_self: bool,
+        /// Whether it is the listener who casts.
+        listener: bool,
     },
     /// An entry that does nothing, because every member it had was a comment.
     ///
@@ -2047,6 +2089,13 @@ impl Effect {
             Self::RunNpcEocs { .. } => "u_run_npc_eocs",
             Self::RunMonsterEocs { .. } => "u_run_monster_eocs",
             Self::Nothing => "//",
+            Self::CastSpell { listener, .. } => {
+                if *listener {
+                    "npc_cast_spell"
+                } else {
+                    "u_cast_spell"
+                }
+            }
             Self::LearnRecipe { forget, .. } => {
                 if *forget {
                     "u_forget_recipe"
@@ -2243,6 +2292,7 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
     if let Some(location) = read_location_variable(object) {
         return Some(location);
     }
+    if let Some(cast) = read_cast_spell(object) { return Some(cast); }
     if let Some(switched) = read_switch(object) {
         return Some(switched);
     }

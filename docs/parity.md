@@ -7368,3 +7368,35 @@ is mostly **wiring**, not arithmetic.
 **The next three gaps are named and each needs a store, not a reader:** `u_cast_spell` (5 programs) needs spells with levels and experience; `max_radius` (6) needs a
 monster placed in a **ring** rather than at one distance, and the port's spawner has one number; `id` (6) is a bionic-graph member. So the next round should build the
 spell store rather than looking for another table to extend.
+
+## The spell store, and a reader with nothing behind it (round 904)
+
+Reference: `Character::magic` (`character.h`) is a map from `spell_id` to a spell carrying a `level` and an `exp`. The data asks about them without a guard -
+`u_spell_level('x') >= 3` - so "not learned" is a **level of zero**, not a refusal. `crates/sim/src/known_spells.rs` is that store: one component,
+`KnownSpells(BTreeMap<String, Spelling>)`, with `level_of`, `experience_of`, `highest_level`, `set_level` and `set_experience`.
+
+`u_spell_level` and `u_spell_exp` read it in all six spellings (`spell_level`, `u_`, `npc_`, and the short `n_` form through the normalization), and the write path
+takes them as assignment destinations: `"u_spell_level('x') += 1"` levels a spell.
+
+`Effect::CastSpell` is read too - `{"u_cast_spell": {"id": "x", "hit_self": true}}` - and **refuses to run**: casting needs the spell's own effect table
+(`magic_spell_effect.cpp`), and a known spell in the port is a level with no behaviour behind it. The reader exists and says so.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 461 | **468** |
+answered `Done` | 301 | **304** |
+did something | 148 | **151** |
+refused at run time | 160 | **164** |
+unreadable leaves | 401 | **393** |
+one-gap programs | 102 | **96** |
+effect entries runnable | 1,338 | **1,346** |
+effect census blaming `effect` | 213 | **206** |
+
+Seven programs readable and three runnable, and the difference between those two numbers is the honest part: **four programs now read and refuse**, because their only
+effect is a cast the port cannot perform. The census shows it as `refused_at_run` going **up** by four while `readable` goes up by seven - and that is the right shape
+for a reader added before its runner.
+
+**Ten lint cycles, all mine.** The function-length cap caught `answer_from_table` and `run_effect` three times each, and each time I fixed it by compacting an arm
+rather than by moving a rule out. The right fix was available the whole time: `write_to_store` and `answer_spell` are already the extracted forms; what kept growing
+is the **table** they are dispatched from, and a table that grows one dispatch line per name will hit the cap again on the next round. That is a structural problem
+with the table, not with the name I happen to be adding today.

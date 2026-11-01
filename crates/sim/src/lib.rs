@@ -84,6 +84,7 @@ pub mod fun_for;
 pub mod terrain_table;
 pub mod noise;
 pub mod addictions;
+pub mod known_spells;
 pub mod math_functions;
 pub mod recipes_known;
 pub mod scent;

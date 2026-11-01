@@ -733,6 +733,27 @@ fn answer_health(world: &World, speaker: Entity, listener: Option<Entity>, name:
 /// Reference: `weather_eval` (`math_parser_diag.cpp:1497-1527`) answers five aspects of `get_weather().weather_precise`: `temperature` (already in kelvin, which
 /// is what `units::to_kelvin` hands back), `windpower`, `humidity`, `pressure` and, from a different member, `precipitation`. The port keeps the point the last
 /// update computed, so a turn that recomputed nothing still answers; with no weather yet there is nothing to answer and the call refuses.
+/// A creature's level in a spell, or the experience banked toward the next.
+///
+/// Reference: `spell_level_eval` and `spell_exp_eval` (`math_parser_diag.cpp:1036-1070`). A spell the creature does not know is a **level of zero**, not a refusal -
+/// the data compares against it without a guard - and an empty name asks for the highest level of any spell the creature knows.
+fn answer_spell(world: &World, speaker: Entity, listener: Option<Entity>, name: &str, argument: &Expression) -> Answer {
+    let about_listener = name.starts_with("npc_");
+    let Some(actor) = actor_for(speaker, listener, about_listener) else {
+        return Answer::Refused;
+    };
+    let Expression::Text(spell) = argument else {
+        return Answer::Refused;
+    };
+    if name.contains("spell_exp") {
+        return Answer::Value(f64::from(crate::known_spells::experience_of(world, actor, spell)));
+    }
+    if spell.is_empty() {
+        return Answer::Value(f64::from(crate::known_spells::highest_level(world, actor)));
+    }
+    Answer::Value(f64::from(crate::known_spells::level_of(world, actor, spell)))
+}
+
 fn answer_weather(world: &World, aspect: &Expression) -> Answer {
     let Expression::Text(aspect) = aspect else {
         return Answer::Refused;
@@ -1320,7 +1341,6 @@ fn answer_from_table(
         ("u_monsters_nearby" | "npc_monsters_nearby" | "u_characters_nearby" | "npc_characters_nearby", _) => {
             return answer_nearby(world, speaker, listener, name, arguments, keywords);
         }
-        // Reference: `pain_eval` (`math_parser_diag.cpp:869-882`) answers the actor's `pain_cur`; `type: "perceived"` wants the masked value, which the port has no rule for.
         ("health" | "u_health" | "npc_health", []) => return answer_health(world, speaker, listener, name),
         (
             addiction @ ("addiction_intensity"
@@ -1332,6 +1352,7 @@ fn answer_from_table(
             _,
         ) => return answer_addiction(world, speaker, listener, addiction, arguments),
         ("weather", [aspect]) => return answer_weather(world, aspect),
+        ("spell_level" | "u_spell_level" | "npc_spell_level" | "spell_exp" | "u_spell_exp" | "npc_spell_exp", [argument]) => return answer_spell(world, speaker, listener, name, argument),
         ("has_flag" | "u_has_flag" | "npc_has_flag", _) => {
             return answer_has_flag(world, speaker, listener, name, arguments);
         }

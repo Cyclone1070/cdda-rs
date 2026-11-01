@@ -1286,3 +1286,36 @@ fn a_bare_day_or_night_condition_reads() {
     assert!(holds(&world, r#""is_night""#), "midnight is night");
     assert!(holds(&world, r#"{"not": "is_day"}"#), "midnight is not day");
 }
+
+/// A spell's level and experience read from the creature's own store, and a spell it does not know is a level of zero.
+///
+/// Reference: `spell_level_eval` / `spell_exp_eval` (`math_parser_diag.cpp:1036-1070`) answer `get_spell_level` and `get_spell_exp`, which are zero for a spell the
+/// character has not learned - the data compares `u_spell_level('x') >= 3` with no guard, so "not learned" has to be a number.
+#[test]
+fn a_spell_level_reads_from_the_creatures_own_store() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let talker = cdda_sim::creature::spawn_creature(&mut world, "the talker", (1, 0, 0));
+    cdda_sim::known_spells::set_level(&mut world, talker, "spell_light", 4);
+    cdda_sim::known_spells::set_experience(&mut world, talker, "spell_light", 275);
+
+    let holds = |world: &bevy_ecs::prelude::World, text: &str| {
+        let value = cdda_json::parse(text.as_bytes()).expect("json");
+        let condition = cdda_content::dialogue::read_condition(&value).expect("the condition reads");
+        cdda_sim::conditions::holds_with(world, survivor, Some(talker), &condition)
+    };
+
+    assert!(holds(&world, r#"{"math": ["n_spell_level('spell_light') == 4"]}"#), "the talker knows it to four");
+    assert!(holds(&world, r#"{"math": ["u_spell_level('spell_light') == 0"]}"#), "the survivor has not learned it");
+    assert!(holds(&world, r#"{"math": ["n_spell_exp('spell_light') == 275"]}"#), "and its experience");
+    // A step writes back to the same store: `u_spell_level('x') += 1` is how the data levels a spell.
+    let value = cdda_json::parse(br#"{"math": ["spell_level('spell_light') += 1"]}"#.as_slice()).expect("json");
+    let Some(cdda_content::dialogue::Effect::Math(statements)) = cdda_content::dialogue::read_effect(&value) else {
+        return;
+    };
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_math(&mut world, talker, None, &statements),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    assert_eq!(cdda_sim::known_spells::level_of(&world, talker, "spell_light"), 5, "the store took the step");
+}
