@@ -10,9 +10,10 @@ publish.workspace = true
 bevy_ecs = { version = "0.20.0", default-features = false }
 cdda-core-types = { path = "../core-types" }
 cdda-content = { path = "../content" }
+# The data's own math functions are read from parsed JSON, so the sim needs the value type it parses into - the same one `cdda_content::read_json` answers.
+cdda-json = { path = "../json" }
 
 [dev-dependencies]
-cdda-json = { path = "../json" }
 cdda-oracle = { path = "../oracle" }
 
 [lints]

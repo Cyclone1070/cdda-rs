@@ -50,3 +50,49 @@ pub fn install_json(world: &mut World, json: &[u8]) -> Result<usize, String> {
 pub fn holder(world: &World) -> Option<Entity> {
     crate::singletons::holder::<TheMathFunctions>(world)
 }
+
+/// Installs every `jmath_function` found in a set of parsed data files.
+///
+/// The fifteen definitions are spread across five files (`weight_functions.json`, `weather_type.json`, `mutations/mutation_jmath.json`, two effects-on-condition
+/// files), so the caller hands over everything it read and this picks the definitions out - the same way the reference's loader visits every file in the data and
+/// takes the `jmath_function` objects it finds.
+///
+/// Returns how many were installed.
+///
+/// # Errors
+///
+/// Returns the reason an entry could not be read; a definition the reference would refuse is refused here too.
+pub fn install_from_values(world: &mut World, values: &[cdda_json::Value]) -> Result<usize, String> {
+    let mut definitions = Vec::new();
+    for value in values {
+        collect_definitions(value, &mut definitions);
+    }
+    let registry = cdda_content::jmath::read_entries(&definitions)?;
+    let count = registry.len();
+    set_functions(world, registry);
+    Ok(count)
+}
+
+/// Walks a parsed file and collects the objects that carry `type: "jmath_function"`.
+fn collect_definitions(value: &cdda_json::Value, found: &mut Vec<cdda_json::Object>) {
+    match value {
+        cdda_json::Value::Object(object) => {
+            if object.get("type").and_then(|kind| match kind {
+                cdda_json::Value::Str(name) => Some(name.as_str()),
+                _ => None,
+            }) == Some("jmath_function")
+            {
+                found.push(object.clone());
+            }
+            for (_, member) in object.members() {
+                collect_definitions(member, found);
+            }
+        }
+        cdda_json::Value::Array(entries) => {
+            for entry in entries {
+                collect_definitions(entry, found);
+            }
+        }
+        _ => {}
+    }
+}

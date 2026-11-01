@@ -7142,3 +7142,29 @@ refuse for their own reasons.
 was inside `has_var`; then I inserted the replacement after the match had closed; then I returned `Refused` where `NotMine` was right, which broke two unrelated
 tests. Every one came from editing by **string position** instead of by the enclosing item - the same failure as the wrong-file overwrite three rounds ago, and the
 same cure: name the function, then find the arm inside it.
+
+## The data's fifteen math functions are installed - and no number moved (round 896)
+
+The bridge landed last round; this round gives it something to call. `math_functions::install_from_values` walks parsed data files, collects every object carrying
+`type: "jmath_function"`, and installs the set - **fifteen definitions across five files** (`weight_functions.json`, `weather_type.json`,
+`mutations/mutation_jmath.json`, `addictions_eocs.json`, `regen_serum_eoc.json`). The census world now installs them, and prints the count under `CDDA_SHOW_MATH`.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 421 | 421 |
+answered `Done` | 267 | 267 |
+conditions readable | 3,056 | 3,056 |
+effect entries runnable | 1,264 | 1,264 |
+unreadable leaves | 511 | 511 |
+
+**Zero movement, and that is the finding.** The programs that call `addiction_rational` refuse on something **else** - the `math` blame in the effect census is now
+assignments like `u_vitamin('x') = 5`, which the port cannot read at all because an assignment's destination must be a variable. So the data-function work was
+**necessary and not sufficient**: it removed a refusal that was never the deciding one.
+
+That is worth recording plainly, because it is the shape of most remaining work: the census counts the **first** refusal, and a fix that clears a later one changes
+nothing until the earlier one goes. Two rounds of real work - a registry home, a bridge, an evaluator context, 15 installations - bought infrastructure and no
+capability, and the only thing that made the round honest was measuring instead of assuming.
+
+One dependency moved for it: `cdda-json` was a **dev**-dependency of the sim and is now a real one, because the installer reads parsed data rather than only tests
+reading it. That is a small architectural addition - the sim already receives JSON-shaped data from `cdda_content` - and it keeps the JSON type out of the sim's own
+API: the installer takes `&[cdda_json::Value]` and nothing else in the crate names it.

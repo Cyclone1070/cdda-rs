@@ -493,6 +493,8 @@ struct Census {
     monsters: Vec<cdda_content::monsters::MonsterType>,
     /// The monster groups the data defines.
     groups: Vec<cdda_content::monster_groups::MonsterGroup>,
+    /// Every parsed data file, for the loaders that pick definitions out of the whole set - the data's own math functions are spread over five files.
+    files: Vec<cdda_json::Value>,
 }
 
 impl Census {
@@ -503,6 +505,12 @@ impl Census {
         install_snippets(world, &self.snippets);
         cdda_sim::monster_catalog::set_types(world, self.monsters.clone());
         cdda_sim::monster_groups::set_groups(world, self.groups.clone());
+        // The data's own math functions, read from the same files as everything else: `addiction_rational` and its fourteen siblings are what the addiction
+        // programs call, and a census world without them refuses every one of those calls.
+        let installed = cdda_sim::math_functions::install_from_values(world, &self.files).unwrap_or_default();
+        if std::env::var("CDDA_SHOW_MATH").is_ok() {
+            println!("math functions installed: {installed}");
+        }
     }
 }
 
@@ -551,6 +559,31 @@ fn fingerprint(world: &World) -> (u32, usize, usize) {
 }
 
 /// Builds the census world's data once, so every measured world and every blamed world is the same world.
+/// Every data file, parsed, for the loaders that pick their definitions out of the whole set rather than one file.
+fn collect_files(data: &std::path::Path) -> Vec<cdda_json::Value> {
+    let mut files = Vec::new();
+    let mut stack = vec![data.to_path_buf()];
+    while let Some(directory) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&directory) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            if path.extension().and_then(std::ffi::OsStr::to_str) != Some("json") {
+                continue;
+            }
+            if let Some(value) = cdda_content::read_json(&path) {
+                files.push(std::sync::Arc::unwrap_or_clone(value));
+            }
+        }
+    }
+    files
+}
+
 fn census_world(data: &std::path::Path, programs: Vec<cdda_content::dialogue::Program>) -> Census {
     let mapgens = collect_mapgens(data);
     let mut codes: std::collections::BTreeMap<String, u32> = std::collections::BTreeMap::new();
@@ -569,6 +602,7 @@ fn census_world(data: &std::path::Path, programs: Vec<cdda_content::dialogue::Pr
     }
     let snippets = collect_snippets(data);
     let (monsters, groups) = install_monsters(data);
+    let files = collect_files(data);
     Census {
         programs,
         mapgens,
@@ -577,6 +611,7 @@ fn census_world(data: &std::path::Path, programs: Vec<cdda_content::dialogue::Pr
         snippets,
         monsters,
         groups,
+        files,
     }
 }
 
