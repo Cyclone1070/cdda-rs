@@ -7012,3 +7012,23 @@ Two things I tried first and dropped, both worth recording so they are not re-at
   and no coverage model, so answering would mean inventing a number. Refused, not ported.
 * the `u_addiction_*` family (five refusals) - needs an addiction store the port does not have at all, which is the same shape as the body finding: a store, not a
   reader, and it needs its own round.
+
+## `else` is blamed seventeen times and is not the problem (round 891)
+
+No capability this round: I went after the biggest effect-side refusal (`else`, 17 entries) and found the blame is wrong again, so I fixed the tool and stopped.
+
+Facts, each checked rather than assumed:
+
+* `f_if` (`npctalk.cpp:6979-6995`) reads `then` and an optional `else`; the port has read both since the `if` port, in `read_effect`.
+* The data writes `"else"` 96 times as an object and 23 times as a list, **always** beside an `if` - there is no `else` without an `if` anywhere in `data/json`.
+* The census's leaf walker already descends `if` -> `then`/`else` (`container_branches`), so a refused `if` should be blamed on what is inside it.
+
+So the seventeen are a **transitive** blame: the entry refuses because something inside it refuses, and the walker names the container rather than the leaf in some shape
+I did not pin down in the time available. That is the third time in four rounds that a census name has been a symptom rather than a cause (`//`, `hallucination_count`,
+now `else`) - and the pattern is now clear enough to state: **a blame list is only trustworthy when the blamed name is a leaf the reader actually matched on.**
+
+What did change is the diagnostic that found the last two: `CDDA_SHOW_GAP` used to print only definitions whose gap was `hallucination_count` (a hardcoded name, which is
+the same mistake in miniature). It now takes the member name as its value - `CDDA_SHOW_GAP=else cargo test ... --nocapture` - so the next wrong blame costs one
+command rather than a round. It printed **nothing** for `else`, which is the evidence that the blame lives in the effects census and not the program census.
+
+No count moved. The next round should attack the effect side where the real weight is: `math` (92 entries), `<named>` (22), `key` (15), `mapgen_update` (15).
