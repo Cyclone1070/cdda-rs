@@ -1338,6 +1338,22 @@ fn read_expression_inner(value: &Value) -> Option<Expression> {
         }
         Value::Float(number) => Some(Expression::Number(*number)),
         Value::Str(text) => read_leaf(text).or_else(|| read_text_expression(text)),
+        // A variable written as an object: `{ "global_val": "name" }` where a number is expected. The reference reads this form anywhere an expression is
+        // taken (`get_dbl_or_var`), so an expression that is an object with a scope name is that variable, and one holding `math` is that expression.
+        Value::Object(object) => {
+            if let Some(inner) = object.get("math") {
+                return read_expression_inner(inner);
+            }
+            for scope in ["u_val", "n_val", "npc_val", "global_val", "var_val", "context_val"] {
+                if let Some(Value::Str(name)) = object.get(scope) {
+                    return Some(Expression::Variable {
+                        scope: scope.to_owned(),
+                        name: name.clone(),
+                    });
+                }
+            }
+            None
+        }
         // The data's own shape: `"math"` holds a one-element array wrapping a string expression, and the array form
         // `[left, op, right]` is the fully parenthesised one the port also accepts.
         Value::Array(parts) if parts.len() == 1 => read_expression_inner(parts.first()?),

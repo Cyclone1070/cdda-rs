@@ -6745,3 +6745,37 @@ the wrong member does not just fail to help, it hides what would.
 
 I also lost `read_effect`'s doc comment to a careless insertion and paid a cycle for the missing-documentation lint, then another extracting the message loop to get
 back under the 100-line cap. Three cycles for a change that moved no number: the honesty was worth it, the mechanics were not.
+
+## The same expression in three spellings (round 882)
+
+The census's refused-math list had a shape in it that I had been reading past for rounds: `{"math": ["rng(1, 1)"]}` refused **as a whole object**, next to
+`{"global_val": "exodii_mission_wh_chance"}` refused the same way. The port's expression reader accepted a number, a string, and an array - and refused every
+object.
+
+Reference: `get_dbl_or_var` (`npctalk.cpp`) takes a plain number, a `math` block, **or** a variable object, and the data writes all three in the same slot. One
+match arm in `read_expression_inner` covers both:
+
+| Written as | Means |
+|---|---|
+`{"math": ["rng(1, 1)"]}` | the expression inside |
+`{"global_val": "name"}` | that variable |
+`{"u_val": "name"}`, `{"context_val": "name"}`, `{"npc_val": …}`, `{"var_val": …}` | the same, in their scopes |
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 379 | **388** |
+answered `Done` | 233 | **239** |
+did something | 89 | **95** |
+**unreadable leaves** | **739** | **603** |
+one-gap programs | 131 | **130** |
+effect entries runnable | 1,206 | **1,217** |
+effect-blamed programs | 262 | **254** |
+
+**Nine programs and 136 leaves from one match arm**, and the leaves number is the interesting one: 136 members stopped refusing because the port could not read the
+spelling their value was written in. Nothing about the rules changed; the reader simply insisted on one of three forms the reference treats as equivalent.
+
+That is the third time this session a *shape* problem hid behind a *rule* problem, and the census could not tell me which it was - `math` was the blame for all of
+them. `CDDA_SHOW_MATH` printing the whole refused **value** rather than its name is what made it visible; printing names alone would have kept it hidden.
+
+One refusal left in the list that has not moved: `{"math": [...]}` nested inside a `condition` object - `get_condition` appeared once, which is a member name I have
+not seen before and will look at next.

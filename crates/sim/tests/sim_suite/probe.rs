@@ -736,3 +736,43 @@ fn a_comment_only_entry_does_nothing() {
     );
     assert_eq!(cdda_sim::messages::lines(&world), vec!["after".to_owned()]);
 }
+
+/// A variable or a `math` block written as an **object** reads as an expression.
+///
+/// Reference: `get_dbl_or_var` (`npctalk.cpp`) takes a plain number, a `{"math": [...]}` block, or a variable object such as `{"global_val": "name"}` wherever an
+/// expression is expected - and the data writes all three in the same slot.
+#[test]
+fn an_expression_can_be_written_as_an_object() {
+    for text in [
+        r#"{"math": ["rng(1, 1)"]}"#,
+        r#"{"global_val": "exodii_mission_wh_chance"}"#,
+        r#"{"context_val": "chance"}"#,
+        r#"{"u_val": "vitri_vitrified"}"#,
+    ] {
+        let value = cdda_json::parse(text.as_bytes()).expect("json");
+        assert!(
+            cdda_content::dialogue::read_expression(&value).is_some(),
+            "{text} reads as an expression"
+        );
+    }
+
+    // The variable object is the variable, not a call: a global read answers what the world put there.
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let globals = cdda_sim::dialogue_values::holder_for(&mut world, survivor, true);
+    cdda_sim::dialogue_values::set(
+        &mut world,
+        globals,
+        "chance",
+        cdda_sim::dialogue_values::Value::Number(0.25),
+    );
+    let expression = cdda_content::dialogue::read_expression(
+        &cdda_json::parse(br#"{"global_val": "chance"}"#.as_slice()).expect("json"),
+    )
+    .expect("reads");
+    assert_eq!(
+        cdda_sim::conditions::value(&world, survivor, None, &expression),
+        Some(0.25),
+        "the global's number, read through an object"
+    );
+}

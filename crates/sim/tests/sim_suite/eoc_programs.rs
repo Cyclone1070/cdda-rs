@@ -258,7 +258,11 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
     assert_eq!(refused.get("u_has_item"), None, "carrying an item is no longer blamed for anything");
     // The chance guards now roll, so what is left of them is one program apiece - and the eight programs they freed are blamed on
     // what refused them next, which is the "moves house" pattern for the fifth time.
-    assert_eq!(refused.get("one_in_chance"), Some(&2), "the dice no longer block the chance guards");
+    assert_eq!(
+        refused.get("one_in_chance"),
+        None,
+        "the chance guard blocks nothing now: the object form of an expression was what it was waiting for"
+    );
     assert_eq!(refused.get("test_eoc"), None, "and `test_eoc` no longer blocks anything");
     assert_eq!(refused.get("is_season"), None, "the season is answered now that the world has a clock");
     assert_eq!(refused.get("expects_vars"), None, "and context values are handed over now");
