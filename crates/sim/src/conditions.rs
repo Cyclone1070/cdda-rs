@@ -518,15 +518,53 @@ enum Answer {
 }
 
 /// The functions that are neither arithmetic nor a variable lookup: `rand`, `rng`, and `time`.
+/// The unit a call asked its answer in, when it named one.
+fn unit_of(keywords: &[(String, Expression)]) -> Option<&str> {
+    keywords.iter().find_map(|(name, value)| match (name.as_str(), value) {
+        ("unit", Expression::Text(unit)) => Some(unit.as_str()),
+        _ => None,
+    })
+}
+
+/// How many turns one of a named span is worth.
+///
+/// Reference: the reference's own clock, one turn to the second, so an hour is 3,600 turns and a day is [`crate::calendar::TURNS_PER_DAY`]. A span the port has
+/// no number for answers nothing rather than a wrong scale.
+fn unit_turns(unit: &str) -> Option<f64> {
+    let per_day = crate::calendar::TURNS_PER_DAY;
+    let turns = match unit {
+        "turn" | "turns" | "second" | "seconds" => 1,
+        "minute" | "minutes" => per_day / (24 * 60),
+        "hour" | "hours" => per_day / 24,
+        "day" | "days" => per_day,
+        "week" | "weeks" => per_day * 7,
+        _ => return None,
+    };
+    #[allow(clippy::cast_precision_loss)]
+    let turns = turns as f64;
+    Some(turns)
+}
+
+/// A call's own arguments: the positional ones, and the named ones.
+struct Call<'a> {
+    /// The arguments, in the order the data writes them.
+    arguments: &'a [Expression],
+    /// The named arguments, as `'unit': 'hour'`.
+    keywords: &'a [(String, Expression)],
+}
+
 fn special_function(
     world: &World,
     speaker: Entity,
     listener: Option<Entity>,
     name: &str,
-    arguments: &[Expression],
+    call: &Call<'_>,
     unset_is_zero: bool,
     draws: &mut Option<&mut cdda_core_types::rng::Rolls>,
 ) -> Answer {
+    // Reference: `math_parser` hands every call its named arguments and each function reads the ones it knows (`kwargs.kwarg_or`); a function that reads none
+    // ignores them, so the port passes them through rather than refusing them here.
+    let (arguments, keywords) = (call.arguments, call.keywords);
     // A reborrow, so the caller keeps ownership of the dice: `as_deref_mut` on this type is already a reborrow in everything but
     // name, and clippy reads it as one.
     if let Some(dice) = draws.as_mut().map(|dice| &mut **dice) {
@@ -600,8 +638,8 @@ fn special_function(
         && let [point] = arguments
     {
         // Reference: `time_since_eval` (`math_parser_diag.cpp:1173-1200`): a name counts from that point on the clock, and a number counts from the turn
-        // it spells. No `unit` kwarg is read because the data never passes one - 184 calls, none with a unit - so reading one would be writing a rule
-        // nobody has stated.
+        // it spells. The answer is in turns unless a `'unit'` names another one, which `spells.json` does pass (`'unit': 'hour'`) - the earlier note here
+        // that no call passes a unit was wrong, and the census's refused list is what showed it.
         let turns: Option<f64> = match point {
             Expression::Text(named) => match named.as_str() {
                 "cataclysm" => crate::calendar::turns_since_cataclysm(world),
@@ -622,7 +660,14 @@ fn special_function(
                     now - from
                 }),
         };
-        return turns.map_or(Answer::NotMine, Answer::Value);
+        // A unit divides the turns into the span it names. `turn` is the default and a second is one turn, which is the reference's own clock.
+        let scale = match unit_of(keywords) {
+            Some(unit) => unit_turns(unit),
+            None => Some(1.0),
+        };
+        return turns
+            .zip(scale)
+            .map_or(Answer::NotMine, |(turns, scale)| Answer::Value(turns / scale));
     }
     if name == "time"
         && let [Expression::Text(text)] = arguments
@@ -684,13 +729,20 @@ pub fn value_drawing(
             }
         }
         Expression::Text(_) => None,
-        Expression::Call { name, arguments } => {
+        Expression::Call {
+            name,
+            arguments,
+            keywords,
+        } => {
             match special_function(
                 world,
                 speaker,
                 listener,
                 name,
-                arguments,
+                &Call {
+                    arguments,
+                    keywords,
+                },
                 unset_is_zero,
                 &mut draws,
             ) {

@@ -1238,3 +1238,51 @@ fn an_outside_guard_asks_about_the_square_and_the_level() {
         "the listener's level is the one that counts"
     );
 }
+
+/// A call may pass named arguments, and `time_since` answers in the unit one names.
+///
+/// Reference: `math_parser` reads a call's arguments positionally and then its named ones (`'unit': 'hour'`), and `time_since_eval`
+/// (`math_parser_diag.cpp:1173-1200`) divides by the span the unit names. One turn is one second, so an hour is 3,600 turns.
+#[test]
+fn a_named_unit_scales_the_answer() {
+    let mut world = World::new();
+    cdda_sim::calendar::set_start_of_cataclysm(&mut world, 0);
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+
+    let answer = |world: &mut World, text: &str| {
+        let condition = cdda_content::dialogue::read_condition(
+            &cdda_json::parse(
+                format!(r#"{{"math": ["{text}"]}}"#).as_bytes(),
+            )
+            .expect("json"),
+        )
+        .expect("readable");
+        cdda_sim::conditions::holds(world, survivor, &condition)
+    };
+
+    // Two days after the cataclysm: two days, forty-eight hours, and not zero in either.
+    cdda_sim::calendar::set_turn(&mut world, 2 * cdda_sim::calendar::TURNS_PER_DAY);
+    assert!(answer(&mut world, "time_since('cataclysm', 'unit': 'days') >= 2"));
+    assert!(answer(&mut world, "time_since('cataclysm', 'unit': 'hours') >= 48"));
+    assert!(!answer(&mut world, "time_since('cataclysm', 'unit': 'weeks') >= 1"));
+
+    // The turn figure is what it always was when no unit is named, which is how every call without one still reads.
+    assert!(answer(&mut world, &format!(
+        "time_since('cataclysm') >= {}",
+        2 * cdda_sim::calendar::TURNS_PER_DAY
+    )));
+
+    // A named argument the function does not know, and a unit the port has no span for, are refused rather than read as zero.
+    assert!(cdda_content::dialogue::read_condition(
+        &cdda_json::parse(br#"{"math": ["time_since('cataclysm', 'unit': 'fortnights') >= 1"]}"#.as_slice()).expect("json"),
+    )
+    .is_some());
+    let unknown_unit = cdda_content::dialogue::read_condition(
+        &cdda_json::parse(br#"{"math": ["time_since('cataclysm', 'unit': 'fortnights') >= 1"]}"#.as_slice()).expect("json"),
+    )
+    .expect("readable");
+    assert!(
+        !cdda_sim::conditions::holds(&world, survivor, &unknown_unit),
+        "a span the port cannot name answers nothing, not a wrong number"
+    );
+}

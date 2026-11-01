@@ -6152,3 +6152,32 @@ because the diagnostic showed four of them. The test refused it - inside a math 
 statement list rather than an expression. I reverted the arm rather than leave a reader nothing could reach, and the note in the test says why.
 
 Next, in the diagnostic's own order: `rand`/`rng`, then keyword arguments, then the creature-stat functions, each needing its store.
+
+## Named arguments, and `time_since` answering in a unit (round 861)
+
+The census's refused list named the shape: `time_since('midnight', 'unit': 'hour')`. The port could not parse a named argument at all - its tokenizer had no
+colon - so this round adds them where the reference has them: `math_parser` reads a call's positional arguments and then its named ones, and each function reads
+the names it knows with `kwargs.kwarg_or`.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 339 | **341** |
+**capability** | 210 | **212** |
+conditions the port reads | 2,649 | **2,695** |
+unreadable leaves | 814 | **809** |
+effect entries runnable | 1,154 | **1,157** |
+math-blamed programs | 42 | **40** |
+
+`time_since` now divides by the unit named: `turn`/`second` are one turn each, a minute is 60, an hour 3,600, a day [`TURNS_PER_DAY`], a week seven days. A span
+the port has no number for answers **nothing** rather than a wrong scale, which the test pins with `'unit': 'fortnights'`.
+
+**Two notes from the port's own past, both wrong and now corrected.** The old comment on `time_since` said "no `unit` kwarg is read because the data never passes
+one - 184 calls, none with a unit". The data does pass one; the census's refused list is what showed it. And the old reader accepted a **single** quoted
+argument only (`time( '1 minutes' )`), which is why a call with a text argument *and* a keyword was unreadable - the special case had hidden the general rule.
+
+**A stale tree cost a round of confusion.** One build reported errors against line numbers that no longer existed, because the sync had run before the edit
+landed; the same file built clean seconds later. The rule already written down - always `--sync` after local edits - is not enough on its own: check that the
+error's line still exists in the file before believing it.
+
+Refactors forced by the lints, all extractions rather than shaving: a `Call` struct so `special_function` stays under seven arguments, and a `CallArguments` type
+alias. Cost: four remote cycles for the argument cap alone, which is the price of a 100-line cap on a function that dispatches a table this wide.

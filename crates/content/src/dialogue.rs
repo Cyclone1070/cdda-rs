@@ -306,6 +306,8 @@ pub enum Expression {
         name: String,
         /// Its arguments, in the order the data writes them.
         arguments: Vec<Expression>,
+        /// The named arguments the data passes after the positional ones, as `'unit': 'hour'`.
+        keywords: Vec<(String, Expression)>,
     },
     /// Two expressions and the operator between them.
     Binary {
@@ -944,6 +946,8 @@ enum Token {
     Close,
     /// `,`, which separates a call's arguments.
     Comma,
+    /// `:`, which separates a named argument's name from its value.
+    Colon,
 }
 
 /// Splits an expression's text, or nothing when a character has no place in one.
@@ -952,7 +956,12 @@ fn tokenize(text: &str) -> Option<Vec<Token>> {
     let mut rest = text.trim();
     while !rest.is_empty() {
         let trimmed = rest.trim_start();
-        for (spelling, token) in [("(", Token::Open), (")", Token::Close), (",", Token::Comma)] {
+        for (spelling, token) in [
+            ("(", Token::Open),
+            (")", Token::Close),
+            (",", Token::Comma),
+            (":", Token::Colon),
+        ] {
             if let Some(after) = trimmed.strip_prefix(spelling) {
                 tokens.push(token);
                 rest = after;
@@ -1063,12 +1072,19 @@ fn split_arguments(tokens: &[Token]) -> Option<(&[Token], &[Token])> {
     None
 }
 
-/// Splits a call's arguments at its top-level commas and reads each as an expression.
-fn read_arguments(tokens: &[Token]) -> Option<Vec<Expression>> {
+/// Splits a call's arguments at its top-level commas and reads each as an expression, telling the positional ones from the named ones.
+///
+/// Reference: `math_parser` takes a call's arguments positionally and then its named ones (`'radius': 10`, `'unit': 'hour'`), and a named argument's name is
+/// always a quoted string followed by a colon.
+/// A call's arguments: the positional ones first, then the named ones.
+type CallArguments = (Vec<Expression>, Vec<(String, Expression)>);
+
+fn read_arguments(tokens: &[Token]) -> Option<CallArguments> {
     if tokens.is_empty() {
-        return Some(Vec::new());
+        return Some((Vec::new(), Vec::new()));
     }
     let mut arguments = Vec::new();
+    let mut keywords = Vec::new();
     let mut depth = 0usize;
     let mut from = 0usize;
     for (at, token) in tokens.iter().enumerate() {
@@ -1076,22 +1092,49 @@ fn read_arguments(tokens: &[Token]) -> Option<Vec<Expression>> {
             Token::Open => depth += 1,
             Token::Close => depth = depth.checked_sub(1)?,
             Token::Comma if depth == 0 => {
-                let (expression, rest) = parse_precedence(tokens.get(from..at)?, 0)?;
-                if !rest.is_empty() {
-                    return None;
-                }
-                arguments.push(expression);
+                read_one_argument(tokens.get(from..at)?, &mut arguments, &mut keywords)?;
                 from = at + 1;
             }
             _ => {}
         }
     }
-    let (expression, rest) = parse_precedence(tokens.get(from..)?, 0)?;
+    read_one_argument(tokens.get(from..)?, &mut arguments, &mut keywords)?;
+    Some((arguments, keywords))
+}
+
+/// Reads one argument, which is either a value or a `'name': value` pair.
+fn read_one_argument(
+    tokens: &[Token],
+    arguments: &mut Vec<Expression>,
+    keywords: &mut Vec<(String, Expression)>,
+) -> Option<()> {
+    if let [Token::Str(name), Token::Colon, rest @ ..] = tokens
+        && !rest.is_empty()
+    {
+        // A keyword's value may be a quoted string, which is a text value rather than a variable's name: `'unit': 'hour'`.
+        let value = if let [Token::Str(text)] = rest {
+            Expression::Text(text.clone())
+        } else {
+            let (value, left) = parse_precedence(rest, 0)?;
+            if !left.is_empty() {
+                return None;
+            }
+            value
+        };
+        keywords.push((name.clone(), value));
+        return Some(());
+    }
+    // A positional quoted string is a text argument rather than a variable's name: `time_since('midnight', 'unit': 'hour')`.
+    if let [Token::Str(text)] = tokens {
+        arguments.push(Expression::Text(text.clone()));
+        return Some(());
+    }
+    let (expression, rest) = parse_precedence(tokens, 0)?;
     if !rest.is_empty() {
         return None;
     }
     arguments.push(expression);
-    Some(arguments)
+    Some(())
 }
 
 /// Parses one value: a number, a variable, a function call, a parenthesised expression, or a negation.
@@ -1108,21 +1151,8 @@ fn parse_primary(tokens: &[Token]) -> Option<(Expression, &[Token])> {
                 };
                 return Some((expression, after));
             };
-            // A single quoted literal is a text argument, not an expression: `time( '1 minutes' )`.
+            // A single quoted literal is a text argument rather than a variable's name: `time( '1 minutes' )`.
             let (argument_tokens, rest) = split_arguments(after_open)?;
-            if let [Token::Str(text)] = argument_tokens
-                && math_function(name).is_some()
-            {
-                {
-                    return Some((
-                        Expression::Call {
-                            name: name.clone(),
-                            arguments: vec![Expression::Text(text.clone())],
-                        },
-                        rest,
-                    ));
-                }
-            }
             if matches!(
                 name.as_str(),
                 "u_val" | "n_val" | "npc_val" | "global_val" | "var_val" | "context_val"
@@ -1137,7 +1167,9 @@ fn parse_primary(tokens: &[Token]) -> Option<(Expression, &[Token])> {
                 return Some((expression, rest));
             }
             let arity = math_function(name)?;
-            let arguments = read_arguments(argument_tokens)?;
+            // Reference: `math_parser` reads a call's arguments positionally and then its **named** ones (`'radius': 10`), which any function may take
+            // and each decides whether it understands. A name the function does not know is refused when it is evaluated, not dropped here.
+            let (arguments, keywords) = read_arguments(argument_tokens)?;
             match arity {
                 Arity::Exactly(wanted) if arguments.len() == wanted => {}
                 Arity::AtLeast(wanted) if arguments.len() >= wanted => {}
@@ -1147,6 +1179,7 @@ fn parse_primary(tokens: &[Token]) -> Option<(Expression, &[Token])> {
                 Expression::Call {
                     name: name.clone(),
                     arguments,
+                    keywords,
                 },
                 rest,
             ))
