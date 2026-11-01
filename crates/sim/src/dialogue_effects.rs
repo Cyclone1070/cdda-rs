@@ -391,9 +391,31 @@ fn move_creature(world: &mut World, speaker: Entity, listener: Option<Entity>, e
     Applied::Done
 }
 
+/// Picks the monster type a spawn names: the member itself, or one drawn from the group it names.
+///
+/// Reference: `f_spawn_monster` (`npctalk.cpp:7390`) reads `group` as "this member is a group", and `MonsterGroupManager::GetMonsterFromGroup` draws one of the
+/// group's monsters by weight. Without `group` the member is the type, so the two forms meet here and nowhere else.
+fn pick_type(world: &mut World, named: &str, group: bool) -> Option<String> {
+    if !group {
+        return Some(named.to_owned());
+    }
+    let mut held = crate::singletons::take_rolls(world);
+    let drawn = held
+        .as_mut()
+        .and_then(|dice| crate::monster_groups::pick(world, named, dice));
+    if let Some(dice) = held.take() {
+        crate::singletons::put_rolls(world, dice);
+    }
+    if drawn.is_none() && std::env::var("CDDA_SHOW_SPAWN").is_ok() {
+        println!("spawn refused: group {named} picked nothing");
+    }
+    drawn
+}
+
 fn spawn_monsters(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
     let Effect::SpawnMonster {
         monster,
+        group,
         real_count,
         hallucination_count,
         min_radius,
@@ -411,8 +433,11 @@ fn spawn_monsters(world: &mut World, speaker: Entity, listener: Option<Entity>, 
         if std::env::var("CDDA_SHOW_SPAWN").is_ok() { println!("spawn refused: no position"); }
         return Applied::CannotAnswer;
     };
-    let Some(name) = crate::conditions::text_of(world, speaker, listener, monster) else {
+    let Some(named) = crate::conditions::text_of(world, speaker, listener, monster) else {
         if std::env::var("CDDA_SHOW_SPAWN").is_ok() { println!("spawn refused: no name"); }
+        return Applied::CannotAnswer;
+    };
+    let Some(name) = pick_type(world, &named, *group) else {
         return Applied::CannotAnswer;
     };
     let Some(kind) = crate::monster_catalog::type_of(world, &name).cloned() else {

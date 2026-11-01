@@ -6371,3 +6371,38 @@ Nine entries in the data use `group: true`; the port's next store is the weighte
 
 Gated: a `{"math": ["2 + 3"]}` count makes exactly five creatures, which a fixed zero would not - so the test fails if the expression is ignored rather than
 evaluated.
+
+## `group: true`, and the third file I nearly deleted (round 869)
+
+`u_spawn_monster` with `"group": true` names a **monster group** (`GROUP_YOUR_FEARS`), and `MonsterGroupManager::GetMonsterFromGroup` draws one of its monsters by
+weight. The port had the group table already - `cdda_content::monster_groups` reads groups, resolves nested sub-groups and picks by weight, written for field
+spawning long before this - and nothing in the sim could reach it. The missing piece was three lines of store and a branch.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 364 | **367** |
+**capability** | 226 | **226** |
+unreadable leaves | 768 | **763** |
+one-gap programs | 137 | **134** |
+effect entries runnable | 1,193 | **1,197** |
+effect-blamed programs | 262 | **259** |
+
+**Three of the five group spawns now read.** The other two carry `outdoor_only` with a group and still want a catalogue entry per drawn monster, which the census
+world does not have - so capability stays flat this round and the next three land when the spawn catalogue is filled.
+
+**And I overwrote the group module by writing one.** Second time in two rounds, third time in the session: I wrote `crates/content/src/monster_groups.rs` from
+memory, the compiler answered with `cannot find function pick_monster` from `fields.rs`, and I restored it. My own note from the previous round said *list the
+modules, grep the member* - and I ran that check on `crates/sim/src` and not on `crates/content/src`.
+
+The check is now a single command, run before any new module:
+
+```sh
+ls crates/*/src | sort | uniq -d   # a name already used in both crates
+grep -rn "<member name>" crates/*/src
+```
+
+Both passes were skipped because I was sure of the answer, which is exactly the state in which the answer is worth checking.
+
+What survived from the deleted draft was one genuinely useful thing: `load_objects`, a reader that takes prototypes already in hand instead of a directory -
+which is how the test hands the loader a group without writing a file. That is now an extracted `collect_into` shared by `load_paths` and `load_objects`, so the
+two cannot drift.

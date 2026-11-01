@@ -59,46 +59,7 @@ pub fn load_paths(dirs: &[&std::path::Path]) -> Result<Vec<MonsterGroup>, LoadEr
             let Some(value) = crate::read_json(&path) else {
                 continue;
             };
-            let Value::Array(objects) = value.as_ref() else {
-                continue;
-            };
-            for object in objects {
-                let Value::Object(fields) = object else {
-                    continue;
-                };
-                match fields.get("type") {
-                    Some(Value::Str(kind)) if kind == "monstergroup" => {}
-                    _ => continue,
-                }
-                let id = match fields.get("id").or_else(|| fields.get("name")) {
-                    Some(Value::Str(id)) => id.clone(),
-                    _ => continue,
-                };
-                let entries = by_id.entry(id).or_default();
-                let Some(Value::Array(list)) = fields.get("monsters") else {
-                    continue;
-                };
-                for item in list {
-                    let Value::Object(entry) = item else {
-                        continue;
-                    };
-                    // An entry names either a monster or another group; the reference reads both from the same list, and a
-                    // loader that only understood `monster` silently dropped a third of the data.
-                    let kind = match (entry.get("monster"), entry.get("group")) {
-                        (Some(Value::Str(monster)), _) => EntryKind::Monster(monster.clone()),
-                        (_, Some(Value::Str(group))) => EntryKind::Group(group.clone()),
-                        _ => continue,
-                    };
-                    // An entry without a weight counts as **one**, not zero: the reference reads `mon.get_int( "weight", 1 )`
-                    // (`mongroup.cpp:496`), and a loader that defaulted to zero dropped those entries out of the raffle
-                    // entirely - which is how a group made only of other groups ended up producing nothing at all.
-                    let weight = match entry.get("weight") {
-                        Some(Value::Int(number)) => i32::try_from(*number).unwrap_or(1),
-                        _ => 1,
-                    };
-                    entries.push(MonsterGroupEntry { kind, weight });
-                }
-            }
+            collect_into(value.as_ref(), &mut by_id);
         }
     }
     Ok(by_id
@@ -147,4 +108,60 @@ pub fn pick_monster<'a>(
         }
     }
     None
+}
+
+/// Reads groups out of prototypes already in hand, which is how a test or a mod hands them over without a file.
+#[must_use]
+pub fn load_objects(prototypes: &[Value]) -> Vec<MonsterGroup> {
+    let mut by_id: BTreeMap<String, Vec<MonsterGroupEntry>> = BTreeMap::new();
+    for prototype in prototypes {
+        collect_into(prototype, &mut by_id);
+    }
+    by_id
+        .into_iter()
+        .map(|(id, entries)| MonsterGroup { id, entries })
+        .collect()
+}
+
+/// Adds one file's or one prototype's groups to the table, accumulating by id - a mod appends to a core group rather than replacing it.
+fn collect_into(value: &Value, by_id: &mut BTreeMap<String, Vec<MonsterGroupEntry>>) {
+    let objects: Vec<&Value> = match value {
+        Value::Array(objects) => objects.iter().collect(),
+        other => vec![other],
+    };
+    for object in objects {
+        let Value::Object(fields) = object else {
+            continue;
+        };
+        match fields.get("type") {
+            Some(Value::Str(kind)) if kind == "monstergroup" => {}
+            _ => continue,
+        }
+        let id = match fields.get("id").or_else(|| fields.get("name")) {
+            Some(Value::Str(id)) => id.clone(),
+            _ => continue,
+        };
+        let entries = by_id.entry(id).or_default();
+        let Some(Value::Array(list)) = fields.get("monsters") else {
+            continue;
+        };
+        for item in list {
+            let Value::Object(entry) = item else {
+                continue;
+            };
+            // An entry names either a monster or another group; the reference reads both from the same list (`mongroup.cpp`), and a
+            // loader that only understood `monster` silently dropped a third of the data.
+            let kind = match (entry.get("monster"), entry.get("group")) {
+                (Some(Value::Str(monster)), _) => EntryKind::Monster(monster.clone()),
+                (_, Some(Value::Str(group))) => EntryKind::Group(group.clone()),
+                _ => continue,
+            };
+            // An entry without a weight counts as **one**, not zero: the reference reads `mon.get_int( "weight", 1 )` (`mongroup.cpp:496`).
+            let weight = match entry.get("weight") {
+                Some(Value::Int(number)) => i32::try_from(*number).unwrap_or(1),
+                _ => 1,
+            };
+            entries.push(MonsterGroupEntry { kind, weight });
+        }
+    }
 }

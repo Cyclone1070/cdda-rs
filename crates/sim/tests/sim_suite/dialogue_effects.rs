@@ -2079,15 +2079,11 @@ fn spawning_monsters_makes_the_real_ones_and_the_imagined_ones() {
         Applied::CannotAnswer
     );
 
-    // The members the port cannot carry out are refused at read time rather than ignored. `spawn_message`, `outdoor_only` and `lifespan` have left this list
-    // as their rules landed; `group` has not, because choosing a member of a group needs the group tables.
-    for text in [
-        r#"{"u_spawn_monster": "mon_test", "group": true}"#,
-        r#"{"u_spawn_monster": "mon_test", "mon_variables": {"x": "1"}}"#,
-    ] {
-        let value = cdda_json::parse(text.as_bytes()).expect("json");
-        assert!(cdda_content::dialogue::read_effect(&value).is_none(), "{text}");
-    }
+    // The members the port cannot carry out are refused at read time rather than ignored. `spawn_message`, `outdoor_only`, `lifespan` and now `group` have left
+    // this list as their rules landed; `mon_variables` has not, because it writes variables onto the spawned monster and no rule reads them yet.
+    let with_variables =
+        cdda_json::parse(br#"{"u_spawn_monster": "mon_test", "mon_variables": {"x": "1"}}"#.as_slice()).expect("json");
+    assert!(cdda_content::dialogue::read_effect(&with_variables).is_none());
 }
 
 /// A spawned monster can be given a lifespan, and the clock takes it away.

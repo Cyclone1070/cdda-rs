@@ -59,6 +59,7 @@ pub mod inventory;
 pub mod item_data;
 pub mod item_registry;
 pub mod monster_catalog;
+pub mod monster_groups;
 pub mod monster_registry;
 pub mod monster_spawning;
 pub mod pockets;

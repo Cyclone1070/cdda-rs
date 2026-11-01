@@ -269,3 +269,97 @@ fn a_spawn_count_can_be_computed() {
     }
     assert_eq!(made, 5, "the math count decided how many were made");
 }
+
+/// `group: true` makes the member name a monster group, and the game draws one of its monsters.
+///
+/// Reference: `f_spawn_monster` (`npctalk.cpp:7390`) with `MonsterGroupManager::GetMonsterFromGroup`: the group's weights decide which monster appears, so the
+/// same call can produce different creatures on different draws.
+#[test]
+fn a_spawn_can_draw_from_a_group() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let mut level = cdda_core_types::level::Level::new();
+    for x in -24..48 {
+        for y in -24..48 {
+            level.set_terrain(x, y, 0, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+
+    let types = cdda_content::monsters::load_objects(&[
+        cdda_json::parse(
+            br#"{"id": "mon_alpha", "name": "an alpha", "hp": 5, "speed": 100, "symbol": "a", "color": "white"}"#
+                .as_slice(),
+        )
+        .expect("json"),
+        cdda_json::parse(
+            br#"{"id": "mon_beta", "name": "a beta", "hp": 5, "speed": 100, "symbol": "b", "color": "white"}"#
+                .as_slice(),
+        )
+        .expect("json"),
+    ])
+    .expect("readable");
+    cdda_sim::monster_registry::set_monster_types(
+        &mut world,
+        &[
+            cdda_sim::monster_registry::MonsterKind { id: "mon_alpha", hp: 5 },
+            cdda_sim::monster_registry::MonsterKind { id: "mon_beta", hp: 5 },
+        ],
+    );
+    cdda_sim::monster_catalog::set_types(&mut world, types);
+
+    // A group of two monsters, the second twice as likely as the first.
+    let group = cdda_json::parse(
+        br#"{"type": "monstergroup", "id": "GROUP_test", "monsters": [{"monster": "mon_alpha", "weight": 1}, {"monster": "mon_beta", "weight": 2}]}"#
+            .as_slice(),
+    )
+    .expect("json");
+    let groups = cdda_content::monster_groups::load_objects(&[group]);
+    assert_eq!(groups.len(), 1, "the group reads");
+    cdda_sim::monster_groups::set_groups(&mut world, groups);
+
+    let spawn = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(
+            br#"{"u_spawn_monster": "GROUP_test", "group": true, "real_count": 4, "min_radius": 1, "max_radius": 4}"#
+                .as_slice(),
+        )
+        .expect("json"),
+    )
+    .expect("a group spawn is readable");
+
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(41));
+
+    // The table itself answers before the effect is asked to: a spawn that refuses says nothing about which half failed.
+    let mut probe_dice = cdda_core_types::rng::Rolls::new(7);
+    let drawn = cdda_sim::monster_groups::pick(&world, "GROUP_test", &mut probe_dice);
+    assert!(
+        matches!(drawn.as_deref(), Some("mon_alpha" | "mon_beta")),
+        "the group table picks a monster, and picked {drawn:?}"
+    );
+
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &spawn),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+
+    // Four creatures exist, every one of them from the group - a group with no table, or a type that was not installed, would have refused instead.
+    let mut made = 0;
+    let mut query = world
+        .try_query::<&cdda_sim::creature::CreatureKind>()
+        .expect("query");
+    for _ in query.iter(&world) {
+        made += 1;
+    }
+    assert_eq!(made, 4, "four monsters were drawn from the group");
+
+    // A group the world does not know refuses rather than making something else.
+    let unknown = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(br#"{"u_spawn_monster": "GROUP_missing", "group": true, "real_count": 1}"#.as_slice())
+            .expect("json"),
+    )
+    .expect("readable");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &unknown),
+        cdda_sim::dialogue_effects::Applied::CannotAnswer
+    );
+}
