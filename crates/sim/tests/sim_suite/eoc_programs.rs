@@ -1007,7 +1007,7 @@ fn the_programs_one_gap_away_say_what_to_port_next() {
                 gaps_total += gaps.len();
                 if let [(only, said)] = gaps.as_slice() {
                     if std::env::var("CDDA_SHOW_GAP").is_ok_and(|wanted| wanted == *only) {
-                        println!("GAP {only} :: {}", said.chars().take(400).collect::<String>());
+                        println!("GAP {only} :: {}", said.chars().take(600).collect::<String>());
                     }
                     *one_gap.entry(only.clone()).or_insert(0) += 1;
                 }
@@ -1188,9 +1188,11 @@ fn collect_leaves(entry: &cdda_json::Value, gaps: &mut Vec<(String, String)>) {
     };
     // The leaf's own text goes with its name: a gap called `math` told the port which member refused but not **what it said**, and the whole definition is
     // too long to read in a terminal once a program has ten effects.
-    let leaf = object
-        .get(key)
-        .map_or_else(String::new, |value| format!("{value:?}"));
+    // The leaf **and the object that holds it**: a leaf called `max_radius` says which member the reader choked on, not which effect the member belonged to,
+    // and the same name appears in three different effects.
+    let leaf = object.get(key).map_or_else(String::new, |value| {
+        format!("{value:?}  IN  {object:?}")
+    });
     if is_container_member(key) {
         gaps.push(("<nested>".to_owned(), leaf));
     } else {

@@ -7486,3 +7486,29 @@ Two reasons, and both matter more than the change:
    the mapgen loader assigns codes, and nothing keeps the id the data wrote.
 
 The reader is refused at the runner with that reason written down, rather than answering a square that has no furniture in it.
+
+## The gap diagnostic now prints the object, and it named `u_spawn_npc` (round 908)
+
+Last round ended with a precise complaint: `CDDA_SHOW_GAP` prints the leaf that refused, not the object that holds it, and `max_radius` appears in three different
+effects. The diagnostic now prints both - `Int(25)  IN  Object { members: [("max_radius", ...), ("u_spawn_npc", ...)] }` - and the answer was immediate.
+
+**The six programs blocking on `max_radius` are all `u_spawn_npc`.** The member was never the problem: the port has no reader for the effect at all. Reference
+`f_spawn_npc` (`npctalk.cpp:7575-7620`) reads an NPC **class**, an optional `unique_id`, a `traits` array, `real_count` and `hallucination_count`, and
+`min_radius`/`max_radius` defaulting to **one and ten**.
+
+I started the port and stopped: the counts are `CountRange` in the monster spawner (a range the data may write as a number or a pair), and my first draft typed them
+as expressions. Rather than bend the type to save a call, the half-written reader and runner were **reverted** - nothing is committed half-built.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 473 | 473 |
+one-gap programs | 92 | 92 |
+
+So this round bought **eyes, not capability** - the second time that trade has paid better than a feature would have (`math` leaf text two rounds ago moved 26
+programs on the round after it). What it bought specifically:
+
+* the six `max_radius` programs are **one effect**, `u_spawn_npc`, and the next round is that effect and nothing else;
+* the diagnostic that was blind one level up is not blind any more, which was the same blindness that hid the split math statements.
+
+**A note on my own process:** four of the last six rounds have been spent finding out *where* a gap is rather than closing it, and every one of those rounds was worth
+it. The port is now at the point where the one-gap list is short enough (`id` 6, `max_radius` 6, `count` 5) that each entry is a single named effect, not a family.
