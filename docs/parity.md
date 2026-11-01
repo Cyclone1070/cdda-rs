@@ -7229,3 +7229,27 @@ readable against 82.4% before.
 **Three lint cycles, all mine, all the same shape:** I let a function grow past the line cap and then extracted the arm, which split `pub fn holds_drawing` in half
 because I inserted the helper at a text match inside its doc comment. The extraction is right and the file is smaller than it was; the lesson is the same one as the
 missing `npc_` spelling itself - **a match on text is not a match on structure**, whether the text is Rust or the data's own keys.
+
+## The short listener spelling, and a warning about blanket rules (round 899)
+
+Reference: the math parser gives every two-scope function an `u_` and an `n_` spelling, and the dialogue's conditions spell the same scope `npc_`. The data uses
+`n_skill` **141 times**, `n_vitamin` 13, `n_hp` 6, `n_pain` 3. `normalized_spelling` now rewrites the short form to the long one before any arm sees it, so fifteen
+readers answer both spellings without fifteen second name lists - and the write path uses the same rewrite, so a `n_` write lands on the creature a `n_` read
+asks about.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 428 | 428 |
+conditions readable | 3,195 | 3,195 |
+effect entries runnable | 1,283 | 1,283 |
+
+**No movement, and one test broke.** The 141 `n_skill` uses live in `talk_topic` data - NPC dialogue trees - which the EOC census does not read, so the fix is
+faithful without being measurable yet. That is the third time this session a correct fix moved nothing, and every time the census was right and my expectation was
+wrong.
+
+The broken test mattered more than the fix. My first rule was `name.strip_prefix("n_").is_some()` - **any** name starting `n_` became `npc_` - which quietly
+rewrote `n_anger`, `n_fear`, `n_trust` and `n_value`: the opinion numbers the creatures hold about each other, which the port has answered for hundreds of rounds. One
+test caught it. The rule is now "a name with a long spelling is a scope", checked against the arity table, so a name the port has no `npc_` for is left alone.
+
+The lesson is the one this session keeps teaching: **a prefix is not a scope**. `n_` means "the listener" only where the remainder is a function; everywhere else it
+means "the other creature's opinion of you". The same string, two meanings, and only the table can tell them apart.

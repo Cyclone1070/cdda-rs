@@ -1187,3 +1187,25 @@ fn an_effect_condition_can_ask_about_the_other_creature() {
         "no listener, no answer"
     );
 }
+
+/// The data's short listener spelling answers about the other creature, as the long one does.
+///
+/// Reference: `math_parser` gives a two-scope function an `u_` and an `n_` spelling, and the data uses `n_skill` **141 times** - more than either long spelling.
+/// A port that knows only `npc_skill` refuses the majority of the data's skill questions rather than answering them about the wrong creature.
+#[test]
+fn the_short_listener_spelling_answers_about_the_other_creature() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let talker = cdda_sim::creature::spawn_creature(&mut world, "the talker", (1, 0, 0));
+    cdda_sim::skills_of::set_level(&mut world, talker, "fabrication", 6);
+
+    let holds = |world: &bevy_ecs::prelude::World, text: &str| {
+        let value = cdda_json::parse(text.as_bytes()).expect("json");
+        let condition = cdda_content::dialogue::read_condition(&value).expect("the condition reads");
+        cdda_sim::conditions::holds_with(world, survivor, Some(talker), &condition)
+    };
+
+    assert!(holds(&world, r#"{"math": ["n_skill('fabrication') == 6"]}"#), "the short spelling asks about the talker");
+    assert!(holds(&world, r#"{"math": ["n_skill('fabrication') > u_skill('fabrication')"]}"#), "and not about the survivor");
+    assert!(holds(&world, r#"{"math": ["u_skill('fabrication') == 0"]}"#), "the survivor still knows nothing");
+}

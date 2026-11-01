@@ -1184,6 +1184,22 @@ fn keyword_text(
 
 /// One of `distance`'s two points: a named actor (`'u'`, `'npc'`) or a location a variable holds.
 ///
+/// The data's short listener spelling, written the long way.
+///
+/// Reference: `math_parser` gives every two-scope function an `u_` and an `n_` spelling (`u_skill` / `n_skill`), and the dialogue's conditions spell the same
+/// scope `npc_`. The port answers one name per scope, so the short form is rewritten to the long one before any arm sees it.
+#[must_use]
+pub fn normalized_spelling(name: &str) -> std::borrow::Cow<'_, str> {
+    // Only a name that has a long spelling is a scope: `n_skill` is `npc_skill`, but `n_anger` is an opinion the creatures hold about each other, and
+    // rewriting that would refuse a number the port can already answer.
+    match name.strip_prefix("n_") {
+        Some(rest) if cdda_content::dialogue::math_function(&format!("npc_{rest}")).is_some() => {
+            std::borrow::Cow::Owned(format!("npc_{rest}"))
+        }
+        _ => std::borrow::Cow::Borrowed(name),
+    }
+}
+
 /// Reference: `distance_eval`'s `get_pos` (`math_parser_diag.cpp:188-199`), which accepts a string naming an actor and throws for any other string.
 fn point_of(
     world: &World,
@@ -1220,6 +1236,11 @@ fn special_function(
     unset_is_zero: bool,
     draws: &mut Option<&mut cdda_core_types::rng::Rolls>,
 ) -> Answer {
+    // The data spells the listener's scope two ways: `npc_skill` in the dialogue's conditions and `n_skill` in the math, which the reference's parser reads
+    // as the same scope letter. One normalization here, so every reader answers both spellings instead of each arm carrying a second name list - the
+    // data uses `n_skill` **141 times** and `n_vitamin` 13, and neither had a reader.
+    let normalized = normalized_spelling(name);
+    let name = normalized.as_ref();
     // Named arguments are passed through: `math_parser` hands each function the names it knows (`kwargs.kwarg_or`) and one that reads none ignores them.
     let (arguments, keywords) = (call.arguments, call.keywords);
     if let Some(answer) = answer_opinion(world, speaker, listener, name) {

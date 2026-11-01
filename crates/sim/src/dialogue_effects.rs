@@ -122,11 +122,13 @@ fn write_to_store(
     let Some(cdda_content::dialogue::Expression::Text(key)) = arguments.first() else {
         return Applied::CannotAnswer;
     };
-    let about_listener = name.starts_with("npc_");
+    // The short listener spelling (`n_skill`) means the same scope as the long one, and a write has to land on the same creature a read would ask about.
+    let normalized = crate::conditions::normalized_spelling(name);
+    let about_listener = normalized.starts_with("npc_");
     let Some(target) = actor(speaker, listener, about_listener) else {
         return Applied::CannotAnswer;
     };
-    let store = name.trim_start_matches("npc_").trim_start_matches("u_");
+    let store = normalized.trim_start_matches("npc_").trim_start_matches("u_");
     let (current, writes) = match store {
         "hp" => (crate::creature::health_of(world, target).map(f64::from), true),
         "vitamin" => (crate::body::vitamin_of(world, target, key).map(f64::from), true),
