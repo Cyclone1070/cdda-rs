@@ -6115,3 +6115,40 @@ That also disposes of `type`: unknown members are tolerated by the reader, so `t
 
 Census numbers now move in one measured run rather than six. Two of them - fresh and built-world - are **not** the same number (210 against 214) because the
 built-world test computes its fresh count after building a world in the same process; both are pinned to what their own test prints.
+
+## A diagnostic for the math gap, and a change that did not survive its test (round 860)
+
+`math` is the largest single refusal - 33 one-gap programs, 92 effect entries, 160 conditions - and I had been treating that number as a mountain without
+knowing what the refusal actually was. The census says *that* an expression was refused; it never said *which*, and guessing at the shape is exactly what went
+wrong in the last four rounds.
+
+So the first thing this round builds is the answer, not the fix: `read_expression` now prints every expression it refuses when `CDDA_SHOW_MATH` is set, and the
+census run prints the whole list. That is QA surface, and it pays for itself immediately:
+
+```
+4  { "math": [ "rng(1,1)" ] }
+4  [ "rand(6) < u_addiction_intensity('mutagen')" ]
+1  [ "u_has_flag('HYPEROPIC') + u_has_flag('MYOPIC') + u_has_flag('MYOPIC_IN_LIGHT') > 0" ]
+1  [ "u_monsters_nearby('radius': 10) >= 1" ]
+1  [ "time_since('midnight', 'unit': 'hour')" ]
+1  { "global_val": "BILE_STINK_DURATION" }
+1  [ -15, -30 ]
+```
+
+None of those is a parser problem. Every one is a **function the port has not ported** (`rand`, `rng`, `u_addiction_intensity`, `u_monsters_nearby`,
+`u_vitamin`, `u_health`), a **keyword argument** the reader must learn to carry (`'unit': 'hour'`, `'radius': 10`), or a value shape (a two-end range). The
+text-expression parser, written rounds ago, handles the operators correctly - the refusal was never there. **A count without a reason hid that for many rounds.**
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 339 | **339** |
+**capability** | 210 | **210** |
+effect entries runnable | 1,154 | **1,154** |
+
+No capability change: the diagnostic does not port rules, it says which ones are missing.
+
+**The change that did not survive:** I also tried reading a math entry written as an object wrapping the expression (`{"math": [...]}` inside a math list),
+because the diagnostic showed four of them. The test refused it - inside a math *list*, each entry is an **assignment**, and `{"math": [...]}` there is a nested
+statement list rather than an expression. I reverted the arm rather than leave a reader nothing could reach, and the note in the test says why.
+
+Next, in the diagnostic's own order: `rand`/`rng`, then keyword arguments, then the creature-stat functions, each needing its store.

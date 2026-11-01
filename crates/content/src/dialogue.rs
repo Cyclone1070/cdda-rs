@@ -1192,8 +1192,20 @@ fn read_math_expression(value: &Value) -> Option<Expression> {
 }
 
 /// Reads an expression, or nothing when the port has no rule for its shape.
+///
+/// Set `CDDA_SHOW_MATH` to print every expression the port refuses, which is how the census finds the shapes it is missing rather than guessing at them.
 #[must_use]
 pub fn read_expression(value: &Value) -> Option<Expression> {
+    let read = read_expression_inner(value);
+    if read.is_none() && std::env::var("CDDA_SHOW_MATH").is_ok() {
+        eprintln!("refused math: {value:?}");
+    }
+    read
+}
+
+/// The reader itself, so one place can report a refusal.
+#[must_use]
+fn read_expression_inner(value: &Value) -> Option<Expression> {
     match value {
         Value::Int(number) => {
             #[allow(clippy::cast_precision_loss)]
@@ -1204,7 +1216,7 @@ pub fn read_expression(value: &Value) -> Option<Expression> {
         Value::Str(text) => read_leaf(text).or_else(|| read_text_expression(text)),
         // The data's own shape: `"math"` holds a one-element array wrapping a string expression, and the array form
         // `[left, op, right]` is the fully parenthesised one the port also accepts.
-        Value::Array(parts) if parts.len() == 1 => read_expression(parts.first()?),
+        Value::Array(parts) if parts.len() == 1 => read_expression_inner(parts.first()?),
         Value::Array(parts) if parts.len() == 3 => {
             let [left, spelling, right] = parts.as_slice() else {
                 return None;
@@ -1214,8 +1226,8 @@ pub fn read_expression(value: &Value) -> Option<Expression> {
             };
             Some(Expression::Binary {
                 op: Operator::named(spelling)?,
-                left: Box::new(read_expression(left)?),
-                right: Box::new(read_expression(right)?),
+                left: Box::new(read_expression_inner(left)?),
+                right: Box::new(read_expression_inner(right)?),
             })
         }
         _ => None,

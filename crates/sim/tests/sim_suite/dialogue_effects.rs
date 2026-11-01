@@ -2259,3 +2259,4 @@ fn the_global_message_member_says_a_line() {
     );
     assert_eq!(cdda_sim::messages::lines(&world).len(), 2);
 }
+
