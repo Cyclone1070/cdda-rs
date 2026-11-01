@@ -1434,3 +1434,40 @@ fn a_spawn_item_effect_reads_its_count_the_reference_way() {
     let applied = cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &read(r#"{"u_spawn_item": "chitin_piece", "count": 5}"#));
     assert_eq!(applied, cdda_sim::dialogue_effects::Applied::CannotAnswer, "no catalogue, no item");
 }
+
+/// `u_consume_item` takes whole stacks out of what a creature carries, and refuses to take what is not there.
+///
+/// Reference: `f_consume_item` (`npctalk.cpp:3943-3968`): a count of stacks is taken with `use_amount`, charges with `use_charges`, and a creature that has neither
+/// is told so rather than half-emptied. The port's `inventory::take` refuses a partial removal for the same reason.
+#[test]
+fn a_consume_item_effect_takes_whole_stacks() {
+    let mut world = bevy_ecs::prelude::World::new();
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[cdda_sim::item_registry::Kind {
+            id: "chitin_piece",
+            volume_ml: 250,
+            weight_g: 100,
+            pockets: &[],
+        }],
+    );
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let kind = cdda_sim::item_registry::id_of(&mut world, "chitin_piece").expect("the catalogue knows it");
+    for _ in 0..3 {
+        let item = cdda_sim::drop_item(&mut world, (0, 0), kind, 1);
+        world.entity_mut(item).insert(cdda_sim::creature::Carried(survivor));
+    }
+
+    let value = cdda_json::parse(br#"{"u_consume_item": "chitin_piece", "count": 2}"#.as_slice()).expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    let applied = cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect);
+    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "it runs");
+    assert_eq!(cdda_sim::inventory::count_of(&world, survivor, "chitin_piece").0, 1, "two of three are gone");
+
+    // Asking for more than is carried takes nothing at all, rather than half of what it asked for.
+    let value = cdda_json::parse(br#"{"u_consume_item": "chitin_piece", "count": 5}"#.as_slice()).expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    let applied = cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect);
+    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "the effect still completes");
+    assert_eq!(cdda_sim::inventory::count_of(&world, survivor, "chitin_piece").0, 1, "and the last one is still there");
+}

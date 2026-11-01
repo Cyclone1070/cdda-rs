@@ -1582,6 +1582,7 @@ fn read_unnamed_effect(object: &cdda_json::Object) -> Option<Effect> {
         .or_else(|| read_spawn_npc(object))
         .or_else(|| read_sound_effect(object))
         .or_else(|| read_spawn_item(object))
+        .or_else(|| read_consume_item(object))
 }
 
 /// Reads a `sound_effect` entry.
@@ -1600,6 +1601,33 @@ fn read_sound_effect(object: &cdda_json::Object) -> Option<Effect> {
         },
         outdoor_event: matches!(object.get("outdoor_event"), Some(Value::Bool(true))),
     })
+}
+
+/// Reads a `u_consume_item` / `npc_consume_item` entry.
+///
+/// Reference: `f_consume_item` (`npctalk.cpp:3935-3941`): `charges` defaults to 0, and `count` to **1**, or to **0** when the entry has an integer `charges` - the
+/// same twist `f_spawn_item` has, because a stack's size is its charges.
+fn read_consume_item(object: &cdda_json::Object) -> Option<Effect> {
+    for (member, listener) in [("u_consume_item", false), ("npc_consume_item", true)] {
+        let Some(item) = object.get(member) else {
+            continue;
+        };
+        let has_charges = matches!(object.get("charges"), Some(Value::Int(_)));
+        return Some(Effect::ConsumeItem {
+            item: read_string_source(item)?,
+            count: match object.get("count") {
+                None => CountRange::One(i32::from(!has_charges)),
+                Some(value) => read_count(Some(value))?,
+            },
+            charges: match object.get("charges") {
+                None => CountRange::One(0),
+                Some(value) => read_count(Some(value))?,
+            },
+            popup: matches!(object.get("popup"), Some(Value::Bool(true))),
+            listener,
+        });
+    }
+    None
 }
 
 /// Reads a `u_spawn_item` / `map_spawn_item` entry.
@@ -1869,6 +1897,22 @@ pub enum Effect {
         volume: CountRange,
         /// Whether it is only heard outdoors.
         outdoor_event: bool,
+    },
+    /// Takes items out of what a creature carries.
+    ///
+    /// Reference: `f_consume_item` (`npctalk.cpp:3931-3985`): `charges` defaults to **0** and `count` to **1** - to **0** when the entry gives `charges` - and the
+    /// effect consumes charges when only charges were asked for, whole stacks when a count was, and says something when the creature has neither.
+    ConsumeItem {
+        /// The item's id.
+        item: StringSource,
+        /// How many whole stacks.
+        count: CountRange,
+        /// How many charges out of them.
+        charges: CountRange,
+        /// Whether a message is shown about it.
+        popup: bool,
+        /// Whether it is the listener who does the consuming.
+        listener: bool,
     },
     /// Puts items on the actor's square, or near it.
     ///
@@ -2271,6 +2315,13 @@ impl Effect {
             Self::Nothing => "//",
             Self::PlaySoundEffect { .. } => "sound_effect",
             Self::SpawnItem { .. } => "u_spawn_item",
+            Self::ConsumeItem { listener, .. } => {
+                if *listener {
+                    "npc_consume_item"
+                } else {
+                    "u_consume_item"
+                }
+            }
             Self::SpawnNpc { listener, .. } => {
                 if *listener {
                     "npc_spawn_npc"

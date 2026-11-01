@@ -104,3 +104,62 @@ pub fn count_of(world: &World, creature: Entity, name: &str) -> (i32, i32) {
     }
     (stacks, charges)
 }
+
+/// Takes named things out of what a creature carries: whole stacks, or charges from them.
+///
+/// Reference: `Character::use_amount` and `use_charges` (`npctalk.cpp:3950-3965` calls both). A stack that runs out of charges leaves the store, because an empty
+/// stack is not a thing anybody carries - which is the same rule the reference's `item::operator==`-driven removal applies.
+///
+/// Answers whether everything asked for was there. Nothing is taken when it is not: a partial removal would leave the world in a state neither the data nor the
+/// reference describes.
+pub fn take(
+    world: &mut World,
+    creature: Entity,
+    name: &str,
+    stacks: i32,
+    charges: i32,
+) -> bool {
+    let mut found = Vec::new();
+    let Some(mut query) = world.try_query::<(Entity, &crate::creature::Carried, &crate::GroundItem)>() else {
+        return false;
+    };
+    for (entity, carried, item) in query.iter(world) {
+        if carried.0 != creature {
+            continue;
+        }
+        if crate::item_registry::name_in(world, item.kind).as_deref() != Some(name) {
+            continue;
+        }
+        found.push((entity, item.charges));
+    }
+    let (held_stacks, held_charges) = found.iter().fold((0, 0), |(many, held), (_, charges)| {
+        (many + 1, held + (*charges).max(1))
+    });
+    if stacks > 0 && held_stacks < stacks {
+        return false;
+    }
+    if charges > 0 && held_charges < charges {
+        return false;
+    }
+    let mut left_stacks = stacks;
+    let mut left_charges = charges;
+    for (entity, held) in found {
+        if left_stacks > 0 {
+            left_stacks -= 1;
+            world.entity_mut(entity).despawn();
+            continue;
+        }
+        if left_charges <= 0 {
+            break;
+        }
+        let taken = left_charges.min(held.max(1));
+        left_charges -= taken;
+        let remaining = held.max(1) - taken;
+        if remaining <= 0 {
+            world.entity_mut(entity).despawn();
+        } else if let Some(mut item) = world.get_mut::<crate::GroundItem>(entity) {
+            item.charges = remaining;
+        }
+    }
+    true
+}

@@ -7596,3 +7596,30 @@ effect census blaming `effect` | 190 | **186** |
 
 **The test is written to fail on the interesting mistake.** It asserts all three count cases (absent, `count`, `charges`) by reading the effect and printing it, so a
 reader that ignored `charges` would fail on the second assertion rather than pass on the first. The runner's catalogue refusal is the third assertion.
+
+## `u_consume_item`, and the first write into a carried stack (round 912)
+
+The other half of last round's `count` family. Reference `f_consume_item` (`npctalk.cpp:3931-3985`) reads `charges` (default **0**) and `count` (default **1**, or
+**0** beside an integer `charges`), then consumes in a fixed order: charges when only charges were asked for, whole stacks when a count was, and a **message** when the
+creature has neither - the missing item is not an error, so the effect completes either way.
+
+`Effect::ConsumeItem` reads it. Running it needed something the port did not have: **a way to take things out of a carried stack**. `inventory::take` is that, and it
+refuses a partial removal - asking for five when three are carried takes nothing, because half-empty is a state neither the data nor the reference describes.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 488 | **490** |
+answered `Done` | 323 | **324** |
+did something | 170 | **171** |
+refused at run time | 165 | **166** |
+unreadable leaves | 334 | **330** |
+one-gap programs | 81 | **80** |
+effect entries runnable | 1,380 | **1,384** |
+effect census blaming `effect` | 186 | **184** |
+
+The test drives three real stacks through the store: two are consumed, one is left, and then a request for five leaves the last one alone. It also loads a real item
+catalogue first, so the run is the real path rather than the refusal path.
+
+**The first `Despawn` in this module's item handling.** Until now the item code only ever *added* to the store; consuming is the first rule that takes away, and it
+does so through `entity_mut(...).despawn()`, which is the port's only way to remove something the index also has to forget. The architecture gate that checks the
+index in both directions covers this: a destroyed thing leaves no ghost.

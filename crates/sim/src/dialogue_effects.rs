@@ -553,6 +553,30 @@ fn pick_type(
     drawn
 }
 
+/// Takes items out of what a creature carries.
+///
+/// Reference: `f_consume_item` (`npctalk.cpp:3943-3968`): charges when only charges were asked for, whole stacks when a count was, and a message when the creature
+/// has neither - the message is not an error, so the effect is `Done` either way. A partial removal never happens, because [`crate::inventory::take`] refuses one.
+fn consume_items(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::ConsumeItem { item, count, charges, listener: about_listener, .. } = effect else {
+        return Applied::CannotAnswer;
+    };
+    let Some(creature) = actor(speaker, listener, *about_listener) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(name) = crate::conditions::text_of(world, speaker, listener, item) else {
+        return Applied::CannotAnswer;
+    };
+    let (Some(many), Some(held)) = (
+        draw_count(world, speaker, listener, count),
+        draw_count(world, speaker, listener, charges),
+    ) else {
+        return Applied::CannotAnswer;
+    };
+    crate::inventory::take(world, creature, &name, many, held);
+    Applied::Done
+}
+
 /// Puts items on the actor's square.
 ///
 /// Reference: `f_spawn_item` (`npctalk.cpp:3771-3800`): `count` of them, each with `charges` charges when the data gives charges. An item the port's catalogue does
@@ -1454,6 +1478,7 @@ pub fn run_effect(
         Effect::SpawnMonster { .. } => spawn_monsters(world, speaker, listener, effect),
         Effect::SpawnNpc { .. } => spawn_npcs(world, speaker, listener, effect),
         Effect::SpawnItem { .. } => spawn_items(world, speaker, listener, effect),
+        Effect::ConsumeItem { .. } => consume_items(world, speaker, listener, effect),
         Effect::Teleport { .. } => move_creature(world, speaker, listener, effect),
         Effect::AssignMission { .. } => give_mission(world, speaker, listener, effect),
         Effect::AddVar { .. } => add_var(world, speaker, listener, effect),
