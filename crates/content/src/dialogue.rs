@@ -266,7 +266,10 @@ pub fn math_function(name: &str) -> Option<Arity> {
         "rng" | "distance" => Arity::Exactly(2),
         // Reference: `pain_eval` takes no positional arguments; it is scoped (`u_pain`/`npc_pain`) and reads a `type` keyword.
         // Reference: `{ "health", { "un", 0, health_eval, health_ass } }` (`math_parser_diag.cpp:1693`) - no arguments, and the scope says whose.
-        "u_pain" | "npc_pain" | "health" | "u_health" | "npc_health" => Arity::Exactly(0),
+        // Reference: `{ "calories", { "un", 0, calories_eval, calories_ass, { "format", "dont_affect_weariness" } } }` (`math_parser_diag.cpp:1753`).
+        "u_pain" | "npc_pain" | "health" | "u_health" | "npc_health" | "calories" | "u_calories" | "npc_calories" => {
+            Arity::Exactly(0)
+        }
 
         "min" | "max" => Arity::AtLeast(1),
         _ => return None,

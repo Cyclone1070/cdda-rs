@@ -870,3 +870,28 @@ fn health_is_a_stat_and_not_hit_points() {
     let hit_points = cdda_sim::creature::health_of(&world, survivor);
     assert_ne!(hit_points, Some(-150), "hit points are not the health stat");
 }
+
+/// `u_calories()` answers the stored energy in kilocalories, and refuses the `percent` form it has no rule for.
+///
+/// Reference: `calories_eval` (`math_parser_diag.cpp:1753`) answers `get_stored_kcal()`, which is the port's `stored_calories` - thousandths of a kilocalorie -
+/// divided by a thousand. `format: percent` needs the character's healthy weight, which the port has no rule for, so it is refused rather than answered with a
+/// number that would be right for exactly one body size.
+#[test]
+fn calories_are_read_in_kilocalories() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    assert!(cdda_sim::body::with_body_mut(&mut world, survivor, |body| {
+        body.stored_calories = 41_500_000;
+    }));
+    let holds = |world: &bevy_ecs::prelude::World, text: &str| {
+        let condition = cdda_json::parse(format!(r#"{{"math": ["{text}"]}}"#).as_bytes()).expect("json");
+        let read = cdda_content::dialogue::read_condition(&condition).expect("the condition reads");
+        cdda_sim::conditions::holds_with(world, survivor, None, &read)
+    };
+    assert!(holds(&world, "u_calories() == 41500"), "forty-one and a half thousand kilocalories");
+
+    // `percent` is refused: the port cannot say what percentage of a healthy weight that is, because it has no rule for healthy weight.
+    let percent = cdda_json::parse(br#"{"math": ["u_calories('format': 'percent') > 10"]}"#.as_slice()).expect("json");
+    let read = cdda_content::dialogue::read_condition(&percent).expect("the condition reads");
+    assert!(!cdda_sim::conditions::holds_with(&world, survivor, None, &read), "no answer, so no pass");
+}

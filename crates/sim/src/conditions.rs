@@ -640,6 +640,32 @@ fn distance_between(
 ///
 /// Reference: `_filter_monster` (`math_parser_diag.cpp:781-794`): a creature counts when it **is a monster**, when its type is one the arguments name, and
 /// when `radius >= rl_dist(...)` - so the radius is a Chebyshev one, like `distance`, not a walked path.
+/// How much energy the body has stored, in kilocalories.
+///
+/// Reference: `calories_eval` (`math_parser_diag.cpp:1753`) answers `get_stored_kcal()`, which is the port's `stored_calories` - thousandths of a kilocalorie -
+/// divided by a thousand. The `percent` form needs the character's healthy weight, which the port has no rule for, so it is refused rather than answered as if
+/// two thousand were right for every body.
+fn answer_calories(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    name: &str,
+    keywords: &[(String, Expression)],
+) -> Answer {
+    if keyword_text(world, speaker, listener, keywords, "format").is_some_and(|format| format != "raw") {
+        return Answer::Refused;
+    }
+    let creature = match name {
+        "npc_calories" => listener.unwrap_or(speaker),
+        _ => speaker,
+    };
+    let Some(body) = crate::body::body_of(world, creature) else {
+        return Answer::Refused;
+    };
+    let kilocalories = i32::try_from(body.stored_calories / 1000).unwrap_or(i32::MAX);
+    Answer::Value(f64::from(kilocalories))
+}
+
 /// The health **stat**, which is not the creature's hit points.
 ///
 /// Reference: `health_eval` (`math_parser_diag.cpp:150-155`) answers `get_health()`, a number from `-200` to `200` the reference keeps apart from `get_hp()`: a
@@ -949,6 +975,20 @@ fn special_function(
         return Answer::Value(drawn);
     }
     // The creature's own numbers, which the data asks for constantly and the port already keeps on the creature.
+    answer_from_table(world, speaker, listener, name, arguments, keywords)
+}
+
+/// The table of functions that answer from their arguments rather than from a body or a roll.
+///
+/// Reference: `math_parser_diag.cpp`'s function tables (`:1550-1760`) plus the arithmetic in `math_parser_func.h` - one name, one meaning, no scope.
+fn answer_from_table(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    name: &str,
+    arguments: &[Expression],
+    keywords: &[(String, Expression)],
+) -> Answer {
     match (name, arguments) {
         // Reference: `u_hp` (`math_expressions` in `dialogue_helpers`), which takes a body part the port does not model and answers the whole
         // creature's remaining hit points.
@@ -959,6 +999,11 @@ fn special_function(
         // Reference: `{ "pain", { "un", 0, pain_eval, pain_ass } }` (`math_parser_diag.cpp:869-882`) - the actor's `pain_cur`, with `type: "perceived"` asking
         // for the pain as the character feels it instead. The port has no masking rule yet, so it refuses that form rather than answering the raw number for it.
         ("health" | "u_health" | "npc_health", []) => return answer_health(world, speaker, listener, name),
+        // Reference: `calories_eval` (`math_parser_diag.cpp:1753`) answers `get_stored_kcal()`: the stored energy in kilocalories, with `format: percent`
+        // refused because it needs a healthy weight the port has no rule for.
+        ("calories" | "u_calories" | "npc_calories", _) => {
+            return answer_calories(world, speaker, listener, name, keywords);
+        }
         ("vitamin" | "u_vitamin" | "npc_vitamin", _) => {
             return answer_vitamin(world, speaker, listener, name, arguments).map_or(Answer::Refused, Answer::Value);
         }
@@ -1051,8 +1096,7 @@ fn special_function(
         let turns = cdda_content::constructions::parse_duration(text) as f64;
         return Answer::Value(turns);
     }
-    Answer::NotMine
-}
+    Answer::NotMine}
 
 /// What an expression works out to, with a choice about what an unset variable means.
 ///
