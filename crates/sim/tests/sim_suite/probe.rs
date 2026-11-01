@@ -895,3 +895,47 @@ fn calories_are_read_in_kilocalories() {
     let read = cdda_content::dialogue::read_condition(&percent).expect("the condition reads");
     assert!(!cdda_sim::conditions::holds_with(&world, survivor, None, &read), "no answer, so no pass");
 }
+
+/// `u_learn_recipe` teaches the actor one recipe, `u_forget_recipe` takes it back, and `u_know_recipe` asks.
+///
+/// Reference: `f_learn_recipe` (`npctalk.cpp:5250-5258`) hands the id to `Character::learn_recipe`, which adds it to `learned_recipes`
+/// (`src/character_crafting.cpp:32-40`); `knows_recipe` (`:28-31`) is a membership test on that set. Teaching twice leaves one copy, and forgetting one the
+/// character never knew changes nothing.
+#[test]
+fn a_recipe_is_taught_and_known() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    assert!(!cdda_sim::recipes_known::knows(&world, survivor, "cake2"), "nobody knows it yet");
+
+    let runs = |world: &mut bevy_ecs::prelude::World, text: &str| {
+        let wrapper = format!(r#"{{"type": "effect_on_condition", "id": "EOC_teach", "effect": [{text}]}}"#);
+        let value = cdda_json::parse(wrapper.as_bytes()).expect("json");
+        let program = cdda_content::dialogue::read_program(&value).expect("the program reads");
+        cdda_sim::eoc_registry::set_programs(world, std::slice::from_ref(&program));
+        cdda_sim::eoc_registry::run_program(world, survivor, None, "EOC_teach", 0)
+    };
+
+    assert_eq!(
+        runs(&mut world, r#"{"u_learn_recipe": "cake2"}"#),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    assert!(cdda_sim::recipes_known::knows(&world, survivor, "cake2"), "the recipe is known");
+    assert_eq!(
+        cdda_sim::recipes_known::known(&world, survivor),
+        vec!["cake2".to_owned()],
+        "and it is the only one"
+    );
+
+    // Teaching the same recipe again leaves one copy: the set has no duplicates.
+    assert_eq!(
+        runs(&mut world, r#"{"u_learn_recipe": "cake2"}"#),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    assert_eq!(cdda_sim::recipes_known::known(&world, survivor).len(), 1, "still one copy");
+
+    assert_eq!(
+        runs(&mut world, r#"{"u_forget_recipe": "cake2"}"#),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    assert!(!cdda_sim::recipes_known::knows(&world, survivor, "cake2"), "and now it is gone");
+}

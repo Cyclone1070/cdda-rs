@@ -1201,6 +1201,33 @@ fn run_branch(world: &mut World, speaker: Entity, listener: Option<Entity>, effe
     run_effects(world, speaker, listener, branch)
 }
 
+/// Teaches or unteaches one recipe, on the actor the member names.
+///
+/// Reference: `f_learn_recipe` / `f_forget_recipe` (`npctalk.cpp:5250-5266`): `u_learn_recipe` teaches the speaker and `npc_learn_recipe` the listener, and the
+/// id may be a variable, which is why it is evaluated before it is used.
+fn run_learn_recipe(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    recipe: &cdda_content::dialogue::StringSource,
+    forget: bool,
+) -> Applied {
+    let Some(named) = crate::conditions::text_of(world, speaker, listener, recipe) else {
+        return Applied::CannotAnswer;
+    };
+    let actor = if matches!(recipe, cdda_content::dialogue::StringSource::Variable { .. }) {
+        listener.unwrap_or(speaker)
+    } else {
+        speaker
+    };
+    if forget {
+        crate::recipes_known::forget(world, actor, &named);
+    } else {
+        crate::recipes_known::learn(world, actor, &named);
+    }
+    Applied::Done
+}
+
 /// Runs one effect entry.
 pub fn run_effect(
     world: &mut World,
@@ -1212,6 +1239,9 @@ pub fn run_effect(
         Effect::Math(assignments) => run_math(world, speaker, listener, assignments),
         // A comment-only entry does nothing, which the reference's loader also does with it.
         Effect::Nothing => Applied::Done,
+        Effect::LearnRecipe { recipe, forget } => {
+            run_learn_recipe(world, speaker, listener, recipe, *forget)
+        }
         Effect::Message(text) => {
             crate::messages::push(world, text);
             Applied::Done

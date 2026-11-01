@@ -104,6 +104,14 @@ pub enum Condition {
         /// Whether the question is about the listener rather than the speaker.
         listener: bool,
     },
+    /// The player knows a recipe.
+    ///
+    /// Reference: `f_u_know_recipe` (`condition.cpp:2034-2042`): `knows_recipe` is a membership test on `learned_recipes`, and the reference asks it of the
+    /// **player** whoever the dialogue is with.
+    KnowsRecipe {
+        /// The recipe's id.
+        recipe: String,
+    },
     /// The creature wears an effect, at least as strongly as stated.
     ///
     /// Reference: `conditional_fun::f_has_effect` (`condition.cpp:980-996`): the effect must be there, and the stated
@@ -389,6 +397,34 @@ impl Operator {
     }
 }
 
+/// Reads whether the actor carries a trait.
+///
+/// Reference: `f_has_trait` (`condition.cpp:580-586`) - the actor simply has to carry it, with `u_has_trait` asking the speaker and `npc_has_trait` the listener.
+fn read_has_trait(object: &cdda_json::Object) -> Option<Condition> {
+    for (member, listener) in [("u_has_trait", false), ("npc_has_trait", true)] {
+        if let Some(Value::Str(trait_name)) = object.get(member) {
+            return Some(Condition::HasTrait {
+                trait_name: trait_name.clone(),
+                listener,
+            });
+        }
+    }
+    None
+}
+
+/// Reads whether the player knows a recipe.
+///
+/// Reference: `f_u_know_recipe` (`condition.cpp:2034-2042`): the reference asks the **player**, not the scoped actor, because recipes were not part of the talker
+/// interface, and the port keeps that rule rather than answering for a listener the reference would not have asked.
+fn read_knows_recipe(object: &cdda_json::Object) -> Option<Condition> {
+    if let Some(Value::Str(recipe)) = object.get("u_know_recipe") {
+        return Some(Condition::KnowsRecipe {
+            recipe: recipe.clone(),
+        });
+    }
+    None
+}
+
 /// Reads a condition, or nothing when the port has no rule for it.
 ///
 /// Reads a condition written as a bare name, which the reference calls an argument-less condition.
@@ -494,15 +530,13 @@ pub fn read_condition(value: &Value) -> Option<Condition> {
             mission: mission.clone(),
         });
     }
+    if let Some(known) = read_knows_recipe(object) {
+        return Some(known);
+    }
     // Reference: `f_has_trait` (`condition.cpp:580-586`) - the actor simply has to carry the trait. Measured against the data,
     // this is the second biggest guard the port could not answer (36 programs).
-    for (member, listener) in [("u_has_trait", false), ("npc_has_trait", true)] {
-        if let Some(Value::Str(trait_name)) = object.get(member) {
-            return Some(Condition::HasTrait {
-                trait_name: trait_name.clone(),
-                listener,
-            });
-        }
+    if let Some(trait_condition) = read_has_trait(object) {
+        return Some(trait_condition);
     }
     let Some(Value::Str(effect)) = object.get("u_has_effect") else {
         return None;
@@ -805,6 +839,7 @@ fn read_carried_effect(object: &cdda_json::Object) -> Option<Effect> {
     read_spawn_monster(object)
         .or_else(|| read_run_npc_eocs(object))
         .or_else(|| read_run_monster_eocs(object))
+        .or_else(|| read_learn_recipe(object))
         .or_else(|| read_assign_mission(object))
         .or_else(|| read_teleport(object))
         .or_else(|| read_variable_effect(object))
@@ -1574,6 +1609,16 @@ pub enum Effect {
     Math(Vec<Assignment>),
     /// A message to the player.
     Message(String),
+    /// Teach the actor a recipe, or take one away.
+    ///
+    /// Reference: `f_learn_recipe` (`npctalk.cpp:5250-5258`) takes one recipe id and hands it to the actor's `learn_recipe`; `f_forget_recipe` (`:5260`) is the
+    /// same member with the opposite meaning. Both are read here because the difference is one boolean, not one rule.
+    LearnRecipe {
+        /// The recipe to teach or to take away.
+        recipe: StringSource,
+        /// Whether the effect takes the recipe away rather than teaching it.
+        forget: bool,
+    },
     /// An entry that does nothing, because every member it had was a comment.
     ///
     /// Reference: a member named `//`, or any name starting with `//`, is a **comment** and no loader reads it (`json.h:1500`, `json.cpp:153`). An effect
@@ -1917,6 +1962,13 @@ impl Effect {
             Self::RunNpcEocs { .. } => "u_run_npc_eocs",
             Self::RunMonsterEocs { .. } => "u_run_monster_eocs",
             Self::Nothing => "//",
+            Self::LearnRecipe { forget, .. } => {
+                if *forget {
+                    "u_forget_recipe"
+                } else {
+                    "u_learn_recipe"
+                }
+            }
             Self::If { .. } => "if",
             Self::AddEffect { .. } => "u_add_effect",
             // Both are the same member: the data writes one effect or an array of them under one name.
@@ -2191,6 +2243,18 @@ fn read_assign_mission(object: &cdda_json::Object) -> Option<Effect> {
     Some(Effect::AssignMission {
         id: read_string_source(value)?,
     })
+}
+
+/// Reads `u_learn_recipe` and `u_forget_recipe`, which differ only in the member name.
+///
+/// Reference: `f_learn_recipe` / `f_forget_recipe` (`npctalk.cpp:5250-5266`) both take one recipe id and hand it to the actor.
+fn read_learn_recipe(object: &cdda_json::Object) -> Option<Effect> {
+    for (member, forget) in [("u_learn_recipe", false), ("npc_learn_recipe", false), ("u_forget_recipe", true), ("npc_forget_recipe", true)] {
+        if let Some(value) = object.get(member) {
+            return read_string_source(value).map(|recipe| Effect::LearnRecipe { recipe, forget });
+        }
+    }
+    None
 }
 
 /// Reads `u_run_monster_eocs` and its listener spelling.

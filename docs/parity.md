@@ -6921,3 +6921,35 @@ to edit back the twenty lines I had moved.
 I also extracted the **wrong** `match` on the first attempt - `s.index()` found the first `match (name, arguments)` in the file rather than the one inside the
 function I named - which is the same class of error as the wrong-file overwrite from earlier rounds: **locate by the enclosing item, never by the first match of a
 string.**
+
+## `u_learn_recipe`, `u_forget_recipe`, `u_know_recipe` (round 888)
+
+Twelve programs, and the largest single-round jump in a dozen rounds - because the three members share one small store: the set of recipes a character has been
+taught.
+
+Reference: `Character::learn_recipe` (`character_crafting.cpp:32-40`) adds an id to `learned_recipes`; `forget_recipe` removes it; `knows_recipe` (`:28-31`) is a
+membership test. `f_learn_recipe` / `f_forget_recipe` (`npctalk.cpp:5250-5266`) hand the id to the actor, and `f_u_know_recipe` (`condition.cpp:2034-2042`) asks
+**the player**, whatever the dialogue's scope, because recipes were never part of the talker interface. The port keeps that asymmetry rather than tidying it away.
+
+**One rule the port cannot honour yet, recorded rather than faked:** `learn_recipe` refuses to teach a recipe carrying `never_learn`, which the data uses for the
+seventeen companion recipes in `recipes/recipe_companion.json`. The port has no recipe prototype to ask, so it teaches what it is told. I checked the data's own
+teach calls before accepting that: none of the eighteen `u_learn_recipe` entries names one of those seventeen ids, so the gap is real but not yet reachable.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 398 | **410** |
+answered `Done` | 249 | **261** |
+did something | 105 | **113** |
+unreadable leaves | 574 | **556** |
+one-gap programs | 124 | **118** |
+effect entries runnable | 1,220 | **1,233** |
+effect-blamed programs | 256 | **244** |
+conditions readable | 2,983 | **2,983** |
+
+**Twelve programs from three members and one `BTreeSet`.** The recipe set is four functions - learn, forget, knows, list - and it turned out to be the last of the
+"small store, many guards" ports for a while: the remaining one-gap list is dominated by `math` (24), `count`/`type`/`u_cast_spell` (5 each), and those are not
+shapes the port is short of, they are rules it has no answer for.
+
+The cycle discipline held this round only after three lint cycles - a 100-line cap in `read_condition`, another in `run_effect`, and one `match`-for-single-pattern
+- each fixed by extracting a function that should have been separate from the start. The pattern is consistent: **a new arm is a new function**, and writing it
+inside the big `match` first costs two cycles every time.

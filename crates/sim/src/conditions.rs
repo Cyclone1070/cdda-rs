@@ -428,6 +428,8 @@ fn holds_within(
             let holder = crate::missions::question_holder(world, speaker);
             crate::missions::has_mission(world, holder, mission)
         }
+        // Reference: `f_u_know_recipe` (`condition.cpp:2034-2042`) - a membership test on the player's learned recipes.
+        Condition::KnowsRecipe { recipe } => crate::recipes_known::knows(world, speaker, recipe),
         Condition::HasTrait {
             trait_name,
             listener: about_listener,
