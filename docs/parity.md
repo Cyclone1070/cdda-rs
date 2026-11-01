@@ -7706,3 +7706,35 @@ discrepancy is recorded here as an open question about the calendar's own clock,
 store-writes - spawn a creature, spawn an item, consume an item, write a variable, copy a variable, schedule an event, play a sound, do nothing - moved into
 `run_store_effect`, which answers `Some(Applied)` or `None`, and `run_effect` asks it first. One line replaced six arms, and the next store-write costs one line in a
 small function instead of a compaction in a large one.
+
+## The open question, answered: an hour is 3600 turns (round 916)
+
+Last round left a question in the record rather than a claim: a timed event scheduled `"1 hour"` ahead came due at a turn that did not match the test's arithmetic, and
+the store's `now` looked like it disagreed with the calendar. The answer is not a bug in either.
+
+**A turn is a second in the reference's clock, so an hour is 3600 turns, not 600.** I read "an hour" as ten minutes because 600 is the number that appears in
+`SATED_START_TURNS` and other ten-minute spans, and then blamed the calendar when the store answered 1000 + 3600. The store was right; my arithmetic was wrong.
+
+The assertion is now in the test, and stronger than the one I had: half an hour on, the event is **not** due; a whole one, it is.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 496 | 496 |
+one-gap programs | 75 | 75 |
+
+## `force_equip`: read, and refused for a reason that is not `force_equip` (round 916)
+
+`force_equip` was on the one-gap list, so the reader stopped rejecting it and keeps the flag; the runner refuses, because the port has no wield slot and dropping an
+item where the data asked for a hand is a worse answer than a stated gap.
+
+**The count did not move, and the diagnostic said why in one line:** both objects are
+
+```
+{"force_equip": true, "suppress_message": true, "u_spawn_item": "internal_mp3_radio_group", "use_item_group": true}
+```
+
+- `use_item_group` means the name is an **item group** to draw from, not an item id. The port has no item-group store at all, so the spawn cannot be resolved even
+  with `force_equip` accepted. The gap was reported under `force_equip` only because it is the first unreadable member in the object.
+
+That is the third time this round-family of diagnostics has paid: the member on the list was never the member that mattered. The next real step for `u_spawn_item` is
+**item groups** - `item_group::item_from` in the reference - which is a store, not a reader.

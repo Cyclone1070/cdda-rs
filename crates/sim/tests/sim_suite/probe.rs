@@ -1563,6 +1563,12 @@ fn an_altered_timed_event_comes_due_with_the_clock() {
     let applied = read_and_run(&mut world, r#"{"alter_timed_events": "portal_storm", "time_in_future": "1 hour"}"#);
     assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "it runs");
     assert_eq!(cdda_sim::timed_events::has_happened(&world, "portal_storm"), Some(false), "not yet: an hour is ahead");
+    // An hour is **3600 turns**, because a turn is a second in the reference's clock - the number the store was showing me when I first read it as 600 and
+    // blamed the calendar. Half an hour on, still ahead; a whole one, due.
+    cdda_sim::calendar::set_turn(&mut world, 1000 + 1800);
+    assert_eq!(cdda_sim::timed_events::has_happened(&world, "portal_storm"), Some(false), "half an hour: still ahead");
+    cdda_sim::calendar::set_turn(&mut world, 1000 + 3600);
+    assert_eq!(cdda_sim::timed_events::has_happened(&world, "portal_storm"), Some(true), "an hour on, it has happened");
 
     // No time ahead at all: due this very turn, which is the reference's zero default.
     let applied = read_and_run(&mut world, r#"{"alter_timed_events": "now_event"}"#);
@@ -1573,4 +1579,23 @@ fn an_altered_timed_event_comes_due_with_the_clock() {
         Some(false),
         "an event nobody scheduled has not happened"
     );
+}
+
+/// A spawn that asks for a hand rather than a square reads, and refuses to run while the port has no hand to put it in.
+///
+/// Reference: `f_spawn_item` (`npctalk.cpp:3799`) reads `force_equip` and wields what it spawned. The port reads the flag and refuses at run rather than dropping the
+/// item on the floor where the data did not ask for it - a wrong world is worse than a stated gap.
+#[test]
+fn a_forced_equip_reads_and_refuses_to_run() {
+    let value = cdda_json::parse(
+        br#"{"u_spawn_item": "chitin_piece", "force_equip": true}"#.as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    assert!(format!("{effect:?}").contains("force_equip: true"), "and keeps the flag: {effect:?}");
+
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let applied = cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect);
+    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::CannotAnswer, "no hand, no equip");
 }

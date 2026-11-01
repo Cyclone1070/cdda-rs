@@ -671,9 +671,14 @@ fn consume_items(world: &mut World, speaker: Entity, listener: Option<Entity>, e
 /// Reference: `f_spawn_item` (`npctalk.cpp:3771-3800`): `count` of them, each with `charges` charges when the data gives charges. An item the port's catalogue does
 /// not know is refused rather than dropped as something nameless.
 fn spawn_items(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::SpawnItem { item, count, charges, .. } = effect else {
+    let Effect::SpawnItem { item, count, charges, force_equip, .. } = effect else {
         return Applied::CannotAnswer;
     };
+    // Reference: `force_equip` puts the item in the creature's hands, and the port has no wield slot to put it in - so it refuses rather than dropping the item
+    // where the data did not ask for it.
+    if *force_equip {
+        return Applied::CannotAnswer;
+    }
     let Some(at) = world.get::<crate::Position>(speaker).copied() else {
         return Applied::CannotAnswer;
     };
