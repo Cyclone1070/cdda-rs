@@ -369,6 +369,32 @@ pub fn holds_in_store(
 /// Reference: `f_has_effect` (`condition.cpp:980-996`) reads its actor through the dialogue's scope, so `npc_has_effect` asks about the other creature. With no
 /// other creature there is nobody to ask about, and the answer is a refusal rather than "no" - which here means false, because a condition that cannot be
 /// answered does not hold.
+/// Whether one of the argument-less conditions holds.
+///
+/// Reference: `conditional_t( std::string_view )` (`condition.cpp:2783-2810`) - the parsers that take no argument are lookup entries by name, which is why the data may
+/// write them as a bare string (`{"not": "is_day"}`).
+fn simple_holds(world: &World, speaker: Entity, listener: Option<Entity>, name: &str) -> bool {
+    match name {
+        // Reference: `has_beta` asks whether a listener exists at all (`d.has_beta`).
+        "has_beta" => listener.is_some(),
+        // Reference: `u_is_avatar` / `u_is_character` ask what kind of talker the speaker is. The port knows one character kind, so both answer "is this the entity
+        // the player drives".
+        "u_is_avatar" | "u_is_character" => crate::missions::avatar(world) == Some(speaker),
+        // Reference: `is_day( p )` (`calendar.cpp:368-371`) is `sun_altitude >= sunrise_angle`, and `is_night` is `sun_altitude <= civil_dawn` - six degrees below the
+        // horizon, so the two are **not** each other's negation and the twilight between them answers neither.
+        "is_day" => calendar_turn(world).is_some_and(cdda_core_types::astronomy::is_day),
+        "is_night" => calendar_turn(world).is_some_and(cdda_core_types::astronomy::is_night),
+        _ => false,
+    }
+}
+
+/// The turn the calendar is on, as the astronomy reads it.
+fn calendar_turn(world: &World) -> Option<f64> {
+    #[allow(clippy::cast_precision_loss)]
+    let turn = crate::calendar::of(world)?.turn as f64;
+    Some(turn)
+}
+
 fn wears_at_least(
     world: &World,
     speaker: Entity,
@@ -437,14 +463,7 @@ fn holds_within(
         Condition::HasFlag { .. } => creature_flag(world, speaker, listener, condition),
         Condition::CanSee { listener: about_listener } => actor_for(speaker, listener, *about_listener)
             .is_some_and(|actor| crate::seeing::can_see(world, actor)),
-        Condition::Simple { name } => match name.as_str() {
-            // Reference: `has_beta` asks whether a listener exists at all (`d.has_beta`).
-            "has_beta" => listener.is_some(),
-            // Reference: `u_is_avatar` / `u_is_character` ask what kind of talker the speaker is. The port knows one character
-            // kind, so both answer "is this the entity the player drives".
-            "u_is_avatar" | "u_is_character" => crate::missions::avatar(world) == Some(speaker),
-            _ => false,
-        },
+        Condition::Simple { name } => simple_holds(world, speaker, listener, name),
         Condition::IsWeather { wanted } => crate::weather::id_of(world)
             .is_some_and(|happening| wanted.contains(&happening)),
         Condition::HasMission { mission } => {

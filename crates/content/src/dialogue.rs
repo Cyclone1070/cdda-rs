@@ -469,7 +469,13 @@ fn read_bare_condition(name: &str) -> Option<Condition> {
         }
         _ => {}
     }
-    matches!(name, "has_beta" | "u_is_avatar" | "u_is_character").then(|| Condition::Simple {
+    // Reference: `conditional_t( std::string_view )` (`condition.cpp:2783-2810`) looks a bare name up among the **argument-less** parsers, so every one of them is a
+    // condition the data may write as a string. `is_day` and `is_night` are the two the port can answer from the calendar alone.
+    matches!(
+        name,
+        "has_beta" | "u_is_avatar" | "u_is_character" | "is_day" | "is_night"
+    )
+    .then(|| Condition::Simple {
         name: name.to_owned(),
     })
 }

@@ -1260,3 +1260,29 @@ fn a_split_math_statement_reads() {
         );
     }
 }
+
+/// A bare `is_day` / `is_night` is a condition, and the two are not each other's negation.
+///
+/// Reference: `conditional_t` (`condition.cpp:2783-2810`) looks a bare name up among the argument-less parsers, and the data writes `{"not": "is_day"}`. The rules are
+/// `calendar.cpp:363-371`: day starts at `sunrise_angle` (-1 degree) and night starts at `civil_dawn` (-6 degrees), so the sky between them calls itself neither.
+#[test]
+fn a_bare_day_or_night_condition_reads() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let holds = |world: &bevy_ecs::prelude::World, text: &str| {
+        let value = cdda_json::parse(text.as_bytes()).expect("json");
+        let condition = cdda_content::dialogue::read_condition(&value).expect("the condition reads");
+        cdda_sim::conditions::holds_with(world, survivor, None, &condition)
+    };
+
+    // Noon on the first day is certainly day, and midnight is certainly night.
+    // One turn is one second, so noon of the first day is 43,200 turns in and midnight is zero.
+    let noon = 43_200;
+    let midnight = 0;
+    cdda_sim::calendar::set_turn(&mut world, noon);
+    assert!(holds(&world, r#""is_day""#), "noon is day");
+    assert!(!holds(&world, r#"{"not": "is_day"}"#), "and not not-day");
+    cdda_sim::calendar::set_turn(&mut world, midnight);
+    assert!(holds(&world, r#""is_night""#), "midnight is night");
+    assert!(holds(&world, r#"{"not": "is_day"}"#), "midnight is not day");
+}

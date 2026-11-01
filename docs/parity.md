@@ -7340,3 +7340,31 @@ answers a question the census had been unable to answer since it was written: no
 The lesson is the one four rounds of zero-movement work had been shouting: when a fix moves nothing, the next useful thing is usually **not** another fix, it is
 better eyes. This is the third diagnostic this session to pay for itself immediately - `CDDA_SHOW_GAP`, `CDDA_SHOW_MATH` before it, and now the leaf text - and each
 one found in a minute what a frequency count had hidden for weeks.
+
+## `is_day` and `is_night` as bare names (round 903)
+
+Reference: `conditional_t( std::string_view )` (`condition.cpp:2783-2810`) looks a bare name up among the **argument-less** parsers, which is why the data writes
+`{"not": "is_day"}` as a string. The port answered three of those names (`has_beta`, `u_is_avatar`, `u_is_character`) and refused the rest, so `is_day` - and
+everything inside the same `and` - could not be read.
+
+The rules were already in the port and nothing was calling them: `cdda_core_types::astronomy::is_day` is `sun_altitude >= sunrise_angle` (-1 degree) and `is_night` is
+`sun_altitude <= civil_dawn` (**-6 degrees**). They are **not** each other's negation; the sky between them calls itself neither, which is the reference's twilight.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 455 | **461** |
+answered `Done` | 295 | **301** |
+did something | 142 | **148** |
+unreadable leaves | 414 | **401** |
+one-gap programs | 108 | **102** |
+conditions readable | 3,195 | **3,209** |
+effect entries runnable | 1,337 | **1,338** |
+program refusals blaming `<named>` | 18 | **12** |
+
+Six programs and fourteen conditions from two names, because the functions were already written and only the **table** was short. That is the third time this
+session a rule existed and a reader did not - `jmath` before it, `set_vitamin` before that - and the pattern is now clear enough to state: this port's remaining work
+is mostly **wiring**, not arithmetic.
+
+**The next three gaps are named and each needs a store, not a reader:** `u_cast_spell` (5 programs) needs spells with levels and experience; `max_radius` (6) needs a
+monster placed in a **ring** rather than at one distance, and the port's spawner has one number; `id` (6) is a bionic-graph member. So the next round should build the
+spell store rather than looking for another table to extend.
