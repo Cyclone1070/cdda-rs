@@ -471,3 +471,34 @@ fn two_creatures_are_as_far_apart_as_the_longest_axis() {
         "an unknown actor is a refusal, which answers false rather than a made-up distance"
     );
 }
+
+/// `u_pain()` answers how much pain the creature is in, and zero when nothing hurts.
+///
+/// Reference: `pain_eval` (`math_parser_diag.cpp:869-882`) answers the actor's `pain_cur`; `type: 'perceived'` asks for the pain as the character feels it, which
+/// the port has no masking rule for, so that form is refused rather than answered with the raw number.
+#[test]
+fn pain_is_a_number_the_condition_can_read() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+
+    let asks = |world: &bevy_ecs::prelude::World, text: &str| {
+        let condition = cdda_json::parse(format!(r#"{{"math": ["{text}"]}}"#).as_bytes()).expect("json");
+        let read = cdda_content::dialogue::read_condition(&condition).expect("the condition reads");
+        cdda_sim::conditions::holds_with(world, survivor, None, &read)
+    };
+
+    // A creature nobody has hurt is in no pain.
+    assert!(asks(&world, "u_pain() == 0"), "no pain by default");
+
+    world.entity_mut(survivor).insert(cdda_sim::creature::Pain(23));
+    assert!(asks(&world, "u_pain() == 23"), "the number the store holds");
+
+    // The perceived form is a rule the port does not have, so it refuses instead of answering the raw number under a different name.
+    let perceived =
+        cdda_json::parse(br#"{"math": ["u_pain('type': 'perceived') > 0"]}"#.as_slice()).expect("json");
+    let read = cdda_content::dialogue::read_condition(&perceived).expect("the condition reads");
+    assert!(
+        !cdda_sim::conditions::holds_with(&world, survivor, None, &read),
+        "a refused function answers false rather than pretending"
+    );
+}

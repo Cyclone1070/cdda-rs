@@ -258,6 +258,8 @@ pub fn math_function(name: &str) -> Option<Arity> {
         // Reference: `rng( lo, hi )` (`math_parser_func.h:141-163`).
         // Reference: `{ "distance", { "g", 2, distance_eval } }` (`math_parser_diag.cpp:1690`) - two points, each a named actor or a stored location.
         "rng" | "distance" => Arity::Exactly(2),
+        // Reference: `pain_eval` takes no positional arguments; it is scoped (`u_pain`/`npc_pain`) and reads a `type` keyword.
+        "u_pain" | "npc_pain" => Arity::Exactly(0),
         "min" | "max" => Arity::AtLeast(1),
         _ => return None,
     })

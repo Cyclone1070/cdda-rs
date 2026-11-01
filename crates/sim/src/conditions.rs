@@ -691,6 +691,19 @@ fn special_function(
         // Reference: `u_hp` (`math_expressions` in `dialogue_helpers`), which takes a body part the port does not model and answers the whole
         // creature's remaining hit points.
         ("distance", [first, second]) => return distance_between(world, speaker, listener, first, second),
+        // Reference: `{ "pain", { "un", 0, pain_eval, pain_ass } }` (`math_parser_diag.cpp:869-882`) - the actor's `pain_cur`, with `type: "perceived"` asking
+        // for the pain as the character feels it instead. The port has no masking rule yet, so it refuses that form rather than answering the raw number for it.
+        ("u_pain" | "npc_pain", []) => {
+            if keywords.iter().any(|(name, _)| name == "type") {
+                return Answer::Refused;
+            }
+            let creature = match name {
+                "npc_pain" => listener.unwrap_or(speaker),
+                _ => speaker,
+            };
+            let pain = world.get::<crate::creature::Pain>(creature).copied().unwrap_or_default();
+            return Answer::Value(f64::from(pain.0));
+        }
         ("u_hp" | "npc_hp", _) => {
             let creature = match name {
                 "npc_hp" => listener.unwrap_or(speaker),

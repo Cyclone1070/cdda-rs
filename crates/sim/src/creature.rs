@@ -183,6 +183,13 @@ pub fn try_step(world: &mut World, entity: Entity, to: (i32, i32, i32), cost: i3
     StepOutcome::Moved
 }
 
+/// How much pain a creature is in.
+///
+/// Reference: `Character::pain_cur` (`character.h`): a plain integer the game raises as damage lands and lets decay each turn, read by `u_pain()` in dialogue
+/// math and by every rule that asks whether a character is hurting. The port keeps it as a component, so nothing has to hold it beside the store.
+#[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Pain(pub i32);
+
 /// How much life a creature has left.
 ///
 /// Reference: `Creature::hp` (`src/creature.h`), and `monster::is_dead_state` is simply `hp <= 0`

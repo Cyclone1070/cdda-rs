@@ -6604,3 +6604,30 @@ does not have refuses rather than answering zero - the reference throws, and a d
 
 **Clippy cost two cycles again** - a merged arm and the 100-line cap - both predictable, both the same ones I have hit all session. The lint runs on the far side of a
 fifteen-minute round trip, which makes each one expensive; the only defence is to run `--clippy` immediately after touching a match, before the census.
+
+## `u_pain()` (round 877)
+
+Pain was the port's oldest declared gap - `creature.rs` says in as many words that "pain and temporary modifiers are not here, and inventing them would make a
+fictional creature". The dialogue data asks `u_pain() > 0` in a dozen places, so the function was refused and every condition around it went with it.
+
+Reference: `Character::pain_cur` (`character.h`) is a plain integer the game raises as damage lands and lets decay each turn; `pain_eval` (`math_parser_diag.cpp:869-882`)
+answers it, and `type: 'perceived'` asks for the pain *as the character feels it* instead.
+
+So the port now has a `Pain(i32)` component - zero for a creature nobody has hurt - and `u_pain()`/`npc_pain()` reading it. The perceived form is **refused** rather
+than answered with the raw number under another name, because the masking rules (traits that dull pain) are not ported and answering the same number twice would be
+the sort of silent difference this file exists to prevent.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 368 | 368 |
+answered `Done` | 220 | **220** |
+unreadable leaves | 760 | **757** |
+one-gap programs | 134 | **137** |
+programs blaming `math` | 37 | **34** |
+conditions readable | 2,888 | **2,898** |
+
+**One-gap went *up* by three, and that is the right direction:** three programs that were two members short are now one short. Leaves moved down by three and the
+one-gap bucket moved up by the same three, which is what a partial fix looks like when the census is honest about it.
+
+The store is the point. Pain is a number a rule raises when damage lands and a rule lowers each turn; putting it on the creature as a component means the future
+damage rule and the future decay rule both write to it and nothing has to remember to keep a second copy.
