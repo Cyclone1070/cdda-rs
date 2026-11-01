@@ -37,6 +37,11 @@ pub struct Body {
     pub hunger: i32,
     /// Thirst, from `-100` up.
     pub thirst: i32,
+    /// The **health stat**: how well the character feels, from `-200` (dying) to `200` (the picture of health).
+    ///
+    /// This is not hit points - the reference keeps `get_health()`/`set_health()` (`character.h`, `character.cpp`) apart from `get_hp()`, and so does the port: a
+    /// character at full hit points can be at `-200` health and vice versa. It moves with disease, wounds and good food, and the dialogue reads it as `u_health()`.
+    pub health: i32,
     /// Stored energy in **calories**, which are thousandths of the kilocalories the game shows.
     pub stored_calories: i64,
     /// The vitamin levels the body holds, in internal units.

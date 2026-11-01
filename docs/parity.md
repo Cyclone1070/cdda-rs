@@ -6868,3 +6868,28 @@ is 3,708 entries and most of them ask about a number the character carries. Each
 The cost side: **six cycles spent re-pinning counts**, each one a two-minute build to learn one integer, and four clippy cycles because `special_function` grew
 again - once for the 100-line cap, once for the arm merge that got it back under. The pinning is unavoidable while the census is a set of constants; a single
 `cargo test -- --nocapture` run that prints **all** the numbers at once would turn six cycles into one, and that is worth doing before the next port.
+
+## `u_health()` (round 886)
+
+The health **stat** - not hit points. Reference: `health_eval` (`math_parser_diag.cpp:150-155`) answers `get_health()`, a number from `-200` (dying) to `200`, which
+the reference keeps in a different field from `get_hp()`. A character at full hit points can be at `-200` health, and the data asks about the stat.
+
+That distinction is the whole reason the field is on `Body` and not on the creature's health: the port already had a `Health` component for hit points, and reusing
+it would have made a wounded character look well and a well one look dead. The test asserts the two numbers stay apart.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 397 | **398** |
+answered `Done` | 248 | **249** |
+unreadable leaves | 589 | **575** |
+conditions readable | 2,967 | **2,981** |
+effect entries runnable | 1,219 | **1,220** |
+programs blaming `math` (install census) | 15 | **15** |
+
+**Fourteen conditions from one zero-argument function**, which confirms the shape the last round found: the body numbers are where the conditions live.
+
+**The pinning procedure finally got fixed, by doing it differently rather than by writing a tool.** One `ssh ... for t in <six tests>; do cargo test ... --nocapture; done` prints every census number in a single remote call, so the six-cycle pin-then-fail loop became two. That was available for rounds and I kept doing it the slow way because the slow way was habitual - the fix was a shell loop, not a feature.
+
+**Two mistakes worth naming.** I merged the health arity into a neighbouring `|`-chain by accident, which deleted `u_pain` from the arity table; a probe test caught it, and the lesson is that a `|`-prefixed line is a continuation, not a new arm - the replace should have kept the head. And I spent two cycles guessing a count (254, 255) instead of reading it from the census print I had just made.
+
+I also left one refactor undone: `special_function` is at 99 lines, and the next arm will break the cap again. The right fix is to move the whole body-number group (`pain`, `health`, `vitamin`, `skill`, the two nearby counts) into its own function; I did not do it this round and it will cost a cycle next round.

@@ -640,6 +640,19 @@ fn distance_between(
 ///
 /// Reference: `_filter_monster` (`math_parser_diag.cpp:781-794`): a creature counts when it **is a monster**, when its type is one the arguments name, and
 /// when `radius >= rl_dist(...)` - so the radius is a Chebyshev one, like `distance`, not a walked path.
+/// The health **stat**, which is not the creature's hit points.
+///
+/// Reference: `health_eval` (`math_parser_diag.cpp:150-155`) answers `get_health()`, a number from `-200` to `200` the reference keeps apart from `get_hp()`: a
+/// character at full hit points can be at `-200` health, and the dialogue asks about the stat.
+fn answer_health(world: &World, speaker: Entity, listener: Option<Entity>, name: &str) -> Answer {
+    let creature = match name {
+        "npc_health" => listener.unwrap_or(speaker),
+        _ => speaker,
+    };
+    let health = crate::body::body_of(world, creature).map_or(0, |body| body.health);
+    Answer::Value(f64::from(health))
+}
+
 /// How much of one vitamin a character holds.
 ///
 /// Reference: `vitamin_eval` (`math_parser_diag.cpp:1584-1592`) answers `vitamin_get`, which is the stored amount and **zero** for a vitamin the body has none of
@@ -945,10 +958,9 @@ fn special_function(
         }
         // Reference: `{ "pain", { "un", 0, pain_eval, pain_ass } }` (`math_parser_diag.cpp:869-882`) - the actor's `pain_cur`, with `type: "perceived"` asking
         // for the pain as the character feels it instead. The port has no masking rule yet, so it refuses that form rather than answering the raw number for it.
+        ("health" | "u_health" | "npc_health", []) => return answer_health(world, speaker, listener, name),
         ("vitamin" | "u_vitamin" | "npc_vitamin", _) => {
-            if let Some(amount) = answer_vitamin(world, speaker, listener, name, arguments) {
-                return Answer::Value(amount);
-            }
+            return answer_vitamin(world, speaker, listener, name, arguments).map_or(Answer::Refused, Answer::Value);
         }
         ("u_pain" | "npc_pain", []) => {
             return answer_pain(world, speaker, listener, name, keywords);

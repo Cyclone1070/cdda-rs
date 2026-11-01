@@ -844,3 +844,29 @@ fn a_vitamin_level_reads_as_the_amount_stored() {
         "and it is a number inside an expression"
     );
 }
+
+/// `u_health()` answers the health **stat**, which is not the creature's hit points.
+///
+/// Reference: `health_eval` (`math_parser_diag.cpp:150-155`) answers `get_health()`, a number from `-200` to `200` that the reference keeps apart from `get_hp()`.
+/// A character at full hit points can be at `-200` health; confusing the two would make a wounded character look well and a well one look dead.
+#[test]
+fn health_is_a_stat_and_not_hit_points() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let read = |text: &str| {
+        let condition = cdda_json::parse(format!(r#"{{"math": ["{text}"]}}"#).as_bytes()).expect("json");
+        cdda_content::dialogue::read_condition(&condition).expect("the condition reads")
+    };
+    assert!(
+        cdda_sim::conditions::holds_with(&world, survivor, None, &read("u_health() == 0")),
+        "a fresh character is neither healthy nor ill"
+    );
+    assert!(cdda_sim::body::with_body_mut(&mut world, survivor, |body| body.health = -150));
+    assert!(
+        cdda_sim::conditions::holds_with(&world, survivor, None, &read("u_health() == -150")),
+        "the stat is read as it was set, negative and all"
+    );
+    // The hit points did not move with it: these are two different numbers.
+    let hit_points = cdda_sim::creature::health_of(&world, survivor);
+    assert_ne!(hit_points, Some(-150), "hit points are not the health stat");
+}
