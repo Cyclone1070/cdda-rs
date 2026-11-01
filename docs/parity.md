@@ -6433,3 +6433,29 @@ Both are loadable-in-principle and neither is a rule I have to invent.
 
 The supporting refactor was forced: the census test crossed the 100-line cap twice, so the tree walk became `readable_programs` and the catalogue became
 `install_monsters`. They were inline for two rounds because they were "only a test"; a test that measures everything is not a small function.
+
+## The blame phase was measuring the wrong world (round 871)
+
+`the_readable_programs_also_run_in_a_fresh_world` does two things: it counts how many programs run, and then, for each that does not, it runs that program's effects
+one at a time to name the one that refused. The counting worlds had been given the data's mapgens, fields, snippets, monsters and groups over four rounds. **The
+blame worlds had been given none of it** - they were bare, with only the programs installed - so every effect that needs data refused there, and the blame list said
+`mapgen_update 10`, `u_spawn_monster 9`, `run_eoc_selector 8`: the port's three worst-looking gaps. I had been reading that list as a work queue for weeks.
+
+Now both phases build the same world: a `Census` value holds the programs, mapgens, terrain codes, field ids, snippets, monsters and groups, and `Census::install`
+puts them in any world. The blame worlds and the counting worlds are now identical by construction, which is the only way a blame list can mean anything.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 367 | **367** |
+**capability** | 226 | **226** |
+effects runnable | 1,197 | **1,197** |
+blame list | unchanged | **unchanged** |
+
+**The numbers did not move, and that is the useful result:** the blame was *right* all along, for reasons the old worlds only accidentally reproduced. What did move
+is the evidence. With the census world carrying the data's monsters, `CDDA_SHOW_SPAWN=1` now prints two refusals - `no count` - instead of the six different
+stories it printed an hour ago, and the four `unknown type` spawns are gone: the catalogue does hold `mon_golden_monolith`, and a probe test now says so, because I
+did not believe the number.
+
+The two remaining refusals are a dialogue-math question, not a spawn question: a `real_count` expression that reads a variable the world never set. In the
+reference's dialogue math an unset variable **is zero**; the port refuses the expression instead. That is the next rule to get right, and it is one rule, in one
+place, with a census that will move when it lands.

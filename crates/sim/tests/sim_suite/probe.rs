@@ -363,3 +363,18 @@ fn a_spawn_can_draw_from_a_group() {
         cdda_sim::dialogue_effects::Applied::CannotAnswer
     );
 }
+
+/// Every monster the data defines loads, including the ones that copy from another monster in the same file.
+///
+/// Four spawns in the census refused with `unknown type`, and the catalogue is built by the same loader, so this says whether the story is "the file was never
+/// read" or "the copy-from chain was not resolved" - two very different bugs.
+#[test]
+fn a_monster_that_copies_from_another_loads() {
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../oracle/src/data/json");
+    let monsters = cdda_content::monsters::load_paths(&[&data]).expect("the tree reads");
+    let ids: Vec<&str> = monsters.iter().map(|kind| kind.id.as_str()).collect();
+    assert!(ids.contains(&"mon_yrax_sphenocorona"), "the base loads");
+    assert!(ids.contains(&"mon_golden_monolith"), "the monster that copies from it loads");
+    assert!(ids.contains(&"mon_spider_cellar_giant"), "a base in another family loads");
+    assert!(ids.len() > 1_000, "the whole catalogue is there: {}", ids.len());
+}

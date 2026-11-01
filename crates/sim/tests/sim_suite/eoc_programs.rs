@@ -380,26 +380,7 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
     // programs, with any of them callable. Installing only the program under test made ninety of the ninety-eight refusals a `run_eocs`
     // call to a program that was simply not there - a fact about the census, not about the port.
     // The world the game has: the data's mapgens and fields, so an update a program applies has something to apply.
-    let mapgens = collect_mapgens(&data);
-    let mut codes: std::collections::BTreeMap<String, u32> = std::collections::BTreeMap::new();
-    let mut fields: Vec<(String, u32)> = Vec::new();
-    for (_, mapgen) in &mapgens {
-        for terrain in mapgen.terrain.values() {
-            let next = u32::try_from(codes.len() + 1).unwrap_or(1);
-            codes.entry(terrain.clone()).or_insert(next);
-        }
-        for placement in &mapgen.fields {
-            if !fields.iter().any(|(known, _)| known == &placement.field) {
-                let next = u32::try_from(fields.len() + 1).unwrap_or(1);
-                fields.push((placement.field.clone(), next));
-            }
-        }
-    }
-
-    // The snippets, for the same reason: a program that says a line from a category refuses in a world with no categories.
-    let snippets = collect_snippets(&data);
-
-    let (monsters, groups) = install_monsters(&data);
+    let census = census_world(&data, readable.clone());
 
     let mut ran = 0usize;
     let mut refused = 0usize;
@@ -409,11 +390,7 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
         let mut world = World::new();
         let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
         cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
-        cdda_sim::eoc_registry::set_programs(&mut world, &readable);
-        install_data(&mut world, &mapgens, &codes, &fields);
-        install_snippets(&mut world, &snippets);
-        cdda_sim::monster_catalog::set_types(&mut world, monsters.clone());
-        cdda_sim::monster_groups::set_groups(&mut world, groups.clone());
+        census.install(&mut world);
         if eoc_registry::run_program(&mut world, survivor, None, &program.id, 0) == Applied::Done {
             ran += 1;
             continue;
@@ -422,7 +399,7 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
         // Name the effect that refused **at run time**, by running them one at a time in their own fresh world. This is the same device
         // as the read-side blame, one level down: the read census says which member cannot be understood, this says which one cannot be
         // carried out.
-        if let Some(culprit) = first_refusing_effect(program, &readable, 0) {
+        if let Some(culprit) = first_refusing_effect(program, &census, 0) {
             *runtime_blame.entry(culprit).or_insert(0) += 1;
         }
     }
@@ -432,13 +409,11 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
             let mut world = World::new();
             let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
             cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
-            cdda_sim::eoc_registry::set_programs(&mut world, &readable);
-        install_data(&mut world, &mapgens, &codes, &fields);
-        install_snippets(&mut world, &snippets);
+            census.install(&mut world);
             if eoc_registry::run_program(&mut world, survivor, None, &program.id, 0) == Applied::Done {
                 continue;
             }
-            if let Some(culprit) = first_refusing_effect(program, &readable, 0)
+            if let Some(culprit) = first_refusing_effect(program, &census, 0)
                 && culprit == "mapgen_update"
             {
                 println!("MAPGEN REFUSED IN {}: {:?}", program.id, program.effects);
@@ -463,11 +438,39 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
     crate::numbers::NOW.accounts_for_every_program();
 }
 
-/// Every snippet line in the data, filed under `category/id` the way the store expects.
-/// Reads the monsters and monster groups the data holds, so a spawn in the census world has something to draw from.
+/// Everything a census world is made of: the data's mapgens, fields, snippets, monsters and groups.
 ///
-/// Both loaders walk the whole tree, abstracts included: a monster that copies from an abstract is unknown without it, and three spawn programmes refused with
-/// `unknown type` until the catalogue was read this way rather than file by file.
+/// The blame phase used to build a bare world - no mapgens, no snippets, no catalogue - and name whatever effect refused there, which is
+/// how `mapgen_update`, `u_spawn_monster` and `run_eoc_selector` came to look like the port's worst gaps: they were refused for want of data
+/// a real world has.
+struct Census {
+    /// The programs every world installs, so a call to another program finds it.
+    programs: Vec<cdda_content::dialogue::Program>,
+    /// The data's mapgens, by id.
+    mapgens: Vec<(String, cdda_content::mapgen::MapgenObject)>,
+    /// Terrain names to the ids the level uses.
+    codes: std::collections::BTreeMap<String, u32>,
+    /// Field names to the ids the store uses.
+    fields: Vec<(String, u32)>,
+    /// The snippet lines, by category and id.
+    snippets: Vec<(String, cdda_content::snippets::Line)>,
+    /// The monster types the data defines.
+    monsters: Vec<cdda_content::monsters::MonsterType>,
+    /// The monster groups the data defines.
+    groups: Vec<cdda_content::monster_groups::MonsterGroup>,
+}
+
+impl Census {
+    /// Builds the world the game has, so a rule that asks for data finds it.
+    fn install(&self, world: &mut World) {
+        cdda_sim::eoc_registry::set_programs(world, &self.programs);
+        install_data(world, &self.mapgens, &self.codes, &self.fields);
+        install_snippets(world, &self.snippets);
+        cdda_sim::monster_catalog::set_types(world, self.monsters.clone());
+        cdda_sim::monster_groups::set_groups(world, self.groups.clone());
+    }
+}
+
 /// Reads every program the data defines, and how many it defines whether the port can read them or not.
 fn readable_programs(data: &std::path::Path) -> (usize, Vec<cdda_content::dialogue::Program>) {
     let mut defined = 0usize;
@@ -503,14 +506,53 @@ fn readable_programs(data: &std::path::Path) -> (usize, Vec<cdda_content::dialog
     (defined, readable)
 }
 
+/// Builds the census world's data once, so every measured world and every blamed world is the same world.
+fn census_world(data: &std::path::Path, programs: Vec<cdda_content::dialogue::Program>) -> Census {
+    let mapgens = collect_mapgens(data);
+    let mut codes: std::collections::BTreeMap<String, u32> = std::collections::BTreeMap::new();
+    let mut fields: Vec<(String, u32)> = Vec::new();
+    for (_, mapgen) in &mapgens {
+        for terrain in mapgen.terrain.values() {
+            let next = u32::try_from(codes.len() + 1).unwrap_or(1);
+            codes.entry(terrain.clone()).or_insert(next);
+        }
+        for placement in &mapgen.fields {
+            if !fields.iter().any(|(known, _)| known == &placement.field) {
+                let next = u32::try_from(fields.len() + 1).unwrap_or(1);
+                fields.push((placement.field.clone(), next));
+            }
+        }
+    }
+    let snippets = collect_snippets(data);
+    let (monsters, groups) = install_monsters(data);
+    Census {
+        programs,
+        mapgens,
+        codes,
+        fields,
+        snippets,
+        monsters,
+        groups,
+    }
+}
+
 fn install_monsters(
     data: &std::path::Path,
 ) -> (
     Vec<cdda_content::monsters::MonsterType>,
     Vec<cdda_content::monster_groups::MonsterGroup>,
 ) {
-    let monsters = cdda_content::monsters::load_paths(&[data]).unwrap_or_default();
-    let groups = cdda_content::monster_groups::load_paths(&[data]).unwrap_or_default();
+    let monsters = cdda_content::monsters::load_paths(&[data]).unwrap_or_else(|error| {
+        if std::env::var("CDDA_SHOW_SPAWN").is_ok() { println!("monsters refused: {}", error.message); }
+        Vec::new()
+    });
+    let groups = cdda_content::monster_groups::load_paths(&[data]).unwrap_or_else(|error| {
+        if std::env::var("CDDA_SHOW_SPAWN").is_ok() { println!("groups refused: {}", error.message); }
+        Vec::new()
+    });
+    if std::env::var("CDDA_SHOW_SPAWN").is_ok() {
+        println!("catalogue: {} monsters, {} groups", monsters.len(), groups.len());
+    }
     (monsters, groups)
 }
 
@@ -622,7 +664,7 @@ fn collect_mapgens(data: &std::path::Path) -> Vec<(String, cdda_content::mapgen:
 /// reporting the joiner `and`. The search therefore descends into the callee and names the effect that actually refused.
 fn first_refusing_effect(
     program: &cdda_content::dialogue::Program,
-    installed: &[cdda_content::dialogue::Program],
+    census: &Census,
     depth: usize,
 ) -> Option<String> {
     if depth >= 8 {
@@ -632,7 +674,7 @@ fn first_refusing_effect(
         let mut alone = World::new();
         let survivor = cdda_sim::creature::spawn_creature(&mut alone, "the survivor", (0, 0, 0));
         cdda_sim::singletons::put_rolls(&mut alone, cdda_core_types::rng::Rolls::new(1));
-        cdda_sim::eoc_registry::set_programs(&mut alone, installed);
+        census.install(&mut alone);
         if cdda_sim::dialogue_effects::run_effect(&mut alone, survivor, None, effect)
             != Applied::CannotAnswer
         {
@@ -642,12 +684,13 @@ fn first_refusing_effect(
             cdda_content::dialogue::Effect::RunEoc(calls) => calls
                 .iter()
                 .find_map(|call| match call {
-                    cdda_content::dialogue::ProgramRef::Named { id, .. } => installed
+                    cdda_content::dialogue::ProgramRef::Named { id, .. } => census
+                        .programs
                         .iter()
                         .find(|program| program.id == *id)
-                        .and_then(|program| first_refusing_effect(program, installed, depth + 1)),
+                        .and_then(|program| first_refusing_effect(program, census, depth + 1)),
                     cdda_content::dialogue::ProgramRef::Inline { program, .. } => {
-                        first_refusing_effect(program, installed, depth + 1)
+                        first_refusing_effect(program, census, depth + 1)
                     }
                 })
                 .or_else(|| Some("run_eocs(calls a program that is not installed)".to_owned())),
