@@ -6459,3 +6459,31 @@ did not believe the number.
 The two remaining refusals are a dialogue-math question, not a spawn question: a `real_count` expression that reads a variable the world never set. In the
 reference's dialogue math an unset variable **is zero**; the port refuses the expression instead. That is the next rule to get right, and it is one rule, in one
 place, with a census that will move when it lands.
+
+## The zero rule I could not land (round 872)
+
+The two `no count` spawn refusals pointed at one rule: in dialogue math a variable nobody set reads as **zero**. The source is unambiguous -
+`read_var_value` (`dialogue_helpers.cpp:11-16`) answers an empty `diag_value`, and `diag_value::dbl()` (`math_parser_diag_value.cpp:168`) turns an empty value into
+zero. I implemented it, gated it with a spawn whose count is `never_set + 1` (one creature appears - the test passes), and measured.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 367 | 367 |
+**capability** | **226** | **219** |
+ran in a built world | 230 | **223** |
+refused at run time | 141 | **148** |
+blame `if` | 6 | **12** |
+
+**Seven programs that ran now refuse.** A rule proven from the source made the port worse, which means the rule is not the whole rule - or something it feeds is
+wrong. `if` doubled as a blame, so the change is in conditions: a condition that used to refuse on an unset variable now answers, its branch runs, and something
+inside that branch refuses.
+
+The likely culprit is a place where the port treats "unset" and "holds the wrong type" as the same `None`. I narrowed it once - absent reads zero, a location or a
+line of text still refuses, because `_diag_value_helper` throws on a type mismatch - and the seven did **not** come back, so that was not it either.
+
+Reverted both the rule and its test. What stays is the finding, written down so the next attempt starts from it rather than repeating it: the reference's zero rule
+is real, the port has a bug nearby, and landing the first without finding the second costs seven programs. **A rule read correctly from the source is not proof
+that adding it helps** - the census is what says whether it does, and it said no.
+
+Next step on this thread is a diagnostic, not a rule: print which seven programs changed, and look at the conditions they take. That is one cheap run
+(`CDDA_SHOW_*`-style), and it is the right way round - measure the seven, then decide.
