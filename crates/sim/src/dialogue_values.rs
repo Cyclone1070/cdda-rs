@@ -40,6 +40,18 @@ pub struct DialogueValues {
     values: BTreeMap<String, Value>,
 }
 
+/// How many variables exist in the world, across every holder.
+///
+/// A census that only asks "did the program answer" cannot tell a program that did something from one that answered after doing nothing. The count of
+/// variables, with the entity count and the lines said, is the cheapest fingerprint that separates the two.
+#[must_use]
+pub fn how_many(world: &World) -> usize {
+    let Some(mut query) = world.try_query::<&DialogueValues>() else {
+        return 0;
+    };
+    query.iter(world).map(|held| held.values.len()).sum()
+}
+
 /// Marks the entity holding the **global** variables, which every dialoguer shares.
 ///
 /// Reference: `global_variables`, one map for the whole game. The port keeps it as a singleton so a value written by one

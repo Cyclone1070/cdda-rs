@@ -6516,3 +6516,32 @@ and false.
 The next thing this thread wants is not another rule but a better census: "ran" should mean *ran and did something*, and a program that evaluates its condition and
 finds nothing to do needs to be distinguishable from one whose condition could not be read. Seven programs' worth of false passes says a count that cannot tell
 those apart is over-reporting, and I do not yet know by how much.
+
+## The census was counting no-ops as runs (round 874)
+
+Last round ended with a question I could not answer: how many of the 219 programs that "ran" actually ran? The answer, measured this round, is **75**.
+
+The census now takes a fingerprint of the world before and after each program - how many entities exist, how many lines were said, how many variables were written
+to - and counts the programs that answered `Done` without moving any of the three.
+
+| Count | Value | What it means |
+|---|---|---|
+programs readable | 367 | the reader understands them |
+ran to completion | 219 | they answered `Done` |
+**ran and changed nothing** | **144** | they answered `Done` having done nothing |
+**ran and did something** | **75** | the real capability figure |
+
+**Two thirds of the capability number was silence.** Some of it is honest: a program whose condition is false for a fresh world - no zombie nearby, no time of day,
+no mission taken - *should* do nothing, and answering `Done` is correct. But the seven false passes from last round were also in that pile: a program whose
+condition could not be read answers the same way a program whose condition was read and found false. The count could not tell them apart, so it reported 219 where
+the truth was 75 doing work and 144 of unknown quality.
+
+That is what a number does when it is asked the wrong question. "Did it run?" has the answer 219. "Did it work?" has at most 75, and I do not yet know which of the
+144 are the good kind of silent.
+
+`dialogue_values::how_many` exists for this and nothing else: a world's variables are the store, so counting them is one query, and the fingerprint is three cheap
+reads rather than a diff of two worlds.
+
+Next is to split the 144: a program whose condition answered **false** is silent honestly, and a program whose condition refused cannot be told apart yet. That
+needs the condition evaluator to answer three ways instead of two, which is a real change to a hot function - and it is the honest prerequisite for any capability
+number I quote from here on.

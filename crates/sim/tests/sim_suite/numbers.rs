@@ -18,6 +18,8 @@ pub struct Census {
     pub readable: usize,
     /// Readable programs that also ran to completion in a fresh world.
     pub ran: usize,
+    /// Of those, the ones that changed nothing the world can see: entities, lines said, variables written.
+    pub silent: usize,
     /// Readable programs that ran in a world with terrain, an overmap and a player who answers - what a game has.
     pub ran_in_a_built_world: usize,
     /// Readable programs that refused at run time.
@@ -46,6 +48,9 @@ pub const NOW: Census = Census {
     defined: 692,
     readable: 367,
     ran: 219,
+    // Of those, how many answered `Done` without changing anything the world can see: four in five of them, because a program whose condition is
+    // false for a fresh world legitimately does nothing - and a program whose condition could not be READ does nothing too, and used to count as a run.
+    silent: 144,
     // The same programs run in a world that has terrain, an overmap and a player who answers, which is what a game has.
     ran_in_a_built_world: 221,
     refused_at_run: 148,

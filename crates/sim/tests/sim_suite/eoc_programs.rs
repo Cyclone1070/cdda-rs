@@ -383,6 +383,7 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
     let census = census_world(&data, readable.clone());
 
     let mut ran = 0usize;
+    let mut silent = 0usize;
     let mut refused = 0usize;
     let mut runtime_blame: std::collections::BTreeMap<String, usize> =
         std::collections::BTreeMap::new();
@@ -391,8 +392,17 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
         let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
         cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
         census.install(&mut world);
+        // "Ran" has to mean *ran and did something*: a program whose condition could not be read answers Done after doing nothing, which is a
+        // false pass. The fingerprint is the cheapest thing that tells them apart - what exists, what was said, what was written down.
+        let before = fingerprint(&world);
         if eoc_registry::run_program(&mut world, survivor, None, &program.id, 0) == Applied::Done {
             ran += 1;
+            if fingerprint(&world) == before {
+                silent += 1;
+                if std::env::var("CDDA_SHOW_REFUSED").is_ok() {
+                    println!("SILENT {}", program.id);
+                }
+            }
             continue;
         }
         refused += 1;
@@ -428,7 +438,7 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
     ranked.sort_by_key(|(_, count)| std::cmp::Reverse(*count));
     ranked.truncate(6);
     println!(
-        "of {defined} programs: {} readable, {ran} ran in a fresh world, {refused} refused at run time; \
+        "of {defined} programs: {} readable, {ran} ran in a fresh world ({silent} of them without changing anything), {refused} refused at run time; \
          the effects that refused: {ranked:?}",
         readable.len()
     );
@@ -436,6 +446,7 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
     assert_eq!(defined, crate::numbers::NOW.defined, "the data defines 692 nameable effect-on-conditions");
     assert_eq!(readable.len(), crate::numbers::NOW.readable, "the port reads 239 of them");
     assert_eq!(ran, crate::numbers::NOW.ran, "a hundred and thirty-two of the readable programs also ran");
+    assert_eq!(silent, crate::numbers::NOW.silent, "most programs that answer do nothing measurable, and the census now says so");
     assert_eq!(refused, crate::numbers::NOW.refused_at_run, "and a hundred and seven refused at run time");
     assert_eq!(ran + refused, readable.len(), "every readable program did one or the other");
     crate::numbers::NOW.accounts_for_every_program();
@@ -507,6 +518,15 @@ fn readable_programs(data: &std::path::Path) -> (usize, Vec<cdda_content::dialog
         }
     }
     (defined, readable)
+}
+
+/// What a world holds, in three numbers: entities, lines said, and variables written.
+fn fingerprint(world: &World) -> (u32, usize, usize) {
+    (
+        world.entities().len(),
+        cdda_sim::messages::lines(world).len(),
+        cdda_sim::dialogue_values::how_many(world),
+    )
 }
 
 /// Builds the census world's data once, so every measured world and every blamed world is the same world.
