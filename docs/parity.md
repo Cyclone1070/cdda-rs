@@ -6545,3 +6545,34 @@ reads rather than a diff of two worlds.
 Next is to split the 144: a program whose condition answered **false** is silent honestly, and a program whose condition refused cannot be told apart yet. That
 needs the condition evaluator to answer three ways instead of two, which is a real change to a hot function - and it is the honest prerequisite for any capability
 number I quote from here on.
+
+## Splitting the silence: 21 of the 144 were never programs (round 875)
+
+The 144 silent programs split the moment I looked at what they test. Thirty-six of them state **no condition at all**, and when I printed their effects they were
+empty:
+
+```
+SILENT_NOCOND EOC_Nunez_Travel :: []
+SILENT_NOCOND bile_stink :: []
+```
+
+`bile_stink` in the data is an `effect_type`, not an effect-on-condition, and `EOC_Nunez_Travel` is an `effect_on_condition` with an id and nothing else. The port
+reads them as programs holding no effects, runs them, and reports `Done` - correctly, because there is nothing to do. They are **stubs**, and 21 of the 144 are this.
+
+| Count | Value | What it means |
+|---|---|---|
+readable | 367 | the reader understands them |
+answered `Done` | 219 | it ran to the end |
+- silent | 144 | changed nothing |
+- of those, stubs | **21** | the data gives them no effects |
+- silent with effects | 123 | condition false, or hidden gap |
+**did something** | **75** | the real figure |
+
+So the honest comparison from here on is three numbers, not one: **75 did work, 21 are stubs, 123 are silent with real effects, 148 refused.** Printing only "219 ran"
+averaged four different things into one number that described none of them.
+
+Twelve of the 144 are `is_outside`/`at_om_location` programs - conditions a fresh world answers false because it has no overmap - which is the good kind of
+silent. The rest need the tri-state condition evaluator to sort, and that is still the next real change.
+
+The lesson is the same one twice in two rounds, and this time it was cheap to act on: **a count that lumps unlike things together will eventually be read as if it
+did not.** The fix is not a better number, it is more numbers.

@@ -384,6 +384,7 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
 
     let mut ran = 0usize;
     let mut silent = 0usize;
+    let mut empty_programs = 0usize;
     let mut refused = 0usize;
     let mut runtime_blame: std::collections::BTreeMap<String, usize> =
         std::collections::BTreeMap::new();
@@ -399,8 +400,15 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
             ran += 1;
             if fingerprint(&world) == before {
                 silent += 1;
-                if std::env::var("CDDA_SHOW_REFUSED").is_ok() {
-                    println!("SILENT {}", program.id);
+                if program.effects.is_empty() {
+                    empty_programs += 1;
+                }
+                if std::env::var("CDDA_SHOW_SILENT").is_ok() {
+                    if program.condition.is_none() {
+                        println!("SILENT_NOCOND {} :: {:?}", program.id, program.effects);
+                    } else {
+                        println!("SILENT {} :: {:?}", program.id, program.condition);
+                    }
                 }
             }
             continue;
@@ -438,7 +446,7 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
     ranked.sort_by_key(|(_, count)| std::cmp::Reverse(*count));
     ranked.truncate(6);
     println!(
-        "of {defined} programs: {} readable, {ran} ran in a fresh world ({silent} of them without changing anything), {refused} refused at run time; \
+        "of {defined} programs: {} readable, {ran} ran in a fresh world ({silent} of them without changing anything, {empty_programs} of those because the data gives them no effects), {refused} refused at run time; \
          the effects that refused: {ranked:?}",
         readable.len()
     );
@@ -446,6 +454,11 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
     assert_eq!(defined, crate::numbers::NOW.defined, "the data defines 692 nameable effect-on-conditions");
     assert_eq!(readable.len(), crate::numbers::NOW.readable, "the port reads 239 of them");
     assert_eq!(ran, crate::numbers::NOW.ran, "a hundred and thirty-two of the readable programs also ran");
+    assert_eq!(
+        empty_programs,
+        crate::numbers::NOW.empty_programs,
+        "twenty-one of the silent programs are stubs the data gives no effects"
+    );
     assert_eq!(silent, crate::numbers::NOW.silent, "most programs that answer do nothing measurable, and the census now says so");
     assert_eq!(refused, crate::numbers::NOW.refused_at_run, "and a hundred and seven refused at run time");
     assert_eq!(ran + refused, readable.len(), "every readable program did one or the other");
