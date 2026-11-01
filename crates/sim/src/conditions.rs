@@ -364,6 +364,27 @@ pub fn holds_in_store(
     held
 }
 
+/// Whether a creature wears an effect at least as strongly as stated, asking about whichever creature the data named.
+///
+/// Reference: `f_has_effect` (`condition.cpp:980-996`) reads its actor through the dialogue's scope, so `npc_has_effect` asks about the other creature. With no
+/// other creature there is nobody to ask about, and the answer is a refusal rather than "no" - which here means false, because a condition that cannot be
+/// answered does not hold.
+fn wears_at_least(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &str,
+    intensity: i32,
+    about_listener: bool,
+) -> bool {
+    let creature = match (about_listener, listener) {
+        (true, Some(other)) => other,
+        (true, None) => return false,
+        (false, _) => speaker,
+    };
+    crate::applied_effects::intensity_of(world, creature, effect).is_some_and(|worn| intensity <= worn)
+}
+
 /// Whether a condition holds, with dice available for the two guards that roll.
 ///
 /// Reference: `one_in_chance` and `x_in_y_chance` (`condition.cpp:1760-1810`) draw a die, so they are answerable only where the
@@ -439,8 +460,11 @@ fn holds_within(
             Some(creature) => crate::traits::has_trait(world, creature, trait_name),
             None => false,
         },
-        Condition::HasEffect { effect, intensity } => crate::applied_effects::intensity_of(world, speaker, effect)
-            .is_some_and(|worn| *intensity <= worn),
+        Condition::HasEffect {
+            effect,
+            intensity,
+            listener: about_listener,
+        } => wears_at_least(world, speaker, listener, effect, *intensity, *about_listener),
         Condition::And(conditions) => {
             conditions_with_dice(world, speaker, listener, conditions, draws, true)
         }

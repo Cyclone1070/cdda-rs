@@ -7202,3 +7202,30 @@ array. Each is its own round, and each needs a store before it needs a reader.
 **Clippy caught my own test**, not the code: I reached for `panic!` inside a closure to assert the effect shape. The workspace forbids it in production code and the
 test binary counts, so the closure returns `CannotAnswer` for a non-math effect instead - the test still fails loudly, and it fails through an assertion the linter
 allows.
+
+## `npc_has_effect`: the other creature's effects, 263 times (round 898)
+
+The data spells every two-scope guard twice, and the port had read only the `u_` half of this one. `condition.cpp`'s `f_has_effect` takes its actor through the
+dialogue's scope, so `u_has_effect` asks about the speaker and `npc_has_effect` about the **listener** - and the data uses the second **263 times**.
+
+`Condition::HasEffect` now carries `listener: bool`, the reader accepts both spellings, and `wears_at_least` resolves the creature: the speaker unless the data
+said `npc_`, in which case the listener - and with no listener there is nobody to ask about, so the condition does not hold rather than answering about the speaker.
+
+| Count | Before | After |
+|---|---|---|
+**conditions readable** | 3,056 | **3,195** |
+conditions blaming `not` | 143 | **80** |
+conditions blaming `and` | 324 | **280** |
+conditions blaming `npc_has_effect` | 31 | **0** |
+programs readable | 428 | 428 |
+effect entries runnable | 1,283 | 1,283 |
+
+**139 conditions from one boolean.** The joiner counts fell too - `not` by 63 and `and` by 44 - because a joiner refuses when a **member** refuses, and those members
+were the effect guards. That is the census being honest about nesting: the same fix shows up three times in three columns.
+
+It moved no program, because the programs that refuse refuse at `math` (24) and at `effect` (240), and this was not their deciding member. Conditions are now **86.2%**
+readable against 82.4% before.
+
+**Three lint cycles, all mine, all the same shape:** I let a function grow past the line cap and then extracted the arm, which split `pub fn holds_drawing` in half
+because I inserted the helper at a text match inside its doc comment. The extraction is right and the file is smaller than it was; the lesson is the same one as the
+missing `npc_` spelling itself - **a match on text is not a match on structure**, whether the text is Rust or the data's own keys.

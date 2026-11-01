@@ -121,6 +121,11 @@ pub enum Condition {
         effect: String,
         /// The least intensity that counts, as the data states it.
         intensity: i32,
+        /// Whether it asks about the listener rather than the speaker.
+        ///
+        /// The data spells this two ways - `u_has_effect` and `npc_has_effect` - and uses the second **263 times**, so a reader that knows only the first
+        /// refuses a quarter of the data's guard on whom an effect sits.
+        listener: bool,
     },
     /// Every one of these holds.
     And(Vec<Condition>),
@@ -459,6 +464,38 @@ fn read_bare_condition(name: &str) -> Option<Condition> {
     })
 }
 
+/// Reads a condition that asks whether a creature wears an effect, in either scope.
+///
+/// Reference: `conditional_fun::f_has_effect` (`condition.cpp:980-996`): the effect must be there, and the stated intensity must be no more than the one worn. An
+/// intensity of zero means "any". The data spells the scope two ways, `u_has_effect` and `npc_has_effect` (263 uses), and the second asks about the listener.
+fn read_has_effect(object: &cdda_json::Object) -> Option<Condition> {
+    let (effect, listener) = match (object.get("u_has_effect"), object.get("npc_has_effect")) {
+        (Some(Value::Str(effect)), _) => (effect, false),
+        (_, Some(Value::Str(effect))) => (effect, true),
+        _ => return None,
+    };
+    // A condition that names a body part cannot be answered by the port's effects, which are the creature's rather than a
+    // part's: refusing it is honest, and answering it as though the part did not matter would be wrong every time it did.
+    if object.get("bodypart").is_some() {
+        return None;
+    }
+    let intensity = match object.get("intensity") {
+        Some(Value::Int(number)) => i32::try_from(*number).ok()?,
+        Some(Value::Float(number)) => {
+            #[allow(clippy::cast_possible_truncation)]
+            let as_whole = *number as i32;
+            as_whole
+        }
+        Some(_) => return None,
+        None => 0,
+    };
+    Some(Condition::HasEffect {
+        effect: effect.clone(),
+        intensity,
+        listener,
+    })
+}
+
 /// Reads a condition, or nothing when the port has no rule for it.
 ///
 /// A `None` is not "false": it is "the port cannot answer", and a caller that treats the two the same would silently give
@@ -548,28 +585,7 @@ pub fn read_condition(value: &Value) -> Option<Condition> {
     if let Some(trait_condition) = read_has_trait(object) {
         return Some(trait_condition);
     }
-    let Some(Value::Str(effect)) = object.get("u_has_effect") else {
-        return None;
-    };
-    // A condition that names a body part cannot be answered by the port's effects, which are the creature's rather than a
-    // part's: refusing it is honest, and answering it as though the part did not matter would be wrong every time it did.
-    if object.get("bodypart").is_some() {
-        return None;
-    }
-    let intensity = match object.get("intensity") {
-        Some(Value::Int(number)) => i32::try_from(*number).ok()?,
-        Some(Value::Float(number)) => {
-            #[allow(clippy::cast_possible_truncation)]
-            let as_whole = *number as i32;
-            as_whole
-        }
-        Some(_) => return None,
-        None => 0,
-    };
-    Some(Condition::HasEffect {
-        effect: effect.clone(),
-        intensity,
-    })
+    read_has_effect(object)
 }
 
 

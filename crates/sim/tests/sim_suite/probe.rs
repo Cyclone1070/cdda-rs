@@ -1142,3 +1142,48 @@ fn a_math_statement_writes_to_a_store() {
         "a name with no setter refuses"
     );
 }
+
+/// `npc_has_effect` asks about the **other** creature, and the data asks it 263 times.
+///
+/// Reference: `f_has_effect` (`condition.cpp:980-996`) takes its actor from the dialogue's scope, and the data spells the two scopes `u_has_effect` and
+/// `npc_has_effect`. A reader that knows only the first refuses a quarter of the data's effect guards rather than answering them about the wrong creature.
+#[test]
+fn an_effect_condition_can_ask_about_the_other_creature() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let talker = cdda_sim::creature::spawn_creature(&mut world, "the talker", (1, 0, 0));
+    cdda_sim::applied_effects::add(
+        &mut world,
+        talker,
+        cdda_sim::effects::ActiveEffect {
+            id: "effect_boom".to_owned(),
+            intensity: 2,
+            duration: 10,
+            permanent: false,
+        },
+    );
+
+    let holds = |world: &bevy_ecs::prelude::World, text: &str| {
+        let value = cdda_json::parse(text.as_bytes()).expect("json");
+        let condition = cdda_content::dialogue::read_condition(&value).expect("the condition reads");
+        cdda_sim::conditions::holds_with(world, survivor, Some(talker), &condition)
+    };
+
+    assert!(!holds(&world, r#"{"u_has_effect": "effect_boom"}"#), "the survivor does not wear it");
+    assert!(holds(&world, r#"{"npc_has_effect": "effect_boom"}"#), "the talker does");
+    assert!(
+        holds(&world, r#"{"npc_has_effect": "effect_boom", "intensity": 2}"#),
+        "at the intensity it was given"
+    );
+    assert!(
+        !holds(&world, r#"{"npc_has_effect": "effect_boom", "intensity": 3}"#),
+        "and not at one it was not"
+    );
+    // With nobody to ask about, a question about the other creature is refused rather than answered about the speaker.
+    let alone_value = cdda_json::parse(br#"{"npc_has_effect": "effect_boom"}"#.as_slice()).expect("json");
+    let alone_condition = cdda_content::dialogue::read_condition(&alone_value).expect("the condition reads");
+    assert!(
+        !cdda_sim::conditions::holds_with(&world, survivor, None, &alone_condition),
+        "no listener, no answer"
+    );
+}
