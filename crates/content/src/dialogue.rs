@@ -1581,6 +1581,7 @@ fn read_unnamed_effect(object: &cdda_json::Object) -> Option<Effect> {
     read_cast_spell(object)
         .or_else(|| read_spawn_npc(object))
         .or_else(|| read_sound_effect(object))
+        .or_else(|| read_spawn_item(object))
 }
 
 /// Reads a `sound_effect` entry.
@@ -1599,6 +1600,38 @@ fn read_sound_effect(object: &cdda_json::Object) -> Option<Effect> {
         },
         outdoor_event: matches!(object.get("outdoor_event"), Some(Value::Bool(true))),
     })
+}
+
+/// Reads a `u_spawn_item` / `map_spawn_item` entry.
+///
+/// Reference: `f_spawn_item` (`npctalk.cpp:3771-3800`): `count` is `get_dbl_or_var( jo, "count", false, 1 )`, **except** when the entry has an integer `charges`,
+/// where the same call passes a default of **0**. Entries that place the item with `loc` or force it into a hand are refused whole.
+fn read_spawn_item(object: &cdda_json::Object) -> Option<Effect> {
+    for member in ["u_spawn_item", "map_spawn_item"] {
+        let Some(item) = object.get(member) else {
+            continue;
+        };
+        for unsupported in ["loc", "force_equip", "use_item_group", "container"] {
+            if object.get(unsupported).is_some() {
+                return None;
+            }
+        }
+        let has_charges = matches!(object.get("charges"), Some(Value::Int(_)));
+        let charges = match object.get("charges") {
+            None => CountRange::One(0),
+            Some(value) => read_count(Some(value))?,
+        };
+        return Some(Effect::SpawnItem {
+            item: read_string_source(item)?,
+            count: match object.get("count") {
+                None => CountRange::One(i32::from(!has_charges)),
+                Some(value) => read_count(Some(value))?,
+            },
+            charges,
+            suppress_message: matches!(object.get("suppress_message"), Some(Value::Bool(true))),
+        });
+    }
+    None
 }
 
 /// Reads a `u_spawn_npc` / `npc_spawn_npc` entry.
@@ -1836,6 +1869,21 @@ pub enum Effect {
         volume: CountRange,
         /// Whether it is only heard outdoors.
         outdoor_event: bool,
+    },
+    /// Puts items on the actor's square, or near it.
+    ///
+    /// Reference: `f_spawn_item` (`npctalk.cpp:3771-3800`): the member names the item, `count` says how many and defaults to **1** - but to **0** when the entry
+    /// also gives `charges`, because a stack's size is then its charges - `container` wraps it, and `loc` says where. The port reads the item, the count and the
+    /// charges, and refuses the entries that place it somewhere else, because a location variable is a second store the port reads only for `u_location_variable`.
+    SpawnItem {
+        /// The item's id.
+        item: StringSource,
+        /// How many.
+        count: CountRange,
+        /// How many charges each one holds, when the data gives charges instead of a count.
+        charges: CountRange,
+        /// Whether anything is shown to say it appeared.
+        suppress_message: bool,
     },
     /// Brings NPCs of a class into being around the actor.
     ///
@@ -2222,6 +2270,7 @@ impl Effect {
             Self::RunMonsterEocs { .. } => "u_run_monster_eocs",
             Self::Nothing => "//",
             Self::PlaySoundEffect { .. } => "sound_effect",
+            Self::SpawnItem { .. } => "u_spawn_item",
             Self::SpawnNpc { listener, .. } => {
                 if *listener {
                     "npc_spawn_npc"

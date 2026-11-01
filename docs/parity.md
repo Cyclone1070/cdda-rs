@@ -7568,3 +7568,31 @@ count with a twist worth having in the record: **`count` defaults to 1, but to 0
 Three lint cycles this round, all from the same cause as before - `read_effect` and `run_effect` sit at the cap, so a new member costs a compaction elsewhere. The
 extraction that fixed it is `read_unnamed_effect`, which is the right shape anyway: three effects that are recognised by the **member they carry** rather than by a
 name now sit in one named place instead of three inline `if let` lines.
+
+## `u_spawn_item` reads its count the reference's way (round 911)
+
+`count` blocked five one-gap programs, and the diagnostic showed them as two effects the port had no reader for at all: `{"count": 5, "u_spawn_item": "chitin_piece"}`
+and `{"count": 100, "u_consume_item": {...}}`. This round reads the first; the second is the next round's.
+
+Reference `f_spawn_item` (`npctalk.cpp:3771-3800`) has a detail worth the whole round: `count` is `get_dbl_or_var( jo, "count", false, 1 )` - **except** when the entry
+carries an integer `charges`, where the same call passes a default of **0**, because a stack's size is then its charges. Typing that as "default one" would have
+spawned one of everything the data charges by the stack.
+
+`Effect::SpawnItem` reads the item, the count, the charges and `suppress_message`; the runner draws both counts and puts that many on the actor's square.
+An item name the catalogue does not know is refused rather than dropped nameless, and the test asserts that too - in an empty world there is no catalogue, which is
+exactly the honest answer.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 484 | **488** |
+answered `Done` | 319 | **323** |
+did something | 166 | **170** |
+unreadable leaves | 371 | **334** |
+one-gap programs | 82 | **81** |
+effect entries runnable | 1,365 | **1,380** |
+effect census blaming `effect` | 190 | **186** |
+
+**Fifteen effect entries from one reader** - the largest single-effect gain since the math bridge, because `u_spawn_item` is used all over the item EOCs.
+
+**The test is written to fail on the interesting mistake.** It asserts all three count cases (absent, `count`, `charges`) by reading the effect and printing it, so a
+reader that ignored `charges` would fail on the second assertion rather than pass on the first. The runner's catalogue refusal is the third assertion.

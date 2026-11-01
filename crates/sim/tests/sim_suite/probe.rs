@@ -1409,3 +1409,28 @@ fn a_sound_effect_reads_and_changes_nothing() {
     let (applied, _) = world_before(r#"{"sound_effect": "elec_crackle", "id": "bionics"}"#);
     assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "and reads with no volume");
 }
+
+/// `u_spawn_item` reads its count the way the reference does: **1** by default, **0** when the entry carries `charges`.
+///
+/// Reference: `f_spawn_item` (`npctalk.cpp:3783-3787`): `count` is `get_dbl_or_var( jo, "count", false, 1 )`, except when the entry has an integer `charges`, where
+/// the same call passes a default of **0** - because a stack's size is then its charges. The second case is the one a careless read of the reference gets wrong,
+/// so both are asserted here. Running it needs an item catalogue, which this empty world does not have, and the refusal is asserted too.
+#[test]
+fn a_spawn_item_effect_reads_its_count_the_reference_way() {
+    let read = |text: &str| {
+        let value = cdda_json::parse(text.as_bytes()).expect("json");
+        cdda_content::dialogue::read_effect(&value).expect("the effect reads")
+    };
+    let plain = format!("{:?}", read(r#"{"u_spawn_item": "chitin_piece"}"#));
+    assert!(plain.contains("One(1)"), "a count nobody wrote is one: {plain}");
+    let charged = format!("{:?}", read(r#"{"u_spawn_item": "chitin_piece", "charges": 3}"#));
+    assert!(charged.contains("One(0)"), "and zero beside charges: {charged}");
+    let counted = format!("{:?}", read(r#"{"u_spawn_item": "chitin_piece", "count": 5}"#));
+    assert!(counted.contains("One(5)"), "five when the data says five: {counted}");
+
+    // A world with no item catalogue cannot place a named item, and says so rather than dropping something nameless.
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let applied = cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &read(r#"{"u_spawn_item": "chitin_piece", "count": 5}"#));
+    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::CannotAnswer, "no catalogue, no item");
+}

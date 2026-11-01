@@ -553,6 +553,35 @@ fn pick_type(
     drawn
 }
 
+/// Puts items on the actor's square.
+///
+/// Reference: `f_spawn_item` (`npctalk.cpp:3771-3800`): `count` of them, each with `charges` charges when the data gives charges. An item the port's catalogue does
+/// not know is refused rather than dropped as something nameless.
+fn spawn_items(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::SpawnItem { item, count, charges, .. } = effect else {
+        return Applied::CannotAnswer;
+    };
+    let Some(at) = world.get::<crate::Position>(speaker).copied() else {
+        return Applied::CannotAnswer;
+    };
+    let Some(name) = crate::conditions::text_of(world, speaker, listener, item) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(kind) = crate::item_registry::id_of(world, &name) else {
+        return Applied::CannotAnswer;
+    };
+    let (Some(many), Some(held)) = (
+        draw_count(world, speaker, listener, count),
+        draw_count(world, speaker, listener, charges),
+    ) else {
+        return Applied::CannotAnswer;
+    };
+    for _ in 0..many.max(0) {
+        crate::drop_item(world, (at.x, at.y), kind, held);
+    }
+    Applied::Done
+}
+
 /// Brings NPCs of a class into being around the actor.
 ///
 /// Reference: `f_spawn_npc` (`npctalk.cpp:7575-7620`): the squares are drawn within the radii - twenty-five attempts, the reference's own number - the real ones
@@ -1424,6 +1453,7 @@ pub fn run_effect(
         ),
         Effect::SpawnMonster { .. } => spawn_monsters(world, speaker, listener, effect),
         Effect::SpawnNpc { .. } => spawn_npcs(world, speaker, listener, effect),
+        Effect::SpawnItem { .. } => spawn_items(world, speaker, listener, effect),
         Effect::Teleport { .. } => move_creature(world, speaker, listener, effect),
         Effect::AssignMission { .. } => give_mission(world, speaker, listener, effect),
         Effect::AddVar { .. } => add_var(world, speaker, listener, effect),
