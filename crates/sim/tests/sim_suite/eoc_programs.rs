@@ -1005,10 +1005,9 @@ fn the_programs_one_gap_away_say_what_to_port_next() {
                 }
                 let gaps = unreadable_members(definition);
                 gaps_total += gaps.len();
-                if let [only] = gaps.as_slice() {
+                if let [(only, said)] = gaps.as_slice() {
                     if std::env::var("CDDA_SHOW_GAP").is_ok_and(|wanted| wanted == *only) {
-                        let text = format!("{definition:?}");
-                        println!("GAP {only} :: {}", text.chars().take(900).collect::<String>());
+                        println!("GAP {only} :: {}", said.chars().take(400).collect::<String>());
                     }
                     *one_gap.entry(only.clone()).or_insert(0) += 1;
                 }
@@ -1056,13 +1055,13 @@ fn the_programs_one_gap_away_say_what_to_port_next() {
 ///
 /// A gap is counted per **leaf**, not per refused entry. An `open_dialogue` whose `true_eocs` cannot be read used to count as one gap and was
 /// really two, which made the "one gap away" column an upper bound on what a round could win - and it was wrong three rounds running.
-fn unreadable_members(definition: &cdda_json::Value) -> Vec<String> {
+fn unreadable_members(definition: &cdda_json::Value) -> Vec<(String, String)> {
     let mut gaps = Vec::new();
     if let Some(condition) = member(definition, "condition")
         && cdda_content::dialogue::read_condition(condition).is_none()
     {
         // Name the **condition** that refuses rather than the slot it sits in: "condition" as a gap told the port nothing about what to port.
-        gaps.push(first_refusing_condition(condition));
+        gaps.push((first_refusing_condition(condition), format!("{condition:?}")));
     }
     for slot in ["effect", "true_effect", "false_effect"] {
         let Some(effects) = member(definition, slot) else {
@@ -1144,16 +1143,16 @@ fn container_branches() -> [(&'static str, [&'static str; 2]); 3] {
 }
 
 /// Adds one gap name for every place inside an effect entry that the port cannot read.
-fn collect_leaves(entry: &cdda_json::Value, gaps: &mut Vec<String>) {
+fn collect_leaves(entry: &cdda_json::Value, gaps: &mut Vec<(String, String)>) {
     if cdda_content::dialogue::read_effect(entry).is_some() {
         return;
     }
     let cdda_json::Value::Object(object) = entry else {
-        gaps.push("<named>".to_owned());
+        gaps.push(("<named>".to_owned(), format!("{entry:?}")));
         return;
     };
     if matches!(object.get("snippet"), Some(cdda_json::Value::Bool(true))) {
-        gaps.push("snippet".to_owned());
+        gaps.push(("snippet".to_owned(), format!("{entry:?}")));
         return;
     }
     // Descend by **membership**, not by which key happens to come first: the data writes `{"else": …, "if": …, "then": …}`, so a reader that
@@ -1184,13 +1183,18 @@ fn collect_leaves(entry: &cdda_json::Value, gaps: &mut Vec<String>) {
         .iter()
         .find(|(key, _)| !is_descriptor(key) && !is_comment(key))
     else {
-        gaps.push("<named>".to_owned());
+        gaps.push(("<named>".to_owned(), String::new()));
         return;
     };
+    // The leaf's own text goes with its name: a gap called `math` told the port which member refused but not **what it said**, and the whole definition is
+    // too long to read in a terminal once a program has ten effects.
+    let leaf = object
+        .get(key)
+        .map_or_else(String::new, |value| format!("{value:?}"));
     if is_container_member(key) {
-        gaps.push("<nested>".to_owned());
+        gaps.push(("<nested>".to_owned(), leaf));
     } else {
-        gaps.push(key.clone());
+        gaps.push((key.clone(), leaf));
     }
 }
 

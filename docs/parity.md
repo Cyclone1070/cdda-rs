@@ -7306,3 +7306,37 @@ common.
 **The census's next target is honest but stubborn.** `math` still blocks 24 one-gap programs, and the definitions behind them are `"u_pain() > 0"` with
 `"u_pain()", "-=", "3"` - both of which the port now reads. The gap must be somewhere else in those definitions, and the diagnostic that names a member cannot name a
 **path**; finding it needs a reader that says which member of a definition is unreadable, not just its name. That is the next tool, not the next feature.
+
+## The tool that found it: a gap diagnostic that says **what** the member said (round 902)
+
+Last round ended by naming the next job as a tool, not a feature: the census could name an unreadable member (`math`) but not the text inside it, and the whole
+definition is too long to read. This round built that: `unreadable_members` now carries each leaf's **own JSON text**, and `CDDA_SHOW_GAP=math` prints
+`GAP math :: Array([Str("u_pain()"), Str("-="), Str("5")])` instead of a nine-hundred-character dump.
+
+It found two shapes in the first minute, both of which had been invisible for rounds:
+
+| Shape | Why it refused |
+|---|---|
+`["u_pain()", "-=", "5"]` | the pieces were joined with **nothing between** them, so `u_pain()-=5` cannot be split into a name and an operator |
+`["u_val('focus')--"]` | a postfix step is an assignment with no right-hand side, which the splitter did not know |
+
+Both are now read: pieces are joined with a space (`joined_statement`), and `split_assignment` reads a trailing `--` or `++` as minus one or plus one.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 429 | **455** |
+answered `Done` | 274 | **295** |
+did something | 125 | **142** |
+refused at run time | 155 | **160** |
+unreadable leaves | 477 | **414** |
+one-gap programs | 122 | **108** |
+effect entries runnable | 1,283 | **1,337** |
+effect census blaming `effect` | 239 | **213** |
+effect census blaming `math` | 48 | **0** |
+
+**Twenty-six programs, fifty-four effect entries, and `math` gone from the effect blame list entirely.** One round, from a diagnostic that took twenty lines and
+answers a question the census had been unable to answer since it was written: not *which member* refuses, but **what it says**.
+
+The lesson is the one four rounds of zero-movement work had been shouting: when a fix moves nothing, the next useful thing is usually **not** another fix, it is
+better eyes. This is the third diagnostic this session to pay for itself immediately - `CDDA_SHOW_GAP`, `CDDA_SHOW_MATH` before it, and now the leaf text - and each
+one found in a minute what a frequency count had hidden for weeks.

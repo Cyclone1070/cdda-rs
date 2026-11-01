@@ -1385,13 +1385,7 @@ fn read_math_expression(value: &Value) -> Option<Expression> {
     if let Value::Object(object) = value
         && let Some(Value::Array(statements)) = object.get("math")
     {
-        let mut joined = String::new();
-        for statement in statements {
-            let Value::Str(text) = statement else {
-                return None;
-            };
-            joined.push_str(text);
-        }
+        let joined = joined_statement(statements)?;
         return read_text_expression(&joined);
     }
     read_expression(value)
@@ -1574,6 +1568,24 @@ impl AssignmentTarget {
     }
 }
 
+/// Joins a `math` array's pieces into one statement.
+///
+/// Reference: `eoc_math::from_json` (`condition.cpp:2494-2502`) appends the pieces with nothing between them. The data splits at operator boundaries -
+/// `["u_pain()", "-=", "5"]` - and a port that glued them into `u_pain()-=5` could not tell the operator from the name, so the pieces are joined with a space.
+fn joined_statement(statements: &[Value]) -> Option<String> {
+    let mut joined = String::new();
+    for statement in statements {
+        let Value::Str(text) = statement else {
+            return None;
+        };
+        if !joined.is_empty() {
+            joined.push(' ');
+        }
+        joined.push_str(text);
+    }
+    Some(joined)
+}
+
 /// Reads a `math` statement, or nothing when it is not an assignment the port can perform.
 #[must_use]
 pub fn read_assignment(text: &str) -> Option<Assignment> {
@@ -1594,6 +1606,13 @@ pub fn read_assignment(text: &str) -> Option<Assignment> {
 
 /// Splits `name OP expression` at its top-level assignment operator, longest operator first.
 fn split_assignment(text: &str) -> Option<(&str, AssignmentOp, &str)> {
+    // A postfix step: `"u_val('focus')--"` is that variable minus one, and the data writes it that way when one is all it wants to change.
+    if let Some(name_part) = text.strip_suffix("--") {
+        return Some((name_part.trim(), AssignmentOp::Subtract, "1"));
+    }
+    if let Some(name_part) = text.strip_suffix("++") {
+        return Some((name_part.trim(), AssignmentOp::Add, "1"));
+    }
     let mut depth = 0i32;
     let bytes = text.as_bytes();
     let mut at = 0usize;
@@ -2226,11 +2245,17 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
         // one statement - `combined.append( objects.get_string( i ) )` with nothing between them, then one `defer_math`. So
         // `["x", " *= ", "3"]` and `["x *= 3"]` are the same effect, and a port that read one statement per element would refuse
         // every split one. The array is a token list, not a program.
+        // Joined with a space between the pieces: the reference appends them with nothing between (`condition.cpp:2498`), but the data splits at operator
+        // boundaries - `["u_pain()", "-=", "5"]` - and a port that glued them into `u_pain()-=5` could not tell the operator from the name. The space is the
+        // only difference, and it is the difference between reading the statement and refusing it.
         let mut joined = String::new();
         for statement in statements {
             let Value::Str(text) = statement else {
                 return None;
             };
+            if !joined.is_empty() {
+                joined.push(' ');
+            }
             joined.push_str(text);
         }
         return read_assignment(&joined).map(|one| Effect::Math(vec![one]));
@@ -2238,9 +2263,7 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
     if matches!(object.get("snippet"), Some(Value::Bool(true))) {
         return read_snippet(object);
     }
-    if let Some(changed) = read_effect_change(object) {
-        return Some(changed);
-    }
+    if let Some(changed) = read_effect_change(object) { return Some(changed); }
     // Reference: `f_add_trait` and `f_remove_trait` (`npctalk.cpp:3498-3543`). A `variant` member is a mutation-graph change the port
     // has no graph for, so an entry that states one is refused whole.
     for (member, listener, learn) in [

@@ -1241,3 +1241,22 @@ fn the_weather_answers_its_precise_numbers() {
     // An aspect the port has no rule for refuses rather than answering zero.
     assert!(!holds(&world, r#"{"math": ["weather('precipitation') == 0"]}"#), "no rule, no answer");
 }
+
+/// A `math` statement split across array elements reads, and a postfix step on a variable reads too.
+///
+/// Reference: `eoc_math::from_json` (`condition.cpp:2494-2502`) concatenates the array's strings into one expression, so `["u_pain()", "-=", "5"]` is the
+/// statement `u_pain() -= 5`. The data writes both that split form and the postfix `["u_val('focus')--"]`, and both must read.
+#[test]
+fn a_split_math_statement_reads() {
+    for text in [
+        r#"{"math": ["u_pain()", "-=", "5"]}"#,
+        r#"{"math": ["u_val('focus')--"]}"#,
+        r#"{"math": ["Nemesis_iteration", "+=", "1"]}"#,
+    ] {
+        let value = cdda_json::parse(text.as_bytes()).expect("json");
+        assert!(
+            cdda_content::dialogue::read_effect(&value).is_some(),
+            "{text} must read as one statement"
+        );
+    }
+}
