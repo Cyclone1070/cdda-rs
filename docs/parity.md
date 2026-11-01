@@ -6576,3 +6576,31 @@ silent. The rest need the tri-state condition evaluator to sort, and that is sti
 
 The lesson is the same one twice in two rounds, and this time it was cheap to act on: **a count that lumps unlike things together will eventually be read as if it
 did not.** The fix is not a better number, it is more numbers.
+
+## `distance(a, b)` (round 876)
+
+Back to porting, with the census finally able to tell what it is counting. The most refused math function was `distance`, in expressions like
+`distance('u', 'npc') > 4` - a dialogue condition that asks how far apart two people are.
+
+Reference: `distance_eval` (`math_parser_diag.cpp:185-201`) reads two points, each either the name of an actor (`'u'`, `'npc'`) or a stored location, and answers
+`rl_dist`. That is **`square_dist`** unless the game's circular-distance option is on: the largest axis distance, so a diagonal step is one square and one storey up
+is one step too (`line.h:190-199`). The port had the naive reading available - Euclidean, or the sum of the axes - and both would have been wrong; the test pins the
+diagonal case specifically because that is where a wrong reading shows.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 367 | **368** |
+answered `Done` | 219 | **220** |
+did something | 75 | **76** |
+unreadable leaves | 763 | **760** |
+one-gap programs | 134 | **134** |
+programs blaming `math` | 40 | **37** |
+conditions readable | 2,885 | **2,888** |
+
+Three programs stopped blaming `math` and one of them now runs end to end.
+
+`point_of` accepts a stored location as well as a name, because the reference does: `dv.tripoint()` for anything that is not a string. An actor the conversation
+does not have refuses rather than answering zero - the reference throws, and a distance of zero would be a very confident way to be wrong.
+
+**Clippy cost two cycles again** - a merged arm and the 100-line cap - both predictable, both the same ones I have hit all session. The lint runs on the far side of a
+fifteen-minute round trip, which makes each one expensive; the only defence is to run `--clippy` immediately after touching a match, before the census.

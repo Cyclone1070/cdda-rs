@@ -256,7 +256,8 @@ pub fn math_function(name: &str) -> Option<Arity> {
         | "n_npc_fear" | "u_npc_value" | "u_npc_anger" | "u_npc_trust" | "u_npc_fear" => Arity::AtLeast(0),
         "clamp" => Arity::Exactly(3),
         // Reference: `rng( lo, hi )` (`math_parser_func.h:141-163`).
-        "rng" => Arity::Exactly(2),
+        // Reference: `{ "distance", { "g", 2, distance_eval } }` (`math_parser_diag.cpp:1690`) - two points, each a named actor or a stored location.
+        "rng" | "distance" => Arity::Exactly(2),
         "min" | "max" => Arity::AtLeast(1),
         _ => return None,
     })

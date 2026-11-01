@@ -427,3 +427,47 @@ fn an_unset_variable_reads_as_zero() {
     }
     assert_eq!(made, 1, "an unset variable counted as zero, so one creature appeared");
 }
+
+/// `distance('u', 'npc')` answers how far apart two creatures are, counting a diagonal step as one square.
+///
+/// Reference: `distance_eval` (`math_parser_diag.cpp:185-201`) reads two points and answers `rl_dist`, which is `square_dist` unless the game's circular-distance
+/// option is on: the **largest** axis distance, so a diagonal is one step and one storey up is one step too.
+#[test]
+fn two_creatures_are_as_far_apart_as_the_longest_axis() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let mut level = cdda_core_types::level::Level::new();
+    for x in -24..48 {
+        for y in -24..48 {
+            level.set_terrain(x, y, 0, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let shopkeeper = cdda_sim::creature::spawn_creature(&mut world, "the shopkeeper", (3, 4, 0));
+
+    let asks = |world: &bevy_ecs::prelude::World, text: &str| {
+        let condition = cdda_json::parse(format!(r#"{{"math": ["{text}"]}}"#).as_bytes()).expect("json");
+        let read = cdda_content::dialogue::read_condition(&condition).expect("the condition reads");
+        cdda_sim::conditions::holds_with(world, survivor, Some(shopkeeper), &read)
+    };
+
+    // Three across and four down is four squares, not seven: the longest axis decides.
+    assert!(asks(&world, "distance('u', 'npc') == 4"), "four squares apart");
+    assert!(!asks(&world, "distance('u', 'npc') == 7"), "not seven");
+
+    // A diagonal step is one square.
+    if let Some(mut position) = world.get_mut::<cdda_sim::Position>(shopkeeper) {
+        position.x = 1;
+        position.y = 1;
+    }
+    assert!(asks(&world, "distance('u', 'npc') == 1"), "a diagonal is one step");
+
+    // Asking for an actor that is not in the conversation refuses rather than answering zero.
+    assert!(!asks(&world, "distance('u', 'npc') == 0"));
+    let condition = cdda_json::parse(br#"{"math": ["distance('u', 'nobody') > 0"]}"#.as_slice()).expect("json");
+    let read = cdda_content::dialogue::read_condition(&condition).expect("reads");
+    assert!(
+        !cdda_sim::conditions::holds_with(&world, survivor, None, &read),
+        "an unknown actor is a refusal, which answers false rather than a made-up distance"
+    );
+}

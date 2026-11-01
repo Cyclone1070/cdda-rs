@@ -611,6 +611,60 @@ fn drawing_function(
     }
 }
 
+/// How far apart two points are, named as `distance('u', 'npc')` or as stored locations.
+///
+/// Reference: `distance_eval` (`math_parser_diag.cpp:185-201`) answers `rl_dist`, which is `square_dist` unless the game's circular-distance option is on: the
+/// **largest** axis distance, so a diagonal step is one square and one storey up is one step too (`line.h:190-199`).
+fn distance_between(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    first: &Expression,
+    second: &Expression,
+) -> Answer {
+    let Some(one) = point_of(world, speaker, listener, first) else {
+        return Answer::Refused;
+    };
+    let Some(other) = point_of(world, speaker, listener, second) else {
+        return Answer::Refused;
+    };
+    let (dx, dy, dz) = (
+        (one.0 - other.0).abs(),
+        (one.1 - other.1).abs(),
+        (one.2 - other.2).abs(),
+    );
+    Answer::Value(f64::from(dx.max(dy).max(dz)))
+}
+
+/// One of `distance`'s two points: a named actor (`'u'`, `'npc'`) or a location a variable holds.
+///
+/// Reference: `distance_eval`'s `get_pos` (`math_parser_diag.cpp:188-199`), which accepts a string naming an actor and throws for any other string.
+fn point_of(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    expression: &Expression,
+) -> Option<(i32, i32, i32)> {
+    if let Expression::Text(named) = expression {
+        let actor = match named.as_str() {
+            "u" => speaker,
+            "npc" => listener?,
+            _ => return None,
+        };
+        let position = world.get::<crate::Position>(actor)?;
+        return Some((position.x, position.y, position.z));
+    }
+    if let Expression::Variable { scope, name } = expression {
+        let holder = holder_for_scope(world, speaker, listener, scope)?;
+        if let Some(crate::dialogue_values::Value::Position { x, y, z }) =
+            crate::dialogue_values::value_of(world, holder, name)
+        {
+            return Some((x, y, z));
+        }
+    }
+    None
+}
+
 fn special_function(
     world: &World,
     speaker: Entity,
@@ -636,6 +690,7 @@ fn special_function(
     match (name, arguments) {
         // Reference: `u_hp` (`math_expressions` in `dialogue_helpers`), which takes a body part the port does not model and answers the whole
         // creature's remaining hit points.
+        ("distance", [first, second]) => return distance_between(world, speaker, listener, first, second),
         ("u_hp" | "npc_hp", _) => {
             let creature = match name {
                 "npc_hp" => listener.unwrap_or(speaker),
