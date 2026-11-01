@@ -664,7 +664,14 @@ fn special_function(
         }
         // Reference: `has_var(name)` answers 1 when the dialogue holds that variable at all, and 0 when it holds none - which is how the data
         // tells "never set" apart from "set to zero".
-        ("has_var", [Expression::Text(variable)]) => {
+        ("has_var", [argument]) => {
+            // The data writes the name **bare** as often as quoted - `has_var(u_dialogue_hub_rnd_u_project_ongoing)` - and a bare name reads as a variable
+            // lookup, so its spelling is the name being asked about rather than a value to evaluate.
+            let variable = match argument {
+                Expression::Text(name) => name.as_str(),
+                Expression::Variable { scope, name } if scope == "var_val" => name.as_str(),
+                _ => return Answer::NotMine,
+            };
             let held = crate::dialogue_values::value_of(world, speaker, variable).is_some();
             return Answer::Value(if held { 1.0 } else { 0.0 });
         }
@@ -835,6 +842,8 @@ pub fn value_drawing(
                 Operator::AtMost => f64::from(u8::from(left <= right)),
                 Operator::Greater => f64::from(u8::from(left > right)),
                 Operator::AtLeast => f64::from(u8::from(left >= right)),
+                // The left side of a logical not is a placeholder zero; the answer is one when the operand is zero.
+                Operator::Not => f64::from(u8::from(right.abs() < f64::EPSILON)),
             })
         }
     }

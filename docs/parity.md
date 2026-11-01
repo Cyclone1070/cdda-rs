@@ -6207,3 +6207,30 @@ because it is the one a permissive default would get wrong in the other directio
 Refactor of the round: `special_function` hit the 100-line cap again and `rand`/`rng` moved into `drawing_function`, taking the dice as a parameter. The dice
 branch had been written twice with the same reborrow dance; it is one function now, and `rng(0, 10)` - which the diagnostic showed and the port already
 supported - is reachable from the data at last.
+
+## The bang, and a bare name inside `has_var` (round 863)
+
+Two reader gaps behind the same 30 refusals, both found by the diagnostic rather than by reading code:
+
+- the math tokenizer had **no `!`** at all, so `!has_var(flag)` was unreadable however well `has_var` worked - the port had a `not` **condition** but no logical not
+  *inside* an expression;
+- `has_var` read its argument as a value, but the data writes the variable's name **bare**: `has_var(u_dialogue_hub_rnd_u_project_ongoing)`, which parses as a
+  variable lookup rather than a name.
+
+| Count | Before | After |
+|---|---|---|
+conditions the port reads | 2,863 | **2,885** |
+conditions refused for `math` | 74 | **67** |
+conditions refused for `not` | 143 | **143** |
+programs readable | 341 | **341** |
+
+`Operator::Not` is a **binary** whose left side is a placeholder zero, so a truth test is one node rather than a second kind of expression; the answer is one when
+the operand is zero. `has_var` now accepts either spelling - quoted text, or a bare name that parses to the dialogue's own variable scope - and answers `NotMine`
+for anything else, so a different shape is refused rather than silently read.
+
+The `not` refusals did not move, and that is correct: those are `{"not": ...}` conditions whose *inner* condition is unreadable, so the blame sits on the inner
+member. A count that stays still is not always a failure; here it is the census saying the remaining gap is inside, not at the wrapper.
+
+**What this round did not do:** `u_run_npc_eocs` (6 programs, the second-largest one-gap member) needs an NPC identity the port does not have - no marker
+component separates a person from a monster. That is a real store to build, not a member to read, and it is the next thing worth doing rather than another
+function.

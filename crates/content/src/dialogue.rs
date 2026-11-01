@@ -340,6 +340,9 @@ pub enum Operator {
     Equal,
     /// Not equal.
     NotEqual,
+    /// Logical not, written `!` before its one operand: the port keeps it as a binary with no left side, so a truth test is one node rather than a second kind
+    /// of expression. Reference: the math parser's `!`, whose answer is one when the value is zero and zero otherwise.
+    Not,
     /// Less than.
     Less,
     /// At most.
@@ -362,6 +365,7 @@ impl Operator {
             "%" => Self::Remainder,
             "==" => Self::Equal,
             "!=" => Self::NotEqual,
+            "!" => Self::Not,
             "<" => Self::Less,
             "<=" => Self::AtMost,
             ">" => Self::Greater,
@@ -960,6 +964,8 @@ fn tokenize(text: &str) -> Option<Vec<Token>> {
     while !rest.is_empty() {
         let trimmed = rest.trim_start();
         for (spelling, token) in [
+            ("!=", Token::Operator("!=".to_owned())),
+            ("!", Token::Operator("!".to_owned())),
             ("(", Token::Open),
             (")", Token::Close),
             (",", Token::Comma),
@@ -1191,6 +1197,18 @@ fn parse_primary(tokens: &[Token]) -> Option<(Expression, &[Token])> {
             let (inner, rest) = parse_precedence(tokens.get(1..)?, 0)?;
             let after = rest.strip_prefix(&[Token::Close])?;
             Some((inner, after))
+        }
+        // A `!` before its operand is the reference's logical not, and the data writes it in guards such as `!has_var(flag)`.
+        Token::Operator(spelling) if spelling == "!" => {
+            let (inner, rest) = parse_primary(tokens.get(1..)?)?;
+            Some((
+                Expression::Binary {
+                    op: Operator::Not,
+                    left: Box::new(Expression::Number(0.0)),
+                    right: Box::new(inner),
+                },
+                rest,
+            ))
         }
         Token::Operator(spelling) if spelling == "-" => {
             let (inner, rest) = parse_primary(tokens.get(1..)?)?;

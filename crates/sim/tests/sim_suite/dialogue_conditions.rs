@@ -1352,3 +1352,44 @@ fn an_opinion_number_comes_from_the_creature_and_is_zero_when_absent() {
     // A dialogue with nobody on the other side answers zero rather than refusing.
     assert!(cdda_sim::conditions::holds(&world, survivor, &asks("n_npc_value() == 0")));
 }
+
+/// `has_var` reads a bare name as the name being asked about, not as a value.
+///
+/// Reference: `has_var` takes the variable's **name**, and the data writes it bare as often as quoted:
+/// `!has_var(u_dialogue_hub_rnd_u_project_ongoing)`. A bare name otherwise reads as a variable lookup, so without this the guard compares a value to a name.
+#[test]
+fn has_var_reads_the_name_the_data_writes() {
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+
+    let asks = |text: &str| {
+        cdda_content::dialogue::read_condition(
+            &cdda_json::parse(format!(r#"{{"math": ["{text}"]}}"#).as_bytes()).expect("json"),
+        )
+        .expect("readable")
+    };
+
+    // Nothing stored yet: both spellings answer no, and the negation answers yes.
+    assert!(!cdda_sim::conditions::holds(&world, survivor, &asks("has_var(project_flag) == 1")));
+    assert!(!cdda_sim::conditions::holds(
+        &world,
+        survivor,
+        &asks("has_var('project_flag') == 1")
+    ));
+    assert!(cdda_sim::conditions::holds(&world, survivor, &asks("!has_var(project_flag)")));
+
+    // Once it is set, both spellings answer yes and the negation answers no.
+    cdda_sim::dialogue_values::set(
+        &mut world,
+        survivor,
+        "project_flag",
+        cdda_sim::dialogue_values::Value::Number(1.0),
+    );
+    assert!(cdda_sim::conditions::holds(&world, survivor, &asks("has_var(project_flag) == 1")));
+    assert!(cdda_sim::conditions::holds(
+        &world,
+        survivor,
+        &asks("has_var('project_flag') == 1")
+    ));
+    assert!(!cdda_sim::conditions::holds(&world, survivor, &asks("!has_var(project_flag)")));
+}
