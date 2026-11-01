@@ -1583,6 +1583,7 @@ fn read_unnamed_effect(object: &cdda_json::Object) -> Option<Effect> {
         .or_else(|| read_sound_effect(object))
         .or_else(|| read_spawn_item(object))
         .or_else(|| read_consume_item(object))
+        .or_else(|| read_set_string_var(object))
 }
 
 /// Reads a `sound_effect` entry.
@@ -1600,6 +1601,36 @@ fn read_sound_effect(object: &cdda_json::Object) -> Option<Effect> {
             Some(value) => read_count(Some(value))?,
         },
         outdoor_event: matches!(object.get("outdoor_event"), Some(Value::Bool(true))),
+    })
+}
+
+/// Reads a `set_string_var` entry.
+///
+/// Reference: `f_set_string_var` (`npctalk.cpp:5809-5866`): the member may be a string, an array of strings one of which is drawn, or a variable reference; the
+/// `target_var` object names where the text is stored.
+fn read_set_string_var(object: &cdda_json::Object) -> Option<Effect> {
+    let written = object.get("set_string_var")?;
+    if ["i18n", "parse_tags", "string_input"].iter().any(|key| object.get(key).is_some()) {
+        return None;
+    }
+    let Value::Object(target) = object.get("target_var")? else {
+        return None;
+    };
+    let (scope, name) = named_variable(target)?;
+    let value = match written {
+        Value::Array(choices) => {
+            let mut many = Vec::new();
+            for choice in choices {
+                many.push(read_string_source(choice)?);
+            }
+            VarValue::Many(many)
+        }
+        other => VarValue::One(read_string_source(other)?),
+    };
+    Some(Effect::SetStringVar {
+        value,
+        scope,
+        name,
     })
 }
 
@@ -1897,6 +1928,19 @@ pub enum Effect {
         volume: CountRange,
         /// Whether it is only heard outdoors.
         outdoor_event: bool,
+    },
+    /// Stores a text into a named variable, drawing it from a list when the data gives one.
+    ///
+    /// Reference: `f_set_string_var` (`npctalk.cpp:5809-5866`): the member is a string, a **list to draw one from**, or a variable to copy, and `target_var` says
+    /// where it goes. `i18n` (translated strings), `parse_tags` (substituting tags into the text) and `string_input` (asking the player to type) are refused, because
+    /// each is a rule the port has not written.
+    SetStringVar {
+        /// The text, or the list to draw one from.
+        value: VarValue,
+        /// The variable's type, as the data spells it.
+        scope: String,
+        /// The variable's name.
+        name: String,
     },
     /// Takes items out of what a creature carries.
     ///
@@ -2314,6 +2358,7 @@ impl Effect {
             Self::RunMonsterEocs { .. } => "u_run_monster_eocs",
             Self::Nothing => "//",
             Self::PlaySoundEffect { .. } => "sound_effect",
+            Self::SetStringVar { .. } => "set_string_var",
             Self::SpawnItem { .. } => "u_spawn_item",
             Self::ConsumeItem { listener, .. } => {
                 if *listener {

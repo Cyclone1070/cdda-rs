@@ -7623,3 +7623,33 @@ catalogue first, so the run is the real path rather than the refusal path.
 **The first `Despawn` in this module's item handling.** Until now the item code only ever *added* to the store; consuming is the first rule that takes away, and it
 does so through `entity_mut(...).despawn()`, which is the port's only way to remove something the index also has to forget. The architecture gate that checks the
 index in both directions covers this: a destroyed thing leaves no ghost.
+
+## `set_string_var`, and the world's own holder (round 913)
+
+Three programs stalled on `set_string_var`, and the diagnostic showed both shapes the data uses: a plain string, and a **list to draw one from** -
+`{"set_string_var": ["unstable_rift", "calming_stone", "escape_stone"], "target_var": {"global_val": "item_type"}}`.
+
+Reference `f_set_string_var` (`npctalk.cpp:5809-5866`): the member may be a string, an array of strings one of which is drawn, or a variable to copy; `target_var`
+names where the text goes; `i18n`, `parse_tags` and `string_input` are three further rules the port does not have, and an entry that asks for one is refused whole.
+
+`Effect::SetStringVar` reads it, and the runner draws with the world's own dice and writes through `dialogue_values::set`. Refusing `parse_tags` matters: a tag
+substitution changes *what* the text says, so reading the entry and dropping the tag would store a string the reference never would.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 490 | **493** |
+answered `Done` | 324 | **325** |
+did something | 171 | **172** |
+refused at run time | 166 | **168** |
+unreadable leaves | 330 | **323** |
+one-gap programs | 80 | **78** |
+effect entries runnable | 1,384 | **1,390** |
+effect census blaming `effect` | 184 | **181** |
+
+**The test found the architecture doing its job.** The first run answered `CannotAnswer` because a **global** variable needs the world's own dialogue holder - an
+entity with `TheGlobalValues` on it - and a fresh world has none. `holder_for(world, creature, true)` makes it, which is the singleton pattern working exactly as
+designed: no hidden global, a store you have to ask for. The test now creates the holder and reads the value back through `dialogue_values::text_of`, so the assertion
+is on what the store holds, not on the writer's return value.
+
+Still refused in this effect: `parse_tags`, `i18n`, `string_input`, and `copy_var` (2 programs) - the copy form shares the target but reads its text from another
+variable, which is the next round's one-liner.

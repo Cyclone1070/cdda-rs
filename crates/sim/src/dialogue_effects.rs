@@ -553,6 +553,55 @@ fn pick_type(
     drawn
 }
 
+/// Stores a text into a variable, drawing it from a list when the data gives one.
+///
+/// Reference: `f_set_string_var` (`npctalk.cpp:5843-5866`): one entry of the list is drawn, the variable is written, and nothing else happens. The draw uses the
+/// world's own dice, which is the same dice every other draw in this module uses.
+fn set_string_var(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::SetStringVar { value, scope, name } = effect else {
+        return Applied::CannotAnswer;
+    };
+    let Some(holder) = crate::conditions::holder_for_scope(world, speaker, listener, scope) else {
+        return Applied::CannotAnswer;
+    };
+    let text = match value {
+        cdda_content::dialogue::VarValue::One(one) => {
+            let Some(text) = crate::conditions::text_of(world, speaker, listener, one) else {
+                return Applied::CannotAnswer;
+            };
+            text
+        }
+        cdda_content::dialogue::VarValue::Many(choices) => {
+            let Some(drawn) = draw_one_of(world, choices.len()) else {
+                return Applied::CannotAnswer;
+            };
+            let Some(choice) = choices.get(drawn) else {
+                return Applied::CannotAnswer;
+            };
+            let Some(text) = crate::conditions::text_of(world, speaker, listener, choice) else {
+                return Applied::CannotAnswer;
+            };
+            text
+        }
+    };
+    crate::dialogue_values::set(world, holder, name, crate::dialogue_values::Value::Text(text));
+    Applied::Done
+}
+
+/// Draws which of `many` things the dice picked.
+fn draw_one_of(world: &mut World, many: usize) -> Option<usize> {
+    let mut dice = crate::singletons::take_rolls(world);
+    let last = i32::try_from(many.checked_sub(1)?).ok();
+    let drawn = dice
+        .as_mut()
+        .zip(last)
+        .map(|(rolls, last)| usize::try_from(rolls.rng(0, last)).ok());
+    if let Some(dice) = dice.take() {
+        crate::singletons::put_rolls(world, dice);
+    }
+    drawn.flatten()
+}
+
 /// Takes items out of what a creature carries.
 ///
 /// Reference: `f_consume_item` (`npctalk.cpp:3943-3968`): charges when only charges were asked for, whole stacks when a count was, and a message when the creature
@@ -1441,9 +1490,7 @@ pub fn run_effect(
 ) -> Applied {
     match effect {
         Effect::Math(assignments) => run_math(world, speaker, listener, assignments),
-        Effect::LearnRecipe { recipe, forget } => {
-            run_learn_recipe(world, speaker, listener, recipe, *forget)
-        }
+        Effect::LearnRecipe { recipe, forget } => run_learn_recipe(world, speaker, listener, recipe, *forget),
         Effect::Message(text) => { crate::messages::push(world, text); Applied::Done }
         // A sound effect is audio: the reference changes no game state by playing one, and the port has no audio to play. Done, not refused - nothing is missing
         // from the *simulation*, only from the sound card.
@@ -1479,6 +1526,7 @@ pub fn run_effect(
         Effect::SpawnNpc { .. } => spawn_npcs(world, speaker, listener, effect),
         Effect::SpawnItem { .. } => spawn_items(world, speaker, listener, effect),
         Effect::ConsumeItem { .. } => consume_items(world, speaker, listener, effect),
+        Effect::SetStringVar { .. } => set_string_var(world, speaker, listener, effect),
         Effect::Teleport { .. } => move_creature(world, speaker, listener, effect),
         Effect::AssignMission { .. } => give_mission(world, speaker, listener, effect),
         Effect::AddVar { .. } => add_var(world, speaker, listener, effect),

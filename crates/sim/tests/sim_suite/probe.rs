@@ -1471,3 +1471,41 @@ fn a_consume_item_effect_takes_whole_stacks() {
     assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "the effect still completes");
     assert_eq!(cdda_sim::inventory::count_of(&world, survivor, "chitin_piece").0, 1, "and the last one is still there");
 }
+
+/// `set_string_var` writes its text to `target_var`, and draws from a list when the data gives one.
+///
+/// Reference: `f_set_string_var` (`npctalk.cpp:5809-5866`): the member is a string, a **list to draw one from**, or a variable to copy; `target_var` names where the
+/// text goes. Both forms are checked, because a reader that only handled a plain string would pass on the first and fail on the second.
+#[test]
+fn a_set_string_var_writes_its_text() {
+    let written = |text: &str| {
+        let mut world = bevy_ecs::prelude::World::new();
+        let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+        cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(7));
+        // The world's own dialogue store: a global variable needs a holder, and the holder is an entity with a marker on it.
+        let holder = cdda_sim::dialogue_values::holder_for(&mut world, survivor, true);
+        let _ = holder;
+        let value = cdda_json::parse(text.as_bytes()).expect("json");
+        let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+        let applied = cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect);
+        (applied, world, survivor)
+    };
+    let (applied, world, survivor) = written(
+        r#"{"set_string_var": "calming_stone", "target_var": {"global_val": "item_type"}}"#,
+    );
+    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "it runs");
+    let held = cdda_sim::conditions::holder_for_scope(&world, survivor, None, "global_val")
+        .and_then(|holder| cdda_sim::dialogue_values::text_of(&world, holder, "item_type"));
+    assert_eq!(held.as_deref(), Some("calming_stone"), "and the world remembers what it was told");
+
+    let (applied, world, survivor) = written(
+        r#"{"set_string_var": ["unstable_rift", "calming_stone", "escape_stone"], "target_var": {"global_val": "item_type"}}"#,
+    );
+    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "the list form runs too");
+    let stored = cdda_sim::conditions::holder_for_scope(&world, survivor, None, "global_val")
+        .and_then(|holder| cdda_sim::dialogue_values::text_of(&world, holder, "item_type"));
+    assert!(
+        ["unstable_rift", "calming_stone", "escape_stone"].contains(&stored.as_deref().unwrap_or("")),
+        "and it is one of the three: {stored:?}"
+    );
+}
