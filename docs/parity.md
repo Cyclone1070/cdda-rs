@@ -6723,3 +6723,25 @@ read, and the port is less wrong for it.
 
 I also spent two cycles on a clippy cast lint (`i32` to `usize`) that a signed `usize::try_from` answers in one line. The lint rule held; the habit of writing the
 cast before checking it did not.
+
+## Comments are not members (round 881)
+
+Three programs were blamed on a member called `//`, which is not a member at all. `json.h:1500` says a member named `//` is a comment, and `json.cpp:153` skips any
+name that **starts** with `//`; no loader in the reference reads one. The port counted them two ways: as an effect entry it could not read, and as a gap in the
+census.
+
+Both are fixed. An effect entry whose every member is a comment is `Effect::Nothing` - the reference's loader finds no function there and no rule is broken - and
+the census skips comment keys when it walks an object looking for a leaf to blame.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 379 | 379 |
+one-gap programs | 131 | 131 |
+`//` in the one-gap list | 3 | **0** |
+
+**No count moved, and the reason is worth recording:** the three programs were not one gap away from reading; they were one *misattributed* gap away. Fixing the
+attribution moved their real gap into view - `<nested>` went from three to four and `id` appeared with three - and none of them became readable. A census that names
+the wrong member does not just fail to help, it hides what would.
+
+I also lost `read_effect`'s doc comment to a careless insertion and paid a cycle for the missing-documentation lint, then another extracting the message loop to get
+back under the 100-line cap. Three cycles for a change that moved no number: the honesty was worth it, the mechanics were not.

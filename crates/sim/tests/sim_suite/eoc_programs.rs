@@ -1023,6 +1023,14 @@ fn unreadable_members(definition: &cdda_json::Value) -> Vec<String> {
     gaps
 }
 
+/// Whether a key is a comment, which no loader reads.
+///
+/// Reference: `json.h:1500` - a member named `//`, or any name starting with it, is a comment (`json.cpp:153`). Counting one as a gap said a program was
+/// unreadable because of a note beside it.
+fn is_comment(key: &str) -> bool {
+    key.starts_with("//")
+}
+
 /// Whether a key describes an effect rather than being one: such a member is never the reason an entry refuses.
 fn is_descriptor(key: &str) -> bool {
     matches!(
@@ -1115,7 +1123,11 @@ fn collect_leaves(entry: &cdda_json::Value, gaps: &mut Vec<String>) {
         gaps.extend(found);
         return;
     }
-    let Some((key, _)) = object.members().iter().find(|(key, _)| !is_descriptor(key)) else {
+    let Some((key, _)) = object
+        .members()
+        .iter()
+        .find(|(key, _)| !is_descriptor(key) && !is_comment(key))
+    else {
         gaps.push("<named>".to_owned());
         return;
     };

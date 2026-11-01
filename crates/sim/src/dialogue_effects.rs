@@ -1210,6 +1210,8 @@ pub fn run_effect(
 ) -> Applied {
     match effect {
         Effect::Math(assignments) => run_math(world, speaker, listener, assignments),
+        // A comment-only entry does nothing, which the reference's loader also does with it.
+        Effect::Nothing => Applied::Done,
         Effect::Message(text) => {
             crate::messages::push(world, text);
             Applied::Done

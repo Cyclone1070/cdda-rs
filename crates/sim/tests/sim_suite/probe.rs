@@ -700,3 +700,39 @@ fn a_spawn_that_names_nothing_copies_a_nearby_monster() {
         cdda_sim::dialogue_effects::Applied::CannotAnswer
     );
 }
+
+/// An effect entry that holds only a comment does nothing, rather than refusing the program that carries it.
+///
+/// Reference: a member named `//` - or any name starting with `//` - is a comment no loader reads (`json.h:1500`, `json.cpp:153`), so an entry with nothing else
+/// loads as a function with nothing to do. The data uses exactly that to disable an entry by hand.
+#[test]
+fn a_comment_only_entry_does_nothing() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+
+    let commented = cdda_json::parse(
+        br#"{"u_message": "said first", "//": "this one still says its line"}"#.as_slice(),
+    )
+    .expect("json");
+    let read = cdda_content::dialogue::read_effect(&commented).expect("a comment beside a real effect is not a refusal");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &read),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    assert_eq!(cdda_sim::messages::lines(&world), vec!["said first".to_owned()]);
+
+    // An entry with nothing but comments is a no-op, and the program around it still runs.
+    let program = cdda_json::parse(
+        br#"{"type": "effect_on_condition", "id": "EOC_commented", "effect": [{"//": "disabled for now"}, {"u_message": "after"}]}"#
+            .as_slice(),
+    )
+    .expect("json");
+    let read = cdda_content::dialogue::read_program(&program).expect("the program reads");
+    cdda_sim::eoc_registry::set_programs(&mut world, std::slice::from_ref(&read));
+    cdda_sim::messages::clear(&mut world);
+    assert_eq!(
+        cdda_sim::eoc_registry::run_program(&mut world, survivor, None, "EOC_commented", 0),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    assert_eq!(cdda_sim::messages::lines(&world), vec!["after".to_owned()]);
+}

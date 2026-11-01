@@ -1550,6 +1550,11 @@ pub enum Effect {
     Math(Vec<Assignment>),
     /// A message to the player.
     Message(String),
+    /// An entry that does nothing, because every member it had was a comment.
+    ///
+    /// Reference: a member named `//`, or any name starting with `//`, is a **comment** and no loader reads it (`json.h:1500`, `json.cpp:153`). An effect
+    /// object holding nothing else therefore loads as a function that does nothing, which is what the data writes when an entry is disabled by hand.
+    Nothing,
     /// Run a program on every nearby monster.
     ///
     /// Reference: `f_run_monster_eocs` (`npctalk.cpp:6590-6700`): a list of programs, the `mtype_ids` that narrow which monsters, `monster_range` for how far
@@ -1887,6 +1892,7 @@ impl Effect {
             Self::Message(_) | Self::Snippet { .. } => "u_message",
             Self::RunNpcEocs { .. } => "u_run_npc_eocs",
             Self::RunMonsterEocs { .. } => "u_run_monster_eocs",
+            Self::Nothing => "//",
             Self::If { .. } => "if",
             Self::AddEffect { .. } => "u_add_effect",
             // Both are the same member: the data writes one effect or an array of them under one name.
@@ -1986,7 +1992,43 @@ pub fn read_program(value: &Value) -> Option<Program> {
 /// A named entry (`"EOC_something"`) is a call to another effect-on-condition, which the port does not run yet; an object is
 /// read through the member that names the effect.
 #[must_use]
+/// Reads the three spellings of the message effect.
+///
+/// Reference: `f_message` is registered **three** times (`npctalk.cpp:8039` and `:8135`) - `u_message`, `npc_message`, and the bare `message`, which is the global
+/// form and says the line to the player whoever the talker is. Reading only the two creature forms leaves the global one refused, and the data uses it for the
+/// lines a program says rather than a talker.
+fn read_message_effect(object: &cdda_json::Object) -> Option<Effect> {
+    for member in ["u_message", "npc_message", "message"] {
+        if let Some(value) = object.get(member) {
+            return read_message(value).map(Effect::Message);
+        }
+    }
+    None
+}
+
+/// Whether every member of an object is a comment.
+///
+/// Reference: `json.h:1500` - a member named `//` is a comment, and so is any name starting with it (`json.cpp:153`). An effect entry holding nothing else is a
+/// no-op in the reference, because its loader finds no function to run and no rule is broken.
+fn is_comment_only(value: &Value) -> bool {
+    let Value::Object(object) = value else {
+        return false;
+    };
+    !object.members().is_empty()
+        && object
+            .members()
+            .iter()
+            .all(|(name, _)| name.starts_with("//"))
+}
+
+/// Reads one effect entry, or nothing when it states a rule the port does not have.
+///
+/// Reference: `talk_effect_t::load_effect` (`npctalk.cpp:8348`) reads an entry as a name, an object with one effect member, or a list; the port accepts the first
+/// two and refuses whatever it cannot carry out, so a refused entry is visible as a refusal rather than as a silent no-op.
 pub fn read_effect(value: &Value) -> Option<Effect> {
+    if is_comment_only(value) {
+        return Some(Effect::Nothing);
+    }
     // Reference: a bare name in an effect list runs that effect-on-condition.
     if let Value::Str(name) = value {
         return Some(Effect::RunEoc(vec![ProgramRef::Named {
@@ -2089,15 +2131,7 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
         }
     }
     if let Some(carried) = read_carried_effect(object) { return Some(carried); }
-    // Reference: `f_message` is registered **three** times (`npctalk.cpp:8039` and `:8135`) - `u_message`, `npc_message`, and the bare `message`, which is the
-    // global form and says the line to the player whoever the talker is. Reading only the two creature forms leaves the global one refused, and the data uses
-    // it for the lines a program says rather than a talker.
-    for member in ["u_message", "npc_message", "message"] {
-        if let Some(value) = object.get(member) {
-            return read_message(value).map(Effect::Message);
-        }
-    }
-    None
+    read_message_effect(object)
 }
 
 /// Reads a list of effects, refusing the whole list when any entry in it is refused.
