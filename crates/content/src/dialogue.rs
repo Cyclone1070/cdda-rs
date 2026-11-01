@@ -1298,7 +1298,10 @@ fn parse_primary(tokens: &[Token]) -> Option<(Expression, &[Token])> {
                 };
                 return Some((expression, rest));
             }
-            let arity = math_function(name)?;
+            // Reference: `math_parser` accepts **any** function name while parsing and fails when it evaluates, which is how the data's own functions
+            // (`jmath_function`) are called - they are registered in the reference's table at load, not known to its reader. A name neither table knows
+            // therefore parses here and refuses when it is answered, rather than refusing the whole expression at read time.
+            let arity = math_function(name).unwrap_or(Arity::AtLeast(0));
             // Reference: `math_parser` reads a call's arguments positionally and then its **named** ones (`'radius': 10`), which any function may take
             // and each decides whether it understands. A name the function does not know is refused when it is evaluated, not dropped here.
             let (arguments, keywords) = read_arguments(argument_tokens)?;

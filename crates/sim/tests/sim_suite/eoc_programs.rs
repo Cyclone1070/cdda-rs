@@ -254,7 +254,11 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
     );
     assert_eq!(refused.get("effect"), Some(&crate::numbers::NOW.effect_blamed), "and the effect side is still the bigger refusal");
     assert_eq!(refused.get("u_has_trait"), None, "traits are no longer blamed for anything");
-    assert_eq!(refused.get("math"), Some(&crate::numbers::NOW.math_blamed), "`math` guards are the biggest single one");
+    assert_eq!(
+        refused.get("math"),
+        None,
+        "`math` guards block nothing now: an unknown function name parses and refuses where it is answered, which is where the data's own functions are found"
+    );
     assert_eq!(refused.get("u_has_item"), None, "carrying an item is no longer blamed for anything");
     // The chance guards now roll, so what is left of them is one program apiece - and the eight programs they freed are blamed on
     // what refused them next, which is the "moves house" pattern for the fifth time.

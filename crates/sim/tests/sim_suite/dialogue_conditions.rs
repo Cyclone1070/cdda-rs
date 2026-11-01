@@ -352,17 +352,22 @@ fn the_math_functions_answer_what_the_reference_s_table_answers() {
         "a guard with no dice to offer cannot be answered"
     );
 
-    // A wrong number of arguments is refused, and so is a function the port has no rule for.
-    for text in [
-        r#"{"math": ["clamp(1, 2)", "==", 1]}"#,
-        r#"{"math": ["weather(temperature)", "==", 1]}"#,
-    ] {
-        let value = cdda_json::parse(text.as_bytes()).expect("json");
-        assert!(
-            cdda_content::dialogue::read_condition(&value).is_none(),
-            "{text} must be refused rather than answered"
-        );
-    }
+    // A wrong number of arguments is refused at **read**, because the port knows that function's arity. A name the port has no rule for is a different matter:
+    // the reference parses any name and fails when it evaluates (`math_parser`), which is how the data's own functions are called after they load, so the port
+    // reads it and refuses where it answers.
+    let wrong_arity = cdda_json::parse(br#"{"math": ["clamp(1, 2)", "==", 1]}"#.as_slice()).expect("json");
+    assert!(
+        cdda_content::dialogue::read_condition(&wrong_arity).is_none(),
+        "a known function with the wrong number of arguments is refused at read"
+    );
+    let unknown_name = cdda_json::parse(br#"{"math": ["weather(temperature)", "==", 1]}"#.as_slice()).expect("json");
+    let read = cdda_content::dialogue::read_condition(&unknown_name).expect("an unknown name reads");
+    let mut world = bevy_ecs::prelude::World::new();
+    let speaker = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    assert!(
+        !cdda_sim::conditions::holds_with(&world, speaker, None, &read),
+        "and it refuses where it is answered rather than answering a guess"
+    );
 }
 
 /// A condition written as a bare name is an argument-less condition, and three of them can be answered.

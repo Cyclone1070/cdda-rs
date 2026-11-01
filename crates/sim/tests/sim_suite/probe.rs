@@ -1071,3 +1071,39 @@ fn an_addiction_reads_its_level_and_its_sated_time() {
     cdda_sim::addictions::set_turns(&mut world, survivor, "mutagen", 30);
     assert!(holds(&world, "u_addiction_turns('mutagen') == 30"), "and the sated time can be set");
 }
+
+/// A function the **data** defined is called from a condition, with its body evaluated and its parameters bound.
+///
+/// Reference: `type: "jmath_function"` (`math_parser_jmath.cpp`): the data writes a body over `_0`, `_1`, ... and the reference's math parser calls it from the same
+/// table as its compiled functions. `addiction_rational` is the one the addiction programs use:
+/// `"return": "(_0 / max(1, (_0 - (_1 * _2)))) - 1"`.
+#[test]
+fn a_data_defined_function_is_called_from_a_condition() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let installed = cdda_sim::math_functions::install_json(
+        &mut world,
+        br#"[{"type": "jmath_function", "id": "addiction_rational", "num_args": 3, "return": "(_0 / max(1, (_0 - (_1 * _2)))) - 1"}]"#,
+    )
+    .expect("the data reads");
+    assert_eq!(installed, 1, "one function installed");
+
+    let holds = |world: &bevy_ecs::prelude::World, text: &str| {
+        let condition = cdda_json::parse(format!(r#"{{"math": ["{text}"]}}"#).as_bytes()).expect("json");
+        let read = cdda_content::dialogue::read_condition(&condition).expect("the condition reads");
+        cdda_sim::conditions::holds_with(world, survivor, None, &read)
+    };
+
+    // intensity 0: (2000 / max(1, 2000 - 0)) - 1 = 0. So `rand(2000) <= 0` is true only for a roll of zero.
+    assert!(holds(&world, "addiction_rational(2000, 20, 0) == 0"), "no addiction is a zero chance");
+    // intensity 10: (2000 / max(1, 2000 - 200)) - 1 = 1/9, a number the port computes rather than guesses.
+    assert!(
+        holds(&world, "addiction_rational(2000, 20, 10) > 0.11") && holds(&world, "addiction_rational(2000, 20, 10) < 0.12"),
+        "a tenth of the way in is about a ninth"
+    );
+
+    // A name no table knows still refuses rather than answering zero.
+    let unknown = cdda_json::parse(br#"{"math": ["no_such_function(1) > 0"]}"#.as_slice()).expect("json");
+    let read = cdda_content::dialogue::read_condition(&unknown).expect("the expression reads");
+    assert!(!cdda_sim::conditions::holds_with(&world, survivor, None, &read), "no answer, so no pass");
+}

@@ -7106,3 +7106,39 @@ feature, not fifteen formulas.
 better than what I wrote: I overwrote a working registry with a reader that only parsed one definition. `git checkout` restored it and nothing was lost, but this is
 the **third wrong-file overwrite of the session**, and the rule I wrote down after the second one - run `ls` and `grep` for the name before writing a module - is
 exactly the rule I skipped because I was sure of the answer. Being sure is the tell: the overwrites have all happened when I was confident, never when I was checking.
+
+## The dialogue reaches the data's math functions (round 895)
+
+The finding from last round is now a feature. `cdda_content::jmath` already read and called data-defined functions; what was missing was a **home** for the registry
+and a bridge from the dialogue's evaluator into it. Both exist now:
+
+* `crates/sim/src/math_functions.rs` - one component, `MathFunctions(Registry)`, with `set_functions`, `functions_of` and `install_json`. The registry lives in the
+  store like everything else, so a world either has the data's functions or honestly has none.
+* `answer_data_function` in the conditions evaluator - called when the compiled table has no rule for a name. It evaluates the arguments, hands them to
+  `jmath::call`, and converts the answer back. `Bound` binds `_0`..`_n` and intercepts nested data-function calls before the outer context sees them, which is why
+  `dew_point_factor -> dew_point -> dprhx` works without the port knowing any of the three.
+
+**One rule changed shape, and it is the reference's own.** The parser now accepts **any** function name and refuses where the answer is worked out, instead of refusing
+the expression at read time. That is what `math_parser` does - it binds names at evaluation, which is exactly how a function that loads later can still be called -
+and two older tests asserted the opposite. Both were updated with the reason, not deleted.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 410 | **421** |
+answered `Done` | 261 | **267** |
+did something | 113 | **119** |
+refused at run time | 149 | **154** |
+unreadable leaves | 550 | **511** |
+one-gap programs | 121 | **125** |
+**conditions readable** | 3,003 | **3,056** |
+effect entries runnable | 1,235 | **1,264** |
+programs blaming `math` | 10 | **0** |
+
+**`math` no longer appears in the program census at all** - fifty-three conditions, twenty-nine effect entries and eleven programs from one bridge. The `math` blame
+had been the top of the list for forty rounds; it is now zero, and what replaced it is `and` (324) and `not` (143), which are the joiners over conditions that
+refuse for their own reasons.
+
+**The cost was four cycles of my own mistakes, all the same mistake.** I placed the new arm by replacing the first `_ => return Answer::NotMine,` I could find, which
+was inside `has_var`; then I inserted the replacement after the match had closed; then I returned `Refused` where `NotMine` was right, which broke two unrelated
+tests. Every one came from editing by **string position** instead of by the enclosing item - the same failure as the wrong-file overwrite three rounds ago, and the
+same cure: name the function, then find the arm inside it.

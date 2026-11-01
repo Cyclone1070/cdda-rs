@@ -683,6 +683,125 @@ fn answer_health(world: &World, speaker: Entity, listener: Option<Entity>, name:
     Answer::Value(f64::from(health))
 }
 
+/// A call to a function the **data** defined, evaluated with the data's own body.
+///
+/// Reference: `math_parser_jmath.cpp` - the data writes a body as an expression over `_0`, `_1`, ... and the reference calls it from the same table as its compiled
+/// functions. The port has both halves (`cdda_content::jmath` reads and calls, `math_expr` evaluates) and no bridge from the dialogue world into them, which is what
+/// this is: a context that answers the dialogue's own functions and lets `Bound` bind the parameters.
+fn answer_data_function(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    name: &str,
+    arguments: &[Expression],
+) -> Answer {
+    // A name no data function defines is **not** this answer's to refuse: `NotMine` lets the caller try the arithmetic and variable paths that came before it,
+    // which is what an unknown spelling deserves.
+    let Some(functions) = crate::math_functions::functions_of(world) else {
+        return Answer::NotMine;
+    };
+    if functions.get(name).is_none() {
+        return Answer::NotMine;
+    }
+    let mut values = Vec::with_capacity(arguments.len());
+    for argument in arguments {
+        match value(world, speaker, listener, argument) {
+            Some(number) => values.push(cdda_content::math_expr::Value::Number(number)),
+            None => return Answer::Refused,
+        }
+    }
+    let outer = DialogueMathContext {
+        world,
+        speaker,
+        listener,
+    };
+    let answered = cdda_content::jmath::call(functions, &outer, name, &values);
+    if std::env::var("CDDA_SHOW_MATH").is_ok() {
+        eprintln!("data function {name}({values:?}) -> {answered:?}");
+    }
+    match answered {
+        Ok(cdda_content::math_expr::Value::Number(number)) => Answer::Value(number),
+        Ok(_) | Err(_) => Answer::Refused,
+    }
+}
+
+/// The arithmetic a data-defined body calls, answered from its numbers.
+///
+/// Reference: the reference's math parser has these in its own table, so a body written as `(_0 / max(1, (_0 - (_1 * _2)))) - 1` evaluates without the dialogue
+/// being involved at all. The port's `math_expr` has no built-ins, so the context supplies them.
+fn simple_arithmetic(name: &str, arguments: &[cdda_content::math_expr::Value]) -> Option<Result<cdda_content::math_expr::Value, cdda_content::math_expr::MathError>> {
+    use cdda_content::math_expr::{MathError, Value};
+    let numbers: Option<Vec<f64>> = arguments.iter().map(Value::as_number).collect();
+    let numbers = numbers?;
+    let first = *numbers.first()?;
+    let answer = match name {
+        "max" => numbers.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+        "min" => numbers.iter().copied().fold(f64::INFINITY, f64::min),
+        "abs" => first.abs(),
+        "floor" => first.floor(),
+        "ceil" => first.ceil(),
+        "round" => first.round(),
+        "sqrt" => first.sqrt(),
+        "clamp" => {
+            let [value, low, high] = numbers.as_slice() else {
+                return Some(Err(MathError::UnknownName { name: name.to_owned() }));
+            };
+            value.clamp(*low, *high)
+        }
+        _ => return None,
+    };
+    Some(Ok(Value::Number(answer)))
+}
+
+/// The dialogue's own functions, seen from inside a data-defined function's body.
+///
+/// `Bound` answers `_0`..`_n` and every other **data** function before this is asked, so what reaches here is the compiled table - which is exactly the dialogue
+/// evaluator, called with the numbers the body passed.
+struct DialogueMathContext<'a> {
+    world: &'a World,
+    speaker: Entity,
+    listener: Option<Entity>,
+}
+
+impl cdda_content::math_expr::Context for DialogueMathContext<'_> {
+    fn number(&self, name: &str) -> Option<f64> {
+        let holder = holder_for_scope(self.world, self.speaker, self.listener, "context_val")?;
+        crate::dialogue_values::number_of(self.world, holder, name)
+    }
+
+    fn call(
+        &self,
+        name: &str,
+        arguments: &[cdda_content::math_expr::Value],
+    ) -> Result<cdda_content::math_expr::Value, cdda_content::math_expr::MathError> {
+        // The arithmetic a data function's body is written in: `math_expr` has no built-ins of its own, so every context that evaluates a body answers the
+        // handful of functions the bodies use. The reference gets these from its parser; the port's bodies are the data's own, and these are what they call.
+        if let Some(answer) = simple_arithmetic(name, arguments) {
+            return answer;
+        }
+        let mut expressions = Vec::with_capacity(arguments.len());
+        for argument in arguments {
+            let Some(number) = argument.as_number() else {
+                return Err(cdda_content::math_expr::MathError::UnknownName {
+                    name: name.to_owned(),
+                });
+            };
+            expressions.push(Expression::Number(number));
+        }
+        let call = Call {
+            arguments: &expressions,
+            keywords: &[],
+        };
+        let mut none = None;
+        match special_function(self.world, self.speaker, self.listener, name, &call, true, &mut none) {
+            Answer::Value(number) => Ok(cdda_content::math_expr::Value::Number(number)),
+            Answer::Refused | Answer::NotMine => Err(cdda_content::math_expr::MathError::UnknownName {
+                name: name.to_owned(),
+            }),
+        }
+    }
+}
+
 /// A creature's hit points: what is left for `u_hp`, and the ceiling for `hp_max`.
 ///
 /// Reference: `hp_eval` and `hp_max_eval` (`math_parser_diag.cpp:1714`) both take a body part; the port has no per-part hit points, so both answer the whole
@@ -1219,7 +1338,8 @@ fn answer_from_table(
         let turns = cdda_content::constructions::parse_duration(text) as f64;
         return Answer::Value(turns);
     }
-    Answer::NotMine}
+    answer_data_function(world, speaker, listener, name, arguments)
+}
 
 /// What an expression works out to, with a choice about what an unset variable means.
 ///

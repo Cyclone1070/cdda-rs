@@ -123,8 +123,10 @@ fn a_math_condition_does_the_arithmetic_the_data_writes() {
     // name that is neither a variable type nor a function refuses the expression rather than becoming a variable.
     let a_function = cdda_json::parse(br#"{"math": ["ceil(3.5)", "==", 4]}"#.as_slice()).expect("json");
     assert!(cdda_content::dialogue::read_condition(&a_function).is_some());
+    // A name the port has no rule for still reads: the reference's parser accepts any function name and fails when it evaluates, which is how the data's own
+    // `jmath_function`s are called. The refusal belongs where the answer is worked out, not where the expression is read.
     let not_a_function = cdda_json::parse(br#"{"math": ["ceil_of(3.5)", "==", 4]}"#.as_slice()).expect("json");
-    assert!(cdda_content::dialogue::read_condition(&not_a_function).is_none());
+    assert!(cdda_content::dialogue::read_condition(&not_a_function).is_some());
     // The five variable types are all readable, bare identifiers included - the reference looks a bare name up in the
     // dialogue's context (`const_dialogue::maybe_get_value`, `npctalk.cpp:2659-2662`).
     let a_context_variable =
