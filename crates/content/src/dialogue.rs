@@ -1707,7 +1707,7 @@ fn read_spawn_item(object: &cdda_json::Object) -> Option<Effect> {
         let Some(item) = object.get(member) else {
             continue;
         };
-        for unsupported in ["loc", "use_item_group", "container"] {
+        for unsupported in ["loc", "container"] {
             if object.get(unsupported).is_some() {
                 return None;
             }
@@ -1726,6 +1726,7 @@ fn read_spawn_item(object: &cdda_json::Object) -> Option<Effect> {
             charges,
             suppress_message: matches!(object.get("suppress_message"), Some(Value::Bool(true))),
             force_equip: matches!(object.get("force_equip"), Some(Value::Bool(true))),
+            use_item_group: matches!(object.get("use_item_group"), Some(Value::Bool(true))),
         });
     }
     None
@@ -2034,6 +2035,10 @@ pub enum Effect {
         charges: CountRange,
         /// Whether anything is shown to say it appeared.
         suppress_message: bool,
+        /// Whether the name is an **item group** to draw from rather than an item.
+        ///
+        /// Reference: `use_item_group` (`npctalk.cpp:3781`) sends the name to `item_group::item_from` instead of the item factory.
+        use_item_group: bool,
         /// Whether the item is forced into the creature's hands.
         ///
         /// Reference: `force_equip` (`npctalk.cpp:3799`) wields what was spawned. The port has no wield slot yet, so the reader keeps the flag and the runner

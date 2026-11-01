@@ -671,7 +671,7 @@ fn consume_items(world: &mut World, speaker: Entity, listener: Option<Entity>, e
 /// Reference: `f_spawn_item` (`npctalk.cpp:3771-3800`): `count` of them, each with `charges` charges when the data gives charges. An item the port's catalogue does
 /// not know is refused rather than dropped as something nameless.
 fn spawn_items(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::SpawnItem { item, count, charges, force_equip, .. } = effect else {
+    let Effect::SpawnItem { item, count, charges, force_equip, use_item_group, .. } = effect else {
         return Applied::CannotAnswer;
     };
     // Reference: `force_equip` puts the item in the creature's hands, and the port has no wield slot to put it in - so it refuses rather than dropping the item
@@ -685,6 +685,21 @@ fn spawn_items(world: &mut World, speaker: Entity, listener: Option<Entity>, eff
     let Some(name) = crate::conditions::text_of(world, speaker, listener, item) else {
         return Applied::CannotAnswer;
     };
+    // Reference: `use_item_group` sends the name to `item_group::item_from` instead of the item catalogue, and what the group produces is what appears.
+    if *use_item_group {
+        let Some(produced) = crate::item_groups::draw(world, &name) else {
+            return Applied::CannotAnswer;
+        };
+        for (made, how_many) in produced {
+            let Some(kind) = crate::item_registry::id_of(world, &made) else {
+                return Applied::CannotAnswer;
+            };
+            for _ in 0..how_many.max(1) {
+                crate::drop_item(world, (at.x, at.y), kind, 1);
+            }
+        }
+        return Applied::Done;
+    }
     let Some(kind) = crate::item_registry::id_of(world, &name) else {
         return Applied::CannotAnswer;
     };

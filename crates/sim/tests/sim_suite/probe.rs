@@ -1599,3 +1599,38 @@ fn a_forced_equip_reads_and_refuses_to_run() {
     let applied = cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect);
     assert_eq!(applied, cdda_sim::dialogue_effects::Applied::CannotAnswer, "no hand, no equip");
 }
+
+/// A spawn that names an item **group** draws from the group, and what the group produces is what appears.
+///
+/// Reference: `use_item_group` (`npctalk.cpp:3781`) sends the name to `item_group::item_from`. The drawing rule is the one the reader already wrote
+/// (`cdda_content::item_group_draw`); the port's part is the store, and this checks that a spawn goes through it.
+#[test]
+fn a_spawn_from_an_item_group_produces_what_the_group_holds() {
+    let mut world = bevy_ecs::prelude::World::new();
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[cdda_sim::item_registry::Kind {
+            id: "mp3",
+            volume_ml: 250,
+            weight_g: 100,
+            pockets: &[],
+        }],
+    );
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let value = cdda_json::parse(
+        br#"{"type": "item_group", "id": "internal_mp3_radio_group", "subtype": "collection", "entries": [{"item": "mp3", "prob": 100, "count": 1}]}"#.as_slice(),
+    )
+    .expect("json");
+    cdda_sim::item_groups::set_groups(&mut world, cdda_content::item_group_draw::load_definitions(&value));
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(11));
+
+    let spawn = cdda_json::parse(
+        br#"{"u_spawn_item": "internal_mp3_radio_group", "use_item_group": true, "suppress_message": true}"#.as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&spawn).expect("the effect reads");
+    let applied = cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect);
+    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "it runs");
+    let mut items = world.query::<&cdda_sim::GroundItem>();
+    assert_eq!(items.iter(&world).count(), 1, "one item, which is what the group holds");
+}

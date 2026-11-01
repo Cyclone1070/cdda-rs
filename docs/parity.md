@@ -7738,3 +7738,29 @@ item where the data asked for a hand is a worse answer than a stated gap.
 
 That is the third time this round-family of diagnostics has paid: the member on the list was never the member that mattered. The next real step for `u_spawn_item` is
 **item groups** - `item_group::item_from` in the reference - which is a store, not a reader.
+
+## Item groups: a store for a rule that already existed (round 917)
+
+Last round's finding was that `use_item_group` blocked two programs and that it is "a store, not a reader". That was exactly right, and the store was small, because the
+**drawing rule was already ported**: `cdda_content::item_group_draw` reads group definitions and draws from a collection or a distribution by the reference's own
+probabilities (`item_group.cpp:832-864`). What was missing is where the definitions live while the game runs.
+
+`crates/sim/src/item_groups.rs` is that: `ItemGroups(BTreeMap<String, Definition>)` as one component on one entity, `set_groups`, and `draw(world, id)` which takes
+the world's own dice. `Effect::SpawnItem` now carries `use_item_group`, and the spawner sends the name through the group when the data asks for one - what the group
+produces is what appears on the square.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 496 | **498** |
+refused at run time | 169 | **171** |
+unreadable leaves | 314 | **310** |
+one-gap programs | 75 | **71** |
+effect entries runnable | 1,398 | **1,400** |
+effect census blaming `effect` | 178 | **176** |
+
+**Both new refusals are the honest kind**: the programs now read and say they cannot run, because the world they are run in has not loaded item groups. That is the
+distinction the census keeps: readable is a fact about the loader, runnable is a fact about the world.
+
+**A note on where the port's work actually goes.** Three of the last four rounds were "wire a store to a rule that already existed": the timed events map, this group
+map, and the spell levels. The pattern is the port's own shape - rules get written by the census, stores get built when a rule needs somewhere to stand - and it
+suggests the remaining one-gap list is mostly **stores**, not arithmetic.
