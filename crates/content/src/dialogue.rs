@@ -251,7 +251,9 @@ pub fn math_function(name: &str) -> Option<Arity> {
         // `time_since( x )` (`math_parser_diag.cpp:1173`) takes the point to count from: a name (`cataclysm`, `midnight`, `noon`) or a turn.
         | "time_since"
         // `skill( 'bashing' )` (`math_parser_diag.cpp:961`) answers a character's level in a named skill.
-        | "skill" | "npc_skill"
+        | "skill" | "npc_skill" | "u_skill"
+        // Reference: `{ "field_strength", { "ung", 1, field_strength_eval, {}, { "location" } } }` (`math_parser_diag.cpp:1703`) - one field name.
+        | "field_strength" | "u_field_strength" | "npc_field_strength"
         // `vitamin( 'mutagen' )` (`math_parser_diag.cpp:1584`) answers how much of one vitamin the body holds, and zero for one it holds none of.
         | "vitamin" | "u_vitamin" | "npc_vitamin"
         // `rand( n )` (`math_parser_func.h:57-60`) is one argument too; it is refused at run time only when the caller has no dice.

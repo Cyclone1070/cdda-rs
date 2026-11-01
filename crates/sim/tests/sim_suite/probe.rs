@@ -939,3 +939,40 @@ fn a_recipe_is_taught_and_known() {
     );
     assert!(!cdda_sim::recipes_known::knows(&world, survivor, "cake2"), "and now it is gone");
 }
+
+/// `u_field_strength()` reads a field's intensity on the actor's square, and zero where there is none.
+///
+/// Reference: `field_strength_eval` (`math_parser_diag.cpp:330-355`): `fp ? fp->get_field_intensity() : 0` - an empty square answers zero rather than refusing,
+/// because "none of it" is a real answer. `u_skill()` with the optional scope prefix is read here too: the data writes all three spellings.
+#[test]
+fn a_field_strength_and_a_skill_level_are_numbers() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let mut level = cdda_core_types::level::Level::new();
+    for x in -8..24 {
+        for y in -8..24 {
+            level.set_terrain(x, y, 0, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    cdda_sim::field_registry::set_field_names(&mut world, &[("fd_web", 7, 3)]);
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::skills_of::set_level(&mut world, survivor, "computer", 4);
+
+    let holds = |world: &bevy_ecs::prelude::World, text: &str| {
+        let condition = cdda_json::parse(format!(r#"{{"math": ["{text}"]}}"#).as_bytes()).expect("json");
+        let read = cdda_content::dialogue::read_condition(&condition).expect("the condition reads");
+        cdda_sim::conditions::holds_with(world, survivor, None, &read)
+    };
+
+    assert!(holds(&world, "u_field_strength('fd_web') == 0"), "an empty square is zero webs");
+
+    let web = cdda_sim::field_registry::identity_of(&world, "fd_web").expect("the field is installed");
+    cdda_sim::add_field_strength(&mut world, (0, 0, 0), web, 2);
+    assert!(holds(&world, "u_field_strength('fd_web') == 2"), "two levels of web");
+    assert!(holds(&world, "u_field_strength('fd_web') < 3"), "and not three");
+
+    // The data writes `u_skill` with the optional scope prefix; the reader has to accept the spelling and answer the level.
+    assert!(holds(&world, "u_skill('computer') >= 4"), "the level it was set to");
+    assert!(holds(&world, "u_skill('computer') < 5"), "and not one more");
+    assert!(holds(&world, "skill('computer') == 4"), "the bare spelling is the same question");
+}

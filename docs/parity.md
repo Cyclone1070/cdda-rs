@@ -6953,3 +6953,35 @@ shapes the port is short of, they are rules it has no answer for.
 The cycle discipline held this round only after three lint cycles - a 100-line cap in `read_condition`, another in `run_effect`, and one `match`-for-single-pattern
 - each fixed by extracting a function that should have been separate from the start. The pattern is consistent: **a new arm is a new function**, and writing it
 inside the big `match` first costs two cycles every time.
+
+## `u_field_strength()` and the skill spelling (round 889)
+
+Two rules, both small, both about a number the data already had a way to ask for.
+
+**`u_field_strength('fd_web')`** - reference `field_strength_eval` (`math_parser_diag.cpp:330-355`): the intensity of the named field where the actor stands, and
+`fp ? fp->get_field_intensity() : 0` - **zero** where the square has none of it, which is a real answer rather than a refusal. A stored `location` is refused, the
+same line the other reader effects draw.
+
+**`u_skill('computer')`** - the third refusal of this one was my error twice over. `math_parser_diag.cpp:961` registers `skill` with the scope `un`, so the prefix
+is optional: `skill`, `u_skill` and `npc_skill` are the same question about three actors. The port had the answer function already and only the spelling was missing
+from the arity table.
+
+| Count | Before | After |
+|---|---|---|
+**conditions readable** | **2,983** | **3,000** |
+programs blaming `math` (install census) | 14 | **12** |
+unreadable leaves | 556 | **554** |
+one-gap programs | 118 | **120** |
+programs readable | 410 | 410 |
+answered `Done` | 261 | 261 |
+effect entries runnable | 1,233 | 1,233 |
+
+**Seventeen conditions from two functions, and no program moved**: the programs those conditions belong to refuse on their *effects* next, which is why
+`effect` blame went 244 to 246 while the condition count jumped. That is the census behaving correctly - a guard that stops refusing does not make a program
+runnable, it makes the next refusal visible.
+
+**The one-gap count went UP**, from 118 to 120, and that is not a regression: two programs that were several gaps away each became one gap away. The census counts
+what is left, not what was fixed, so a rising number here means the frontier moved into view.
+
+This round the cycle discipline held - no 100-line cap, no lint cycle except a doc comment I displaced by inserting above another function. The lesson from last
+round (a new arm is a new function) was applied and cost nothing.

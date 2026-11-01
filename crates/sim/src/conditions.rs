@@ -58,7 +58,9 @@ fn answer_skill(
     name: &str,
     arguments: &[Expression],
 ) -> Option<f64> {
-    if !matches!(name, "skill" | "npc_skill") {
+    // Reference: the scope prefix is optional in the data, so `skill`, `u_skill` and `npc_skill` are the same question about three different actors
+    // (`math_parser_diag.cpp:961`).
+    if !matches!(name, "skill" | "u_skill" | "npc_skill") {
         return None;
     }
     let [Expression::Text(skill)] = arguments else {
@@ -681,6 +683,42 @@ fn answer_health(world: &World, speaker: Entity, listener: Option<Entity>, name:
     Answer::Value(f64::from(health))
 }
 
+/// How strong a field is on the actor's square.
+///
+/// Reference: `field_strength_eval` (`math_parser_diag.cpp:330-355`): the intensity of the named field where the actor stands, and **zero** when that square has
+/// none of it - the reference's `fp ? fp->get_field_intensity() : 0`. A stored `location` is refused because the port has no stored point to read from yet.
+fn answer_field_strength(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    name: &str,
+    arguments: &[Expression],
+    keywords: &[(String, Expression)],
+) -> Answer {
+    if keywords.iter().any(|(name, _)| name == "location") {
+        return Answer::Refused;
+    }
+    let [Expression::Text(field)] = arguments else {
+        return Answer::Refused;
+    };
+    let actor = match name {
+        "npc_field_strength" => listener.unwrap_or(speaker),
+        _ => speaker,
+    };
+    let Some(here) = world.get::<crate::Position>(actor).copied() else {
+        return Answer::Refused;
+    };
+    let Some(identity) = crate::field_registry::identity_of(world, field) else {
+        // A field the world does not know cannot be on the square, so "none of it" is the honest answer rather than a refusal.
+        return Answer::Value(0.0);
+    };
+    Answer::Value(f64::from(crate::field_strength_at(
+        world,
+        (here.x, here.y, here.z),
+        identity,
+    )))
+}
+
 /// How much of one vitamin a character holds.
 ///
 /// Reference: `vitamin_eval` (`math_parser_diag.cpp:1584-1592`) answers `vitamin_get`, which is the stored amount and **zero** for a vitamin the body has none of
@@ -1001,6 +1039,9 @@ fn answer_from_table(
         // Reference: `{ "pain", { "un", 0, pain_eval, pain_ass } }` (`math_parser_diag.cpp:869-882`) - the actor's `pain_cur`, with `type: "perceived"` asking
         // for the pain as the character feels it instead. The port has no masking rule yet, so it refuses that form rather than answering the raw number for it.
         ("health" | "u_health" | "npc_health", []) => return answer_health(world, speaker, listener, name),
+        ("field_strength" | "u_field_strength" | "npc_field_strength", _) => {
+            return answer_field_strength(world, speaker, listener, name, arguments, keywords);
+        }
         // Reference: `calories_eval` (`math_parser_diag.cpp:1753`) answers `get_stored_kcal()`: the stored energy in kilocalories, with `format: percent`
         // refused because it needs a healthy weight the port has no rule for.
         ("calories" | "u_calories" | "npc_calories", _) => {

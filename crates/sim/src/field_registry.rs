@@ -79,6 +79,13 @@ pub fn name_of(world: &mut World, id: FieldId) -> Option<String> {
         .filter(|name| !name.is_empty())
 }
 
+/// The number of a field by name, reading only: a condition may ask about a field without changing the store.
+#[must_use]
+pub fn identity_of(world: &bevy_ecs::prelude::World, name: &str) -> Option<FieldId> {
+    let holder = crate::singletons::holder::<TheFieldNames>(world)?;
+    world.get::<FieldNames>(holder)?.by_name.get(name).copied()
+}
+
 /// How many field names the store knows.
 #[must_use]
 pub fn count(world: &mut World) -> usize {
