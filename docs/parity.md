@@ -7400,3 +7400,32 @@ for a reader added before its runner.
 rather than by moving a rule out. The right fix was available the whole time: `write_to_store` and `answer_spell` are already the extracted forms; what kept growing
 is the **table** they are dispatched from, and a table that grows one dispatch line per name will hit the cap again on the next round. That is a structural problem
 with the table, not with the name I happen to be adding today.
+
+## The dispatch table is split before it splits itself (round 905)
+
+Last round ended with a structural warning: `answer_from_table` and `run_effect` were both sitting at the hundred-line cap, and every new name cost a dispatch line
+that had to be clawed back by compacting something else. Ten lint cycles went into that, none of them into a rule. This round fixes the cause.
+
+Three blocks left the table and became the functions they already were in substance:
+
+| Was a block of the table | Is now |
+|---|---|
+the `u_effect_intensity` arm's body | `answer_effect_intensity` |
+the `has_var` arm's body | `answer_has_var` |
+the `time_since` body, which `time` shares its clock with | `answer_time_since` |
+
+No behaviour changed, and the suite is the proof: **896 sim tests, unchanged counts** - readable 468, `Done` 304, conditions 3,209, effects 1,346. A refactor that
+moved a number would not be a refactor.
+
+The table is now ~70 lines with room for **thirty** more single-line arms before the cap is a problem again, which is the point: the next thirty readers cost one line
+each instead of a fight.
+
+**Two shapes the diagnostic named while I was here, both recorded for the next round rather than guessed at now:**
+
+* `u_location_variable` with `min_radius` and `max_radius` - the port has `read_radius_search` and it already reads both members, so the reader is refusing these
+  objects for a reason **inside** the search path, not for a missing member. Finding it needs the same treatment the math leaf got last round: print what the search
+  path decided, not what the object said.
+* `u_spawn_monster` written with no `monster` member at all and a radius - the spawner reads a type or a group, and the reference's `f_spawn_monster` reads a third
+  thing (`target_params`), which is a member the port does not know.
+
+Both are next round's work, and neither is a name to add to a table.

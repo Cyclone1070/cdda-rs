@@ -737,6 +737,80 @@ fn answer_health(world: &World, speaker: Entity, listener: Option<Entity>, name:
 ///
 /// Reference: `spell_level_eval` and `spell_exp_eval` (`math_parser_diag.cpp:1036-1070`). A spell the creature does not know is a **level of zero**, not a refusal -
 /// the data compares against it without a guard - and an empty name asks for the highest level of any spell the creature knows.
+/// The effect intensity a creature is wearing, in the scope the data named.
+///
+/// Reference: `effect_intensity_eval` (`math_parser_diag.cpp`) answers zero for an effect the creature does not wear - the data compares it without a guard.
+fn answer_effect_intensity(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    name: &str,
+    effect: &str,
+) -> Answer {
+    let creature = if name.starts_with("npc_") {
+        listener.unwrap_or(speaker)
+    } else {
+        speaker
+    };
+    let intensity = crate::applied_effects::intensity_of(world, creature, effect).unwrap_or(0);
+    Answer::Value(f64::from(intensity))
+}
+
+/// Whether the dialogue holds a variable at all - which is how the data tells "never set" from "set to zero".
+///
+/// Reference: `has_var` (`math_parser_diag.cpp`) answers 1 or 0, and the data writes the name bare as often as quoted
+/// (`has_var(u_dialogue_hub_rnd_u_project_ongoing)`), so a bare name's spelling is the name asked about rather than a value to evaluate.
+fn answer_has_var(world: &World, speaker: Entity, argument: &Expression) -> Answer {
+    let variable = match argument {
+        Expression::Text(name) => name.as_str(),
+        Expression::Variable { scope, name } if scope == "var_val" => name.as_str(),
+        _ => return Answer::NotMine,
+    };
+    let held = crate::dialogue_values::value_of(world, speaker, variable).is_some();
+    Answer::Value(if held { 1.0 } else { 0.0 })
+}
+
+/// How long it has been since a point on the clock, in the unit the call asked for.
+///
+/// Reference: `time_since_eval` (`math_parser_diag.cpp:1173-1200`): a name counts from that point on the clock and a number counts from the turn it spells. The
+/// answer is in turns unless a `'unit'` names another one, which the data does pass (`'unit': 'hour'`).
+fn answer_time_since(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    point: &Expression,
+    keywords: &[(String, Expression)],
+) -> Answer {
+    let turns: Option<f64> = match point {
+        Expression::Text(named) => match named.as_str() {
+            "cataclysm" => crate::calendar::turns_since_cataclysm(world),
+            "midnight" => crate::calendar::turns_since_midnight(world),
+            "noon" => crate::calendar::turns_since_noon(world),
+            _ => None,
+        }
+        .map(|turns| {
+            #[allow(clippy::cast_precision_loss)]
+            let turns = turns as f64;
+            turns
+        }),
+        other => crate::calendar::of(world)
+            .zip(value(world, speaker, listener, other))
+            .map(|(calendar, from)| {
+                #[allow(clippy::cast_precision_loss)]
+                let now = calendar.turn as f64;
+                now - from
+            }),
+    };
+    // A unit divides the turns into the span it names. `turn` is the default and a second is one turn, which is the reference's own clock.
+    let scale = match unit_of(keywords) {
+        Some(unit) => unit_turns(unit),
+        None => Some(1.0),
+    };
+    turns
+        .zip(scale)
+        .map_or(Answer::NotMine, |(turns, scale)| Answer::Value(turns / scale))
+}
+
 fn answer_spell(world: &World, speaker: Entity, listener: Option<Entity>, name: &str, argument: &Expression) -> Answer {
     let about_listener = name.starts_with("npc_");
     let Some(actor) = actor_for(speaker, listener, about_listener) else {
@@ -1373,12 +1447,7 @@ fn answer_from_table(
         }
         // Reference: `u_effect_intensity(name)` answers how strong an effect is, and **zero** when it is not worn at all.
         ("u_effect_intensity" | "npc_effect_intensity", [Expression::Text(effect)]) => {
-            let creature = match name {
-                "npc_effect_intensity" => listener.unwrap_or(speaker),
-                _ => speaker,
-            };
-            let intensity = crate::applied_effects::intensity_of(world, creature, effect).unwrap_or(0);
-            return Answer::Value(f64::from(intensity));
+            return answer_effect_intensity(world, speaker, listener, name, effect);
         }
         // Reference: `moon_phase()` (`math_parser_diag.cpp:862`) answers the phase **index** at the current turn.
         ("moon_phase", []) => {
@@ -1387,19 +1456,7 @@ fn answer_from_table(
             };
             return Answer::Value(f64::from(phase));
         }
-        // Reference: `has_var(name)` answers 1 when the dialogue holds that variable at all, and 0 when it holds none - which is how the data
-        // tells "never set" apart from "set to zero".
-        ("has_var", [argument]) => {
-            // The data writes the name **bare** as often as quoted - `has_var(u_dialogue_hub_rnd_u_project_ongoing)` - and a bare name reads as a variable
-            // lookup, so its spelling is the name being asked about rather than a value to evaluate.
-            let variable = match argument {
-                Expression::Text(name) => name.as_str(),
-                Expression::Variable { scope, name } if scope == "var_val" => name.as_str(),
-                _ => return Answer::NotMine,
-            };
-            let held = crate::dialogue_values::value_of(world, speaker, variable).is_some();
-            return Answer::Value(if held { 1.0 } else { 0.0 });
-        }
+        ("has_var", [argument]) => return answer_has_var(world, speaker, argument),
         _ => {}
     }
     if let Some(level) = answer_skill(world, speaker, listener, name, arguments) {
@@ -1408,37 +1465,7 @@ fn answer_from_table(
     if name == "time_since"
         && let [point] = arguments
     {
-        // Reference: `time_since_eval` (`math_parser_diag.cpp:1173-1200`): a name counts from that point on the clock, and a number counts from the turn
-        // it spells. The answer is in turns unless a `'unit'` names another one, which `spells.json` does pass (`'unit': 'hour'`) - the earlier note here
-        // that no call passes a unit was wrong, and the census's refused list is what showed it.
-        let turns: Option<f64> = match point {
-            Expression::Text(named) => match named.as_str() {
-                "cataclysm" => crate::calendar::turns_since_cataclysm(world),
-                "midnight" => crate::calendar::turns_since_midnight(world),
-                "noon" => crate::calendar::turns_since_noon(world),
-                _ => None,
-            }
-            .map(|turns| {
-                #[allow(clippy::cast_precision_loss)]
-                let turns = turns as f64;
-                turns
-            }),
-            other => crate::calendar::of(world)
-                .zip(value(world, speaker, listener, other))
-                .map(|(calendar, from)| {
-                    #[allow(clippy::cast_precision_loss)]
-                    let now = calendar.turn as f64;
-                    now - from
-                }),
-        };
-        // A unit divides the turns into the span it names. `turn` is the default and a second is one turn, which is the reference's own clock.
-        let scale = match unit_of(keywords) {
-            Some(unit) => unit_turns(unit),
-            None => Some(1.0),
-        };
-        return turns
-            .zip(scale)
-            .map_or(Answer::NotMine, |(turns, scale)| Answer::Value(turns / scale));
+        return answer_time_since(world, speaker, listener, point, keywords);
     }
     if name == "time"
         && let [Expression::Text(text)] = arguments
