@@ -320,13 +320,13 @@ impl FieldRegistry {
 /// **Declared gap:** the reference asks `GetResultFromGroup` for a **batch** and passes its count in by reference, so a pack
 /// entry can consume several points of the count and spawn several monsters at once. Packs are not ported, so a batch here is
 /// always one monster.
-pub fn spawn_from_field<'a>(
+pub fn spawn_from_field(
     spawn_chance: i32,
     spawn_count: i32,
     spawn_group: &str,
-    groups: &'a [crate::monster_groups::MonsterGroup],
+    groups: &[crate::monster_groups::MonsterGroup],
     rolls: &mut Rolls,
-) -> Vec<&'a str> {
+) -> Vec<String> {
     let mut produced = Vec::new();
     if spawn_count <= 0 || spawn_chance <= 0 || spawn_group.is_empty() {
         return produced;
@@ -402,16 +402,16 @@ pub fn random_point_in_radius(
 /// Returns each monster with the square it landed on. A monster that finds nowhere to stand is **not** produced, which is what
 /// the reference does with an empty `random_point`.
 #[allow(clippy::too_many_arguments)]
-pub fn spawn_monsters_from_field<'a>(
+pub fn spawn_monsters_from_field(
     spawn_chance: i32,
     spawn_count: i32,
     spawn_group: &str,
     center: (i32, i32),
     radius: i32,
-    groups: &'a [crate::monster_groups::MonsterGroup],
+    groups: &[crate::monster_groups::MonsterGroup],
     accepts: impl Fn(i32, i32) -> bool,
     rolls: &mut Rolls,
-) -> Vec<(&'a str, (i32, i32))> {
+) -> Vec<(String, (i32, i32))> {
     let monsters = spawn_from_field(spawn_chance, spawn_count, spawn_group, groups, rolls);
     let mut placed = Vec::new();
     for monster in monsters {
@@ -428,7 +428,7 @@ pub fn spawn_monsters_from_field<'a>(
 /// The terrain table is passed as a function rather than a map so this stays a rule about spawning and not a second copy of the
 /// loader: the caller says which terrain ids take a creature, and the level says which square holds which id.
 #[allow(clippy::too_many_arguments)]
-pub fn spawn_monsters_on_level<'a>(
+pub fn spawn_monsters_on_level(
     level: &cdda_core_types::level::Level,
     takes_creature: impl Fn(u32) -> bool,
     spawn_chance: i32,
@@ -436,9 +436,9 @@ pub fn spawn_monsters_on_level<'a>(
     spawn_group: &str,
     center: (i32, i32),
     radius: i32,
-    groups: &'a [crate::monster_groups::MonsterGroup],
+    groups: &[crate::monster_groups::MonsterGroup],
     rolls: &mut Rolls,
-) -> Vec<(&'a str, (i32, i32))> {
+) -> Vec<(String, (i32, i32))> {
     spawn_monsters_from_field(
         spawn_chance,
         spawn_count,

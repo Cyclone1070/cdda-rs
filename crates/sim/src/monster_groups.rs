@@ -27,5 +27,5 @@ pub fn set_groups(world: &mut World, groups: Vec<cdda_content::monster_groups::M
 pub fn pick(world: &World, group: &str, dice: &mut cdda_core_types::rng::Rolls) -> Option<String> {
     let groups = crate::singletons::holder::<TheMonsterGroups>(world)
         .and_then(|holder| world.get::<MonsterGroups>(holder))?;
-    cdda_content::monster_groups::pick_monster(group, &groups.0, dice).map(str::to_owned)
+    cdda_content::monster_groups::pick_monster(group, &groups.0, dice)
 }

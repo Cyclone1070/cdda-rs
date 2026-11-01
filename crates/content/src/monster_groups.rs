@@ -75,12 +75,8 @@ pub fn load_paths(dirs: &[&std::path::Path]) -> Result<Vec<MonsterGroup>, LoadEr
 /// season and terrain are not consulted - the port's spawner will pass only the entries that pass them, which is the shape the
 /// reference uses too.
 ///
-/// Returns the monster's id, or `None` when the group does not exist or holds nothing to pick.
-pub fn pick_monster<'a>(
-    group_id: &str,
-    groups: &'a [MonsterGroup],
-    rolls: &mut Rolls,
-) -> Option<&'a str> {
+/// Returns the monster's id as a value, or `None` when the group does not exist or holds nothing to pick.
+pub fn pick_monster(group_id: &str, groups: &[MonsterGroup], rolls: &mut Rolls) -> Option<String> {
     let mut current = group_id;
     // A nested chain in the data is two or three deep; eight is a generous ceiling that still terminates on a cycle.
     for _ in 0..8 {
@@ -94,13 +90,10 @@ pub fn pick_monster<'a>(
         let kind = list.pick(rolls)?.clone();
         match kind {
             EntryKind::Monster(id) => {
-                // The group table borrows from itself, so the id is looked up rather than returned by value.
-                return groups.iter().find_map(|group| {
-                    group.entries.iter().find_map(|entry| match &entry.kind {
-                        EntryKind::Monster(name) if *name == id => Some(name.as_str()),
-                        _ => None,
-                    })
-                });
+                // The name the entry carries **is** the answer. Searching the table for it again used to fail whenever the pick
+                // came from an entry the search could not see - a group whose entries were read from another file, say - and
+                // reported "picked nothing" for a group that had picked perfectly well.
+                return Some(id);
             }
             EntryKind::Group(id) => {
                 current = groups.iter().find(|group| group.id == id)?.id.as_str();

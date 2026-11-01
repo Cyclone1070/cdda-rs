@@ -6406,3 +6406,30 @@ Both passes were skipped because I was sure of the answer, which is exactly the 
 What survived from the deleted draft was one genuinely useful thing: `load_objects`, a reader that takes prototypes already in hand instead of a directory -
 which is how the test hands the loader a group without writing a file. That is now an extracted `collect_into` shared by `load_paths` and `load_objects`, so the
 two cannot drift.
+
+## A pick that lied, found by making the census world real (round 870)
+
+The census world had no monsters and no groups, so every spawn program refused at run time for a reason that was about the **measurement**, not the port. Now it
+loads both the way the game does - through the loaders that walk the whole tree and resolve abstracts - and that immediately turned three `unknown type` refusals
+into three `group ... picked nothing` refusals, which is a port bug wearing the census's clothes.
+
+The bug: `pick_monster` returned its answer by **searching the table again** for the name it had just picked, to satisfy a lifetime. A group whose entries were
+read from another file, or a pick that came out of a nested group, sent that search somewhere it could not look, and the function answered `None` for a group that
+had picked perfectly well. It now returns the name it picked; the borrow it was protecting is gone because the answer is owned.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 367 | **367** |
+**capability** | 226 | **226** |
+effects runnable | 1,197 | **1,197** |
+
+**No count moved, and that is the honest result.** Three groups still pick nothing (`GROUP_ZOMBIE`, `GROUP_MANSION_PURSUERS`) and two monsters are still unknown
+(`mon_golden_monolith`, `mon_shifting_mass`), so the nine spawn refusals stand. What changed is that they now refuse for reasons I can name and chase:
+
+- a nested group reference whose target is not in the table the pick was handed;
+- a monster whose `copy-from` chain leaves the tree the loader was given.
+
+Both are loadable-in-principle and neither is a rule I have to invent.
+
+The supporting refactor was forced: the census test crossed the 100-line cap twice, so the tree walk became `readable_programs` and the catalogue became
+`install_monsters`. They were inline for two rounds because they were "only a test"; a test that measures everything is not a small function.

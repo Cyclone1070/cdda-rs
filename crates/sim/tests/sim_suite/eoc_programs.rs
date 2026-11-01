@@ -374,37 +374,7 @@ fn a_call_hands_the_program_its_values_and_takes_them_back() {
 #[test]
 fn the_readable_programs_also_run_in_a_fresh_world() {
     let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../oracle/src/data/json");
-    let mut defined = 0usize;
-    let mut readable: Vec<cdda_content::dialogue::Program> = Vec::new();
-
-    let mut stack = vec![data.clone()];
-    while let Some(directory) = stack.pop() {
-        let Ok(entries_at) = std::fs::read_dir(&directory) else {
-            continue;
-        };
-        for entry in entries_at.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                stack.push(path);
-                continue;
-            }
-            if path.extension().and_then(std::ffi::OsStr::to_str) != Some("json") {
-                continue;
-            }
-            let Some(value) = cdda_content::read_json(&path) else {
-                continue;
-            };
-            for definition in definitions_in(&value) {
-                if member(definition, "id").is_none() {
-                    continue;
-                }
-                defined += 1;
-                if let Some(program) = cdda_content::dialogue::read_program(definition) {
-                    readable.push(program);
-                }
-            }
-        }
-    }
+    let (defined, readable) = readable_programs(&data);
 
     // Every readable program is installed in the world each one runs in, because that is what a world is: the data's whole set of
     // programs, with any of them callable. Installing only the program under test made ninety of the ninety-eight refusals a `run_eocs`
@@ -426,9 +396,10 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
         }
     }
 
-    // The snippets the data holds, for the same reason as the mapgens: a program that says a line from a category refuses in a world that has no
-    // categories, and thirteen programs refused at run time on exactly that.
+    // The snippets, for the same reason: a program that says a line from a category refuses in a world with no categories.
     let snippets = collect_snippets(&data);
+
+    let (monsters, groups) = install_monsters(&data);
 
     let mut ran = 0usize;
     let mut refused = 0usize;
@@ -441,6 +412,8 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
         cdda_sim::eoc_registry::set_programs(&mut world, &readable);
         install_data(&mut world, &mapgens, &codes, &fields);
         install_snippets(&mut world, &snippets);
+        cdda_sim::monster_catalog::set_types(&mut world, monsters.clone());
+        cdda_sim::monster_groups::set_groups(&mut world, groups.clone());
         if eoc_registry::run_program(&mut world, survivor, None, &program.id, 0) == Applied::Done {
             ran += 1;
             continue;
@@ -491,6 +464,56 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
 }
 
 /// Every snippet line in the data, filed under `category/id` the way the store expects.
+/// Reads the monsters and monster groups the data holds, so a spawn in the census world has something to draw from.
+///
+/// Both loaders walk the whole tree, abstracts included: a monster that copies from an abstract is unknown without it, and three spawn programmes refused with
+/// `unknown type` until the catalogue was read this way rather than file by file.
+/// Reads every program the data defines, and how many it defines whether the port can read them or not.
+fn readable_programs(data: &std::path::Path) -> (usize, Vec<cdda_content::dialogue::Program>) {
+    let mut defined = 0usize;
+    let mut readable = Vec::new();
+    let mut stack = vec![data.to_path_buf()];
+    while let Some(directory) = stack.pop() {
+        let Ok(entries_at) = std::fs::read_dir(&directory) else {
+            continue;
+        };
+        for entry in entries_at.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            if path.extension().and_then(std::ffi::OsStr::to_str) != Some("json") {
+                continue;
+            }
+            let Some(value) = cdda_content::read_json(&path) else {
+                continue;
+            };
+            for definition in definitions_in(&value) {
+                if member(definition, "id").is_none() {
+                    continue;
+                }
+                defined += 1;
+                if let Some(program) = cdda_content::dialogue::read_program(definition) {
+                    readable.push(program);
+                }
+            }
+        }
+    }
+    (defined, readable)
+}
+
+fn install_monsters(
+    data: &std::path::Path,
+) -> (
+    Vec<cdda_content::monsters::MonsterType>,
+    Vec<cdda_content::monster_groups::MonsterGroup>,
+) {
+    let monsters = cdda_content::monsters::load_paths(&[data]).unwrap_or_default();
+    let groups = cdda_content::monster_groups::load_paths(&[data]).unwrap_or_default();
+    (monsters, groups)
+}
+
 fn collect_snippets(data: &std::path::Path) -> Vec<(String, cdda_content::snippets::Line)> {
     let mut found = Vec::new();
     let mut stack = vec![data.to_path_buf()];

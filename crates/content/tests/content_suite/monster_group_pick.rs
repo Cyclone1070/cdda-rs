@@ -39,7 +39,7 @@ fn a_weighted_group_produces_its_monsters_in_the_proportions_the_weights_give() 
     let mut counts: BTreeMap<String, usize> = BTreeMap::new();
     for _ in 0..draws {
         let picked = pick_monster("GROUP_GOO", &groups, &mut rolls).expect("a monster");
-        *counts.entry(picked.to_owned()).or_insert(0) += 1;
+        *counts.entry(picked).or_insert(0) += 1;
     }
     let share = |name: &str| counts.get(name).copied().unwrap_or(0) as f64 / f64::from(draws);
     assert!(
