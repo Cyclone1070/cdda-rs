@@ -1035,3 +1035,39 @@ fn the_hit_point_ceiling_is_a_separate_number() {
     assert!(holds(&world, "u_hp_max() == 40"), "and what it started with");
     assert!(holds(&world, "(u_hp() * 1.4) < u_hp_max()"), "the comparison the data writes");
 }
+
+/// An addiction has a level and a sated time, and both read as zero for one the character does not have.
+///
+/// Reference: `class addiction` (`src/addiction.h:58-80`) carries `intensity` and `sated`; `addiction_level` (`suffer.cpp:2118-2125`) searches for the entry and
+/// answers **zero** when there is none, and `get_addiction_turns` (`talker_character.cpp:1011-1019`) answers the entry's `sated` or zero. The data relies on that
+/// zero: `rand(6) < u_addiction_intensity('mutagen')` is written with no guard.
+#[test]
+fn an_addiction_reads_its_level_and_its_sated_time() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let holds = |world: &bevy_ecs::prelude::World, text: &str| {
+        let condition = cdda_json::parse(format!(r#"{{"math": ["{text}"]}}"#).as_bytes()).expect("json");
+        let read = cdda_content::dialogue::read_condition(&condition).expect("the condition reads");
+        cdda_sim::conditions::holds_with(world, survivor, None, &read)
+    };
+
+    assert!(holds(&world, "u_addiction_intensity('mutagen') == 0"), "no addiction reads zero");
+    assert!(holds(&world, "u_addiction_turns('mutagen') == 0"), "and no sated time either");
+
+    cdda_sim::addictions::set_intensity(&mut world, survivor, "mutagen", 9);
+    assert!(holds(&world, "u_addiction_intensity('mutagen') == 9"), "the level it was given");
+    assert!(holds(&world, "u_addiction_intensity('sleeping pill') == 0"), "and another is still zero");
+    assert!(
+        holds(&world, "u_addiction_turns('mutagen') == 600"),
+        "a new addiction starts sated for one hour, as the reference's default does"
+    );
+
+    // The level is clamped to the reference's ceiling rather than refused.
+    cdda_sim::addictions::set_intensity(&mut world, survivor, "mutagen", 99);
+    assert!(
+        holds(&world, "u_addiction_intensity('mutagen') == 20"),
+        "MAX_ADDICTION_LEVEL is twenty"
+    );
+    cdda_sim::addictions::set_turns(&mut world, survivor, "mutagen", 30);
+    assert!(holds(&world, "u_addiction_turns('mutagen') == 30"), "and the sated time can be set");
+}

@@ -58,13 +58,13 @@ pub const NOW: Census = Census {
     // The same programs run in a world that has terrain, an overmap and a player who answers, which is what a game has.
     ran_in_a_built_world: 263,
     refused_at_run: 149,
-    leaves: 552,
-    one_gap: 120,
-    effects_runnable: 1_234,
+    leaves: 550,
+    one_gap: 121,
+    effects_runnable: 1_235,
     effects_defined: 1_612,
-    effect_blamed: 247,
-    math_blamed: 11,
-    conditions_readable: 3_002,
+    effect_blamed: 248,
+    math_blamed: 10,
+    conditions_readable: 3_003,
 };
 
 impl Census {

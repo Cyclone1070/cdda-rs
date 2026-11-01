@@ -7054,3 +7054,33 @@ a two-integer array used as an expression, which is a shape question I have not 
 and the fix was to move it into the `u_hp` group where the part is optional. That is the same mistake twice this session: reading `hp_max_eval`'s **one** parameter
 from the reference and writing it into the port whose rule is "the part is optional". The reference's arity is about the part; the port's is about the creature. Those
 are different rules with the same name, and I keep copying the first into the second.
+
+## The addiction store, and `u_addiction_intensity` / `u_addiction_turns` (round 893)
+
+The last round said the readers were exhausted and the remaining value was in **stores**. This is the first of those: a character's addictions.
+
+Reference: `class addiction` (`src/addiction.h:58-80`) carries a type, an `intensity` from zero to `MAX_ADDICTION_LEVEL` (**20**), and a `sated` duration that starts
+at one hour - which in the port's units is **600 turns**. `addiction_level` (`suffer.cpp:2118-2125`) searches the list and answers the entry's intensity or **zero**;
+`get_addiction_turns` (`talker_character.cpp:1011-1019`) answers the entry's `sated` or zero. The data depends on that zero: it writes
+`rand(6) < u_addiction_intensity('mutagen')` with no guard, because "not addicted" is a level of zero rather than an unanswerable question.
+
+The store is one component, `Addictions(BTreeMap<String, Addiction>)`, with `intensity_of`, `turns_of`, `set_intensity` and `set_turns`. A level asked for outside
+`[0, 20]` is **clamped**, not refused: the data computes levels from formulas and a formula can overshoot.
+
+| Count | Before | After |
+|---|---|---|
+conditions readable | 3,002 | **3,003** |
+programs blaming `math` (install census) | 11 | **10** |
+unreadable leaves | 552 | **550** |
+effect entries runnable | 1,234 | **1,235** |
+one-gap programs | 120 | **121** |
+programs readable | 410 | 410 |
+
+**Two conditions and two leaves from a store and two readers**, which is what the frontier now costs. The effect census still says `math` 92 - but those entries are
+not one family: they are `addiction_rational` (a formula the port has no rule for), `weather('temperature')`, `n_damage_level`, `u_vitamin` assignments and a
+two-integer array used as an expression. Each is its own round now.
+
+**One regression I caught in my own work:** rewriting the arm to satisfy the 100-line cap collapsed six spellings to two (`addiction_intensity` and
+`addiction_turns` only), which silently deleted the `u_` and `npc_` forms - and the gate caught it because the test asks `u_addiction_intensity`. That is the
+second time this session a cap-driven rewrite dropped spellings; the fix is that a reader arm's name list is **data**, and data does not get shortened for line
+count.

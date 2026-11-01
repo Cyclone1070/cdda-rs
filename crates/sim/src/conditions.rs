@@ -698,6 +698,39 @@ fn answer_hit_points(world: &World, speaker: Entity, listener: Option<Entity>, n
     Answer::Value(f64::from(if ceiling { health.max_hp } else { health.hp }))
 }
 
+/// How strong an addiction is, or how long it has left before it is unsatisfied.
+///
+/// Reference: `addiction_intensity_eval` / `addiction_turns_eval` (`math_parser_diag.cpp:129-143`), which answer `addiction_level` (`suffer.cpp:2118-2125`) and
+/// the matching entry's `sated` (`talker_character.cpp:1011-1019`). Both answer **zero** for an addiction the character does not have, which is why the data can
+/// write `rand(6) < u_addiction_intensity('mutagen')` without guarding it.
+fn answer_addiction(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    name: &str,
+    arguments: &[Expression],
+) -> Answer {
+    let [argument] = arguments else {
+        return Answer::Refused;
+    };
+    let Some(addiction) = expression_text(world, speaker, listener, argument) else {
+        return Answer::Refused;
+    };
+    let about_listener = name.starts_with("npc_");
+    let Some(actor) = actor_for(speaker, listener, about_listener) else {
+        return Answer::Refused;
+    };
+    if name.contains("turns") {
+        let turns = crate::addictions::turns_of(world, actor, &addiction);
+        return Answer::Value(f64::from(i32::try_from(turns).unwrap_or(i32::MAX)));
+    }
+    Answer::Value(f64::from(crate::addictions::intensity_of(
+        world,
+        actor,
+        &addiction,
+    )))
+}
+
 /// Whether the actor carries a flag, as a number.
 ///
 /// Reference: `has_flag_eval` (`math_parser_diag.cpp:1707-1717`): `actor->has_flag( flag )`, which is one or zero because the data **adds** these together
@@ -1081,6 +1114,15 @@ fn answer_from_table(
         // Reference: `{ "pain", { "un", 0, pain_eval, pain_ass } }` (`math_parser_diag.cpp:869-882`) - the actor's `pain_cur`, with `type: "perceived"` asking
         // for the pain as the character feels it instead. The port has no masking rule yet, so it refuses that form rather than answering the raw number for it.
         ("health" | "u_health" | "npc_health", []) => return answer_health(world, speaker, listener, name),
+        (
+            addiction @ ("addiction_intensity"
+            | "u_addiction_intensity"
+            | "npc_addiction_intensity"
+            | "addiction_turns"
+            | "u_addiction_turns"
+            | "npc_addiction_turns"),
+            _,
+        ) => return answer_addiction(world, speaker, listener, addiction, arguments),
         ("has_flag" | "u_has_flag" | "npc_has_flag", _) => {
             return answer_has_flag(world, speaker, listener, name, arguments);
         }

@@ -83,6 +83,7 @@ pub mod needs;
 pub mod fun_for;
 pub mod terrain_table;
 pub mod noise;
+pub mod addictions;
 pub mod recipes_known;
 pub mod scent;
 pub mod scent_table;
