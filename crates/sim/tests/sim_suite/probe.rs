@@ -1509,3 +1509,35 @@ fn a_set_string_var_writes_its_text() {
         "and it is one of the three: {stored:?}"
     );
 }
+
+/// `copy_var` moves a value from one variable to another, whichever scopes the two ends name.
+///
+/// Reference: `f_copy_var` (`npctalk.cpp:5797-5807`): both ends are `var_info`s and the value goes across untouched. The copy is checked through the store, and a
+/// source that holds nothing copies nothing rather than writing an empty text.
+#[test]
+fn a_copy_var_moves_a_value_across() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let globals = cdda_sim::dialogue_values::holder_for(&mut world, survivor, true);
+    cdda_sim::dialogue_values::set(&mut world, globals, "from_here", cdda_sim::dialogue_values::Value::Number(7.0));
+
+    let value = cdda_json::parse(
+        br#"{"copy_var": {"global_val": "from_here"}, "target_var": {"u_val": "to_there"}}"#.as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    let applied = cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect);
+    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "it runs");
+    let copied = cdda_sim::dialogue_values::value_of(&world, survivor, "to_there");
+    assert_eq!(copied, Some(cdda_sim::dialogue_values::Value::Number(7.0)), "the value crossed");
+
+    // A source that holds nothing copies an absence, and says so by holding nothing at the far end too.
+    let value = cdda_json::parse(
+        br#"{"copy_var": {"global_val": "never_set"}, "target_var": {"u_val": "still_empty"}}"#.as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    let applied = cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect);
+    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "and it is still a completed effect");
+    assert_eq!(cdda_sim::dialogue_values::value_of(&world, survivor, "still_empty"), None, "with nothing written");
+}

@@ -1584,6 +1584,7 @@ fn read_unnamed_effect(object: &cdda_json::Object) -> Option<Effect> {
         .or_else(|| read_spawn_item(object))
         .or_else(|| read_consume_item(object))
         .or_else(|| read_set_string_var(object))
+        .or_else(|| read_copy_var(object))
 }
 
 /// Reads a `sound_effect` entry.
@@ -1601,6 +1602,26 @@ fn read_sound_effect(object: &cdda_json::Object) -> Option<Effect> {
             Some(value) => read_count(Some(value))?,
         },
         outdoor_event: matches!(object.get("outdoor_event"), Some(Value::Bool(true))),
+    })
+}
+
+/// Reads a `copy_var` entry.
+///
+/// Reference: `f_copy_var` (`npctalk.cpp:5797-5807`): the member is the source `var_info` and `target_var` the destination, both objects naming a scope and a name.
+fn read_copy_var(object: &cdda_json::Object) -> Option<Effect> {
+    let Value::Object(from) = object.get("copy_var")? else {
+        return None;
+    };
+    let Value::Object(to) = object.get("target_var")? else {
+        return None;
+    };
+    let (from_scope, from_name) = named_variable(from)?;
+    let (to_scope, to_name) = named_variable(to)?;
+    Some(Effect::CopyVar {
+        from_scope,
+        from_name,
+        to_scope,
+        to_name,
     })
 }
 
@@ -1928,6 +1949,20 @@ pub enum Effect {
         volume: CountRange,
         /// Whether it is only heard outdoors.
         outdoor_event: bool,
+    },
+    /// Copies one variable's value into another.
+    ///
+    /// Reference: `f_copy_var` (`npctalk.cpp:5797-5807`): both ends are `var_info`s, the value is read from the first and written to the second, and nothing is
+    /// drawn or interpreted on the way. A variable the source does not hold copies its **absence**, which is why the runner asks the store rather than defaulting.
+    CopyVar {
+        /// The variable read.
+        from_scope: String,
+        /// Its name.
+        from_name: String,
+        /// The variable written.
+        to_scope: String,
+        /// Its name.
+        to_name: String,
     },
     /// Stores a text into a named variable, drawing it from a list when the data gives one.
     ///
@@ -2359,6 +2394,7 @@ impl Effect {
             Self::Nothing => "//",
             Self::PlaySoundEffect { .. } => "sound_effect",
             Self::SetStringVar { .. } => "set_string_var",
+            Self::CopyVar { .. } => "copy_var",
             Self::SpawnItem { .. } => "u_spawn_item",
             Self::ConsumeItem { listener, .. } => {
                 if *listener {

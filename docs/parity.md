@@ -7653,3 +7653,29 @@ is on what the store holds, not on the writer's return value.
 
 Still refused in this effect: `parse_tags`, `i18n`, `string_input`, and `copy_var` (2 programs) - the copy form shares the target but reads its text from another
 variable, which is the next round's one-liner.
+
+## `copy_var`, and the absence that copies as absence (round 914)
+
+Two programs, one rule, and the rule is four lines in the reference: `f_copy_var` (`npctalk.cpp:5797-5807`) reads a `var_info` from the member, one from
+`target_var`, and does `write_var_value( to, read_var_value( from ) )` with nothing drawn or interpreted between them.
+
+The one decision is what a **missing** source copies. The reference reads a null value and writes null, which is not writing a text; the port answers `Done` and writes
+nothing, so the destination stays absent. That is the same distinction `has_var` exists for - "never set" is a state the data asks about, and a copy that quietly wrote
+an empty text would erase it.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 493 | **495** |
+answered `Done` | 325 | **327** |
+did something | 172 | **174** |
+unreadable leaves | 323 | **319** |
+one-gap programs | 78 | **76** |
+effect entries runnable | 1,390 | **1,394** |
+effect census blaming `effect` | 181 | **179** |
+
+**The test checks both halves**: a value crosses from a global variable into the speaker's own, and a copy from a variable nobody set leaves the destination absent
+rather than holding an empty string.
+
+Since the run of dispatch-table work began, the numbers have moved from **473 readable / 82 one-gap** to **495 / 76**, and the remaining one-gap list is now
+`<nested>` (4), `mapgen_update` (4), `condition` (3), `u_driving` (3), then a tail of twos. None of them is a family any more; each is a named thing with a named
+rule behind it.

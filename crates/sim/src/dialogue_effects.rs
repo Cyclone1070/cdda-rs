@@ -553,6 +553,27 @@ fn pick_type(
     drawn
 }
 
+/// Copies one variable's value into another.
+///
+/// Reference: `f_copy_var` (`npctalk.cpp:5797-5807`): `read_var_value` then `write_var_value`, with nothing drawn or interpreted in between. A source the store does
+/// not hold copies nothing, because the reference copies a null value and writing null is not writing a text.
+fn copy_var(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::CopyVar { from_scope, from_name, to_scope, to_name } = effect else {
+        return Applied::CannotAnswer;
+    };
+    let Some(from) = crate::conditions::holder_for_scope(world, speaker, listener, from_scope) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(to) = crate::conditions::holder_for_scope(world, speaker, listener, to_scope) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(value) = crate::dialogue_values::value_of(world, from, from_name) else {
+        return Applied::Done;
+    };
+    crate::dialogue_values::set(world, to, to_name, value);
+    Applied::Done
+}
+
 /// Stores a text into a variable, drawing it from a list when the data gives one.
 ///
 /// Reference: `f_set_string_var` (`npctalk.cpp:5843-5866`): one entry of the list is drawn, the variable is written, and nothing else happens. The draw uses the
@@ -1527,6 +1548,7 @@ pub fn run_effect(
         Effect::SpawnItem { .. } => spawn_items(world, speaker, listener, effect),
         Effect::ConsumeItem { .. } => consume_items(world, speaker, listener, effect),
         Effect::SetStringVar { .. } => set_string_var(world, speaker, listener, effect),
+        Effect::CopyVar { .. } => copy_var(world, speaker, listener, effect),
         Effect::Teleport { .. } => move_creature(world, speaker, listener, effect),
         Effect::AssignMission { .. } => give_mission(world, speaker, listener, effect),
         Effect::AddVar { .. } => add_var(world, speaker, listener, effect),
