@@ -1388,12 +1388,13 @@ pub fn run_effect(
 ) -> Applied {
     match effect {
         Effect::Math(assignments) => run_math(world, speaker, listener, assignments),
-        // A comment-only entry does nothing, which the reference's loader also does with it.
-        Effect::Nothing => Applied::Done,
         Effect::LearnRecipe { recipe, forget } => {
             run_learn_recipe(world, speaker, listener, recipe, *forget)
         }
         Effect::Message(text) => { crate::messages::push(world, text); Applied::Done }
+        // A sound effect is audio: the reference changes no game state by playing one, and the port has no audio to play. Done, not refused - nothing is missing
+        // from the *simulation*, only from the sound card.
+        Effect::PlaySoundEffect { .. } | Effect::Nothing => Applied::Done,
         Effect::Snippet {
             category,
             same,

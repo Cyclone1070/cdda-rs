@@ -1576,6 +1576,31 @@ impl AssignmentTarget {
     }
 }
 
+/// The effects recognised by the member they carry rather than by a name: casting a spell, spawning an NPC, and playing a sound effect.
+fn read_unnamed_effect(object: &cdda_json::Object) -> Option<Effect> {
+    read_cast_spell(object)
+        .or_else(|| read_spawn_npc(object))
+        .or_else(|| read_sound_effect(object))
+}
+
+/// Reads a `sound_effect` entry.
+///
+/// Reference: `f_sound_effect` (`npctalk.cpp:5531-5560`): the member is the variant, `id` is the sound, `volume` is a loudness with `-1` meaning eighty, and
+/// `outdoor_event` limits it to the sky. The read effect is complete; running it changes no game state, because a sound effect is audio and the port has none.
+fn read_sound_effect(object: &cdda_json::Object) -> Option<Effect> {
+    let variant = object.get("sound_effect")?;
+    let id = object.get("id")?;
+    Some(Effect::PlaySoundEffect {
+        variant: read_string_source(variant)?,
+        id: read_string_source(id)?,
+        volume: match object.get("volume") {
+            None => CountRange::One(-1),
+            Some(value) => read_count(Some(value))?,
+        },
+        outdoor_event: matches!(object.get("outdoor_event"), Some(Value::Bool(true))),
+    })
+}
+
 /// Reads a `u_spawn_npc` / `npc_spawn_npc` entry.
 ///
 /// Reference: `f_spawn_npc` (`npctalk.cpp:7575-7620`), whose counts and radii are `dbl_or_var`s - a number, a pair or a `math` expression - which is exactly
@@ -1796,6 +1821,21 @@ pub enum Effect {
         recipe: StringSource,
         /// Whether the effect takes the recipe away rather than teaching it.
         forget: bool,
+    },
+    /// Plays a sound effect: a named sound and one of its variants.
+    ///
+    /// Reference: `f_sound_effect` (`npctalk.cpp:5531-5560`): the member is the **variant**, `id` names the sound, and `volume` is a loudness defaulting to
+    /// `-1`, which the reference reads as **80**. Only the player hears it, and no game state changes - the port reads the entry and plays nothing, because it has
+    /// no audio, and says so rather than pretending.
+    PlaySoundEffect {
+        /// The variant of the named sound.
+        variant: StringSource,
+        /// The sound's own id.
+        id: StringSource,
+        /// How loud, with `-1` meaning the reference's own eighty.
+        volume: CountRange,
+        /// Whether it is only heard outdoors.
+        outdoor_event: bool,
     },
     /// Brings NPCs of a class into being around the actor.
     ///
@@ -2181,6 +2221,7 @@ impl Effect {
             Self::RunNpcEocs { .. } => "u_run_npc_eocs",
             Self::RunMonsterEocs { .. } => "u_run_monster_eocs",
             Self::Nothing => "//",
+            Self::PlaySoundEffect { .. } => "sound_effect",
             Self::SpawnNpc { listener, .. } => {
                 if *listener {
                     "npc_spawn_npc"
@@ -2391,7 +2432,7 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
     if let Some(location) = read_location_variable(object) {
         return Some(location);
     }
-    if let Some(found) = read_cast_spell(object).or_else(|| read_spawn_npc(object)) { return Some(found); }
+    if let Some(found) = read_unnamed_effect(object) { return Some(found); }
     if let Some(switched) = read_switch(object) {
         return Some(switched);
     }

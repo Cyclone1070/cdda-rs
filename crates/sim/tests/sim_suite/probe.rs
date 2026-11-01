@@ -1383,3 +1383,29 @@ fn a_spawn_npc_effect_makes_npcs_with_their_traits() {
         assert!((1..=3).contains(&distance), "each is between the radii, not on top of the speaker");
     }
 }
+
+/// A sound effect reads from all the members the reference reads, and running it changes no game state.
+///
+/// Reference: `f_sound_effect` (`npctalk.cpp:5531-5560`): the member is the variant, `id` the sound, `volume` a loudness with `-1` meaning eighty, and
+/// `outdoor_event` a flag. Only the player hears it, so nothing in the world moves.
+#[test]
+fn a_sound_effect_reads_and_changes_nothing() {
+    let world_before = |text: &str| {
+        let mut world = bevy_ecs::prelude::World::new();
+        let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+        let value = cdda_json::parse(text.as_bytes()).expect("json");
+        let effect = cdda_content::dialogue::read_effect(&value).expect("the sound effect reads");
+        let before = world.entities().len();
+        let applied = cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect);
+        (applied, world.entities().len() - before)
+    };
+    let (applied, entities) = world_before(
+        r#"{"sound_effect": "elec_crackle", "id": "bionics", "volume": 100}"#,
+    );
+    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "it runs");
+    assert_eq!(entities, 0, "and makes nothing: not one entity more");
+
+    // The reference's own default: no `volume` reads as `-1`, which it plays as eighty.
+    let (applied, _) = world_before(r#"{"sound_effect": "elec_crackle", "id": "bionics"}"#);
+    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "and reads with no volume");
+}

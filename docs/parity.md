@@ -7541,3 +7541,30 @@ and never read the member. The distance assertion caught it; a test that only as
 the mutation argument in one sentence: the assertion had to be able to fail, and it did.
 
 Its spawn of `(-3,-3)` and `(2,0)` afterwards is the radii working, drawn from a seeded die.
+
+## A sound effect plays nothing and is still read whole (round 910)
+
+`id` blocked six one-gap programs and the diagnostic named the family in one line: `{"id": "bionics", "sound_effect": "elec_crackle_med", "volume": 100}`. That is
+`f_sound_effect` (`npctalk.cpp:5531-5560`), where the member `sound_effect` is the sound's **variant**, `id` names the sound, `volume` is a loudness whose default
+`-1` the reference plays as **eighty**, and `outdoor_event` limits it to the sky.
+
+`Effect::PlaySoundEffect` reads all four. Running it returns `Done` and **adds no entity**, which the test asserts: an audio cue changes nothing in the simulation, so
+refusing it would be a lie about what the port lacks. The port lacks **a sound card**, not a rule.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 478 | **484** |
+answered `Done` | 313 | **319** |
+did something | 160 | **166** |
+unreadable leaves | 378 | **371** |
+one-gap programs | 87 | **82** |
+effect entries runnable | 1,358 | **1,365** |
+effect census blaming `effect` | 196 | **190** |
+
+**`id` is gone from the one-gap list.** The list now starts `count` (5), `<nested>` (4), `mapgen_update` (4), `condition` (3) - and `count` is already identified:
+`{"count": 100, "u_consume_item": {...}}` and `{"count": 5, "u_spawn_item": "chitin_piece"}`. The reference's `f_spawn_item` (`npctalk.cpp:3783-3787`) reads its
+count with a twist worth having in the record: **`count` defaults to 1, but to 0 when the entry also has `charges`.**
+
+Three lint cycles this round, all from the same cause as before - `read_effect` and `run_effect` sit at the cap, so a new member costs a compaction elsewhere. The
+extraction that fixed it is `read_unnamed_effect`, which is the right shape anyway: three effects that are recognised by the **member they carry** rather than by a
+name now sit in one named place instead of three inline `if let` lines.
