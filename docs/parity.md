@@ -6234,3 +6234,29 @@ member. A count that stays still is not always a failure; here it is the census 
 **What this round did not do:** `u_run_npc_eocs` (6 programs, the second-largest one-gap member) needs an NPC identity the port does not have - no marker
 component separates a person from a monster. That is a real store to build, not a member to read, and it is the next thing worth doing rather than another
 function.
+
+## People are a component (round 864)
+
+The one-gap list has said `u_run_npc_eocs` (6 programs) for several rounds, and it cannot be ported without answering a question the port had never asked: **which
+creatures are people?** The reference answers by type - a `Character`/`npc` beside a `monster` - and every rule that walks "the NPCs nearby" depends on it.
+
+`cdda_sim::npcs` answers it the way this port has to: a creature carrying `Npc` is a person, a creature carrying `CreatureKind` is a monster, and a rule asks
+`is_npc( world, entity )` without knowing either class existed. The `unique_id` the data writes in `unique_ids` lives on the marker, so picking one person out of
+a crowd is a query.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 341 | **341** |
+**capability** | 212 | **212** |
+conditions the port reads | 2,885 | **2,885** |
+
+Nothing moved, and this round is a store rather than a rule: no data can reach a component nothing asks about yet.
+
+**The effect that is not here.** I wrote `u_run_npc_eocs` end to end - the reader with `unique_ids`/`npc_range`/`local` and the z filters refused, the runner that
+filters people and runs each program with that person as the listener, and a test covering the level filter, the range, the unique id and the missing program.
+The test refused the *fixture*: the inline program I installed would not read, and after four remote cycles I still had not found which member it choked on. So
+the effect came out again, because **a ported rule whose only test cannot pass has not been proven to work** - it has only been written. The reader and runner
+are in the round's notes; the fixture is the next thing to fix, not the rule.
+
+That is the second time this session a fixture cost more than the rule. The lesson to act on: build the test's world from something already proven - a program
+from the corpus the census runs - rather than writing a new one inline and discovering the reader's edges through it.
