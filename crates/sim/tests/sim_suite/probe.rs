@@ -1349,3 +1349,37 @@ fn a_sound_kind_reads_in_all_its_names() {
     }
     assert!(!reads("a_kind_nobody_has"), "and a name outside the list is refused");
 }
+
+/// `u_spawn_npc` brings NPCs into being within the radii, with the traits the data lists.
+///
+/// Reference: `f_spawn_npc` (`npctalk.cpp:7575-7620`): a class, `real_count` and `hallucination_count`, `min_radius`/`max_radius` defaulting to one and ten, and a
+/// `traits` array each one is given. The port's read is the effect; its run is a creature in the store with `Npc` on it.
+#[test]
+fn a_spawn_npc_effect_makes_npcs_with_their_traits() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    // A floor for the spawner to put something on: the reference refuses a square with no map, and so does the port.
+    for x in -12..=12 {
+        for y in -12..=12 {
+            cdda_sim::square::set_terrain(&mut world, (x, y, 0), 1);
+        }
+    }
+
+    let value = cdda_json::parse(
+        br#"{"u_spawn_npc": "old_guard", "real_count": 2, "min_radius": 1, "max_radius": 3, "traits": ["GOODMEMORY"]}"#.as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    let dice = cdda_core_types::rng::Rolls::new(0);
+    cdda_sim::singletons::put_rolls(&mut world, dice);
+    let applied = cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect);
+    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "the spawn runs");
+
+    let made = cdda_sim::npcs::npcs(&world);
+    assert_eq!(made.len(), 2, "two of them, as `real_count` asked");
+    for (entity, at) in made {
+        assert!(cdda_sim::traits::has_trait(&world, entity, "GOODMEMORY"), "each is given the trait");
+        let distance = (at.0.abs()).max(at.1.abs());
+        assert!((1..=3).contains(&distance), "each is between the radii, not on top of the speaker");
+    }
+}

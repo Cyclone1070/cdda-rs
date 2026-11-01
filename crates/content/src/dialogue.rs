@@ -1576,6 +1576,54 @@ impl AssignmentTarget {
     }
 }
 
+/// Reads a `u_spawn_npc` / `npc_spawn_npc` entry.
+///
+/// Reference: `f_spawn_npc` (`npctalk.cpp:7575-7620`), whose counts and radii are `dbl_or_var`s - a number, a pair or a `math` expression - which is exactly
+/// [`CountRange`]. Members the port has no rule for (`open_air_allowed`, `target_var`) refuse the entry whole rather than being dropped silently.
+fn read_spawn_npc(object: &cdda_json::Object) -> Option<Effect> {
+    for (member, listener) in [("u_spawn_npc", false), ("npc_spawn_npc", true)] {
+        let Some(class) = object.get(member) else {
+            continue;
+        };
+        for unsupported in ["open_air_allowed", "target_var", "outdoor_only", "indoor_only", "lifespan"] {
+            if object.get(unsupported).is_some() {
+                return None;
+            }
+        }
+        let mut traits = Vec::new();
+        match object.get("traits") {
+            None => {}
+            Some(Value::Array(entries)) => {
+                for entry in entries {
+                    traits.push(read_string_source(entry)?);
+                }
+            }
+            Some(_) => return None,
+        }
+        return Some(Effect::SpawnNpc {
+            class: read_string_source(class)?,
+            unique_id: match object.get("unique_id") {
+                None => None,
+                Some(value) => Some(read_string_source(value)?),
+            },
+            traits,
+            real_count: read_count(object.get("real_count"))?,
+            hallucination_count: read_count(object.get("hallucination_count"))?,
+            // Reference: the radii are `get_dbl_or_var( jo, "min_radius", false, 1 )` and `( jo, "max_radius", false, 10 )` - defaults **one** and **ten**.
+            min_radius: match object.get("min_radius") {
+                None => CountRange::One(1),
+                Some(value) => read_count(Some(value))?,
+            },
+            max_radius: match object.get("max_radius") {
+                None => CountRange::One(10),
+                Some(value) => read_count(Some(value))?,
+            },
+            listener,
+        });
+    }
+    None
+}
+
 /// Reads a `u_cast_spell` / `npc_cast_spell` entry.
 ///
 /// Reference: `f_cast_spell` (`npctalk.cpp:5414-5440`) reads a `fake_spell`, which the data writes either as a bare id or as `{ "id": ..., "hit_self": true }`.
@@ -1748,6 +1796,28 @@ pub enum Effect {
         recipe: StringSource,
         /// Whether the effect takes the recipe away rather than teaching it.
         forget: bool,
+    },
+    /// Brings NPCs of a class into being around the actor.
+    ///
+    /// Reference: `f_spawn_npc` (`npctalk.cpp:7575-7620`): the member names an NPC **class**, `real_count` and `hallucination_count` say how many, the radii say
+    /// where, and each one is given the `traits` the data lists. The counts default to **zero** and the radii to **one and ten**.
+    SpawnNpc {
+        /// The NPC class's id.
+        class: StringSource,
+        /// The id the spawn is remembered by, when the data gives one.
+        unique_id: Option<StringSource>,
+        /// Traits each one is given.
+        traits: Vec<StringSource>,
+        /// How many are really there.
+        real_count: CountRange,
+        /// How many are only imagined.
+        hallucination_count: CountRange,
+        /// The nearest square one may appear on.
+        min_radius: CountRange,
+        /// The furthest square one may appear on.
+        max_radius: CountRange,
+        /// Whether it is the listener who does the spawning.
+        listener: bool,
     },
     /// Casts a spell at a target, or at the caster.
     ///
@@ -2111,6 +2181,13 @@ impl Effect {
             Self::RunNpcEocs { .. } => "u_run_npc_eocs",
             Self::RunMonsterEocs { .. } => "u_run_monster_eocs",
             Self::Nothing => "//",
+            Self::SpawnNpc { listener, .. } => {
+                if *listener {
+                    "npc_spawn_npc"
+                } else {
+                    "u_spawn_npc"
+                }
+            }
             Self::CastSpell { listener, .. } => {
                 if *listener {
                     "npc_cast_spell"
@@ -2314,7 +2391,7 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
     if let Some(location) = read_location_variable(object) {
         return Some(location);
     }
-    if let Some(cast) = read_cast_spell(object) { return Some(cast); }
+    if let Some(found) = read_cast_spell(object).or_else(|| read_spawn_npc(object)) { return Some(found); }
     if let Some(switched) = read_switch(object) {
         return Some(switched);
     }

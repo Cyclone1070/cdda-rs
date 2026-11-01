@@ -7512,3 +7512,32 @@ programs on the round after it). What it bought specifically:
 
 **A note on my own process:** four of the last six rounds have been spent finding out *where* a gap is rather than closing it, and every one of those rounds was worth
 it. The port is now at the point where the one-gap list is short enough (`id` 6, `max_radius` 6, `count` 5) that each entry is a single named effect, not a family.
+
+## `u_spawn_npc`, and a bug my own test caught (round 909)
+
+Last round bought the diagnostic; this round spends it. All six `max_radius` programs were `u_spawn_npc`, an effect the port had no reader for at all. Reference
+`f_spawn_npc` (`npctalk.cpp:7575-7620`): the member names an NPC **class**, `unique_id` is optional, `traits` is an array each one is given, `real_count` and
+`hallucination_count` are `dbl_or_var`s defaulting to **zero**, and the radii default to **one** and **ten**. All five are the port's existing `CountRange` - the type
+the monster spawner already used, and the reason the first draft (typed as `Expression`) was reverted last round rather than bent to fit.
+
+`Effect::SpawnNpc` reads it, and `spawn_npcs` runs it: squares drawn within the radii, the real ones placed before the imagined, each creature marked with `Npc` and
+given its traits. The class id is the creature's name until the port has NPC class prototypes - the being, its place and its traits are all real.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 473 | **478** |
+answered `Done` | 309 | **313** |
+did something | 156 | **160** |
+refused at run time | 164 | **165** |
+unreadable leaves | 383 | **378** |
+one-gap programs | 92 | **87** |
+effect entries runnable | 1,353 | **1,358** |
+effect census blaming `effect` | 201 | **196** |
+
+**`max_radius` is gone from the one-gap list entirely.**
+
+**The test that earned its keep.** My first green attempt spawned at **(-10, -8)** with `"max_radius": 3` in the test data - because the reader took the *defaults*
+and never read the member. The distance assertion caught it; a test that only asked "did anything spawn" would have passed and left the radii silently ignored. That is
+the mutation argument in one sentence: the assertion had to be able to fail, and it did.
+
+Its spawn of `(-3,-3)` and `(2,0)` afterwards is the radii working, drawn from a seeded die.

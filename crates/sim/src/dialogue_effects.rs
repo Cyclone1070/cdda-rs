@@ -553,6 +553,75 @@ fn pick_type(
     drawn
 }
 
+/// Brings NPCs of a class into being around the actor.
+///
+/// Reference: `f_spawn_npc` (`npctalk.cpp:7575-7620`): the squares are drawn within the radii - twenty-five attempts, the reference's own number - the real ones
+/// are placed before the imagined ones, and each is given the traits the data lists. The class id is the creature's name until the port has NPC class prototypes
+/// to look up; the being, its place and its traits are all real.
+fn spawn_npcs(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::SpawnNpc {
+        class,
+        unique_id,
+        traits,
+        real_count,
+        hallucination_count,
+        min_radius,
+        max_radius,
+        ..
+    } = effect
+    else {
+        return Applied::CannotAnswer;
+    };
+    let (Some(at), Some(name)) = (
+        world.get::<crate::Position>(speaker).copied(),
+        crate::conditions::text_of(world, speaker, listener, class),
+    ) else {
+        return Applied::CannotAnswer;
+    };
+    let (Some(real), Some(imagined), Some(near), Some(far)) = (
+        draw_count(world, speaker, listener, real_count),
+        draw_count(world, speaker, listener, hallucination_count),
+        draw_count(world, speaker, listener, min_radius),
+        draw_count(world, speaker, listener, max_radius),
+    ) else {
+        return Applied::CannotAnswer;
+    };
+    let mut held = crate::singletons::take_rolls(world);
+    let mut squares = Vec::new();
+    for _ in 0..(real + imagined) {
+        let Some(around) =
+            draw_near_with_where(world, held.as_mut(), (at.x, at.y, at.z), near, far, &|_| true)
+        else {
+            if let Some(dice) = held.take() {
+                crate::singletons::put_rolls(world, dice);
+            }
+            return Applied::CannotAnswer;
+        };
+        squares.push(around);
+    }
+    if let Some(dice) = held.take() {
+        crate::singletons::put_rolls(world, dice);
+    }
+    let mut wanted = Vec::new();
+    for trait_name in traits {
+        let Some(text) = crate::conditions::text_of(world, speaker, listener, trait_name) else {
+            return Applied::CannotAnswer;
+        };
+        wanted.push(text);
+    }
+    let remembered = unique_id
+        .as_ref()
+        .and_then(|given| crate::conditions::text_of(world, speaker, listener, given));
+    for square in squares {
+        let made = crate::creature::spawn_creature(world, &name, square);
+        crate::npcs::make_npc(world, made, remembered.as_deref().unwrap_or(&name));
+        for trait_name in &wanted {
+            crate::traits::add_trait(world, made, trait_name);
+        }
+    }
+    Applied::Done
+}
+
 fn spawn_monsters(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
     let Effect::SpawnMonster {
         monster,
@@ -1324,10 +1393,7 @@ pub fn run_effect(
         Effect::LearnRecipe { recipe, forget } => {
             run_learn_recipe(world, speaker, listener, recipe, *forget)
         }
-        Effect::Message(text) => {
-            crate::messages::push(world, text);
-            Applied::Done
-        }
+        Effect::Message(text) => { crate::messages::push(world, text); Applied::Done }
         Effect::Snippet {
             category,
             same,
@@ -1356,6 +1422,7 @@ pub fn run_effect(
             },
         ),
         Effect::SpawnMonster { .. } => spawn_monsters(world, speaker, listener, effect),
+        Effect::SpawnNpc { .. } => spawn_npcs(world, speaker, listener, effect),
         Effect::Teleport { .. } => move_creature(world, speaker, listener, effect),
         Effect::AssignMission { .. } => give_mission(world, speaker, listener, effect),
         Effect::AddVar { .. } => add_var(world, speaker, listener, effect),
