@@ -3208,3 +3208,30 @@ fn a_program_defined_inline_is_installed_under_its_id() {
         "and the body ran: {lines:?}"
     );
 }
+
+/// `player_see_u` asks the avatar's sight, not the speaker's.
+///
+/// Reference: `f_player_see` (`condition.cpp:1366-1377`): the player's view is asked whether it sees the creature the dialogue holds. The test puts the avatar and the
+/// stranger in the open, then moves the stranger out of sight past the view distance - so a port that answered from the speaker's own sight would say yes both times.
+#[test]
+fn the_players_sight_is_what_player_see_asks_about() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let avatar = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::missions::set_avatar(&mut world, avatar);
+    let stranger = cdda_sim::creature::spawn_creature(&mut world, "a stranger", (3, 0, 0));
+    let seen = cdda_content::dialogue::read_condition(
+        &cdda_json::parse(br#""player_see_npc""#.as_slice()).expect("json"),
+    )
+    .expect("the condition reads");
+    assert!(
+        cdda_sim::conditions::holds_with(&world, avatar, Some(stranger), &seen),
+        "three squares away in the open is in sight"
+    );
+    world
+        .entity_mut(stranger)
+        .insert(cdda_sim::Position { x: 400, y: 0, z: 0 });
+    assert!(
+        !cdda_sim::conditions::holds_with(&world, avatar, Some(stranger), &seen),
+        "four hundred squares away is not"
+    );
+}

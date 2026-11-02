@@ -9219,3 +9219,28 @@ the next round's question and are now **on the one-gap list with names**.
 
 **And the test caught what the census could not:** the install code was present and inert for two rounds because the reader returned before it. **A census measures
 what a rule does to the corpus; only a test says whether the rule is running at all.**
+
+## `player_see_u`: a condition that reads the **avatar's** sight (round 972)
+
+The three reads last round's inline install cost are back, and the reason is a condition the port did not carry: `player_see_u` / `player_see_npc`, an **argument-less**
+pair (`condition.cpp:2671`) that asks whether the **player's** view sees the creature the dialogue holds (`f_player_see`, `condition.cpp:1366-1377`).
+
+The port answers it from its own sight rule: the avatar's square against the creature's, over `MAX_VIEW_DISTANCE`, false when there is no avatar - which is what the
+reference answers for a dialogue with no such actor.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 571 | **574** |
+answered `Done` | 376 | **379** |
+unreadable leaves | 121 | **117** |
+one-gap programs | 20 | **18** |
+effect entries runnable | 1,515 | **1,518** |
+effect census blaming `effect` | 113 | **111** |
+ran in a built world | 380 | **383** |
+
+**The trade last round was a trade, and this is the other side of it:** reading inline bodies made three programs depend on their own conditions instead of on an opaque
+call, and one of those conditions was missing. **The census named it in a round**, which is the strongest argument for having taken the trade.
+
+**Three gates pushed back, and all three were right:** my test's assumption that `player_see_npc` is *refused* (it is answered now), a function that grew to **101 lines**,
+and a **silent no-op patch** - a `python` replacement that matched nothing because the arm went into a `matches!` list instead of the `match` block, which cost three
+builds to notice. **A patch without an assert is a guess with extra steps**; every edit in the last two rounds now asserts its anchor first.

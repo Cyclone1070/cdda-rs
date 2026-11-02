@@ -373,6 +373,32 @@ pub fn holds_in_store(
 ///
 /// Reference: `conditional_t( std::string_view )` (`condition.cpp:2783-2810`) - the parsers that take no argument are lookup entries by name, which is why the data may
 /// write them as a bare string (`{"not": "is_day"}`).
+/// Whether the player can see one of the dialogue's creatures.
+///
+/// Reference: `f_player_see` (`condition.cpp:1371-1375`): `get_player_view().sees( here, *c )` for the creature the dialogue holds. The port asks its own sight rule
+/// between the avatar's square and the creature's, over the sight range the port uses, and answers false when there is no avatar or no creature to look at - which is
+/// what the reference answers for a dialogue with no such actor.
+fn player_sees(world: &World, speaker: Entity, listener: Option<Entity>, condition: &Condition) -> bool {
+    let Condition::PlayerSees { listener: about_listener } = condition else {
+        return false;
+    };
+    let creature = actor_for(speaker, listener, *about_listener);
+    let viewer = crate::missions::avatar(world);
+    let (Some(creature), Some(viewer)) = (creature, viewer) else {
+        return false;
+    };
+    let (Some(from), Some(to)) = (
+        world.get::<crate::Position>(viewer).copied(),
+        world.get::<crate::Position>(creature).copied(),
+    ) else {
+        return false;
+    };
+    if from.z != to.z {
+        return false;
+    }
+    crate::sees(world, (from.x, from.y), (to.x, to.y), cdda_core_types::grid::MAX_VIEW_DISTANCE)
+}
+
 /// Whether a creature is wielding an item.
 ///
 /// Reference: `Character::get_wielded_item` being non-empty; the port stores the wielded item as a creature relation (`WieldedBy`), so the question is whether any item
@@ -461,16 +487,15 @@ fn holds_within(
     depth: usize,
 ) -> bool {
     match condition {
-        // The dialogue's own two flags, which name no place and no creature: `has_alpha` is true for every dialogue the port runs, and `has_beta` follows the listener.
+        // `has_alpha` is true for every dialogue the port runs, and `has_beta` follows the listener; `player_see_*` is the avatar's own sight.
+        Condition::PlayerSees { .. } => player_sees(world, speaker, listener, condition),
         Condition::HasAlpha => true,
         Condition::HasBeta => listener.is_some(),
-        // A question the port cannot ask answers the data's default. The **runner** asks it properly, through the choice queue, when the question is the whole
-        // condition of an `if`; here - a nested condition, or a guard on a program - there is nobody to ask.
+        // A question the port cannot ask answers the data's default; the runner asks it through the choice queue when it is an `if`'s whole condition.
         Condition::Query { default } => *default,
-        Condition::HasBionics {
-            bionic,
-            listener: about_listener,
-        } => has_bionic(world, speaker, listener, bionic, *about_listener),
+        Condition::HasBionics { bionic, listener: about_listener } => {
+            has_bionic(world, speaker, listener, bionic, *about_listener)
+        }
         Condition::TestEoc { id } => tests_program(world, speaker, listener, id, draws, depth),
         Condition::OneInChance(_) | Condition::XInYChance { .. } => {
             rolls_against(world, speaker, listener, condition, draws)

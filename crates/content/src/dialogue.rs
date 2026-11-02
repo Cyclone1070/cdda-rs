@@ -10,6 +10,14 @@ use cdda_json::Value;
 /// A condition the port can evaluate.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Condition {
+    /// Whether the **player** can see one of the dialogue's creatures.
+    ///
+    /// Reference: `f_player_see` (`condition.cpp:1366-1377`): the player's view is asked whether it sees the creature the dialogue holds - the speaker for
+    /// `player_see_u`, the listener for `player_see_npc`.
+    PlayerSees {
+        /// Whether it asks about the listener rather than the speaker.
+        listener: bool,
+    },
     /// Whether the dialogue has an **alpha** actor.
     ///
     /// Reference: `f_has_alpha` (`condition.cpp:1412-1417`): `d.has_alpha`, set when the dialogue has someone to talk **as**. The port's dialogue always has one - an
@@ -507,6 +515,12 @@ fn read_bare_condition(name: &str) -> Option<Condition> {
         "u_is_outside" | "npc_is_outside" => {
             return Some(Condition::IsOutside {
                 listener: name == "npc_is_outside",
+            });
+        }
+        // Reference: `{"player_see_u", "player_see_npc", &conditional_fun::f_player_see}` (`condition.cpp:2671`), argument-less, so the data writes them bare.
+        "player_see_u" | "player_see_npc" => {
+            return Some(Condition::PlayerSees {
+                listener: name == "player_see_npc",
             });
         }
         _ => {}

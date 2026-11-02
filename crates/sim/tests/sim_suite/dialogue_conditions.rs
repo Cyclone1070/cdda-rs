@@ -414,7 +414,8 @@ fn a_bare_name_is_an_argument_less_condition() {
     ));
 
     // A name the port has no rule for is refused, not answered false.
-    for unknown in ["player_see_npc", "u_is_on_furniture"] {
+    // `player_see_npc` **is** answered now (the avatar's own sight), so the refused example is a name the port still has no rule for.
+    for unknown in ["u_is_on_furniture", "u_knows_recipe"] {
         let value = cdda_json::parse(format!(r#""{unknown}""#).as_bytes()).expect("json");
         assert!(
             read_condition(&value).is_none(),
