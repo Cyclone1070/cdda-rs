@@ -8303,3 +8303,26 @@ time it fires, a table gets a name and a home instead of another arm.
 
 **`kind`'s match had to stay exhaustive, and a catch-all guard would have hidden a missing arm.** The grouped arm lists every store effect by variant, so adding one
 without naming it is a compile error rather than a report that says `""`. Exhaustiveness is the compiler's way of saying "you have not finished the table".
+
+## An audit of the effects the runner never names (round 938)
+
+Before choosing the next effect, I checked every variant of `Effect` against the runner: fifty-seven variants, and **three that the runner never mentions** -
+`CastSpell`, `RunNpcEocs`, `RunMonsterEocs`. They read, and the `_ => CannotAnswer` arm refuses them at run time, so the census has been telling the truth about them
+all along - but it is worth writing down *why* each one refuses, because "refused at run time" and "cannot be run" look the same in a count.
+
+| Effect | Why it refuses |
+|---|---|
+`CastSpell` | the port has `spell_effects::apply`, and **no way to find a spell by id** - the spell store is keyed by the caster's known spells, not by the data's ids |
+`RunNpcEocs` | the reference runs an EOC for each NPC within a radius; the port's `spawn_npcs` makes NPCs, and the dialogue has no per-NPC context to run one in |
+`RunMonsterEocs` | the same shape for monsters, with the same missing context |
+
+**This round therefore moved no count.** The audit is the result, and it is worth more than a count: three effects were silently falling through a catch-all, and the
+difference between *"we have not built it"* and *"we have not built the thing it needs"* is the difference between two independent tasks and one dependency.
+
+**The next three effects are now chosen for their dependencies, not their names.** `CastSpell` needs a spell-by-id lookup in the spell store, which is a store change
+of its own; the two EOC runners need a per-creature dialogue context, which is a bigger idea than either effect. **An audit that turns three vague entries into one
+small dependency and one big one has done its job.**
+
+**And a lesson about catch-alls that this session has now seen from three sides.** A catch-all is right for a reader (it must refuse what it cannot read) and right
+for a runner (it must refuse what it cannot do) - but it hides work: the only reason these three were found is that I compared the enum against the runner instead of
+trusting the census's refusal counts, which do not say which arm refused.
