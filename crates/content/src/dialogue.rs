@@ -10,6 +10,16 @@ use cdda_json::Value;
 /// A condition the port can evaluate.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Condition {
+    /// Whether the dialogue has an **alpha** actor.
+    ///
+    /// Reference: `f_has_alpha` (`condition.cpp:1412-1417`): `d.has_alpha`, set when the dialogue has someone to talk **as**. The port's dialogue always has one - an
+    /// effect is run for a creature - so this answers true whenever it is asked.
+    HasAlpha,
+    /// Whether the dialogue has a **beta** actor.
+    ///
+    /// Reference: `f_has_beta` (`condition.cpp:1418-1423`): `d.has_beta`, set when the dialogue has someone to talk **to**, which in the port is whether a listener
+    /// was handed in.
+    HasBeta,
     /// A yes/no question put to the player, answered by the choice queue.
     ///
     /// Reference: `u_query` (`condition.cpp`): the question is shown and the answer is the condition's value; `default` is what it answers when the player cannot
@@ -505,7 +515,14 @@ fn read_bare_condition(name: &str) -> Option<Condition> {
     // condition the data may write as a string. `is_day` and `is_night` are the two the port can answer from the calendar alone.
     matches!(
         name,
-        "has_beta" | "u_is_avatar" | "u_is_character" | "is_day" | "is_night" | "u_driving" | "u_is_underwater"
+        "has_alpha"
+            | "has_beta"
+            | "u_is_avatar"
+            | "u_is_character"
+            | "is_day"
+            | "is_night"
+            | "u_driving"
+            | "u_is_underwater"
     )
     .then(|| Condition::Simple {
         name: name.to_owned(),

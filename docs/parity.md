@@ -9019,3 +9019,24 @@ the nearest one that clears the minimum - the two answers agree, and naming the 
 
 **A fourth refusal had to be redrawn:** my terrain test still listed `{"monster": "mon_zombie"}` as something the port cannot answer. It can now, so the example moved to
 a `field`, which is still refused. **The refusal lists are the test suite's memory of the frontier, and they go stale faster than anything else in this repo.**
+
+## `has_alpha`: the dialogue's own flag (round 964)
+
+The last bare `if` in the corpus was `{"if": "has_alpha", "then": [...]}` - and `f_has_alpha` (`condition.cpp:1412-1417`) is not a question about the world at all: it is
+`d.has_alpha`, a flag on the dialogue that says whether there is someone to talk **as**. The port's dialogue always has one, because an effect is run for a creature, so
+the answer is `true` - and `has_beta` was already answered from the listener, so the pair is now symmetric.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 568 | **569** |
+refused at run time | 197 | **198** |
+unreadable leaves | 125 | **124** |
+one-gap programs | 22 | **21** |
+effect entries runnable | 1,512 | **1,513** |
+effect census blaming `effect` | 116 | **115** |
+
+**The `if` census empties, and one condition takes its place on the one-gap list** - `npc_allies`, which counts the camp's followers and is a **store** the port does not
+have, not a rule it has not written. That distinction is the useful thing this round produced: the remaining `if` gaps are no longer about conditions the port can read.
+
+**The test asks both flags with and without a listener**, including that a listener does not take the alpha away - a port that set both from the same source would pass
+the first two assertions and fail the third.

@@ -3003,3 +3003,29 @@ fn a_monster_search_answers_the_nearest_one_far_enough_out() {
         "the one six squares out, not the one beside the survivor"
     );
 }
+
+/// `has_alpha` answers true for any dialogue the port runs, and `has_beta` answers whether a listener came with it.
+///
+/// Reference: `f_has_alpha` / `f_has_beta` (`condition.cpp:1412-1423`): two flags on the dialogue itself, not questions about the world. The test asks both with and
+/// without a listener, so a port that confused the two - or answered `has_alpha` from the listener - is caught.
+#[test]
+fn a_dialogue_knows_whether_it_has_someone_to_talk_as_and_to() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let stranger = cdda_sim::creature::spawn_creature(&mut world, "a stranger", (1, 0, 0));
+    let alpha = cdda_content::dialogue::read_condition(
+        &cdda_json::parse(br#""has_alpha""#.as_slice()).expect("json"),
+    )
+    .expect("the condition reads");
+    let beta = cdda_content::dialogue::read_condition(
+        &cdda_json::parse(br#""has_beta""#.as_slice()).expect("json"),
+    )
+    .expect("the condition reads");
+    assert!(cdda_sim::conditions::holds(&world, survivor, &alpha));
+    assert!(!cdda_sim::conditions::holds(&world, survivor, &beta), "no listener yet");
+    assert!(cdda_sim::conditions::holds_with(&world, survivor, Some(stranger), &beta));
+    assert!(
+        cdda_sim::conditions::holds_with(&world, survivor, Some(stranger), &alpha),
+        "a listener does not take the alpha away"
+    );
+}

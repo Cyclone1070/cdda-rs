@@ -375,7 +375,9 @@ pub fn holds_in_store(
 /// write them as a bare string (`{"not": "is_day"}`).
 fn simple_holds(world: &World, speaker: Entity, listener: Option<Entity>, name: &str) -> bool {
     match name {
-        // Reference: `has_beta` asks whether a listener exists at all (`d.has_beta`).
+        // Reference: `has_alpha` / `has_beta` ask whether the dialogue has someone to talk **as** and someone to talk **to** (`d.has_alpha`, `d.has_beta`). The port's
+        // dialogue always has an alpha - an effect is run for a creature - and has a beta exactly when a listener was handed in.
+        "has_alpha" => true,
         "has_beta" => listener.is_some(),
         // Reference: `u_is_avatar` / `u_is_character` ask what kind of talker the speaker is. The port knows one character kind, so both answer "is this the entity
         // the player drives".
@@ -446,6 +448,9 @@ fn holds_within(
     depth: usize,
 ) -> bool {
     match condition {
+        // The dialogue's own two flags, which name no place and no creature: `has_alpha` is true for every dialogue the port runs, and `has_beta` follows the listener.
+        Condition::HasAlpha => true,
+        Condition::HasBeta => listener.is_some(),
         // A question the port cannot ask answers the data's default. The **runner** asks it properly, through the choice queue, when the question is the whole
         // condition of an `if`; here - a nested condition, or a guard on a program - there is nobody to ask.
         Condition::Query { default } => *default,
