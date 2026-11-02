@@ -9776,3 +9776,40 @@ two constants are named in `skills_of::practice` and that function is the only t
 **What the test cost, and what it caught:** the first version expected the accessor to report the stored experience rather than the points it keeps in hundredths -
 **36, not 3,600** - and the second forgot that a crafter mid-activity is busy, so the capped craft never started. **Both were the test being wrong about the store,
 not the rule being wrong:** the same shape as the tool encoding two rounds ago, and the reason the receipt records the confusion rather than hiding it.
+
+## Round 1000: what the suite actually holds, counted rather than remembered (round 1000)
+
+A thousand rounds is a good moment to stop quoting the suite from memory. The counts below are `cargo test --workspace` on `cyc@elitedesk`, tests **passing**:
+
+| Suite | Passing |
+|---|---|
+`sim_suite` | **967** |
+`content_suite` | **457** |
+`core_types_suite` | **739** |
+`json_suite` | **40** |
+CLI and the crates' own unit tests | the rest |
+**workspace total** | **2,224** |
+
+**One correction to the ledger's own receipts:** several recent entries said 458 content tests. The real number is **457**, and it has been 457 for at least the rounds
+those receipts cover - a remembered number that nobody re-derived. **The lesson is the ledger's oldest: a count you did not run is a claim, not a measurement**, and the
+place it matters most is in the document that exists to be trusted.
+
+### P3 items, after five crafting rounds
+
+The crafting audit found that the **content layer knew five rules the sim never asked for**, one per round:
+
+| Rule | Found as | Now |
+|---|---|---|
+tools | `tools_available` written, never called | `Craft::MissingTools` |
+qualities | no quality store at all | `ItemQualities` + `Craft::MissingQualities` |
+batch time | `batch_time_moves` written, never called | called, factors loaded |
+knowledge | `recipes_known` store never consulted | `Craft::UnknownRecipe` |
+tool charges | checked at the start, never spent | spent at the finish |
+practice | focus scale missing | focus, ticks, cap, train chain |
+
+**What P3 crafting still lacks, named so the next round does not rediscover it:**
+- **the charge instalments**: the reference spreads tool charges and proficiency gain across 5% steps; the port has no per-turn progress hook for a craft;
+- **`check_eligible_containers_for_crafting`**: components must fit into carried containers, which needs the container rule the port already has for pickups applied to crafting;
+- **proficiencies**: `craft_proficiency_gain` and `character_has_required_proficiencies` have no store here;
+- **focus decay**: `update_mental_focus` moves focus every turn, which is a turn system rather than a crafting rule;
+- **`result_mult` and result charges**: the recipe's output count, which the corpus's recipe dump does not carry and the loader would have to read from the data.
