@@ -285,6 +285,20 @@ pressure systems moving across the overmap, which needs an overmap.
 **Next: P3.** The roadmap's P3 is items, inventory, crafting and interaction, and the ledger already carries declared partials to close in order: eating and its data,
 crafting activity and time, skills, container handling, item weight and volume, and consuming.
 
+### Where the work stands after the dialogue census (updated at round 992)
+
+**The dialogue frontier is now blocked on world generation, and the numbers say so.** Forty-six of the census's run-time refusals are one gap: a census world built from
+data alone has **no overmap**, so an effect that aims at an `om_terrain` (`mapgen_update`, 18) or searches the overmap (`u_location_variable`, 28) correctly refuses. Those
+move in the built-world census or in **P9 world generation**, not with another reader.
+
+**P3 items is the phase the roadmap points at next**, and its *data* side is already measured: `corpus/recipes.json` holds 6,291 recipes and the content suite pins
+requirements, tools and skills against it (`recipe_requirements`, `recipe_tools`, `recipe_skills`, `recipes`). What it does **not** have is a behaviour gate - the port has
+`crafting::begin_craft` / `finish_craft`, and no oracle dump to prove them against.
+
+**So the next round's first task is a harness flag, not a port rule:** `--dump-crafting`, one record per recipe carrying what `craft::can_craft` decides (skill check,
+tool and quality availability, component counts, the time it takes) so the port's crafting has a red gate of its own. **The oracle must lead the loader**, and here it does
+not yet.
+
 ### What the next round should pick up (updated at round 976)
 
 **The frontier is dialogue effects, not weather.** M2 is closed and the environment family is measured; since then the work has been the effect-on-condition census, which is
