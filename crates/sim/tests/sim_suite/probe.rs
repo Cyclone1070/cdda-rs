@@ -2105,6 +2105,9 @@ fn an_assigned_activity_has_a_hundred_moves_a_turn() {
 fn a_dialogue_cast_runs_the_spells_own_effect() {
     let mut world = bevy_ecs::prelude::World::new();
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    // A spell effect that draws needs the world's generator: `attack` answers `NotPorted` without one, which is what the first version of this test measured - a
+    // missing store, not a disagreement between the port's predicate and its dispatcher.
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
     let ported = ["heal", "attack", "recover_energy", "pain_split"]
         .into_iter()
         .find(|name| cdda_sim::spell_effects::is_ported(name))
@@ -2138,20 +2141,18 @@ fn a_dialogue_cast_runs_the_spells_own_effect() {
     );
 
     let found = cdda_sim::spell_types::find(&world, "test_spell").expect("the spell table holds the spell");
-    // A finding, pinned so the next round starts from it: `spell_effects::is_ported("attack")` answers **true** and `spell_effects::apply` answers **NotPorted**
-    // for a spell whose `effect_name` is `attack`. The two use the same table, so one of them is looking at a different value than it appears to - the port's own
-    // predicate and its own dispatcher disagree, which is a bug in `spell_effects` and not in the dialogue effect wired here.
-    assert!(cdda_sim::spell_effects::is_ported("attack"), "the predicate says the port performs `attack`");
+    assert!(cdda_sim::spell_effects::is_ported("attack"), "the port performs `attack`");
+    // `attack` draws a body part per target, so with the generator in place and nobody else in reach it answers `NothingAffected` - the spell was performed.
     assert_eq!(
         cdda_sim::spell_effects::apply(&mut world, survivor, &found, 0, (0, 0, 0)),
-        cdda_sim::spell_effects::Effective::NotPorted,
-        "and the dispatcher says it does not, which is the bug this test records"
+        cdda_sim::spell_effects::Effective::NothingAffected,
+        "and the dispatcher agrees: the cast happened and found nobody"
     );
     let known = cdda_json::parse(br#"{"u_cast_spell": {"id": "test_spell"}}"#.as_slice()).expect("json");
     let effect = cdda_content::dialogue::read_effect(&known).expect("the effect reads");
     assert_eq!(
         cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
-        cdda_sim::dialogue_effects::Applied::CannotAnswer,
-        "so the cast refuses too, and both refusals move together when the dispatcher is fixed"
+        cdda_sim::dialogue_effects::Applied::Done,
+        "and a dialogue cast is performed by the spell's own effect ({ported})"
     );
 }

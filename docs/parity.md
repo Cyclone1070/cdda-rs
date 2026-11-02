@@ -8352,3 +8352,33 @@ found because the test asked the port's own predicate before asserting on its ow
 
 **The lesson is about asking two questions instead of one.** A test that only asserted "casting refuses" would have been green and would have taught nothing. The pair
 - *what does the port say it can do* and *what does it actually do* - is what turned a wiring round into a find.
+
+## Correction: the "disagreement" in the spell module was my test's missing store (round 940)
+
+The previous round recorded a bug: `spell_effects::is_ported("attack")` answering **true** while `spell_effects::apply` answered **`NotPorted`** for the same spell,
+and called it a disagreement between the port's predicate and its dispatcher. **That finding was wrong, and this round corrects it.**
+
+`attack` (`spell_effects.rs:55-67`) draws a body part per target, and it starts with:
+
+```
+let Some(mut rolls) = crate::singletons::take_rolls(world) else { return Effective::NotPorted; };
+```
+
+The test world had **no generator installed**, so the effect answered `NotPorted` - which is exactly what it is written to do when there is nothing to draw with. The
+predicate and the dispatcher agree; **my test was missing a store.**
+
+| What the first version measured | What was actually true |
+|---|---|
+`apply` returns `NotPorted` | `apply` returns `NotPorted` **because the world had no rolls**, not because the table lookup failed |
+
+**The corrected test installs the generator** and asserts the three answers that make the rule visible: the predicate says the port performs `attack`, the dispatcher
+answers **`NothingAffected`** for a cast with nobody else in reach, and a dialogue cast of that spell answers **`Done`** - because a cast that reaches nobody still
+happened.
+
+**Why this matters more than the count.** A wrong bug report in the project's own record is worse than no report: the next round would have gone looking for a
+lookup bug that does not exist, and might have "fixed" a table that was right. **The correction is the deliverable of this round**, and it is written to be found by
+the same search that would find the claim it replaces.
+
+**And the honest shape of the original error:** I read `NotPorted` as *"the dispatcher did not find the effect"* when the enum's own doc comment says it means *"the
+port has no rule for this effect yet, so nothing happened and nothing was spent"* - a state an effect can also report **partway through**, when the rule exists and its
+preconditions are missing. **`NotPorted` is a `Result`, not a verdict about the table.**
