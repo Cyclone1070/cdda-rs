@@ -671,3 +671,70 @@ fn a_recipe_that_was_never_learned_does_not_start() {
     let learned = cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names);
     assert_eq!(learned, Craft::Started, "learned, and with the rag in hand, it starts");
 }
+
+/// Making something with a tool that burns charges spends them, and a held tool is never spent.
+///
+/// Reference: `Character::craft_consume_tools` (`crafting.cpp:2352-2400`) spends `count * batch_size` charges of a tool encoded by charges, and
+/// `consume_tools` (`crafting.cpp:2458-2482`) takes them from the stack that carries them. A tool encoded as **held** (`count <= 0`) is never spent - that is the
+/// whole difference between the two encodings. The port checked the charges at the start and then never spent them, so a battery-powered recipe was free.
+#[test]
+fn a_tool_that_burns_charges_has_them_spent_and_a_held_one_does_not() {
+    use cdda_content::recipes::{Component, Recipe, Tool};
+    let mut world = World::new();
+    let crafter = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let names = names_for(&[(1, "rag"), (2, "battery")]);
+    let recipe = Recipe {
+        batch_rscale: 0.0,
+        batch_rsize: 0,
+        id: "electrified_rag".to_owned(),
+        result: "rag".to_owned(),
+        blacklisted: false,
+        components: vec![vec![Component {
+            item: "rag".to_owned(),
+            count: 1,
+        }]],
+        // A positive count is charges spent; a negative one is the tool being needed and kept.
+        tools: vec![
+            vec![Tool {
+                item: "battery".to_owned(),
+                count: 5,
+            }],
+            vec![Tool {
+                item: "rag".to_owned(),
+                count: -1,
+            }],
+        ],
+        qualities: Vec::new(),
+        skill: String::new(),
+        difficulty: 0,
+        time_moves: 100,
+    };
+    let battery = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(2), 12);
+    world.entity_mut(battery).remove::<cdda_sim::Position>();
+    world.entity_mut(battery).insert(cdda_sim::creature::Carried(crafter));
+    for _ in 0..2 {
+        let rag = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 1);
+        world.entity_mut(rag).remove::<cdda_sim::Position>();
+        world.entity_mut(rag).insert(cdda_sim::creature::Carried(crafter));
+    }
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
+    assert_eq!(
+        cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 2, &names),
+        Craft::Started,
+        "12 charges cover two batches of five"
+    );
+    // The names are the test's own table, so the finish is asked with them rather than with the world's (empty) registry.
+    let made = cdda_sim::crafting::finish_craft(&mut world, crafter, &names);
+    assert_eq!(made.as_deref(), Some("rag"), "the rag was made");
+    let left: i32 = {
+        let mut query = world.query::<(&cdda_sim::creature::Carried, &cdda_sim::GroundItem)>();
+        query
+            .iter(&world)
+            .filter(|(carried, stack)| {
+                carried.0 == crafter && names.name_of(stack.kind).as_deref() == Some("battery")
+            })
+            .map(|(_, stack)| stack.charges)
+            .sum()
+    };
+    assert_eq!(left, 2, "two batches of five came out of the twelve");
+}

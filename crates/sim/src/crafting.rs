@@ -90,6 +90,11 @@ pub fn finish_craft(world: &mut World, crafter: Entity, names: &crate::item_regi
             return None;
         }
     }
+    // Reference: `Character::craft_consume_tools` (`crafting.cpp:2352-2400`) spends a tool's charges for the batch - `count * batch_size`, with the start
+    // remainder added on the first call. **The amount is exact here; the moment is not:** the reference divides it into twenty 5% instalments as the craft
+    // progresses, and the port's craft is a single timer with no progress hook, so it spends the whole lot when the thing is made. A craft abandoned halfway
+    // costs nothing in the port and some charges in the reference, which is recorded in `docs/parity.md` rather than papered over.
+    spend_tool_charges(world, crafter, &making.recipe, making.batch, names);
     let result = making.recipe.result.clone();
     let Some(kind) = names.id_of(&result) else {
         // The result is not an item this world knows: the components have already been decided, so the honest answer
@@ -156,6 +161,58 @@ pub fn finish_craft(world: &mut World, crafter: Entity, names: &crate::item_regi
 pub fn finish_craft_in_store(world: &mut World, crafter: Entity) -> Option<String> {
     let names = crate::item_registry::snapshot(world);
     finish_craft(world, crafter, &names)
+}
+
+/// Spends what the recipe's charge-hungry tools need for a batch, taking the charges from the stacks that carry them.
+///
+/// Reference: `Character::consume_tools( map&, tool, batch, ... )` (`crafting.cpp:2458-2482`), which spends `tool.count * batch` charges of the chosen stack. A
+/// held tool (`ToolNeed::Held`) is never spent, which is the whole difference between the two encodings.
+fn spend_tool_charges(
+    world: &mut World,
+    crafter: Entity,
+    recipe: &Recipe,
+    batch: i32,
+    names: &crate::item_registry::ItemNames,
+) {
+    let batch = batch.max(1);
+    for alternatives in recipe.tool_needs() {
+        // One alternative per group satisfies it, and the first that can pay does: that is the selection the reference caches on the craft.
+        for (item, need) in alternatives {
+            let cdda_content::recipes::ToolNeed::Charges(count) = need else {
+                continue;
+            };
+            let mut remaining = count.saturating_mul(batch);
+            if remaining <= 0 {
+                continue;
+            }
+            let mut stacks: Vec<(Entity, i32)> = Vec::new();
+            {
+                let mut query = world.query::<(Entity, &crate::creature::Carried, &crate::GroundItem)>();
+                for (entity, carried, stack) in query.iter(world) {
+                    if carried.0 == crafter && names.name_of(stack.kind).as_deref() == Some(item.as_str()) {
+                        stacks.push((entity, stack.charges.max(1)));
+                    }
+                }
+            }
+            let available: i32 = stacks.iter().map(|(_, charges)| charges).sum();
+            if available < remaining {
+                continue;
+            }
+            for (entity, charges) in stacks {
+                if remaining <= 0 {
+                    break;
+                }
+                let used = charges.min(remaining);
+                if used == charges {
+                    world.despawn(entity);
+                } else if let Some(mut stack) = world.get_mut::<crate::GroundItem>(entity) {
+                    stack.charges -= used;
+                }
+                remaining -= used;
+            }
+            break;
+        }
+    }
 }
 
 /// Starts a craft using what is actually in the crafter's hands.

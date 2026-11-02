@@ -9713,3 +9713,25 @@ knowledge is asking about bookkeeping, not about making things.
 **The cost of this round was one careless script, not the rule:** a mechanical edit inserted the learn call *inside* an `assert_eq!`, and recovering meant reverting
 three test files - which threw away the round's test and helper edits with it. **The lesson is the one this ledger keeps repeating: an edit tool that cannot show you
 where it wrote will write somewhere you did not look, and `git checkout` takes the round's work with the mistake.**
+
+## A battery-powered recipe was free (round 997)
+
+The fifth crafting rule is **spending what the tools burn**. The port checked a tool's charges at the start - `MissingTools` refuses a craft that cannot pay - and
+then **never took them**: the same twelve charges lit an unlimited number of batches.
+
+`Character::craft_consume_tools` (`crafting.cpp:2352-2400`) spends `count * batch_size` charges of a tool encoded by charges, and `consume_tools`
+(`crafting.cpp:2458-2482`) takes them from the stack that carries them; a tool encoded as **held** (`count <= 0`) is never spent, which is the whole point of the two
+encodings. `finish_craft` now spends them, first-stack-first, and despawns a stack that is emptied.
+
+| Rule | Where |
+|---|---|
+amount | `count * batch`, exact |
+moment | **at finish, not in twenty instalments** |
+held tools | never spent |
+
+**The moment is the divergence, and it is written down rather than smoothed over:** the reference divides the charges into 5% instalments as the craft progresses, and
+the port's craft is a single timer with no per-turn progress hook, so an abandoned craft costs nothing here and some charges there. **The amount is right; the
+schedule of a thing that never finishes is not.** That is a gap a progress hook closes, not a reader.
+
+**This round also paid for its own discipline:** the code went in before the test, so the test was mutation-checked instead - the spend was commented out and the test
+failed with `left: 12, right: 2`, which is the only evidence that a test asserting a number can fail at all. **A green test nobody has seen fail is a hope, not a gate.**
