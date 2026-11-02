@@ -9538,3 +9538,27 @@ programs refusing at their first entry | 27 | **26** |
 
 **The distinction this round draws is the one that keeps the refusal ledger honest:** a refusal is for a rule the port cannot carry out, not for a member that names a
 subsystem with no bearing on the rule. `string_input` is still refused, because asking the player to type is a thing the port cannot do and the answer changes.
+
+## A place keeps the name the data gave it when the variable is empty (round 985)
+
+`place_override`'s place is a `translation_or_var`, and the data writes one **with a default** inside it: `{"global_val": "place_name", "default": "strange cavern"}`. The
+reader took the variable and dropped the default, so the effect refused in any world where nobody had named the place - seventeen entries, every one of them refused for a
+fallback the data had already supplied.
+
+The port now carries the default and the runner falls back to it, which is what `translation_or_var::evaluate` does. The test is the data's own entry, verbatim, run in a
+world with a calendar and no place name.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 583 | **583** |
+answered `Done` | 389 | **389** |
+refused at run time | 194 | **194** |
+effect entries runnable | 1,545 | **1,545** |
+
+**Nothing moved at the top and the refusal buckets underneath did:** `place_override` left the run-time list, `u_location_variable` rose from 11 to 28, and `math` from 3
+to 10. **The programs that were stopping here now stop one step further in** - which is the same shape as the city round, and the reason the buckets are printed beside the
+totals: a fixed effect that reveals a later refusal is progress the totals cannot show.
+
+**And the shape of the mistake is worth keeping:** the reader looked for `default` **beside** the effect rather than inside the variable object, and the first version of the
+fix therefore carried `None`. The probe printed `fallback: None` and the answer `CannotAnswer` together, which named the mistake in one run - **printing the parsed effect
+beside the answer is what made a two-line fix visible without a debugger.**

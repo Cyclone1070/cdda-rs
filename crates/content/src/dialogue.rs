@@ -1874,8 +1874,18 @@ fn read_remove_item_with(object: &cdda_json::Object) -> Option<Effect> {
 /// empty string. The member is required here too - a reader that answered for its absence would claim every effect no other reader claimed.
 fn read_place_override(object: &cdda_json::Object) -> Option<Effect> {
     let place = object.get("place_override")?;
+    // Reference: the place is a `translation_or_var`, and `{"global_val": "place_name", "default": "strange cavern"}` is how the data gives one with a fallback for a
+    // variable nobody has set - which is what stops the effect from refusing in a world that has not named the place yet.
+    let fallback = match place {
+        Value::Object(inner) => match inner.get("default") {
+            None => None,
+            Some(value) => Some(read_string_source(value)?),
+        },
+        _ => None,
+    };
     Some(Effect::PlaceOverride {
         place: read_string_source(place)?,
+        fallback,
         length: read_effect_duration(object.get("length"), EffectDuration::Turns(Some(0)))?,
         key: match object.get("key") {
             None => None,
@@ -2583,6 +2593,8 @@ pub enum Effect {
     /// that pairs this event with another. The effect itself does one thing - it **adds a timed event** for `now + length + 1 second`, `OVERRIDE_PLACE`, with the
     /// name and the key carried on it - and that event is what renames the place when it comes due.
     PlaceOverride {
+        /// The name used when the variable holds nothing, as the data's `default` writes it.
+        fallback: Option<StringSource>,
         /// The name the place takes on.
         place: StringSource,
         /// How long it lasts.

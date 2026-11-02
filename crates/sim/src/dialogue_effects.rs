@@ -1212,13 +1212,18 @@ fn remove_item_with(world: &mut World, speaker: Entity, listener: Option<Entity>
 /// and the key. The port's turn is a second, so the plus-one is a turn. The renaming itself happens when that event comes due, which is the next round's work - and
 /// this function is where it will be found.
 fn place_override(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::PlaceOverride { length, key, place } = effect else {
+    let Effect::PlaceOverride { length, key, place, fallback } = effect else {
         return Applied::CannotAnswer;
     };
     let Some(turns) = roll_duration(world, speaker, listener, length) else {
         return Applied::CannotAnswer;
     };
-    let Some(named) = crate::conditions::text_of(world, speaker, listener, place) else {
+    // Reference: a `translation_or_var` reads the variable and falls back to the data's own text when it holds nothing.
+    let named = crate::conditions::text_of(world, speaker, listener, place).or_else(|| {
+        let fallback = fallback.as_ref()?;
+        crate::conditions::text_of(world, speaker, listener, fallback)
+    });
+    let Some(named) = named else {
         return Applied::CannotAnswer;
     };
     let event = match key {

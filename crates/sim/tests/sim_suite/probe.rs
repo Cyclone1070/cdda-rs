@@ -3652,3 +3652,25 @@ fn a_translated_string_variable_stores_the_text_it_was_given() {
         "the text is stored as the data wrote it"
     );
 }
+
+/// The void-spider's `place_override` reads and answers.
+///
+/// Reference: `f_place_override` (`npctalk.cpp:4798-4819`). The entry is the data's own: the place is a variable **with a default**, and `length` is a duration. The
+/// census blames seventeen entries on this effect, and this test says whether the fault is in the reading or the running.
+#[test]
+fn the_void_spiders_place_override_reads_and_answers() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::calendar::set_turn(&mut world, 10);
+    let value = cdda_json::parse(
+        br#"{"place_override": {"global_val": "place_name", "default": "strange cavern"}, "length": "10 seconds"}"#
+            .as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the entry reads");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "and it answers: {effect:?}"
+    );
+}
