@@ -280,3 +280,50 @@ pub fn adjust_for_focus(world: &bevy_ecs::prelude::World, creature: bevy_ecs::pr
     let scale = focus.0 as f32 / 100.0;
     amount * scale
 }
+
+/// The focus a creature drifts towards, given how it feels.
+///
+/// Reference: `Character::calc_focus_equilibrium` (`character.cpp:3852-3920`) with no reading activity and no pain - the two modifiers the port has no store for -
+/// so the whole answer is morale:
+///
+/// * **below -99** morale the equilibrium is 1, the floor;
+/// * **between -99 and 50** each point of morale adds or takes a point, so fifty morale is a hundred and fifty focus;
+/// * **above 50** the returns double every block - a hundred more morale buys the next fifty focus, then two hundred more, then four hundred - and the answer
+///   **stops at 400**, which the reference calls a sanity check on its own arithmetic.
+#[must_use]
+pub fn focus_equilibrium(morale: i32) -> i32 {
+    let mut equilibrium = 100;
+    if morale < -99 {
+        equilibrium = 1;
+    } else if morale <= 50 {
+        equilibrium += morale;
+    } else {
+        let mut block_multiplier = 1;
+        let mut morale_left = morale;
+        while equilibrium < 400 {
+            if morale_left > 50 * block_multiplier {
+                morale_left -= 50 * block_multiplier;
+                equilibrium += 50;
+                block_multiplier *= 2;
+            } else {
+                equilibrium += morale_left / block_multiplier;
+                break;
+            }
+        }
+    }
+    equilibrium.clamp(1, 400)
+}
+
+/// Moves a creature's focus a tenth of the way towards its equilibrium, which is what a minute of game time does.
+///
+/// Reference: `Character::update_mental_focus` (`character.cpp:3929-3934`), called from `reset_stats` on `once_every( 1_minutes )`, which adds ten times the gap
+/// to the focus pool. The pool is kept in **hundredths** of a focus point, so the change is a tenth of the gap each minute, and the pool's own truncation is what
+/// makes the arithmetic exact rather than approximately right.
+pub fn update_mental_focus(world: &mut bevy_ecs::prelude::World, creature: bevy_ecs::prelude::Entity, morale: i32) {
+    let equilibrium = focus_equilibrium(morale);
+    let Some(mut focus) = world.get_mut::<Focus>(creature) else {
+        return;
+    };
+    let pool = focus.0.saturating_mul(100).saturating_add(10 * (equilibrium - focus.0));
+    focus.0 = pool / 100;
+}

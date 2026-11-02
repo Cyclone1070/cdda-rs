@@ -131,10 +131,32 @@ pub fn run_turn(world: &mut World) {
     schedule.run(world);
 }
 
+/// The reference's `Character::reset_stats`, whose first act is the minute's focus change: `once_every( 1_minutes )` calls `update_mental_focus`, and focus drifts a
+/// tenth of the way towards its equilibrium each time. The port runs it with the creatures, because it is a change to a creature and not to the map.
+fn focus_stage(world: &mut World) {
+    // `once_every( 1_minutes )` in the reference: a minute is sixty turns of a hundred moves each.
+    let Some(calendar) = crate::calendar::of(world) else {
+        return;
+    };
+    if calendar.turn % 60 != 0 {
+        return;
+    }
+    let mut creatures: Vec<bevy_ecs::entity::Entity> = Vec::new();
+    let mut query = world.query_filtered::<bevy_ecs::entity::Entity, bevy_ecs::prelude::With<crate::skills::Focus>>();
+    for creature in query.iter(world) {
+        creatures.push(creature);
+    }
+    for creature in creatures {
+        let morale = crate::morale::net_bonus_of(world, creature);
+        crate::skills::update_mental_focus(world, creature, morale);
+    }
+}
+
 fn creatures_stage(world: &mut World) {
     note(world, TurnStage::Creatures);
     // What every creature is wearing is worked out before anything acts: a blow this turn asks what the armour
     // was at the start of it, not what it became afterwards.
+    focus_stage(world);
     crate::creature::dress(world);
     // The dead are cleared before anything acts, so a creature killed this turn does not also walk.
     crate::creature::reap_dead_creatures(world);

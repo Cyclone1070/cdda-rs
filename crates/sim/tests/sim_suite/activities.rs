@@ -647,3 +647,34 @@ fn focus_scales_what_a_practice_worths() {
     world.entity_mut(survivor).insert(cdda_sim::skills::Focus(50));
     assert!((cdda_sim::skills::adjust_for_focus(&world, survivor, 40.0) - 20.0).abs() < f32::EPSILON);
 }
+
+/// Focus drifts towards the equilibrium morale sets, a tenth of the gap a minute.
+///
+/// Reference: `Character::calc_focus_equilibrium` (`character.cpp:3852-3920`) and `update_mental_focus` (`character.cpp:3929-3934`), the first thing
+/// `reset_stats` does once a minute. The port had a focus value that never moved - so a depleted survivor never rested and a cheerful one never benefited.
+#[test]
+fn focus_drifts_towards_the_equilibrium_morale_sets() {
+    // The equilibrium's own shape: morale below -99 floors it, up to fifty it moves one for one, above that the blocks double.
+    assert_eq!(cdda_sim::skills::focus_equilibrium(0), 100);
+    assert_eq!(cdda_sim::skills::focus_equilibrium(-150), 1);
+    assert_eq!(cdda_sim::skills::focus_equilibrium(50), 150);
+    assert_eq!(cdda_sim::skills::focus_equilibrium(150), 200);
+    assert_eq!(cdda_sim::skills::focus_equilibrium(350), 250);
+    assert_eq!(cdda_sim::skills::focus_equilibrium(5_000), 400, "the cap");
+    // And the drift: a tenth of the difference each minute, in the pool's hundredths.
+    let mut world = World::new();
+    let survivor = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::skills::update_mental_focus(&mut world, survivor, 0);
+    assert_eq!(
+        world.get::<cdda_sim::skills::Focus>(survivor).map(|focus| focus.0),
+        Some(100),
+        "at the equilibrium it stays put"
+    );
+    world.entity_mut(survivor).insert(cdda_sim::skills::Focus(40));
+    cdda_sim::skills::update_mental_focus(&mut world, survivor, 0);
+    assert_eq!(
+        world.get::<cdda_sim::skills::Focus>(survivor).map(|focus| focus.0),
+        Some(46),
+        "forty to a hundred closes a tenth of the sixty-point gap"
+    );
+}

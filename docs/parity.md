@@ -9849,3 +9849,24 @@ group form | **not read**: a byproduct that names an item group needs the item-g
 
 **The refactor is the receipt this round, not the rule:** the extraction came first and the byproduct call is three lines, which is the shape a rule should have when
 the thing it needs already exists. **What is left is named:** the grouped form, and `contained` results, which need a container to exist before a recipe can fill one.
+
+## Focus was a number that never moved (round 1003)
+
+Last round gave the port a `Focus` component and the scale that every practice gain is multiplied by. **Nothing moved it.** A survivor who had spent its attention never
+got it back, and a cheerful one never gained from it.
+
+The rule is the first thing `Character::reset_stats` does once a minute: `update_mental_focus` adds ten times the gap to the **pool**, which is kept in hundredths - so
+focus moves **a tenth of the way towards its equilibrium each minute**. The equilibrium is morale's:
+
+| Morale | Equilibrium |
+|---|---|
+below -99 | **1**, the floor |
+-99 to 50 | 100 + morale, one for one |
+above 50 | blocks that double: 150 morale is 200, 350 is 250, 3,150 is the **400** cap |
+
+**The doubling loop is the reference's own arithmetic and is copied as it stands**, including the cap it calls "a sanity check" on itself. The port runs the minute
+from the creatures stage, keyed on the calendar's turn `% 60` - a minute is sixty hundred-move turns - and reads morale from the store that already existed.
+
+**What this closes and what it does not:** practice now costs something, because focus is what the gains are scaled by and it now drifts back. The equilibrium's two
+other inputs - **reading a book you can learn from, and perceived pain** - are not read, because the port has neither an activity target nor a pain store; the
+function says so where someone would look for them.
