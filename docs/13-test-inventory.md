@@ -348,3 +348,21 @@ These 98 files (459 cases) run without a game world, so they can be taken whenev
 * `weighted_list_test.cpp` — 4 cases
 * `worldfactory_test.cpp` — 1 cases
 * `zzip_test.cpp` — 4 cases
+
+## Rules that no test can fail (audit at round 1005)
+
+A `pub fn` that nothing calls cannot be wrong, and cannot be right either. The audit below counts every `name(` occurrence across `crates/*/src` **and** `crates/*/tests`
+and reports the functions with none beyond their own definition. **It found 31, and they split into three kinds** - the third kind is the one that matters:
+
+| Kind | Example | What to do |
+|---|---|---|
+**unit conversions with no caller** | `units::to_meter`, `to_milligram` | deleted when the phase that needs them arrives, or used by it |
+**superseded helpers** | `item_registry::quality_level`, `crafting::nothing_on_hand` | **deleted this round** - both were written by this session and replaced by better ones |
+**ported rules that nothing reaches** | `friendly::is_friendly`, `npc_opinion::opinion_of`, `monster_spawning::is_hallucination`, `routing::first_step_towards_the_destination`, `spellcasting::armour_there`, `terrain_transform::result_of`, `lib::monsters_at`, `lib::item_weight_milligrams` | **this is the worklist** |
+
+**The third row is the ledger's own warning turned into a list.** Three crafting rounds in a row found a rule that was written, correct, tested and *unreachable* -
+`tools_available`, `qualities_available`, `batch_time_moves`. An audit that names every such function means the next one is a list item rather than a discovery.
+
+**The two this round deleted were this session's own:** `quality_level` was replaced by `qualities_of` when the crafting check needed the whole map, and
+`nothing_on_hand` was a convenience for a caller that never came. **A session that adds dead code while writing a ledger about dead code deserves the note more than the
+deletion.**

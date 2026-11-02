@@ -307,21 +307,6 @@ pub struct Supplies<'a> {
     pub known: &'a dyn Fn(&str) -> bool,
 }
 
-/// Answers every question with nothing, which is what a caller that only cares about components passes.
-#[must_use]
-pub fn nothing_on_hand() -> Supplies<'static> {
-    static NONE: fn(&str) -> i32 = |_| 0;
-    static QUALITIES: fn(&str, i32) -> i32 = |_, _| 0;
-    static KNOWN: fn(&str) -> bool = |_| true;
-    Supplies {
-        components: &NONE,
-        held: &NONE,
-        charges: &NONE,
-        qualities: &QUALITIES,
-        known: &KNOWN,
-    }
-}
-
 /// Starts making a recipe, if the things it needs are on hand.
 ///
 /// Reference: `Character::making_would_work` for the refusal and `Character::start_craft` for the activity, whose

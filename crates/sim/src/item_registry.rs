@@ -122,17 +122,6 @@ pub fn qualities_of(world: &World, kind: ItemTypeId) -> BTreeMap<String, i32> {
         .unwrap_or_default()
 }
 
-/// How good a kind is at a quality, zero when it has none.
-#[must_use]
-pub fn quality_level(world: &World, kind: ItemTypeId, quality: &str) -> i32 {
-    singletons::holder::<TheItemQualities>(world)
-        .and_then(|holder| world.get::<ItemQualities>(holder))
-        .and_then(|table| table.0.get(&kind.0))
-        .and_then(|held| held.get(quality))
-        .copied()
-        .unwrap_or(0)
-}
-
 /// Whether an item kind carries a flag.
 #[must_use]
 pub fn kind_has_flag(world: &World, kind: ItemTypeId, flag: &str) -> bool {
