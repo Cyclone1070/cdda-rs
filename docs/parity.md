@@ -9395,3 +9395,32 @@ programs blaming their effects | 109 | **108** |
 
 **Fifteen leaves for one member.** The three `u_add_trait`/`npc_add_trait` entries carried a variant each, and **the fifteen** is the corpus telling us how many other
 entries sat behind the same member in the same programs - the leaf count moved far more than the program count because a leaf is counted per entry, not per program.
+
+## The frontier is storage now, and the roadmap says so (round 979)
+
+Four rounds of diagnostics produced four rules and this conclusion: **the remaining thirty-two unreadable programs are dominated by stores the port has never had**, not by
+readers nobody has written. The diagnostic's own ranking says it:
+
+| Cause | Programs | What it needs |
+|---|---|---|
+`revert_location` (`key`, `"time_in_future": "infinite"`) | 3 | a **submap baseline** to revert four submaps to |
+`foreach` (`effect`) | 2 | a control-flow rule over an id list |
+`map_in_city` (`else`) | 2 | the **city layer** - overmap generation, M5 |
+`false_eocs` | 2 | a trade branch (`u_buy_item`'s money) |
+`group` | 2 | whole-group monster spawning |
+`run_eocs` inline | 2 | a reader, the only reader-shaped one left |
+
+This round spent its work making that visible rather than shrinking it: the diagnostic test **pins the total (32) and the biggest cause (3)**, so the next round sees a
+change here before it sees it anywhere else, and `docs/05-roadmap.md`'s frontier table and refusal ranking were both rewritten with the current numbers.
+
+| Count | Now |
+|---|---|
+programs readable | **577** |
+answered `Done` | **387** |
+refused at run time | **190** |
+effect entries runnable | **1,527** |
+unreadable entries | **94** |
+programs refusing at their first entry | **32** |
+
+**The lesson worth keeping:** three of the six biggest causes are storage, and **no reader-shaped tool could have said so**. The census counts what runs; the diagnostic
+names what stops it; **only the two together tell you whether to write a reader or build a store.**

@@ -140,8 +140,15 @@ fn the_first_entry_that_refuses_says_which_rule_is_missing() {
     for line in shown {
         println!("REFUSED {line}");
     }
-    assert!(
-        !refused_programs.is_empty(),
-        "the corpus has programs the port cannot read; this test prints which entry stops each one"
+    // Pinned so a round that changes the frontier sees it here first: the total has fallen from 35 to 32 in three rounds, and the biggest single cause is a
+    // **store** (`revert_location` needs a submap baseline the port does not keep), not a reader.
+    assert_eq!(refused_programs.len(), 32, "thirty-two programs refuse at their first unreadable entry");
+    assert_eq!(
+        ranked
+            .iter()
+            .find(|(member, _, _)| member == "key")
+            .map(|(_, count, _)| *count),
+        Some(3),
+        "three of them are a revert_location, which needs the submap baseline"
     );
 }

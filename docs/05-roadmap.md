@@ -293,20 +293,25 @@ the census tests; every one of them is a *count of the corpus*, not an estimate.
 
 | Census | Now | Of |
 |---|---|---|
-programs readable | **574** | 692 |
-programs that run in a fresh world | **379** | 692 |
-programs refused at run time | **195** | 692 |
+programs readable | **577** | 692 |
+programs that run in a fresh world | **387** | 692 |
+programs refused at run time | **190** | 692 |
 conditions readable | **3,226** | 3,708 |
-effect entries runnable | **1,518** | 1,612 |
+effect entries runnable | **1,527** | 1,612 |
 
 **What the remaining refusals are, in the order the call graph ranks them:**
 
-1. **`switch` (35)** - the LIXA family. Inline bodies now install and the definition is read; the programs run and then refuse *inside* a switch. The next step is one LIXA
-   switch run under the harness with its `on` expression printed, not a broader rule.
-2. **`run_eocs(calls a program that is not installed)` (23)** - programs whose callee is one of the unreadable ones. Each readable callee is worth several of these.
-3. **`mapgen_update` (18)** - the census installs the update tables, so the refusal is inside `apply` or the aiming; needs one refusing entry's JSON.
-4. **`place_override` (17)** - a store the port lacks: the place's name and the turn it changes back.
-5. **`u_spawn_monster` (14)** - the monster spawn rule exists; these entries aim somewhere or name a group the census does not install.
+1. **`run_eocs(calls a program that is not installed)` (53)** - upstream of thirty-two unreadable programs. **This is the bucket that shrinks when a reader lands**, and it
+   is the honest measure of how much of the corpus is one rule away.
+2. **`mapgen_update` (18)** - the census installs the update tables, so the refusal is inside `apply` or the aiming; needs one refusing entry's JSON.
+3. **`place_override` (17)** - a store the port lacks: the place's name and the turn it changes back.
+4. **`u_spawn_monster` (14)** - the monster spawn rule exists; these entries aim somewhere or name a group the census does not install.
+5. **`if` (12)** and **`math` (10)** - conditions inside a branch.
+
+**The remaining unreadable entries are now dominated by stores, not readers.** The diagnostic in `content_suite::refusals` ranks the thirty-two programs by the first
+entry that refuses: `key` (3, a `revert_location` needing a **submap baseline**), `effect` (2, a `foreach`), `else` (2, `map_in_city` needing the **city layer**),
+`false_eocs` (2, a trade branch), `group` (2, whole-group spawning), `run_eocs` (2), and a tail of one-offs. **Three of the six biggest causes are stores the port has
+never had**, which is why the last four rounds spent a diagnostic before each rule: the frontier moved from readers to storage, and no reader-shaped tool could say so.
 
 **And the stores the frontier is waiting on, named so they stop being rediscovered:** mutation categories, camps and allies (`npc_allies`), submap reverts
 (`revert_location`), event arguments (`trigger_event`), place renaming (`place_override`), and item selection menus (`u_run_inv_eocs: "manual"`).
