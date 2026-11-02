@@ -2299,6 +2299,24 @@ pub enum Effect {
         /// Whether it lands around the listener rather than the speaker.
         listener: bool,
     },
+    /// Finds a **piece of furniture** around the actor and writes its square into a variable.
+    ///
+    /// Reference: `f_location_variable` (`npctalk.cpp:4231-4300`), the `search_type = "furniture"` path: the same walk as the terrain search, comparing furniture
+    /// instead of terrain.
+    FurnitureAround {
+        /// The furniture's name.
+        furniture: StringSource,
+        /// The variable's scope.
+        scope: String,
+        /// The variable's name.
+        name: String,
+        /// How near a square must be to be considered, exclusive.
+        target_min_radius: i32,
+        /// How far the search reaches.
+        target_max_radius: i32,
+        /// Whether it is the listener's square and variable rather than the speaker's.
+        listener: bool,
+    },
     /// Finds a terrain around the actor and writes its square into a variable.
     ///
     /// Reference: `f_location_variable` (`npctalk.cpp:4194-4300`), the `search_target` block with `search_type = "terrain"`: squares within `target_max_radius`
@@ -2950,7 +2968,8 @@ impl Effect {
             | Self::SetField { .. }
             | Self::CustomLightLevel { .. }
             | Self::TransformRadius { .. }
-            | Self::GiveAchievement { .. } => self.store_kind().unwrap_or_default(),
+            | Self::GiveAchievement { .. }
+            | Self::FurnitureAround { .. } => self.store_kind().unwrap_or_default(),
             Self::PlaceOverride { .. } => "place_override",
             Self::SpawnItem { .. } => "u_spawn_item",
             Self::ConsumeItem { listener, .. } => {
@@ -3743,6 +3762,33 @@ fn read_set_field(object: &cdda_json::Object) -> Option<Effect> {
     None
 }
 
+/// Reads the around-the-actor **furniture** search, or nothing.
+///
+/// Reference: `f_location_variable` (`npctalk.cpp:4231-4240`): exactly one of the search types may name what to look for, and `furniture` is one of them - the walk is
+/// the same one the terrain search makes.
+fn read_furniture_around(object: &cdda_json::Object, target: &cdda_json::Object, listener: bool) -> Option<Effect> {
+    let furniture = object.get("furniture")?;
+    for asked in ["terrain", "field", "monster", "npc", "species", "trap", "zone", "target_params"] {
+        if object.get(asked).is_some() {
+            return None;
+        }
+    }
+    let whole = |key: &str| match object.get(key) {
+        None => Some(0),
+        Some(Value::Int(number)) => i32::try_from(*number).ok(),
+        Some(_) => None,
+    };
+    let (scope, name) = named_variable(target)?;
+    Some(Effect::FurnitureAround {
+        furniture: read_string_source(furniture)?,
+        scope,
+        name,
+        target_min_radius: whole("target_min_radius")?,
+        target_max_radius: whole("target_max_radius")?,
+        listener,
+    })
+}
+
 /// Reads the around-the-actor terrain search, or nothing.
 ///
 /// Reference: `f_location_variable` (`npctalk.cpp:4231-4240`): exactly **one** of `terrain`, `furniture`, `field`, `monster`, `npc`, `species`, `trap` and `zone`
@@ -3915,6 +3961,9 @@ fn read_location_variable(object: &cdda_json::Object) -> Option<Effect> {
         let Some(Value::Object(target)) = object.get(member) else {
             continue;
         };
+        if let Some(found) = read_furniture_around(object, target, listener) {
+            return Some(found);
+        }
         if let Some(found) = read_terrain_around(object, target, listener) {
             return Some(found);
         }

@@ -2709,3 +2709,47 @@ fn an_npc_spawn_honours_its_outdoor_flag_and_lifespan() {
     }
     assert_eq!(summoned, 1, "one person has a summon time in the future");
 }
+
+/// A `u_location_variable` naming furniture finds it inside `target_max_radius` and skips what is inside `target_min_radius`.
+///
+/// Reference: `f_location_variable` (`npctalk.cpp:4231-4300`), the `search_type = "furniture"` path. The furniture is planted twice - once inside the minimum and once
+/// outside - so a search that ignored the minimum would answer the near one.
+#[test]
+fn a_furniture_search_finds_the_first_one_outside_the_minimum() {
+    let mut world = bevy_ecs::prelude::World::new();
+    cdda_sim::furniture_types::set_types(&mut world, [("f_scrap_antenna".to_owned(), 1), ("f_table".to_owned(), 2)]);
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (10, 10, 0));
+    cdda_sim::square::set_terrain(&mut world, (11, 10, 0), 1);
+    cdda_sim::square::set_furniture(&mut world, (11, 10, 0), 1);
+    cdda_sim::square::set_terrain(&mut world, (14, 12, 0), 1);
+    cdda_sim::square::set_furniture(&mut world, (14, 12, 0), 1);
+    cdda_sim::square::set_terrain(&mut world, (10, 13, 0), 1);
+    cdda_sim::square::set_furniture(&mut world, (10, 13, 0), 2);
+    let holder = cdda_sim::dialogue_values::holder_for(&mut world, survivor, true);
+
+    let value = cdda_json::parse(
+        br#"{"u_location_variable": {"global_val": "antenna"}, "furniture": "f_scrap_antenna",
+            "target_min_radius": 2, "target_max_radius": 6, "x_adjust": 1}"#
+            .as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    let held = cdda_sim::dialogue_values::value_of(&world, holder, "antenna");
+    let Some(cdda_sim::dialogue_values::Value::Position { x, y, .. }) = held else {
+        assert!(held.is_some(), "a square is stored");
+        return;
+    };
+    assert!(
+        x != 11 || y != 10,
+        "the furniture inside the minimum is skipped, not taken: ({x}, {y})"
+    );
+    assert_eq!(
+        cdda_sim::square::furniture_at(&world, (x, y, 0)),
+        Some(1),
+        "and what was found really is the furniture asked for"
+    );
+}

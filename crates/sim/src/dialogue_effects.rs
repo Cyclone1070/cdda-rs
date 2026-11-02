@@ -697,6 +697,46 @@ fn set_field(world: &mut World, speaker: Entity, listener: Option<Entity>, effec
     Applied::Done
 }
 
+/// Writes the square of a piece of furniture found around the actor into a variable.
+///
+/// Reference: `f_location_variable` (`npctalk.cpp:4250-4300`), the `search_type = "furniture"` path: the same walk as the terrain search, comparing
+/// `map::furn` at each square. Nothing found leaves the actor's own square, because the reference starts the answer there.
+fn store_furniture_around(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::FurnitureAround { furniture, scope, name, target_min_radius, target_max_radius, listener: theirs } = effect
+    else {
+        return Applied::CannotAnswer;
+    };
+    let Some(actor) = actor(speaker, listener, *theirs) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(here) = world.get::<crate::Position>(actor).copied() else {
+        return Applied::CannotAnswer;
+    };
+    let Some(wanted) = crate::conditions::text_of(world, speaker, listener, furniture) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(wanted_code) = crate::furniture_types::code_of(world, &wanted) else {
+        return Applied::CannotAnswer;
+    };
+    let mut found = None;
+    'search: for dy in -*target_max_radius..*target_max_radius {
+        for dx in -*target_max_radius..*target_max_radius {
+            let (x, y) = (here.x + dx, here.y + dy);
+            if dx.abs().max(dy.abs()) <= *target_min_radius {
+                continue;
+            }
+            if crate::square::furniture_at(world, (x, y, here.z)) == Some(wanted_code) {
+                found = Some((x, y));
+                break 'search;
+            }
+        }
+    }
+    let (x, y) = found.unwrap_or((here.x, here.y));
+    let holder = crate::dialogue_values::holder_for(world, actor, scope == "global_val");
+    crate::dialogue_values::set(world, holder, name, crate::dialogue_values::Value::Position { x, y, z: here.z });
+    Applied::Done
+}
+
 /// Writes the square of a terrain found around the actor into a variable.
 ///
 /// Reference: `f_location_variable` (`npctalk.cpp:4250-4300`): the walk is `points_in_radius( talker_pos, target_max_radius, 0 )` - z, then y, then x ascending -
@@ -2114,6 +2154,7 @@ fn run_store_effect(
         Effect::AssignActivity { .. } => assign_activity(world, speaker, listener, effect),
         Effect::CastSpell { .. } => cast_spell(world, speaker, listener, effect),
         Effect::TerrainAround { .. } => store_terrain_around(world, speaker, listener, effect),
+        Effect::FurnitureAround { .. } => store_furniture_around(world, speaker, listener, effect),
         Effect::SetField { .. } => set_field(world, speaker, listener, effect),
         Effect::CustomLightLevel { .. } => custom_light_level(world, speaker, listener, effect),
         Effect::TransformRadius { .. } => transform_radius(world, speaker, listener, effect),

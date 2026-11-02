@@ -8844,3 +8844,26 @@ outside, not inside**, and that is the kind of fact only a run tells you.
 **And a destructuring patch landed in the wrong function** - `LocationVariableRadius` shares the member names `min_radius`/`max_radius` with the NPC spawn, so my
 `..`-anchored edit went to the first match. The compiler named all four broken bindings at once, which is why the fix was one call rather than five. **When two shapes
 share a prefix, anchor on a field only one of them has.**
+
+## The furniture search: a rule read, and no program moved (round 957)
+
+`f_location_variable`'s `search_type = "furniture"` path is the terrain search's twin - the same walk, comparing `map::furn` instead of terrain - and the port now reads
+it: `crates/sim/src/furniture_types.rs` holds the id-by-name table the search needs (the twin of `terrain_types`), and `Effect::FurnitureAround` walks the square block
+and writes the first match, skipping anything inside `target_min_radius`.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 561 | **561** |
+effect entries runnable | 1,501 | **1,501** |
+
+**Nothing moved, and this round says so instead of dressing it up.** The corpus's furniture search always carries a `target_params` block as well -
+`{"furniture": "f_scrap_antenna", "target_params": {"om_special": "labyrinthine_structure", "om_terrain": "labyrinth_entrance", "z": -7}, "target_max_radius": 20}` -
+because the reference searches **inside an overmap area**, not around the actor. The port reads each half and not the combination, so the entry still refuses, and the
+counts are exactly what they were.
+
+**What the round did buy:** `furniture_types`, which nothing else in the port had, and a tested search that the **next** change - furniture inside an overmap
+`target_params` area - needs on the day it lands. The test plants the furniture twice, inside and outside the minimum, and checks the found square really carries the
+furniture asked for, so that change has a green gate to build on rather than a rule to re-derive.
+
+**A round that moves no count is not a wasted round, but it is a round that must say so.** The census is the ledger; a rule with a test and no entry in it is
+**groundwork**, and calling it progress would make the next round's numbers a lie.
