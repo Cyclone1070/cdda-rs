@@ -2277,6 +2277,58 @@ fn as_turns(turns: i64) -> i32 {
     turns as i32
 }
 
+/// Stores the nearest overmap tile carrying a terrain, as a square.
+///
+/// Reference: `f_location_variable` with `target_params` (`npctalk.cpp:4205-4210`, `4261-4300`): the search starts at the talker's own overmap tile, looks up to
+/// `search_range` tiles out - `OMAPX * 3`, 540, when the data does not say (`mission_util.cpp:429`) - and stores the **corner square** of the tile it finds. A least
+/// distance is honoured because the reference's search does; nothing found is a refusal, because the data asked for a place and there is none.
+fn store_overmap_location(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::LocationVariableFromOvermap { scope, name, terrain, min_distance, z, listener: theirs } = effect else {
+        return Applied::CannotAnswer;
+    };
+    let Some(actor) = actor(speaker, listener, *theirs) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(here) = world.get::<crate::Position>(actor).copied() else {
+        return Applied::CannotAnswer;
+    };
+    let Some(wanted) = crate::conditions::text_of(world, speaker, listener, terrain) else {
+        return Applied::CannotAnswer;
+    };
+    let least = match min_distance {
+        None => 0,
+        Some(given) => match crate::conditions::value(world, speaker, listener, given) {
+            Some(drawn) => as_whole(drawn).max(0),
+            None => return Applied::CannotAnswer,
+        },
+    };
+    let level = match z {
+        None => here.z,
+        Some(given) => match crate::conditions::value(world, speaker, listener, given) {
+            Some(drawn) => as_whole(drawn),
+            None => return Applied::CannotAnswer,
+        },
+    };
+    let origin = crate::overmap::tile_of(here.x, here.y);
+    let Some((x, y)) = crate::overmap::nearest_with_terrain(world, origin, &wanted, SEARCH_RANGE, least) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(holder) = crate::conditions::holder_for_scope(world, speaker, listener, scope) else {
+        return Applied::CannotAnswer;
+    };
+    crate::dialogue_values::set(
+        world,
+        holder,
+        name,
+        crate::dialogue_values::Value::Position {
+            x: x * crate::overmap::SQUARES_PER_OMT,
+            y: y * crate::overmap::SQUARES_PER_OMT,
+            z: level,
+        },
+    );
+    Applied::Done
+}
+
 /// Stores the actor's square in a dialogue variable.
 ///
 /// Reference: `f_location_variable` (`npctalk.cpp:4194`), plain form: the value is `d.const_actor( is_npc )->pos_abs()`, and the scope names where
@@ -2572,6 +2624,7 @@ pub fn run_effect(
         }
         Effect::WeightedList(weighted) => run_weighted_list(world, speaker, listener, weighted, 0),
         Effect::LocationVariable { .. } => store_location(world, speaker, listener, effect),
+        Effect::LocationVariableFromOvermap { .. } => store_overmap_location(world, speaker, listener, effect),
         Effect::Switch { on, cases } => run_switch(world, speaker, listener, on, cases),
         Effect::If { .. } => run_branch(world, speaker, listener, effect),
         Effect::LearnTrait { trait_name, variant, listener: about_listener } => {

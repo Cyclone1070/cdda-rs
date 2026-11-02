@@ -2388,6 +2388,26 @@ pub enum Effect {
         /// How long to wait.
         after: DurationSource,
     },
+    /// Stores the nearest overmap tile carrying a terrain, as a place.
+    ///
+    /// Reference: `f_location_variable` (`npctalk.cpp:4205-4210`, `4261-4300`) with `target_params`: the reference asks `mission_util::parse_mission_om_target`
+    /// (`mission_util.cpp:391-450`) for the terrain to look for, how far to search and the least distance from the origin, then finds the tile and stores its square.
+    ///
+    /// **A `target_params` that names an overmap special refuses**, because a special's tiles are matched by their own rule and the port has none.
+    LocationVariableFromOvermap {
+        /// Where the square is stored.
+        scope: String,
+        /// The variable's name.
+        name: String,
+        /// The overmap terrain to look for.
+        terrain: StringSource,
+        /// The least distance from the origin, when the data names one.
+        min_distance: Option<Expression>,
+        /// The level to store, when the data names one.
+        z: Option<Expression>,
+        /// Whether it works from the listener's square rather than the speaker's.
+        listener: bool,
+    },
     /// Plays a sound **event**, which the headless port has no ear for.
     ///
     /// Reference: `f_sound_effect` (`npctalk.cpp:5528-5570`): `id` names a sound in the sound pack, `volume` overrides its own level, `outdoor_event` picks the outdoor
@@ -3195,7 +3215,8 @@ impl Effect {
             | Self::Mutation { .. }
             | Self::RunEocLater { .. }
             | Self::SoundEvent { .. }
-            | Self::Later { .. } => self.store_kind().unwrap_or_default(),
+            | Self::Later { .. }
+            | Self::LocationVariableFromOvermap { .. } => self.store_kind().unwrap_or_default(),
             Self::PlaceOverride { .. } => "place_override",
             Self::SpawnItem { .. } => "u_spawn_item",
             Self::ConsumeItem { listener, .. } => {
@@ -3969,6 +3990,33 @@ fn read_location_variable_adjust(object: &cdda_json::Object) -> Option<Effect> {
     })
 }
 
+/// Reads a `target_params` search for an overmap terrain.
+///
+/// Reference: `mission_util::parse_mission_om_target` (`mission_util.cpp:391-450`) and the search in `f_location_variable` (`npctalk.cpp:4261-4300`). The port reads
+/// what it can carry out - a terrain, a least distance and a level - and refuses an overmap special, whose tiles are matched by a rule the port does not have.
+fn read_overmap_search(object: &cdda_json::Object, target: &cdda_json::Object, listener: bool) -> Option<Effect> {
+    let Value::Object(params) = object.get("target_params")? else {
+        return None;
+    };
+    if params.get("om_special").is_some() {
+        return None;
+    }
+    let terrain = read_string_source(params.get("om_terrain")?)?;
+    let (scope, name) = named_variable(target)?;
+    let number = |key: &str| match params.get(key) {
+        None => Some(None),
+        Some(given) => Some(Some(read_expression(given)?)),
+    };
+    Some(Effect::LocationVariableFromOvermap {
+        scope,
+        name,
+        terrain,
+        min_distance: number("min_distance")?,
+        z: number("z")?,
+        listener,
+    })
+}
+
 /// Reads a `u_mutate` or `u_mutate_category` entry.
 ///
 /// Reference: `f_mutate` (`npctalk.cpp:3563-3571`) and `f_mutate_category` (`3573-3583`): the member is the highest category depth, and the category form names one to
@@ -4389,6 +4437,9 @@ fn read_location_variable(object: &cdda_json::Object) -> Option<Effect> {
             return Some(found);
         }
         if let Some(found) = read_radius_search(object, target, listener) {
+            return Some(found);
+        }
+        if let Some(found) = read_overmap_search(object, target, listener) {
             return Some(found);
         }
         if SEARCHING.iter().any(|key| object.get(key).is_some()) {

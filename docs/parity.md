@@ -9562,3 +9562,28 @@ totals: a fixed effect that reveals a later refusal is progress the totals canno
 **And the shape of the mistake is worth keeping:** the reader looked for `default` **beside** the effect rather than inside the variable object, and the first version of the
 fix therefore carried `None`. The probe printed `fallback: None` and the answer `CannotAnswer` together, which named the mistake in one run - **printing the parsed effect
 beside the answer is what made a two-line fix visible without a debugger.**
+
+## A `target_params` search is a place the overmap already knows (round 986)
+
+`u_location_variable`'s biggest missing shape was `target_params` - 42 entries in the core data, and the reader refused every one because it names a search rather than a
+square. The reference's search is `mission_util::parse_mission_om_target` (`mission_util.cpp:391-450`) feeding `f_location_variable` (`npctalk.cpp:4205-4210`,
+`4261-4300`): the wanted terrain, how far to search (**540 tiles** when the data does not say), the least distance from the origin, and the level to store.
+
+The port now reads the three members it can carry out - `om_terrain`, `min_distance`, `z` - searches the overmap from the speaker's own tile, and stores the **corner
+square** of the tile it finds. **An `om_special` still refuses**: a special's tiles are matched by a rule the port does not have, and answering with the wrong tile would
+be worse than refusing.
+
+| Count | Before | After |
+|---|---|---|
+unreadable entries | 76 | **75** |
+one-gap programs | 17 | **18** |
+effect entries runnable | 1,545 | **1,546** |
+programs refusing at their first entry | 26 | **25** |
+
+**And the 28 `u_location_variable` run-time refusals stay, for a reason worth writing down:** a fresh census world has **no overmap terrain at all**, so a search for a
+terrain correctly finds nothing and correctly refuses. **The refusal is the answer, not the gap** - the gap is a census world without an overmap, and the port's
+built-world census is where that shows.
+
+**A wiring mistake cost a gate cycle and is worth recording:** the runner's match arm was added by a silent string replacement that did not match, so the new variant fell
+through to the catch-all while the test passed on a different path. Clippy's `function is never used` found it. **A `replace` without an assertion is the same mistake
+this session has paid for twice before.**

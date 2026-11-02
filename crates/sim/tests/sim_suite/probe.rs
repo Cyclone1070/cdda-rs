@@ -3674,3 +3674,36 @@ fn the_void_spiders_place_override_reads_and_answers() {
         "and it answers: {effect:?}"
     );
 }
+
+/// A `target_params` search finds the nearest overmap tile with the terrain and stores its square.
+///
+/// Reference: `f_location_variable` with `target_params` (`npctalk.cpp:4205-4210`, `4261-4300`) over `mission_util::parse_mission_om_target`. The test puts the wanted
+/// terrain on one overmap tile, asks for it with a least distance of one, and checks the stored square is that tile's **corner** - not the actor's own square.
+#[test]
+fn an_overmap_search_stores_the_corner_of_the_tile_it_finds() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::overmap::set_terrain(&mut world, (2, 0), "field");
+    cdda_sim::overmap::set_terrain(&mut world, (1, 0), "forest");
+    let value = cdda_json::parse(
+        br#"{"u_location_variable": {"context_val": "found"},
+            "target_params": {"om_terrain": "field", "min_distance": 1, "z": 0}}"#
+            .as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    let fields = cdda_sim::dialogue_values::holder_for(&mut world, survivor, false);
+    assert_eq!(
+        cdda_sim::dialogue_values::value_of(&world, fields, "found"),
+        Some(cdda_sim::dialogue_values::Value::Position {
+            x: 2 * cdda_sim::overmap::SQUARES_PER_OMT,
+            y: 0,
+            z: 0,
+        }),
+        "the nearest field's corner square"
+    );
+}
