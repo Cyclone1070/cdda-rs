@@ -606,7 +606,7 @@ fn pick_type(
 /// Reference: `f_run_inv_eocs` (`npctalk.cpp:6760-6805`) with the `"all"` mode runs `true_eocs` on every matching item, handing each one to the program through the
 /// invocation's context. The port sets the context the data reads - `id` for the item's id and `count` for how many the stack holds - and runs the programs.
 fn run_inv_eocs(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::RunInvEocs { search_data, programs } = effect else {
+    let Effect::RunInvEocs { search_data, wielded_only, random, programs } = effect else {
         return Applied::CannotAnswer;
     };
     let Some(holder) = crate::conditions::holder_for_scope(world, speaker, listener, "u_val") else {
@@ -615,10 +615,26 @@ fn run_inv_eocs(world: &mut World, speaker: Entity, listener: Option<Entity>, ef
     let mut matches: Vec<(String, i32)> = Vec::new();
     // The names are read **before** the query borrows the world mutably: `name_of` needs `&mut World` and a query's iterator holds it for the loop.
     let mut carried: Vec<(crate::ItemTypeId, i32)> = Vec::new();
-    let mut query = world.query::<(&crate::creature::Carried, &crate::GroundItem)>();
-    for (who, item) in query.iter(world) {
-        if who.0 == holder {
-            carried.push((item.kind, item.charges.max(1)));
+    let wielded = if *wielded_only {
+        world
+            .try_query::<(&crate::creature::WieldedBy, &crate::GroundItem)>()
+            .and_then(|mut query| {
+                query
+                    .iter(world)
+                    .find(|(who, _)| who.0 == holder)
+                    .map(|(_, item)| (item.kind, item.charges.max(1)))
+            })
+    } else {
+        None
+    };
+    if let Some(held) = wielded {
+        carried.push(held);
+    } else if !*wielded_only {
+        let mut query = world.query::<(&crate::creature::Carried, &crate::GroundItem)>();
+        for (who, item) in query.iter(world) {
+            if who.0 == holder {
+                carried.push((item.kind, item.charges.max(1)));
+            }
         }
     }
     for (kind, charges) in carried {
@@ -632,6 +648,13 @@ fn run_inv_eocs(world: &mut World, speaker: Entity, listener: Option<Entity>, ef
     }
     if matches.is_empty() {
         return Applied::Done;
+    }
+    // Reference: the `"random"` mode picks **one** of the matching items with the game's dice; `"all"` runs on every one.
+    if *random {
+        let Some(picked) = draw_one_of(world, matches.len()) else {
+            return Applied::CannotAnswer;
+        };
+        matches = matches.get(picked).cloned().into_iter().collect();
     }
     for (name, count) in matches {
         let handed = std::collections::BTreeMap::from([

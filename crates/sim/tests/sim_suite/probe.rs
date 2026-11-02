@@ -2877,3 +2877,54 @@ fn an_inventory_eoc_runs_once_per_matching_item() {
         "the manual mode needs a menu the port has not written"
     );
 }
+
+/// `u_run_inv_eocs` with `wielded_only` runs on the wielded item alone, and the `random` mode runs on exactly one match.
+///
+/// Reference: `f_run_inv_eocs` (`npctalk.cpp:6760-6805`): a `search_data` filter may ask for the wielded item, and the `"random"` mode draws one match with the game's
+/// dice. The test carries two rocks and wields one, so a port that ignored the filter would say two lines, and a port that ran on every match in `random` mode would
+/// say two as well.
+#[test]
+fn an_inventory_eoc_can_ask_for_the_wielded_item_or_one_at_random() {
+    let mut world = bevy_ecs::prelude::World::new();
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(3));
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[cdda_sim::item_registry::Kind { id: "rock", volume_ml: 5, weight_g: 1, pockets: &[] }],
+    );
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let kind = cdda_sim::item_registry::id_of(&mut world, "rock").expect("installed");
+    let first = cdda_sim::drop_item(&mut world, (0, 0), kind, 1);
+    world.entity_mut(first).insert(cdda_sim::creature::Carried(survivor));
+    let second = cdda_sim::drop_item(&mut world, (0, 0), kind, 1);
+    world.entity_mut(second).insert(cdda_sim::creature::Carried(survivor));
+    world.entity_mut(second).insert(cdda_sim::creature::WieldedBy(survivor));
+
+    let wielded = cdda_json::parse(
+        br#"{"u_run_inv_eocs": "all", "search_data": [{"wielded_only": true}],
+            "true_eocs": [{"effect": [{"u_message": "the one in hand"}]}]}"#
+            .as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&wielded).expect("the effect reads");
+    cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect);
+    let lines = cdda_sim::messages::lines(&world);
+    assert_eq!(
+        lines.iter().filter(|line| line.contains("the one in hand")).count(),
+        1,
+        "the wielded item alone: {lines:?}"
+    );
+
+    let random = cdda_json::parse(
+        br#"{"u_run_inv_eocs": "random", "true_eocs": [{"effect": [{"u_message": "one of them"}]}]}"#
+            .as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&random).expect("the effect reads");
+    cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect);
+    let lines = cdda_sim::messages::lines(&world);
+    assert_eq!(
+        lines.iter().filter(|line| line.contains("one of them")).count(),
+        1,
+        "one drawn from two: {lines:?}"
+    );
+}

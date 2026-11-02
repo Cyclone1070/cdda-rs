@@ -2260,6 +2260,10 @@ pub enum Effect {
     RunInvEocs {
         /// The item ids the entries must match; empty means every item.
         search_data: Vec<String>,
+        /// Whether only the wielded item counts.
+        wielded_only: bool,
+        /// Whether **one** match is drawn rather than every match being run on.
+        random: bool,
         /// The programs to run on each matching item.
         programs: Vec<ProgramRef>,
     },
@@ -3711,10 +3715,11 @@ fn read_run_inv_eocs(object: &cdda_json::Object) -> Option<Effect> {
     let Value::Str(mode) = option else {
         return None;
     };
-    if mode != "all" {
+    if !matches!(mode.as_str(), "all" | "random") {
         return None;
     }
     let mut search_data = Vec::new();
+    let mut wielded_only = false;
     match object.get("search_data") {
         None => {}
         Some(Value::Array(entries)) => {
@@ -3723,19 +3728,31 @@ fn read_run_inv_eocs(object: &cdda_json::Object) -> Option<Effect> {
                 let Value::Object(filter) = entry else {
                     return None;
                 };
-                if !filter.members().iter().all(|(key, _)| key == "id") {
+                // A filter may name an **id** or ask for the wielded item; anything else is a question the port has not written.
+                if !filter
+                    .members()
+                    .iter()
+                    .all(|(key, _)| matches!(key.as_str(), "id" | "wielded_only"))
+                {
                     return None;
                 }
-                let Value::Str(id) = filter.get("id")? else {
-                    return None;
-                };
-                search_data.push(id.clone());
+                if let Some(Value::Bool(true)) = filter.get("wielded_only") {
+                    wielded_only = true;
+                }
+                if let Some(given) = filter.get("id") {
+                    let Value::Str(id) = given else {
+                        return None;
+                    };
+                    search_data.push(id.clone());
+                }
             }
         }
         Some(_) => return None,
     }
     Some(Effect::RunInvEocs {
         search_data,
+        wielded_only,
+        random: mode == "random",
         programs: read_program_refs(object.get("true_eocs"))?,
     })
 }

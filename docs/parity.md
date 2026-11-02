@@ -8948,3 +8948,26 @@ inline. **The limitation from that round has not gone away; it is now pinned by 
 
 **A borrow error and a lint, both one line:** `name_of` needs `&mut World` and a query's iterator holds the world, so the ids are collected first and named after -
 and `search_data.iter().any(|wanted| *wanted == name)` became `search_data.contains(&name)`, which is what it meant.
+
+## The wielded item, and a random pick (round 961)
+
+Two more members of `f_run_inv_eocs` (`npctalk.cpp:6760-6805`): a `search_data` filter that asks for the **wielded item**, and the **`"random"`** mode, which draws
+**one** of the matching items with the game's dice instead of running on all of them.
+
+Both read now. The wielded filter reads the creature's `WieldedBy` and skips the carried list entirely, which is what "wielded only" means: a search that also looked at
+the pack would answer a question nobody asked. The random mode draws through the same `draw_one_of` the menu-answer path uses, so the same seed picks the same item.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 564 | **565** |
+answered `Done` | 368 | **369** |
+unreadable leaves | 133 | **132** |
+one-gap programs | 23 | **22** |
+effect entries runnable | 1,505 | **1,506** |
+effect census blaming `effect` | 120 | **119** |
+
+**The test wields one of two rocks**, so a port that ignored the filter says two lines, and a port that ran on every match in `random` mode says two as well - **both
+mistakes fail on the same assertion, which is why the case carries two rocks and not one.**
+
+**`"manual"` is still refused**, and that refusal is now joined by a mode the port *can* answer without a menu. **The rule is not "any mode the port finds easy"; it is
+"any mode whose answer does not depend on a question nobody asked."**
