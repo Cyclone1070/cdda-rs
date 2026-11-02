@@ -8474,3 +8474,32 @@ rather than a member or a scope. **A missing value is not a missing answer.**
 
 **One older assertion had to move with it**: `a_mission_is_given_to_the_player` asserted that an entry with a `deadline` is **refused**. It now asserts it **reads**, and
 points at the test that pins the new behaviour. Two tests, one rule, and the pointer between them is the part that keeps them from drifting.
+
+## `parse_tags`: text that names a variable (round 944)
+
+`parse_tags` was on the one-gap list on a `set_string_var` whose text was `"n_number_fabricate_<context_val:name>"`. The flag means what it says: with it, the text
+is a **tag line**, and every `<scope:name>` in it is replaced by what the dialogue holds under that name before the line is stored.
+
+The reader refused the flag outright. Now `Effect::SetStringVar` carries it, and the runner replaces the tags with one small function in `dialogue_values`:
+`expand_tags(world, speaker, listener, text)`. The four scopes are the same four a `var_info` accepts, and each value renders the way the data expects - a number without
+a trailing `.0`, a text as itself, a square as `x,y,z`.
+
+**A tag the dialogue cannot answer is left exactly as it was written.** That is the reference's own behaviour for a tag its parser does not know, and the reason is
+worth writing down: emptying an unknown tag would silently delete part of the data's own text, while leaving it visible shows the reader that something did not
+resolve. **The test asserts both halves** - the known tag substituted, the unknown tag intact - because a parser that only did the first would pass a single-sided test.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 545 | **547** |
+answered `Done` | 354 | **356** |
+did something | 256 | **258** |
+unreadable leaves | 156 | **152** |
+one-gap programs | 39 | **38** |
+effect entries runnable | 1,484 | **1,488** |
+effect census blaming `effect` | 138 | **136** |
+
+**Four leaves and two programs from one flag**, and the same function is what `u_message` will use when messages grow tags - the data already carries
+`"You can't see <context_val:pos>."`, which reads today and would substitute for free.
+
+**`expand_tags` is in `dialogue_values`, not in the effect runner**, because it is a rule about **what a dialogue's text means**, not about one effect. The next
+caller should not have to copy it.

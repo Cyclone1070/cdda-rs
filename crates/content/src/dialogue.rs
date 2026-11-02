@@ -1842,7 +1842,9 @@ fn read_copy_var(object: &cdda_json::Object) -> Option<Effect> {
 /// `target_var` object names where the text is stored.
 fn read_set_string_var(object: &cdda_json::Object) -> Option<Effect> {
     let written = object.get("set_string_var")?;
-    if ["i18n", "parse_tags", "string_input"].iter().any(|key| object.get(key).is_some()) {
+    // `i18n` (translation catalogues) and `string_input` (asking the player to type) are refused. `parse_tags` is **read**: the reference substitutes `<scope:name>`
+    // tags into the text where it is used (`f_set_string_var` -> `parse_tags`, `npctalk.cpp:5809-5866`), and the data passes it for names built from a variable.
+    if ["i18n", "string_input"].iter().any(|key| object.get(key).is_some()) {
         return None;
     }
     let Value::Object(target) = object.get("target_var")? else {
@@ -1860,6 +1862,7 @@ fn read_set_string_var(object: &cdda_json::Object) -> Option<Effect> {
         other => VarValue::One(read_string_source(other)?),
     };
     Some(Effect::SetStringVar {
+        parse_tags: matches!(object.get("parse_tags"), Some(Value::Bool(true))),
         value,
         scope,
         name,
@@ -2323,6 +2326,8 @@ pub enum Effect {
     /// where it goes. `i18n` (translated strings), `parse_tags` (substituting tags into the text) and `string_input` (asking the player to type) are refused, because
     /// each is a rule the port has not written.
     SetStringVar {
+        /// Whether `<scope:name>` tags in the text are substituted when the effect runs.
+        parse_tags: bool,
         /// The text, or the list to draw one from.
         value: VarValue,
         /// The variable's type, as the data spells it.

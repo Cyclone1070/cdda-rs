@@ -169,3 +169,57 @@ pub fn holder_for(world: &mut World, creature: Entity, global: bool) -> Entity {
         creature
     }
 }
+
+/// Substitutes the reference's `<scope:name>` tags into a line of text.
+///
+/// Reference: `parse_tags` (`string_utils.cpp`, reached from `f_set_string_var`'s `parse_tags` flag and from a message): every `<scope:name>` in the text is
+/// replaced by what the dialogue holds under it, where the scope is one of the four a `var_info` accepts. A tag naming something the dialogue does not hold is left
+/// **as it was written** - the reference's tag parser leaves an unknown tag alone rather than emptying it, and a silently blank name would be worse than a visible one.
+#[must_use]
+pub fn expand_tags(
+    world: &World,
+    speaker: bevy_ecs::prelude::Entity,
+    listener: Option<bevy_ecs::prelude::Entity>,
+    text: &str,
+) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(start) = rest.find('<') {
+        let Some(end) = rest[start..].find('>').map(|at| start + at) else {
+            break;
+        };
+        out.push_str(&rest[..start]);
+        let tag = &rest[start + 1..end];
+        match rendered_tag(world, speaker, listener, tag) {
+            Some(replaced) => out.push_str(&replaced),
+            None => out.push_str(&rest[start..=end]),
+        }
+        rest = &rest[end + 1..];
+    }
+    out.push_str(rest);
+    out
+}
+
+/// What one `<scope:name>` tag stands for, or nothing when it is not a variable tag the dialogue can answer.
+fn rendered_tag(
+    world: &World,
+    speaker: bevy_ecs::prelude::Entity,
+    listener: Option<bevy_ecs::prelude::Entity>,
+    tag: &str,
+) -> Option<String> {
+    let (scope, name) = tag.split_once(':')?;
+    if !matches!(scope, "u_val" | "npc_val" | "global_val" | "context_val") {
+        return None;
+    }
+    let holder = crate::conditions::holder_for_scope(world, speaker, listener, scope)?;
+    match value_of(world, holder, name)? {
+        Value::Text(text) => Some(text),
+        Value::Number(number) => Some(if number.fract() == 0.0 {
+            format!("{}", number.trunc())
+        } else {
+            format!("{number}")
+        }),
+        Value::Condition(_) => None,
+        Value::Position { x, y, z } => Some(format!("{x},{y},{z}")),
+    }
+}

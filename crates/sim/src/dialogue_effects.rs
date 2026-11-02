@@ -914,7 +914,7 @@ fn copy_var(world: &mut World, speaker: Entity, listener: Option<Entity>, effect
 /// Reference: `f_set_string_var` (`npctalk.cpp:5843-5866`): one entry of the list is drawn, the variable is written, and nothing else happens. The draw uses the
 /// world's own dice, which is the same dice every other draw in this module uses.
 fn set_string_var(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::SetStringVar { value, scope, name } = effect else {
+    let Effect::SetStringVar { parse_tags, value, scope, name } = effect else {
         return Applied::CannotAnswer;
     };
     let Some(holder) = crate::conditions::holder_for_scope(world, speaker, listener, scope) else {
@@ -939,6 +939,12 @@ fn set_string_var(world: &mut World, speaker: Entity, listener: Option<Entity>, 
             };
             text
         }
+    };
+    // Reference: with `parse_tags`, the text is the reference's tag line and every `<scope:name>` in it is substituted where the effect runs.
+    let text = if *parse_tags {
+        crate::dialogue_values::expand_tags(world, speaker, listener, &text)
+    } else {
+        text
     };
     crate::dialogue_values::set(world, holder, name, crate::dialogue_values::Value::Text(text));
     Applied::Done
