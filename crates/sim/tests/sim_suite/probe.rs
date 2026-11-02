@@ -2630,3 +2630,31 @@ fn a_terrain_transform_changes_what_it_names_and_nothing_else() {
         "and dirt outside the radius is untouched too"
     );
 }
+
+/// `give_achievement` completes an achievement once, and completing it again changes nothing.
+///
+/// Reference: `f_give_achievment` (`npctalk.cpp:5566-5585`) reports an achievement **only while it is pending**. The test runs the effect twice and checks the store
+/// holds one entry, so a port that appended on every call would fail.
+#[test]
+fn an_achievement_is_completed_once() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let value = cdda_json::parse(br#"{"give_achievement": "achievement_officer_kill"}"#.as_slice()).expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    for _ in 0..2 {
+        assert_eq!(
+            cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+            cdda_sim::dialogue_effects::Applied::Done
+        );
+    }
+    assert!(cdda_sim::achievements::has_completed(&world, survivor, "achievement_officer_kill"));
+    assert_eq!(
+        cdda_sim::achievements::completed(&world, survivor),
+        vec!["achievement_officer_kill".to_owned()],
+        "one entry, though the effect ran twice"
+    );
+    assert!(
+        !cdda_sim::achievements::has_completed(&world, survivor, "achievement_other"),
+        "and nothing else was given"
+    );
+}

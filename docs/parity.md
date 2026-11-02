@@ -8795,3 +8795,28 @@ transform table is exactly the kind of feature where "it did something" is not t
 
 **And a test that failed for a reason worth keeping**: `Level::set_terrain` gave me a square reading `0` where I wrote `1`, so the test now builds its squares with
 `square::set_terrain` directly. **When the test's own scaffolding is the suspect, replace it with the primitive the game uses** rather than debugging the scaffolding.
+
+## `give_achievement`: the smallest store that tells the truth (round 955)
+
+`f_give_achievment` (`npctalk.cpp:5566-5585`) reports an achievement completed **only while it is pending** - an achievement already finished changes nothing. The port
+now has that: `crates/sim/src/achievements.rs`, a `BTreeSet` of ids **on the character**, and a `complete` that answers *was it new*, so the caller's question ("did this
+happen?") and the store's ("is it done?") are the same fact read twice.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 559 | **560** |
+answered `Done` | 366 | **367** |
+unreadable leaves | 139 | **138** |
+one-gap programs | 27 | **26** |
+effect entries runnable | 1,499 | **1,500** |
+effect census blaming `effect` | 125 | **124** |
+
+**The thousandth effect entry runs.** 1,500 of 1,612, and the last hundred have names like `search_data`, `args` and `hallucination_count` - members on effects the port
+already runs.
+
+**The test runs the effect twice and checks the store holds one entry.** A port that appended on every call would pass a single-run test and fail the reference's rule -
+**"only while pending" is a rule about the second call**, and a test that never makes a second call cannot see it.
+
+**What this round is not:** an achievement *tracker*. The reference keeps pending/completed state, stat thresholds and a report queue. The port keeps the completed set,
+because that is what a dialogue effect needs and what the game can answer - **and the module says so in its first paragraph**, so the next round that needs more knows
+where it stands rather than finding a half-built tracker.

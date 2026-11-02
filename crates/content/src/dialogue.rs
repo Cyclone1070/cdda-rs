@@ -1675,6 +1675,7 @@ fn read_unnamed_effect(object: &cdda_json::Object) -> Option<Effect> {
         .or_else(|| read_set_field(object))
         .or_else(|| read_custom_light_level(object))
         .or_else(|| read_transform_radius(object))
+        .or_else(|| read_give_achievement(object))
 }
 
 /// Reads a `sound_effect` entry.
@@ -2241,6 +2242,14 @@ pub enum Effect {
         volume: CountRange,
         /// Whether it is only heard outdoors.
         outdoor_event: bool,
+    },
+    /// Marks an achievement completed on the character.
+    ///
+    /// Reference: `f_give_achievment` (`npctalk.cpp:5566-5585`): the member names an achievement, and it is reported completed **only while it is pending** - so
+    /// completing one twice changes nothing.
+    GiveAchievement {
+        /// The achievement's id.
+        achievement: StringSource,
     },
     /// Applies a named terrain transform to the squares around the actor.
     ///
@@ -2926,7 +2935,8 @@ impl Effect {
             | Self::TerrainAround { .. }
             | Self::SetField { .. }
             | Self::CustomLightLevel { .. }
-            | Self::TransformRadius { .. } => self.store_kind().unwrap_or_default(),
+            | Self::TransformRadius { .. }
+            | Self::GiveAchievement { .. } => self.store_kind().unwrap_or_default(),
             Self::PlaceOverride { .. } => "place_override",
             Self::SpawnItem { .. } => "u_spawn_item",
             Self::ConsumeItem { listener, .. } => {
@@ -3642,6 +3652,15 @@ fn read_switch(object: &cdda_json::Object) -> Option<Effect> {
 /// Reference: `f_location_variable` (`npctalk.cpp:4194`). The searching forms (`target_params`, a `terrain`/`furniture`/`field`/`monster`/`npc`/
 /// `species`/`trap`/`zone` list, radii) walk the overmap and the map for the nearest match, which nothing in the port can do yet - and answering
 /// them with the actor's own square would be a wrong answer that looked right.
+/// Reads a `give_achievement` entry.
+///
+/// Reference: `f_give_achievment` (`npctalk.cpp:5566-5585`): one required member, a name or a variable holding one.
+fn read_give_achievement(object: &cdda_json::Object) -> Option<Effect> {
+    Some(Effect::GiveAchievement {
+        achievement: read_string_source(object.get("give_achievement")?)?,
+    })
+}
+
 /// Reads a `transform_radius` entry.
 ///
 /// Reference: `f_transform_radius` (`npctalk.cpp:4450-4468`): the table is required, the radius is the member the data spells `transform_radius`, and

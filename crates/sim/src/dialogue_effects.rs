@@ -584,6 +584,22 @@ fn pick_type(
     drawn
 }
 
+/// Marks an achievement completed on the character the dialogue speaks for.
+///
+/// Reference: `f_give_achievment` (`npctalk.cpp:5566-5585`) reports the achievement only while it is pending, which
+/// [`crate::achievements::complete`] answers with "was it new".
+fn give_achievement(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::GiveAchievement { achievement } = effect else {
+        return Applied::CannotAnswer;
+    };
+    let Some(named) = crate::conditions::text_of(world, speaker, listener, achievement) else {
+        return Applied::CannotAnswer;
+    };
+    let holder = crate::missions::question_holder(world, speaker);
+    crate::achievements::complete(world, holder, &named);
+    Applied::Done
+}
+
 /// Applies a terrain transform to the squares around a creature.
 ///
 /// Reference: `f_transform_radius` (`npctalk.cpp:4483-4493`): with no `time_in_future` the reference calls `map::transform_radius` at once, over the reality bubble
@@ -2088,6 +2104,7 @@ fn run_store_effect(
         Effect::SetField { .. } => set_field(world, speaker, listener, effect),
         Effect::CustomLightLevel { .. } => custom_light_level(world, speaker, listener, effect),
         Effect::TransformRadius { .. } => transform_radius(world, speaker, listener, effect),
+        Effect::GiveAchievement { .. } => give_achievement(world, speaker, listener, effect),
         // Audio changes no game state, and the port has no audio: Done, not refused - nothing is missing from the simulation, only from the sound card. A
         // comment-only entry does nothing, which the reference's loader also does with it.
         Effect::PlaySoundEffect { .. } | Effect::Nothing => Applied::Done,

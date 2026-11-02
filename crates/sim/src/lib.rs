@@ -89,6 +89,7 @@ pub mod terrain_table;
 pub mod terrain_transform;
 pub mod terrain_types;
 pub mod noise;
+pub mod achievements;
 pub mod addictions;
 pub mod known_spells;
 pub mod math_functions;
