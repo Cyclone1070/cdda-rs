@@ -9619,3 +9619,25 @@ another evening on the loader.
 
 **And the three undefined ids are worth a line of their own:** a program that names an update nobody defines cannot be answered by any world, and those three are the
 only ones in the core data that fit that description.
+
+## A craft that needed a hammer started with bare hands (round 993)
+
+The roadmap's next phase is P3 items, and the first thing reading `crafting::begin_craft` showed was a rule that was not there: the port checked **components** and
+never looked at the recipe's **tools**. The content layer had the rule all along (`Recipe::tools_available`, transcribed from `requirements.cpp:952-990`); the sim never
+called it.
+
+Now it does, and the refusal has its own name - `Craft::MissingTools` - so a caller can say which requirement failed rather than lumping tools in with components. The
+carried-stack path answers both questions from the same stacks: **a held tool is a stack that is there, and a tool that spends charges spends the stack's own.**
+
+| Check | Before | After |
+|---|---|---|
+components | checked | checked |
+tools (held and by charges) | **not checked** | checked |
+qualities | not checked | not checked (item qualities are not modelled yet) |
+
+**The test cost one round trip to get right, and the mistake is a rule worth writing down:** the first version gave the hammer `count: 1` and expected "held", and the
+code answered `MissingTools` with the hammer in hand. **That is the reference's own encoding**: a *negative* count means "needed and not spent", a positive one means
+charges (`requirements.cpp:952-990`). The test was wrong, not the port - and the fix was to write the recipe the way the data writes it.
+
+**Qualities stay unported and the module says so:** the port's item registry carries no quality table, so `qualities_available` has no caller yet. That is the next
+crafting rule, and it needs a store before it needs a check.

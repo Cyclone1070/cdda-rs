@@ -18,6 +18,8 @@ pub enum Craft {
     Started,
     /// Something on hand is missing: the recipe's components are not all there.
     MissingComponents,
+    /// A tool the recipe needs is not on hand, or not with enough charges.
+    MissingTools,
     /// The creature is already busy with something else.
     Busy,
     /// The recipe takes no time at all, which no recipe in the data does - a sign the time was never read.
@@ -165,9 +167,17 @@ pub fn begin_craft_from_carried(
     names: &crate::item_registry::ItemNames,
 ) -> Craft {
     let on_hand = crate::inventory::carried_by_id(world, crafter, |kind| names.name_of(kind));
-    begin_craft(world, crafter, recipe, batch, |item| {
-        on_hand.get(item).copied().unwrap_or(0)
-    })
+    // The same carried stacks answer the tool questions: a held tool is a stack that is there, and its charges are the stack's own.
+    let charges = crate::inventory::carried_by_id(world, crafter, |kind| names.name_of(kind));
+    begin_craft(
+        world,
+        crafter,
+        recipe,
+        batch,
+        |item| on_hand.get(item).copied().unwrap_or(0),
+        |item| i32::from(charges.contains_key(item)),
+        |item| charges.get(item).copied().unwrap_or(0),
+    )
 }
 
 /// A craft in progress.
@@ -196,12 +206,20 @@ pub fn begin_craft(
     recipe: &Recipe,
     batch: i32,
     on_hand: impl Fn(&str) -> i32,
+    tools_held: impl Fn(&str) -> i32,
+    tool_charges: impl Fn(&str) -> i32,
 ) -> Craft {
     if world.get::<Doing>(crafter).is_some() {
         return Craft::Busy;
     }
     if !recipe.components_available(batch, on_hand) {
         return Craft::MissingComponents;
+    }
+    // Reference: `character::making_would_work` -> `requirement_data::can_make_with_inventory` (`requirements.cpp:952-990`): **tools are part of the
+    // requirement**, a held tool is needed in that many copies and a tool that spends charges needs them per batch. A craft that skipped this started
+    // with bare hands and finished a recipe that needed a hammer.
+    if !recipe.tools_available(batch, tools_held, tool_charges) {
+        return Craft::MissingTools;
     }
     let batch = batch.max(1);
     let moves = recipe.time_moves.saturating_mul(i64::from(batch));

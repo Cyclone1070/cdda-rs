@@ -59,7 +59,7 @@ fn a_craft_begins_with_the_time_the_recipe_says() {
     let recipe = recipe(20_000, "rag", 2);
 
     assert_eq!(
-        begin_craft(&mut world, crafter, &recipe, 1, |item| i32::from(item == "rag") * 2),
+        begin_craft(&mut world, crafter, &recipe, 1, |item| i32::from(item == "rag") * 2, |_| 0, |_| 0),
         Craft::Started,
         "two rags are on hand and the recipe wants two"
     );
@@ -81,7 +81,7 @@ fn a_batch_multiplies_the_time() {
     let recipe = recipe(5_000, "rag", 1);
 
     assert_eq!(
-        begin_craft(&mut world, crafter, &recipe, 3, |_| 3),
+        begin_craft(&mut world, crafter, &recipe, 3, |_| 3, |_| 0, |_| 0),
         Craft::Started
     );
     assert_eq!(
@@ -98,7 +98,7 @@ fn a_craft_without_its_components_does_not_start() {
     let recipe = recipe(20_000, "rag", 2);
 
     assert_eq!(
-        begin_craft(&mut world, crafter, &recipe, 1, |item| i32::from(item == "rag")),
+        begin_craft(&mut world, crafter, &recipe, 1, |item| i32::from(item == "rag"), |_| 0, |_| 0),
         Craft::MissingComponents,
         "one rag is not two"
     );
@@ -117,7 +117,7 @@ fn a_busy_crafter_cannot_start_something_else() {
         subject: None,
     });
     let recipe = recipe(20_000, "rag", 1);
-    assert_eq!(begin_craft(&mut world, crafter, &recipe, 1, |_| 99), Craft::Busy);
+    assert_eq!(begin_craft(&mut world, crafter, &recipe, 1, |_| 99, |_| 0, |_| 0), Craft::Busy);
 }
 
 #[test]
@@ -126,7 +126,7 @@ fn a_recipe_with_no_time_is_refused_rather_than_finished_instantly() {
     let crafter = spawn_creature(&mut world, "the survivor", (0, 0, 0));
     let recipe = recipe(0, "rag", 1);
     assert_eq!(
-        begin_craft(&mut world, crafter, &recipe, 1, |_| 99),
+        begin_craft(&mut world, crafter, &recipe, 1, |_| 99, |_| 0, |_| 0),
         Craft::NoTimeToMakeIt,
         "no recipe in the data is instant, so a zero is a reader that failed, not a fast recipe"
     );
@@ -161,7 +161,7 @@ fn the_craft_takes_the_turns_it_said_it_would() {
     set_speed(&mut world, crafter, 100, 0);
     // Three hundred moves is three turns at a hundred a turn.
     let recipe = recipe(300, "rag", 1);
-    assert_eq!(begin_craft(&mut world, crafter, &recipe, 1, |_| 1), Craft::Started);
+    assert_eq!(begin_craft(&mut world, crafter, &recipe, 1, |_| 1, |_| 0, |_| 0), Craft::Started);
 
     cdda_sim::turn::run_turn(&mut world);
     cdda_sim::turn::run_turn(&mut world);
@@ -453,4 +453,52 @@ fn what_fits_no_pocket_lands_at_your_feet() {
     assert_eq!(carried.get("rope"), None, "it is not in the survivor's hands or pockets");
     let on_the_floor = cdda_sim::items_at(&mut world, (2, 0));
     assert_eq!(on_the_floor.len(), 1, "it is on the square the survivor stood on");
+}
+
+/// A recipe whose tool is missing does not start, and starts once it is on hand.
+///
+/// Reference: `Character::making_would_work` refuses when `deduped_requirements().can_make_with_inventory` says no, and that rule
+/// covers **tools and qualities as well as components** (`requirements.cpp:932-990`). The port's `begin_craft` looked only at components,
+/// so a recipe needing a hammer started with bare hands - a rule that could not be caught being wrong.
+#[test]
+fn a_craft_without_its_tool_does_not_start() {
+    use cdda_content::recipes::{Component, Recipe, Tool};
+    let recipe = Recipe {
+        id: "test_recipe".to_owned(),
+        result: "test_result".to_owned(),
+        blacklisted: false,
+        components: vec![vec![Component {
+            item: "rag".to_owned(),
+            count: 2,
+        }]],
+        // Reference: a **negative** count is a tool that is needed and not spent (`requirements.cpp:952-990`); a positive count is charges.
+        tools: vec![vec![Tool {
+            item: "hammer".to_owned(),
+            count: -1,
+        }]],
+        qualities: Vec::new(),
+        skill: String::new(),
+        difficulty: 0,
+        time_moves: 1_000,
+    };
+    let mut world = World::new();
+    let crafter = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let rags = |item: &str| i32::from(item == "rag") * 4;
+    let hands = |_: &str| 0;
+    let nothing = |_: &str| 0;
+    assert_eq!(
+        cdda_sim::crafting::begin_craft(&mut world, crafter, &recipe, 1, rags, hands, nothing),
+        cdda_sim::crafting::Craft::MissingTools,
+        "the hammer is not on hand"
+    );
+    assert!(
+        world.get::<cdda_sim::crafting::Making>(crafter).is_none(),
+        "and nothing was started"
+    );
+    let with_hammer = |item: &str| i32::from(item == "hammer");
+    assert_eq!(
+        cdda_sim::crafting::begin_craft(&mut world, crafter, &recipe, 1, rags, with_hammer, nothing),
+        cdda_sim::crafting::Craft::Started,
+        "with the tool it starts"
+    );
 }
