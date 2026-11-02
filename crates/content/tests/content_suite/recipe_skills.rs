@@ -18,6 +18,8 @@ fn recipe(skill: &str, difficulty: i32) -> Recipe {
         skill: skill.to_owned(),
         difficulty,
         time_moves: 0,
+        batch_rscale: 0.0,
+        batch_rsize: 0,
     }
 }
 

@@ -293,6 +293,8 @@ fn cancelling_a_craft_keeps_the_ingredients_and_loses_the_work() {
         skill: String::new(),
         difficulty: 0,
         time_moves: 20_000,
+        batch_rscale: 0.0,
+        batch_rsize: 0,
     };
     assert_eq!(
         begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
@@ -390,6 +392,8 @@ fn a_paused_craft_is_resumed_where_it_stopped() {
         skill: String::new(),
         difficulty: 0,
         time_moves: 20_000,
+        batch_rscale: 0.0,
+        batch_rsize: 0,
     };
     assert_eq!(
         begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
@@ -482,6 +486,8 @@ fn pain_interrupts_a_craft_and_the_work_is_kept() {
         skill: String::new(),
         difficulty: 0,
         time_moves: 20_000,
+        batch_rscale: 0.0,
+        batch_rsize: 0,
     };
     assert_eq!(
         begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
@@ -575,6 +581,8 @@ fn a_blow_stops_a_craft_without_anyone_asking_it_to() {
         skill: String::new(),
         difficulty: 0,
         time_moves: 20_000,
+        batch_rscale: 0.0,
+        batch_rsize: 0,
     };
     assert_eq!(
         begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),

@@ -64,6 +64,8 @@ fn names_for(entries: &[(u32, &str)]) -> cdda_sim::item_registry::ItemNames {
 
 fn recipe(time_moves: i64, needs: &str, count: i32) -> Recipe {
     Recipe {
+        batch_rscale: 0.0,
+        batch_rsize: 0,
         id: "test_recipe".to_owned(),
         result: "thing".to_owned(),
         blacklisted: false,
@@ -507,6 +509,8 @@ fn a_craft_without_its_tool_does_not_start() {
         skill: String::new(),
         difficulty: 0,
         time_moves: 1_000,
+        batch_rscale: 0.0,
+        batch_rsize: 0,
     };
     let mut world = World::new();
     let crafter = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
@@ -569,6 +573,8 @@ fn a_craft_that_needs_a_quality_asks_the_items_that_carry_it() {
         skill: String::new(),
         difficulty: 0,
         time_moves: 1_000,
+        batch_rscale: 0.0,
+        batch_rsize: 0,
     };
     let rag = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 1);
     world.entity_mut(rag).remove::<cdda_sim::Position>();
@@ -592,5 +598,40 @@ fn a_craft_that_needs_a_quality_asks_the_items_that_carry_it() {
         cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
         Craft::Started,
         "a level-three hammer satisfies a level-two requirement"
+    );
+}
+
+/// A recipe that benefits from batching takes less than `time * batch`, by the reference's own curve.
+///
+/// Reference: `recipe::batch_time` (`recipe.cpp:108-146`). The port had the arithmetic in `batch_time_moves` and **never called it from a craft**: `begin_craft`
+/// multiplied, so every one of the data's 1,148 batching recipes was charged full price. The numbers below are the reference's curve computed by hand:
+/// `time 1000`, `batch_time_factors [25, 8]`, batch 4 is **3549** moves, not 4000.
+#[test]
+fn a_batch_that_saves_time_is_charged_the_reference_curve() {
+    let mut world = World::new();
+    let crafter = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let mut batch_recipe = recipe(1_000, "rag", 1);
+    batch_recipe.batch_rscale = 0.25;
+    batch_recipe.batch_rsize = 8;
+    assert_eq!(
+        cdda_sim::crafting::begin_craft(&mut world, crafter, &batch_recipe, 4, &supplies_with(|_| 99)),
+        Craft::Started
+    );
+    assert_eq!(
+        world.get::<Doing>(crafter).map(|doing| doing.moves_left),
+        Some(3_549),
+        "a quarter off at the curve's far end, summed over four items"
+    );
+    // The same recipe without the factors is the plain product, which is the rule the port used to apply to everything.
+    let plain = recipe(1_000, "rag", 1);
+    let other = spawn_creature(&mut world, "the other", (1, 0, 0));
+    assert_eq!(
+        cdda_sim::crafting::begin_craft(&mut world, other, &plain, 4, &supplies_with(|_| 99)),
+        Craft::Started
+    );
+    assert_eq!(
+        world.get::<Doing>(other).map(|doing| doing.moves_left),
+        Some(4_000),
+        "no factors, no saving"
     );
 }

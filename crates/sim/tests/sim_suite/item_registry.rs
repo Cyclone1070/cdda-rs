@@ -104,6 +104,8 @@ fn a_craft_can_be_finished_without_a_caller_supplying_the_item_table() {
         skill: String::new(),
         difficulty: 0,
         time_moves: 100,
+        batch_rscale: 0.0,
+        batch_rsize: 0,
     };
     recipe.result = "rope".to_owned();
     for _ in 0..2 {
@@ -324,6 +326,8 @@ fn the_turn_loop_finishes_what_it_started() {
         skill: String::new(),
         difficulty: 0,
         time_moves: 200,
+        batch_rscale: 0.0,
+        batch_rsize: 0,
     };
     assert_eq!(
         crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),

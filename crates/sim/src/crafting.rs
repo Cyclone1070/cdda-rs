@@ -237,7 +237,7 @@ pub fn nothing_on_hand() -> Supplies<'static> {
 /// Starts making a recipe, if the things it needs are on hand.
 ///
 /// Reference: `Character::making_would_work` for the refusal and `Character::start_craft` for the activity, whose
-/// length is `recipe::batch_time( guy, batch, 1.0, 0 )` - one batch's time multiplied by the batch size.
+/// length is `recipe::batch_time( guy, batch, 1.0, 0 )`.
 ///
 /// `on_hand` says how many of an item id the crafter has. It is a closure rather than a lookup because the port has no
 /// inventory yet: the caller - eventually the inventory, today a test or a playtest - is the only thing that knows.
@@ -259,7 +259,16 @@ pub fn begin_craft(world: &mut World, crafter: Entity, recipe: &Recipe, batch: i
         return Craft::MissingQualities;
     }
     let batch = batch.max(1);
-    let moves = recipe.time_moves.saturating_mul(i64::from(batch));
+    // Reference: `recipe::batch_time` at full speed with no assistants - a recipe that benefits from batching takes less than `time * batch`, and the port
+    // multiplied and never asked, which over-charged every one of the data's 1,148 batching recipes.
+    let moves = crate::batch_time_moves(
+        recipe.time_moves,
+        batch,
+        recipe.batch_rscale,
+        f64::from(recipe.batch_rsize),
+        1.0,
+        0,
+    );
     let Ok(moves_left) = i32::try_from(moves) else {
         return Craft::NoTimeToMakeIt;
     };

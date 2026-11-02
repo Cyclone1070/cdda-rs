@@ -9665,3 +9665,24 @@ one out to keep a wrong expectation alive would be the worst of both worlds.**
 
 **The lesson belongs with the ledger's other false greens:** a gate that passes because a rule is missing is not a gate. **Two of them were hiding behind a rule nobody had
 written, and the rule's arrival is what exposed them.**
+
+## The batch curve was already written and never called (round 995)
+
+The third crafting rule is **batch time**, and the surprise is that the port did not need it written - `cdda_sim::batch_time_moves` has been in `lib.rs` since the
+crafting arithmetic went in, with the reference's scaled logistic, the assistants cut and the "never faster than one unit" floor. **`begin_craft` did not call it.** It
+multiplied.
+
+So every recipe that benefits from batching was charged full price. **1,148 of the data's recipes carry `batch_time_factors`** - two numbers, the saving per cent and
+the size it saturates at, which the loader now reads into `Recipe::batch_rscale` and `Recipe::batch_rsize`.
+
+| Case | Reference | Port before | Port now |
+|---|---|---|---|
+`time 1000`, factors `[25, 8]`, batch 4 | **3,549** moves | 4,000 | 3,549 |
+`time 1000`, no factors, batch 4 | 4,000 moves | 4,000 | 4,000 |
+
+**The test pins both rows on purpose.** The second row is the old behaviour and it is *correct* for a recipe without factors, so a test that only checked the first
+would pass on code that ignored the field entirely for everything else.
+
+**This is the second rule this phase found already written and unreachable** - `tools_available` and `qualities_available` were the first two, and `batch_time_moves`
+is the third. The pattern is the same each time: **the content layer knew the rule, the sim never asked.** A port can have a rule, a store and a test of the content
+layer and still charge the wrong number, because nothing connects them; what connects them is a test that starts a craft and reads the clock.

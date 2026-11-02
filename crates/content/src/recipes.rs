@@ -40,7 +40,8 @@ pub struct Quality {
 }
 
 /// One crafting recipe, as far as this loader reads it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
+#[allow(clippy::derive_partial_eq_without_eq)]
 pub struct Recipe {
     /// The recipe's id, which is not the same as the item it makes.
     pub id: String,
@@ -63,6 +64,12 @@ pub struct Recipe {
     pub skill: String,
     /// How skilled the crafter must be, on the reference's own scale.
     pub difficulty: i32,
+    /// How much a batch saves, as the reference's `batch_rscale`: zero for a recipe that gains nothing from batching.
+    ///
+    /// Reference: `batch_time_factors` (`recipe.cpp:242-246`) - the first number over a hundred, so `[25, 8]` is a quarter off at the scale's far end.
+    pub batch_rscale: f64,
+    /// How many items the batch saving reaches its 99.5% limit at, the reference's `batch_rsize`.
+    pub batch_rsize: i32,
     /// How long one batch takes, in moves.
     ///
     /// Reference: `recipe::time`, read with `to_moves<int>( read_from_json_string<time_duration> )` - so `"20 m"` is
@@ -207,6 +214,22 @@ pub fn from_dump(value: &Value) -> Option<(Vec<Recipe>, usize)> {
             time_moves: match member(object, "time_moves") {
                 Some(Value::Int(moves)) => *moves,
                 _ => member(object, "time").map_or(0, crate::constructions::duration_in_moves),
+            },
+            // Reference: `batch_time_factors` is `[percent, size]` (`recipe.cpp:242-246`): the first is divided by a hundred, and a recipe without the member
+            // gains nothing from batching.
+            batch_rscale: match member(object, "batch_time_factors") {
+                Some(Value::Array(factors)) => match factors.first() {
+                    Some(Value::Int(percent)) => f64::from(i32::try_from(*percent).unwrap_or(0)) / 100.0,
+                    _ => 0.0,
+                },
+                _ => 0.0,
+            },
+            batch_rsize: match member(object, "batch_time_factors") {
+                Some(Value::Array(factors)) => match factors.get(1) {
+                    Some(Value::Int(size)) => i32::try_from(*size).unwrap_or(0),
+                    _ => 0,
+                },
+                _ => 0,
             },
         });
     }

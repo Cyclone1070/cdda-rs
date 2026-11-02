@@ -22,6 +22,8 @@ fn recipe(
         skill: String::new(),
         difficulty: 0,
             time_moves: 0,
+            batch_rscale: 0.0,
+            batch_rsize: 0,
     }
 }
 
