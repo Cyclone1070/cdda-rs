@@ -343,6 +343,18 @@ pub enum Expression {
         /// The variable's name.
         name: String,
     },
+    /// A variable **with a fallback**: `{"global_val": "x", "default": 1}`.
+    ///
+    /// Reference: `dbl_or_var_part::evaluate` (`condition.cpp`): a part that names a variable answers what the dialogue holds for it, and the `default` member is
+    /// what it answers when the variable is unset. The data uses it where a first run has no value yet - a gamble multiplier that starts at one.
+    VariableOrDefault {
+        /// Which namespace, as the data spells it: `u_val`, `global_val`, `context_val`.
+        scope: String,
+        /// The variable's name.
+        name: String,
+        /// What to answer when the variable holds nothing.
+        fallback: f64,
+    },
     /// A pair of numbers the data wrote as an array, which means a random draw between them.
     ///
     /// Reference: `get_dbl_or_var` (`condition.cpp:207-226`) - a member written as a two-element array sets `pair`, and `dbl_or_var::evaluate` draws
@@ -1448,6 +1460,23 @@ fn read_expression_inner(value: &Value) -> Option<Expression> {
             }
             for scope in ["u_val", "n_val", "npc_val", "global_val", "var_val", "context_val"] {
                 if let Some(Value::Str(name)) = object.get(scope) {
+                    // A `default` beside the variable is the fallback `dbl_or_var_part::evaluate` uses when the variable holds nothing.
+                    if let Some(fallback) = object.get("default") {
+                        let fallback = match fallback {
+                            Value::Int(number) => {
+                                #[allow(clippy::cast_precision_loss)]
+                                let as_float = *number as f64;
+                                as_float
+                            }
+                            Value::Float(number) => *number,
+                            _ => return None,
+                        };
+                        return Some(Expression::VariableOrDefault {
+                            scope: scope.to_owned(),
+                            name: name.clone(),
+                            fallback,
+                        });
+                    }
                     return Some(Expression::Variable {
                         scope: scope.to_owned(),
                         name: name.clone(),
@@ -2037,7 +2066,11 @@ pub fn read_assignment(text: &str) -> Option<Assignment> {
         // A destination must be a variable: a number, a call or an operator chain is an expression, and a `math` statement
         // whose left-hand side is an expression has no place to put its answer.
         Expression::Call { name, arguments, .. } => AssignmentTarget::Call { name, arguments },
-        Expression::Number(_) | Expression::Text(_) | Expression::Pair { .. } | Expression::Binary { .. } => return None,
+        Expression::Number(_)
+        | Expression::Text(_)
+        | Expression::Pair { .. }
+        | Expression::Binary { .. }
+        | Expression::VariableOrDefault { .. } => return None,
     };
     Some(Assignment {
         target,

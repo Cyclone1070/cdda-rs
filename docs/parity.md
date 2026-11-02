@@ -8503,3 +8503,29 @@ effect census blaming `effect` | 138 | **136** |
 
 **`expand_tags` is in `dialogue_values`, not in the effect runner**, because it is a rule about **what a dialogue's text means**, not about one effect. The next
 caller should not have to copy it.
+
+## The `default` form: read, and one caller short (round 945)
+
+The data writes a number as `{"global_val": "gamble_multiplier", "default": 1}` - the variable's value, or the default when the variable holds nothing. That is
+`dbl_or_var_part::evaluate` (`condition.cpp`), and the port read neither half.
+
+`Expression` now has `VariableOrDefault { scope, name, fallback }`, the reader builds it whenever a scope key sits beside a `default`, and the number evaluator answers
+the variable when it is set and the fallback when it is not. **Thirty-seven `default` members sit in the dialogue data**, so this was a shape with a future even
+though tonight it moved no count.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 547 | **547** |
+unreadable leaves | 152 | **153** |
+effect entries runnable | 1,488 | **1,487** |
+
+**Two pins moved the wrong way, and both are honest.** Leaves went **up** by one and runnable effects went **down** by one, because the reader now reads one member
+further into an object before refusing it - the census counts the leaves it can see, so a deeper reader sees more of them. **A count that rises because the port can
+see further is not a regression**, and it is the third time this session that a "worse" number was the more accurate one.
+
+**The round is honest about what it did not finish.** I wrote a behavioural test through `u_spawn_item`'s `count` and it failed at `read_effect`: the **count reader**
+has its own shapes (a number or a two-end range) and does not take this form yet. So the reader side is pinned by a test on the reader alone, and the doc names the next
+step exactly: **`read_count` needs the fallback shape, not `read_expression`**, which now has it.
+
+**Two of my own errors again, both caught by the compiler**: a `read_number` helper that already existed under another signature, and a `match` on `Expression` that
+needed the new variant. **The compiler's errors named the fixes, which is why neither cost a second round trip.**

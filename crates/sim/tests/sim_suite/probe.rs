@@ -2298,3 +2298,30 @@ fn a_tagged_string_var_substitutes_what_it_knows_and_keeps_the_rest() {
         "the known tag is substituted and the unknown one stays as it was written"
     );
 }
+
+/// An expression written `{"global_val": "x", "default": 1}` reads as a variable **with a fallback**, not as a plain variable.
+///
+/// Reference: `dbl_or_var_part::evaluate` (`condition.cpp`) answers the variable and falls back to the data's `default` when it is unset. This test pins the
+/// **reader** only: the census's remaining `count` gap is in the spawn effect's own count reader, which takes a number or a range and not this shape, and that is
+/// where the next round starts - with the expression side already able to carry it.
+#[test]
+fn an_expression_with_a_default_reads_as_a_fallback() {
+    let with_default =
+        cdda_json::parse(br#"{"global_val": "gamble_multiplier", "default": 1}"#.as_slice()).expect("json");
+    let read = cdda_content::dialogue::read_expression(&with_default).expect("it reads");
+    assert!(
+        matches!(
+            read,
+            cdda_content::dialogue::Expression::VariableOrDefault { ref name, fallback, .. }
+                if name == "gamble_multiplier" && (fallback - 1.0).abs() < f64::EPSILON
+        ),
+        "the fallback is carried with the variable: {read:?}"
+    );
+
+    let plain = cdda_json::parse(br#"{"global_val": "gamble_multiplier"}"#.as_slice()).expect("json");
+    let read = cdda_content::dialogue::read_expression(&plain).expect("it reads");
+    assert!(
+        matches!(read, cdda_content::dialogue::Expression::Variable { .. }),
+        "and without a `default` it is a plain variable: {read:?}"
+    );
+}

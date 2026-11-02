@@ -1553,6 +1553,15 @@ pub fn value_drawing(
             let dice = draws.as_mut()?;
             Some(f64::from(dice.rng(low, high)))
         }
+        Expression::VariableOrDefault { scope, name, fallback } => {
+            // Reference: `dbl_or_var_part::evaluate` (`condition.cpp`) answers the variable's value, and the data's `default` when it holds nothing.
+            if scope == "context_val" {
+                let held = crate::dialogue_context::values(world, speaker).remove(name);
+                return Some(held.and_then(|text| text.parse::<f64>().ok()).unwrap_or(*fallback));
+            }
+            let holder = holder_for_scope(world, speaker, listener, scope)?;
+            Some(crate::dialogue_values::number_of(world, holder, name).unwrap_or(*fallback))
+        }
         Expression::Variable { scope, name } => {
             // Reference: `context_val( '…' )` reads the invocation's context (`dialogue.h`), which a `run_eocs` call fills from its
             // `variables` - so it is not a per-holder scope and has no holder to look up.
