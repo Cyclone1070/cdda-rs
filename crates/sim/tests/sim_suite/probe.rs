@@ -1960,3 +1960,29 @@ fn a_place_override_comes_due_one_second_after_its_length() {
     cdda_sim::calendar::set_turn(&mut world, 100 + 601);
     assert_eq!(cdda_sim::timed_events::has_happened(&world, "LIXA_escape_key"), Some(true), "but due a second later");
 }
+
+/// `mapgen_update` reads a list of updates and a target named by a `context_val`, which are the two shapes the data uses and the port refused.
+///
+/// Reference: `f_mapgen_update` (`npctalk.cpp:4820-4845`) takes the member as a string **or an array**, and `target_var` is any `var_info` - the fourth scope is
+/// `context_val`, which is what the data uses for a square a previous effect computed.
+#[test]
+fn a_mapgen_update_reads_a_list_and_a_context_target() {
+    let listed = cdda_json::parse(
+        br#"{"mapgen_update": [{"global_val": "random_encounter_map_remove"}],
+            "om_terrain": {"global_val": "random_encounter_omt"},
+            "target_var": {"global_val": "randenc_loc"}}"#
+            .as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&listed);
+    assert!(effect.is_some(), "a list of updates reads: {effect:?}");
+
+    let contextual = cdda_json::parse(
+        br#"{"mapgen_update": "place_food_warehouse", "om_terrain": "forest_thick",
+            "target_var": {"context_val": "search_locale"}}"#
+            .as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&contextual);
+    assert!(effect.is_some(), "a `context_val` target reads: {effect:?}");
+}

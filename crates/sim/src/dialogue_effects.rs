@@ -1291,16 +1291,20 @@ const SEARCH_RANGE: i32 = 540;
 /// Reference: `f_mapgen_update` (`npctalk.cpp`): with no target named, the update is applied at the speaker's own overmap tile.
 fn run_mapgen_update(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
     let Effect::MapgenUpdate {
-        update,
+        updates,
         target,
         om_terrain,
     } = effect
     else {
         return Applied::CannotAnswer;
     };
-    let Some(name) = crate::conditions::text_of(world, speaker, listener, update) else {
-        return Applied::CannotAnswer;
-    };
+    let mut names = Vec::with_capacity(updates.len());
+    for update in updates {
+        let Some(name) = crate::conditions::text_of(world, speaker, listener, update) else {
+            return Applied::CannotAnswer;
+        };
+        names.push(name);
+    }
     // Three ways to aim an update, in the reference's own precedence: a `target_var` names a square the dialogue already holds, an `om_terrain`
     // names a tile to search for, and with neither the update lands where the speaker stands.
     let here = world.get::<crate::Position>(speaker).copied();
@@ -1327,13 +1331,22 @@ fn run_mapgen_update(world: &mut World, speaker: Entity, listener: Option<Entity
     let Some(place) = placed else {
         return Applied::CannotAnswer;
     };
-    let Some(_) = crate::mapgen_update::apply(world, &name, place) else {
-        return Applied::CannotAnswer;
-    };
+    for name in &names {
+        if crate::mapgen_update::apply(world, name, place).is_none() {
+            return Applied::CannotAnswer;
+        }
+    }
     // An update may place fields as well as terrain, and an update that does only one is still an update.
-    match crate::mapgen_update::place_fields(world, &name, place) {
-        Some(_) => Applied::Done,
-        None => Applied::CannotAnswer,
+    let mut placed_fields = false;
+    for name in &names {
+        if crate::mapgen_update::place_fields(world, name, place).is_some() {
+            placed_fields = true;
+        }
+    }
+    if placed_fields {
+        Applied::Done
+    } else {
+        Applied::CannotAnswer
     }
 }
 

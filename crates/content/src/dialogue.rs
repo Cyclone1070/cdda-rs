@@ -2529,8 +2529,10 @@ pub enum Effect {
     /// speaker's own when the data names none. The port reads the no-target form and refuses `om_terrain`, `target_var`, `target_params` and
     /// `mapgen_update_variables`, which aim it somewhere else.
     MapgenUpdate {
-        /// The update mapgen's id.
-        update: StringSource,
+        /// The update mapgens to apply, in the order the data gives them - a single id or a list of them.
+        ///
+        /// Reference: `f_mapgen_update` (`npctalk.cpp:4820-4845`) reads the member as a string or an array of strings, and each is applied at the same target.
+        updates: Vec<StringSource>,
         /// The square to apply it at, when the data names one; the speaker's own square otherwise.
         target: Option<AssignmentTarget>,
         /// The overmap terrain to apply it at, found by searching; the speaker's own square when neither this nor `target` is named.
@@ -3085,8 +3087,15 @@ fn read_mapgen_update(object: &cdda_json::Object) -> Option<Effect> {
         Some(value) => Some(read_string_source(value)?),
         None => None,
     };
+    let updates = match update {
+        Value::Array(entries) => entries
+            .iter()
+            .map(read_string_source)
+            .collect::<Option<Vec<_>>>()?,
+        single => vec![read_string_source(single)?],
+    };
     Some(Effect::MapgenUpdate {
-        update: read_string_source(update)?,
+        updates,
         target,
         om_terrain,
     })
@@ -3106,7 +3115,8 @@ fn read_variable_target(value: &Value) -> Option<AssignmentTarget> {
         return None;
     };
     match scope.as_str() {
-        "u_val" | "npc_val" | "global_val" | "n_val" => Some(AssignmentTarget::Variable {
+        // `context_val` is the fourth scope the reference's `read_var_info` accepts, and the data uses it for a target the dialogue computed a moment ago.
+        "u_val" | "npc_val" | "global_val" | "n_val" | "context_val" => Some(AssignmentTarget::Variable {
             scope: scope.clone(),
             name: name.clone(),
         }),

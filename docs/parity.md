@@ -8169,3 +8169,30 @@ A refusal that appears because a reader got wider is the census doing its job.
 
 **The plus-one is the assertion.** The test checks the event is **not** due at exactly its length and **is** due one turn later. Without the plus-one it would pass at
 the length too; with it, the test fails if the sync second is dropped - which is the one number in this effect that is easy to lose.
+
+## `mapgen_update` reads a list and a fourth scope (round 933)
+
+`mapgen_update` was the biggest one-gap entry (4 programs, 15 effect entries) and the port already had the effect - `read_mapgen_update`, `mapgen_update::apply`,
+the search for an `om_terrain`, and the targeting by `target_var`. Two shapes were refused:
+
+1. **A list of updates.** The reference reads the member as a string **or an array of strings** (`npctalk.cpp:4820-4845`), applies each at the same target. The port
+   read one; `Effect::MapgenUpdate.update` is now `updates: Vec<StringSource>`, and the runner applies them in the data's order.
+2. **A `context_val` target.** `read_variable_target` accepted `u_val`, `npc_val`, `global_val` and `n_val` - but the reference's `read_var_info` accepts
+   **`context_val`** too, and the data uses it for a square a previous effect computed.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 528 | **534** |
+answered `Done` | 349 | **350** |
+unreadable leaves | 191 | **176** |
+one-gap programs | 49 | **45** |
+effect entries runnable | 1,444 | **1,459** |
+effect census blaming `effect` | 155 | **149** |
+
+**Fifteen effect entries from a widened reader, and eight new refusals that are progress.** The census now refuses `target_var` eight times **at run time**: those
+updates name a square in a variable that the program never set, and the runner says so rather than applying a mapgen at the speaker's feet. **A refusal that appears
+when a reader widens is the census reporting what the data actually does**, not a regression - the port has moved from "cannot read this at all" to "can read it, and
+refuses when the world does not hold what it names".
+
+**A scope list is a rule, not a convenience.** `context_val` was missing from a four-name list, and that alone cost 6 programs. The reference's `read_var_info`
+(`condition.cpp`) accepts exactly these four scopes everywhere it is called; the port now lists all four in the one place it maps them.
