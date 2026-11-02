@@ -7833,3 +7833,29 @@ conditions readable | 3,212 | **3,215** |
 **A pinning mistake worth recording.** I pinned `conditions_readable` and `effect_blamed` from memory of the previous round instead of reading the numbers the census
 printed, and the gate caught it: the true values were 3,215 and 177, not 3,212 and 173. Two numbers I "knew" were wrong, and the only reason they did not persist
 is that the test compares them. That is the same lesson as the hour-is-3600-turns mistake, from the other side: **the pins are not bookkeeping, they are assertions.**
+
+## `finish_mission`: the store was already there (round 921)
+
+`finish_mission` (2 programs) needed no new store at all: `missions::accept`, `missions::finish` and `missions::has_mission` have existed since the mission round, and
+the effect is a named mission, a `success` flag that defaults to **false** (`npctalk.cpp:5932`), and an optional `step` that advances a staged mission instead of
+finishing it.
+
+`Effect::FinishMission` reads it and drops the mission from the character's active list. **The `step` form refuses**, because the port has no step counter, and
+answering `Done` for one would claim a rule it does not have.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 503 | **506** |
+answered `Done` | 328 | **329** |
+refused at run time | 175 | **177** |
+unreadable leaves | 301 | **296** |
+one-gap programs | 67 | **65** |
+effect entries runnable | 1,403 | **1,408** |
+effect census blaming `effect` | 177 | **174** |
+
+**Three programs and five effect entries for a reader and a call.** The store existed; only the wiring was missing - the fourth round running where that was the whole
+job, which is what the port looks like once the rules are ahead of the plumbing.
+
+**Recorded, not hidden:** the port has no *completed* or *failed* record. The reference moves a mission to a finished state and later pays its reward; the port drops it
+from the active list, so a program that asked "was this finished" would get a different answer than the reference gives. No data in the census asks that yet, and the
+moment one does, that is a store to build.

@@ -1672,3 +1672,27 @@ fn a_bare_u_driving_condition_reads_and_answers_no() {
     let condition = cdda_content::dialogue::read_condition(&value).expect("the condition reads");
     assert!(cdda_sim::conditions::holds(&world, survivor, &condition), "not driving, so its negation holds");
 }
+
+/// `finish_mission` takes the mission off the character's list, and finishing one that was never taken does nothing.
+///
+/// Reference: `f_finish_mission` (`npctalk.cpp:5928-5950`): the avatar's own mission is completed or failed; one the character does not hold is not an error. The port
+/// keeps the active list and drops the entry - it has no completed-or-failed record yet, which is written down rather than pretended.
+#[test]
+fn a_finished_mission_leaves_the_list() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::missions::set_avatar(&mut world, survivor);
+    cdda_sim::missions::accept(&mut world, survivor, "MISSION_INVESTIGATE_TRADER");
+
+    let value = cdda_json::parse(br#"{"finish_mission": "MISSION_INVESTIGATE_TRADER", "success": false}"#.as_slice()).expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    let applied = cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect);
+    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "it runs");
+    assert!(!cdda_sim::missions::has_mission(&world, survivor, "MISSION_INVESTIGATE_TRADER"), "the mission is gone");
+
+    // A mission that was never taken is not an error.
+    let value = cdda_json::parse(br#"{"finish_mission": "MISSION_NEVER_TAKEN"}"#.as_slice()).expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("and the one-argument form reads");
+    let applied = cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect);
+    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "still a completed effect");
+}

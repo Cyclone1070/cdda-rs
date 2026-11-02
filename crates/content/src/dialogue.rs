@@ -1587,6 +1587,7 @@ fn read_unnamed_effect(object: &cdda_json::Object) -> Option<Effect> {
         .or_else(|| read_copy_var(object))
         .or_else(|| read_alter_timed_events(object))
         .or_else(|| read_set_condition(object))
+        .or_else(|| read_finish_mission(object))
 }
 
 /// Reads a `sound_effect` entry.
@@ -1604,6 +1605,24 @@ fn read_sound_effect(object: &cdda_json::Object) -> Option<Effect> {
             Some(value) => read_count(Some(value))?,
         },
         outdoor_event: matches!(object.get("outdoor_event"), Some(Value::Bool(true))),
+    })
+}
+
+/// Reads a `finish_mission` entry.
+///
+/// Reference: `f_finish_mission` (`npctalk.cpp:5928-5938`): `success` defaults to **false**, and an integer `step` means the effect advances a staged mission
+/// instead of finishing it.
+fn read_finish_mission(object: &cdda_json::Object) -> Option<Effect> {
+    let mission = object.get("finish_mission")?;
+    let step = match object.get("step") {
+        None => None,
+        Some(Value::Int(number)) => Some(i32::try_from(*number).ok()?),
+        Some(_) => return None,
+    };
+    Some(Effect::FinishMission {
+        mission: read_string_source(mission)?,
+        success: matches!(object.get("success"), Some(Value::Bool(true))),
+        step,
     })
 }
 
@@ -1987,6 +2006,19 @@ pub enum Effect {
         volume: CountRange,
         /// Whether it is only heard outdoors.
         outdoor_event: bool,
+    },
+    /// Finishes a mission: taken off the character's list, as done or as failed.
+    ///
+    /// Reference: `f_finish_mission` (`npctalk.cpp:5928-5950`): the member names the mission, `success` defaults to **false**, and a `step` member advances a
+    /// staged mission instead. The port drops the mission from the character's active list; it does not yet keep a completed-or-failed record, which is a store the
+    /// data's own mission rewards would need.
+    FinishMission {
+        /// The mission's id.
+        mission: StringSource,
+        /// Whether it was a success.
+        success: bool,
+        /// The step of a staged mission, when the data advances one.
+        step: Option<i32>,
     },
     /// Stores a named condition, to be asked later.
     ///
@@ -2466,6 +2498,7 @@ impl Effect {
             Self::CopyVar { .. } => "copy_var",
             Self::AlterTimedEvents { .. } => "alter_timed_events",
             Self::SetCondition { .. } => "set_condition",
+            Self::FinishMission { .. } => "finish_mission",
             Self::SpawnItem { .. } => "u_spawn_item",
             Self::ConsumeItem { listener, .. } => {
                 if *listener {

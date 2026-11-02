@@ -553,6 +553,28 @@ fn pick_type(
     drawn
 }
 
+/// Finishes a mission: taken off the character's list.
+///
+/// Reference: `f_finish_mission` (`npctalk.cpp:5939-5950`): the avatar's own mission is completed or failed, and a mission the character does not hold does nothing.
+/// A staged mission (`step`) is not run yet: the port has no step counter, and answering `Done` for one would claim a rule it does not have.
+fn finish_mission(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::FinishMission { mission, step, .. } = effect else {
+        return Applied::CannotAnswer;
+    };
+    if step.is_some() {
+        return Applied::CannotAnswer;
+    }
+    let Some(named) = crate::conditions::text_of(world, speaker, listener, mission) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(creature) = crate::missions::avatar(world) else {
+        return Applied::CannotAnswer;
+    };
+    // A mission the character does not hold is not an error - the reference's `has_mission` guard simply does nothing - so the answer is `Done` either way.
+    crate::missions::finish(world, creature, &named);
+    Applied::Done
+}
+
 /// Stores a named condition, to be asked later.
 ///
 /// Reference: `f_set_condition` (`npctalk.cpp:5868-5880`): the condition is written into the dialogue's variables, and `u_has_condition` reads it back and evaluates
@@ -1582,6 +1604,7 @@ fn run_store_effect(
         Effect::CopyVar { .. } => copy_var(world, speaker, listener, effect),
         Effect::AlterTimedEvents { .. } => alter_timed_events(world, speaker, listener, effect),
         Effect::SetCondition { .. } => set_condition(world, speaker, listener, effect),
+        Effect::FinishMission { .. } => finish_mission(world, speaker, listener, effect),
         // Audio changes no game state, and the port has no audio: Done, not refused - nothing is missing from the simulation, only from the sound card. A
         // comment-only entry does nothing, which the reference's loader also does with it.
         Effect::PlaySoundEffect { .. } | Effect::Nothing => Applied::Done,
