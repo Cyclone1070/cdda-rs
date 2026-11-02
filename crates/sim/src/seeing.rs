@@ -23,3 +23,24 @@ pub fn can_see(world: &World, creature: Entity) -> bool {
         .iter()
         .any(|effect| crate::applied_effects::has(world, creature, effect))
 }
+
+/// Whether a creature can see a square, casting a line through the terrain.
+///
+/// Reference: `talker_character_const::can_see_location` (`talker_character.cpp:923-928`) is `Creature::sees( here, pos )`, which narrows the range with the
+/// **ambient light at the target** (`creature.cpp:636-676`) and then asks `map::sees`. The port has the cast ([`crate::sees`]) and no per-square ambient light yet,
+/// so it casts at `MAX_VIEW_DISTANCE`: in the dark it sees too far, and it never sees through a wall. When a light cache lands, this is the line that narrows.
+#[must_use]
+pub fn can_see_location(world: &World, creature: Entity, target: (i32, i32)) -> bool {
+    if !can_see(world, creature) {
+        return false;
+    }
+    let Some(at) = world.get::<crate::Position>(creature) else {
+        return false;
+    };
+    crate::sees(
+        world,
+        (at.x, at.y),
+        target,
+        cdda_core_types::light::MAX_VIEW_DISTANCE,
+    )
+}

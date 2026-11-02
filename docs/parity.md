@@ -8107,3 +8107,33 @@ rendering (`frame.rs:186-210`, the same `transparency_cache` idea as `lightmap.c
 
 **One test now pins the negative**: `an_if_with_an_else_reads_whole` asserts the branch is **refused** and that the condition is the reason, so the round that adds a
 line of sight will fail this test first, which is exactly what a red gate is for.
+
+## A line of sight, and four programs unblocked (round 931)
+
+Last round found that `<nested>` was not nested: it was `u_can_see_location`, which needs a **line of sight**. This round built one.
+
+`f_can_see_location` (`condition.cpp:2173-2181`) reads a `var_info` and asks the actor's `can_see_location` - `talker_character.cpp:923-928`, which is
+`Creature::sees( here, pos )`. The port already had the cast (`crate::sees`, `map::sees` over the terrain and furniture transparency layers with the fields counted)
+and the asleep-and-awake check (`seeing::can_see`), so the new piece is one function: `seeing::can_see_location(world, creature, target)`.
+
+**The reference narrows the cast with the ambient light at the target** (`creature.cpp:636-676`). The port has no per-square ambient light, so it casts at
+`MAX_VIEW_DISTANCE` and says so in the function's own doc: **in the dark it sees too far, and it never sees through a wall.** The test pins an open floor and a wall
+at a distance where the light rule cannot differ, so the day it grows a light cache, this test still means the same thing.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 525 | **526** |
+answered `Done` | 347 | **348** |
+unreadable leaves | 197 | **196** |
+one-gap programs | 52 | **51** |
+effect entries runnable | 1,438 | **1,439** |
+effect census blaming `effect` | 158 | **157** |
+conditions the port can answer | 3,216 | **3,217** |
+
+**The first version of the test was wrong, and the wrongness was instructive.** It built a world with terrain and no **level**, and every answer came back `no` -
+including the creature's own square. `sees_on_one_level` (`core-types/src/vision.rs:317-339`) refuses any target outside the map, so a world with no map has no
+visible squares. The test now loads a real level, and it prints three answers first if it ever regresses, so the next person sees *which* answer moved.
+
+**A decision inside the answer.** A variable holding no square, or one the dialogue has no holder for, is answered **no** rather than refused: the reference would
+have no square to pass either, and the condition is a yes-or-no question, so refusing would throw away a whole program over a variable that was never set. That
+choice is written above the function that makes it (`can_see_asked`).

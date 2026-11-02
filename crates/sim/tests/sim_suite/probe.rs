@@ -1895,11 +1895,44 @@ fn an_if_with_an_else_reads_whole() {
     assert!(cdda_content::dialogue::read_effect(&message).is_some(), "the message reads");
     let condition =
         cdda_json::parse(br#"{"u_can_see_location": {"context_val": "pos"}}"#.as_slice()).expect("json");
-    // The census blamed `<nested>` on the `else` branch's message. It is the **condition** that refuses: `u_can_see_location`
-    // (`condition.cpp:2173-2179`) asks whether the avatar can see a point, which needs a line of sight the port does not have yet. The test records where the gap
-    // really is, so the round that adds a line of sight starts here rather than at the blame list's entry.
+    // The census blamed `<nested>` on the `else` branch's message; the gap was the **condition**. With a line of sight in place
+    // (`condition.cpp:2173-2181` -> `talker_character.cpp:923-928`), the branch reads whole and the message was never the problem.
     let read = cdda_content::dialogue::read_condition(&condition);
-    assert!(read.is_none(), "the condition is the gap, not the message: {read:?}");
+    assert!(read.is_some(), "the condition reads now: {read:?}");
     let effect = cdda_content::dialogue::read_effect(&value);
-    assert!(effect.is_none(), "so the whole branch waits on it");
+    assert!(effect.is_some(), "so the whole branch reads: {effect:?}");
+}
+
+/// A creature sees a square across open floor and not through a wall.
+///
+/// Reference: `talker_character_const::can_see_location` (`talker_character.cpp:923-928`) is `Creature::sees( here, pos )`, and `creature.cpp:631-676` narrows the
+/// range with the ambient light at the target before casting a line through `map::sees`. The port has no per-square ambient light yet, so it casts at
+/// `MAX_VIEW_DISTANCE` - it can see too far in the dark, but never through a wall, which is what this test pins at a distance where light cannot matter.
+#[test]
+fn a_creature_sees_across_floor_but_not_through_a_wall() {
+    let mut world = bevy_ecs::prelude::World::new();
+    // A real level, because a line of sight is bounded by the map: `sees_on_one_level` refuses any target outside it, which is why the first version of this test
+    // answered no to every square including the creature's own.
+    let mut level = cdda_core_types::level::Level::new();
+    for x in 0..24 {
+        for y in 0..24 {
+            level.set_terrain(x, y, 1, 1);
+        }
+    }
+    level.set_terrain(12, 10, 2, 2);
+    cdda_sim::load_level(&mut world, &level);
+    // Codes 1 and 2 are open floor and a wall. `insert` records whether a code lets light through, which is the terrain half of `map::is_transparent`.
+    let mut terrain = cdda_sim::terrain_table::TerrainTable::new();
+    terrain.insert(1, true);
+    terrain.insert(2, false);
+    let mut furniture = cdda_sim::terrain_table::TerrainTable::new();
+    furniture.insert(0, true);
+    cdda_sim::set_prototypes(&mut world, cdda_sim::Prototypes { terrain, furniture });
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (10, 10, 0));
+
+    assert!(cdda_sim::seeing::can_see_location(&world, survivor, (14, 9)), "open floor is seen");
+    assert!(
+        !cdda_sim::seeing::can_see_location(&world, survivor, (14, 10)),
+        "a wall in the way is not seen through"
+    );
 }

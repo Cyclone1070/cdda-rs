@@ -10,6 +10,16 @@ use cdda_json::Value;
 /// A condition the port can evaluate.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Condition {
+    /// Whether an actor can see a square that a variable holds.
+    ///
+    /// Reference: `f_can_see_location` (`condition.cpp:2173-2181`): the member is a `var_info`, and the answer is the actor's `can_see_location` of the square it
+    /// holds - `talker_character.cpp:923-928`, `Creature::sees( here, pos )`.
+    CanSeeLocation {
+        /// The variable's scope and name.
+        target: (String, String),
+        /// Whether it asks about the listener rather than the speaker.
+        listener: bool,
+    },
     /// Whether a creature is standing under the sky.
     ///
     /// Reference: `f_is_outside` (`condition.cpp:2650`) with `is_creature_outside` (`weather.cpp:76`), which asks the map about the creature's own square.
@@ -548,6 +558,14 @@ pub fn read_condition(value: &Value) -> Option<Condition> {
     }
     if let Some(math) = object.get("math") {
         return read_expression(math).map(Condition::Math);
+    }
+    for (member, listener) in [("u_can_see_location", false), ("npc_can_see_location", true)] {
+        if let Some(Value::Object(target)) = object.get(member) {
+            return Some(Condition::CanSeeLocation {
+                target: named_variable(target)?,
+                listener,
+            });
+        }
     }
     for (member, listener) in [("u_at_om_location", false), ("npc_at_om_location", true)] {
         if let Some(place) = object.get(member) {

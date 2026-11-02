@@ -454,6 +454,7 @@ fn holds_within(
         Condition::OneInChance(_) | Condition::XInYChance { .. } => {
             rolls_against(world, speaker, listener, condition, draws)
         }
+        Condition::CanSeeLocation { .. } => can_see_asked(world, speaker, listener, condition),
         Condition::AtOmLocation { place, listener: about_listener } => {
             at_om_location(world, speaker, listener, place, *about_listener)
         }
@@ -1405,6 +1406,34 @@ fn special_function(
 /// The table of functions that answer from their arguments rather than from a body or a roll.
 ///
 /// Reference: `math_parser_diag.cpp`'s function tables (`:1550-1760`) plus the arithmetic in `math_parser_func.h` - one name, one meaning, no scope.
+/// Answers `u_can_see_location` / `npc_can_see_location`: whether an actor can see the square a variable holds.
+///
+/// Reference: `f_can_see_location` (`condition.cpp:2173-2181`) reads the member as a `var_info`, takes the square it holds, and asks the actor's
+/// `can_see_location` - `talker_character.cpp:923-928`, which is `Creature::sees( here, pos )`. A variable holding anything but a square is nowhere to look, and
+/// the reference has no square to pass either; the port answers no rather than refusing, because the condition itself is a yes-or-no question.
+/// Answers the can-see-location question for the exhaustive match, defaulting to no.
+///
+/// A variable that is unset, or one the dialogue has no holder for, is nowhere to look - and the reference would have no square to pass either. The condition is a
+/// yes-or-no question, so the port answers **no** rather than refusing the whole program.
+fn can_see_asked(world: &World, speaker: Entity, listener: Option<Entity>, condition: &Condition) -> bool {
+    answer_can_see_location(world, speaker, listener, condition).unwrap_or(false)
+}
+
+fn answer_can_see_location(world: &World, speaker: Entity, listener: Option<Entity>, condition: &cdda_content::dialogue::Condition) -> Option<bool> {
+    let cdda_content::dialogue::Condition::CanSeeLocation { listener: theirs, target } = condition else {
+        return None;
+    };
+    let actor = if *theirs { listener } else { Some(speaker) };
+    let actor = actor?;
+    let holder = holder_for_scope(world, speaker, listener, &target.0)?;
+    match crate::dialogue_values::value_of(world, holder, &target.1) {
+        Some(crate::dialogue_values::Value::Position { x, y, .. }) => {
+            Some(crate::seeing::can_see_location(world, actor, (x, y)))
+        }
+        _ => Some(false),
+    }
+}
+
 fn answer_from_table(
     world: &World,
     speaker: Entity,
