@@ -601,6 +601,24 @@ fn pick_type(
     drawn
 }
 
+/// Gives the creature mutations, and answers only a depth that asks for none.
+///
+/// Reference: `f_mutate` (`npctalk.cpp:3568-3570`): `d.actor( is_npc )->mutate( highest_cat )`, which draws mutations from the pools the depth reaches. The port has no
+/// mutation pool, so a depth of **zero** - which asks for nothing - is answered, and any real depth refuses. **The refusal is the honest half of a store gap: the rule is
+/// read, and the day a mutation pool exists this branch loses its second sentence rather than being rewritten.**
+fn mutate(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::Mutation { highest_category, .. } = effect else {
+        return Applied::CannotAnswer;
+    };
+    let Some(depth) = draw(world, speaker, listener, highest_category) else {
+        return Applied::CannotAnswer;
+    };
+    if depth <= 0.0 {
+        return Applied::Done;
+    }
+    Applied::CannotAnswer
+}
+
 /// Stores the square of a monster of a given kind found around the actor.
 ///
 /// Reference: `f_location_variable` (`npctalk.cpp:4300-4320`): the walk is the same `points_in_radius` the furniture search makes, comparing the creature's type id,
@@ -2377,6 +2395,7 @@ fn run_store_effect(
         Effect::RunInvEocs { .. } => run_inv_eocs(world, speaker, listener, effect),
         Effect::LocationVariableAdjust { .. } => adjust_location(world, speaker, listener, effect),
         Effect::MonsterAround { .. } => store_monster_around(world, speaker, effect),
+        Effect::Mutation { .. } => mutate(world, speaker, listener, effect),
         // Audio changes no game state, and the port has no audio: Done, not refused - nothing is missing from the simulation, only from the sound card. A
         // comment-only entry does nothing, which the reference's loader also does with it.
         Effect::PlaySoundEffect { .. } | Effect::Nothing => Applied::Done,

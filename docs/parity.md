@@ -9040,3 +9040,29 @@ have, not a rule it has not written. That distinction is the useful thing this r
 
 **The test asks both flags with and without a listener**, including that a listener does not take the alpha away - a port that set both from the same source would pass
 the first two assertions and fail the third.
+
+## `u_mutate` at depth zero: a real answer from a store the port lacks (round 965)
+
+`f_mutate` (`npctalk.cpp:3563-3571`) gives the character mutations up to a **category depth**: `mutate( highest_cat )` draws from the pools that depth reaches. The port
+has no mutation pool - so the tempting move was to refuse the whole thing and move on.
+
+**Instead: a depth of zero reaches no pool.** `{"u_mutate": 0}` asks for no mutation at all, so the effect changes nothing, and that is a **real answer** rather than an
+approximation. The port reads every mutation entry and answers the ones that ask for nothing.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 569 | **573** |
+answered `Done` | 371 | **375** |
+did something | 270 | **273** |
+unreadable leaves | 124 | **119** |
+one-gap programs | 21 | **18** |
+effect entries runnable | 1,513 | **1,517** |
+effect census blaming `effect` | 115 | **111** |
+
+**Four programs, five leaves, four effect entries** - from a **no-op**. That is the largest per-line return of the last twenty rounds, and the reason is uncomfortable:
+the corpus is full of effects written to *clear* things, and **clearing is what a port without a store can already do exactly.**
+
+**The test asks both depths.** Depth zero must answer `Done`; depth two must answer `CannotAnswer` - so the tempting shortcut, a silent `Done` for anything the port
+cannot do, fails on the second assertion. **The refusal is the honest half of a store gap, and it is the half that keeps the census worth reading.**
+
+**And the arm is written so the day a mutation pool exists it loses its second sentence rather than being rewritten** - the rule is read, the store is what is missing.

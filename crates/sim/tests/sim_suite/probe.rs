@@ -3029,3 +3029,26 @@ fn a_dialogue_knows_whether_it_has_someone_to_talk_as_and_to() {
         "a listener does not take the alpha away"
     );
 }
+
+/// A mutation of depth zero asks for nothing, and is answered; a real depth is refused until there is a mutation pool.
+///
+/// Reference: `f_mutate` (`npctalk.cpp:3563-3571`): `mutate( highest_cat )` draws from the pools the depth reaches, so depth zero reaches none of them. The test asks
+/// both depths, so a port that answered a real depth with a silent `Done` - the tempting shortcut - fails on the second assertion.
+#[test]
+fn a_mutation_of_depth_zero_asks_for_nothing_and_is_answered() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let none = cdda_json::parse(br#"{"u_mutate": 0}"#.as_slice()).expect("json");
+    let effect = cdda_content::dialogue::read_effect(&none).expect("the effect reads");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    let real = cdda_json::parse(br#"{"u_mutate": 2}"#.as_slice()).expect("json");
+    let effect = cdda_content::dialogue::read_effect(&real).expect("the effect reads");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        cdda_sim::dialogue_effects::Applied::CannotAnswer,
+        "a real depth needs a mutation pool the port does not have"
+    );
+}
