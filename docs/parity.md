@@ -9136,3 +9136,28 @@ LIXA switch do that the port's `switch` rule does not carry?**
 
 All three attempts are reverted; the tree is exactly as it was. **The value this round produced is the table above** - three measurements of the same rule with one
 variable changed each time, which is what turns "it did not work" into "it fails here."
+
+## The LIXA switch question, narrowed to one expression (round 969)
+
+Last round ended with a question: *what does a LIXA switch do that the port's switch rule does not carry?* This round answers the first half of it.
+
+The switch itself is fine. A test built from the LIXA shape - `{"switch": {"math": ["u_LIXA_entry"]}, "cases": [...]}` - reads, runs, and answers `Done`. **What it does not do
+is pick a case**, so the value the switch reads is not the two the dialogue holds.
+
+**The suspicion, and why it is still only a suspicion:** a bare name inside `{"math": [...]}` is read as a variable in scope `var_val` with the **whole name** as its
+name, while the reference's `read_var_value` splits `u_`, `npc_`/`n_`, `global_` and `var_` prefixes out of the name itself. Splitting the prefix was tried, the test
+still ran no case, and the change was **reverted unmeasured** - so the prefix is **not** the whole story, and the next round starts from the pinned test rather than
+from this paragraph.
+
+**The test pins the behaviour the port has**, with the assertion written so that **flipping it is the receipt**: `!lines.contains("two")` today, `contains("two")` the
+day the value resolves. That is deliberately not a red test - a red test would block every other round - and it is not a green claim either: it says **KNOWN GAP** in
+its own failure text.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 574 | **574** |
+ran in a fresh world | 376 | **376** |
+
+**No count moved, and that is the second honest no-count round in a row** - but it is the first one that ends with the next question **pinned by a test** instead of by a
+paragraph. Both remaining big levers (the 35-caller LIXA programs and the 35 `switch` refusals) now lead to this one expression, and the test is small enough to read in
+a minute.

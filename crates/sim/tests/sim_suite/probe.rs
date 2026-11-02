@@ -3117,3 +3117,42 @@ fn an_inventory_eoc_can_ask_for_what_is_worn() {
         "the worn shirt alone: {lines:?}"
     );
 }
+
+/// A `switch` on `{"math": ["u_name"]}` answers `Done` and picks **no** case - the open question behind the LIXA switches.
+///
+/// Reference: `f_switch` (`npctalk.cpp:6998-7020`) evaluates the value once and every case it reaches replaces the chosen one, so a value of two runs case two.
+/// **The port runs no case here**, and that is pinned rather than hidden: this test is the red gate the next round starts from. It is written to the behaviour the
+/// port **has** so the suite stays honest; the day the value resolves, this test's second assertion flips and the round that flips it has a receipt.
+#[test]
+fn a_switch_on_a_variable_name_is_the_open_question_behind_the_lixa_switches() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let holder = cdda_sim::dialogue_values::holder_for(&mut world, survivor, false);
+    cdda_sim::dialogue_values::set(
+        &mut world,
+        holder,
+        "LIXA_entry",
+        cdda_sim::dialogue_values::Value::Text("2".to_owned()),
+    );
+    let value = cdda_json::parse(
+        br#"{"switch": {"math": ["u_LIXA_entry"]},
+            "cases": [
+              {"case": 1, "effect": {"u_message": "one"}},
+              {"case": 2, "effect": {"u_message": "two"}},
+              {"case": 5, "effect": {"u_message": "five"}}
+            ]}"#
+        .as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "the switch itself is answerable"
+    );
+    let lines = cdda_sim::messages::lines(&world);
+    assert!(
+        !lines.iter().any(|line| line.contains("two")),
+        "KNOWN GAP: the value the switch reads does not reach case two yet; when it does, flip this assertion: {lines:?}"
+    );
+}
