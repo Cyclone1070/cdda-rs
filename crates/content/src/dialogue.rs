@@ -1588,6 +1588,7 @@ fn read_unnamed_effect(object: &cdda_json::Object) -> Option<Effect> {
         .or_else(|| read_alter_timed_events(object))
         .or_else(|| read_set_condition(object))
         .or_else(|| read_finish_mission(object))
+        .or_else(|| read_remove_active_mission(object))
 }
 
 /// Reads a `sound_effect` entry.
@@ -1605,6 +1606,15 @@ fn read_sound_effect(object: &cdda_json::Object) -> Option<Effect> {
             Some(value) => read_count(Some(value))?,
         },
         outdoor_event: matches!(object.get("outdoor_event"), Some(Value::Bool(true))),
+    })
+}
+
+/// Reads a `remove_active_mission` entry.
+///
+/// Reference: `f_remove_active_mission` (`npctalk.cpp:5959-5963`): one member, the mission's id.
+fn read_remove_active_mission(object: &cdda_json::Object) -> Option<Effect> {
+    Some(Effect::RemoveActiveMission {
+        mission: read_string_source(object.get("remove_active_mission")?)?,
     })
 }
 
@@ -2011,6 +2021,14 @@ pub enum Effect {
         volume: CountRange,
         /// Whether it is only heard outdoors.
         outdoor_event: bool,
+    },
+    /// Drops a mission from the character's list without calling it done or failed.
+    ///
+    /// Reference: `f_remove_active_mission` (`npctalk.cpp:5959-5973`): the avatar's own mission of that type is removed and the search stops at the first match.
+    /// The port keeps one entry per mission type, so "the first match" is the only one there is.
+    RemoveActiveMission {
+        /// The mission's id.
+        mission: StringSource,
     },
     /// Finishes a mission: taken off the character's list, as done or as failed.
     ///
@@ -2515,6 +2533,7 @@ impl Effect {
             Self::AlterTimedEvents { .. } => "alter_timed_events",
             Self::SetCondition { .. } => "set_condition",
             Self::FinishMission { .. } => "finish_mission",
+            Self::RemoveActiveMission { .. } => "remove_active_mission",
             Self::SpawnItem { .. } => "u_spawn_item",
             Self::ConsumeItem { listener, .. } => {
                 if *listener {

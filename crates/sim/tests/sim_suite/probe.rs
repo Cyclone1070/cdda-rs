@@ -1772,3 +1772,22 @@ fn a_spawn_at_a_location_lands_there() {
     let places: Vec<(i32, i32)> = items.iter(&world).map(|(at, _)| (at.x, at.y)).collect();
     assert_eq!(places, vec![(9, 4)], "the item is where `loc` said");
 }
+
+/// `remove_active_mission` drops the mission without finishing it, and removing one the character never took does nothing.
+///
+/// Reference: `f_remove_active_mission` (`npctalk.cpp:5959-5973`): the avatar's mission of that type is removed and the search stops at the first match. The port
+/// keeps one entry per mission type, so the first match is the only one there is - which is the same answer.
+#[test]
+fn a_removed_active_mission_leaves_the_list_unfinished() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::missions::set_avatar(&mut world, survivor);
+    cdda_sim::missions::accept(&mut world, survivor, "MISSION_CAMP_LEADERSHIP_CHANGE");
+
+    let value = cdda_json::parse(br#"{"remove_active_mission": "MISSION_CAMP_LEADERSHIP_CHANGE"}"#.as_slice()).expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    let applied = cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect);
+    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "it runs");
+    assert!(!cdda_sim::missions::has_mission(&world, survivor, "MISSION_CAMP_LEADERSHIP_CHANGE"), "the mission is gone");
+    assert!(cdda_sim::missions::active_missions(&world, survivor).is_empty(), "and nothing else was touched");
+}

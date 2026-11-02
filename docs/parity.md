@@ -7912,3 +7912,26 @@ costs every program that touches the effect, which is why the last two rounds ha
 **A mistake of mine, caught by my own test.** The runner patch did not apply the first time - the text I replaced was not there - and the item kept landing at the
 origin. The test failed with `[(0, 0)]` against `[(9, 4)]`, which is exactly the shape of failure a "did it run" assertion would have missed. Fixed by extracting
 `item_place`, which is also the right shape: one function that answers "where does this go", used by the spawner and testable on its own.
+
+## `remove_active_mission`: the pair of last round's mission effect (round 924)
+
+The data has two ways to take a mission away: `finish_mission` (completed or failed, with a `success` flag) and `remove_active_mission` (`npctalk.cpp:5959-5973`),
+which drops it without saying how it ended. The port now reads both, and both go through `missions::finish` - the same store operation, two different reasons, and the
+**difference is recorded rather than flattened**: the port has no finished-or-failed record, so those two effects currently leave the same trace.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 514 | **516** |
+answered `Done` | 331 | **333** |
+did something | 235 | **237** |
+unreadable leaves | 220 | **214** |
+one-gap programs | 61 | **62** |
+effect entries runnable | 1,422 | **1,428** |
+effect census blaming `effect` | 166 | **164** |
+
+**The one-gap count went UP, from 61 to 62, and that is the frontier moving rather than a regression.** Two programs that used to be stuck behind a whole unreadable
+position are now spendable, and one of them moved close enough that its next gap became visible. The rule from earlier rounds holds: a rise here means the port can
+see further, not that it went backwards.
+
+**Six effect entries from one reader** - `remove_active_mission` is used by every faction-camp program that hands a job back, so the effect count moved three times as
+much as the program count.
