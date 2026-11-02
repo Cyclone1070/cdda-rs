@@ -8971,3 +8971,28 @@ mistakes fail on the same assertion, which is why the case carries two rocks and
 
 **`"manual"` is still refused**, and that refusal is now joined by a mode the port *can* answer without a menu. **The rule is not "any mode the port finds easy"; it is
 "any mode whose answer does not depend on a question nobody asked."**
+
+## `location_variable_adjust`: moving a square the dialogue holds (round 962)
+
+`f_location_variable_adjust` (`npctalk.cpp:4411-4448`) is a small effect with three separate ideas in it, and the port now has all three: `x_adjust`/`y_adjust` move
+the square - **in overmap tiles** when `overmap_tile` is set - `z_adjust` moves the level or **replaces** it with `z_override`, and `output_var` sends the answer
+somewhere other than the variable it came from, leaving the input untouched.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 565 | **567** |
+answered `Done` | 369 | **370** |
+did something | 268 | **269** |
+refused at run time | 196 | **197** |
+unreadable leaves | 132 | **127** |
+effect entries runnable | 1,506 | **1,510** |
+effect census blaming `effect` | 119 | **117** |
+
+**Five leaves and four effect entries from one effect**, because the adjust object appears in several programs at once.
+
+**The test asks for all three ideas in one case** - tiles, an overridden level, and an output variable - and then asserts the **input is untouched**. A port that wrote
+back to the input as well as to the output would pass every assertion but that one, and it would be wrong in a way the data would notice later: the reference writes to
+one variable, never two.
+
+**`read_math_expression` did the adjust reading**, so a two-end array - `"x_adjust": [-1, 1]`, the shape the corpus actually writes - is a **draw between the ends**
+without a line of new code. That is the third time this session a shared reader has carried a new effect; the readers are worth more than the effects that use them.

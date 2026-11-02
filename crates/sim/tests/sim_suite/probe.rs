@@ -2928,3 +2928,44 @@ fn an_inventory_eoc_can_ask_for_the_wielded_item_or_one_at_random() {
         "one drawn from two: {lines:?}"
     );
 }
+
+/// `location_variable_adjust` moves a square the dialogue holds, in squares or in overmap tiles, and writes it back or elsewhere.
+///
+/// Reference: `f_location_variable_adjust` (`npctalk.cpp:4419-4446`): `overmap_tile` counts the x and y moves in tiles, `z_override` replaces the level, and
+/// `output_var` sends the answer somewhere other than the variable it came from. The test asks for all three in one case, so a port that ignored any of them fails.
+#[test]
+fn a_location_adjust_moves_a_square_by_tiles_and_overrides_the_level() {
+    let mut world = bevy_ecs::prelude::World::new();
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(5));
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let globals = cdda_sim::dialogue_values::holder_for(&mut world, survivor, true);
+    cdda_sim::dialogue_values::set(
+        &mut world,
+        globals,
+        "storm",
+        cdda_sim::dialogue_values::Value::Position { x: 48, y: 24, z: 0 },
+    );
+    let value = cdda_json::parse(
+        br#"{"location_variable_adjust": {"global_val": "storm"}, "overmap_tile": true,
+            "x_adjust": 1, "y_adjust": -1, "z_adjust": -2, "z_override": true,
+            "output_var": {"global_val": "edge"}}"#
+            .as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    let tile = cdda_sim::overmap::SQUARES_PER_OMT;
+    assert_eq!(
+        cdda_sim::dialogue_values::value_of(&world, globals, "edge"),
+        Some(cdda_sim::dialogue_values::Value::Position { x: 48 + tile, y: 24 - tile, z: -2 }),
+        "one tile right, one tile up, and the level replaced rather than moved"
+    );
+    assert_eq!(
+        cdda_sim::dialogue_values::value_of(&world, globals, "storm"),
+        Some(cdda_sim::dialogue_values::Value::Position { x: 48, y: 24, z: 0 }),
+        "and the input variable is untouched, because an output was named"
+    );
+}

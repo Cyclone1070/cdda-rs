@@ -601,6 +601,63 @@ fn pick_type(
     drawn
 }
 
+/// Moves a square the dialogue holds, and stores the new one.
+///
+/// Reference: `f_location_variable_adjust` (`npctalk.cpp:4419-4446`): with `overmap_tile` the x and y moves count **overmap tiles** rather than squares, `z_override`
+/// replaces the level instead of moving it, and the answer goes to `output_var` when the data names one and back to the input variable when it does not.
+fn adjust_location(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::LocationVariableAdjust {
+        scope,
+        name,
+        output,
+        x_adjust,
+        y_adjust,
+        z_adjust,
+        z_override,
+        overmap_tile,
+    } = effect
+    else {
+        return Applied::CannotAnswer;
+    };
+    let Some(holder) = crate::conditions::holder_for_scope(world, speaker, listener, scope) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(crate::dialogue_values::Value::Position { x, y, z }) = crate::dialogue_values::value_of(world, holder, name) else {
+        return Applied::CannotAnswer;
+    };
+    let (Some(dx), Some(dy), Some(dz)) = (
+        draw(world, speaker, listener, x_adjust),
+        draw(world, speaker, listener, y_adjust),
+        draw(world, speaker, listener, z_adjust),
+    ) else {
+        return Applied::CannotAnswer;
+    };
+    let tile = if *overmap_tile {
+        crate::overmap::SQUARES_PER_OMT
+    } else {
+        1
+    };
+    let moved = (
+        x + as_whole(dx) * tile,
+        y + as_whole(dy) * tile,
+        if *z_override { as_whole(dz) } else { z + as_whole(dz) },
+    );
+    let (scope, name) = match output {
+        Some((scope, name)) => (scope.clone(), name.clone()),
+        None => (scope.clone(), name.clone()),
+    };
+    let Some(target) = crate::conditions::holder_for_scope(world, speaker, listener, &scope) else {
+        return Applied::CannotAnswer;
+    };
+    crate::dialogue_values::set(
+        world,
+        target,
+        &name,
+        crate::dialogue_values::Value::Position { x: moved.0, y: moved.1, z: moved.2 },
+    );
+    Applied::Done
+}
+
 /// Runs programs on the items a creature carries, once per matching item.
 ///
 /// Reference: `f_run_inv_eocs` (`npctalk.cpp:6760-6805`) with the `"all"` mode runs `true_eocs` on every matching item, handing each one to the program through the
@@ -2272,6 +2329,7 @@ fn run_store_effect(
         Effect::TransformRadius { .. } => transform_radius(world, speaker, listener, effect),
         Effect::GiveAchievement { .. } => give_achievement(world, speaker, listener, effect),
         Effect::RunInvEocs { .. } => run_inv_eocs(world, speaker, listener, effect),
+        Effect::LocationVariableAdjust { .. } => adjust_location(world, speaker, listener, effect),
         // Audio changes no game state, and the port has no audio: Done, not refused - nothing is missing from the simulation, only from the sound card. A
         // comment-only entry does nothing, which the reference's loader also does with it.
         Effect::PlaySoundEffect { .. } | Effect::Nothing => Applied::Done,

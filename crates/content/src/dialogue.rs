@@ -1677,6 +1677,7 @@ fn read_unnamed_effect(object: &cdda_json::Object) -> Option<Effect> {
         .or_else(|| read_transform_radius(object))
         .or_else(|| read_give_achievement(object))
         .or_else(|| read_run_inv_eocs(object))
+        .or_else(|| read_location_variable_adjust(object))
 }
 
 /// Reads a `sound_effect` entry.
@@ -2251,6 +2252,29 @@ pub enum Effect {
         volume: CountRange,
         /// Whether it is only heard outdoors.
         outdoor_event: bool,
+    },
+    /// Moves a square the dialogue holds, and stores the new one.
+    ///
+    /// Reference: `f_location_variable_adjust` (`npctalk.cpp:4411-4448`): the member names the variable holding the square, `x_adjust` and `y_adjust` move it (by
+    /// **overmap tiles** when `overmap_tile` is set), `z_adjust` moves the level or replaces it with `z_override`, and the answer goes to `output_var` or back to the
+    /// variable it came from.
+    LocationVariableAdjust {
+        /// Which holder the square came from.
+        scope: String,
+        /// The variable holding the square.
+        name: String,
+        /// Where the answer goes, when the data names somewhere other than where it came from.
+        output: Option<(String, String)>,
+        /// How far to move it on x.
+        x_adjust: Expression,
+        /// How far to move it on y.
+        y_adjust: Expression,
+        /// How far to move the level, or the level to set.
+        z_adjust: Expression,
+        /// Whether `z_adjust` replaces the level instead of moving it.
+        z_override: bool,
+        /// Whether the x and y moves are counted in overmap tiles.
+        overmap_tile: bool,
     },
     /// Runs programs on the items a creature carries.
     ///
@@ -2990,7 +3014,8 @@ impl Effect {
             | Self::TransformRadius { .. }
             | Self::GiveAchievement { .. }
             | Self::FurnitureAround { .. }
-            | Self::RunInvEocs { .. } => self.store_kind().unwrap_or_default(),
+            | Self::RunInvEocs { .. }
+            | Self::LocationVariableAdjust { .. } => self.store_kind().unwrap_or_default(),
             Self::PlaceOverride { .. } => "place_override",
             Self::SpawnItem { .. } => "u_spawn_item",
             Self::ConsumeItem { listener, .. } => {
@@ -3706,6 +3731,36 @@ fn read_switch(object: &cdda_json::Object) -> Option<Effect> {
 /// Reference: `f_location_variable` (`npctalk.cpp:4194`). The searching forms (`target_params`, a `terrain`/`furniture`/`field`/`monster`/`npc`/
 /// `species`/`trap`/`zone` list, radii) walk the overmap and the map for the nearest match, which nothing in the port can do yet - and answering
 /// them with the actor's own square would be a wrong answer that looked right.
+/// Reads a `location_variable_adjust` entry.
+///
+/// Reference: `f_location_variable_adjust` (`npctalk.cpp:4411-4448`): the member is the input `var_info`, `output_var` where the answer goes, and the three adjusts
+/// are `dbl_or_var`s - numbers, or a two-end array the game draws between.
+fn read_location_variable_adjust(object: &cdda_json::Object) -> Option<Effect> {
+    let Value::Object(input) = object.get("location_variable_adjust")? else {
+        return None;
+    };
+    let (scope, name) = named_variable(input)?;
+    let adjust = |key: &str| match object.get(key) {
+        None => Some(Expression::Number(0.0)),
+        Some(given) => read_math_expression(given),
+    };
+    let output = match object.get("output_var") {
+        None => None,
+        Some(Value::Object(wanted)) => Some(named_variable(wanted)?),
+        Some(_) => return None,
+    };
+    Some(Effect::LocationVariableAdjust {
+        scope,
+        name,
+        output,
+        x_adjust: adjust("x_adjust")?,
+        y_adjust: adjust("y_adjust")?,
+        z_adjust: adjust("z_adjust")?,
+        z_override: matches!(object.get("z_override"), Some(Value::Bool(true))),
+        overmap_tile: matches!(object.get("overmap_tile"), Some(Value::Bool(true))),
+    })
+}
+
 /// Reads a `u_run_inv_eocs` entry, or nothing.
 ///
 /// Reference: `f_run_inv_eocs` (`npctalk.cpp:6760-6805`): the member is the selection mode, `search_data` a list of filters, and `true_eocs` the programs. A mode
