@@ -9754,3 +9754,25 @@ practice at a craft's finish | **not yet** - it needs the tick count, the cap an
 otherwise be buried inside `practice` and never seen. **The remaining pieces of the rule are named so the next round starts where this one stopped:** the tick count is
 `time_to_craft_moves / 100` per craft (`activity_actor.cpp:4232`), the cap is `recipe::get_skill_cap`, and the train chain takes the intelligence-and-perception catchup
 modifier (`practice`, `character.cpp:2818-2822`).
+
+## A craft taught nothing (round 999)
+
+The practice rule is in. `finish_craft` now lays on the skill the recipe names, through the chain `docs/parity.md` named last round: the tick count is the craft's
+**nominal time over a hundred** (`activity_actor.cpp:4232`), the cap is **`difficulty * 1.25`** (`recipe.cpp:70-77`), and `practice` scales the amount by **focus**,
+multiplies by a hundred and refuses once the practical level is past the cap.
+
+| Piece | Rule |
+|---|---|
+ticks | `time_moves / 100`, the same number for a batch of one or twenty |
+cap | `difficulty * 1.25`, truncated |
+scale | focus, then a hundred |
+catch-up | `1 + (2·INT + PER)/24`, which is **2.0** at the reference's average of eight |
+knowledge | `1 + INT/40`, which is **1.2** at the same average |
+
+**The statistics are the one place this stands on an average rather than a value.** The port has no intelligence and no perception, and the reference's own comments
+state what its average produces - "2 for an average person" and "1.2 for an average person" (`character.cpp:2818-2822`) - which back-solves to eight in each. Those
+two constants are named in `skills_of::practice` and that function is the only thing that changes the day the stats arrive.
+
+**What the test cost, and what it caught:** the first version expected the accessor to report the stored experience rather than the points it keeps in hundredths -
+**36, not 3,600** - and the second forgot that a crafter mid-activity is busy, so the capped craft never started. **Both were the test being wrong about the store,
+not the rule being wrong:** the same shape as the tool encoding two rounds ago, and the reason the receipt records the confusion rather than hiding it.

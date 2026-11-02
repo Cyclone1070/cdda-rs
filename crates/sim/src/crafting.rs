@@ -95,6 +95,13 @@ pub fn finish_craft(world: &mut World, crafter: Entity, names: &crate::item_regi
     // progresses, and the port's craft is a single timer with no progress hook, so it spends the whole lot when the thing is made. A craft abandoned halfway
     // costs nothing in the port and some charges in the reference, which is recorded in `docs/parity.md` rather than papered over.
     spend_tool_charges(world, crafter, &making.recipe, making.batch, names);
+    // Reference: `activity_actor.cpp:4232-4238` spreads the craft's practice across its progress and `craft_skill_gain` (`crafting.cpp:981-1033`) lays it on. The
+    // port's craft has no progress hook, so the whole craft's worth is laid on when the thing is made - the same tick count the reference finishes with.
+    if !making.recipe.skill.is_empty() {
+        let ticks = crate::skills_of::craft_practice_ticks(making.recipe.time_moves);
+        let cap = crate::skills_of::craft_skill_cap(making.recipe.difficulty);
+        crate::skills_of::practice(world, crafter, &making.recipe.skill, ticks, cap);
+    }
     let result = making.recipe.result.clone();
     let Some(kind) = names.id_of(&result) else {
         // The result is not an item this world knows: the components have already been decided, so the honest answer

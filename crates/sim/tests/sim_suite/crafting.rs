@@ -738,3 +738,60 @@ fn a_tool_that_burns_charges_has_them_spent_and_a_held_one_does_not() {
     };
     assert_eq!(left, 2, "two batches of five came out of the twelve");
 }
+
+/// Making something teaches the skill the recipe names, by the craft's own tick count, scaled by focus, and not past the recipe's cap.
+///
+/// Reference: `craft_skill_gain` is called with `time_to_craft_moves / 100` ticks (`activity_actor.cpp:4232-4238`) and calls `practice( skill, ticks, skill_cap )`
+/// (`crafting.cpp:1032`); `practice` scales by focus, multiplies by a hundred and refuses once the practical level is above `recipe::get_skill_cap` - `difficulty *
+/// 1.25` (`recipe.cpp:70-77`). The port finished a craft and taught nothing.
+#[test]
+fn a_craft_teaches_the_skill_it_names() {
+    let mut world = World::new();
+    let crafter = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let names = names_for(&[(1, "rag")]);
+    let mut learned = recipe(3_600, "rag", 1);
+    learned.skill = "survival".to_owned();
+    learned.difficulty = 1;
+    for _ in 0..2 {
+        let rag = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 1);
+        world.entity_mut(rag).remove::<cdda_sim::Position>();
+        world.entity_mut(rag).insert(cdda_sim::creature::Carried(crafter));
+    }
+    cdda_sim::recipes_known::learn(&mut world, crafter, &learned.id);
+    assert_eq!(
+        cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &learned, 1, &names),
+        Craft::Started
+    );
+    let exercise_before = cdda_sim::skills_of::exercise_of(&world, crafter, "survival");
+    cdda_sim::crafting::finish_craft(&mut world, crafter, &names);
+    let exercise_after = cdda_sim::skills_of::exercise_of(&world, crafter, "survival");
+    assert!(
+        exercise_after > exercise_before,
+        "the craft taught something: {exercise_before} then {exercise_after}"
+    );
+    // 3,600 moves is thirty-six ticks; the experience behind the accessor is kept in hundredths, so a hundred focus turns thirty-six ticks into thirty-six
+    // points - the same number the reference's `practice` would lay on.
+    assert_eq!(exercise_after - exercise_before, 36, "the tick count is the craft's own");
+    // The cap is `difficulty * 1.25`, so a level above it earns nothing. The activity the finish ended is cleared first, because a crafter mid-activity is busy.
+    cdda_sim::creature::stop_doing(&mut world, crafter);
+    cdda_sim::skills_of::set_level(&mut world, crafter, "survival", 2);
+    let mut again = recipe(3_600, "rag", 1);
+    again.skill = "survival".to_owned();
+    again.difficulty = 1;
+    for _ in 0..2 {
+        let rag = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 1);
+        world.entity_mut(rag).remove::<cdda_sim::Position>();
+        world.entity_mut(rag).insert(cdda_sim::creature::Carried(crafter));
+    }
+    assert_eq!(
+        cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &again, 1, &names),
+        Craft::Started
+    );
+    let capped_before = cdda_sim::skills_of::exercise_of(&world, crafter, "survival");
+    cdda_sim::crafting::finish_craft(&mut world, crafter, &names);
+    assert_eq!(
+        cdda_sim::skills_of::exercise_of(&world, crafter, "survival"),
+        capped_before,
+        "level two is above a level-one recipe's cap"
+    );
+}
