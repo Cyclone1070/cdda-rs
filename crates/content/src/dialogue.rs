@@ -816,7 +816,6 @@ fn read_spawn_monster(object: &cdda_json::Object) -> Option<Effect> {
             "target_var",
             "mon_variables",
             "open_air_allowed",
-            "friendly",
             "summoner_is_alpha",
             "summoner_is_beta",
         ] {
@@ -824,6 +823,14 @@ fn read_spawn_monster(object: &cdda_json::Object) -> Option<Effect> {
                 return None;
             }
         }
+        // Reference: `f_spawn_monster` (`npctalk.cpp:7371-7420`) reads `friendly` as a **turns count** - how long the spawn stays friendly to the player, and zero
+        // for a permanently hostile one. The port keeps a [`Friendly`](cdda_sim::friendly) marker on the creature and reads this member as a yes/no.
+        let friendly = match object.get("friendly") {
+            None => false,
+            Some(Value::Bool(flag)) => *flag,
+            Some(Value::Int(number)) => *number > 0,
+            Some(_) => return None,
+        };
         let monster = read_string_source(monster)?;
         let real_count = read_count(object.get("real_count"))?;
         let hallucination_count = read_count(object.get("hallucination_count"))?;
@@ -870,6 +877,7 @@ fn read_spawn_monster(object: &cdda_json::Object) -> Option<Effect> {
             indoor_only,
             spawn_message: message("spawn_message")?,
             spawn_message_plural: message("spawn_message_plural")?,
+            friendly,
         });
     }
     None
@@ -2645,6 +2653,8 @@ pub enum Effect {
         real_count: CountRange,
         /// How many hallucinations, drawn the same way.
         hallucination_count: CountRange,
+        /// Whether the spawns are friendly to the player rather than hostile.
+        friendly: bool,
         /// How near the actor they may appear.
         min_radius: i32,
         /// How far from the actor they may appear.

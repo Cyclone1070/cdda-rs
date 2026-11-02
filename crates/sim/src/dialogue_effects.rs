@@ -1210,6 +1210,7 @@ fn spawn_monsters(world: &mut World, speaker: Entity, listener: Option<Entity>, 
         indoor_only,
         spawn_message,
         spawn_message_plural,
+        friendly,
     } = effect
     else {
         return Applied::CannotAnswer;
@@ -1283,21 +1284,37 @@ fn spawn_monsters(world: &mut World, speaker: Entity, listener: Option<Entity>, 
             square,
             100,
         );
-        if made >= real {
-            world
-                .entity_mut(made_entity)
-                .insert(crate::monster_spawning::Hallucination);
-        }
-        // Reference: `spawned->set_summon_time( lifespan )` when the data gives one, and both real and imagined spawns take it.
-        if let Some((lower, upper)) = lifespan
-            && let Some(turns) = draw_between(world, *lower, *upper)
-            && let Some(calendar) = crate::calendar::of(world)
-        {
-            let until = calendar.turn + turns;
-            crate::monster_spawning::summon_until(world, made_entity, until);
-        }
+        dress_spawn(world, made_entity, made >= real, *lifespan, *friendly);
     }
     Applied::Done
+}
+
+/// Gives one spawn the marks the data asks for: imagined, friendly, and how long it stays.
+///
+/// Reference: `f_spawn_monster` (`npctalk.cpp:7371-7450`) marks hallucinations, sets `monster::friendly` when the data asks, and calls
+/// `spawned->set_summon_time( lifespan )` - which both real and imagined spawns take.
+fn dress_spawn(
+    world: &mut World,
+    spawn: Entity,
+    imagined: bool,
+    lifespan: Option<(i64, i64)>,
+    friendly: bool,
+) {
+    if imagined {
+        world.entity_mut(spawn).insert(crate::monster_spawning::Hallucination);
+    }
+    // The port has no attitudes yet, so friendliness is a **marker** on the creature - one component, no second source of truth - and the attitude rules can
+    // read it when they land.
+    if friendly {
+        world.entity_mut(spawn).insert(crate::friendly::Friendly);
+    }
+    if let Some((lower, upper)) = lifespan
+        && let Some(turns) = draw_between(world, lower, upper)
+        && let Some(calendar) = crate::calendar::of(world)
+    {
+        let until = calendar.turn + turns;
+        crate::monster_spawning::summon_until(world, spawn, until);
+    }
 }
 
 /// Draws a number between two ends, both included.

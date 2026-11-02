@@ -8732,3 +8732,34 @@ move; that is the difference between a living refusal list and a dead one.**
 
 **The one thing I would not do here:** answer the part question *as if* there were parts - inventing per-limb effects the store cannot hold. **The port answers what its
 model can hold and says so**, which is the rule that has kept the architecture absolute for nine hundred rounds.
+
+## `friendly`: a marker, not a turn count (round 953)
+
+`u_spawn_monster` refused any entry with `friendly`, and the refusal was in a list of seven members the port could not carry out. Six of them still are. `friendly` is
+not one of them any more: the reference reads it as a **turns count** and sets `monster::friendly`, and the port reads it as a yes/no and puts a
+[`Friendly`](../crates/sim/src/friendly.rs) **marker** on the creature.
+
+**The marker is the deliberate part.** The reference's friendly is a number - how long the ally stays an ally - and the port could store a number it has nothing to read
+for. It stores the **fact** instead, as one component: a creature either is on the player's side or is not, and anything that asks reads the store. When the turn count
+earns its keep (a summon that turns on its master), it becomes a number on that same component and **every site that asks the question keeps working**.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 555 | **556** |
+answered `Done` | 363 | **365** |
+did something | 265 | **267** |
+refused at run time | 192 | **191** |
+unreadable leaves | 143 | **142** |
+one-gap programs | 31 | **30** |
+effect entries runnable | 1,495 | **1,496** |
+effect census blaming `effect` | 129 | **128** |
+
+**The test spawns one of each**, so a reader that ignored the member fails the first assertion and one that always set it fails the second. **A one-sided test would
+have passed on the wrong code**, which is the same lesson as the `u_query` round and the third time it has been worth writing both halves.
+
+**Clippy forced a refactor that the architecture wanted anyway**: the spawn runner crossed 100 lines, so the three marks a spawn takes - imagined, friendly, summon
+time - became `dress_spawn`. The function now says *what* a spawn is given and the caller says *which* spawn gets it. **The 100-line cap is not bureaucracy: it caught a
+function doing two jobs.**
+
+**And a test written against a type that does not exist** - `MonsterType::default()` - was rewritten to build the type **from the data's own JSON**, which is how the
+other spawn tests do it. A monster type has thirty members and a literal would drift from the loader the moment either changed.

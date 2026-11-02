@@ -2511,3 +2511,64 @@ fn a_has_effect_with_a_bodypart_answers_about_the_creature() {
         "and the effect is the creature's, which is the only place the port can put it"
     );
 }
+
+/// A `u_spawn_monster` with `friendly` marks the spawn as the player's, and one without it does not.
+///
+/// Reference: `f_spawn_monster` (`npctalk.cpp`) sets `monster::friendly` when the data asks for it. The test spawns one of each, so a reader that ignored the member
+/// would fail the first assertion and one that always set it would fail the second.
+#[test]
+fn a_friendly_spawn_is_marked_and_a_plain_one_is_not() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let mut level = cdda_core_types::level::Level::new();
+    for x in -12..12 {
+        for y in -12..12 {
+            level.set_terrain(x, y, 0, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the second", (1, 0, 0));
+    // Built from the data's own shape, the way the other spawn tests build one: a monster type has thirty members and a literal would drift.
+    let prototype = cdda_json::parse(
+        br#"{"id": "mon_shadow", "name": {"str": "shadow"}, "symbol": "x", "color": "black", "hp": 10, "speed": 100}"#
+            .as_slice(),
+    )
+    .expect("json");
+    let kind = cdda_content::monsters::load_objects(&[prototype])
+        .expect("readable")
+        .into_iter()
+        .next()
+        .expect("one type");
+    cdda_sim::monster_registry::set_monster_types(
+        &mut world,
+        &[cdda_sim::monster_registry::MonsterKind { id: "mon_shadow", hp: 10 }],
+    );
+    cdda_sim::monster_catalog::set_types(&mut world, vec![kind]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(7));
+
+    let spawn = |world: &mut bevy_ecs::prelude::World, text: &str| {
+        let value = cdda_json::parse(text.as_bytes()).expect("json");
+        let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+        cdda_sim::dialogue_effects::run_effect(world, survivor, None, &effect)
+    };
+    assert_eq!(
+        spawn(&mut world, r#"{"u_spawn_monster": "mon_shadow", "real_count": 1, "friendly": true}"#),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    assert_eq!(
+        spawn(&mut world, r#"{"u_spawn_monster": "mon_shadow", "real_count": 1}"#),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    let mut friendly = 0;
+    let mut total = 0;
+    let mut monsters = world.query::<&cdda_sim::creature::CreatureKind>();
+    for _ in monsters.iter(&world) {
+        total += 1;
+    }
+    let mut marked = world.query::<&cdda_sim::friendly::Friendly>();
+    for _ in marked.iter(&world) {
+        friendly += 1;
+    }
+    assert_eq!(total, 2, "both spawns exist");
+    assert_eq!(friendly, 1, "and exactly one of them is friendly");
+}

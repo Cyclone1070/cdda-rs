@@ -82,6 +82,7 @@ pub use singletons::{
 };
 pub mod food_summary;
 pub mod frame;
+pub mod friendly;
 pub mod needs;
 pub mod fun_for;
 pub mod terrain_table;
