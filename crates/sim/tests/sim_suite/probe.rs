@@ -1843,3 +1843,26 @@ fn a_turn_cost_spends_a_hundred_moves_a_turn() {
     let left = world.get::<cdda_sim::creature::Moves>(survivor).map(|moves| moves.left);
     assert_eq!(left, Some(800), "two turns cost two hundred moves");
 }
+
+/// `u_add_wet` raises a creature's wetness, and the range is clamped at soaked.
+///
+/// Reference: `f_add_wet` (`npctalk.cpp:5464-5474`) adds the amount with `wet_character`, and `Character::mod_wetness` clamps to dry..soaked. The test adds twice,
+/// so a store that set rather than added would report the second value and fail.
+#[test]
+fn a_wet_creature_gets_wetter_up_to_soaked() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    assert_eq!(cdda_sim::wetness::of(&world, survivor), 0, "dry to begin with");
+
+    let wet = |world: &mut bevy_ecs::prelude::World, text: &str| {
+        let value = cdda_json::parse(text.as_bytes()).expect("json");
+        let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+        cdda_sim::dialogue_effects::run_effect(world, survivor, None, &effect)
+    };
+    assert_eq!(wet(&mut world, r#"{"u_add_wet": 40}"#), cdda_sim::dialogue_effects::Applied::Done, "it runs");
+    assert_eq!(cdda_sim::wetness::of(&world, survivor), 40, "forty wetter");
+    wet(&mut world, r#"{"u_add_wet": 40}"#);
+    assert_eq!(cdda_sim::wetness::of(&world, survivor), 80, "and forty again, because wetness adds");
+    wet(&mut world, r#"{"u_add_wet": 40}"#);
+    assert_eq!(cdda_sim::wetness::of(&world, survivor), 100, "never wetter than soaked");
+}

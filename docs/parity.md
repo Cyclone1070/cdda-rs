@@ -8026,3 +8026,30 @@ effect census blaming `effect` | 161 | **158** |
 **The rule this proves:** a reader is tried on **every** object no other reader claimed, so "return `Some` when the member is absent" is not a default - it is a claim
 that every unreadable effect in the game is this effect. The test that pinned `turn_cost` would have passed either way; it is the census's own tuple that could tell
 the difference, and I read it before pinning, which is the only reason the wrong numbers were not written down as progress.
+
+## Wetness: one number per creature, because the port has no limbs (round 928)
+
+`u_add_wet` (2 programs) needed a store: the reference keeps wetness on a character's **body parts** (`Character::mod_wetness`), and `wet_character`
+(`npctalk.cpp:5464-5474`) raises it. The port has no limb model - a creature is one thing - so `crates/sim/src/wetness.rs` keeps **one number per creature**,
+clamped to dry..soaked, which is the reference's own range.
+
+**That is a simplification of the store, not of the rule.** Adding forty adds forty; what changes is only where the number lives. When the port grows a limb model,
+this is the module that has to grow with it, and it says so in its own doc comment.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 522 | **524** |
+answered `Done` | 344 | **346** |
+did something | 246 | **248** |
+unreadable leaves | 202 | **200** |
+one-gap programs | 56 | **54** |
+effect entries runnable | 1,436 | **1,438** |
+effect census blaming `effect` | 158 | **156** |
+
+**The test adds three times on purpose.** Forty, then forty again to eighty, then forty more to a hundred - so a store that **set** the value instead of **adding** it
+would report forty every time and fail on the second assertion. The clamp is the third assertion, and it is the one that would pass under either bug, which is why it
+is last.
+
+**Last round's bug is written into this round's reader.** `read_add_wet` gates on its member with `let Some(amount) = object.get(member) else { continue }` - it
+cannot answer for an object that has no `u_add_wet`, so it cannot swallow the data. That one line is the whole lesson of the swallowed-reader bug, applied before it
+could happen again.

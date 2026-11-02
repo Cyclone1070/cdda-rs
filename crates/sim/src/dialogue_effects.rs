@@ -575,6 +575,25 @@ fn pick_type(
     drawn
 }
 
+/// Makes a creature wetter.
+///
+/// Reference: `f_add_wet` (`npctalk.cpp:5468-5472`): the amount is worked out where the effect is applied and added with `wet_character`, which clamps.
+fn add_wet(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::AddWet { amount, listener: theirs } = effect else {
+        return Applied::CannotAnswer;
+    };
+    let Some(creature) = actor(speaker, listener, *theirs) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(drawn) = crate::conditions::value(world, speaker, listener, amount) else {
+        return Applied::CannotAnswer;
+    };
+    #[allow(clippy::cast_possible_truncation)]
+    let whole = drawn.round() as i32;
+    crate::wetness::add(world, creature, whole);
+    Applied::Done
+}
+
 /// Spends the speaker's action points on the words.
 ///
 /// Reference: `f_turn_cost` (`npctalk.cpp:5295-5299`): `target->mod_moves( -to_moves<int>( cost ) )`, and `to_moves` is a hundred moves a turn. The port's moves
@@ -1717,6 +1736,7 @@ fn run_store_effect(
         Effect::FinishMission { .. } => finish_mission(world, speaker, listener, effect),
         Effect::RemoveActiveMission { .. } => remove_active_mission(world, speaker, listener, effect),
         Effect::TurnCost { .. } => turn_cost(world, speaker, listener, effect),
+        Effect::AddWet { .. } => add_wet(world, speaker, listener, effect),
         // Audio changes no game state, and the port has no audio: Done, not refused - nothing is missing from the simulation, only from the sound card. A
         // comment-only entry does nothing, which the reference's loader also does with it.
         Effect::PlaySoundEffect { .. } | Effect::Nothing => Applied::Done,

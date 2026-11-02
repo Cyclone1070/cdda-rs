@@ -1590,6 +1590,7 @@ fn read_unnamed_effect(object: &cdda_json::Object) -> Option<Effect> {
         .or_else(|| read_finish_mission(object))
         .or_else(|| read_remove_active_mission(object))
         .or_else(|| read_turn_cost(object))
+        .or_else(|| read_add_wet(object))
 }
 
 /// Reads a `sound_effect` entry.
@@ -1608,6 +1609,23 @@ fn read_sound_effect(object: &cdda_json::Object) -> Option<Effect> {
         },
         outdoor_event: matches!(object.get("outdoor_event"), Some(Value::Bool(true))),
     })
+}
+
+/// Reads a `u_add_wet` / `npc_add_wet` entry.
+///
+/// Reference: `f_add_wet` (`npctalk.cpp:5464-5474`): the member **is** the amount, a `dbl_or_var` worked out when the effect is applied. The member is required -
+/// a reader that answered for its absence would claim every effect no other reader claimed.
+fn read_add_wet(object: &cdda_json::Object) -> Option<Effect> {
+    for (member, listener) in [("u_add_wet", false), ("npc_add_wet", true)] {
+        let Some(amount) = object.get(member) else {
+            continue;
+        };
+        return Some(Effect::AddWet {
+            amount: read_math_expression(amount)?,
+            listener,
+        });
+    }
+    None
 }
 
 /// Reads a `turn_cost` entry.
@@ -2035,6 +2053,16 @@ pub enum Effect {
         volume: CountRange,
         /// Whether it is only heard outdoors.
         outdoor_event: bool,
+    },
+    /// Makes a creature wetter.
+    ///
+    /// Reference: `f_add_wet` (`npctalk.cpp:5464-5474`): the member is a `dbl_or_var` amount, added to the character's wetness with `wet_character`. The port
+    /// keeps one wetness number per creature, because it has no limb model, and adds the amount to it.
+    AddWet {
+        /// How much wetter, which may be an expression.
+        amount: Expression,
+        /// Whether it goes to the listener rather than the speaker.
+        listener: bool,
     },
     /// Makes the speaker pay for the words, in action points.
     ///
@@ -2557,6 +2585,13 @@ impl Effect {
             Self::FinishMission { .. } => "finish_mission",
             Self::RemoveActiveMission { .. } => "remove_active_mission",
             Self::TurnCost { .. } => "turn_cost",
+            Self::AddWet { listener, .. } => {
+                if *listener {
+                    "npc_add_wet"
+                } else {
+                    "u_add_wet"
+                }
+            }
             Self::SpawnItem { .. } => "u_spawn_item",
             Self::ConsumeItem { listener, .. } => {
                 if *listener {
