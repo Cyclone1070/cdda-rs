@@ -9831,3 +9831,21 @@ one fact - the port's item is a stack of charges, not a row - and the rule was r
 
 **Still missing from the results rule, and named rather than implied:** `byproducts` (694 recipes carry them) and the container case (`contained`, which needs the
 container to exist as a thing before a recipe can fill one).
+
+## What a craft leaves behind was thrown away (round 1002)
+
+`byproducts` are the things a craft makes **besides** its result - the scrap from a cut, the sheath that comes with the knife. **694 recipes in the core data carry
+them**, and the port dropped every one on the floor: a recipe that makes a knife and its sheath gave only the knife.
+
+The loader reads the pair form (`[["item", count], ...]`) and `finish_craft` makes **`count * batch`** of each, through the same placement the result gets. The
+placement itself became one function, `give_to_crafter`, on the way - **the result's pocket-or-floor logic was three branches that a byproduct needed in exactly the
+same shape**, and copying it would have been the second place the reference's `i_add_or_drop` lives.
+
+| Piece | Rule |
+|---|---|
+count | `count * batch`, the reference's legacy form |
+where | the same pocket-or-floor path the result takes |
+group form | **not read**: a byproduct that names an item group needs the item-group store at craft time |
+
+**The refactor is the receipt this round, not the rule:** the extraction came first and the byproduct call is three lines, which is the shape a rule should have when
+the thing it needs already exists. **What is left is named:** the grouped form, and `contained` results, which need a container to exist before a recipe can fill one.

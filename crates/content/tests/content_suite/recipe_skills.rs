@@ -21,6 +21,7 @@ fn recipe(skill: &str, difficulty: i32) -> Recipe {
         batch_rscale: 0.0,
         batch_rsize: 0,
         result_mult: 1,
+        byproducts: Vec::new(),
         result_charges: None,
     }
 }

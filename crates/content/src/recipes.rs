@@ -70,6 +70,12 @@ pub struct Recipe {
     pub batch_rscale: f64,
     /// How many items the batch saving reaches its 99.5% limit at, the reference's `batch_rsize`.
     pub batch_rsize: i32,
+    /// The other things a craft leaves behind, as `(item, count per batch)`.
+    ///
+    /// Reference: `recipe::create_byproducts` (`recipe.cpp:872-900`) through `create_byproducts_legacy`, which multiplies the count by the batch. **The grouped
+    /// form** (`byproducts` naming an item group) is not read here, because picking from a group needs the item-group store at craft time; the loader keeps only the
+    /// pair form and a recipe whose byproducts are a group keeps none.
+    pub byproducts: Vec<(String, i32)>,
     /// How many of the result one batch makes, the reference's `result_mult`.
     ///
     /// Reference: `recipe::create_results` (`recipe.cpp:790-825`) makes `result_mult` results per batch item, so a batch of two of a recipe that makes three is six.
@@ -222,6 +228,22 @@ pub fn from_dump(value: &Value) -> Option<(Vec<Recipe>, usize)> {
             time_moves: match member(object, "time_moves") {
                 Some(Value::Int(moves)) => *moves,
                 _ => member(object, "time").map_or(0, crate::constructions::duration_in_moves),
+            },
+            byproducts: match member(object, "byproducts") {
+                Some(Value::Array(list)) => list
+                    .iter()
+                    .filter_map(|entry| match entry {
+                        Value::Array(pair) => match (pair.first(), pair.get(1)) {
+                            (Some(Value::Str(item)), Some(Value::Int(count))) => Some((
+                                item.clone(),
+                                i32::try_from(*count).unwrap_or(0),
+                            )),
+                            _ => None,
+                        },
+                        _ => None,
+                    })
+                    .collect(),
+                _ => Vec::new(),
             },
             result_mult: match member(object, "result_mult") {
                 Some(Value::Int(count)) => i32::try_from(*count).unwrap_or(1).max(1),

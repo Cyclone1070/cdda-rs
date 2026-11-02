@@ -112,53 +112,17 @@ pub fn finish_craft(world: &mut World, crafter: Entity, names: &crate::item_regi
     // them `charges ?: the item's own count`. The port holds a count as a stack's charges, so the two multiply: a batch of two that makes three apiece is six.
     let units = making.batch.max(1).saturating_mul(making.recipe.result_mult.max(1));
     let charges = units.saturating_mul(making.recipe.result_charges.unwrap_or(1).max(1));
-    // Reference: `Character::i_add` -> `add_item` puts the result in a pocket, and only what fits nowhere is held
-    // instead. The port asks `can_stash` the same question a pickup asks, so a crafted thing lands where a found thing
-    // would; the surviving difference is what happens when nothing fits - the reference drops it at your feet, and the
-    // port has no wield slot to put it in, so it stays in hand and says so by carrying no pocket.
-    let size = names.volume_of(kind).saturating_mul(charges);
-    let weight = names.weight_of(kind) * i64::from(charges);
-    let pocket = crate::creature::can_stash(world, crafter, names, size, weight);
-    if pocket.is_none() {
-        // Reference: `i_add_or_drop` - what will not go in a pocket is put on the ground where the crafter stands, not
-        // into the character's hands. Every creature in the port has a square, so there is always somewhere to put it.
-        let placed = world.get::<crate::Position>(crafter).copied();
-        match placed {
-            Some(placed) => {
-                crate::drop_item(world, (placed.x, placed.y), kind, charges);
-            }
-            None => {
-                // A creature with no square at all is not standing anywhere, so the thing stays in hand rather than
-                // vanishing. Nothing in the port can be in this state; the branch exists so a missing position is a
-                // thing that does not disappear.
-                world.spawn((
-                    crate::creature::Carried(crafter),
-                    crate::GroundItem {
-                        kind,
-                        charges,
-                        age: 0,
-                        burnt: 0,
-                        damage: 0,
-                        burn: None,
-                    },
-                ));
-            }
+    give_to_crafter(world, crafter, kind, charges, names);
+    // Reference: `recipe::create_byproducts` (`recipe.cpp:872-900`) - the other things the craft leaves behind, `count * batch` of each. They land wherever the
+    // result would have landed, which is the reference's own treatment of them.
+    for (byproduct, count) in &making.recipe.byproducts {
+        let Some(kind) = names.id_of(byproduct) else {
+            continue;
+        };
+        let made = count.saturating_mul(making.batch.max(1));
+        if made > 0 {
+            give_to_crafter(world, crafter, kind, made, names);
         }
-        return Some(result);
-    }
-    let mut spawned = world.spawn((
-        crate::creature::Carried(crafter),
-        crate::GroundItem {
-            kind,
-            charges,
-            age: 0,
-            burnt: 0,
-            damage: 0,
-            burn: None,
-        },
-    ));
-    if let Some((worn, index)) = pocket {
-        spawned.insert(crate::creature::InPocket { worn, index });
     }
     Some(result)
 }
@@ -223,6 +187,53 @@ fn spend_tool_charges(
             break;
         }
     }
+}
+
+/// Puts something the crafter just made where a found thing would go: a pocket if it fits, the floor if not.
+///
+/// Reference: `Character::i_add` -> `add_item` for the pocket, and `i_add_or_drop` for the fallback that puts what fits nowhere on the ground where the crafter
+/// stands. The port has no wield slot, so a thing that fits no pocket is dropped rather than held; that difference is the reference's own fallback, not a shortcut.
+fn give_to_crafter(
+    world: &mut World,
+    crafter: Entity,
+    kind: crate::ItemTypeId,
+    charges: i32,
+    names: &crate::item_registry::ItemNames,
+) {
+    let size = names.volume_of(kind).saturating_mul(charges);
+    let weight = names.weight_of(kind) * i64::from(charges);
+    if let Some((worn, index)) = crate::creature::can_stash(world, crafter, names, size, weight) {
+        world
+            .spawn((
+                crate::creature::Carried(crafter),
+                crate::GroundItem {
+                    kind,
+                    charges,
+                    age: 0,
+                    burnt: 0,
+                    damage: 0,
+                    burn: None,
+                },
+            ))
+            .insert(crate::creature::InPocket { worn, index });
+        return;
+    }
+    // A creature with no square at all is not standing anywhere, so the thing stays in hand rather than vanishing.
+    if let Some(placed) = world.get::<crate::Position>(crafter).copied() {
+        crate::drop_item(world, (placed.x, placed.y), kind, charges);
+        return;
+    }
+    world.spawn((
+        crate::creature::Carried(crafter),
+        crate::GroundItem {
+            kind,
+            charges,
+            age: 0,
+            burnt: 0,
+            damage: 0,
+            burn: None,
+        },
+    ));
 }
 
 /// Starts a craft using what is actually in the crafter's hands.

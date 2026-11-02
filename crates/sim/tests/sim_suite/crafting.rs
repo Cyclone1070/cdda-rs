@@ -70,6 +70,7 @@ fn recipe(time_moves: i64, needs: &str, count: i32) -> Recipe {
         batch_rscale: 0.0,
         batch_rsize: 0,
         result_mult: 1,
+        byproducts: Vec::new(),
         result_charges: None,
         id: "test_recipe".to_owned(),
         result: "thing".to_owned(),
@@ -523,6 +524,7 @@ fn a_craft_without_its_tool_does_not_start() {
         batch_rscale: 0.0,
         batch_rsize: 0,
         result_mult: 1,
+        byproducts: Vec::new(),
         result_charges: None,
     };
     let mut world = World::new();
@@ -589,6 +591,7 @@ fn a_craft_that_needs_a_quality_asks_the_items_that_carry_it() {
         batch_rscale: 0.0,
         batch_rsize: 0,
         result_mult: 1,
+        byproducts: Vec::new(),
         result_charges: None,
     };
     let rag = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 1);
@@ -693,6 +696,7 @@ fn a_tool_that_burns_charges_has_them_spent_and_a_held_one_does_not() {
         batch_rscale: 0.0,
         batch_rsize: 0,
         result_mult: 1,
+        byproducts: Vec::new(),
         result_charges: None,
         id: "electrified_rag".to_owned(),
         result: "rag".to_owned(),
@@ -854,4 +858,42 @@ fn a_recipe_that_makes_more_than_one_makes_that_many() {
         2 * 3 + 2 * 2 * 50,
         "six cords, then a hundred charges' worth"
     );
+}
+
+/// A craft leaves its byproducts behind, `count * batch` of each.
+///
+/// Reference: `recipe::create_byproducts` (`recipe.cpp:872-900`) through `create_byproducts_legacy`, which makes `count * batch` of every byproduct. **694 recipes in
+/// the core data carry byproducts**, and the port dropped them all on the floor - a recipe that makes a knife and its sheath gave only the knife.
+#[test]
+fn a_craft_leaves_its_byproducts_behind() {
+    let mut world = World::new();
+    let crafter = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let names = names_for(&[(1, "rag"), (2, "cord"), (3, "scrap")]);
+    let mut recipe = recipe(100, "rag", 1);
+    recipe.result = "cord".to_owned();
+    recipe.byproducts = vec![("scrap".to_owned(), 2)];
+    for _ in 0..2 {
+        let rag = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 1);
+        world.entity_mut(rag).remove::<cdda_sim::Position>();
+        world.entity_mut(rag).insert(cdda_sim::creature::Carried(crafter));
+    }
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
+    assert_eq!(
+        cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 2, &names),
+        Craft::Started
+    );
+    assert_eq!(
+        cdda_sim::crafting::finish_craft(&mut world, crafter, &names).as_deref(),
+        Some("cord")
+    );
+    let count_of = |wanted: &str, world: &mut World| -> i32 {
+        let mut query = world.query::<&cdda_sim::GroundItem>();
+        query
+            .iter(world)
+            .filter(|stack| names.name_of(stack.kind).as_deref() == Some(wanted))
+            .map(|stack| stack.charges)
+            .sum()
+    };
+    assert_eq!(count_of("cord", &mut world), 2, "one cord per batch");
+    assert_eq!(count_of("scrap", &mut world), 4, "two scraps per batch");
 }
