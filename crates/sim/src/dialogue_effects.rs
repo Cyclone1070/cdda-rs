@@ -601,6 +601,21 @@ fn pick_type(
     drawn
 }
 
+/// Schedules any effect for later, which is what `time_in_future` means on an effect that is not a call.
+///
+/// Reference: a `timed_event` with a payload. The port keeps the effect itself in the `scheduled` store, and the turn loop's `Scheduled` stage runs it through the same
+/// runner an immediate one would use.
+fn run_later(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::Later { effect, after } = effect else {
+        return Applied::CannotAnswer;
+    };
+    let Some(turns) = crate::dialogue_effects::wait_turns(world, speaker, listener, after) else {
+        return Applied::CannotAnswer;
+    };
+    crate::scheduled::schedule_effect(world, turns, (**effect).clone());
+    Applied::Done
+}
+
 /// Schedules a program list to run after a delay, and answers `Done` because scheduling is the whole effect.
 ///
 /// Reference: `f_run_eocs` with `time_in_future` (`npctalk.cpp:6332-6338`): the duration is turned into a turn by the calendar, the programs are kept, and the turn
@@ -609,6 +624,23 @@ fn run_eoc_later(world: &mut World, speaker: Entity, listener: Option<Entity>, e
     let Effect::RunEocLater { programs, after } = effect else {
         return Applied::CannotAnswer;
     };
+    let Some(turns) = wait_turns(world, speaker, listener, after) else {
+        return Applied::CannotAnswer;
+    };
+    crate::scheduled::schedule_effect(world, turns, Effect::RunEoc(programs.clone()));
+    Applied::Done
+}
+
+/// How many turns a `duration_or_var` asks for, drawing between its ends when it has two.
+///
+/// Reference: `get_duration_or_var` (`npctalk.cpp:3426-3450`) with a `dbl_or_var` range: the value is drawn and read as **turns**, and a string is parsed by the same
+/// duration reader the rest of the data uses.
+fn wait_turns(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    after: &cdda_content::dialogue::DurationSource,
+) -> Option<i64> {
     let drawn = |world: &World, source: &cdda_content::dialogue::StringSource| {
         crate::conditions::text_of(world, speaker, listener, source)
     };
@@ -627,12 +659,8 @@ fn run_eoc_later(world: &mut World, speaker: Entity, listener: Option<Entity>, e
             }
         }
     };
-    let Some(text) = text else {
-        return Applied::CannotAnswer;
-    };
-    let turns = cdda_content::constructions::parse_duration(&text);
-    crate::scheduled::schedule_effect(world, turns, Effect::RunEoc(programs.clone()));
-    Applied::Done
+    let text = text?;
+    Some(cdda_content::constructions::parse_duration(&text))
 }
 
 /// Gives the creature mutations, and answers only a depth that asks for none.
@@ -2446,6 +2474,7 @@ fn run_store_effect(
         Effect::MonsterAround { .. } => store_monster_around(world, speaker, effect),
         Effect::Mutation { .. } => mutate(world, speaker, listener, effect),
         Effect::RunEocLater { .. } => run_eoc_later(world, speaker, listener, effect),
+        Effect::Later { .. } => run_later(world, speaker, listener, effect),
         // A sound event is presentation: the port carries it and has no ear to play to. The reference changes nothing about the world when it plays one, so `Done` is
         // the honest answer - and it shares that answer with the other presentation effects below.
 

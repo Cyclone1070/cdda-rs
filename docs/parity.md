@@ -9350,3 +9350,28 @@ rule it pointed at, and **the diagnostic itself was wrong once** (the `else` lab
 
 **And the honest next order is now visible:** `map_in_city` and `revert_location` are stores; `foreach` is a control-flow rule; the postponed transform is the
 `scheduled` store the port already has, applied to a second effect.
+
+## The scheduled store earns its keep a second time (round 977)
+
+The diagnostic's `target_var` cause was two programs whose transform also carries `time_in_future` - the postponed form. The `scheduled` store added two rounds ago holds
+**effects**, not just calls, so the rule is the same rule:
+
+- the reader turns `time_in_future` into `Effect::Later { effect, after }`, keeping `key` refusing because the port has no table of transforms for `alter_timed_events`;
+- the runner schedules the wrapped effect and the turn loop's `Scheduled` stage runs it through the runner an immediate one uses;
+- the duration-to-turns reader is now **one function**, shared by calls and transforms, where it had been inline in the call's runner.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 574 | **576** |
+answered `Done` | 385 | **386** |
+did something | 280 | **281** |
+unreadable leaves | 111 | **109** |
+one-gap programs | 22 | **20** |
+effect entries runnable | 1,524 | **1,526** |
+ran in a built world | 389 | **390** |
+
+**Two programs, two effect entries, two leaves** - and the usual warning holds: the count of programs that **did** something rose by one while "answered `Done`" rose by two, so
+one of the two now answers without acting. That is the same shape a postponed effect should have: **the transform has not happened yet, so nothing changed.**
+
+The test asserts exactly that, in both directions: the ground is **unchanged** when the effect is run, and changed when the turn comes. **A port that ran the transform
+immediately would pass the second half and fail the first** - which is why the first half is there.

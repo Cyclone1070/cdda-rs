@@ -2323,6 +2323,16 @@ pub enum Effect {
         /// Whether the x and y moves are counted in overmap tiles.
         overmap_tile: bool,
     },
+    /// Runs another effect after a delay.
+    ///
+    /// Reference: the reference's `time_in_future` on an effect with a **payload** (`timed_event`): the effect is kept and run when the turn comes. The port keeps the
+    /// effect and the length, and the turn loop's `Scheduled` stage runs it.
+    Later {
+        /// The effect to run when the turn comes.
+        effect: Box<Effect>,
+        /// How long to wait.
+        after: DurationSource,
+    },
     /// Plays a sound **event**, which the headless port has no ear for.
     ///
     /// Reference: `f_sound_effect` (`npctalk.cpp:5528-5570`): `id` names a sound in the sound pack, `volume` overrides its own level, `outdoor_event` picks the outdoor
@@ -3123,7 +3133,8 @@ impl Effect {
             | Self::MonsterAround { .. }
             | Self::Mutation { .. }
             | Self::RunEocLater { .. }
-            | Self::SoundEvent { .. } => self.store_kind().unwrap_or_default(),
+            | Self::SoundEvent { .. }
+            | Self::Later { .. } => self.store_kind().unwrap_or_default(),
             Self::PlaceOverride { .. } => "place_override",
             Self::SpawnItem { .. } => "u_spawn_item",
             Self::ConsumeItem { listener, .. } => {
@@ -3983,11 +3994,10 @@ fn read_give_achievement(object: &cdda_json::Object) -> Option<Effect> {
 /// `time_in_future`, `target_var` and `key` are separate rules the port does not carry out - so an entry stating one is refused rather than applied early.
 fn read_transform_radius(object: &cdda_json::Object) -> Option<Effect> {
     let transform = object.get("ter_furn_transform")?;
-    // A `target_var` names the square the transform is centred on; `time_in_future` and `key` are the postponed form, which needs a scheduled transform and refuses.
-    for refused in ["time_in_future", "key"] {
-        if object.get(refused).is_some() {
-            return None;
-        }
+    // A `target_var` names the square the transform is centred on. `time_in_future` postpones the whole transform through the `scheduled` store; `key` names it for
+    // `alter_timed_events`, which the port has no table of transforms for, so that one still refuses.
+    if object.get("key").is_some() {
+        return None;
     }
     let target = match object.get("target_var") {
         Some(value) => Some(read_variable_target(value)?),
@@ -4000,12 +4010,19 @@ fn read_transform_radius(object: &cdda_json::Object) -> Option<Effect> {
         (_, Some(radius)) => (radius, true),
         _ => return None,
     };
-    Some(Effect::TransformRadius {
+    let transform_now = Effect::TransformRadius {
         transform: read_string_source(transform)?,
         radius: read_math_expression(given)?,
         target,
         listener,
-    })
+    };
+    match object.get("time_in_future") {
+        Some(after) => Some(Effect::Later {
+            effect: Box::new(transform_now),
+            after: read_duration_source(after)?,
+        }),
+        None => Some(transform_now),
+    }
 }
 
 /// Reads a `custom_light_level` entry.
