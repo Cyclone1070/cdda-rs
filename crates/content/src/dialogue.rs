@@ -10,6 +10,14 @@ use cdda_json::Value;
 /// A condition the port can evaluate.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Condition {
+    /// A yes/no question put to the player, answered by the choice queue.
+    ///
+    /// Reference: `u_query` (`condition.cpp`): the question is shown and the answer is the condition's value; `default` is what it answers when the player cannot
+    /// be asked. The port asks nothing - the answer is queued by a scripted playtest or the UI, and an unanswered question answers the data's default.
+    Query {
+        /// The answer when nothing is queued.
+        default: bool,
+    },
     /// Whether an actor can see a square that a variable holds.
     ///
     /// Reference: `f_can_see_location` (`condition.cpp:2173-2181`): the member is a `var_info`, and the answer is the actor's `can_see_location` of the square it
@@ -557,6 +565,18 @@ pub fn read_condition(value: &Value) -> Option<Condition> {
     }
     if let Some(inner) = object.get("not") {
         return read_condition(inner).map(|condition| Condition::Not(Box::new(condition)));
+    }
+    // A yes/no question put to the player.
+    //
+    // Reference: `u_query` (`condition.cpp`, `f_u_query`): the member is the question's text and `default` the answer used when the player cannot be asked. The port
+    // is headless, so the answer comes from its **choice queue** - the same store a menu answer comes from, filled by a scripted playtest or the UI.
+    if let Some(_question) = object.get("u_query") {
+        let default = match object.get("default") {
+            None => false,
+            Some(Value::Bool(answer)) => *answer,
+            Some(_) => return None,
+        };
+        return Some(Condition::Query { default });
     }
     if let Some(Value::Object(requirement)) = object.get("u_has_items") {
         return read_has_items(requirement);

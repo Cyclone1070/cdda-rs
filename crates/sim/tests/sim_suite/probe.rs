@@ -2436,3 +2436,44 @@ fn a_custom_light_level_comes_due_one_turn_past_its_length() {
         "and six turns in the event has come due"
     );
 }
+
+/// A `u_query` takes its answer from the choice queue, and the data's `default` when nobody was asked.
+///
+/// Reference: `u_query` (`condition.cpp`) shows a yes/no question and answers it; `default` is the answer when the player cannot be asked. A headless port asks by
+/// taking the next queued answer. The test covers all three paths - queued yes, queued no, nothing queued - so a port that always answered the default would fail the
+/// first two.
+#[test]
+fn a_query_takes_a_queued_answer_and_falls_back_to_its_default() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let value = cdda_json::parse(
+        br#"{"if": {"u_query": "Replace your current lenses?", "default": false},
+            "then": [{"u_message": "replaced"}],
+            "else": [{"u_message": "kept"}]}"#
+            .as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    let said = |world: &bevy_ecs::prelude::World| {
+        let mut count = 0;
+        for line in cdda_sim::messages::lines(world) {
+            if line.contains("replaced") {
+                count += 1;
+            }
+        }
+        count
+    };
+
+    cdda_sim::choices::set_choices(&mut world, [0]);
+    cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect);
+    assert_eq!(said(&world), 1, "a queued zero is yes");
+
+    cdda_sim::choices::set_choices(&mut world, [1]);
+    cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect);
+    assert_eq!(said(&world), 1, "a queued one is no, so the else branch ran");
+
+    // Nothing queued: the data's `default` answers, which for this question is no.
+    cdda_sim::choices::set_choices(&mut world, []);
+    cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect);
+    assert_eq!(said(&world), 1, "an unanswered question takes its default");
+}

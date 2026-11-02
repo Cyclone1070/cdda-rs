@@ -8670,3 +8670,34 @@ test that only checked "an event was scheduled" would pass for an off-by-one tha
 **`read_effect_duration` and `roll_duration` were both already there**, and reusing them meant the reader and the runner were three lines each. The one mistake was
 mine: I guessed the helper's name (`duration_turns`) instead of grepping for it, and the compiler named the real one (`roll_duration`) in one line. **Nine hundred
 rounds in, the codebase is large enough that guessing a function name is a wasted round trip** - grep first.
+
+## `u_query`: the one condition the game asks (round 951)
+
+`u_query` is a **question**, not a lookup: `{"u_query": "Replace your current lenses?", "default": false}` shows a yes/no and the answer is the condition's value.
+The port had no condition for it, so every `if` built on one refused - three programs blamed on `if`.
+
+**A headless port asks by taking the next queued answer.** The choice queue already exists for menus (`choices`, filled by a scripted playtest or the UI), so the
+question reads from it: **yes is index zero, no is one, `CANCELLED` is walking away** - and anything that is not a queued answer, including an empty queue, answers the
+data's `default`. A question nobody asked must not answer yes on its own.
+
+The runner asks it; `conditions::holds` answers the **default** for a query it meets elsewhere - nested in an `and`, or as a program's guard - because there is nobody to
+ask there, and that difference is written in both places.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 552 | **553** |
+answered `Done` | 360 | **361** |
+did something | 262 | **263** |
+unreadable leaves | 146 | **145** |
+one-gap programs | 34 | **33** |
+effect entries runnable | 1,493 | **1,494** |
+effect census blaming `effect` | 131 | **130** |
+
+**The test covers all three paths** - queued yes, queued no, nothing queued - because a port that always answered the default would pass a one-path test and be wrong
+twice.
+
+**My first version mapped yes to `answer != 0`, which is backwards**: the queue's numbers are **menu indices**, and in a yes/no menu zero is the yes row. The test caught
+it on its first assertion, which is what a test that pins the meaning rather than the mechanism is for.
+
+**Clippy caught two more of my habits** in the same change: a redundant guard (`Some(answer) if answer == 0 => true`), and a doc comment left behind when I deleted the
+helper under it. **Both were mine, both were invisible to me, and both were one line to fix.**

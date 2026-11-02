@@ -446,6 +446,9 @@ fn holds_within(
     depth: usize,
 ) -> bool {
     match condition {
+        // A question the port cannot ask answers the data's default. The **runner** asks it properly, through the choice queue, when the question is the whole
+        // condition of an `if`; here - a nested condition, or a guard on a program - there is nobody to ask.
+        Condition::Query { default } => *default,
         Condition::HasBionics {
             bionic,
             listener: about_listener,

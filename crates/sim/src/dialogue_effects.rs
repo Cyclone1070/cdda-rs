@@ -1931,7 +1931,19 @@ fn run_branch(world: &mut World, speaker: Entity, listener: Option<Entity>, effe
     else {
         return Applied::CannotAnswer;
     };
-    let branch = if crate::conditions::holds_in_store(world, speaker, listener, condition) {
+    // A question is the one condition the game **asks** rather than looks up, and a headless port asks it by taking the next queued answer - the same store a menu's
+    // answer comes from. `choices::CANCELLED` and an empty queue both mean "the player was not asked", which the data's `default` answers.
+    let answered = match condition.as_ref() {
+        // A yes/no menu's indices are **yes = 0** and **no = 1**, and `CANCELLED` is walking away - so the answer is yes when the queued index is zero, and
+        // anything else (a no, a cancel, an empty queue) answers the data's `default`.
+        cdda_content::dialogue::Condition::Query { default } => Some(match crate::choices::take(world) {
+            Some(answer) => answer == 0,
+            _ => *default,
+        }),
+        _ => None,
+    };
+    let taken = answered.unwrap_or_else(|| crate::conditions::holds_in_store(world, speaker, listener, condition));
+    let branch = if taken {
         then
     } else {
         otherwise
