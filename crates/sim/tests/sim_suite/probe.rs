@@ -1740,3 +1740,35 @@ fn a_teleport_shows_one_message_of_two() {
         "the success line is shown: {lines:?}"
     );
 }
+
+/// A spawn with `loc` puts the item on that square, not on the speaker's.
+///
+/// Reference: `f_spawn_item` (`npctalk.cpp:3795`) reads `loc` as a `var_info` and places the item there. The test stores a square some distance away, so a spawner
+/// that ignored `loc` would put the item at the origin and fail.
+#[test]
+fn a_spawn_at_a_location_lands_there() {
+    let mut world = bevy_ecs::prelude::World::new();
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[cdda_sim::item_registry::Kind { id: "bottle_plastic", volume_ml: 250, weight_g: 10, pockets: &[] }],
+    );
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let holder = cdda_sim::dialogue_values::holder_for(&mut world, survivor, false);
+    cdda_sim::dialogue_values::set(
+        &mut world,
+        holder,
+        "loc",
+        cdda_sim::dialogue_values::Value::Position { x: 9, y: 4, z: 0 },
+    );
+
+    let value = cdda_json::parse(
+        br#"{"map_spawn_item": "bottle_plastic", "loc": {"u_val": "loc"}}"#.as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    let applied = cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect);
+    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "it runs");
+    let mut items = world.query::<(&cdda_sim::Position, &cdda_sim::GroundItem)>();
+    let places: Vec<(i32, i32)> = items.iter(&world).map(|(at, _)| (at.x, at.y)).collect();
+    assert_eq!(places, vec![(9, 4)], "the item is where `loc` said");
+}

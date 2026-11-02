@@ -1746,7 +1746,7 @@ fn read_spawn_item(object: &cdda_json::Object) -> Option<Effect> {
         let Some(item) = object.get(member) else {
             continue;
         };
-        for unsupported in ["loc", "container"] {
+        for unsupported in ["container"] {
             if object.get(unsupported).is_some() {
                 return None;
             }
@@ -1764,6 +1764,11 @@ fn read_spawn_item(object: &cdda_json::Object) -> Option<Effect> {
             },
             charges,
             suppress_message: matches!(object.get("suppress_message"), Some(Value::Bool(true))),
+            loc: match object.get("loc") {
+                None => None,
+                Some(Value::Object(target)) => Some(named_variable(target)?),
+                Some(_) => return None,
+            },
             force_equip: matches!(object.get("force_equip"), Some(Value::Bool(true))),
             use_item_group: matches!(object.get("use_item_group"), Some(Value::Bool(true))),
         });
@@ -2099,6 +2104,11 @@ pub enum Effect {
         charges: CountRange,
         /// Whether anything is shown to say it appeared.
         suppress_message: bool,
+        /// Where the item goes, when the data names a place rather than leaving it at the actor.
+        ///
+        /// Reference: `f_spawn_item` (`npctalk.cpp:3795`) reads `loc` as a `var_info` and puts the item at that square. The port keeps the variable's scope and
+        /// name and reads the square at run time, because a location variable is written by the program that ran before this one.
+        loc: Option<(String, String)>,
         /// Whether the name is an **item group** to draw from rather than an item.
         ///
         /// Reference: `use_item_group` (`npctalk.cpp:3781`) sends the name to `item_group::item_from` instead of the item factory.

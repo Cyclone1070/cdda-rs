@@ -7887,3 +7887,28 @@ because of that refusal.
 written, false now. The suite failed and named the assertion. The test was updated to assert the new rule (a message reads; `force_safe` still refuses), which is
 what a pinned behaviour should do when the behaviour legitimately changes: **the test is a claim about the reference, and when the claim changes, the test changes with
 it - visibly, in a diff, with the reason written down.**
+
+## `loc`: an item spawns where the data says, not where the actor stands (round 923)
+
+`loc` was on the one-gap list, and like `fail_message` it belonged to a reader the port already had. `f_spawn_item` (`npctalk.cpp:3795`) reads `loc` as a `var_info`
+and puts the item at that square; without one the item goes to the talker, who stands on their own square.
+
+The reader now keeps the variable's scope and name, and the runner reads the square **at run time** - a location variable is written by the program that ran before
+this one, so reading it when the effect is loaded would read an empty variable. A `loc` holding anything but a square is nowhere to put an item, and refuses.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 513 | **514** |
+refused at run time | 182 | **183** |
+unreadable leaves | 222 | **220** |
+one-gap programs | 61 | **61** |
+effect entries runnable | 1,420 | **1,422** |
+effect census blaming `effect` | 167 | **166** |
+
+**One program, two effect entries - and the reason is visible in the census's own wording.** `u_spawn_item` carries `loc` in the data far less often than it carries
+messages, so widening this reader moved less than widening the teleport's did. The asymmetry that matters is not size: it is that a refusal in a **shared** reader
+costs every program that touches the effect, which is why the last two rounds have both been widenings rather than new names.
+
+**A mistake of mine, caught by my own test.** The runner patch did not apply the first time - the text I replaced was not there - and the item kept landing at the
+origin. The test failed with `[(0, 0)]` against `[(9, 4)]`, which is exactly the shape of failure a "did it run" assertion would have missed. Fixed by extracting
+`item_place`, which is also the right shape: one function that answers "where does this go", used by the spawner and testable on its own.

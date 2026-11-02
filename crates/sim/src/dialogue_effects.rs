@@ -733,12 +733,33 @@ fn consume_items(world: &mut World, speaker: Entity, listener: Option<Entity>, e
     Applied::Done
 }
 
+/// Where a spawned item goes: the square a `loc` variable holds, or the actor's own.
+///
+/// Reference: `f_spawn_item` (`npctalk.cpp:3795`): `loc` is a `var_info`, and when the data gives none the item is added to the talker, which stands on its own
+/// square. A location variable holding anything but a square is nowhere to put an item, so it refuses.
+fn item_place(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    loc: Option<&(String, String)>,
+) -> Option<crate::Position> {
+    let Some((scope, name)) = loc else {
+        return world.get::<crate::Position>(speaker).copied();
+    };
+    let holder = crate::dialogue_values::holder_for(world, speaker, scope == "global_val");
+    let _ = listener;
+    match crate::dialogue_values::value_of(world, holder, name) {
+        Some(crate::dialogue_values::Value::Position { x, y, z }) => Some(crate::Position { x, y, z }),
+        _ => None,
+    }
+}
+
 /// Puts items on the actor's square.
 ///
 /// Reference: `f_spawn_item` (`npctalk.cpp:3771-3800`): `count` of them, each with `charges` charges when the data gives charges. An item the port's catalogue does
 /// not know is refused rather than dropped as something nameless.
 fn spawn_items(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::SpawnItem { item, count, charges, force_equip, use_item_group, .. } = effect else {
+    let Effect::SpawnItem { item, count, charges, force_equip, use_item_group, loc, .. } = effect else {
         return Applied::CannotAnswer;
     };
     // Reference: `force_equip` puts the item in the creature's hands, and the port has no wield slot to put it in - so it refuses rather than dropping the item
@@ -746,7 +767,8 @@ fn spawn_items(world: &mut World, speaker: Entity, listener: Option<Entity>, eff
     if *force_equip {
         return Applied::CannotAnswer;
     }
-    let Some(at) = world.get::<crate::Position>(speaker).copied() else {
+    // Reference: `f_spawn_item` (`npctalk.cpp:3795`) puts the item where `loc` says, and at the actor's own square when the data names no place.
+    let Some(at) = item_place(world, speaker, listener, loc.as_ref()) else {
         return Applied::CannotAnswer;
     };
     let Some(name) = crate::conditions::text_of(world, speaker, listener, item) else {
