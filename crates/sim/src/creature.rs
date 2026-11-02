@@ -1746,6 +1746,8 @@ pub fn spawn_creature(world: &mut World, name: &str, square: (i32, i32, i32)) ->
             },
             Moves::default(),
             Speed::default(),
+            // Attention starts at the reference's hundred (`Character::focus`), which is what every practice gain is scaled by.
+            crate::skills::Focus::default(),
         ))
         .id();
     crate::singletons::index_mut(world).insert(entity, square);

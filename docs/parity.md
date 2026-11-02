@@ -9735,3 +9735,22 @@ schedule of a thing that never finishes is not.** That is a gap a progress hook 
 
 **This round also paid for its own discipline:** the code went in before the test, so the test was mutation-checked instead - the spend was commented out and the test
 failed with `left: 12, right: 2`, which is the only evidence that a test asserting a number can fail at all. **A green test nobody has seen fail is a hope, not a gate.**
+
+## Focus is the scale every practice gain is measured in (round 998)
+
+The next crafting rule is **skill practice** at the finish - `activity_actor.cpp:4232-4238` gives the crafter a number of practice ticks spread across the craft, and
+`Character::practice` (`character.cpp:2804-2880`) turns ticks into experience. Reading it settled what had to come first: **every amount that goes in is multiplied by
+focus** (`adjust_for_focus`, `character.cpp:10172-10175`), and the port had no focus at all.
+
+So this round built the **scale** rather than the rule:
+
+| Piece | Now |
+|---|---|
+`Focus(i32)` component, a hundred on spawn | the reference's starting value |
+`skills::adjust_for_focus(world, creature, amount)` | `amount * focus / 100` |
+practice at a craft's finish | **not yet** - it needs the tick count, the cap and the train chain |
+
+**Why the scale on its own is worth a round:** it is the piece every later practice rule divides by, it is three lines, and it is exactly the sort of thing that would
+otherwise be buried inside `practice` and never seen. **The remaining pieces of the rule are named so the next round starts where this one stopped:** the tick count is
+`time_to_craft_moves / 100` per craft (`activity_actor.cpp:4232`), the cap is `recipe::get_skill_cap`, and the train chain takes the intelligence-and-perception catchup
+modifier (`practice`, `character.cpp:2818-2822`).

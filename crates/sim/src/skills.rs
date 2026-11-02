@@ -253,3 +253,30 @@ impl SkillLevel {
         self.rust_accumulator
     }
 }
+
+/// How sharply a creature is paying attention, on the reference's hundred-point scale.
+///
+/// Reference: `Character::focus`, which every practice, reading and crafting gain is scaled by. A fresh survivor starts at a hundred, and a number below it means
+/// the training is worth proportionally less.
+#[derive(bevy_ecs::component::Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Focus(pub i32);
+
+impl Default for Focus {
+    fn default() -> Self {
+        Focus(100)
+    }
+}
+
+/// Scales a practice amount by the creature's focus.
+///
+/// Reference: `Character::adjust_for_focus` (`character.cpp:10172-10175`): `amount * ( get_effective_focus() / 100.0f )`. The port reads the focus component and
+/// leaves the trait modifiers for the day traits exist here; a creature with no focus component is at the hundred a fresh survivor starts with.
+#[must_use]
+pub fn adjust_for_focus(world: &bevy_ecs::prelude::World, creature: bevy_ecs::prelude::Entity, amount: f32) -> f32 {
+    let focus = world
+        .get::<Focus>(creature)
+        .map_or(Focus::default(), |focus| *focus);
+    #[allow(clippy::cast_precision_loss)]
+    let scale = focus.0 as f32 / 100.0;
+    amount * scale
+}

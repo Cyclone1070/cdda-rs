@@ -612,3 +612,26 @@ fn a_blow_stops_a_craft_without_anyone_asking_it_to() {
         "a scratch that takes nothing off does not interrupt anything"
     );
 }
+
+/// Focus scales what a practice amount is worth, and a fresh survivor starts at the reference's hundred.
+///
+/// Reference: `Character::adjust_for_focus` (`character.cpp:10172-10175`): `amount * ( get_effective_focus() / 100.0f )`. This is the first half of the crafting
+/// practice rule - `Character::practice` multiplies the ticks by it - and it is here on its own because the focus scale is a rule about attention, not about crafting.
+#[test]
+fn focus_scales_what_a_practice_worths() {
+    let mut world = World::new();
+    let survivor = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    assert_eq!(
+        cdda_sim::skills::Focus::default().0,
+        100,
+        "a fresh survivor is at a hundred"
+    );
+    assert_eq!(
+        world.get::<cdda_sim::skills::Focus>(survivor).map(|focus| focus.0),
+        Some(100),
+        "and the spawn gives it"
+    );
+    assert!((cdda_sim::skills::adjust_for_focus(&world, survivor, 40.0) - 40.0).abs() < f32::EPSILON);
+    world.entity_mut(survivor).insert(cdda_sim::skills::Focus(50));
+    assert!((cdda_sim::skills::adjust_for_focus(&world, survivor, 40.0) - 20.0).abs() < f32::EPSILON);
+}
