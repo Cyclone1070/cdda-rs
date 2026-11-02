@@ -2410,6 +2410,8 @@ pub enum Effect {
         transform: StringSource,
         /// How far it reaches, in squares.
         radius: Expression,
+        /// The square it is centred on, when the data names one instead of the actor's own.
+        target: Option<AssignmentTarget>,
         /// Whether it works around the listener rather than the speaker.
         listener: bool,
     },
@@ -3981,11 +3983,16 @@ fn read_give_achievement(object: &cdda_json::Object) -> Option<Effect> {
 /// `time_in_future`, `target_var` and `key` are separate rules the port does not carry out - so an entry stating one is refused rather than applied early.
 fn read_transform_radius(object: &cdda_json::Object) -> Option<Effect> {
     let transform = object.get("ter_furn_transform")?;
-    for refused in ["time_in_future", "target_var", "key"] {
+    // A `target_var` names the square the transform is centred on; `time_in_future` and `key` are the postponed form, which needs a scheduled transform and refuses.
+    for refused in ["time_in_future", "key"] {
         if object.get(refused).is_some() {
             return None;
         }
     }
+    let target = match object.get("target_var") {
+        Some(value) => Some(read_variable_target(value)?),
+        None => None,
+    };
     // The radius's member is the activation's own name, not the bare `transform_radius`: the data writes `u_transform_radius` and `npc_transform_radius`, and reading
     // only the bare one refused every entry in the corpus.
     let (given, listener) = match (object.get("u_transform_radius"), object.get("npc_transform_radius")) {
@@ -3996,6 +4003,7 @@ fn read_transform_radius(object: &cdda_json::Object) -> Option<Effect> {
     Some(Effect::TransformRadius {
         transform: read_string_source(transform)?,
         radius: read_math_expression(given)?,
+        target,
         listener,
     })
 }

@@ -1,0 +1,109 @@
+//! Which entry of a program refuses, and what it looks like.
+//!
+//! The simulation's one-gap census blames a **member name**, and a member name is not the same thing as the entry that refuses: fixing `location_variable_adjust`'s
+//! reader left its program refusing for another reason. This test asks the question the census cannot: for every program the port cannot read, **the first entry whose
+//! reading fails, with its JSON**, grouped so the biggest cause is visible at a glance.
+
+#![allow(clippy::expect_used, clippy::panic)]
+
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::PathBuf;
+
+/// Every `.json` under the reference's data, by path.
+fn json_files(root: &std::path::Path) -> Vec<PathBuf> {
+    let mut found = Vec::new();
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(directory) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&directory) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+            } else if path.extension().is_some_and(|extension| extension == "json") {
+                found.push(path);
+            }
+        }
+    }
+    found
+}
+
+/// The name of the member an effect entry is built from, which is how the data spells its rule.
+fn member_of(entry: &cdda_json::Value) -> String {
+    let cdda_json::Value::Object(object) = entry else {
+        return "<not an object>".to_owned();
+    };
+    object
+        .members()
+        .iter()
+        .find(|(name, _)| !name.starts_with("//"))
+        .map_or_else(|| "<empty>".to_owned(), |(name, _)| name.clone())
+}
+
+/// Renders a value as JSON text, briefly.
+fn brief(entry: &cdda_json::Value) -> String {
+    let text = format!("{entry:?}");
+    text.chars().take(220).collect()
+}
+
+#[test]
+fn the_first_entry_that_refuses_says_which_rule_is_missing() {
+    let data = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../oracle/src/data/json");
+    let mut examples: BTreeMap<String, (usize, String)> = BTreeMap::new();
+    let mut refused_programs = BTreeSet::new();
+    for path in json_files(&data) {
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        let Ok(cdda_json::Value::Array(entries)) = cdda_json::parse(text.as_bytes()) else {
+            continue;
+        };
+        for entry in entries {
+            let cdda_json::Value::Object(object) = &entry else {
+                continue;
+            };
+            if object.get("type") != Some(&cdda_json::Value::Str("effect_on_condition".to_owned())) {
+                continue;
+            }
+            let Some(cdda_json::Value::Array(effects)) = object.get("effect") else {
+                continue;
+            };
+            for effect in effects {
+                if cdda_content::dialogue::read_effect(effect).is_some() {
+                    continue;
+                }
+                let member = member_of(effect);
+                let counted = examples.entry(member.clone()).or_insert((0, brief(effect)));
+                counted.0 += 1;
+                let id = object
+                    .get("id")
+                    .and_then(|given| match given {
+                        cdda_json::Value::Str(id) => Some(id.clone()),
+                        _ => None,
+                    })
+                    .unwrap_or_else(|| format!("{path:?}"));
+                refused_programs.insert(id);
+                break;
+            }
+        }
+    }
+    let mut ranked: Vec<(String, usize, String)> = examples
+        .into_iter()
+        .map(|(member, (count, example))| (member, count, example))
+        .collect();
+    ranked.sort_by(|left, right| right.1.cmp(&left.1).then_with(|| left.0.cmp(&right.0)));
+    let shown: Vec<String> = ranked
+        .iter()
+        .take(12)
+        .map(|(member, count, example)| format!("{member} x{count}: {example}"))
+        .collect();
+    println!("{} programs refuse at their first unreadable entry", refused_programs.len());
+    for line in shown {
+        println!("REFUSED {line}");
+    }
+    assert!(
+        !refused_programs.is_empty(),
+        "the corpus has programs the port cannot read; this test prints which entry stops each one"
+    );
+}

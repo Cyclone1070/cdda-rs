@@ -118,6 +118,7 @@ mod overmap_world_diff;
 mod passable_through;
 mod pile_rules;
 mod prototype_ids;
+mod refusals;
 mod qualities;
 mod recipe_requirements;
 mod recipe_skills;

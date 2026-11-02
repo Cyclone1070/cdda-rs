@@ -854,13 +854,21 @@ fn give_achievement(world: &mut World, speaker: Entity, listener: Option<Entity>
 /// around `target_pos`. The port does the same over its loaded level, and the reading and writing of squares lives in
 /// [`crate::terrain_transform`], which is where a transform's meaning belongs.
 fn transform_radius(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::TransformRadius { transform, radius, listener: theirs } = effect else {
+    let Effect::TransformRadius { transform, radius, target, listener: theirs } = effect else {
         return Applied::CannotAnswer;
     };
-    let Some(actor) = actor(speaker, listener, *theirs) else {
-        return Applied::CannotAnswer;
+    // Reference: `f_transform_radius` (`npctalk.cpp:4450-4468`): with a `target_var` the transform is centred on the square the variable holds rather than on the
+    // actor, which is how the data drains a site it stored earlier.
+    let here = if let Some(target) = target {
+        crate::dialogue_values::position_of(world, speaker, listener, target)
+            .map(|(x, y, z)| crate::Position { x, y, z })
+    } else {
+        let Some(actor) = actor(speaker, listener, *theirs) else {
+            return Applied::CannotAnswer;
+        };
+        world.get::<crate::Position>(actor).copied()
     };
-    let Some(here) = world.get::<crate::Position>(actor).copied() else {
+    let Some(here) = here else {
         return Applied::CannotAnswer;
     };
     let Some(named) = crate::conditions::text_of(world, speaker, listener, transform) else {

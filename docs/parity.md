@@ -9296,3 +9296,28 @@ rounds ago.
 
 **The two rules stay in because they are correct and gated, not because they paid.** A round that says "no count moved" is worth more than one that hides a no-op behind
 a count that moved for a different reason - and the ledger above is the record that this one did not.
+
+## A diagnostic that asks the right question, and the two rules it found (round 975)
+
+The one-gap census blames a **member name**, and a member name is not the entry that refuses - the last round proved it by fixing a blamed reader and watching the program
+stay refused. This round adds the question the census cannot ask: `content_suite::refusals` walks the corpus and prints, per program, **the first entry whose reading
+fails, with its JSON**, ranked by cause.
+
+What it said, in order: `else` x7, `key` x3 (`revert_location` with `"time_in_future": "infinite"`), `target_var` x3 (`u_transform_radius` centred on a stored square),
+`effect` x2 (a `foreach` the port has no rule for), `false_eocs` x2, `run_eocs` x2, and a long tail of one-offs.
+
+**Two of those became rules this round.** The `target_var` one first: `f_transform_radius` centres the transform on the square a variable holds, which is how the data
+drains a site it stored earlier - and the port read the entry as a refusal. It now reads and runs it, with a test that stores a square **six squares away** and checks the
+ground under the actor is untouched.
+
+| Count | Before | After |
+|---|---|---|
+unreadable leaves | 117 | **111** |
+one-gap programs | 18 | **22** |
+effect entries runnable | 1,518 | **1,524** |
+
+**Six leaves and six effect entries** - and one-gap went **up**, from 18 to 22, which is the right direction: programs that were several gaps deep are now one gap deep,
+so the list of *nearly* finished programs grew while the total distance fell.
+
+**`else` x7 is the biggest single cause and the next round's work.** It is a bare `{"else": [...]}` entry with no `if` beside it in the object the printer dumped, so
+the next step is the parent's JSON - which is exactly the pointer the diagnostic was built to give.

@@ -3314,3 +3314,47 @@ fn a_sound_event_answers_without_touching_the_world() {
     );
     assert!(cdda_sim::messages::lines(&world).is_empty(), "and nothing was said");
 }
+
+/// A transform with a `target_var` turns the terrain around **that square**, not around the actor.
+///
+/// Reference: `f_transform_radius` (`npctalk.cpp:4450-4468`): the transform's centre is the square the variable holds, which is how the data drains a site stored
+/// earlier. The test puts the stored square six squares from the actor and checks the change lands there and not under the actor's feet.
+#[test]
+fn a_transform_can_be_centred_on_a_stored_square() {
+    let mut world = bevy_ecs::prelude::World::new();
+    cdda_sim::terrain_types::set_types(&mut world, [("t_grass".to_owned(), 1), ("t_dirt".to_owned(), 2)]);
+    cdda_sim::terrain_transform::set_transforms(
+        &mut world,
+        [("drain".to_owned(), [("t_grass".to_owned(), "t_dirt".to_owned())].into_iter().collect())],
+    );
+    cdda_sim::square::set_terrain(&mut world, (6, 0, 0), 1);
+    cdda_sim::square::set_terrain(&mut world, (0, 0, 0), 1);
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let globals = cdda_sim::dialogue_values::holder_for(&mut world, survivor, true);
+    cdda_sim::dialogue_values::set(
+        &mut world,
+        globals,
+        "drain_terrain",
+        cdda_sim::dialogue_values::Value::Position { x: 6, y: 0, z: 0 },
+    );
+    let value = cdda_json::parse(
+        br#"{"u_transform_radius": 0, "ter_furn_transform": "drain", "target_var": {"global_val": "drain_terrain"}}"#
+            .as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (6, 0, 0)),
+        Some(2),
+        "the stored square was drained"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (0, 0, 0)),
+        Some(1),
+        "and the ground under the actor was not"
+    );
+}
