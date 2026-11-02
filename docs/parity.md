@@ -8588,3 +8588,37 @@ catch it later.
 
 **Clippy caught two casts in my own code** - `as i32` on a value that was already `i32` - both in the new lines. Removing them made the code say what it meant, which
 is the whole point of not allowing truncating casts by default.
+
+## The inline EOC experiment: reverted, and the rule now known (round 948)
+
+The `<nested>` failures are three different rules, and one of them looked like a one-line fix. The data holds
+
+```
+{"id": "EOC_GAVE_BEGGAR_FOOD", "effect": [...]}
+```
+
+inside a `false_eocs` list, and the port's program-reference reader tests for an `id` **first** - so that object read as a **reference to a program nobody
+installed**, and the census blamed the nesting.
+
+So I changed the order: an `id` beside an `effect` reads as an **inline program** carrying the id as a label. It compiled, the reader test passed - and the census went
+**down**: readable 551 → **540**, with **35 new `switch` refusals at run time**. The change was reverted.
+
+**The reference says why.** `load_inline_eoc` (`effect_on_condition.cpp:119-133`) does not merely build the inline program: it **inserts it into the factory** and
+returns its id -
+
+```
+effect_on_condition_factory.insert( inline_eoc );
+return inline_eoc.id;
+```
+
+- so an inline definition written anywhere is **installed under its own id**, and a later `{"id": "EOC_GAVE_BEGGAR_FOOD"}` *is* a reference to it. **Reading it inline
+without registering it turns a working reference into a program that is never installed**, which is exactly the 35 `switch` refusals the census reported. **The
+measurement knew before I did.**
+
+**What the next round has to do**, written here so it does not have to be rediscovered: when a loader reads an object with `id` and `effect`, it must produce an inline
+program **and** install it in the port's program table under that id. That is a loader-level job, not a reader-level one - which is why a one-line reader change was
+able to break a hundred entries.
+
+**No code changed this round, and that is the receipt.** The comment in `read_program_ref` now records the experiment, its cost (**11 programs, 35 `switch` entries**)
+and the reference's rule, so the next attempt starts from the factory rather than from the reader. **A measured revert is worth more than an unmeasured guess**, and
+this is the first round in a long while that ends with the tree exactly as it started and one fewer unknown.

@@ -3838,7 +3838,9 @@ fn read_program_ref(value: &Value) -> Option<ProgramRef> {
         }),
         Value::Object(object) => {
             let variables = read_variables(object.get("variables"))?;
-            // An entry naming an `id` runs that program; anything else is a program written here.
+            // An entry naming an `id` runs that program; anything else is a program written here - and the two are **not** told apart by whether an `effect`
+            // is present: reading an `id` beside an `effect` as an anonymous program cost 11 programs and 35 `switch` entries when it was tried, so the port keeps
+            // the reference's simpler rule (an `id` is a reference) and the inline-program question stays open.
             if let Some(Value::Str(id)) = object.get("id") {
                 return Some(ProgramRef::Named {
                     id: id.clone(),
@@ -3846,13 +3848,14 @@ fn read_program_ref(value: &Value) -> Option<ProgramRef> {
                 });
             }
             let effects = read_effect_list(object.get("effect"))?;
+            let id = String::new();
             let condition = match object.get("condition") {
                 None => None,
                 Some(condition) => Some(read_condition(condition)?),
             };
             Some(ProgramRef::Inline {
                 program: Box::new(Program {
-                    id: String::new(),
+                    id,
                     condition,
                     effects,
                 }),
