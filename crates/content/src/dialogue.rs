@@ -1724,6 +1724,7 @@ fn read_unnamed_effect(object: &cdda_json::Object) -> Option<Effect> {
         .or_else(|| read_run_inv_eocs(object))
         .or_else(|| read_location_variable_adjust(object))
         .or_else(|| read_mutation(object))
+        .or_else(|| read_sound_event(object))
 }
 
 /// Reads a `sound_effect` entry.
@@ -2321,6 +2322,19 @@ pub enum Effect {
         z_override: bool,
         /// Whether the x and y moves are counted in overmap tiles.
         overmap_tile: bool,
+    },
+    /// Plays a sound **event**, which the headless port has no ear for.
+    ///
+    /// Reference: `f_sound_effect` (`npctalk.cpp:5528-5570`): `id` names a sound in the sound pack, `volume` overrides its own level, `outdoor_event` picks the outdoor
+    /// variant, and `variant`. Every one of those decides **what the player hears** and nothing else - the reference's own comment on the family is that it is
+    /// presentation. The port carries the id and answers `Done`, and the day it has audio this effect is the one that plays it.
+    SoundEvent {
+        /// The sound's id.
+        id: StringSource,
+        /// The volume to play it at, when the data names one.
+        volume: Option<Expression>,
+        /// Whether the outdoor variant is wanted.
+        outdoor: bool,
     },
     /// Runs programs after a delay.
     ///
@@ -3106,7 +3120,8 @@ impl Effect {
             | Self::LocationVariableAdjust { .. }
             | Self::MonsterAround { .. }
             | Self::Mutation { .. }
-            | Self::RunEocLater { .. } => self.store_kind().unwrap_or_default(),
+            | Self::RunEocLater { .. }
+            | Self::SoundEvent { .. } => self.store_kind().unwrap_or_default(),
             Self::PlaceOverride { .. } => "place_override",
             Self::SpawnItem { .. } => "u_spawn_item",
             Self::ConsumeItem { listener, .. } => {
@@ -3855,9 +3870,11 @@ fn read_location_variable_adjust(object: &cdda_json::Object) -> Option<Effect> {
         return None;
     };
     let (scope, name) = named_variable(input)?;
+    // The adjusts are `dbl_or_var`s: a number, a `math` expression, or a variable. `read_expression` reads all three; `read_math_expression` reads only the first two,
+    // which is why the `{"math": [...]}` form the data writes here read as a refusal.
     let adjust = |key: &str| match object.get(key) {
         None => Some(Expression::Number(0.0)),
-        Some(given) => read_math_expression(given),
+        Some(given) => read_expression(given),
     };
     let output = match object.get("output_var") {
         None => None,
@@ -4367,6 +4384,22 @@ fn read_duration_text(value: &cdda_json::Value) -> Option<StringSource> {
         }
         _ => None,
     }
+}
+
+/// Reads a `sound_effect` entry.
+///
+/// Reference: `f_sound_effect` (`npctalk.cpp:5528-5570`): the member is the **sound's id**, and `id`, `volume`, `outdoor_event` and `variant` say how it plays. The
+/// port has no audio, so it reads the entry and answers `Done` - a sound the player cannot hear is a gap in presentation, not a rule the port has got wrong.
+fn read_sound_event(object: &cdda_json::Object) -> Option<Effect> {
+    let id = object.get("sound_effect")?;
+    Some(Effect::SoundEvent {
+        id: read_string_source(id)?,
+        volume: match object.get("volume") {
+            None => None,
+            Some(given) => Some(read_expression(given)?),
+        },
+        outdoor: matches!(object.get("outdoor_event"), Some(Value::Bool(true))),
+    })
 }
 
 /// Reads one `run_eocs` entry: a name, or a program written inline.

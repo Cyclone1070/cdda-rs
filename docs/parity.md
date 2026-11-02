@@ -9272,3 +9272,27 @@ between** - and all four read. The first two cost a shared reader; the last two 
 
 **Two of the port's own gates had to move with it, and both moves are the point:** the stage-order test now names the due-events stage, and `TurnStage::order()` says six.
 **A stage added to the schedule without the order test failing would have been a stage that might run anywhere.**
+
+## Two readers, no count moved - and the reason is the blame list (round 974)
+
+Two small rules landed this round, both verified and neither moving a number:
+
+1. **`location_variable_adjust`'s adjusts are `dbl_or_var`s**, so `{"math": [...]}` is a shape it may take. The reader called `read_math_expression`, which does not read
+   the object form; `read_expression` does.
+2. **`sound_effect`** (`f_sound_effect`, `npctalk.cpp:5528-5570`) is presentation: it picks a sound from the pack and changes nothing in the world. The port reads it
+   and answers `Done`, with a test asserting the **world is untouched** - the half that would catch a sound effect that started pretending to do something.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 574 | **574** |
+answered `Done` | 385 | **385** |
+unreadable leaves | 117 | **117** |
+one-gap programs | 18 | **18** |
+
+**`location_variable_adjust` is still on the one-gap list after its rule was read**, and that is the useful finding: **the one-gap blame names a member, not a program's
+actual first refusal.** Fixing the blamed member does not finish the program, which means the list has been pointing at symptoms for several rounds. The next
+diagnostic is not another member: it is a dump of **the first entry that refuses, per program, with its JSON** - the same shape that finally cracked the inline rule two
+rounds ago.
+
+**The two rules stay in because they are correct and gated, not because they paid.** A round that says "no count moved" is worth more than one that hides a no-op behind
+a count that moved for a different reason - and the ledger above is the record that this one did not.

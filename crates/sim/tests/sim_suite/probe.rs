@@ -3289,3 +3289,28 @@ fn a_delayed_run_eocs_waits_for_its_turn_and_runs_once() {
         "and not again on the turn after"
     );
 }
+
+/// A `sound_effect` entry reads, and answers `Done` without changing the world.
+///
+/// Reference: `f_sound_effect` (`npctalk.cpp:5528-5570`): the entry plays a sound in the sound pack and touches nothing else. The port has no audio, so the honest answer
+/// is `Done` - **and the test asserts the world is unchanged**, which is the half that would catch a sound effect that started pretending to do something.
+#[test]
+fn a_sound_event_answers_without_touching_the_world() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let value = cdda_json::parse(
+        br#"{"id": "bionics", "sound_effect": "elec_blast", "volume": 100}"#.as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    assert_eq!(
+        world.get::<cdda_sim::Position>(survivor).copied(),
+        Some(cdda_sim::Position { x: 0, y: 0, z: 0 }),
+        "the creature did not move"
+    );
+    assert!(cdda_sim::messages::lines(&world).is_empty(), "and nothing was said");
+}

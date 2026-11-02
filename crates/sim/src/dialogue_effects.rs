@@ -2438,9 +2438,12 @@ fn run_store_effect(
         Effect::MonsterAround { .. } => store_monster_around(world, speaker, effect),
         Effect::Mutation { .. } => mutate(world, speaker, listener, effect),
         Effect::RunEocLater { .. } => run_eoc_later(world, speaker, listener, effect),
+        // A sound event is presentation: the port carries it and has no ear to play to. The reference changes nothing about the world when it plays one, so `Done` is
+        // the honest answer - and it shares that answer with the other presentation effects below.
+
         // Audio changes no game state, and the port has no audio: Done, not refused - nothing is missing from the simulation, only from the sound card. A
         // comment-only entry does nothing, which the reference's loader also does with it.
-        Effect::PlaySoundEffect { .. } | Effect::Nothing => Applied::Done,
+        Effect::SoundEvent { .. } | Effect::PlaySoundEffect { .. } | Effect::Nothing => Applied::Done,
         _ => return None,
     })
 }
