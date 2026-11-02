@@ -1936,3 +1936,27 @@ fn a_creature_sees_across_floor_but_not_through_a_wall() {
         "a wall in the way is not seen through"
     );
 }
+
+/// `place_override` adds a timed event due one second after its length, and the key names it.
+///
+/// Reference: `f_place_override` (`npctalk.cpp:4798-4819`): `get_timed_events().add( OVERRIDE_PLACE, calendar::turn + length + 1_seconds, ..., key )`. The test checks
+/// the event is **not** due at the length and **is** due one turn later, which is the reference's own plus-one.
+#[test]
+fn a_place_override_comes_due_one_second_after_its_length() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::calendar::set_turn(&mut world, 100);
+    let value = cdda_json::parse(
+        br#"{"place_override": "Infinite Corridor", "length": "10 minutes", "key": "LIXA_escape_key"}"#.as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    cdda_sim::calendar::set_turn(&mut world, 100 + 600);
+    assert_eq!(cdda_sim::timed_events::has_happened(&world, "LIXA_escape_key"), Some(false), "not yet at ten minutes");
+    cdda_sim::calendar::set_turn(&mut world, 100 + 601);
+    assert_eq!(cdda_sim::timed_events::has_happened(&world, "LIXA_escape_key"), Some(true), "but due a second later");
+}

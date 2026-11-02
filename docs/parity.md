@@ -8137,3 +8137,35 @@ visible squares. The test now loads a real level, and it prints three answers fi
 **A decision inside the answer.** A variable holding no square, or one the dialogue has no holder for, is answered **no** rather than refused: the reference would
 have no square to pass either, and the condition is a yes-or-no question, so refusing would throw away a whole program over a variable that was never set. That
 choice is written above the function that makes it (`can_see_asked`).
+
+## `place_override`: an effect whose whole body is a timed event (round 932)
+
+`key` was on the one-gap list, and it was a member of `place_override` (`npctalk.cpp:4798-4819`). The reference reads the new name, a required `length`, and an
+optional `key`, and then does exactly one thing:
+
+```
+get_timed_events().add( OVERRIDE_PLACE, calendar::turn + length + 1_seconds, ..., new_place, key )
+```
+
+**So the effect is the event.** The port reads all three members and schedules the event through `timed_events::schedule`, reusing the store the port already had for
+timed events (and the clock it already keeps, where a turn is a second, so the reference's plus-one second is a plus-one turn).
+
+**What is not modelled is written down where it will be found.** The renaming happens when the event comes due, and the port has no place names to rename yet - so
+`place_override` in the runner says, in its own doc comment, that the *scheduling* is done and the *renaming* is the next round's work. That is the honest split: the
+observable the effect performs is complete, and the consequence it schedules is named.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 526 | **528** |
+answered `Done` | 348 | **349** |
+unreadable leaves | 196 | **191** |
+one-gap programs | 51 | **49** |
+effect entries runnable | 1,439 | **1,444** |
+effect census blaming `effect` | 157 | **155** |
+
+**Five effect entries from one reader**, and a new refusal line in the census: `place_override` refused **17** times **at run time**, which is new information, not a
+regression - those entries want a `length` the dialogue cannot work out from its variables, and the runner says so instead of scheduling an event at the wrong time.
+A refusal that appears because a reader got wider is the census doing its job.
+
+**The plus-one is the assertion.** The test checks the event is **not** due at exactly its length and **is** due one turn later. Without the plus-one it would pass at
+the length too; with it, the test fails if the sync second is dropped - which is the one number in this effect that is easy to lose.

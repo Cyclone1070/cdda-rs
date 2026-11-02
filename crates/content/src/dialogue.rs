@@ -1609,6 +1609,7 @@ fn read_unnamed_effect(object: &cdda_json::Object) -> Option<Effect> {
         .or_else(|| read_remove_active_mission(object))
         .or_else(|| read_turn_cost(object))
         .or_else(|| read_add_wet(object))
+        .or_else(|| read_place_override(object))
 }
 
 /// Reads a `sound_effect` entry.
@@ -1626,6 +1627,22 @@ fn read_sound_effect(object: &cdda_json::Object) -> Option<Effect> {
             Some(value) => read_count(Some(value))?,
         },
         outdoor_event: matches!(object.get("outdoor_event"), Some(Value::Bool(true))),
+    })
+}
+
+/// Reads a `place_override` entry.
+///
+/// Reference: `f_place_override` (`npctalk.cpp:4798-4819`): the place is a `translation_or_var`, `length` is required, and `key` is optional and defaults to the
+/// empty string. The member is required here too - a reader that answered for its absence would claim every effect no other reader claimed.
+fn read_place_override(object: &cdda_json::Object) -> Option<Effect> {
+    let place = object.get("place_override")?;
+    Some(Effect::PlaceOverride {
+        place: read_string_source(place)?,
+        length: read_effect_duration(object.get("length"), EffectDuration::Turns(Some(0)))?,
+        key: match object.get("key") {
+            None => None,
+            Some(value) => Some(read_string_source(value)?),
+        },
     })
 }
 
@@ -2071,6 +2088,19 @@ pub enum Effect {
         volume: CountRange,
         /// Whether it is only heard outdoors.
         outdoor_event: bool,
+    },
+    /// Schedules a place to be renamed for a while.
+    ///
+    /// Reference: `f_place_override` (`npctalk.cpp:4798-4819`): the member is the new name, `length` is how long it lasts (required), and `key` is an optional name
+    /// that pairs this event with another. The effect itself does one thing - it **adds a timed event** for `now + length + 1 second`, `OVERRIDE_PLACE`, with the
+    /// name and the key carried on it - and that event is what renames the place when it comes due.
+    PlaceOverride {
+        /// The name the place takes on.
+        place: StringSource,
+        /// How long it lasts.
+        length: EffectDuration,
+        /// The name pairing this override with another, when the data gives one.
+        key: Option<StringSource>,
     },
     /// Makes a creature wetter.
     ///
@@ -2603,6 +2633,7 @@ impl Effect {
             Self::FinishMission { .. } => "finish_mission",
             Self::RemoveActiveMission { .. } => "remove_active_mission",
             Self::TurnCost { .. } => "turn_cost",
+            Self::PlaceOverride { .. } => "place_override",
             Self::AddWet { listener, .. } => {
                 if *listener {
                     "npc_add_wet"

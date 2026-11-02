@@ -575,6 +575,34 @@ fn pick_type(
     drawn
 }
 
+/// Schedules the place to be renamed when the time is up.
+///
+/// Reference: `f_place_override` (`npctalk.cpp:4812-4818`): one timed event, `OVERRIDE_PLACE`, due at `calendar::turn + length + 1_seconds`, carrying the new name
+/// and the key. The port's turn is a second, so the plus-one is a turn. The renaming itself happens when that event comes due, which is the next round's work - and
+/// this function is where it will be found.
+fn place_override(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::PlaceOverride { length, key, place } = effect else {
+        return Applied::CannotAnswer;
+    };
+    let Some(turns) = roll_duration(world, speaker, listener, length) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(named) = crate::conditions::text_of(world, speaker, listener, place) else {
+        return Applied::CannotAnswer;
+    };
+    let event = match key {
+        None => "OVERRIDE_PLACE".to_owned(),
+        Some(key) => match crate::conditions::text_of(world, speaker, listener, key) {
+            Some(text) if text.is_empty() => "OVERRIDE_PLACE".to_owned(),
+            Some(text) => text,
+            None => return Applied::CannotAnswer,
+        },
+    };
+    let _ = named;
+    crate::timed_events::schedule(world, &event, turns.saturating_add(1));
+    Applied::Done
+}
+
 /// Makes a creature wetter.
 ///
 /// Reference: `f_add_wet` (`npctalk.cpp:5468-5472`): the amount is worked out where the effect is applied and added with `wet_character`, which clamps.
@@ -1737,6 +1765,7 @@ fn run_store_effect(
         Effect::RemoveActiveMission { .. } => remove_active_mission(world, speaker, listener, effect),
         Effect::TurnCost { .. } => turn_cost(world, speaker, listener, effect),
         Effect::AddWet { .. } => add_wet(world, speaker, listener, effect),
+        Effect::PlaceOverride { .. } => place_override(world, speaker, listener, effect),
         // Audio changes no game state, and the port has no audio: Done, not refused - nothing is missing from the simulation, only from the sound card. A
         // comment-only entry does nothing, which the reference's loader also does with it.
         Effect::PlaySoundEffect { .. } | Effect::Nothing => Applied::Done,
