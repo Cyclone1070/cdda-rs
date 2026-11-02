@@ -522,11 +522,11 @@ fn read_has_effect(object: &cdda_json::Object) -> Option<Condition> {
         (_, Some(Value::Str(effect))) => (effect, true),
         _ => return None,
     };
-    // A condition that names a body part cannot be answered by the port's effects, which are the creature's rather than a
-    // part's: refusing it is honest, and answering it as though the part did not matter would be wrong every time it did.
-    if object.get("bodypart").is_some() {
-        return None;
-    }
+    // A `bodypart` is **ignored rather than refused**, and the reason is the same one the effect reader gives: the port has no limb model, so every effect it
+    // applies is the creature's. A condition asking whether the creature has an effect on a named part therefore has exactly one answer the port can give - yes when
+    // the creature has it - and refusing instead made three programs unreadable for a distinction the port cannot make either way. **The divergence is real and
+    // written down: a limb model is what closes it, not a stricter reader.**
+    let _ = object.get("bodypart");
     let intensity = match object.get("intensity") {
         Some(Value::Int(number)) => i32::try_from(*number).ok()?,
         Some(Value::Float(number)) => {

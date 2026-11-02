@@ -8701,3 +8701,34 @@ it on its first assertion, which is what a test that pins the meaning rather tha
 
 **Clippy caught two more of my habits** in the same change: a redundant guard (`Some(answer) if answer == 0 => true`), and a doc comment left behind when I deleted the
 helper under it. **Both were mine, both were invisible to me, and both were one line to fix.**
+
+## A `bodypart` is a distinction the port cannot make (round 952)
+
+`u_has_effect` with a `bodypart` refused, and the reason was written in the reader: the port's effects belong to the creature, not to a part. **True - and the wrong
+conclusion.** Six of the port's own effects are already creature-level, so a question about a part has exactly one answer the port can give: *yes when the creature wears
+it*. Refusing made three programs unreadable for a distinction the port cannot make in **either** direction.
+
+So the part is now **ignored rather than refused**, the same way the effect reader already ignores `target_part` - and the divergence is named in the comment instead of
+being avoided: **a limb model is what closes this, not a stricter reader.**
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 553 | **555** |
+answered `Done` | 361 | **363** |
+did something | 263 | **265** |
+unreadable leaves | 145 | **143** |
+one-gap programs | 33 | **31** |
+conditions answerable | 3,217 | **3,219** |
+effect census blaming `effect` | 130 | **129** |
+
+**Two programs, two leaves, two conditions and two effect entries from deleting a refusal.** That is the ninth time this session a count went up by *removing*
+something rather than adding it, and the pattern is now clear enough to name: **an honest refusal is only honest while the port cannot answer; once it can answer in one
+direction, the refusal is a gap wearing a principle's clothes.**
+
+**Two of my own tests had to move, and one of them had already moved twice.** `a_condition_the_port_cannot_read_is_refused_rather_than_answered` listed a `bodypart`
+case as unreadable - it now reads, and the case became an assertion that it does. Its comment already said the example had moved twice before (`u_has_trait`, then
+`u_has_flag`) *because each one answered as its rule landed* - and this is the third move, by the same rule. **A test built to follow the frontier has to be expected to
+move; that is the difference between a living refusal list and a dead one.**
+
+**The one thing I would not do here:** answer the part question *as if* there were parts - inventing per-limb effects the store cannot hold. **The port answers what its
+model can hold and says so**, which is the rule that has kept the architecture absolute for nine hundred rounds.

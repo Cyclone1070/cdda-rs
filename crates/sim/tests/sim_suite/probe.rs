@@ -2477,3 +2477,37 @@ fn a_query_takes_a_queued_answer_and_falls_back_to_its_default() {
     cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect);
     assert_eq!(said(&world), 1, "an unanswered question takes its default");
 }
+
+/// A `u_has_effect` that names a `bodypart` answers about the creature, because every effect the port applies is the creature's.
+///
+/// Reference: `f_has_effect` (`condition.cpp:980-996`) asks a part when one is named. The port has no limb model, so its effects are the creature's - and the test
+/// pins what that means: the effect present answers **yes**, the effect absent answers **no**, and the part is not a reason to refuse.
+#[test]
+fn a_has_effect_with_a_bodypart_answers_about_the_creature() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let value = cdda_json::parse(
+        br#"{"bodypart": "eyes", "u_has_effect": "conjunctivitis"}"#.as_slice(),
+    )
+    .expect("json");
+    let condition = cdda_content::dialogue::read_condition(&value).expect("the condition reads");
+
+    assert!(
+        !cdda_sim::conditions::holds(&world, survivor, &condition),
+        "nothing applied yet, so nothing is worn"
+    );
+    cdda_sim::applied_effects::add(
+        &mut world,
+        survivor,
+        cdda_sim::effects::ActiveEffect {
+            id: "conjunctivitis".to_owned(),
+            intensity: 1,
+            duration: 100,
+            permanent: false,
+        },
+    );
+    assert!(
+        cdda_sim::conditions::holds(&world, survivor, &condition),
+        "and the effect is the creature's, which is the only place the port can put it"
+    );
+}

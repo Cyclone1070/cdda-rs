@@ -81,13 +81,15 @@ fn and_or_and_not_are_the_reference_s_three_combinators() {
 
 #[test]
 fn a_condition_the_port_cannot_read_is_refused_rather_than_answered() {
-    // A body part makes the question one the port's effects cannot answer: they belong to the creature, not to a part.
+    // A body part **is** read now: the port's effects belong to the creature, so a question about a part has one answer it can give, and refusing it made three
+    // programs unreadable for a distinction the port cannot make either way. `a_has_effect_with_a_bodypart_answers_about_the_creature` pins what it answers.
     let with_part = cdda_json::parse(br#"{"u_has_effect": "effect_bleed", "bodypart": "arm_l"}"#.as_slice())
         .expect("valid json");
     assert!(
-        read_condition(&with_part).is_none(),
-        "the reader refuses what it cannot evaluate"
+        read_condition(&with_part).is_some(),
+        "a named part does not make the question unreadable"
     );
+
     // And a verb nobody has ported is refused too. This example has moved twice now - `u_has_trait`, then `u_has_flag` - because each one answered
     // as its rule landed, which is what the test is for and why it was worth keeping rather than deleting.
     let unported = cdda_json::parse(br#"{"u_is_on_furniture": "f_chair"}"#.as_slice()).expect("valid json");
