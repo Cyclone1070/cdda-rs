@@ -2056,3 +2056,23 @@ fn a_lost_morale_takes_its_own_type_only() {
         "and none of it is left: {left:?}"
     );
 }
+
+/// `u_set_talker` writes the speaker's id into a variable **as text**, which is what a later `run_eocs` reads back.
+///
+/// Reference: `f_set_talker` (`npctalk.cpp:6937-6948`), whose own comment says the id is stringified for `run_eocs`. The test reads the variable back as text, so a
+/// port that wrote a number would fail rather than quietly pass a comparison the data never makes.
+#[test]
+fn a_set_talker_writes_the_speakers_id_as_text() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let value = cdda_json::parse(br#"{"u_set_talker": {"global_val": "talker_id"}}"#.as_slice()).expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    let globals = cdda_sim::dialogue_values::holder_for(&mut world, survivor, true);
+    let held = cdda_sim::dialogue_values::value_of(&world, globals, "talker_id");
+    let expected = cdda_sim::dialogue_values::Value::Text(survivor.index().to_string());
+    assert_eq!(held, Some(expected), "the id is stored as text");
+}

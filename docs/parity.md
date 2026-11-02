@@ -8252,3 +8252,28 @@ types it tests the removal rule, and it says so in a comment so the next reader 
 are **members on effects the port already reads** and **stores it already keeps**, and the work is to find which member refuses and wire the store that is already
 there. That is why the counts move in ones and twos rather than in tens - and why the leaves keep falling faster than the programs: **one widened reader serves many
 programs that were each blocked on different copies of the same shape.**
+
+## `u_set_talker`: three lines of rule, and an id that is a number written as text (round 936)
+
+`f_set_talker` (`npctalk.cpp:6937-6948`) is one of the smallest effects in the data: read a `var_info`, take the actor's `getID().get_value()`, write it into the
+variable **as a string**. The reference's own comment explains the stringification - a later `run_eocs` reads the variable back as text - and that comment is the part
+that matters, because the port had to match the *type* it writes, not just the value.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 538 | **540** |
+answered `Done` | 351 | **353** |
+unreadable leaves | 165 | **163** |
+one-gap programs | 45 | **43** |
+effect entries runnable | 1,475 | **1,477** |
+effect census blaming `effect` | 145 | **143** |
+
+**The port's id is the entity's index**, which is an integer and never a pointer - the same guarantee the reference's `getID()` gives it - and it is written through
+`dialogue_values::set` as `Value::Text`, so the shape matches what the data reads back.
+
+**The test compares against `Value::Text(index)` rather than against "something was written".** A port that stored a number would compare unequal in the data's own
+comparisons, and the test would catch it; an assertion that only checked the variable was set would not.
+
+**A pin I got wrong again, and the gate printed it**: I wrote `ran_in_a_built_world: 356` from the fresh-world delta; the built world carries **357**. The number was
+fixed from the failure message, which is the third time this session the gate has corrected a count I derived instead of measured - **the pattern is clear enough to
+name: never derive a count, always read it.**

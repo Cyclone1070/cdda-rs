@@ -575,6 +575,26 @@ fn pick_type(
     drawn
 }
 
+/// Writes the speaking creature's id into a variable as text.
+///
+/// Reference: `f_set_talker` (`npctalk.cpp:6943-6947`): the id is **stringified** on the way in, because a later `run_eocs` reads the variable back as a string. The
+/// port's id is the entity's index, which is an integer that is never a pointer - the same guarantee the reference's `getID()` gives it.
+fn set_talker(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::SetTalker { target, listener: theirs } = effect else {
+        return Applied::CannotAnswer;
+    };
+    let Some(creature) = actor(speaker, listener, *theirs) else {
+        return Applied::CannotAnswer;
+    };
+    let holder = match target.0.as_str() {
+        "global_val" => crate::dialogue_values::holder_for(world, speaker, true),
+        _ => crate::dialogue_values::holder_for(world, creature, false),
+    };
+    let id = creature.index().to_string();
+    crate::dialogue_values::set(world, holder, &target.1, crate::dialogue_values::Value::Text(id));
+    Applied::Done
+}
+
 /// Takes a morale point away from a creature.
 ///
 /// Reference: `f_lose_morale` (`npctalk.cpp:7201-7203`): `d.actor( is_npc )->remove_morale( morale_type( ... ) )`, which erases every point of that type. Types the
@@ -1817,6 +1837,7 @@ fn run_store_effect(
         Effect::PlaceOverride { .. } => place_override(world, speaker, listener, effect),
         Effect::RemoveItemWith { .. } => remove_item_with(world, speaker, listener, effect),
         Effect::LoseMorale { .. } => lose_morale(world, speaker, listener, effect),
+        Effect::SetTalker { .. } => set_talker(world, speaker, listener, effect),
         // Audio changes no game state, and the port has no audio: Done, not refused - nothing is missing from the simulation, only from the sound card. A
         // comment-only entry does nothing, which the reference's loader also does with it.
         Effect::PlaySoundEffect { .. } | Effect::Nothing => Applied::Done,

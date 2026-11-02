@@ -1612,6 +1612,7 @@ fn read_unnamed_effect(object: &cdda_json::Object) -> Option<Effect> {
         .or_else(|| read_place_override(object))
         .or_else(|| read_remove_item_with(object))
         .or_else(|| read_lose_morale(object))
+        .or_else(|| read_set_talker(object))
 }
 
 /// Reads a `sound_effect` entry.
@@ -1630,6 +1631,22 @@ fn read_sound_effect(object: &cdda_json::Object) -> Option<Effect> {
         },
         outdoor_event: matches!(object.get("outdoor_event"), Some(Value::Bool(true))),
     })
+}
+
+/// Reads a `u_set_talker` / `npc_set_talker` entry.
+///
+/// Reference: `f_set_talker` (`npctalk.cpp:6937-6948`): one required member, a `var_info` given as an object.
+fn read_set_talker(object: &cdda_json::Object) -> Option<Effect> {
+    for (member, listener) in [("u_set_talker", false), ("npc_set_talker", true)] {
+        let Some(Value::Object(target)) = object.get(member) else {
+            continue;
+        };
+        return Some(Effect::SetTalker {
+            target: named_variable(target)?,
+            listener,
+        });
+    }
+    None
 }
 
 /// Reads a `u_lose_morale` / `npc_lose_morale` entry.
@@ -2124,6 +2141,16 @@ pub enum Effect {
         volume: CountRange,
         /// Whether it is only heard outdoors.
         outdoor_event: bool,
+    },
+    /// Writes the speaking creature's id into a variable, as text.
+    ///
+    /// Reference: `f_set_talker` (`npctalk.cpp:6937-6948`): the member is a `var_info`, and the actor's `getID().get_value()` is written into it **as a string** -
+    /// the reference's own comment says so, because a later `run_eocs` reads it back as one.
+    SetTalker {
+        /// Where the id is written: the variable's scope and name.
+        target: (String, String),
+        /// Whether it is the listener's id rather than the speaker's.
+        listener: bool,
     },
     /// Takes a morale point away from a creature.
     ///
@@ -2692,6 +2719,13 @@ impl Effect {
             Self::RemoveActiveMission { .. } => "remove_active_mission",
             Self::TurnCost { .. } => "turn_cost",
             Self::PlaceOverride { .. } => "place_override",
+            Self::SetTalker { listener, .. } => {
+                if *listener {
+                    "npc_set_talker"
+                } else {
+                    "u_set_talker"
+                }
+            }
             Self::LoseMorale { listener, .. } => {
                 if *listener {
                     "npc_lose_morale"
