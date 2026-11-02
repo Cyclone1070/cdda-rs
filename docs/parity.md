@@ -8277,3 +8277,29 @@ comparisons, and the test would catch it; an assertion that only checked the var
 **A pin I got wrong again, and the gate printed it**: I wrote `ran_in_a_built_world: 356` from the fresh-world delta; the built world carries **357**. The number was
 fixed from the failure message, which is the third time this session the gate has corrected a count I derived instead of measured - **the pattern is clear enough to
 name: never derive a count, always read it.**
+
+## `u_assign_activity`: the port had the store, not the effect (round 937)
+
+`f_assign_activity` (`npctalk.cpp:5451-5462`) reads an activity id and a **required duration**, and calls `assign_activity( activity_id, to_moves<int>( duration ) )`.
+The port already had the store - `creature::Doing { activity, moves_left, basis, subject }`, with the turn-spending rule - and no way for a dialogue to reach it. Now
+it does: the effect reads both members and inserts a `Doing` with `moves_left = duration * 100`, `Basis::Time`, and no subject.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 540 | **542** |
+answered `Done` | 353 | **354** |
+unreadable leaves | 163 | **160** |
+one-gap programs | 43 | **42** |
+effect entries runnable | 1,477 | **1,480** |
+effect census blaming `effect` | 143 | **141** |
+
+**The test asserts 200 moves for a two-turn activity**, not "an activity was assigned": the hundred-moves-a-turn conversion is the one part of this rule a reader
+could get wrong while every other assertion still passes.
+
+**Two functions hit the size cap, and both were fixed by moving rules, not by trimming comments.** `read_effect`'s chain grew past what a function may be, so the
+store-only readers moved into `read_store_effects` - the same shape the runner has had since the third dispatcher extraction. Then `Effect::kind`, the table that names
+an effect in a report, grew the same way: the store-writing names moved into `store_kind`, and `kind` asks it first. **The size cap is doing what it is for**: every
+time it fires, a table gets a name and a home instead of another arm.
+
+**`kind`'s match had to stay exhaustive, and a catch-all guard would have hidden a missing arm.** The grouped arm lists every store effect by variant, so adding one
+without naming it is a compile error rather than a report that says `""`. Exhaustiveness is the compiler's way of saying "you have not finished the table".

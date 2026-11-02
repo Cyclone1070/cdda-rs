@@ -2076,3 +2076,23 @@ fn a_set_talker_writes_the_speakers_id_as_text() {
     let expected = cdda_sim::dialogue_values::Value::Text(survivor.index().to_string());
     assert_eq!(held, Some(expected), "the id is stored as text");
 }
+
+/// `u_assign_activity` starts a `Doing` of that activity, a hundred moves per turn of its duration.
+///
+/// Reference: `f_assign_activity` (`npctalk.cpp:5451-5462`) passes `to_moves<int>( duration )`, so a two-turn activity is two hundred moves. The test asserts the
+/// number, not just that something was assigned, because the conversion is the one part of this rule a reader could get wrong without noticing.
+#[test]
+fn an_assigned_activity_has_a_hundred_moves_a_turn() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let value = cdda_json::parse(br#"{"u_assign_activity": "ACT_MULTIPLE_FARM", "duration": "2 turns"}"#.as_slice())
+        .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    let doing = world.get::<cdda_sim::creature::Doing>(survivor).expect("it is doing something");
+    assert_eq!(doing.activity, "ACT_MULTIPLE_FARM", "the named activity");
+    assert_eq!(doing.moves_left, 200, "two turns of moves");
+}

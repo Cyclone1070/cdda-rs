@@ -1607,12 +1607,7 @@ fn read_unnamed_effect(object: &cdda_json::Object) -> Option<Effect> {
         .or_else(|| read_set_condition(object))
         .or_else(|| read_finish_mission(object))
         .or_else(|| read_remove_active_mission(object))
-        .or_else(|| read_turn_cost(object))
-        .or_else(|| read_add_wet(object))
-        .or_else(|| read_place_override(object))
-        .or_else(|| read_remove_item_with(object))
-        .or_else(|| read_lose_morale(object))
-        .or_else(|| read_set_talker(object))
+        .or_else(|| read_store_effects(object))
 }
 
 /// Reads a `sound_effect` entry.
@@ -1631,6 +1626,37 @@ fn read_sound_effect(object: &cdda_json::Object) -> Option<Effect> {
         },
         outdoor_event: matches!(object.get("outdoor_event"), Some(Value::Bool(true))),
     })
+}
+
+/// The effects whose whole body is a store write, in one place.
+///
+/// Each of these reads one or two members and hands them to a store the port already keeps. They are grouped here for the same reason the runner groups its own
+/// store effects: a table of rules stays small, and a family of similar rules lives in a function with a name.
+fn read_store_effects(object: &cdda_json::Object) -> Option<Effect> {
+    read_turn_cost(object)
+        .or_else(|| read_add_wet(object))
+        .or_else(|| read_place_override(object))
+        .or_else(|| read_remove_item_with(object))
+        .or_else(|| read_lose_morale(object))
+        .or_else(|| read_set_talker(object))
+        .or_else(|| read_assign_activity(object))
+}
+
+/// Reads a `u_assign_activity` / `npc_assign_activity` entry.
+///
+/// Reference: `f_assign_activity` (`npctalk.cpp:5451-5462`): a required `str_or_var` activity and a required `duration`.
+fn read_assign_activity(object: &cdda_json::Object) -> Option<Effect> {
+    for (member, listener) in [("u_assign_activity", false), ("npc_assign_activity", true)] {
+        let Some(activity) = object.get(member) else {
+            continue;
+        };
+        return Some(Effect::AssignActivity {
+            activity: read_string_source(activity)?,
+            duration: read_effect_duration(object.get("duration"), EffectDuration::Turns(Some(0)))?,
+            listener,
+        });
+    }
+    None
 }
 
 /// Reads a `u_set_talker` / `npc_set_talker` entry.
@@ -2141,6 +2167,18 @@ pub enum Effect {
         volume: CountRange,
         /// Whether it is only heard outdoors.
         outdoor_event: bool,
+    },
+    /// Starts an activity on a creature, for a given number of moves.
+    ///
+    /// Reference: `f_assign_activity` (`npctalk.cpp:5451-5462`): the member names the activity, `duration` is required, and the reference passes
+    /// `to_moves<int>( duration )` - a hundred moves a turn - as the activity's length.
+    AssignActivity {
+        /// The activity's id.
+        activity: StringSource,
+        /// How long it runs for.
+        duration: EffectDuration,
+        /// Whether it goes to the listener rather than the speaker.
+        listener: bool,
     },
     /// Writes the speaking creature's id into a variable, as text.
     ///
@@ -2698,12 +2736,32 @@ pub enum Effect {
 }
 
 impl Effect {
+    /// The name of a store-writing effect, when this one is one of them.
+    ///
+    /// The names live in a second table because the first was over the size a function may be: one table for the effects that compute and judge, one for the effects
+    /// that only write, and `kind` asks this one first so the answer is unchanged.
+    #[must_use]
+    pub fn store_kind(&self) -> Option<&'static str> {
+        Some(match self {
+            Self::SetStringVar { .. } => "set_string_var",
+            Self::CopyVar { .. } => "copy_var",
+            Self::AlterTimedEvents { .. } => "alter_timed_events",
+            Self::SetCondition { .. } => "set_condition",
+            Self::FinishMission { .. } => "finish_mission",
+            Self::RemoveActiveMission { .. } => "remove_active_mission",
+            _ => return None,
+        })
+    }
+
     /// The member the data spells this effect with, for a report about one.
     ///
     /// The names are the data's own - `math`, `u_message`, `run_eocs`, `u_add_effect`, `u_learn_trait` - so a report can be read beside the
     /// JSON it came from without a translation table. The two the reference spells with a shared name have the name the reader uses.
     #[must_use]
     pub fn kind(&self) -> &'static str {
+        if let Some(name) = self.store_kind() {
+            return name;
+        }
         match self {
             Self::Math(_) => "math",
             Self::Message(_) | Self::Snippet { .. } => "u_message",
@@ -2711,42 +2769,22 @@ impl Effect {
             Self::RunMonsterEocs { .. } => "u_run_monster_eocs",
             Self::Nothing => "//",
             Self::PlaySoundEffect { .. } => "sound_effect",
-            Self::SetStringVar { .. } => "set_string_var",
-            Self::CopyVar { .. } => "copy_var",
-            Self::AlterTimedEvents { .. } => "alter_timed_events",
-            Self::SetCondition { .. } => "set_condition",
-            Self::FinishMission { .. } => "finish_mission",
-            Self::RemoveActiveMission { .. } => "remove_active_mission",
-            Self::TurnCost { .. } => "turn_cost",
+            // The store-writing effects' names live in `store_kind`, which `kind` already asked; this arm exists so the match stays exhaustive without repeating the
+            // table. A variant that reached here without a name would be a bug in `store_kind`, not a rule the port is missing.
+            // The store-writing names come from `store_kind`, which `kind` asks first; this arm keeps the match exhaustive without a second copy of the table.
+            Self::TurnCost { .. }
+            | Self::RemoveActiveMission { .. }
+            | Self::FinishMission { .. }
+            | Self::SetCondition { .. }
+            | Self::AlterTimedEvents { .. }
+            | Self::CopyVar { .. }
+            | Self::SetStringVar { .. }
+            | Self::AssignActivity { .. }
+            | Self::SetTalker { .. }
+            | Self::LoseMorale { .. }
+            | Self::RemoveItemWith { .. }
+            | Self::AddWet { .. } => self.store_kind().unwrap_or_default(),
             Self::PlaceOverride { .. } => "place_override",
-            Self::SetTalker { listener, .. } => {
-                if *listener {
-                    "npc_set_talker"
-                } else {
-                    "u_set_talker"
-                }
-            }
-            Self::LoseMorale { listener, .. } => {
-                if *listener {
-                    "npc_lose_morale"
-                } else {
-                    "u_lose_morale"
-                }
-            }
-            Self::RemoveItemWith { listener, .. } => {
-                if *listener {
-                    "npc_remove_item_with"
-                } else {
-                    "u_remove_item_with"
-                }
-            }
-            Self::AddWet { listener, .. } => {
-                if *listener {
-                    "npc_add_wet"
-                } else {
-                    "u_add_wet"
-                }
-            }
             Self::SpawnItem { .. } => "u_spawn_item",
             Self::ConsumeItem { listener, .. } => {
                 if *listener {

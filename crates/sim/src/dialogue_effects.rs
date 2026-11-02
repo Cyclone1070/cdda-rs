@@ -575,6 +575,36 @@ fn pick_type(
     drawn
 }
 
+/// Starts an activity on a creature.
+///
+/// Reference: `f_assign_activity` (`npctalk.cpp:5456-5460`): `target->assign_activity( activity_id( ... ), to_moves<int>( duration ) )`. The port's activity is the
+/// `Doing` component, and its length is in moves like the reference's, so the duration is multiplied by a hundred - the same conversion `turn_cost` uses.
+fn assign_activity(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::AssignActivity { activity, duration, listener: theirs } = effect else {
+        return Applied::CannotAnswer;
+    };
+    let Some(creature) = actor(speaker, listener, *theirs) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(named) = crate::conditions::text_of(world, speaker, listener, activity) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(turns) = roll_duration(world, speaker, listener, duration) else {
+        return Applied::CannotAnswer;
+    };
+    // The duration is a turn count and the activity's length is in moves, so the multiplication is exact; the clamp keeps a silly number from wrapping, and the
+    // cast is the one place the two widths meet.
+    #[allow(clippy::cast_possible_truncation)]
+    let moves_left = turns.saturating_mul(100).clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32;
+    world.entity_mut(creature).insert(crate::creature::Doing {
+        activity: named,
+        moves_left,
+        basis: crate::creature::Basis::Time,
+        subject: None,
+    });
+    Applied::Done
+}
+
 /// Writes the speaking creature's id into a variable as text.
 ///
 /// Reference: `f_set_talker` (`npctalk.cpp:6943-6947`): the id is **stringified** on the way in, because a later `run_eocs` reads the variable back as a string. The
@@ -1838,6 +1868,7 @@ fn run_store_effect(
         Effect::RemoveItemWith { .. } => remove_item_with(world, speaker, listener, effect),
         Effect::LoseMorale { .. } => lose_morale(world, speaker, listener, effect),
         Effect::SetTalker { .. } => set_talker(world, speaker, listener, effect),
+        Effect::AssignActivity { .. } => assign_activity(world, speaker, listener, effect),
         // Audio changes no game state, and the port has no audio: Done, not refused - nothing is missing from the simulation, only from the sound card. A
         // comment-only entry does nothing, which the reference's loader also does with it.
         Effect::PlaySoundEffect { .. } | Effect::Nothing => Applied::Done,
