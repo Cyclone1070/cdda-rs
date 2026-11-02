@@ -442,6 +442,9 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
             if eoc_registry::run_program(&mut world, survivor, None, &program.id, 0) == Applied::Done {
                 continue;
             }
+            // The bucket this prints is **a census world with no overmap**, not an update the loader dropped: every one of these effects names an `om_terrain`
+            // to aim the update at, the runner asks the overmap where that tile is, and a world built from data alone has no overmap to ask. The print is here
+            // because the two causes - a missing update and a missing overmap - look identical from the refusal count.
             if let Some(culprit) = first_refusing_effect(program, &census, 0)
                 && culprit == "mapgen_update"
             {

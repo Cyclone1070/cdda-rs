@@ -9587,3 +9587,35 @@ built-world census is where that shows.
 **A wiring mistake cost a gate cycle and is worth recording:** the runner's match arm was added by a silent string replacement that did not match, so the new variant fell
 through to the catch-all while the test passed on a different path. Clippy's `function is never used` found it. **A `replace` without an assertion is the same mistake
 this session has paid for twice before.**
+
+## The `mapgen_update` bucket is a missing overmap, not a missing update (round 987)
+
+Eighteen programs have refused at `mapgen_update` for many rounds, and two very different causes look identical from the count: an update the loader never stored, and an
+update that cannot be aimed. The census has printed the refusing programs all along (`eoc_programs.rs`, the branch that names a `mapgen_update` culprit); reading that
+output settles it:
+
+```
+MapgenUpdate { updates: [Literal("tacoma_nunez_trailer_arrive")], om_terrain: Some(Literal("ranch_camp_55")) }
+MapgenUpdate { updates: [Literal("EOC_BEM_HUMAN_SAMPLE_BUY_MAP")],  om_terrain: Some(Literal("robofachq_subline_a1")) }
+```
+
+**Every one of them aims the update at an `om_terrain`.** The runner asks the overmap where that tile is, and a census world built from data alone has **no overmap to
+ask** - so the update is never applied and the effect refuses. The store is fine: the data defines 768 update mapgens and only **three** ids referenced by core data are
+undefined (`UM_LS_Passcode_Generator_0`, `robofachq_surface_entrance`, `tier1_CBM_shop_update`).
+
+| Count | Now |
+|---|---|
+programs readable | **583** |
+answered `Done` | **389** |
+refused at run time | **194** |
+effect entries runnable | **1,546** |
+unreadable entries | **75** |
+one-gap programs | **18** |
+programs refusing at their first entry | **25** |
+
+**So the `mapgen_update` (18) and `u_location_variable` (28) buckets are the same finding**: forty-six of the census's run-time refusals are one world-state gap - no
+overmap - and **the built-world census is where they will move**, not a reader. The branch that prints them now says so in a comment, so the next round does not spend
+another evening on the loader.
+
+**And the three undefined ids are worth a line of their own:** a program that names an update nobody defines cannot be answered by any world, and those three are the
+only ones in the core data that fit that description.
