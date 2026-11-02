@@ -285,7 +285,32 @@ pressure systems moving across the overmap, which needs an overmap.
 **Next: P3.** The roadmap's P3 is items, inventory, crafting and interaction, and the ledger already carries declared partials to close in order: eating and its data,
 crafting activity and time, skills, container handling, item weight and volume, and consuming.
 
-### What the next round should pick up
+### What the next round should pick up (updated at round 976)
+
+**The frontier is dialogue effects, not weather.** M2 is closed and the environment family is measured; since then the work has been the effect-on-condition census, which is
+the port's instrument for "how much of the data's scripting can this game carry out". The numbers below are pinned in `crates/sim/tests/sim_suite/numbers.rs` and printed by
+the census tests; every one of them is a *count of the corpus*, not an estimate.
+
+| Census | Now | Of |
+|---|---|---|
+programs readable | **574** | 692 |
+programs that run in a fresh world | **379** | 692 |
+programs refused at run time | **195** | 692 |
+conditions readable | **3,226** | 3,708 |
+effect entries runnable | **1,518** | 1,612 |
+
+**What the remaining refusals are, in the order the call graph ranks them:**
+
+1. **`switch` (35)** - the LIXA family. Inline bodies now install and the definition is read; the programs run and then refuse *inside* a switch. The next step is one LIXA
+   switch run under the harness with its `on` expression printed, not a broader rule.
+2. **`run_eocs(calls a program that is not installed)` (23)** - programs whose callee is one of the unreadable ones. Each readable callee is worth several of these.
+3. **`mapgen_update` (18)** - the census installs the update tables, so the refusal is inside `apply` or the aiming; needs one refusing entry's JSON.
+4. **`place_override` (17)** - a store the port lacks: the place's name and the turn it changes back.
+5. **`u_spawn_monster` (14)** - the monster spawn rule exists; these entries aim somewhere or name a group the census does not install.
+
+**And the stores the frontier is waiting on, named so they stop being rediscovered:** mutation categories, camps and allies (`npc_allies`), submap reverts
+(`revert_location`), event arguments (`trigger_event`), place renaming (`place_override`), and item selection menus (`u_run_inv_eocs: "manual"`).
+
 
 The gate reads: *per-turn state hash equality on environment-only sessions covering weather transitions, fire and gas spread, light changes across z-levels, scent
 diffusion, and vision.* All five clauses are now met, each by a replayed reference recording rather than by a hand-written case:
