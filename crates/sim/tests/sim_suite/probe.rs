@@ -3159,3 +3159,52 @@ fn a_switch_on_a_variable_name_picks_the_last_case_it_reaches() {
         "and only that one: {lines:?}"
     );
 }
+
+/// A program defined inline under an id is installed, so a later call **by name** finds it.
+///
+/// Reference: `load_inline_eoc` (`effect_on_condition.cpp:119-133`) adds the body to the factory under its id, so the id works from anywhere afterwards - that is why
+/// the corpus writes `{"id": "EOC_x", "effect": [...]}` inside a `run_eocs`. The test calls the id from a **different** program, which is the part reading the entry
+/// alone would not give.
+#[test]
+fn a_program_defined_inline_is_installed_under_its_id() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let programs = [
+        cdda_sim::eoc_registry::Program {
+            id: "EOC_outer".to_owned(),
+            condition: None,
+            effects: vec![
+                cdda_content::dialogue::read_effect(
+                    &cdda_json::parse(
+                        br#"{"run_eocs": [{"id": "EOC_inner", "effect": [{"u_message": "from the body"}]}]}"#
+                            .as_slice(),
+                    )
+                    .expect("json"),
+                )
+                .expect("the definition reads"),
+            ],
+        },
+        cdda_sim::eoc_registry::Program {
+            id: "EOC_caller".to_owned(),
+            condition: None,
+            effects: vec![
+                cdda_content::dialogue::read_effect(
+                    &cdda_json::parse(br#"{"run_eocs": "EOC_inner"}"#.as_slice()).expect("json"),
+                )
+                .expect("the call reads"),
+            ],
+        },
+    ];
+    cdda_sim::eoc_registry::set_programs(&mut world, &programs);
+    assert_eq!(cdda_sim::eoc_registry::count(&mut world), 3, "the body is installed beside the two programs");
+    assert_eq!(
+        cdda_sim::eoc_registry::run_program(&mut world, survivor, None, "EOC_caller", 0),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "a call by name reaches the inline body"
+    );
+    let lines = cdda_sim::messages::lines(&world);
+    assert!(
+        lines.iter().any(|line| line.contains("from the body")),
+        "and the body ran: {lines:?}"
+    );
+}

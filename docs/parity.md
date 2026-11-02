@@ -9188,3 +9188,34 @@ explain, not to weaken the scan.
 
 **The lesson for the remaining frontier: a silent zero is the most expensive default in the port.** It hides behind `unwrap_or(0.0)`, it makes switches pick no case, and
 it makes the census look healthier than the code. The next round asks the same question of every other place a missing value is defaulted to zero rather than refused.
+
+## The inline install works - and the census says it costs three reads to gain two runs (round 971)
+
+Four attempts at the reference's inline rule (`load_inline_eoc`, `effect_on_condition.cpp:119-133`) have now been made. This one differs from the first three in one
+way: **it was gated before it was measured**, with a test where one program defines `EOC_inner` inside its own `run_eocs` and a **different** program calls
+`EOC_inner` by name. That test failed first (the definitions read as plain names, so nothing was installed), which pointed straight at a **stale early return** in the
+reader that answered before the new rule could see the body.
+
+The rule is now in, and the numbers are a trade rather than a win:
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 574 | **571** |
+answered `Done` | 374 | **376** |
+refused at run time | 200 | **195** |
+unreadable leaves | 118 | **121** |
+one-gap programs | 17 | **20** |
+effect entries runnable | 1,518 | **1,515** |
+effect census blaming `effect` | 110 | **113** |
+ran in a built world | 378 | **380** |
+
+**Five run-time refusals became runs and three programs stopped reading.** The refusals that vanished are `switch` and "calls a program that is not installed" - the
+LIXA family, which now **reaches its inline bodies**. The three reads lost are the price of reading bodies at all: a body that reads makes its caller's entries
+resolve, and three programs turn out to depend on entries that only *looked* readable while they were opaque.
+
+**Why keep a change that lowers the headline count:** the headline counts a program as readable when the port can read its text. **A program whose switch picks no
+case is readable and dead.** Two programs now carry out their own cases for the first time, which is the behaviour the port exists to reproduce; the three lost reads are
+the next round's question and are now **on the one-gap list with names**.
+
+**And the test caught what the census could not:** the install code was present and inert for two rounds because the reader returned before it. **A census measures
+what a rule does to the corpus; only a test says whether the rule is running at all.**

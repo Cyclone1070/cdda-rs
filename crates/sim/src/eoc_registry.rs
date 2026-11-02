@@ -9,7 +9,7 @@
 //! the port needs one because it cannot be Ctrl-C'd out of a turn loop in a test.
 
 use bevy_ecs::prelude::*;
-use cdda_content::dialogue::Program;
+pub use cdda_content::dialogue::Program;
 use std::collections::BTreeMap;
 
 use crate::singletons;
@@ -28,11 +28,74 @@ pub struct Programs {
 #[derive(Component, Debug, Clone, Copy, Default)]
 pub struct ThePrograms;
 
+/// Every program defined inline inside a list of effects, at any depth the port's containers reach.
+///
+/// Reference: `load_inline_eoc` (`effect_on_condition.cpp:119-133`): an entry given an `id` beside its `effect` is registered under that id. The walk covers the
+/// containers the port has - `if`, `switch`, `run_eocs`, the selector, the weighted list and the inventory eocs.
+fn inline_definitions(effects: &[cdda_content::dialogue::Effect]) -> Vec<Program> {
+    use cdda_content::dialogue::{Effect, ProgramRef};
+    fn from_ref(reference: &ProgramRef, out: &mut Vec<Program>) {
+        if let ProgramRef::Inline { program, id, .. } = reference
+            && id.is_some()
+        {
+            out.push((**program).clone());
+            out.extend(inline_definitions(&program.effects));
+        }
+    }
+    let mut found = Vec::new();
+    for effect in effects {
+        match effect {
+            Effect::If { then, otherwise, .. } => {
+                found.extend(inline_definitions(then));
+                found.extend(inline_definitions(otherwise));
+            }
+            Effect::Switch { cases, .. } => {
+                for (_, case) in cases {
+                    found.extend(inline_definitions(case));
+                }
+            }
+            Effect::RunEoc(calls) => {
+                for call in calls {
+                    from_ref(call, &mut found);
+                }
+            }
+            Effect::RunEocSelector { options, .. } => {
+                for option in options {
+                    from_ref(option, &mut found);
+                }
+            }
+            Effect::WeightedList(weighted) => {
+                for (option, _) in weighted {
+                    from_ref(option, &mut found);
+                }
+            }
+            Effect::RunInvEocs { programs, .. } => {
+                for program in programs {
+                    from_ref(program, &mut found);
+                }
+            }
+            _ => {}
+        }
+    }
+    found
+}
+
 /// Installs the programs into the store, replacing whatever was there.
 pub fn set_programs(world: &mut World, programs: &[Program]) {
     let mut by_id = BTreeMap::new();
     for program in programs {
         by_id.insert(program.id.clone(), program.clone());
+    }
+    // A program defined **where it is called** is installed under its own id, the way the reference's `load_inline_eoc` (`effect_on_condition.cpp:119-133`) adds it
+    // to the factory. It never replaces a program the data defines in its own right: an inline body is a definition of last resort.
+    let defined: Vec<Program> = programs
+        .iter()
+        .flat_map(|program| inline_definitions(&program.effects))
+        .collect();
+    for body in defined {
+        if !body.id.is_empty() {
+            by_id.entry(body.id.clone()).or_insert(body);
+        }
     }
     let holder = singletons::singleton::<Programs, ThePrograms>(world);
     if let Some(mut existing) = world.get_mut::<Programs>(holder) {

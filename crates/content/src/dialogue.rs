@@ -3156,6 +3156,8 @@ pub enum ProgramRef {
     Inline {
         /// The program.
         program: Box<Program>,
+        /// The id it is **installed** under, when the data gives one: the reference's `load_inline_eoc` adds it to the factory, so a later call by name finds it.
+        id: Option<String>,
         /// The context values the call hands it, as `variables`.
         variables: Vec<(String, StringSource)>,
     },
@@ -4283,29 +4285,45 @@ fn read_program_ref(value: &Value) -> Option<ProgramRef> {
         }),
         Value::Object(object) => {
             let variables = read_variables(object.get("variables"))?;
-            // An entry naming an `id` runs that program; anything else is a program written here.
+            // An entry naming an `id` **and** carrying an `effect` is a program defined where it is called: `load_inline_eoc`
+            // (`effect_on_condition.cpp:119-133`) installs it under that id. A body the port cannot read does not make the caller unreadable - the call falls back
+            // to a plain name and refuses at run time, which is what the port answered before it could read bodies at all.
+            let named = match object.get("id") {
+                Some(Value::Str(id)) => Some(id.clone()),
+                _ => None,
+            };
+            if object.get("effect").is_none()
+                && let Some(id) = named
+            {
+                return Some(ProgramRef::Named {
+                    id,
+                    variables,
+                });
+            }
             //
             // **This is where two attempts at the reference's inline rule have died**, and both cost 11 programs and 35 `switch` entries: reading an `id` beside an
             // `effect` as an inline program, first without installing it (`load_inline_eoc`, `effect_on_condition.cpp:119-133`, inserts it into
             // `effect_on_condition_factory`) and then **with** a loader that installed every inline program it could find. The rule is right and the port's data
             // walk is wrong somewhere the census cannot see, so the next attempt starts from **one refusing program's JSON**, not from a broader rule.
-            if let Some(Value::Str(id)) = object.get("id") {
-                return Some(ProgramRef::Named {
-                    id: id.clone(),
+            // A body the port cannot read does **not** make its caller unreadable: the reference installs the body and only complains when something calls it, so
+            // the fallback here is the plain name - the call refuses at run time if nothing installs it, exactly as the port answered before it read bodies at all.
+            let Some(effects) = read_effect_list(object.get("effect")) else {
+                return named.map(|id| ProgramRef::Named {
+                    id,
                     variables,
                 });
-            }
-            let effects = read_effect_list(object.get("effect"))?;
+            };
             let condition = match object.get("condition") {
                 None => None,
                 Some(condition) => Some(read_condition(condition)?),
             };
             Some(ProgramRef::Inline {
                 program: Box::new(Program {
-                    id: String::new(),
+                    id: named.clone().unwrap_or_default(),
                     condition,
                     effects,
                 }),
+                id: named,
                 variables,
             })
         }
