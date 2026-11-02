@@ -3626,3 +3626,29 @@ fn a_spawn_entry_can_name_the_square_it_is_centred_on() {
         "the target is carried, not dropped: {effect:?}"
     );
 }
+
+/// A `set_string_var` with `i18n` reads and stores the text the data wrote.
+///
+/// Reference: `f_set_string_var` (`npctalk.cpp:5809-5866`): `i18n` asks for the text to be looked up in a translation catalogue. **The port has no catalogue** - its
+/// strings are the data's own text - so the effect runs and stores what the data says, and this test pins that it is not dropped at load time.
+#[test]
+fn a_translated_string_variable_stores_the_text_it_was_given() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let value = cdda_json::parse(
+        br#"{"i18n": true, "set_string_var": "EOC Selector Test", "target_var": {"context_val": "title"}}"#
+            .as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    let fields = cdda_sim::dialogue_values::holder_for(&mut world, survivor, false);
+    assert_eq!(
+        cdda_sim::dialogue_values::text_of(&world, fields, "title"),
+        Some("EOC Selector Test".to_owned()),
+        "the text is stored as the data wrote it"
+    );
+}

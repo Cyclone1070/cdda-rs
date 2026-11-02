@@ -2001,9 +2001,12 @@ fn read_copy_var(object: &cdda_json::Object) -> Option<Effect> {
 /// `target_var` object names where the text is stored.
 fn read_set_string_var(object: &cdda_json::Object) -> Option<Effect> {
     let written = object.get("set_string_var")?;
-    // `i18n` (translation catalogues) and `string_input` (asking the player to type) are refused. `parse_tags` is **read**: the reference substitutes `<scope:name>`
-    // tags into the text where it is used (`f_set_string_var` -> `parse_tags`, `npctalk.cpp:5809-5866`), and the data passes it for names built from a variable.
-    if ["i18n", "string_input"].iter().any(|key| object.get(key).is_some()) {
+    // `string_input` (asking the player to type) is refused. `parse_tags` is **read**: the reference substitutes `<scope:name>` tags into the text where it is used
+    // (`f_set_string_var` -> `parse_tags`, `npctalk.cpp:5809-5866`), and the data passes it for names built from a variable.
+    //
+    // `i18n` is **read and carried as false**: it asks the reference to look the text up in a translation catalogue, and the port has none - its strings are the data's
+    // own text, untranslated, everywhere. Refusing the entry would drop a rule the port can run for the sake of a catalogue it does not have.
+    if object.get("string_input").is_some() {
         return None;
     }
     let Value::Object(target) = object.get("target_var")? else {
@@ -2665,7 +2668,7 @@ pub enum Effect {
     /// Stores a text into a named variable, drawing it from a list when the data gives one.
     ///
     /// Reference: `f_set_string_var` (`npctalk.cpp:5809-5866`): the member is a string, a **list to draw one from**, or a variable to copy, and `target_var` says
-    /// where it goes. `i18n` (translated strings), `parse_tags` (substituting tags into the text) and `string_input` (asking the player to type) are refused, because
+    /// where it goes. `parse_tags` (substituting tags into the text) is read; `string_input` (asking the player to type) is refused, because
     /// each is a rule the port has not written.
     SetStringVar {
         /// Whether `<scope:name>` tags in the text are substituted when the effect runs.

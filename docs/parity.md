@@ -9514,3 +9514,27 @@ which is the honest answer, and `u_spawn_monster` rose from 14 refusals to 15 be
 **The test pins the reader's half and says so.** The runner's use of the square needs a built level - the spawn tests that own that setup already exercise it - so this
 round's test asserts the target is **carried, not dropped**, rather than building a second level fixture inside a probe. A test that quietly asserted less than its name
 would be worse than no test; this one's name says which half it covers.
+
+## `i18n` is a catalogue the port does not have, not a rule it cannot run (round 984)
+
+Four effect entries were refused for carrying `i18n` on a `set_string_var`. In the reference that member asks for the text to be looked up in a **translation catalogue**
+(`f_set_string_var`, `npctalk.cpp:5809-5866`); the port has no catalogue, and every string it shows is the data's own text, untranslated, everywhere.
+
+**So the member was refusing a rule the port can run, for the sake of a subsystem it has never had.** It is now read and ignored - the effect stores the text the data
+wrote - and the test pins exactly that, in both directions: the entry reads, and the stored text is the one in the JSON.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 582 | **583** |
+refused at run time | 193 | **194** |
+unreadable entries | 80 | **76** |
+effect entries runnable | 1,541 | **1,545** |
+ran in a built world | 393 | **394** |
+programs blaming their effects | 103 | **102** |
+programs refusing at their first entry | 27 | **26** |
+
+**One program, four effect entries, four leaves.** The program reads and then refuses at run time, where its `set_string_var` now runs and something after it does not -
+**which is the right place for the refusal to move to.**
+
+**The distinction this round draws is the one that keeps the refusal ledger honest:** a refusal is for a rule the port cannot carry out, not for a member that names a
+subsystem with no bearing on the rule. `string_input` is still refused, because asking the player to type is a thing the port cannot do and the answer changes.
