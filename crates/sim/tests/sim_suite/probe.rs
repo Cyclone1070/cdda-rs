@@ -2325,3 +2325,41 @@ fn an_expression_with_a_default_reads_as_a_fallback() {
         "and without a `default` it is a plain variable: {read:?}"
     );
 }
+
+/// A spawn count written as a variable with a `default` spawns the fallback until the variable is set, then the variable.
+///
+/// Reference: `get_dbl_or_var` (`npctalk.cpp`) takes a number, a two-end array or a `math` block, and `dbl_or_var_part::evaluate` answers a variable's value or the
+/// data's `default`. The test spawns with the same effect twice, so a reader that ignored the fallback fails the first count and one that ignored the variable fails
+/// the second.
+#[test]
+fn a_spawn_count_reads_a_variable_with_a_default() {
+    let mut world = bevy_ecs::prelude::World::new();
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[cdda_sim::item_registry::Kind { id: "money_twenty", volume_ml: 5, weight_g: 1, pockets: &[] }],
+    );
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let globals = cdda_sim::dialogue_values::holder_for(&mut world, survivor, true);
+    let value = cdda_json::parse(
+        br#"{"u_spawn_item": "money_twenty", "count": {"global_val": "gamble_multiplier", "default": 1}}"#.as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    let spawned = |world: &mut bevy_ecs::prelude::World| {
+        let mut items = world.query::<&cdda_sim::GroundItem>();
+        items.iter(world).count()
+    };
+    assert_eq!(spawned(&mut world), 1, "the fallback is one");
+
+    cdda_sim::dialogue_values::set(&mut world, globals, "gamble_multiplier", cdda_sim::dialogue_values::Value::Number(5.0));
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    assert_eq!(spawned(&mut world), 6, "and five more once the variable is set");
+}

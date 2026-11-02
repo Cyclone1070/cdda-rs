@@ -892,9 +892,16 @@ fn read_count(value: Option<&Value>) -> Option<CountRange> {
             let (lower, upper) = (i32::try_from(*lower).ok()?, i32::try_from(*upper).ok()?);
             Some(CountRange::Between(lower.min(upper), lower.max(upper)))
         }
-        Some(Value::Object(object)) if object.get("math").is_some() => Some(CountRange::Expression(Box::new(
-            read_expression(object.get("math")?)?,
-        ))),
+        // A variable, with or without a `default`, is a count the game works out where it uses it: `get_dbl_or_var` takes the same three shapes, and the spawn
+        // data writes `{"global_val": "gamble_multiplier", "default": 1}` for a count that starts at one.
+        Some(Value::Object(object)) if object.get("math").is_none() => {
+            let written = value?;
+            Some(CountRange::Expression(Box::new(read_expression(written)?)))
+        }
+        Some(Value::Object(object)) => {
+            let math = object.get("math")?;
+            Some(CountRange::Expression(Box::new(read_expression(math)?)))
+        }
         Some(_) => None,
     }
 }

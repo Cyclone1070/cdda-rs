@@ -8529,3 +8529,32 @@ step exactly: **`read_count` needs the fallback shape, not `read_expression`**, 
 
 **Two of my own errors again, both caught by the compiler**: a `read_number` helper that already existed under another signature, and a `match` on `Expression` that
 needed the new variant. **The compiler's errors named the fixes, which is why neither cost a second round trip.**
+
+## Finishing the `default` form: the count reader takes it too (round 946)
+
+Last round added the fallback to `Expression` and named what was missing: **`read_count` had its own shapes** - a number, a two-end array, a `math` block - and the
+spawn data's `{"global_val": "gamble_multiplier", "default": 1}` was none of them.
+
+Now the object arm covers it: a count written as an object without `math` is an **expression**, and an object with `math` is that expression, so both forms reach the
+evaluator that already knew how to fall back. The behavioural test is the one that was blocked last round, unchanged: spawn, expect **one**; set the variable to five,
+spawn again, expect **six**.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 547 | **548** |
+answered `Done` | 356 | **357** |
+did something | 258 | **259** |
+unreadable leaves | 153 | **151** |
+one-gap programs | 38 | **38** |
+effect entries runnable | 1,487 | **1,488** |
+effect census blaming `effect` | 136 | **135** |
+
+**The leaves gave back what last round borrowed.** It reported leaves +1 because a deeper reader saw one more of them; with the count reader finished, two leaves are
+gone and the ledger reads **151, down from 152 before the pair of rounds**. **Two rounds that each looked flat are worth two leaves together**, which is the shape of
+work on a shape: the first round buys the ability to see, the second buys the answer.
+
+**A test blocked by a refusal is an asset, not a failure.** The spawn test was written last round, failed at `read_effect`, and was left out of the tree; this round it
+went in unchanged and passed. **Writing the test before the reader it needs is what kept the second round to one edit.**
+
+**And the compiler's one-line error** - `expected &Value, found Option<&Value>` - showed the `?` had bound to the wrong level. The fix was to bind the written value to
+a name first. **Small, but worth recording: a `?` inside a `match` arm is a question about which level it is asking.**
