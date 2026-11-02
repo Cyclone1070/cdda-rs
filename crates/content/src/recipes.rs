@@ -70,6 +70,14 @@ pub struct Recipe {
     pub batch_rscale: f64,
     /// How many items the batch saving reaches its 99.5% limit at, the reference's `batch_rsize`.
     pub batch_rsize: i32,
+    /// How many of the result one batch makes, the reference's `result_mult`.
+    ///
+    /// Reference: `recipe::create_results` (`recipe.cpp:790-825`) makes `result_mult` results per batch item, so a batch of two of a recipe that makes three is six.
+    pub result_mult: i32,
+    /// How many charges each result carries, when the recipe states them.
+    ///
+    /// Reference: `recipe::create_result` (`recipe.cpp:754`): `amount = charges ? *charges : newit.count()`, and that amount is what each result holds.
+    pub result_charges: Option<i32>,
     /// How long one batch takes, in moves.
     ///
     /// Reference: `recipe::time`, read with `to_moves<int>( read_from_json_string<time_duration> )` - so `"20 m"` is
@@ -214,6 +222,14 @@ pub fn from_dump(value: &Value) -> Option<(Vec<Recipe>, usize)> {
             time_moves: match member(object, "time_moves") {
                 Some(Value::Int(moves)) => *moves,
                 _ => member(object, "time").map_or(0, crate::constructions::duration_in_moves),
+            },
+            result_mult: match member(object, "result_mult") {
+                Some(Value::Int(count)) => i32::try_from(*count).unwrap_or(1).max(1),
+                _ => 1,
+            },
+            result_charges: match member(object, "charges") {
+                Some(Value::Int(count)) => Some(i32::try_from(*count).unwrap_or(1)),
+                _ => None,
             },
             // Reference: `batch_time_factors` is `[percent, size]` (`recipe.cpp:242-246`): the first is divided by a hundred, and a recipe without the member
             // gains nothing from batching.

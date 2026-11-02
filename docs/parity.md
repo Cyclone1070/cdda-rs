@@ -9813,3 +9813,21 @@ practice | focus scale missing | focus, ticks, cap, train chain |
 - **proficiencies**: `craft_proficiency_gain` and `character_has_required_proficiencies` have no store here;
 - **focus decay**: `update_mental_focus` moves focus every turn, which is a turn system rather than a crafting rule;
 - **`result_mult` and result charges**: the recipe's output count, which the corpus's recipe dump does not carry and the loader would have to read from the data.
+
+## A recipe could make only one thing, ever (round 1001)
+
+Every recipe in the port produced exactly one item per batch. The reference produces **`result_mult` per batch item**, gives each result the charges the recipe
+states, and adds **byproducts**. The loader now reads `result_mult` (61 recipes in the core data) and `charges` (1,035), and `finish_craft` multiplies:
+
+| Number | Rule |
+|---|---|
+units | `batch * result_mult` |
+charges each | `charges ?: 1`, so the reference's `charges ? *charges : the item's own count` |
+what a stack holds | units times charges, which is how the port already counts a pile |
+
+**The test's three failures were all the test being wrong, and each named a different piece of the store:** a batch of two needs two components and it gave one; a
+result may land **in a pocket or on the floor**, and it counted only the pocket; and the count it wanted was of charges rather than of entities. **Three reminders of
+one fact - the port's item is a stack of charges, not a row - and the rule was right the first time.**
+
+**Still missing from the results rule, and named rather than implied:** `byproducts` (694 recipes carry them) and the container case (`contained`, which needs the
+container to exist as a thing before a recipe can fill one).

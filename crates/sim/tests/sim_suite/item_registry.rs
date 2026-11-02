@@ -106,6 +106,8 @@ fn a_craft_can_be_finished_without_a_caller_supplying_the_item_table() {
         time_moves: 100,
         batch_rscale: 0.0,
         batch_rsize: 0,
+        result_mult: 1,
+        result_charges: None,
     };
     recipe.result = "rope".to_owned();
     for _ in 0..2 {
@@ -329,6 +331,8 @@ fn the_turn_loop_finishes_what_it_started() {
         time_moves: 200,
         batch_rscale: 0.0,
         batch_rsize: 0,
+        result_mult: 1,
+        result_charges: None,
     };
     cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
     assert_eq!(

@@ -69,6 +69,8 @@ fn recipe(time_moves: i64, needs: &str, count: i32) -> Recipe {
     Recipe {
         batch_rscale: 0.0,
         batch_rsize: 0,
+        result_mult: 1,
+        result_charges: None,
         id: "test_recipe".to_owned(),
         result: "thing".to_owned(),
         blacklisted: false,
@@ -520,6 +522,8 @@ fn a_craft_without_its_tool_does_not_start() {
         time_moves: 1_000,
         batch_rscale: 0.0,
         batch_rsize: 0,
+        result_mult: 1,
+        result_charges: None,
     };
     let mut world = World::new();
     let crafter = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
@@ -584,6 +588,8 @@ fn a_craft_that_needs_a_quality_asks_the_items_that_carry_it() {
         time_moves: 1_000,
         batch_rscale: 0.0,
         batch_rsize: 0,
+        result_mult: 1,
+        result_charges: None,
     };
     let rag = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 1);
     world.entity_mut(rag).remove::<cdda_sim::Position>();
@@ -686,6 +692,8 @@ fn a_tool_that_burns_charges_has_them_spent_and_a_held_one_does_not() {
     let recipe = Recipe {
         batch_rscale: 0.0,
         batch_rsize: 0,
+        result_mult: 1,
+        result_charges: None,
         id: "electrified_rag".to_owned(),
         result: "rag".to_owned(),
         blacklisted: false,
@@ -793,5 +801,57 @@ fn a_craft_teaches_the_skill_it_names() {
         cdda_sim::skills_of::exercise_of(&world, crafter, "survival"),
         capped_before,
         "level two is above a level-one recipe's cap"
+    );
+}
+
+/// A recipe can make more than one thing at a time, and a recipe that states charges gives each result that many.
+///
+/// Reference: `recipe::create_results` (`recipe.cpp:790-825`) makes **`result_mult` results per batch item**, and `create_result` (`recipe.cpp:754`) sets each to
+/// `charges ? *charges : the item's own count`. The port made exactly one result per batch and ignored both numbers, so 61 recipes that make more, and the 1,035 that
+/// state charges, all produced a single thing.
+#[test]
+fn a_recipe_that_makes_more_than_one_makes_that_many() {
+    let mut world = World::new();
+    let crafter = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let names = names_for(&[(1, "rag"), (2, "cord")]);
+    // Two at a time, three apiece, and each result is its own thing.
+    let mut many = recipe(100, "rag", 1);
+    many.result = "cord".to_owned();
+    many.result_mult = 3;
+    let mut batteries = recipe(100, "rag", 1);
+    batteries.result = "cord".to_owned();
+    batteries.result_mult = 2;
+    batteries.result_charges = Some(50);
+    for recipe in [&many, &batteries] {
+        // A batch of two needs two rags, because the components scale with the batch.
+        for _ in 0..2 {
+            let rag = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 1);
+            world.entity_mut(rag).remove::<cdda_sim::Position>();
+            world.entity_mut(rag).insert(cdda_sim::creature::Carried(crafter));
+        }
+        cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
+        assert_eq!(
+            cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, recipe, 2, &names),
+            Craft::Started
+        );
+        assert_eq!(
+            cdda_sim::crafting::finish_craft(&mut world, crafter, &names).as_deref(),
+            Some("cord")
+        );
+        cdda_sim::creature::stop_doing(&mut world, crafter);
+    }
+    // The results may be in a pocket or on the floor, and both are the same answer to "what was made".
+    let made: i32 = {
+        let mut query = world.query::<&cdda_sim::GroundItem>();
+        query
+            .iter(&world)
+            .filter(|stack| names.name_of(stack.kind).as_deref() == Some("cord"))
+            .map(|stack| stack.charges)
+            .sum()
+    };
+    assert_eq!(
+        made,
+        2 * 3 + 2 * 2 * 50,
+        "six cords, then a hundred charges' worth"
     );
 }

@@ -20,6 +20,8 @@ fn recipe(components: Vec<Vec<Component>>) -> Recipe {
             time_moves: 0,
             batch_rscale: 0.0,
             batch_rsize: 0,
+            result_mult: 1,
+            result_charges: None,
     }
 }
 
