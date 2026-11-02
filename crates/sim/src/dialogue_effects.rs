@@ -601,6 +601,40 @@ fn pick_type(
     drawn
 }
 
+/// Schedules a program list to run after a delay, and answers `Done` because scheduling is the whole effect.
+///
+/// Reference: `f_run_eocs` with `time_in_future` (`npctalk.cpp:6332-6338`): the duration is turned into a turn by the calendar, the programs are kept, and the turn
+/// loop runs them when that turn arrives. A duration the port cannot read is refused rather than run now.
+fn run_eoc_later(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::RunEocLater { programs, after } = effect else {
+        return Applied::CannotAnswer;
+    };
+    let drawn = |world: &World, source: &cdda_content::dialogue::StringSource| {
+        crate::conditions::text_of(world, speaker, listener, source)
+    };
+    let text = match after {
+        cdda_content::dialogue::DurationSource::One(one) => drawn(world, one),
+        cdda_content::dialogue::DurationSource::Range(shortest, longest) => {
+            let (short, long) = (drawn(world, shortest), drawn(world, longest));
+            match (short, long) {
+                // Reference: a range is drawn between its ends with the dialogue's dice.
+                (Some(short), Some(long)) => match draw_one_of(world, 2) {
+                    Some(0) => Some(short),
+                    Some(_) => Some(long),
+                    None => None,
+                },
+                _ => None,
+            }
+        }
+    };
+    let Some(text) = text else {
+        return Applied::CannotAnswer;
+    };
+    let turns = cdda_content::constructions::parse_duration(&text);
+    crate::scheduled::schedule_effect(world, turns, Effect::RunEoc(programs.clone()));
+    Applied::Done
+}
+
 /// Gives the creature mutations, and answers only a depth that asks for none.
 ///
 /// Reference: `f_mutate` (`npctalk.cpp:3568-3570`): `d.actor( is_npc )->mutate( highest_cat )`, which draws mutations from the pools the depth reaches. The port has no
@@ -2403,6 +2437,7 @@ fn run_store_effect(
         Effect::LocationVariableAdjust { .. } => adjust_location(world, speaker, listener, effect),
         Effect::MonsterAround { .. } => store_monster_around(world, speaker, effect),
         Effect::Mutation { .. } => mutate(world, speaker, listener, effect),
+        Effect::RunEocLater { .. } => run_eoc_later(world, speaker, listener, effect),
         // Audio changes no game state, and the port has no audio: Done, not refused - nothing is missing from the simulation, only from the sound card. A
         // comment-only entry does nothing, which the reference's loader also does with it.
         Effect::PlaySoundEffect { .. } | Effect::Nothing => Applied::Done,

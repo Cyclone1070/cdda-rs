@@ -9244,3 +9244,31 @@ call, and one of those conditions was missing. **The census named it in a round*
 **Three gates pushed back, and all three were right:** my test's assumption that `player_see_npc` is *refused* (it is answered now), a function that grew to **101 lines**,
 and a **silent no-op patch** - a `python` replacement that matched nothing because the arm went into a `matches!` list instead of the `match` block, which cost three
 builds to notice. **A patch without an assert is a guess with extra steps**; every edit in the last two rounds now asserts its anchor first.
+
+## A delayed call is a scheduled effect, not an immediate one (round 973)
+
+`run_eocs` with `time_in_future` was **silently ignored**: the port read the programs and ran them at once. That is not a refusal, it is a wrong answer - a program that
+says "two seconds later" happened immediately. The reference puts a timed event in the calendar and runs it when the turn comes.
+
+The port now has the store that shape needs: `scheduled` holds effects by the **turn they are due**, the turn loop has a `Scheduled` stage that runs them, and that stage
+is **declared first** in `TurnStage::order()` because `game::process_events` runs before the map and the creatures take their turn.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 574 | **574** |
+answered `Done` | 379 | **385** |
+did something | 275 | **280** |
+refused at run time | 195 | **189** |
+effect entries runnable | 1,518 | **1,518** |
+ran in a built world | 383 | **389** |
+`switch` refusals | 35 | **0** |
+
+**Six programs and five effect entries, and the `switch` bucket empties.** It emptied for the reason the last two rounds predicted: those switches **were never the
+problem** - their cases called programs scheduled for later, and the port ran them at once, refushing at the mapgen update inside. With the call postponed, the programs
+answer `Done` and the refusal moves downstream into `run_eocs(calls a program that is not installed)`, which is the honest next question.
+
+**The duration comes in four shapes in the data** - text (`"2 seconds"`), a bare number in **turns**, a variable with a default, and an **array of two ends drawn
+between** - and all four read. The first two cost a shared reader; the last two cost a draw from the same dice the rest of the dialogue uses.
+
+**Two of the port's own gates had to move with it, and both moves are the point:** the stage-order test now names the due-events stage, and `TurnStage::order()` says six.
+**A stage added to the schedule without the order test failing would have been a stage that might run anywhere.**

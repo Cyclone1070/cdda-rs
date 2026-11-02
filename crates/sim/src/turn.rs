@@ -15,6 +15,11 @@ use cdda_core_types::rng::Rolls;
 /// The stages of an environment turn, in the order they run.
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TurnStage {
+    /// The effects whose turn has come run first.
+    ///
+    /// Reference: `game::process_events` runs before the map and the creatures take their turn (`do_turn.cpp`), so a timed event that changes the world is already in
+    /// place when the world's other stages read it.
+    Scheduled,
     /// The character's smell spreads and fades.
     Scent,
     /// Everything whose support went away falls.
@@ -109,6 +114,7 @@ pub fn environment_schedule() -> Schedule {
     );
     schedule.add_systems(
         (
+            scheduled_stage.in_set(TurnStage::Scheduled),
             scent_stage.in_set(TurnStage::Scent),
             falling_stage.in_set(TurnStage::Falling),
             fields_stage.in_set(TurnStage::Fields),
@@ -137,6 +143,14 @@ fn creatures_stage(world: &mut World) {
 
 fn note(world: &mut World, stage: TurnStage) {
     singletons::turn_trace(world).stages.push(stage);
+}
+
+/// Runs the effects whose turn has come - the reference's `game::process_events`, which the turn loop calls before anything acts.
+fn scheduled_stage(world: &mut World) {
+    note(world, TurnStage::Scheduled);
+    if let Some(speaker) = crate::missions::avatar(world) {
+        crate::scheduled::run_due(world, speaker);
+    }
 }
 
 fn scent_stage(world: &mut World) {
@@ -175,8 +189,9 @@ fn light_stage(world: &mut World) {
 impl TurnStage {
     /// The stages in the order they run, for a reader that wants to check the schedule.
     #[must_use]
-    pub fn order() -> [Self; 5] {
+    pub fn order() -> [Self; 6] {
         [
+            Self::Scheduled,
             Self::Scent,
             Self::Falling,
             Self::Fields,

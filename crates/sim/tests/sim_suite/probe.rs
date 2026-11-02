@@ -1947,6 +1947,11 @@ fn a_place_override_comes_due_one_second_after_its_length() {
     let mut world = bevy_ecs::prelude::World::new();
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     cdda_sim::calendar::set_turn(&mut world, 100);
+    assert_eq!(
+        cdda_content::constructions::parse_duration("2 seconds"),
+        2,
+        "a turn is a second"
+    );
     let value = cdda_json::parse(
         br#"{"place_override": "Infinite Corridor", "length": "10 minutes", "key": "LIXA_escape_key"}"#.as_slice(),
     )
@@ -3233,5 +3238,54 @@ fn the_players_sight_is_what_player_see_asks_about() {
     assert!(
         !cdda_sim::conditions::holds_with(&world, avatar, Some(stranger), &seen),
         "four hundred squares away is not"
+    );
+}
+
+/// `run_eocs` with `time_in_future` waits, and runs when the turn comes - not before and not twice.
+///
+/// Reference: `f_run_eocs` (`npctalk.cpp:6332-6338`): the call is a timed event, so the programs run on the due turn. Until this round the port **ran the program at
+/// once**, which is a wrong answer rather than a refusal - the test asks before the due turn, on it, and after it.
+#[test]
+fn a_delayed_run_eocs_waits_for_its_turn_and_runs_once() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::calendar::set_turn(&mut world, 100);
+    let value = cdda_json::parse(
+        br#"{"run_eocs": [{"effect": [{"u_message": "it happened"}]}], "time_in_future": "2 seconds"}"#.as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "scheduling is the whole effect"
+    );
+    assert_eq!(cdda_sim::scheduled::waiting(&mut world), 1, "one thing is waiting");
+    assert!(
+        !cdda_sim::messages::lines(&world).iter().any(|line| line.contains("it happened")),
+        "and nothing has run yet"
+    );
+    cdda_sim::calendar::set_turn(&mut world, 101);
+    cdda_sim::scheduled::run_due(&mut world, survivor);
+    assert!(
+        !cdda_sim::messages::lines(&world).iter().any(|line| line.contains("it happened")),
+        "a turn early is still too early"
+    );
+    cdda_sim::calendar::set_turn(&mut world, 102);
+    cdda_sim::scheduled::run_due(&mut world, survivor);
+    let lines = cdda_sim::messages::lines(&world);
+    assert_eq!(
+        lines.iter().filter(|line| line.contains("it happened")).count(),
+        1,
+        "two seconds later, once: {lines:?}"
+    );
+    cdda_sim::scheduled::run_due(&mut world, survivor);
+    assert_eq!(
+        cdda_sim::messages::lines(&world)
+            .iter()
+            .filter(|line| line.contains("it happened"))
+            .count(),
+        1,
+        "and not again on the turn after"
     );
 }

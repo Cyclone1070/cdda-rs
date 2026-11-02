@@ -2322,6 +2322,16 @@ pub enum Effect {
         /// Whether the x and y moves are counted in overmap tiles.
         overmap_tile: bool,
     },
+    /// Runs programs after a delay.
+    ///
+    /// Reference: `f_run_eocs` (`npctalk.cpp:6332-6338`) with `time_in_future`: the reference schedules a timed event carrying the programs and runs it when the turn
+    /// comes, so a call that says `"2 seconds"` happens two turns later and not now.
+    RunEocLater {
+        /// The programs to run.
+        programs: Vec<ProgramRef>,
+        /// How long to wait: one duration, or two ends the game draws between.
+        after: crate::dialogue::DurationSource,
+    },
     /// Gives the creature mutations, up to a category's reach.
     ///
     /// Reference: `f_mutate` (`npctalk.cpp:3563-3571`): the member is the **highest category depth** to mutate to, and `Character::mutate` draws mutations from the
@@ -3095,7 +3105,8 @@ impl Effect {
             | Self::RunInvEocs { .. }
             | Self::LocationVariableAdjust { .. }
             | Self::MonsterAround { .. }
-            | Self::Mutation { .. } => self.store_kind().unwrap_or_default(),
+            | Self::Mutation { .. }
+            | Self::RunEocLater { .. } => self.store_kind().unwrap_or_default(),
             Self::PlaceOverride { .. } => "place_override",
             Self::SpawnItem { .. } => "u_spawn_item",
             Self::ConsumeItem { listener, .. } => {
@@ -3260,6 +3271,7 @@ fn is_comment_only(value: &Value) -> bool {
 ///
 /// Reference: `talk_effect_t::load_effect` (`npctalk.cpp:8348`) reads an entry as a name, an object with one effect member, or a list; the port accepts the first
 /// two and refuses whatever it cannot carry out, so a refused entry is visible as a refusal rather than as a silent no-op.
+#[must_use]
 pub fn read_effect(value: &Value) -> Option<Effect> {
     if is_comment_only(value) {
         return Some(Effect::Nothing);
@@ -3287,16 +3299,8 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
             otherwise,
         });
     }
-    if let Some(names) = object.get("run_eocs") {
-        let entries = match names {
-            Value::Array(entries) => entries.as_slice(),
-            other => std::slice::from_ref(other),
-        };
-        let programs = entries
-            .iter()
-            .map(read_program_ref)
-            .collect::<Option<Vec<_>>>()?;
-        return Some(Effect::RunEoc(programs));
+    if object.get("run_eocs").is_some() {
+        return read_run_eocs(object);
     }
     if let Some(update) = read_mapgen_update(object) {
         return Some(update);
@@ -4283,6 +4287,85 @@ fn read_variables(value: Option<&Value>) -> Option<Vec<(String, StringSource)>> 
             .map(|(name, source)| Some((name.clone(), read_string_source(source)?)))
             .collect(),
         Some(_) => None,
+    }
+}
+
+/// A length of time the data writes: one statement, or two ends the game draws between.
+///
+/// Reference: `duration_or_var` (`npctalk.cpp:3426-3450`): a `dbl_or_var` with `min`/`max`, which the reference draws from with the dialogue's own dice. The data
+/// writes the range as an array of two durations - `["30 seconds", "1 minutes"]`.
+#[derive(Debug, Clone, PartialEq)]
+pub enum DurationSource {
+    /// One duration.
+    One(StringSource),
+    /// Two ends, drawn between when the effect runs.
+    Range(StringSource, StringSource),
+}
+
+/// Reads a `duration_or_var`.
+fn read_duration_source(value: &cdda_json::Value) -> Option<DurationSource> {
+    if let cdda_json::Value::Array(ends) = value {
+        let [shortest, longest] = ends.as_slice() else {
+            return None;
+        };
+        return Some(DurationSource::Range(
+            read_duration_text(shortest)?,
+            read_duration_text(longest)?,
+        ));
+    }
+    Some(DurationSource::One(read_duration_text(value)?))
+}
+
+/// Reads a `run_eocs` entry, which may run now or be postponed.
+///
+/// Reference: `f_run_eocs` (`npctalk.cpp:6332-6338`): the programs run at once unless `time_in_future` names a length, in which case the reference puts a timed event in
+/// the calendar and runs it when the turn comes. The port **ignored that member** until this round, which ran the program early - a wrong answer rather than a refusal.
+#[must_use]
+fn read_run_eocs(object: &cdda_json::Object) -> Option<Effect> {
+    let names = object.get("run_eocs")?;
+    let entries = match names {
+        Value::Array(entries) => entries.as_slice(),
+        other => std::slice::from_ref(other),
+    };
+    let programs = entries
+        .iter()
+        .map(read_program_ref)
+        .collect::<Option<Vec<_>>>()?;
+    match object.get("time_in_future") {
+        Some(after) => Some(Effect::RunEocLater {
+            programs,
+            after: read_duration_source(after)?,
+        }),
+        None => Some(Effect::RunEoc(programs)),
+    }
+}
+
+/// Reads a duration the data writes as text, as a **number of turns**, or as a variable with a default.
+///
+/// Reference: `get_duration_or_var` (`npctalk.cpp:3426-3450`): a `dbl_or_var` whose number is in **turns**, a string parsed by `read_from_json_string`, or a variable
+/// read when the effect runs. The port keeps the text form and turns a number into the turns it already is; a variable falls back to the default the data writes,
+/// which is what the reference uses when the variable is unset.
+fn read_duration_text(value: &cdda_json::Value) -> Option<StringSource> {
+    match value {
+        cdda_json::Value::Str(text) => Some(StringSource::Literal(text.clone())),
+        cdda_json::Value::Int(turns) => Some(StringSource::Literal(format!("{turns} turns"))),
+        cdda_json::Value::Float(turns) => Some(StringSource::Literal(format!("{turns} turns"))),
+        cdda_json::Value::Object(object) => {
+            // A variable holding the duration, read when the effect runs: `{"context_val": "travel_time"}` is the shape the data uses for a length the world decides.
+            for scope in ["u_val", "npc_val", "global_val", "var_val", "context_val"] {
+                if let Some(cdda_json::Value::Str(name)) = object.get(scope) {
+                    return Some(StringSource::Variable {
+                        scope: scope.to_owned(),
+                        name: name.clone(),
+                    });
+                }
+            }
+            match object.get("default") {
+                Some(fallback) => read_duration_text(fallback),
+                None => None,
+            }
+        }
+        _ => None,
     }
 }
 

@@ -27,12 +27,14 @@ fn the_declared_order_is_the_one_the_reference_names() {
     assert_eq!(
         TurnStage::order(),
         [
+            // Events that have come due run before the world's own stages, the way `game::process_events` does (`do_turn.cpp`).
+            TurnStage::Scheduled,
             TurnStage::Scent,
             TurnStage::Falling,
             TurnStage::Fields,
             TurnStage::Creatures,
             TurnStage::Light,
         ],
-        "scent, then what fell, then the fields, then the creatures, then the light"
+        "the due events, then scent, then what fell, then the fields, then the creatures, then the light"
     );
 }
