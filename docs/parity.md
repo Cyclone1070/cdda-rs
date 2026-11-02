@@ -8080,3 +8080,30 @@ has caught a behaviour change I made: **the tests are the memory of what the por
 
 **Two pins I got wrong, and the gate caught both.** I wrote `conditions_readable: 3_217` (it is 3,216) and `effect_blamed: 156` (it is 158) - numbers I moved by
 arithmetic instead of by reading the census. The gate failed twice, printed both actual values, and both were fixed from the printed numbers rather than from my head.
+
+## `<nested>` was not nested, and not the member the census named (round 930)
+
+The biggest one-gap entry was `<nested>` (4 programs), and the census blamed it on an `else` branch's `u_message`. Both parts of that are wrong.
+
+The exact object reads its message, supports `else` - the port has read `else` for a long time - and fails on the **condition**:
+`{"u_can_see_location": {"context_val": "pos"}}`. `f_can_see_location` (`condition.cpp:2173-2179`) asks whether the avatar can see a **point**, which needs a line
+of sight; the port has a `seeing::can_see` that only knows whether a creature is asleep.
+
+**So the round produced no count, on purpose.** The value is in the finding: four programs are blocked on **one condition that needs a line of sight**, and a round
+that had trusted the blame list would have gone looking at message rendering or `else` handling and found nothing.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 525 | **525** |
+unreadable leaves | 197 | **197** |
+one-gap programs | 52 | **52** |
+
+**Third mis-blame this session, and the third caught by reading the data instead of the list.** `max_radius` blamed `u_spawn_npc`; `max_bonus` blamed a member the
+reader already had; `<nested>` blamed a message that reads. The blame walk reports the first leaf it cannot place, which is **the first member it does not know how
+to consume**, not the member the reader refused. The two are the same often enough to be useful and different often enough that a probe test comes first.
+
+**The next round is written down:** `seeing::can_see_location`, a line from a creature to a square against the terrain transparency the port already computes for
+rendering (`frame.rs:186-210`, the same `transparency_cache` idea as `lightmap.cpp:140-167`).
+
+**One test now pins the negative**: `an_if_with_an_else_reads_whole` asserts the branch is **refused** and that the condition is the reason, so the round that adds a
+line of sight will fail this test first, which is exactly what a red gate is for.

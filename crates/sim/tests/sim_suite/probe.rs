@@ -1880,3 +1880,26 @@ fn a_bare_u_is_underwater_reads_and_answers_no() {
     let condition = cdda_content::dialogue::read_condition(&bare).expect("the bare name reads");
     assert!(!cdda_sim::conditions::holds(&world, survivor, &condition), "nobody is underwater here");
 }
+
+/// The exact `if`/`then`/`else` the census called a nested gap reads whole.
+///
+/// The census blamed `<nested>` on the `else` branch's `u_message`, which the reader accepts. The test reads the data's own object, so the next round works from
+/// what is true rather than from a blame list entry that may be one member out - the mistake `max_bonus` already taught.
+#[test]
+fn an_if_with_an_else_reads_whole() {
+    let text = br#"{"if": {"u_can_see_location": {"context_val": "pos"}},
+                   "then": {"u_message": "You can see <context_val:pos>."},
+                   "else": {"u_message": "You can't see <context_val:pos>."}}"#;
+    let value = cdda_json::parse(text.as_slice()).expect("json");
+    let message = cdda_json::parse(br#"{"u_message": "You can't see <context_val:pos>."}"#.as_slice()).expect("json");
+    assert!(cdda_content::dialogue::read_effect(&message).is_some(), "the message reads");
+    let condition =
+        cdda_json::parse(br#"{"u_can_see_location": {"context_val": "pos"}}"#.as_slice()).expect("json");
+    // The census blamed `<nested>` on the `else` branch's message. It is the **condition** that refuses: `u_can_see_location`
+    // (`condition.cpp:2173-2179`) asks whether the avatar can see a point, which needs a line of sight the port does not have yet. The test records where the gap
+    // really is, so the round that adds a line of sight starts here rather than at the blame list's entry.
+    let read = cdda_content::dialogue::read_condition(&condition);
+    assert!(read.is_none(), "the condition is the gap, not the message: {read:?}");
+    let effect = cdda_content::dialogue::read_effect(&value);
+    assert!(effect.is_none(), "so the whole branch waits on it");
+}
