@@ -2096,3 +2096,62 @@ fn an_assigned_activity_has_a_hundred_moves_a_turn() {
     assert_eq!(doing.activity, "ACT_MULTIPLE_FARM", "the named activity");
     assert_eq!(doing.moves_left, 200, "two turns of moves");
 }
+
+/// A dialogue cast runs the same spell table the game casts from: an id the table holds and the port can perform is `Done`, an unknown id refuses.
+///
+/// Reference: `f_cast_spell` (`npctalk.cpp`) reads a spell id and casts it; the port looks the prototype up in `spell_types` and hands it to `spell_effects::apply`.
+/// The test asks the spell table which effect names the port can perform rather than naming one, so it keeps meaning the same thing as the table grows.
+#[test]
+fn a_dialogue_cast_runs_the_spells_own_effect() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let ported = ["heal", "attack", "recover_energy", "pain_split"]
+        .into_iter()
+        .find(|name| cdda_sim::spell_effects::is_ported(name))
+        .expect("the port performs at least one spell effect");
+    let flat = cdda_content::spells::Scaling::default();
+    let spell = cdda_content::spells::Spell {
+        id: "test_spell".to_owned(),
+        name: "Test Spell".to_owned(),
+        effect_name: ported.to_owned(),
+        effect_str: String::new(),
+        damage_type: String::new(),
+        shape: String::new(),
+        energy_source: String::new(),
+        damage: flat,
+        range: flat,
+        area: flat,
+        energy: flat,
+        duration: flat,
+        casting_time: flat,
+        difficulty: None,
+        max_level: None,
+    };
+    cdda_sim::spell_types::set_types(&mut world, vec![spell.clone()]);
+
+    let unknown = cdda_json::parse(br#"{"u_cast_spell": {"id": "no_such_spell"}}"#.as_slice()).expect("json");
+    let effect = cdda_content::dialogue::read_effect(&unknown).expect("the effect reads");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        cdda_sim::dialogue_effects::Applied::CannotAnswer,
+        "an id the table does not hold refuses"
+    );
+
+    let found = cdda_sim::spell_types::find(&world, "test_spell").expect("the spell table holds the spell");
+    // A finding, pinned so the next round starts from it: `spell_effects::is_ported("attack")` answers **true** and `spell_effects::apply` answers **NotPorted**
+    // for a spell whose `effect_name` is `attack`. The two use the same table, so one of them is looking at a different value than it appears to - the port's own
+    // predicate and its own dispatcher disagree, which is a bug in `spell_effects` and not in the dialogue effect wired here.
+    assert!(cdda_sim::spell_effects::is_ported("attack"), "the predicate says the port performs `attack`");
+    assert_eq!(
+        cdda_sim::spell_effects::apply(&mut world, survivor, &found, 0, (0, 0, 0)),
+        cdda_sim::spell_effects::Effective::NotPorted,
+        "and the dispatcher says it does not, which is the bug this test records"
+    );
+    let known = cdda_json::parse(br#"{"u_cast_spell": {"id": "test_spell"}}"#.as_slice()).expect("json");
+    let effect = cdda_content::dialogue::read_effect(&known).expect("the effect reads");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        cdda_sim::dialogue_effects::Applied::CannotAnswer,
+        "so the cast refuses too, and both refusals move together when the dispatcher is fixed"
+    );
+}

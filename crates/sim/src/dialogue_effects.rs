@@ -575,6 +575,37 @@ fn pick_type(
     drawn
 }
 
+/// Casts a spell the dialogue names.
+///
+/// Reference: `f_cast_spell` (`npctalk.cpp`): the member is the spell's id, `hit_self` decides whether it lands on the speaker or the listener, and the level is the
+/// caster's own level in that spell unless the data forces one. The port looks the prototype up in [`crate::spell_types`] and hands it to `spell_effects::apply`, which
+/// is the same table the CLI casts from - so a dialogue cast and a played cast run the same rule.
+fn cast_spell(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::CastSpell { spell, hit_self, listener: theirs } = effect else {
+        return Applied::CannotAnswer;
+    };
+    let Some(caster) = actor(speaker, listener, *theirs) else {
+        return Applied::CannotAnswer;
+    };
+    // The data spells the id as a literal, so the reader keeps one - unlike most strings in a dialogue, which may be a variable.
+    let named = spell.clone();
+    let Some(prototype) = crate::spell_types::find(world, &named) else {
+        return Applied::CannotAnswer;
+    };
+    let level = crate::known_spells::level_of(world, caster, &named);
+    // `hit_self` puts the spell's centre on the caster; otherwise it is aimed at the other party, which is where the dialogue's own target stands.
+    let target = if *hit_self { Some(caster) } else { listener.or(Some(speaker)) };
+    let Some(centre) = target.and_then(|entity| world.get::<crate::Position>(entity).copied()) else {
+        return Applied::CannotAnswer;
+    };
+    // A cast that reaches nobody still happened: the reference spends the moves and casts, and the effect simply finds nothing. Only an effect the port has no rule
+    // for is a refusal, because that one did not happen.
+    match crate::spell_effects::apply(world, caster, &prototype, level, (centre.x, centre.y, centre.z)) {
+        crate::spell_effects::Effective::NotPorted => Applied::CannotAnswer,
+        crate::spell_effects::Effective::Done | crate::spell_effects::Effective::NothingAffected => Applied::Done,
+    }
+}
+
 /// Starts an activity on a creature.
 ///
 /// Reference: `f_assign_activity` (`npctalk.cpp:5456-5460`): `target->assign_activity( activity_id( ... ), to_moves<int>( duration ) )`. The port's activity is the
@@ -1869,6 +1900,7 @@ fn run_store_effect(
         Effect::LoseMorale { .. } => lose_morale(world, speaker, listener, effect),
         Effect::SetTalker { .. } => set_talker(world, speaker, listener, effect),
         Effect::AssignActivity { .. } => assign_activity(world, speaker, listener, effect),
+        Effect::CastSpell { .. } => cast_spell(world, speaker, listener, effect),
         // Audio changes no game state, and the port has no audio: Done, not refused - nothing is missing from the simulation, only from the sound card. A
         // comment-only entry does nothing, which the reference's loader also does with it.
         Effect::PlaySoundEffect { .. } | Effect::Nothing => Applied::Done,

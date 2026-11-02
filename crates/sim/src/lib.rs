@@ -50,6 +50,7 @@ pub mod sounds;
 pub mod timed_events;
 pub mod traits;
 pub mod spell_effects;
+pub mod spell_types;
 pub mod spellcasting;
 pub mod pathfinding;
 pub mod routing;

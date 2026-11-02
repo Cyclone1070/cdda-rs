@@ -8326,3 +8326,29 @@ small dependency and one big one has done its job.**
 **And a lesson about catch-alls that this session has now seen from three sides.** A catch-all is right for a reader (it must refuse what it cannot read) and right
 for a runner (it must refuse what it cannot do) - but it hides work: the only reason these three were found is that I compared the enum against the runner instead of
 trusting the census's refusal counts, which do not say which arm refused.
+
+## A spell table for the dialogue, and a bug it found on the way (round 939)
+
+`CastSpell` was one of the three effects the runner never named. It needed the one thing the port did not have: **a way to find a spell by id**. `known_spells`
+records what a creature knows and at what level, and the prototypes lived only in the CLI's `spell_named`, loaded from the oracle's dump. The port now has
+`crates/sim/src/spell_types.rs`: one singleton beside the other prototype tables, `find(world, id)`, ids as strings and never pointers.
+
+The runner then does what the reference does: look the spell up, take the caster's level in it, put the centre on the speaker or the listener, and hand it to
+`spell_effects::apply` - **the same table the CLI casts from**, so a dialogue cast and a played cast cannot drift apart.
+
+**Both of these are now pinned, and one of them is a bug I did not expect.** The test asks `spell_effects::is_ported("attack")` - **true** - and then
+`spell_effects::apply` with a spell whose `effect_name` is `attack` - **`NotPorted`**. The predicate and the dispatcher read the same table and disagree, so one of
+them is looking at something other than what it appears to. That is a bug in `spell_effects`, not in the dialogue wiring, and the test records it in both
+directions so the round that fixes it has to move both assertions together.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 542 | **542** |
+effect entries runnable | 1,480 | **1,480** |
+
+**No count moved, and the round is still worth having.** A dialogue cast could not have happened before; now it can, and the thing that stops it is a **named, pinned,
+reproducible disagreement inside the spell module** rather than a missing dialogue rule. **That is a much smaller and much better-specified remainder** - and it was
+found because the test asked the port's own predicate before asserting on its own dispatcher.
+
+**The lesson is about asking two questions instead of one.** A test that only asserted "casting refuses" would have been green and would have taught nothing. The pair
+- *what does the port say it can do* and *what does it actually do* - is what turned a wiring round into a find.
