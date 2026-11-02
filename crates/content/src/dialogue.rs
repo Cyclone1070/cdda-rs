@@ -2673,6 +2673,10 @@ pub enum Effect {
         min_radius: i32,
         /// How far from the tile found the square may be drawn; zero when the data draws none.
         max_radius: i32,
+        /// How near a square must be to the **actor** for the search to consider it, exclusive.
+        target_min_radius: i32,
+        /// How far the search walks around the found tile.
+        target_max_radius: i32,
         /// The map level to search on, when the data names one.
         z: Option<i32>,
         /// Whether the square goes to the listener's variables rather than the speaker's.
@@ -3831,11 +3835,19 @@ fn read_terrain_target(
     let Value::Str(wanted) = params.get("om_terrain")? else {
         return None;
     };
-    if !params
-        .members()
-        .iter()
-        .all(|(key, _)| matches!(key.as_str(), "om_terrain" | "z" | "min_distance" | "search_range"))
-    {
+    // `om_special` names an overmap special whose terrain the reference looks up in the special's table. The port has no such table - but when `om_terrain` is
+    // given beside it, `mission_util::get_om_terrain_pos` uses **the terrain** and never consults the special, so the pair is read and the special ignored.
+    // `cant_see` says the tile need not be visible, and the port never checks visibility here, so it is read and ignored too. A `target_params` naming **only** a
+    // special still refuses: that is the case the port cannot resolve.
+    if params.get("om_special").is_some() && params.get("om_terrain").is_none() {
+        return None;
+    }
+    if !params.members().iter().all(|(key, _)| {
+        matches!(
+            key.as_str(),
+            "om_terrain" | "z" | "min_distance" | "search_range" | "om_special" | "cant_see"
+        )
+    }) {
         return None;
     }
     // A fractional range or distance is not a whole number of tiles, so the port refuses rather than rounding one: the reference evaluates these as
@@ -3861,6 +3873,10 @@ fn read_terrain_target(
     };
     let min_radius = whole_radius("min_radius")?;
     let max_radius = whole_radius("max_radius")?;
+    // The **search's own** radius, which the reference spells `target_min_radius` and `target_max_radius` and uses to walk the squares around the found tile - a
+    // different pair from the `min_radius`/`max_radius` it draws within afterwards.
+    let target_min_radius = whole_radius("target_min_radius")?;
+    let target_max_radius = whole_radius("target_max_radius")?;
     // One search target only, and the furniture case is the one the data uses beside an overmap tile: `f_chair` inside `horse_farm_isherwood_13`.
     for asked in ["terrain", "field", "monster", "npc", "species", "trap", "zone"] {
         if object.get(asked).is_some() {
@@ -3882,6 +3898,8 @@ fn read_terrain_target(
         min_distance,
         min_radius,
         max_radius,
+        target_min_radius,
+        target_max_radius,
         z,
         listener,
     })

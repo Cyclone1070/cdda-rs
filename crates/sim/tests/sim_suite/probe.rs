@@ -2754,3 +2754,76 @@ fn a_furniture_search_finds_the_first_one_outside_the_minimum() {
     );
 }
 
+
+/// The two halves of a furniture search inside an overmap tile, each asked on its own.
+///
+/// The combined path refused its own test last round, so this pins the pieces: the overmap search finds the tile, and the furniture walk finds the square. **When the
+/// whole fails and the parts hold, the fault is in the wiring between them** - which is exactly what this pair is for.
+#[test]
+fn the_halves_of_a_tile_furniture_search_hold_on_their_own() {
+    let mut world = bevy_ecs::prelude::World::new();
+    cdda_sim::furniture_types::set_types(&mut world, [("f_scrap_antenna".to_owned(), 1)]);
+    let tile = cdda_sim::overmap::tile_of(cdda_sim::overmap::SQUARES_PER_OMT, 0);
+    cdda_sim::overmap::set_terrain(&mut world, tile, "labyrinth_entrance");
+    let corner = (
+        tile.0 * cdda_sim::overmap::SQUARES_PER_OMT,
+        tile.1 * cdda_sim::overmap::SQUARES_PER_OMT,
+        0,
+    );
+    cdda_sim::square::set_terrain(&mut world, (corner.0 + 1, corner.1 + 1, 0), 1);
+    cdda_sim::square::set_furniture(&mut world, (corner.0 + 1, corner.1 + 1, 0), 1);
+
+    let found = cdda_sim::overmap::nearest_with_terrain(
+        &world,
+        cdda_sim::overmap::tile_of(0, 0),
+        "labyrinth_entrance",
+        2,
+        0,
+    );
+    assert_eq!(found, Some(tile), "the overmap search finds the tile");
+    assert_eq!(
+        cdda_sim::square::furniture_at(&world, (corner.0 + 1, corner.1 + 1, 0)),
+        Some(1),
+        "and the square carries the furniture code the table gives"
+    );
+    assert_eq!(
+        cdda_sim::furniture_types::code_of(&world, "f_scrap_antenna"),
+        Some(1),
+        "which is what the table turns the name into"
+    );
+}
+
+/// A furniture search inside an overmap tile found by `target_params` answers the square that carries the furniture.
+///
+/// Reference: `f_location_variable` (`npctalk.cpp:4250-4300`): `target_params` sets the start, the overmap search finds the tile, and the furniture walk answers a
+/// square near it. The furniture sits one square off the tile's corner, so a port that answered the corner without searching would be caught.
+#[test]
+fn a_furniture_search_inside_a_found_tile_answers_the_furniture() {
+    let mut world = bevy_ecs::prelude::World::new();
+    cdda_sim::furniture_types::set_types(&mut world, [("f_scrap_antenna".to_owned(), 1)]);
+    let tile = cdda_sim::overmap::tile_of(cdda_sim::overmap::SQUARES_PER_OMT, 0);
+    cdda_sim::overmap::set_terrain(&mut world, tile, "labyrinth_entrance");
+    let corner = (
+        tile.0 * cdda_sim::overmap::SQUARES_PER_OMT,
+        tile.1 * cdda_sim::overmap::SQUARES_PER_OMT,
+        0,
+    );
+    cdda_sim::square::set_terrain(&mut world, (corner.0 + 1, corner.1 + 1, 0), 1);
+    cdda_sim::square::set_furniture(&mut world, (corner.0 + 1, corner.1 + 1, 0), 1);
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let holder = cdda_sim::dialogue_values::holder_for(&mut world, survivor, true);
+    let value = cdda_json::parse(
+        br#"{"u_location_variable": {"global_val": "antenna"}, "furniture": "f_scrap_antenna",
+            "target_params": {"om_terrain": "labyrinth_entrance", "search_range": 2}, "target_max_radius": 4}"#
+            .as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    let said = cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect);
+    let held = cdda_sim::dialogue_values::value_of(&world, holder, "antenna");
+    assert_eq!(
+        held,
+        Some(cdda_sim::dialogue_values::Value::Position { x: corner.0 + 1, y: corner.1 + 1, z: 0 }),
+        "the square that carries the furniture (the run answered {said:?})"
+    );
+}

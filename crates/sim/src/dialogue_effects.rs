@@ -310,6 +310,8 @@ fn search_location(world: &mut World, speaker: Entity, effect: &Effect) -> Appli
         min_distance,
         min_radius,
         max_radius,
+        target_min_radius,
+        target_max_radius,
         z,
         furniture,
         ..
@@ -320,11 +322,7 @@ fn search_location(world: &mut World, speaker: Entity, effect: &Effect) -> Appli
     let Some(at) = world.get::<crate::Position>(speaker).copied() else {
         return Applied::CannotAnswer;
     };
-    // A furniture search needs the furniture's **id** on a square. The port has the table now (`furniture_types`), but the search *inside a found overmap tile* has
-    // not been made to answer yet: an attempt at it refused its own test, so the refusal stays and the next round starts from that test rather than from a guess.
-    if furniture.is_some() {
-        return Applied::CannotAnswer;
-    }
+    // A furniture search compares the **name** the data writes against the furniture on each square, which `furniture_types` turns into the code a square carries.
     let tile = crate::overmap::tile_of(at.x, at.y);
     let Some((x, y)) =
         crate::overmap::nearest_with_terrain(world, tile, om_terrain, *search_range, *min_distance)
@@ -338,6 +336,25 @@ fn search_location(world: &mut World, speaker: Entity, effect: &Effect) -> Appli
     );
     // The second step: the reference draws within a radius of what the search found (`npctalk.cpp`, the `max_radius > 0` block, which runs after the target
     // search and moves `talker_pos` to the found square first). With no radius to draw, the found square is the answer.
+    // With a furniture named, the answer is the first square inside the found tile that carries it - the reference's `search_type == "furniture"` branch.
+    if let Some(wanted) = furniture {
+        let Some(code) = crate::furniture_types::code_of(world, wanted) else {
+            return Applied::CannotAnswer;
+        };
+        // The walk is the search's own radius around the found tile, and a square closer to the **actor** than `target_min_radius` is skipped - the reference
+        // measures that distance from `talker_pos`, not from the tile it found.
+        let Some(square) = find_furniture(world, found, code, *target_max_radius, (at.x, at.y), *target_min_radius) else {
+            return Applied::CannotAnswer;
+        };
+        let holder = crate::dialogue_values::holder_for(world, speaker, scope == "global_val");
+        crate::dialogue_values::set(
+            world,
+            holder,
+            name,
+            crate::dialogue_values::Value::Position { x: square.0, y: square.1, z: square.2 },
+        );
+        return Applied::Done;
+    }
     let square = if *max_radius > 0 {
         let Some(drawn) = draw_near(world, found, *min_radius, *max_radius) else {
             return Applied::CannotAnswer;
@@ -695,6 +712,32 @@ fn set_field(world: &mut World, speaker: Entity, listener: Option<Entity>, effec
         }
     }
     Applied::Done
+}
+
+/// The first square within `radius` of `centre` that carries a given furniture, or nothing.
+///
+/// Reference: `f_location_variable` (`npctalk.cpp:4290-4300`): the `points_in_radius` walk, comparing `map::furn`.
+fn find_furniture(
+    world: &World,
+    centre: (i32, i32, i32),
+    code: u32,
+    radius: i32,
+    actor: (i32, i32),
+    min_from_actor: i32,
+) -> Option<(i32, i32, i32)> {
+    let reach = radius.max(0);
+    for dy in -reach..=reach {
+        for dx in -reach..=reach {
+            let at = (centre.0 + dx, centre.1 + dy, centre.2);
+            if (at.0 - actor.0).abs().max((at.1 - actor.1).abs()) <= min_from_actor {
+                continue;
+            }
+            if crate::square::furniture_at(world, at) == Some(code) {
+                return Some(at);
+            }
+        }
+    }
+    None
 }
 
 /// Writes the square of a piece of furniture found around the actor into a variable.

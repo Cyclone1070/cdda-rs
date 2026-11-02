@@ -640,9 +640,10 @@ fn a_location_variable_holds_the_actors_square() {
     );
 
     // The searching forms are refused rather than answered with the actor's own square. A `target_params` naming an overmap terrain with a range, a
-    // distance and a level is no longer one of them - the port searches the overmap for it - but a special, a field or a zone still is.
+    // distance and a level is no longer one of them - the port searches the overmap for it - but a field or a zone still is.
     for text in [
-        r#"{"u_location_variable": {"u_val": "x"}, "target_params": {"om_terrain": "field", "om_special": "hospital"}}"#,
+        // A special **alone** is a question the port cannot answer; a special beside a terrain is answered, because the reference uses the terrain.
+        r#"{"u_location_variable": {"u_val": "x"}, "target_params": {"om_special": "hospital"}}"#,
         // A named terrain **is** read now (the `search_type = "terrain"` walk), so the refused case here is a field, which the port has no search rule for.
         r#"{"u_location_variable": {"u_val": "x"}, "field": "fd_fire"}"#,
         // `min_radius` alone is **not** a search: the reference starts at the talker's own square and only moves it inside a `search_target` block, so a radius
@@ -1671,9 +1672,11 @@ fn a_location_variable_can_hold_the_nearest_tile_of_a_terrain() {
         "the square is the tile's top-left, which is where a mapgen update lands"
     );
 
-    // A target that asks a question the port cannot answer is refused, not answered approximately.
+    // A target that asks a question the port cannot answer is refused, not answered approximately. An `om_special` **beside** an `om_terrain` is answered, because
+    // the reference uses the terrain and never consults the special; a `target_params` naming only a special is the case the port cannot resolve, so that is the
+    // example kept here.
     for text in [
-        r#"{"u_location_variable": {"u_val": "x"}, "target_params": {"om_terrain": "lab_finale", "om_special": "hospital"}}"#,
+        r#"{"u_location_variable": {"u_val": "x"}, "target_params": {"om_special": "hospital"}}"#,
         r#"{"u_location_variable": {"u_val": "x"}, "monster": "mon_zombie"}"#,
     ] {
         let value = cdda_json::parse(text.as_bytes()).expect("json");

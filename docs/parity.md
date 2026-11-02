@@ -8888,3 +8888,32 @@ edit and a correct one look the same until a test says otherwise.
 
 **What I would not do:** keep the change because it "obviously" should work and the census did not move either way. An unverified branch is worse than a documented
 refusal - the refusal tells the next round where to look, and the branch would lie to it.
+
+## The search inside a found tile, and the radius it actually uses (round 959)
+
+Last round's attempt failed and was reverted; this round found why, and it was **a radius read from the wrong member**. The reference walks the squares around the tile
+`target_params` found using `target_max_radius` - **the search's own radius** - and the port's reader had only read `min_radius`/`max_radius`, which are the pair the
+reference uses for a *later* draw. With the search's radius defaulting to zero, the walk had one square to look at and the furniture sat one square off it.
+
+That is the third member-name confusion in a week (`max_bonus`, `u_transform_radius`, and now `target_max_radius`), and they share a shape: **the reference has two
+radii with similar names and only the data says which is which.**
+
+With both halves working, the corpus entry still refused - because its `target_params` also carries `om_special` and `cant_see`. **`om_special` beside an `om_terrain`
+is read and ignored**, because `mission_util::get_om_terrain_pos` uses the terrain when it is there and never consults the special; a special **alone** still refuses,
+because that is a table the port does not have.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 561 | **562** |
+refused at run time | 194 | **195** |
+unreadable leaves | 137 | **136** |
+one-gap programs | 25 | **24** |
+effect entries runnable | 1,501 | **1,502** |
+effect census blaming `effect` | 123 | **122** |
+
+**Two of my own tests asserted the now-wrong answer** - both listed `{"om_terrain": ..., "om_special": ...}` as a form that must be **refused**. Both now use a special
+**alone**, which is still refused and still a real refusal. **A refusal list is a map of the frontier, and this is the third time in this session it had to be redrawn**
+- which is the argument for keeping those lists rather than deleting them: they are the cheapest record of what the port cannot do.
+
+**And a diagnostic test earned its keep.** `the_halves_of_a_tile_furniture_search_hold_on_their_own` asks the overmap search and the furniture walk **separately**, so
+when the combined path failed, the fault had to be in the wiring. That is how the radius bug was found in one step instead of five.
