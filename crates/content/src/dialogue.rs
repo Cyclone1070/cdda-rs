@@ -3086,6 +3086,11 @@ fn read_effect_duration(value: Option<&Value>, fallback: EffectDuration) -> Opti
             let whole = *turns as i64;
             Some(EffectDuration::Turns(Some(whole)))
         }
+        // Reference: `get_duration_or_var` (`npctalk.cpp:3426-3450`) reads a **`math` expression** as well as a number or a range, and the data uses it for a
+        // length that depends on the world - `{"math": ["rand(432000) + 86400"]}` on a morale point. The value is worked out when the effect is applied.
+        Some(Value::Object(object)) if object.get("math").is_some() => {
+            Some(EffectDuration::Computed(read_math_expression(value?)?))
+        }
         Some(Value::Array(ends)) => {
             let rolls = ends
                 .iter()

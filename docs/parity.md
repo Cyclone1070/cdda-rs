@@ -7935,3 +7935,29 @@ see further, not that it went backwards.
 
 **Six effect entries from one reader** - `remove_active_mission` is used by every faction-camp program that hands a job back, so the effect count moved three times as
 much as the program count.
+
+## A duration the dialogue works out: the gap was one match arm (round 925)
+
+The one-gap list said `max_bonus`, on an object that also had `bonus` and a `duration` of `{"math": ["rand(432000) + 86400"]}`. The reader had `max_bonus` already, and
+the runner had a `Computed` arm ready - so I wrote a test that read the exact object before touching anything, and it failed.
+
+The missing piece was one arm of `read_effect_duration`: the reference's `get_duration_or_var` (`npctalk.cpp:3426-3450`) reads a **`math` expression** as well as a
+number or a range, and the port's reader fell through to `Some(_) => None` on an object. So a morale point whose length is rolled at run time refused - and the census
+blamed `max_bonus`, the member *after* the one that actually failed, because the walk over the object reached `duration`'s contents first.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 516 | **518** |
+answered `Done` | 333 | **335** |
+did something | 237 | **239** |
+unreadable leaves | 214 | **211** |
+one-gap programs | 62 | **60** |
+effect entries runnable | 1,428 | **1,430** |
+effect census blaming `effect` | 164 | **162** |
+
+**Half of this round was deciding not to write code.** The obvious move was to give `max_bonus` a wider reader; the object already read it, and the real gap was one
+member along. The probe test that read the exact data object before any change is what separated the two, and it is now a permanent test - the exact shape from the
+data, asserted to read whole.
+
+**A new gap surfaced by fixing this one**: `u_add_effect` (2 programs) now stands where `max_bonus` did. Effects with computed durations are exactly the family this
+arm unblocks, so that is the next widening - and the same probe-first discipline applies to it.

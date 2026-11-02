@@ -1791,3 +1791,17 @@ fn a_removed_active_mission_leaves_the_list_unfinished() {
     assert!(!cdda_sim::missions::has_mission(&world, survivor, "MISSION_CAMP_LEADERSHIP_CHANGE"), "the mission is gone");
     assert!(cdda_sim::missions::active_missions(&world, survivor).is_empty(), "and nothing else was touched");
 }
+
+/// `u_add_morale` reads with a `max_bonus`, a computed duration and a `bonus` all at once - the shape the data uses.
+///
+/// Reference: `f_add_morale` (`npctalk.cpp:7177-7195`): the type is a `str_or_var`, the bonus and its cap are `dbl_or_var`, and the duration is a `duration_or_var`.
+/// The census once reported `max_bonus` as the gap here; the test exists to say whether the reader or the census was wrong.
+#[test]
+fn a_morale_point_reads_with_its_cap_and_a_computed_duration() {
+    let value = cdda_json::parse(
+        br#"{"u_add_morale": "morale_feeling_bad", "bonus": -15, "max_bonus": -15, "duration": {"math": ["rand(432000) + 86400"]}}"#.as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value);
+    assert!(effect.is_some(), "the morale point reads whole: {effect:?}");
+}
