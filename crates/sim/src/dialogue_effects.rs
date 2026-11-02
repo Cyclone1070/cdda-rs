@@ -320,8 +320,8 @@ fn search_location(world: &mut World, speaker: Entity, effect: &Effect) -> Appli
     let Some(at) = world.get::<crate::Position>(speaker).copied() else {
         return Applied::CannotAnswer;
     };
-    // A furniture search needs the furniture's **id** on a square, and the port's squares carry a code with no id beside it. Refusing here is the honest
-    // half-answer: the data asked a question the port's furniture store cannot be asked.
+    // A furniture search needs the furniture's **id** on a square. The port has the table now (`furniture_types`), but the search *inside a found overmap tile* has
+    // not been made to answer yet: an attempt at it refused its own test, so the refusal stays and the next round starts from that test rather than from a guess.
     if furniture.is_some() {
         return Applied::CannotAnswer;
     }

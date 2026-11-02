@@ -2753,3 +2753,4 @@ fn a_furniture_search_finds_the_first_one_outside_the_minimum() {
         "and what was found really is the furniture asked for"
     );
 }
+

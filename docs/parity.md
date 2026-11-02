@@ -8867,3 +8867,24 @@ furniture asked for, so that change has a green gate to build on rather than a r
 
 **A round that moves no count is not a wasted round, but it is a round that must say so.** The census is the ledger; a rule with a test and no entry in it is
 **groundwork**, and calling it progress would make the next round's numbers a lie.
+
+## The furniture search inside a found tile: attempted, refused, reverted (round 958)
+
+Last round closed the store gap (`furniture_types`) that made the furniture search refuse, so this round tried the thing it unblocked: the search **inside an overmap
+tile that `target_params` found**, which is the shape every furniture search in the corpus has.
+
+The change was small and looked right - replace the refusal with a walk of the squares around the found tile's corner, comparing furniture codes. **It compiled, and its
+own test answered `CannotAnswer`.** Where I expected it to fail was the furniture lookup; where it actually fails is somewhere in the tile search's inputs, and I did
+not find it in this round's budget.
+
+**So the change is out, and the tree is exactly as it was**, with the refusal's comment now saying what the next round needs:
+
+> The port has the table now, but the search *inside a found overmap tile* has not been made to answer yet: an attempt at it refused its own test, so the refusal stays
+> and the next round starts from that test rather than from a guess.
+
+**Two rounds in a row that move no count.** That is not a slump; it is where the work is. Everything on the one-gap list now needs either a **store the port does not
+have** (mutation categories, camps, submap reverts, event arguments) or a **combination of two rules the port has separately** - and combinations are where a confident
+edit and a correct one look the same until a test says otherwise.
+
+**What I would not do:** keep the change because it "obviously" should work and the census did not move either way. An unverified branch is worse than a documented
+refusal - the refusal tells the next round where to look, and the branch would lie to it.
