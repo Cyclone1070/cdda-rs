@@ -9915,3 +9915,19 @@ unexplained | **0** |
 
 **The three holes are counted in the test**, so closing one is a change to a pinned number and an assertion, not a rediscovery. **That is the difference between a gap
 and an unknown**, and it is the shape every census in this repository has ended up with.
+
+## The fourteen were `byproduct_group`, and that is a range not a count (round 1007)
+
+Last round's gate left three counted holes. This round found out what the smallest one actually is, and the answer changed the label rather than the count.
+
+The nine "same items, different counts" and five "loader cannot name them at all" batches are the **same rule**: recipes with **`byproduct_group`** - an **inline item
+group**, written out in the recipe itself as `{"item": "arrow_wood_heavy", "count": [0, 4]}`. The reference loads it with `load_item_group` (`recipe.cpp:380-386`) and
+`create_byproducts` **draws** from it, so its answer is one draw per batch: four arrows, then six, from the same recipe.
+
+| Before this round | After |
+|---|---|
+"byproducts come from a group" (11) and "cannot name at all" (5) | **one rule**: `byproduct_group`, an inline group with **range counts**, drawn at craft time |
+
+**The numbers are unchanged and the ledger is now correct**, which is the point: a classification that hides two causes behind two labels is worse than one label that
+names the cause. **The hole is named in the roadmap with what closes it** - the item-group model at load time and a draw at craft time - and the same file now says
+that **item containment** (302 batches) is the larger piece waiting behind it.

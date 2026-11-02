@@ -91,11 +91,11 @@ fn the_loaded_recipes_make_what_the_reference_makes() {
             }
             let spare: BTreeMap<String, i32> = byproducts.iter().cloned().collect();
             if spare != wanted_spare {
-                // The same items with different counts: these recipes' byproducts come from a group the reference draws from, so its answer is one draw and the
-                // loader's is the listed count. **Known hole, counted**: choosing from a group needs the group tables.
+                // **`byproduct_group`** is an inline item group whose counts are ranges - `{"item": "arrow_wood_heavy", "count": [0, 4]}` - so the reference's answer
+                // is one draw per batch and the loader reads no group at all. That is why its own answer is a listed count or nothing. **Known hole, counted**:
+                // reading the inline group needs the group model at load time and a draw at craft time.
                 let same_items = spare.keys().eq(wanted_spare.keys());
                 if spare.is_empty() && !wanted_spare.is_empty() {
-                    // A **grouped** byproduct: the data names an item group, the loader keeps no pairs, and the reference picks a member. Counted, not ignored.
                     grouped_byproducts += 1;
                 } else if same_items {
                     varied_byproducts += 1;
@@ -112,7 +112,7 @@ fn the_loaded_recipes_make_what_the_reference_makes() {
     // The container hole has a number, so closing it is a change to one line rather than a discovery.
     assert_eq!(
         grouped_byproducts, 5,
-        "the batches whose byproducts the loader cannot name at all"
+        "the batches whose byproducts are drawn from an inline `byproduct_group` the loader does not read"
     );
     assert_eq!(
         varied_byproducts, 9,

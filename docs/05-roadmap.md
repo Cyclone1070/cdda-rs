@@ -285,6 +285,24 @@ pressure systems moving across the overmap, which needs an overmap.
 **Next: P3.** The roadmap's P3 is items, inventory, crafting and interaction, and the ledger already carries declared partials to close in order: eating and its data,
 crafting activity and time, skills, container handling, item weight and volume, and consuming.
 
+### P3 crafting, after the oracle gate (updated at round 1007)
+
+**The crafting rules now have a corpus gate of their own.** `--dump-crafting` gives what every recipe **produces** for a batch of one and of two, `content_suite::crafting_results`
+compares all **12,582** batches, and the disagreements are **counted, not tolerated**:
+
+| Outcome | Batches | What closes it |
+|---|---|---|
+the port makes exactly what the reference makes | **12,256** | - |
+the reference wraps the result in a **container** | **302** | **item containment**: an item inside an item, which the port has for pockets on a creature but not for things in things |
+the byproducts are drawn from an **inline `byproduct_group`** | **14** | the group model at load time and a draw at craft time - `{"item": "arrow_wood_heavy", "count": [0, 4]}` |
+unexplained | **0** | - |
+
+**So P3's next two pieces are named:** item containment (302 batches, and it is what `contained` recipes need), then `byproduct_group` (14 batches, and it needs the
+item-group model that already exists for **named** groups to grow an **inline** form).
+
+**What P3 still lacks beyond those:** proficiencies (`craft_proficiency_gain`), the 5% charge and proficiency instalments (a per-turn progress hook), focus's other two
+equilibrium inputs, and the container eligibility rule for liquids.
+
 ### Where the work stands after the dialogue census (updated at round 992)
 
 **The dialogue frontier is now blocked on world generation, and the numbers say so.** Forty-six of the census's run-time refusals are one gap: a census world built from
