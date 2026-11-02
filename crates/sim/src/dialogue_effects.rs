@@ -1207,7 +1207,7 @@ fn run_remove_effects(world: &mut World, speaker: Entity, listener: Option<Entit
     }
     for name in effects {
         let one = Effect::RemoveEffect {
-            effect: name.clone(),
+            effect: cdda_content::dialogue::StringSource::Literal(name.clone()),
             listener: *theirs,
         };
         let _ = run_effect(world, speaker, listener, &one);
@@ -1647,6 +1647,36 @@ fn run_learn_recipe(
     Applied::Done
 }
 
+/// Gives a creature an effect whose name may be a variable.
+///
+/// Reference: `f_add_effect` (`npctalk.cpp:3426-3450`): the name is a `str_or_var`, resolved where the effect is applied, and so is the duration.
+fn run_gained_effect(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::AddEffect { effect: named, duration, intensity, listener: theirs } = effect else {
+        return Applied::CannotAnswer;
+    };
+    let Some(text) = crate::conditions::text_of(world, speaker, listener, named) else {
+        return Applied::CannotAnswer;
+    };
+    add_effect(world, speaker, listener, &text, duration, intensity.as_ref(), *theirs)
+}
+
+/// Takes an effect off a creature whose name may be a variable.
+///
+/// Reference: `f_remove_effect` (`npctalk.cpp:8015`): the name is a `str_or_var`, and removing one the creature does not have is not a failure.
+fn run_lost_effect(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::RemoveEffect { effect: named, listener: theirs } = effect else {
+        return Applied::CannotAnswer;
+    };
+    let Some(creature) = actor(speaker, listener, *theirs) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(text) = crate::conditions::text_of(world, speaker, listener, named) else {
+        return Applied::CannotAnswer;
+    };
+    crate::applied_effects::remove(world, creature, &text);
+    Applied::Done
+}
+
 /// The effects that write the store directly: spawns, consumption, variables, timers, and the ones that change nothing at all.
 ///
 /// These share no rule with the rest of the dispatch, and keeping them together is what stops the dispatch table from growing an arm for every store write in the
@@ -1664,6 +1694,8 @@ fn run_store_effect(
         Effect::SetStringVar { .. } => set_string_var(world, speaker, listener, effect),
         Effect::CopyVar { .. } => copy_var(world, speaker, listener, effect),
         Effect::AlterTimedEvents { .. } => alter_timed_events(world, speaker, listener, effect),
+        Effect::AddEffect { .. } => run_gained_effect(world, speaker, listener, effect),
+        Effect::RemoveEffect { .. } => run_lost_effect(world, speaker, listener, effect),
         Effect::SetCondition { .. } => set_condition(world, speaker, listener, effect),
         Effect::FinishMission { .. } => finish_mission(world, speaker, listener, effect),
         Effect::RemoveActiveMission { .. } => remove_active_mission(world, speaker, listener, effect),
@@ -1749,19 +1781,6 @@ pub fn run_effect(
         Effect::LocationVariable { .. } => store_location(world, speaker, listener, effect),
         Effect::Switch { on, cases } => run_switch(world, speaker, listener, on, cases),
         Effect::If { .. } => run_branch(world, speaker, listener, effect),
-        Effect::AddEffect {
-            effect,
-            duration,
-            intensity,
-            listener: about_listener,
-        } => add_effect(world, speaker, listener, effect, duration, intensity.as_ref(), *about_listener),
-        Effect::RemoveEffect { effect, listener: about_listener } => {
-            let Some(creature) = actor(speaker, listener, *about_listener) else {
-                return Applied::CannotAnswer;
-            };
-            crate::applied_effects::remove(world, creature, effect);
-            Applied::Done
-        }
         Effect::LearnTrait { trait_name, listener: about_listener } => {
             let Some(creature) = actor(speaker, listener, *about_listener) else {
                 return Applied::CannotAnswer;

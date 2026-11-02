@@ -1805,3 +1805,23 @@ fn a_morale_point_reads_with_its_cap_and_a_computed_duration() {
     let effect = cdda_content::dialogue::read_effect(&value);
     assert!(effect.is_some(), "the morale point reads whole: {effect:?}");
 }
+
+/// A duration may be a **variable** the dialogue holds, not only a rolled expression.
+///
+/// Reference: `get_duration_or_var` (`npctalk.cpp:3426-3450`) reads the same `dbl_or_var` shape everywhere, and the data passes `{"context_val": "duration"}` to
+/// `u_add_effect`. Both object forms - a `math` and a variable - are worked out where the effect is applied.
+#[test]
+fn a_duration_reads_from_a_variable() {
+    let from_variable = cdda_json::parse(
+        br#"{"u_add_effect": {"context_val": "effect"}, "duration": {"context_val": "duration"}}"#.as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&from_variable);
+    assert!(effect.is_some(), "a variable effect and a variable duration both read: {effect:?}");
+
+    let rolled = cdda_json::parse(
+        br#"{"u_add_effect": "bleed", "duration": {"math": ["rng(_time * 0.94, _time * 1.06)"]}}"#.as_slice(),
+    )
+    .expect("json");
+    assert!(cdda_content::dialogue::read_effect(&rolled).is_some(), "and so does a rolled one");
+}

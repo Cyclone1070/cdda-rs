@@ -2222,8 +2222,8 @@ pub enum Effect {
     /// Reference: `f_add_effect` (`npctalk.cpp:3426-3450`). The duration is a time string, the word `PERMANENT`, or absent - in
     /// which case it is 1000 turns. The intensity defaults to zero, which the effect's own rule raises to one.
     AddEffect {
-        /// The effect's id.
-        effect: String,
+        /// The effect's id, which the data may give as a variable.
+        effect: StringSource,
         /// How long it lasts.
         duration: EffectDuration,
         /// How strong it is, as an expression the reference evaluates when the effect is applied.
@@ -2235,8 +2235,8 @@ pub enum Effect {
     ///
     /// Reference: `f_remove_effect` (`npctalk.cpp`), which calls `remove_effect` with the effect's own body part.
     RemoveEffect {
-        /// The effect's id.
-        effect: String,
+        /// The effect's id, which the data may give as a variable.
+        effect: StringSource,
         /// Whether it comes from the listener rather than the speaker.
         listener: bool,
     },
@@ -3088,9 +3088,9 @@ fn read_effect_duration(value: Option<&Value>, fallback: EffectDuration) -> Opti
         }
         // Reference: `get_duration_or_var` (`npctalk.cpp:3426-3450`) reads a **`math` expression** as well as a number or a range, and the data uses it for a
         // length that depends on the world - `{"math": ["rand(432000) + 86400"]}` on a morale point. The value is worked out when the effect is applied.
-        Some(Value::Object(object)) if object.get("math").is_some() => {
-            Some(EffectDuration::Computed(read_math_expression(value?)?))
-        }
+        // A `math` expression, or a **variable** the dialogue holds when the effect is applied: `get_duration_or_var` reads the same `dbl_or_var` shape the rest of
+        // the data uses, and the data does pass `{"context_val": "duration"}`. Both are worked out where they are used, so both are `Computed`.
+        Some(Value::Object(_)) => Some(EffectDuration::Computed(read_math_expression(value?)?)),
         Some(Value::Array(ends)) => {
             let rolls = ends
                 .iter()
@@ -3497,7 +3497,9 @@ for (member, listener, learn) in [
             listener,
         });
     }
-    if let Some(Value::Str(effect)) = object.get(member) {
+    // The data names the effect with a **variable** as often as a literal - `{"context_val": "effect"}` - so the name is read the same way every other string in
+    // a dialogue is, and a variable is resolved where the effect is applied.
+    if let Some(given) = object.get(member) {
         // A `target_part` names the body part an effect lands on. The port has no limb model - a creature is one thing, not a set of parts - so the part
         // is **ignored rather than refused**: the effect lands on the creature, which is where the reference puts it once a part is chosen.
         let _ = object.get("target_part");
@@ -3505,51 +3507,26 @@ for (member, listener, learn) in [
         if learn {
             // Reference: `get_duration_or_var` (`npctalk.cpp:3426-3450`) accepts a duration **string**, a number of turns, or an
             // array of two of either, which the reference rolls between. The port reads all three; a roll is made at run time.
-            let duration = match object.get("duration") {
-                Some(Value::Str(text)) if text == "PERMANENT" => EffectDuration::Permanent,
-                Some(Value::Str(text)) => EffectDuration::Turns(Some(crate::constructions::parse_duration(text))),
-                Some(Value::Int(turns)) => EffectDuration::Turns(Some(*turns)),
-                Some(Value::Float(turns)) => {
-                    #[allow(clippy::cast_possible_truncation)]
-                    let whole = *turns as i64;
-                    EffectDuration::Turns(Some(whole))
-                }
-                // Reference: `get_duration_or_var` also takes a **variable**, which the data writes as `{"math": [...]}`.
-                Some(value @ Value::Object(_)) => {
-                    EffectDuration::Computed(read_math_expression(value)?)
-                }
-                // An array is a range: the reference rolls a duration between the two ends.
-                Some(Value::Array(ends)) => {
-                    let rolls = ends
-                        .iter()
-                        .map(|end| match end {
-                            Value::Int(turns) => Some(*turns),
-                            Value::Str(text) => Some(crate::constructions::parse_duration(text)),
-                            _ => None,
-                        })
-                        .collect::<Option<Vec<_>>>()?;
-                    let [shortest, longest] = rolls.as_slice() else {
-                        return None;
-                    };
-                    EffectDuration::Range(*shortest, *longest)
-                }
-                Some(_) => return None,
-                None => EffectDuration::Turns(Some(1000)),
-            };
+            // One reader for a duration, shared with every other effect that takes one: a number, a range, a `math` expression, or a variable. The
+            // inline copy that used to live here refused the last two, so `u_add_effect` with a rolled or variable length refused while a morale point
+            // with the same shape read - the same rule written twice, and only one of them kept up.
+            let duration =
+                read_effect_duration(object.get("duration"), EffectDuration::Turns(Some(1000)))?;
+
             // Reference: `get_dbl_or_var( jo, "intensity" )` - an intensity may be an expression, evaluated when the effect is applied.
             let intensity = match object.get("intensity") {
                 Some(value) => Some(read_math_expression(value)?),
                 None => None,
             };
             return Some(Effect::AddEffect {
-                effect: effect.clone(),
+                effect: read_string_source(given)?,
                 duration,
                 intensity,
                 listener,
             });
         }
         return Some(Effect::RemoveEffect {
-            effect: effect.clone(),
+            effect: read_string_source(given)?,
             listener,
         });
     }

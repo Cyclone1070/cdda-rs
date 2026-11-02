@@ -7961,3 +7961,32 @@ data, asserted to read whole.
 
 **A new gap surfaced by fixing this one**: `u_add_effect` (2 programs) now stands where `max_bonus` did. Effects with computed durations are exactly the family this
 arm unblocks, so that is the next widening - and the same probe-first discipline applies to it.
+
+## An effect named by a variable, and the same rule written twice (round 926)
+
+`u_add_effect` (2 programs) turned out to be two separate refusals wearing one name.
+
+**The first: a duration given as a variable.** `{"duration": {"context_val": "duration"}}`. Last round taught `read_effect_duration` to read a `math` expression; the
+data also passes a **variable**, which is the same `dbl_or_var` shape, so the object arm now reads either.
+
+**The second, and the real find: `u_add_effect` had its own copy of the duration rule.** `read_effect_change` matched `object.get("duration")` inline - string,
+`PERMANENT`, int, float, array - and fell through to `None` for anything else. So a morale point with a rolled duration read while an added effect with the *same*
+duration refused. Two readers for one rule, and only one of them got the fix. The inline copy is gone and the shared reader is called.
+
+**The third: the effect's own name.** The reader required `Value::Str`; the data writes `{"context_val": "effect"}`. `AddEffect.effect` and `RemoveEffect.effect` are
+now `StringSource`, resolved with `text_of` where the effect is applied - the same treatment every other string in a dialogue already gets.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 518 | **519** |
+refused at run time | 183 | **184** |
+unreadable leaves | 211 | **208** |
+one-gap programs | 60 | **58** |
+effect entries runnable | 1,430 | **1,432** |
+effect census blaming `effect` | 162 | **161** |
+
+**One program, and a duplicated rule deleted.** The count moved little because these two programs have further gaps behind them; the code moved a lot, because the
+duration rule now has one home instead of two. A duplicated rule is a bug that waits: the copy that gets fixed is the one somebody happened to look at.
+
+**And `run_effect` hit the cap again**, at 103 lines, so the effect family moved into `run_store_effect` beside the other store-writes. That is the third such
+extraction, and the shape is now consistent: **a table of rules stays small, and a family of similar rules lives in a function with a name.**

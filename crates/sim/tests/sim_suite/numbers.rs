@@ -47,7 +47,7 @@ pub struct Census {
 /// constants are the numbers those prints last said.
 pub const NOW: Census = Census {
     defined: 692,
-    readable: 518,
+    readable: 519,
     ran: 335,
     // Of those, how many answered `Done` without changing anything the world can see: four in five of them, because a program whose condition is
     // false for a fresh world legitimately does nothing - and a program whose condition could not be READ does nothing too, and used to count as a run.
@@ -56,12 +56,12 @@ pub const NOW: Census = Census {
     empty_programs: 22,
     // The same programs run in a world that has terrain, an overmap and a player who answers, which is what a game has.
     ran_in_a_built_world: 338,
-    refused_at_run: 183,
-    leaves: 211,
-    one_gap: 60,
-    effects_runnable: 1_430,
+    refused_at_run: 184,
+    leaves: 208,
+    one_gap: 58,
+    effects_runnable: 1_432,
     effects_defined: 1_612,
-    effect_blamed: 162,
+    effect_blamed: 161,
     conditions_readable: 3_215,
 };
 
