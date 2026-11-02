@@ -2337,6 +2337,8 @@ pub enum Effect {
         search_data: Vec<String>,
         /// Whether only the wielded item counts.
         wielded_only: bool,
+        /// Whether only **worn** items count.
+        worn_only: bool,
         /// Whether **one** match is drawn rather than every match being run on.
         random: bool,
         /// The programs to run on each matching item.
@@ -3874,6 +3876,7 @@ fn read_run_inv_eocs(object: &cdda_json::Object) -> Option<Effect> {
     }
     let mut search_data = Vec::new();
     let mut wielded_only = false;
+    let mut worn_only = false;
     match object.get("search_data") {
         None => {}
         Some(Value::Array(entries)) => {
@@ -3886,12 +3889,15 @@ fn read_run_inv_eocs(object: &cdda_json::Object) -> Option<Effect> {
                 if !filter
                     .members()
                     .iter()
-                    .all(|(key, _)| matches!(key.as_str(), "id" | "wielded_only"))
+                    .all(|(key, _)| matches!(key.as_str(), "id" | "wielded_only" | "worn_only"))
                 {
                     return None;
                 }
                 if let Some(Value::Bool(true)) = filter.get("wielded_only") {
                     wielded_only = true;
+                }
+                if let Some(Value::Bool(true)) = filter.get("worn_only") {
+                    worn_only = true;
                 }
                 if let Some(given) = filter.get("id") {
                     let Value::Str(id) = given else {
@@ -3906,6 +3912,7 @@ fn read_run_inv_eocs(object: &cdda_json::Object) -> Option<Effect> {
     Some(Effect::RunInvEocs {
         search_data,
         wielded_only,
+        worn_only,
         random: mode == "random",
         programs: read_program_refs(object.get("true_eocs"))?,
     })

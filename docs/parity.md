@@ -9094,3 +9094,23 @@ conditions readable | 3,219 | **3,226** |
 
 **The test wields a knife on the *stranger***, so the speaker must answer false for an item that exists in the world but not in their hand - the mistake a
 "somebody has a weapon" port would make.
+
+## `worn_only`: a fifth filter, and no count moved (round 967)
+
+`f_run_inv_eocs`'s `search_data` filter set grows by one: `{"worn_only": true}` narrows the run to the items the creature **wears**, which the port answers from
+`WornBy` - the same relation the armor rules use, so the filter is a different question over a store that already exists.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 574 | **574** |
+effect entries runnable | 1,518 | **1,518** |
+
+**Nothing moved.** The one program that names `worn_only` also names things the port cannot answer inside the programs it runs - `_coverage = n_coverage(_id)` and
+friends - so reading the filter moved the frontier one member closer without crossing it. The one-gap list still shows `effect` for that program.
+
+**This is the third no-count round in this stretch, and the honest ledger has to say so.** The rule is read, tested against a two-shirt case (one worn, one not), and
+correct; it is **groundwork**, not a win. The difference between this and the reverted furniture round is that this one is **verified** - the test fails if the filter is
+ignored - while that one was withdrawn because its own test refused to pass.
+
+**The pattern worth naming: the census rewards a rule only when nothing *else* in the same program refuses.** Late in a port, the remaining programs are exactly the
+ones with **several** gaps, which is why the one-gap count is a better frontier measure than the readable count, and why both are pinned.

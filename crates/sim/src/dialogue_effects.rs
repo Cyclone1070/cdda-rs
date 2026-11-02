@@ -727,7 +727,7 @@ fn adjust_location(world: &mut World, speaker: Entity, listener: Option<Entity>,
 /// Reference: `f_run_inv_eocs` (`npctalk.cpp:6760-6805`) with the `"all"` mode runs `true_eocs` on every matching item, handing each one to the program through the
 /// invocation's context. The port sets the context the data reads - `id` for the item's id and `count` for how many the stack holds - and runs the programs.
 fn run_inv_eocs(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::RunInvEocs { search_data, wielded_only, random, programs } = effect else {
+    let Effect::RunInvEocs { search_data, wielded_only, worn_only, random, programs } = effect else {
         return Applied::CannotAnswer;
     };
     let Some(holder) = crate::conditions::holder_for_scope(world, speaker, listener, "u_val") else {
@@ -748,7 +748,14 @@ fn run_inv_eocs(world: &mut World, speaker: Entity, listener: Option<Entity>, ef
     } else {
         None
     };
-    if let Some(held) = wielded {
+    if *worn_only {
+        let mut query = world.query::<(&crate::creature::WornBy, &crate::GroundItem)>();
+        for (who, item) in query.iter(world) {
+            if who.0 == holder {
+                carried.push((item.kind, item.charges.max(1)));
+            }
+        }
+    } else if let Some(held) = wielded {
         carried.push(held);
     } else if !*wielded_only {
         let mut query = world.query::<(&crate::creature::Carried, &crate::GroundItem)>();

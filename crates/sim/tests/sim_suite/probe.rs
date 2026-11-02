@@ -3081,3 +3081,39 @@ fn having_a_weapon_follows_the_item_in_hand() {
     assert!(!cdda_sim::conditions::holds(&world, survivor, &armed), "someone else's knife");
     assert!(cdda_sim::conditions::holds_with(&world, survivor, Some(stranger), &theirs));
 }
+
+/// `u_run_inv_eocs` with `worn_only` runs on the worn items alone.
+///
+/// Reference: `f_run_inv_eocs` (`npctalk.cpp:6760-6805`): a `search_data` filter may ask for the worn items, which is a narrower set than the carried ones. The test
+/// carries a shirt that is worn and a shirt that is not, so a port that ignored the filter says two lines.
+#[test]
+fn an_inventory_eoc_can_ask_for_what_is_worn() {
+    let mut world = bevy_ecs::prelude::World::new();
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[cdda_sim::item_registry::Kind { id: "shirt", volume_ml: 5, weight_g: 1, pockets: &[] }],
+    );
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let kind = cdda_sim::item_registry::id_of(&mut world, "shirt").expect("installed");
+    for worn in [true, false] {
+        let shirt = cdda_sim::drop_item(&mut world, (0, 0), kind, 1);
+        world.entity_mut(shirt).insert(cdda_sim::creature::Carried(survivor));
+        if worn {
+            world.entity_mut(shirt).insert(cdda_sim::creature::WornBy(survivor));
+        }
+    }
+    let value = cdda_json::parse(
+        br#"{"u_run_inv_eocs": "all", "search_data": [{"worn_only": true}],
+            "true_eocs": [{"effect": [{"u_message": "a worn shirt"}]}]}"#
+            .as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect);
+    let lines = cdda_sim::messages::lines(&world);
+    assert_eq!(
+        lines.iter().filter(|line| line.contains("a worn shirt")).count(),
+        1,
+        "the worn shirt alone: {lines:?}"
+    );
+}
