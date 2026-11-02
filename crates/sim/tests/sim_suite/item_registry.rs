@@ -117,6 +117,7 @@ fn a_craft_can_be_finished_without_a_caller_supplying_the_item_table() {
     }
 
     let names: ItemNames = item_registry::snapshot(&mut world);
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
     assert_eq!(
         crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
         crafting::Craft::Started
@@ -329,6 +330,7 @@ fn the_turn_loop_finishes_what_it_started() {
         batch_rscale: 0.0,
         batch_rsize: 0,
     };
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
     assert_eq!(
         crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
         crafting::Craft::Started

@@ -22,6 +22,8 @@ pub enum Craft {
     MissingTools,
     /// An item with a quality the recipe needs is not on hand.
     MissingQualities,
+    /// The crafter does not know the recipe.
+    UnknownRecipe,
     /// The creature is already busy with something else.
     Busy,
     /// The recipe takes no time at all, which no recipe in the data does - a sign the time was never read.
@@ -183,11 +185,15 @@ pub fn begin_craft_from_carried(
             .filter(|held| held.get(quality).is_some_and(|own| *own >= level));
         held.count().try_into().unwrap_or(0)
     };
+    // Knowledge is answered **before** the craft starts, for the same reason the qualities are: the start borrows the world mutably.
+    let learns = crate::recipes_known::knows(world, crafter, &recipe.id);
+    let known = move |_asked: &str| learns;
     let supplies = Supplies {
         components: &|item| on_hand.get(item).copied().unwrap_or(0),
         held: &|item| i32::from(on_hand.contains_key(item)),
         charges: &|item| on_hand.get(item).copied().unwrap_or(0),
         qualities: &qualities,
+        known: &known,
     };
     begin_craft(world, crafter, recipe, batch, &supplies)
 }
@@ -219,6 +225,8 @@ pub struct Supplies<'a> {
     pub charges: &'a dyn Fn(&str) -> i32,
     /// How many carried items have a quality at **at least** this level.
     pub qualities: &'a dyn Fn(&str, i32) -> i32,
+    /// Whether the crafter knows the recipe, asked by the recipe's id.
+    pub known: &'a dyn Fn(&str) -> bool,
 }
 
 /// Answers every question with nothing, which is what a caller that only cares about components passes.
@@ -226,11 +234,13 @@ pub struct Supplies<'a> {
 pub fn nothing_on_hand() -> Supplies<'static> {
     static NONE: fn(&str) -> i32 = |_| 0;
     static QUALITIES: fn(&str, i32) -> i32 = |_, _| 0;
+    static KNOWN: fn(&str) -> bool = |_| true;
     Supplies {
         components: &NONE,
         held: &NONE,
         charges: &NONE,
         qualities: &QUALITIES,
+        known: &KNOWN,
     }
 }
 
@@ -242,6 +252,11 @@ pub fn nothing_on_hand() -> Supplies<'static> {
 /// `on_hand` says how many of an item id the crafter has. It is a closure rather than a lookup because the port has no
 /// inventory yet: the caller - eventually the inventory, today a test or a playtest - is the only thing that knows.
 pub fn begin_craft(world: &mut World, crafter: Entity, recipe: &Recipe, batch: i32, supplies: &Supplies<'_>) -> Craft {
+    // Reference: `Character::can_make` refuses when `!has_recipe( r )` (`crafting.cpp:602-616`), and `has_recipe` is `knows_recipe || group_available`
+    // (`character_crafting.cpp:23-27`) - a recipe the crafter never learned is not makeable, whatever is on hand.
+    if !(supplies.known)(&recipe.id) {
+        return Craft::UnknownRecipe;
+    }
     if world.get::<Doing>(crafter).is_some() {
         return Craft::Busy;
     }

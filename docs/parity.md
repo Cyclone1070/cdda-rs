@@ -9686,3 +9686,30 @@ would pass on code that ignored the field entirely for everything else.
 **This is the second rule this phase found already written and unreachable** - `tools_available` and `qualities_available` were the first two, and `batch_time_moves`
 is the third. The pattern is the same each time: **the content layer knew the rule, the sim never asked.** A port can have a rule, a store and a test of the content
 layer and still charge the wrong number, because nothing connects them; what connects them is a test that starts a craft and reads the clock.
+
+## A survivor could make what it had never learned (round 996)
+
+The fourth crafting rule is **knowledge**, and it is the first one that refuses something the port's caller controls: `Character::can_make` returns false when
+`!has_recipe( r )` (`crafting.cpp:602-616`), and `has_recipe` is `knows_recipe || group_available` (`character_crafting.cpp:23-27`). The port took a `&Recipe` from
+whoever asked and never looked in the learned set - **so a survivor could make a book's recipe without the book.**
+
+`Craft::UnknownRecipe` is now the answer, and the store was already there (`recipes_known`): the join was one call in `begin_craft_from_carried`, plus the question on
+`Supplies` so the rule is at the door rather than in one caller.
+
+| Refusal | Rule |
+|---|---|
+`MissingComponents` | the recipe's items are not all on hand |
+`MissingTools` | a tool it needs is not there, or short of charges |
+`MissingQualities` | nothing carried has the quality at the level |
+`UnknownRecipe` | **the crafter never learned it** |
+`Busy` | something else is under way |
+`NoTimeToMakeIt` | the recipe states no time |
+
+**Eleven existing tests started failing the moment the rule went in, and that is the interesting part:** every one of them called the carried-stack path with a recipe
+nobody had learned. They were not testing knowledge - they were testing components - so each now **learns the recipe first**, which is what a player does. **The QA
+surface changed with them:** the CLI's `craft` verb teaches the recipe it is asked to make, because a scenario that hands over the components and withholds the
+knowledge is asking about bookkeeping, not about making things.
+
+**The cost of this round was one careless script, not the rule:** a mechanical edit inserted the learn call *inside* an `assert_eq!`, and recovering meant reverting
+three test files - which threw away the round's test and helper edits with it. **The lesson is the one this ledger keeps repeating: an edit tool that cannot show you
+where it wrote will write somewhere you did not look, and `git checkout` takes the round's work with the mistake.**

@@ -24,6 +24,7 @@ fn supplies_tools<'a>(
         held: Box::leak(Box::new(held)),
         charges: Box::leak(Box::new(charges)),
         qualities: Box::leak(Box::new(qualities)),
+        known: &(|_: &str| true),
     }
 }
 
@@ -36,6 +37,8 @@ fn supplies_with<'a>(components: impl Fn(&str) -> i32 + 'a) -> cdda_sim::craftin
         held: &(|_: &str| 0),
         charges: &(|_: &str| 0),
         qualities: &(|_: &str, _: i32| 0),
+        // These recipes are about what is on hand, not about knowledge: a crafter is taken to know what it is making unless a test says otherwise.
+        known: &(|_: &str| true),
     }
 }
 
@@ -231,6 +234,7 @@ fn a_recipe_is_satisfied_by_what_is_in_hand_and_nothing_else() {
     let carried = cdda_sim::inventory::carried_by_id(&mut world, crafter, |kind| names.name_of(kind));
     assert_eq!(carried.get("rag"), Some(&2), "two rags are in hand");
 
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
     assert_eq!(
         cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
         Craft::Started,
@@ -244,6 +248,7 @@ fn a_recipe_is_satisfied_by_what_is_in_hand_and_nothing_else() {
     world
         .entity_mut(rag)
         .insert(cdda_sim::creature::Carried(other));
+    cdda_sim::recipes_known::learn(&mut world, other, &recipe.id);
     assert_eq!(
         cdda_sim::crafting::begin_craft_from_carried(&mut world, other, &recipe, 1, &names),
         Craft::MissingComponents,
@@ -271,6 +276,7 @@ fn finishing_a_craft_consumes_the_components_and_makes_the_result() {
     }
     let mut recipe = recipe(100, "rag", 2);
     recipe.result = "rope".to_owned();
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
     assert_eq!(
         cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
         Craft::Started
@@ -311,6 +317,7 @@ fn a_craft_that_lost_its_components_makes_nothing_and_takes_nothing() {
     let mut recipe = recipe(100, "rag", 2);
     recipe.result = "rope".to_owned();
     // Started with two, then one was dropped.
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
     assert_eq!(
         cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
         Craft::MissingComponents,
@@ -373,6 +380,7 @@ fn a_crafted_thing_lands_in_a_pocket() {
 
     let mut recipe = recipe(100, "rag", 2);
     recipe.result = "rope".to_owned();
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
     assert_eq!(
         cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
         Craft::Started
@@ -469,6 +477,7 @@ fn what_fits_no_pocket_lands_at_your_feet() {
     }
     let mut recipe = recipe(100, "rag", 2);
     recipe.result = "rope".to_owned();
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
     assert_eq!(
         cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
         Craft::Started
@@ -579,6 +588,7 @@ fn a_craft_that_needs_a_quality_asks_the_items_that_carry_it() {
     let rag = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 1);
     world.entity_mut(rag).remove::<cdda_sim::Position>();
     world.entity_mut(rag).insert(cdda_sim::creature::Carried(crafter));
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
     assert_eq!(
         cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
         Craft::MissingQualities,
@@ -594,6 +604,7 @@ fn a_craft_that_needs_a_quality_asks_the_items_that_carry_it() {
             &[("HAMMER".to_owned(), 3)],
         )],
     );
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
     assert_eq!(
         cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
         Craft::Started,
@@ -634,4 +645,29 @@ fn a_batch_that_saves_time_is_charged_the_reference_curve() {
         Some(4_000),
         "no factors, no saving"
     );
+}
+
+/// A recipe the crafter has never learned does not start, and starts once it is learned.
+///
+/// Reference: `Character::can_make` refuses when `!has_recipe( r )` (`crafting.cpp:602-616`) and `has_recipe` is `knows_recipe || group_available`
+/// (`character_crafting.cpp:23-27`). The port let a caller hand in any recipe it liked, so knowledge was never asked and a survivor could make what it had never
+/// learned from a book.
+#[test]
+fn a_recipe_that_was_never_learned_does_not_start() {
+    let mut world = World::new();
+    let crafter = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let names = names_for(&[(1, "rag")]);
+    let recipe = recipe(1_000, "rag", 1);
+    let rag = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 4);
+    world.entity_mut(rag).remove::<cdda_sim::Position>();
+    world.entity_mut(rag).insert(cdda_sim::creature::Carried(crafter));
+    let unknown = cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names);
+    assert_eq!(unknown, Craft::UnknownRecipe, "the book was never read");
+    assert!(
+        world.get::<Making>(crafter).is_none(),
+        "and nothing was started"
+    );
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
+    let learned = cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names);
+    assert_eq!(learned, Craft::Started, "learned, and with the rag in hand, it starts");
 }

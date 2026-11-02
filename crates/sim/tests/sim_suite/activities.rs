@@ -296,6 +296,7 @@ fn cancelling_a_craft_keeps_the_ingredients_and_loses_the_work() {
         batch_rscale: 0.0,
         batch_rsize: 0,
     };
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
     assert_eq!(
         begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
         Craft::Started
@@ -316,6 +317,7 @@ fn cancelling_a_craft_keeps_the_ingredients_and_loses_the_work() {
         "giving up on nothing answers that there was nothing"
     );
     // Starting again costs the whole recipe: a new craft is a new craft.
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
     assert_eq!(
         begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
         Craft::Started
@@ -395,6 +397,7 @@ fn a_paused_craft_is_resumed_where_it_stopped() {
         batch_rscale: 0.0,
         batch_rsize: 0,
     };
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
     assert_eq!(
         begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
         Craft::Started
@@ -489,6 +492,7 @@ fn pain_interrupts_a_craft_and_the_work_is_kept() {
         batch_rscale: 0.0,
         batch_rsize: 0,
     };
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
     assert_eq!(
         begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
         Craft::Started
@@ -584,6 +588,7 @@ fn a_blow_stops_a_craft_without_anyone_asking_it_to() {
         batch_rscale: 0.0,
         batch_rsize: 0,
     };
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
     assert_eq!(
         begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
         Craft::Started
