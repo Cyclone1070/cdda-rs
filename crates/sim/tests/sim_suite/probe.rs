@@ -2658,3 +2658,54 @@ fn an_achievement_is_completed_once() {
         "and nothing else was given"
     );
 }
+
+/// A `u_spawn_npc` with `outdoor_only` puts its person under the sky, and one with a `lifespan` gives it a summon time.
+///
+/// Reference: `f_spawn_npc` reads `outdoor_only`/`indoor_only` the way the monster spawn does, and `lifespan` becomes `set_summon_time`. The test makes a level that
+/// is **indoors everywhere** so an outdoor-only spawn has nowhere to go, which is the assertion that would catch a port that ignored the flag.
+#[test]
+fn an_npc_spawn_honours_its_outdoor_flag_and_lifespan() {
+    let mut world = bevy_ecs::prelude::World::new();
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(11));
+    cdda_sim::calendar::set_turn(&mut world, 500);
+    let mut level = cdda_core_types::level::Level::new();
+    for x in -8..8 {
+        for y in -8..8 {
+            level.set_terrain(x, y, 0, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+
+    // An open level is **outdoors**, so an indoor-only spawn has nowhere to go: the effect refuses rather than dropping the person under the sky, which is what the
+    // flag exists to prevent. (The first version of this test asserted the opposite and was wrong about which side an open level is.)
+    let indoors = cdda_json::parse(
+        br#"{"u_spawn_npc": "portal_person", "real_count": 1, "indoor_only": true}"#.as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&indoors).expect("the effect reads");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        cdda_sim::dialogue_effects::Applied::CannotAnswer
+    );
+
+    // Without the flag it lands, and a lifespan gives it a summon time.
+    let plain = cdda_json::parse(
+        br#"{"u_spawn_npc": "portal_person", "real_count": 1, "lifespan": ["1 minutes", "3 minutes"]}"#
+            .as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&plain).expect("the effect reads");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    let mut summoned = 0;
+    let mut until = world.query::<&cdda_sim::monster_spawning::Summoned>();
+    for held in until.iter(&world) {
+        if held.until > 500 {
+            summoned += 1;
+        }
+    }
+    assert_eq!(summoned, 1, "one person has a summon time in the future");
+}

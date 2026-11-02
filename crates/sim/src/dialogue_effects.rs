@@ -1186,6 +1186,9 @@ fn spawn_npcs(world: &mut World, speaker: Entity, listener: Option<Entity>, effe
         hallucination_count,
         min_radius,
         max_radius,
+        outdoor_only,
+        indoor_only,
+        lifespan,
         ..
     } = effect
     else {
@@ -1208,8 +1211,11 @@ fn spawn_npcs(world: &mut World, speaker: Entity, listener: Option<Entity>, effe
     let mut held = crate::singletons::take_rolls(world);
     let mut squares = Vec::new();
     for _ in 0..(real + imagined) {
-        let Some(around) =
-            draw_near_with_where(world, held.as_mut(), (at.x, at.y, at.z), near, far, &|_| true)
+        // Reference: `f_spawn_npc` keeps a spawn to squares the outdoor flags allow, exactly as the monster spawn does.
+        let Some(around) = draw_near_with_where(world, held.as_mut(), (at.x, at.y, at.z), near, far, &|square| {
+            let outside = crate::outdoors::is_outside(world, square);
+            (!*outdoor_only || outside) && (!*indoor_only || !outside)
+        })
         else {
             if let Some(dice) = held.take() {
                 crate::singletons::put_rolls(world, dice);
@@ -1236,6 +1242,13 @@ fn spawn_npcs(world: &mut World, speaker: Entity, listener: Option<Entity>, effe
         crate::npcs::make_npc(world, made, remembered.as_deref().unwrap_or(&name));
         for trait_name in &wanted {
             crate::traits::add_trait(world, made, trait_name);
+        }
+        // Reference: `f_spawn_npc` gives the spawn a summon time when the data states a `lifespan`, the same call the monster spawn makes.
+        if let Some((lower, upper)) = lifespan
+            && let Some(turns) = draw_between(world, *lower, *upper)
+            && let Some(calendar) = crate::calendar::of(world)
+        {
+            crate::monster_spawning::summon_until(world, made, calendar.turn + turns);
         }
     }
     Applied::Done

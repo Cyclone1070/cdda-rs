@@ -8820,3 +8820,27 @@ already runs.
 **What this round is not:** an achievement *tracker*. The reference keeps pending/completed state, stat thresholds and a report queue. The port keeps the completed set,
 because that is what a dialogue effect needs and what the game can answer - **and the module says so in its first paragraph**, so the next round that needs more knows
 where it stands rather than finding a half-built tracker.
+
+## `u_spawn_npc` grows the flags the monster spawn already had (round 956)
+
+The gap was blamed on `hallucination_count`, which the port **already reads**. The refusing member was `outdoor_only` - one of five the NPC spawn refused outright, while the
+monster spawn two hundred lines away read the same two flags, the same `lifespan` **and** the same message pair. **The same rule written once and not copied is the
+recurring shape of this port**, and this round copied it: `outdoor_only`, `indoor_only` and `lifespan` now read, the squares are filtered the way the monster spawn
+filters them, and a `lifespan` becomes a summon time.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 560 | **561** |
+refused at run time | 193 | **194** |
+unreadable leaves | 138 | **137** |
+one-gap programs | 26 | **25** |
+effect entries runnable | 1,500 | **1,501** |
+effect census blaming `effect` | 124 | **123** |
+
+**My test asserted the wrong world and the failure taught me the rule**: I wrote "nothing on this level is outdoors", and the effect answered `Done` - because **an open
+level *is* outdoors**. The test now asks the opposite question, `indoor_only` on that same level, which genuinely has nowhere to put the person. **A level's default is
+outside, not inside**, and that is the kind of fact only a run tells you.
+
+**And a destructuring patch landed in the wrong function** - `LocationVariableRadius` shares the member names `min_radius`/`max_radius` with the NPC spawn, so my
+`..`-anchored edit went to the first match. The compiler named all four broken bindings at once, which is why the fix was one call rather than five. **When two shapes
+share a prefix, anchor on a field only one of them has.**

@@ -2012,7 +2012,7 @@ fn read_spawn_npc(object: &cdda_json::Object) -> Option<Effect> {
         let Some(class) = object.get(member) else {
             continue;
         };
-        for unsupported in ["open_air_allowed", "target_var", "outdoor_only", "indoor_only", "lifespan"] {
+        for unsupported in ["open_air_allowed", "target_var"] {
             if object.get(unsupported).is_some() {
                 return None;
             }
@@ -2044,6 +2044,14 @@ fn read_spawn_npc(object: &cdda_json::Object) -> Option<Effect> {
             max_radius: match object.get("max_radius") {
                 None => CountRange::One(10),
                 Some(value) => read_count(Some(value))?,
+            },
+            // Reference: `f_spawn_npc` reads `outdoor_only` and `indoor_only` and keeps the spawns to squares that match, and `lifespan` as
+            // `get_duration_or_var( jo, "lifespan", false, 0_seconds )` - a duration string or a two-end range, the same shape the monster spawn takes.
+            outdoor_only: matches!(object.get("outdoor_only"), Some(Value::Bool(true))),
+            indoor_only: matches!(object.get("indoor_only"), Some(Value::Bool(true))),
+            lifespan: match object.get("lifespan") {
+                None => None,
+                Some(value) => Some(read_duration_range(value)?),
             },
             listener,
         });
@@ -2519,6 +2527,12 @@ pub enum Effect {
         min_radius: CountRange,
         /// The furthest square one may appear on.
         max_radius: CountRange,
+        /// Whether the spawns must be under the sky.
+        outdoor_only: bool,
+        /// Whether they must be under a roof.
+        indoor_only: bool,
+        /// How long a spawn stays, when the data gives a span of turns.
+        lifespan: Option<(i64, i64)>,
         /// Whether it is the listener who does the spawning.
         listener: bool,
     },
