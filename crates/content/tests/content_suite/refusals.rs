@@ -47,6 +47,45 @@ fn brief(entry: &cdda_json::Value) -> String {
     text.chars().take(220).collect()
 }
 
+/// The first entry that refuses, descending through the containers an effect list can carry.
+///
+/// A first pass blamed `else` seven times - but the data has **no** object with `else` and no `if`, so the label was the first member of an `if` object whose real
+/// refusal sat inside it. The walk below follows `then`, `else`, `effect` and `cases` into their lists, so the answer is the entry whose own reading fails rather than
+/// the container that holds it.
+fn first_refusal(entry: &cdda_json::Value, depth: usize) -> Option<(String, String)> {
+    if cdda_content::dialogue::read_effect(entry).is_some() || depth > 6 {
+        return None;
+    }
+    if let cdda_json::Value::Object(object) = entry {
+        for member in ["then", "else", "effect"] {
+            if let Some(cdda_json::Value::Array(children)) = object.get(member) {
+                for child in children {
+                    if let Some(deeper) = first_refusal(child, depth + 1) {
+                        return Some(deeper);
+                    }
+                    if cdda_content::dialogue::read_effect(child).is_none() {
+                        return Some((member_of(child), brief(child)));
+                    }
+                }
+            }
+        }
+        if let Some(cdda_json::Value::Array(cases)) = object.get("cases") {
+            for case in cases {
+                let cdda_json::Value::Object(given) = case else {
+                    continue;
+                };
+                let Some(child) = given.get("effect") else {
+                    continue;
+                };
+                if let Some(deeper) = first_refusal(child, depth + 1) {
+                    return Some(deeper);
+                }
+            }
+        }
+    }
+    Some((member_of(entry), brief(entry)))
+}
+
 #[test]
 fn the_first_entry_that_refuses_says_which_rule_is_missing() {
     let data = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../oracle/src/data/json");
@@ -70,11 +109,10 @@ fn the_first_entry_that_refuses_says_which_rule_is_missing() {
                 continue;
             };
             for effect in effects {
-                if cdda_content::dialogue::read_effect(effect).is_some() {
+                let Some((member, example)) = first_refusal(effect, 0) else {
                     continue;
-                }
-                let member = member_of(effect);
-                let counted = examples.entry(member.clone()).or_insert((0, brief(effect)));
+                };
+                let counted = examples.entry(member.clone()).or_insert((0, example));
                 counted.0 += 1;
                 let id = object
                     .get("id")

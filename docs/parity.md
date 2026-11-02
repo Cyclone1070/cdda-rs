@@ -9321,3 +9321,32 @@ so the list of *nearly* finished programs grew while the total distance fell.
 
 **`else` x7 is the biggest single cause and the next round's work.** It is a bare `{"else": [...]}` entry with no `if` beside it in the object the printer dumped, so
 the next step is the parent's JSON - which is exactly the pointer the diagnostic was built to give.
+
+## The diagnostic learns to descend, and the `else` label turns out to be a lie (round 976)
+
+Last round's printer blamed `else` seven times. **The data has no object with `else` and no `if`** - checked, not assumed - so the label was the first member of an `if`
+object whose refusal sat inside it. The printer now walks **through** `then`, `else`, `effect` and `cases` into their lists, and the ranking changed completely:
+
+| Cause | Programs |
+|---|---|
+`key` (a `revert_location` with `"time_in_future": "infinite"`) | 3 |
+`effect` (a `foreach` the port has no rule for) | 2 |
+`else` (now the real cause: a **`map_in_city`** condition inside the `if`) | 2 |
+`false_eocs` (a spawn with a false branch) | 2 |
+`target_var` (a transform with `time_in_future` - the postponed form) | 2 |
+`u_add_trait` (with a `variant`) | 2 |
+`args`, `count` (`u_sell_item`), `<not an object>` | 1 each |
+
+**Every one of those is now named by the rule it needs**, and none of them is a container. **`map_in_city` is the interesting one**: it asks the overmap whether a square
+is inside a city, which needs the city layer - a store the port does not have, not a reader it has not written.
+
+| Count | Before | After |
+|---|---|---|
+unreadable leaves | 111 | **111** |
+effect entries runnable | 1,524 | **1,524** |
+
+**No count moved: this round produced the list, not a rule.** That is the correct trade at this point - the last three rounds each spent a diagnostic and then found the
+rule it pointed at, and **the diagnostic itself was wrong once** (the `else` label), which is worth knowing before it is trusted again.
+
+**And the honest next order is now visible:** `map_in_city` and `revert_location` are stores; `foreach` is a control-flow rule; the postponed transform is the
+`scheduled` store the port already has, applied to a second effect.
