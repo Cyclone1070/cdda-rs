@@ -165,10 +165,14 @@ fn a_teleport_moves_to_the_stored_square() {
         cdda_sim::dialogue_effects::Applied::CannotAnswer
     );
 
-    // The outcome messages are members the port has no rule for, so an entry that states one is refused rather than half-run.
+    // The outcome messages are read now, and `force_safe` - the one member beside them the port still has no rule for - refuses the whole entry rather than being
+    // dropped as if it meant nothing.
     let with_message =
         cdda_json::parse(br#"{"u_teleport": {"u_val": "place"}, "fail_message": "no"}"#.as_slice()).expect("json");
-    assert!(cdda_content::dialogue::read_effect(&with_message).is_none());
+    assert!(cdda_content::dialogue::read_effect(&with_message).is_some(), "a message reads");
+    let with_safe =
+        cdda_json::parse(br#"{"u_teleport": {"u_val": "place"}, "force_safe": true}"#.as_slice()).expect("json");
+    assert!(cdda_content::dialogue::read_effect(&with_safe).is_none(), "but `force_safe` does not");
 }
 
 /// `assign_mission` gives the mission to the player, whoever is speaking.
@@ -1695,4 +1699,44 @@ fn a_finished_mission_leaves_the_list() {
     let effect = cdda_content::dialogue::read_effect(&value).expect("and the one-argument form reads");
     let applied = cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect);
     assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "still a completed effect");
+}
+
+/// A teleport reads its two messages and shows the right one: the failure when the target holds no square, the success when it moves.
+///
+/// Reference: `f_teleport` (`npctalk.cpp:7820-7835`): `fail_message` and `success_message` are shown by the move itself. Both are checked, because a reader that
+/// took one and dropped the other would pass on a single-sided test.
+#[test]
+fn a_teleport_shows_one_message_of_two() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let globals = cdda_sim::dialogue_values::holder_for(&mut world, survivor, true);
+
+    // Nothing stored under the name: the move cannot happen, and the failure line is the one shown.
+    let value = cdda_json::parse(
+        br#"{"u_teleport": {"global_val": "original_loc"}, "fail_message": "Something is very wrong!", "success_message": "You are safely back.", "force": true}"#.as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads, messages and all");
+    let applied = cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect);
+    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::CannotAnswer, "no square, no move");
+    let lines = cdda_sim::messages::lines(&world);
+    assert!(
+        lines.iter().any(|line| line.contains("Something is very wrong")),
+        "the failure line is shown: {lines:?}"
+    );
+
+    // With a square stored, it moves and shows the other line.
+    cdda_sim::dialogue_values::set(
+        &mut world,
+        globals,
+        "original_loc",
+        cdda_sim::dialogue_values::Value::Position { x: 5, y: 6, z: 0 },
+    );
+    let applied = cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect);
+    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "now it moves");
+    let lines = cdda_sim::messages::lines(&world);
+    assert!(
+        lines.iter().any(|line| line.contains("safely back")),
+        "the success line is shown: {lines:?}"
+    );
 }

@@ -450,6 +450,9 @@ fn move_creature(world: &mut World, speaker: Entity, listener: Option<Entity>, e
         scope,
         name,
         listener: about_listener,
+        fail_message,
+        success_message,
+        ..
     } = effect
     else {
         return Applied::CannotAnswer;
@@ -463,6 +466,8 @@ fn move_creature(world: &mut World, speaker: Entity, listener: Option<Entity>, e
     let Some(crate::dialogue_values::Value::Position { x, y, z }) =
         crate::dialogue_values::value_of(world, holder, name)
     else {
+        // Reference: `f_teleport` shows `fail_message` when the target variable holds no square, and the move does not happen.
+        show(world, speaker, listener, fail_message.as_ref());
         return Applied::CannotAnswer;
     };
     if let Some(mut position) = world.get_mut::<crate::Position>(actor) {
@@ -470,7 +475,24 @@ fn move_creature(world: &mut World, speaker: Entity, listener: Option<Entity>, e
         position.y = y;
         position.z = z;
     }
+    // Reference: `f_teleport` shows `success_message` after a move that happened, and an absent one says nothing.
+    show(world, speaker, listener, success_message.as_ref());
     Applied::Done
+}
+
+/// Shows a line the data gave beside an effect, when it gave one.
+fn show(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    line: Option<&cdda_content::dialogue::StringSource>,
+) {
+    let Some(source) = line else {
+        return;
+    };
+    if let Some(text) = crate::conditions::text_of(world, speaker, listener, source) {
+        crate::messages::push(world, &text);
+    }
 }
 
 /// Picks a monster already standing within `range` of the speaker, to copy.

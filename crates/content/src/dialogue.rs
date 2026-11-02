@@ -2449,6 +2449,12 @@ pub enum Effect {
         name: String,
         /// Whether the creature moving is the listener rather than the speaker.
         listener: bool,
+        /// The line shown when the move could not happen.
+        fail_message: Option<StringSource>,
+        /// The line shown when it did.
+        success_message: Option<StringSource>,
+        /// Whether the creature is moved even when it would rather not be.
+        force: bool,
     },
     /// Put a location into a dialogue variable.
     ///
@@ -2871,11 +2877,20 @@ fn read_teleport(object: &cdda_json::Object) -> Option<Effect> {
         let Some(Value::Object(target)) = object.get(member) else {
             continue;
         };
-        for refused in ["fail_message", "success_message", "force_safe"] {
-            if object.get(refused).is_some() {
-                return None;
-            }
+        // Reference: `f_teleport` (`npctalk.cpp:7820-7835`) reads two messages and two flags beside the target. `fail_message` and `success_message` are shown by the
+        // teleport itself, so the port carries them and shows them where the reference does; `force_safe` skips the map's safety check, which the port has no such
+        // check to skip, and an entry that asks for it is refused rather than read as if the flag meant nothing.
+        if object.get("force_safe").is_some() {
+            return None;
         }
+        let fail_message = match object.get("fail_message") {
+            None => None,
+            Some(value) => Some(read_string_source(value)?),
+        };
+        let success_message = match object.get("success_message") {
+            None => None,
+            Some(value) => Some(read_string_source(value)?),
+        };
         let (scope, name) = target.members().iter().find_map(|(scope, value)| match value {
             Value::Str(name) => Some((scope.clone(), name.clone())),
             _ => None,
@@ -2884,6 +2899,9 @@ fn read_teleport(object: &cdda_json::Object) -> Option<Effect> {
             scope,
             name,
             listener,
+            fail_message,
+            success_message,
+            force: matches!(object.get("force"), Some(Value::Bool(true))),
         });
     }
     None

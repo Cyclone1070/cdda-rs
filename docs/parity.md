@@ -7859,3 +7859,31 @@ job, which is what the port looks like once the rules are ahead of the plumbing.
 **Recorded, not hidden:** the port has no *completed* or *failed* record. The reference moves a mission to a finished state and later pays its reward; the port drops it
 from the active list, so a program that asked "was this finished" would get a different answer than the reference gives. No data in the census asks that yet, and the
 moment one does, that is a store to build.
+
+## The teleport's two messages, and a large jump (round 922)
+
+`fail_message` was on the one-gap list, and it belongs to an effect the port already had: `u_teleport`. `f_teleport` (`npctalk.cpp:7816-7836`) reads the target
+`var_info`, then `fail_message`, `success_message`, `force` and `force_safe`.
+
+The reader used to refuse any teleport carrying a message. Now it carries both, the runner shows the **failure** line when the target variable holds no square, and
+the **success** line after a move that happened - which is exactly where the reference shows them. `force_safe` still refuses: it skips the map's safety check, and
+the port has no such check, so reading it as if the flag meant nothing would be a lie about the rule.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 506 | **513** |
+answered `Done` | 329 | **331** |
+refused at run time | 177 | **182** |
+unreadable leaves | 296 | **222** |
+one-gap programs | 65 | **61** |
+effect entries runnable | 1,408 | **1,420** |
+effect census blaming `effect` | 174 | **167** |
+
+**Unreadable leaves fell by 74 and readable rose by 7** - the biggest asymmetric move since the math bridge. It is asymmetric for the right reason: removing one
+refusal from a shared effect unblocks every program that used it with any message at all, while the programs themselves were already counted as unreadable only
+because of that refusal.
+
+**A test of mine caught the change.** `a_teleport_moves_to_the_stored_square` asserted that a teleport carrying `fail_message` is **refused** - true when it was
+written, false now. The suite failed and named the assertion. The test was updated to assert the new rule (a message reads; `force_safe` still refuses), which is
+what a pinned behaviour should do when the behaviour legitimately changes: **the test is a claim about the reference, and when the claim changes, the test changes with
+it - visibly, in a diff, with the reason written down.**
