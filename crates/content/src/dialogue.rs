@@ -884,7 +884,6 @@ fn read_spawn_monster(object: &cdda_json::Object) -> Option<Effect> {
         };
         for refused in [
             "single_target",
-            "target_var",
             "mon_variables",
             "open_air_allowed",
             "summoner_is_alpha",
@@ -935,8 +934,14 @@ fn read_spawn_monster(object: &cdda_json::Object) -> Option<Effect> {
             Some(Value::Int(range)) => Some(i32::try_from(*range).ok()?),
             Some(_) => return None,
         };
+        // Reference: `f_spawn_monster` (`npctalk.cpp:7405-7408`): a `target_var` names the square the spawn is centred on, instead of whoever spoke.
+        let target = match object.get("target_var") {
+            None => None,
+            Some(value) => Some(read_variable_target(value)?),
+        };
         return Some(Effect::SpawnMonster {
             monster,
+            target,
             group,
             target_range,
             real_count,
@@ -2894,6 +2899,8 @@ pub enum Effect {
     SpawnMonster {
         /// The monster type to make - or, with `group`, the group to draw one from.
         monster: StringSource,
+        /// The square the spawn is centred on, when the data names one.
+        target: Option<AssignmentTarget>,
         /// Whether `monster` names a **monster group** rather than a type.
         group: bool,
         /// How far to look for a creature to copy, when `monster` names none.

@@ -9491,3 +9491,26 @@ programs refusing at their first entry | 31 | **30** |
 **The boundary is the test's point:** intensity **2 is not deaf**, 3 is - the reference asks `> 2`, and `>= 2` is the mistake a reader makes when it trusts the word
 "deaf" over the number. The test walks both sides of that line and the narcosis clause, because a condition that answers `true` for everything passes a test that only
 asks about a deaf creature.
+
+## A spawn can be centred on a square the data stored (round 983)
+
+The `group` line in the diagnostic was not about groups at all: the entries name a monster group **and** a `target_var`, and the reader refused the whole entry because of the
+member the group case did not need. `f_spawn_monster` reads `target_var` as the square the spawn is centred on (`npctalk.cpp:7405-7408`), and the port now carries it into
+the effect and the runner starts from it, falling back to the speaker's own square exactly as before.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 579 | **582** |
+refused at run time | 190 | **193** |
+unreadable entries | 84 | **80** |
+one-gap programs | 19 | **17** |
+effect entries runnable | 1,537 | **1,541** |
+programs blaming their effects | 105 | **103** |
+programs refusing at their first entry | 30 | **27** |
+
+**Three programs, four leaves, four effect entries.** Two of the three now refuse at run time instead of at load: their spawns name a square a fresh world has never stored,
+which is the honest answer, and `u_spawn_monster` rose from 14 refusals to 15 because one of them arrives there by a new route.
+
+**The test pins the reader's half and says so.** The runner's use of the square needs a built level - the spawn tests that own that setup already exercise it - so this
+round's test asserts the target is **carried, not dropped**, rather than building a second level fixture inside a probe. A test that quietly asserted less than its name
+would be worse than no test; this one's name says which half it covers.

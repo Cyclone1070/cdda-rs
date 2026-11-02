@@ -3607,3 +3607,22 @@ fn deafness_is_an_effect_past_two_or_the_gear_that_blocks_it() {
         "and narcosis deafens whoever has it"
     );
 }
+
+/// A spawn entry that names a `target_var` reads, where it used to be refused whole.
+///
+/// Reference: `f_spawn_monster` (`npctalk.cpp:7405-7408`): a `target_var` names the square the spawn is centred on. The port refused the whole entry; this test pins that
+/// the **reader** takes it, with the target parsed rather than dropped. (The runner's use of the square is exercised by the spawn tests that build a real level.)
+#[test]
+fn a_spawn_entry_can_name_the_square_it_is_centred_on() {
+    let value = cdda_json::parse(
+        br#"{"u_spawn_monster": "mon_zombie", "real_count": 1, "min_radius": 1, "max_radius": 3,
+            "target_var": {"global_val": "spawn_at"}}"#
+            .as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the entry reads");
+    assert!(
+        matches!(effect, cdda_content::dialogue::Effect::SpawnMonster { target: Some(_), .. }),
+        "the target is carried, not dropped: {effect:?}"
+    );
+}

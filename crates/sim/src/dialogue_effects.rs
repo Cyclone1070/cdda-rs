@@ -1607,6 +1607,7 @@ fn spawn_npcs(world: &mut World, speaker: Entity, listener: Option<Entity>, effe
 fn spawn_monsters(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
     let Effect::SpawnMonster {
         monster,
+        target,
         group,
         target_range,
         real_count,
@@ -1623,7 +1624,15 @@ fn spawn_monsters(world: &mut World, speaker: Entity, listener: Option<Entity>, 
     else {
         return Applied::CannotAnswer;
     };
-    let Some(at) = world.get::<crate::Position>(speaker).copied() else {
+    // Reference: `f_spawn_monster` (`npctalk.cpp:7405-7408`): a `target_var` centres the spawn on the square it holds rather than on the speaker.
+    let centred = match target {
+        Some(target) => crate::dialogue_values::position_of(world, speaker, listener, target),
+        None => None,
+    };
+    let Some(at) = centred
+        .map(|(x, y, z)| crate::Position { x, y, z })
+        .or_else(|| world.get::<crate::Position>(speaker).copied())
+    else {
         if std::env::var("CDDA_SHOW_SPAWN").is_ok() { println!("spawn refused: no position"); }
         return Applied::CannotAnswer;
     };

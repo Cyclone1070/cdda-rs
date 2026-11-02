@@ -142,7 +142,7 @@ fn the_first_entry_that_refuses_says_which_rule_is_missing() {
     }
     // Pinned so a round that changes the frontier sees it here first: the total has fallen from 35 to 32 in three rounds, and the biggest single cause is a
     // **store** (`revert_location` needs a submap baseline the port does not keep), not a reader.
-    assert_eq!(refused_programs.len(), 30, "thirty programs refuse at their first unreadable entry");
+    assert_eq!(refused_programs.len(), 27, "twenty-seven programs refuse at their first unreadable entry");
     assert_eq!(
         ranked
             .iter()
