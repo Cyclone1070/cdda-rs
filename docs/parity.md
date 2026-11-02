@@ -9114,3 +9114,25 @@ ignored - while that one was withdrawn because its own test refused to pass.
 
 **The pattern worth naming: the census rewards a rule only when nothing *else* in the same program refuses.** Late in a port, the remaining programs are exactly the
 ones with **several** gaps, which is why the one-gap count is a better frontier measure than the readable count, and why both are pinned.
+
+## The inline-definition install: measured three times now, and the measurement is the finding (round 968)
+
+The call-graph test names the biggest lever in the whole census: `EOC_LIXA_unfold_shift_1_setup` and its four siblings **each block 35 readable callers**, because they
+are programs **defined where they are called** - an object with an `id` beside its `effect` inside a `run_eocs` array. The reference installs those bodies under their id
+(`load_inline_eoc`, `effect_on_condition.cpp:119-133`), so a later call by name finds them.
+
+This round tried it a third time, and for the first time with a **name for what goes wrong**:
+
+| Attempt | Readable | Ran | What it cost |
+|---|---|---|---|
+baseline | **574** | **376** | - |
+read `{id, effect}` as inline, install every body found | 564 | 372 | **−11 readable, +35 `switch` refusals** |
+same, never overwriting a real program | 564 | 372 | unchanged - so **overwriting is not the cause** |
+body read as optional, keep the name when a body refuses | 571 | **378** | **−3 readable, +2 ran, +35 `switch` refusals** |
+
+**So the install works and is not what breaks.** The three programs that stop reading do so because their bodies now *read*, and the 35 `switch` refusals belong to the
+LIXA programs that **now run** and then refuse **at the switch** - a place the census cannot name further. That is the next question stated precisely: **what does a
+LIXA switch do that the port's `switch` rule does not carry?**
+
+All three attempts are reverted; the tree is exactly as it was. **The value this round produced is the table above** - three measurements of the same rule with one
+variable changed each time, which is what turns "it did not work" into "it fails here."
