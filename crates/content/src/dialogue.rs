@@ -1611,6 +1611,7 @@ fn read_unnamed_effect(object: &cdda_json::Object) -> Option<Effect> {
         .or_else(|| read_add_wet(object))
         .or_else(|| read_place_override(object))
         .or_else(|| read_remove_item_with(object))
+        .or_else(|| read_lose_morale(object))
 }
 
 /// Reads a `sound_effect` entry.
@@ -1629,6 +1630,23 @@ fn read_sound_effect(object: &cdda_json::Object) -> Option<Effect> {
         },
         outdoor_event: matches!(object.get("outdoor_event"), Some(Value::Bool(true))),
     })
+}
+
+/// Reads a `u_lose_morale` / `npc_lose_morale` entry.
+///
+/// Reference: `f_lose_morale` (`npctalk.cpp:7197-7204`): one required `str_or_var` member, which this reader requires too - it is tried on every object no other
+/// reader claimed, so answering for an absent member would swallow the data.
+fn read_lose_morale(object: &cdda_json::Object) -> Option<Effect> {
+    for (member, listener) in [("u_lose_morale", false), ("npc_lose_morale", true)] {
+        let Some(kind) = object.get(member) else {
+            continue;
+        };
+        return Some(Effect::LoseMorale {
+            kind: read_string_source(kind)?,
+            listener,
+        });
+    }
+    None
 }
 
 /// Reads a `u_remove_item_with` / `npc_remove_item_with` entry.
@@ -2106,6 +2124,16 @@ pub enum Effect {
         volume: CountRange,
         /// Whether it is only heard outdoors.
         outdoor_event: bool,
+    },
+    /// Takes a morale point away from a creature.
+    ///
+    /// Reference: `f_lose_morale` (`npctalk.cpp:7197-7204`): one required `str_or_var` naming the morale type, removed with `remove_morale`, which erases every point
+    /// of that type and leaves the rest.
+    LoseMorale {
+        /// The morale type's id.
+        kind: StringSource,
+        /// Whether it goes to the listener rather than the speaker.
+        listener: bool,
     },
     /// Removes every item of one kind from a creature.
     ///
@@ -2664,6 +2692,13 @@ impl Effect {
             Self::RemoveActiveMission { .. } => "remove_active_mission",
             Self::TurnCost { .. } => "turn_cost",
             Self::PlaceOverride { .. } => "place_override",
+            Self::LoseMorale { listener, .. } => {
+                if *listener {
+                    "npc_lose_morale"
+                } else {
+                    "u_lose_morale"
+                }
+            }
             Self::RemoveItemWith { listener, .. } => {
                 if *listener {
                     "npc_remove_item_with"

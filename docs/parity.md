@@ -8228,3 +8228,27 @@ the second. That pair is the whole rule, and neither assertion alone would catch
 **Two of my own errors were caught by the compiler before a test ran**: `cdda_sim::item::spawn` does not exist (the port spawns through `drop_item`, then moves the
 item into the carrier), and `item_registry::id_of` takes `&mut World`. Both were fixed from the error text rather than from memory, which is the only reason they cost
 one round trip each instead of two.
+
+## `u_lose_morale`: the other half of the morale pair (round 935)
+
+`u_lose_morale` (6 effect entries) is `f_lose_morale` (`npctalk.cpp:7197-7204`): one `str_or_var` naming a morale type, passed to `remove_morale`, which erases **every
+point of that type** and leaves the rest. The port had `morale::add` and no way to take a point away; it now has `morale::remove_kind`, which retains everything that
+does not match.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 537 | **538** |
+refused at run time | 186 | **187** |
+unreadable leaves | 166 | **165** |
+one-gap programs | 46 | **45** |
+effect entries runnable | 1,469 | **1,475** |
+effect census blaming `effect` | 146 | **145** |
+
+**My first test was wrong, and it taught me a rule I had forgotten.** It added two points of the same type and asserted three points existed - and got **two**, because
+`morale::add` **stacks points of the same type**, which is the reference's own rule. The test had accidentally been a test of the stacking rule; with three different
+types it tests the removal rule, and it says so in a comment so the next reader does not repeat the mistake.
+
+**Six effect entries, one program, and a store function that mirrors one the port already had.** The pattern of this stretch of work is now clear: the remaining gaps
+are **members on effects the port already reads** and **stores it already keeps**, and the work is to find which member refuses and wire the store that is already
+there. That is why the counts move in ones and twos rather than in tens - and why the leaves keep falling faster than the programs: **one widened reader serves many
+programs that were each blocked on different copies of the same shape.**

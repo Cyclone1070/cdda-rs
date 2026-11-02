@@ -2018,3 +2018,41 @@ fn a_remove_item_with_takes_every_stack_of_its_kind() {
     assert_eq!(cdda_sim::inventory::count_of(&world, survivor, "bandage").0, 0, "both bandages are gone");
     assert_eq!(cdda_sim::inventory::count_of(&world, survivor, "rock").0, 1, "the rock stays");
 }
+
+/// `u_lose_morale` takes every point of one type and leaves the others.
+///
+/// Reference: `f_lose_morale` (`npctalk.cpp:7197-7204`) calls `remove_morale` with the type, which erases the matching points. The test gives the creature two
+/// types, so a remover that cleared the whole mood - or that took only one of the two points of the named type - fails.
+#[test]
+fn a_lost_morale_takes_its_own_type_only() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let point = |kind: &str| cdda_sim::morale::MoralePoint {
+        kind: kind.to_owned(),
+        bonus: 10,
+        max_bonus: 10,
+        duration: 600,
+        decay_start: 300,
+        age: 0,
+        capped: false,
+    };
+    // Three **different** types: `morale::add` stacks two points of the same type, which is the reference's own `add_morale` rule and would make a
+    // "two points of one type" assertion test the stacking rule instead of this one.
+    for kind in ["morale_feeling_bad", "morale_feeling_worse", "morale_feeling_good"] {
+        cdda_sim::morale::add(&mut world, survivor, point(kind));
+    }
+    assert_eq!(cdda_sim::morale::points_of(&world, survivor).len(), 3, "three points to begin with");
+
+    let value = cdda_json::parse(br#"{"u_lose_morale": "morale_feeling_bad"}"#.as_slice()).expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    let left = cdda_sim::morale::points_of(&world, survivor);
+    assert_eq!(left.len(), 2, "only the named type is gone");
+    assert!(
+        left.iter().all(|point| point.kind != "morale_feeling_bad"),
+        "and none of it is left: {left:?}"
+    );
+}

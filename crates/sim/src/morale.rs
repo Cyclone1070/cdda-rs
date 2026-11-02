@@ -185,3 +185,16 @@ pub fn age_morale(world: &mut World) {
         world.entity_mut(entity).insert(morale);
     }
 }
+
+/// Removes **every** point of one morale type from a creature.
+///
+/// Reference: `Character::remove_morale` (`morale.cpp`), reached by `f_lose_morale` (`npctalk.cpp:7197-7204`): it erases the points whose type matches and leaves the
+/// rest. A type the creature is not feeling is not a failure - there is simply nothing to erase.
+pub fn remove_kind(world: &mut World, creature: Entity, kind: &str) -> bool {
+    let Some(mut morale) = world.get_mut::<Morale>(creature) else {
+        return false;
+    };
+    let before = morale.0.len();
+    morale.0.retain(|point| point.kind != kind);
+    morale.0.len() != before
+}
