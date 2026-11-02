@@ -3838,9 +3838,12 @@ fn read_program_ref(value: &Value) -> Option<ProgramRef> {
         }),
         Value::Object(object) => {
             let variables = read_variables(object.get("variables"))?;
-            // An entry naming an `id` runs that program; anything else is a program written here - and the two are **not** told apart by whether an `effect`
-            // is present: reading an `id` beside an `effect` as an anonymous program cost 11 programs and 35 `switch` entries when it was tried, so the port keeps
-            // the reference's simpler rule (an `id` is a reference) and the inline-program question stays open.
+            // An entry naming an `id` runs that program; anything else is a program written here.
+            //
+            // **This is where two attempts at the reference's inline rule have died**, and both cost 11 programs and 35 `switch` entries: reading an `id` beside an
+            // `effect` as an inline program, first without installing it (`load_inline_eoc`, `effect_on_condition.cpp:119-133`, inserts it into
+            // `effect_on_condition_factory`) and then **with** a loader that installed every inline program it could find. The rule is right and the port's data
+            // walk is wrong somewhere the census cannot see, so the next attempt starts from **one refusing program's JSON**, not from a broader rule.
             if let Some(Value::Str(id)) = object.get("id") {
                 return Some(ProgramRef::Named {
                     id: id.clone(),
@@ -3848,14 +3851,13 @@ fn read_program_ref(value: &Value) -> Option<ProgramRef> {
                 });
             }
             let effects = read_effect_list(object.get("effect"))?;
-            let id = String::new();
             let condition = match object.get("condition") {
                 None => None,
                 Some(condition) => Some(read_condition(condition)?),
             };
             Some(ProgramRef::Inline {
                 program: Box::new(Program {
-                    id,
+                    id: String::new(),
                     condition,
                     effects,
                 }),
@@ -3954,3 +3956,4 @@ pub fn read_message(value: &Value) -> Option<String> {
         _ => None,
     }
 }
+

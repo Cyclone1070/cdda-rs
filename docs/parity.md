@@ -8622,3 +8622,24 @@ able to break a hundred entries.
 **No code changed this round, and that is the receipt.** The comment in `read_program_ref` now records the experiment, its cost (**11 programs, 35 `switch` entries**)
 and the reference's rule, so the next attempt starts from the factory rather than from the reader. **A measured revert is worth more than an unmeasured guess**, and
 this is the first round in a long while that ends with the tree exactly as it started and one fewer unknown.
+
+## The inline EOC rule, second attempt: installed, and still wrong (round 949)
+
+Last round's experiment read an object with `id` and `effect` as an inline program and lost 11 programs. The reference says that *is* the rule - `load_inline_eoc`
+inserts the inline program into the factory - so this round built the missing half: `read_program_ref` reads such an object as `Inline` **carrying its id**, and the
+loader's `set_programs` walks every program it installs, finds the inline programs inside, and installs them under their ids too, repeating until nothing new appears.
+
+The reader test passed. The loader test passed - **an inline program ran, and a later `{"id": "EOC_LABEL_ONLY"}` found it in the table.** And the census said the same
+thing as last time: **540 readable, 35 `switch` refusals**, exactly the numbers from the uninstalled attempt.
+
+**So the missing piece is not installation.** The rule is right, both halves are now written correctly, and something else in the data walk is wrong - in a place the
+census cannot point at. Both attempts are reverted, and the comment in `read_program_ref` now records **both** attempts with their identical cost, so nobody repeats the
+third.
+
+**What the next attempt does differently, and this is the whole lesson of the round:** it starts from **one refusing program's JSON**, printed with `CDDA_SHOW_GAP`,
+and reads that object against `effect_on_condition::load` (`effect_on_condition.cpp:78-118`) line by line. Two rounds of "the rule is right, apply it broadly" produced
+the same loss twice; **a rule that is right in the reference and wrong in the port means the port's data walk differs somewhere else**, and the census's blame list is
+not fine-grained enough to find it.
+
+**Nine hundred rounds in, this is the shape of the remaining work**: the effects are read, the rules are known, and what is left is the **wiring between a rule and the
+shape the data actually wrote** - which is exactly where broad, confident changes cost the most.
