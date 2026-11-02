@@ -92,6 +92,12 @@ const EXPLAINED: &[(&str, &str)] = &[
     ("z_min", "a member inside `u_run_npc_eocs`, refused by the port until it can filter by level"),
     ("z_max", "the same, for the top of the level filter"),
     ("npc_must_see", "a member inside `u_run_npc_eocs`, refused until the port has a sight test per person"),
+    // The four **name prefixes** the math reader splits out of a bare variable name (`u_x`, `n_x`, `npc_x`, `global_x`). They are not members: they are how the
+    // reference's `read_var_value` turns a name into a scope and a name, and the scanner sees them because it looks for `u_`/`npc_`-style strings.
+    ("npc_", "a prefix inside a bare math name, not a member"),
+    ("n_", "the same, shorter spelling"),
+    ("global_", "the same, for the globals"),
+    ("var_", "the same, for the dialogue's own scope"),
 ];
 
 #[test]

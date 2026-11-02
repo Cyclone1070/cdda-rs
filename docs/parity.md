@@ -9161,3 +9161,30 @@ ran in a fresh world | 376 | **376** |
 **No count moved, and that is the second honest no-count round in a row** - but it is the first one that ends with the next question **pinned by a test** instead of by a
 paragraph. Both remaining big levers (the 35-caller LIXA programs and the 35 `switch` refusals) now lead to this one expression, and the test is small enough to read in
 a minute.
+
+## Two rules behind one switch: a prefix and a number (round 970)
+
+Last round pinned the question with a test that said `KNOWN GAP`. This round closed it, and it took **two** rules, either of which alone left the switch reading zero:
+
+1. **A bare math name carries its scope in its prefix.** `read_var_value` (`dialogue_helpers.cpp`) parses `u_`, `npc_`/`n_`, `global_` and `var_` **out of the name**, so
+   `u_LIXA_entry` is the speaker's `LIXA_entry`. The port read the whole name as a `var_val`, found nothing, and took the zero.
+2. **A variable's text is a number when it looks like one.** `diag_value::dbl()` (`math_parser_diag_value.cpp:168`) parses a string, which is how a variable set with
+   `"2"` reads as two. The port's `number_of` answered only for values stored as numbers.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 574 | **574** |
+answered `Done` | 376 | **374** |
+refused at run time | 198 | **200** |
+effect entries runnable | 1,518 | **1,518** |
+
+**The count went DOWN, and the port got more correct.** Both rules are the reference's, and the switch test proves the difference: it now runs case two where it ran
+nothing before. Two programs now refuse at a `math` effect where they used to "run" by reading a silent zero - **a program that answers a number nobody gave it has not
+run, it has lied quietly.** A census that counts those as runs measures the lie, not the port.
+
+**Two of my own gates had to be told the truth as well.** The member ledger scans the source for `u_`/`npc_`-style strings and found the new **prefix table**; its
+explained list now carries the four prefixes with the reason they are not members. **A ledger that fires on a legitimate new string is doing its job** - the fix is to
+explain, not to weaken the scan.
+
+**The lesson for the remaining frontier: a silent zero is the most expensive default in the port.** It hides behind `unwrap_or(0.0)`, it makes switches pick no case, and
+it makes the census look healthier than the code. The next round asks the same question of every other place a missing value is defaulted to zero rather than refused.

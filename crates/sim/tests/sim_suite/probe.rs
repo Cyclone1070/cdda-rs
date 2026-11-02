@@ -3118,13 +3118,13 @@ fn an_inventory_eoc_can_ask_for_what_is_worn() {
     );
 }
 
-/// A `switch` on `{"math": ["u_name"]}` answers `Done` and picks **no** case - the open question behind the LIXA switches.
+/// A `switch` on `{"math": ["u_name"]}` picks the last case the **variable's value** reaches.
 ///
-/// Reference: `f_switch` (`npctalk.cpp:6998-7020`) evaluates the value once and every case it reaches replaces the chosen one, so a value of two runs case two.
-/// **The port runs no case here**, and that is pinned rather than hidden: this test is the red gate the next round starts from. It is written to the behaviour the
-/// port **has** so the suite stays honest; the day the value resolves, this test's second assertion flips and the round that flips it has a receipt.
+/// Reference: `f_switch` (`npctalk.cpp:6998-7020`) evaluates the value once and every case it reaches replaces the chosen one. Two rules in the port made this read
+/// zero: a bare math name kept its `u_` prefix as part of the variable's name (`read_var_value` splits that prefix out), and a variable holding the **text** `"2"` was
+/// not a number to `number_of` (`diag_value::dbl()` parses a string). Both are fixed, and this test is the one that says so.
 #[test]
-fn a_switch_on_a_variable_name_is_the_open_question_behind_the_lixa_switches() {
+fn a_switch_on_a_variable_name_picks_the_last_case_it_reaches() {
     let mut world = bevy_ecs::prelude::World::new();
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     let holder = cdda_sim::dialogue_values::holder_for(&mut world, survivor, false);
@@ -3147,12 +3147,15 @@ fn a_switch_on_a_variable_name_is_the_open_question_behind_the_lixa_switches() {
     let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
     assert_eq!(
         cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
-        cdda_sim::dialogue_effects::Applied::Done,
-        "the switch itself is answerable"
+        cdda_sim::dialogue_effects::Applied::Done
     );
     let lines = cdda_sim::messages::lines(&world);
     assert!(
-        !lines.iter().any(|line| line.contains("two")),
-        "KNOWN GAP: the value the switch reads does not reach case two yet; when it does, flip this assertion: {lines:?}"
+        lines.iter().any(|line| line.contains("two")),
+        "the case the value reaches: {lines:?}"
+    );
+    assert!(
+        !lines.iter().any(|line| line.contains("one") || line.contains("five")),
+        "and only that one: {lines:?}"
     );
 }

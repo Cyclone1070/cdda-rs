@@ -1395,10 +1395,21 @@ fn parse_primary(tokens: &[Token]) -> Option<(Expression, &[Token])> {
         Token::Name(name) => {
             let after = tokens.get(1..)?;
             let Some(after_open) = after.strip_prefix(&[Token::Open]) else {
-                // A bare name is the dialogue's own variable: the reference looks it up in the dialogue's context first.
+                // A bare name is a dialogue variable, and its **prefix says which holder**: `read_var_value` parses `u_`, `npc_`/`n_`, `global_` and `var_` out of the
+                // name itself, so `u_LIXA_entry` is the speaker's variable `LIXA_entry` rather than a variable literally called `u_LIXA_entry`.
+                let (scope, plain) = [
+                    ("u_", "u_val"),
+                    ("npc_", "npc_val"),
+                    ("n_", "npc_val"),
+                    ("global_", "global_val"),
+                    ("var_", "var_val"),
+                ]
+                .iter()
+                .find_map(|(prefix, scope)| name.strip_prefix(prefix).map(|plain| (*scope, plain)))
+                .map_or(("var_val", name.as_str()), |(scope, plain)| (scope, plain));
                 let expression = Expression::Variable {
-                    scope: "var_val".to_owned(),
-                    name: name.clone(),
+                    scope: scope.to_owned(),
+                    name: plain.to_owned(),
                 };
                 return Some((expression, after));
             };

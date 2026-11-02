@@ -111,6 +111,9 @@ pub fn value_of(world: &World, holder: Entity, name: &str) -> Option<Value> {
 pub fn number_of(world: &World, holder: Entity, name: &str) -> Option<f64> {
     match value_of(world, holder, name) {
         Some(Value::Number(number)) => Some(number),
+        // Reference: `diag_value::dbl()` (`math_parser_diag_value.cpp:168`) parses a **string** value as a number, which is how `{"math": ["u_x"]}` reads a variable
+        // the data set with `u_add_var` and a text like `"2"`. Answering nothing for a text made every such switch read zero and pick no case.
+        Some(Value::Text(text)) => text.trim().parse::<f64>().ok(),
         _ => None,
     }
 }
