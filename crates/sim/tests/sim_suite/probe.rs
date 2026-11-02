@@ -3405,3 +3405,28 @@ fn a_postponed_transform_waits_and_then_turns_the_ground() {
         "the turn came and the grass became dirt"
     );
 }
+
+/// A trait learned with a `variant` keeps both the trait and the choice.
+///
+/// Reference: `f_add_trait` (`npctalk.cpp:3498-3516`): `set_mutation( trait, variant )` stores the cosmetic variation beside the mutation. The port used to refuse any
+/// entry that named one; now it learns the trait and records the variant, and the test asks for both.
+#[test]
+fn a_trait_learned_with_a_variant_keeps_the_choice() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let value = cdda_json::parse(
+        br#"{"u_add_trait": "BEAUTIFUL", "variant": "black"}"#.as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    assert!(cdda_sim::traits::has_trait(&world, survivor, "BEAUTIFUL"), "the trait was learned");
+    assert_eq!(
+        cdda_sim::traits::variant_of(&world, survivor, "BEAUTIFUL"),
+        Some("black".to_owned()),
+        "and the variant was kept"
+    );
+}

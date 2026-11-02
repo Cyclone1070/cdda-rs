@@ -9375,3 +9375,23 @@ one of the two now answers without acting. That is the same shape a postponed ef
 
 The test asserts exactly that, in both directions: the ground is **unchanged** when the effect is run, and changed when the turn comes. **A port that ran the transform
 immediately would pass the second half and fail the first** - which is why the first half is there.
+
+## A variant is stored, not dropped at load time (round 978)
+
+The diagnostic named `u_add_trait` with a `variant` twice, and the port refused those entries whole. The reference reads the member as a **cosmetic variation of a
+mutation** (`set_mutation( trait, variant )`) - a different name and description, no rule attached - so refusing was heavier than the gap: the trait itself is a real
+mutation the rules do read.
+
+The port now has `TraitVariants`, one component beside `Traits`, and `set_variant`/`variant_of` on it. **The component exists so that the day a rule reads a variant, the
+answer is already stored rather than dropped at load time** - and today no rule reads it, which the docs say out loud rather than implying the store is live.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 576 | **577** |
+answered `Done` | 386 | **387** |
+unreadable leaves | 109 | **94** |
+effect entries runnable | 1,526 | **1,527** |
+programs blaming their effects | 109 | **108** |
+
+**Fifteen leaves for one member.** The three `u_add_trait`/`npc_add_trait` entries carried a variant each, and **the fifteen** is the corpus telling us how many other
+entries sat behind the same member in the same programs - the leaf count moved far more than the program count because a leaf is counted per entry, not per program.

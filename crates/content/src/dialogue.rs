@@ -2920,6 +2920,8 @@ pub enum Effect {
     LearnTrait {
         /// The trait's id.
         trait_name: String,
+        /// The cosmetic variant to choose, when the data names one.
+        variant: Option<StringSource>,
         /// Whether it goes to the listener rather than the speaker.
         listener: bool,
     },
@@ -3377,8 +3379,8 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
         return read_snippet(object);
     }
     if let Some(changed) = read_effect_change(object) { return Some(changed); }
-    // Reference: `f_add_trait` and `f_remove_trait` (`npctalk.cpp:3498-3543`). A `variant` member is a mutation-graph change the port
-    // has no graph for, so an entry that states one is refused whole.
+    // Reference: `f_add_trait` and `f_remove_trait` (`npctalk.cpp:3498-3543`). A `variant` member picks one of a trait's cosmetic variations, which the port records
+    // beside the trait: `set_mutation( trait, variant )` keeps the choice, and no rule reads it.
     for (member, listener, learn) in [
         ("u_add_trait", false, true),
         ("npc_add_trait", true, true),
@@ -3386,12 +3388,14 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
         ("npc_lose_trait", true, false),
     ] {
         if let Some(Value::Str(trait_name)) = object.get(member) {
-            if learn && object.get("variant").is_some() {
-                return None;
-            }
+            let variant = match object.get("variant") {
+                None => None,
+                Some(given) => Some(read_string_source(given)?),
+            };
             return Some(if learn {
                 Effect::LearnTrait {
                     trait_name: trait_name.clone(),
+                    variant,
                     listener,
                 }
             } else {

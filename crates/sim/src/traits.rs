@@ -26,6 +26,36 @@ pub fn set_traits(world: &mut World, creature: Entity, names: &[&str]) {
 }
 
 /// Adds one trait, which is what a mutation does.
+/// Records which mutation **variant** a creature has for a trait.
+///
+/// Reference: `Character::set_mutation( trait, variant )` (`mutation.cpp:1074-1090`): the variant picks one of a trait's cosmetic variations - a different name and
+/// description, no rule attached. The port keeps the choice so the data's intent is not lost, in its own component, and no rule reads it yet. **The component exists so
+/// that the day a rule does read it, the answer is already stored rather than dropped at load time.**
+pub fn set_variant(world: &mut World, creature: Entity, trait_name: &str, variant: &str) {
+    if let Some(mut held) = world.get_mut::<TraitVariants>(creature) {
+        held.0.insert(trait_name.to_owned(), variant.to_owned());
+    } else {
+        let mut held = TraitVariants::default();
+        held.0.insert(trait_name.to_owned(), variant.to_owned());
+        world.entity_mut(creature).insert(held);
+    }
+}
+
+/// The variant chosen for each trait, when the data chose one.
+#[derive(bevy_ecs::prelude::Component, Debug, Clone, Default, PartialEq)]
+pub struct TraitVariants(pub std::collections::BTreeMap<String, String>);
+
+/// The variant a creature has for a trait, when one was chosen.
+#[must_use]
+pub fn variant_of(world: &World, creature: Entity, trait_name: &str) -> Option<String> {
+    world
+        .get::<TraitVariants>(creature)
+        .and_then(|held| held.0.get(trait_name).cloned())
+}
+
+/// Adds a trait to a creature, doing nothing when it already has it.
+///
+/// Reference: `Character::set_mutation` adds the mutation to the set it holds; a trait set twice is still one trait.
 pub fn add_trait(world: &mut World, creature: Entity, name: &str) {
     if let Some(mut held) = world.get_mut::<Traits>(creature) {
         held.names.insert(name.to_owned());

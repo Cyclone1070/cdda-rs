@@ -2560,11 +2560,18 @@ pub fn run_effect(
         Effect::LocationVariable { .. } => store_location(world, speaker, listener, effect),
         Effect::Switch { on, cases } => run_switch(world, speaker, listener, on, cases),
         Effect::If { .. } => run_branch(world, speaker, listener, effect),
-        Effect::LearnTrait { trait_name, listener: about_listener } => {
+        Effect::LearnTrait { trait_name, variant, listener: about_listener } => {
             let Some(creature) = actor(speaker, listener, *about_listener) else {
                 return Applied::CannotAnswer;
             };
             crate::traits::add_trait(world, creature, trait_name);
+            // Reference: `set_mutation( trait, variant )` keeps the cosmetic choice beside the trait; nothing in the rules reads it yet.
+            if let Some(chosen) = variant {
+                let Some(name) = crate::conditions::text_of(world, speaker, listener, chosen) else {
+                    return Applied::CannotAnswer;
+                };
+                crate::traits::set_variant(world, creature, trait_name, &name);
+            }
             Applied::Done
         }
         Effect::LoseTrait { trait_name, listener: about_listener } => {
