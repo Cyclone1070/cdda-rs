@@ -8445,3 +8445,32 @@ a map has to be redrawn when the frontier moves.**
 
 **Lint caught two things in the test itself**: a `panic!` in test code (`clippy::panic` applies to tests too in this repo) and an `assert!(false, ...)` that followed
 it. Both were rewritten as a `match` that fails with the value in the message - which is what the assertion wanted to say in the first place.
+
+## `assign_mission`'s deadline: read, worked out, and *not yet kept* (round 943)
+
+`f_assign_mission` (`npctalk.cpp:5908-5926`) takes a mission type and an **optional `deadline`**, read with `get_dbl_or_var` - so a number or a `math` expression,
+worked out when the effect runs. The port refused any entry that stated one, and the reason was honest: its mission store keeps which missions are active and **no due
+turn**.
+
+**What changed, and what did not.** The deadline now reads as an `Expression`, and the runner **evaluates** it - so a deadline the dialogue cannot work out is still
+caught at the point the reference would need it - and the value is **carried and not kept**, because there is still nowhere to keep it. That is written in the reader's
+doc comment and in the runner's, so the next round knows exactly what is missing: a due turn in the mission store, not a reader for the member.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 544 | **545** |
+refused at run time | 190 | **191** |
+unreadable leaves | 157 | **156** |
+one-gap programs | 40 | **39** |
+effect entries runnable | 1,483 | **1,484** |
+effect census blaming `effect` | 139 | **138** |
+
+**My test asserted the wrong rule, and the failure taught me one.** I wrote that `{"math": ["never_set + 1"]}` should refuse, because the variable is unset - and the
+port answered `Done`. **The reference's math parser reads an unset variable as zero** (`math_parser_diag.cpp`), so the deadline *is* workable and the mission is
+assigned. The test now pins that instead, with the rule named in the comment.
+
+**That is the fourth time this session a red test corrected my understanding rather than the code** - and the first time the correction was a number's *default value*
+rather than a member or a scope. **A missing value is not a missing answer.**
+
+**One older assertion had to move with it**: `a_mission_is_given_to_the_player` asserted that an entry with a `deadline` is **refused**. It now asserts it **reads**, and
+points at the test that pins the new behaviour. Two tests, one rule, and the pointer between them is the part that keeps them from drifting.

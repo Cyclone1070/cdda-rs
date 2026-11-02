@@ -2700,10 +2700,12 @@ pub enum Effect {
     /// Give the player a mission.
     ///
     /// Reference: `f_assign_mission` (`npctalk.cpp:5908-5926`): the member names a mission type, which is reserved and assigned to the player, and an optional
-    /// `deadline` sets the turn it is due **after** assignment. The port takes the type; the deadline is refused because its store keeps no due turn yet.
+    /// `deadline` sets the turn it is due **after** assignment, and may be a `math` expression worked out when the effect runs.
     AssignMission {
         /// The mission type the data names.
         id: StringSource,
+        /// The turn it is due, when the data sets one. The port works it out and has **no deadline store yet**, so it carries the value rather than dropping it.
+        deadline: Option<Expression>,
     },
     /// Move a creature to the square a dialogue variable holds.
     ///
@@ -3107,11 +3109,14 @@ fn read_effect_list(value: Option<&Value>) -> Option<Vec<Effect>> {
 /// that states one is refused rather than assigned without it.
 fn read_assign_mission(object: &cdda_json::Object) -> Option<Effect> {
     let value = object.get("assign_mission")?;
-    if object.get("deadline").is_some() {
-        return None;
-    }
+    // Reference: `f_assign_mission` (`npctalk.cpp:5912`) reads `deadline` with `get_dbl_or_var`, so a `math` expression is one of the shapes it accepts.
+    let deadline = match object.get("deadline") {
+        None => None,
+        Some(given) => Some(read_math_expression(given)?),
+    };
     Some(Effect::AssignMission {
         id: read_string_source(value)?,
+        deadline,
     })
 }
 

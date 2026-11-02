@@ -434,9 +434,18 @@ fn nearby_location(world: &mut World, speaker: Entity, effect: &Effect) -> Appli
 /// dialogue can hand the player a mission. The port asks the store who the avatar is and falls back to the speaker, which is the divergence recorded for
 /// `u_has_mission`.
 fn give_mission(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::AssignMission { id } = effect else {
+    let Effect::AssignMission { id, deadline } = effect else {
         return Applied::CannotAnswer;
     };
+    // The deadline is worked out the way the reference does - a `dbl_or_var` evaluated when the effect runs - and the port has **no place to keep it yet**: the
+    // mission store holds which missions are active and no due turn. Evaluating it here means a deadline the dialogue cannot work out still refuses the entry
+    // instead of assigning a mission the data expected to be dated.
+    if let Some(expression) = deadline {
+        let Some(held) = draw(world, speaker, listener, expression) else {
+            return Applied::CannotAnswer;
+        };
+        let _ = held;
+    }
     let Some(mission) = crate::conditions::text_of(world, speaker, listener, id) else {
         return Applied::CannotAnswer;
     };

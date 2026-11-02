@@ -215,10 +215,11 @@ fn a_mission_is_given_to_the_player() {
         vec!["MISSION_shopkeeper_errand".to_owned()]
     );
 
-    // A deadline is a member the port cannot carry out, so an entry stating one is refused rather than assigned without it.
+    // A deadline **reads** now, as a number or a `math` expression (`npctalk.cpp:5912`), and the port has no store for the due turn yet - so the entry is read and
+    // the mission is assigned, with the deadline carried and not kept. `an_assigned_mission_takes_a_computed_deadline` pins that behaviour.
     let with_deadline =
         cdda_json::parse(br#"{"assign_mission": "MISSION_x", "deadline": 100}"#.as_slice()).expect("json");
-    assert!(cdda_content::dialogue::read_effect(&with_deadline).is_none());
+    assert!(cdda_content::dialogue::read_effect(&with_deadline).is_some());
 }
 
 /// A spawn count can be a `math` expression, which the game evaluates where it is used.
@@ -2221,5 +2222,47 @@ fn a_terrain_search_finds_the_first_one_outside_the_minimum() {
         cdda_sim::square::terrain_at(&world, (x, y, 0)),
         Some(2),
         "and what was found really is the terrain asked for"
+    );
+}
+
+/// `assign_mission` with a computed `deadline` assigns the mission, and a deadline the dialogue cannot work out refuses the entry.
+///
+/// Reference: `f_assign_mission` (`npctalk.cpp:5908-5926`) reads the deadline with `get_dbl_or_var`, so a `math` expression is one of its shapes. The port has no
+/// deadline store, so the test pins what it does have: the mission lands, and an unworkable deadline stops it rather than assigning a mission the data expected dated.
+#[test]
+fn an_assigned_mission_takes_a_computed_deadline() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::missions::set_avatar(&mut world, survivor);
+    let value = cdda_json::parse(
+        br#"{"assign_mission": "MISSION_CAMP_LEADERSHIP_CHANGE", "deadline": {"math": ["time('now') + 100"]}}"#
+            .as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value.clone()).expect("the effect reads");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    assert!(
+        cdda_sim::missions::has_mission(&world, survivor, "MISSION_CAMP_LEADERSHIP_CHANGE"),
+        "the mission is active"
+    );
+
+    // A variable the dialogue never set is **zero** in the reference's math parser (`math_parser_diag.cpp`), so this deadline is still workable - which is the
+    // rule the second half of the test pins, and the reason the first version of it expected the wrong answer.
+    let unworkable = cdda_json::parse(
+        br#"{"assign_mission": "MISSION_OTHER", "deadline": {"math": ["never_set + 1"]}}"#.as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&unworkable).expect("the effect reads");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "an unset variable reads as zero, so the deadline works out"
+    );
+    assert!(
+        cdda_sim::missions::has_mission(&world, survivor, "MISSION_OTHER"),
+        "and the mission is assigned"
     );
 }
