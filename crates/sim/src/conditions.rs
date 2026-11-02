@@ -373,11 +373,24 @@ pub fn holds_in_store(
 ///
 /// Reference: `conditional_t( std::string_view )` (`condition.cpp:2783-2810`) - the parsers that take no argument are lookup entries by name, which is why the data may
 /// write them as a bare string (`{"not": "is_day"}`).
+/// Whether a creature is wielding an item.
+///
+/// Reference: `Character::get_wielded_item` being non-empty; the port stores the wielded item as a creature relation (`WieldedBy`), so the question is whether any item
+/// points at the creature.
+fn wields(world: &World, creature: Entity) -> bool {
+    let mut query = world.try_query::<&crate::creature::WieldedBy>();
+    query.as_mut().is_some_and(|query| query.iter(world).any(|who| who.0 == creature))
+}
+
 fn simple_holds(world: &World, speaker: Entity, listener: Option<Entity>, name: &str) -> bool {
     match name {
         // Reference: `has_alpha` / `has_beta` ask whether the dialogue has someone to talk **as** and someone to talk **to** (`d.has_alpha`, `d.has_beta`). The port's
         // dialogue always has an alpha - an effect is run for a creature - and has a beta exactly when a listener was handed in.
         "has_alpha" => true,
+        // Reference: `f_has_weapon` (`condition.cpp`): whether the actor holds a weapon, which the port answers from the item it wields. `has_weapon` is the same
+        // question the data spells three ways, and the `npc_` form asks about the listener.
+        "has_weapon" | "u_has_weapon" => wields(world, speaker),
+        "npc_has_weapon" => listener.is_some_and(|them| wields(world, them)),
         "has_beta" => listener.is_some(),
         // Reference: `u_is_avatar` / `u_is_character` ask what kind of talker the speaker is. The port knows one character kind, so both answer "is this the entity
         // the player drives".

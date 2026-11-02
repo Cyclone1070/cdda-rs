@@ -517,6 +517,9 @@ fn read_bare_condition(name: &str) -> Option<Condition> {
         name,
         "has_alpha"
             | "has_beta"
+            | "has_weapon"
+            | "u_has_weapon"
+            | "npc_has_weapon"
             | "u_is_avatar"
             | "u_is_character"
             | "is_day"

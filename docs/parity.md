@@ -9066,3 +9066,31 @@ the corpus is full of effects written to *clear* things, and **clearing is what 
 cannot do, fails on the second assertion. **The refusal is the honest half of a store gap, and it is the half that keeps the census worth reading.**
 
 **And the arm is written so the day a mutation pool exists it loses its second sentence rather than being rewritten** - the rule is read, the store is what is missing.
+
+## `u_has_weapon`: blame the right member (round 966)
+
+The `<nested>` gap that has sat on the one-gap list for rounds says the failing member is `<nested>` - the **effect list's own wrapper** - which is not a member the data
+writes at all. **That was the tell.** The blamed member is often not the real gap, and this time the culprit was one level out: the enclosing `if` names a bare condition,
+`"u_has_weapon"`, which the bare-name table did not carry. So the port refused the **condition** and blamed the list.
+
+`f_has_weapon` is a question the port can answer from the store it already has: an item points at the creature through `WieldedBy`. All three spellings are read - `has_weapon`,
+`u_has_weapon`, `npc_has_weapon` - and the last asks about the listener.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 573 | **574** |
+answered `Done` | 375 | **376** |
+did something | 273 | **274** |
+unreadable leaves | 119 | **118** |
+one-gap programs | 18 | **17** |
+effect entries runnable | 1,517 | **1,518** |
+effect census blaming `effect` | 111 | **110** |
+conditions readable | 3,219 | **3,226** |
+
+**One condition moved seven conditions**, because the bare name appears in several programs and condition lists at once.
+
+**The diagnostic step was a two-line example program**, run on the build machine: `read_effect({"run_eocs": ...})` answered `true`, and the enclosing `if` answered
+`false` - so the fault was in the condition, not in `run_eocs`, in **one run instead of a re-read of the reader**. A five-line probe is cheaper than a theory.
+
+**The test wields a knife on the *stranger***, so the speaker must answer false for an item that exists in the world but not in their hand - the mistake a
+"somebody has a weapon" port would make.

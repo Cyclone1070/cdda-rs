@@ -3052,3 +3052,32 @@ fn a_mutation_of_depth_zero_asks_for_nothing_and_is_answered() {
         "a real depth needs a mutation pool the port does not have"
     );
 }
+
+/// `u_has_weapon` answers from the item the creature wields, and the `npc_` form from the listener's.
+///
+/// Reference: `f_has_weapon` (`condition.cpp`): whether the actor holds a weapon. The port answers it from `WieldedBy`, so the test wields a knife on one creature and
+/// asks about both - a port that answered "always true" or "always false" fails on one side.
+#[test]
+fn having_a_weapon_follows_the_item_in_hand() {
+    let mut world = bevy_ecs::prelude::World::new();
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[cdda_sim::item_registry::Kind { id: "knife_combat", volume_ml: 5, weight_g: 1, pockets: &[] }],
+    );
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let stranger = cdda_sim::creature::spawn_creature(&mut world, "a stranger", (1, 0, 0));
+    let armed = cdda_content::dialogue::read_condition(
+        &cdda_json::parse(br#""u_has_weapon""#.as_slice()).expect("json"),
+    )
+    .expect("the condition reads");
+    let theirs = cdda_content::dialogue::read_condition(
+        &cdda_json::parse(br#""npc_has_weapon""#.as_slice()).expect("json"),
+    )
+    .expect("the condition reads");
+    assert!(!cdda_sim::conditions::holds(&world, survivor, &armed), "empty hands");
+    let kind = cdda_sim::item_registry::id_of(&mut world, "knife_combat").expect("installed");
+    let knife = cdda_sim::drop_item(&mut world, (0, 0), kind, 1);
+    world.entity_mut(knife).insert(cdda_sim::creature::WieldedBy(stranger));
+    assert!(!cdda_sim::conditions::holds(&world, survivor, &armed), "someone else's knife");
+    assert!(cdda_sim::conditions::holds_with(&world, survivor, Some(stranger), &theirs));
+}
