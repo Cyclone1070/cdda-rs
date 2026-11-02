@@ -1676,6 +1676,7 @@ fn read_unnamed_effect(object: &cdda_json::Object) -> Option<Effect> {
         .or_else(|| read_custom_light_level(object))
         .or_else(|| read_transform_radius(object))
         .or_else(|| read_give_achievement(object))
+        .or_else(|| read_run_inv_eocs(object))
 }
 
 /// Reads a `sound_effect` entry.
@@ -2250,6 +2251,17 @@ pub enum Effect {
         volume: CountRange,
         /// Whether it is only heard outdoors.
         outdoor_event: bool,
+    },
+    /// Runs programs on the items a creature carries.
+    ///
+    /// Reference: `f_run_inv_eocs` (`npctalk.cpp:6760-6805`): `u_run_inv_eocs` says how the items are chosen - `"all"` for every match, `"manual"` for a menu - and
+    /// `search_data` narrows which items count by id. The port reads the `"all"` form and refuses `"manual"`, because a menu is a question the headless port can only
+    /// answer from its queue and the reference's menu picks **one** item, not many.
+    RunInvEocs {
+        /// The item ids the entries must match; empty means every item.
+        search_data: Vec<String>,
+        /// The programs to run on each matching item.
+        programs: Vec<ProgramRef>,
     },
     /// Marks an achievement completed on the character.
     ///
@@ -2973,7 +2985,8 @@ impl Effect {
             | Self::CustomLightLevel { .. }
             | Self::TransformRadius { .. }
             | Self::GiveAchievement { .. }
-            | Self::FurnitureAround { .. } => self.store_kind().unwrap_or_default(),
+            | Self::FurnitureAround { .. }
+            | Self::RunInvEocs { .. } => self.store_kind().unwrap_or_default(),
             Self::PlaceOverride { .. } => "place_override",
             Self::SpawnItem { .. } => "u_spawn_item",
             Self::ConsumeItem { listener, .. } => {
@@ -3689,6 +3702,44 @@ fn read_switch(object: &cdda_json::Object) -> Option<Effect> {
 /// Reference: `f_location_variable` (`npctalk.cpp:4194`). The searching forms (`target_params`, a `terrain`/`furniture`/`field`/`monster`/`npc`/
 /// `species`/`trap`/`zone` list, radii) walk the overmap and the map for the nearest match, which nothing in the port can do yet - and answering
 /// them with the actor's own square would be a wrong answer that looked right.
+/// Reads a `u_run_inv_eocs` entry, or nothing.
+///
+/// Reference: `f_run_inv_eocs` (`npctalk.cpp:6760-6805`): the member is the selection mode, `search_data` a list of filters, and `true_eocs` the programs. A mode
+/// other than `"all"` needs a menu, and the menu picks one item - a rule the headless port has not written, so it refuses rather than running on everything.
+fn read_run_inv_eocs(object: &cdda_json::Object) -> Option<Effect> {
+    let option = object.get("u_run_inv_eocs")?;
+    let Value::Str(mode) = option else {
+        return None;
+    };
+    if mode != "all" {
+        return None;
+    }
+    let mut search_data = Vec::new();
+    match object.get("search_data") {
+        None => {}
+        Some(Value::Array(entries)) => {
+            for entry in entries {
+                // A filter that names anything but an item id is a different question - a flag, a category, a charge count - and refuses.
+                let Value::Object(filter) = entry else {
+                    return None;
+                };
+                if !filter.members().iter().all(|(key, _)| key == "id") {
+                    return None;
+                }
+                let Value::Str(id) = filter.get("id")? else {
+                    return None;
+                };
+                search_data.push(id.clone());
+            }
+        }
+        Some(_) => return None,
+    }
+    Some(Effect::RunInvEocs {
+        search_data,
+        programs: read_program_refs(object.get("true_eocs"))?,
+    })
+}
+
 /// Reads a `give_achievement` entry.
 ///
 /// Reference: `f_give_achievment` (`npctalk.cpp:5566-5585`): one required member, a name or a variable holding one.

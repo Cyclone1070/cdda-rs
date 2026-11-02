@@ -2827,3 +2827,53 @@ fn a_furniture_search_inside_a_found_tile_answers_the_furniture() {
         "the square that carries the furniture (the run answered {said:?})"
     );
 }
+
+/// `u_run_inv_eocs` with the `"all"` mode runs its program once per matching item, and once for none when nothing matches.
+///
+/// Reference: `f_run_inv_eocs` (`npctalk.cpp:6760-6805`): the `"all"` mode runs the programs on every item `search_data` lets through, handing each to the program
+/// through the invocation's context. The test carries two phones and a rock, so a port that ran on everything would say four lines and one that filtered nothing
+/// would say two with the wrong ids.
+#[test]
+fn an_inventory_eoc_runs_once_per_matching_item() {
+    let mut world = bevy_ecs::prelude::World::new();
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[
+            cdda_sim::item_registry::Kind { id: "smart_phone", volume_ml: 5, weight_g: 1, pockets: &[] },
+            cdda_sim::item_registry::Kind { id: "rock", volume_ml: 5, weight_g: 1, pockets: &[] },
+        ],
+    );
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    for name in ["smart_phone", "smart_phone", "rock"] {
+        let kind = cdda_sim::item_registry::id_of(&mut world, name).expect("the item is installed");
+        let dropped = cdda_sim::drop_item(&mut world, (0, 0), kind, 1);
+        world.entity_mut(dropped).insert(cdda_sim::creature::Carried(survivor));
+    }
+    let value = cdda_json::parse(
+        br#"{"u_run_inv_eocs": "all", "search_data": [{"id": "smart_phone"}],
+            "true_eocs": [{"effect": [{"u_message": "a phone"}]}]}"#
+            .as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    let lines = cdda_sim::messages::lines(&world);
+    assert_eq!(
+        lines.iter().filter(|line| line.contains("a phone")).count(),
+        2,
+        "one line per phone and none for the rock: {lines:?}"
+    );
+
+    // A mode that needs a menu is refused rather than run on everything.
+    let manual = cdda_json::parse(
+        br#"{"u_run_inv_eocs": "manual", "true_eocs": ["EOC_note"]}"#.as_slice(),
+    )
+    .expect("json");
+    assert!(
+        cdda_content::dialogue::read_effect(&manual).is_none(),
+        "the manual mode needs a menu the port has not written"
+    );
+}

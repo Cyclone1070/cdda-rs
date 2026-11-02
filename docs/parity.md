@@ -8917,3 +8917,34 @@ effect census blaming `effect` | 123 | **122** |
 
 **And a diagnostic test earned its keep.** `the_halves_of_a_tile_furniture_search_hold_on_their_own` asks the overmap search and the furniture walk **separately**, so
 when the combined path failed, the fault had to be in the wiring. That is how the radius bug was found in one step instead of five.
+
+## `u_run_inv_eocs`: a program run once per matching item (round 960)
+
+`f_run_inv_eocs` (`npctalk.cpp:6760-6805`) takes a selection mode, a list of `search_data` filters and programs, and runs the programs on the items the filters let
+through. The port reads the **`"all"`** mode - every matching item, one run each - and refuses `"manual"`, because that shows a menu and **the menu picks one item**,
+which is a different rule from "run on all of them".
+
+Each run gets the invocation's context the data reads: `id` for the item's id and `count` for how many the stack holds. The context is put before the programs and
+restored after, so a caller's own values come back exactly as `f_run_eocs` leaves them.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 562 | **564** |
+answered `Done` | 367 | **368** |
+refused at run time | 195 | **196** |
+unreadable leaves | 136 | **133** |
+one-gap programs | 24 | **23** |
+effect entries runnable | 1,502 | **1,505** |
+effect census blaming `effect` | 122 | **120** |
+
+**Two programs and five effect entries** - and the leaves fell by three, which is the census seeing the filter list read instead of refused.
+
+**The test carries two phones and a rock**, so a port that ran on everything would say three lines and one that filtered nothing would say two with the wrong ids. The
+second half of the test asserts that `"manual"` **reads as `None`**, which is the refusal the port means rather than an accident of the reader's shape.
+
+**One test failure was instructive.** The first version used `{"id": "EOC_note", "effect": [...]}` for the program, and said nothing at all - because an object with
+`id` and `effect` reads as a **reference to a program nobody installed** (the open question from round 948). The test now uses an unnamed inline program, which reads as
+inline. **The limitation from that round has not gone away; it is now pinned by a test that would otherwise hide it.**
+
+**A borrow error and a lint, both one line:** `name_of` needs `&mut World` and a query's iterator holds the world, so the ids are collected first and named after -
+and `search_data.iter().any(|wanted| *wanted == name)` became `search_data.contains(&name)`, which is what it meant.
