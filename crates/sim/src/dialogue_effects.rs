@@ -584,6 +584,44 @@ fn pick_type(
     drawn
 }
 
+/// Puts a field on the squares around a creature.
+///
+/// Reference: `f_field` (`npctalk.cpp:7707-7725`): `points_in_radius( target_pos, radius )` gets the field at `intensity`. The port refuses an entry with no
+/// radius - the reference's default is ten million squares, which the port's loaded level cannot honour - and clamps a stated one to the view, which is as far as a
+/// level it holds can reach.
+fn set_field(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::SetField { field, intensity, radius, listener: theirs } = effect else {
+        return Applied::CannotAnswer;
+    };
+    let Some(actor) = actor(speaker, listener, *theirs) else {
+        return Applied::CannotAnswer;
+    };
+    let (Some(here), Some(named), Some(radius)) = (
+        world.get::<crate::Position>(actor).copied(),
+        crate::conditions::text_of(world, speaker, listener, field),
+        radius.as_ref(),
+    ) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(reach) = draw(world, speaker, listener, radius) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(thickness) = draw(world, speaker, listener, intensity) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(id) = crate::field_registry::id_of(world, &named) else {
+        return Applied::CannotAnswer;
+    };
+    let reach = as_whole(reach).clamp(0, cdda_core_types::light::MAX_VIEW_DISTANCE);
+    let thickness = as_whole(thickness);
+    for dy in -reach..=reach {
+        for dx in -reach..=reach {
+            crate::add_field_strength(world, (here.x + dx, here.y + dy, here.z), id, thickness);
+        }
+    }
+    Applied::Done
+}
+
 /// Writes the square of a terrain found around the actor into a variable.
 ///
 /// Reference: `f_location_variable` (`npctalk.cpp:4250-4300`): the walk is `points_in_radius( talker_pos, target_max_radius, 0 )` - z, then y, then x ascending -
@@ -1959,6 +1997,7 @@ fn run_store_effect(
         Effect::AssignActivity { .. } => assign_activity(world, speaker, listener, effect),
         Effect::CastSpell { .. } => cast_spell(world, speaker, listener, effect),
         Effect::TerrainAround { .. } => store_terrain_around(world, speaker, listener, effect),
+        Effect::SetField { .. } => set_field(world, speaker, listener, effect),
         // Audio changes no game state, and the port has no audio: Done, not refused - nothing is missing from the simulation, only from the sound card. A
         // comment-only entry does nothing, which the reference's loader also does with it.
         Effect::PlaySoundEffect { .. } | Effect::Nothing => Applied::Done,

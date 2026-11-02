@@ -2363,3 +2363,42 @@ fn a_spawn_count_reads_a_variable_with_a_default() {
     );
     assert_eq!(spawned(&mut world), 6, "and five more once the variable is set");
 }
+
+/// `u_set_field` puts the field on every square within its radius, and an entry with no radius is refused rather than spread over everything.
+///
+/// Reference: `f_field` (`npctalk.cpp:7707-7725`): `points_in_radius( target_pos, radius )` each gets the field at `intensity`, and the default radius is **ten
+/// million**. The port's map is a loaded level, so it refuses that default instead of pretending: the test pins both - the radius honoured, and the entry refused.
+#[test]
+fn a_set_field_covers_its_radius_and_refuses_a_missing_one() {
+    let mut world = bevy_ecs::prelude::World::new();
+    cdda_sim::field_registry::set_field_names(&mut world, &[("fd_blood", 1, 3)]);
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (10, 10, 0));
+    let value = cdda_json::parse(
+        br#"{"u_set_field": "fd_blood", "intensity": 2, "radius": 1}"#.as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    let id = cdda_sim::field_registry::identity_of(&world, "fd_blood").expect("the field is known");
+    for at in [(10, 10, 0), (9, 9, 0), (11, 11, 0), (9, 11, 0)] {
+        assert!(
+            cdda_sim::has_field_at(&world, at, id),
+            "the field covers {at:?}, which is inside a radius of one"
+        );
+    }
+    assert!(
+        !cdda_sim::has_field_at(&world, (12, 10, 0), id),
+        "and stops at the radius"
+    );
+
+    // No radius means the reference's ten million, which a loaded level cannot honour: refused, not guessed.
+    let wide = cdda_json::parse(br#"{"u_set_field": "fd_blood"}"#.as_slice()).expect("json");
+    let effect = cdda_content::dialogue::read_effect(&wide).expect("the entry reads");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        cdda_sim::dialogue_effects::Applied::CannotAnswer
+    );
+}

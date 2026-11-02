@@ -1644,6 +1644,7 @@ fn read_unnamed_effect(object: &cdda_json::Object) -> Option<Effect> {
         .or_else(|| read_finish_mission(object))
         .or_else(|| read_remove_active_mission(object))
         .or_else(|| read_store_effects(object))
+        .or_else(|| read_set_field(object))
 }
 
 /// Reads a `sound_effect` entry.
@@ -2210,6 +2211,21 @@ pub enum Effect {
         volume: CountRange,
         /// Whether it is only heard outdoors.
         outdoor_event: bool,
+    },
+    /// Puts a field on the squares around the actor.
+    ///
+    /// Reference: `f_field` (`npctalk.cpp:7691-7725`): the member names the field, `intensity` defaults to one, `age` to a turn, and `radius` to
+    /// **ten million** - "everywhere" - and every square within the radius gets the field. The port reads the field, the intensity and the radius; an entry that
+    /// states no radius is refused rather than handed a radius of ten million, because the port's map is a loaded level and not a world.
+    SetField {
+        /// The field's id.
+        field: StringSource,
+        /// How thick it is.
+        intensity: Expression,
+        /// How far it reaches, which the data states.
+        radius: Option<Expression>,
+        /// Whether it lands around the listener rather than the speaker.
+        listener: bool,
     },
     /// Finds a terrain around the actor and writes its square into a variable.
     ///
@@ -2850,7 +2866,8 @@ impl Effect {
             | Self::LoseMorale { .. }
             | Self::RemoveItemWith { .. }
             | Self::AddWet { .. }
-            | Self::TerrainAround { .. } => self.store_kind().unwrap_or_default(),
+            | Self::TerrainAround { .. }
+            | Self::SetField { .. } => self.store_kind().unwrap_or_default(),
             Self::PlaceOverride { .. } => "place_override",
             Self::SpawnItem { .. } => "u_spawn_item",
             Self::ConsumeItem { listener, .. } => {
@@ -3566,6 +3583,31 @@ fn read_switch(object: &cdda_json::Object) -> Option<Effect> {
 /// Reference: `f_location_variable` (`npctalk.cpp:4194`). The searching forms (`target_params`, a `terrain`/`furniture`/`field`/`monster`/`npc`/
 /// `species`/`trap`/`zone` list, radii) walk the overmap and the map for the nearest match, which nothing in the port can do yet - and answering
 /// them with the actor's own square would be a wrong answer that looked right.
+/// Reads a `u_set_field` / `npc_set_field` entry.
+///
+/// Reference: `f_field` (`npctalk.cpp:7691-7701`): the field is required, `intensity` defaults to one, and `radius` defaults to ten million - which is why a port
+/// with a loaded level and no world refuses an entry that leaves it out instead of pretending to cover everything.
+fn read_set_field(object: &cdda_json::Object) -> Option<Effect> {
+    for (member, listener) in [("u_set_field", false), ("npc_set_field", true)] {
+        let Some(field) = object.get(member) else {
+            continue;
+        };
+        return Some(Effect::SetField {
+            field: read_string_source(field)?,
+            intensity: match object.get("intensity") {
+                None => Expression::Number(1.0),
+                Some(given) => read_math_expression(given)?,
+            },
+            radius: match object.get("radius") {
+                None => None,
+                Some(given) => Some(read_math_expression(given)?),
+            },
+            listener,
+        });
+    }
+    None
+}
+
 /// Reads the around-the-actor terrain search, or nothing.
 ///
 /// Reference: `f_location_variable` (`npctalk.cpp:4231-4240`): exactly **one** of `terrain`, `furniture`, `field`, `monster`, `npc`, `species`, `trap` and `zone`

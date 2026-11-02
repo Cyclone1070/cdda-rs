@@ -8558,3 +8558,33 @@ went in unchanged and passed. **Writing the test before the reader it needs is w
 
 **And the compiler's one-line error** - `expected &Value, found Option<&Value>` - showed the `?` had bound to the wrong level. The fix was to bind the written value to
 a name first. **Small, but worth recording: a `?` inside a `match` arm is a question about which level it is asking.**
+
+## `u_set_field`: a field over a radius (round 947)
+
+`f_field` (`npctalk.cpp:7691-7725`) was not ported at all - not a member on an effect the port read, but **a whole effect missing** - and the census had been
+blaming its `radius` member, which is why it looked like a one-member fix.
+
+The effect now reads and runs: the field's id, `intensity` (default one, as the reference defaults it), and `radius`, with `add_field_strength` on every square
+within reach. **`radius` is refused when the data leaves it out**, and that refusal is deliberate: the reference's default is **ten million squares** - "everywhere"
+- and the port's map is a loaded level, not a world. A stated radius is clamped to the view distance, which is as far as a level the port holds can reach.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 548 | **551** |
+answered `Done` | 357 | **359** |
+did something | 259 | **261** |
+refused at run time | 191 | **192** |
+unreadable leaves | 151 | **148** |
+one-gap programs | 38 | **35** |
+effect entries runnable | 1,488 | **1,491** |
+effect census blaming `effect` | 135 | **132** |
+
+**Three programs and three effect entries from one missing effect**, which is the largest single move in several rounds - and it did not come from the blame list
+being right. The list said `radius`; the answer was `f_field`.
+
+**The test asserts the refusal as loudly as the effect.** Half of it checks the field covers a radius of one and stops at two; the other half checks that an entry
+with no radius **refuses** rather than covering the level. **A port that answered that entry would be claiming a world it does not have**, and the test would not
+catch it later.
+
+**Clippy caught two casts in my own code** - `as i32` on a value that was already `i32` - both in the new lines. Removing them made the code say what it meant, which
+is the whole point of not allowing truncating casts by default.
