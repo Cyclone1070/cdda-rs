@@ -1610,6 +1610,7 @@ fn read_unnamed_effect(object: &cdda_json::Object) -> Option<Effect> {
         .or_else(|| read_turn_cost(object))
         .or_else(|| read_add_wet(object))
         .or_else(|| read_place_override(object))
+        .or_else(|| read_remove_item_with(object))
 }
 
 /// Reads a `sound_effect` entry.
@@ -1628,6 +1629,23 @@ fn read_sound_effect(object: &cdda_json::Object) -> Option<Effect> {
         },
         outdoor_event: matches!(object.get("outdoor_event"), Some(Value::Bool(true))),
     })
+}
+
+/// Reads a `u_remove_item_with` / `npc_remove_item_with` entry.
+///
+/// Reference: `f_remove_item_with` (`npctalk.cpp:4046-4056`): one required `str_or_var` member. The gate matters: this reader is tried on every object no other
+/// reader claimed, so answering for an absent member would swallow the data.
+fn read_remove_item_with(object: &cdda_json::Object) -> Option<Effect> {
+    for (member, listener) in [("u_remove_item_with", false), ("npc_remove_item_with", true)] {
+        let Some(item) = object.get(member) else {
+            continue;
+        };
+        return Some(Effect::RemoveItemWith {
+            item: read_string_source(item)?,
+            listener,
+        });
+    }
+    None
 }
 
 /// Reads a `place_override` entry.
@@ -2088,6 +2106,16 @@ pub enum Effect {
         volume: CountRange,
         /// Whether it is only heard outdoors.
         outdoor_event: bool,
+    },
+    /// Removes every item of one kind from a creature.
+    ///
+    /// Reference: `f_remove_item_with` (`npctalk.cpp:4046-4056`): the member is an item id, and **every** stack of it is removed - a different rule from
+    /// `consume_item`, which takes a counted amount and refuses to take part of what is asked.
+    RemoveItemWith {
+        /// The item's id, which the data may give as a variable.
+        item: StringSource,
+        /// Whether it goes to the listener rather than the speaker.
+        listener: bool,
     },
     /// Schedules a place to be renamed for a while.
     ///
@@ -2636,6 +2664,13 @@ impl Effect {
             Self::RemoveActiveMission { .. } => "remove_active_mission",
             Self::TurnCost { .. } => "turn_cost",
             Self::PlaceOverride { .. } => "place_override",
+            Self::RemoveItemWith { listener, .. } => {
+                if *listener {
+                    "npc_remove_item_with"
+                } else {
+                    "u_remove_item_with"
+                }
+            }
             Self::AddWet { listener, .. } => {
                 if *listener {
                     "npc_add_wet"

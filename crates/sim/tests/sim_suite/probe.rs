@@ -1986,3 +1986,35 @@ fn a_mapgen_update_reads_a_list_and_a_context_target() {
     let effect = cdda_content::dialogue::read_effect(&contextual);
     assert!(effect.is_some(), "a `context_val` target reads: {effect:?}");
 }
+
+/// `u_remove_item_with` takes **every** stack of one kind and leaves the others.
+///
+/// Reference: `f_remove_item_with` (`npctalk.cpp:4046-4056`) removes by type id over the whole inventory. The test holds two of the named kind and one of another,
+/// so a remover that stopped at the first stack - or that took everything - fails on one of the two counts.
+#[test]
+fn a_remove_item_with_takes_every_stack_of_its_kind() {
+    let mut world = bevy_ecs::prelude::World::new();
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[
+            cdda_sim::item_registry::Kind { id: "bandage", volume_ml: 50, weight_g: 20, pockets: &[] },
+            cdda_sim::item_registry::Kind { id: "rock", volume_ml: 50, weight_g: 200, pockets: &[] },
+        ],
+    );
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    for id in ["bandage", "bandage", "rock"] {
+        let kind = cdda_sim::item_registry::id_of(&mut world, id).expect("kind");
+        let made = cdda_sim::drop_item(&mut world, (0, 0), kind, 1);
+        world.entity_mut(made).remove::<cdda_sim::Position>();
+        world.entity_mut(made).insert(cdda_sim::creature::Carried(survivor));
+    }
+
+    let value = cdda_json::parse(br#"{"u_remove_item_with": "bandage"}"#.as_slice()).expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    assert_eq!(cdda_sim::inventory::count_of(&world, survivor, "bandage").0, 0, "both bandages are gone");
+    assert_eq!(cdda_sim::inventory::count_of(&world, survivor, "rock").0, 1, "the rock stays");
+}

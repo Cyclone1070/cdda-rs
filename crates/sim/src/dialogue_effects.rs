@@ -575,6 +575,24 @@ fn pick_type(
     drawn
 }
 
+/// Removes every item of a kind from a creature.
+///
+/// Reference: `f_remove_item_with` (`npctalk.cpp:4048-4054`): `d.actor( is_npc )->remove_items_with( ... )` with a predicate on the type id - all of that kind and
+/// nothing else. A kind the creature does not carry is not a failure: the reference's predicate simply matches nothing.
+fn remove_item_with(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::RemoveItemWith { item, listener: theirs } = effect else {
+        return Applied::CannotAnswer;
+    };
+    let Some(creature) = actor(speaker, listener, *theirs) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(named) = crate::conditions::text_of(world, speaker, listener, item) else {
+        return Applied::CannotAnswer;
+    };
+    crate::inventory::remove_all_of(world, creature, &named);
+    Applied::Done
+}
+
 /// Schedules the place to be renamed when the time is up.
 ///
 /// Reference: `f_place_override` (`npctalk.cpp:4812-4818`): one timed event, `OVERRIDE_PLACE`, due at `calendar::turn + length + 1_seconds`, carrying the new name
@@ -1779,6 +1797,7 @@ fn run_store_effect(
         Effect::TurnCost { .. } => turn_cost(world, speaker, listener, effect),
         Effect::AddWet { .. } => add_wet(world, speaker, listener, effect),
         Effect::PlaceOverride { .. } => place_override(world, speaker, listener, effect),
+        Effect::RemoveItemWith { .. } => remove_item_with(world, speaker, listener, effect),
         // Audio changes no game state, and the port has no audio: Done, not refused - nothing is missing from the simulation, only from the sound card. A
         // comment-only entry does nothing, which the reference's loader also does with it.
         Effect::PlaySoundEffect { .. } | Effect::Nothing => Applied::Done,

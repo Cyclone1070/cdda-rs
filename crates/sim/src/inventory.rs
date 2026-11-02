@@ -163,3 +163,15 @@ pub fn take(
     }
     true
 }
+
+/// Removes **every** item of one kind from a creature, whatever its charges.
+///
+/// Reference: `f_remove_item_with` (`npctalk.cpp:4046-4056`) hands the actor's whole inventory to `remove_items_with` with a predicate on the item's type, so every
+/// stack of that kind goes and every other kind stays. That is a different rule from [`take`], which removes a named number of stacks and refuses a partial removal.
+pub fn remove_all_of(world: &mut World, creature: Entity, name: &str) -> bool {
+    let (stacks, _) = count_of(world, creature, name);
+    if stacks == 0 {
+        return false;
+    }
+    take(world, creature, name, stacks, 0)
+}

@@ -8196,3 +8196,35 @@ refuses when the world does not hold what it names".
 
 **A scope list is a rule, not a convenience.** `context_val` was missing from a four-name list, and that alone cost 6 programs. The reference's `read_var_info`
 (`condition.cpp`) accepts exactly these four scopes everywhere it is called; the port now lists all four in the one place it maps them.
+
+## `u_remove_item_with` is not `consume_item` (round 934)
+
+`u_remove_item_with` (2 programs, 10 effect entries) looked like an effect the port already had, and it is **a different rule**: `f_remove_item_with`
+(`npctalk.cpp:4046-4056`) hands the actor's whole inventory a predicate on the type id and removes **every** stack of it, while `consume_item` takes a counted
+number of stacks and charges and **refuses a partial removal**. Two effects, two rules, and the store now has two functions:
+
+| Function | Rule |
+|---|---|
+`inventory::take` | a named number of stacks and charges; refuses if the creature does not hold that much |
+`inventory::remove_all_of` | every stack of one kind, whatever its charges; a kind the creature does not carry is not a failure |
+
+**The second is built on the first** - it counts, then takes all - so there is one place that knows how to remove an item from a creature, and the difference between
+the two effects is the **number they decide**, not the mechanism.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 534 | **537** |
+answered `Done` | 350 | **351** |
+unreadable leaves | 176 | **166** |
+one-gap programs | 45 | **46** |
+effect entries runnable | 1,459 | **1,469** |
+effect census blaming `effect` | 149 | **146** |
+
+**Ten effect entries and three programs**, and the one-gap count moved up by one again - the frontier, not a regression.
+
+**The test holds two of the named kind and one of another.** A remover that stopped at the first stack fails the first count; a remover that took everything fails
+the second. That pair is the whole rule, and neither assertion alone would catch both mistakes.
+
+**Two of my own errors were caught by the compiler before a test ran**: `cdda_sim::item::spawn` does not exist (the port spawns through `drop_item`, then moves the
+item into the carrier), and `item_registry::id_of` takes `&mut World`. Both were fixed from the error text rather than from memory, which is the only reason they cost
+one round trip each instead of two.
