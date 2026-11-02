@@ -7811,3 +7811,25 @@ code in my head.
 
 The next one-gap targets, checked the same way, are `u_driving` (3 programs, a bare condition name inside `{"not": "u_driving"}` - the port has no vehicles, so the
 honest answer for its world is "not driving", and that must change the day vehicles land) and `mapgen_update` (4, a mapgen store the port has not built).
+
+## `u_driving`: a condition the port can answer because it has no vehicles (round 920)
+
+Three programs guarded on `{"not": "u_driving"}` - a **bare condition name**, the same shape as `is_day`. The read side was missing it; the answer side is
+easy and uncomfortable at the same time.
+
+Reference: `u_driving` is `Character::is_driving()`, true only while the creature sits in a vehicle's driver's seat. **The port has no vehicles** (that is P8 in the
+roadmap), so no creature in its world is driving, and `false` is not a guess - it is the true statement about the world the port builds today. The answer is written
+where vehicles will have to change it, with the reason beside it, rather than left to fall through a default nobody would find.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 501 | **503** |
+answered `Done` | 327 | **328** |
+refused at run time | 174 | **175** |
+unreadable leaves | 307 | **301** |
+one-gap programs | 68 | **67** |
+conditions readable | 3,212 | **3,215** |
+
+**A pinning mistake worth recording.** I pinned `conditions_readable` and `effect_blamed` from memory of the previous round instead of reading the numbers the census
+printed, and the gate caught it: the true values were 3,215 and 177, not 3,212 and 173. Two numbers I "knew" were wrong, and the only reason they did not persist
+is that the test compares them. That is the same lesson as the hour-is-3600-turns mistake, from the other side: **the pins are not bookkeeping, they are assertions.**

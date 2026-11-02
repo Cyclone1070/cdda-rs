@@ -475,7 +475,7 @@ fn read_bare_condition(name: &str) -> Option<Condition> {
     // condition the data may write as a string. `is_day` and `is_night` are the two the port can answer from the calendar alone.
     matches!(
         name,
-        "has_beta" | "u_is_avatar" | "u_is_character" | "is_day" | "is_night"
+        "has_beta" | "u_is_avatar" | "u_is_character" | "is_day" | "is_night" | "u_driving"
     )
     .then(|| Condition::Simple {
         name: name.to_owned(),

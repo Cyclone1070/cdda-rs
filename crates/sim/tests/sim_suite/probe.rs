@@ -1659,3 +1659,16 @@ fn a_set_condition_stores_the_condition_itself() {
         "the store holds a condition, not a boolean: {stored:?}"
     );
 }
+
+/// `u_driving` reads as a bare condition name, and answers "not driving" in a world with no vehicles.
+///
+/// Reference: `u_driving` is `Character::is_driving()`, true only in a vehicle's driver's seat. The port has no vehicles, so the only true statement about its
+/// world is that nobody is driving - and the answer is written down where vehicles will have to change it, not left to a default.
+#[test]
+fn a_bare_u_driving_condition_reads_and_answers_no() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let value = cdda_json::parse(br#"{"not": "u_driving"}"#.as_slice()).expect("json");
+    let condition = cdda_content::dialogue::read_condition(&value).expect("the condition reads");
+    assert!(cdda_sim::conditions::holds(&world, survivor, &condition), "not driving, so its negation holds");
+}
