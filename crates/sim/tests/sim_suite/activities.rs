@@ -678,3 +678,30 @@ fn focus_drifts_towards_the_equilibrium_morale_sets() {
         "forty to a hundred closes a tenth of the sixty-point gap"
     );
 }
+
+/// The turn loop is what moves focus: the minute's drift happens on the sixtieth turn and not on the sixty-first.
+///
+/// Reference: `Character::reset_stats` calls `update_mental_focus` on `once_every( 1_minutes )`, which the reference's turn loop reaches for every character once a
+/// minute. The drift function is tested on its own elsewhere; this is the gate that the **schedule** reaches it at all, which a unit test of the function cannot see.
+#[test]
+fn the_sixtieth_turn_is_the_one_that_moves_focus() {
+    let mut world = a_world();
+    let survivor = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::skills::Focus(40));
+    cdda_sim::calendar::set_turn(&mut world, 59);
+    cdda_sim::turn::run_turn(&mut world);
+    assert_eq!(
+        world.get::<cdda_sim::skills::Focus>(survivor).map(|focus| focus.0),
+        Some(40),
+        "turn fifty-nine is not a minute's boundary"
+    );
+    cdda_sim::calendar::set_turn(&mut world, 60);
+    cdda_sim::turn::run_turn(&mut world);
+    assert_eq!(
+        world.get::<cdda_sim::skills::Focus>(survivor).map(|focus| focus.0),
+        Some(46),
+        "turn sixty is, and a tenth of the gap closes"
+    );
+}

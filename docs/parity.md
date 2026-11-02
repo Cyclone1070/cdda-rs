@@ -9870,3 +9870,16 @@ from the creatures stage, keyed on the calendar's turn `% 60` - a minute is sixt
 **What this closes and what it does not:** practice now costs something, because focus is what the gains are scaled by and it now drifts back. The equilibrium's two
 other inputs - **reading a book you can learn from, and perceived pain** - are not read, because the port has neither an activity target nor a pain store; the
 function says so where someone would look for them.
+
+## The drift had no gate that the schedule reaches it (round 1004)
+
+Round 1003 added `update_mental_focus` and a stage that calls it, and tested **the function**: morale's equilibrium, and a tenth of the gap. What it did not test is
+that the **turn loop ever calls it** - a unit test of a rule and a gate that the schedule reaches the rule are two different claims, and only the second one is what a
+player experiences.
+
+So the turn loop now has one: at turn 59 focus stays put, at turn 60 it moves. **The mutation check is the point of the round** - commenting out the stage call leaves
+the function's own tests green and this one failing with `left: Some(40), right: Some(46)`, which is the difference between a rule that exists and a rule that runs.
+
+**The general lesson, and it has now cost three separate rounds in this phase:** a ported rule needs two gates, one for its arithmetic and one for its **reach**. The
+crafting rules found the same thing from the other side - `tools_available`, `qualities_available` and `batch_time_moves` were all correct, all tested, and all
+unreachable from the sim. **Correct and unread is the failure mode of a port this size**, and the only defence is a test that starts at the door.
