@@ -1,0 +1,22 @@
+# A real recipe, from the game's own data, made by the survivor.
+#
+# Six strands into one cord takes 30,000 moves, which is 300 turns at a hundred a turn. The scenario gives it 300, checks
+# that nothing has appeared yet, then gives it a hundred more and checks that the cord is on the floor. A craft that
+# finished early would fail the first check; one that never finished would fail the last.
+#
+# The recipe is the one the CLI test uses, and it is chosen because it needs **no tool and no quality**: the port now
+# refuses a craft whose tools are missing, and this scenario is about time, not about requirements.
+#
+# The survivor is wearing nothing, so the cord has nowhere to be put and lands on the floor - which is
+# `i_add_or_drop`'s fallback, and the reason `expect carried` here is zero rather than one.
+world 12 bare
+survivor 0 0
+items
+seed 7
+scent 6 6
+give cordage_6_leather 1
+craft cordage_36_leather 290
+expect floor cordage_36_leather 0
+craft cordage_36_leather 20
+expect floor cordage_36_leather 1
+expect carried cordage_36_leather 0

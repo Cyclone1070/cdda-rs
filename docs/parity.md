@@ -9641,3 +9641,27 @@ charges (`requirements.cpp:952-990`). The test was wrong, not the port - and the
 
 **Qualities stay unported and the module says so:** the port's item registry carries no quality table, so `qualities_available` has no caller yet. That is the next
 crafting rule, and it needs a store before it needs a check.
+
+## Qualities are a store the item table never had, and two gates turned out to be lying (round 994)
+
+The crafting rule after tools is **qualities**, and it needed a store before it needed a check: `quality_requirement::has` (`requirements.cpp:932-940`) asks how many
+carried items have a quality at **at least** the level, and the port's item table held names, volumes, weights, pockets and flags - **no qualities at all**.
+
+`item_registry` now has `ItemQualities`, installed from the item data by `item_data::install` (which is where the loader already turns each `ItemType` into a kind), and
+`Recipe::qualities_available` finally has a caller. A craft whose quality is missing refuses with `Craft::MissingQualities`.
+
+| Check | Before | After |
+|---|---|---|
+components | checked | checked |
+tools | checked | checked |
+qualities | **not checked** | checked |
+
+**And the moment the rule went in, two gates turned out to be false green.** The CLI's crafting test and the scenario `fur_becomes_leather_in_its_own_time` both made
+`leather` - whose recipe needs **`CUT 2`** - from **one fur and nothing else**. They passed because the port never asked; against the reference they were wrong all along.
+
+Both were **retargeted, not weakened**: `cordage_36_leather` (six strands into one cord, 30,000 moves, **no tool and no quality**) is the replacement, so the scenario
+still tests *time* and the CLI test still proves a real recipe finishes at the recipe's own length. **The survivor in that scenario has no knife, and a test that hands
+one out to keep a wrong expectation alive would be the worst of both worlds.**
+
+**The lesson belongs with the ledger's other false greens:** a gate that passes because a rule is missing is not a gate. **Two of them were hiding behind a rule nobody had
+written, and the rule's arrival is what exposed them.**

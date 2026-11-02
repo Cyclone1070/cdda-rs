@@ -12,6 +12,33 @@ use cdda_content::recipes::Recipe;
 use cdda_sim::crafting::{Craft, Making, begin_craft};
 use cdda_sim::creature::{Basis, Doing, moves_left, set_speed, spawn_creature};
 
+/// What a crafter has, with all four questions answered by the given closures.
+fn supplies_tools<'a>(
+    components: impl Fn(&str) -> i32 + 'a,
+    held: impl Fn(&str) -> i32 + 'a,
+    charges: impl Fn(&str) -> i32 + 'a,
+    qualities: impl Fn(&str, i32) -> i32 + 'a,
+) -> cdda_sim::crafting::Supplies<'a> {
+    cdda_sim::crafting::Supplies {
+        components: Box::leak(Box::new(components)),
+        held: Box::leak(Box::new(held)),
+        charges: Box::leak(Box::new(charges)),
+        qualities: Box::leak(Box::new(qualities)),
+    }
+}
+
+/// What a crafter has, with the components filled in and nothing else.
+///
+/// The tool and quality questions answer zero, which is what the recipes in these tests ask for: none of them names a tool or a quality.
+fn supplies_with<'a>(components: impl Fn(&str) -> i32 + 'a) -> cdda_sim::crafting::Supplies<'a> {
+    cdda_sim::crafting::Supplies {
+        components: Box::leak(Box::new(components)),
+        held: &(|_: &str| 0),
+        charges: &(|_: &str| 0),
+        qualities: &(|_: &str, _: i32| 0),
+    }
+}
+
 /// A name table with the given numbers filled in, the way a loaded registry would be.
 fn names_for(entries: &[(u32, &str)]) -> cdda_sim::item_registry::ItemNames {
     let highest = entries.iter().map(|(number, _)| *number).max().unwrap_or(0);
@@ -59,7 +86,7 @@ fn a_craft_begins_with_the_time_the_recipe_says() {
     let recipe = recipe(20_000, "rag", 2);
 
     assert_eq!(
-        begin_craft(&mut world, crafter, &recipe, 1, |item| i32::from(item == "rag") * 2, |_| 0, |_| 0),
+        begin_craft(&mut world, crafter, &recipe, 1, &supplies_with(|item| i32::from(item == "rag") * 2)),
         Craft::Started,
         "two rags are on hand and the recipe wants two"
     );
@@ -81,7 +108,7 @@ fn a_batch_multiplies_the_time() {
     let recipe = recipe(5_000, "rag", 1);
 
     assert_eq!(
-        begin_craft(&mut world, crafter, &recipe, 3, |_| 3, |_| 0, |_| 0),
+        begin_craft(&mut world, crafter, &recipe, 3, &supplies_with(|_| 3)),
         Craft::Started
     );
     assert_eq!(
@@ -98,7 +125,7 @@ fn a_craft_without_its_components_does_not_start() {
     let recipe = recipe(20_000, "rag", 2);
 
     assert_eq!(
-        begin_craft(&mut world, crafter, &recipe, 1, |item| i32::from(item == "rag"), |_| 0, |_| 0),
+        begin_craft(&mut world, crafter, &recipe, 1, &supplies_with(|item| i32::from(item == "rag"))),
         Craft::MissingComponents,
         "one rag is not two"
     );
@@ -117,7 +144,7 @@ fn a_busy_crafter_cannot_start_something_else() {
         subject: None,
     });
     let recipe = recipe(20_000, "rag", 1);
-    assert_eq!(begin_craft(&mut world, crafter, &recipe, 1, |_| 99, |_| 0, |_| 0), Craft::Busy);
+    assert_eq!(begin_craft(&mut world, crafter, &recipe, 1, &supplies_with(|_| 99)), Craft::Busy);
 }
 
 #[test]
@@ -126,7 +153,7 @@ fn a_recipe_with_no_time_is_refused_rather_than_finished_instantly() {
     let crafter = spawn_creature(&mut world, "the survivor", (0, 0, 0));
     let recipe = recipe(0, "rag", 1);
     assert_eq!(
-        begin_craft(&mut world, crafter, &recipe, 1, |_| 99, |_| 0, |_| 0),
+        begin_craft(&mut world, crafter, &recipe, 1, &supplies_with(|_| 99)),
         Craft::NoTimeToMakeIt,
         "no recipe in the data is instant, so a zero is a reader that failed, not a fast recipe"
     );
@@ -161,7 +188,7 @@ fn the_craft_takes_the_turns_it_said_it_would() {
     set_speed(&mut world, crafter, 100, 0);
     // Three hundred moves is three turns at a hundred a turn.
     let recipe = recipe(300, "rag", 1);
-    assert_eq!(begin_craft(&mut world, crafter, &recipe, 1, |_| 1, |_| 0, |_| 0), Craft::Started);
+    assert_eq!(begin_craft(&mut world, crafter, &recipe, 1, &supplies_with(|_| 1)), Craft::Started);
 
     cdda_sim::turn::run_turn(&mut world);
     cdda_sim::turn::run_turn(&mut world);
@@ -487,7 +514,13 @@ fn a_craft_without_its_tool_does_not_start() {
     let hands = |_: &str| 0;
     let nothing = |_: &str| 0;
     assert_eq!(
-        cdda_sim::crafting::begin_craft(&mut world, crafter, &recipe, 1, rags, hands, nothing),
+        cdda_sim::crafting::begin_craft(
+            &mut world,
+            crafter,
+            &recipe,
+            1,
+            &supplies_tools(rags, hands, nothing, |_, _| 0),
+        ),
         cdda_sim::crafting::Craft::MissingTools,
         "the hammer is not on hand"
     );
@@ -497,8 +530,67 @@ fn a_craft_without_its_tool_does_not_start() {
     );
     let with_hammer = |item: &str| i32::from(item == "hammer");
     assert_eq!(
-        cdda_sim::crafting::begin_craft(&mut world, crafter, &recipe, 1, rags, with_hammer, nothing),
+        cdda_sim::crafting::begin_craft(
+            &mut world,
+            crafter,
+            &recipe,
+            1,
+            &supplies_tools(rags, with_hammer, nothing, |_, _| 0),
+        ),
         cdda_sim::crafting::Craft::Started,
         "with the tool it starts"
+    );
+}
+
+/// A recipe that needs a quality refuses without an item that has it, and starts with one.
+///
+/// Reference: `quality_requirement::has` (`requirements.cpp:932-940`): an item whose quality is **at least** the level counts, and there must be that many carried.
+/// The quality belongs to the item **type**, so the test installs one and asks through the carried-stack path the game itself uses.
+#[test]
+fn a_craft_that_needs_a_quality_asks_the_items_that_carry_it() {
+    use cdda_content::recipes::{Component, Quality, Recipe};
+    let mut world = World::new();
+    let crafter = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let names = names_for(&[(1, "rag"), (2, "hammer")]);
+    let recipe = Recipe {
+        id: "pound_a_rag".to_owned(),
+        result: "rag".to_owned(),
+        blacklisted: false,
+        components: vec![vec![Component {
+            item: "rag".to_owned(),
+            count: 1,
+        }]],
+        tools: Vec::new(),
+        qualities: vec![vec![Quality {
+            quality: "HAMMER".to_owned(),
+            level: 2,
+            count: 1,
+        }]],
+        skill: String::new(),
+        difficulty: 0,
+        time_moves: 1_000,
+    };
+    let rag = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 1);
+    world.entity_mut(rag).remove::<cdda_sim::Position>();
+    world.entity_mut(rag).insert(cdda_sim::creature::Carried(crafter));
+    assert_eq!(
+        cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
+        Craft::MissingQualities,
+        "a rag is not a hammer"
+    );
+    let hammer = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(2), 1);
+    world.entity_mut(hammer).remove::<cdda_sim::Position>();
+    world.entity_mut(hammer).insert(cdda_sim::creature::Carried(crafter));
+    cdda_sim::item_registry::set_item_qualities(
+        &mut world,
+        &[(
+            cdda_sim::ItemTypeId(2),
+            &[("HAMMER".to_owned(), 3)],
+        )],
+    );
+    assert_eq!(
+        cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
+        Craft::Started,
+        "a level-three hammer satisfies a level-two requirement"
     );
 }

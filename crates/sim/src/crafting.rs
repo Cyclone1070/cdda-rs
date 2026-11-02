@@ -20,6 +20,8 @@ pub enum Craft {
     MissingComponents,
     /// A tool the recipe needs is not on hand, or not with enough charges.
     MissingTools,
+    /// An item with a quality the recipe needs is not on hand.
+    MissingQualities,
     /// The creature is already busy with something else.
     Busy,
     /// The recipe takes no time at all, which no recipe in the data does - a sign the time was never read.
@@ -167,17 +169,27 @@ pub fn begin_craft_from_carried(
     names: &crate::item_registry::ItemNames,
 ) -> Craft {
     let on_hand = crate::inventory::carried_by_id(world, crafter, |kind| names.name_of(kind));
-    // The same carried stacks answer the tool questions: a held tool is a stack that is there, and its charges are the stack's own.
-    let charges = crate::inventory::carried_by_id(world, crafter, |kind| names.name_of(kind));
-    begin_craft(
-        world,
-        crafter,
-        recipe,
-        batch,
-        |item| on_hand.get(item).copied().unwrap_or(0),
-        |item| i32::from(charges.contains_key(item)),
-        |item| charges.get(item).copied().unwrap_or(0),
-    )
+    // The same carried stacks answer the tool questions: a held tool is a stack that is there, and its charges are the stack's own. The quality question needs
+    // the **kinds** rather than the counts, because a quality belongs to the item type.
+    let kinds = crate::inventory::carried_kinds(world, crafter);
+    // The qualities are read **before** the craft starts, because asking the store while the world is borrowed for the start is a second borrow of it.
+    let levels: Vec<std::collections::BTreeMap<String, i32>> = kinds
+        .iter()
+        .map(|kind| crate::item_registry::qualities_of(world, *kind))
+        .collect();
+    let qualities = |quality: &str, level: i32| -> i32 {
+        let held = levels
+            .iter()
+            .filter(|held| held.get(quality).is_some_and(|own| *own >= level));
+        held.count().try_into().unwrap_or(0)
+    };
+    let supplies = Supplies {
+        components: &|item| on_hand.get(item).copied().unwrap_or(0),
+        held: &|item| i32::from(on_hand.contains_key(item)),
+        charges: &|item| on_hand.get(item).copied().unwrap_or(0),
+        qualities: &qualities,
+    };
+    begin_craft(world, crafter, recipe, batch, &supplies)
 }
 
 /// A craft in progress.
@@ -193,6 +205,35 @@ pub struct Making {
     pub batch: i32,
 }
 
+/// What the crafter has, answered one question at a time.
+///
+/// The four questions are the four a recipe asks: how many of a component, how many copies of a tool, how many of its charges, and how many items with a quality at
+/// a level. They are closures rather than a lookup because the port's inventory is the carrier's own stacks, and a caller - eventually the inventory, today a test or a
+/// playtest - is the only thing that knows what is in them.
+pub struct Supplies<'a> {
+    /// How many of an item id the crafter has.
+    pub components: &'a dyn Fn(&str) -> i32,
+    /// How many copies of a tool the crafter has.
+    pub held: &'a dyn Fn(&str) -> i32,
+    /// How many charges of a tool the crafter has.
+    pub charges: &'a dyn Fn(&str) -> i32,
+    /// How many carried items have a quality at **at least** this level.
+    pub qualities: &'a dyn Fn(&str, i32) -> i32,
+}
+
+/// Answers every question with nothing, which is what a caller that only cares about components passes.
+#[must_use]
+pub fn nothing_on_hand() -> Supplies<'static> {
+    static NONE: fn(&str) -> i32 = |_| 0;
+    static QUALITIES: fn(&str, i32) -> i32 = |_, _| 0;
+    Supplies {
+        components: &NONE,
+        held: &NONE,
+        charges: &NONE,
+        qualities: &QUALITIES,
+    }
+}
+
 /// Starts making a recipe, if the things it needs are on hand.
 ///
 /// Reference: `Character::making_would_work` for the refusal and `Character::start_craft` for the activity, whose
@@ -200,26 +241,22 @@ pub struct Making {
 ///
 /// `on_hand` says how many of an item id the crafter has. It is a closure rather than a lookup because the port has no
 /// inventory yet: the caller - eventually the inventory, today a test or a playtest - is the only thing that knows.
-pub fn begin_craft(
-    world: &mut World,
-    crafter: Entity,
-    recipe: &Recipe,
-    batch: i32,
-    on_hand: impl Fn(&str) -> i32,
-    tools_held: impl Fn(&str) -> i32,
-    tool_charges: impl Fn(&str) -> i32,
-) -> Craft {
+pub fn begin_craft(world: &mut World, crafter: Entity, recipe: &Recipe, batch: i32, supplies: &Supplies<'_>) -> Craft {
     if world.get::<Doing>(crafter).is_some() {
         return Craft::Busy;
     }
-    if !recipe.components_available(batch, on_hand) {
+    if !recipe.components_available(batch, supplies.components) {
         return Craft::MissingComponents;
     }
     // Reference: `character::making_would_work` -> `requirement_data::can_make_with_inventory` (`requirements.cpp:952-990`): **tools are part of the
     // requirement**, a held tool is needed in that many copies and a tool that spends charges needs them per batch. A craft that skipped this started
     // with bare hands and finished a recipe that needed a hammer.
-    if !recipe.tools_available(batch, tools_held, tool_charges) {
+    if !recipe.tools_available(batch, supplies.held, supplies.charges) {
         return Craft::MissingTools;
+    }
+    // Reference: `quality_requirement::has` (`requirements.cpp:932-940`): an item whose quality is **at least** the required level counts, and there must be that many.
+    if !recipe.qualities_available(batch, supplies.qualities) {
+        return Craft::MissingQualities;
     }
     let batch = batch.max(1);
     let moves = recipe.time_moves.saturating_mul(i64::from(batch));

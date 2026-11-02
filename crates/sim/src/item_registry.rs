@@ -93,6 +93,46 @@ pub fn set_item_flags(world: &mut World, flags: &[(ItemTypeId, &[&str])]) {
     world.entity_mut(holder).insert(ItemFlags(by_kind));
 }
 
+/// The qualities each kind has, by kind. An empty table answers "no quality" for everything, which is the state a world that never loaded item data is in.
+#[derive(bevy_ecs::component::Component, Debug, Clone, Default)]
+pub struct ItemQualities(pub BTreeMap<u32, BTreeMap<String, i32>>);
+
+/// Marks the entity holding [`ItemQualities`].
+#[derive(bevy_ecs::component::Component, Debug, Clone, Copy, Default)]
+pub struct TheItemQualities;
+
+/// Installs the quality table, replacing whatever was there.
+///
+/// Reference: `itype::qualities` (`item_factory.cpp`), the map from a quality id to its level that `quality_requirement::has` reads.
+pub fn set_item_qualities(world: &mut World, qualities: &[(ItemTypeId, &[(String, i32)])]) {
+    let mut table = ItemQualities::default();
+    for (kind, held) in qualities {
+        table.0.insert(kind.0, held.iter().cloned().collect());
+    }
+    let entity = singletons::singleton::<ItemQualities, TheItemQualities>(world);
+    world.entity_mut(entity).insert(table);
+}
+
+/// Every quality a kind has, as the map the requirement rule asks.
+#[must_use]
+pub fn qualities_of(world: &World, kind: ItemTypeId) -> BTreeMap<String, i32> {
+    singletons::holder::<TheItemQualities>(world)
+        .and_then(|holder| world.get::<ItemQualities>(holder))
+        .and_then(|table| table.0.get(&kind.0).cloned())
+        .unwrap_or_default()
+}
+
+/// How good a kind is at a quality, zero when it has none.
+#[must_use]
+pub fn quality_level(world: &World, kind: ItemTypeId, quality: &str) -> i32 {
+    singletons::holder::<TheItemQualities>(world)
+        .and_then(|holder| world.get::<ItemQualities>(holder))
+        .and_then(|table| table.0.get(&kind.0))
+        .and_then(|held| held.get(quality))
+        .copied()
+        .unwrap_or(0)
+}
+
 /// Whether an item kind carries a flag.
 #[must_use]
 pub fn kind_has_flag(world: &World, kind: ItemTypeId, flag: &str) -> bool {

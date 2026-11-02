@@ -56,4 +56,25 @@ pub fn install(world: &mut World, kinds: &[ItemType]) {
         })
         .collect();
     item_registry::set_item_types(world, &borrowed);
+    // The qualities come from the same records and are installed right after the ids exist: the reference keeps them on `itype` (`item_factory.cpp`), and a
+    // world that loaded item data but not its qualities answers every requirement as if nothing had a quality.
+    let mut held: Vec<(crate::ItemTypeId, Vec<(String, i32)>)> = Vec::new();
+    for kind in kinds {
+        let Some(number) = item_registry::id_of(world, &kind.id) else {
+            continue;
+        };
+        let qualities: Vec<(String, i32)> = kind
+            .qualities
+            .iter()
+            .map(|(quality, level)| (quality.clone(), *level))
+            .collect();
+        if !qualities.is_empty() {
+            held.push((number, qualities));
+        }
+    }
+    let borrowed: Vec<(crate::ItemTypeId, &[(String, i32)])> = held
+        .iter()
+        .map(|(kind, qualities)| (*kind, qualities.as_slice()))
+        .collect();
+    item_registry::set_item_qualities(world, &borrowed);
 }

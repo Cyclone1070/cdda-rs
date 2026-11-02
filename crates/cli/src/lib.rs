@@ -852,8 +852,9 @@ mod craft_tests {
     /// A survivor with the ingredients can make a thing the game's data describes, and the turns it takes are the
     /// recipe's own.
     ///
-    /// `leather` is one fur into one leather and takes 36,000 moves, which is 360 turns at a hundred a turn - so this
-    /// also proves the craft is not finishing early.
+    /// `cordage_36_leather` is six strands into one cord and takes 30,000 moves, which is 300 turns at a hundred a turn - so this also proves the craft is not
+    /// finishing early. **The recipe is chosen because it needs no tool and no quality**: the CLI hands a crafter the components and nothing else, and a craft
+    /// that refuses for a missing tool is the right answer rather than a bug (see `crafting::begin_craft`).
     #[test]
     fn a_real_recipe_runs_to_its_result() {
         let mut world = World::new();
@@ -862,13 +863,16 @@ mod craft_tests {
         let avatar = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
         cdda_sim::creature::set_speed(&mut world, avatar, 100, 0);
 
-        let line = super::craft_a_recipe(&mut world, avatar, "leather", 400)
-            .expect("the data has a leather recipe");
+        let line = super::craft_a_recipe(&mut world, avatar, "cordage_36_leather", 400)
+            .expect("the data has the cord recipe");
 
-        assert!(line.starts_with("leather -> leather"), "unexpected line: {line}");
+        assert!(
+            line.starts_with("cordage_36_leather -> cordage_36_leather"),
+            "unexpected line: {line}"
+        );
         assert!(
             line.contains("x1"),
-            "one leather came out of it, not nothing: {line}"
+            "one cord came out of it, not nothing: {line}"
         );
         let turns: i32 = line
             .rsplit("after ")
@@ -876,7 +880,7 @@ mod craft_tests {
             .and_then(|rest| rest.split_whitespace().next())
             .and_then(|count| count.parse().ok())
             .expect("the line states how many turns it took");
-        assert_eq!(turns, 360, "36,000 moves is 360 turns at a hundred a turn");
+        assert_eq!(turns, 300, "30,000 moves is 300 turns at a hundred a turn");
     }
 }
 

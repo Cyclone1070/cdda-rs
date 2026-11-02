@@ -40,6 +40,22 @@ pub fn carried_by_id(
     counted
 }
 
+/// The kind of every stack a creature carries, one entry per stack.
+///
+/// A quality question is about the **items**, not the counts: a recipe that needs two items with `HAMMER 2` asks how many carried stacks have it, which is what this
+/// list is for.
+#[must_use]
+pub fn carried_kinds(world: &mut World, creature: Entity) -> Vec<crate::ItemTypeId> {
+    let mut kinds = Vec::new();
+    let mut query = world.query::<(&Carried, &GroundItem)>();
+    for (carried, item) in query.iter(world) {
+        if carried.0 == creature {
+            kinds.push(item.kind);
+        }
+    }
+    kinds
+}
+
 /// What everything a creature carries weighs, in grams.
 ///
 /// Reference: `Character::weight_carried`, which sums the items in the inventory. The port sums the entities that point
