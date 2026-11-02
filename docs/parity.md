@@ -7990,3 +7990,39 @@ duration rule now has one home instead of two. A duplicated rule is a bug that w
 
 **And `run_effect` hit the cap again**, at 103 lines, so the effect family moved into `run_store_effect` beside the other store-writes. That is the third such
 extraction, and the shape is now consistent: **a table of rules stays small, and a family of similar rules lives in a function with a name.**
+
+## `turn_cost`, and the bug it had for one measurement (round 927)
+
+`turn_cost` is small: `f_turn_cost` (`npctalk.cpp:5291-5300`) takes the member **as** a duration, converts with `to_moves` - a hundred moves a turn - and spends it
+from the speaker. The port reads it, and `creature::spend_moves` already existed.
+
+**My first version of the reader answered `Some` for every object it saw.** `read_turn_cost` passed `object.get("turn_cost")` to `read_effect_duration`, which treats
+`None` as "use the default" - so every effect that no other reader claimed became a **free action**: readable, `Done`, and doing nothing.
+
+The census caught it in one measurement:
+
+| Count | With the bug | After the fix |
+|---|---|---|
+programs readable | 593 | **522** |
+answered `Done` | 435 | **344** |
+silent | 422 | **249** |
+unreadable leaves | 30 | **202** |
+
+**Seventy-four programs looked like they had become readable.** The giveaway was the shape of the move, not the size: `readable` rose by 74 while **`silent` rose by
+181** and `refused_at_run` fell by 26. A reader that swallows everything turns refusals into silence, and silence is what a program that does nothing looks like. The
+fix is one line - require the member - and the honest numbers are:
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 519 | **522** |
+answered `Done` | 335 | **344** |
+did something | 237 | **246** |
+refused at run time | 184 | **178** |
+unreadable leaves | 208 | **202** |
+one-gap programs | 58 | **56** |
+effect entries runnable | 1,432 | **1,436** |
+effect census blaming `effect` | 161 | **158** |
+
+**The rule this proves:** a reader is tried on **every** object no other reader claimed, so "return `Some` when the member is absent" is not a default - it is a claim
+that every unreadable effect in the game is this effect. The test that pinned `turn_cost` would have passed either way; it is the census's own tuple that could tell
+the difference, and I read it before pinning, which is the only reason the wrong numbers were not written down as progress.

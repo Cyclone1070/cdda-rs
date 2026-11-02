@@ -1825,3 +1825,21 @@ fn a_duration_reads_from_a_variable() {
     .expect("json");
     assert!(cdda_content::dialogue::read_effect(&rolled).is_some(), "and so does a rolled one");
 }
+
+/// `turn_cost` spends the speaker's moves: a turn is a hundred moves, and the cost is a duration like any other.
+///
+/// Reference: `f_turn_cost` (`npctalk.cpp:5291-5300`): `mod_moves( -to_moves<int>( cost ) )`, with `to_moves` a hundred moves a turn. The test starts with a
+/// known number of moves, so a wrong conversion factor shows up as a wrong number rather than as "something changed".
+#[test]
+fn a_turn_cost_spends_a_hundred_moves_a_turn() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::creature::set_moves(&mut world, survivor, 1000);
+
+    let value = cdda_json::parse(br#"{"turn_cost": 2}"#.as_slice()).expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    let applied = cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect);
+    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "it runs");
+    let left = world.get::<cdda_sim::creature::Moves>(survivor).map(|moves| moves.left);
+    assert_eq!(left, Some(800), "two turns cost two hundred moves");
+}

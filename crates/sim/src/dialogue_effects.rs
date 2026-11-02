@@ -575,6 +575,23 @@ fn pick_type(
     drawn
 }
 
+/// Spends the speaker's action points on the words.
+///
+/// Reference: `f_turn_cost` (`npctalk.cpp:5295-5299`): `target->mod_moves( -to_moves<int>( cost ) )`, and `to_moves` is a hundred moves a turn. The port's moves
+/// are whole points already, so the conversion is a multiplication and a cast.
+fn turn_cost(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::TurnCost { cost } = effect else {
+        return Applied::CannotAnswer;
+    };
+    let Some(turns) = roll_duration(world, speaker, listener, cost) else {
+        return Applied::CannotAnswer;
+    };
+    #[allow(clippy::cast_precision_loss)]
+    let moves = (turns.saturating_mul(100)) as f64;
+    crate::creature::spend_moves(world, speaker, moves);
+    Applied::Done
+}
+
 /// Drops a mission from the avatar's list, without calling it done or failed.
 ///
 /// Reference: `f_remove_active_mission` (`npctalk.cpp:5964-5972`): the avatar's mission of that type is removed; one the character does not hold is not an error.
@@ -1699,6 +1716,7 @@ fn run_store_effect(
         Effect::SetCondition { .. } => set_condition(world, speaker, listener, effect),
         Effect::FinishMission { .. } => finish_mission(world, speaker, listener, effect),
         Effect::RemoveActiveMission { .. } => remove_active_mission(world, speaker, listener, effect),
+        Effect::TurnCost { .. } => turn_cost(world, speaker, listener, effect),
         // Audio changes no game state, and the port has no audio: Done, not refused - nothing is missing from the simulation, only from the sound card. A
         // comment-only entry does nothing, which the reference's loader also does with it.
         Effect::PlaySoundEffect { .. } | Effect::Nothing => Applied::Done,

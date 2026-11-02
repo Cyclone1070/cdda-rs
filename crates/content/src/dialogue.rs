@@ -1589,6 +1589,7 @@ fn read_unnamed_effect(object: &cdda_json::Object) -> Option<Effect> {
         .or_else(|| read_set_condition(object))
         .or_else(|| read_finish_mission(object))
         .or_else(|| read_remove_active_mission(object))
+        .or_else(|| read_turn_cost(object))
 }
 
 /// Reads a `sound_effect` entry.
@@ -1606,6 +1607,19 @@ fn read_sound_effect(object: &cdda_json::Object) -> Option<Effect> {
             Some(value) => read_count(Some(value))?,
         },
         outdoor_event: matches!(object.get("outdoor_event"), Some(Value::Bool(true))),
+    })
+}
+
+/// Reads a `turn_cost` entry.
+///
+/// Reference: `f_turn_cost` (`npctalk.cpp:5291-5296`): `get_duration_or_var( jo, member, true )` - the member **is** the duration, and it is required.
+fn read_turn_cost(object: &cdda_json::Object) -> Option<Effect> {
+    // The member is **required**: this reader is tried on every object no other reader claimed, so answering `Some` for an object without a `turn_cost` would
+    // silently turn every unreadable effect in the data into a free action. That is exactly the bug the first version of this function had, and the census caught it
+    // as seventy-four programs that suddenly became "readable" and answered `Done` without doing anything.
+    let cost = object.get("turn_cost")?;
+    Some(Effect::TurnCost {
+        cost: read_effect_duration(Some(cost), EffectDuration::Turns(Some(0)))?,
     })
 }
 
@@ -2021,6 +2035,14 @@ pub enum Effect {
         volume: CountRange,
         /// Whether it is only heard outdoors.
         outdoor_event: bool,
+    },
+    /// Makes the speaker pay for the words, in action points.
+    ///
+    /// Reference: `f_turn_cost` (`npctalk.cpp:5291-5300`): the member itself is a duration, the reference converts it with `to_moves` - one turn is a hundred
+    /// moves - and spends it from the character who is speaking. A dialogue with a cost leaves the speaker with less of a turn to act in.
+    TurnCost {
+        /// How much time the effect costs.
+        cost: EffectDuration,
     },
     /// Drops a mission from the character's list without calling it done or failed.
     ///
@@ -2534,6 +2556,7 @@ impl Effect {
             Self::SetCondition { .. } => "set_condition",
             Self::FinishMission { .. } => "finish_mission",
             Self::RemoveActiveMission { .. } => "remove_active_mission",
+            Self::TurnCost { .. } => "turn_cost",
             Self::SpawnItem { .. } => "u_spawn_item",
             Self::ConsumeItem { listener, .. } => {
                 if *listener {
