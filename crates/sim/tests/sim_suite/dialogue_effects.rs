@@ -1677,7 +1677,8 @@ fn a_location_variable_can_hold_the_nearest_tile_of_a_terrain() {
     // example kept here.
     for text in [
         r#"{"u_location_variable": {"u_val": "x"}, "target_params": {"om_special": "hospital"}}"#,
-        r#"{"u_location_variable": {"u_val": "x"}, "monster": "mon_zombie"}"#,
+        // A monster search **is** answered now (the `search_type = "monster"` walk), so the refused case here is a field again, which the port has no rule for.
+        r#"{"u_location_variable": {"u_val": "x"}, "field": "fd_fire"}"#,
     ] {
         let value = cdda_json::parse(text.as_bytes()).expect("json");
         assert!(

@@ -2969,3 +2969,37 @@ fn a_location_adjust_moves_a_square_by_tiles_and_overrides_the_level() {
         "and the input variable is untouched, because an output was named"
     );
 }
+
+/// A monster search answers the square of the **nearest** creature of that kind, skipping one too close.
+///
+/// Reference: `f_location_variable` (`npctalk.cpp:4300-4320`): the walk skips squares at or inside `target_min_radius` and stops at `target_max_radius`. The test puts a
+/// match **too close** and a second one in range, so a port that ignored the minimum radius would answer the near one and fail.
+#[test]
+fn a_monster_search_answers_the_nearest_one_far_enough_out() {
+    let mut world = bevy_ecs::prelude::World::new();
+    cdda_sim::monster_registry::set_monster_types(
+        &mut world,
+        &[cdda_sim::monster_registry::MonsterKind { id: "mon_lieutenant_shadow", hp: 10 }],
+    );
+    let kind = cdda_sim::monster_registry::id_of(&mut world, "mon_lieutenant_shadow").expect("installed");
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::spawn_monster(&mut world, (1, 0), kind, 10);
+    cdda_sim::spawn_monster(&mut world, (6, 0), kind, 10);
+    let globals = cdda_sim::dialogue_values::holder_for(&mut world, survivor, true);
+    let value = cdda_json::parse(
+        br#"{"u_location_variable": {"global_val": "shadow"}, "monster": "mon_lieutenant_shadow",
+            "target_min_radius": 3, "target_max_radius": 10}"#
+            .as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    assert_eq!(
+        cdda_sim::dialogue_values::value_of(&world, globals, "shadow"),
+        Some(cdda_sim::dialogue_values::Value::Position { x: 6, y: 0, z: 0 }),
+        "the one six squares out, not the one beside the survivor"
+    );
+}

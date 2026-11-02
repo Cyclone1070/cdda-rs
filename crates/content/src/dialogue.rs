@@ -2276,6 +2276,25 @@ pub enum Effect {
         /// Whether the x and y moves are counted in overmap tiles.
         overmap_tile: bool,
     },
+    /// Stores the square of a monster of a given kind found around the actor.
+    ///
+    /// Reference: `f_location_variable` (`npctalk.cpp:4250-4300`) with `search_type = "monster"`: the reference walks the squares inside
+    /// `target_max_radius` around the actor and answers the first one holding a creature whose type id is the one named, skipping squares at or inside
+    /// `target_min_radius`.
+    MonsterAround {
+        /// The monster's id.
+        monster: String,
+        /// Which holder the square goes to.
+        scope: String,
+        /// The variable the square goes into.
+        name: String,
+        /// How near the actor a monster may be and still be skipped.
+        min_radius: i32,
+        /// How far out to look.
+        max_radius: i32,
+        /// Whether the square goes to the listener's variables rather than the speaker's.
+        listener: bool,
+    },
     /// Runs programs on the items a creature carries.
     ///
     /// Reference: `f_run_inv_eocs` (`npctalk.cpp:6760-6805`): `u_run_inv_eocs` says how the items are chosen - `"all"` for every match, `"manual"` for a menu - and
@@ -3015,7 +3034,8 @@ impl Effect {
             | Self::GiveAchievement { .. }
             | Self::FurnitureAround { .. }
             | Self::RunInvEocs { .. }
-            | Self::LocationVariableAdjust { .. } => self.store_kind().unwrap_or_default(),
+            | Self::LocationVariableAdjust { .. }
+            | Self::MonsterAround { .. } => self.store_kind().unwrap_or_default(),
             Self::PlaceOverride { .. } => "place_override",
             Self::SpawnItem { .. } => "u_spawn_item",
             Self::ConsumeItem { listener, .. } => {
@@ -3731,6 +3751,35 @@ fn read_switch(object: &cdda_json::Object) -> Option<Effect> {
 /// Reference: `f_location_variable` (`npctalk.cpp:4194`). The searching forms (`target_params`, a `terrain`/`furniture`/`field`/`monster`/`npc`/
 /// `species`/`trap`/`zone` list, radii) walk the overmap and the map for the nearest match, which nothing in the port can do yet - and answering
 /// them with the actor's own square would be a wrong answer that looked right.
+/// Reads a `u_location_variable` that searches for a monster, or nothing.
+///
+/// Reference: `f_location_variable` (`npctalk.cpp:4300-4320`), the `search_type == "monster"` branch. A `target_params` beside it would search an overmap area
+/// first, which this reader does not do - the refusal is a missing rule, not a missing store, since the monster table is here.
+fn read_monster_around(object: &cdda_json::Object, target: &cdda_json::Object, listener: bool) -> Option<Effect> {
+    let Value::Str(monster) = object.get("monster")? else {
+        return None;
+    };
+    for asked in ["terrain", "furniture", "field", "npc", "species", "trap", "zone", "target_params"] {
+        if object.get(asked).is_some() {
+            return None;
+        }
+    }
+    let whole = |key: &str| match object.get(key) {
+        None => Some(0),
+        Some(Value::Int(number)) => i32::try_from(*number).ok(),
+        Some(_) => None,
+    };
+    let (scope, name) = named_variable(target)?;
+    Some(Effect::MonsterAround {
+        monster: monster.clone(),
+        scope,
+        name,
+        min_radius: whole("target_min_radius")?,
+        max_radius: whole("target_max_radius")?,
+        listener,
+    })
+}
+
 /// Reads a `location_variable_adjust` entry.
 ///
 /// Reference: `f_location_variable_adjust` (`npctalk.cpp:4411-4448`): the member is the input `var_info`, `output_var` where the answer goes, and the three adjusts
@@ -4109,6 +4158,9 @@ fn read_location_variable(object: &cdda_json::Object) -> Option<Effect> {
             return Some(found);
         }
         if let Some(found) = read_terrain_target(object, target, listener) {
+            return Some(found);
+        }
+        if let Some(found) = read_monster_around(object, target, listener) {
             return Some(found);
         }
         if let Some(found) = read_radius_search(object, target, listener) {

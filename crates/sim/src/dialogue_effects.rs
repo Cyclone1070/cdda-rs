@@ -601,6 +601,52 @@ fn pick_type(
     drawn
 }
 
+/// Stores the square of a monster of a given kind found around the actor.
+///
+/// Reference: `f_location_variable` (`npctalk.cpp:4300-4320`): the walk is the same `points_in_radius` the furniture search makes, comparing the creature's type id,
+/// and a square at or inside `target_min_radius` is skipped. The port looks for the **nearest** match rather than the first in walk order, which is what the radius
+/// walk answers when the squares are visited by distance - and it answers a square, not the creature, because the data stores a location.
+fn store_monster_around(world: &mut World, speaker: Entity, effect: &Effect) -> Applied {
+    let Effect::MonsterAround { monster, scope, name, min_radius, max_radius, .. } = effect else {
+        return Applied::CannotAnswer;
+    };
+    let Some(crate::Position { x, y, z }) = world.get::<crate::Position>(speaker).copied() else {
+        return Applied::CannotAnswer;
+    };
+    let mut found: Option<((i32, i32, i32), i32)> = None;
+    let mut kinds: Vec<(crate::MonsterKindId, (i32, i32, i32))> = Vec::new();
+    let mut query = world.query::<(&crate::creature::CreatureKind, &crate::Position)>();
+    for (kind, at) in query.iter(world) {
+        kinds.push((kind.0, (at.x, at.y, at.z)));
+    }
+    for (kind, at) in kinds {
+        let Some(their_name) = crate::monster_registry::name_of(world, kind) else {
+            continue;
+        };
+        if their_name != *monster || at.2 != z {
+            continue;
+        }
+        let distance = (at.0 - x).abs().max((at.1 - y).abs());
+        if distance <= *min_radius || distance > *max_radius {
+            continue;
+        }
+        if found.is_none_or(|(_, best)| distance < best) {
+            found = Some((at, distance));
+        }
+    }
+    let Some((at, _)) = found else {
+        return Applied::CannotAnswer;
+    };
+    let holder = crate::dialogue_values::holder_for(world, speaker, scope == "global_val");
+    crate::dialogue_values::set(
+        world,
+        holder,
+        name,
+        crate::dialogue_values::Value::Position { x: at.0, y: at.1, z: at.2 },
+    );
+    Applied::Done
+}
+
 /// Moves a square the dialogue holds, and stores the new one.
 ///
 /// Reference: `f_location_variable_adjust` (`npctalk.cpp:4419-4446`): with `overmap_tile` the x and y moves count **overmap tiles** rather than squares, `z_override`
@@ -2330,6 +2376,7 @@ fn run_store_effect(
         Effect::GiveAchievement { .. } => give_achievement(world, speaker, listener, effect),
         Effect::RunInvEocs { .. } => run_inv_eocs(world, speaker, listener, effect),
         Effect::LocationVariableAdjust { .. } => adjust_location(world, speaker, listener, effect),
+        Effect::MonsterAround { .. } => store_monster_around(world, speaker, effect),
         // Audio changes no game state, and the port has no audio: Done, not refused - nothing is missing from the simulation, only from the sound card. A
         // comment-only entry does nothing, which the reference's loader also does with it.
         Effect::PlaySoundEffect { .. } | Effect::Nothing => Applied::Done,

@@ -8996,3 +8996,26 @@ one variable, never two.
 
 **`read_math_expression` did the adjust reading**, so a two-end array - `"x_adjust": [-1, 1]`, the shape the corpus actually writes - is a **draw between the ends**
 without a line of new code. That is the third time this session a shared reader has carried a new effect; the readers are worth more than the effects that use them.
+
+## A monster search: the nearest one far enough out (round 963)
+
+`f_location_variable`'s `search_type = "monster"` (`npctalk.cpp:4300-4320`) is the third target of the same walk, after terrain and furniture: squares inside
+`target_max_radius`, skipping those at or inside `target_min_radius`, comparing the creature's type id. The port reads and answers it.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 567 | **568** |
+answered `Done` | 370 | **371** |
+did something | 269 | **270** |
+unreadable leaves | 127 | **125** |
+effect entries runnable | 1,510 | **1,512** |
+effect census blaming `effect` | 117 | **116** |
+
+**The test puts one match too close and one in range**, so a port that ignored `target_min_radius` would answer the near one - which is exactly the mistake the monster
+spawn rule made a fortnight of rounds ago with `outdoor_only`, and the reason both halves of the radius pair are now read in every search.
+
+**The port answers the *nearest* match rather than the first in walk order.** The reference visits `points_in_radius` in distance order, so the first match it accepts is
+the nearest one that clears the minimum - the two answers agree, and naming the rule as "nearest" is the version a reader can check.
+
+**A fourth refusal had to be redrawn:** my terrain test still listed `{"monster": "mon_zombie"}` as something the port cannot answer. It can now, so the example moved to
+a `field`, which is still refused. **The refusal lists are the test suite's memory of the frontier, and they go stale faster than anything else in this repo.**
