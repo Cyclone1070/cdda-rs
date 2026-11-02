@@ -502,6 +502,7 @@ fn holds_within(
         Condition::CanSeeLocation { .. } => can_see_asked(world, speaker, listener, condition),
         Condition::MapInCity { .. } => map_in_city(world, speaker, listener, condition),
         Condition::MapTerFurnWithFlag { .. } => map_ter_furn_with_flag(world, speaker, listener, condition),
+        Condition::IsDeaf { .. } => is_deaf(world, speaker, listener, condition),
         Condition::AtOmLocation { place, listener: about_listener } => {
             at_om_location(world, speaker, listener, place, *about_listener)
         }
@@ -1518,6 +1519,27 @@ fn compares_strings(world: &World, speaker: Entity, listener: Option<Entity>, so
         seen.push(text);
     }
     false
+}
+
+/// Whether a creature cannot hear.
+///
+/// Reference: `Character::is_deaf` (`character.cpp:4768-4775`): a `deaf` effect past intensity 2, worn gear carrying the `DEAF` flag, a mutation with the same flag, or
+/// the `narcosis` effect. **The reference's fifth clause is left out** - a fungal mutation while asleep in fungus - because the port has no sleep state yet; the rule is
+/// written here so that the day it does, one clause is added rather than a second rule discovered.
+fn is_deaf(world: &World, speaker: Entity, listener: Option<Entity>, condition: &Condition) -> bool {
+    let Condition::IsDeaf { listener: theirs } = condition else {
+        return false;
+    };
+    let Some(creature) = actor_for(speaker, listener, *theirs) else {
+        return false;
+    };
+    if crate::applied_effects::intensity_of(world, creature, "deaf").is_some_and(|strength| strength > 2) {
+        return true;
+    }
+    if crate::applied_effects::has(world, creature, "narcosis") {
+        return true;
+    }
+    crate::worn_flags::worn_with_flag(world, creature, "DEAF") || crate::creature_flags::has_flag(world, creature, "DEAF")
 }
 
 fn can_see_asked(world: &World, speaker: Entity, listener: Option<Entity>, condition: &Condition) -> bool {

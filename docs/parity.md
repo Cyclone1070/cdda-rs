@@ -9467,3 +9467,27 @@ programs blaming their effects | 108 | **107** |
 **A process note that belongs in the record:** this round's refactor went wrong twice - a helper was inserted under a name the file already had, and a later cleanup
 deleted a live arm instead of its duplicate. Both were caught by the gates (`readable` fell from 578 to 577, then clippy named a function at 101 lines), and the fix was
 to **rebuild the file from `HEAD` and re-apply the change in one pass** rather than patch a damaged copy. The numbers above are from the rebuilt file.
+
+## Deafness is a rule with a boundary at two (round 982)
+
+The `run_eocs` refusals in the diagnostic were two programs whose **inline branches** carried `u_is_deaf`, a condition the port had no reader for at all. With it read, the
+bionic-noise program's whole entry list reads - its sound, its two inline branches with ids, and the `sound_effect` entries inside them.
+
+`is_deaf` is `Character::is_deaf` (`character.cpp:4768-4775`), and the port has four of its five clauses: a `deaf` effect **past intensity 2**, worn gear with the `DEAF`
+flag, a mutation with the same flag, and the `narcosis` effect. **The fifth - a fungal mutation while asleep in fungus - is left out and named in the rule's own doc**,
+because the port has no sleep state; the day it does, one clause is added rather than a second rule discovered.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 578 | **579** |
+answered `Done` | 388 | **389** |
+unreadable entries | 85 | **84** |
+one-gap programs | 20 | **19** |
+effect entries runnable | 1,536 | **1,537** |
+conditions readable | 3,226 | **3,227** |
+ran in a built world | 392 | **393** |
+programs refusing at their first entry | 31 | **30** |
+
+**The boundary is the test's point:** intensity **2 is not deaf**, 3 is - the reference asks `> 2`, and `>= 2` is the mistake a reader makes when it trusts the word
+"deaf" over the number. The test walks both sides of that line and the narcosis clause, because a condition that answers `true` for everything passes a test that only
+asks about a deaf creature.

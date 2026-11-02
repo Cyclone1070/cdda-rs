@@ -46,6 +46,13 @@ pub enum Condition {
         /// Whether it asks about the listener rather than the speaker.
         listener: bool,
     },
+    /// Whether a creature cannot hear.
+    ///
+    /// Reference: `f_is_deaf` (`condition.cpp:2117-2122`) answering `Character::is_deaf` (`character.cpp:4768-4775`).
+    IsDeaf {
+        /// Whether it asks about the listener rather than the speaker.
+        listener: bool,
+    },
     /// Whether the terrain or furniture at a square carries a flag.
     ///
     /// Reference: `f_map_ter_furn_with_flag` (`condition.cpp:1818-1842`): `map_terrain_with_flag` asks the tile's terrain, `map_furniture_with_flag` its furniture, and
@@ -530,6 +537,12 @@ fn read_knows_recipe(object: &cdda_json::Object) -> Option<Condition> {
 fn read_bare_condition(name: &str) -> Option<Condition> {
     match name {
         "u_can_see" => return Some(Condition::CanSee { listener: false }),
+        // Reference: `{"u_is_deaf", "npc_is_deaf", &conditional_fun::f_is_deaf}` (`condition.cpp:2659`), argument-less in the data.
+        "u_is_deaf" | "npc_is_deaf" => {
+            return Some(Condition::IsDeaf {
+                listener: name == "npc_is_deaf",
+            });
+        }
         "npc_can_see" => return Some(Condition::CanSee { listener: true }),
         // Some argument-less guards are written as **bare names** inside an `or`, not as members: `"u_is_outside"` with no value (`haunting.json`).
         "u_is_outside" | "npc_is_outside" => {
@@ -605,6 +618,7 @@ fn read_has_effect(object: &cdda_json::Object) -> Option<Condition> {
 #[must_use]
 pub fn read_condition(value: &Value) -> Option<Condition> {
     // Reference: a bare name is an argument-less condition (`condition.cpp:2783-2810`).
+    // `u_is_deaf` and `npc_is_deaf` are the two that ask about a creature rather than the world.
     if let Value::Str(name) = value {
         return read_bare_condition(name);
     }

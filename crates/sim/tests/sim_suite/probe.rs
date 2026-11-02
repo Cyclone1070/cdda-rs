@@ -3523,3 +3523,87 @@ fn the_terrain_at_a_stored_square_answers_its_flags() {
         "and it is not a wall"
     );
 }
+
+/// Every entry of the bionic-noise program reads, including its two inline branches.
+///
+/// Reference: `bio_noise` (`data/json/effects_on_condition/bionic_eocs.json`): a sound, then a `run_eocs` of two **inline** programs, each with an `id`, a `condition` and
+/// an `effect` list holding a message and a `sound_effect`. The port refuses this entry today, and this test says which part.
+#[test]
+fn the_bionic_noise_program_reads() {
+    let effect = cdda_json::parse(
+        br#"[{"u_make_sound": "Crackle!", "volume": 60, "type": "movement"},
+            {"run_eocs": [{"id": "bio_noise_hearing", "condition": {"not": "u_is_deaf"},
+                           "effect": [{"u_message": "Your faulty bionic emits a crackle of noise!", "type": "bad"},
+                                      {"sound_effect": "elec_blast", "id": "bionics", "volume": 100}]},
+                          {"id": "bio_noise_deaf", "condition": "u_is_deaf",
+                           "effect": [{"u_message": "You feel your faulty bionic shuddering.", "type": "bad"},
+                                      {"sound_effect": "elec_blast_muffled", "id": "bionics", "volume": 100}]}]}]"#
+            .as_slice(),
+    )
+    .expect("json");
+    let cdda_json::Value::Array(entries) = effect else {
+        unreachable!("the test wrote a list");
+    };
+    for (index, entry) in entries.iter().enumerate() {
+        assert!(
+            cdda_content::dialogue::read_effect(entry).is_some(),
+            "entry {index} reads: {entry:?}"
+        );
+    }
+}
+
+/// Deafness is an effect past intensity two, or narcosis, or worn gear with the flag.
+///
+/// Reference: `Character::is_deaf` (`character.cpp:4768-4775`). The test walks the three clauses the port has and the boundary the reference draws - intensity **2 is not
+/// deaf**, 3 is - because `get_effect_int( effect_deaf ) > 2` is the rule and `>= 2` is the mistake.
+#[test]
+fn deafness_is_an_effect_past_two_or_the_gear_that_blocks_it() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let condition = cdda_content::dialogue::read_condition(&cdda_json::parse(br#""u_is_deaf""#.as_slice()).expect("json"))
+        .expect("the condition reads");
+    assert!(!cdda_sim::conditions::holds(&world, survivor, &condition), "a healthy creature hears");
+    cdda_sim::applied_effects::add(
+        &mut world,
+        survivor,
+        cdda_sim::effects::ActiveEffect {
+            id: "deaf".to_owned(),
+            intensity: 2,
+            duration: 100,
+            permanent: false,
+        },
+    );
+    assert!(
+        !cdda_sim::conditions::holds(&world, survivor, &condition),
+        "intensity two is still not deaf - the reference asks for more than two"
+    );
+    cdda_sim::applied_effects::add(
+        &mut world,
+        survivor,
+        cdda_sim::effects::ActiveEffect {
+            id: "deaf".to_owned(),
+            intensity: 3,
+            duration: 100,
+            permanent: true,
+        },
+    );
+    assert!(
+        cdda_sim::conditions::holds(&world, survivor, &condition),
+        "intensity three is deaf"
+    );
+    let other = cdda_sim::creature::spawn_creature(&mut world, "the other", (1, 0, 0));
+    cdda_sim::applied_effects::add(
+        &mut world,
+        other,
+        cdda_sim::effects::ActiveEffect {
+            id: "narcosis".to_owned(),
+            intensity: 1,
+            duration: 100,
+            permanent: false,
+        },
+    );
+    assert!(
+        cdda_sim::conditions::holds(&world, other, &condition),
+        "and narcosis deafens whoever has it"
+    );
+}
