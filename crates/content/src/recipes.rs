@@ -76,6 +76,12 @@ pub struct Recipe {
     /// form** (`byproducts` naming an item group) is not read here, because picking from a group needs the item-group store at craft time; the loader keeps only the
     /// pair form and a recipe whose byproducts are a group keeps none.
     pub byproducts: Vec<(String, i32)>,
+    /// Byproducts that are an **inline item group**: each entry is an item and the two ends of the count to draw between.
+    ///
+    /// Reference: `byproduct_group` (`recipe.cpp:380-386`), loaded through `item_group::load_item_group` and turned into items by `create_byproducts`
+    /// (`recipe.cpp:872-900`). The data writes it out in the recipe itself - `{"item": "arrow_wood_heavy", "count": [0, 4]}` - so the count is a **range** and the
+    /// rule draws from it once per batch. Entries that name a group rather than an item are refused by the loader rather than guessed at.
+    pub byproduct_group: Vec<(String, i32, i32)>,
     /// How many of the result one batch makes, all told.
     ///
     /// Reference: `recipe::create_results` (`recipe.cpp:790-825`) makes `result_mult` results per batch item, and `create_result` (`recipe.cpp:754`) gives each of
@@ -154,6 +160,41 @@ fn tools_of(object: &Object) -> Option<Vec<Vec<Tool>>> {
         out.push(inner);
     }
     Some(out)
+}
+
+/// An inline `byproduct_group`, as `(item, low, high)` ranges.
+///
+/// Reference: `byproduct_group` (`recipe.cpp:380-386`) is an item group written in the recipe itself, whose counts may be one number or two ends to draw between.
+/// Entries that name another group rather than an item are skipped: following a group inside a group is the group model's job, not the recipe's.
+fn groups_of(object: &Object) -> Vec<(String, i32, i32)> {
+    let Some(Value::Array(entries)) = member(object, "byproduct_group") else {
+        return Vec::new();
+    };
+    let mut drawn = Vec::with_capacity(entries.len());
+    for entry in entries {
+        let Value::Object(entry) = entry else {
+            continue;
+        };
+        let Some(Value::Str(item)) = member(entry, "item") else {
+            continue;
+        };
+        let ends = match member(entry, "count") {
+            Some(Value::Int(count)) => {
+                let count = i32::try_from(*count).unwrap_or(0);
+                (count, count)
+            }
+            Some(Value::Array(pair)) => match (pair.first(), pair.get(1)) {
+                (Some(Value::Int(low)), Some(Value::Int(high))) => (
+                    i32::try_from(*low).unwrap_or(0),
+                    i32::try_from(*high).unwrap_or(0),
+                ),
+                _ => continue,
+            },
+            _ => continue,
+        };
+        drawn.push((item.clone(), ends.0.min(ends.1), ends.0.max(ends.1)));
+    }
+    drawn
 }
 
 fn qualities_of(object: &Object) -> Option<Vec<Vec<Quality>>> {
@@ -244,6 +285,7 @@ pub fn from_dump(value: &Value) -> Option<(Vec<Recipe>, usize)> {
                     .collect(),
                 _ => Vec::new(),
             },
+            byproduct_group: groups_of(object),
             // The dump states the product; the game's own JSON states the factors separately, and the product is what the rule uses.
             made_per_batch: {
                 let stated = member(object, "made_per_batch");

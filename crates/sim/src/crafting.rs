@@ -114,6 +114,21 @@ pub fn finish_craft(world: &mut World, crafter: Entity, names: &crate::item_regi
     give_to_crafter(world, crafter, kind, charges, names);
     // Reference: `recipe::create_byproducts` (`recipe.cpp:872-900`) - the other things the craft leaves behind, `count * batch` of each. They land wherever the
     // result would have landed, which is the reference's own treatment of them.
+    // Reference: `create_byproducts` (`recipe.cpp:872-900`) also draws from `byproduct_group`, an **inline item group** whose counts are ranges - so each entry is
+    // rolled once per batch rather than multiplied. The roll leads the give, because a draw of zero makes nothing.
+    for (byproduct, low, high) in &making.recipe.byproduct_group {
+        let Some(kind) = names.id_of(byproduct) else {
+            continue;
+        };
+        for _ in 0..making.batch.max(1) {
+            let Some(made) = crate::crafting::draw_between(world, *low, *high) else {
+                continue;
+            };
+            if made > 0 {
+                give_to_crafter(world, crafter, kind, made, names);
+            }
+        }
+    }
     for (byproduct, count) in &making.recipe.byproducts {
         let Some(kind) = names.id_of(byproduct) else {
             continue;
@@ -186,6 +201,20 @@ fn spend_tool_charges(
             break;
         }
     }
+}
+
+/// Draws a whole number between two ends, both included, from the world's dice.
+fn draw_between(world: &mut World, low: i32, high: i32) -> Option<i32> {
+    if low == high {
+        return Some(low);
+    }
+    let (low, high) = (low.min(high), low.max(high));
+    let mut held = crate::singletons::take_rolls(world);
+    let drawn = held.as_mut().map(|rolls| rolls.rng(low, high));
+    if let Some(dice) = held.take() {
+        crate::singletons::put_rolls(world, dice);
+    }
+    drawn
 }
 
 /// Puts something the crafter just made where a found thing would go: a pocket if it fits, the floor if not.

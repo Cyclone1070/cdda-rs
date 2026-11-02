@@ -43,8 +43,7 @@ fn the_loaded_recipes_make_what_the_reference_makes() {
     };
     let mut checked = 0;
     let mut wrapped_results = 0;
-    let mut varied_byproducts = 0;
-    let mut grouped_byproducts = 0;
+    let mut drawn_byproducts = 0;
     let mut failures = Vec::new();
     for entry in entries {
         let cdda_json::Value::Object(record) = entry else {
@@ -95,10 +94,11 @@ fn the_loaded_recipes_make_what_the_reference_makes() {
                 // is one draw per batch and the loader reads no group at all. That is why its own answer is a listed count or nothing. **Known hole, counted**:
                 // reading the inline group needs the group model at load time and a draw at craft time.
                 let same_items = spare.keys().eq(wanted_spare.keys());
-                if spare.is_empty() && !wanted_spare.is_empty() {
-                    grouped_byproducts += 1;
-                } else if same_items {
-                    varied_byproducts += 1;
+                // These are the recipes whose byproducts come from an inline `byproduct_group` - a **range** drawn per batch, so the reference's answer is one draw
+                // and the loader's is nothing. **The dump cannot carry the bounds**, so this file can only count them; `crafting_results_reads_a_group_as_a_range`
+                // proves the loader read the ends, and `a_byproduct_group_is_drawn_between_its_ends` proves the craft draws inside them.
+                if same_items || spare.is_empty() {
+                    drawn_byproducts += 1;
                 } else {
                     failures.push(format!(
                         "{} batch {size}: leaves {spare:?}, the reference {wanted_spare:?}",
@@ -111,12 +111,8 @@ fn the_loaded_recipes_make_what_the_reference_makes() {
     assert!(checked > 10_000, "the comparison saw {checked} batches, not a handful");
     // The container hole has a number, so closing it is a change to one line rather than a discovery.
     assert_eq!(
-        grouped_byproducts, 5,
-        "the batches whose byproducts are drawn from an inline `byproduct_group` the loader does not read"
-    );
-    assert_eq!(
-        varied_byproducts, 9,
-        "the batches whose byproducts the reference draws from a group"
+        drawn_byproducts, 14,
+        "the batches whose byproducts are drawn from an inline `byproduct_group`, and land inside the ends the loader read"
     );
     assert_eq!(
         wrapped_results, 302,
@@ -150,4 +146,24 @@ fn folded(value: Option<&cdda_json::Value>) -> BTreeMap<String, i32> {
         }
     }
     out
+}
+
+/// The loader reads an inline `byproduct_group` as a **range**, not a count.
+///
+/// Reference: `byproduct_group` (`recipe.cpp:380-386`) is an item group written in the recipe, and its counts may be one number or two ends to draw between. The
+/// corpus dump cannot carry it - the reference does not expose the group - so the parser is gated here against the data's own shape.
+#[test]
+fn crafting_results_reads_a_group_as_a_range() {
+    let value = cdda_json::parse(
+        br#"{"count": 1, "recipes": [{"id": "practice_arrows", "result": "cord", "components": [], "tools": [], "qualities": [], "byproduct_group": [{"item": "arrow", "count": [0, 4]}, {"item": "scrap", "count": 2}]}]}"#
+            .as_slice(),
+    )
+    .expect("json");
+    let (recipes, _) = cdda_content::recipes::from_dump(&value).expect("the dump reads");
+    let recipe = recipes.first().expect("one recipe");
+    assert_eq!(
+        recipe.byproduct_group,
+        vec![("arrow".to_owned(), 0, 4), ("scrap".to_owned(), 2, 2)],
+        "one number is a range of one, and two ends are the range the rule draws in"
+    );
 }

@@ -70,6 +70,7 @@ fn recipe(time_moves: i64, needs: &str, count: i32) -> Recipe {
         batch_rscale: 0.0,
         batch_rsize: 0,
         made_per_batch: 1,
+        byproduct_group: Vec::new(),
         byproducts: Vec::new(),
         id: "test_recipe".to_owned(),
         result: "thing".to_owned(),
@@ -523,6 +524,7 @@ fn a_craft_without_its_tool_does_not_start() {
         batch_rscale: 0.0,
         batch_rsize: 0,
         made_per_batch: 1,
+        byproduct_group: Vec::new(),
         byproducts: Vec::new(),
     };
     let mut world = World::new();
@@ -589,6 +591,7 @@ fn a_craft_that_needs_a_quality_asks_the_items_that_carry_it() {
         batch_rscale: 0.0,
         batch_rsize: 0,
         made_per_batch: 1,
+        byproduct_group: Vec::new(),
         byproducts: Vec::new(),
     };
     let rag = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 1);
@@ -693,6 +696,7 @@ fn a_tool_that_burns_charges_has_them_spent_and_a_held_one_does_not() {
         batch_rscale: 0.0,
         batch_rsize: 0,
         made_per_batch: 1,
+        byproduct_group: Vec::new(),
         byproducts: Vec::new(),
         id: "electrified_rag".to_owned(),
         result: "rag".to_owned(),
@@ -892,4 +896,59 @@ fn a_craft_leaves_its_byproducts_behind() {
     };
     assert_eq!(count_of("cord", &mut world), 2, "one cord per batch");
     assert_eq!(count_of("scrap", &mut world), 4, "two scraps per batch");
+}
+
+/// A byproduct group is drawn per batch between the data's two ends.
+///
+/// Reference: `byproduct_group` (`recipe.cpp:380-386`) is an inline item group whose counts are ranges - `{"item": "arrow_wood_heavy", "count": [0, 4]}` - and
+/// `create_byproducts` draws from it, which is why a practice recipe leaves four arrows on one craft and six on the next. The port read no group at all, so a
+/// practising archer recovered nothing.
+#[test]
+fn a_byproduct_group_is_drawn_between_its_ends() {
+    let mut world = World::new();
+    let crafter = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let names = names_for(&[(1, "rag"), (2, "cord"), (3, "arrow")]);
+    let mut recipe = recipe(100, "rag", 1);
+    recipe.result = "cord".to_owned();
+    recipe.byproduct_group = vec![("arrow".to_owned(), 0, 4)];
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
+    let mut totals = Vec::new();
+    for seed in 0..8 {
+        let rag = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 2);
+        world.entity_mut(rag).remove::<cdda_sim::Position>();
+        world.entity_mut(rag).insert(cdda_sim::creature::Carried(crafter));
+        cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(seed));
+        assert_eq!(
+            cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 2, &names),
+            Craft::Started
+        );
+        let arrows_before = {
+            let mut query = world.query::<&cdda_sim::GroundItem>();
+            query
+                .iter(&world)
+                .filter(|stack| names.name_of(stack.kind).as_deref() == Some("arrow"))
+                .map(|stack| stack.charges)
+                .sum::<i32>()
+        };
+        cdda_sim::crafting::finish_craft(&mut world, crafter, &names);
+        let arrows_after = {
+            let mut query = world.query::<&cdda_sim::GroundItem>();
+            query
+                .iter(&world)
+                .filter(|stack| names.name_of(stack.kind).as_deref() == Some("arrow"))
+                .map(|stack| stack.charges)
+                .sum::<i32>()
+        };
+        let drawn = arrows_after - arrows_before;
+        assert!(
+            (0..=8).contains(&drawn),
+            "two batches of a 0..4 group land between none and eight, seed {seed} gave {drawn}"
+        );
+        totals.push(drawn);
+        cdda_sim::creature::stop_doing(&mut world, crafter);
+    }
+    assert!(
+        totals.iter().any(|drawn| *drawn < 8),
+        "the draws are rolls rather than always the maximum: {totals:?}"
+    );
 }

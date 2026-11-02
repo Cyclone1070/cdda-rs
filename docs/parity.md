@@ -9931,3 +9931,24 @@ group**, written out in the recipe itself as `{"item": "arrow_wood_heavy", "coun
 **The numbers are unchanged and the ledger is now correct**, which is the point: a classification that hides two causes behind two labels is worse than one label that
 names the cause. **The hole is named in the roadmap with what closes it** - the item-group model at load time and a draw at craft time - and the same file now says
 that **item containment** (302 batches) is the larger piece waiting behind it.
+
+## A practising archer recovered nothing (round 1008)
+
+The last hole in the crafting gate is **`byproduct_group`**: an **inline item group** written in the recipe, `{"item": "arrow_wood_heavy", "count": [0, 4]}`, loaded by
+`item_group::load_item_group` (`recipe.cpp:380-386`) and drawn from by `create_byproducts`. The port read no group at all, so the practice recipes - which are how a
+survivor gets better at archery, and whose only output is recovered arrows - gave **nothing back**.
+
+Three pieces, three gates, because the corpus can only see one of them:
+
+| Piece | Rule | Gate |
+|---|---|---|
+reading it | one number is a range of one, `[low, high]` is the range | `crafting_results_reads_a_group_as_a_range` |
+drawing it | **once per batch**, between the ends, from the world's dice | `a_byproduct_group_is_drawn_between_its_ends` - eight seeds, every total inside `0..=8`, and at least one below the maximum |
+holding it | a draw of zero gives nothing rather than an empty stack | the same test's lower bound |
+
+**The corpus dump cannot carry the bounds** - the reference does not expose the group - so the products gate still counts these fourteen as draws rather than comparing
+numbers, and **says so in the test** where someone would otherwise assume the count was a failure. **A gate that names what it cannot see is worth more than one that
+silently measures less.**
+
+**Twelve lines came out of `from_dump` on the way**, which had crossed the hundred-line limit: the group reader is now `groups_of`, beside the other readers. **The limit
+did its job** - the function had two jobs and the lint was the thing that said so.
