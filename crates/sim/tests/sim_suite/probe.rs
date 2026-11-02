@@ -2156,3 +2156,29 @@ fn a_dialogue_cast_runs_the_spells_own_effect() {
         "and a dialogue cast is performed by the spell's own effect ({ported})"
     );
 }
+
+/// A `u_location_variable` with radii and no search writes the actor's own square.
+///
+/// Reference: `f_location_variable` (`npctalk.cpp:4194-4300`) starts `target_pos` at `talker_pos` and only moves it inside the `search_target` block - so
+/// `min_radius` and `max_radius` with nothing to search for are not a search at all, and the variable holds where the actor stands.
+#[test]
+fn a_location_variable_with_radii_and_no_search_is_the_actors_own_square() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (7, 9, 0));
+    let globals = cdda_sim::dialogue_values::holder_for(&mut world, survivor, false);
+    let value = cdda_json::parse(
+        br#"{"u_location_variable": {"u_val": "stuck_teleport"}, "min_radius": 0, "max_radius": 0}"#.as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    let held = cdda_sim::dialogue_values::value_of(&world, globals, "stuck_teleport");
+    assert_eq!(
+        held,
+        Some(cdda_sim::dialogue_values::Value::Position { x: 7, y: 9, z: 0 }),
+        "the actor's own square"
+    );
+}

@@ -644,7 +644,9 @@ fn a_location_variable_holds_the_actors_square() {
     for text in [
         r#"{"u_location_variable": {"u_val": "x"}, "target_params": {"om_terrain": "field", "om_special": "hospital"}}"#,
         r#"{"u_location_variable": {"u_val": "x"}, "terrain": "t_grass"}"#,
-        r#"{"u_location_variable": {"u_val": "x"}, "min_radius": 3}"#,
+        // `min_radius` alone is **not** a search: the reference starts at the talker's own square and only moves it inside a `search_target` block, so a radius
+        // with nothing to search for is answered rather than refused. It is asserted on its own below rather than in this list.
+        r#"{"u_location_variable": {"u_val": "x"}, "zone": "z_shop"}"#,
     ] {
         let value = cdda_json::parse(text.as_bytes()).expect("json");
         assert!(

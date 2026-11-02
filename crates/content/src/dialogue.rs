@@ -3623,7 +3623,10 @@ fn named_variable(target: &cdda_json::Object) -> Option<(String, String)> {
 
 fn read_location_variable(object: &cdda_json::Object) -> Option<Effect> {
     /// The members that turn the effect into a search.
-    const SEARCHING: [&str; 11] = [
+    // A **radius alone is not a search.** Reference: `f_location_variable` (`npctalk.cpp:4194-4300`) starts `target_pos` at the talker's own square, and
+    // `min_radius` / `max_radius` are read but used **only inside** the `search_target` block - with no terrain, furniture, field, monster, npc, species, trap or
+    // zone named, the effect writes the talker's square and the radii are never looked at. The port refused that shape for a year of data it can answer.
+    const SEARCHING: [&str; 9] = [
         "target_params",
         "terrain",
         "furniture",
@@ -3633,8 +3636,6 @@ fn read_location_variable(object: &cdda_json::Object) -> Option<Effect> {
         "species",
         "trap",
         "zone",
-        "min_radius",
-        "max_radius",
     ];
     for (member, listener) in [("u_location_variable", false), ("npc_location_variable", true)] {
         let Some(Value::Object(target)) = object.get(member) else {

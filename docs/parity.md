@@ -8382,3 +8382,37 @@ the same search that would find the claim it replaces.
 **And the honest shape of the original error:** I read `NotPorted` as *"the dispatcher did not find the effect"* when the enum's own doc comment says it means *"the
 port has no rule for this effect yet, so nothing happened and nothing was spent"* - a state an effect can also report **partway through**, when the rule exists and its
 preconditions are missing. **`NotPorted` is a `Result`, not a verdict about the table.**
+
+## A radius is not a search (round 941)
+
+`max_radius` was on the one-gap list, and the object was:
+
+```
+{"u_location_variable": {"u_val": "stuck_teleport"}, "min_radius": 0, "max_radius": 0}
+```
+
+The port refused it because its reader listed `min_radius` and `max_radius` among **the things that make a location variable a search**. The reference does not:
+`f_location_variable` (`npctalk.cpp:4194-4300`) starts `target_pos` at the **talker's own square**, and the two radii are read but used **only inside** the
+`search_target` block - with no terrain, furniture, field, monster, npc, species, trap or zone named, the effect writes the talker's square and the radii are never
+looked at.
+
+**So a radius with nothing to search for is not a search.** The port now answers it: `SEARCHING` holds the eight things that actually name a target, and the radii
+are read where the reference reads them.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 542 | **543** |
+refused at run time | 188 | **189** |
+unreadable leaves | 160 | **159** |
+one-gap programs | 42 | **41** |
+effect entries runnable | 1,480 | **1,481** |
+effect census blaming `effect` | 141 | **140** |
+
+**A test of mine refused the new shape, and it had to be changed deliberately.** `a_location_variable_holds_the_actors_square` listed `{"min_radius": 3}` among the
+forms that must be **refused** - true when written, false now. It failed, named itself, and the entry was replaced with a `zone`, which is a real search the port still
+refuses. **The replacement is the point**: swapping a now-wrong case for a still-true one keeps the list as long and keeps it meaningful, where deleting the case would
+have quietly shrunk the test.
+
+**One shape here is still open and now visible:** `{"terrain": "t_dirt_isherwood_player_spawnpoint", "target_max_radius": 60}` - a terrain searched for around the
+actor - is the reference's `search_type = "terrain"` path, which the port has no reader for. It was hidden behind `max_radius` in the blame list; it is now what the
+list says next.
