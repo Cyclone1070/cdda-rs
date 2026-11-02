@@ -69,9 +69,8 @@ fn recipe(time_moves: i64, needs: &str, count: i32) -> Recipe {
     Recipe {
         batch_rscale: 0.0,
         batch_rsize: 0,
-        result_mult: 1,
+        made_per_batch: 1,
         byproducts: Vec::new(),
-        result_charges: None,
         id: "test_recipe".to_owned(),
         result: "thing".to_owned(),
         blacklisted: false,
@@ -523,9 +522,8 @@ fn a_craft_without_its_tool_does_not_start() {
         time_moves: 1_000,
         batch_rscale: 0.0,
         batch_rsize: 0,
-        result_mult: 1,
+        made_per_batch: 1,
         byproducts: Vec::new(),
-        result_charges: None,
     };
     let mut world = World::new();
     let crafter = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
@@ -590,9 +588,8 @@ fn a_craft_that_needs_a_quality_asks_the_items_that_carry_it() {
         time_moves: 1_000,
         batch_rscale: 0.0,
         batch_rsize: 0,
-        result_mult: 1,
+        made_per_batch: 1,
         byproducts: Vec::new(),
-        result_charges: None,
     };
     let rag = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 1);
     world.entity_mut(rag).remove::<cdda_sim::Position>();
@@ -695,9 +692,8 @@ fn a_tool_that_burns_charges_has_them_spent_and_a_held_one_does_not() {
     let recipe = Recipe {
         batch_rscale: 0.0,
         batch_rsize: 0,
-        result_mult: 1,
+        made_per_batch: 1,
         byproducts: Vec::new(),
-        result_charges: None,
         id: "electrified_rag".to_owned(),
         result: "rag".to_owned(),
         blacklisted: false,
@@ -821,11 +817,11 @@ fn a_recipe_that_makes_more_than_one_makes_that_many() {
     // Two at a time, three apiece, and each result is its own thing.
     let mut many = recipe(100, "rag", 1);
     many.result = "cord".to_owned();
-    many.result_mult = 3;
+    many.made_per_batch = 3;
     let mut batteries = recipe(100, "rag", 1);
     batteries.result = "cord".to_owned();
-    batteries.result_mult = 2;
-    batteries.result_charges = Some(50);
+    // A hundred things per batch, which is the reference's own product of two results holding fifty charges each.
+    batteries.made_per_batch = 100;
     for recipe in [&many, &batteries] {
         // A batch of two needs two rags, because the components scale with the batch.
         for _ in 0..2 {

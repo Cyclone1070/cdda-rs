@@ -76,14 +76,13 @@ pub struct Recipe {
     /// form** (`byproducts` naming an item group) is not read here, because picking from a group needs the item-group store at craft time; the loader keeps only the
     /// pair form and a recipe whose byproducts are a group keeps none.
     pub byproducts: Vec<(String, i32)>,
-    /// How many of the result one batch makes, the reference's `result_mult`.
+    /// How many of the result one batch makes, all told.
     ///
-    /// Reference: `recipe::create_results` (`recipe.cpp:790-825`) makes `result_mult` results per batch item, so a batch of two of a recipe that makes three is six.
-    pub result_mult: i32,
-    /// How many charges each result carries, when the recipe states them.
-    ///
-    /// Reference: `recipe::create_result` (`recipe.cpp:754`): `amount = charges ? *charges : newit.count()`, and that amount is what each result holds.
-    pub result_charges: Option<i32>,
+    /// Reference: `recipe::create_results` (`recipe.cpp:790-825`) makes `result_mult` results per batch item, and `create_result` (`recipe.cpp:754`) gives each of
+    /// them `charges ?: the item's own count` - so the number one batch makes is the **product** of the two, and that product is what the reference's own dump
+    /// reports as `made_per_batch`. The port keeps the product rather than the factors because the factors are members the reference does not expose and the
+    /// product is what every caller wants; a recipe that states neither makes one.
+    pub made_per_batch: i32,
     /// How long one batch takes, in moves.
     ///
     /// Reference: `recipe::time`, read with `to_moves<int>( read_from_json_string<time_duration> )` - so `"20 m"` is
@@ -245,13 +244,20 @@ pub fn from_dump(value: &Value) -> Option<(Vec<Recipe>, usize)> {
                     .collect(),
                 _ => Vec::new(),
             },
-            result_mult: match member(object, "result_mult") {
-                Some(Value::Int(count)) => i32::try_from(*count).unwrap_or(1).max(1),
-                _ => 1,
-            },
-            result_charges: match member(object, "charges") {
-                Some(Value::Int(count)) => Some(i32::try_from(*count).unwrap_or(1)),
-                _ => None,
+            // The dump states the product; the game's own JSON states the factors separately, and the product is what the rule uses.
+            made_per_batch: {
+                let stated = member(object, "made_per_batch");
+                if let Some(Value::Int(made)) = stated {
+                    i32::try_from(*made).unwrap_or(1).max(1)
+                } else {
+                    let mut product: i32 = 1;
+                    for key in ["result_mult", "charges"] {
+                        if let Some(Value::Int(count)) = member(object, key) {
+                            product = product.saturating_mul(i32::try_from(*count).unwrap_or(1).max(1));
+                        }
+                    }
+                    product.max(1)
+                }
             },
             // Reference: `batch_time_factors` is `[percent, size]` (`recipe.cpp:242-246`): the first is divided by a hundred, and a recipe without the member
             // gains nothing from batching.

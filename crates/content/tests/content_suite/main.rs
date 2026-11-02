@@ -24,6 +24,7 @@ mod build_check;
 mod city_settings;
 mod comestibles;
 mod constructions;
+mod crafting_results;
 mod consume_drugs;
 mod corpus;
 mod deployables;

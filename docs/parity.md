@@ -9883,3 +9883,35 @@ the function's own tests green and this one failing with `left: Some(40), right:
 **The general lesson, and it has now cost three separate rounds in this phase:** a ported rule needs two gates, one for its arithmetic and one for its **reach**. The
 crafting rules found the same thing from the other side - `tools_available`, `qualities_available` and `batch_time_moves` were all correct, all tested, and all
 unreachable from the sim. **Correct and unread is the failure mode of a port this size**, and the only defence is a test that starts at the door.
+
+## The rules I transcribed were right, and the loader could not see them (round 1006)
+
+The last three crafting rounds read `result_mult`, `charges` and `byproducts` out of the reference's source and taught `finish_craft` to use them. **Then the audit question
+landed: where does the loader get those numbers?** The answer was nowhere - the port's only recipe source is `corpus/recipes.json`, and that dump did not carry them. **The
+three rules were correct, tested, and fed by defaults**: every recipe made one thing.
+
+So the oracle moved first, as the roadmap says it must:
+
+| Dump | What it now answers |
+|---|---|
+`--dump-recipes` | each recipe's **`made_per_batch`** - the product of `result_mult` and `charges`, asked of `create_results` rather than of members - and its **`byproducts`** |
+`--dump-crafting` | what every recipe **produces** for a batch of one and of two, folded to `(item, count)`, byproducts included |
+
+And the loader changed shape because of what the dump could answer: **`made_per_batch` replaces the two factors.** `result_mult` and `charges` are members the reference
+does not expose; their **product** is what every caller wants and what the reference's own rule produces. Two fields became one, and the one is measured.
+
+### The gate that closes it
+
+`content_suite::crafting_results` compares the loaded recipes against the reference's products for **12,582 batches** (6,291 recipes × 2), and every disagreement is
+**classified rather than tolerated**:
+
+| Outcome | Batches |
+|---|---|
+the port makes exactly what the reference makes | **12,256** |
+the reference wraps the result in a **container** (`contained`, `recipe.cpp:768-771`) | **302** |
+the byproducts are drawn from a **group**, same items, different counts | **9** |
+the byproducts are a **group the loader cannot name at all** | **5** |
+unexplained | **0** |
+
+**The three holes are counted in the test**, so closing one is a change to a pinned number and an assertion, not a rediscovery. **That is the difference between a gap
+and an unknown**, and it is the shape every census in this repository has ended up with.

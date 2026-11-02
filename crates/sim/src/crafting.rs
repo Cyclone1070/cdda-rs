@@ -108,10 +108,9 @@ pub fn finish_craft(world: &mut World, crafter: Entity, names: &crate::item_regi
         // is to say what could not be made rather than pretend a thing appeared.
         return None;
     };
-    // Reference: `recipe::create_results` (`recipe.cpp:790-825`) makes `result_mult` results per batch item, and `create_result` (`recipe.cpp:754`) gives each of
-    // them `charges ?: the item's own count`. The port holds a count as a stack's charges, so the two multiply: a batch of two that makes three apiece is six.
-    let units = making.batch.max(1).saturating_mul(making.recipe.result_mult.max(1));
-    let charges = units.saturating_mul(making.recipe.result_charges.unwrap_or(1).max(1));
+    // Reference: `recipe::create_results` (`recipe.cpp:790-825`): one batch makes `made_per_batch` things, which the reference's own dump reports as the product of
+    // `result_mult` and `charges`. The port holds a count as a stack's charges, so the batch multiplies it.
+    let charges = making.batch.max(1).saturating_mul(making.recipe.made_per_batch.max(1));
     give_to_crafter(world, crafter, kind, charges, names);
     // Reference: `recipe::create_byproducts` (`recipe.cpp:872-900`) - the other things the craft leaves behind, `count * batch` of each. They land wherever the
     // result would have landed, which is the reference's own treatment of them.

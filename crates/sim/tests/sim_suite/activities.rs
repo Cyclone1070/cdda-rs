@@ -295,9 +295,8 @@ fn cancelling_a_craft_keeps_the_ingredients_and_loses_the_work() {
         time_moves: 20_000,
         batch_rscale: 0.0,
         batch_rsize: 0,
-        result_mult: 1,
+        made_per_batch: 1,
         byproducts: Vec::new(),
-        result_charges: None,
     };
     cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
     assert_eq!(
@@ -399,9 +398,8 @@ fn a_paused_craft_is_resumed_where_it_stopped() {
         time_moves: 20_000,
         batch_rscale: 0.0,
         batch_rsize: 0,
-        result_mult: 1,
+        made_per_batch: 1,
         byproducts: Vec::new(),
-        result_charges: None,
     };
     cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
     assert_eq!(
@@ -497,9 +495,8 @@ fn pain_interrupts_a_craft_and_the_work_is_kept() {
         time_moves: 20_000,
         batch_rscale: 0.0,
         batch_rsize: 0,
-        result_mult: 1,
+        made_per_batch: 1,
         byproducts: Vec::new(),
-        result_charges: None,
     };
     cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
     assert_eq!(
@@ -596,9 +593,8 @@ fn a_blow_stops_a_craft_without_anyone_asking_it_to() {
         time_moves: 20_000,
         batch_rscale: 0.0,
         batch_rsize: 0,
-        result_mult: 1,
+        made_per_batch: 1,
         byproducts: Vec::new(),
-        result_charges: None,
     };
     cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
     assert_eq!(
