@@ -1866,3 +1866,17 @@ fn a_wet_creature_gets_wetter_up_to_soaked() {
     wet(&mut world, r#"{"u_add_wet": 40}"#);
     assert_eq!(cdda_sim::wetness::of(&world, survivor), 100, "never wetter than soaked");
 }
+
+/// `u_is_underwater` reads as a bare condition name and answers no, because the port has no submersion state.
+///
+/// Reference: `u_is_underwater` is `Character::is_underwater()`. The port has water terrain but no depth on a creature, so the true statement about its world is
+/// that nobody is under it - the answer is written down where a depth model would have to change it.
+#[test]
+fn a_bare_u_is_underwater_reads_and_answers_no() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    // The data writes it **bare** - `{"not": "u_is_underwater"}` - which is the shape this reads.
+    let bare = cdda_json::parse(br#""u_is_underwater""#.as_slice()).expect("json");
+    let condition = cdda_content::dialogue::read_condition(&bare).expect("the bare name reads");
+    assert!(!cdda_sim::conditions::holds(&world, survivor, &condition), "nobody is underwater here");
+}

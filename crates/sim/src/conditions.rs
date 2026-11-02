@@ -384,6 +384,8 @@ fn simple_holds(world: &World, speaker: Entity, listener: Option<Entity>, name: 
         // horizon, so the two are **not** each other's negation and the twilight between them answers neither.
         "is_day" => calendar_turn(world).is_some_and(cdda_core_types::astronomy::is_day),
         "is_night" => calendar_turn(world).is_some_and(cdda_core_types::astronomy::is_night),
+        // `u_is_underwater` is `Character::is_underwater()`, true only when the creature is in over-its-head water. The port has terrain that can be water, but no
+        // submersion state on a creature, so nothing in its world is underwater - the same shape of answer as `u_driving`, and the same place to change.
         // Everything else, `u_driving` included, answers no. Reference: `u_driving` is `Character::is_driving()`, true only in a vehicle's driver's seat, and the port
         // has no vehicles - so nothing in its world is driving. This is the line vehicles will have to change.
         _ => false,

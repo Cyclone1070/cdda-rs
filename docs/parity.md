@@ -8053,3 +8053,30 @@ is last.
 **Last round's bug is written into this round's reader.** `read_add_wet` gates on its member with `let Some(amount) = object.get(member) else { continue }` - it
 cannot answer for an object that has no `u_add_wet`, so it cannot swallow the data. That one line is the whole lesson of the swallowed-reader bug, applied before it
 could happen again.
+
+## `u_is_underwater`: a condition that answers no, and says why (round 929)
+
+`u_is_underwater` (2 programs) is a bare name, and the answer is `Character::is_underwater()` - true only when the creature is in water over its head. The port has
+terrain that can be **water**, but no submersion state on a creature, so **nothing in its world is underwater** and `no` is the true answer about the port's world
+rather than a guess about the reference's.
+
+It is written down beside `u_driving`, in the same match arm, with the same note: when the port grows a depth model, this is the line that changes.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 525 | **525** |
+unreadable leaves | 200 | **197** |
+one-gap programs | 54 | **52** |
+conditions the port can answer | 3,216 | **3,216** |
+programs answering `Done` | 346 | **347** |
+
+**The count that did not move is the interesting one.** `conditions_readable` stayed at 3,216 while three leaves went away: the census counts **distinct condition
+objects**, and this name was already counted through another program's copy. So the honest receipt is `-3 leaves, -2 one-gap, +1 program`, and the condition total is
+unchanged.
+
+**A test of mine refused the new name, and was right to.** `a_bare_name_is_an_argument_less_condition` listed `u_is_underwater` among the names the port
+**refuses** - true when written, false now. It failed, named the assertion, and the name moved out of the refusal list. That is the third time this session a test
+has caught a behaviour change I made: **the tests are the memory of what the port used to claim, and they speak up when the claim changes.**
+
+**Two pins I got wrong, and the gate caught both.** I wrote `conditions_readable: 3_217` (it is 3,216) and `effect_blamed: 156` (it is 158) - numbers I moved by
+arithmetic instead of by reading the census. The gate failed twice, printed both actual values, and both were fixed from the printed numbers rather than from my head.
