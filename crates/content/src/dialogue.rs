@@ -2168,6 +2168,25 @@ pub enum Effect {
         /// Whether it is only heard outdoors.
         outdoor_event: bool,
     },
+    /// Finds a terrain around the actor and writes its square into a variable.
+    ///
+    /// Reference: `f_location_variable` (`npctalk.cpp:4194-4300`), the `search_target` block with `search_type = "terrain"`: squares within `target_max_radius`
+    /// of the actor are walked in the reference's own order, those no further than `target_min_radius` are skipped, and the **first** whose terrain id matches is
+    /// written to the variable. Nothing found leaves the variable holding the actor's own square.
+    TerrainAround {
+        /// The terrain's name.
+        terrain: StringSource,
+        /// The variable's scope and name.
+        scope: String,
+        /// The variable's name.
+        name: String,
+        /// How near a square must be to be considered, exclusive.
+        target_min_radius: i32,
+        /// How far the search reaches, in squares.
+        target_max_radius: i32,
+        /// Whether it is the listener's square and variable rather than the speaker's.
+        listener: bool,
+    },
     /// Starts an activity on a creature, for a given number of moves.
     ///
     /// Reference: `f_assign_activity` (`npctalk.cpp:5451-5462`): the member names the activity, `duration` is required, and the reference passes
@@ -2783,7 +2802,8 @@ impl Effect {
             | Self::SetTalker { .. }
             | Self::LoseMorale { .. }
             | Self::RemoveItemWith { .. }
-            | Self::AddWet { .. } => self.store_kind().unwrap_or_default(),
+            | Self::AddWet { .. }
+            | Self::TerrainAround { .. } => self.store_kind().unwrap_or_default(),
             Self::PlaceOverride { .. } => "place_override",
             Self::SpawnItem { .. } => "u_spawn_item",
             Self::ConsumeItem { listener, .. } => {
@@ -3496,6 +3516,33 @@ fn read_switch(object: &cdda_json::Object) -> Option<Effect> {
 /// Reference: `f_location_variable` (`npctalk.cpp:4194`). The searching forms (`target_params`, a `terrain`/`furniture`/`field`/`monster`/`npc`/
 /// `species`/`trap`/`zone` list, radii) walk the overmap and the map for the nearest match, which nothing in the port can do yet - and answering
 /// them with the actor's own square would be a wrong answer that looked right.
+/// Reads the around-the-actor terrain search, or nothing.
+///
+/// Reference: `f_location_variable` (`npctalk.cpp:4231-4240`): exactly **one** of `terrain`, `furniture`, `field`, `monster`, `npc`, `species`, `trap` and `zone`
+/// may name the search, and `target_max_radius` is how far it reaches. The port reads the terrain one; the rest are separate rules and refuse.
+fn read_terrain_around(object: &cdda_json::Object, target: &cdda_json::Object, listener: bool) -> Option<Effect> {
+    let terrain = object.get("terrain")?;
+    for asked in ["furniture", "field", "monster", "npc", "species", "trap", "zone", "target_params"] {
+        if object.get(asked).is_some() {
+            return None;
+        }
+    }
+    let whole = |key: &str| match object.get(key) {
+        None => Some(0),
+        Some(Value::Int(number)) => i32::try_from(*number).ok(),
+        Some(_) => None,
+    };
+    let (scope, name) = named_variable(target)?;
+    Some(Effect::TerrainAround {
+        terrain: read_string_source(terrain)?,
+        scope,
+        name,
+        target_min_radius: whole("target_min_radius")?,
+        target_max_radius: whole("target_max_radius")?,
+        listener,
+    })
+}
+
 /// Reads the search that names an **overmap terrain and nothing else** - the same walk `om_terrain` aiming uses - or nothing.
 ///
 /// Reference: `f_location_variable` (`npctalk.cpp:4194`) with a `target_params` (`mission_util.cpp:425-450`): a range, a minimum distance and a level.
@@ -3641,6 +3688,9 @@ fn read_location_variable(object: &cdda_json::Object) -> Option<Effect> {
         let Some(Value::Object(target)) = object.get(member) else {
             continue;
         };
+        if let Some(found) = read_terrain_around(object, target, listener) {
+            return Some(found);
+        }
         if let Some(found) = read_terrain_target(object, target, listener) {
             return Some(found);
         }

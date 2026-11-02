@@ -575,6 +575,48 @@ fn pick_type(
     drawn
 }
 
+/// Writes the square of a terrain found around the actor into a variable.
+///
+/// Reference: `f_location_variable` (`npctalk.cpp:4250-4300`): the walk is `points_in_radius( talker_pos, target_max_radius, 0 )` - z, then y, then x ascending -
+/// and the first square whose terrain matches and which is further than `target_min_radius` wins. Nothing found leaves the actor's own square in the variable,
+/// because the reference starts the answer there.
+fn store_terrain_around(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::TerrainAround { terrain, scope, name, target_min_radius, target_max_radius, listener: theirs } = effect
+    else {
+        return Applied::CannotAnswer;
+    };
+    let Some(actor) = actor(speaker, listener, *theirs) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(here) = world.get::<crate::Position>(actor).copied() else {
+        return Applied::CannotAnswer;
+    };
+    let Some(wanted) = crate::conditions::text_of(world, speaker, listener, terrain) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(wanted_code) = crate::terrain_types::code_of(world, &wanted) else {
+        return Applied::CannotAnswer;
+    };
+    let mut found = None;
+    'search: for dy in -*target_max_radius..*target_max_radius {
+        for dx in -*target_max_radius..*target_max_radius {
+            let (x, y) = (here.x + dx, here.y + dy);
+            let distance = dx.abs().max(dy.abs());
+            if distance <= *target_min_radius {
+                continue;
+            }
+            if crate::square::terrain_at(world, (x, y, here.z)) == Some(wanted_code) {
+                found = Some((x, y));
+                break 'search;
+            }
+        }
+    }
+    let (x, y) = found.unwrap_or((here.x, here.y));
+    let holder = crate::dialogue_values::holder_for(world, actor, scope == "global_val");
+    crate::dialogue_values::set(world, holder, name, crate::dialogue_values::Value::Position { x, y, z: here.z });
+    Applied::Done
+}
+
 /// Casts a spell the dialogue names.
 ///
 /// Reference: `f_cast_spell` (`npctalk.cpp`): the member is the spell's id, `hit_self` decides whether it lands on the speaker or the listener, and the level is the
@@ -1901,6 +1943,7 @@ fn run_store_effect(
         Effect::SetTalker { .. } => set_talker(world, speaker, listener, effect),
         Effect::AssignActivity { .. } => assign_activity(world, speaker, listener, effect),
         Effect::CastSpell { .. } => cast_spell(world, speaker, listener, effect),
+        Effect::TerrainAround { .. } => store_terrain_around(world, speaker, listener, effect),
         // Audio changes no game state, and the port has no audio: Done, not refused - nothing is missing from the simulation, only from the sound card. A
         // comment-only entry does nothing, which the reference's loader also does with it.
         Effect::PlaySoundEffect { .. } | Effect::Nothing => Applied::Done,

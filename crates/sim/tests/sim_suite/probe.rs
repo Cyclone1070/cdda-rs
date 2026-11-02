@@ -2182,3 +2182,44 @@ fn a_location_variable_with_radii_and_no_search_is_the_actors_own_square() {
         "the actor's own square"
     );
 }
+
+/// A `u_location_variable` that names a terrain finds the first matching square inside `target_max_radius`, skipping those within `target_min_radius`.
+///
+/// Reference: `f_location_variable` (`npctalk.cpp:4250-4300`): walk `points_in_radius`, skip `rl_dist <= target_min_dist`, take the first terrain match. The test
+/// puts the wanted terrain **twice** - once inside the minimum and once outside - so a search that ignored `target_min_radius` would answer the near one.
+#[test]
+fn a_terrain_search_finds_the_first_one_outside_the_minimum() {
+    let mut world = bevy_ecs::prelude::World::new();
+    cdda_sim::terrain_types::set_types(&mut world, [("t_grass".to_owned(), 1), ("t_dirt".to_owned(), 2)]);
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (10, 10, 0));
+    cdda_sim::square::set_terrain(&mut world, (11, 10, 0), 2);
+    cdda_sim::square::set_terrain(&mut world, (14, 10, 0), 2);
+    let holder = cdda_sim::dialogue_values::holder_for(&mut world, survivor, true);
+
+    let value = cdda_json::parse(
+        br#"{"u_location_variable": {"global_val": "spawn_point"}, "terrain": "t_dirt",
+            "target_min_radius": 2, "target_max_radius": 6}"#
+            .as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    let held = cdda_sim::dialogue_values::value_of(&world, holder, "spawn_point");
+    let square = match held {
+        Some(cdda_sim::dialogue_values::Value::Position { x, y, .. }) => (x, y),
+        other => {
+            assert!(other.is_some(), "a square is stored, not nothing");
+            return;
+        }
+    };
+    let (x, y) = square;
+    assert!(x != 11 || y != 10, "the square inside the minimum is skipped, not taken: ({x}, {y})");
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (x, y, 0)),
+        Some(2),
+        "and what was found really is the terrain asked for"
+    );
+}

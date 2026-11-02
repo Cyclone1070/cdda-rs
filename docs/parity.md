@@ -8416,3 +8416,32 @@ have quietly shrunk the test.
 **One shape here is still open and now visible:** `{"terrain": "t_dirt_isherwood_player_spawnpoint", "target_max_radius": 60}` - a terrain searched for around the
 actor - is the reference's `search_type = "terrain"` path, which the port has no reader for. It was hidden behind `max_radius` in the blame list; it is now what the
 list says next.
+
+## A terrain searched for around the actor, and the id table it needed (round 942)
+
+The shape the last round uncovered was `{"terrain": "t_dirt_isherwood_player_spawnpoint", "target_max_radius": 60}`: `f_location_variable`'s
+`search_type = "terrain"` path, which walks the squares within `target_max_radius` of the actor, skips any no further than `target_min_radius`, and writes the **first**
+match into the variable.
+
+**It could not be read for a reason worth stating: the port had no table from a terrain name to its code.** Squares carry a `u32`; the data names `t_grass`. So this
+round built one - `crates/sim/src/terrain_types.rs`, a singleton beside the other prototype tables, holding **both directions**, so a search by name and a report by
+code read the same table - and then the walk itself, in the reference's own order (z, then y, then x ascending) so "the first match" means what it means upstream.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 543 | **544** |
+refused at run time | 189 | **190** |
+unreadable leaves | 159 | **157** |
+one-gap programs | 41 | **40** |
+effect entries runnable | 1,481 | **1,483** |
+effect census blaming `effect` | 140 | **139** |
+
+**The test plants the wanted terrain twice** - once inside `target_min_radius` and once outside - so a search that ignored the minimum would answer the near one and
+fail. It then checks that what was found really carries the terrain asked for, which is the assertion that would catch a search that matched everything.
+
+**Two of my own tests had to change, and both were assertions about what the port cannot do.** `a_location_variable_holds_the_actors_square` listed a `terrain` search
+as **refused**; it now reads, so the entry became a `field` - still refused, and still a search the port has no rule for. **A refusal list is a map of the frontier, and
+a map has to be redrawn when the frontier moves.**
+
+**Lint caught two things in the test itself**: a `panic!` in test code (`clippy::panic` applies to tests too in this repo) and an `assert!(false, ...)` that followed
+it. Both were rewritten as a `match` that fails with the value in the message - which is what the assertion wanted to say in the first place.

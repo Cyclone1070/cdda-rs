@@ -643,7 +643,8 @@ fn a_location_variable_holds_the_actors_square() {
     // distance and a level is no longer one of them - the port searches the overmap for it - but a special, a field or a zone still is.
     for text in [
         r#"{"u_location_variable": {"u_val": "x"}, "target_params": {"om_terrain": "field", "om_special": "hospital"}}"#,
-        r#"{"u_location_variable": {"u_val": "x"}, "terrain": "t_grass"}"#,
+        // A named terrain **is** read now (the `search_type = "terrain"` walk), so the refused case here is a field, which the port has no search rule for.
+        r#"{"u_location_variable": {"u_val": "x"}, "field": "fd_fire"}"#,
         // `min_radius` alone is **not** a search: the reference starts at the talker's own square and only moves it inside a `search_target` block, so a radius
         // with nothing to search for is answered rather than refused. It is asserted on its own below rather than in this list.
         r#"{"u_location_variable": {"u_val": "x"}, "zone": "z_shop"}"#,

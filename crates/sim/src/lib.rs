@@ -85,6 +85,7 @@ pub mod frame;
 pub mod needs;
 pub mod fun_for;
 pub mod terrain_table;
+pub mod terrain_types;
 pub mod noise;
 pub mod addictions;
 pub mod known_spells;
