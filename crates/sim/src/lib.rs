@@ -86,6 +86,7 @@ pub mod friendly;
 pub mod needs;
 pub mod fun_for;
 pub mod terrain_table;
+pub mod terrain_transform;
 pub mod terrain_types;
 pub mod noise;
 pub mod addictions;

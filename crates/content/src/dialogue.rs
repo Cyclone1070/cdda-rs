@@ -1674,6 +1674,7 @@ fn read_unnamed_effect(object: &cdda_json::Object) -> Option<Effect> {
         .or_else(|| read_store_effects(object))
         .or_else(|| read_set_field(object))
         .or_else(|| read_custom_light_level(object))
+        .or_else(|| read_transform_radius(object))
 }
 
 /// Reads a `sound_effect` entry.
@@ -2240,6 +2241,18 @@ pub enum Effect {
         volume: CountRange,
         /// Whether it is only heard outdoors.
         outdoor_event: bool,
+    },
+    /// Applies a named terrain transform to the squares around the actor.
+    ///
+    /// Reference: `f_transform_radius` (`npctalk.cpp:4450-4495`): `ter_furn_transform` names the table, the member `transform_radius` is how far it reaches, and
+    /// `time_in_future` postpones it. The port reads the table and the radius and applies it at once; a postponed one, a `target_var` and a `key` are refused.
+    TransformRadius {
+        /// The transform table's id.
+        transform: StringSource,
+        /// How far it reaches, in squares.
+        radius: Expression,
+        /// Whether it works around the listener rather than the speaker.
+        listener: bool,
     },
     /// Sets the light level for a while, as a timed event.
     ///
@@ -2912,7 +2925,8 @@ impl Effect {
             | Self::AddWet { .. }
             | Self::TerrainAround { .. }
             | Self::SetField { .. }
-            | Self::CustomLightLevel { .. } => self.store_kind().unwrap_or_default(),
+            | Self::CustomLightLevel { .. }
+            | Self::TransformRadius { .. } => self.store_kind().unwrap_or_default(),
             Self::PlaceOverride { .. } => "place_override",
             Self::SpawnItem { .. } => "u_spawn_item",
             Self::ConsumeItem { listener, .. } => {
@@ -3628,6 +3642,31 @@ fn read_switch(object: &cdda_json::Object) -> Option<Effect> {
 /// Reference: `f_location_variable` (`npctalk.cpp:4194`). The searching forms (`target_params`, a `terrain`/`furniture`/`field`/`monster`/`npc`/
 /// `species`/`trap`/`zone` list, radii) walk the overmap and the map for the nearest match, which nothing in the port can do yet - and answering
 /// them with the actor's own square would be a wrong answer that looked right.
+/// Reads a `transform_radius` entry.
+///
+/// Reference: `f_transform_radius` (`npctalk.cpp:4450-4468`): the table is required, the radius is the member the data spells `transform_radius`, and
+/// `time_in_future`, `target_var` and `key` are separate rules the port does not carry out - so an entry stating one is refused rather than applied early.
+fn read_transform_radius(object: &cdda_json::Object) -> Option<Effect> {
+    let transform = object.get("ter_furn_transform")?;
+    for refused in ["time_in_future", "target_var", "key"] {
+        if object.get(refused).is_some() {
+            return None;
+        }
+    }
+    // The radius's member is the activation's own name, not the bare `transform_radius`: the data writes `u_transform_radius` and `npc_transform_radius`, and reading
+    // only the bare one refused every entry in the corpus.
+    let (given, listener) = match (object.get("u_transform_radius"), object.get("npc_transform_radius")) {
+        (Some(radius), _) => (radius, false),
+        (_, Some(radius)) => (radius, true),
+        _ => return None,
+    };
+    Some(Effect::TransformRadius {
+        transform: read_string_source(transform)?,
+        radius: read_math_expression(given)?,
+        listener,
+    })
+}
+
 /// Reads a `custom_light_level` entry.
 ///
 /// Reference: `f_custom_light_level` (`npctalk.cpp:7215-7232`): the member is required, `length` defaults to nothing and `key` to the empty string.

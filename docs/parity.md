@@ -8763,3 +8763,35 @@ function doing two jobs.**
 
 **And a test written against a type that does not exist** - `MonsterType::default()` - was rewritten to build the type **from the data's own JSON**, which is how the
 other spawn tests do it. A monster type has thirty members and a literal would drift from the loader the moment either changed.
+
+## `ter_furn_transform`: a named table, applied over a radius (round 954)
+
+`f_transform_radius` (`npctalk.cpp:4450-4495`) names a **transform table** and a radius, and `map::transform_radius` applies it to the squares around `target_pos`. The
+table itself is a data type - `ter_furn_transform` (`magic_ter_fur_transform.cpp:63-130`) - whose `terrain` entries say *for a terrain, these results*.
+
+So this round added two things: `crates/sim/src/terrain_transform.rs`, a singleton beside the other prototype tables keyed by **name** (because that is what the data
+writes, and [`terrain_types`](../crates/sim/src/terrain_types.rs) turns a name into the code a square carries), and `Effect::TransformRadius`, which reads the id and
+the radius, refuses the postponed and targeted forms, and applies the table over the square block.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 556 | **559** |
+answered `Done` | 365 | **366** |
+did something | 267 | **268** |
+refused at run time | 191 | **193** |
+unreadable leaves | 142 | **139** |
+one-gap programs | 30 | **27** |
+effect entries runnable | 1,496 | **1,499** |
+effect census blaming `effect` | 128 | **125** |
+
+**The first version moved nothing, and the reason is the round's lesson.** I read the radius from a member called `transform_radius` - the name of the C++ function's
+parameter - and the data writes **`u_transform_radius`**, the activation's own name. Three programs sat refusing with the effect "implemented". **I had written the
+reference's signature instead of the data's spelling**, and only `CDDA_SHOW_GAP` on the actual object showed it. That is the second time this session the fix was a
+**member name** rather than a rule (`max_bonus`, and now this).
+
+**The test plants two terrains and transforms one**, then checks three things: the named terrain changed under the actor, it changed at the edge of the radius, and
+**the grass the transform does not name is untouched** - as is the dirt outside the radius. **A transform that replaced everything would pass a one-sided test**, and a
+transform table is exactly the kind of feature where "it did something" is not the claim.
+
+**And a test that failed for a reason worth keeping**: `Level::set_terrain` gave me a square reading `0` where I wrote `1`, so the test now builds its squares with
+`square::set_terrain` directly. **When the test's own scaffolding is the suspect, replace it with the primitive the game uses** rather than debugging the scaffolding.

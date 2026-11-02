@@ -584,6 +584,35 @@ fn pick_type(
     drawn
 }
 
+/// Applies a terrain transform to the squares around a creature.
+///
+/// Reference: `f_transform_radius` (`npctalk.cpp:4483-4493`): with no `time_in_future` the reference calls `map::transform_radius` at once, over the reality bubble
+/// around `target_pos`. The port does the same over its loaded level, and the reading and writing of squares lives in
+/// [`crate::terrain_transform`], which is where a transform's meaning belongs.
+fn transform_radius(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::TransformRadius { transform, radius, listener: theirs } = effect else {
+        return Applied::CannotAnswer;
+    };
+    let Some(actor) = actor(speaker, listener, *theirs) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(here) = world.get::<crate::Position>(actor).copied() else {
+        return Applied::CannotAnswer;
+    };
+    let Some(named) = crate::conditions::text_of(world, speaker, listener, transform) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(reach) = draw(world, speaker, listener, radius) else {
+        return Applied::CannotAnswer;
+    };
+    if crate::terrain_types::holder(world).is_none() || crate::terrain_transform::holder(world).is_none() {
+        return Applied::CannotAnswer;
+    }
+    let reach = as_whole(reach).clamp(0, cdda_core_types::light::MAX_VIEW_DISTANCE);
+    crate::terrain_transform::apply(world, &named, (here.x, here.y, here.z), reach);
+    Applied::Done
+}
+
 /// Schedules the light level the data sets, one second after it is due to end.
 ///
 /// Reference: `f_custom_light_level` (`npctalk.cpp:7226-7231`): a `timed_event_type::CUSTOM_LIGHT_LEVEL` is added at
@@ -2058,6 +2087,7 @@ fn run_store_effect(
         Effect::TerrainAround { .. } => store_terrain_around(world, speaker, listener, effect),
         Effect::SetField { .. } => set_field(world, speaker, listener, effect),
         Effect::CustomLightLevel { .. } => custom_light_level(world, speaker, listener, effect),
+        Effect::TransformRadius { .. } => transform_radius(world, speaker, listener, effect),
         // Audio changes no game state, and the port has no audio: Done, not refused - nothing is missing from the simulation, only from the sound card. A
         // comment-only entry does nothing, which the reference's loader also does with it.
         Effect::PlaySoundEffect { .. } | Effect::Nothing => Applied::Done,

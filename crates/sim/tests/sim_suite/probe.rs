@@ -2572,3 +2572,61 @@ fn a_friendly_spawn_is_marked_and_a_plain_one_is_not() {
     assert_eq!(total, 2, "both spawns exist");
     assert_eq!(friendly, 1, "and exactly one of them is friendly");
 }
+
+/// `ter_furn_transform` changes the terrain of the squares it reaches, and leaves the ones it does not name alone.
+///
+/// Reference: `ter_furn_transform` (`magic_ter_fur_transform.cpp:63-130`) maps a *named* terrain to its results, and `f_transform_radius` (`npctalk.cpp:4483`)
+/// applies it over `transform_radius`. The test plants two terrains, transforms one, and checks the other survived - a transform that replaced everything would pass
+/// a one-sided test.
+#[test]
+fn a_terrain_transform_changes_what_it_names_and_nothing_else() {
+    let mut world = bevy_ecs::prelude::World::new();
+    cdda_sim::terrain_types::set_types(
+        &mut world,
+        [("t_dirt".to_owned(), 1), ("t_pit".to_owned(), 2), ("t_grass".to_owned(), 3)],
+    );
+    cdda_sim::terrain_transform::set_transforms(
+        &mut world,
+        [(
+            "transform_pit".to_owned(),
+            std::collections::BTreeMap::from([("t_dirt".to_owned(), "t_pit".to_owned())]),
+        )],
+    );
+    for x in -6..6 {
+        for y in -6..6 {
+            cdda_sim::square::set_terrain(&mut world, (x, y, 0), 1);
+        }
+    }
+    cdda_sim::square::set_terrain(&mut world, (1, 0, 0), 3);
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+
+    let value = cdda_json::parse(
+        br#"{"ter_furn_transform": "transform_pit", "u_transform_radius": 2}"#.as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (0, 0, 0)),
+        Some(2),
+        "the dirt under the actor is now a pit"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (2, 2, 0)),
+        Some(2),
+        "and so is the dirt at the edge of the radius"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (1, 0, 0)),
+        Some(3),
+        "the grass is untouched, because the transform does not name it"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (5, 5, 0)),
+        Some(1),
+        "and dirt outside the radius is untouched too"
+    );
+}
