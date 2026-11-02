@@ -487,7 +487,6 @@ fn holds_within(
     depth: usize,
 ) -> bool {
     match condition {
-        // `has_alpha` is true for every dialogue the port runs, and `has_beta` follows the listener; `player_see_*` is the avatar's own sight.
         Condition::PlayerSees { .. } => player_sees(world, speaker, listener, condition),
         Condition::HasAlpha => true,
         Condition::HasBeta => listener.is_some(),
@@ -501,6 +500,7 @@ fn holds_within(
             rolls_against(world, speaker, listener, condition, draws)
         }
         Condition::CanSeeLocation { .. } => can_see_asked(world, speaker, listener, condition),
+        Condition::MapInCity { .. } => map_in_city(world, speaker, listener, condition),
         Condition::AtOmLocation { place, listener: about_listener } => {
             at_om_location(world, speaker, listener, place, *about_listener)
         }
@@ -550,9 +550,7 @@ fn holds_within(
         Condition::CompareString(sources) => {
             let mut seen: Vec<String> = Vec::with_capacity(sources.len());
             for source in sources {
-                let Some(text) = text_of(world, speaker, listener, source) else {
-                    return false;
-                };
+                let Some(text) = text_of(world, speaker, listener, source) else { return false };
                 if seen.contains(&text) {
                     return true;
                 }
@@ -1461,6 +1459,28 @@ fn special_function(
 ///
 /// A variable that is unset, or one the dialogue has no holder for, is nowhere to look - and the reference would have no square to pass either. The condition is a
 /// yes-or-no question, so the port answers **no** rather than refusing the whole program.
+/// Whether the square a variable holds is inside a city.
+///
+/// Reference: `f_map_in_city` (`condition.cpp:1863-1875`): the position is projected to an overmap tile, a target **below z -1 is not in a city**, and the rest is the
+/// city's tile set answering by membership.
+fn map_in_city(world: &World, speaker: Entity, listener: Option<Entity>, condition: &Condition) -> bool {
+    let Condition::MapInCity { target } = condition else {
+        return false;
+    };
+    let Some(holder) = holder_for_scope(world, speaker, listener, &target.0) else {
+        return false;
+    };
+    let Some(crate::dialogue_values::Value::Position { x, y, z }) =
+        crate::dialogue_values::value_of(world, holder, &target.1)
+    else {
+        return false;
+    };
+    if z < -1 {
+        return false;
+    }
+    crate::cities::is_in_city(world, crate::overmap::tile_of(x, y))
+}
+
 fn can_see_asked(world: &World, speaker: Entity, listener: Option<Entity>, condition: &Condition) -> bool {
     answer_can_see_location(world, speaker, listener, condition).unwrap_or(false)
 }

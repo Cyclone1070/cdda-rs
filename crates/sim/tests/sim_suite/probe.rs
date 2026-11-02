@@ -3430,3 +3430,55 @@ fn a_trait_learned_with_a_variant_keeps_the_choice() {
         "and the variant was kept"
     );
 }
+
+/// A square inside a city's tiles answers `map_in_city`, and one outside does not.
+///
+/// Reference: `f_map_in_city` (`condition.cpp:1863-1875`) on `overmap::is_in_city` (`overmap.cpp:4228-4236`): membership of the city's tile set, with a target below
+/// z -1 answered `false` before the set is even asked. The test marks one overmap tile, stores a square inside it, and asks three questions.
+#[test]
+fn the_city_tiles_say_which_squares_are_in_a_city() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::cities::set_tiles(&mut world, [(3, 4)]);
+    let globals = cdda_sim::dialogue_values::holder_for(&mut world, survivor, true);
+    cdda_sim::dialogue_values::set(
+        &mut world,
+        globals,
+        "check_loc",
+        cdda_sim::dialogue_values::Value::Position {
+            x: 3 * cdda_sim::overmap::SQUARES_PER_OMT + 5,
+            y: 4 * cdda_sim::overmap::SQUARES_PER_OMT + 5,
+            z: 0,
+        },
+    );
+    let inside = cdda_json::parse(br#"{"map_in_city": {"global_val": "check_loc"}}"#.as_slice()).expect("json");
+    let condition = cdda_content::dialogue::read_condition(&inside).expect("the condition reads");
+    assert!(
+        cdda_sim::conditions::holds(&world, survivor, &condition),
+        "a square inside the marked tile is in the city"
+    );
+    cdda_sim::dialogue_values::set(
+        &mut world,
+        globals,
+        "check_loc",
+        cdda_sim::dialogue_values::Value::Position { x: 100, y: 100, z: 0 },
+    );
+    assert!(
+        !cdda_sim::conditions::holds(&world, survivor, &condition),
+        "a square in another tile is not"
+    );
+    cdda_sim::dialogue_values::set(
+        &mut world,
+        globals,
+        "check_loc",
+        cdda_sim::dialogue_values::Value::Position {
+            x: 3 * cdda_sim::overmap::SQUARES_PER_OMT + 5,
+            y: 4 * cdda_sim::overmap::SQUARES_PER_OMT + 5,
+            z: -2,
+        },
+    );
+    assert!(
+        !cdda_sim::conditions::holds(&world, survivor, &condition),
+        "and below z -1 the answer is false without asking the set"
+    );
+}

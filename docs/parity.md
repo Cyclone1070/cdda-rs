@@ -9424,3 +9424,22 @@ programs refusing at their first entry | **32** |
 
 **The lesson worth keeping:** three of the six biggest causes are storage, and **no reader-shaped tool could have said so**. The census counts what runs; the diagnostic
 names what stops it; **only the two together tell you whether to write a reader or build a store.**
+
+## The city layer is a set of tiles, and `map_in_city` reads it (round 980)
+
+The diagnostic named `map_in_city` twice, and it was the only cause in the ranking that was a **store the port could build from the reference's own rule** rather than from
+a subsystem the port has never had.
+
+The reference keeps `overmap::city_tiles` - the set the generator fills as it lays a city out - and `is_in_city` is **membership** in that set, with a target below z -1
+answered `false` before the set is asked (`condition.cpp:1863-1875`, `overmap.cpp:4228-4236`). The port has `cities::CityTiles`, one component on one entity, and
+`map_in_city` reads it. **A world the generator has not run has no cities, so membership answers `false`** - the reference's own legacy answer, not a refusal.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 577 | **577** |
+unreadable entries | 94 | **93** |
+effect entries runnable | 1,527 | **1,528** |
+conditions readable | 3,226 | **3,226** |
+
+**No program started running, and the ranking lost its `map_in_city` line.** The two programs it blocked now refuse on `loc`, an older condition the port has no reader
+for - **which is the shape of progress here: the cause changed even though the totals did not**, and only the diagnostic could show it.

@@ -46,6 +46,14 @@ pub enum Condition {
         /// Whether it asks about the listener rather than the speaker.
         listener: bool,
     },
+    /// Whether a square is inside a city.
+    ///
+    /// Reference: `f_map_in_city` (`condition.cpp:1863-1875`): the target is a variable holding a position, projected to an overmap tile, and answered by the city's
+    /// tile set. A target below z -1 is **not** in a city, which is the reference's own guard for the underground.
+    MapInCity {
+        /// The variable's scope and name.
+        target: (String, String),
+    },
     /// Whether a creature is standing under the sky.
     ///
     /// Reference: `f_is_outside` (`condition.cpp:2650`) with `is_creature_outside` (`weather.cpp:76`), which asks the map about the creature's own square.
@@ -632,6 +640,11 @@ pub fn read_condition(value: &Value) -> Option<Condition> {
                 listener,
             });
         }
+    }
+    if let Some(Value::Object(target)) = object.get("map_in_city") {
+        return Some(Condition::MapInCity {
+            target: named_variable(target)?,
+        });
     }
     for (member, listener) in [("u_at_om_location", false), ("npc_at_om_location", true)] {
         if let Some(place) = object.get(member) {
