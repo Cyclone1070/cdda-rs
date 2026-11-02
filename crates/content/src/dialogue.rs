@@ -46,6 +46,18 @@ pub enum Condition {
         /// Whether it asks about the listener rather than the speaker.
         listener: bool,
     },
+    /// Whether the terrain or furniture at a square carries a flag.
+    ///
+    /// Reference: `f_map_ter_furn_with_flag` (`condition.cpp:1818-1842`): `map_terrain_with_flag` asks the tile's terrain, `map_furniture_with_flag` its furniture, and
+    /// `loc` names the variable holding the square.
+    MapTerFurnWithFlag {
+        /// The flag asked about.
+        flag: StringSource,
+        /// The variable's scope and name.
+        target: (String, String),
+        /// Whether it asks about furniture rather than terrain.
+        furniture: bool,
+    },
     /// Whether a square is inside a city.
     ///
     /// Reference: `f_map_in_city` (`condition.cpp:1863-1875`): the target is a variable holding a position, projected to an overmap tile, and answered by the city's
@@ -641,10 +653,8 @@ pub fn read_condition(value: &Value) -> Option<Condition> {
             });
         }
     }
-    if let Some(Value::Object(target)) = object.get("map_in_city") {
-        return Some(Condition::MapInCity {
-            target: named_variable(target)?,
-        });
+    if let Some(found) = read_map_flag_condition(object).or_else(|| read_city_condition(object)) {
+        return Some(found);
     }
     for (member, listener) in [("u_at_om_location", false), ("npc_at_om_location", true)] {
         if let Some(place) = object.get(member) {
@@ -4271,6 +4281,38 @@ fn read_radius_search(
 }
 
 /// The one variable a location member names, as its namespace and its name.
+/// Reads `map_in_city`, whose target is a variable holding a square.
+///
+/// Reference: `f_map_in_city` (`condition.cpp:1863-1875`).
+fn read_city_condition(object: &cdda_json::Object) -> Option<Condition> {
+    let Value::Object(target) = object.get("map_in_city")? else {
+        return None;
+    };
+    Some(Condition::MapInCity {
+        target: named_variable(target)?,
+    })
+}
+
+/// Reads `map_terrain_with_flag` and `map_furniture_with_flag`, which differ only in what they ask.
+///
+/// Reference: `f_map_ter_furn_with_flag` (`condition.cpp:1818-1842`): one reader for both members, the member itself choosing terrain or furniture.
+fn read_map_flag_condition(object: &cdda_json::Object) -> Option<Condition> {
+    for (member, furniture) in [("map_terrain_with_flag", false), ("map_furniture_with_flag", true)] {
+        let Some(flag) = object.get(member) else {
+            continue;
+        };
+        let Some(Value::Object(place)) = object.get("loc") else {
+            return None;
+        };
+        return Some(Condition::MapTerFurnWithFlag {
+            flag: read_string_source(flag)?,
+            target: named_variable(place)?,
+            furniture,
+        });
+    }
+    None
+}
+
 fn named_variable(target: &cdda_json::Object) -> Option<(String, String)> {
     target.members().iter().find_map(|(scope, value)| match value {
         Value::Str(name) => Some((scope.clone(), name.clone())),

@@ -9443,3 +9443,27 @@ conditions readable | 3,226 | **3,226** |
 
 **No program started running, and the ranking lost its `map_in_city` line.** The two programs it blocked now refuse on `loc`, an older condition the port has no reader
 for - **which is the shape of progress here: the cause changed even though the totals did not**, and only the diagnostic could show it.
+
+## Terrain and furniture keep their flags, and two conditions read them (round 981)
+
+The diagnostic's `loc` line was two conditions, `map_terrain_with_flag` and `map_furniture_with_flag` (`condition.cpp:1818-1842`): each names a flag and a `loc`
+variable holding the square, and asks the **tile's terrain** or its **furniture** whether it carries that flag.
+
+The port's terrain and furniture tables held names and codes only, so this needed a store before it needed a reader: `TerrainTypes` and `FurnitureTypes` now carry
+`flags` per code, with `set_flags`/`has_flag` on each. **The flags belong to the type, not to the square** - the reference keeps them on `ter_t`, and a square that
+carries a code asks its type.
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 577 | **578** |
+answered `Done` | 387 | **388** |
+unreadable entries | 93 | **85** |
+effect entries runnable | 1,528 | **1,536** |
+ran in a built world | 391 | **392** |
+programs blaming their effects | 108 | **107** |
+
+**Eight effect entries and eight leaves for two conditions**, and the effect census's `else` refusals are gone from the top five.
+
+**A process note that belongs in the record:** this round's refactor went wrong twice - a helper was inserted under a name the file already had, and a later cleanup
+deleted a live arm instead of its duplicate. Both were caught by the gates (`readable` fell from 578 to 577, then clippy named a function at 101 lines), and the fix was
+to **rebuild the file from `HEAD` and re-apply the change in one pass** rather than patch a damaged copy. The numbers above are from the rebuilt file.

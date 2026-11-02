@@ -3482,3 +3482,44 @@ fn the_city_tiles_say_which_squares_are_in_a_city() {
         "and below z -1 the answer is false without asking the set"
     );
 }
+
+/// The terrain at a stored square answers `map_terrain_with_flag`.
+///
+/// Reference: `f_map_ter_furn_with_flag` (`condition.cpp:1818-1842`): the flag is asked of the **tile's terrain**, and `loc` holds the square. The test flags one terrain
+/// `TRANSPARENT` and another not, and asks about the square the variable holds.
+#[test]
+fn the_terrain_at_a_stored_square_answers_its_flags() {
+    let mut world = bevy_ecs::prelude::World::new();
+    cdda_sim::terrain_types::set_types(&mut world, [("t_glass".to_owned(), 1), ("t_wall".to_owned(), 2)]);
+    cdda_sim::terrain_types::set_flags(
+        &mut world,
+        [("t_glass".to_owned(), vec!["TRANSPARENT".to_owned()])],
+    );
+    cdda_sim::square::set_terrain(&mut world, (2, 3, 0), 1);
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let globals = cdda_sim::dialogue_values::holder_for(&mut world, survivor, true);
+    cdda_sim::dialogue_values::set(
+        &mut world,
+        globals,
+        "loc",
+        cdda_sim::dialogue_values::Value::Position { x: 2, y: 3, z: 0 },
+    );
+    let value = cdda_json::parse(
+        br#"{"map_terrain_with_flag": "TRANSPARENT", "loc": {"global_val": "loc"}}"#.as_slice(),
+    )
+    .expect("json");
+    let condition = cdda_content::dialogue::read_condition(&value).expect("the condition reads");
+    assert!(
+        cdda_sim::conditions::holds(&world, survivor, &condition),
+        "glass is transparent"
+    );
+    let other = cdda_json::parse(
+        br#"{"map_terrain_with_flag": "WALL", "loc": {"global_val": "loc"}}"#.as_slice(),
+    )
+    .expect("json");
+    let other = cdda_content::dialogue::read_condition(&other).expect("the condition reads");
+    assert!(
+        !cdda_sim::conditions::holds(&world, survivor, &other),
+        "and it is not a wall"
+    );
+}

@@ -15,11 +15,41 @@ pub struct TerrainTypes {
     pub codes: BTreeMap<String, u32>,
     /// The name each code belongs to.
     pub names: BTreeMap<u32, String>,
+    /// The flags each code carries, as the data's terrain defines them.
+    ///
+    /// Reference: `ter_t::has_flag` (`mapdata.h`), read by every rule that asks what a tile is like - whether it is transparent, whether it can be walked on.
+    pub flags: BTreeMap<u32, std::collections::BTreeSet<String>>,
 }
 
 /// Marks the entity holding [`TerrainTypes`].
 #[derive(Component, Debug, Clone, Copy, Default)]
 pub struct TheTerrainTypes;
+
+/// Gives terrains the flags the data defines for them, by name.
+///
+/// Reference: the `flags` array of a terrain entry (`mapdata.cpp`): the flags belong to the **type**, not to the square, so they are stored once beside the codes.
+pub fn set_flags(world: &mut World, terrains: impl IntoIterator<Item = (String, Vec<String>)>) {
+    let Some(holder) = holder(world) else {
+        return;
+    };
+    if let Some(mut table) = world.get_mut::<TerrainTypes>(holder) {
+        for (name, flags) in terrains {
+            let Some(code) = table.codes.get(&name).copied() else {
+                continue;
+            };
+            table.flags.insert(code, flags.into_iter().collect());
+        }
+    }
+}
+
+/// Whether a terrain code carries a flag.
+#[must_use]
+pub fn has_flag(world: &World, code: u32, flag: &str) -> bool {
+    holder(world)
+        .and_then(|holder| world.get::<TerrainTypes>(holder))
+        .and_then(|table| table.flags.get(&code))
+        .is_some_and(|flags| flags.contains(flag))
+}
 
 /// Installs the terrain table from name-code pairs, replacing whatever was there.
 pub fn set_types(world: &mut World, terrains: impl IntoIterator<Item = (String, u32)>) {

@@ -501,6 +501,7 @@ fn holds_within(
         }
         Condition::CanSeeLocation { .. } => can_see_asked(world, speaker, listener, condition),
         Condition::MapInCity { .. } => map_in_city(world, speaker, listener, condition),
+        Condition::MapTerFurnWithFlag { .. } => map_ter_furn_with_flag(world, speaker, listener, condition),
         Condition::AtOmLocation { place, listener: about_listener } => {
             at_om_location(world, speaker, listener, place, *about_listener)
         }
@@ -547,17 +548,7 @@ fn holds_within(
             count,
             charges,
         } => carries_enough(world, speaker, listener, item, *count, *charges),
-        Condition::CompareString(sources) => {
-            let mut seen: Vec<String> = Vec::with_capacity(sources.len());
-            for source in sources {
-                let Some(text) = text_of(world, speaker, listener, source) else { return false };
-                if seen.contains(&text) {
-                    return true;
-                }
-                seen.push(text);
-            }
-            false
-        }
+        Condition::CompareString(sources) => compares_strings(world, speaker, listener, sources),
         Condition::HasAnyTrait {
             traits,
             listener: about_listener,
@@ -1479,6 +1470,54 @@ fn map_in_city(world: &World, speaker: Entity, listener: Option<Entity>, conditi
         return false;
     }
     crate::cities::is_in_city(world, crate::overmap::tile_of(x, y))
+}
+
+/// Whether the terrain or furniture at a square carries a flag.
+///
+/// Reference: `f_map_ter_furn_with_flag` (`condition.cpp:1818-1842`): the square comes from the `loc` variable, and the flag is asked of the **tile's terrain** or its
+/// furniture, each of which owns its flags in the type table rather than on the square.
+fn map_ter_furn_with_flag(world: &World, speaker: Entity, listener: Option<Entity>, condition: &Condition) -> bool {
+    let Condition::MapTerFurnWithFlag { flag, target, furniture } = condition else {
+        return false;
+    };
+    let Some(holder) = holder_for_scope(world, speaker, listener, &target.0) else {
+        return false;
+    };
+    let Some(crate::dialogue_values::Value::Position { x, y, z }) =
+        crate::dialogue_values::value_of(world, holder, &target.1)
+    else {
+        return false;
+    };
+    let Some(wanted) = text_of(world, speaker, listener, flag) else {
+        return false;
+    };
+    if *furniture {
+        let Some(code) = crate::square::furniture_at(world, (x, y, z)) else {
+            return false;
+        };
+        return crate::furniture_types::has_flag(world, code, &wanted);
+    }
+    let Some(code) = crate::square::terrain_at(world, (x, y, z)) else {
+        return false;
+    };
+    crate::terrain_types::has_flag(world, code, &wanted)
+}
+
+/// Whether two of the sources read the same text.
+///
+/// Reference: `f_compare_string` (`condition.cpp`): the sources are read in order and the answer is whether any two agree.
+fn compares_strings(world: &World, speaker: Entity, listener: Option<Entity>, sources: &[cdda_content::dialogue::StringSource]) -> bool {
+    let mut seen: Vec<String> = Vec::with_capacity(sources.len());
+    for source in sources {
+        let Some(text) = text_of(world, speaker, listener, source) else {
+            return false;
+        };
+        if seen.contains(&text) {
+            return true;
+        }
+        seen.push(text);
+    }
+    false
 }
 
 fn can_see_asked(world: &World, speaker: Entity, listener: Option<Entity>, condition: &Condition) -> bool {

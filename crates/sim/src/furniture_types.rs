@@ -14,11 +14,37 @@ pub struct FurnitureTypes {
     pub codes: BTreeMap<String, u32>,
     /// The name each code belongs to.
     pub names: BTreeMap<u32, String>,
+    /// The flags each code carries.
+    pub flags: BTreeMap<u32, std::collections::BTreeSet<String>>,
 }
 
 /// Marks the entity holding [`FurnitureTypes`].
 #[derive(Component, Debug, Clone, Copy, Default)]
 pub struct TheFurnitureTypes;
+
+/// Gives furniture the flags the data defines for it, by name.
+pub fn set_flags(world: &mut World, furniture: impl IntoIterator<Item = (String, Vec<String>)>) {
+    let Some(holder) = holder(world) else {
+        return;
+    };
+    if let Some(mut table) = world.get_mut::<FurnitureTypes>(holder) {
+        for (name, flags) in furniture {
+            let Some(code) = table.codes.get(&name).copied() else {
+                continue;
+            };
+            table.flags.insert(code, flags.into_iter().collect());
+        }
+    }
+}
+
+/// Whether a furniture code carries a flag.
+#[must_use]
+pub fn has_flag(world: &World, code: u32, flag: &str) -> bool {
+    holder(world)
+        .and_then(|holder| world.get::<FurnitureTypes>(holder))
+        .and_then(|table| table.flags.get(&code))
+        .is_some_and(|flags| flags.contains(flag))
+}
 
 /// Installs the furniture table from name-code pairs, replacing whatever was there.
 pub fn set_types(world: &mut World, furniture: impl IntoIterator<Item = (String, u32)>) {
