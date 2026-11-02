@@ -1645,6 +1645,7 @@ fn read_unnamed_effect(object: &cdda_json::Object) -> Option<Effect> {
         .or_else(|| read_remove_active_mission(object))
         .or_else(|| read_store_effects(object))
         .or_else(|| read_set_field(object))
+        .or_else(|| read_custom_light_level(object))
 }
 
 /// Reads a `sound_effect` entry.
@@ -2211,6 +2212,19 @@ pub enum Effect {
         volume: CountRange,
         /// Whether it is only heard outdoors.
         outdoor_event: bool,
+    },
+    /// Sets the light level for a while, as a timed event.
+    ///
+    /// Reference: `f_custom_light_level` (`npctalk.cpp:7215-7232`): the member is the level, `length` how long it lasts (default nothing), and `key` names it.
+    /// The rule adds **one second** to the length - "because this will get ticked on the turn its applied before it has an effect" - and schedules a
+    /// `timed_event_type::CUSTOM_LIGHT_LEVEL`, which is what the port schedules too.
+    CustomLightLevel {
+        /// The light level it sets.
+        level: Expression,
+        /// How long it lasts.
+        length: EffectDuration,
+        /// The name the data gives it, when it gives one.
+        key: Option<StringSource>,
     },
     /// Puts a field on the squares around the actor.
     ///
@@ -2867,7 +2881,8 @@ impl Effect {
             | Self::RemoveItemWith { .. }
             | Self::AddWet { .. }
             | Self::TerrainAround { .. }
-            | Self::SetField { .. } => self.store_kind().unwrap_or_default(),
+            | Self::SetField { .. }
+            | Self::CustomLightLevel { .. } => self.store_kind().unwrap_or_default(),
             Self::PlaceOverride { .. } => "place_override",
             Self::SpawnItem { .. } => "u_spawn_item",
             Self::ConsumeItem { listener, .. } => {
@@ -3583,6 +3598,24 @@ fn read_switch(object: &cdda_json::Object) -> Option<Effect> {
 /// Reference: `f_location_variable` (`npctalk.cpp:4194`). The searching forms (`target_params`, a `terrain`/`furniture`/`field`/`monster`/`npc`/
 /// `species`/`trap`/`zone` list, radii) walk the overmap and the map for the nearest match, which nothing in the port can do yet - and answering
 /// them with the actor's own square would be a wrong answer that looked right.
+/// Reads a `custom_light_level` entry.
+///
+/// Reference: `f_custom_light_level` (`npctalk.cpp:7215-7232`): the member is required, `length` defaults to nothing and `key` to the empty string.
+fn read_custom_light_level(object: &cdda_json::Object) -> Option<Effect> {
+    let given = object.get("custom_light_level")?;
+    Some(Effect::CustomLightLevel {
+        level: read_math_expression(given)?,
+        length: match object.get("length") {
+            None => EffectDuration::Turns(Some(0)),
+            Some(value) => read_effect_duration(Some(value), EffectDuration::Turns(Some(0)))?,
+        },
+        key: match object.get("key") {
+            None => None,
+            Some(value) => Some(read_string_source(value)?),
+        },
+    })
+}
+
 /// Reads a `u_set_field` / `npc_set_field` entry.
 ///
 /// Reference: `f_field` (`npctalk.cpp:7691-7701`): the field is required, `intensity` defaults to one, and `radius` defaults to ten million - which is why a port

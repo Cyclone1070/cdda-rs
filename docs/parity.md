@@ -8643,3 +8643,30 @@ not fine-grained enough to find it.
 
 **Nine hundred rounds in, this is the shape of the remaining work**: the effects are read, the rules are known, and what is left is the **wiring between a rule and the
 shape the data actually wrote** - which is exactly where broad, confident changes cost the most.
+
+## `custom_light_level`: an effect that is only a timed event (round 950)
+
+`f_custom_light_level` (`npctalk.cpp:7215-7232`) is one of the smallest effects in the reference and it is instructive because of **what it does not do**: it does
+not touch the light. It schedules a `timed_event_type::CUSTOM_LIGHT_LEVEL` at `calendar::turn + length + 1_seconds` - the extra second because "this will get ticked on
+the turn its applied before it has an effect" - and the light changes when the event comes due.
+
+The port now reads it (level, `length`, `key`) and schedules the same event in its own timed-event store. **The level travels in the key**, `custom_light_level:<level>:<name>`,
+because the port's store holds a name and a due turn - and that is written down as the difference to close, not hidden: **when the event comes due, the port must set the
+light, and it does not yet have a light to set.**
+
+| Count | Before | After |
+|---|---|---|
+programs readable | 551 | **552** |
+answered `Done` | 359 | **360** |
+did something | 261 | **262** |
+unreadable leaves | 148 | **146** |
+one-gap programs | 35 | **34** |
+effect entries runnable | 1,491 | **1,493** |
+effect census blaming `effect` | 132 | **131** |
+
+**The test pins the second the reference adds**, because that is the whole rule: at four turns a five-turn light is still on, at six turns the event has come due. A
+test that only checked "an event was scheduled" would pass for an off-by-one that no one would notice for a thousand rounds.
+
+**`read_effect_duration` and `roll_duration` were both already there**, and reusing them meant the reader and the runner were three lines each. The one mistake was
+mine: I guessed the helper's name (`duration_turns`) instead of grepping for it, and the compiler named the real one (`roll_duration`) in one line. **Nine hundred
+rounds in, the codebase is large enough that guessing a function name is a wasted round trip** - grep first.

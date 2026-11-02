@@ -584,6 +584,36 @@ fn pick_type(
     drawn
 }
 
+/// Schedules the light level the data sets, one second after it is due to end.
+///
+/// Reference: `f_custom_light_level` (`npctalk.cpp:7226-7231`): a `timed_event_type::CUSTOM_LIGHT_LEVEL` is added at
+/// `calendar::turn + length + 1_seconds`, carrying the level and the key. The port schedules the same event, under a key that **carries the level**, because its
+/// timed-event store holds a name and a due turn - and the level is read here, where the reference reads it, so an entry whose level cannot be worked out refuses
+/// instead of scheduling nothing.
+fn custom_light_level(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::CustomLightLevel { level, length, key } = effect else {
+        return Applied::CannotAnswer;
+    };
+    let Some(level) = draw(world, speaker, listener, level) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(turns) = roll_duration(world, speaker, listener, length) else {
+        return Applied::CannotAnswer;
+    };
+    let named = match key {
+        None => String::new(),
+        Some(source) => match crate::conditions::text_of(world, speaker, listener, source) {
+            Some(text) => text,
+            None => return Applied::CannotAnswer,
+        },
+    };
+    let whole = as_whole(level);
+    // The reference's own `+1_seconds`: the event is ticked on the turn it is applied, before it has an effect.
+    let key = format!("custom_light_level:{whole}:{named}");
+    crate::timed_events::schedule(world, &key, turns.saturating_add(1));
+    Applied::Done
+}
+
 /// Puts a field on the squares around a creature.
 ///
 /// Reference: `f_field` (`npctalk.cpp:7707-7725`): `points_in_radius( target_pos, radius )` gets the field at `intensity`. The port refuses an entry with no
@@ -1998,6 +2028,7 @@ fn run_store_effect(
         Effect::CastSpell { .. } => cast_spell(world, speaker, listener, effect),
         Effect::TerrainAround { .. } => store_terrain_around(world, speaker, listener, effect),
         Effect::SetField { .. } => set_field(world, speaker, listener, effect),
+        Effect::CustomLightLevel { .. } => custom_light_level(world, speaker, listener, effect),
         // Audio changes no game state, and the port has no audio: Done, not refused - nothing is missing from the simulation, only from the sound card. A
         // comment-only entry does nothing, which the reference's loader also does with it.
         Effect::PlaySoundEffect { .. } | Effect::Nothing => Applied::Done,

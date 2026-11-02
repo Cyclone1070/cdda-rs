@@ -2404,3 +2404,35 @@ fn a_set_field_covers_its_radius_and_refuses_a_missing_one() {
 }
 
 
+
+/// `custom_light_level` schedules a timed event a second after its length, and the event comes due on time.
+///
+/// Reference: `f_custom_light_level` (`npctalk.cpp:7230`): `get_timed_events().add( CUSTOM_LIGHT_LEVEL, calendar::turn + length + 1_seconds, ... )` - the extra
+/// second because the event is ticked on its own turn. The test checks the event is **not** due at the length and **is** due one turn later, which is what pins the
+/// second the reference adds.
+#[test]
+fn a_custom_light_level_comes_due_one_turn_past_its_length() {
+    let mut world = bevy_ecs::prelude::World::new();
+    cdda_sim::calendar::set_turn(&mut world, 100);
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let value = cdda_json::parse(
+        br#"{"custom_light_level": 100, "length": "5 seconds"}"#.as_slice(),
+    )
+    .expect("json");
+    let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    let key = "custom_light_level:100:";
+    cdda_sim::calendar::set_turn(&mut world, 100 + 4);
+    assert!(
+        cdda_sim::timed_events::has_happened(&world, key) != Some(true),
+        "four turns in, a five-turn light is still on"
+    );
+    cdda_sim::calendar::set_turn(&mut world, 100 + 6);
+    assert!(
+        cdda_sim::timed_events::has_happened(&world, key) == Some(true),
+        "and six turns in the event has come due"
+    );
+}
