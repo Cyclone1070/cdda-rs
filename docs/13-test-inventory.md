@@ -457,6 +457,6 @@ its shape** - the worst kind of wrong, because the shape is what a reviewer chec
 
 **Round 1066 added the landing rule**: `crates/sim/src/ballistics.rs` holds `aim_of` (`projectile_attack_roll`, `ballistics.cpp:204-231`) and `landing` (the miss branch of
 `projectile_attack`, `ballistics.cpp:314-352`). They compose the dispersion rules **into a square**, so a caller now needs only three things: an item's weight and volume, a
-shooter's numbers, and a target square. **The caller is the next slice** - `throwing_dispersion` feeds `Dispersion::roll`, that feeds `aim_of`, that feeds `landing`, and the
-item is moved to the answer. The trajectory `Creature::projectile_attack` walks (`creature.cpp:1300-1400`, `find_clear_path`) is what a shot **passes through** along the way,
+shooter's numbers, and a target square. **Round 1067 wrote the caller**: `crates/sim/src/throwing.rs`'s `throw_at` chains all four rules - the spread from what is thrown and who throws it, a roll of that spread,
+`aim_of` for the miss, `landing` for the square - and takes the item out of the hand and puts it there. The trajectory `Creature::projectile_attack` walks (`creature.cpp:1300-1400`, `find_clear_path`) is what a shot **passes through** along the way,
 which matters for what it hits, not for where it stops.

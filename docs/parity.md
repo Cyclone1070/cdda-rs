@@ -11292,3 +11292,26 @@ outcome: the test now documents the corners instead of contradicting them.
 
 **A near miss spends no dice.** The `missed_by_tiles < 1.0` branch returns the aimed square without touching the stream, and the gate proves it by comparing the next draw
 against an untouched stream at the same seed. A port that rolled the angle first and then decided not to use it would land every shot right and every **later** roll wrong.
+
+## The wire that spends the ranged rules (round 1067)
+
+Four rules were ported and waiting. `throw_at` is the action that spends them, and the item moving is the proof the chain is real.
+
+| Step | Rule |
+|---|---|
+what is thrown and who throws it | `throwing_dispersion` (`ranged.cpp:1342-1384`) - weight, volume, charges, **arm** strength, the `throw` skill |
+the spread as a roll | `Dispersion::roll` (`dispersion.cpp:8-21`) |
+the miss as an angle | `aim_of` (`ballistics.cpp:204-231`) |
+the square | `landing` (`ballistics.cpp:314-352`) |
+the move | out of `Carried`/`WieldedBy`, onto a `Position` - an item is an entity, so throwing is one component's worth of change |
+Gates | `a_thrown_rock_leaves_the_hand_and_lands_near_where_it_was_aimed`, `throwing_at_your_own_square_changes_nothing_and_spends_no_dice`, `a_thing_nobody_is_holding_cannot_be_thrown` |
+
+**Three refusals, and each one is a rule**: no body means nowhere to throw from, a thing not in the hand is not thrown, and a throw at your own square is refused - the last
+one because the reference refuses it (`"Projectile_attack targeted own square"`) and because a square five paces from your feet is not a throw.
+
+**A world with no dice throws perfectly, and that is written down rather than hidden.** `take_rolls` answers nothing on a store that never had a generator, and the port draws
+**zero** rather than refusing the action - the same convention `craft_roll::draw` already uses. The alternative, inventing a generator, would make a test's throw depend on a
+seed nobody chose.
+
+**What the port does not carry yet, named:** the reference's throw also computes damage, glass shattering, `burst_when_filled`, noise, and whether a monster is tangled. Those
+are rules of **what happens on landing**, and they belong to the square's own systems, not to the throw.
