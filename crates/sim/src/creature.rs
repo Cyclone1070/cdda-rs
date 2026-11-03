@@ -889,6 +889,34 @@ pub fn effective_strength(world: &World, entity: Entity) -> i32 {
     value
 }
 
+/// How quick a creature's hands are.
+///
+/// Reference: `Character::get_dex_base` (`character.cpp`), which the reference starts at eight. The port carries the base and reads the enchantment cache over it, the same way it
+/// does for [`Strength`] - so a mutation that says `DEXTERITY +2` reaches the throw spread and the aiming rule without either of them knowing where the points came from.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Dexterity {
+    /// The creature's own dexterity, before anything changes it.
+    pub base: i32,
+}
+
+/// A creature's dexterity with its mutations' enchantments applied.
+///
+/// Reference: `Character::get_dex` (`character.cpp`) passes `get_dex_base()` through `enchantment_cache->modify_value( DEXTERITY, ... )`. A creature that carries no
+/// [`Dexterity`] answers **zero**, which is the same convention [`effective_strength`] uses: a creature the port invented has no stats until something gives it some.
+#[must_use]
+pub fn effective_dexterity(world: &World, entity: Entity) -> i32 {
+    let Some(dexterity) = world.get::<Dexterity>(entity) else {
+        return 0;
+    };
+    let Some(data) = crate::mutation_data::holder(world) else {
+        return dexterity.base;
+    };
+    let (add, multiply) = crate::mutations::enchantment_values(world, entity, &data, "DEXTERITY");
+    #[allow(clippy::cast_possible_truncation)]
+    let value = crate::mutations::apply_enchantments(f64::from(dexterity.base), add, multiply) as i32;
+    value
+}
+
 /// How strong a creature is.
 ///
 /// Reference: `Character::get_str_base`, which the reference initialises to eight and raises with mutations and

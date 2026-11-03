@@ -50,6 +50,8 @@ named_components! {
     "Wander" => crate::creature::Wander,
     "HeardSound" => crate::hearing::HeardSound,
     "Mending" => crate::regeneration::Mending,
+    "Dexterity" => crate::creature::Dexterity,
+    "Strength" => crate::creature::Strength,
     "CreatureFlags" => crate::creature_flags::CreatureFlags,
     "AppliedEffects" => crate::applied_effects::AppliedEffects,
     "Doing" => crate::creature::Doing,

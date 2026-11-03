@@ -11769,3 +11769,25 @@ so `docs/13-test-inventory.md` carries this rule on its waiting list beside `dis
 
 **The temptation this round was to invent a fist.** A punch of "about three" would have made the playtest work and would have been the one number in the port that no reference
 behind it. **The data says the reference has no constant to copy here**, which is exactly the case where a port should stop and say so.
+
+## Dexterity, and the third reader of the cache (round 1088)
+
+The aiming rule from last round needs a dexterity to aim with. The port had **no dexterity at all** - it had a strength, read through the mutation enchantment cache, and nothing else.
+
+| Piece | Where |
+|---|---|
+`creature::Dexterity { base }` | `Character::get_dex_base` - a component, kept exactly as `Strength` is kept |
+`creature::effective_dexterity` | `Character::get_dex` - the base through the enchantment cache's `DEXTERITY` |
+Gate | `a_dexterity_enchantment_reaches_the_creatures_own_dexterity` - base 8, then a `DEXTERITY +2` mutation, then **10** |
+
+**The enchantment cache now has three claimants and they were built in three different rounds.** Carrying capacity (1037) and the needs clock (1043) read `STRENGTH`; this reads
+`DEXTERITY`, and **the code is the same four lines** because the reference's is: `get_dex` and `get_str` are the same shape, so a port that wrote a second mechanism would be
+inventing a difference the reference does not have.
+
+**A creature with no `Dexterity` answers zero, and that is a decision.** `effective_strength` already answers zero for a creature nothing gave a strength to, and the two must agree:
+a fixture survivor with no stats should not silently aim like a dexterous human. The alternative - defaulting to eight - would put a number in the world that no content gave, which
+is the failure this port's conventions exist to prevent.
+
+**This is the input the aiming rule was missing, not the whole attack.** `hit_base_tenths(effective_dexterity(..))` is now expressible; the survivor's swing still waits on the
+unarmed **damage**, which the reference takes from the null item reference and from `bodypart::unarmed_damage` - and the data defines the latter on a debug body part only. That
+gap is unchanged and still named.

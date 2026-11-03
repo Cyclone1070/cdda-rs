@@ -529,3 +529,7 @@ unarmed attack - a scenario `attack` step was written, refused to work for that 
 (`skill / 3 + melee_skill / 2 + to_hit`, `melee.cpp:356-370`), gated by `melee_rules::how_well_a_character_aims_a_blow`. **Waiting for a caller**, beside
 `dispersion::from_skill`: the survivor still cannot swing because the **unarmed damage** half has no number to copy - 0.I-1 takes it from the null item reference and
 `bodypart::unarmed_damage`, and only a debug body part in the data defines the latter.
+
+**Round 1088 gave the aiming rule its input**: `creature::Dexterity { base }` and `effective_dexterity` (`Character::get_dex`, the base through the mutation enchantment cache's
+`DEXTERITY`), gated by `mutations::a_dexterity_enchantment_reaches_the_creatures_own_dexterity`. **The cache now has three claimants** - carrying capacity, the needs clock and
+dexterity - and they share four lines because `get_dex` and `get_str` are the same shape in the reference.

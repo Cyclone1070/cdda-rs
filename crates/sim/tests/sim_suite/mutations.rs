@@ -595,3 +595,41 @@ fn a_mutation_costs_mutagen() {
     assert!(!applied(99), "and one unit short is still short");
     assert!(applied(100), "and a hundred units buys the trait");
 }
+
+/// A dexterity enchantment reaches the creature's own dexterity, which is what aiming and dodging read.
+///
+/// Reference: `Character::get_dex` (`character.cpp`) is `get_dex_base()` through the enchantment cache, the same shape `get_str` has - so a mutation that says `DEXTERITY +2` makes its
+/// carrier aim two points better and dodge two points better, without either rule knowing where the points came from.
+#[test]
+fn a_dexterity_enchantment_reaches_the_creatures_own_dexterity() {
+    use bevy_ecs::prelude::*;
+
+    let mut nimble = trait_of(&[], &[]);
+    nimble.enchantments = vec!["INLINE_ENCH_DEX_UP_0".to_owned()];
+    nimble.enchant_values = vec![cdda_content::mutations::EnchantmentValue {
+        value: "DEXTERITY".to_owned(),
+        add: 2.0,
+        multiply: 0.0,
+    }];
+    let data = table(&[("DEX_UP", nimble)]);
+    let categories = cdda_content::mutations::Categories::default();
+
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Dexterity { base: 8 });
+    cdda_sim::mutation_data::install(&mut world, data.clone(), categories.clone());
+
+    assert_eq!(
+        cdda_sim::creature::effective_dexterity(&world, survivor),
+        8,
+        "with no mutation the base is the answer"
+    );
+    cdda_sim::mutations::gain(&mut world, survivor, &data, &categories, "DEX_UP");
+    assert_eq!(
+        cdda_sim::creature::effective_dexterity(&world, survivor),
+        10,
+        "and the enchantment is worth two points of dexterity"
+    );
+}
