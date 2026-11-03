@@ -863,7 +863,8 @@ minus twenty. **Still not ported:** the reading penalty, and the comfort/tempera
 **Mutation reach at 1035:** the `u_mutate` dialogue effect now **gives** a mutation instead of refusing - the two tables live on a marked entity, `mutate_category` draws
 with the reference's two tries, and the category is the creature's strongest. **Declared, not ported:** the good/bad roll and the vitamin cost per mutation.
 
-**The food clock landed at 1040:** `digest_stage` on the schedule every five minutes, the creature's own `STOMACH_SIZE_MULTIPLIER` read into it, and `BodyClock` standing in for
+**The vitamin table at 1041:** `vitamin_registry` holds the types in the store and `digest_stage` reads it, so a vitamin is absorbed only when its type is known - the
+reference's own condition. **Still open:** nothing installs effect types from the reference's data yet. **The food clock landed at 1040:** `digest_stage` on the schedule every five minutes, the creature's own `STOMACH_SIZE_MULTIPLIER` read into it, and `BodyClock` standing in for
 the weight-and-height figures. **Still open:** the vitamin and effect tables the stage passes empty, and the item/effect sources of the cache. **The wires ledger at 1039:** `docs/13-test-inventory.md` now names what each schedule stage reaches, and the three gaps it made visible: **the food clock is not on the
 schedule** (`update_stomach` is called only from tests), `focus_stage` runs inside `creatures_stage`, and nothing reads a creature's cache into the body. **The next three
 slices are those, in that order.** **The cache's second reader at 1038:** `StomachContents::capacity_of` applies `STOMACH_SIZE_MULTIPLIER` with the floor after the enchantment, and `Body::update_stomach`

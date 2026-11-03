@@ -402,3 +402,74 @@ fn a_creature_on_the_schedule_digests_what_it_ate() {
         plain.stomach.contains_ml()
     );
 }
+
+/// A vitamin in a meal reaches the body, and only when the store knows what the vitamin is.
+///
+/// Reference: `Character::update_stomach` (`character_body.cpp:935-1019`) moves vitamins out of the stomach by the type's own kind - a drug straight into the body, a
+/// nutrient through the guts - so a body with no types installed cannot tell one from the other and absorbs nothing. Until this test the stage passed an empty table every
+/// turn, which made every vitamin a nutrient of unknown kind.
+#[test]
+fn a_vitamin_reaches_the_body_only_when_its_type_is_installed() {
+    use bevy_ecs::prelude::*;
+    use std::collections::BTreeMap;
+
+    let after_an_hour = |installed: bool| {
+        let mut world = World::new();
+        let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+        let mut body = cdda_sim::body::Body::new(1_000);
+        let mut vitamins = BTreeMap::new();
+        vitamins.insert("iron".to_owned(), 400);
+        body.stomach.ingest(&cdda_sim::food_summary::FoodSummary {
+            solids_ml: 200,
+            water_ml: 0,
+            calories: 50_000,
+            vitamins,
+        });
+        world.entity_mut(survivor).insert(body);
+        world.entity_mut(survivor).insert(cdda_sim::body::BodyClock {
+            kcal_per_time: 2_400.0 / 288.0,
+            ..cdda_sim::body::BodyClock::default()
+        });
+        world
+            .entity_mut(survivor)
+            .insert(cdda_sim::needs::NeedsRatesOf(cdda_sim::needs::NeedsRates {
+                kcal: 2_400.0,
+                hunger: 1.0,
+                thirst: 1.0,
+                sleepiness: 1.0,
+            }));
+        cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(3));
+        if installed {
+            let mut table = BTreeMap::new();
+            let iron = cdda_content::vitamins::Vitamin {
+                id: "iron".to_owned(),
+                weight_per_unit: None,
+                vit_type: "vitamin".to_owned(),
+                min: 0,
+                max: 1_000,
+                rate: 900,
+            };
+            table.insert("iron".to_owned(), iron);
+            cdda_sim::vitamin_registry::set_vitamin_types(&mut world, &table);
+        }
+
+        for minute in 0..=60 {
+            cdda_sim::calendar::set_turn(&mut world, minute * 60);
+            cdda_sim::turn::run_turn(&mut world);
+        }
+        world.get::<cdda_sim::body::Body>(survivor).cloned().unwrap_or_default()
+    };
+
+    let known = after_an_hour(true);
+    let unknown = after_an_hour(false);
+    assert_eq!(
+        unknown.vitamins.get("iron").copied().unwrap_or(0),
+        0,
+        "with no type installed the body absorbs nothing, so the level never leaves the stomach"
+    );
+    assert!(
+        known.vitamins.get("iron").copied().unwrap_or(0) > 0,
+        "and with the type installed the vitamin reaches the body: {:?}",
+        known.vitamins
+    );
+}

@@ -109,6 +109,7 @@ pub mod weather;
 pub mod wetness;
 pub mod worn_flags;
 pub mod weather_gen;
+pub mod vitamin_registry;
 pub use weather::{Climate, Forecast, System, Weather, tick_climate, wind_of};
 
 use bevy_ecs::prelude::*;

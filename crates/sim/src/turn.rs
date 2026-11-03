@@ -206,6 +206,7 @@ fn digest_stage(world: &mut World) {
         return;
     }
     let turn = calendar.turn;
+    let effects = crate::effect_registry::types_of(world);
     let mut creatures: Vec<(bevy_ecs::entity::Entity, crate::needs::NeedsRates, crate::body::BodyClock)> = Vec::new();
     let mut query = world.query::<(
         bevy_ecs::entity::Entity,
@@ -251,9 +252,9 @@ fn digest_stage(world: &mut World) {
             height_cm: clock.height_cm,
             organic_size: clock.organic_size,
         };
-        // Declared: the vitamin and effect tables are empty here until a loader installs them on the world; a body with no vitamins digests the food it has.
-        let vitamins = std::collections::BTreeMap::new();
-        let effects = std::collections::BTreeMap::new();
+        // The tables the digestion consults: an empty one is a body that holds no vitamins, which is what a world with no loader installed answers.
+        let vitamins = crate::vitamin_registry::vitamins_of(world);
+        let effects = effects.clone();
         body.update_stomach(&digestion, &inputs, &vitamins, &effects, (add, multiply));
         world.entity_mut(creature).insert(body);
         let mut advanced = clock;

@@ -50,6 +50,22 @@ pub fn kind_of(world: &mut World, id: &str) -> Option<EffectType> {
         .and_then(|at| world.get::<EffectTypes>(entity)?.kinds.get(at).cloned())
 }
 
+/// Every type the store holds, for a rule that needs the whole table at once.
+#[must_use]
+pub fn types_of(world: &mut World) -> BTreeMap<String, EffectType> {
+    let entity = singletons::singleton::<EffectTypes, TheEffectTypes>(world);
+    world
+        .get::<EffectTypes>(entity)
+        .map(|types| {
+            types
+                .kinds
+                .iter()
+                .map(|kind| (kind.id.clone(), kind.clone()))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 /// How many types the store knows.
 #[must_use]
 pub fn count(world: &mut World) -> usize {

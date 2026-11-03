@@ -10640,3 +10640,25 @@ Gate | `a_creature_on_the_schedule_digests_what_it_ate` - through `run_turn`, on
 2. **A bigger stomach empties faster, not slower.** I asserted the opposite and watched `0 ml` against `168 ml`. The rate is `capacity / 6` - *"3 hours to empty in 30 minute increments"* - so **the rate scales with the stomach to keep the three hours constant.** A test asserting the intuitive reading would have **codified the opposite of the reference** and passed forever after.
 
 **Declared:** the vitamin and effect tables are empty in the stage until a loader installs them, and `BodyClock` stands in for the reference's weight-and-height arithmetic. Both are written where the next reader will look, in `BodyClock`'s own docs and the stage's.
+
+## A vitamin has to be known before it can be absorbed (round 1041)
+
+The food clock's last declared gap was the tables it passed empty. One of them is now installed:
+
+| Piece | Where |
+|---|---|
+the vitamin types, in the store | `vitamin_registry::VitaminTypes`, `set_vitamin_types`, `vitamins_of` |
+the effect types, read whole | `effect_registry::types_of` (the store already had [`kind_of`] and [`count`]) |
+the stage | `digest_stage` reads both and hands the body its table |
+Gate | `a_vitamin_reaches_the_body_only_when_its_type_is_installed` - the same meal twice, through `run_turn`: **0** without the table, **more than 0** with it |
+
+**The gate is written the right way round for the first time in this stretch.** Every recent test asserted that a rule *did* something; this one asserts that a rule
+**does nothing when it cannot know what it is looking at**, and that is the half that makes the other half mean anything. **A body with no vitamin types absorbs no
+vitamins** - which is the reference's behaviour too, because `update_stomach` asks the type whether a level is a drug or a nutrient before it decides where it goes.
+
+**Both directions came from the same table.** `Vitamin`'s `vit_type` is what decides whether a level skips the guts, and `max` is what clamps it, so an empty table is not a
+neutral default - **it silently turns every drug into nothing at all.** That is why the table is installed rather than defaulted: a default that is quietly wrong is the same
+bug as a rule that never runs.
+
+**Still declared:** the stage's effect table is now filled from the store when one is installed, but nothing in the port installs effect types from the reference's data yet,
+so it stays empty in a game and filled only in tests.
