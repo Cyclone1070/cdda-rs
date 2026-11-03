@@ -200,3 +200,52 @@ fn sleep_takes_sleepiness_away_and_wakes_a_creature_that_has_had_enough() {
         "the waking costs twenty-five from wherever it stood"
     );
 }
+
+/// A creature that a mutation says sleeps less really does get sleepy more slowly.
+///
+/// Reference: `Character::calc_needs_rates` (`character.cpp:5313-5316`) passes hunger, sleepiness and thirst through the enchantment cache, so the cache is not a
+/// description of a creature - it is one of the numbers its clock runs on. The port read the stored rates straight into `update_needs` until this test.
+#[test]
+fn a_sleepiness_enchantment_slows_the_clock() {
+    use bevy_ecs::prelude::*;
+
+    let after_an_hour = |halved: bool| {
+        let mut world = World::new();
+        let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+        world.entity_mut(survivor).insert(
+            cdda_sim::needs::NeedsRatesOf(cdda_sim::needs::NeedsRates {
+                kcal: 2_400.0,
+                hunger: 1.0,
+                thirst: 1.0,
+                sleepiness: 1.0,
+            }),
+        );
+        cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(17));
+        if halved {
+            let text = "{\"mutations\":[{\"id\":\"LIGHT_SLEEPER\",\"valid\":true,\
+                \"enchant_values\":[{\"value\":\"SLEEPINESS\",\"add\":0,\"multiply\":-0.5}]}]}";
+            let Ok(root) = cdda_json::parse(text.as_bytes()) else {
+                return 0;
+            };
+            let Some((data, _)) = cdda_content::mutations::from_dump(&root) else {
+                return 0;
+            };
+            let categories = cdda_content::mutations::Categories::default();
+            cdda_sim::mutation_data::install(&mut world, data.clone(), categories.clone());
+            cdda_sim::mutations::gain(&mut world, survivor, &data, &categories, "LIGHT_SLEEPER");
+        }
+        for minute in 0..=60 {
+            cdda_sim::calendar::set_turn(&mut world, minute * 60);
+            cdda_sim::turn::run_turn(&mut world);
+        }
+        cdda_sim::needs::sleepiness_of(&world, survivor)
+    };
+
+    let plain = after_an_hour(false);
+    let halved = after_an_hour(true);
+    assert!(plain > 0, "an hour awake makes a creature sleepy: {plain}");
+    assert!(
+        halved * 2 <= plain + 2,
+        "and half the rate is about half the sleepiness: {halved} against {plain}"
+    );
+}

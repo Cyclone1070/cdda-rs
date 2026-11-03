@@ -10681,3 +10681,23 @@ binary installs**, which is why it lives in `cli` beside `the_binary_s_world_kno
 
 **`Step::Data` exists because a scenario has to say when its world was given its tables.** The reference reads its JSON once, at start-up, and the port's scenarios are
 scripts; a step keeps the moment explicit instead of hiding it in the constructor of whatever runs the script.
+
+## The cache reached a clock, not just a number (round 1043)
+
+The third declared claimant was `calc_needs_rates`. It now reads the cache:
+
+| Piece | Where |
+|---|---|
+hunger, sleepiness and thirst through the cache | `needs::rates_with_enchantments`, the last three lines of `character.cpp:5313-5316` |
+its callers | **both** clocks - `needs_stage` (the sleepiness clock) and `digest_stage` (the food clock) |
+Gate | `a_sleepiness_enchantment_slows_the_clock` - a creature with `SLEEPINESS × 0.5` is **about half** as sleepy after an hour, through `run_turn` |
+
+**Two callers, on purpose.** A single reader would have made the cache reach *one* clock and left the other reading the raw rates - the exact shape of the last three rounds'
+bug. **The pair is the assertion:** the rule is applied where the creature is known, and every clock that asks a rate asks this function.
+
+**The test asserts "about half", not "less".** `halved * 2 <= plain + 2` allows for the dice: the sleepiness clock rolls `roll_remainder` on every tick, so two runs of the
+same creature differ by a point or two. **An assertion of exact equality would have been a test of the dice, not of the rule** - and a test of the dice is one that fails for
+reasons the code did not cause.
+
+**What the three claimants now show, together:** the same sum answered a carrying capacity, a stomach, and a clock, from one table read three ways. **That is what the cache
+being one number-source means in practice** - not that it exists, but that three unrelated rules stopped having their own opinions about how much a mutant is.

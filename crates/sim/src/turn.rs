@@ -183,6 +183,9 @@ fn needs_stage(world: &mut World) {
     }
     let mut rolls = singletons::take_rolls(world).unwrap_or_else(|| cdda_core_types::rng::Rolls::new(0));
     for (creature, rates) in creatures {
+        // Reference: `calc_needs_rates` ends by passing hunger, sleepiness and thirst through the enchantment cache (`character.cpp:5313-5316`), so a mutation that changes
+        // how fast a creature wears out changes the clock itself rather than describing it.
+        let rates = crate::needs::rates_with_enchantments(world, creature, rates);
         // Reference: `update_needs` runs one clock in two directions - a waking creature gets sleepless, a sleeping one recovers - and never both at once.
         if world.get::<crate::needs::Asleep>(creature).is_some() {
             let recovery = crate::needs::recovery_rate(0);
@@ -225,6 +228,7 @@ fn digest_stage(world: &mut World) {
             Some(data) => crate::mutations::enchantment_values(world, creature, &data, "STOMACH_SIZE_MULTIPLIER"),
             None => (0.0, 0.0),
         };
+        let rates = crate::needs::rates_with_enchantments(world, creature, rates);
         let digestion = crate::digest::MetabolicRates {
             kcal: rates.kcal,
             hunger: rates.hunger,

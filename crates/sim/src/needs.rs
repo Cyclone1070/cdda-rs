@@ -245,3 +245,28 @@ pub fn sleep_off(
     mod_sleepiness(world, creature, -recovered);
     Slept::Deeper(recovered)
 }
+
+/// The daily rates a creature actually works at, once its enchantments have had their say.
+///
+/// Reference: `Character::calc_needs_rates`'s last three lines (`character.cpp:5313-5316`): hunger, sleepiness and thirst each pass through
+/// `enchantment_cache->modify_value`, so a mutation that makes a creature sleep less really does slow the clock rather than only describing itself.
+///
+/// A creature with no mutation table answers its stored rates unchanged - which is what the reference does with an empty cache.
+#[must_use]
+pub fn rates_with_enchantments(world: &World, creature: bevy_ecs::entity::Entity, rates: NeedsRates) -> NeedsRates {
+    let Some(data) = crate::mutation_data::holder(world) else {
+        return rates;
+    };
+    let modify = |stat: &str, value: f32| {
+        let (add, multiply) = crate::mutations::enchantment_values(world, creature, &data, stat);
+        #[allow(clippy::cast_possible_truncation)]
+        let answer = crate::mutations::apply_enchantments(f64::from(value), add, multiply) as f32;
+        answer
+    };
+    NeedsRates {
+        kcal: rates.kcal,
+        hunger: modify("HUNGER", rates.hunger),
+        thirst: modify("THIRST", rates.thirst),
+        sleepiness: modify("SLEEPINESS", rates.sleepiness),
+    }
+}

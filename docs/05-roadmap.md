@@ -863,6 +863,8 @@ minus twenty. **Still not ported:** the reading penalty, and the comfort/tempera
 **Mutation reach at 1035:** the `u_mutate` dialogue effect now **gives** a mutation instead of refusing - the two tables live on a marked entity, `mutate_category` draws
 with the reference's two tries, and the category is the creature's strongest. **Declared, not ported:** the good/bad roll and the vitamin cost per mutation.
 
+**The third claimant at 1043:** `needs::rates_with_enchantments` applies `HUNGER`/`SLEEPINESS`/`THIRST` from the cache and **both** clocks call it - so a mutation that
+says a creature sleeps less actually slows its sleepiness. With the carrying capacity and the stomach, that is **three unrelated rules answering from one table**.
 **The tables installed for real at 1042:** `Step::Data` reads the reference's own vitamin and effect JSON and installs both, gated on **> 40 vitamins and > 100 effect types**
 with `poison` answering its own duration - a gate in `cli`, because a test in `sim` may install whatever table it likes. **The vitamin table at 1041:** `vitamin_registry` holds the types in the store and `digest_stage` reads it, so a vitamin is absorbed only when its type is known - the
 reference's own condition. **Still open:** nothing installs effect types from the reference's data yet. **The food clock landed at 1040:** `digest_stage` on the schedule every five minutes, the creature's own `STOMACH_SIZE_MULTIPLIER` read into it, and `BodyClock` standing in for
