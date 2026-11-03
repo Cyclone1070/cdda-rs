@@ -310,3 +310,28 @@ fn water_moves_in_five_minute_steps_and_a_water_only_tick_touches_nothing_else()
     assert_eq!(contents.calories, 300_000, "the calories have not been touched");
     assert_eq!(contents.contents_ml, 400, "the solids have not been touched");
 }
+
+/// A body that can hold more holds what it is given for longer, and never holds less than a quarter of a litre.
+///
+/// Reference: `stomach_contents::capacity` (`stomach.cpp:362-366`): `max( 250_ml, ( max_volume + add ) * ( 1 + multiply ) )` - the floor is applied **after** the
+/// enchantment, so a shrinking effect cannot take a stomach below a quarter litre.
+#[test]
+fn a_larger_stomach_comes_from_an_enchantment() {
+    let plain = cdda_sim::digest::StomachContents::new(1_000, true);
+    assert_eq!(plain.capacity_of(0.0, 0.0), 1_000, "with no enchantment it holds a litre");
+    assert_eq!(
+        plain.capacity_of(0.0, 0.25),
+        1_250,
+        "a quarter more is a quarter more"
+    );
+    assert_eq!(
+        plain.capacity_of(500.0, 0.0),
+        1_500,
+        "and half a litre added is half a litre"
+    );
+    assert_eq!(
+        plain.capacity_of(-2_000.0, 0.0),
+        250,
+        "but a stomach shrunk past nothing still holds a quarter litre"
+    );
+}

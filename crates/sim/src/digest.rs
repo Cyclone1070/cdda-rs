@@ -118,12 +118,25 @@ impl StomachContents {
         }
     }
 
-    /// Its capacity: `stomach_contents::capacity` (`src/stomach.cpp:362-366`), which floors at a quarter of a litre and is what an enchantment would scale.
+    /// Its capacity with no creature to ask: `stomach_contents::capacity` (`src/stomach.cpp:362-366`) without its enchantment term.
     ///
-    /// **Declared:** the `STOMACH_SIZE_MULTIPLIER` enchantment modifier, which needs an enchantment cache the port does not have yet.
+    /// The reference has no such call - capacity is always asked of the character - so **a rule that has a creature in hand should call [`capacity_of`] instead**; this
+    /// remains for the tests and the traces that compare a stored capacity to a rebuilt one.
     #[must_use]
     pub fn capacity_ml(&self) -> i64 {
         self.max_volume_ml.max(250)
+    }
+
+    /// Its capacity once the creature's `STOMACH_SIZE_MULTIPLIER` is applied.
+    ///
+    /// Reference: `stomach_contents::capacity` (`stomach.cpp:362-366`): `max( 250_ml, modify_value( STOMACH_SIZE_MULTIPLIER, max_volume ) )`, where `modify_value` is
+    /// `( value + add ) * ( 1 + multiply )` (`magic_enchantment.cpp:1396-1401`). The floor is applied **after** the enchantment, so a shrinking potion cannot make a stomach
+    /// smaller than a quarter litre.
+    #[must_use]
+    #[allow(clippy::cast_possible_truncation)]
+    pub fn capacity_of(&self, add: f64, multiply: f64) -> i64 {
+        let scaled = crate::mutations::apply_enchantments(colorless(self.max_volume_ml), add, multiply) as i64;
+        scaled.max(250)
     }
 
     /// Everything it holds, solids and water: `stomach_contents::contains` (`src/stomach.cpp:387-390`).
@@ -212,4 +225,11 @@ impl StomachContents {
         }
         digested
     }
+}
+
+/// A volume as the number the enchantment arithmetic works in.
+fn colorless(millilitres: i64) -> f64 {
+    #[allow(clippy::cast_precision_loss)]
+    let value = millilitres as f64;
+    value
 }

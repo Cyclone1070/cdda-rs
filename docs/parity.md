@@ -10578,3 +10578,23 @@ which is this port's oldest failure mode, and the reason the assertion is on **k
 
 **Declared, not ported:** conditional enchantments (`dbl_or_var` expressions, dumped as zero), the cache's item and effect sources, and the `calc_needs_rates` modifiers that
 were the other two claimants. **The seam is in place for all three**: they add to the same sum.
+
+## The cache grew a second reader, and stopped at the last step (round 1038)
+
+The stomach was the first of the three declared claimants, and it now reads the cache:
+
+| Piece | Where |
+|---|---|
+`max( 250_ml, ( max_volume + add ) * ( 1 + multiply ) )` | `digest::StomachContents::capacity_of` |
+its caller | `Body::update_stomach`, which takes the pair and uses it for the capacity **and** for the digestion rate |
+Gate | `a_larger_stomach_comes_from_an_enchantment` - a quarter more is 1,250 ml, and a stomach shrunk past nothing still holds **250** |
+
+**The floor is applied after the enchantment**, which is the part worth a test: `capacity` is `std::max( 250_ml, modify_value( ... ) )` (`stomach.cpp:362-366`), so a
+shrinking effect can flatten a stomach but never take it below a quarter litre.
+
+**And the reader has no producer.** `update_stomach` is called **only from tests** - the food clock is not on the schedule at all, so the pair arrives as `( 0.0, 0.0 )`
+everywhere it is called. **The seam is in place and the wire is not**, and that is written in the function's own docs rather than left for a reader to discover.
+
+**This is the second time in three rounds** that the honest end of a slice was *"the rule works and nothing calls it"*: round 1036's finding was the same shape one level
+down. **The pattern is worth naming: this port's backlog is not rules, it is wires.** A count of rules would say the port is far along; a count of **systems on the
+schedule that reach them** would say much less.

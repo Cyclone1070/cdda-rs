@@ -333,6 +333,9 @@ impl Body {
     ///
     /// The rates are passed in rather than computed, because `calc_needs_rates` reads the weather, the options, the effects and the enchantments, and none of that
     /// belongs in this rule. What the rule does with them is the ladder described in the module docs.
+    ///
+    /// The stomach's `STOMACH_SIZE_MULTIPLIER` arrives the same way, as `( add, multiply )`, because the rule is about a body and the enchantment is about a creature.
+    /// **Declared:** no stage computes that pair yet - the food clock is driven from tests, and the system that reads a creature's cache into this call is the next one.
     #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
     pub fn update_stomach(
         &mut self,
@@ -340,11 +343,14 @@ impl Body {
         inputs: &BodyInputs,
         vitamins: &BTreeMap<String, Vitamin>,
         effects: &BTreeMap<String, cdda_content::effects::EffectType>,
+        stomach_enchantment: (f64, f64),
     ) {
-        let stomach_capacity = self.stomach.capacity_ml();
+        // Reference: `stomach_contents::capacity` (`stomach.cpp:362-366`) scales the stored maximum by the creature's `STOMACH_SIZE_MULTIPLIER`, so a mutation that
+        // changes how much a body can hold changes how fast it fills and empties.
+        let stomach_capacity = self.stomach.capacity_of(stomach_enchantment.0, stomach_enchantment.1);
         if inputs.five_mins > 0 {
             let stomach_rates: DigestRates =
-                digest_rates(rates, true, self.stomach.capacity_ml());
+                digest_rates(rates, true, self.stomach.capacity_of(stomach_enchantment.0, stomach_enchantment.1));
             let guts_rates: DigestRates = digest_rates(rates, false, self.guts.capacity_ml());
             let to_guts = self
                 .stomach

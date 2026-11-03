@@ -215,12 +215,12 @@ fn the_effect_is_replaced_only_when_it_changes() {
         duration: 900,
         permanent: false,
     });
-    body.update_stomach(&rates, &inputs, &vitamins, &effects);
+    body.update_stomach(&rates, &inputs, &vitamins, &effects, (0.0, 0.0));
     assert_eq!(body.hunger_effect_id(), Some("hunger_blank"), "the old effect is gone");
 
     // Running the same state again leaves the effect alone rather than refreshing it.
     let before = body.hunger_effect.clone();
-    body.update_stomach(&rates, &inputs, &vitamins, &effects);
+    body.update_stomach(&rates, &inputs, &vitamins, &effects, (0.0, 0.0));
     assert_eq!(body.hunger_effect, before, "an effect already worn is not re-added");
 }
 
@@ -271,7 +271,7 @@ fn a_hunger_effect_runs_for_a_day_and_is_put_back_when_it_ends() {
 
     let mut body = Body::new(250);
     body.stored_calories = 118_153 * 1_000;
-    body.update_stomach(&rates, &inputs, &vitamins, &effects);
+    body.update_stomach(&rates, &inputs, &vitamins, &effects, (0.0, 0.0));
     let worn = body.hunger_effect.clone().expect("an effect is worn");
     assert_eq!(worn.id, "hunger_blank");
     assert_eq!(worn.duration, HUNGER_EFFECT_DURATION, "installed for a day");
@@ -281,7 +281,7 @@ fn a_hunger_effect_runs_for_a_day_and_is_put_back_when_it_ends() {
     body.decay_effects(&effects, 0);
     let after_one_turn = body.hunger_effect.clone().expect("still worn");
     assert_eq!(after_one_turn.duration, HUNGER_EFFECT_DURATION - 1, "one turn gone");
-    body.update_stomach(&rates, &inputs, &vitamins, &effects);
+    body.update_stomach(&rates, &inputs, &vitamins, &effects, (0.0, 0.0));
     assert_eq!(
         body.hunger_effect.clone().expect("still worn").duration,
         HUNGER_EFFECT_DURATION - 1,
@@ -298,7 +298,7 @@ fn a_hunger_effect_runs_for_a_day_and_is_put_back_when_it_ends() {
     );
     body.decay_effects(&effects, HUNGER_EFFECT_DURATION);
     assert_eq!(body.hunger_effect_id(), None, "the effect ran out and was taken away");
-    body.update_stomach(&rates, &inputs, &vitamins, &effects);
+    body.update_stomach(&rates, &inputs, &vitamins, &effects, (0.0, 0.0));
     assert_eq!(
         body.hunger_effect.clone().expect("an effect is worn").duration,
         HUNGER_EFFECT_DURATION,

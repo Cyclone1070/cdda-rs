@@ -223,7 +223,7 @@ fn every_comestible_moves_the_body_the_way_the_reference_says() {
                 height_cm: 175,
                 organic_size: 1.0,
             };
-            body.update_stomach(&profile.rates, &inputs, &vitamins, &effects);
+            body.update_stomach(&profile.rates, &inputs, &vitamins, &effects, (0.0, 0.0));
 
             let label = format!(
                 "{}.cap{}:h{}:t{}:ate{}",
