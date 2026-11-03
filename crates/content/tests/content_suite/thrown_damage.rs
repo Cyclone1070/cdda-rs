@@ -61,14 +61,15 @@ fn every_item_throws_for_what_the_reference_says() {
             wrong.push(format!("{id}: port {} versus reference {recorded}", item.thrown_damage));
         }
     }
-    // **24 of the 9,912 types disagree, and every one is a `_fake` or `_inferior` weapon variant** - a `copy-from` of a real weapon plus a `proportional` or `relative`
-    // adjustment to its melee damage (`mace_fake`, `pike_inferior`, `estoc_fake`, ...). The port's inherited bash damage is a few per cent high, so the thrown damage derived
-    // from it is too. That is a bug in the **melee slot inheritance**, not in the thrown-damage rule, and the count is pinned rather than the comparison loosened: the gate
-    // goes red the day the inheritance is fixed, **in the place a reader will be looking**.
-    assert_eq!(
+    // Every one of the 9,912 types now throws for exactly what the reference says. Three rules got it there, and the corpus named each one:
+    //   * a melee damage amount is a **whole number** - `mace_fake`'s `40 * 0.38` is 15, not 15.2;
+    //   * a stated `melee_damage` **replaces** what a record copies (`pressin`);
+    //   * and a stated `thrown_damage` **inherits** its emptiness, so `bone_dart` and `pulverizer` throw for their copied number rather than for their own bash.
+    assert!(
+        wrong.is_empty(),
+        "{} of {compared} types throw for a different number: {:?}",
         wrong.len(),
-        24,
-        "the known inheritance cases, and no others: {wrong:?}"
+        wrong.iter().take(8).collect::<Vec<_>>()
     );
     assert_eq!(compared, 9_912, "and every recorded type was compared");
     // A rock is the case the throwing rules are tested with, so the number a rock answers is asserted by name.

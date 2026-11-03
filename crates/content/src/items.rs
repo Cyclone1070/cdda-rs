@@ -122,6 +122,11 @@ pub struct ItemType {
     /// Reference: `item::base_damage_thrown` (`item.cpp:7654-7658`) returns the type's `thrown_damage`, and `item_factory.cpp:324-326` fills it with
     /// `melee.damage_map[bash] * 0.75` when the data names none - so this is **computed at load**, not read from one member.
     pub thrown_damage: f64,
+    /// Whether `thrown_damage` was **stated** by this record or one it copies, rather than derived from bash damage.
+    ///
+    /// Reference: the fallback is `if( obj.thrown_damage.empty() )` (`item_factory.cpp:324`), and emptiness **inherits**: a record that copies a `thrown_damage` keeps it
+    /// whatever its own bash damage turns out to be, which is why `bone_dart` throws for 7 and not for its bash damage less a quarter.
+    pub thrown_stated: bool,
     /// Damage types and their amounts, from `melee_damage`.
     pub melee: BTreeMap<String, f64>,
     /// `stackable` as stated, which decides charge counting.
@@ -1293,6 +1298,7 @@ fn resolve(
         subtypes: BTreeSet::new(),
         melee: BTreeMap::new(),
         thrown_damage: 0.0,
+        thrown_stated: false,
         stackable: false,
         phase: "SOLID".to_owned(),
         primary_material: String::new(),
@@ -1649,8 +1655,13 @@ fn throw_slot(item: &mut ItemType, object: &Object) {
     // ordering rule explains all three cases the corpus shows: a record that states its own `melee_damage` throws for **its** bash (`cookbook_indian`: 7 -> 5.25); a record
     // that only scales an inherited one throws for the **inherited** bash (`longsword_fake`, whose 1.2 proportional still throws 7.5); and a record that states nothing throws
     // for whatever bash it inherited.
-    item.thrown_damage =
-        stated.unwrap_or_else(|| item.melee.get("bash").copied().unwrap_or(0.0) * 0.75);
+    if let Some(value) = stated {
+        item.thrown_damage = value;
+        item.thrown_stated = true;
+    } else if !item.thrown_stated {
+        // Derived only when **nothing in the chain** stated a thrown damage: `bone_dart` and `pulverizer` are the two records the corpus uses to prove it.
+        item.thrown_damage = item.melee.get("bash").copied().unwrap_or(0.0) * 0.75;
+    }
 }
 
 /// One damage unit's amount, from the `{ "amount": n }` or `{ "damage": n }` form the data uses.
@@ -1671,7 +1682,9 @@ fn apply_melee_slots(item: &mut ItemType, object: &Object) {
         item.melee.clear();
         for (damage_type, amount) in melee.members() {
             if let Some(value) = numeric(amount) {
-                item.melee.insert(damage_type.clone(), value);
+                // Reference: a melee damage amount is a **whole number** on the reference's side - `mace_fake`'s `40 * 0.38` is 15, not 15.2, and its thrown damage
+                // (15 * 0.75 = 11.25) is how the corpus proves it. Truncation is where the data lands, so it happens here rather than at every reader.
+                item.melee.insert(damage_type.clone(), value.trunc());
             }
         }
     }
@@ -1687,7 +1700,8 @@ fn adjust_melee_slots(item: &mut ItemType, object: &Object) {
     {
         for (damage_type, amount) in relative.members() {
             if let Some(value) = numeric(amount) {
-                *item.melee.entry(damage_type.clone()).or_insert(0.0) += value;
+                let entry = item.melee.entry(damage_type.clone()).or_insert(0.0);
+                *entry = (*entry + value).trunc();
             }
         }
     }
@@ -1698,7 +1712,7 @@ fn adjust_melee_slots(item: &mut ItemType, object: &Object) {
             if let Some(value) = numeric(amount)
                 && let Some(current) = item.melee.get_mut(damage_type)
             {
-                *current *= value;
+                *current = (*current * value).trunc();
             }
         }
     }

@@ -466,6 +466,9 @@ which matters for what it hits, not for where it stops.
 `damage_monster` at the square the rock stopped on. **The next ranged rule with a caller waiting**: the reference's `throw_item` impact (`ranged.cpp:1500-1560`) - bash damage from weight, glass shattering,
 `burst_when_filled`, `HEAVY_HIT` noise, and `TANGLE` for a net - which needs the damage rules from P4's weakpoint half and the noise store the port already has.
 
+**Round 1072 closed it: 9,912 of 9,912 types agree**, on three rules the corpus named - melee damage is truncated to a whole number, a stated `melee_damage` replaces what it
+copies, and a stated `thrown_damage` inherits its emptiness. The residue was 25 → 24 → 2 → 0.
+
 **Round 1071 cut the residue from 25 to 24 and explained 9 of them**: a stated `melee_damage` now **replaces** what it inherits (`pressin`), and the thrown-damage fallback runs
 **before** a record's own `relative`/`proportional` adjustments (which fixed the `longsword_fake` class). **What remains is 24 `_fake`/`_inferior` weapon variants whose
 inherited bash damage is a few per cent high**, pinned in `crates/content/tests/content_suite/thrown_damage.rs`.

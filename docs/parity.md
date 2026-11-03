@@ -11413,3 +11413,30 @@ thrown-damage disagreements | 25 | **24** |
 of which explained as a stated-replacement bug | 1 (`pressin`) | **0** |
 of which explained as a fallback-ordering bug | 8 (`longsword_fake` class) | **0** |
 remaining, each a `_fake`/`_inferior` proportional bash | 16 | **24** |
+
+## 9,912 of 9,912, and the three rules that got there (round 1072)
+
+The residue is gone. Every item type in the game now throws for exactly the number the reference computes.
+
+| Rule | Evidence the corpus gave |
+|---|---|
+a melee damage amount is a **whole number** | `mace_fake`'s `40 * 0.38` is **15**, not 15.2 - and its thrown damage (15 \* 0.75 = **11.25**) is how I found it |
+a stated `melee_damage` **replaces** what a record copies | `pressin` states `{"stab": 16}` over a gun and ends with **no bash at all** |
+a stated `thrown_damage` **inherits its emptiness** | `bone_dart` and `pulverizer` throw for the number they copied, not for their own bash |
+
+**The count went 25 → 24 → 2 → 0, and every step was a theory the corpus confirmed or killed.** The theory that mattered most came from arithmetic, not from reading code: the
+mismatches were all `x * 0.38 = 15.2` where the reference had 15, `x * 1.44 = 12.96` where it had 12, `x * 0.35 = 13.3` where it had 13 - **three different factors, one
+shared behaviour: the product is truncated.** A single `trunc()` in three places took 22 types at once.
+
+**The dump earned its keep twice.** `--dump-thrown-damage` was added for one rule (round 1070), then extended with the melee bash beside it, and the second field is what made
+the truncation visible: with only the thrown number, 11.25 and 11.4 look like two roundings of the same rule; with the bash beside it, **15 and 15.2 name the bug.**
+
+**Truncation is a data-shape fact, not a rounding preference.** The reference's melee damage is whole because the numbers the game was balanced against are whole; a port that
+kept 15.2 would be a game whose every weapon hits a fraction harder than the one it is porting, and **no test would notice unless it compared against the reference's own
+numbers** - which is exactly what the corpus is for.
+
+| Number | Before this round | After |
+|---|---|---|
+types compared | 9,912 | **9,912** |
+types agreeing | 9,888 | **9,912** |
+disagreeing | 24 | **0** |
