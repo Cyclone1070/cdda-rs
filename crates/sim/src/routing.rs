@@ -10,7 +10,7 @@
 //! closes over an `&World`, and there is nothing else to close over.
 
 use crate::creature::combined_move_cost;
-use crate::pathfinding::{Direction, Node, Score, Scorer, greedy_path};
+use crate::pathfinding::{Node, Score, Scorer, greedy_path};
 use bevy_ecs::prelude::*;
 
 /// What one square costs to stand on, or `None` when it cannot be entered.
@@ -108,12 +108,6 @@ pub fn walk_towards(
         crate::creature::StepOutcome::Moved => Walk::Stepped,
         crate::creature::StepOutcome::TooSlow => Walk::TooSlow,
     }
-}
-
-/// The direction a path leads away from its source, which is what a creature walking it would take.
-#[must_use]
-pub fn first_step_towards_the_destination(path: &[Node]) -> Option<Direction> {
-    path.last().and_then(|node| node.direction)
 }
 
 /// The scorer's shape, for callers that want to name it.

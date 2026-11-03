@@ -9,7 +9,7 @@
 use bevy_ecs::prelude::*;
 use cdda_content::spells::Spell;
 
-use crate::creature::{Body, PartArmour, armour_on, hurt};
+use crate::creature::{Body, armour_on, hurt};
 use crate::through_armour;
 
 /// What came of casting.
@@ -159,13 +159,4 @@ pub fn lands_on(parts: &[crate::hit_location::BodyPart], fraction: f64) -> Optio
     parts.get(index).map(|part| part.name.clone())
 }
 
-/// The armour a creature has on a part, for a caller that wants to know before casting.
-///
-/// A thin convenience: the number is `PartArmour`'s, and this only saves every caller from writing the lookup.
-#[must_use]
-pub fn armour_there(world: &World, target: Entity, part: &str) -> i32 {
-    world
-        .get::<PartArmour>(target)
-        .and_then(|armour| armour.0.get(part).copied())
-        .unwrap_or(0)
-}
+

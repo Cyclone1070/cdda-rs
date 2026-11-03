@@ -1496,12 +1496,6 @@ pub fn cast_lights_with(world: &mut World) {
     );
 }
 
-/// How many tiles across the level is, for the modules that need the extent rather than the level.
-#[must_use]
-pub fn bounds_of_public(level: &cdda_core_types::level::Level) -> usize {
-    bounds_of(level)
-}
-
 /// A square and how brightly it shines.
 type Emitter = (i32, i32, f32);
 
@@ -1572,22 +1566,6 @@ fn light_sources(world: &mut World) -> LightSources {
         .map(|(square, luminance)| (square.0, square.1, luminance))
         .collect();
     (buffered, placed)
-}
-
-/// The side of the square of world the level covers, in tiles.
-fn bounds_of(level: &cdda_core_types::level::Level) -> usize {
-    // The level is built of submaps of a fixed side, so the extent is a multiple of it; zero when there is nothing at all.
-    let mut extent = 0;
-    for y in 0..64 {
-        for x in 0..64 {
-            if level.terrain_at(x, y).is_some()
-                && let Ok(extent_x) = usize::try_from(x + 1)
-            {
-                extent = extent.max(extent_x);
-            }
-        }
-    }
-    extent.max(1)
 }
 
 fn as_i32(value: usize) -> i32 {
@@ -3755,20 +3733,6 @@ pub fn spawn_monster(
 
 /// Every creature standing on one square, in spawn order.
 #[must_use]
-pub fn monsters_at(world: &mut World, square: (i32, i32)) -> Vec<Entity> {
-    let mut found = Vec::new();
-    {
-        let mut query = world.query::<(Entity, &Position, &crate::creature::Creature)>();
-        for (entity, at, _) in query.iter(world) {
-            if at.x == square.0 && at.y == square.1 {
-                found.push(entity);
-            }
-        }
-    }
-    found.sort_by_key(|entity| entity.index());
-    found
-}
-
 /// Applies a gas effect to one creature.
 ///
 /// Returns whether the creature died. Reference: the per-creature part of
@@ -5690,19 +5654,6 @@ pub fn item_weight_integral(
 fn weight_with(world: &mut World, entity: Entity, facts: &dyn Fn(ItemTypeId) -> TypeWeight) -> i64 {
     weight_with_mode(world, entity, facts, false)
 }
-
-/// What an item weighs in milligrams, without the truncation to grams.
-///
-/// The same rule as [`item_weight`]; the unit is the difference. A gate that compares whole grams cannot see a 135 mg unit weight, and twenty-four types in the data
-/// have one.
-pub fn item_weight_milligrams(
-    world: &mut World,
-    entity: Entity,
-    facts: impl Fn(ItemTypeId) -> TypeWeight,
-) -> i64 {
-    weight_milligrams(world, entity, &facts, false)
-}
-
 fn weight_milligrams(
     world: &mut World,
     entity: Entity,
@@ -6267,72 +6218,6 @@ pub fn count_on_square(world: &mut World, square: (i32, i32), kind: ItemTypeId) 
         .map(|item| item.charges.max(0))
         .sum()
 }
-
-/// Makes something from what is lying on a square, all or nothing.
-///
-/// Reference: `Character::craft` and the consumption it performs (`src/craft.cpp`, the component
-/// handling around `consume_components`). Three things the port keeps: **availability is checked before
-/// anything is taken** - the reference's `has_comps` only asks - alternatives are tried in the order the
-/// recipe lists them, and components are consumed before the result appears, so a failure leaves the
-/// square exactly as it was.
-///
-/// # Errors
-///
-/// Returns [`CraftError::Missing`] naming the first group that could not be met. Nothing has been consumed
-/// when that happens.
-pub fn craft_on_square(
-    world: &mut World,
-    square: (i32, i32),
-    components: &[Vec<(ItemTypeId, i32)>],
-    batch: i32,
-    result_kind: ItemTypeId,
-) -> Result<Crafted, CraftError> {
-    let batch = batch.max(1);
-    let mut chosen: Vec<(ItemTypeId, i32)> = Vec::new();
-    for (group, alternatives) in components.iter().enumerate() {
-        let mut taken = None;
-        for (kind, count) in alternatives {
-            let wanted = count.saturating_mul(batch);
-            if count_on_square(world, square, *kind) >= wanted {
-                taken = Some((*kind, wanted));
-                break;
-            }
-        }
-        match taken {
-            Some(choice) => chosen.push(choice),
-            None => return Err(CraftError::Missing { group }),
-        }
-    }
-    // Everything is known to be there, so this cannot come up short; if it ever does, the parts are put
-    // back rather than the craft half happening.
-    let mut spent: Vec<(ItemTypeId, i32)> = Vec::new();
-    for (kind, wanted) in &chosen {
-        let consumed = consume_items(world, square, *kind, *wanted);
-        spent.push((*kind, consumed.taken));
-        if !consumed.satisfied {
-            for (kind, count) in spent.iter().rev() {
-                drop_item(world, square, *kind, *count);
-            }
-            return Err(CraftError::Missing {
-                group: cost_group(components, *kind),
-            });
-        }
-    }
-    let entity = drop_item(world, square, result_kind, batch);
-    Ok(Crafted {
-        result: entity,
-        count: batch,
-    })
-}
-
-/// Which requirement group names a kind, for the error path above.
-fn cost_group(components: &[Vec<(ItemTypeId, i32)>], kind: ItemTypeId) -> usize {
-    components
-        .iter()
-        .position(|alternatives| alternatives.iter().any(|(candidate, _)| *candidate == kind))
-        .unwrap_or(0)
-}
-
 /// How many moves a batch takes to craft, once the crafter's speed is known.
 ///
 /// Reference: `recipe::batch_time` (`src/recipe.cpp:108-149`). Everything about this is fiddly and every

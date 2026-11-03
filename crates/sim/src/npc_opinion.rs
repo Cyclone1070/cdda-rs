@@ -39,12 +39,6 @@ pub fn set_opinion(world: &mut World, npc: Entity, opinion: Opinion) {
     world.entity_mut(npc).insert(opinion);
 }
 
-/// One creature's opinion, or nothing when it has never formed one.
-#[must_use]
-pub fn opinion_of(world: &World, npc: Entity) -> Option<Opinion> {
-    world.get::<Opinion>(npc).copied()
-}
-
 /// One of the four numbers, answering **zero** when the creature has no opinion.
 ///
 /// Reference: `npc_value_eval` (`math_parser_diag.cpp:1430-1440`) answers `0` when there is no such actor rather than failing, which is what lets a program ask

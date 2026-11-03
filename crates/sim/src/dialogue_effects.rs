@@ -909,7 +909,7 @@ fn transform_radius(world: &mut World, speaker: Entity, listener: Option<Entity>
         return Applied::CannotAnswer;
     }
     let reach = as_whole(reach).clamp(0, cdda_core_types::light::MAX_VIEW_DISTANCE);
-    crate::terrain_transform::apply(world, &named, (here.x, here.y, here.z), reach);
+    let _ = crate::terrain_transform::apply(world, &named, (here.x, here.y, here.z), reach);
     Applied::Done
 }
 

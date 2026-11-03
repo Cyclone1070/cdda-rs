@@ -10193,3 +10193,29 @@ what a failure costs | `a_failure_destroys_what_went_in_and_can_destroy_all_of_i
 
 **The last row is the one that would have been missing every previous round.** It fails if the hook is removed, if the point is never placed, and if the failure handling
 is never reached - **three separate regressions, one assertion.**
+
+## Twelve functions nothing called, and the shadow they cast (round 1020)
+
+Last round's audit found twenty-two public functions with no call site. This round worked through the older ones, and **deleting them found two more** - a helper that only
+the deleted function used, and a private one that only that helper used.
+
+| Deleted | What it was | Why nothing needed it |
+|---|---|---|
+`routing::first_step_towards_the_destination` | the direction a path leaves its source by | `walk_towards` steps the path itself |
+`spellcasting::armour_there` | the armour on a body part | `armour_on` answers the same question at the call site |
+`terrain_transform::result_of` | what a transform does to one name | `apply` reads the same data |
+`lib::monsters_at` | creatures on a square | `creature_at` is the one the movement rules use |
+`lib::item_weight_milligrams` | weight without the truncation to grams | `item_registry::weight_of` is the store's own answer |
+`lib::craft_on_square` | the old square-based craft | **superseded by the whole crafting module** |
+`lib::bounds_of`, `lib::bounds_of_public`, `lib::cost_group` | level extent and component costs | only `craft_on_square` and the deleted accessor used them |
+`skills_of::skills_of` | the list of practised skills | nothing lists them |
+`npc_opinion::opinion_of` | a creature's whole opinion | `feeling_of` reads the one number a rule asks for |
+
+**Every one of these is a second way to answer a question some live rule already answers.** The port's architecture forbids a second **store**; this sweep shows the same
+rule applies to a second **accessor**, and the cost is not theoretical: `craft_on_square` was a whole second crafting implementation from before the crafting module
+existed, and it kept **three** helpers alive behind it.
+
+**What was kept, and why:** `friendly::is_friendly`, `monster_spawning::is_hallucination`, `monster_spawn_attempts`, `run_environment_turn_from_store` and
+`render_frame` are **not** superseded - they are rules with no caller **yet**, and each is named in the inventory with the system that will call it. **The difference
+between "waiting for its caller" and "a second answer to the same question" is the whole of this sweep's judgement**, and it is now written down in the file that will be
+read next time.

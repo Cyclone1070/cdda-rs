@@ -1080,7 +1080,7 @@ pub fn spend_a_turn_on(world: &mut World, creature: Entity) -> bool {
                 let ticks = done_now / 100 - done_before / 100;
                 if ticks > 0 {
                     let cap = crate::skills_of::craft_skill_cap(making.recipe.difficulty);
-                    crate::skills_of::practice(world, creature, &making.recipe.skill, ticks, cap);
+                    let _ = crate::skills_of::practice(world, creature, &making.recipe.skill, ticks, cap);
                 }
             }
         }

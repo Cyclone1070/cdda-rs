@@ -28,12 +28,6 @@ pub fn set_transforms(
 
 /// What one transform does to one terrain's name, or nothing when it does not touch it.
 #[must_use]
-pub fn result_of(world: &World, transform: &str, terrain: &str) -> Option<String> {
-    let element = crate::singletons::holder::<TheTerrainTransforms>(world)?;
-    let table = world.get::<TerrainTransforms>(element)?;
-    table.0.get(transform)?.get(terrain).cloned()
-}
-
 /// Applies a transform to every square within `radius` of `centre`, answering how many changed.
 ///
 /// Reference: `map::transform_radius` (`map.cpp`) walks `points_in_radius( pos, radius )` and applies the transform to each square. The port walks the same square

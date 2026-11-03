@@ -49,13 +49,6 @@ pub fn set_level(world: &mut World, creature: Entity, skill: &str, level: i32) {
 
 /// The skills a creature has practised, which a test or a dump reads.
 #[must_use]
-pub fn skills_of(world: &World, creature: Entity) -> Vec<String> {
-    world
-        .get::<Skills>(creature)
-        .map(|skills| skills.0.keys().cloned().collect())
-        .unwrap_or_default()
-}
-
 /// What a craft's practice is worth, on the reference's own chain.
 ///
 /// Reference: `Character::practice` (`character.cpp:2804-2880`) called from `craft_skill_gain` (`crafting.cpp:1032`). In order: the amount is capped at a thousand

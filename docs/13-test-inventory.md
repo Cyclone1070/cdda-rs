@@ -362,7 +362,10 @@ the ones this sweep created were all mistakes of the same kind: **a helper writt
 **Both were mine, both were written this week, and both read as reasonable.** That is the point of the audit: **the failure mode is not a wrong rule, it is a rule whose
 author did not need it yet**, and it hides in a file that otherwise looks finished.
 
-The rest of the list is older and is worked through in the section below.
+The rest of the list was older, and **deleting it found two more** (round 1020): `lib::bounds_of` and `lib::cost_group` existed only to serve the deleted accessors. Twelve
+functions went; five were **kept** as rules waiting for a caller - `friendly::is_friendly`, `monster_spawning::is_hallucination`, `monster_spawn_attempts`,
+`run_environment_turn_from_store`, `render_frame` - and each is named in `docs/parity.md` with the system that will call it. **A rule waiting for its caller is not the
+same thing as a second answer to a question already answered**, and that distinction is what this audit is for.
 
 Rules that no test can fail (audit at round 1005)
 
