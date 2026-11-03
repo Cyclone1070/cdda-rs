@@ -11448,7 +11448,7 @@ The thrown blow now goes through the target's resistance before it touches hit p
 | Piece | Where |
 |---|---|
 the blow | the thing's own damage plus the arm's (`damage_of_throw`) |
-the resistance | the creature's [`Armour`](crates/sim/src/creature.rs) bash value |
+the resistance | the creature's `Armour` bash value |
 the subtraction | `melee::after_armour` - `damage.cpp:724-727`'s effective resist and `monster.cpp:2085`'s cap |
 Gate | `armour_takes_the_edge_off_a_thrown_blow_and_never_heals` - **four** armours in one test: 0, 3, 4 and 100 against a four-point blow |
 
