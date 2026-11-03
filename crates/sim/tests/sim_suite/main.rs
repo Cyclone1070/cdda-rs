@@ -133,6 +133,7 @@ mod item_measures;
 mod item_stacking;
 mod item_volume;
 mod item_weight;
+mod items;
 mod item_data;
 mod item_registry;
 mod kill_to_loot;

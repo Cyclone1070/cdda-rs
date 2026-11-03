@@ -9952,3 +9952,23 @@ silently measures less.**
 
 **Twelve lines came out of `from_dump` on the way**, which had crossed the hundred-line limit: the group reader is now `groups_of`, beside the other readers. **The limit
 did its job** - the function had two jobs and the lint was the thing that said so.
+
+## Things in things, as a link rather than a tree (round 1009)
+
+The largest hole left in the crafting gate is **item containment**: 302 batches where the reference wraps a result in its container (`contained`, `recipe.cpp:768-771`).
+The port had pockets on a creature - `InPocket` - and **no way for one item to be inside another**, which is why those recipes could not be modelled.
+
+The reference keeps an item's contents **inside the item** (`item::contents`), a tree. The port keeps one store, so this round added the link instead:
+
+| Piece | Rule |
+|---|---|
+`ContainedIn(entity)` | the inner thing points at its container; the container holds nothing about it |
+`put_inside` | takes the thing **off its square** - what is inside a can is not standing on the floor - and refuses self-containment and cycles |
+`take_out` | puts it back on a square, which is the reference's `spill_contents` |
+`crafting`'s `weight_of( include_contents )` | the item's weight times its charges, plus everything inside (`item.cpp:7229-7305`) |
+
+**The tree is not duplicated into the container**: `contents_of` is a query over the link, so a thing inside a thing is in **one** place in the store, and the index has
+no entry for it at all. **That is the architecture's rule applied to a feature that invites a second store**, and the cycle check is what keeps the link a graph.
+
+**The cycle check had its direction wrong the first time** and the test caught it in the obvious way: a can was allowed inside the rag it contained. **A rule about a graph is
+easy to write backwards and hard to see**, which is an argument for the graph-shaped tests this sweep of work has been accumulating.
