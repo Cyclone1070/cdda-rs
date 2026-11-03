@@ -496,3 +496,40 @@ fn a_first_mutation_is_never_bad() {
         "a mutation of its own tree is instability"
     );
 }
+
+/// A mutation that steadies a creature lowers the instability its other mutations give it.
+///
+/// Reference: `get_instability_per_category` multiplies the count by `MUT_INSTABILITY_MOD` before flooring at zero (`mutation.cpp:1082-1085`). The mutation that does the
+/// steadying is **not itself instability** - it is a bad mutation, which the sum skips - so the only thing it changes is how unstable the rest of the body is.
+#[test]
+fn a_steadying_mutation_lowers_instability() {
+    let mut good = trait_of(&[], &[]);
+    good.points = 1;
+    good.categories = vec!["BEAST".to_owned()];
+    let mut steady = trait_of(&[], &[]);
+    steady.points = -2;
+    steady.enchant_values = vec![cdda_content::mutations::EnchantmentValue {
+        value: "MUT_INSTABILITY_MOD".to_owned(),
+        add: -1.0,
+        multiply: 0.0,
+    }];
+    let data = table(&[("GOOD_ONE", good), ("STEADY", steady)]);
+    let categories = cdda_content::mutations::Categories::default();
+
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::mutation_data::install(&mut world, data.clone(), categories.clone());
+    cdda_sim::mutations::gain(&mut world, survivor, &data, &categories, "GOOD_ONE");
+    assert_eq!(
+        cdda_sim::mutations::instability_in_category(&world, survivor, &data, "BEAST"),
+        1,
+        "one mutation of height one is one point of instability"
+    );
+
+    cdda_sim::mutations::gain(&mut world, survivor, &data, &categories, "STEADY");
+    assert_eq!(
+        cdda_sim::mutations::instability_in_category(&world, survivor, &data, "BEAST"),
+        0,
+        "and a steadying mutation takes it away"
+    );
+}

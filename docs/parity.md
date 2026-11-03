@@ -10723,3 +10723,22 @@ it, and a filter that uses it.
 
 **Still declared:** the vitamin each mutation costs (`mutation_ok`'s `mut_vit` check) and the `MUT_INSTABILITY_MOD` enchantment, which scales instability by a multiplier the
 port's sum already knows how to apply.
+
+## The cache steadied a creature's genes (round 1045)
+
+The last declared piece of the bad roll was `MUT_INSTABILITY_MOD`. It now applies:
+
+| Piece | Where |
+|---|---|
+the instability sum, scaled | `instability_in_category` ends with `modify_value( MUT_INSTABILITY_MOD, count )` then `max( 0 )` (`mutation.cpp:1082-1085`) |
+the sum, for a caller that already has the table | `enchantment_values_from`, which `enchantment_values` now delegates to - **one implementation, two signatures** |
+Gate | `a_steadying_mutation_lowers_instability` - one height-one mutation is **1** point, a bad mutation with `MUT_INSTABILITY_MOD -1` takes it to **0** |
+
+**The steadying mutation is not itself instability.** `get_instability_per_category` skips mutations with negative points, so the trait that lowers the count contributes
+**nothing** to it - the only thing it changes is how unstable the *rest of the body* is. The gate is written to see both halves: the count is **1** before it, **0** after it,
+and the trait that did it is **bad**, so a test that mistook its height for instability would have read 1 + 1 = 2 and failed.
+
+**Four rules now read one sum** - a carrying capacity, a stomach, a clock and a creature's genes - and none of them keeps its own opinion about what a mutation is worth.
+**That is the cache's whole value**, and it is the reason this stretch of work was worth four rounds of plumbing before a fifth feature.
+
+**Still declared:** the vitamin each mutation costs (`mutation_ok`'s `mut_vit`), which needs a per-mutation `vitamin_cost` the port's dump does not carry yet.

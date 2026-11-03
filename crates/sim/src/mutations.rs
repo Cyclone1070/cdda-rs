@@ -299,21 +299,7 @@ pub fn mutate_category(
 /// `values_multiply` is summed too - the reference then applies `( base + add ) * ( 1 + multiply )`, which is what [`apply`] does.
 #[must_use]
 pub fn enchantment_values(world: &World, creature: Entity, data: &MutationData, stat: &str) -> (f64, f64) {
-    let mut add = 0.0;
-    let mut multiply = 0.0;
-    for id in mutations_of(world, creature) {
-        let Some(rule) = data.get(&id) else {
-            continue;
-        };
-        for value in &rule.enchant_values {
-            if value.value != stat {
-                continue;
-            }
-            add += value.add;
-            multiply += value.multiply;
-        }
-    }
-    (add, multiply)
+    enchantment_values_from(data, world, creature, stat)
 }
 
 /// A base stat with the enchantments a creature carries applied to it.
@@ -376,7 +362,37 @@ pub fn instability_in_category(world: &World, creature: Entity, data: &MutationD
             total += height * 2;
         }
     }
-    total.max(0)
+    // Reference: `get_instability_per_category` ends with `modify_value( MUT_INSTABILITY_MOD, mut_count )` and `max( ..., 0 )` (`mutation.cpp:1082-1085`), so a mutation
+    // that steadies a creature really does steady it - the same sum, read one more way.
+    let (add, multiply) = enchantment_values_from(data, world, creature, "MUT_INSTABILITY_MOD");
+    #[allow(clippy::cast_possible_truncation)]
+    let scaled = apply_enchantments(f64::from(total), add, multiply) as i32;
+    scaled.max(0)
+}
+
+/// [`enchantment_values`] for a caller that already holds the table.
+#[must_use]
+pub fn enchantment_values_from(
+    data: &MutationData,
+    world: &World,
+    creature: Entity,
+    stat: &str,
+) -> (f64, f64) {
+    let mut add = 0.0;
+    let mut multiply = 0.0;
+    for id in mutations_of(world, creature) {
+        let Some(rule) = data.get(&id) else {
+            continue;
+        };
+        for value in &rule.enchant_values {
+            if value.value != stat {
+                continue;
+            }
+            add += value.add;
+            multiply += value.multiply;
+        }
+    }
+    (add, multiply)
 }
 
 /// How many mutations a category holds, split the way the reference splits them.

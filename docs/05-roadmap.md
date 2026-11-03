@@ -863,7 +863,8 @@ minus twenty. **Still not ported:** the reading penalty, and the comfort/tempera
 **Mutation reach at 1035:** the `u_mutate` dialogue effect now **gives** a mutation instead of refusing - the two tables live on a marked entity, `mutate_category` draws
 with the reference's two tries, and the category is the creature's strongest. **Declared, not ported:** the good/bad roll and the vitamin cost per mutation.
 
-**The bad roll at 1044:** `instability_in_category` (height per mutation, doubled off-tree), `total_in_category` and `roll_is_bad` (half the ratio, capped at 0.67) now decide
+**The instability modifier at 1045:** `instability_in_category` scales by `MUT_INSTABILITY_MOD` before flooring at zero, so a steadying mutation steadies the whole body -
+**four rules now read the one cache** (capacity, stomach, clock, genes). **Still declared:** the per-mutation vitamin cost. **The bad roll at 1044:** `instability_in_category` (height per mutation, doubled off-tree), `total_in_category` and `roll_is_bad` (half the ratio, capped at 0.67) now decide
 which half of a category a creature may draw from - **and a creature with no instability never rolls bad at all**, so a first mutation is always good or neutral.
 **Declared:** the vitamin cost and the `MUT_INSTABILITY_MOD` modifier. **The third claimant at 1043:** `needs::rates_with_enchantments` applies `HUNGER`/`SLEEPINESS`/`THIRST` from the cache and **both** clocks call it - so a mutation that
 says a creature sleeps less actually slows its sleepiness. With the carrying capacity and the stomach, that is **three unrelated rules answering from one table**.
