@@ -1881,13 +1881,71 @@ fn strike_what_the_goal_holds(world: &mut World, attacker: Entity, goal: (i32, i
 /// Answers `None` when there is nothing to hit with or no dice to hit with, which is why the caller can tell a miss (`Some(0)`) from a blow that never happened.
 pub fn strike_at(world: &mut World, attacker: Entity, victim: Entity) -> Option<i32> {
     let attack = world.get::<MeleeAttack>(attacker).copied()?;
+    strike_with(world, victim, attack.0)
+}
+
+/// What a character is holding out to hit with, as the kind of thing it is.
+///
+/// Reference: `Character::get_wielded_item` (`character.cpp`) is the item a blow is built from, and `melee_attack_abstract` takes the null item when there is none. The port keeps
+/// the **kind** rather than the item entity, because a blow reads only what the kind decides - its damage and its balance - and an id is what this store passes around.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Wielding(pub crate::ItemTypeId);
+
+/// What a character swings with, worked out from what it holds.
+///
+/// Reference: `Character::melee_attack_abstract` (`melee.cpp:625-630`) builds the blow from `used_weapon()`, which is the wielded item or `null_item_reference()`. The accuracy is
+/// `get_melee_hit_base` - dexterity over four, the weapon skill's thirds, the melee skill's halves, and the weapon's own balance - and the damage is the weapon's `melee_damage`.
+///
+/// **A weaponless character gets the null item**, whose melee is zero in the data and whose balance is **-2**: empty hands aim worst and carry no damage, which is what the
+/// reference says and what the port must not improve on. The skills are zero because the port has no character skills yet; that is a number the data would fill and this does not
+/// invent.
+#[must_use]
+pub fn blow_from_what_the_character_holds(world: &World, holder: Entity) -> crate::melee::Attack {
+    let kind = world.get::<Wielding>(holder).map(|held| held.0);
+    let names = crate::item_registry::peek(world);
+    let names = names.cloned().unwrap_or_default();
+    let (to_hit, bash, cut, stab) = kind.map_or((-2, 0.0, 0.0, 0.0), |kind| {
+        (
+            names.to_hit_of(kind),
+            names.melee_bash_of(kind),
+            names.melee_cut_of(kind),
+            names.melee_stab_of(kind),
+        )
+    });
+    #[allow(clippy::cast_possible_truncation)]
+    let whole = |amount: f64| amount as i32;
+    crate::melee::Attack {
+        accuracy_tenths: crate::melee::hit_base_tenths(effective_dexterity(world, holder))
+            + crate::melee::hit_weapon_tenths(0, 0, to_hit),
+        #[allow(clippy::cast_possible_truncation)]
+        fixed: crate::melee::Damage {
+            bash: whole(bash),
+            cut: whole(cut),
+            stab: whole(stab),
+            penetration: 0,
+        },
+        dice: 0,
+        sides: 0,
+    }
+}
+
+/// Swings whatever a character is holding at a creature, and answers what it did to it.
+///
+/// This is the avatar's half of the fight: the same `strike_with` a monster's blow goes through, fed by `blow_from_what_the_character_holds` instead of a `MeleeAttack` component.
+pub fn swing_what_the_character_holds(world: &mut World, holder: Entity, victim: Entity) -> Option<i32> {
+    let attack = blow_from_what_the_character_holds(world, holder);
+    strike_with(world, victim, attack)
+}
+
+/// One blow, from an attack the caller has already worked out.
+fn strike_with(world: &mut World, victim: Entity, attack: crate::melee::Attack) -> Option<i32> {
     let mut rolls = crate::singletons::take_rolls(world)?;
     let defence = defence_of(world, victim);
     // The roll, the landing place and the armour are asked in the order the reference asks them: the margin is
     // known before the part, and the part is known before what protects it - `Creature::deal_melee_hit` picks the
     // part from the spread (`creature.cpp:959`) and `absorb_hit` is told which part it was.
     #[allow(clippy::cast_precision_loss)]
-    let accuracy = attack.0.accuracy_tenths as f32 / 10.0;
+    let accuracy = attack.accuracy_tenths as f32 / 10.0;
     let hitroll = crate::melee::melee_hit_range(&mut rolls, accuracy);
     #[allow(clippy::cast_possible_truncation)]
     let spread = crate::melee::hit_spread(
@@ -1907,7 +1965,7 @@ pub fn strike_at(world: &mut World, attacker: Entity, victim: Entity) -> Option<
         armour
     });
     let defence = crate::melee::Defence { resist, ..defence };
-    let rolled = crate::melee::monster_melee_damage(&mut rolls, attack.0.fixed, attack.0.dice, attack.0.sides);
+    let rolled = crate::melee::monster_melee_damage(&mut rolls, attack.fixed, attack.dice, attack.sides);
     let swung = crate::melee::resolve(hitroll, rolled, defence);
     // A garment's own fate is decided by the whole blow, before the armour took its share
     // (`character_armor.cpp`), and by a **fresh** draw of its own: `damage_armor_durability` calls `x_in_y` after

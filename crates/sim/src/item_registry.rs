@@ -65,6 +65,30 @@ pub struct ItemTypes {
 }
 
 impl ItemTypes {
+    /// What a kind does when swung, in points of bash damage.
+    #[must_use]
+    pub fn melee_bash_of(&self, kind: ItemTypeId) -> f64 {
+        self.melee_bash.get(kind.0 as usize).copied().unwrap_or(0.0)
+    }
+
+    /// What a kind does when swung, in points of cutting damage.
+    #[must_use]
+    pub fn melee_cut_of(&self, kind: ItemTypeId) -> f64 {
+        self.melee_cut.get(kind.0 as usize).copied().unwrap_or(0.0)
+    }
+
+    /// What a kind does when swung, in points of stabbing damage.
+    #[must_use]
+    pub fn melee_stab_of(&self, kind: ItemTypeId) -> f64 {
+        self.melee_stab.get(kind.0 as usize).copied().unwrap_or(0.0)
+    }
+
+    /// How well a kind is balanced for a swing.
+    #[must_use]
+    pub fn to_hit_of(&self, kind: ItemTypeId) -> i32 {
+        self.to_hit.get(kind.0 as usize).copied().unwrap_or(-2)
+    }
+
     /// The pockets of one kind, as the store holds them.
     #[must_use]
     pub fn pockets_of_in_store(&self, kind: ItemTypeId) -> Vec<Pocket> {
@@ -387,6 +411,15 @@ pub fn name_in(world: &World, kind: ItemTypeId) -> Option<String> {
             .get(start..start + how_many as usize)
             .unwrap_or(&[])
     }
+}
+
+/// A look at the registry without taking a copy of it.
+///
+/// The melee rules ask four things of one kind at a time, and `snapshot` clones every name and every table to answer them. This hands back a reference to the tables themselves;
+/// the borrow is read-only, so nothing can change the registry while it is held.
+#[must_use]
+pub fn peek(world: &World) -> Option<&ItemTypes> {
+    singletons::holder::<TheItemTypes>(world).and_then(|holder| world.get::<ItemTypes>(holder))
 }
 
 /// Takes a copy of the registry.

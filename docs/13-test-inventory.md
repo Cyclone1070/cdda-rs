@@ -557,3 +557,8 @@ yet, and borrowing `armor_cut` would have made monsters quietly sturdier than th
 **Round 1093 closed the stab-armour gap**: the monster dump is version **5** and carries `armor_stab` per prototype, `MonsterType::armor_stab` loads it, the spawner puts it on
 `Armour::stab`, and `content_suite::monster_armour` compares all **1,154** prototypes on all three armour numbers. **The zero from round 1092 is gone** - it existed only because the
 dump did not carry the field.
+
+**Round 1094 gave the avatar its blow**: `creature::Wielding(ItemTypeId)`, `blow_from_what_the_character_holds` (`Character::melee_attack_abstract`, `melee.cpp:625-630`) and
+`swing_what_the_character_holds`, which goes through the same `strike_with` a monster's blow does. Gated by `character_swing`: **empty hands aim worst and do nothing** (the null
+item's melee is zero and its balance -2), a combat knife carries 21 stabbing, and a knife takes hit points off a zombie while bare hands take none. **The skills are zero because the
+port has no character skills yet** - an absent component, not a guessed formula.

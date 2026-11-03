@@ -61,6 +61,7 @@ mod probe;
 mod dialogue_effects;
 mod dialogue_values;
 mod body_from_content;
+mod character_swing;
 mod creature_fight;
 mod creatures;
 mod pathfinding;

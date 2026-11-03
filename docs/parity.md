@@ -11893,3 +11893,25 @@ an edge.**
 
 **A gap that is named is a gap that gets closed.** Round 1092 wrote "the port does not load `armor_stab` yet" beside a deliberate zero; this round the harness carries the field and
 the zero is replaced by the data. **The comment was the work order** - the same pattern the registry's `thrown_damage`-only field went through two rounds ago.
+
+## The survivor can swing (round 1094)
+
+Five rounds of circling ended with the avatar's own blow, and it is smaller than the circling suggested.
+
+| Piece | Where |
+|---|---|
+`creature::Wielding(ItemTypeId)` | `Character::get_wielded_item`, kept as an **id** because a blow reads only what the kind decides |
+`blow_from_what_the_character_holds` | `Character::melee_attack_abstract` (`melee.cpp:625-630`) - `used_weapon()`, or the null item when there is none |
+`swing_what_the_character_holds` | the same `strike_with` a monster's blow goes through |
+`item_registry::peek` | a read-only look at the registry, so working out a blow no longer clones every name and table |
+Gates | `empty_hands_swing_for_nothing_and_aim_worst`, `a_knife_is_worth_its_own_stabbing_and_its_own_balance`, `a_knife_draws_blood_and_empty_hands_do_not` |
+
+**Empty hands are exactly as good as the reference says: not at all.** `null`'s melee is zero and its balance is **-2**, so a weaponless blow aims worse than anything and carries no
+damage. The first gate pins both - and the third proves the difference in one fight: **the survivor's bare hands swing, hit, and do nothing; a combat knife draws blood.**
+
+**The skills are zero, and that is the one number this round does not have.** `get_hit_weapon` is `weapon_skill / 3 + melee_skill / 2`, and the port has no character skills yet, so
+both are passed as zero. **A zero skill is not a guess about the reference's formula - it is the absence of a component**, and the doc comment says so, which is the difference between
+an incomplete port and a wrong one.
+
+**Two refactors fell out and both were owed.** `strike_with` no longer takes the attacker: it never read it, and the reach check belongs to whoever found the target. `peek` exists
+because **cloning a nine-thousand-row registry to look up one kind is the kind of cost that hides inside a name like `snapshot`.**
