@@ -18,6 +18,10 @@ pub struct Mutation {
     pub purifiable: bool,
     /// Whether a character can start with it, which is what makes its removal a matter of chance rather than certainty.
     pub startingtrait: bool,
+    /// Whether the mutation is a category threshold, which cannot be gained on points alone.
+    pub threshold: bool,
+    /// The thresholds that must all be held before this one can be - a **different** set from `prereqs`, where one is enough.
+    pub threshreq: Vec<String>,
     /// One of these must be held, if the list is not empty.
     pub prereqs: Vec<String>,
     /// One of these must be held as well, if the list is not empty.
@@ -85,6 +89,8 @@ fn mutation_of(entry: &Object) -> Mutation {
         visibility: whole(entry, "visibility"),
         purifiable: matches!(entry.get("purifiable"), Some(Value::Bool(true))),
         startingtrait: matches!(entry.get("startingtrait"), Some(Value::Bool(true))),
+        threshold: matches!(entry.get("threshold"), Some(Value::Bool(true))),
+        threshreq: strings(entry, "threshreq"),
         prereqs: strings(entry, "prereqs"),
         prereqs2: strings(entry, "prereqs2"),
         cancels: strings(entry, "cancels"),

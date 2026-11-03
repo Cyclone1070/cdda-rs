@@ -21,11 +21,13 @@ fn table(entries: &[(&str, Mutation)]) -> Mutations {
         };
         let _ = write!(
             text,
-            "{{\"id\":\"{id}\",\"points\":{},\"visibility\":{},\"purifiable\":{},\"startingtrait\":{},\"prereqs\":[{}],\"prereqs2\":[],\"cancels\":[{}],\"category\":[{}]}}",
+            "{{\"id\":\"{id}\",\"points\":{},\"visibility\":{},\"purifiable\":{},\"startingtrait\":{},\"threshold\":{},\"threshreq\":[{}],\"prereqs\":[{}],\"prereqs2\":[],\"cancels\":[{}],\"category\":[{}]}}",
             one.points,
             one.visibility,
             one.purifiable,
             one.startingtrait,
+            one.threshold,
+            list(&one.threshreq),
             list(&one.prereqs),
             list(&one.cancels),
             list(&one.categories)
@@ -47,6 +49,8 @@ fn trait_of(prereqs: &[&str], cancels: &[&str]) -> Mutation {
         visibility: 0,
         purifiable: true,
         startingtrait: false,
+        threshold: false,
+        threshreq: Vec::new(),
         prereqs: prereqs.iter().map(|one| (*one).to_owned()).collect(),
         prereqs2: Vec::new(),
         cancels: cancels.iter().map(|one| (*one).to_owned()).collect(),
@@ -236,5 +240,46 @@ fn a_starting_trait_is_removed_only_when_its_category_allows() {
     assert!(
         !cdda_sim::mutations::has(&world, survivor, "FAST_LEARNER"),
         "and with no category to stop it, a starting trait is removed"
+    );
+}
+
+/// A threshold mutation needs **every** threshold it names, where an ordinary prerequisite needs only one.
+///
+/// Reference: `mutation_branch::threshreq` (`mutation.h:333`) and its use in `Character::mutate_towards`: `prereqs` is a list of alternatives and `threshreq` is a list of
+/// requirements, so two thresholds asked for means two thresholds held.
+#[test]
+fn a_threshold_mutation_needs_every_threshold_it_names() {
+    let mut cross = trait_of(&[], &[]);
+    cross.threshold = true;
+    let mut beast = trait_of(&[], &[]);
+    beast.threshold = true;
+    let mut past = trait_of(&[], &[]);
+    past.threshold = true;
+    past.threshreq = vec!["THRESH_CROSS".to_owned(), "THRESH_BEAST".to_owned()];
+    let data = table(&[
+        ("THRESH_CROSS", cross),
+        ("THRESH_BEAST", beast),
+        ("PAST_BOTH", past),
+    ]);
+
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let none = cdda_content::mutations::Categories::default();
+    assert_eq!(
+        cdda_sim::mutations::can_gain(&world, survivor, &data, "PAST_BOTH"),
+        cdda_sim::mutations::Gain::MissingPrerequisite,
+        "with neither threshold held, it waits"
+    );
+    cdda_sim::mutations::gain(&mut world, survivor, &data, &none, "THRESH_CROSS");
+    assert_eq!(
+        cdda_sim::mutations::can_gain(&world, survivor, &data, "PAST_BOTH"),
+        cdda_sim::mutations::Gain::MissingPrerequisite,
+        "and one of two is not enough"
+    );
+    cdda_sim::mutations::gain(&mut world, survivor, &data, &none, "THRESH_BEAST");
+    assert_eq!(
+        cdda_sim::mutations::can_gain(&world, survivor, &data, "PAST_BOTH"),
+        cdda_sim::mutations::Gain::Yes,
+        "with both held it can be gained"
     );
 }

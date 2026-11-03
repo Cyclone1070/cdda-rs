@@ -10457,3 +10457,20 @@ would silently make every mutation equally easy to lose - which is exactly the b
 when the chain ended the files were not there - the build had finished but the dump command had not run to completion. **Running the two dump commands by hand against the
 already-built binary took ninety seconds.** The lesson is the one the project already knows and did not apply here: **the expensive part is the build, and after it succeeds
 the dump is a cheap separate step that should never be chained behind another build.**
+
+## Two kinds of "needs", and only one of them is a choice (round 1033)
+
+Mutations have **three** prerequisite lists, and the port now reads all three:
+
+| Set | Rule | Gate |
+|---|---|---|
+`prereqs`, `prereqs2` | **one** of the list is enough | `a_mutation_needs_one_of_its_prerequisites` |
+`threshreq` | **every** threshold in the list must be held | `a_threshold_mutation_needs_every_threshold_it_names` |
+
+**The reference's own comment is the whole rule**: `threshreq` is *"Prerequisites; dedicated slot to needing thresholds"* (`mutation.h:333`), and it sits in the same struct as
+two lists that mean the opposite. **A port that read all three the same way would pass a test written by the same misreading**, which is why the test holds *one* of two
+thresholds and asserts the gain **still waits** - **the only assertion that can tell "all" from "any".**
+
+**Still not ported:** the **category strength** that a threshold is actually gated on in play (`Character::mutation_category_level`, built from every mutation of a category
+the character holds), and the points a mutation costs. `threshreq` is the part that lives in the mutation's own data; the strength is a number on the character, and it is
+named here rather than half-built.

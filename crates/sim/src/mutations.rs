@@ -54,6 +54,11 @@ pub fn can_gain(world: &World, creature: Entity, data: &MutationData, id: &str) 
     if !satisfied(world, creature, &rule.prereqs) || !satisfied(world, creature, &rule.prereqs2) {
         return Gain::MissingPrerequisite;
     }
+    // Reference: `mutation_branch::threshreq` (`mutation.h:333`): "Prerequisites; dedicated slot to needing thresholds". Unlike `prereqs`, where **one** member is
+    // enough, every threshold in this list must be held - a mutation past a threshold needs the threshold itself, not one of several.
+    if !rule.threshreq.iter().all(|need| has(world, creature, need)) {
+        return Gain::MissingPrerequisite;
+    }
     Gain::Yes
 }
 
