@@ -1765,6 +1765,8 @@ pub fn value_drawing(
                 Operator::Multiply => left * right,
                 Operator::Divide => left / right,
                 Operator::Remainder => left % right,
+                // Reference: `math_opers::math_pow` (`math_parser_impl.cpp`), which is `std::pow`.
+                Operator::Power => left.powf(right),
                 Operator::Equal => f64::from(u8::from((left - right).abs() < f64::EPSILON)),
                 Operator::NotEqual => f64::from(u8::from((left - right).abs() >= f64::EPSILON)),
                 Operator::Less => f64::from(u8::from(left < right)),

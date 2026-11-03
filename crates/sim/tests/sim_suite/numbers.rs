@@ -48,7 +48,7 @@ pub struct Census {
 pub const NOW: Census = Census {
     defined: 692,
     // 584 after round 1049: `offer_mission` is a reader the data's programs were waiting on, so the readable count rises with the leaf count falling.
-    readable: 584,
+    readable: 585,
     ran: 390,
     // Of those, how many answered `Done` without changing anything the world can see: four in five of them, because a program whose condition is
     // false for a fresh world legitimately does nothing - and a program whose condition could not be READ does nothing too, and used to count as a run.
@@ -57,14 +57,14 @@ pub const NOW: Census = Census {
     empty_programs: 22,
     // The same programs run in a world that has terrain, an overmap and a player who answers, which is what a game has.
     ran_in_a_built_world: 395,
-    refused_at_run: 194,
+    refused_at_run: 195,
     // 74 leaves and 1,547 effects after round 1048 read the `npc_mutate_category` spelling; **73 and 1,548** after round 1049 read `offer_mission`.
     // Each reader that lands moves three numbers, and one of them may rise - see the runs' own comments.
-    leaves: 73,
-    one_gap: 18,
-    effects_runnable: 1_548,
+    leaves: 72,
+    one_gap: 17,
+    effects_runnable: 1_549,
     effects_defined: 1_612,
-    effect_blamed: 101,
+    effect_blamed: 100,
     conditions_readable: 3_227,
 };
 

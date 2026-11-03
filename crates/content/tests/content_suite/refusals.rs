@@ -145,7 +145,7 @@ fn the_first_entry_that_refuses_says_which_rule_is_missing() {
     }
     // Pinned so a round that changes the frontier sees it here first: the total has fallen from 35 to **24**, and the biggest single cause is still a **store**
     // (`revert_location` needs a submap baseline the port does not keep), not a reader. The fall from 25 is round 1048 reading `npc_mutate_category`.
-    assert_eq!(refused_programs.len(), 23, "twenty-three programs refuse at their first unreadable entry");
+    assert_eq!(refused_programs.len(), 22, "twenty-two programs refuse at their first unreadable entry");
     assert_eq!(
         ranked
             .iter()
@@ -153,5 +153,19 @@ fn the_first_entry_that_refuses_says_which_rule_is_missing() {
             .map(|(_, count, _)| *count),
         Some(3),
         "three of them are a revert_location, which needs the submap baseline"
+    );
+}
+
+/// The one `location_variable_adjust` the census still blames, read directly.
+///
+/// It sits in `traps.json` and adjusts a **context variable** by an expression of two random draws. The rounded braces are the reference's XOR, which its expression parser
+/// reads as a power; the reading question is whether the port can carry the shape at all.
+#[test]
+fn a_context_variable_can_be_adjusted_by_an_expression() {
+    let text = r#"{"location_variable_adjust": {"context_val": "trap_location"}, "//": "Adjust by between 2 and 12 in either direction", "x_adjust": {"math": ["((-1) ^ rand(1)) * (rand(10) + 2)"]}, "y_adjust": {"math": ["((-1) ^ rand(1)) * (rand(10) + 2)"]}}"#;
+    let value = cdda_json::parse(text.as_bytes()).expect("json");
+    assert!(
+        cdda_content::dialogue::read_effect(&value).is_some(),
+        "the port reads this adjust: {value:?}"
     );
 }

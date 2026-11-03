@@ -460,6 +460,9 @@ pub enum Operator {
     Divide,
     /// Remainder.
     Remainder,
+    /// Raise to a power, written `^`, which the reference spells `math_pow` (`math_parser_impl.h:341-342`) - **not** a bitwise exclusive or, whatever the shape of the
+    /// data suggests.
+    Power,
     /// Equal.
     Equal,
     /// Not equal.
@@ -487,6 +490,7 @@ impl Operator {
             "*" => Self::Multiply,
             "/" => Self::Divide,
             "%" => Self::Remainder,
+            "^" => Self::Power,
             "==" => Self::Equal,
             "!=" => Self::NotEqual,
             "!" => Self::Not,
@@ -1290,7 +1294,7 @@ fn tokenize(text: &str) -> Option<Vec<Token>> {
 
 /// The operator at the front of the text, longest spelling first so `<=` is not read as `<`.
 fn read_operator(text: &str) -> Option<(Token, usize)> {
-    for spelling in ["<=", ">=", "==", "!=", "+", "-", "*", "/", "%", "<", ">"] {
+    for spelling in ["<=", ">=", "==", "!=", "+", "-", "*", "/", "%", "^", "<", ">"] {
         if text.starts_with(spelling) {
             return Some((Token::Operator(spelling.to_owned()), spelling.len()));
         }
@@ -1331,12 +1335,16 @@ fn read_name(text: &str) -> Option<(Token, usize)> {
     Some((Token::Name(text.get(..end)?.to_owned()), end))
 }
 
-/// How tightly an operator binds: comparisons loosest, then addition, then multiplication.
+/// How tightly an operator binds: comparisons loosest, then addition, then multiplication, then the power.
+///
+/// Reference: `binary_ops` (`math_parser_impl.h:328-344`): `+ -` at two, `* / %` at three, `^` at **four**. The power is **right**-associative there, which the
+/// parser below expresses by letting it recurse at its own binding rather than one tighter.
 fn binding(spelling: &str) -> Option<u8> {
     Some(match spelling {
         "<" | "<=" | ">" | ">=" | "==" | "!=" => 1,
         "+" | "-" => 2,
         "*" | "/" | "%" => 3,
+        "^" => 4,
         _ => return None,
     })
 }
@@ -1352,7 +1360,9 @@ fn parse_precedence(tokens: &[Token], minimum: u8) -> Option<(Expression, &[Toke
             break;
         }
         let spelling = spelling.clone();
-        let (right, after) = parse_precedence(rest.get(1..)?, binds + 1)?;
+        // Reference: `^` is right-associative (`binary_ops`, `math_parser_impl.h:342`), so `2 ^ 3 ^ 2` is `2 ^ 9` rather than `8 ^ 2`.
+        let next = if spelling == "^" { binds } else { binds + 1 };
+        let (right, after) = parse_precedence(rest.get(1..)?, next)?;
         left = Expression::Binary {
             op: Operator::named(&spelling)?,
             left: Box::new(left),

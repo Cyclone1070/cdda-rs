@@ -10835,3 +10835,28 @@ of it *unreadable*. **A count that only ever falls would be a count of a shrinki
 
 **The offer is not an acceptance.** The reference creates a mission instance; the port records **which kinds a creature is offering** and leaves the instance to the
 accepting half. That is a deliberate narrowing - the effect's decision is the offer - and it is written on the component rather than left for the next reader to guess.
+
+## The caret is a power, not a bitwise exclusive or (round 1050)
+
+One effect in `traps.json` refused because of a single character:
+
+```json
+"x_adjust": {"math": ["((-1) ^ rand(1)) * (rand(10) + 2)"]}
+```
+
+| Piece | Where |
+|---|---|
+the operator | `Operator::Power`, read from `^` (`math_parser_impl.h:341-342`) |
+what it binds | **four** - tighter than `*` - and **right**-associative, so `2 ^ 3 ^ 2` is `2 ^ 9` |
+what it does | `math_opers::math_pow`, which is `std::pow` |
+Gates | `the_caret_is_a_power_and_binds_tighter_than_a_product` (**2×3²=18, 2^3^2=512**), and `a_context_variable_can_be_adjusted_by_an_expression` |
+
+**The data means "a random sign", not a bitwise operation.** `(-1) ^ rand(1)` is minus one or one depending on the draw, because **-1 to the power of either 0 or 1
+is ±1**. A port that read the caret as exclusive-or would have computed -1 XOR 1 = -2 and -1 XOR 0 = -1, **both the wrong sign and the wrong magnitude** - and nothing
+would have looked wrong, because an adjust of -2 looks like an adjust.
+
+**Right associativity is a table entry, not a preference.** `binary_ops` is fifteen lines and says which operators group right; the port's parser had assumed left for every
+one of them. It is now one entry denser and one assumption fewer.
+
+**The census moved for two rounds in a row without a rule landing** - 22 programs refusing now, readable **585**, leaves **72**. The size of the moves is the interesting
+part: **one operator reached one effect, which completed one program, which nudged five counts.** That is what a frontier looks like when the remaining gaps are small.

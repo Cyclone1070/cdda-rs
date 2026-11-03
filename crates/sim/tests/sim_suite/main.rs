@@ -84,6 +84,7 @@ mod effect_derived;
 mod skill_level;
 mod effect_decay;
 mod effect_merge;
+mod expression_power;
 mod extinguisher;
 mod falling;
 mod fault_pick;
