@@ -53,6 +53,7 @@ pub fn install(world: &mut World, kinds: &[ItemType]) {
             volume_ml: kind.volume,
             weight_g: kind.weight,
             pockets,
+            thrown_damage: kind.thrown_damage,
         })
         .collect();
     item_registry::set_item_types(world, &borrowed);

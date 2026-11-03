@@ -115,7 +115,10 @@ pub fn throw_at(world: &mut World, thrower: Entity, item: Entity, target: (i32, 
     // Reference: `impact.add_damage( damage_bash, std::min( weight / 100_gram, thrown_item_adjusted_damage( thrown ) ) )` (`ranged.cpp:1505-1506`), then
     // `deal_projectile_attack` against whatever the projectile reached. The port resolves the blow through the creature's hit points, which is where a thrown rock's damage
     // goes; **armour, body parts and weakpoints are the P4 half that is not written yet**, and a target with no hit points takes nothing rather than being invented.
-    let blow = damage_of_throw(arm_strength, crate::skills_of::level_of(world, thrower, "throw"), names.weight_of(kind));
+    // Reference: `proj.impact = thrown.base_damage_thrown()` (`ranged.cpp:1435`) and then `impact.add_damage( damage_bash, min( weight / 100 g, arm ) )`
+    // (`ranged.cpp:1505-1506`) - the thing's own damage **plus** what the arm adds, not the larger of the two.
+    let blow = names.thrown_of(kind)
+        + damage_of_throw(arm_strength, crate::skills_of::level_of(world, thrower, "throw"), names.weight_of(kind));
     #[allow(clippy::cast_possible_truncation)]
     let hurt = blow.floor() as i32;
     let hit = crate::creature::creature_at(world, at)
@@ -139,7 +142,9 @@ pub fn throw_at(world: &mut World, thrower: Entity, item: Entity, target: (i32, 
     }
 }
 
-/// What a thrown thing is worth as a blow, in points of damage.
+/// What the **arm** adds to a thrown thing's blow, in points of damage.
+///
+/// The thing's own damage is `item::base_damage_thrown` and lives in the item table ([`crate::item_registry::ItemNames::thrown_of`]); this is the half the thrower adds.
 ///
 /// Reference: `Character::thrown_item_adjusted_damage` (`src/ranged.cpp:1411-1428`): `arm_strength / 2` times `(min(10, skill) / 10) * 0.85 + 0.15`, and the whole thing is
 /// capped by the thing's own weight at **a point a hundred grams**. The reference's comment states the cap in words - "up to str/2 or weight/100g (lower), so 10 str is 5

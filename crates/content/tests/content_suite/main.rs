@@ -145,3 +145,4 @@ mod weather_manager;
 mod weather_order;
 mod zones;
 mod zones_probe;
+mod thrown_damage;

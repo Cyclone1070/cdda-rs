@@ -53,6 +53,7 @@ fn names_for(entries: &[(u32, &str)]) -> cdda_sim::item_registry::ItemNames {
         holds_ml: vec![0; highest as usize + 1],
         pockets: Vec::new(),
         pocket_ranges: vec![(0, 0); highest as usize + 1],
+        thrown_damage: Vec::new(),
     };
     for (number, name) in entries {
         if let Some(slot) = names.names.get_mut(*number as usize) {
@@ -366,6 +367,7 @@ fn a_crafted_thing_lands_in_a_pocket() {
             volume_ml: *volume,
             weight_g: *weight,
             pockets,
+            thrown_damage: 0.0,
         })
         .collect();
     cdda_sim::item_registry::set_item_types(&mut world, &registry);
@@ -454,6 +456,7 @@ fn what_fits_no_pocket_lands_at_your_feet() {
         holds_ml: vec![0, 0, 0],
         pockets: Vec::new(),
         pocket_ranges: vec![(0, 0), (0, 0), (0, 0)],
+        thrown_damage: Vec::new(),
     };
     cdda_sim::item_registry::set_item_types(
         &mut world,
@@ -463,12 +466,14 @@ fn what_fits_no_pocket_lands_at_your_feet() {
                 volume_ml: 250,
                 weight_g: 100,
                 pockets: &[],
+                thrown_damage: 0.0,
             },
             cdda_sim::item_registry::Kind {
                 id: "rope",
                 volume_ml: 500,
                 weight_g: 200,
                 pockets: &[],
+                thrown_damage: 0.0,
             },
         ],
     );
@@ -1035,12 +1040,14 @@ fn tool_charges_are_spent_a_twentieth_at_a_time() {
                 volume_ml: 250,
                 weight_g: 5,
                 pockets: &[],
+                thrown_damage: 0.0,
             },
             cdda_sim::item_registry::Kind {
                 id: "hammer",
                 volume_ml: 500,
                 weight_g: 900,
                 pockets: &[],
+                thrown_damage: 0.0,
             },
         ],
     );

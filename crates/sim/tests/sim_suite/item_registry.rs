@@ -20,6 +20,7 @@ fn kinds_as(kinds: &[(String, i64, i64, Vec<Pocket>)]) -> Vec<item_registry::Kin
             volume_ml: *volume,
             weight_g: *weight,
             pockets,
+            thrown_damage: 0.0,
         })
         .collect()
 }

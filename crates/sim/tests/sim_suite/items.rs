@@ -30,6 +30,7 @@ fn a_thing_inside_a_thing_has_no_square_and_adds_its_weight() {
             holds_ml: vec![0, 500, 0],
             pockets: Vec::new(),
             pocket_ranges: vec![(0, 0), (0, 0), (0, 0)],
+            thrown_damage: Vec::new(),
         };
         names.names.truncate(3);
         names

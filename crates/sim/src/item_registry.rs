@@ -17,7 +17,7 @@ use crate::ItemTypeId;
 /// Every item type's id, by the number the store uses for it.
 ///
 /// Index `n` is [`ItemTypeId(n)`]. Index zero is the null item, as it is in the reference's registry.
-#[derive(Component, Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Component, Debug, Clone, Default, PartialEq)]
 pub struct ItemTypes {
     /// The name of each kind, in registry order.
     names: Vec<String>,
@@ -49,6 +49,11 @@ pub struct ItemTypes {
     pockets: Vec<Pocket>,
     /// Where each kind's pockets begin and how many it has, in registry order.
     pocket_ranges: Vec<(u32, u32)>,
+    /// What each kind does when thrown, in points of damage, in registry order.
+    ///
+    /// Reference: `item::base_damage_thrown` (`item.cpp:7654-7658`) returns the type's `thrown_damage`, which `item_factory.cpp:324-326` fills with
+    /// `melee.damage_map[bash] * 0.75` when the data names none. The port holds it as one number per kind because that is all a throw reads.
+    thrown_damage: Vec<f64>,
 }
 
 impl ItemTypes {
@@ -150,6 +155,8 @@ pub struct Kind<'a> {
     pub weight_g: i64,
     /// The pockets it has.
     pub pockets: &'a [Pocket],
+    /// What it does when thrown, in points of damage, before the arm's own share.
+    pub thrown_damage: f64,
 }
 
 /// Installs the registry the store will answer from.
@@ -164,6 +171,7 @@ pub fn set_item_types(world: &mut World, kinds: &[Kind<'_>]) {
     let mut holds_ml = vec![0];
     let mut pockets: Vec<Pocket> = Vec::new();
     let mut pocket_ranges: Vec<(u32, u32)> = vec![(0, 0)];
+    let mut thrown_damage = vec![0.0];
     // Named apart from the loop variable so the borrow of the pocket slice outlives the numbers taken from it.
     for each in kinds {
         let (id, volume, weight) = (each.id, each.volume_ml, each.weight_g);
@@ -174,6 +182,7 @@ pub fn set_item_types(world: &mut World, kinds: &[Kind<'_>]) {
         #[allow(clippy::cast_possible_truncation)]
         volumes_ml.push(volume as i32);
         weights_g.push(weight);
+        thrown_damage.push(each.thrown_damage);
         // Reference: `item::get_total_capacity` - a thing can hold as much as its pockets can.
         holds_ml.push(each.pockets.iter().map(|pocket| pocket.capacity_ml).sum());
         #[allow(clippy::cast_possible_truncation)]
@@ -192,6 +201,7 @@ pub fn set_item_types(world: &mut World, kinds: &[Kind<'_>]) {
         holds_ml,
         pockets,
         pocket_ranges,
+        thrown_damage,
     });
 }
 
@@ -211,7 +221,7 @@ pub fn volume_of(world: &mut World, kind: ItemTypeId) -> i32 {
 ///
 /// Taken as a value because a rule that mutates the store cannot also be holding a borrow of it - and a rule that has
 /// to ask the store for every name it meets would have to.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct ItemNames {
     /// The name of each kind, in registry order.
     pub names: Vec<String>,
@@ -227,6 +237,11 @@ pub struct ItemNames {
     pub pockets: Vec<Pocket>,
     /// Where each kind's pockets begin and how many it has, in registry order.
     pub pocket_ranges: Vec<(u32, u32)>,
+    /// What each kind does when thrown, in points of damage, in registry order.
+    ///
+    /// Reference: `item::base_damage_thrown` (`item.cpp:7654-7658`) returns the type's `thrown_damage`, which `item_factory.cpp:324-326` fills with
+    /// `melee.damage_map[bash] * 0.75` when the data names none. The port holds it as one number per kind because that is all a throw reads.
+    pub thrown_damage: Vec<f64>,
 }
 
 impl ItemNames {
@@ -270,6 +285,15 @@ pub fn name_in(world: &World, kind: ItemTypeId) -> Option<String> {
         self.weights_g.get(kind.0 as usize).copied().unwrap_or(0)
     }
 
+    /// What a kind does when thrown, in points of damage, before the arm's own share.
+    #[must_use]
+    pub fn thrown_of(&self, kind: ItemTypeId) -> f64 {
+        self.thrown_damage
+            .get(kind.0 as usize)
+            .copied()
+            .unwrap_or(0.0)
+    }
+
     /// How much a kind can hold, in millilitres.
     #[must_use]
     pub fn holds_ml(&self, kind: ItemTypeId) -> i32 {
@@ -301,6 +325,7 @@ pub fn snapshot(world: &mut World) -> ItemNames {
         holds_ml: registry.holds_ml.clone(),
         pockets: registry.pockets.clone(),
         pocket_ranges: registry.pocket_ranges.clone(),
+        thrown_damage: registry.thrown_damage.clone(),
     })
 }
 

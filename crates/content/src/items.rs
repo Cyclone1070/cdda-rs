@@ -117,6 +117,11 @@ pub struct ItemType {
     /// The subtypes it declares, or the legacy type it was written as, carried
     /// so the category can be derived the way `calc_category` does.
     pub subtypes: BTreeSet<String>,
+    /// What the item does when thrown, in points of damage.
+    ///
+    /// Reference: `item::base_damage_thrown` (`item.cpp:7654-7658`) returns the type's `thrown_damage`, and `item_factory.cpp:324-326` fills it with
+    /// `melee.damage_map[bash] * 0.75` when the data names none - so this is **computed at load**, not read from one member.
+    pub thrown_damage: f64,
     /// Damage types and their amounts, from `melee_damage`.
     pub melee: BTreeMap<String, f64>,
     /// `stackable` as stated, which decides charge counting.
@@ -1287,6 +1292,7 @@ fn resolve(
         qualities: BTreeMap::new(),
         subtypes: BTreeSet::new(),
         melee: BTreeMap::new(),
+        thrown_damage: 0.0,
         stackable: false,
         phase: "SOLID".to_owned(),
         primary_material: String::new(),
@@ -1469,6 +1475,7 @@ fn apply_slots(
     apply_armor_slots(item, object);
     apply_flat_slots(item, object, registries)?;
     apply_melee_slots(item, object);
+    throw_slot(item, object);
     // Kept as the data states it, **including zero**: zero is what tells the finalisation to use the default charge count, and clamping it here would hide that.
     if let Some(Value::Int(size)) = object.get("stack_size") {
         item.stack_size = i32::try_from(*size).unwrap_or(0).max(0);
@@ -1613,6 +1620,39 @@ fn apply_flat_slots(
         })?;
 
     Ok(())
+}
+
+/// Fills in what a thing does when thrown, which the data may state or may leave to its bash damage.
+///
+/// Reference: `item_factory.cpp:324-326`: `if( obj.thrown_damage.empty() ) obj.thrown_damage.add_damage( damage_bash, obj.melee.damage_map[damage_bash] * 0.75 )`
+/// - so a rock's thrown damage is its bash damage **times three quarters** unless the data writes a `thrown_damage` of its own, which some thrown weapons do.
+fn throw_slot(item: &mut ItemType, object: &Object) {
+    // Reference: `optional( jo, was_loaded, "thrown_damage", thrown_damage )` (`item_factory.cpp:4110`) reads a **damage instance**, and the data writes that as one
+    // object - `{"damage_type": "bash", "amount": 7}` - or, in a few places, as a list of them. Both forms are read here; anything else leaves the field unset, which is
+    // what makes the bash fallback below fire.
+    let stated = object.get("thrown_damage").and_then(|given| match given {
+        Value::Object(one) => damage_amount(one),
+        Value::Array(units) => {
+            let mut total = 0.0;
+            for unit in units {
+                let Value::Object(unit) = unit else {
+                    return None;
+                };
+                total += damage_amount(unit)?;
+            }
+            Some(total)
+        }
+        _ => None,
+    });
+    item.thrown_damage = stated.unwrap_or_else(|| item.melee.get("bash").copied().unwrap_or(0.0) * 0.75);
+}
+
+/// One damage unit's amount, from the `{ "amount": n }` or `{ "damage": n }` form the data uses.
+fn damage_amount(unit: &Object) -> Option<f64> {
+    match unit.get("amount") {
+        Some(given) => numeric(given),
+        None => numeric(unit.get("damage")?),
+    }
 }
 
 /// Reads the `melee_damage` slot, with the `relative` and `proportional` forms the content uses to adjust it.

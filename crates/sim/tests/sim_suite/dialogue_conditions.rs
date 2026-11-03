@@ -242,12 +242,14 @@ fn has_items_counts_the_stacks_and_the_charges_a_creature_carries() {
                 volume_ml: 250,
                 weight_g: 100,
                 pockets: &[],
+                thrown_damage: 0.0,
             },
             cdda_sim::item_registry::Kind {
                 id: "rope",
                 volume_ml: 500,
                 weight_g: 200,
                 pockets: &[],
+                thrown_damage: 0.0,
             },
         ],
     );
@@ -503,6 +505,7 @@ fn carrying_one_item_answers_the_guard() {
             volume_ml: 250,
             weight_g: 100,
             pockets: &[],
+            thrown_damage: 0.0,
         }],
     );
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));

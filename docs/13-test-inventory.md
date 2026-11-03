@@ -465,3 +465,8 @@ which matters for what it hits, not for where it stops.
 (`crates/cli/src/lib.rs`), and `scenarios/a_thrown_rock_lands_where_the_rules_say.txt` plays the whole chain from the real item table to a pinned square. **Round 1069 wrote what happens on landing**: `throwing::damage_of_throw` (`thrown_item_adjusted_damage`, `ranged.cpp:1411-1428`) and the blow itself, resolved through
 `damage_monster` at the square the rock stopped on. **The next ranged rule with a caller waiting**: the reference's `throw_item` impact (`ranged.cpp:1500-1560`) - bash damage from weight, glass shattering,
 `burst_when_filled`, `HEAVY_HIT` noise, and `TANGLE` for a net - which needs the damage rules from P4's weakpoint half and the noise store the port already has.
+
+**Round 1070 opened the next slice by accident**: the thrown-damage corpus gate exposes a **melee slot inheritance bug** - 25 items that inherit `melee_damage` through
+`copy-from` with a `proportional` or `relative` adjustment get the wrong base, so their bash damage (and therefore their thrown damage) is a few tenths out. The fix belongs in
+`apply_melee_slots` (`crates/content/src/items.rs`), and the reference's rule is `item_factory.cpp`'s `auto_flags_reader`/`mandatory`/`optional` container semantics: a
+**stated** `melee_damage` replaces what was inherited, `relative` adds to it, and `proportional` scales it - in that order, after the `copy-from` chain has been resolved.

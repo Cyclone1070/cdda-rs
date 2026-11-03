@@ -134,6 +134,7 @@ fn a_craft_practises_what_it_teaches_while_it_runs() {
         holds_ml: vec![0, 0],
         pockets: Vec::new(),
         pocket_ranges: vec![(0, 0)],
+        thrown_damage: Vec::new(),
     };
     let recipe = cdda_content::recipes::Recipe {
         id: "patch_a_shirt".to_owned(),
@@ -242,6 +243,7 @@ fn a_craft_does_not_teach_a_trade_whose_prerequisite_is_unknown() {
         holds_ml: vec![0, 0],
         pockets: Vec::new(),
         pocket_ranges: vec![(0, 0)],
+        thrown_damage: Vec::new(),
     };
     let recipe = cdda_content::recipes::Recipe {
         id: "practise_the_expert_trade".to_owned(),

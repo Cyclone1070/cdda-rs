@@ -15,12 +15,14 @@ fn a_thrower_with_a_rock(world: &mut World) -> (Entity, Entity) {
             volume_ml: 250,
             weight_g: 500,
             pockets: &[],
+            thrown_damage: 0.0,
         },
         cdda_sim::item_registry::Kind {
             id: "anvil",
             volume_ml: 5_000,
             weight_g: 20_000,
             pockets: &[],
+            thrown_damage: 0.0,
         },
     ];
     cdda_sim::item_registry::set_item_types(world, &kinds);

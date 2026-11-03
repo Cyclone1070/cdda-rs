@@ -11360,3 +11360,31 @@ that limitation is stated rather than papered over with a fudge.
 
 **Not carried, and named:** armour, body parts and weakpoints (P4's other half), `base_damage_thrown` from the item table, glass shattering, `burst_when_filled`, the
 `HEAVY_HIT` thud and `TANGLE`. Each is a rule with a square to hang on, which the port now has.
+
+## What the thing itself is worth, and a bug the dump found (round 1070)
+
+A throw's blow is the **item's own damage plus the arm's**, and the item's own damage is computed at load, which is why it needed a new dump.
+
+| Piece | Where |
+|---|---|
+`--dump-thrown-damage` | a new harness dump: all **9,912** types and the value `item::base_damage_thrown` answers (`item.cpp:7654-7658`) |
+`corpus/items/thrown-damage.json` | 9,912 types, each with its total and its per-type units |
+`ItemType::thrown_damage` | `item_factory.cpp:324-326` - the data's own `thrown_damage`, or **`melee.damage_map[bash] * 0.75`** when it names none |
+`ItemNames::thrown_damage` | one number per kind, in the item table, where everything else about a kind lives |
+`throw_at`'s blow | the thing's damage **plus** `damage_of_throw` - `ranged.cpp:1435` then `:1505-1506`, not the larger of the two |
+Gate | `every_item_throws_for_what_the_reference_says` - 9,912 types, and a rock asserted by name at **7** |
+
+**The dump caught a bug in my own reading within one run.** The data writes `"thrown_damage": {"damage_type": "bash", "amount": 7}` - an **object**, not the array I
+assumed - so a rock fell through my parser to the bash-times-three-quarters fallback and read **5.25** where the reference says **7**. A hand-written test would have used
+whatever shape I imagined; **the corpus used the shape the data actually has.**
+
+**And it caught a bug that was already there.** 25 of the 9,912 types still disagree, and every one of them inherits its melee damage through `copy-from` with a
+`proportional` or `relative` adjustment (`pressin`, `mace_fake`, `pike_inferior`...). **The port applies the adjustment to the wrong base**, so the inherited bash damage is
+a few tenths out. That is a bug in the **melee slot inheritance**, not in the thrown-damage rule, and the gate pins the count at **25** rather than loosening the comparison -
+so it will go red the day the inheritance is fixed, **in the place a reader will be looking**.
+
+| Number | Value |
+|---|---|
+types dumped and compared | **9,912** |
+agreeing | **9,887** |
+disagreeing, each a `copy-from` inheritance case | **25** |
