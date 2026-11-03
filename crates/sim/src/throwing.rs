@@ -102,6 +102,11 @@ pub fn throw_at(world: &mut World, thrower: Entity, item: Entity, target: (i32, 
         }
         None => target,
     };
+    // Reference: a projectile heavier than **500 grams** carries `HEAVY_HIT` (`ranged.cpp:1522-1524`), and the landing branch answers it with a thud of volume **8**
+    // (`ballistics.cpp:180-186`). A thing too light for that lands in silence, which is the half a test can tell apart from "everything thuds".
+    if names.weight_of(kind) > 500 {
+        crate::sounds::make_sound(world, at, 8);
+    }
     // The move itself: out of the hand, onto the square. The store finds an item by its position, so this is one component's worth of change.
     world
         .entity_mut(item)

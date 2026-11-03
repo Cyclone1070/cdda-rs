@@ -11460,3 +11460,23 @@ creature every time something bounced off it - and a test with only the "armour 
 `monster::absorb_hit`'s per-part loop), and `weakpoint_attack` can move the blow to a weaker part. The port has one armour number per damage kind, so a rock that hits a
 plated creature is stopped by the plate whatever part it reached. That is P4's weakpoint half, and it needs the body-part map the port already has for its own `hit_location`
 rule before it can be wired.
+
+## A rock that lands is heard (round 1074)
+
+The throw now makes a sound, and the boundary of that rule is where the interesting part is.
+
+| Piece | Where |
+|---|---|
+the condition | `weight > 500_gram` - **strictly** more, `ranged.cpp:1522-1524` |
+the sound | volume **8** at the landing square - `ballistics.cpp:180-186` |
+Gate | `a_thing_over_half_a_kilo_landing_makes_a_sound_and_five_hundred_grams_does_not` |
+
+**My own test caught the boundary, and it caught it because the fixture was already 500 grams.** The first version replaced the item table with a *hundred-gram* rock and asserted
+silence - it passed, and proved nothing, because the fixture's rock was **exactly** 500 g and the throw I was testing was silent for the boundary reason rather than the weight
+reason. The corrected test puts the **500 g** case in the silent half and a **5 kg** stone in the loud half, so the two reasons are told apart: the rule is `>`, not `>=`.
+
+**A boundary decided by a `>` and a `>=` is invisible in play and permanent in the port.** A game where a 500 g rock thuds and one where it does not differ by one
+character, and every later rule that hears it - a monster waking, a zombie turning - inherits the difference.
+
+**Still not carried, named:** a landing in **liquid** makes volume 10 with a `splash!` message instead of 8 with a thud (`ballistics.cpp:181-186`), and `TANGLE` nets a
+monster rather than dropping. Both read the terrain under the square, which the store has.

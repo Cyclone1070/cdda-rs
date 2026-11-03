@@ -212,3 +212,53 @@ fn armour_takes_the_edge_off_a_thrown_blow_and_never_heals() {
         );
     }
 }
+
+/// A heavy thing landing makes a sound, and the boundary is **strictly over** five hundred grams.
+///
+/// Reference: `Character::throw_item` gives a projectile the `HEAVY_HIT` effect when it weighs more than **500 grams** (`ranged.cpp:1522-1524`) - `weight > 500_gram`,
+/// not `>=` - and the landing branch answers it with a thud of volume **8** (`ballistics.cpp:180-186`). The fixture's rock is exactly 500 grams, so it is the case that
+/// proves the boundary: it lands in silence, and a stone of five kilograms does not.
+#[test]
+fn a_thing_over_half_a_kilo_landing_makes_a_sound_and_five_hundred_grams_does_not() {
+    use cdda_sim::throwing::{Toss, throw_at};
+
+    // Exactly five hundred grams: silent, because the reference's test is `>`.
+    let mut world = World::new();
+    let (thrower, rock) = a_thrower_with_a_rock(&mut world);
+    let Toss::Landed { .. } = throw_at(&mut world, thrower, rock, (10, 0, 0)) else {
+        panic!("the rock is thrown");
+    };
+    assert!(
+        cdda_sim::sounds::heard_this_turn(&mut world).is_empty(),
+        "five hundred grams exactly is not a heavy hit"
+    );
+
+    // Five kilograms: a thud, at the square it stopped on.
+    let mut world = World::new();
+    let (thrower, rock) = a_thrower_with_a_rock(&mut world);
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[cdda_sim::item_registry::Kind {
+            id: "rock",
+            volume_ml: 2_000,
+            weight_g: 5_000,
+            pockets: &[],
+            thrown_damage: 0.0,
+        }],
+    );
+    let Toss::Landed { at, .. } = throw_at(&mut world, thrower, rock, (10, 0, 0)) else {
+        panic!("the rock is thrown");
+    };
+    let heard = cdda_sim::sounds::heard_this_turn(&mut world);
+    assert_eq!(heard.len(), 1, "one thing landed: {heard:?}");
+    assert_eq!(
+        heard.first().map(|sound| sound.position),
+        Some(at),
+        "the thud is where it stopped"
+    );
+    assert_eq!(
+        heard.first().map(|sound| sound.volume),
+        Some(8),
+        "volume eight, which is the reference's own"
+    );
+}

@@ -482,3 +482,7 @@ inherited bash damage is a few per cent high**, pinned in `crates/content/tests/
 before `damage_monster`, gated by a four-armour table (0, 3, 4, 100) because the rule has two edges - a floor at zero **and** a cap that stops armour from healing. **Named
 next step there:** the reference resolves against a **body part**, each with its own resistance, plus weakpoints - the port has `hit_location` and a single armour number, so
 the wiring is the body-part map, not a new rule.
+
+**Round 1074 made a landing audible**: `throw_at` makes volume **8** at the landing square when the thing is **strictly** heavier than 500 g (`ranged.cpp:1522-1524`,
+`ballistics.cpp:180-186`), through the port's own `sounds` store, which is what a creature nearby hears. **Named next:** a landing in liquid makes **10** with a `splash!`, and a
+`TANGLE` net traps a monster instead of dropping - both read the terrain under the square.
