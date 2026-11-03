@@ -35,6 +35,23 @@ macro_rules! named_components {
 
 named_components! {
     "Position" => Position,
+    // What a creature is, since a square report is where a reader meets one: the arrow that says "this is not scenery" and the numbers that make it move and hurt.
+    "Body" => crate::body::Body,
+    "Focus" => crate::skills::Focus,
+    "Creature" => crate::creature::Creature,
+    "CreatureKind" => crate::creature::CreatureKind,
+    "Health" => crate::creature::Health,
+    "Speed" => crate::creature::Speed,
+    "Moves" => crate::creature::Moves,
+    "Dodge" => crate::creature::Dodge,
+    "MeleeAttack" => crate::creature::MeleeAttack,
+    "Armour" => crate::creature::Armour,
+    "Goal" => crate::creature::Goal,
+    "Wander" => crate::creature::Wander,
+    "HeardSound" => crate::hearing::HeardSound,
+    "CreatureFlags" => crate::creature_flags::CreatureFlags,
+    "AppliedEffects" => crate::applied_effects::AppliedEffects,
+    "Doing" => crate::creature::Doing,
     "Square" => crate::square::Square,
     "Ground" => crate::square::Ground,
     "Terrain" => crate::square::Terrain,

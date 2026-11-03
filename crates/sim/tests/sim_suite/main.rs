@@ -72,6 +72,7 @@ mod wield;
 mod worn_armour;
 mod wounds;
 mod hearing;
+mod inspect_names;
 mod hit_location;
 mod melee;
 mod melee_rolls;

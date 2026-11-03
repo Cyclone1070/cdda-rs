@@ -509,3 +509,7 @@ walked towards a thud and that the survivor standing on it **lost hit points** -
 iteration), `spawn_monster_of_type` copies them onto the creature, and `build_world` gives a scenario's floor a **move cost** so routing can walk. The proof is a playtest:
 `scenarios/a_thrown_rock_brings_a_monster.txt` throws a crowbar beside the survivor and asserts `expect no monster at 3 0` - the noise **moved** the zombie, which is all an
 imprecise guess allows anyone to claim. New steps: `monsters`, `monster <id> <x> <y>`, `expect no monster at <x> <y>`.
+
+**Round 1082 made the debugging surface readable**: `inspect::NAMED` names **31** components instead of 16, so a spawned zombie's square reports **zero** `?` (it was ten).
+The gate `every_component_a_creature_carries_has_a_name` asks the report about a real square - index entity, ground and creature - and fails on any unnamed component, so a new
+component a creature carries goes red there rather than quietly printing a question mark.

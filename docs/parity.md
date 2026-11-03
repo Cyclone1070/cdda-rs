@@ -11650,3 +11650,22 @@ this scenario asserted "something is within one square" and **passed on the thro
 `expect no monster at <x> <y>` | says a noise moved something without pretending to know where to |
 
 **The `throw` step now reports the thrown thing's weight**, which is what would have told me at once that a 400-gram rock is thrown in perfect silence and a 657-gram one is not.
+
+## A report that says `?` is not a report (round 1082)
+
+The debugging surface could name sixteen components. A monster carries **twelve**, and ten of them printed as `?`.
+
+| Number | Before | After |
+|---|---|---|
+components the report can name | 16 | **31** |
+`?` on a spawned zombie's square | 10 | **0** |
+`?` on the survivor's square | 10 | **0** |
+
+**The gate asks the report about a real square, not about the table.** `every_component_a_creature_carries_has_a_name` builds a world with a corpus zombie on the floor, asks
+`what_is_at`, and fails on any component named `?` - so a component added anywhere in the port that a creature carries goes red **here**, in the place a reader would look.
+
+**Two components were invisible, and both are things a reader would want:** `Body` (the hunger, thirst and vitamins a creature hangs on itself) and `Focus` (what every skill gain
+is scaled by). They came to light because the test counted the marks rather than naming the two I had guessed.
+
+**A wrong count assertion caught a real mistake of mine.** The first version asserted the monster "stands alone on its square" - `found.len() == 1` - and it was **three** things:
+the index's square entity, the ground, and the monster. The correct question is "does anything on this square report unnamed", which is what a person reading the report sees.
