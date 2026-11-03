@@ -11158,3 +11158,33 @@ leaves unreadable | 44 | **40** |
 effects runnable | 1,575 | **1,578** |
 effect-blamed refusals | 91 | **89** |
 one-gap programs | 14 | **12** |
+
+## A message can be a variable (round 1062)
+
+Nine programs refuse now, and the one that left was a message whose text the dialogue holds:
+
+```json
+{"u_message": {"context_val": "success_message"}}
+```
+
+| Piece | Where |
+|---|---|
+`Effect::Message { text, fallback }` | the text is a `StringSource` - **a literal or a variable** |
+the order the object is read in | the **translation** form first (`str`), then the variable (`get_translation_or_var`, `condition.cpp:371-385`) |
+when it is read | **when the message is shown**, so an effect earlier in the same list can have set the variable |
+an unset variable with no `default` | **refuses** - saying nothing is the reference's behaviour, where announcing a variable's name would be the port's invention |
+Gate | `a_message_may_be_a_variable` - unset refuses, set speaks, and the line is checked in the sink |
+
+**The order of the two object forms is the round's whole content.** `{"str": "a second line"}` and `{"context_val": "success_message"}` are both objects, and a reader
+that tried the variable first **broke the translation form** - a test caught it immediately, which is the reason that test exists. The reference tries the translation
+first and only then `read_var_info`.
+
+**Nine programs left, and eight of them are subsystems, not readers:** a camp (`u_has_camp`), a trade (`u_sell_item` with a `count`, and its `false_eocs`), a reveal
+(`reveal_map`), an overmap pick (`loc`), a game event (`trigger_event` with `args`), an active trait, and a trait added by variable.
+
+| Number | Before | After |
+|---|---|---|
+programs refused at their first unreadable entry | 10 | **9** |
+effects runnable | 1,578 | **1,579** |
+leaves unreadable | 40 | **38** |
+one-gap programs | 12 | **14** |

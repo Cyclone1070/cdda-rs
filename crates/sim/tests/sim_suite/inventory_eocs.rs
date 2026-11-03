@@ -115,3 +115,44 @@ fn a_manual_pick_refuses_because_the_port_has_no_chooser() {
         "a menu the port cannot show is a refusal, not a guess"
     );
 }
+
+/// A message can be a variable's text, and the data's fallback is what an unset one says.
+///
+/// Reference: `f_message` reads the member as a `translation_or_var` (`get_translation_or_var`, `condition.cpp:352-385`): an object names a **variable**, and a
+/// `default` beside it is what to say when nobody set it. The text is worked out when the message is shown, so an effect earlier in the same list can set it.
+#[test]
+fn a_message_may_be_a_variable() {
+    let mut world = World::new();
+    let speaker = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+
+    let text = r#"{"u_message": {"context_val": "success_message"}}"#;
+    let value = cdda_json::parse(text.as_bytes()).expect("json");
+    let Some(effect) = cdda_content::dialogue::read_effect(&value) else {
+        panic!("the port reads a message held in a variable");
+    };
+    // Unset: there is nothing to say, and the effect refuses rather than announcing the variable's name.
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effects(&mut world, speaker, None, std::slice::from_ref(&effect)),
+        cdda_sim::dialogue_effects::Applied::CannotAnswer,
+        "an unset variable says nothing"
+    );
+
+    // Set by an earlier effect in the same list, which is how the data uses it.
+    // The port's `context_val` scope reads the speaker's own variables, which is where an earlier effect in the list would have written it.
+    cdda_sim::dialogue_values::set(
+        &mut world,
+        speaker,
+        "success_message",
+        cdda_sim::dialogue_values::Value::Text("the lock clicks".to_owned()),
+    );
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effects(&mut world, speaker, None, std::slice::from_ref(&effect)),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "and a set one speaks"
+    );
+    let lines = cdda_sim::messages::lines(&world);
+    assert!(
+        lines.iter().any(|line| line.contains("the lock clicks")),
+        "with the variable's text: {lines:?}"
+    );
+}

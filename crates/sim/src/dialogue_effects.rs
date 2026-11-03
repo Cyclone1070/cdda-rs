@@ -769,6 +769,27 @@ fn store_monster_around(world: &mut World, speaker: Entity, effect: &Effect) -> 
     Applied::Done
 }
 
+/// Says what the data asked for, which may be a variable's text.
+///
+/// Reference: `f_message` with a `translation_or_var`: the text is worked out **when the message is shown**, so an effect earlier in the same list can have set the
+/// variable. An unset variable with no `default` says nothing at all - and the port refuses rather than announcing a variable's name as if it were the message.
+fn say_message(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::Message { text, fallback } = effect else {
+        return Applied::CannotAnswer;
+    };
+    let said = crate::conditions::text_of(world, speaker, listener, text).or_else(|| {
+        let fallback = fallback.as_ref()?;
+        crate::conditions::text_of(world, speaker, listener, fallback)
+    });
+    match said {
+        Some(said) => {
+            crate::messages::push(world, &said);
+            Applied::Done
+        }
+        None => Applied::CannotAnswer,
+    }
+}
+
 /// Changes the item the dialogue is talking about into another kind.
 ///
 /// Reference: `f_transform_item` (`npctalk.cpp:6112-6131`): the dialogue's `beta` must be an item, and `convert` replaces its type. The port keeps the item's **entity**
@@ -2781,7 +2802,7 @@ pub fn run_effect(
     match effect {
         Effect::Math(assignments) => run_math(world, speaker, listener, assignments),
         Effect::LearnRecipe { recipe, forget } => run_learn_recipe(world, speaker, listener, recipe, *forget),
-        Effect::Message(text) => { crate::messages::push(world, text); Applied::Done }
+        Effect::Message { .. } => say_message(world, speaker, listener, effect),
         Effect::Snippet {
             category,
             same,

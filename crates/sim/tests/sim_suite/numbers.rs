@@ -60,9 +60,9 @@ pub const NOW: Census = Census {
     refused_at_run: 203,
     // 74 leaves and 1,547 effects after round 1048 read the `npc_mutate_category` spelling; **73 and 1,548** after round 1049 read `offer_mission`.
     // Each reader that lands moves three numbers, and one of them may rise - see the runs' own comments.
-    leaves: 40,
-    one_gap: 12,
-    effects_runnable: 1_578,
+    leaves: 38,
+    one_gap: 14,
+    effects_runnable: 1_579,
     effects_defined: 1_612,
     effect_blamed: 89,
     conditions_readable: 3_227,

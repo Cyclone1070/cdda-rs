@@ -2459,8 +2459,16 @@ pub enum EffectDuration {
 pub enum Effect {
     /// A `math` statement list: one or more assignments to dialogue variables.
     Math(Vec<Assignment>),
-    /// A message to the player.
-    Message(String),
+    /// A message to the player, which the data may give as a **variable** rather than as text.
+    ///
+    /// Reference: `f_message` reads the member as a `translation_or_var` (`get_translation_or_var`, `condition.cpp:352-385`): an object is a variable holding the text,
+    /// with an optional `default` for a variable nobody set. The text is worked out when the message is shown, not when the data is read.
+    Message {
+        /// What to say, which may be a variable's text.
+        text: StringSource,
+        /// The text to use when the variable holds nothing, when the data gives one.
+        fallback: Option<StringSource>,
+    },
     /// Teach the actor a recipe, or take one away.
     ///
     /// Reference: `f_learn_recipe` (`npctalk.cpp:5250-5258`) takes one recipe id and hands it to the actor's `learn_recipe`; `f_forget_recipe` (`:5260`) is the
@@ -3375,7 +3383,7 @@ impl Effect {
         }
         match self {
             Self::Math(_) => "math",
-            Self::Message(_) | Self::Snippet { .. } => "u_message",
+            Self::Message { .. } | Self::Snippet { .. } => "u_message",
             Self::RunNpcEocs { .. } => "u_run_npc_eocs",
             Self::RunMonsterEocs { .. } => "u_run_monster_eocs",
             Self::OfferMission { .. } => "offer_mission",
@@ -3564,7 +3572,31 @@ pub fn read_program(value: &Value) -> Option<Program> {
 fn read_message_effect(object: &cdda_json::Object) -> Option<Effect> {
     for member in ["u_message", "npc_message", "message"] {
         if let Some(value) = object.get(member) {
-            return read_message(value).map(Effect::Message);
+            // A string is what is said; an object is the **variable** that holds it, with the data's own fallback for one nobody set.
+            let (text, fallback) = match value {
+                // Reference: `get_translation_or_var( JsonObject )` (`condition.cpp:371-385`) tries the **translation** form first - an object with a `str`
+                // member - and only then reads the object as a variable. The data writes both.
+                Value::Object(inside) if inside.get("str").is_some() => (
+                    StringSource::Literal(read_message(value)?),
+                    None,
+                ),
+                Value::Object(inside) => {
+                    let (scope, name) = named_variable(inside)?;
+                    let fallback = match inside.get("default") {
+                        None => None,
+                        Some(given) => Some(read_string_source(given)?),
+                    };
+                    (
+                        StringSource::Variable {
+                            scope,
+                            name,
+                        },
+                        fallback,
+                    )
+                }
+                other => (StringSource::Literal(read_message(other)?), None),
+            };
+            return Some(Effect::Message { text, fallback });
         }
     }
     None
