@@ -1840,6 +1840,7 @@ fn read_store_effects(object: &cdda_json::Object) -> Option<Effect> {
         .or_else(|| read_add_wet(object))
         .or_else(|| read_place_override(object))
         .or_else(|| read_revert_location(object))
+        .or_else(|| read_foreach(object))
         .or_else(|| read_remove_item_with(object))
         .or_else(|| read_lose_morale(object))
         .or_else(|| read_set_talker(object))
@@ -1936,6 +1937,38 @@ fn read_place_override(object: &cdda_json::Object) -> Option<Effect> {
             None => None,
             Some(value) => Some(read_string_source(value)?),
         },
+    })
+}
+
+/// Reads a `foreach` entry.
+///
+/// Reference: `f_foreach` (`npctalk.cpp:7022-7080`). The member **is** the list's kind, `var` is required (`read_var_info`), and `target` is either a string naming
+/// a list of ids or an array of ids - which is how the data writes `{"foreach": "array", "target": ["a", "b"]}`.
+fn read_foreach(object: &cdda_json::Object) -> Option<Effect> {
+    let source = match object.get("foreach")? {
+        Value::Str(kind) => kind.clone(),
+        _ => return None,
+    };
+    let Value::Object(variable) = object.get("var")? else {
+        return None;
+    };
+    let (scope, name) = named_variable(variable)?;
+    let mut target = None;
+    let mut ids = Vec::new();
+    match object.get("target") {
+        Some(Value::Str(named)) => target = Some(named.clone()),
+        Some(Value::Array(entries)) => {
+            ids = entries.iter().map(read_string_source).collect::<Option<Vec<_>>>()?;
+        }
+        _ => return None,
+    }
+    Some(Effect::ForEach {
+        source,
+        target,
+        ids,
+        scope,
+        name,
+        effects: read_effect_list(object.get("effect"))?,
     })
 }
 
@@ -2685,6 +2718,24 @@ pub enum Effect {
         /// Whether it is the listener's id rather than the speaker's.
         listener: bool,
     },
+    /// Runs an effect list once for every id in a list, naming each one in a variable.
+    ///
+    /// Reference: `f_foreach` (`npctalk.cpp:7022-7080`): `foreach` says what kind of list (`ids`, `item_group`, `monstergroup`, `array`), `target` says which ids
+    /// (`flag`, `trait`, `vitamin`, `bodypart`), `var` is written with each element, and `effect` runs once per element.
+    ForEach {
+        /// The list's kind: `ids` or `array` in this port.
+        source: String,
+        /// Which ids to walk, for `ids`.
+        target: Option<String>,
+        /// The ids themselves, for `array`.
+        ids: Vec<StringSource>,
+        /// Which namespace the element is written into.
+        scope: String,
+        /// The variable the element is written into.
+        name: String,
+        /// The effects run once per element.
+        effects: Vec<Effect>,
+    },
     /// Remembers a place's tiles and puts them back later.
     ///
     /// Reference: `f_revert_location` (`npctalk.cpp:4884-4918`): the member is a **place variable**, `time_in_future` is required, and `key` names the timed event
@@ -3332,6 +3383,7 @@ impl Effect {
             | Self::LocationVariableFromOvermap { .. } => self.store_kind().unwrap_or_default(),
             Self::PlaceOverride { .. } => "place_override",
             Self::RevertLocation { .. } => "revert_location",
+            Self::ForEach { .. } => "foreach",
             Self::SpawnItem { .. } => "u_spawn_item",
             Self::ConsumeItem { listener, .. } => {
                 if *listener {

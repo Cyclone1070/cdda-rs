@@ -769,6 +769,71 @@ fn store_monster_around(world: &mut World, speaker: Entity, effect: &Effect) -> 
     Applied::Done
 }
 
+/// Runs an effect list once for every id in a list, naming each one in a variable.
+///
+/// Reference: `f_foreach` (`npctalk.cpp:7038-7078`): the list is built once, then each element is written into the variable and the effect list is applied.
+/// **The variable is written, not the answer**: a `<context_val:id>` inside the list reads whatever the last iteration said, which is how a message names each flag.
+fn run_foreach(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::ForEach {
+        source,
+        target,
+        ids,
+        scope,
+        name,
+        effects,
+    } = effect
+    else {
+        return Applied::CannotAnswer;
+    };
+    let elements = foreach_elements(world, speaker, listener, source, target.as_deref(), ids);
+    let Some(elements) = elements else {
+        return Applied::CannotAnswer;
+    };
+    let Some(holder) = crate::conditions::holder_for_scope(world, speaker, listener, scope) else {
+        return Applied::CannotAnswer;
+    };
+    for element in elements {
+        crate::dialogue_values::set(
+            world,
+            holder,
+            name,
+            crate::dialogue_values::Value::Text(element),
+        );
+        let applied = run_effects(world, speaker, listener, effects);
+        if applied == Applied::CannotAnswer {
+            return Applied::CannotAnswer;
+        }
+    }
+    Applied::Done
+}
+
+/// The ids a `foreach` walks, or nothing when the port does not know the list.
+///
+/// Reference: `f_foreach` (`npctalk.cpp:7041-7073`) - `ids` walks a registry by name, `array` walks what the data wrote out, and a kind the port has no registry for
+/// refuses rather than walking an empty list, which would look like the data asking for nothing.
+fn foreach_elements(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    source: &str,
+    target: Option<&str>,
+    ids: &[cdda_content::dialogue::StringSource],
+) -> Option<Vec<String>> {
+    match source {
+        "ids" => match target? {
+            "flag" => Some(crate::flag_registry::flags_of(world)),
+            "trait" => Some(crate::mutation_data::holder(world)?.ids().cloned().collect()),
+            "vitamin" => Some(crate::vitamin_registry::vitamins_of(world).keys().cloned().collect()),
+            _ => None,
+        },
+        "array" => ids
+            .iter()
+            .map(|id| crate::conditions::text_of(world, speaker, listener, id))
+            .collect(),
+        _ => None,
+    }
+}
+
 /// Remembers a place's tiles and schedules them to go back.
 ///
 /// Reference: `f_revert_location` (`npctalk.cpp:4898-4917`): the place variable holds the square, the copy is taken **now** (`submap::get_revert_submap`), and one
@@ -2644,6 +2709,7 @@ fn run_store_effect(
         Effect::RunInvEocs { .. } => run_inv_eocs(world, speaker, listener, effect),
         Effect::LocationVariableAdjust { .. } => adjust_location(world, speaker, listener, effect),
         Effect::RevertLocation { .. } => revert_location(world, speaker, listener, effect),
+        Effect::ForEach { .. } => run_foreach(world, speaker, listener, effect),
         Effect::MonsterAround { .. } => store_monster_around(world, speaker, effect),
         Effect::Mutation { .. } => mutate(world, speaker, listener, effect),
         Effect::OfferMission { .. } => offer_mission(world, speaker, listener, effect),

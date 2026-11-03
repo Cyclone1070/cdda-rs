@@ -98,6 +98,7 @@ mod field_session;
 mod field_turn;
 mod field_turns;
 mod fields;
+mod foreach;
 mod flags;
 mod fire_burnout;
 mod fire_fields;

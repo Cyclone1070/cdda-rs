@@ -11037,3 +11037,35 @@ flags", and the `foreach` rule is the only caller.
 
 **The effect is not wired yet.** `foreach` still refuses; what landed is the list it will walk, plus the oracle change that produces it - **which is the order this port's
 ledger asks for: the oracle ahead of every loader.**
+
+## A list can be walked, and each element named (round 1058)
+
+The largest remaining cause is gone: `foreach` reads and runs, and the frontier is **13 programs**.
+
+| Piece | Where |
+|---|---|
+`Effect::ForEach { source, target, ids, scope, name, effects }` | `read_foreach` (`f_foreach`, `npctalk.cpp:7022-7080`) |
+what it walks | `ids`→**flag** (the data's 731), **trait** (the mutation table), **vitamin** (the vitamin table); `array`→the ids the data wrote |
+the variable | written **with each element** as the list runs, so `<context_val:id>` in the message changes every time round |
+a kind with no registry | **refuses** - walking an empty list would look like the data asking for nothing |
+Gates | array walk, flag walk, and the refusal of a `monstergroup` list the port has no registry for |
+
+**The variable is written, not the answer.** The reference's `write_var_value` (`npctalk.cpp:7076`) hands each element to the dialogue before the effect runs, so the
+effect **reads the variable** and sees a different name each iteration. **A port that substituted the element into the text instead would answer the same for a message and
+wrongly for anything else** - a condition on the variable, or a nested `foreach`.
+
+**Refusing an unknown list is the honest half.** `item_group` and `monstergroup` are lists the port has no registry for; **an empty walk would report success and change
+nothing**, which is the failure mode this port keeps catching: **the effect looks like it did its job.**
+
+| Number | Before | After |
+|---|---|---|
+programs refused at their first unreadable entry | 15 | **13** |
+programs readable | 591 | **593** |
+leaves unreadable | 50 | **45** |
+effects runnable | 1,569 | **1,574** |
+effect-blamed refusals | 94 | **92** |
+refused at run time | 199 | **201** |
+one-gap programs | 16 | **15** |
+
+**The five remaining leaves are shapes, not registries:** `args` on `trigger_event`, `count` on `u_sell_item`, `false_eocs` on a trade, `if` on a camp, `loc` on an inventory
+menu, `radius` on `reveal_map`, `targeted` on a spell, `title` on a menu, `transform_item` - each one a rule the port has not written rather than a table it cannot read.
