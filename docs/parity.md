@@ -10521,3 +10521,34 @@ enough to keep surprising the tests that forget them**, which is the strongest e
 
 **Declared, not ported:** `roll_bad_mutation` (the good/bad roll that decides which half of a category a creature may draw from) and the vitamin each mutation costs
 (`mutation_ok`). The port draws from the whole valid list, so a character can gain either kind - **a difference that shows up only where the reference would have said no.**
+
+## Why the stat half of mutations has to wait for P5 (round 1036)
+
+The obvious next step for mutations was their **stat changes** - a strong mutant carries more, a fast one moves sooner. Reading the data for it answered a question the port had
+assumed:
+
+```json
+"id": "STR_UP", "types": [ "STR" ], "changes_to": [ "STR_UP_2" ],
+"enchantments": [ { "values": [ { "value": "STRENGTH", "add": 1 } ] } ]
+```
+
+**In 0.I-1 a mutation does not `modify` a stat; it carries an enchantment.** `mutation_branch::modifies` is gone from the struct (`mutation.h:172-300` has no such member),
+and what replaced it is `std::vector<enchantment_id> enchantments` (`mutation.h:295`) pointing at `enchantment` objects whose `values_add` / `values_multiply`
+(`magic_enchantment.h:244-247`) are summed by the character's enchantment cache.
+
+**The port has no enchantment cache.** It says so in three places that were written long before this round - `digest.rs:123` (stomach capacity), `needs.rs:126` (the
+hunger/thirst/sleepiness modifiers), `body.rs:334` (the needs rates) - and each of them is **waiting for the same missing piece**.
+
+| What wants it | Where it says so |
+|---|---|
+mutation strength, speed, stat changes | this round |
+stomach capacity scaling | `digest.rs:123` |
+needs rate modifiers | `needs.rs:126` |
+every `calc_needs_rates` branch that is not the plain one | `body.rs:334` |
+
+**So the order changes, and it is a finding rather than a preference:** the enchantment cache is the next thing to build, **before** the rest of mutations and before the
+last of the food clock's modifiers. It is P5's first component, and three P3/P4 gaps close behind it.
+
+**What that means concretely:** `enchant_vals::mod` is the enum a cache is keyed by (`magic_enchantment.h:36-40`), a mutation's values are inline enchantments rather than a
+map on the branch, and the cache is a **sum over the sources a creature carries** - mutations today, items and effects later. The next round dumps it, loads it and wires the
+first reader.
