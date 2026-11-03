@@ -102,6 +102,7 @@ mod mod_graph;
 mod mods;
 mod monster_group_pick;
 mod monster_groups;
+mod mutation_categories;
 mod mutations;
 mod monster_harvest;
 mod anatomies;

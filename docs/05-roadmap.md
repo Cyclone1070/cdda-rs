@@ -849,7 +849,8 @@ a dialogue that happens to call one. **Morale got its gate at round 1023** - fiv
 
 **Started at round 1024-1025:** mutations - the data table (`cdda_content::mutations`) and three rules (`has`, `can_gain`, `gain`) with `Mutations` as one component holding
 ids, read from the oracle's own dump (**514 valid mutations; 299 with prerequisites, 97 with cancels, 57 unpurifiable**). **Landed at 1026-1027:** same-category pruning, and `base_removal_chance` for starting traits (with a **recorded divergence**: the reference bails out of the gain, the port
-completes it and keeps the trait). **Not yet:** thresholds, and stat modifiers - the category dump that carries `threshold_min` is building.
+completes it and keeps the trait). **The category dump landed at 1032:** 29 categories with `base_removal_chance` and `threshold_min`, plus `startingtrait` on all 514 mutations (85 of them starting traits),
+both gated. **Not yet:** the threshold rule itself, and stat modifiers.
 
 **Focus (P3 leftover) at round 1028:** pain now reaches `calc_focus_equilibrium` through the minute stage, and the stage's calendar gate is exercised by a test that
 would fail if the wiring went away. **Sleepiness at 1029:** the value is stored (`needs::Sleepiness`, clamped to `[-1000, 1050]`), the ceiling

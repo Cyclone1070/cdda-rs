@@ -43,6 +43,17 @@ fn the_mutation_dump_reads_with_its_prerequisites_and_conflicts() {
         "and that one is ECHOLOCATION, which the dump marks unpurifiable"
     );
 
+    // 85 of the 514 are traits a character may **start** with, and BEAUTIFUL is not one of them while NIGHTVISION is - which is what decides whose removal is a roll.
+
+    assert!(
+        table.get("NIGHTVISION").is_some_and(|one| one.startingtrait),
+        "NIGHTVISION is a starting trait"
+    );
+    assert!(
+        table.get("BEAUTIFUL").is_some_and(|one| !one.startingtrait),
+        "and BEAUTIFUL is not"
+    );
+
     // One mutation read whole, against the dump's own answer.
     let Some(biolum) = table.get("BIOLUM1") else {
         return;

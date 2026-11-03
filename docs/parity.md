@@ -10439,3 +10439,21 @@ test now says so.
 
 **Still not ported, named:** the comfort modifier (bed, ground, bionics), the `melatonin` effect's flat bonus, the cold-body-part penalty, and the `rest_modifier` that
 drives **sleep deprivation** rather than sleepiness.
+
+## The category dump: the numbers behind a removal (round 1032)
+
+The mutation work needed a second dump, and it is now in hand:
+
+| Dump | What it carries | What the gate pins |
+|---|---|---|
+`corpus/mutation-categories.json` (**29 categories**) | `base_removal_chance`, `threshold_min` | `HUMAN` never removes a starting trait (**0%**), `URSINE` removes one a third of the time (**33%**), a threshold wants **2200** |
+`corpus/mutations.json` (**514**, 85 starting traits) | the four sets, plus `startingtrait` | `NIGHTVISION` **is** a starting trait and `BEAUTIFUL` **is not** |
+
+**Both named values matter more than the counts.** *"Some categories are zero"* is a claim nobody can check; *"HUMAN is zero and URSINE is thirty-three"* is a fact the data
+disagrees with at once if the loader is wrong. The same for a starting trait: **the flag is what decides whether the removal is a roll at all**, so a loader that dropped it
+would silently make every mutation equally easy to lose - which is exactly the bug the previous round's fixture had.
+
+**The dump job took the long way round.** The first attempt ran two full reference builds back to back (the second re-synced a source tree the first had already built), and
+when the chain ended the files were not there - the build had finished but the dump command had not run to completion. **Running the two dump commands by hand against the
+already-built binary took ninety seconds.** The lesson is the one the project already knows and did not apply here: **the expensive part is the build, and after it succeeds
+the dump is a cheap separate step that should never be chained behind another build.**
