@@ -769,6 +769,39 @@ fn store_monster_around(world: &mut World, speaker: Entity, effect: &Effect) -> 
     Applied::Done
 }
 
+/// Remembers a place's tiles and schedules them to go back.
+///
+/// Reference: `f_revert_location` (`npctalk.cpp:4898-4917`): the place variable holds the square, the copy is taken **now** (`submap::get_revert_submap`), and one
+/// `REVERT_SUBMAP` event is queued per submap - four of them, which the port's single store does in one snapshot because a square is a square.
+fn revert_location(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::RevertLocation { scope, name, after, key } = effect else {
+        return Applied::CannotAnswer;
+    };
+    let Some(holder) = crate::conditions::holder_for_scope(world, speaker, listener, scope) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(crate::dialogue_values::Value::Position { x, y, z }) =
+        crate::dialogue_values::value_of(world, holder, name)
+    else {
+        return Applied::CannotAnswer;
+    };
+    let Some(turns) = roll_duration(world, speaker, listener, after) else {
+        return Applied::CannotAnswer;
+    };
+    crate::revert::take(world, (x, y, z));
+    let event = match key {
+        None => "REVERT_SUBMAP".to_owned(),
+        Some(key) => match crate::conditions::text_of(world, speaker, listener, key) {
+            Some(text) if text.is_empty() => "REVERT_SUBMAP".to_owned(),
+            Some(text) => text,
+            None => return Applied::CannotAnswer,
+        },
+    };
+    // Reference: `calendar::turn + dov_time_in_future.evaluate( d ) + 1_seconds` (`npctalk.cpp:4904`) - the extra second syncs the event with the turn's own events.
+    crate::timed_events::schedule(world, &event, turns.saturating_add(1));
+    Applied::Done
+}
+
 /// Moves a square the dialogue holds, and stores the new one.
 ///
 /// Reference: `f_location_variable_adjust` (`npctalk.cpp:4419-4446`): with `overmap_tile` the x and y moves count **overmap tiles** rather than squares, `z_override`
@@ -2601,6 +2634,7 @@ fn run_store_effect(
         Effect::GiveAchievement { .. } => give_achievement(world, speaker, listener, effect),
         Effect::RunInvEocs { .. } => run_inv_eocs(world, speaker, listener, effect),
         Effect::LocationVariableAdjust { .. } => adjust_location(world, speaker, listener, effect),
+        Effect::RevertLocation { .. } => revert_location(world, speaker, listener, effect),
         Effect::MonsterAround { .. } => store_monster_around(world, speaker, effect),
         Effect::Mutation { .. } => mutate(world, speaker, listener, effect),
         Effect::OfferMission { .. } => offer_mission(world, speaker, listener, effect),

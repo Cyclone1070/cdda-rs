@@ -10956,3 +10956,32 @@ their own, so a revert restores the shape of a room and not its contents. That i
 
 **The effect is not wired yet either**, and this round does not pretend otherwise: `revert_location` still refuses, the store is what came first. The next round reads
 `{"revert_location": {"global_val": …}}`, schedules the `REVERT_SUBMAP` event, and the census number follows.
+
+## A place remembers itself on the data's word (round 1055)
+
+The store built last round is wired, and the frontier falls like a dropped shelf - from **19 programs to 16**, and **12 leaves at once**:
+
+| Piece | Where |
+|---|---|
+`Effect::RevertLocation { scope, name, after, key }` | `read_revert_location`, reading the member as a **place variable** (`f_revert_location`, `npctalk.cpp:4886-4897`) |
+what runs | `revert_location`: read the square from the variable, **snapshot now**, queue one `REVERT_SUBMAP` event due `turns + 1` |
+the extra second | the reference's `+ 1_seconds` (`npctalk.cpp:4904`), which syncs a timed event with the turn's own events |
+Gate | `the_data_can_revert_a_place` - effect runs, place is remembered, event queued under the reference's name, and the floor comes back |
+
+**One snapshot replaces four submap copies and that is not a simplification - it is the same rule.** The reference queues **four** events, one per submap of a maptile,
+because its map is a grid of submaps. The port's squares are entities in one store, so **twelve squares each way is the same ground** and needs one component each.
+
+**Twelve leaves fall for one reader.** The three `revert_location` programs were not three leaves each; they were **one leaf per program plus the call sites that
+named them**, and the census counts both. That is why a store-shaped gap is worth two rounds: **the second round moves five times as much as the first.**
+
+| Number | Before | After |
+|---|---|---|
+programs refused at their first unreadable entry | 19 | **16** |
+programs readable | 588 | **590** |
+leaves unreadable | 65 | **53** |
+effects runnable | 1,554 | **1,566** |
+effect-blamed refusals | 97 | **95** |
+refused at run time | 196 | **198** |
+
+**Two refuse at run time now that did not.** A program that reads and runs against a world that has no place variable set **refuses honestly** - the port would rather
+answer "I cannot" than revert a square the data never named.

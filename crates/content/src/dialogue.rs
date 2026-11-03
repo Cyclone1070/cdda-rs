@@ -1839,6 +1839,7 @@ fn read_store_effects(object: &cdda_json::Object) -> Option<Effect> {
     read_turn_cost(object)
         .or_else(|| read_add_wet(object))
         .or_else(|| read_place_override(object))
+        .or_else(|| read_revert_location(object))
         .or_else(|| read_remove_item_with(object))
         .or_else(|| read_lose_morale(object))
         .or_else(|| read_set_talker(object))
@@ -1931,6 +1932,28 @@ fn read_place_override(object: &cdda_json::Object) -> Option<Effect> {
         place: read_string_source(place)?,
         fallback,
         length: read_effect_duration(object.get("length"), EffectDuration::Turns(Some(0)))?,
+        key: match object.get("key") {
+            None => None,
+            Some(value) => Some(read_string_source(value)?),
+        },
+    })
+}
+
+/// Reads a `revert_location` entry.
+///
+/// Reference: `f_revert_location` (`npctalk.cpp:4886-4897`): the place is a **variable** (`read_var_info`), `time_in_future` is required, and `key` is an optional
+/// `str_or_var`. A reader that answered for a missing member would claim every effect no other reader claimed, so the place is required here too.
+fn read_revert_location(object: &cdda_json::Object) -> Option<Effect> {
+    let place = object.get("revert_location")?;
+    let Value::Object(inner) = place else {
+        return None;
+    };
+    let (scope, name) = named_variable(inner)?;
+    Some(Effect::RevertLocation {
+        scope,
+        name,
+        // Reference: `get_duration_or_var( jo, "time_in_future", true )` - required, and a `dbl_or_var` like every other length in the data.
+        after: read_effect_duration(object.get("time_in_future"), EffectDuration::Turns(Some(0)))?,
         key: match object.get("key") {
             None => None,
             Some(value) => Some(read_string_source(value)?),
@@ -2650,6 +2673,20 @@ pub enum Effect {
         /// Whether it is the listener's id rather than the speaker's.
         listener: bool,
     },
+    /// Remembers a place's tiles and puts them back later.
+    ///
+    /// Reference: `f_revert_location` (`npctalk.cpp:4884-4918`): the member is a **place variable**, `time_in_future` is required, and `key` names the timed event
+    /// (defaulting to the empty string, which is how the reference says "the plain `REVERT_SUBMAP`").
+    RevertLocation {
+        /// Which namespace the place variable lives in.
+        scope: String,
+        /// The place variable's name.
+        name: String,
+        /// How long until the tiles go back.
+        after: EffectDuration,
+        /// The timed event's name, when the data gives one.
+        key: Option<StringSource>,
+    },
     /// Takes a morale point away from a creature.
     ///
     /// Reference: `f_lose_morale` (`npctalk.cpp:7197-7204`): one required `str_or_var` naming the morale type, removed with `remove_morale`, which erases every point
@@ -3282,6 +3319,7 @@ impl Effect {
             | Self::Later { .. }
             | Self::LocationVariableFromOvermap { .. } => self.store_kind().unwrap_or_default(),
             Self::PlaceOverride { .. } => "place_override",
+            Self::RevertLocation { .. } => "revert_location",
             Self::SpawnItem { .. } => "u_spawn_item",
             Self::ConsumeItem { listener, .. } => {
                 if *listener {

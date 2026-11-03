@@ -143,16 +143,16 @@ fn the_first_entry_that_refuses_says_which_rule_is_missing() {
     for line in shown {
         println!("REFUSED {line}");
     }
-    // Pinned so a round that changes the frontier sees it here first: the total has fallen from 35 to **24**, and the biggest single cause is still a **store**
-    // (`revert_location` needs a submap baseline the port does not keep), not a reader. The fall from 25 is round 1048 reading `npc_mutate_category`.
-    assert_eq!(refused_programs.len(), 19, "nineteen programs refuse at their first unreadable entry");
+    // Pinned so a round that changes the frontier sees it here first: the total has fallen from 35 to **16**. The **store** cause is gone - round 1054 built the
+    // snapshot and round 1055 read `revert_location` - so what is left is readers: `foreach` twice, and one each of `args`, `count`, `else`, `false_eocs`, `if`, `loc`.
+    assert_eq!(refused_programs.len(), 16, "sixteen programs refuse at their first unreadable entry");
     assert_eq!(
         ranked
             .iter()
             .find(|(member, _, _)| member == "key")
             .map(|(_, count, _)| *count),
-        Some(3),
-        "three of them are a revert_location, which needs the submap baseline"
+        None,
+        "and no program names a place to revert any more: the store it needed landed in round 1054"
     );
 }
 

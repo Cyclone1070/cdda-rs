@@ -66,3 +66,60 @@ fn a_square_outside_the_reach_is_not_remembered() {
         "a square further than the reach is left alone: {remembered} of {total}"
     );
 }
+
+/// The data's `revert_location` remembers a place and puts it back when the event comes due.
+///
+/// Reference: `f_revert_location` (`npctalk.cpp:4884-4918`) with the `REVERT_SUBMAP` case in `timed_event.cpp:336-340`: the place variable holds the square, the copy is
+/// taken when the effect runs, and the tiles go back when the event is due.
+#[test]
+fn the_data_can_revert_a_place() {
+    use bevy_ecs::prelude::*;
+
+    let mut world = World::new();
+    cdda_sim::calendar::set_turn(&mut world, 0);
+    cdda_sim::load_level(&mut world, &level());
+    cdda_sim::square::set_terrain(&mut world, (6, 6, 0), 1);
+    let speaker = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (6, 6, 0));
+
+    // The place variable the data writes: `{"global_val": "portal_dungeon"}`.
+    let holder = cdda_sim::dialogue_values::holder_for(&mut world, speaker, true);
+    cdda_sim::dialogue_values::set(
+        &mut world,
+        holder,
+        "portal_dungeon",
+        cdda_sim::dialogue_values::Value::Position { x: 6, y: 6, z: 0 },
+    );
+
+    let effect = cdda_content::dialogue::Effect::RevertLocation {
+        scope: "global_val".to_owned(),
+        name: "portal_dungeon".to_owned(),
+        after: cdda_content::dialogue::EffectDuration::Turns(Some(5)),
+        key: None,
+    };
+    let applied = cdda_sim::dialogue_effects::run_effects(
+        &mut world,
+        speaker,
+        None,
+        std::slice::from_ref(&effect),
+    );
+    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "the effect runs");
+    assert!(
+        cdda_sim::revert::has_snapshot(&world),
+        "and the place is remembered"
+    );
+    assert!(
+        cdda_sim::timed_events::text_of(&world, "REVERT_SUBMAP").is_some(),
+        "with the event queued under the reference's own name"
+    );
+
+    // The house changes before the event comes due.
+    cdda_sim::square::set_terrain(&mut world, (6, 6, 0), 2);
+    assert_eq!(cdda_sim::square::terrain_at(&world, (6, 6, 0)), Some(2), "the change landed");
+
+    cdda_sim::revert::restore(&mut world);
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (6, 6, 0)),
+        Some(1),
+        "and the floor is a floor again"
+    );
+}
