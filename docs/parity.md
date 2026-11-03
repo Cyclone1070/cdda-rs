@@ -10145,3 +10145,25 @@ focus drift | every minute | driven through `run_turn` |
 
 **No crafting rule is taught at a moment the reference does not teach it.** What is left in P3 is the **failure** path (`get_next_failure_point`, `handle_craft_failure`),
 the workbench multipliers and assistants, and the container eligibility rule for liquids.
+
+## A craft can go wrong, and how wrong is a roll (round 1017)
+
+The failure path was the largest crafting rule with no store at all. It came in two halves, and the arithmetic of both is the reference's:
+
+| Rule | Reference | Port |
+|---|---|---|
+the crafter's skill as a roll | a normal distribution centred on the **weighted skill average**, spread two widened by a third of every point short and narrowed by a quarter of every point ahead, floored at one (`crafting.cpp:1172-1263`) | `success_data` |
+what the roll must beat | the recipe's difficulty **plus one**, so rolling exactly the difficulty still fails | the same function |
+the failure check | the same numbers with the difficulty quartered (after dropping the plus one) and the spread halved (`:1265-1273`) | `failure_data` |
+when it is checked | the progress now **plus the roll** in ten-millionths (`:1337`) | `next_failure_point` |
+what it costs | at most **three quarters** of the components, each skipped on the failure roll; all gone is **catastrophic**; otherwise `rng_exponential(0.25, 0.35) * (1 - roll)` of the progress (`:1360-1400`) | `handle_failure` |
+
+**The distribution made one test useless before it made it right.** A hopeless crafter - skill zero against difficulty nine - has a failure roll high enough that **every
+component is skipped**, so a single-seed test of "a failure destroys something" failed with zero destroyed. **The roll is the point of the rule**, so the test now judges
+it over **sixty-four seeds**: some failures must destroy, none may destroy more than three quarters, and a one-component craft must sometimes lose it.
+
+**The counterintuitive part is the reference's own and is now pinned:** the roll is centred on the crafter's **skill**, so a **better** crafter destroys **less** and loses
+**less** progress - and the failure roll is **not** reduced by the difficulty, which is why a hopeless survivor still rarely ruins the work.
+
+**Not yet wired into the turn**: the failure **check** (`item_counter >= next_failure_point` at `activity_actor.cpp:4299`) still has no caller, so a craft cannot fail in a
+real world. **That is the reach gap this round deliberately leaves named** rather than adding a rule whose trigger nothing fires.

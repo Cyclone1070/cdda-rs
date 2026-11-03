@@ -43,6 +43,7 @@ pub mod singletons;
 pub mod square;
 pub mod conditions;
 pub mod containment;
+pub mod craft_roll;
 pub mod crafting;
 pub mod choices;
 pub mod creature;

@@ -51,6 +51,7 @@ mod corpus_sessions;
 mod craft_activity;
 mod craft_progress;
 mod craft_time;
+mod craft_roll;
 mod crafting;
 mod dialogue_conditions;
 mod npcs;
