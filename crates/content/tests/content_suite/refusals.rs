@@ -137,12 +137,15 @@ fn the_first_entry_that_refuses_says_which_rule_is_missing() {
         .map(|(member, count, example)| format!("{member} x{count}: {example}"))
         .collect();
     println!("{} programs refuse at their first unreadable entry", refused_programs.len());
+    for line in &shown {
+        println!("  {line}");
+    }
     for line in shown {
         println!("REFUSED {line}");
     }
-    // Pinned so a round that changes the frontier sees it here first: the total has fallen from 35 to 32 in three rounds, and the biggest single cause is a
-    // **store** (`revert_location` needs a submap baseline the port does not keep), not a reader.
-    assert_eq!(refused_programs.len(), 25, "twenty-five programs refuse at their first unreadable entry");
+    // Pinned so a round that changes the frontier sees it here first: the total has fallen from 35 to **24**, and the biggest single cause is still a **store**
+    // (`revert_location` needs a submap baseline the port does not keep), not a reader. The fall from 25 is round 1048 reading `npc_mutate_category`.
+    assert_eq!(refused_programs.len(), 24, "twenty-four programs refuse at their first unreadable entry");
     assert_eq!(
         ranked
             .iter()

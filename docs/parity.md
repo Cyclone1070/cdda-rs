@@ -10786,3 +10786,24 @@ asks one - a timed event, a scheduled effect, the sleepiness clock - quietly did
 scenario that does not were running in two different worlds**, and the fix is one line in the place a world is built.
 
 **Still declared:** `should_show_map_memory` (the reference's other reader of the same event) and the map memory it switches off.
+
+## The other spelling of a mutation, and two members it was ignoring (round 1048)
+
+The refusal census carries **24 programs** now, down from 25, and the program that left did it for three reasons at once:
+
+| Piece | Where |
+|---|---|
+`npc_mutate` and `npc_mutate_category`, the listener's spellings | `read_mutation`, which read only the `u_` forms |
+which creature the effect acts on | `dialogue_effects::mutate` - **the listener for an `npc_` spelling**, and a refusal when there is nobody to act on |
+`use_vitamins`, **defaulting to true** | the same reader, so the mutagen price applies unless the data says otherwise |
+`true_random`, which skips the good/bad roll | `mutations::mutate_category_with` - `allow_good` and `allow_bad` both true, which is what `mutation.cpp:1364-1372` does |
+Gates | the census falling **25 → 24**, and the pinned numbers moving with it |
+
+**Three numbers moved by one each, and each is a receipt.** A reader landing changes the effect count (1,546 → **1,547**), the leaf count (75 → **74**) and the one-gap count
+(18 → **19**) - the last of which **rose**, because a program that was two gaps away is now one. **A census that only ever falls is a census nobody is reading.**
+
+**The `npc_` spellings are not synonyms.** They act on **the other creature in the conversation**, so a reader that accepted them and applied them to the speaker would
+mutate the wrong survivor - which is why the target is a field of the effect rather than a rule the caller remembers.
+
+**The census now prints its ranking.** It had computed the ranking, sorted it and asserted on it since round 976 without ever showing it; a test whose output is its point
+should print the point.

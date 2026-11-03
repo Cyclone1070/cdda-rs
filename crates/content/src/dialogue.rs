@@ -2441,6 +2441,12 @@ pub enum Effect {
         highest_category: Expression,
         /// The mutation category when the data names one.
         category: Option<String>,
+        /// Whether the mutation goes to the **listener** rather than the speaker: the data's `npc_mutate` and `npc_mutate_category` members.
+        npc: bool,
+        /// Whether the creature pays mutagen for it. The member defaults to **true** (`npctalk.cpp:3565`), so a survivor mutating in dialogue spends vitamins.
+        use_vitamins: bool,
+        /// Whether the good/bad roll is skipped entirely, which the data asks for when a mutation is meant to be random (`npctalk.cpp:3580-3582`).
+        true_random: bool,
     },
     /// Stores the square of a monster of a given kind found around the actor.
     ///
@@ -4022,7 +4028,13 @@ fn read_overmap_search(object: &cdda_json::Object, target: &cdda_json::Object, l
 /// Reference: `f_mutate` (`npctalk.cpp:3563-3571`) and `f_mutate_category` (`3573-3583`): the member is the highest category depth, and the category form names one to
 /// draw from. The port reads both and answers only the depth of zero, which asks for nothing.
 fn read_mutation(object: &cdda_json::Object) -> Option<Effect> {
-    let (highest, category) = match (object.get("u_mutate"), object.get("u_mutate_category")) {
+    // Reference: the same two functions read both spellings, and `d.actor( is_npc )` decides which creature they act on (`npctalk.cpp:3563-3583`).
+    let npc = object.get("npc_mutate").is_some() || object.get("npc_mutate_category").is_some();
+    let depth_member = object.get("u_mutate").or_else(|| object.get("npc_mutate"));
+    let category_member = object
+        .get("u_mutate_category")
+        .or_else(|| object.get("npc_mutate_category"));
+    let (highest, category) = match (depth_member, category_member) {
         (Some(depth), None) => (read_math_expression(depth)?, None),
         (None, Some(Value::Str(named))) => (Expression::Number(0.0), Some(named.clone())),
         (None, Some(given)) => (read_math_expression(given)?, None),
@@ -4031,6 +4043,16 @@ fn read_mutation(object: &cdda_json::Object) -> Option<Effect> {
     Some(Effect::Mutation {
         highest_category: highest,
         category,
+        npc,
+        // Reference: `use_vitamins` defaults to true and `true_random` to false (`npctalk.cpp:3565-3582`).
+        use_vitamins: match object.get("use_vitamins") {
+            Some(Value::Bool(set)) => *set,
+            _ => true,
+        },
+        true_random: match object.get("true_random") {
+            Some(Value::Bool(set)) => *set,
+            _ => false,
+        },
     })
 }
 

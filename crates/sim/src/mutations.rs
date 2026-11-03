@@ -262,10 +262,27 @@ pub fn mutate_category(
     category: &str,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) -> Option<String> {
+    mutate_category_with(world, creature, data, categories, category, false, rolls)
+}
+
+/// [`mutate_category`], with the good/bad roll turned off when the data asks for a true random mutation.
+///
+/// Reference: `mutate_category` sets `allow_good` and `allow_bad` both to true when `true_random` is set (`mutation.cpp:1364-1372`), which lets any trait in the category
+/// be drawn rather than only the half the roll allows.
+pub fn mutate_category_with(
+    world: &mut World,
+    creature: Entity,
+    data: &MutationData,
+    categories: &Categories,
+    category: &str,
+    true_random: bool,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) -> Option<String> {
     // Reference: `mutate_category` (`mutation.cpp:1364-1375`) rolls for a bad mutation **half** the time once the creature's instability in the category is half the number of
     // good traits in it, and caps the chance at two thirds. A bad roll leaves bad and neutral traits; a good roll leaves good and neutral ones. A creature that has taken no
     // mutations yet has no instability, so its first is never bad.
-    let bad = roll_is_bad(world, creature, data, category, rolls);
+    let bad = !true_random && roll_is_bad(world, creature, data, category, rolls);
+    let blocked = !true_random;
     // Reference: `mutation_ok`'s last check (`mutation.cpp:1052-1057`) refuses a trait the creature has not stored enough of the category's mutagen to pay for, and
     // `mutate_category` hands it the **category's** vitamin rather than a per-trait one (`mutation.cpp:1380-1382`).
     let mutagen = categories.get(category).map(|one| one.vitamin.clone()).unwrap_or_default();
@@ -273,11 +290,10 @@ pub fn mutate_category(
         .into_iter()
         .filter(|id| {
             let points = data.get(id).map_or(0, |rule| rule.points);
-            if bad {
-                points <= 0
-            } else {
-                points >= 0
+            if !blocked || (bad && points <= 0) || (!bad && points >= 0) {
+                return true;
             }
+            false
         })
         .filter(|id| can_pay_in_vitamins(world, creature, data, &mutagen, id))
         .collect();

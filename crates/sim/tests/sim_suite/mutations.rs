@@ -391,6 +391,9 @@ fn the_mutate_effect_gives_a_mutation_from_the_strongest_category() {
     let effect = cdda_content::dialogue::Effect::Mutation {
         highest_category: cdda_content::dialogue::Expression::Number(1.0),
         category: None,
+        npc: false,
+        use_vitamins: true,
+        true_random: false,
     };
     let applied = cdda_sim::dialogue_effects::run_effects(&mut world, survivor, None, &[effect]);
     assert_ne!(
@@ -571,6 +574,9 @@ fn a_mutation_costs_mutagen() {
         let effect = cdda_content::dialogue::Effect::Mutation {
             highest_category: cdda_content::dialogue::Expression::Number(1.0),
             category: None,
+            npc: false,
+            use_vitamins: true,
+            true_random: false,
         };
         cdda_sim::mutations::gain(
             &mut world,

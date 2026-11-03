@@ -669,8 +669,23 @@ fn wait_turns(
 /// mutation pool, so a depth of **zero** - which asks for nothing - is answered, and any real depth refuses. **The refusal is the honest half of a store gap: the rule is
 /// read, and the day a mutation pool exists this branch loses its second sentence rather than being rewritten.**
 fn mutate(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::Mutation { highest_category, .. } = effect else {
+    let Effect::Mutation {
+        highest_category,
+        npc,
+        true_random,
+        ..
+    } = effect
+    else {
         return Applied::CannotAnswer;
+    };
+    // Reference: `d.actor( is_npc )` - the `npc_` spellings act on the listener, and with no listener there is nobody to mutate.
+    let creature = if *npc {
+        let Some(listener) = listener else {
+            return Applied::CannotAnswer;
+        };
+        listener
+    } else {
+        speaker
     };
     let Some(depth) = draw(world, speaker, listener, highest_category) else {
         return Applied::CannotAnswer;
@@ -684,14 +699,23 @@ fn mutate(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: 
     let Some(data) = crate::mutation_data::holder(world) else {
         return Applied::CannotAnswer;
     };
-    let Some((category, _)) = crate::mutations::strongest_category(world, speaker, &data) else {
+    let Some((category, _)) = crate::mutations::strongest_category(world, creature, &data) else {
         return Applied::Done;
     };
     let Some(categories) = crate::mutation_data::categories(world) else {
         return Applied::CannotAnswer;
     };
     let mut rolls = crate::singletons::take_rolls(world).unwrap_or_else(|| cdda_core_types::rng::Rolls::new(0));
-    let gained = crate::mutations::mutate_category(world, speaker, &data, &categories, &category, &mut rolls);
+    // Reference: `true_random` skips the good/bad roll (`npctalk.cpp:3581-3584`), which is how the data asks for a mutation of any kind.
+    let gained = crate::mutations::mutate_category_with(
+        world,
+        creature,
+        &data,
+        &categories,
+        &category,
+        *true_random,
+        &mut rolls,
+    );
     crate::singletons::put_rolls(world, rolls);
     match gained {
         Some(_) => Applied::Done,

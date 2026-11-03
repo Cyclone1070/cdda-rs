@@ -57,9 +57,10 @@ pub const NOW: Census = Census {
     // The same programs run in a world that has terrain, an overmap and a player who answers, which is what a game has.
     ran_in_a_built_world: 394,
     refused_at_run: 194,
-    leaves: 75,
-    one_gap: 18,
-    effects_runnable: 1_546,
+    // 74 leaves and 1,547 effects after round 1048 read the `npc_mutate_category` spelling: one effect entry fewer to blame, one leaf fewer to reach.
+    leaves: 74,
+    one_gap: 19,
+    effects_runnable: 1_547,
     effects_defined: 1_612,
     effect_blamed: 102,
     conditions_readable: 3_227,
