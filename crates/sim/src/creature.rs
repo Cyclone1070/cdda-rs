@@ -1674,6 +1674,37 @@ pub fn set_goal(world: &mut World, entity: Entity, square: (i32, i32, i32)) {
     }
 }
 
+/// A noise a creature is walking towards, and how many turns it will keep walking.
+///
+/// Reference: `monster::wander_to( p, f )` (`monster.cpp`) sets `wander_pos` and `wandf`, and `monster::move` walks the monster towards `wander_pos` while `wandf`
+/// lasts. Kept apart from [`Goal`] because the reference keeps them apart: a goal is what a monster decided, a wander is what it heard, and a monster can have both.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Wander {
+    /// The square it thinks the noise came from.
+    pub square: (i32, i32, i32),
+    /// How many turns it will keep walking, counted down as it goes.
+    pub turns_left: i32,
+}
+
+/// Points a creature at a noise for a number of turns, keeping whichever wander it already had only if that one lasts longer.
+///
+/// Reference: `monster::hear_sound` refuses to replace a wander that has more turns left than the sound it just heard would give it (`monster.cpp:3968`), so a monster
+/// already walking towards something interesting is not distracted by a rock.
+pub fn set_wander(world: &mut World, entity: Entity, square: (i32, i32, i32), turns: i32) {
+    if turns <= 0 {
+        return;
+    }
+    if let Some(mut wander) = world.get_mut::<Wander>(entity) {
+        if wander.turns_left >= turns {
+            return;
+        }
+        wander.square = square;
+        wander.turns_left = turns;
+    } else {
+        world.entity_mut(entity).insert(Wander { square, turns_left: turns });
+    }
+}
+
 /// Gives every creature its speed and lets each one with a goal take one step.
 pub fn take_turns(world: &mut World) {
     bank_a_turn(world);
@@ -1702,14 +1733,29 @@ pub fn take_turns(world: &mut World) {
         }
         working.insert(entity);
     }
-    let walkers: Vec<(Entity, (i32, i32, i32))> = world
-        .query::<(Entity, &Goal)>()
+    // What a creature is walking towards: its own goal when it has one, and otherwise whatever it heard. Reference: `monster::move` reads `wander_pos` only when the
+    // monster has no `goal` of its own, so a monster that has decided something is not pulled off course by a noise.
+    let walkers: Vec<(Entity, (i32, i32, i32), bool)> = world
+        .query::<(Entity, Option<&Goal>, Option<&Wander>)>()
         .iter(world)
-        .map(|(entity, goal)| (entity, goal.square))
+        .filter_map(|(entity, goal, wander)| {
+            goal.map(|goal| (entity, goal.square, true))
+                .or_else(|| wander.map(|wander| (entity, wander.square, false)))
+        })
         .collect();
-    for (entity, goal) in walkers {
+    for (entity, goal, is_goal) in walkers {
         if working.contains(&entity) {
             continue;
+        }
+        // A wander is a memory of a noise and lasts as long as the noise said: counted down here, and gone when it runs out.
+        if !is_goal {
+            let spent = world.get_mut::<Wander>(entity).map(|mut wander| {
+                wander.turns_left -= 1;
+                wander.turns_left
+            });
+            if spent.is_some_and(|left| left <= 0) {
+                world.entity_mut(entity).remove::<Wander>();
+            }
         }
         // A creature that can reach its goal this step hits whoever is on it instead of walking into them.
         // Reference: `monster::move_to` refuses a square another creature holds, and `monster::attack` is what
@@ -1720,7 +1766,11 @@ pub fn take_turns(world: &mut World) {
         let bounds = walk_bounds(world);
         let outcome = crate::routing::walk_towards(world, entity, goal, bounds);
         if matches!(outcome, crate::routing::Walk::Arrived | crate::routing::Walk::NoRoute) {
-            world.entity_mut(entity).remove::<Goal>();
+            if is_goal {
+                world.entity_mut(entity).remove::<Goal>();
+            } else {
+                world.entity_mut(entity).remove::<Wander>();
+            }
         }
     }
 }

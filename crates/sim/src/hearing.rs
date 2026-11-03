@@ -64,8 +64,8 @@ pub fn wander_turns(volume: i32, good_hearing: bool) -> i32 {
 /// so a sound is heard once and by whoever was close enough. The port's version of "who can hear" is the `HEARS` flag the monster data carries: a creature with no flag at
 /// all is deaf, which is what the data means by leaving it off.
 ///
-/// The guess is the source jittered by up to [`max_error`] on each axis, drawn from the game's own dice; the walk lasts [`wander_turns`]. **What the creature does about it is
-/// not here**: the reference calls `wander_to`, and a monster's goal is a rule the port has not written yet.
+/// The guess is the source jittered by up to [`max_error`] on each axis, drawn from the game's own dice; the walk lasts [`wander_turns`] and becomes a [`crate::creature::Wander`],
+/// which is the port's `wander_to`. A creature that has a goal of its own keeps it: `monster::move` reads the wander only when there is no goal.
 pub fn hear_sounds(world: &mut World) -> usize {
     let heard = crate::sounds::heard_this_turn(world);
     if heard.is_empty() {
@@ -116,6 +116,8 @@ pub fn hear_sounds(world: &mut World) -> usize {
         }
         if let Some(heard_at) = loudest {
             world.entity_mut(entity).insert(heard_at);
+            // The guess is **also** where the creature now walks: `monster::hear_sound` ends in `wander_to`, which is what turns a noise into a monster arriving.
+            crate::creature::set_wander(world, entity, heard_at.at, heard_at.wander_turns);
             convinced += 1;
         }
     }

@@ -495,4 +495,6 @@ the check draws into a scratch file. Mutation-checked both ways.
 
 **Round 1077 made a sound reachable**: `crates/sim/src/hearing.rs` ports `monster::hear_sound`'s arithmetic (`heard_volume`, `max_error`'s band ladder, `wander_turns`) and
 `hear_sounds`, which hands the turn's loudest sound to every `HEARS` creature, jitters its guess and clears the list (`sounds.cpp:186-260`). It runs as **`TurnStage::Sounds`**,
-a declared stage between Scent and Falling. **Named next:** the reference's `wander_to` - the memory is written and no goal walks towards it yet.
+a declared stage between Scent and Falling. **Round 1078 gave that memory a walk**: `creature::Wander { square, turns_left }` is the reference's `wander_pos`/`wandf`, `set_wander` refuses to replace a longer wander
+(`monster.cpp:3968`), `hear_sounds` sets it (`monster.cpp:3974`), and `take_turns` walks a creature to its `Goal` if it has one and **otherwise to its `Wander`**, counting the
+turns down. **Named next:** `effect_docile` refuses a wander, and a `provocative` sound (`volume >= normal_roll(30,5)`) can displace a monster already following a quieter one.

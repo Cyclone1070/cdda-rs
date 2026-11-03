@@ -11555,3 +11555,29 @@ notice.
 
 **Named, not carried:** the reference calls `wander_to` on the strength of what it heard, and a monster's **goal** is the rule the port still does not have - so the memory is
 written and nothing walks towards it yet. That is the next slice in this thread, and it is stated in the module's own doc comment rather than left for a reader to discover.
+
+## The noise now pulls the monster (round 1078)
+
+A heard sound is a **walk**, not only a memory.
+
+| Piece | Where |
+|---|---|
+`creature::Wander { square, turns_left }` | the reference's `wander_pos` and `wandf`, kept apart from `Goal` because the reference keeps them apart |
+`creature::set_wander` | refuses to replace a wander with more turns left - `monster.cpp:3968`, so a monster already walking towards something interesting is not distracted |
+`hear_sounds` | sets the wander as well as the memory: `monster::hear_sound` ends in `wander_to` (`monster.cpp:3974`) |
+`take_turns` | walks a creature towards its `Goal` if it has one, **otherwise** towards its `Wander`, counting the turns down and dropping it when they run out |
+Gate | `a_creature_that_hears_a_noise_walks_towards_it_until_the_noise_is_old` |
+
+**This is the round where the "rule correct but unreachable" failure was caught on itself.** The previous round's `HeardSound` was correct, gated, and **did nothing**: nothing in the
+port read it, and `wander_turns` existed for no caller. The memory now has a walk, and the gate asserts a creature **changes square** - not that a component is present.
+
+**Three fixture failures, all mine, each one a thing the port insists on:**
+- the terrain had **no move cost**, so the square had no walkable cost at all and routing honestly said `NoRoute` - a floor is not a floor until the prototypes say what it costs;
+- before that, no **terrain table**, so the square could not be named;
+- and the step needed **moves banked**, which is what `bank_a_turn` does at the head of every creature stage.
+
+**The debug that found it was a direct call**: the test called `walk_towards` itself and asserted `Stepped` before running a turn. That separates **"the creature cannot walk"** from
+**"the turn did not ask it to"** - the same two questions the hearing bug would have hidden behind each other.
+
+**Named, not carried:** the reference refuses a wander while the monster is `effect_docile`, and a **provocative** sound (`volume >= normal_roll(30, 5)`) can displace a monster
+that is already following a less interesting one. Both are one condition each on top of the rule that now exists.

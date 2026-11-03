@@ -89,3 +89,60 @@ fn the_creature_that_hears_a_thud_gets_a_place_to_walk_towards() {
         "a sound is heard once"
     );
 }
+
+/// A creature that hears a noise walks towards it, and stops when the noise is old.
+///
+/// Reference: `monster::hear_sound` ends in `wander_to( target, wander_turns )` (`monster.cpp:3974`), and `monster::move` steps towards `wander_pos` while `wandf` lasts.
+/// This is the half a memory alone would miss: the port had `HeardSound` and nothing walked, which is a rule that is correct and unreachable.
+#[test]
+fn a_creature_that_hears_a_noise_walks_towards_it_until_the_noise_is_old() {
+    let mut world = bevy_ecs::prelude::World::new();
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(11));
+    let mut level = cdda_core_types::level::Level::new();
+    for x in -2..14 {
+        for y in -2..14 {
+            level.set_terrain(x, y, 1, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let listener = cdda_sim::creature::spawn_creature(&mut world, "the listener", (10, 0, 0));
+    cdda_sim::creature_flags::add_flag(&mut world, listener, "HEARS");
+    // A speed of one hundred, so each turn banks one step's worth of moves.
+    world
+        .entity_mut(listener)
+        .insert(cdda_sim::creature::Speed { base: 100, bonus: 0 });
+
+    // A very loud noise at the origin is heard exactly (volume 20 or more has no error), ten squares away.
+    cdda_sim::sounds::make_sound(&mut world, (0, 0, 0), 30);
+    // The prototypes say the floor costs two points a step, which is what routing charges; without them a square has no walkable cost at all.
+    let mut terrain = cdda_sim::terrain_table::TerrainTable::new();
+    terrain.insert(1, true);
+    terrain.insert_move_cost(1, 2);
+    cdda_sim::set_prototypes(
+        &mut world,
+        cdda_sim::Prototypes {
+            terrain,
+            furniture: cdda_sim::terrain_table::TerrainTable::new(),
+        },
+    );
+    cdda_sim::hearing::hear_sounds(&mut world);
+    assert_eq!(
+        world.get::<cdda_sim::creature::Wander>(listener).map(|wander| wander.square),
+        Some((0, 0, 0)),
+        "a noise loud enough to be guessed exactly is walked towards exactly"
+    );
+
+    let before = world.get::<cdda_sim::Position>(listener).map(|place| (place.x, place.y, place.z));
+    // The step itself, called directly: this says whether a creature with moves and a route walks, separately from whether the turn gave it the chance.
+    cdda_sim::creature::bank_a_turn(&mut world);
+    let walked = cdda_sim::routing::walk_towards(&mut world, listener, (0, 0, 0), (12, 12));
+    assert_eq!(walked, cdda_sim::routing::Walk::Stepped, "one step towards the noise");
+    let stepped = world.get::<cdda_sim::Position>(listener).map(|place| (place.x, place.y, place.z));
+    assert_ne!(stepped, before, "and the creature is somewhere else");
+    cdda_sim::turn::run_turn(&mut world);
+    let after = world.get::<cdda_sim::Position>(listener).map(|place| (place.x, place.y, place.z));
+    assert!(
+        after.is_some_and(|after| after.0 < before.unwrap_or((10, 0, 0)).0),
+        "the creature stepped towards the noise: {before:?} became {after:?}"
+    );
+}
