@@ -102,6 +102,28 @@ pub enum Step {
     },
     /// Draws the view to a PNG, so the screen a scenario produces can be diffed.
     Shot(String),
+    /// Loads the monster definitions the game's data defines.
+    Monsters,
+    /// Puts a monster on the map, by the name its type has in the data.
+    Monster {
+        /// The type's id, as the data spells it.
+        id: String,
+        /// The square's x.
+        x: i32,
+        /// The square's y.
+        y: i32,
+    },
+    /// Expects the survivor to have lost at least this many hit points.
+    ExpectHurt(i32),
+    /// Expects some creature to be this close to the survivor, in squares.
+    ExpectMonsterNear(i32),
+    /// Expects no creature to be standing on this square.
+    ExpectNoMonsterAt {
+        /// The square's x.
+        x: i32,
+        /// The square's y.
+        y: i32,
+    },
     /// Make a recipe, running up to this many turns for it.
     Craft {
         /// The recipe's id, as the data spells it.
@@ -189,6 +211,7 @@ pub fn parse(text: &str) -> Result<Vec<Step>, String> {
                 y: number_of(y, number, "y")?,
             },
             ["items"] => Step::Items,
+            ["monsters"] => Step::Monsters,
             ["place", rest @ ..] => Step::PlaceOverride(rest.join(" ")),
             ["expect", "place", rest @ ..] => Step::ExpectPlace(rest.join(" ")),
             ["give", item, count] => Step::Give {
@@ -206,6 +229,19 @@ pub fn parse(text: &str) -> Result<Vec<Step>, String> {
                 y: number_of(y, number, "y")?,
             },
             ["shot", path] => Step::Shot((*path).to_owned()),
+            ["monster", id, x, y] => Step::Monster {
+                id: (*id).to_owned(),
+                x: number_of(x, number, "x")?,
+                y: number_of(y, number, "y")?,
+            },
+            ["expect", "hurt", points] => Step::ExpectHurt(number_of(points, number, "points")?),
+            ["expect", "monster", "within", squares] => {
+                Step::ExpectMonsterNear(number_of(squares, number, "squares")?)
+            },
+            ["expect", "no", "monster", "at", x, y] => Step::ExpectNoMonsterAt {
+                x: number_of(x, number, "x")?,
+                y: number_of(y, number, "y")?,
+            },
             ["craft", recipe, turns] => Step::Craft {
                 recipe: (*recipe).to_owned(),
                 turns: number_of(turns, number, "turns")?,
@@ -357,6 +393,16 @@ fn take_item_step(world: &mut World, step: &Step, outcome: &mut Outcome) -> bool
             }
         Step::Throw { item, x, y } => throw_a_step(world, outcome, item, *x, *y),
         Step::Shot(path) => take_a_shot(world, outcome, path),
+        Step::Monsters => match install_monster_data(world) {
+            Some(kinds) => outcome.lines.push(format!("monsters: {kinds} kinds")),
+            None => outcome
+                .failures
+                .push("the game's monster data is not where the scenario expects it".to_owned()),
+        },
+        Step::Monster { id, x, y } => put_a_monster(world, outcome, id, *x, *y),
+        Step::ExpectHurt(points) => expect_a_wound(world, outcome, *points),
+        Step::ExpectMonsterNear(squares) => expect_a_monster_close(world, outcome, *squares),
+        Step::ExpectNoMonsterAt { x, y } => expect_no_monster_at(world, outcome, *x, *y),
         Step::ExpectItemAt { item, x, y } => expect_one_on(world, outcome, item, *x, *y),
         Step::Craft { recipe, turns } => {
                 let Some(survivor) = survivor(world) else {
@@ -422,6 +468,19 @@ pub fn build_world(world: &mut World, side: i32, flammable: bool) {
         }
     }
     cdda_sim::load_level(world, &level);
+    // What the floor is worth to walk on. Without this a scenario's world has squares with **no move cost at all**, so routing answers "no route" for every step and a
+    // monster that hears a noise honestly cannot come. The reference has this every time because terrain is loaded with its `move_cost`; a scenario builds its floor by hand.
+    let mut terrain = cdda_sim::terrain_table::TerrainTable::new();
+    terrain.insert(1, true);
+    terrain.insert_move_cost(1, 2);
+    cdda_sim::set_prototypes(
+        world,
+        cdda_sim::Prototypes {
+            terrain,
+            furniture: cdda_sim::terrain_table::TerrainTable::new(),
+        },
+    );
+    cdda_sim::terrain_types::set_types(world, [("t_floor".to_owned(), 1u32)]);
     for y in 0..side {
         for x in 0..side {
             cdda_sim::fire_facts::set_fire_facts(
@@ -491,6 +550,32 @@ pub fn install_item_data(world: &mut World) -> Option<usize> {
     let items = cdda_content::items::load_paths(&[&data]).ok()?;
     cdda_sim::item_data::install(world, &items);
     Some(items.len())
+}
+
+/// Loads every monster type the game's data defines, and lets the store answer by name.
+///
+/// The definitions stay in `cdda-content`: the store is given the two things a scenario needs - which number each name is, and how many hit points it starts with - so a
+/// scenario that places `mon_zombie` gets the zombie's own numbers rather than a fixture's.
+pub fn install_monster_data(world: &mut World) -> Option<usize> {
+    let monsters = monster_types()?;
+    let kinds: Vec<cdda_sim::monster_registry::MonsterKind<'_>> = monsters
+        .iter()
+        .map(|monster| cdda_sim::monster_registry::MonsterKind {
+            id: &monster.id,
+            hp: monster.hp,
+        })
+        .collect();
+    cdda_sim::monster_registry::set_monster_types(world, &kinds);
+    Some(monsters.len())
+}
+
+/// Every monster type the game's data defines.
+fn monster_types() -> Option<Vec<cdda_content::monsters::MonsterType>> {
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../oracle/src/data/json");
+    if !data.is_dir() {
+        return None;
+    }
+    cdda_content::monsters::load_paths(&[&data]).ok()
 }
 
 /// Renames the place, and checks what the place is called.
@@ -705,9 +790,16 @@ fn throw_a_step(
             .push(format!("nothing called {item} is in hand to throw"));
         return;
     };
+    // What the landing is worth as a noise is part of what the step reports: a thing under half a kilo lands in silence, and a scenario that expects a monster to come
+    // needs to see that it never had a sound to come to.
+    let weight = cdda_sim::item_registry::snapshot(world)
+        .id_of(item)
+        .map_or(0, |kind| {
+            cdda_sim::item_registry::snapshot(world).weight_of(kind)
+        });
     match cdda_sim::throwing::throw_at(world, survivor, held, (x, y, 0)) {
         cdda_sim::throwing::Toss::Landed { at, missed_by, hit } => outcome.lines.push(format!(
-            "throw: {item} landed at ({}, {}, {}) missing by {missed_by:.2}{}",
+            "throw: {item} ({weight} g) landed at ({}, {}, {}) missing by {missed_by:.2}{}",
             at.0,
             at.1,
             at.2,
@@ -720,6 +812,130 @@ fn throw_a_step(
             .failures
             .push(format!("the throw of {item} did not happen: {other:?}")),
     }
+}
+
+/// Plays one `monster` step: spawns a monster of the named type and wakes it.
+///
+/// The type comes from the monster data the scenario loaded, and a name the data does not have is a **failure** rather than a skip: a scenario that quietly spawned nothing
+/// would pass every later step by having nothing to fail.
+fn put_a_monster(world: &mut World, outcome: &mut Outcome, id: &str, x: i32, y: i32) {
+    let Some(kind) = cdda_sim::monster_registry::id_of(world, id) else {
+        outcome
+            .failures
+            .push(format!("the data has no monster called `{id}`"));
+        return;
+    };
+    // The type, not only the registry's two numbers: a monster that arrives without its type's flags is deaf and blind, and every rule that asks what it can do then
+    // answers "nothing". The data is read again here because a scenario's steps are independent - the file is a few megabytes and the step runs once.
+    let Some(types) = monster_types() else {
+        outcome
+            .failures
+            .push("the game's monster data is not where the scenario expects it".to_owned());
+        return;
+    };
+    let Some(monster_type) = types.iter().find(|monster| monster.id == id) else {
+        outcome
+            .failures
+            .push(format!("the data has no monster called `{id}`"));
+        return;
+    };
+    let monster = cdda_sim::creature::spawn_monster_of_type(world, kind, monster_type, (x, y, 0), 100);
+    // A monster a scenario places is one the world will give a turn to, so it is woken the same way a type-spawned one is.
+    cdda_sim::creature::set_moves(world, monster, 100);
+    let flags = world
+        .get::<cdda_sim::creature_flags::CreatureFlags>(monster)
+        .map_or(0, |carried| carried.0.len());
+    outcome.lines.push(format!(
+        "monster: {id} at ({x}, {y}) with {} hit points and {flags} flags{}",
+        monster_type.hp,
+        if cdda_sim::creature_flags::has_flag(world, monster, "HEARS") {
+            " (it hears)"
+        } else {
+            " (it is deaf, which is what its type says)"
+        }
+    ));
+}
+
+/// Plays one `expect hurt` step: the survivor must have lost at least this many hit points.
+fn expect_a_wound(world: &mut World, outcome: &mut Outcome, points: i32) {
+    let Some(survivor) = survivor(world) else {
+        outcome.failures.push("there is no survivor to be hurt".to_owned());
+        return;
+    };
+    let Some(health) = world.get::<cdda_sim::creature::Health>(survivor).copied() else {
+        outcome.failures.push("the survivor has no hit points".to_owned());
+        return;
+    };
+    let (hp, most) = (health.hp, health.max_hp);
+    if hp > most - points {
+        outcome.failures.push(format!(
+            "the survivor has {hp} of {most} hit points, so fewer than {points} were lost"
+        ));
+    } else {
+        outcome
+            .lines
+            .push(format!("hurt: the survivor is down to {hp} of {most}"));
+    }
+}
+
+/// Plays one `expect monster within` step: some creature besides the survivor is this many squares away or fewer.
+///
+/// This is the step a scenario needs to say **a noise brought something**: the survivor stands still, and after the sound the world has a monster standing near it that was
+/// not there before. It counts Chebyshev squares, which is the distance a sound and a walk both use.
+fn expect_a_monster_close(world: &mut World, outcome: &mut Outcome, squares: i32) {
+    let Some(survivor) = survivor(world) else {
+        outcome.failures.push("there is no survivor to stand near".to_owned());
+        return;
+    };
+    let Some(here) = world.get::<cdda_sim::Position>(survivor).map(|place| (place.x, place.y)) else {
+        outcome.failures.push("the survivor is nowhere".to_owned());
+        return;
+    };
+    let mut closest: Option<(i32, (i32, i32))> = None;
+    // **Creatures only**: an item lying nearby is not a monster arriving, and a check that counted it would pass on the thrown rock itself.
+    let mut query = world.query_filtered::<(Entity, &cdda_sim::Position), bevy_ecs::prelude::With<cdda_sim::creature::Creature>>();
+    for (entity, place) in query.iter(world) {
+        if entity == survivor {
+            continue;
+        }
+        let distance = (place.x - here.0).abs().max((place.y - here.1).abs());
+        if closest.is_none_or(|(best, _)| distance < best) {
+            closest = Some((distance, (place.x, place.y)));
+        }
+    }
+    match closest {
+        Some((distance, at)) if distance <= squares => outcome.lines.push(format!(
+            "close: something stands {distance} squares away at ({}, {})",
+            at.0, at.1
+        )),
+        Some((distance, at)) => outcome.failures.push(format!(
+            "the nearest thing is {distance} squares away at ({}, {}), not within {squares}",
+            at.0, at.1
+        )),
+        None => outcome
+            .failures
+            .push("nothing else is in the world at all".to_owned()),
+    }
+}
+
+/// Plays one `expect no monster at` step: nothing living stands on this square.
+///
+/// This is how a scenario says a noise **moved** something without pretending to know where it went: a monster that hears a sound walks to a guess up to ten squares out, so
+/// "it is no longer where it was" is the only honest claim a playtest can make about an imprecise noise.
+fn expect_no_monster_at(world: &mut World, outcome: &mut Outcome, x: i32, y: i32) {
+    let player = survivor(world);
+    let mut query = world.query_filtered::<(Entity, &cdda_sim::Position), bevy_ecs::prelude::With<cdda_sim::creature::Creature>>();
+    for (entity, place) in query.iter(world) {
+        if (place.x, place.y) == (x, y) && player != Some(entity) {
+            outcome.failures.push(format!(
+                "something is still standing at ({x}, {y}), so the noise did not move it"
+            ));
+            return;
+        }
+    }
+    outcome
+        .lines
+        .push(format!("empty: nothing stands at ({x}, {y}) any more"));
 }
 
 /// Plays one `shot` step: draws the view around the survivor and writes it as a PNG.

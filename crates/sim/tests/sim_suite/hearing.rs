@@ -3,7 +3,7 @@
 //! Reference: `monster::hear_sound` (`src/monster.cpp:3925-3980`). Three numbers decide whether a thrown rock pulls a monster: the volume it arrives at, the band that
 //! number falls in, and how long the creature keeps walking.
 
-#![allow(clippy::panic)]
+#![allow(clippy::expect_used, clippy::panic)]
 
 #[test]
 fn a_sound_arrives_as_its_volume_less_the_distance() {
@@ -252,4 +252,59 @@ fn a_noise_brings_a_monster_to_the_survivor_and_it_swings_when_it_arrives() {
         "and it swung when it got there: the survivor is at {:?}",
         cdda_sim::creature::health_of(&world, survivor)
     );
+}
+
+/// A monster spawned from its type carries the type's flags, which is how it can hear at all.
+///
+/// Reference: `monster::monster( const mtype * )` copies `type->flags` onto the monster, and every question about what a monster can do - `can_hear`, `has_flag` - is asked of
+/// that set (`monster.cpp:1318`). A port that spawned monsters without their flags gives every one of them a deaf, blind, armourless body that still has hit points.
+#[test]
+fn a_monster_from_its_type_carries_the_types_flags() {
+    // The corpus zombie, which carries `HEARS`, `GOODHEARING`, `SEES` and the rest of the flags its data states.
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+    let text = std::fs::read(path).expect("the monster dump exists");
+    let root = cdda_json::parse(&text).expect("the dump is valid JSON");
+    let cdda_json::Value::Object(root) = root else {
+        panic!("the dump's root is not an object");
+    };
+    let Some(cdda_json::Value::Array(prototypes)) = root.get("prototypes") else {
+        panic!("the dump has no prototypes");
+    };
+    let hearing = cdda_content::monsters::load_objects(prototypes)
+        .expect("the dump loads")
+        .into_iter()
+        .find(|one| one.id == "mon_zombie")
+        .expect("the corpus has a zombie");
+    assert!(
+        hearing.flags.contains("HEARS"),
+        "the corpus zombie hears, which is what the test needs of it"
+    );
+    let (hp, stand) = (hearing.hp, (4, 0, 0));
+
+    let mut world = bevy_ecs::prelude::World::new();
+    cdda_sim::monster_registry::set_monster_types(
+        &mut world,
+        &[cdda_sim::monster_registry::MonsterKind {
+            id: "mon_zombie",
+            hp: 80,
+        }],
+    );
+    let kind = cdda_sim::monster_registry::id_of(&mut world, "mon_zombie").expect("a zombie");
+    let zombie = cdda_sim::creature::spawn_monster_of_type(&mut world, kind, &hearing, stand, 100);
+
+    assert!(
+        cdda_sim::creature_flags::has_flag(&world, zombie, "HEARS"),
+        "a zombie that hears has the flag its type gives it"
+    );
+    assert!(
+        cdda_sim::creature_flags::has_flag(&world, zombie, "SEES"),
+        "and every other flag it carries, not only the first"
+    );
+    // The flags it does **not** carry stay absent, which is the half a port that set every flag would fail.
+    assert!(
+        !cdda_sim::creature_flags::has_flag(&world, zombie, "GOODHEARING"),
+        "the data does not give a zombie good hearing"
+    );
+    // The type's own numbers still arrive, which is what says the flags were added rather than substituted.
+    assert_eq!(cdda_sim::creature::health_of(&world, zombie), Some(hp));
 }

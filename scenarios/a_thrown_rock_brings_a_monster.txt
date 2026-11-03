@@ -1,0 +1,21 @@
+# A thrown rock is heard, and something comes to stand beside the survivor.
+#
+# Four rules compose here, and this is the playtest a person can run: the survivor throws, the rock lands with a thud, a zombie that hears it walks over, and the survivor is
+# comes to stand beside it. Each step is one the game already had or this scenario adds - `monster` places a type from the data, and `expect monster within` says something
+# arrived.
+#
+# The zombie starts three squares away and the noise is very loud (`30`), which the reference guesses exactly, so the walk is straight and the test is not about the guess.
+world 14 bare
+survivor 0 0
+items
+monsters
+seed 4242
+monster mon_zombie 3 0
+# A 657-gram rock: over the half-kilo the reference needs for a landing to be heard at all (`ranged.cpp:1522-1524`). A 400-gram rock is thrown in perfect silence,
+# which is why the scenario throws this one.
+give crowbar 1
+throw crowbar at 1 0
+turn 12
+# The noise moved it. A thud is heard as a **guess** - volume six at two squares is three squares of error - so the honest claim is that the zombie is no longer where it
+# started, not that it arrived anywhere in particular.
+expect no monster at 3 0

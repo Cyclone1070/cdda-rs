@@ -504,3 +504,8 @@ a quieter one.
 **Round 1080 proved the chain composes**: `a_noise_brings_a_monster_to_the_survivor_and_it_swings_when_it_arrives` runs twelve turns and asserts **both** that a `HEARS` monster
 walked towards a thud and that the survivor standing on it **lost hit points** - four rules from four files (`sounds::make_sound`, `hearing::hear_sounds`, `creature::Wander`,
 `creature::strike_what_the_goal_holds`). Mutation-checked by disabling `hear_sounds` in the schedule: the monster stays put and the test goes red.
+
+**Round 1081 closed three gaps that all looked like "working"**: `--dump-monsters` version **3** now emits `flags` (walked from `mon_flag::get_all()`, since the flag set has no
+iteration), `spawn_monster_of_type` copies them onto the creature, and `build_world` gives a scenario's floor a **move cost** so routing can walk. The proof is a playtest:
+`scenarios/a_thrown_rock_brings_a_monster.txt` throws a crowbar beside the survivor and asserts `expect no monster at 3 0` - the noise **moved** the zombie, which is all an
+imprecise guess allows anyone to claim. New steps: `monsters`, `monster <id> <x> <y>`, `expect no monster at <x> <y>`.

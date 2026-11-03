@@ -1581,6 +1581,13 @@ pub fn spawn_monster_of_type(
             points: monster_type.dodge,
         },
     ));
+    // Reference: `monster::monster( const mtype * )` copies `type->flags` onto the monster, and every question about what it can do - `can_hear` among them - is asked of that
+    // set (`monster.cpp:1318`). Without this a spawned monster is deaf and blind whatever its type says.
+    world
+        .entity_mut(entity)
+        .insert(crate::creature_flags::CreatureFlags(
+            monster_type.flags.clone(),
+        ));
     if let Some(size) = size_named(&monster_type.size)
         && let Some(mut creature) = world.get_mut::<Creature>(entity)
     {

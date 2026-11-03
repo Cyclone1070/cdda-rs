@@ -11622,3 +11622,31 @@ blow came from somewhere else. Together they say: the noise brought it, and what
 
 **This is the first end-to-end monster behaviour the port has.** Everything before it was a rule in isolation; a thrown rock now has a consequence twelve turns later, which is
 what the game is made of.
+
+## A monster that can hear, and a playtest that shows it (round 1081)
+
+Three gaps stood between the port and a monster arriving at a thrown rock, and each was found by a test that failed for its own reason.
+
+| Gap | What was wrong | Fix |
+|---|---|---|
+the reference dump had **no monster flags** | `--dump-monsters` wrote every number a monster has and none of what it can do, so `HEARS`, `SEES` and `GOODHEARING` never left the reference | version **3** adds `flags`, walked from **`mon_flag::get_all()`** because the flag set is a bitset with no iteration of its own |
+the loader dropped them anyway | `spawn_monster_of_type` copied hit points, speed, dice and armour, and **not the flags** | the type's flags now arrive as `CreatureFlags` - `monster::monster( const mtype * )` copies them |
+a scenario's world could not be walked on | `build_world` made a floor with **no move cost**, so routing answered `NoRoute` for every step and a monster that heard a noise honestly could not come | the floor gets `move_cost` 2 and a name, the way the demo world does |
+
+**Every one of those was a false green until it was tested end to end.** The flag dump was "added" a round earlier and I believed it: the build had failed, my grep did not match the
+error text, and the dump I fetched was from the **old binary** - it took a scenario that would not move to notice. **A gate that cannot fail and a build that did not happen look
+exactly the same from outside.**
+
+**The scenario that found it, and what it now says:**
+`scenarios/a_thrown_rock_brings_a_monster.txt` - a zombie three squares away, a crowbar thrown to a square beside the survivor, twelve turns, and then `expect no monster at 3 0`.
+It **does not** claim the zombie arrived: a thud is heard as a **guess**, three squares out at that volume, so the honest claim is that the noise **moved** it. The first version of
+this scenario asserted "something is within one square" and **passed on the thrown rock itself** - a gate satisfied by an item.
+
+**Three new scenario steps, because a playtest is the QA surface:**
+| Step | What it does |
+|---|---|
+`monsters` | loads the 1,154 monster types the data defines |
+`monster <id> <x> <y>` | places one **from its type**, so it carries its own flags, dice and armour |
+`expect no monster at <x> <y>` | says a noise moved something without pretending to know where to |
+
+**The `throw` step now reports the thrown thing's weight**, which is what would have told me at once that a 400-gram rock is thrown in perfect silence and a 657-gram one is not.
