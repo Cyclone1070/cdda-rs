@@ -10311,9 +10311,12 @@ a conflict that **cannot be removed** stops the gain | `a_conflict_that_cannot_b
 are the ones that **cannot be removed**, where it returns false with the comment *"We can't cancel unpurifiable mutations"*. **The test caught an inverted rule that reads
 perfectly.**
 
-**A dump is on its way, and its gate is not written until it lands.** `--dump-mutations` was added to the harness this round; the build is still running, so the content
-table is exercised by a **hand-built dump** in the sim tests (non-vacuous: the same `from_dump` the real file will use) and the corpus gate waits for the file rather than
-shipping a test that returns early. **A gate that returns early when its corpus is missing is not a gate** - the habit that has cost the most time in this port.
+**The dump landed the next round, and the corpus gate came with it.** `--dump-mutations` is in the harness; the build took twenty-eight minutes on the server, and the
+corpus is **514 valid mutations**, of which 299 have prerequisites, 97 cancel something and 57 cannot be purified away. The gate reads the real file and names an
+**unpurifiable** trait (`ECHOLOCATION`), because *"some trait is unpurifiable"* is a claim the reader cannot check and *"this one is"* is not.
+
+**A gate that returns early when its corpus is missing is not a gate** - the habit that has cost the most time in this port - so the sim tests kept their hand-built dump
+until the real one existed rather than shipping an early return.
 
 **Known and named, not ported:** `mutate_towards` also prunes **same-category** traits and applies a category's `base_removal_chance` roll to starting traits; the port
 does neither yet, and both are P4 work.

@@ -847,8 +847,8 @@ ranged-balance test parity.
 **Ported, thinly gated - the next P4 work:** `bionics.rs` (two rules, covered only through dialogue effects). It needs a dedicated gate that reads its own rules rather than
 a dialogue that happens to call one. **Morale got its gate at round 1023** - five tests over stacking, caps, decay, expiry, removal and the fade curve.
 
-**Started at round 1024:** mutations - the data table (`cdda_content::mutations`) and three rules (`has`, `can_gain`, `gain`) with `Mutations` as one component holding
-ids. **Not yet:** same-category pruning, `base_removal_chance`, thresholds, and stat modifiers.
+**Started at round 1024-1025:** mutations - the data table (`cdda_content::mutations`) and three rules (`has`, `can_gain`, `gain`) with `Mutations` as one component holding
+ids, read from the oracle's own dump (**514 valid mutations; 299 with prerequisites, 97 with cancels, 57 unpurifiable**). **Not yet:** same-category pruning, `base_removal_chance`, thresholds, and stat modifiers.
 
 **Not started:** disease, ranged weapons and projectiles with dispersion, martial arts, weakpoints.
 
