@@ -9994,3 +9994,25 @@ counted are compared like every other batch. **A pin that outlives its hole is a
 **Two lint errors were the round's own cost, and both were right:** `finish_craft` crossed a hundred lines, so the container fill became `fill_container`, which is a
 function that says what it does; and the test indexed a vector the compiler could not prove non-empty, so it takes the first element properly. **The craft still returns
 the result id**, because that is what the craft says it made - the container is where it went, not what it is.
+
+## A craft teaches its trade, and the time is split between the trades (round 1011)
+
+Proficiencies were the last crafting rule with **no store at all**: the data names them on every recipe (`proficiencies: [{ "proficiency": "prof_tailor", "time_multiplier": ... }]`),
+the reference practises them on every craft, and the port read the member as nothing.
+
+| Piece | Rule | Gate |
+|---|---|---|
+what a survivor knows | a set, plus the practised time toward what it does not | `practice_adds_up_until_the_proficiency_is_learned` |
+how practising works | the time adds up; reaching `time_to_learn` **learns it and erases the progress** | the same test's second half |
+what a craft teaches | the time is **divided between** the proficiencies still unlearned | `a_craft_divides_its_time_between_what_it_teaches` |
+what cannot be learned | a proficiency whose prerequisites are unmet is **not practised and takes no share** | the third part of that test |
+
+**The erase is the detail worth keeping.** A learned proficiency reports **zero** practised time because the reference removes the record when it learns it
+(`proficiency.cpp:322-335`); a port that left the progress behind would report a survivor eight hours into a trade they already know.
+
+**Two things are deliberately absent.** The **helper bonus** - a second crafter who knows the trade doubles the pace - has no caller because the port has one crafter per
+craft; and `can_learn`/prerequisites are asked through a `wants` closure rather than invented, because the prerequisite graph is data the port does not load yet. **Both
+absences are named in the module's docs**, which is where the next round will look for them.
+
+**`from_dump` crossed a hundred lines for the third time in this sweep**, and the fix was the same as the first two: the reader came out into `taught_by`, beside
+`groups_of`. **The lint is doing the job a reviewer would**, and doing it every time.

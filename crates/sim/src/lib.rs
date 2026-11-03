@@ -13,6 +13,7 @@ pub mod dialogue_context;
 pub mod npc_opinion;
 pub mod npcs;
 pub mod outdoors;
+pub mod proficiencies;
 pub mod overmap;
 pub mod bash;
 pub mod emit_registry;

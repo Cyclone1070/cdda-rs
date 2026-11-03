@@ -297,6 +297,7 @@ fn cancelling_a_craft_keeps_the_ingredients_and_loses_the_work() {
         batch_rsize: 0,
         made_per_batch: 1,
         byproduct_group: Vec::new(),
+        proficiencies: Vec::new(),
         container: None,
         byproducts: Vec::new(),
     };
@@ -402,6 +403,7 @@ fn a_paused_craft_is_resumed_where_it_stopped() {
         batch_rsize: 0,
         made_per_batch: 1,
         byproduct_group: Vec::new(),
+        proficiencies: Vec::new(),
         container: None,
         byproducts: Vec::new(),
     };
@@ -501,6 +503,7 @@ fn pain_interrupts_a_craft_and_the_work_is_kept() {
         batch_rsize: 0,
         made_per_batch: 1,
         byproduct_group: Vec::new(),
+        proficiencies: Vec::new(),
         container: None,
         byproducts: Vec::new(),
     };
@@ -601,6 +604,7 @@ fn a_blow_stops_a_craft_without_anyone_asking_it_to() {
         batch_rsize: 0,
         made_per_batch: 1,
         byproduct_group: Vec::new(),
+        proficiencies: Vec::new(),
         container: None,
         byproducts: Vec::new(),
     };

@@ -71,6 +71,7 @@ fn recipe(time_moves: i64, needs: &str, count: i32) -> Recipe {
         batch_rsize: 0,
         made_per_batch: 1,
         byproduct_group: Vec::new(),
+        proficiencies: Vec::new(),
         container: None,
         byproducts: Vec::new(),
         id: "test_recipe".to_owned(),
@@ -526,6 +527,7 @@ fn a_craft_without_its_tool_does_not_start() {
         batch_rsize: 0,
         made_per_batch: 1,
         byproduct_group: Vec::new(),
+        proficiencies: Vec::new(),
         container: None,
         byproducts: Vec::new(),
     };
@@ -594,6 +596,7 @@ fn a_craft_that_needs_a_quality_asks_the_items_that_carry_it() {
         batch_rsize: 0,
         made_per_batch: 1,
         byproduct_group: Vec::new(),
+        proficiencies: Vec::new(),
         container: None,
         byproducts: Vec::new(),
     };
@@ -700,6 +703,7 @@ fn a_tool_that_burns_charges_has_them_spent_and_a_held_one_does_not() {
         batch_rsize: 0,
         made_per_batch: 1,
         byproduct_group: Vec::new(),
+        proficiencies: Vec::new(),
         container: None,
         byproducts: Vec::new(),
         id: "electrified_rag".to_owned(),

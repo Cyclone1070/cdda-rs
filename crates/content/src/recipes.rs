@@ -76,6 +76,11 @@ pub struct Recipe {
     /// form** (`byproducts` naming an item group) is not read here, because picking from a group needs the item-group store at craft time; the loader keeps only the
     /// pair form and a recipe whose byproducts are a group keeps none.
     pub byproducts: Vec<(String, i32)>,
+    /// The proficiencies the craft teaches and uses.
+    ///
+    /// Reference: `recipe_proficiency` (`recipe.h:50-61`): `id`, `time_multiplier` (how much faster the craft is with it) and `learning_time_mult` (how long it takes
+    /// to learn **by this craft**, defaulting to one). `craft_proficiency_gain` (`crafting.cpp:1036-1090`) divides by the first and multiplies by the second.
+    pub proficiencies: Vec<CraftProficiency>,
     /// The container the result is made **in**, when the recipe names one.
     ///
     /// Reference: `contained` and `container` (`recipe.cpp:236-239`): `assign( jo, "contained", ... )`, `assign( jo, "container", ... )`, and `contained |=` the
@@ -166,6 +171,56 @@ fn tools_of(object: &Object) -> Option<Vec<Vec<Tool>>> {
         out.push(inner);
     }
     Some(out)
+}
+
+/// The proficiencies a recipe uses and teaches, as the data states them.
+///
+/// Reference: `recipe_proficiency` (`recipe.h:50-61`): `time_multiplier` is how much faster the craft goes with it, and `learning_time_multiplier` how long learning
+/// it **by this craft** takes. Both default to one, which is the reference's own default.
+fn taught_by(object: &Object) -> Vec<CraftProficiency> {
+    let entries = match member(object, "proficiencies") {
+        Some(Value::Array(entries)) => entries.as_slice(),
+        _ => &[],
+    };
+    let mut found = Vec::with_capacity(entries.len());
+    for entry in entries {
+        let Value::Object(entry) = entry else {
+            continue;
+        };
+        let Some(Value::Str(id)) = member(entry, "proficiency") else {
+            continue;
+        };
+        found.push(CraftProficiency {
+            id: id.clone(),
+            time_multiplier: number_of(entry, "time_multiplier").unwrap_or(1.0),
+            learning_time_mult: number_of(entry, "learning_time_multiplier").unwrap_or(1.0),
+        });
+    }
+    found
+}
+
+/// One proficiency a craft teaches.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CraftProficiency {
+    /// Which proficiency, as the data names it - `prof_tailor`.
+    pub id: String,
+    /// How much faster the craft goes for someone who knows it.
+    pub time_multiplier: f64,
+    /// How long learning it **by this craft** takes, as a multiple of the proficiency's own time.
+    pub learning_time_mult: f64,
+}
+
+/// A number written as a number, when it is one.
+fn number_of(object: &Object, key: &str) -> Option<f64> {
+    match member(object, key) {
+        Some(Value::Float(value)) => Some(*value),
+        Some(Value::Int(value)) => {
+            #[allow(clippy::cast_precision_loss)]
+            let value = *value as f64;
+            Some(value)
+        }
+        _ => None,
+    }
 }
 
 /// An inline `byproduct_group`, as `(item, low, high)` ranges.
@@ -293,6 +348,7 @@ pub fn from_dump(value: &Value) -> Option<(Vec<Recipe>, usize)> {
             },
             // The dump answers the question the members cannot: **which item the rule produces**, which is the result for an ordinary recipe and the container for a
             // `contained` one (`create_result`, `recipe.cpp:768-771`). The game's own JSON names the container directly, so both shapes are read here.
+            proficiencies: taught_by(object),
             container: {
                 let dump = match member(object, "made_item") {
                     Some(Value::Str(id)) if object.get("result") != Some(&Value::Str(id.clone())) => Some(id.clone()),
