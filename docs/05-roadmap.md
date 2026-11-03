@@ -848,7 +848,8 @@ ranged-balance test parity.
 a dialogue that happens to call one. **Morale got its gate at round 1023** - five tests over stacking, caps, decay, expiry, removal and the fade curve.
 
 **Started at round 1024-1025:** mutations - the data table (`cdda_content::mutations`) and three rules (`has`, `can_gain`, `gain`) with `Mutations` as one component holding
-ids, read from the oracle's own dump (**514 valid mutations; 299 with prerequisites, 97 with cancels, 57 unpurifiable**). **Not yet:** `base_removal_chance` (needs the category dump), thresholds, and stat modifiers. Same-category pruning landed at round 1026.
+ids, read from the oracle's own dump (**514 valid mutations; 299 with prerequisites, 97 with cancels, 57 unpurifiable**). **Landed at 1026-1027:** same-category pruning, and `base_removal_chance` for starting traits (with a **recorded divergence**: the reference bails out of the gain, the port
+completes it and keeps the trait). **Not yet:** thresholds, and stat modifiers - the category dump that carries `threshold_min` is building.
 
 **Not started:** disease, ranged weapons and projectiles with dispersion, martial arts, weakpoints.
 

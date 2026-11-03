@@ -21,10 +21,11 @@ fn table(entries: &[(&str, Mutation)]) -> Mutations {
         };
         let _ = write!(
             text,
-            "{{\"id\":\"{id}\",\"points\":{},\"visibility\":{},\"purifiable\":{},\"prereqs\":[{}],\"prereqs2\":[],\"cancels\":[{}],\"category\":[{}]}}",
+            "{{\"id\":\"{id}\",\"points\":{},\"visibility\":{},\"purifiable\":{},\"startingtrait\":{},\"prereqs\":[{}],\"prereqs2\":[],\"cancels\":[{}],\"category\":[{}]}}",
             one.points,
             one.visibility,
             one.purifiable,
+            one.startingtrait,
             list(&one.prereqs),
             list(&one.cancels),
             list(&one.categories)
@@ -45,6 +46,7 @@ fn trait_of(prereqs: &[&str], cancels: &[&str]) -> Mutation {
         points: 0,
         visibility: 0,
         purifiable: true,
+        startingtrait: false,
         prereqs: prereqs.iter().map(|one| (*one).to_owned()).collect(),
         prereqs2: Vec::new(),
         cancels: cancels.iter().map(|one| (*one).to_owned()).collect(),
@@ -70,7 +72,7 @@ fn a_mutation_needs_one_of_its_prerequisites() {
         cdda_sim::mutations::Gain::MissingPrerequisite,
         "with neither prerequisite held, the gain waits"
     );
-    cdda_sim::mutations::gain(&mut world, survivor, &data, "BEAUTIFUL");
+    cdda_sim::mutations::gain(&mut world, survivor, &data, &cdda_content::mutations::Categories::default(), "BEAUTIFUL");
     assert_eq!(
         cdda_sim::mutations::can_gain(&world, survivor, &data, "PRETTY"),
         cdda_sim::mutations::Gain::Yes,
@@ -94,13 +96,13 @@ fn gaining_a_mutation_replaces_what_it_cancels() {
     let mut world = World::new();
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     assert_eq!(
-        cdda_sim::mutations::gain(&mut world, survivor, &data, "UGLY"),
+        cdda_sim::mutations::gain(&mut world, survivor, &data, &cdda_content::mutations::Categories::default(), "UGLY"),
         cdda_sim::mutations::Gain::Yes
     );
     assert!(cdda_sim::mutations::has(&world, survivor, "UGLY"));
 
     assert_eq!(
-        cdda_sim::mutations::gain(&mut world, survivor, &data, "BEAUTIFUL"),
+        cdda_sim::mutations::gain(&mut world, survivor, &data, &cdda_content::mutations::Categories::default(), "BEAUTIFUL"),
         cdda_sim::mutations::Gain::Yes
     );
     assert!(
@@ -128,13 +130,13 @@ fn a_conflict_that_cannot_be_removed_stops_the_gain() {
     let data = table(&[("GLASSJAW", stuck), ("PRETTY", trait_of(&[], &["GLASSJAW"]))]);
     let mut world = World::new();
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
-    cdda_sim::mutations::gain(&mut world, survivor, &data, "GLASSJAW");
+    cdda_sim::mutations::gain(&mut world, survivor, &data, &cdda_content::mutations::Categories::default(), "GLASSJAW");
     assert_eq!(
         cdda_sim::mutations::can_gain(&world, survivor, &data, "PRETTY"),
         cdda_sim::mutations::Gain::Conflicting
     );
     assert_eq!(
-        cdda_sim::mutations::gain(&mut world, survivor, &data, "PRETTY"),
+        cdda_sim::mutations::gain(&mut world, survivor, &data, &cdda_content::mutations::Categories::default(), "PRETTY"),
         cdda_sim::mutations::Gain::Conflicting
     );
     assert!(cdda_sim::mutations::has(&world, survivor, "GLASSJAW"), "and nothing was taken away");
@@ -168,7 +170,7 @@ fn a_mutation_prunes_its_own_category_and_spares_its_prerequisites() {
     let mut world = World::new();
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     for id in ["CHITIN", "ANTENNAE", "TAIL"] {
-        cdda_sim::mutations::gain(&mut world, survivor, &data, id);
+        cdda_sim::mutations::gain(&mut world, survivor, &data, &cdda_content::mutations::Categories::default(), id);
     }
     assert_eq!(
         cdda_sim::mutations::mutations_of(&world, survivor).len(),
@@ -177,10 +179,62 @@ fn a_mutation_prunes_its_own_category_and_spares_its_prerequisites() {
     );
 
     // Gaining CARAPACE prunes the insect trait that is not its prerequisite, spares the one that is, and leaves another category alone.
-    cdda_sim::mutations::gain(&mut world, survivor, &data, "CARAPACE");
+    cdda_sim::mutations::gain(&mut world, survivor, &data, &cdda_content::mutations::Categories::default(), "CARAPACE");
     let held = cdda_sim::mutations::mutations_of(&world, survivor);
     assert!(held.contains(&"CARAPACE".to_owned()), "the new trait is held");
     assert!(held.contains(&"CHITIN".to_owned()), "the trait it grew out of is spared");
     assert!(!held.contains(&"ANTENNAE".to_owned()), "another trait of the same category is pruned");
     assert!(held.contains(&"TAIL".to_owned()), "and a trait of another category is untouched");
+}
+
+/// A starting trait is only taken away when its category's chance succeeds, and a category of a hundred always takes it.
+///
+/// Reference: `Character::mutate_towards` (`mutation.cpp:1666-1674`): a cancelled trait that is a base trait moves to `canceltrait` unless
+/// `x_in_y( category.base_removal_chance, 100 )` succeeds - so a category whose chance is zero never loses its starting traits.
+#[test]
+fn a_starting_trait_is_removed_only_when_its_category_allows() {
+    let mut starting = trait_of(&[], &[]);
+    starting.startingtrait = true;
+    starting.purifiable = true;
+    let data = table(&[
+        ("BEAUTIFUL", starting),
+        ("UGLY", {
+            let mut one = trait_of(&[], &["BEAUTIFUL"]);
+            one.categories = vec!["NONE_ALLOWED".to_owned()];
+            one
+        }),
+        // A starting trait nobody names a category for, removed by a category that always allows it.
+        ("FAST_LEARNER", {
+            let mut one = trait_of(&[], &[]);
+            one.startingtrait = true;
+            one
+        }),
+        ("SLOW_LEARNER", trait_of(&[], &["FAST_LEARNER"])),
+    ]);
+    let category_text = "{\"categories\":[{\"id\":\"NONE_ALLOWED\",\"base_removal_chance\":0,\"threshold_min\":1100}]}";
+    let Ok(root) = cdda_json::parse(category_text.as_bytes()) else {
+        return;
+    };
+    let Some((categories, _)) = cdda_content::mutations::categories_from_dump(&root) else {
+        return;
+    };
+
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(7));
+
+    cdda_sim::mutations::gain(&mut world, survivor, &data, &categories, "BEAUTIFUL");
+    cdda_sim::mutations::gain(&mut world, survivor, &data, &categories, "UGLY");
+    assert!(
+        cdda_sim::mutations::has(&world, survivor, "BEAUTIFUL"),
+        "a starting trait of a category that never allows removal stays"
+    );
+
+    // With no category of its own, the chance is the default hundred, and the starting trait goes.
+    cdda_sim::mutations::gain(&mut world, survivor, &data, &categories, "FAST_LEARNER");
+    cdda_sim::mutations::gain(&mut world, survivor, &data, &categories, "SLOW_LEARNER");
+    assert!(
+        !cdda_sim::mutations::has(&world, survivor, "FAST_LEARNER"),
+        "and with no category to stop it, a starting trait is removed"
+    );
 }

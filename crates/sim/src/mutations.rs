@@ -4,7 +4,7 @@
 //! the four sets that decide whether a mutation may be gained live in the data table (`cdda_content::mutations`), not on the creature.
 
 use bevy_ecs::prelude::*;
-use cdda_content::mutations::Mutations as MutationData;
+use cdda_content::mutations::{Categories, Mutations as MutationData};
 
 /// The mutations and traits a creature has.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Component)]
@@ -66,7 +66,7 @@ fn satisfied(world: &World, creature: Entity, needed: &[String]) -> bool {
 ///
 /// Reference: `Character::mutate_towards` (`mutation.cpp:600-700`): the conflicting traits are removed **first**, so the creature never holds two mutations that
 /// cancel each other, and the gain is refused when the prerequisites are not met.
-pub fn gain(world: &mut World, creature: Entity, data: &MutationData, id: &str) -> Gain {
+pub fn gain(world: &mut World, creature: Entity, data: &MutationData, categories: &Categories, id: &str) -> Gain {
     let verdict = can_gain(world, creature, data, id);
     if verdict != Gain::Yes {
         return verdict;
@@ -78,22 +78,52 @@ pub fn gain(world: &mut World, creature: Entity, data: &MutationData, id: &str) 
     // Reference: `Character::mutate_towards` (`mutation.cpp:1643-1652`): every held mutation **of the same category** is pruned as well, except the ones the new
     // mutation needs as prerequisites - a mutation never eats the trait it grew out of.
     let keep: Vec<String> = prerequisite_closure(data, id);
-    let categories = rule.categories.clone();
+    let of_new = rule.categories.clone();
+    let chance = removal_chance(categories, &of_new);
+    let mut rolled = crate::singletons::take_rolls(world).unwrap_or_else(|| cdda_core_types::rng::Rolls::new(0));
     let mut held = world.get::<Mutations>(creature).cloned().unwrap_or_default();
-    held.0.retain(|known| {
+    let mut kept: Vec<String> = Vec::new();
+    for known in &held.0 {
         if known == id || keep.contains(known) {
-            return true;
+            kept.push(known.clone());
+            continue;
         }
-        if conflicts.contains(known) {
-            return false;
+        let pruned = conflicts.contains(known) || shares_a_category(data, known, &of_new);
+        if !pruned {
+            kept.push(known.clone());
+            continue;
         }
-        !shares_a_category(data, known, &categories)
-    });
+        // Reference: `Character::mutate_towards` (`mutation.cpp:1666-1674`): a starting trait of the category is only removed when the category's own chance
+        // succeeds. When it fails, the trait **stays** and the mutation still happens - the reference bails out of the whole gain (`return true`) instead, and that
+        // difference is recorded in `docs/parity.md`.
+        let starting = data.get(known).is_some_and(|one| one.startingtrait);
+        #[allow(clippy::cast_precision_loss)]
+        let odds = f64::from(chance);
+        if starting && chance < 100 && !rolled.x_in_y(odds, 100.0) {
+            kept.push(known.clone());
+        }
+    }
+    crate::singletons::put_rolls(world, rolled);
+    held.0 = kept;
     if !held.0.iter().any(|known| known == id) {
         held.0.push(id.to_owned());
     }
     world.entity_mut(creature).insert(held);
     Gain::Yes
+}
+
+/// The percent chance a starting trait of these categories is removed at all.
+///
+/// Reference: `mutation_category_trait::base_removal_chance` (`mutation.h:541`), a hundred unless the data says otherwise.
+#[must_use]
+pub fn removal_chance(categories: &Categories, of_new: &[String]) -> i32 {
+    of_new
+        .iter()
+        .filter_map(|cat| categories.get(cat))
+        .map(|cat| cat.base_removal_chance)
+        .next()
+        .unwrap_or(100)
+        .clamp(0, 100)
 }
 
 /// Whether a held mutation belongs to one of the categories the new one does.

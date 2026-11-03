@@ -10340,3 +10340,25 @@ the prerequisite set is **transitive** (`get_all_mutation_prereqs`) | `prerequis
    exactly the exception the rule carries, so the test was rewritten to grow `ANTENNAE` out of `CHITIN` and then watch `CARAPACE` prune one and spare the other.
 
 **A test that cannot be set up without bending the rule is telling you what the rule is.**
+
+## A starting trait is not yours to take away (round 1027)
+
+`mutate_towards` treats a **starting trait** differently from a gained one: a trait the character began with is removed only when its category's
+`base_removal_chance` roll succeeds, which is why a bad start does not simply mutate away.
+
+| Rule | Gate |
+|---|---|
+a starting trait is removed only when its category allows | `a_starting_trait_is_removed_only_when_its_category_allows` |
+a category with no entry means a hundred percent | the second half of the same test |
+
+**Two fixture bugs, both the same shape.** The hand-built dump dropped `"category"` (fixed last round) and then `"startingtrait"` - **each time the field the new rule
+reads was the one the fixture silently discarded**, and each time the test failed with the message *"the trait stays"* while the trait was being removed for a reason the
+fixture had invented. **A fixture that writes only the fields its author remembered is a second implementation of the loader**, and it drifts.
+
+**A deliberate divergence, recorded:** when the starting-trait roll fails the reference **bails out of the whole gain** (`return true` at `mutation.cpp:1701-1704`,
+before the trait is added at all); the port **keeps the starting trait and completes the gain**. The reference's own behaviour is a bug in spirit - the caller sees success
+and nothing happened - and matching it would mean mutating traits in ways the data never asks for. It is named here so that a replay difference on a starting trait is not
+a mystery later.
+
+**The category dump is building on the server now** (`--dump-mutation-categories`, with `startingtrait` added to the mutation dump in the same rebuild). Its corpus gate
+lands when the file does.

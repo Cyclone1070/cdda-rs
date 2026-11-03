@@ -16,6 +16,8 @@ pub struct Mutation {
     pub visibility: i32,
     /// Whether a purifier can take it away.
     pub purifiable: bool,
+    /// Whether a character can start with it, which is what makes its removal a matter of chance rather than certainty.
+    pub startingtrait: bool,
     /// One of these must be held, if the list is not empty.
     pub prereqs: Vec<String>,
     /// One of these must be held as well, if the list is not empty.
@@ -82,6 +84,7 @@ fn mutation_of(entry: &Object) -> Mutation {
         points: whole(entry, "points"),
         visibility: whole(entry, "visibility"),
         purifiable: matches!(entry.get("purifiable"), Some(Value::Bool(true))),
+        startingtrait: matches!(entry.get("startingtrait"), Some(Value::Bool(true))),
         prereqs: strings(entry, "prereqs"),
         prereqs2: strings(entry, "prereqs2"),
         cancels: strings(entry, "cancels"),
@@ -107,4 +110,70 @@ fn strings(entry: &Object, key: &str) -> Vec<String> {
             .collect(),
         _ => Vec::new(),
     }
+}
+
+/// One mutation category's numbers.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Category {
+    /// The percent chance, per attempt, that a starting trait of this category is removed.
+    pub base_removal_chance: i32,
+    /// The category strength a threshold needs.
+    pub threshold_min: i32,
+}
+
+/// Every mutation category the data defines, by id.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Categories {
+    by_id: BTreeMap<String, Category>,
+}
+
+impl Categories {
+    /// What the data says about one category.
+    #[must_use]
+    pub fn get(&self, id: &str) -> Option<&Category> {
+        self.by_id.get(id)
+    }
+
+    /// How many categories the table holds.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.by_id.len()
+    }
+
+    /// Whether the table is empty.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.by_id.is_empty()
+    }
+}
+
+/// Reads the mutation-category dump.
+///
+/// Returns nothing when the dump is malformed, so a broken corpus file fails the load rather than half-loading.
+#[must_use]
+pub fn categories_from_dump(root: &Value) -> Option<(Categories, usize)> {
+    let Value::Object(root) = root else {
+        return None;
+    };
+    let Some(Value::Array(entries)) = root.get("categories") else {
+        return None;
+    };
+    let mut by_id = BTreeMap::new();
+    for entry in entries {
+        let Value::Object(entry) = entry else {
+            return None;
+        };
+        let Some(Value::Str(id)) = entry.get("id") else {
+            return None;
+        };
+        by_id.insert(
+            id.clone(),
+            Category {
+                base_removal_chance: whole(entry, "base_removal_chance"),
+                threshold_min: whole(entry, "threshold_min"),
+            },
+        );
+    }
+    let read = by_id.len();
+    Some((Categories { by_id }, read))
 }
