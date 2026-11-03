@@ -11502,3 +11502,31 @@ diagnostic assertions that found the second one **stay in the test**, because th
 
 **Still not carried, named:** the reference's sound also carries the string `splash!` or `thud.` for the player to read, and the port's `Sound` has only a position and a
 volume because **nothing displays a sound's name yet**. Carrying the string now would be dead state; it arrives with the display rule that reads it.
+
+## A screen that can fail (round 1076)
+
+The QA runner now compares a **picture**, not only numbers: a scenario can draw the view, and the recording is checked byte for byte.
+
+| Piece | Where |
+|---|---|
+`shot <path>` scenario step | draws the port's frame around the survivor - one cell per square, tinted and shaded - and writes it as a PNG |
+`qa::screens` | replays each scenario that has a recording, draws into a scratch file, and compares **bytes** |
+`scenarios/a_thrown_rock_leaves_a_picture.txt` | the first one: a rock is thrown, then the view is drawn |
+`corpus/screens/a_thrown_rock_leaves_a_picture.png` | 246,347 bytes, 31 squares across, 324 of them lit |
+
+**The first version of this gate could never fail, and I found out by trying to break it.** The scenario wrote straight into `corpus/screens/`, so `qa` **rewrote the recording
+it was about to compare against** and reported green even after I replaced the file with 64 zero bytes. **A gate that updates itself is not a gate** - and the only reason this
+one is real is that the mutation test was run before the round ended.
+
+**The fix is a rule about where a scenario writes.** The scenario draws into `target/screens/`, a build directory; the check replays it into a scratch file. Nothing in a QA run
+can touch `corpus/` any more, and the corruption test now fails in the right way: *"the picture changed - 246347 bytes now against 246307 recorded"*.
+
+**A picture is the widest gate in the repository.** It reads terrain, light, creatures and items through the frame the simulation already computes, so a change to any of them
+that nobody meant shows up as bytes; and it is the first check that would catch a **rendering** regression at all, which is what "native UI frame capture so the rendered screen
+can be diffed" was for.
+
+| Number | Before | After |
+|---|---|---|
+QA checks | 4 | **5** |
+scenarios | 5 | **6** |
+recorded screens | 0 | **1** |

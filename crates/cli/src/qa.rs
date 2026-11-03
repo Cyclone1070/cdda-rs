@@ -275,7 +275,64 @@ fn collect(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-#[cfg(test)]
+/// Every scenario that draws a picture has drawn the **recorded** one.
+///
+/// The capture is deterministic - the same world draws the same bytes - so a scenario's `shot` step is a gate on everything the view reads: terrain, light, creatures and
+/// items. The recording lives in `corpus/screens/`, named after its scenario, and this check replays each scenario in a scratch directory and compares the bytes.
+#[must_use]
+pub fn screens(root: &Path) -> Check {
+    let mut cases = 0;
+    let mut failures = Vec::new();
+    let recorded = root.join("corpus/screens");
+    let Ok(entries) = std::fs::read_dir(&recorded) else {
+        return Check::passed("screens: every recorded picture still draws the same", 0);
+    };
+    let scratch = std::env::temp_dir().join("cdda-qa-screens");
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|kind| kind.to_str()) != Some("png") {
+            continue;
+        }
+        let Some(stem) = path.file_stem().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        let scenario = root.join("scenarios").join(format!("{stem}.txt"));
+        let Ok(text) = std::fs::read_to_string(&scenario) else {
+            failures.push(format!("{}: draws a picture but has no scenario", path.display()));
+            continue;
+        };
+        cases += 1;
+        let _ = std::fs::create_dir_all(&scratch);
+        let drawn = scratch.join(format!("{stem}.png"));
+        // A scenario draws into `target/screens/`, a build directory; the replay draws into the scratch file instead, so comparing can never rewrite what it compares
+        // against. A scenario that wrote straight into `corpus/` would update its own recording and the gate would never fail.
+        let replay = text.replace(
+            &format!("target/screens/{stem}.png"),
+            &drawn.to_string_lossy(),
+        );
+        match crate::run(&replay) {
+            Ok(outcome) if !outcome.passed() => {
+                failures.push(format!("{stem}: the scenario does not play: {:?}", outcome.failures));
+            }
+            Ok(_) => match (std::fs::read(&drawn), std::fs::read(&path)) {
+                (Ok(fresh), Ok(said)) if fresh == said => {}
+                (Ok(fresh), Ok(said)) => failures.push(format!(
+                    "{stem}: the picture changed - {} bytes now against {} recorded",
+                    fresh.len(),
+                    said.len()
+                )),
+                _ => failures.push(format!("{stem}: the picture could not be read back")),
+            },
+            Err(error) => failures.push(format!("{stem}: {error}")),
+        }
+        let _ = std::fs::remove_file(&drawn);
+    }
+    Check {
+        name: "screens: every recorded picture still draws the same".to_string(),
+        cases,
+        failures,
+    }
+}#[cfg(test)]
 mod tests {
     #![allow(clippy::panic, clippy::expect_used)]
     use super::*;
@@ -314,3 +371,5 @@ mod tests {
         assert!(!nothing.green(), "a check that compared nothing proves nothing");
     }
 }
+
+

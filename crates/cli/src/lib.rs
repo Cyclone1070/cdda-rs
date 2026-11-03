@@ -100,6 +100,8 @@ pub enum Step {
         /// The square's y.
         y: i32,
     },
+    /// Draws the view to a PNG, so the screen a scenario produces can be diffed.
+    Shot(String),
     /// Make a recipe, running up to this many turns for it.
     Craft {
         /// The recipe's id, as the data spells it.
@@ -203,6 +205,7 @@ pub fn parse(text: &str) -> Result<Vec<Step>, String> {
                 x: number_of(x, number, "x")?,
                 y: number_of(y, number, "y")?,
             },
+            ["shot", path] => Step::Shot((*path).to_owned()),
             ["craft", recipe, turns] => Step::Craft {
                 recipe: (*recipe).to_owned(),
                 turns: number_of(turns, number, "turns")?,
@@ -353,6 +356,7 @@ fn take_item_step(world: &mut World, step: &Step, outcome: &mut Outcome) -> bool
                 }
             }
         Step::Throw { item, x, y } => throw_a_step(world, outcome, item, *x, *y),
+        Step::Shot(path) => take_a_shot(world, outcome, path),
         Step::ExpectItemAt { item, x, y } => expect_one_on(world, outcome, item, *x, *y),
         Step::Craft { recipe, turns } => {
                 let Some(survivor) = survivor(world) else {
@@ -715,6 +719,35 @@ fn throw_a_step(
         other => outcome
             .failures
             .push(format!("the throw of {item} did not happen: {other:?}")),
+    }
+}
+
+/// Plays one `shot` step: draws the view around the survivor and writes it as a PNG.
+///
+/// The capture is the port's own frame, drawn one cell per square - see [`crate::capture`]. Writing it from a scenario is what makes a **screen** checkable: the same world
+/// always produces the same bytes, so a recorded picture is a gate on everything the view reads.
+fn take_a_shot(world: &mut World, outcome: &mut Outcome, path: &str) {
+    let Some(survivor) = survivor(world) else {
+        outcome.failures.push("there is no survivor to draw around".to_owned());
+        return;
+    };
+    let at = world
+        .get::<cdda_sim::Position>(survivor)
+        .map_or((0, 0), |place| (place.x, place.y));
+    let capture = crate::capture::draw(world, at, 15);
+    // A scenario names where its picture goes, and a directory that does not exist yet is the scenario's business rather than an error: `target/screens` is created by
+    // the first scenario that draws into it.
+    if let Some(parent) = std::path::Path::new(path).parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    match std::fs::write(path, capture.image.png()) {
+        Ok(()) => outcome.lines.push(format!(
+            "shot: {path}, {} squares across, {} of them lit",
+            capture.squares_across, capture.lit_squares
+        )),
+        Err(error) => outcome
+            .failures
+            .push(format!("cannot write `{path}`: {error}")),
     }
 }
 

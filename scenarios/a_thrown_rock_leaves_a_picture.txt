@@ -1,0 +1,15 @@
+# The screen a scenario draws, written out as a picture.
+#
+# This is the port's own view: one cell per square of the frame the simulation computes, tinted by what stands there and shaded by the light (`crates/cli/src/capture.rs`).
+# The same world always produces the same bytes, so a recorded picture is a gate on everything the view reads - terrain, light, creatures and items.
+#
+# The scenario writes into `target/`, a build directory, **not** into `corpus/` - a scenario that writes into the corpus would rewrite the very recording it is compared
+# against, and a gate that updates itself can never fail. `qa::screens` replays this scenario into a scratch file and compares the bytes with the recording in
+# `corpus/screens/a_thrown_rock_leaves_a_picture.png`.
+world 8 bare
+survivor 2 2
+items
+seed 1234
+give rock 1
+throw rock at 5 0
+shot target/screens/a_thrown_rock_leaves_a_picture.png

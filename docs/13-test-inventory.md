@@ -487,3 +487,8 @@ the wiring is the body-part map, not a new rule.
 `ballistics.cpp:180-186`), through the port's own `sounds` store, which is what a creature nearby hears. **Round 1075 added the liquid branch**: `throwing::landing_noise` answers **10** for a heavy landing on a `LIQUID` square and **8** otherwise, and **nothing** under 500 g
 because the splash lives inside the same `HEAVY_HIT` test. **Named next:** a landing in liquid also carries the string `splash!` for the player, which waits for the display rule
 that reads a sound's name; and a `TANGLE` net traps a monster instead of dropping.
+
+**Round 1076 made the rendered frame a gate**: the scenario step `shot <path>` (`crates/cli/src/lib.rs`) draws the port's view with `capture::draw`, and `qa::screens`
+(`crates/cli/src/qa.rs`) replays every scenario that has a recording and compares the PNG **byte for byte** against `corpus/screens/`. **The first version of the check could not
+fail** - it replayed the scenario which wrote into `corpus/screens/`, so the QA run rewrote the file it was comparing against; the scenario now draws into `target/screens/` and
+the check draws into a scratch file. Mutation-checked both ways.

@@ -271,6 +271,7 @@ fn qa() {
     let checks = vec![
         cdda_cli::qa::corpus(&root.join("corpus")),
         cdda_cli::qa::scenarios(&root.join("scenarios")),
+        cdda_cli::qa::screens(&root),
         cdda_cli::qa::oracle_sessions(),
         cdda_cli::qa::index_matches_the_store(&mut world),
     ];
