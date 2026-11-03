@@ -1919,3 +1919,26 @@ fn value_binary(
         Operator::Not => f64::from(u8::from(right.abs() < f64::EPSILON)),
     })
 }
+
+/// The text a variable holds, by the scope it is named in.
+///
+/// Reference: `dialogue::actor::get_character`-side lookup (`condition.cpp:471-520`) - the same walk `expression_text` makes, exposed for a caller that has a variable's
+/// scope and name rather than an `Expression`. `{"context_val": "eoc"}` in the data's `run_eocs` is the shape that needs it.
+#[must_use]
+pub fn value_of_variable_text(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    scope: &str,
+    name: &str,
+) -> Option<String> {
+    expression_text(
+        world,
+        speaker,
+        listener,
+        &Expression::Variable {
+            scope: scope.to_owned(),
+            name: name.to_owned(),
+        },
+    )
+}

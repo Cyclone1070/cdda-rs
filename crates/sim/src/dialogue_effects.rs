@@ -1977,6 +1977,12 @@ fn run_selector(world: &mut World, speaker: Entity, listener: Option<Entity>, ef
         cdda_content::dialogue::ProgramRef::Named { id, .. } => {
             crate::eoc_registry::run_program(world, speaker, listener, id, 0)
         }
+        cdda_content::dialogue::ProgramRef::NamedByVariable { scope, name, .. } => {
+            match crate::conditions::value_of_variable_text(world, speaker, listener, scope, name) {
+                Some(id) => crate::eoc_registry::run_program(world, speaker, listener, &id, 0),
+                None => Applied::CannotAnswer,
+            }
+        }
         cdda_content::dialogue::ProgramRef::Inline { program, .. } => {
             run_effects(world, speaker, listener, &program.effects)
         }

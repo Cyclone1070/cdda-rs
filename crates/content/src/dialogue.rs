@@ -3347,6 +3347,18 @@ pub enum ProgramRef {
         /// The context values the call hands it, as `variables`.
         variables: Vec<(String, StringSource)>,
     },
+    /// A program **named by a variable**, read when the call runs.
+    ///
+    /// Reference: `load_eoc_vector_id_and_var` (`npctalk.cpp:512-541`) reads each entry as a `str_or_var`, and `f_run_eocs` evaluates it at run time - which is how the
+    /// data runs a program whose name came out of a context value.
+    NamedByVariable {
+        /// Which namespace the variable lives in.
+        scope: String,
+        /// The variable's name.
+        name: String,
+        /// The context values the call hands it, as `variables`.
+        variables: Vec<(String, StringSource)>,
+    },
     /// A program written where it is used.
     Inline {
         /// The program.
@@ -4671,6 +4683,24 @@ fn read_sound_event(object: &cdda_json::Object) -> Option<Effect> {
     })
 }
 
+/// The one `{"scope": "name"}` entry of an object, when it is the only member.
+fn single_named_variable(object: &cdda_json::Object) -> Option<(String, String)> {
+    let members: Vec<(&String, &Value)> = object
+        .members()
+        .iter()
+        .filter(|(name, _)| !name.starts_with("//"))
+        .map(|(name, value)| (name, value))
+        .collect();
+    let (scope, value) = members.first().copied()?;
+    let Value::Str(name) = value else {
+        return None;
+    };
+    if !matches!(scope.as_str(), "u_val" | "npc_val" | "n_val" | "global_val" | "context_val") {
+        return None;
+    }
+    Some((scope.clone(), name.clone()))
+}
+
 /// Reads one `run_eocs` entry: a name, or a program written inline.
 ///
 /// Reference: `load_eoc_vector_id_and_var` (`npctalk.cpp:512-541`). An object with `variables` carries context values, which reach a
@@ -4684,6 +4714,18 @@ fn read_program_ref(value: &Value) -> Option<ProgramRef> {
         }),
         Value::Object(object) => {
             let variables = read_variables(object.get("variables"))?;
+            // A single-scope object whose value is a name is a **variable reference**, not a program: `{"context_val": "eoc"}` names the program to run rather than
+            // defining one. The reference reads every entry as a `str_or_var` (`npctalk.cpp:512-541`), so this is the plain-variable shape of that rule.
+            if object.get("id").is_none()
+                && object.get("effect").is_none()
+                && let Some((scope, name)) = single_named_variable(object)
+            {
+                return Some(ProgramRef::NamedByVariable {
+                    scope,
+                    name,
+                    variables,
+                });
+            }
             // An entry naming an `id` **and** carrying an `effect` is a program defined where it is called: `load_inline_eoc`
             // (`effect_on_condition.cpp:119-133`) installs it under that id. A body the port cannot read does not make the caller unreadable - the call falls back
             // to a plain name and refuses at run time, which is what the port answered before it could read bodies at all.

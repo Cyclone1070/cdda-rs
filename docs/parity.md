@@ -10881,3 +10881,30 @@ evaluated both sides would change every downstream die** - the same class of bug
 
 **One refactor fell out of the new arm.** `value_drawing` crossed the hundred-line limit, and splitting it (`value_conditional`, `value_binary`) **put the operator
 arithmetic in one place** - which is where the next operator will go.
+
+## A program can be named at run time (round 1052)
+
+The census carries **20 programs** now - from 35 at the start of this stretch - and the reader that moved it is the smallest kind:
+
+| Piece | Where |
+|---|---|
+`{"context_val": "eoc"}` in a `run_eocs` list | `ProgramRef::NamedByVariable`, read when the object is **one scope and one name** |
+why it is not a program body | the reference reads every entry as a `str_or_var` (`npctalk.cpp:512-541`), so a lone scope is the variable form of the same rule |
+when the name is looked up | **at run time** (`f_run_eocs`, `npctalk.cpp:5100-5115`), through `conditions::value_of_variable_text` |
+what the census does with it | counts the call as **not a gap** - the name is a value, and a census of constants cannot follow it |
+
+**A `run_eocs` entry has three shapes and the port read two.** A string is a program by name, an object with `effect` is a program written where it is used, and **an object
+with one scope and one name is neither** - it is a variable holding the name of one. **Reading the third as the second would have run the wrong program or none**, and the
+refusal is what kept the port honest until now.
+
+**The census had to learn to say "I cannot follow this" without calling it a gap.** That distinction is the round's real work: **a named-by-variable call is not an
+unreadable leaf**, it is a leaf whose name is decided when the game runs. Counting it as a gap would have inflated the frontier forever; counting it as nothing would have
+hidden a rule. It is counted as **followed-no-further**, and the number it moved is the leaf count falling by one while the program count stayed.
+
+| Number | Before | After |
+|---|---|---|
+programs refused at their first unreadable entry | 35 (start of stretch) | **20** |
+programs readable | 586 | **587** |
+leaves unreadable | 68 | **67** |
+one-gap programs | 17 | **16** |
+effect entries runnable | 1,552 | **1,553** |

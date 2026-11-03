@@ -373,6 +373,16 @@ pub fn run_ref(
 ) -> Applied {
     let (variables, id) = match reference {
         cdda_content::dialogue::ProgramRef::Named { id, variables } => (variables, Some(id.clone())),
+        // Reference: `f_run_eocs` evaluates each entry's `str_or_var` when the effects run (`npctalk.cpp:5100-5115`), so a program named by a variable is looked up now
+        // rather than when the data was read.
+        cdda_content::dialogue::ProgramRef::NamedByVariable {
+            scope,
+            name,
+            variables,
+        } => {
+            let named = crate::conditions::value_of_variable_text(world, speaker, listener, scope, name);
+            (variables, named)
+        }
         cdda_content::dialogue::ProgramRef::Inline { variables, .. } => (variables, None),
     };
     let handed: std::collections::BTreeMap<String, String> = variables

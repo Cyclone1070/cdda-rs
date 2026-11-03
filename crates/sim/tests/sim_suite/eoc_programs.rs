@@ -787,6 +787,8 @@ fn first_refusing_effect(
                     cdda_content::dialogue::ProgramRef::Inline { program, .. } => {
                         first_refusing_effect(program, census, depth + 1)
                     }
+                    // A program named at run time is one this census cannot follow: the name is a value, not a constant, so the call is not a gap in the reader.
+                    cdda_content::dialogue::ProgramRef::NamedByVariable { .. } => None,
                 })
                 .or_else(|| Some("run_eocs(calls a program that is not installed)".to_owned())),
             _ => Some(effect.kind().to_owned()),
