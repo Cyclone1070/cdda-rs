@@ -10621,3 +10621,22 @@ Three rounds kept ending on the same sentence - *"the rule works and nothing cal
 
 **A rule is not ported because it has a test; it is ported because a turn can reach it.** That sentence is now the first line of the ledger, and the three items under it are
 the backlog in the order they block each other: the food clock's stage, its enchantment inputs, then the two rules waiting behind them.
+
+## Nothing eats, and now something does (round 1040)
+
+Last round's ledger said the food clock was not on the schedule. It is now:
+
+| Piece | Where |
+|---|---|
+the stage | `digest_stage`, in `TurnStage::Creatures`, every five minutes |
+the figures the reference computes from weight and height | `BodyClock`, a component - **stored because the calculators are not ported**, and a creature without it does not digest |
+the stomach's enchantment | read from the creature's own cache (`STOMACH_SIZE_MULTIPLIER`) and handed to `update_stomach` |
+the dice | `roll_remainder( rates.hunger * five_mins )` and the same for thirst, exactly as the reference draws them |
+Gate | `a_creature_on_the_schedule_digests_what_it_ate` - through `run_turn`, one body with no mutation and one with a bigger stomach |
+
+**Two bugs the test found, and the second is the interesting one.**
+
+1. **Solids never moved.** `stomach.digest` returns water alone when `half_hours == 0`, and the stage was passing zero every time - **the five-minute tick and the half-hour step are different clocks**, and the port had only the fast one. `BodyClock` now remembers `half_hours_done`, so the tick asks and the half hour answers.
+2. **A bigger stomach empties faster, not slower.** I asserted the opposite and watched `0 ml` against `168 ml`. The rate is `capacity / 6` - *"3 hours to empty in 30 minute increments"* - so **the rate scales with the stomach to keep the three hours constant.** A test asserting the intuitive reading would have **codified the opposite of the reference** and passed forever after.
+
+**Declared:** the vitamin and effect tables are empty in the stage until a loader installs them, and `BodyClock` stands in for the reference's weight-and-height arithmetic. Both are written where the next reader will look, in `BodyClock`'s own docs and the stage's.

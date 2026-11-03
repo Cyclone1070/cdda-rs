@@ -117,6 +117,7 @@ pub fn environment_schedule() -> Schedule {
             scheduled_stage.in_set(TurnStage::Scheduled),
             scent_stage.in_set(TurnStage::Scent),
             needs_stage.in_set(TurnStage::Creatures),
+            digest_stage.in_set(TurnStage::Creatures),
             falling_stage.in_set(TurnStage::Falling),
             fields_stage.in_set(TurnStage::Fields),
             creatures_stage.in_set(TurnStage::Creatures),
@@ -189,6 +190,75 @@ fn needs_stage(world: &mut World) {
             continue;
         }
         crate::needs::climb_sleepiness(world, creature, rates, 5, true, false, &mut rolls);
+    }
+    singletons::put_rolls(world, rolls);
+}
+
+/// The body's food clock: every five minutes a creature digests what it has eaten.
+///
+/// Reference: `Character::update_stomach` (`character_body.cpp:935-1019`), run by the game on `once_every( 5_minutes )`. The rates, the figures and the body are all
+/// components; the enchantment pair comes from the creature's own cache, and the dice are `roll_remainder( rates.* * five_mins )`, exactly as the reference draws them.
+fn digest_stage(world: &mut World) {
+    let Some(calendar) = crate::calendar::of(world) else {
+        return;
+    };
+    if calendar.turn % 300 != 0 {
+        return;
+    }
+    let turn = calendar.turn;
+    let mut creatures: Vec<(bevy_ecs::entity::Entity, crate::needs::NeedsRates, crate::body::BodyClock)> = Vec::new();
+    let mut query = world.query::<(
+        bevy_ecs::entity::Entity,
+        &crate::needs::NeedsRatesOf,
+        &crate::body::BodyClock,
+    )>();
+    for (creature, rates, clock) in query.iter(world) {
+        creatures.push((creature, rates.0, *clock));
+    }
+    let mut rolls = singletons::take_rolls(world).unwrap_or_else(|| cdda_core_types::rng::Rolls::new(0));
+    for (creature, rates, clock) in creatures {
+        let Some(mut body) = world.get::<crate::body::Body>(creature).cloned() else {
+            continue;
+        };
+        let (add, multiply) = match crate::mutation_data::holder(world) {
+            Some(data) => crate::mutations::enchantment_values(world, creature, &data, "STOMACH_SIZE_MULTIPLIER"),
+            None => (0.0, 0.0),
+        };
+        let digestion = crate::digest::MetabolicRates {
+            kcal: rates.kcal,
+            hunger: rates.hunger,
+            thirst: rates.thirst,
+            sleepiness: rates.sleepiness,
+        };
+        #[allow(clippy::cast_precision_loss)]
+        let hunger_roll = crate::roll_remainder(f64::from(rates.hunger * 5.0), &mut rolls);
+        #[allow(clippy::cast_precision_loss)]
+        let thirst_roll = crate::roll_remainder(f64::from(rates.thirst * 5.0), &mut rolls);
+        // Reference: `Character::update_stomach` takes `half_hours` as the whole half hours that have gone by, so solids move in thirty-minute steps while the tick that
+        // asks is five minutes long. The clock remembers how many it has already handed over.
+        let half_hours = (turn / 1_800).saturating_sub(clock.half_hours_done);
+        let inputs = crate::body::BodyInputs {
+            five_mins: 5,
+            half_hours,
+            kcal_per_time: clock.kcal_per_time,
+            healthy_kcal: clock.healthy_kcal,
+            hunger_roll,
+            thirst_roll,
+            time_since_ate: clock.time_since_ate,
+            foodless: clock.foodless,
+            no_thirst: clock.no_thirst,
+            mycus: clock.mycus,
+            height_cm: clock.height_cm,
+            organic_size: clock.organic_size,
+        };
+        // Declared: the vitamin and effect tables are empty here until a loader installs them on the world; a body with no vitamins digests the food it has.
+        let vitamins = std::collections::BTreeMap::new();
+        let effects = std::collections::BTreeMap::new();
+        body.update_stomach(&digestion, &inputs, &vitamins, &effects, (add, multiply));
+        world.entity_mut(creature).insert(body);
+        let mut advanced = clock;
+        advanced.half_hours_done = turn / 1_800;
+        world.entity_mut(creature).insert(advanced);
     }
     singletons::put_rolls(world, rolls);
 }

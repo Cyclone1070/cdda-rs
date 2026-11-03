@@ -18,6 +18,7 @@
 //! them), which needs the effects system; `has_calorie_deficit()` and the BMI weight categories it consults; the sleep-recovery and activity-history bookkeeping; and
 //! the vitamin `decays_into` cascade on a negative change.
 
+use bevy_ecs::prelude::Component;
 use crate::digest::{DigestRates, MetabolicRates, StomachContents, digest_rates};
 use crate::food_summary::FoodSummary;
 use cdda_content::vitamins::Vitamin;
@@ -56,6 +57,49 @@ pub struct Body {
     pub stomach: StomachContents,
     /// The guts.
     pub guts: StomachContents,
+}
+
+/// The figures `update_stomach` needs that are not the body's own state.
+///
+/// The reference recomputes these from the character every call (`get_healthy_kcal` from weight and height, `get_bmr` from the activity level, `time_since_ate` from the
+/// calendar); the port stores the answer on the creature, because **the calculators are not ported** and inventing them would make the food clock's numbers wander for
+/// reasons nothing in the port models. A creature without this component does not digest - which is what keeps a zombie from getting hungry.
+#[derive(Debug, Clone, Copy, PartialEq, Component)]
+pub struct BodyClock {
+    /// The calories burnt per turn: `get_bmr() / ( 12 * 24 )`.
+    pub kcal_per_time: f32,
+    /// The calories a body of the creature's healthy weight holds.
+    pub healthy_kcal: i64,
+    /// How tall it is, which the body-fat figure reads.
+    pub height_cm: i64,
+    /// Its lean size, normally one.
+    pub organic_size: f32,
+    /// How long ago it last ate, in turns.
+    pub time_since_ate: i64,
+    /// `NO_THIRST`: thirst never moves.
+    pub no_thirst: bool,
+    /// `DEBUG_LS` or no needs at all: the whole clock is off.
+    pub foodless: bool,
+    /// How many half hours of digestion have already been handed to the body, which is what turns a five-minute tick into the reference's half-hourly step.
+    pub half_hours_done: i64,
+    /// The mycus, which has no thirst.
+    pub mycus: bool,
+}
+
+impl Default for BodyClock {
+    fn default() -> Self {
+        Self {
+            kcal_per_time: 0.0,
+            healthy_kcal: 20_000,
+            height_cm: 175,
+            organic_size: 1.0,
+            time_since_ate: 0,
+            no_thirst: false,
+            foodless: false,
+            mycus: false,
+            half_hours_done: 0,
+        }
+    }
 }
 
 /// Everything `update_stomach` reads from the character that is not the body itself.

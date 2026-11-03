@@ -366,11 +366,12 @@ Two rounds found the same shape - **a rule that is right and nothing calls** - s
 
 **Three things this ledger makes visible, and none of them are visible from a test count:**
 
-1. **The food clock is not on it.** `Body::update_stomach` - hunger, thirst, calories, vitamins, digestion - is called **only from tests**. Everything the port knows about
-   eating is proved and nothing eats.
+1. ~~**The food clock is not on it.**~~ **Closed at round 1040**: `digest_stage` runs every five minutes in the creatures set, reads the creature's own cache for
+   `STOMACH_SIZE_MULTIPLIER`, and hands the body its half hours. **Still open:** its vitamin and effect tables are empty until a loader installs them.
 2. **`focus_stage` runs inside the creatures stage, not as its own.** The order is still declared (it is first in `creatures_stage`, before anything acts), but a reader
    looking down `add_systems` will not find it - the ledger is where that is written down.
-3. **Nothing reads a creature's enchantment cache into the body.** `update_stomach` takes the `STOMACH_SIZE_MULTIPLIER` pair and every caller passes `( 0.0, 0.0 )`.
+3. ~~**Nothing reads a creature's enchantment cache into the body.**~~ **Closed at round 1040** for mutations; **still open** for items and effects, which are the cache's other
+   two sources.
 
 **A rule is not ported because it has a test; it is ported because a turn can reach it.** The three items above are the current backlog, in that order: the food clock's
 stage, its enchantment inputs, and then the two rules that wait on them.

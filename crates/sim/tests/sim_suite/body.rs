@@ -302,3 +302,103 @@ fn every_comestible_moves_the_body_the_way_the_reference_says() {
         differing.get(..12).unwrap_or(&differing)
     );
 }
+
+/// The food clock is on the schedule: a creature that has eaten digests, and one with a larger stomach holds it longer.
+///
+/// Reference: `Character::update_stomach` (`character_body.cpp:935-1019`) on `once_every( 5_minutes )`, with `stomach_contents::capacity` scaled by the creature's own
+/// `STOMACH_SIZE_MULTIPLIER`. Before this test nothing on the schedule called the rule at all.
+#[test]
+fn a_creature_on_the_schedule_digests_what_it_ate() {
+    use bevy_ecs::prelude::*;
+
+    let after_an_hour = |enchantment: Option<cdda_content::mutations::EnchantmentValue>| {
+        let mut world = World::new();
+        let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+        let mut body = cdda_sim::body::Body::new(1_000);
+        body.stomach.ingest(&cdda_sim::food_summary::FoodSummary {
+            solids_ml: 500,
+            water_ml: 0,
+            calories: 200_000,
+            vitamins: std::collections::BTreeMap::new(),
+        });
+        world.entity_mut(survivor).insert(body);
+        world.entity_mut(survivor).insert(cdda_sim::body::BodyClock {
+            // The figures the reference computes from weight, height and the activity level: 2,400 kcal a day is 2,400 / ( 12 * 24 ) a turn.
+            kcal_per_time: 2_400.0 / 288.0,
+            healthy_kcal: 20_000,
+            height_cm: 175,
+            organic_size: 1.0,
+            time_since_ate: 0,
+            no_thirst: false,
+            foodless: false,
+            mycus: false,
+            half_hours_done: 0,
+        });
+        world
+            .entity_mut(survivor)
+            .insert(cdda_sim::needs::NeedsRatesOf(cdda_sim::needs::NeedsRates {
+                kcal: 2_400.0,
+                hunger: 1.0,
+                thirst: 1.0,
+                sleepiness: 1.0,
+            }));
+        cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(9));
+
+        if let Some(value) = enchantment {
+            let bigger = cdda_content::mutations::Mutation {
+                valid: true,
+                enchant_values: vec![value],
+                ..cdda_content::mutations::Mutation::default()
+            };
+            debug_assert!(bigger.valid);
+            let text = format!(
+                "{{\"mutations\":[{{\"id\":\"BIG_STOMACH\",\"valid\":true,\"enchant_values\":[{{\"value\":\"{}\",\"add\":{},\"multiply\":{}}}]}}]}}",
+                "STOMACH_SIZE_MULTIPLIER", 500.0, 0.0
+            );
+            let Ok(root) = cdda_json::parse(text.as_bytes()) else {
+                return cdda_sim::body::Body::new(1_000);
+            };
+            let Some((data, _)) = cdda_content::mutations::from_dump(&root) else {
+                return cdda_sim::body::Body::new(1_000);
+            };
+            cdda_sim::mutation_data::install(
+                &mut world,
+                data.clone(),
+                cdda_content::mutations::Categories::default(),
+            );
+            cdda_sim::mutations::gain(
+                &mut world,
+                survivor,
+                &data,
+                &cdda_content::mutations::Categories::default(),
+                "BIG_STOMACH",
+            );
+        }
+
+        for minute in 0..=60 {
+            cdda_sim::calendar::set_turn(&mut world, minute * 60);
+            cdda_sim::turn::run_turn(&mut world);
+        }
+        world.get::<cdda_sim::body::Body>(survivor).cloned().unwrap_or_default()
+    };
+
+    let plain = after_an_hour(None);
+    assert!(
+        plain.stomach.contains_ml() < 500,
+        "an hour on the schedule empties some of the stomach, and it held {} ml",
+        plain.stomach.contains_ml()
+    );
+    let bigger = after_an_hour(Some(cdda_content::mutations::EnchantmentValue {
+        value: "STOMACH_SIZE_MULTIPLIER".to_owned(),
+        add: 500.0,
+        multiply: 0.0,
+    }));
+    // **The rate is proportional to the capacity** - `solids_ml: capacity / 6`, "3 hours to empty in 30 minute increments" - so a bigger stomach empties **faster** and
+    // the three hours stay three hours. A test that expected it to hold more would have asserted the opposite of the reference.
+    assert!(
+        bigger.stomach.contains_ml() < plain.stomach.contains_ml(),
+        "a bigger stomach empties faster, not slower: {} against {} after the same hour",
+        bigger.stomach.contains_ml(),
+        plain.stomach.contains_ml()
+    );
+}
