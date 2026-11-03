@@ -11530,3 +11530,28 @@ can be diffed" was for.
 QA checks | 4 | **5** |
 scenarios | 5 | **6** |
 recorded screens | 0 | **1** |
+
+## A thud now has somewhere to go (round 1077)
+
+The port's sounds were a store nothing read. They now reach the creatures that hear them, as a stage of the turn.
+
+| Piece | Where |
+|---|---|
+`hearing::heard_volume` | `volume - distance`, doubled for good hearing, nothing at or below zero - `monster.cpp:3932-3937` |
+`hearing::max_error` | the band ladder: `<2` ten squares, `<5` five, `<10` three, `<20` one, else exact - `monster.cpp:3945-3955` |
+`hearing::wander_turns` | `volume * 6` for a good ear, `volume` otherwise - `monster.cpp:3958` |
+`hearing::hear_sounds` | hands the turn's loudest sound to every `HEARS` creature, jitters the guess, clears the list - `sounds.cpp:186-260` |
+`TurnStage::Sounds` | a declared stage between Scent and Falling, so a noise is settled **before** anything walks |
+
+**The stage order is a test, and adding a stage broke it - which is the point.** `the_declared_order_is_the_one_the_reference_names` writes the order out by hand precisely so
+that a new stage cannot slip in quietly; it went red, I added `Sounds` to the hand-written list *and* to `TurnStage::order()`, and the reason is recorded in both.
+
+**A loud sound is not a precise one - it is a *precise* one.** The error shrinks as the volume rises, from ten squares to none, and the gate walks the whole ladder including
+every boundary (1, 2, 4, 5, 9, 10, 19, 20). A port that got the bands wrong by one would still "work": monsters would walk slightly off-course, forever, and nothing else would
+notice.
+
+**Three listeners in one gate, because earshot has three ways to be wrong.** One close enough and able to hear gets a `HeardSound`; one too far gets nothing; one **with no
+`HEARS` flag** gets nothing. A port that told everybody everything passes the first case and fails the other two.
+
+**Named, not carried:** the reference calls `wander_to` on the strength of what it heard, and a monster's **goal** is the rule the port still does not have - so the memory is
+written and nothing walks towards it yet. That is the next slice in this thread, and it is stated in the module's own doc comment rather than left for a reader to discover.

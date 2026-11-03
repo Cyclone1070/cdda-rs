@@ -22,6 +22,11 @@ pub enum TurnStage {
     Scheduled,
     /// The character's smell spreads and fades.
     Scent,
+    /// Every creature that can hear takes in the sounds this turn made.
+    ///
+    /// Reference: `sounds::process_sound` runs as the turn ends (`do_turn.cpp`), handing each sound to every monster within earshot and then clearing the list - so a
+    /// creature's memory of a noise is settled **before** it takes its step.
+    Sounds,
     /// Everything whose support went away falls.
     Falling,
     /// Every field takes its turn: fires, incendiaries, gases, then ageing.
@@ -105,6 +110,7 @@ pub fn environment_schedule() -> Schedule {
     schedule.configure_sets(
         (
             TurnStage::Scent,
+            TurnStage::Sounds,
             TurnStage::Falling,
             TurnStage::Fields,
             TurnStage::Creatures,
@@ -116,6 +122,7 @@ pub fn environment_schedule() -> Schedule {
         (
             scheduled_stage.in_set(TurnStage::Scheduled),
             scent_stage.in_set(TurnStage::Scent),
+            sounds_stage.in_set(TurnStage::Sounds),
             needs_stage.in_set(TurnStage::Creatures),
             digest_stage.in_set(TurnStage::Creatures),
             falling_stage.in_set(TurnStage::Falling),
@@ -268,6 +275,12 @@ fn digest_stage(world: &mut World) {
     singletons::put_rolls(world, rolls);
 }
 
+/// Hands this turn's sounds to the creatures that can hear them.
+fn sounds_stage(world: &mut World) {
+    note(world, TurnStage::Sounds);
+    crate::hearing::hear_sounds(world);
+}
+
 fn creatures_stage(world: &mut World) {
     note(world, TurnStage::Creatures);
     // What every creature is wearing is worked out before anything acts: a blow this turn asks what the armour
@@ -327,10 +340,11 @@ fn light_stage(world: &mut World) {
 impl TurnStage {
     /// The stages in the order they run, for a reader that wants to check the schedule.
     #[must_use]
-    pub fn order() -> [Self; 6] {
+    pub fn order() -> [Self; 7] {
         [
             Self::Scheduled,
             Self::Scent,
+            Self::Sounds,
             Self::Falling,
             Self::Fields,
             Self::Creatures,

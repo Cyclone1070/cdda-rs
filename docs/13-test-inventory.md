@@ -492,3 +492,7 @@ that reads a sound's name; and a `TANGLE` net traps a monster instead of droppin
 (`crates/cli/src/qa.rs`) replays every scenario that has a recording and compares the PNG **byte for byte** against `corpus/screens/`. **The first version of the check could not
 fail** - it replayed the scenario which wrote into `corpus/screens/`, so the QA run rewrote the file it was comparing against; the scenario now draws into `target/screens/` and
 the check draws into a scratch file. Mutation-checked both ways.
+
+**Round 1077 made a sound reachable**: `crates/sim/src/hearing.rs` ports `monster::hear_sound`'s arithmetic (`heard_volume`, `max_error`'s band ladder, `wander_turns`) and
+`hear_sounds`, which hands the turn's loudest sound to every `HEARS` creature, jitters its guess and clears the list (`sounds.cpp:186-260`). It runs as **`TurnStage::Sounds`**,
+a declared stage between Scent and Falling. **Named next:** the reference's `wander_to` - the memory is written and no goal walks towards it yet.

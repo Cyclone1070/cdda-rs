@@ -54,6 +54,7 @@ pub mod crafting;
 pub mod choices;
 pub mod creature;
 pub mod creature_flags;
+pub mod hearing;
 pub mod hit_location;
 pub mod melee;
 pub mod sounds;

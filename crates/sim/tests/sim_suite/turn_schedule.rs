@@ -30,11 +30,14 @@ fn the_declared_order_is_the_one_the_reference_names() {
             // Events that have come due run before the world's own stages, the way `game::process_events` does (`do_turn.cpp`).
             TurnStage::Scheduled,
             TurnStage::Scent,
+            // A sound is over before anything falls and before any creature walks: `sounds::process_sound` settles a creature's memory of a noise inside the turn that
+            // made it.
+            TurnStage::Sounds,
             TurnStage::Falling,
             TurnStage::Fields,
             TurnStage::Creatures,
             TurnStage::Light,
         ],
-        "the due events, then scent, then what fell, then the fields, then the creatures, then the light"
+        "the due events, then scent, then what was heard, then what fell, then the fields, then the creatures, then the light"
     );
 }

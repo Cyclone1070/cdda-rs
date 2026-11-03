@@ -71,6 +71,7 @@ mod wearing_takes_turns;
 mod wield;
 mod worn_armour;
 mod wounds;
+mod hearing;
 mod hit_location;
 mod melee;
 mod melee_rolls;
