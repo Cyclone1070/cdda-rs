@@ -300,8 +300,8 @@ unexplained | **0** | - |
 **So P3's next two pieces are named:** item containment (302 batches, and it is what `contained` recipes need), then `byproduct_group` (14 batches, and it needs the
 item-group model that already exists for **named** groups to grow an **inline** form).
 
-**What P3 still lacks beyond those:** the 5% instalments (one per-turn hook that gives **both** the charge spends and the proficiency practice their reference timing),
-focus's other two equilibrium inputs, and the container eligibility rule for liquids.
+**What P3 still lacks beyond those:** the **charge** half of the fifth-percent hook (the hook exists and the proficiencies use it; the tool charges are still spent at the
+finish), the **skill** ticks moved onto the same boundary, focus's other two equilibrium inputs, and the container eligibility rule for liquids.
 
 ### Where the work stands after the dialogue census (updated at round 992)
 
