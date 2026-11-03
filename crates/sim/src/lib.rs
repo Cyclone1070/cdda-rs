@@ -35,6 +35,7 @@ pub mod field_spread;
 pub mod field_table;
 pub mod flag_registry;
 pub mod radiation;
+pub mod regeneration;
 pub mod applied_effects;
 pub mod body;
 pub mod digest;

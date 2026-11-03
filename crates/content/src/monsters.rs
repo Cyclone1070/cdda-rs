@@ -41,6 +41,8 @@ pub struct MonsterType {
     pub melee_sides: i32,
     /// How much armour those dice ignore.
     pub melee_dice_ap: i32,
+    /// The hit points it mends per hour on its own, when the data states a rate (`mtype::regenerates`).
+    pub regenerates: f64,
     /// Its resistance to bash.
     pub armor_bash: i32,
     /// Its resistance to cut.
@@ -301,6 +303,18 @@ fn apply(monster: &mut MonsterType, object: &Object, inherited: bool) -> Result<
     // than as the `armor` object the game's JSON uses, because the dump is what this loader is fed.
     monster.armor_bash = count(object, "armor_bash", monster.armor_bash)?;
     monster.armor_cut = count(object, "armor_cut", monster.armor_cut)?;
+    // A stated rate is a float in the data, so it is read as one rather than through the integer helper - `regenerates: 0.5` is half a hit point an hour and a `count`
+    // reader would make it zero.
+    match object.get("regenerates") {
+        Some(Value::Float(rate)) => monster.regenerates = *rate,
+        Some(Value::Int(rate)) => {
+            #[allow(clippy::cast_precision_loss)]
+            {
+                monster.regenerates = *rate as f64;
+            }
+        }
+        _ => {}
+    }
     monster.dodge = count(object, "dodge", monster.dodge)?;
     monster.morale = count(object, "morale", monster.morale)?;
     monster.aggression = count(object, "aggression", monster.aggression)?;
@@ -514,6 +528,8 @@ impl MonsterType {
             melee_dice_ap: 0,
             armor_bash: 0,
             armor_cut: 0,
+            // The reference's own default: no stated rate, so the fallbacks decide (`mtype::mtype()` leaves `regenerates` at zero).
+            regenerates: 0.0,
             // The reference's own defaults for a type that states neither.
             weight: 81_499_000,
             volume: 62_499,

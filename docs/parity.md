@@ -11669,3 +11669,23 @@ is scaled by). They came to light because the test counted the marks rather than
 
 **A wrong count assertion caught a real mistake of mine.** The first version asserted the monster "stands alone on its square" - `found.len() == 1` - and it was **three** things:
 the index's square entity, the ground, and the monster. The correct question is "does anything on this square report unnamed", which is what a person reading the report sees.
+
+## A monster mends, and the order of its branches is the rule (round 1083)
+
+| Piece | Where |
+|---|---|
+`regeneration::mending_per_hour` | `monster.cpp:4094-4103` - a stated rate, then `0.02 * hp` for a reviving body that is not dormant, then `0.005 * hp` for flesh or veggy |
+`regeneration::mend_over` | `roll_remainder( rate * turns / 3600 )`, so a fractional hourly rate lands as whole hit points |
+data | `--dump-monsters` **version 4** adds `regenerates`; **41** of the 1,154 types state one, from `mon_mutant_alpha`'s **1** an hour to `mon_shoggoth`'s **50** |
+Gates | `a_monster_mends_at_the_rate_its_type_and_its_body_give_it`, `mending_arrives_in_whole_hit_points_over_time`, and the corpus gate on the loader |
+
+**My own gate was wrong before the code was, and the reference settled it.** I asserted that a `DORMANT` reviver mends **nothing**; it mends at the **flesh** rate, because
+`DORMANT` is part of the *first* branch's condition and the second branch then applies. The test now says so in words: **a port that read the flag as "stops mending" would be
+wrong in a way that only shows up in play** - a dormant zombie that never heals looks like a bug in the game, not in the port.
+
+**`roll_remainder` is what makes a slow rate visible at all.** A zombie mends `0.02 * 80 = 1.6` hit points an **hour**, which is one point every thirty-seven minutes: the
+fraction has to become a draw or the rule does nothing. The second gate runs an hour of turns at a shoggoth's rate and checks it lands near fifty - not exactly fifty, because
+the points arrive by chance and a test that demanded the exact number would be testing the dice.
+
+**A count, two named ends and a pinned loader count:** 41 stated rates, `mon_shoggoth` at 50, `mon_mutant_alpha` at 1, and the loader's own 1,155 entries - so a loader that
+stopped reading the field, dropped a prototype, or rounded a rate would fail three different ways.

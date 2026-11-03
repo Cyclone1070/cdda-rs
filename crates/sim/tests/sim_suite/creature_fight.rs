@@ -7,6 +7,9 @@
 
 #![allow(clippy::panic, clippy::expect_used)]
 
+// The mending rates are compared exactly: they are the reference's own constants (0.02, 0.005), and a rate that arrives a hair off is a port that reordered the branches.
+#![allow(clippy::float_cmp)]
+
 use bevy_ecs::prelude::*;
 use cdda_core_types::level::Level;
 use cdda_core_types::rng::Rolls;
@@ -171,5 +174,54 @@ fn a_dodging_creature_takes_points_off_the_attacker_s_roll() {
         against_stumbler.spread - against_dodger.spread,
         15,
         "three points of dodge at five each, on the same seed"
+    );
+}
+
+/// A monster mends over time, and a zombie mends four times as fast as plain flesh.
+///
+/// Reference: `monster::regenerate` (`monster.cpp:4094-4103`): `regen = type->regenerates` when the data states one; otherwise `0.02 * type->hp` an hour for a monster that
+/// `REVIVES` and is not `DORMANT`, otherwise `0.005 * type->hp` an hour for flesh or veggy. The heal is `roll_remainder( regen * dt )`, so a slow rate lands as a whole hit
+/// point once in a while rather than as a fraction that never arrives.
+#[test]
+fn a_monster_mends_at_the_rate_its_type_and_its_body_give_it() {
+    use cdda_sim::regeneration::mending_per_hour;
+
+    // Four times the flesh rate, because it revives.
+    let zombie = mending_per_hour(80, true, false, &["flesh"], 0.0);
+    // The same body without the flag mends at the plain flesh rate, which is the half a port that only read the flag would miss.
+    let plain = mending_per_hour(80, false, false, &["flesh"], 0.0);
+    assert!(
+        (zombie - 4.0 * plain).abs() < 1e-6,
+        "a reviving body mends four times as fast: {zombie} against {plain}"
+    );
+    // A stated rate wins over both fallbacks.
+    assert!((mending_per_hour(80, true, false, &["flesh"], 50.0) - 50.0).abs() < 1e-6);
+    // Nothing flesh, no flag, no rate: nothing mends.
+    assert_eq!(mending_per_hour(80, false, false, &["steel"], 0.0), 0.0);
+    // A dormant reviver loses the **reviving** rate, not its flesh: `DORMANT` is part of the first branch's condition, so it falls through to the second and mends at 0.005.
+    // The reference's own order is what makes the difference, and a port that read the flag as "stops mending" would be wrong in a way that only shows up in play.
+    assert!(
+        (mending_per_hour(80, true, true, &["flesh"], 0.0) - 0.4).abs() < 1e-6,
+        "a dormant reviver mends like plain flesh"
+    );
+    // A dormant body that is not flesh at all mends by nothing.
+    assert_eq!(mending_per_hour(80, true, true, &["steel"], 0.0), 0.0);
+}
+
+/// The rate lands as whole hit points, once in a while, and the total over an hour is the rate itself.
+#[test]
+fn mending_arrives_in_whole_hit_points_over_time() {
+    use cdda_sim::regeneration::mend_over;
+
+    let mut world = World::new();
+    singletons::put_rolls(&mut world, Rolls::new(9));
+    // A shoggoth's rate: fifty an hour, which is one hit point every seventy-two turns.
+    let mut mended = 0;
+    for _ in 0..3_600 {
+        mended += mend_over(&mut world, 50.0, 1);
+    }
+    assert!(
+        (45..=55).contains(&mended),
+        "an hour at fifty an hour is about fifty hit points, drawn as whole ones: {mended}"
     );
 }

@@ -146,3 +146,5 @@ mod weather_order;
 mod zones;
 mod zones_probe;
 mod thrown_damage;
+
+mod monster_mending;

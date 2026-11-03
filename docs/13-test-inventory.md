@@ -513,3 +513,8 @@ imprecise guess allows anyone to claim. New steps: `monsters`, `monster <id> <x>
 **Round 1082 made the debugging surface readable**: `inspect::NAMED` names **31** components instead of 16, so a spawned zombie's square reports **zero** `?` (it was ten).
 The gate `every_component_a_creature_carries_has_a_name` asks the report about a real square - index entity, ground and creature - and fails on any unnamed component, so a new
 component a creature carries goes red there rather than quietly printing a question mark.
+
+**Round 1083 ported monster mending**: `crates/sim/src/regeneration.rs` holds `mending_per_hour` (`monster.cpp:4094-4103`: stated rate, then `0.02 * hp` for a non-dormant
+reviver, then `0.005 * hp` for flesh/veggy) and `mend_over` (`roll_remainder` of the rate over the turns). The oracle's `--dump-monsters` is now **version 4** with
+`regenerates`: **41 of 1,154** types state one (`mon_mutant_alpha` 1, `mon_shoggoth` 50). **Not yet wired into the creature stage** - the rule and its data are gated, the
+system that calls it is the next step.
