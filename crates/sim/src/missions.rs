@@ -81,3 +81,31 @@ pub fn set_avatar(world: &mut World, character: Entity) {
 pub fn question_holder(world: &World, speaker: Entity) -> Entity {
     avatar(world).unwrap_or(speaker)
 }
+
+/// The missions a character is offering, which is what an `offer_mission` effect leaves behind.
+///
+/// Reference: `npc::add_new_mission` (`npctalk.cpp:5993-5997`) gives the NPC a mission it will offer; the port keeps the type ids it has offered and lets the accepting
+/// half come later, because **the offer is the rule and the instance is bookkeeping the port has no store for yet**.
+#[derive(Component, Debug, Clone, Default, PartialEq, Eq)]
+pub struct Offers {
+    kinds: BTreeSet<String>,
+}
+
+/// Offers one mission to a character, which is what the dialogue effect does to the NPC it is talking to.
+pub fn offer(world: &mut World, character: Entity, mission: &str) {
+    if let Some(mut held) = world.get_mut::<Offers>(character) {
+        held.kinds.insert(mission.to_owned());
+        return;
+    }
+    world
+        .entity_mut(character)
+        .insert(Offers { kinds: BTreeSet::from([mission.to_owned()]) });
+}
+
+/// Every mission a character is offering, in id order.
+#[must_use]
+pub fn offers(world: &World, character: Entity) -> Vec<String> {
+    world.get::<Offers>(character).map_or_else(Vec::new, |held| {
+        held.kinds.iter().cloned().collect()
+    })
+}

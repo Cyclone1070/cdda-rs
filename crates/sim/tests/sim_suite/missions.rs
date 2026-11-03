@@ -108,3 +108,33 @@ fn the_mission_ids_in_the_data_are_what_the_tests_use() {
     assert!(ids.contains("MISSION_ISHERWOOD_CHRIS_1"), "and so is the second");
     assert!(ids.len() > 100, "the data defines a hundred-odd missions");
 }
+
+/// An offer lands on the creature being talked to, not on the one talking.
+///
+/// Reference: `f_offer_mission` (`npctalk.cpp:5990-5998`) takes `d.actor( d.has_beta )->get_npc()` - the **other** side of the conversation - and adds a mission of each
+/// named type to it. The data spells the member as one id or a list, and the reference refuses anything else (`npctalk.cpp:5981-5989`).
+#[test]
+fn a_mission_is_offered_to_the_creature_being_talked_to() {
+    let mut world = World::new();
+    let talker = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let listener = cdda_sim::creature::spawn_creature(&mut world, "the mechanic", (1, 0, 0));
+
+    let text = r#"{"offer_mission": ["MISSION_FIX_GENERATOR", "MISSION_FUEL_RUN"]}"#;
+    let Ok(value) = cdda_json::parse(text.as_bytes()) else {
+        panic!("json");
+    };
+    let Some(one) = cdda_content::dialogue::read_effect(&value) else {
+        panic!("the port reads this effect");
+    };
+    let applied = cdda_sim::dialogue_effects::run_effects(&mut world, talker, Some(listener), &[one]);
+    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "the offer is answered");
+    assert_eq!(
+        missions::offers(&world, listener),
+        vec!["MISSION_FIX_GENERATOR".to_owned(), "MISSION_FUEL_RUN".to_owned()],
+        "and the creature being talked to is the one offering them"
+    );
+    assert!(
+        missions::offers(&world, talker).is_empty(),
+        "the talker offers nothing"
+    );
+}

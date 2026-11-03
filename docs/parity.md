@@ -10807,3 +10807,31 @@ mutate the wrong survivor - which is why the target is a field of the effect rat
 
 **The census now prints its ranking.** It had computed the ranking, sorted it and asserted on it since round 976 without ever showing it; a test whose output is its point
 should print the point.
+
+## A mission can be offered (round 1049)
+
+The census carries **23 programs** now, and `offer_mission` has a reader and a store:
+
+| Piece | Where |
+|---|---|
+one id or a list, and nothing else | `read_offer_mission` - the reference refuses any other shape (`npctalk.cpp:5981-5989`) |
+who it lands on | **the listener** - `d.actor( d.has_beta )` (`npctalk.cpp:5990-5998`) |
+the store | `missions::Offers` on the creature doing the offering, with `missions::offers` to read it |
+Gate | `a_mission_is_offered_to_the_creature_being_talked_to` - the **listener** offers two, the talker offers none |
+
+**One reader moved six numbers, and the receipts are the whole point.**
+
+| Number | Before | After |
+|---|---|---|
+programs refused at their first unreadable entry | 25 (two rounds ago) | **23** |
+leaves unreadable | 75 | **73** |
+programs readable | 583 | **584** |
+programs that run | 389 | **390** |
+programs that run in a built world | 394 | **395** |
+effect entries runnable | 1,546 | **1,548** |
+
+**Five rose and one fell, which is the shape of progress in a census**: a reader landing makes more of the corpus *readable* and *runnable* at the same time as it makes less
+of it *unreadable*. **A count that only ever falls would be a count of a shrinking corpus.**
+
+**The offer is not an acceptance.** The reference creates a mission instance; the port records **which kinds a creature is offering** and leaves the instance to the
+accepting half. That is a deliberate narrowing - the effect's decision is the offer - and it is written on the component rather than left for the next reader to guess.

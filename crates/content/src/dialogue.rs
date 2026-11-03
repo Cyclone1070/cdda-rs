@@ -1766,6 +1766,7 @@ fn read_unnamed_effect(object: &cdda_json::Object) -> Option<Effect> {
         .or_else(|| read_run_inv_eocs(object))
         .or_else(|| read_location_variable_adjust(object))
         .or_else(|| read_mutation(object))
+        .or_else(|| read_offer_mission(object))
         .or_else(|| read_sound_event(object))
 }
 
@@ -2447,6 +2448,14 @@ pub enum Effect {
         use_vitamins: bool,
         /// Whether the good/bad roll is skipped entirely, which the data asks for when a mutation is meant to be random (`npctalk.cpp:3580-3582`).
         true_random: bool,
+    },
+    /// Offers missions to the other creature in the conversation.
+    ///
+    /// Reference: `f_offer_mission` (`npctalk.cpp:5976-6001`): the member is one mission id or a list, and the reference reserves a new mission of each for **the NPC**
+    /// (`d.actor( d.has_beta )->get_npc()`), which is why the offer lands on the listener.
+    OfferMission {
+        /// The mission type ids offered.
+        missions: Vec<String>,
     },
     /// Stores the square of a monster of a given kind found around the actor.
     ///
@@ -3192,6 +3201,7 @@ impl Effect {
             Self::Message(_) | Self::Snippet { .. } => "u_message",
             Self::RunNpcEocs { .. } => "u_run_npc_eocs",
             Self::RunMonsterEocs { .. } => "u_run_monster_eocs",
+            Self::OfferMission { .. } => "offer_mission",
             Self::Nothing => "//",
             Self::PlaySoundEffect { .. } => "sound_effect",
             // The store-writing effects' names live in `store_kind`, which `kind` already asked; this arm exists so the match stays exhaustive without repeating the
@@ -4054,6 +4064,28 @@ fn read_mutation(object: &cdda_json::Object) -> Option<Effect> {
             _ => false,
         },
     })
+}
+
+/// Reads an `offer_mission` entry, when it names one mission or a list of them.
+///
+/// Reference: `f_offer_mission` accepts both spellings and refuses anything else (`npctalk.cpp:5981-5989`).
+fn read_offer_mission(object: &cdda_json::Object) -> Option<Effect> {
+    let given = object.get("offer_mission")?;
+    let missions: Vec<String> = match given {
+        Value::Str(one) => vec![one.clone()],
+        Value::Array(list) => list
+            .iter()
+            .filter_map(|one| match one {
+                Value::Str(named) => Some(named.clone()),
+                _ => None,
+            })
+            .collect(),
+        _ => return None,
+    };
+    if missions.is_empty() {
+        return None;
+    }
+    Some(Effect::OfferMission { missions })
 }
 
 /// Reads a `u_run_inv_eocs` entry, or nothing.

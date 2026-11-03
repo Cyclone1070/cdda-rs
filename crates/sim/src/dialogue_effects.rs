@@ -2582,6 +2582,7 @@ fn run_store_effect(
         Effect::LocationVariableAdjust { .. } => adjust_location(world, speaker, listener, effect),
         Effect::MonsterAround { .. } => store_monster_around(world, speaker, effect),
         Effect::Mutation { .. } => mutate(world, speaker, listener, effect),
+        Effect::OfferMission { .. } => offer_mission(world, speaker, listener, effect),
         Effect::RunEocLater { .. } => run_eoc_later(world, speaker, listener, effect),
         Effect::Later { .. } => run_later(world, speaker, listener, effect),
         // A sound event is presentation: the port carries it and has no ear to play to. The reference changes nothing about the world when it plays one, so `Done` is
@@ -2713,6 +2714,23 @@ pub fn run_effects(
         if run_effect(world, speaker, listener, effect) == Applied::CannotAnswer {
             return Applied::CannotAnswer;
         }
+    }
+    Applied::Done
+}
+
+/// Offers missions to the other creature in the conversation.
+///
+/// Reference: `f_offer_mission` (`npctalk.cpp:5990-5998`): the reference takes the **beta** of the conversation - the NPC - and adds a mission of each named type to it.
+/// With no other creature present there is nobody to offer anything to, which is a refusal rather than a silent success.
+fn offer_mission(world: &mut World, _speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::OfferMission { missions } = effect else {
+        return Applied::CannotAnswer;
+    };
+    let Some(npc) = listener else {
+        return Applied::CannotAnswer;
+    };
+    for mission in missions {
+        crate::missions::offer(world, npc, mission);
     }
     Applied::Done
 }
