@@ -93,6 +93,18 @@ fn the_mutation_dump_reads_with_its_prerequisites_and_conflicts() {
         "and a strong mutant is one point of strength"
     );
 
+    // The mutagen cost is in the dump now, and the categories name the vitamin they consume: every one of the 29 states it.
+    assert_eq!(
+        table.get("STR_UP").map(|one| one.vitamin_cost),
+        Some(100),
+        "a plain mutation costs a hundred units"
+    );
+    let costly = table
+        .ids()
+        .filter(|id| table.get(id).is_some_and(|one| one.vitamin_cost == 210))
+        .count();
+    assert_eq!(costly, 52, "and fifty-two cost more");
+
     // One mutation read whole, against the dump's own answer.
     let Some(biolum) = table.get("BIOLUM1") else {
         return;

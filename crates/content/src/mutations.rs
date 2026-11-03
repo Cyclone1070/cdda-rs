@@ -42,6 +42,8 @@ pub struct Mutation {
     pub threshold: bool,
     /// The thresholds that must all be held before this one can be - a **different** set from `prereqs`, where one is enough.
     pub threshreq: Vec<String>,
+    /// How many units of the category's mutagen it consumes to gain: `vitamin_cost`, **100** when the data says nothing (`mutation.h:218`).
+    pub vitamin_cost: i32,
     /// The ids of the enchantments it carries, for the record.
     pub enchantments: Vec<String>,
     /// The stats those enchantments move, followed to the values themselves.
@@ -121,6 +123,7 @@ fn mutation_of(entry: &Object) -> Mutation {
         startingtrait: matches!(entry.get("startingtrait"), Some(Value::Bool(true))),
         threshold: matches!(entry.get("threshold"), Some(Value::Bool(true))),
         threshreq: strings(entry, "threshreq"),
+        vitamin_cost: int_of(entry, "vitamin_cost").unwrap_or(100),
         enchantments: strings(entry, "enchantments"),
         enchant_values: values_of(entry),
         prereqs: strings(entry, "prereqs"),
@@ -153,6 +156,8 @@ fn strings(entry: &Object, key: &str) -> Vec<String> {
 /// One mutation category's numbers.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Category {
+    /// The mutagen vitamin this category consumes - `vitamin` in `mutation_category.json`, which every category states.
+    pub vitamin: String,
     /// The percent chance, per attempt, that a starting trait of this category is removed.
     pub base_removal_chance: i32,
     /// The category strength a threshold needs.
@@ -207,6 +212,7 @@ pub fn categories_from_dump(root: &Value) -> Option<(Categories, usize)> {
         by_id.insert(
             id.clone(),
             Category {
+                vitamin: string_of(entry, "vitamin"),
                 base_removal_chance: whole(entry, "base_removal_chance"),
                 threshold_min: whole(entry, "threshold_min"),
             },
@@ -247,5 +253,21 @@ fn number(member: Option<&Value>) -> f64 {
             value
         }
         _ => 0.0,
+    }
+}
+
+/// One string out of the dump, empty when it is not there.
+fn string_of(entry: &Object, name: &str) -> String {
+    match entry.get(name) {
+        Some(Value::Str(value)) => value.clone(),
+        _ => String::new(),
+    }
+}
+
+/// One number out of the dump, or nothing when it is not there.
+fn int_of(entry: &Object, name: &str) -> Option<i32> {
+    match entry.get(name) {
+        Some(Value::Int(value)) => i32::try_from(*value).ok(),
+        _ => None,
     }
 }

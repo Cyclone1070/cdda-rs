@@ -21,13 +21,14 @@ fn table(entries: &[(&str, Mutation)]) -> Mutations {
         };
         let _ = write!(
             text,
-            "{{\"id\":\"{id}\",\"points\":{},\"visibility\":{},\"valid\":true,\"purifiable\":{},\"startingtrait\":{},\"threshold\":{},\"threshreq\":[{}],\"enchant_values\":[{}],\"prereqs\":[{}],\"prereqs2\":[],\"cancels\":[{}],\"category\":[{}]}}",
+            "{{\"id\":\"{id}\",\"points\":{},\"visibility\":{},\"valid\":true,\"purifiable\":{},\"startingtrait\":{},\"threshold\":{},\"threshreq\":[{}],\"vitamin_cost\":{},\"enchant_values\":[{}],\"prereqs\":[{}],\"prereqs2\":[],\"cancels\":[{}],\"category\":[{}]}}",
             one.points,
             one.visibility,
             one.purifiable,
             one.startingtrait,
             one.threshold,
             list(&one.threshreq),
+            one.vitamin_cost,
             one.enchant_values
                 .iter()
                 .map(|value| format!(
@@ -60,6 +61,7 @@ fn trait_of(prereqs: &[&str], cancels: &[&str]) -> Mutation {
         startingtrait: false,
         threshold: false,
         threshreq: Vec::new(),
+        vitamin_cost: 100,
         enchantments: Vec::new(),
         enchant_values: Vec::new(),
         prereqs: prereqs.iter().map(|one| (*one).to_owned()).collect(),
@@ -532,4 +534,58 @@ fn a_steadying_mutation_lowers_instability() {
         0,
         "and a steadying mutation takes it away"
     );
+}
+
+/// A creature with no mutagen in its blood gains no mutation from the dialogue effect, and one that has paid does.
+///
+/// Reference: `Character::mutation_ok`'s `mut_vit` check (`mutation.cpp:1052-1057`) refuses a trait the creature cannot pay for, and `mutate_category` hands it the
+/// **category's** vitamin (`mutation.cpp:1380-1382`). `u_mutate` defaults `use_vitamins` to true (`npctalk.cpp:3565-3568`), so the dialogue effect pays too.
+#[test]
+fn a_mutation_costs_mutagen() {
+    use bevy_ecs::prelude::*;
+
+    // A free trait the creature already has, so `BEAST` is the category it has gone furthest into, and a paid one it might reach.
+    let mut free = trait_of(&[], &[]);
+    free.categories = vec!["BEAST".to_owned()];
+    let mut paid = trait_of(&[], &[]);
+    paid.vitamin_cost = 100;
+    paid.categories = vec!["BEAST".to_owned()];
+    let data = table(&[("FREE_TRAIT", free), ("PAID_TRAIT", paid)]);
+    let text = "{\"categories\":[{\"id\":\"BEAST\",\"vitamin\":\"mutagen_beast\",\
+        \"base_removal_chance\":0,\"threshold_min\":2200}]}";
+    let Ok(root) = cdda_json::parse(text.as_bytes()) else {
+        return;
+    };
+    let Some((categories, _)) = cdda_content::mutations::categories_from_dump(&root) else {
+        return;
+    };
+
+    let applied = |vitamin_level: i32| {
+        let mut world = World::new();
+        let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+        let mut body = cdda_sim::body::Body::default();
+        body.vitamins.insert("mutagen_beast".to_owned(), vitamin_level);
+        world.entity_mut(survivor).insert(body);
+        cdda_sim::mutation_data::install(&mut world, data.clone(), categories.clone());
+        cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(23));
+        let effect = cdda_content::dialogue::Effect::Mutation {
+            highest_category: cdda_content::dialogue::Expression::Number(1.0),
+            category: None,
+        };
+        cdda_sim::mutations::gain(
+            &mut world,
+            survivor,
+            &data,
+            &categories,
+            "FREE_TRAIT",
+        );
+        cdda_sim::dialogue_effects::run_effects(&mut world, survivor, None, &[effect]);
+        cdda_sim::mutations::mutations_of(&world, survivor)
+            .iter()
+            .any(|id| id == "PAID_TRAIT")
+    };
+
+    assert!(!applied(0), "with no mutagen there is nothing to pay with");
+    assert!(!applied(99), "and one unit short is still short");
+    assert!(applied(100), "and a hundred units buys the trait");
 }

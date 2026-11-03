@@ -10742,3 +10742,26 @@ and the trait that did it is **bad**, so a test that mistook its height for inst
 **That is the cache's whole value**, and it is the reason this stretch of work was worth four rounds of plumbing before a fifth feature.
 
 **Still declared:** the vitamin each mutation costs (`mutation_ok`'s `mut_vit`), which needs a per-mutation `vitamin_cost` the port's dump does not carry yet.
+
+## A mutation has a price (round 1046)
+
+The last declared piece of the mutation rules - the vitamin each one costs - is ported:
+
+| Piece | Where |
+|---|---|
+the price, per mutation | `Mutation::vitamin_cost`, **100** when the data says nothing (`mutation.h:218`) |
+the vitamin, per category | `Category::vitamin` - every one of the 29 states it |
+the check | `mutations::can_pay_in_vitamins`, the reference's `vitamin_get( mut_vit ) < mutation->vitamin_cost` (`mutation.cpp:1052-1057`) |
+what it filters | `mutate_category`, which is handed the **category's** vitamin rather than a per-trait one (`mutation.cpp:1380-1382`) |
+Gates | `a_mutation_costs_mutagen` - **0 units no, 99 units no, 100 units yes** - and the corpus counting **473 at 100, 223 at 160, 120 at 60, 52 at 210** |
+
+**The gate is a boundary test on purpose.** `99` and `100` differ by one unit and decide opposite outcomes, which is the only way to see that the comparison is `>=` and
+not `>` - **a rule that is off by one passes every test that does not sit exactly on the line.**
+
+**`u_mutate` pays, and that is not obvious from the port's side.** The reference's dialogue function reads `use_vitamins` from the JSON with a default of **true**
+(`npctalk.cpp:3565-3568`), so the effect the port wired two rounds ago consumes mutagen like any other. Had the port assumed the dialogue path was free, a survivor could
+have mutated with an empty blood bag and no test would have noticed - **the default was in the data, and the port now reads it.**
+
+**Two test bugs, both instructive, both the fixture's fault.** The first attempt gave the creature no category at all, so it had no strongest category to mutate into; the
+second gave its free trait no category, so the trait that was meant to point at `BEAST` pointed nowhere. **The fixture is a second implementation of the loader** - this is
+the third time a hand-built dump has lied by omission, and the reason the corpus gates exist beside them.

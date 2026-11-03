@@ -266,6 +266,9 @@ pub fn mutate_category(
     // good traits in it, and caps the chance at two thirds. A bad roll leaves bad and neutral traits; a good roll leaves good and neutral ones. A creature that has taken no
     // mutations yet has no instability, so its first is never bad.
     let bad = roll_is_bad(world, creature, data, category, rolls);
+    // Reference: `mutation_ok`'s last check (`mutation.cpp:1052-1057`) refuses a trait the creature has not stored enough of the category's mutagen to pay for, and
+    // `mutate_category` hands it the **category's** vitamin rather than a per-trait one (`mutation.cpp:1380-1382`).
+    let mutagen = categories.get(category).map(|one| one.vitamin.clone()).unwrap_or_default();
     let mut valid: Vec<String> = candidates(world, creature, data, category)
         .into_iter()
         .filter(|id| {
@@ -276,6 +279,7 @@ pub fn mutate_category(
                 points >= 0
             }
         })
+        .filter(|id| can_pay_in_vitamins(world, creature, data, &mutagen, id))
         .collect();
     for _ in 0..2 {
         if valid.is_empty() {
@@ -426,4 +430,21 @@ pub fn total_in_category(data: &MutationData, category: &str, count: Count) -> u
             }
         })
         .count()
+}
+
+/// Whether a creature holds enough of a mutagen to pay for a mutation.
+///
+/// Reference: `Character::mutation_ok`'s `mut_vit` check (`mutation.cpp:1052-1057`): `vitamin_get( mut_vit ) < mutation->vitamin_cost` refuses the trait. A category with no
+/// vitamin stated costs nothing, which is what the reference's null id does.
+#[must_use]
+pub fn can_pay_in_vitamins(world: &World, creature: Entity, data: &MutationData, mutagen: &str, id: &str) -> bool {
+    if mutagen.is_empty() {
+        return true;
+    }
+    let cost = data.get(id).map_or(0, |rule| rule.vitamin_cost);
+    let held = world
+        .get::<crate::body::Body>(creature)
+        .and_then(|body| body.vitamins.get(mutagen).copied())
+        .unwrap_or(0);
+    held >= cost
 }
