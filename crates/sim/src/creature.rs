@@ -1024,11 +1024,21 @@ pub fn spend_a_turn_on(world: &mut World, creature: Entity) -> bool {
         let done_before = doing.moves_total - doing.moves_left;
         let done_now = done_before + spent;
         let crossed = steps_of(done_now) - steps_of(done_before);
-        if crossed > 0
-            && let Some(making) = world.get::<crate::crafting::Making>(creature).cloned()
-        {
-            let seconds = i64::from(doing.moves_total) / 2_000 * crossed;
-            crate::crafting::teach_proficiencies(world, creature, &making.recipe, seconds);
+        if let Some(making) = world.get::<crate::crafting::Making>(creature).cloned() {
+            if crossed > 0 {
+                let seconds = i64::from(doing.moves_total) / 2_000 * crossed;
+                crate::crafting::teach_proficiencies(world, creature, &making.recipe, seconds);
+            }
+            // Reference: `num_practice_ticks` (`activity_actor.cpp:4232-4238`) - a **tick a hundred moves**, so the ticks due are the hundred-move boundaries the work
+            // crossed this turn, and `craft_skill_gain` (`crafting.cpp:981-1033`) lays them on. The port counted the whole craft at the end; the count is the same, the
+            // moment is not.
+            if !making.recipe.skill.is_empty() {
+                let ticks = done_now / 100 - done_before / 100;
+                if ticks > 0 {
+                    let cap = crate::skills_of::craft_skill_cap(making.recipe.difficulty);
+                    crate::skills_of::practice(world, creature, &making.recipe.skill, ticks, cap);
+                }
+            }
         }
     }
     if left <= 0 {

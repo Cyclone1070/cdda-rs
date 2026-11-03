@@ -10092,3 +10092,25 @@ longer see the practice at all. **That is the gate doing its job** - the old tes
 **What is still coarse:** the reference also practises the **skill** on its own tick boundary in the same function (`num_practice_ticks`), and consumes **tool charges**
 in the same per-step block. The skill already has its own earn-at-the-finish rule; the charges are still spent at the finish. **Both now have the hook they need**, and
 the roadmap says which is next.
+
+## The skill is practised by the work, not by the result (round 1015)
+
+The proficiency hook went in last round. This round the **skill** moved onto it, which leaves one lump sum in the craft and no others.
+
+| Rule | Reference | Port |
+|---|---|---|
+the tick | a **tick a hundred moves** (`activity_actor.cpp:4232-4238`) | the hundred-move boundaries a turn crosses |
+the amount | `num_practice_ticks` for the turn | `done_now / 100 - done_before / 100` |
+the cap | `difficulty * 1.25` | unchanged, and still applied per tick |
+the moment | **as the work is done** | as the work is done - the finish no longer teaches anything |
+
+**The count is identical and the timing is not**, which is exactly the class of difference this port has been hunting: the old test could not tell a craft that taught
+thirty-six ticks at the end from one that taught them one at a time. **It can now**, because it drives the turn loop and reads the survivor between turns.
+
+**Two tests changed shape rather than one**, which is the sign the change was structural: the skill test and the prerequisite test both stopped calling `finish_craft` and
+started running turns. **A test that jumps to the end of a process can only see what the end does.**
+
+**What is left on this hook:** the **tool charges**. The reference spends them per step with the remainder taken at the start (`crafting.cpp:2362-2381`:
+`charges * batch * steps / 20`, plus `(charges * batch) % 20` when starting), and skips the step that completes the craft (`activity_actor.cpp:4250-4253`). The port
+still spends the exact total at the finish. **The amount and the moment now differ in the same way the skill's did**, and the next round has both the hook and the
+arithmetic written down.

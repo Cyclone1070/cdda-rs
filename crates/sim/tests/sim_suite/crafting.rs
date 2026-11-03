@@ -784,7 +784,11 @@ fn a_craft_teaches_the_skill_it_names() {
         Craft::Started
     );
     let exercise_before = cdda_sim::skills_of::exercise_of(&world, crafter, "survival");
-    cdda_sim::crafting::finish_craft(&mut world, crafter, &names);
+    // The practice is laid on **as the work is done** (`activity_actor.cpp:4232-4238`), so the test drives the turns; a craft that jumped to its end would teach nothing.
+    for _ in 0..40 {
+        cdda_sim::creature::give_moves(&mut world, crafter, 100);
+        cdda_sim::turn::run_turn(&mut world);
+    }
     let exercise_after = cdda_sim::skills_of::exercise_of(&world, crafter, "survival");
     assert!(
         exercise_after > exercise_before,
