@@ -1740,42 +1740,21 @@ pub fn value_drawing(
                 .collect::<Option<Vec<f64>>>()?;
             apply_function(name, &arguments)
         }
+        Expression::Conditional {
+            condition,
+            then,
+            otherwise,
+        } => value_conditional(
+            world,
+            speaker,
+            listener,
+            condition,
+            (then, otherwise),
+            unset_is_zero,
+            draws,
+        ),
         Expression::Binary { op, left, right } => {
-            // Two operands, one borrow: the dice move into a local and are reborrowed for each side.
-            let mut dice = draws;
-            let left = value_drawing(
-                world,
-                speaker,
-                listener,
-                left,
-                unset_is_zero,
-                dice.as_deref_mut(),
-            )?;
-            let right = value_drawing(
-                world,
-                speaker,
-                listener,
-                right,
-                unset_is_zero,
-                dice,
-            )?;
-            Some(match op {
-                Operator::Add => left + right,
-                Operator::Subtract => left - right,
-                Operator::Multiply => left * right,
-                Operator::Divide => left / right,
-                Operator::Remainder => left % right,
-                // Reference: `math_opers::math_pow` (`math_parser_impl.cpp`), which is `std::pow`.
-                Operator::Power => left.powf(right),
-                Operator::Equal => f64::from(u8::from((left - right).abs() < f64::EPSILON)),
-                Operator::NotEqual => f64::from(u8::from((left - right).abs() >= f64::EPSILON)),
-                Operator::Less => f64::from(u8::from(left < right)),
-                Operator::AtMost => f64::from(u8::from(left <= right)),
-                Operator::Greater => f64::from(u8::from(left > right)),
-                Operator::AtLeast => f64::from(u8::from(left >= right)),
-                // The left side of a logical not is a placeholder zero; the answer is one when the operand is zero.
-                Operator::Not => f64::from(u8::from(right.abs() < f64::EPSILON)),
-            })
+            value_binary(world, speaker, listener, *op, (left, right), unset_is_zero, draws)
         }
     }
 }
@@ -1864,4 +1843,79 @@ fn conditions_with_dice(
         }
     }
     all
+}
+
+/// The two branches of a conditional, and the test between them.
+///
+/// Reference: `?`/`:` at precedence zero (`math_parser_impl.h:329-330`). **Only the branch taken is evaluated**, which is what makes a `rand()` in the other branch cost
+/// nothing - the reference's parser builds the whole tree, and its evaluator only walks the chosen side.
+fn value_conditional(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    condition: &Expression,
+    branches: (&Expression, &Expression),
+    unset_is_zero: bool,
+    draws: Option<&mut cdda_core_types::rng::Rolls>,
+) -> Option<f64> {
+    let (then, otherwise) = branches;
+    let mut dice = draws;
+    let test = value_drawing(
+        world,
+        speaker,
+        listener,
+        condition,
+        unset_is_zero,
+        dice.as_deref_mut(),
+    )?;
+    let chosen = if test.abs() < f64::EPSILON {
+        otherwise
+    } else {
+        then
+    };
+    value_drawing(world, speaker, listener, chosen, unset_is_zero, dice)
+}
+
+/// An operator applied to its two sides, each evaluated first.
+///
+/// Reference: `math_opers` (`math_parser_impl.cpp`) for the arithmetic, and the comparisons' answer of **one or zero** rather than true or false, which is what makes a
+/// comparison usable as a number in the data's arithmetic.
+fn value_binary(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    op: Operator,
+    sides: (&Expression, &Expression),
+    unset_is_zero: bool,
+    draws: Option<&mut cdda_core_types::rng::Rolls>,
+) -> Option<f64> {
+    let (left, right) = sides;
+    // Two operands, one borrow: the dice move into a local and are reborrowed for each side.
+    let mut dice = draws;
+    let left = value_drawing(
+        world,
+        speaker,
+        listener,
+        left,
+        unset_is_zero,
+        dice.as_deref_mut(),
+    )?;
+    let right = value_drawing(world, speaker, listener, right, unset_is_zero, dice)?;
+    Some(match op {
+        Operator::Add => left + right,
+        Operator::Subtract => left - right,
+        Operator::Multiply => left * right,
+        Operator::Divide => left / right,
+        Operator::Remainder => left % right,
+        // Reference: `math_opers::math_pow` (`math_parser_impl.cpp`), which is `std::pow`.
+        Operator::Power => left.powf(right),
+        Operator::Equal => f64::from(u8::from((left - right).abs() < f64::EPSILON)),
+        Operator::NotEqual => f64::from(u8::from((left - right).abs() >= f64::EPSILON)),
+        Operator::Less => f64::from(u8::from(left < right)),
+        Operator::AtMost => f64::from(u8::from(left <= right)),
+        Operator::Greater => f64::from(u8::from(left > right)),
+        Operator::AtLeast => f64::from(u8::from(left >= right)),
+        // The left side of a logical not is a placeholder zero; the answer is one when the operand is zero.
+        Operator::Not => f64::from(u8::from(right.abs() < f64::EPSILON)),
+    })
 }

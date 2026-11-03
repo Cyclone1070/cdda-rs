@@ -34,3 +34,22 @@ fn the_caret_is_a_power_and_binds_tighter_than_a_product() {
         "which is how the data makes a random sign"
     );
 }
+
+/// The data's ternary chooses a branch, and only the branch it takes is evaluated.
+///
+/// Reference: `?` and `:` are in `binary_ops` at precedence **zero** (`math_parser_impl.h:329-330`), right-associative - and the reference's parser rewrites a nested
+/// ternary into parens on the way (`math_parser.cpp:678-682`), so `0?0?-1:-2:1` groups as `0?(0?-1:-2):1` and comes to **one**. The data writes
+/// `BILE_STINK_DURATION = u_effect_duration('bile_stink') > 0 ? … : 600`, which is the shape a port must carry.
+#[test]
+fn a_ternary_chooses_one_branch() {
+    assert!((value_of("1 ? 5 : 7") - 5.0).abs() < f64::EPSILON, "a true test takes the first branch");
+    assert!((value_of("0 ? 5 : 7") - 7.0).abs() < f64::EPSILON, "and a false one the second");
+    assert!(
+        (value_of("0 ? 0 ? -1 : -2 : 1") - 1.0).abs() < f64::EPSILON,
+        "and a nested ternary groups the way the reference rewrites it"
+    );
+    assert!(
+        (value_of("2 * 3 > 5 ? 10 : 20") - 10.0).abs() < f64::EPSILON,
+        "and it is looser than every comparison: (2 * 3 > 5) ? 10 : 20"
+    );
+}

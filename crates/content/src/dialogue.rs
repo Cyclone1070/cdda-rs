@@ -436,6 +436,19 @@ pub enum Expression {
         /// The named arguments the data passes after the positional ones, as `'unit': 'hour'`.
         keywords: Vec<(String, Expression)>,
     },
+    /// A condition and the two values between which it chooses: `a ? b : c`.
+    ///
+    /// Reference: `?` and `:` in `binary_ops` (`math_parser_impl.h:329-330`), both at precedence **zero** and right-associative. The reference's parser rewrites a
+    /// nested ternary into parens on the way (`math_parser.cpp:678-682`), so `0?0?-1:-2:1` groups as `0?(0?-1:-2):1` - which the reader below gets for free by parsing
+    /// the branch between them as a whole expression.
+    Conditional {
+        /// The test: non-zero takes the first branch.
+        condition: Box<Expression>,
+        /// Taken when the test is non-zero.
+        then: Box<Expression>,
+        /// Taken when it is zero.
+        otherwise: Box<Expression>,
+    },
     /// Two expressions and the operator between them.
     Binary {
         /// One of `+ - * / %` and the comparisons `== != < <= > >=`.
@@ -1294,7 +1307,7 @@ fn tokenize(text: &str) -> Option<Vec<Token>> {
 
 /// The operator at the front of the text, longest spelling first so `<=` is not read as `<`.
 fn read_operator(text: &str) -> Option<(Token, usize)> {
-    for spelling in ["<=", ">=", "==", "!=", "+", "-", "*", "/", "%", "^", "<", ">"] {
+    for spelling in ["<=", ">=", "==", "!=", "+", "-", "*", "/", "%", "^", "<", ">", "?"] {
         if text.starts_with(spelling) {
             return Some((Token::Operator(spelling.to_owned()), spelling.len()));
         }
@@ -1369,6 +1382,26 @@ fn parse_precedence(tokens: &[Token], minimum: u8) -> Option<(Expression, &[Toke
             right: Box::new(right),
         };
         rest = after;
+    }
+    // Reference: `?` and `:` sit at precedence **zero** - looser than every other operator (`math_parser_impl.h:329-330`) - so the branch is read once the two sides of the
+    // comparison are complete. The pair is right-associative, which falls out of parsing each branch as a whole expression.
+    if let Some(Token::Operator(question)) = rest.first()
+        && question == "?"
+        && minimum == 0
+    {
+        let (then, after_then) = parse_precedence(rest.get(1..)?, 0)?;
+        let Some(Token::Colon) = after_then.first() else {
+            return None;
+        };
+        let (otherwise, after_else) = parse_precedence(after_then.get(1..)?, 0)?;
+        return Some((
+            Expression::Conditional {
+                condition: Box::new(left),
+                then: Box::new(then),
+                otherwise: Box::new(otherwise),
+            },
+            after_else,
+        ));
     }
     Some((left, rest))
 }
@@ -2232,6 +2265,7 @@ pub fn read_assignment(text: &str) -> Option<Assignment> {
         | Expression::Text(_)
         | Expression::Pair { .. }
         | Expression::Binary { .. }
+        | Expression::Conditional { .. }
         | Expression::VariableOrDefault { .. } => return None,
     };
     Some(Assignment {

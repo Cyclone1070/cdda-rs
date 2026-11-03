@@ -10860,3 +10860,24 @@ one of them. It is now one entry denser and one assumption fewer.
 
 **The census moved for two rounds in a row without a rule landing** - 22 programs refusing now, readable **585**, leaves **72**. The size of the moves is the interesting
 part: **one operator reached one effect, which completed one program, which nudged five counts.** That is what a frontier looks like when the remaining gaps are small.
+
+## An expression can choose a branch (round 1051)
+
+The census carries **21 programs** now, and the third of the parser's missing shapes is in:
+
+| Piece | Where |
+|---|---|
+`?` and `:` | `Expression::Conditional`, read at **precedence zero** and right-associative (`math_parser_impl.h:329-330`) |
+what it does | `value_conditional` - **only the branch taken is evaluated**, so a `rand()` in the other branch costs nothing |
+where the pair is read | *after* the binary loop, because the test itself is a comparison: `2 * 3 > 5 ? 10 : 20` parses as `(2 * 3 > 5) ? 10 : 20` |
+Gates | `a_ternary_chooses_one_branch` - both branches, the **nested** `0?0?-1:-2:1` = 1, and the precedence case |
+
+**The nested case is the whole reason the operator sits at zero.** The reference rewrites a nested ternary into parentheses on the way (`math_parser.cpp:678-682`), so
+`0?0?-1:-2:1` groups `0?(0?-1:-2):1`. **A parser that put `?` above `:` - or read branches left to right at the same level - would answer −2, and nothing in the data would
+look broken.** The port gets the grouping for free because each branch is parsed as a whole expression; the test is there to say so.
+
+**The evaluator chooses before it evaluates.** The reference builds the whole tree and walks only the chosen side, so a branch's `rand()` is not drawn. **A port that
+evaluated both sides would change every downstream die** - the same class of bug as a rule that reads when it should answer, and invisible except through a recorded draw.
+
+**One refactor fell out of the new arm.** `value_drawing` crossed the hundred-line limit, and splitting it (`value_conditional`, `value_binary`) **put the operator
+arithmetic in one place** - which is where the next operator will go.
