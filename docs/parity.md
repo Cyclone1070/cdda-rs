@@ -10016,3 +10016,28 @@ absences are named in the module's docs**, which is where the next round will lo
 
 **`from_dump` crossed a hundred lines for the third time in this sweep**, and the fix was the same as the first two: the reader came out into `taught_by`, beside
 `groups_of`. **The lint is doing the job a reviewer would**, and doing it every time.
+
+## The rule was right and nothing called it (round 1012)
+
+Last round's proficiency rules passed their tests and **nothing in the game called them**: `gain_from_craft` had no caller, so a survivor could craft for a week and learn
+no trade. **That is this port's most frequent failure**, and the only defence that has ever worked is a test that goes through the caller.
+
+So the gate changed shape:
+
+| Test | What it would notice |
+|---|---|
+`practice_adds_up_until_the_proficiency_is_learned` | the arithmetic of practising |
+`a_craft_divides_its_time_between_what_it_teaches` | the split, and who is skipped |
+`finishing_a_craft_practises_what_it_teaches` | **the call being removed** - it goes through `finish_craft`, not through the rule |
+
+**A rule needs two gates: its arithmetic and its reach.** This sweep has now earned that sentence three times - focus drift, byproduct groups, proficiencies - and each
+time the arithmetic gate was green while the rule did nothing.
+
+### What the wiring deliberately does not do
+
+The reference practises on **every fifth-percent step** of the craft (`activity_actor.cpp:4245`), so a long craft shows progress as it goes. The port practises the whole
+craft **when it finishes**: the amount is right, the timing is coarser, and **both facts are in `teach_proficiencies`'s docs** rather than in a reviewer's head. The
+per-step hook is the same one the 5% charge instalments need, so **one piece of work closes both** - and the roadmap says so.
+
+`time_to_learn` now has a store of its own (`ProficiencyTimes`, a singleton), because it is the **proficiency's** number rather than the recipe's. **Nothing loads it yet**:
+the next oracle dump is `--dump-proficiencies`, and until it exists a proficiency cannot be learned in a real world - which the module's docs say plainly.

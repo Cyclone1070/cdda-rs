@@ -97,6 +97,7 @@ pub fn finish_craft(world: &mut World, crafter: Entity, names: &crate::item_regi
     spend_tool_charges(world, crafter, &making.recipe, making.batch, names);
     // Reference: `activity_actor.cpp:4232-4238` spreads the craft's practice across its progress and `craft_skill_gain` (`crafting.cpp:981-1033`) lays it on. The
     // port's craft has no progress hook, so the whole craft's worth is laid on when the thing is made - the same tick count the reference finishes with.
+    teach_proficiencies(world, crafter, &making.recipe);
     if !making.recipe.skill.is_empty() {
         let ticks = crate::skills_of::craft_practice_ticks(making.recipe.time_moves);
         let cap = crate::skills_of::craft_skill_cap(making.recipe.difficulty);
@@ -207,6 +208,32 @@ fn spend_tool_charges(
             break;
         }
     }
+}
+
+/// Practises what a recipe teaches, for the whole craft at once.
+///
+/// Reference: `craft_proficiency_gain` (`crafting.cpp:1036-1090`), which the craft activity calls on **every fifth-percent step** (`activity_actor.cpp:4245`). The port
+/// has no per-step hook yet, so it practises the whole craft when it finishes - the **amount** is right and the **timing** is coarser, which is written down here
+/// rather than left for someone to discover.
+fn teach_proficiencies(world: &mut World, crafter: Entity, recipe: &Recipe) {
+    let taught: Vec<crate::proficiencies::Taught<'_>> = recipe
+        .proficiencies
+        .iter()
+        .filter_map(|subject| {
+            let time_to_learn = crate::proficiencies::time_to_learn(world, &subject.id)?;
+            Some(crate::proficiencies::Taught {
+                id: &subject.id,
+                time_multiplier: subject.time_multiplier,
+                learning_time_mult: subject.learning_time_mult,
+                time_to_learn,
+            })
+        })
+        .collect();
+    if taught.is_empty() {
+        return;
+    }
+    let seconds = recipe.time_moves / 100;
+    let _ = crate::proficiencies::gain_from_craft(world, crafter, &taught, seconds, &|_| true);
 }
 
 /// Makes `charges` of a thing inside a new container, which is what a `contained` recipe produces.

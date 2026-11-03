@@ -109,3 +109,60 @@ fn a_craft_divides_its_time_between_what_it_teaches() {
         "a proficiency with prerequisites it does not meet is not practised at all"
     );
 }
+
+/// Finishing a craft practises what the recipe teaches, because the craft calls the rule.
+///
+/// Reference: the craft activity calls `craft_proficiency_gain` on each fifth-percent step (`activity_actor.cpp:4245`). **A rule with no caller is not a ported rule**,
+/// so this goes through `finish_craft` rather than through `gain_from_craft` directly: it is the only test that would notice the call being removed.
+#[test]
+fn finishing_a_craft_practises_what_it_teaches() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let crafter = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let mut times = std::collections::BTreeMap::new();
+    times.insert("prof_tailor".to_owned(), 60);
+    cdda_sim::proficiencies::set_times(&mut world, times);
+    let names = cdda_sim::item_registry::ItemNames {
+        names: vec![String::new(), "rag".to_owned()],
+        by_name: [("rag".to_owned(), cdda_sim::ItemTypeId(1))].into_iter().collect(),
+        volumes_ml: vec![0, 250],
+        weights_g: vec![0, 5],
+        holds_ml: vec![0, 0],
+        pockets: Vec::new(),
+        pocket_ranges: vec![(0, 0)],
+    };
+    let recipe = cdda_content::recipes::Recipe {
+        id: "patch_a_shirt".to_owned(),
+        result: "rag".to_owned(),
+        blacklisted: false,
+        components: Vec::new(),
+        tools: Vec::new(),
+        qualities: Vec::new(),
+        skill: String::new(),
+        difficulty: 0,
+        batch_rscale: 0.0,
+        batch_rsize: 0,
+        byproducts: Vec::new(),
+        made_per_batch: 1,
+        byproduct_group: Vec::new(),
+        proficiencies: vec![cdda_content::recipes::CraftProficiency {
+            id: "prof_tailor".to_owned(),
+            time_multiplier: 1.0,
+            learning_time_mult: 1.0,
+        }],
+        container: None,
+        time_moves: 6_000,
+    };
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
+    assert_eq!(
+        cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
+        cdda_sim::crafting::Craft::Started
+    );
+    assert!(
+        cdda_sim::crafting::finish_craft(&mut world, crafter, &names).is_some(),
+        "the craft finished"
+    );
+    assert!(
+        cdda_sim::proficiencies::knows(&world, crafter, "prof_tailor"),
+        "a minute of practice against a minute of learning is enough to know it"
+    );
+}

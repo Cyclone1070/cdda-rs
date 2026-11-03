@@ -122,3 +122,30 @@ pub fn gain_from_craft(
     }
     learned_any
 }
+
+/// How long each proficiency takes to learn, in seconds, as the data states it.
+///
+/// Reference: `proficiency::time_to_learn()` (`proficiency.h`), filled from the data's `"time_to_learn": "8 h"`. It is the **proficiency's** number rather than the
+/// recipe's, so it lives beside the proficiencies rather than on a recipe, and a rule that teaches one asks here.
+#[derive(Component, Debug, Clone, Default)]
+pub struct ProficiencyTimes {
+    seconds: BTreeMap<String, i64>,
+}
+
+/// Marks the stored proficiency times.
+#[derive(Component, Debug, Clone, Copy, Default)]
+pub struct TheProficiencyTimes;
+
+/// Sets how long every proficiency takes to learn.
+pub fn set_times(world: &mut World, seconds: BTreeMap<String, i64>) {
+    let holder = crate::singletons::singleton::<ProficiencyTimes, TheProficiencyTimes>(world);
+    world.entity_mut(holder).insert(ProficiencyTimes { seconds });
+}
+
+/// How long one proficiency takes to learn, when the data says.
+#[must_use]
+pub fn time_to_learn(world: &World, proficiency: &str) -> Option<i64> {
+    crate::singletons::holder::<TheProficiencyTimes>(world)
+        .and_then(|holder| world.get::<ProficiencyTimes>(holder))
+        .and_then(|times| times.seconds.get(proficiency).copied())
+}
