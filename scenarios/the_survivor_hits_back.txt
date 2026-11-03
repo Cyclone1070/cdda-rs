@@ -1,0 +1,45 @@
+# The other half of a fight: the survivor swings, a monster loses hit points, and the loop is closed.
+#
+# `wield` is `Character::get_wielded_item` and `attack` is `Character::melee_attack_abstract` built from it: one blow through `creature::swing_what_the_character_holds`, the same
+# `strike_with` a monster's swing uses. Bare hands would do nothing at all - the null item's melee is zero - so the survivor picks up the crowbar first and the scenario proves the
+# difference by killing a zombie with it.
+world 20 bare
+survivor 0 0
+items
+monsters
+seed 31
+give crowbar 1
+wield crowbar
+monster mon_zombie_snotgobbler 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+turn 1
+expect no monster at 1 0

@@ -102,6 +102,18 @@ pub enum Step {
     },
     /// Draws the view to a PNG, so the screen a scenario produces can be diffed.
     Shot(String),
+    /// Puts an item in the survivor's hands, which is what a blow is built from.
+    Wield {
+        /// The item's id.
+        item: String,
+    },
+    /// Swings at whatever stands on a square.
+    Attack {
+        /// The square's x.
+        x: i32,
+        /// The square's y.
+        y: i32,
+    },
     /// Loads the monster definitions the game's data defines.
     Monsters,
     /// Puts a monster on the map, by the name its type has in the data.
@@ -217,6 +229,13 @@ pub fn parse(text: &str) -> Result<Vec<Step>, String> {
             ["give", item, count] => Step::Give {
                 item: (*item).to_owned(),
                 count: number_of(count, number, "count")?,
+            },
+            ["wield", item] => Step::Wield {
+                item: (*item).to_owned(),
+            },
+            ["attack", x, y] => Step::Attack {
+                x: number_of(x, number, "x")?,
+                y: number_of(y, number, "y")?,
             },
             ["throw", item, "at", x, y] => Step::Throw {
                 item: (*item).to_owned(),
@@ -339,26 +358,7 @@ pub fn run(text: &str) -> Result<Outcome, String> {
 /// that grows a dozen item arms stops being readable as the shape of a scenario.
 fn take_item_step(world: &mut World, step: &Step, outcome: &mut Outcome) -> bool {
     match step {
-        Step::Data => {
-                // The tables a game needs before anything asks a question of them: what a vitamin is, what an effect does. Both are the reference's own JSON, read the way
-                // its factories read them at start-up.
-                let mut parts: Vec<String> = Vec::new();
-                match install_vitamin_data(world) {
-                    Some(count) => parts.push(format!("{count} vitamins")),
-                    None => outcome
-                        .failures
-                        .push("the game's vitamin data is not where the scenario expects it".to_owned()),
-                }
-                match install_effect_data(world) {
-                    Some(count) => parts.push(format!("{count} effects")),
-                    None => outcome
-                        .failures
-                        .push("the game's effect data is not where the scenario expects it".to_owned()),
-                }
-                if !parts.is_empty() {
-                    outcome.lines.push(format!("data: {}", parts.join(", ")));
-                }
-            }
+        Step::Data => install_the_tables(world, outcome),
         Step::Survivor { x, y } => {
                 let survivor = cdda_sim::spawn_player(world, (*x, *y), 80, 0);
                 cdda_sim::creature::set_speed(world, survivor, 100, 0);
@@ -391,6 +391,7 @@ fn take_item_step(world: &mut World, step: &Step, outcome: &mut Outcome) -> bool
                         .insert(cdda_sim::creature::Carried(survivor));
                 }
             }
+        Step::Wield { .. } | Step::Attack { .. } => take_a_swing(world, step, outcome),
         Step::Throw { item, x, y } => throw_a_step(world, outcome, item, *x, *y),
         Step::Shot(path) => take_a_shot(world, outcome, path),
         Step::Monsters => match install_monster_data(world) {
@@ -814,6 +815,88 @@ fn throw_a_step(
     }
 }
 
+/// Plays the `data` step: the tables a game needs before anything asks a question of them.
+///
+/// What a vitamin is and what an effect does are both the reference's own JSON, read the way its factories read them at start-up.
+fn install_the_tables(world: &mut World, outcome: &mut Outcome) {
+    let mut parts: Vec<String> = Vec::new();
+    match install_vitamin_data(world) {
+        Some(count) => parts.push(format!("{count} vitamins")),
+        None => outcome
+            .failures
+            .push("the game's vitamin data is not where the scenario expects it".to_owned()),
+    }
+    match install_effect_data(world) {
+        Some(count) => parts.push(format!("{count} effects")),
+        None => outcome
+            .failures
+            .push("the game's effect data is not where the scenario expects it".to_owned()),
+    }
+    if !parts.is_empty() {
+        outcome.lines.push(format!("data: {}", parts.join(", ")));
+    }
+}
+
+/// Plays one of the two steps of a fight: taking a thing in hand, and swinging it.
+fn take_a_swing(world: &mut World, step: &Step, outcome: &mut Outcome) {
+    match step {
+        Step::Wield { item } => take_up(world, outcome, item),
+        Step::Attack { x, y } => swing_at(world, outcome, *x, *y),
+        _ => {}
+    }
+}
+
+/// Plays one `wield` step: the survivor takes a thing in its hands, which is what its blow is built from.
+fn take_up(world: &mut World, outcome: &mut Outcome, item: &str) {
+    let names = cdda_sim::item_registry::snapshot(world);
+    let Some(kind) = names.id_of(item) else {
+        outcome.failures.push(format!("no item called {item}"));
+        return;
+    };
+    let Some(survivor) = survivor(world) else {
+        outcome.failures.push("there is no survivor to hold anything".to_owned());
+        return;
+    };
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Wielding(kind));
+    outcome
+        .lines
+        .push(format!("wield: the survivor holds {item}"));
+}
+
+/// Plays one `attack` step: the survivor swings what it holds at whatever stands on a square.
+///
+/// The blow is `creature::swing_what_the_character_holds`, the same rule a monster's swing goes through. A square with nothing living on it is a **failure** rather than a
+/// no-op: a playtest that swung at air and passed would be a playtest that never fought.
+fn swing_at(world: &mut World, outcome: &mut Outcome, x: i32, y: i32) {
+    let Some(survivor) = survivor(world) else {
+        outcome.failures.push("there is no survivor to swing".to_owned());
+        return;
+    };
+    let victim = cdda_sim::creature::creature_at(world, (x, y, 0))
+        .into_iter()
+        .find(|entity| *entity != survivor);
+    let Some(victim) = victim else {
+        outcome
+            .failures
+            .push(format!("nothing living stands at ({x}, {y}) to hit"));
+        return;
+    };
+    let before = cdda_sim::creature::health_of(world, victim).unwrap_or(0);
+    match cdda_sim::creature::swing_what_the_character_holds(world, survivor, victim) {
+        None => outcome
+            .failures
+            .push("the survivor could not swing at all".to_owned()),
+        Some(dealt) => {
+            let after = cdda_sim::creature::health_of(world, victim).unwrap_or(0);
+            outcome.lines.push(format!(
+                "attack: {dealt} damage at ({x}, {y}), {before} hit points became {after}"
+            ));
+        }
+    }
+}
+
 /// Plays one `monster` step: spawns a monster of the named type and wakes it.
 ///
 /// The type comes from the monster data the scenario loaded, and a name the data does not have is a **failure** rather than a skip: a scenario that quietly spawned nothing
@@ -928,7 +1011,7 @@ fn expect_no_monster_at(world: &mut World, outcome: &mut Outcome, x: i32, y: i32
     for (entity, place) in query.iter(world) {
         if (place.x, place.y) == (x, y) && player != Some(entity) {
             outcome.failures.push(format!(
-                "something is still standing at ({x}, {y}), so the noise did not move it"
+                "something is still standing at ({x}, {y}), and the scenario said there would be nothing"
             ));
             return;
         }

@@ -11915,3 +11915,26 @@ an incomplete port and a wrong one.
 
 **Two refactors fell out and both were owed.** `strike_with` no longer takes the attacker: it never read it, and the reach check belongs to whoever found the target. `peek` exists
 because **cloning a nine-thousand-row registry to look up one kind is the kind of cost that hides inside a name like `snapshot`.**
+
+## A playtest can make the survivor hit back (round 1095)
+
+The CLI's `attack` step was written in round 1086, refused to work because the survivor had no blow, and was **deleted rather than shipped failing**. This round it comes back, with
+the blow behind it - and two steps rather than one, because a swing needs something in the hand.
+
+| Step | What it is |
+|---|---|
+`wield <item>` | `Character::get_wielded_item` - puts a kind in the survivor's `Wielding` |
+`attack <x> <y>` | `Character::melee_attack_abstract` - one blow through `creature::swing_what_the_character_holds` |
+Scenario | `the_survivor_hits_back.txt`: crowbar in hand, thirty swings, a snotgobbler dead and **reaped by a turn** |
+QA | scenarios `7 → 8`, all green |
+
+**The scenario shows the miss as well as the hit, and that is on purpose.** The first ten swings landed two blows: **an unskilled survivor with a crowbar misses most of the time**,
+because `to_hit` for a crowbar is negative and the port has no skills to offset it. The playtest prints every swing with the hit points before and after, so a reader sees the
+mixture - and a scenario that only ever printed one line would hide the miss rate that decides a fight.
+
+**Two things the scenario taught me about the harness.** A dead creature is **still an entity** until the creature stage reaps it, so `expect no monster` needs a `turn` after the
+kill - the reference behaves the same way, with a corpse between the death and the removal. And the `expect no monster` failure message said **"so the noise did not move it"**,
+written for the hearing scenario; it now says what it means for any reason a monster is still standing there.
+
+**A 102-line function is a smell even when it compiles.** Adding two arms pushed `take_item_step` over the clippy ceiling, and the fix was not to squeeze lines: **the fight's two
+steps and the `data` step each became a function with a name**, which is what a reader would have looked for anyway.

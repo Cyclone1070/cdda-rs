@@ -562,3 +562,8 @@ dump did not carry the field.
 `swing_what_the_character_holds`, which goes through the same `strike_with` a monster's blow does. Gated by `character_swing`: **empty hands aim worst and do nothing** (the null
 item's melee is zero and its balance -2), a combat knife carries 21 stabbing, and a knife takes hit points off a zombie while bare hands take none. **The skills are zero because the
 port has no character skills yet** - an absent component, not a guessed formula.
+
+**Round 1095 put the survivor's swing in the scenario surface**: `wield <item>` and `attack <x> <y>` steps in `crates/cli`, and
+`scenarios/the_survivor_hits_back.txt` - crowbar in hand, thirty swings, a snotgobbler dead and reaped by a turn. **The scenario prints every swing** because an unskilled
+survivor misses most of them, and a playtest that showed only the hit would hide the miss rate. **A dead creature stays an entity until the creature stage reaps it**, so the
+scenario needs a `turn` between the killing blow and `expect no monster`.
