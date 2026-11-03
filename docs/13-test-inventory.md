@@ -423,3 +423,14 @@ deletion.**
 2. the items - the port has no per-tile item stack yet, so this waits on that rather than on revert.
 
 The effect itself (`revert_location`, `f_revert_location`, `npctalk.cpp:4884-4918`) is unread: the store landed first, which is the order this ledger exists to keep.
+
+### The food chain's two open ends (round 1060)
+
+`eating::eat_a_bite` closes the wire from a bite to the stomach, and `take_turn` now moves the clock the digest stage is gated on. Two rules the reference runs at that
+moment are **not** in:
+
+1. **the item's own effects on being eaten** - a drug's `poison`, a mutagen's mutation, a comestible's `fun` (the reference calls `consume_effects`, which runs them after
+   the summary is taken). The port takes the summary and leaves the effects alone, which is stated rather than implied.
+2. **eating what is on the floor or in a container** - the port's `eat` takes the facts of a bite, not a location, so nothing yet counts charges off a stack.
+
+Both wait on the same thing: an **item entity that a dialogue or an action can name**, which is also what `u_run_inv_eocs` and `transform_item` need.

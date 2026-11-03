@@ -11101,3 +11101,30 @@ effects runnable | 1,574 | **1,575** |
 effect-blamed refusals | 92 | **91** |
 refused at run time | 201 | **202** |
 one-gap programs | 15 | **14** |
+
+## Eating is a wire, and a turn is a second (round 1060)
+
+Two things landed, and the second was found by the first: the food chain now starts at a bite, **and the clock a played scenario reads actually moves.**
+
+| Piece | Where |
+|---|---|
+`eating::eat_a_bite` | builds the summary `food_summary` already proved over 1,686 comestibles and hands it to `stomach.ingest` (`consume_effects`, `consumption.cpp:1689-1714`) |
+why it was needed | the food rules were **right and unreachable**: nothing in a turn ever put food in a stomach, so `digest_stage` always digested nothing |
+`take_turn` advances the calendar | a turn is **one second** of the world's time, and the gated stages read the clock rather than counting their own calls |
+Gate | `a_bite_lands_in_the_stomach_and_the_turn_absorbs_it`, and `a_turn_advances_the_clock` in `cli` |
+
+**The bite test failed three times before it passed, and every failure was a wrong assumption of mine, not a wrong rule:**
+
+1. **five minutes is not enough.** Solids and vitamins move in **whole half hours** (`Character::update_stomach` takes `half_hours`), so the tick that asks is not the
+   step that moves.
+2. **the guts release nothing at a zero metabolic rate.** Their rate is `5% * hunger` with a floor of `100/24 * hunger`, so a test with `NeedsRates::default()` has a
+   body that absorbs nothing - **and it looks exactly like a broken rule.**
+3. **`run_turn` does not advance the clock.** It runs the schedule; the caller owns the time. **Which is the bug that matters**: the CLI's `take_turn` never moved the
+   calendar, so a scenario's `turn 3000` replayed **the same second three thousand times** and every `% 60` / `% 300` gate fired once. That is a wire the census could
+   never have shown, because the census does not play scenarios.
+
+**A rule with a test and no caller is not ported** - the ledger's own words - and here were **two of them stacked**: the digest stage had no input, and the input it had
+never aged. Both are closed, and neither was visible from a test count.
+
+**Not in yet:** the item's own effects on being eaten (a drug's `poison`, a mutagen's mutation), and eating from the ground rather than a stomach's worth of facts handed in.
+Both are named in `docs/13-test-inventory.md`.

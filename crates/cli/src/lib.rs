@@ -422,6 +422,12 @@ pub fn light_a_fire(world: &mut World, x: i32, y: i32, intensity: i32, age: i64)
 
 /// Takes one turn, and answers how many squares it changed.
 pub fn take_turn(world: &mut World) -> usize {
+    // A turn is a second of the world's time, and the schedule reads the clock rather than counting its own calls: `focus_stage` asks for every sixtieth turn and
+    // `digest_stage` for every three hundredth. **A clock that never moves makes those gates fire once and then never again**, which is a scenario that plays one second
+    // three thousand times and reports nothing changed.
+    if let Some(calendar) = cdda_sim::calendar::of(world) {
+        cdda_sim::calendar::set_turn(world, calendar.turn.saturating_add(1));
+    }
     let before = cdda_sim::inspect::world_fingerprints(world);
     cdda_sim::turn::run_turn(world);
     let after = cdda_sim::inspect::world_fingerprints(world);
@@ -1143,6 +1149,29 @@ mod field_data_tests {
                 "and back again for {name}"
             );
         }
+    }
+
+    /// A turn moves the world's clock, which is what every gated stage reads.
+    ///
+    /// **The schedule does not count its own calls**: `focus_stage` asks for every sixtieth turn of the calendar and `digest_stage` for every three hundredth, so a
+    /// clock that never moves runs those rules once and then never again - and a scenario that says `turn 3000` would report the same second three thousand times.
+    #[test]
+    fn a_turn_advances_the_clock() {
+        let mut world = World::new();
+        super::build_world(&mut world, 4, false);
+        assert_eq!(
+            cdda_sim::calendar::of(&world).map(|calendar| calendar.turn),
+            Some(0),
+            "a fresh world starts at turn zero"
+        );
+        for _ in 0..5 {
+            super::take_turn(&mut world);
+        }
+        assert_eq!(
+            cdda_sim::calendar::of(&world).map(|calendar| calendar.turn),
+            Some(5),
+            "and five turns are five seconds"
+        );
     }
 
     /// The game's own vitamin and effect tables are installed at start-up, so a body can tell a drug from a nutrient and a

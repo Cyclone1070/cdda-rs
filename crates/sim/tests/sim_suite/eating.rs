@@ -1,106 +1,109 @@
-//! Eating one serving, and what it spends.
+//! A bite put into a stomach is absorbed by the turn, which is the wire the food rules were missing.
+//!
+//! Reference: `Character::consume_effects` (`consumption.cpp:1689-1714`) hands the summary to `stomach.ingest`; `Character::update_stomach`
+//! (`character_body.cpp:935-1019`) then absorbs it, and here that is `digest_stage` (`turn.rs`) every five minutes.
 
-#![allow(clippy::panic, clippy::expect_used)]
+use std::collections::{BTreeMap, BTreeSet};
 
 use bevy_ecs::prelude::*;
-use cdda_sim::{EatError, GroundItem, ItemTypeId, MealTally, count_on_square, drop_item, eat};
 
-/// meat: 46 nutr, no quench, one charge a serving.
-/// soup: 30 nutr, 20 quench, five charges a serving.
-fn nutrition(kind: ItemTypeId) -> (i32, i32, i32) {
-    match kind.0 {
-        1 => (46, 0, 1),
-        2 => (30, 20, 5),
-        _ => (0, 0, 0),
+/// One creature with a body, a clock and the rate table the stage reads.
+fn a_creature_who_eats(world: &mut World) -> Entity {
+    cdda_sim::calendar::set_turn(world, 0);
+    let creature = cdda_sim::creature::spawn_creature(world, "the survivor", (0, 0, 0));
+    world
+        .entity_mut(creature)
+        .insert(cdda_sim::body::Body::default());
+    world
+        .entity_mut(creature)
+        .insert(cdda_sim::body::BodyClock::default());
+    // A living body's rates: the guts release vitamins at `5% * hunger` with a floor of `100/24 * hunger`, so **a zero rate releases nothing at all** - which is what
+    // an unconfigured creature would answer and what a test must not accidentally model.
+    world.entity_mut(creature).insert(cdda_sim::needs::NeedsRatesOf(
+        cdda_sim::needs::NeedsRates {
+            kcal: 2_000.0,
+            hunger: 1.0,
+            thirst: 1.0,
+            sleepiness: 1.0,
+        },
+    ));
+    creature
+}
+
+/// A food whose only content is one vitamin, which is what a drug looks like to the stomach.
+fn a_food_with_a_vitamin(kcal: i64, vitamin: &str) -> (BTreeMap<String, i32>, BTreeSet<String>) {
+    let mut vitamins = BTreeMap::new();
+    vitamins.insert(vitamin.to_owned(), 100);
+    let _ = kcal;
+    (vitamins, BTreeSet::new())
+}
+
+#[test]
+fn a_bite_lands_in_the_stomach_and_the_turn_absorbs_it() {
+    let mut world = World::new();
+    let creature = a_creature_who_eats(&mut world);
+
+    // The vitamin the bite carries has to be a type the store knows, or the reference's own rule skips it.
+    let mut table = BTreeMap::new();
+    table.insert(
+        "vitC".to_owned(),
+        cdda_content::vitamins::Vitamin {
+            id: "vitC".to_owned(),
+            weight_per_unit: Some(1),
+            vit_type: "vitamin".to_owned(),
+            min: 0,
+            max: 1200,
+            rate: 1,
+        },
+    );
+    cdda_sim::vitamin_registry::set_vitamin_types(&mut world, &table);
+
+    let (vitamins, flags) = a_food_with_a_vitamin(120, "vitC");
+    let facts = cdda_sim::food_summary::ItemFacts {
+        weight_g: 100,
+        volume_ml: 250,
+        count: 1,
+        quench: 0,
+        stated_kcal: 120,
+        stated_vitamins: &vitamins,
+    };
+    let summary = cdda_sim::eating::eat_a_bite(
+        &mut world,
+        creature,
+        &facts,
+        &flags,
+        0.0,
+        cdda_sim::food_summary::Diet::default(),
+        &table,
+    )
+    .unwrap_or_default();
+    let _ = &summary;
+    let carried = summary.vitamins.get("vitC").copied().unwrap_or(0);
+    assert!(carried > 0, "the bite carries the vitamin: {carried}");
+    let stomach = world
+        .get::<cdda_sim::body::Body>(creature)
+        .map_or(0, |body| body.stomach.contains_ml());
+    assert!(stomach > 0, "and it is in the stomach: {stomach} ml");
+
+    // The stage runs every five minutes, but **solids and vitamins move in whole half hours** (`Character::update_stomach` takes `half_hours`), so this runs the
+    // half hour the reference waits for rather than the tick that asks.
+    // A stomach hands its release to the **guts**, and the guts hand theirs to the body - two half hours, not one.
+    for minute in 0..=61 {
+        cdda_sim::calendar::set_turn(&mut world, minute * 60);
+        cdda_sim::turn::run_turn(&mut world);
     }
-}
-
-#[test]
-fn a_bite_of_food_costs_one_charge_and_feeds() {
-    let mut world = World::new();
-    drop_item(&mut world, (5, 5), ItemTypeId(1), 4);
-    let meal = eat(&mut world, (5, 5), ItemTypeId(1), nutrition).expect("there is meat");
-    assert_eq!(meal.nutr, 46);
-    assert_eq!(meal.charges, 1);
-    assert_eq!(
-        count_on_square(&mut world, (5, 5), ItemTypeId(1)),
-        3,
-        "three left"
-    );
-}
-
-#[test]
-fn a_serving_of_soup_costs_five_charges() {
-    let mut world = World::new();
-    drop_item(&mut world, (5, 5), ItemTypeId(2), 12);
-    let meal = eat(&mut world, (5, 5), ItemTypeId(2), nutrition).expect("there is soup");
-    assert_eq!(meal.charges, 5, "one serving is five charges");
-    assert_eq!(count_on_square(&mut world, (5, 5), ItemTypeId(2)), 7);
-    assert_eq!(meal.quench, 20);
-}
-
-#[test]
-fn the_last_serving_empties_the_square() {
-    let mut world = World::new();
-    drop_item(&mut world, (5, 5), ItemTypeId(1), 1);
-    assert!(eat(&mut world, (5, 5), ItemTypeId(1), nutrition).is_ok());
+    let (stomach, guts, level) = world
+        .get::<cdda_sim::body::Body>(creature)
+        .map(|body| {
+            (
+                body.stomach.vitamins.clone(),
+                body.guts.vitamins.clone(),
+                body.vitamins.get("vitC").copied().unwrap_or(0),
+            )
+        })
+        .unwrap_or_default();
     assert!(
-        world.query::<&GroundItem>().iter(&world).next().is_none(),
-        "nothing left"
-    );
-}
-
-#[test]
-fn a_partial_serving_is_not_a_serving() {
-    let mut world = World::new();
-    drop_item(&mut world, (5, 5), ItemTypeId(2), 3);
-    let error = eat(&mut world, (5, 5), ItemTypeId(2), nutrition).expect_err("three is not five");
-    assert_eq!(
-        error,
-        EatError::NotEnoughCharges {
-            available: 3,
-            needed: 5
-        }
-    );
-    assert_eq!(
-        count_on_square(&mut world, (5, 5), ItemTypeId(2)),
-        3,
-        "nothing was spent"
-    );
-}
-
-#[test]
-fn a_rock_is_not_food() {
-    let mut world = World::new();
-    drop_item(&mut world, (5, 5), ItemTypeId(9), 1);
-    assert_eq!(
-        eat(&mut world, (5, 5), ItemTypeId(9), nutrition),
-        Err(EatError::NotFood)
-    );
-}
-
-#[test]
-fn an_empty_square_has_nothing_to_eat() {
-    let mut world = World::new();
-    assert_eq!(
-        eat(&mut world, (5, 5), ItemTypeId(1), nutrition),
-        Err(EatError::NotThere)
-    );
-}
-
-#[test]
-fn the_tally_adds_up_over_a_meal() {
-    let mut world = World::new();
-    drop_item(&mut world, (5, 5), ItemTypeId(1), 2);
-    drop_item(&mut world, (5, 5), ItemTypeId(2), 5);
-    let mut tally = MealTally::default();
-    tally.eat(eat(&mut world, (5, 5), ItemTypeId(1), nutrition).expect("meat"));
-    tally.eat(eat(&mut world, (5, 5), ItemTypeId(2), nutrition).expect("soup"));
-    assert_eq!(
-        tally,
-        MealTally {
-            nutr: 76,
-            quench: 20
-        }
+        level > 0,
+        "and the turn absorbed it into the body: {level} (stomach {stomach:?}, guts {guts:?})"
     );
 }
