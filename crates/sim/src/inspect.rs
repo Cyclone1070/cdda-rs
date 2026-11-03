@@ -49,6 +49,7 @@ named_components! {
     "Goal" => crate::creature::Goal,
     "Wander" => crate::creature::Wander,
     "HeardSound" => crate::hearing::HeardSound,
+    "Mending" => crate::regeneration::Mending,
     "CreatureFlags" => crate::creature_flags::CreatureFlags,
     "AppliedEffects" => crate::applied_effects::AppliedEffects,
     "Doing" => crate::creature::Doing,

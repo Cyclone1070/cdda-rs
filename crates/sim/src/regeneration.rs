@@ -7,6 +7,13 @@
 
 use bevy_ecs::prelude::*;
 
+/// How many hit points a creature mends in an hour, as a component on the creature.
+///
+/// Reference: `monster::regenerate` reads `type->regenerates`, the type's hit points, its flags and its materials **every turn**. The port works the answer out once, when
+/// the creature is placed, and keeps it: the type cannot change under a monster, and a rule that has already been decided does not need deciding again.
+#[derive(Component, Debug, Clone, Copy, PartialEq)]
+pub struct Mending(pub f64);
+
 /// How many turns an hour is.
 ///
 /// Reference: `to_turns<int>( 1_hours )` - the game's turn is one second, so an hour is three thousand six hundred of them.
@@ -57,4 +64,27 @@ pub fn mend_over(world: &mut World, per_hour: f64, turns: i32) -> i32 {
     let whole = rolls.roll_remainder(expected);
     crate::singletons::put_rolls(world, rolls);
     whole
+}
+
+/// Mends every creature that has a rate, by however much this turn earns it.
+///
+/// Reference: `monster::process_turn` calls `regenerate( 1_turns )` (`monster.cpp:4094`), so the mending is a per-turn act on every monster rather than a bookkeeping
+/// number somewhere else. A creature with no [`Mending`] does not mend, which is what a type that states no rate and is not flesh means.
+///
+/// Returns how many hit points were given back in total, which is what a test can count.
+pub fn mend_everyone(world: &mut World) -> i32 {
+    let rates: Vec<(Entity, f64)> = world
+        .query::<(Entity, &Mending)>()
+        .iter(world)
+        .map(|(entity, rate)| (entity, rate.0))
+        .collect();
+    let mut healed = 0;
+    for (entity, rate) in rates {
+        let amount = mend_over(world, rate, 1);
+        if amount > 0 {
+            crate::creature::heal(world, entity, amount);
+            healed += amount;
+        }
+    }
+    healed
 }

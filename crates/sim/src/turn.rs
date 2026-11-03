@@ -287,6 +287,8 @@ fn creatures_stage(world: &mut World) {
     // was at the start of it, not what it became afterwards.
     focus_stage(world);
     crate::creature::dress(world);
+    // Reference: `monster::process_turn` mends a monster before it acts (`monster.cpp:4094`), so a creature one point from death this turn can still take its step.
+    crate::regeneration::mend_everyone(world);
     // The dead are cleared before anything acts, so a creature killed this turn does not also walk.
     crate::creature::reap_dead_creatures(world);
     crate::creature::take_turns(world);

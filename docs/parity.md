@@ -11689,3 +11689,24 @@ the points arrive by chance and a test that demanded the exact number would be t
 
 **A count, two named ends and a pinned loader count:** 41 stated rates, `mon_shoggoth` at 50, `mon_mutant_alpha` at 1, and the loader's own 1,155 entries - so a loader that
 stopped reading the field, dropped a prototype, or rounded a rate would fail three different ways.
+
+## The mending is on the schedule now (round 1084)
+
+The rule from last round was correct and had no caller. It has one: `regeneration::mend_everyone`, inside `TurnStage::Creatures`, before anything walks.
+
+| Piece | Where |
+|---|---|
+`regeneration::Mending(f64)` | the rate, worked out **once** when a monster is placed from its type |
+`spawn_monster_of_type` | asks `mending_per_hour` with the type's hit points, `REVIVES`, `DORMANT` and materials |
+`mend_everyone` | a turn of mending for every creature that carries a rate, before the dead are cleared and before anyone steps |
+`creature::heal` | adds and clamps at the ceiling, and **does nothing for a creature already at or below zero** |
+
+**The naming gate from round 1082 caught the new component before I did.** Adding `Mending` put a `?` in the square report of a zombie, and `every_component_a_creature_carries_has_a_name`
+went red on the full suite - one line of table and it was named. That is the gate doing what it was built for, on a component that did not exist when it was written.
+
+**Three assertions in the wire gate, and each has a job:** a hurt creature gains a point a turn when the rate is an hour's worth per turn (so the arithmetic cannot hide the wire);
+a whole creature stays whole (the ceiling); and a hundred turns of mending stop at eighty rather than passing it. A port that forgot the ceiling would let a monster heal past its
+own hit points and nothing else in the suite would notice.
+
+**`heal` refuses a creature at or below zero, and that is the reference's own shape.** Mending is for the wounded, not the dead: a body that has been reaped is gone before this
+runs, and one that has not yet been reaped does not stand back up because it mends.

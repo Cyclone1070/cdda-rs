@@ -202,6 +202,22 @@ pub struct Health {
     pub max_hp: i32,
 }
 
+/// Gives a creature hit points back, up to its ceiling and never past it.
+///
+/// Reference: `Creature::heal` (`creature.cpp`), which adds the amount and clamps at `get_hp_max()` - a creature at full health absorbs nothing, and a blow that took it
+/// below zero is not undone by mending.
+pub fn heal(world: &mut World, entity: Entity, amount: i32) {
+    if amount <= 0 {
+        return;
+    }
+    if let Some(mut health) = world.get_mut::<Health>(entity) {
+        if health.hp <= 0 {
+            return;
+        }
+        health.hp = (health.hp + amount).min(health.max_hp);
+    }
+}
+
 /// Sets a creature's health, and its ceiling.
 pub fn set_health(world: &mut World, entity: Entity, hp: i32) {
     if let Some(mut health) = world.get_mut::<Health>(entity) {
@@ -1588,6 +1604,23 @@ pub fn spawn_monster_of_type(
         .insert(crate::creature_flags::CreatureFlags(
             monster_type.flags.clone(),
         ));
+    // Reference: `monster::regenerate` reads the type's flags, hit points and materials every turn (`monster.cpp:4094-4103`); the port decides the rate once, here, because
+    // none of those three can change under a monster that has already been placed.
+    let materials: Vec<&str> = monster_type
+        .materials
+        .keys()
+        .map(String::as_str)
+        .collect();
+    let rate = crate::regeneration::mending_per_hour(
+        monster_type.hp,
+        monster_type.flags.contains("REVIVES"),
+        monster_type.flags.contains("DORMANT"),
+        &materials,
+        monster_type.regenerates,
+    );
+    world
+        .entity_mut(entity)
+        .insert(crate::regeneration::Mending(rate));
     if let Some(size) = size_named(&monster_type.size)
         && let Some(mut creature) = world.get_mut::<Creature>(entity)
     {

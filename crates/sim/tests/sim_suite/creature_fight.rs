@@ -225,3 +225,96 @@ fn mending_arrives_in_whole_hit_points_over_time() {
         "an hour at fifty an hour is about fifty hit points, drawn as whole ones: {mended}"
     );
 }
+
+/// A wounded monster mends as the turns pass, and a whole one does not mend past its ceiling.
+///
+/// Reference: `monster::regenerate` is called from `monster::process_turn`, which the turn runs for every creature (`monster.cpp:4094`), and `Creature::heal` refuses to go
+/// over `get_hp_max()`. The rate is a **component** in this port: it is worked out once, from the type and its body, when the monster is placed.
+#[test]
+fn a_wounded_monster_mends_as_the_turns_pass_and_never_past_its_ceiling() {
+    use cdda_sim::creature::Health;
+    use cdda_sim::regeneration::Mending;
+
+    let mut world = World::new();
+    singletons::put_rolls(&mut world, Rolls::new(5));
+    let mut level = Level::new();
+    for x in 0..4 {
+        for y in 0..4 {
+            level.set_terrain(x, y, 1, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+
+    // A rate of one hour's worth per turn, so the arithmetic of `roll_remainder` cannot hide the wire: every turn mends exactly one point.
+    let hurt = cdda_sim::creature::spawn_creature(&mut world, "the hurt one", (1, 1, 0));
+    world
+        .entity_mut(hurt)
+        .insert(Health { hp: 40, max_hp: 80 })
+        .insert(Mending(3_600.0));
+    let whole = cdda_sim::creature::spawn_creature(&mut world, "the whole one", (2, 2, 0));
+    world
+        .entity_mut(whole)
+        .insert(Health { hp: 80, max_hp: 80 })
+        .insert(Mending(3_600.0));
+
+    cdda_sim::turn::run_turn(&mut world);
+    assert_eq!(
+        world.get::<Health>(hurt).map(|health| health.hp),
+        Some(41),
+        "one turn of a mending rate worth an hour is one hit point"
+    );
+    assert_eq!(
+        world.get::<Health>(whole).map(|health| health.hp),
+        Some(80),
+        "and a whole creature stays whole"
+    );
+
+    // Over a hundred turns the wounded one gains a hundred points' worth, which its ceiling stops at eighty.
+    for _ in 0..100 {
+        cdda_sim::turn::run_turn(&mut world);
+    }
+    assert_eq!(
+        world.get::<Health>(hurt).map(|health| health.hp),
+        Some(80),
+        "mending stops at the ceiling rather than passing it"
+    );
+}
+
+/// A monster placed from its type arrives mending at the rate the type and its body give it.
+///
+/// Reference: `monster::regenerate` reads the type's flags and materials every turn; the port decides the rate once, at the placing, so this is where the two rules meet -
+/// `regeneration::mending_per_hour` and `spawn_monster_of_type`. A zombie states no rate of its own, so its rate is the reviving fallback: `0.02 * 80`.
+#[test]
+fn a_monster_placed_from_its_type_carries_the_rate_its_body_gives_it() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+    let bytes = std::fs::read(path).expect("the monster dump exists");
+    let root = cdda_json::parse(&bytes).expect("the dump is valid JSON");
+    let cdda_json::Value::Object(root) = root else {
+        panic!("the dump's root is not an object");
+    };
+    let Some(cdda_json::Value::Array(prototypes)) = root.get("prototypes") else {
+        panic!("the dump has no prototypes");
+    };
+    let monster_type = cdda_content::monsters::load_objects(prototypes)
+        .expect("the dump loads")
+        .into_iter()
+        .find(|one| one.id == "mon_zombie")
+        .expect("the corpus has a zombie");
+    let mut world = World::new();
+    let zombie = cdda_sim::creature::spawn_monster_of_type(
+        &mut world,
+        cdda_sim::MonsterKindId(7),
+        &monster_type,
+        (2, 2, 0),
+        100,
+    );
+
+    let rate = world
+        .get::<cdda_sim::regeneration::Mending>(zombie)
+        .map(|mending| mending.0);
+    assert!(
+        rate.is_some_and(|rate| (rate - 0.02 * f64::from(monster_type.hp)).abs() < 1e-9),
+        "a zombie mends at the reviving rate: {rate:?} for {} hit points",
+        monster_type.hp
+    );
+}
