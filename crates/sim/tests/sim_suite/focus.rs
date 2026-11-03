@@ -54,3 +54,26 @@ fn a_creature_in_pain_settles_at_a_lower_focus() {
     );
     assert!(hurting > 0, "and not at nothing: {hurting}");
 }
+
+/// A tired mind settles lower, and the ceiling steps down with each sleepiness level.
+///
+/// Reference: `Character::focus_equilibrium_sleepiness_cap` (`character.cpp:3838-3850`) against `sleepiness_levels` (`character.h:151-156`): 191 caps at eighty, 383 at
+/// sixty, 575 at forty and 1000 at twenty.
+#[test]
+fn a_tired_creature_cannot_settle_above_its_ceiling() {
+    assert_eq!(cdda_sim::skills::sleepiness_cap(150, 0), 150, "an awake creature has no ceiling");
+    assert_eq!(cdda_sim::skills::sleepiness_cap(150, 191), 80, "tired");
+    assert_eq!(cdda_sim::skills::sleepiness_cap(150, 383), 60, "dead tired");
+    assert_eq!(cdda_sim::skills::sleepiness_cap(150, 575), 40, "exhausted");
+    assert_eq!(cdda_sim::skills::sleepiness_cap(150, 1000), 20, "barely awake");
+    assert_eq!(
+        cdda_sim::skills::sleepiness_cap(50, 1000),
+        20,
+        "and it caps what is above it rather than sparing it"
+    );
+    assert_eq!(
+        cdda_sim::skills::sleepiness_cap(10, 1000),
+        10,
+        "while an equilibrium already below the ceiling is left alone"
+    );
+}

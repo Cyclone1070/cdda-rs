@@ -852,8 +852,9 @@ ids, read from the oracle's own dump (**514 valid mutations; 299 with prerequisi
 completes it and keeps the trait). **Not yet:** thresholds, and stat modifiers - the category dump that carries `threshold_min` is building.
 
 **Focus (P3 leftover) at round 1028:** pain now reaches `calc_focus_equilibrium` through the minute stage, and the stage's calendar gate is exercised by a test that
-would fail if the wiring went away. **Still not ported:** the sleepiness cap (`focus_equilibrium_sleepiness_cap`, which needs a sleepiness value the port does not store)
-and the reading penalty.
+would fail if the wiring went away. **Sleepiness at 1029:** the value is stored (`needs::Sleepiness`, clamped to `[-1000, 1050]`), the ceiling
+(`focus_equilibrium_sleepiness_cap`) is ported and wired into the minute stage. **Still not ported:** the sleepiness **clock** (the five-minute
+`roll_remainder( rates.sleepiness * rate_multiplier )`), and the reading penalty.
 
 **Not started:** disease, ranged weapons and projectiles with dispersion, martial arts, weakpoints.
 

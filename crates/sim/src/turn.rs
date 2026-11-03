@@ -153,7 +153,13 @@ fn focus_stage(world: &mut World) {
         let pain = world.get::<crate::creature::Pain>(creature).map_or(0, |pain| pain.0);
         let masochist = crate::mutations::has(world, creature, "MASOCHIST");
         let effective = crate::skills::effective_morale(morale, pain, masochist);
-        crate::skills::update_mental_focus(world, creature, effective);
+        // Reference: `Character::calc_focus_equilibrium` ends by capping the answer on the creature's own sleepiness
+        // (`focus_equilibrium_sleepiness_cap`, `character.cpp:3838-3850`), so a creature that has not slept for days cannot rest its mind at all.
+        let equilibrium = crate::skills::sleepiness_cap(
+            crate::skills::focus_equilibrium(effective),
+            crate::needs::sleepiness_of(world, creature),
+        );
+        crate::skills::update_focus_towards(world, creature, equilibrium);
     }
 }
 

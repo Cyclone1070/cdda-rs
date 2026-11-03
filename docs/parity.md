@@ -10380,3 +10380,24 @@ consulted - **the same failure as an uncalled function, sitting in the store whe
 the first version of the test spun six hundred turns and measured **focus 100 against focus 100** - the stage had never run at all. **A test that shows no difference is
 indistinguishable from a system that is not on the path**, and only setting the calendar told the two apart. **The stage had a gate and nothing had ever opened it in a
 test.**
+
+## The sleepiness ceiling, and a cap that lowers rather than guards (round 1029)
+
+`focus_equilibrium_sleepiness_cap` (`character.cpp:3838-3850`) is now ported and wired into the minute stage:
+
+| Rule | Gate |
+|---|---|
+the ceiling steps down with sleepiness: 80 tired, 60 dead tired, 40 exhausted, 20 barely awake | `a_tired_creature_cannot_settle_above_its_ceiling` |
+`mod_sleepiness` clamps to `[-1000, 1050]` | `sleepiness_of` / `mod_sleepiness` in `needs.rs` |
+
+**The test caught my reading of "cap".** I asserted that a ceiling `never raises an equilibrium already below it` - and wrote `sleepiness_cap(50, 1000) == 50`. The
+reference answers **20**: the branch is `if( sleepiness >= MASSIVE && equilibrium > 20 ) return 20`, so **an equilibrium above the ceiling is pulled down to it**, not spared.
+Only an equilibrium already *below* the ceiling is left alone. **"Cap" reads like a guard; in the reference it is a replacement**, and the difference is twenty focus for a
+character who has not slept.
+
+**The stage was split so the answer travels once.** `update_mental_focus` used to work out the equilibrium from morale alone; the stage now reads pain, morale **and
+sleepiness**, and hands the finished number to `update_focus_towards`. **One place asks the creature questions, one place does the arithmetic** - which is what keeps a
+system added later from silently duplicating the rule.
+
+**Still not ported, and named:** the sleepiness **clock** (`update_needs`'s five-minute `roll_remainder( rates.sleepiness * rate_multiplier )`, capped at 1050, stopped by
+sleep and by `DEBUG_LS`). The value is stored, clamped and read; nothing yet makes it climb.

@@ -15,6 +15,8 @@
 //! last answers the last), and every cast in `base_bmr` **truncates** — the height factor is `6.25 * height` assigned to an `int`, so a height of 175 cm contributes
 //! 1,093 and not 1,094.
 
+use bevy_ecs::prelude::{Component, Entity, World};
+
 /// One point of a piecewise linear curve.
 pub type Point = (f32, f32);
 
@@ -131,4 +133,30 @@ pub fn needs_rates(bmr: i32, metabolic_rate: f32, thirst_option: f32, sleepiness
         thirst: thirst_option,
         sleepiness: sleepiness_option,
     }
+}
+
+/// How sleepy a creature is, on the reference's scale: 191 is tired, 383 dead tired, 575 exhausted, 1000 barely awake.
+///
+/// Reference: `Character::sleepiness` (`character.cpp:4698-4712`): an integer the game adds to and clamps, with `MASSIVE_SLEEPINESS` at 1000 and the `update_needs`
+/// cap at 1050 - the extra fifty are the overshoot the reference lets a five-minute roll carry.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Component)]
+pub struct Sleepiness(pub i32);
+
+/// The level a creature cannot climb past: `character.cpp:5161`, the cap inside `update_needs`.
+pub const MAX_SLEEPINESS: i32 = 1050;
+
+/// Moves a creature's sleepiness by an amount, within the range the reference allows.
+///
+/// Reference: `Character::set_sleepiness` (`character.cpp:4704-4712`): the total is clamped between `-1000` and `MAX_SLEEPINESS`, so a creature that sleeps can go
+/// well below zero and stay there for a while.
+pub fn mod_sleepiness(world: &mut World, creature: Entity, amount: i32) {
+    let mut held = world.get::<Sleepiness>(creature).copied().unwrap_or_default();
+    held.0 = (held.0 + amount).clamp(-1000, MAX_SLEEPINESS);
+    world.entity_mut(creature).insert(held);
+}
+
+/// How sleepy a creature is, **zero** when it has never been tracked.
+#[must_use]
+pub fn sleepiness_of(world: &World, creature: Entity) -> i32 {
+    world.get::<Sleepiness>(creature).map_or(0, |held| held.0)
 }

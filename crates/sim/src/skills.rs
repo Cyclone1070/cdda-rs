@@ -330,13 +330,44 @@ pub fn effective_morale(morale: i32, pain: i32, masochist: bool) -> i32 {
     morale - pain
 }
 
+/// Caps a focus equilibrium by how sleepy the creature is.
+///
+/// Reference: `Character::focus_equilibrium_sleepiness_cap` (`character.cpp:3838-3850`): a tired mind settles lower, and the more tired it is the lower the ceiling -
+/// twenty at total exhaustion, forty at exhausted, sixty at dead tired, eighty at tired, and no ceiling at all below that.
+#[must_use]
+pub fn sleepiness_cap(equilibrium: i32, sleepiness: i32) -> i32 {
+    // Reference: `sleepiness_levels` (`character.h:151-156`).
+    const TIRED: i32 = 191;
+    const DEAD_TIRED: i32 = 383;
+    const EXHAUSTED: i32 = 575;
+    const MASSIVE_SLEEPINESS: i32 = 1000;
+    if sleepiness >= MASSIVE_SLEEPINESS && equilibrium > 20 {
+        20
+    } else if sleepiness >= EXHAUSTED && equilibrium > 40 {
+        40
+    } else if sleepiness >= DEAD_TIRED && equilibrium > 60 {
+        60
+    } else if sleepiness >= TIRED && equilibrium > 80 {
+        80
+    } else {
+        equilibrium
+    }
+}
+
 /// Moves a creature's focus a tenth of the way towards its equilibrium, which is what a minute of game time does.
 ///
 /// Reference: `Character::update_mental_focus` (`character.cpp:3929-3934`), called from `reset_stats` on `once_every( 1_minutes )`, which adds ten times the gap
 /// to the focus pool. The pool is kept in **hundredths** of a focus point, so the change is a tenth of the gap each minute, and the pool's own truncation is what
 /// makes the arithmetic exact rather than approximately right.
 pub fn update_mental_focus(world: &mut bevy_ecs::prelude::World, creature: bevy_ecs::prelude::Entity, morale: i32) {
-    let equilibrium = focus_equilibrium(morale);
+    update_focus_towards(world, creature, focus_equilibrium(morale));
+}
+
+/// Moves a creature's focus a tenth of the way towards an equilibrium somebody else worked out.
+///
+/// The arithmetic is `update_mental_focus`'s own: the pool is kept in hundredths, so the change per minute is `10 * ( equilibrium - focus ) / 100`. The stage that has
+/// already read the creature's pain, morale and sleepiness hands the answer in rather than making this function ask the same three questions again.
+pub fn update_focus_towards(world: &mut bevy_ecs::prelude::World, creature: bevy_ecs::prelude::Entity, equilibrium: i32) {
     let Some(mut focus) = world.get_mut::<Focus>(creature) else {
         return;
     };
