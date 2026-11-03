@@ -364,7 +364,9 @@ author did not need it yet**, and it hides in a file that otherwise looks finish
 
 The rest of the list was older, and **deleting it found two more** (round 1020): `lib::bounds_of` and `lib::cost_group` existed only to serve the deleted accessors. Twelve
 functions went; five were **kept** as rules waiting for a caller - `friendly::is_friendly`, `monster_spawning::is_hallucination`, `monster_spawn_attempts`,
-`run_environment_turn_from_store`, `render_frame` - and each is named in `docs/parity.md` with the system that will call it. **A rule waiting for its caller is not the
+`run_environment_turn_from_store`, `render_frame` - and each is named in `docs/parity.md` with the system that will call it. **Two more went in round 1021** - `lib::render_frame` (superseded by `sim::frame::frame`, which the
+PNG capture and the frame-diff tests actually use) and `lib::run_environment_turn_from_store` (superseded by the schedule's per-stage systems) - which leaves **three**
+genuinely waiting: `friendly::is_friendly`, `monster_spawning::is_hallucination`, `monster_spawn_attempts`. **A rule waiting for its caller is not the
 same thing as a second answer to a question already answered**, and that distinction is what this audit is for.
 
 Rules that no test can fail (audit at round 1005)

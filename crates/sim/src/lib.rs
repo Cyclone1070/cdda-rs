@@ -2371,36 +2371,6 @@ fn fire_discharge(
         }
     }
 }
-
-/// One whole turn of the environment: fires, then the gases they leave, then decay.
-///
-/// Reference: `map::process_fields` (`src/map_field.cpp:164-200`), which walks the submaps once a turn and, per square, runs the field's processor and then
-/// decays it. The port keeps the three parts in separate systems so each can be read and tested on its own; this is the function that runs them in the
-/// reference's order:
-///
-/// 1. [`process_fires`] - growth, fuel, spread, hot air, smoke;
-/// 2. [`process_gas`] for smoke and the four hot air kinds - the gases move after the fires that made them, which is what makes a room fill from the
-///    inside out;
-/// 3. [`process_field_turns`] - decay last, exactly as the reference does it, so a field that has just been created is spared its processors this turn.
-///
-/// `can_take` answers whether one square's gas may move onto another; the environment layer owns that question because it is about terrain and fields on
-/// the destination square.
-/// Runs one environment turn with the world's own answers, and no map handed in.
-///
-/// The fire rules are asked through a question sheet built from the store at the start of the turn
-/// (`MapFacts::from_world`), so a world loaded into entities needs nothing else to take a turn.
-pub fn run_environment_turn_from_store(
-    world: &mut World,
-    windpower: i32,
-    scent_center: (i32, i32),
-    scent_deposit: i32,
-    can_take: impl Fn((i32, i32, i32), (i32, i32, i32)) -> bool + Copy,
-    rolls: &mut cdda_core_types::rng::Rolls,
-) {
-    let facts = MapFacts::from_world(world);
-    run_environment_turn(world, &facts, windpower, scent_center, scent_deposit, can_take, rolls);
-}
-
 /// The field sweep: fires, then incendiaries, then gases, then the ageing of what the sweep found.
 ///
 /// Reference: `map::process_fields` (`src/map_field.cpp:164-184`), submap by submap in ascending
@@ -6577,44 +6547,6 @@ pub struct SquareAppearance {
 /// Draws the view around a centre.
 ///
 /// This is the port's half of the frame gate: nothing here is a game rule, and everything here is a choice
-/// about what a player is shown. The order is the reference's - an item hides furniture, furniture hides the
-/// floor - because a diff against the oracle is worthless if the two disagree about precedence.
-#[must_use]
-pub fn render_frame(
-    world: &mut World,
-    level: &cdda_core_types::level::Level,
-    centre: (i32, i32),
-    radius: i32,
-    appearance_of: impl Fn(u32) -> SquareAppearance,
-    light_at: impl Fn(i32, i32) -> f32,
-) -> Vec<FrameSquare> {
-    let mut squares = Vec::new();
-    for dy in -radius..=radius {
-        for dx in -radius..=radius {
-            let (x, y) = (centre.0 + dx, centre.1 + dy);
-            let terrain = level.terrain_at(x, y).unwrap_or(0);
-            let appearance = appearance_of(terrain);
-            let here = items_at(world, (x, y));
-            let mut glyph = appearance.furniture.unwrap_or(appearance.glyph);
-            if !here.is_empty() {
-                // An item on the floor covers whatever is under it. Its glyph belongs to its prototype,
-                // which the caller owns, so the renderer marks the square and the caller draws it.
-                glyph = '*';
-            }
-            squares.push(FrameSquare {
-                x,
-                y,
-                glyph,
-                terrain,
-                items: i32::try_from(here.len()).unwrap_or(i32::MAX),
-                // Light comes from the lighting system, which owns it; the renderer only asks.
-                light: light_at(x, y),
-            });
-        }
-    }
-    squares
-}
-
 /// What stepping onto a square costs, in moves.
 ///
 /// Reference: `monmove.cpp` uses `50 * here.move_cost( p )` for the cost of leaving a square. Default

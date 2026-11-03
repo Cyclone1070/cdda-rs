@@ -10219,3 +10219,24 @@ existed, and it kept **three** helpers alive behind it.
 `render_frame` are **not** superseded - they are rules with no caller **yet**, and each is named in the inventory with the system that will call it. **The difference
 between "waiting for its caller" and "a second answer to the same question" is the whole of this sweep's judgement**, and it is now written down in the file that will be
 read next time.
+
+## The renderer had two answers, and the picture was drawn by the other one (round 1021)
+
+The audit's last five "waiting for a caller" rules went through the same question, and **two did not survive it**:
+
+| Function | What it answered | The live answer |
+|---|---|---|
+`lib::render_frame` | the squares of a view, assembled in precedence order | **`sim::frame::frame`** - which `cli::capture::draw` actually draws from, and which the frame-diff tests read |
+`lib::run_environment_turn_from_store` | one environment turn, from the store's own answers | the **schedule's stages** - `scent_stage`, `falling_stage`, `fields_stage`, `light_stage`, each calling its own rule |
+
+**Both were *successors*, not predecessors**: the port wrote a single call that did a whole turn and a single call that built a whole frame, then **split them into
+stages and a frame module** - and the old single call kept passing its tests while **nothing drew from it**. That is the shape a port dies of: **a rule that is tested,
+correct, documented, and not on the path a player is on.**
+
+**`render_frame` is the one worth naming.** The frame gate that captures a PNG is the QA surface's strongest claim - *the rendered screen can be diffed* - and it was
+building the picture by a **different** function from the one named for the job. **Deleting the other one is what makes that claim true**, because now there is exactly
+one place a square becomes a glyph.
+
+**Three are kept, unchanged, and they are genuinely waiting:** `friendly::is_friendly` (no aggro or alliance system calls it yet), `monster_spawning::is_hallucination`
+(no rule asks yet), `monster_spawn_attempts` (the spawn system that will call it does not exist). **Each says so in its own docs**, so the next round finds them by
+reading the module rather than by re-running an audit.
