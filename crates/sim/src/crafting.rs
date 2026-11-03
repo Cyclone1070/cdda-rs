@@ -102,6 +102,8 @@ pub fn finish_craft(world: &mut World, crafter: Entity, names: &crate::item_regi
         let cap = crate::skills_of::craft_skill_cap(making.recipe.difficulty);
         crate::skills_of::practice(world, crafter, &making.recipe.skill, ticks, cap);
     }
+    // Reference: `create_result` (`recipe.cpp:768-771`) - a `contained` recipe makes **the container**, with the result inside it, so a canned good's product is the can
+    // rather than what went into it. The contents are a link (`crate::containment`), which is why the result is spawned and then put inside.
     let result = making.recipe.result.clone();
     let Some(kind) = names.id_of(&result) else {
         // The result is not an item this world knows: the components have already been decided, so the honest answer
@@ -111,6 +113,10 @@ pub fn finish_craft(world: &mut World, crafter: Entity, names: &crate::item_regi
     // Reference: `recipe::create_results` (`recipe.cpp:790-825`): one batch makes `made_per_batch` things, which the reference's own dump reports as the product of
     // `result_mult` and `charges`. The port holds a count as a stack's charges, so the batch multiplies it.
     let charges = making.batch.max(1).saturating_mul(making.recipe.made_per_batch.max(1));
+    if let Some(container) = making.recipe.container.as_deref().and_then(|id| names.id_of(id)) {
+        fill_container(world, crafter, container, kind, charges);
+        return Some(result);
+    }
     give_to_crafter(world, crafter, kind, charges, names);
     // Reference: `recipe::create_byproducts` (`recipe.cpp:872-900`) - the other things the craft leaves behind, `count * batch` of each. They land wherever the
     // result would have landed, which is the reference's own treatment of them.
@@ -203,6 +209,38 @@ fn spend_tool_charges(
     }
 }
 
+/// Makes `charges` of a thing inside a new container, which is what a `contained` recipe produces.
+///
+/// Reference: `create_result` (`recipe.cpp:768-771`): `newit.in_container( container, amount, sealed )` - the container is one item holding the result, and the
+/// recipe's product is the container. The contents are a **link** (`crate::containment`), so each of them is its own entity pointing at the container.
+fn fill_container(
+    world: &mut World,
+    crafter: Entity,
+    container: crate::ItemTypeId,
+    kind: crate::ItemTypeId,
+    charges: i32,
+) {
+    let names = crate::item_registry::snapshot(world);
+    // The container is given first, because the contents need something to point at.
+    let jar = give_to_crafter(world, crafter, container, 1, &names);
+    for _ in 0..charges.max(1) {
+        let made = world
+            .spawn((
+                crate::creature::Carried(crafter),
+                crate::GroundItem {
+                    kind,
+                    charges: 1,
+                    age: 0,
+                    burnt: 0,
+                    damage: 0,
+                    burn: None,
+                },
+            ))
+            .id();
+        crate::containment::put_inside(world, made, jar);
+    }
+}
+
 /// Draws a whole number between two ends, both included, from the world's dice.
 fn draw_between(world: &mut World, low: i32, high: i32) -> Option<i32> {
     if low == high {
@@ -227,11 +265,11 @@ fn give_to_crafter(
     kind: crate::ItemTypeId,
     charges: i32,
     names: &crate::item_registry::ItemNames,
-) {
+) -> Entity {
     let size = names.volume_of(kind).saturating_mul(charges);
     let weight = names.weight_of(kind) * i64::from(charges);
     if let Some((worn, index)) = crate::creature::can_stash(world, crafter, names, size, weight) {
-        world
+        let made = world
             .spawn((
                 crate::creature::Carried(crafter),
                 crate::GroundItem {
@@ -243,25 +281,27 @@ fn give_to_crafter(
                     burn: None,
                 },
             ))
-            .insert(crate::creature::InPocket { worn, index });
-        return;
+            .insert(crate::creature::InPocket { worn, index })
+            .id();
+        return made;
     }
     // A creature with no square at all is not standing anywhere, so the thing stays in hand rather than vanishing.
     if let Some(placed) = world.get::<crate::Position>(crafter).copied() {
-        crate::drop_item(world, (placed.x, placed.y), kind, charges);
-        return;
+        return crate::drop_item(world, (placed.x, placed.y), kind, charges);
     }
-    world.spawn((
-        crate::creature::Carried(crafter),
-        crate::GroundItem {
-            kind,
-            charges,
-            age: 0,
-            burnt: 0,
-            damage: 0,
-            burn: None,
-        },
-    ));
+    world
+        .spawn((
+            crate::creature::Carried(crafter),
+            crate::GroundItem {
+                kind,
+                charges,
+                age: 0,
+                burnt: 0,
+                damage: 0,
+                burn: None,
+            },
+        ))
+        .id()
 }
 
 /// Starts a craft using what is actually in the crafter's hands.

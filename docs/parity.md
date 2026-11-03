@@ -9972,3 +9972,25 @@ no entry for it at all. **That is the architecture's rule applied to a feature t
 
 **The cycle check had its direction wrong the first time** and the test caught it in the obvious way: a can was allowed inside the rag it contained. **A rule about a graph is
 easy to write backwards and hard to see**, which is an argument for the graph-shaped tests this sweep of work has been accumulating.
+
+## The 302 container batches now match, because the dump learned to say what comes out (round 1010)
+
+Containment went in last round as a **store**: a thing inside a thing is a link. This round connected it to crafting, and the interesting part was **where the answer came
+from**.
+
+`contained` and `container` are private members of the reference's `recipe`, so the dump could not simply repeat them. **It asks the rule instead**: `made_item` is the
+id of the first thing `create_results( 1 )` produces, which is the result for an ordinary recipe and **the container** for a contained one. The loader reads that, and
+`finish_craft` fills the container by linking each produced thing to it.
+
+| Before | After |
+|---|---|
+`can_beans` made `can_beans` | `can_beans` makes **`can_medium` holding the beans** |
+302 batches disagree with the reference | **0** |
+the container hole: "costs a pinned number" | **closed, and its pin deleted** |
+
+**Deleting the pin is the receipt.** A counted hole that closes should leave nothing behind - the assertion that once said 302 now does not exist, and the batches it
+counted are compared like every other batch. **A pin that outlives its hole is a lie with a number on it.**
+
+**Two lint errors were the round's own cost, and both were right:** `finish_craft` crossed a hundred lines, so the container fill became `fill_container`, which is a
+function that says what it does; and the test indexed a vector the compiler could not prove non-empty, so it takes the first element properly. **The craft still returns
+the result id**, because that is what the craft says it made - the container is where it went, not what it is.

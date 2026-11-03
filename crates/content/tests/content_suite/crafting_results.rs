@@ -16,15 +16,28 @@ fn corpus(name: &str) -> std::sync::Arc<cdda_json::Value> {
 }
 
 /// Everything the port thinks a recipe makes for one batch and for two, from the loaded recipe itself.
-fn port_products(recipe: &cdda_content::recipes::Recipe, batch: i32) -> (i32, Vec<(String, i32)>) {
+///
+/// Reference: `create_result` (`recipe.cpp:768-771`) - a `contained` recipe produces **the container**, one per batch, holding the result, so the item that comes out
+/// is the container rather than what went into it.
+fn port_products(
+    recipe: &cdda_content::recipes::Recipe,
+    batch: i32,
+) -> (String, i32, Vec<(String, i32)>) {
     let batch = batch.max(1);
-    let made = recipe.made_per_batch.max(1).saturating_mul(batch);
+    let (product, made) = if let Some(container) = recipe.container.clone() {
+        (container, batch)
+    } else {
+        (
+            recipe.result.clone(),
+            recipe.made_per_batch.max(1).saturating_mul(batch),
+        )
+    };
     let byproducts = recipe
         .byproducts
         .iter()
         .map(|(item, count)| (item.clone(), count.saturating_mul(batch)))
         .collect();
-    (made, byproducts)
+    (product, made, byproducts)
 }
 
 #[test]
@@ -42,7 +55,6 @@ fn the_loaded_recipes_make_what_the_reference_makes() {
         panic!("the crafting dump holds a recipe list");
     };
     let mut checked = 0;
-    let mut wrapped_results = 0;
     let mut drawn_byproducts = 0;
     let mut failures = Vec::new();
     for entry in entries {
@@ -68,23 +80,18 @@ fn the_loaded_recipes_make_what_the_reference_makes() {
             let Ok(size) = i32::try_from(*size) else {
                 continue;
             };
-            let (made, byproducts) = port_products(recipe, size);
+            let (product, made, byproducts) = port_products(recipe, size);
             let wanted = folded(batch.get("made"));
             let wanted_spare = folded(batch.get("byproducts"));
             checked += 1;
             let mut mine = BTreeMap::new();
             if made > 0 {
-                mine.insert(recipe.result.clone(), made);
+                mine.insert(product, made);
             }
             if mine != wanted {
                 // The reference wraps a `contained` result in its container - `can_beans` comes out inside a `can_medium` (`create_result`, `recipe.cpp:768-771`) -
                 // and the port does not model containers yet. That is a **known hole, counted rather than ignored**: anything else disagreeing is a real failure.
-                let wrapped = wanted.len() == 1
-                    && wanted.values().next().copied() == Some(made)
-                    && !wanted.contains_key(&recipe.result);
-                if wrapped {
-                    wrapped_results += 1;
-                } else {
+                {
                     failures.push(format!("{} batch {size}: makes {mine:?}, the reference {wanted:?}", recipe.id));
                 }
             }
@@ -113,10 +120,6 @@ fn the_loaded_recipes_make_what_the_reference_makes() {
     assert_eq!(
         drawn_byproducts, 14,
         "the batches whose byproducts are drawn from an inline `byproduct_group`, and land inside the ends the loader read"
-    );
-    assert_eq!(
-        wrapped_results, 302,
-        "the batches whose result the reference puts in a container"
     );
     assert!(
         failures.is_empty(),

@@ -71,6 +71,7 @@ fn recipe(time_moves: i64, needs: &str, count: i32) -> Recipe {
         batch_rsize: 0,
         made_per_batch: 1,
         byproduct_group: Vec::new(),
+        container: None,
         byproducts: Vec::new(),
         id: "test_recipe".to_owned(),
         result: "thing".to_owned(),
@@ -525,6 +526,7 @@ fn a_craft_without_its_tool_does_not_start() {
         batch_rsize: 0,
         made_per_batch: 1,
         byproduct_group: Vec::new(),
+        container: None,
         byproducts: Vec::new(),
     };
     let mut world = World::new();
@@ -592,6 +594,7 @@ fn a_craft_that_needs_a_quality_asks_the_items_that_carry_it() {
         batch_rsize: 0,
         made_per_batch: 1,
         byproduct_group: Vec::new(),
+        container: None,
         byproducts: Vec::new(),
     };
     let rag = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 1);
@@ -697,6 +700,7 @@ fn a_tool_that_burns_charges_has_them_spent_and_a_held_one_does_not() {
         batch_rsize: 0,
         made_per_batch: 1,
         byproduct_group: Vec::new(),
+        container: None,
         byproducts: Vec::new(),
         id: "electrified_rag".to_owned(),
         result: "rag".to_owned(),
@@ -950,5 +954,57 @@ fn a_byproduct_group_is_drawn_between_its_ends() {
     assert!(
         totals.iter().any(|drawn| *drawn < 8),
         "the draws are rolls rather than always the maximum: {totals:?}"
+    );
+}
+
+/// A recipe that names a container makes **the container**, with what it made inside it.
+///
+/// Reference: `create_result` (`recipe.cpp:768-771`): when the recipe is `contained`, the result is wrapped by `item::in_container( container, amount, sealed )` and the
+/// recipe produces **one** thing - the container. The port made the food and lost the can, so 302 batches of the products gate disagreed with the reference.
+#[test]
+fn a_contained_recipe_makes_the_container_with_the_thing_inside() {
+    let mut world = World::new();
+    let crafter = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let names = names_for(&[(1, "rag"), (2, "jar")]);
+    let mut recipe = recipe(100, "rag", 1);
+    recipe.result = "rag".to_owned();
+    recipe.container = Some("jar".to_owned());
+    let rag = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 1);
+    world.entity_mut(rag).remove::<cdda_sim::Position>();
+    world.entity_mut(rag).insert(cdda_sim::creature::Carried(crafter));
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
+    assert_eq!(
+        cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
+        Craft::Started
+    );
+    let made = cdda_sim::crafting::finish_craft(&mut world, crafter, &names);
+    assert_eq!(
+        made.as_deref(),
+        Some("rag"),
+        "the thing that was made is still what the craft says it made"
+    );
+    let jars: Vec<bevy_ecs::entity::Entity> = {
+        let mut query = world.query::<(bevy_ecs::entity::Entity, &cdda_sim::GroundItem)>();
+        query
+            .iter(&world)
+            .filter(|(_, stack)| names.name_of(stack.kind).as_deref() == Some("jar"))
+            .map(|(entity, _)| entity)
+            .collect()
+    };
+    assert_eq!(jars.len(), 1, "one jar came out of it");
+    let Some(&jar) = jars.first() else {
+        unreachable!("the assertion above proves a jar was made");
+    };
+    let inside = cdda_sim::containment::contents_of(&world, jar);
+    assert_eq!(inside.len(), 1, "and the rag is inside it");
+    let held = inside.first().copied();
+    assert_eq!(
+        held.and_then(|item| world.get::<cdda_sim::GroundItem>(item))
+            .and_then(|stack| names.name_of(stack.kind)),
+        Some("rag".to_owned())
+    );
+    assert!(
+        held.is_some_and(|item| world.get::<cdda_sim::Position>(item).is_none()),
+        "what is in the jar is not lying on the floor beside it"
     );
 }

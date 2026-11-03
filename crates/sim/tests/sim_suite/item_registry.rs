@@ -108,6 +108,7 @@ fn a_craft_can_be_finished_without_a_caller_supplying_the_item_table() {
         batch_rsize: 0,
         made_per_batch: 1,
         byproduct_group: Vec::new(),
+        container: None,
         byproducts: Vec::new(),
     };
     recipe.result = "rope".to_owned();
@@ -334,6 +335,7 @@ fn the_turn_loop_finishes_what_it_started() {
         batch_rsize: 0,
         made_per_batch: 1,
         byproduct_group: Vec::new(),
+        container: None,
         byproducts: Vec::new(),
     };
     cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);

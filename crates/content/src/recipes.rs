@@ -76,6 +76,12 @@ pub struct Recipe {
     /// form** (`byproducts` naming an item group) is not read here, because picking from a group needs the item-group store at craft time; the loader keeps only the
     /// pair form and a recipe whose byproducts are a group keeps none.
     pub byproducts: Vec<(String, i32)>,
+    /// The container the result is made **in**, when the recipe names one.
+    ///
+    /// Reference: `contained` and `container` (`recipe.cpp:236-239`): `assign( jo, "contained", ... )`, `assign( jo, "container", ... )`, and `contained |=` the
+    /// container being non-empty. `create_result` then returns **one item** - the container with the result inside it (`recipe.cpp:768-771`) - which is why a canning
+    /// recipe's product is the can rather than what went into it.
+    pub container: Option<String>,
     /// Byproducts that are an **inline item group**: each entry is an item and the two ends of the count to draw between.
     ///
     /// Reference: `byproduct_group` (`recipe.cpp:380-386`), loaded through `item_group::load_item_group` and turned into items by `create_byproducts`
@@ -284,6 +290,22 @@ pub fn from_dump(value: &Value) -> Option<(Vec<Recipe>, usize)> {
                     })
                     .collect(),
                 _ => Vec::new(),
+            },
+            // The dump answers the question the members cannot: **which item the rule produces**, which is the result for an ordinary recipe and the container for a
+            // `contained` one (`create_result`, `recipe.cpp:768-771`). The game's own JSON names the container directly, so both shapes are read here.
+            container: {
+                let dump = match member(object, "made_item") {
+                    Some(Value::Str(id)) if object.get("result") != Some(&Value::Str(id.clone())) => Some(id.clone()),
+                    _ => None,
+                };
+                dump.or_else(|| {
+                    let named = match member(object, "container") {
+                        Some(Value::Str(id)) if !id.is_empty() => Some(id.clone()),
+                        _ => None,
+                    };
+                    let contained = matches!(member(object, "contained"), Some(Value::Bool(true)));
+                    if contained { named } else { None }
+                })
             },
             byproduct_group: groups_of(object),
             // The dump states the product; the game's own JSON states the factors separately, and the product is what the rule uses.

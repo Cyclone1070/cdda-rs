@@ -22,6 +22,7 @@ fn recipe(components: Vec<Vec<Component>>) -> Recipe {
             batch_rsize: 0,
             made_per_batch: 1,
             byproduct_group: Vec::new(),
+            container: None,
             byproducts: Vec::new(),
     }
 }
