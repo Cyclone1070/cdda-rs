@@ -82,6 +82,24 @@ pub enum Step {
         /// How many.
         count: i32,
     },
+    /// Throws what the survivor carries at a square.
+    Throw {
+        /// The item's id, as the data spells it.
+        item: String,
+        /// The square's x.
+        x: i32,
+        /// The square's y.
+        y: i32,
+    },
+    /// An item of this kind lies on exactly this square.
+    ExpectItemAt {
+        /// The item's id, as the data spells it.
+        item: String,
+        /// The square's x.
+        x: i32,
+        /// The square's y.
+        y: i32,
+    },
     /// Make a recipe, running up to this many turns for it.
     Craft {
         /// The recipe's id, as the data spells it.
@@ -174,6 +192,16 @@ pub fn parse(text: &str) -> Result<Vec<Step>, String> {
             ["give", item, count] => Step::Give {
                 item: (*item).to_owned(),
                 count: number_of(count, number, "count")?,
+            },
+            ["throw", item, "at", x, y] => Step::Throw {
+                item: (*item).to_owned(),
+                x: number_of(x, number, "x")?,
+                y: number_of(y, number, "y")?,
+            },
+            ["expect", "item", item, "at", x, y] => Step::ExpectItemAt {
+                item: (*item).to_owned(),
+                x: number_of(x, number, "x")?,
+                y: number_of(y, number, "y")?,
             },
             ["craft", recipe, turns] => Step::Craft {
                 recipe: (*recipe).to_owned(),
@@ -324,6 +352,8 @@ fn take_item_step(world: &mut World, step: &Step, outcome: &mut Outcome) -> bool
                         .insert(cdda_sim::creature::Carried(survivor));
                 }
             }
+        Step::Throw { item, x, y } => throw_a_step(world, outcome, item, *x, *y),
+        Step::ExpectItemAt { item, x, y } => expect_one_on(world, outcome, item, *x, *y),
         Step::Craft { recipe, turns } => {
                 let Some(survivor) = survivor(world) else {
                     outcome.failures.push("there is no survivor".to_owned());
@@ -650,6 +680,88 @@ fn ground_of(world: &mut World, name: &str, names: &cdda_sim::item_registry::Ite
         .filter(|(_, item)| item.kind == wanted)
         .map(|(_, item)| item.charges.max(1))
         .sum()
+}
+
+/// Plays one `throw` step: hands what the survivor carries to the throwing rules and reports where it stopped.
+fn throw_a_step(
+    world: &mut World,
+    outcome: &mut Outcome,
+    item: &str,
+    x: i32,
+    y: i32,
+) {
+    let Some(survivor) = survivor(world) else {
+        outcome.failures.push("there is no survivor".to_owned());
+        return;
+    };
+    let names = cdda_sim::item_registry::snapshot(world);
+    let Some(held) = carried_item_of(world, survivor, item, &names) else {
+        outcome
+            .failures
+            .push(format!("nothing called {item} is in hand to throw"));
+        return;
+    };
+    match cdda_sim::throwing::throw_at(world, survivor, held, (x, y, 0)) {
+        cdda_sim::throwing::Toss::Landed { at, missed_by } => outcome.lines.push(format!(
+            "throw: {item} landed at ({}, {}, {}) missing by {missed_by:.2}",
+            at.0, at.1, at.2
+        )),
+        other => outcome
+            .failures
+            .push(format!("the throw of {item} did not happen: {other:?}")),
+    }
+}
+
+/// Plays one `expect item ... at` step: exactly one of that item must lie on that square.
+fn expect_one_on(world: &mut World, outcome: &mut Outcome, item: &str, x: i32, y: i32) {
+    let names = cdda_sim::item_registry::snapshot(world);
+    let here = lying_at(world, x, y, item, &names);
+    if here != 1 {
+        outcome
+            .failures
+            .push(format!("expected one {item} on ({x}, {y}), found {here}"));
+    }
+}
+
+/// How many of an item lie on exactly this square.
+///
+/// A thrown item is found by the square it stopped on, which is what `expect item <name> at <x> <y>` reads: a port that moved the item somewhere plausible but not where
+/// the rule said would pass a "is it on the floor" check and fail this one.
+fn lying_at(
+    world: &mut World,
+    x: i32,
+    y: i32,
+    name: &str,
+    names: &cdda_sim::item_registry::ItemNames,
+) -> i32 {
+    let Some(wanted) = names.id_of(name) else {
+        return 0;
+    };
+    let mut query = world.query::<(&cdda_sim::Position, &cdda_sim::GroundItem)>();
+    query
+        .iter(world)
+        .filter(|(place, item)| item.kind == wanted && place.x == x && place.y == y)
+        .map(|(_, item)| item.charges.max(1))
+        .sum()
+}
+
+/// The one item of this kind the survivor is holding, if it is holding one.
+fn carried_item_of(
+    world: &mut World,
+    survivor: bevy_ecs::entity::Entity,
+    name: &str,
+    names: &cdda_sim::item_registry::ItemNames,
+) -> Option<bevy_ecs::entity::Entity> {
+    let wanted = names.id_of(name)?;
+    let mut query = world.query::<(
+        bevy_ecs::entity::Entity,
+        &cdda_sim::creature::Carried,
+        &cdda_sim::GroundItem,
+    )>();
+    query
+        .iter(world)
+        .find(|(_, who, item)| who.0 == survivor && item.kind == wanted)
+        .map(|(entity, _, _)| entity)
 }
 
 /// Puts a garment on the avatar, so the armour rules have something to work on.
@@ -1149,6 +1261,41 @@ mod field_data_tests {
                 "and back again for {name}"
             );
         }
+    }
+
+    #[allow(clippy::expect_used)]
+    /// The `throw` step hands the item to the rules and the `expect item ... at` step reads the square back.
+    ///
+    /// Reference: the same chain the scenario plays - `Character::throw_item` (`ranged.cpp:1467-1600`) through `projectile_attack_roll` (`ballistics.cpp:204-231`) to the
+    /// miss branch of `projectile_attack` (`ballistics.cpp:314-352`). The world here is bare, so there is no item data: the test only proves the **steps** parse and that a
+    /// throw with nothing in hand is a failure with a sentence, not a panic.
+    #[test]
+    fn a_throw_with_nothing_in_hand_says_so() {
+        let outcome = crate::run("world 4 bare\nsurvivor 0 0\nthrow rock at 3 0\n").expect("the scenario parses");
+        assert!(
+            outcome
+                .failures
+                .iter()
+                .any(|line| line.contains("nothing called rock is in hand")),
+            "a throw with no item is a sentence: {:?}",
+            outcome.failures
+        );
+    }
+
+    /// An expectation about a square with nothing on it fails, and says what it found.
+    #[allow(clippy::expect_used)]
+    #[test]
+    fn expecting_an_item_on_an_empty_square_fails() {
+        let outcome =
+            crate::run("world 4 bare\nsurvivor 0 0\nexpect item rock at 2 2\n").expect("the scenario parses");
+        assert!(
+            outcome
+                .failures
+                .iter()
+                .any(|line| line.contains("expected one rock on (2, 2), found 0")),
+            "the square is named in the failure: {:?}",
+            outcome.failures
+        );
     }
 
     /// A turn moves the world's clock, which is what every gated stage reads.

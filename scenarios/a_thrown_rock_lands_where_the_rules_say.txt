@@ -1,0 +1,16 @@
+# A rock leaves the hand and lands where the spread rules put it.
+#
+# Reference: `Character::throw_item` (`ranged.cpp:1467-1600`) builds the spread from what is thrown and who throws it, rolls it through `projectile_attack_roll`
+# (`ballistics.cpp:204-231`), and the miss branch of `projectile_attack` (`ballistics.cpp:314-352`) turns the roll into a square. A 500 g rock ten litres under the arm's
+# limit, at skill zero, spreads 2500 arcminutes - past the thirty-degree cap - so the throw turns a full thirty degrees and walks the range by the square root of its miss.
+#
+# The square is pinned because the seed is: five squares out, the rules put this rock on (6, 3). A port that ignored the cap would land further off; one that forgot to add
+# the spread would leave it on the aim; one that rounded each axis differently would land a square over.
+world 8 bare
+survivor 0 0
+items
+seed 1234
+give rock 1
+throw rock at 5 0
+expect carried rock 0
+expect item rock at 6 3

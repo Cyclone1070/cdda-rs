@@ -11315,3 +11315,25 @@ seed nobody chose.
 
 **What the port does not carry yet, named:** the reference's throw also computes damage, glass shattering, `burst_when_filled`, noise, and whether a monster is tangled. Those
 are rules of **what happens on landing**, and they belong to the square's own systems, not to the throw.
+
+## A throw a scenario can play (round 1068)
+
+The ranged half now has an **action a playtest can drive**, which is what makes it a ported rule rather than a ported formula.
+
+| Piece | Where |
+|---|---|
+`throw <item> at <x> <y>` | a scenario step: hands what the survivor carries to `throw_at` and prints where it stopped |
+`expect item <item> at <x> <y>` | a scenario step: exactly one of that item on **that** square - a port that moved it somewhere plausible passes "is it on the floor" and fails this |
+`carried_item_of` / `lying_at` | the two lookups behind those steps |
+Gate | `scenarios/a_thrown_rock_lands_where_the_rules_say.txt` - pinned to **(6, 3)** at seed 1234 - plus two CLI tests for the steps' refusals |
+
+**The scenario is the strongest gate in the round because it is the only one that runs the whole chain from the data**: `items` loads the real 9,912 kinds, the rock's 500 g and
+250 ml come from that table, the spread comes from the throwing rules, the cap and the walk come from the ballistics rules, and the assertion is on a square. **A break anywhere
+in the chain moves the square.**
+
+**Why this landed at (6, 3), written down so the number is not a magic constant:** a 500 g rock spreads **2500** arcminutes - past the **thirty-degree** cap - so the throw turns
+a full thirty degrees, `missed_by_tiles` is 3.81, the walk's reach is `min(range, sqrt(3.81)) = 1`, and the range drawn is 6. Six squares at thirty degrees is
+`(6·cos 30°, 6·sin 30°) = (5.196, 3)`, and `roll_remainder` rounds each axis to **(6, 3)**.
+
+**The two CLI tests assert the refusals rather than the happy path**, because the happy path is the scenario's job and the refusals are the part a user meets: a throw with
+nothing in hand says **which** item is missing rather than panicking, and an expectation on an empty square **names the square**.
