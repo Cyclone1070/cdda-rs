@@ -702,9 +702,15 @@ fn throw_a_step(
         return;
     };
     match cdda_sim::throwing::throw_at(world, survivor, held, (x, y, 0)) {
-        cdda_sim::throwing::Toss::Landed { at, missed_by } => outcome.lines.push(format!(
-            "throw: {item} landed at ({}, {}, {}) missing by {missed_by:.2}",
-            at.0, at.1, at.2
+        cdda_sim::throwing::Toss::Landed { at, missed_by, hit } => outcome.lines.push(format!(
+            "throw: {item} landed at ({}, {}, {}) missing by {missed_by:.2}{}",
+            at.0,
+            at.1,
+            at.2,
+            match hit {
+                Some((_, hurt)) => format!(" and did {hurt} damage"),
+                None => String::new(),
+            }
         )),
         other => outcome
             .failures

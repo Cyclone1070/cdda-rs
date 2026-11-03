@@ -6,7 +6,7 @@
 
 use bevy_ecs::prelude::*;
 
-use crate::dispersion::{Dispersion, Throw, throwing_dispersion};
+use crate::dispersion::{Dispersion, MAX_SKILL, Throw, throwing_dispersion};
 
 /// What came of a throw.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -17,6 +17,8 @@ pub enum Toss {
         at: (i32, i32, i32),
         /// How badly the throw missed, as a fraction of the target.
         missed_by: f64,
+        /// What it hit, and for how much, when something was standing where it landed.
+        hit: Option<(Entity, i32)>,
     },
     /// The thrower is not in the world, so there is nowhere to throw from.
     NoBody,
@@ -110,8 +112,46 @@ pub fn throw_at(world: &mut World, thrower: Entity, item: Entity, target: (i32, 
             y: at.1,
             z: at.2,
         });
+    // Reference: `impact.add_damage( damage_bash, std::min( weight / 100_gram, thrown_item_adjusted_damage( thrown ) ) )` (`ranged.cpp:1505-1506`), then
+    // `deal_projectile_attack` against whatever the projectile reached. The port resolves the blow through the creature's hit points, which is where a thrown rock's damage
+    // goes; **armour, body parts and weakpoints are the P4 half that is not written yet**, and a target with no hit points takes nothing rather than being invented.
+    let blow = damage_of_throw(arm_strength, crate::skills_of::level_of(world, thrower, "throw"), names.weight_of(kind));
+    #[allow(clippy::cast_possible_truncation)]
+    let hurt = blow.floor() as i32;
+    let hit = crate::creature::creature_at(world, at)
+        .into_iter()
+        .find(|standing| *standing != thrower && crate::creature::health_of(world, *standing).is_some())
+        .and_then(|struck| {
+            let before = crate::creature::health_of(world, struck)?;
+            let fatal = crate::damage_monster(world, struck, hurt);
+            let after = if fatal {
+                // A killed creature has no hit points left to read, so the blow it took is the damage itself.
+                before - hurt
+            } else {
+                crate::creature::health_of(world, struck).unwrap_or(before)
+            };
+            Some((struck, (before - after).max(0)))
+        });
     Toss::Landed {
         at,
         missed_by: aim.missed_by,
+        hit,
     }
+}
+
+/// What a thrown thing is worth as a blow, in points of damage.
+///
+/// Reference: `Character::thrown_item_adjusted_damage` (`src/ranged.cpp:1411-1428`): `arm_strength / 2` times `(min(10, skill) / 10) * 0.85 + 0.15`, and the whole thing is
+/// capped by the thing's own weight at **a point a hundred grams**. The reference's comment states the cap in words - "up to str/2 or weight/100g (lower), so 10 str is 5
+/// damage before multipliers" - and this function reproduces both halves, so a strong arm cannot make a pebble hit like a brick.
+#[must_use]
+pub fn damage_of_throw(arm_strength: i32, skill: i32, weight_g: i64) -> f64 {
+    // Reference: `stats_mod *= ( std::min( MAX_SKILL, skill ) / MAX_SKILL ) * 0.85 + 0.15` - a novice still gets a seventh of the arm, which is why an unskilled throw is
+    // weak rather than nothing.
+    let practised = (f64::from(skill).min(MAX_SKILL) / MAX_SKILL) * 0.85 + 0.15;
+    let from_the_arm = f64::from(arm_strength) / 2.0 * practised;
+    // Reference: `std::min( weight / 100.0_gram, ... )` - the weight is in grams here and the divisor in hundreds of them.
+    #[allow(clippy::cast_precision_loss)]
+    let from_the_weight = weight_g as f64 / 100.0;
+    from_the_arm.min(from_the_weight)
 }

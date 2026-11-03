@@ -94,3 +94,76 @@ fn a_thing_nobody_is_holding_cannot_be_thrown() {
         "and the port says so rather than throwing something that is on the floor"
     );
 }
+
+/// What a thrown thing is worth as a blow: the arm's strength, thinned by inexperience, and capped by the thing's own weight.
+///
+/// Reference: `Character::thrown_item_adjusted_damage` (`ranged.cpp:1411-1428`): `arm_strength / 2` times `(skill / 10) * 0.85 + 0.15`, and the reference's own comment says
+/// what the cap is - "up to str/2 or weight/100g (lower), so 10 str is 5 damage before multipliers". At skill zero the multiplier is 0.15, so a novice with eight arms
+/// throws for 0.6 however heavy the rock; at full skill it is the whole 4.0.
+#[test]
+fn a_thrown_thing_s_damage_is_the_arm_thinned_by_inexperience_and_capped_by_weight() {
+    use cdda_sim::throwing::damage_of_throw;
+
+    assert!(
+        (damage_of_throw(8, 0, 500) - 0.6).abs() < 1e-9,
+        "a novice's arm gives a fifth of itself: {}",
+        damage_of_throw(8, 0, 500)
+    );
+    assert!(
+        (damage_of_throw(8, 10, 500) - 4.0).abs() < 1e-9,
+        "and a practised one gives all of it: {}",
+        damage_of_throw(8, 10, 500)
+    );
+    // Ten strength is five damage at full skill, which is the number the reference's comment names.
+    assert!(
+        (damage_of_throw(10, 10, 100_000) - 5.0).abs() < 1e-9,
+        "ten strength is five damage before the weight cap: {}",
+        damage_of_throw(10, 10, 100_000)
+    );
+    // And the weight caps it: 100 g is worth one point, so a 300 g pebble cannot do more than three however strong the arm.
+    assert!(
+        (damage_of_throw(20, 10, 300) - 3.0).abs() < 1e-9,
+        "a light thing cannot carry a heavy arm's blow: {}",
+        damage_of_throw(20, 10, 300)
+    );
+}
+
+/// A rock thrown at a creature hurts it, and the hurt is the same number the rule names.
+///
+/// The landing square is read from a first throw and the monster is put **there**, because the aim rules spread a novice's throw and a monster standing on the aim is not the
+/// same as a monster standing where the rock went. Skill ten makes the blow four points rather than a novice's 0.6, which a whole-number blow can actually show.
+#[test]
+fn a_rock_that_lands_on_a_creature_hurts_it() {
+    let mut world = World::new();
+    let (thrower, rock) = a_thrower_with_a_rock(&mut world);
+    cdda_sim::skills_of::set_level(&mut world, thrower, "throw", 10);
+    let cdda_sim::throwing::Toss::Landed { at: first, .. } =
+        cdda_sim::throwing::throw_at(&mut world, thrower, rock, (10, 0, 0))
+    else {
+        panic!("the rock is thrown");
+    };
+
+    // A fresh world with the same seed and the same throw, and a creature standing where the first rock landed.
+    let mut world = World::new();
+    let (thrower, rock) = a_thrower_with_a_rock(&mut world);
+    cdda_sim::skills_of::set_level(&mut world, thrower, "throw", 10);
+    let target = cdda_sim::creature::spawn_creature(&mut world, "the target", first);
+    world
+        .entity_mut(target)
+        .insert(cdda_sim::creature::Health { hp: 100, max_hp: 100 });
+    let landed = cdda_sim::throwing::throw_at(&mut world, thrower, rock, (10, 0, 0));
+    let cdda_sim::throwing::Toss::Landed { at, hit, .. } = landed else {
+        panic!("the rock is thrown: {landed:?}");
+    };
+    assert_eq!(at, first, "the same seed lands the same rock on the same square");
+    assert_eq!(
+        hit,
+        Some((target, 4)),
+        "a full-skill arm throws four points of hurt"
+    );
+    assert_eq!(
+        cdda_sim::creature::health_of(&world, target),
+        Some(96),
+        "and the creature is down by exactly that much"
+    );
+}

@@ -462,6 +462,6 @@ shooter's numbers, and a target square. **Round 1067 wrote the caller**: `crates
 which matters for what it hits, not for where it stops.
 
 **Round 1068 wired the throw into the playtest harness**: the scenario steps `throw <item> at <x> <y>` and `expect item <item> at <x> <y>`
-(`crates/cli/src/lib.rs`), and `scenarios/a_thrown_rock_lands_where_the_rules_say.txt` plays the whole chain from the real item table to a pinned square. **The next ranged
-rule with a caller waiting is what happens on landing**: the reference's `throw_item` impact (`ranged.cpp:1500-1560`) - bash damage from weight, glass shattering,
+(`crates/cli/src/lib.rs`), and `scenarios/a_thrown_rock_lands_where_the_rules_say.txt` plays the whole chain from the real item table to a pinned square. **Round 1069 wrote what happens on landing**: `throwing::damage_of_throw` (`thrown_item_adjusted_damage`, `ranged.cpp:1411-1428`) and the blow itself, resolved through
+`damage_monster` at the square the rock stopped on. **The next ranged rule with a caller waiting**: the reference's `throw_item` impact (`ranged.cpp:1500-1560`) - bash damage from weight, glass shattering,
 `burst_when_filled`, `HEAVY_HIT` noise, and `TANGLE` for a net - which needs the damage rules from P4's weakpoint half and the noise store the port already has.

@@ -11337,3 +11337,26 @@ a full thirty degrees, `missed_by_tiles` is 3.81, the walk's reach is `min(range
 
 **The two CLI tests assert the refusals rather than the happy path**, because the happy path is the scenario's job and the refusals are the part a user meets: a throw with
 nothing in hand says **which** item is missing rather than panicking, and an expectation on an empty square **names the square**.
+
+## What a thrown thing is worth as a blow (round 1069)
+
+The landing is no longer just a square: something standing there takes the blow.
+
+| Piece | Where |
+|---|---|
+`damage_of_throw(arm_strength, skill, weight_g)` | `Character::thrown_item_adjusted_damage` (`ranged.cpp:1411-1428`) |
+the arm's half | `arm_strength / 2`, thinned by `(skill / 10) * 0.85 + 0.15` - **a novice keeps a seventh of the arm, which is why an unskilled throw is weak rather than nothing** |
+the weight's cap | `min(arm, weight / 100 g)` - the reference's own comment: *"up to str/2 or weight/100g (lower), so 10 str is 5 damage before multipliers"* |
+the hit | whoever stands on the landing square, resolved through `damage_monster` - hit points down by the blow's **floor** |
+Gates | `a_thrown_thing_s_damage_is_the_arm_thinned_by_inexperience_and_capped_by_weight`, `a_rock_that_lands_on_a_creature_hurts_it` |
+
+**The gate that matters is the one that puts the monster where the rock actually goes.** A novice's throw at ten squares lands on (6, 3) rather than on the aim, so a test that
+put a monster on the aim and asserted a hit would pass with the aiming rules **deleted**. The test throws first, reads the square, and puts the monster **there** - and then
+asserts the blow is exactly 4, which is `(10 / 2) * 1.0` with skill ten.
+
+**A novice's rock does nothing, and that is the rule rather than a bug.** 8 strength at skill zero gives `4 * 0.15 = 0.6`, floored to **0** whole points. The reference would
+still do damage from `base_damage_thrown()`, the item table's own bash value, which the port has not loaded - so the port's thrown blow is **only** the arm and the weight, and
+that limitation is stated rather than papered over with a fudge.
+
+**Not carried, and named:** armour, body parts and weakpoints (P4's other half), `base_damage_thrown` from the item table, glass shattering, `burst_when_filled`, the
+`HEAVY_HIT` thud and `TANGLE`. Each is a rule with a square to hang on, which the port now has.
