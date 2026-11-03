@@ -434,3 +434,14 @@ moment are **not** in:
 2. **eating what is on the floor or in a container** - the port's `eat` takes the facts of a bite, not a location, so nothing yet counts charges off a stack.
 
 Both wait on the same thing: an **item entity that a dialogue or an action can name**, which is also what `u_run_inv_eocs` and `transform_item` need.
+
+### A rule waiting for its caller: dispersion (round 1064)
+
+`crates/sim/src/dispersion.rs` holds two rules from P4's ranged half - the **sum of sources with the total capped** (`dispersion_sources::roll`/`max`, `dispersion.cpp:8-42`) and
+**the skill curve** (`dispersion_from_skill`, `ranged.cpp:2477-2497`). Both are gated, and **neither has a caller yet**: the port has no ranged attack path, so nothing
+draws a shot's spread. They are **kept as rules waiting**, which is the ledger's own category, and named here so the next round that starts P4's ranged half begins at
+`Character::get_weapon_dispersion` (`ranged.cpp:2500-2560`) - the rule that **composes** these two out of a weapon, a shooter and an aiming mode, and therefore the one that
+needs the gun table.
+
+What that next round needs, in order: an item's `gun_dispersion` and `gun_skill` (item data), the recoil table (`Character::recoil_total`), and the option
+`GUN_DISPERSION_DIVIDER`, which the port reads from its option table.

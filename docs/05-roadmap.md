@@ -880,7 +880,10 @@ into the body update.** **The cache began at 1037:** mutation enchantment values
 enchantment cache. That cache is P5's first component and closes three declared gaps at once (`digest.rs:123`, `needs.rs:126`, `body.rs:334`), so **it comes next, ahead of the
 stat half of mutations.**
 
-**Not started:** disease, ranged weapons and projectiles with dispersion, martial arts, weakpoints.
+**Not started:** disease, martial arts, weakpoints. **Ranged began at round 1064:** the two rules every shot goes through are ported and gated - the sum of spread
+sources with the total capped at a full circle (`dispersion.rs`, from `dispersion.cpp:8-42`) and the skill curve (`dispersion_from_skill`, `ranged.cpp:2477-2497`). **Neither
+has a caller yet**, which `docs/13-test-inventory.md` names as a rule waiting; the next ranged round starts at `Character::get_weapon_dispersion` (`ranged.cpp:2500-2560`),
+which composes them from a weapon's own dispersion, its skill and the aiming mode - and needs the gun table the port does not have.
 
 ### P5 — Spells and enchantments (10 files, 9,444 LOC)
 

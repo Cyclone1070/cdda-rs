@@ -11215,3 +11215,27 @@ leaves unreadable | 38 | **32** |
 effects runnable | 1,579 | **1,580** |
 effect-blamed refusals | 89 | **88** |
 one-gap programs | 14 | **—** (the group dissolved as the leaves fell) |
+
+## A shot's spread, and the skill that widens it (round 1064)
+
+P4's ranged half began where the reference's own arithmetic is smallest: `dispersion_sources` is forty-two lines and it is **the rule every shot goes through**.
+
+| Piece | Where |
+|---|---|
+`Dispersion { linear, normal, multipliers, spread }` | `dispersion_sources` (`dispersion.cpp:8-42`) |
+`max()` | the two sums, then each multiplier, **then** the spread |
+`roll(dice)` | each linear source a uniform draw from zero, each normal one a normal draw around zero, multipliers last, **spread left out**, capped at **3600** |
+`avg()` | half the maximum, which is what the reference calls the average |
+`from_skill(skill, weapon_dispersion)` | `dispersion_from_skill` (`ranged.cpp:2477-2497`) - **lack of mastery multiplies the weapon's own dispersion** |
+Gates | `the_total_is_the_sources_then_the_multipliers_then_the_spread`, `a_roll_leaves_the_spread_out_and_stops_at_a_full_circle`, `a_doubling_multiplier_doubles_the_draw`, `skill_becomes_dispersion_on_the_reference_s_curve` |
+
+**The asymmetry is the rule.** The data's `spread` is counted in `max()` and **not** in `roll()` - so a shot's worst case includes it and a drawn shot does not. A port
+that added it to both would roll wider than the reference **on every shot**, and nothing would look broken: a shot that misses a little more often is invisible without a
+recorded draw.
+
+**Two gates for one rule, and both had to exist.** The arithmetic gate (`max`) and the reach gate (`roll`) fail on different bugs: a `max` that forgot the multiplier order
+still rolls correctly, and a `roll` that added the spread still has the right maximum.
+
+**The curve is ported and has no caller yet, which is written down rather than implied.** `docs/13-test-inventory.md` names it as a rule **waiting for its caller**: the next
+ranged round starts at `Character::get_weapon_dispersion` (`ranged.cpp:2500-2560`), which composes these two from a weapon's own dispersion, the shooter's skill and the
+aiming mode - and that one needs the gun table, which the port does not have.

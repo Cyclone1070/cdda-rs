@@ -77,6 +77,7 @@ mod melee_rolls;
 mod death;
 mod degradation;
 mod digest;
+mod dispersion;
 mod eating;
 mod effect_activated;
 mod effect_chances;
