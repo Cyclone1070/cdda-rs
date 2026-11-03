@@ -10418,3 +10418,24 @@ telling me the scale of the thing**, which is what a reach test is for when the 
 
 **The rates are a component now (`NeedsRatesOf`), not a hand-in.** The reference holds `needs_rates` on the character for the same reason: the clock is a question about
 **one body**, and a port that handed the numbers in from the stage would have to ask every creature's body questions twice.
+
+## The clock runs both ways (round 1031)
+
+The sleepiness clock had one direction. This round ports the other:
+
+| Rule | Gate |
+|---|---|
+`recovery_rate` = one plus `1 / ( 24 - intensity + 1 )` - deeper sleep recovers faster | `sleep_takes_sleepiness_away_and_wakes_a_creature_that_has_had_enough` |
+`recovered = roll_remainder( rate * five_mins )`, taken off; below **minus twenty** the creature is **woken** and loses twenty-five | the same test |
+a creature that is asleep recovers and **never climbs** | the stage's `Asleep` branch, exercised through `run_turn` by the earlier clock test |
+
+**Sleeping has no effect in the port yet, so `Asleep` is a marker.** The reference asks `get_effect( effect_sleep )`; the port has no effect named `sleep` on the creature,
+so the state is a component the sleeping activity will insert - **and until that activity exists, it is a component nothing inserts**, which is the exact shape of the
+`Pain` bug two rounds ago. **It is inserted by the test, named in the ledger, and the sleeping activity is the caller that will give it a producer.**
+
+**The arithmetic again disagreed with my expectation, and again the arithmetic was right.** I asserted the waking creature lands on `-40`; it landed on `-42`, because the
+test's own loop had already taken it below zero before the wake was forced. **The reference takes twenty-five from wherever the creature stands, not from zero**, and the
+test now says so.
+
+**Still not ported, named:** the comfort modifier (bed, ground, bionics), the `melatonin` effect's flat bonus, the cold-body-part penalty, and the `rest_modifier` that
+drives **sleep deprivation** rather than sleepiness.

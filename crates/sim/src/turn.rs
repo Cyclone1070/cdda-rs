@@ -182,6 +182,12 @@ fn needs_stage(world: &mut World) {
     }
     let mut rolls = singletons::take_rolls(world).unwrap_or_else(|| cdda_core_types::rng::Rolls::new(0));
     for (creature, rates) in creatures {
+        // Reference: `update_needs` runs one clock in two directions - a waking creature gets sleepless, a sleeping one recovers - and never both at once.
+        if world.get::<crate::needs::Asleep>(creature).is_some() {
+            let recovery = crate::needs::recovery_rate(0);
+            let _ = crate::needs::sleep_off(world, creature, recovery, 5, &mut rolls);
+            continue;
+        }
         crate::needs::climb_sleepiness(world, creature, rates, 5, true, false, &mut rolls);
     }
     singletons::put_rolls(world, rolls);

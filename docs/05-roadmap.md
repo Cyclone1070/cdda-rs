@@ -854,7 +854,8 @@ completes it and keeps the trait). **Not yet:** thresholds, and stat modifiers -
 **Focus (P3 leftover) at round 1028:** pain now reaches `calc_focus_equilibrium` through the minute stage, and the stage's calendar gate is exercised by a test that
 would fail if the wiring went away. **Sleepiness at 1029:** the value is stored (`needs::Sleepiness`, clamped to `[-1000, 1050]`), the ceiling
 (`focus_equilibrium_sleepiness_cap`) is ported and wired into the minute stage. **The clock landed at 1030:** `needs_stage` on the schedule every five minutes, `roll_remainder( rates.sleepiness * five_mins )`, awake and capped, with the rates kept
-on the creature (`NeedsRatesOf`). **Still not ported:** the reading penalty, and the sleeping path that *lowers* sleepiness.
+on the creature (`NeedsRatesOf`). **The sleeping side at 1031:** `recovery_rate`, `sleep_off` and an `Asleep` marker - a sleeping creature recovers instead of climbing, and wakes when it would fall below
+minus twenty. **Still not ported:** the reading penalty, and the comfort/temperature modifiers that scale recovery.
 
 **Not started:** disease, ranged weapons and projectiles with dispersion, martial arts, weakpoints.
 

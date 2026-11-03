@@ -193,3 +193,55 @@ pub fn climb_sleepiness(
     let climb = crate::roll_remainder(f64::from(rates.sleepiness * span), rolls);
     mod_sleepiness(world, creature, climb);
 }
+
+/// Whether a creature is asleep, which is the state the sleepiness clock reads in the other direction.
+///
+/// Reference: `Character::update_needs` (`character.cpp:5145`): `asleep` is `!get_effect( effect_sleep ).is_null()`. The port has no effect named "sleep" on the
+/// creature yet, so the state is a marker the sleeping activity will insert - and, until then, a test or a playtest can.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Component)]
+pub struct Asleep;
+
+/// How fast a creature recovers while asleep.
+///
+/// Reference: `Character::calc_sleep_recovery_rate` (`character.cpp:5321-5345`) with the enchantment at its default of one, no cold body parts and no hibernation: the
+/// rate is one, plus an **accelerated** recovery that is faster the deeper the sleep - `1 / ( 24 - intensity + 1 )`, which is a twenty-fourth at no intensity and a
+/// twentieth at intensity four.
+#[must_use]
+pub fn recovery_rate(intensity: i32) -> f32 {
+    #[allow(clippy::cast_precision_loss)]
+    let denom = f64::from(24 - intensity.clamp(0, 23) + 1);
+    #[allow(clippy::cast_possible_truncation)]
+    let bonus = (1.0 / denom) as f32;
+    1.0 + bonus
+}
+
+/// What a span of sleep did to a creature's sleepiness.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Slept {
+    /// It slept on, and this much sleepiness went away.
+    Deeper(i32),
+    /// It has slept enough: the reference wakes it and takes twenty-five.
+    Woke,
+}
+
+/// Takes sleepiness away for a span of sleep.
+///
+/// Reference: `Character::update_needs` (`character.cpp:5181-5193`): `recovered = roll_remainder( rates.recovery * rate_multiplier )`, then either
+/// `mod_sleepiness( -recovered )` or, when that would take the creature below **minus twenty**, the sleep is cut short, the creature wakes, and it loses twenty-five.
+pub fn sleep_off(
+    world: &mut World,
+    creature: Entity,
+    recovery: f32,
+    five_mins: i64,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) -> Slept {
+    #[allow(clippy::cast_precision_loss)]
+    let span = five_mins as f32;
+    let recovered = crate::roll_remainder(f64::from(recovery * span), rolls);
+    if sleepiness_of(world, creature) - recovered < -20 {
+        mod_sleepiness(world, creature, -25);
+        return Slept::Woke;
+    }
+    mod_sleepiness(world, creature, -recovered);
+    Slept::Deeper(recovered)
+}

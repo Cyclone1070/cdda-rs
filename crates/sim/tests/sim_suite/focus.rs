@@ -146,3 +146,57 @@ fn a_sleeping_creature_or_one_with_no_needs_does_not_climb() {
         "and neither does one with no needs at all"
     );
 }
+
+/// A sleeping creature recovers, and it wakes when it has slept enough.
+///
+/// Reference: `Character::update_needs` (`character.cpp:5181-5193`) and `calc_sleep_recovery_rate` (`character.cpp:5321-5345`): the rate is one plus an accelerated
+/// share, and a creature that would fall below minus twenty is woken instead.
+#[test]
+fn sleep_takes_sleepiness_away_and_wakes_a_creature_that_has_had_enough() {
+    use bevy_ecs::prelude::*;
+    assert!(
+        cdda_sim::needs::recovery_rate(0) > 1.0,
+        "sleep recovers faster than it accumulates"
+    );
+    assert!(
+        cdda_sim::needs::recovery_rate(4) > cdda_sim::needs::recovery_rate(0),
+        "and deeper sleep recovers faster still"
+    );
+
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::needs::mod_sleepiness(&mut world, survivor, 400);
+    let mut rolls = cdda_core_types::rng::Rolls::new(5);
+    let mut turns = 0;
+    while cdda_sim::needs::sleepiness_of(&world, survivor) > 0 && turns < 200 {
+        let _ = cdda_sim::needs::sleep_off(
+            &mut world,
+            survivor,
+            cdda_sim::needs::recovery_rate(0),
+            5,
+            &mut rolls,
+        );
+        turns += 1;
+    }
+    assert!(
+        cdda_sim::needs::sleepiness_of(&world, survivor) <= 0,
+        "a night's sleep takes four hundred points away, and it took {turns} spans"
+    );
+
+    // On down past the bottom, the reference wakes the creature and takes twenty-five.
+    cdda_sim::needs::mod_sleepiness(&mut world, survivor, -15);
+    let before = cdda_sim::needs::sleepiness_of(&world, survivor);
+    let outcome = cdda_sim::needs::sleep_off(
+        &mut world,
+        survivor,
+        cdda_sim::needs::recovery_rate(0),
+        5,
+        &mut rolls,
+    );
+    assert_eq!(outcome, cdda_sim::needs::Slept::Woke);
+    assert_eq!(
+        cdda_sim::needs::sleepiness_of(&world, survivor),
+        before - 25,
+        "the waking costs twenty-five from wherever it stood"
+    );
+}
