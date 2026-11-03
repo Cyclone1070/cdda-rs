@@ -1032,6 +1032,13 @@ pub fn spend_a_turn_on(world: &mut World, creature: Entity) -> bool {
             // Reference: `num_practice_ticks` (`activity_actor.cpp:4232-4238`) - a **tick a hundred moves**, so the ticks due are the hundred-move boundaries the work
             // crossed this turn, and `craft_skill_gain` (`crafting.cpp:981-1033`) lays them on. The port counted the whole craft at the end; the count is the same, the
             // moment is not.
+            // Reference: `craft_consume_tools` per fifth-percent step (`activity_actor.cpp:4255-4264`), and **not** on the turn that completes the craft
+            // (`:4250-4253`): that step's share is the start's remainder, spent by the finish.
+            if crossed > 0 && left > 0 {
+                let names = crate::item_registry::snapshot(world);
+                let crossed = i32::try_from(crossed).unwrap_or(0);
+                crate::crafting::spend_craft_charges(world, creature, &making.recipe, making.batch, &names, crossed);
+            }
             if !making.recipe.skill.is_empty() {
                 let ticks = done_now / 100 - done_before / 100;
                 if ticks > 0 {

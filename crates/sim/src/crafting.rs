@@ -94,7 +94,9 @@ pub fn finish_craft(world: &mut World, crafter: Entity, names: &crate::item_regi
     // remainder added on the first call. **The amount is exact here; the moment is not:** the reference divides it into twenty 5% instalments as the craft
     // progresses, and the port's craft is a single timer with no progress hook, so it spends the whole lot when the thing is made. A craft abandoned halfway
     // costs nothing in the port and some charges in the reference, which is recorded in `docs/parity.md` rather than papered over.
-    spend_tool_charges(world, crafter, &making.recipe, making.batch, names);
+    // Reference: the step that completes the craft is not charged (`activity_actor.cpp:4250-4253`), so the last twentieth is owed here - which is exactly what the
+    // start's `% 20` remainder was holding.
+    spend_tool_charges(world, crafter, &making.recipe, making.batch, names, ChargeShare::Rest);
     // The craft's **practice** and its **proficiencies** are both laid on by the turn hook (`crate::creature::spend_a_turn_on`), which is the reference's own timing
     // (`activity_actor.cpp:4232-4245`): a craft that finishes without running its turns - a test that jumps straight to the end - teaches nothing, on purpose.
     // Reference: `create_result` (`recipe.cpp:768-771`) - a `contained` recipe makes **the container**, with the result inside it, so a canned good's product is the can
@@ -156,12 +158,42 @@ pub fn finish_craft_in_store(world: &mut World, crafter: Entity) -> Option<Strin
 ///
 /// Reference: `Character::consume_tools( map&, tool, batch, ... )` (`crafting.cpp:2458-2482`), which spends `tool.count * batch` charges of the chosen stack. A
 /// held tool (`ToolNeed::Held`) is never spent, which is the whole difference between the two encodings.
+/// Which part of a craft's tool charges a spend covers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChargeShare {
+    /// The twentieth taken when the craft starts, plus the remainder that would otherwise be lost.
+    Start,
+    /// One twentieth for each fifth-percent step the turn crossed.
+    Steps(i32),
+    /// Everything still owed: what a finished craft has left, which is what the start's remainder by twenty was for.
+    Rest,
+}
+
+/// Spends the charges for the fifth-percent steps a turn crossed.
+pub fn spend_craft_charges(
+    world: &mut World,
+    crafter: Entity,
+    recipe: &Recipe,
+    batch: i32,
+    names: &crate::item_registry::ItemNames,
+    steps: i32,
+) {
+    spend_tool_charges(world, crafter, recipe, batch, names, ChargeShare::Steps(steps));
+}
+
+/// Spends a share of the tool charges a craft needs.
+///
+/// Reference: `craft_consume_tools` (`crafting.cpp:2362-2381`): `calc_charges` is `charges * batch * multiplier / 20`, and when the craft **starts** the remainder
+/// `( charges * batch ) % 20` is added so nothing is lost. The start's share is one twentieth, every fifth-percent step is one twentieth, and the step that
+/// **completes** the craft is skipped (`activity_actor.cpp:4250-4253`) - so a finished craft has spent exactly `charges * batch`, which the round before this one
+/// spent in one go at the end.
 fn spend_tool_charges(
     world: &mut World,
     crafter: Entity,
     recipe: &Recipe,
     batch: i32,
     names: &crate::item_registry::ItemNames,
+    share: ChargeShare,
 ) {
     let batch = batch.max(1);
     for alternatives in recipe.tool_needs() {
@@ -170,7 +202,12 @@ fn spend_tool_charges(
             let cdda_content::recipes::ToolNeed::Charges(count) = need else {
                 continue;
             };
-            let mut remaining = count.saturating_mul(batch);
+            let whole = count.saturating_mul(batch);
+            let mut remaining = match share {
+                ChargeShare::Start => whole / 20 + whole % 20,
+                ChargeShare::Steps(steps) => whole.saturating_mul(steps.max(0)) / 20,
+                ChargeShare::Rest => whole,
+            };
             if remaining <= 0 {
                 continue;
             }
@@ -368,7 +405,12 @@ pub fn begin_craft_from_carried(
         qualities: &qualities,
         known: &known,
     };
-    begin_craft(world, crafter, recipe, batch, &supplies)
+    let started = begin_craft(world, crafter, recipe, batch, &supplies);
+    if started == Craft::Started {
+        // Reference: `craft_command.cpp:491` spends the start's share **before** any work is done - a twentieth plus the remainder that would otherwise be lost.
+        spend_tool_charges(world, crafter, recipe, batch, names, ChargeShare::Start);
+    }
+    started
 }
 
 /// A craft in progress.

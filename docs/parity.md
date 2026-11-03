@@ -10114,3 +10114,34 @@ started running turns. **A test that jumps to the end of a process can only see 
 `charges * batch * steps / 20`, plus `(charges * batch) % 20` when starting), and skips the step that completes the craft (`activity_actor.cpp:4250-4253`). The port
 still spends the exact total at the finish. **The amount and the moment now differ in the same way the skill's did**, and the next round has both the hook and the
 arithmetic written down.
+
+## The charges are paid as the work goes (round 1016)
+
+The last lump sum in the craft is gone. `craft_consume_tools` (`crafting.cpp:2362-2381`) spends tool charges **a twentieth at a time**:
+
+| When | How much | Why |
+|---|---|---|
+at the start (`craft_command.cpp:491`) | `charges * batch / 20` **plus** `( charges * batch ) % 20` | the remainder is taken up front so no charge is lost to rounding |
+each fifth-percent step | `charges * batch * steps / 20` | the work has been done, so the charge is paid |
+the step that **completes** the craft | **nothing** (`activity_actor.cpp:4250-4253`) | its share is the remainder the start took |
+
+**Those three rules add up to exactly `charges * batch`**, which is the check that the port's same total did not have to change: what changed is the **moment**. A
+hundred-charge craft now spends five when it starts, five at every step, and nothing on the last turn - and the test reads the stack between turns to prove it.
+
+**The turn needed the world's own registry, and the first version of the test had not installed one** - so the spend silently matched no stacks and the craft paid nothing.
+**A system that reads a store has to be given the store**, and the test that catches it is the one that reads the number afterwards rather than the one that checks the
+call happened. That is the third time this sweep that a rule was right and its **input** was empty.
+
+### Where crafting now stands
+
+| Rule | Timing | Gate |
+|---|---|---|
+components, tools, qualities, knowledge | at the start | the recipe's four questions, each with a refusal |
+result count, containers, byproducts | at the finish | 12,582 batches against the reference's own products |
+skill practice | **as the work is done** | driven through `run_turn` |
+proficiencies | **as the work is done** | driven through `run_turn` |
+tool charges | **as the work is done** | driven through `run_turn` |
+focus drift | every minute | driven through `run_turn` |
+
+**No crafting rule is taught at a moment the reference does not teach it.** What is left in P3 is the **failure** path (`get_next_failure_point`, `handle_craft_failure`),
+the workbench multipliers and assistants, and the container eligibility rule for liquids.

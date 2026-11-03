@@ -1017,3 +1017,88 @@ fn a_contained_recipe_makes_the_container_with_the_thing_inside() {
         "what is in the jar is not lying on the floor beside it"
     );
 }
+
+/// Tool charges are spent as the work goes, a twentieth at a time, and a finished craft has spent exactly what it owed.
+///
+/// Reference: `craft_consume_tools` (`crafting.cpp:2362-2381`): the start takes `charges * batch / 20` **plus** the remainder `( charges * batch ) % 20`, every
+/// fifth-percent step takes another twentieth, and the step that completes the craft is skipped (`activity_actor.cpp:4250-4253`) - which is what the start's
+/// remainder was holding. A craft of a hundred charges therefore spends five when it starts, five at every step, and exactly a hundred by the end.
+#[test]
+fn tool_charges_are_spent_a_twentieth_at_a_time() {
+    let mut world = World::new();
+    // The charges are spent by the **turn**, and the turn reads the world's own registry - so the test installs one rather than handing a local table to the rules.
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[
+            cdda_sim::item_registry::Kind {
+                id: "rag",
+                volume_ml: 250,
+                weight_g: 5,
+                pockets: &[],
+            },
+            cdda_sim::item_registry::Kind {
+                id: "hammer",
+                volume_ml: 500,
+                weight_g: 900,
+                pockets: &[],
+            },
+        ],
+    );
+    let crafter = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let names = names_for(&[(1, "rag"), (2, "hammer")]);
+    // Twenty thousand moves is two hundred turns, so a tenth of it is a fifth of the way - the point where two steps have been crossed.
+    let mut many = recipe(20_000, "rag", 1);
+    many.result = "rag".to_owned();
+    many.tools = vec![vec![cdda_content::recipes::Tool {
+        item: "hammer".to_owned(),
+        count: 100,
+    }]];
+    cdda_sim::recipes_known::learn(&mut world, crafter, &many.id);
+    let rag = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 1);
+    world.entity_mut(rag).remove::<cdda_sim::Position>();
+    world.entity_mut(rag).insert(cdda_sim::creature::Carried(crafter));
+    let hammer = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(2), 100);
+    world.entity_mut(hammer).remove::<cdda_sim::Position>();
+    world.entity_mut(hammer).insert(cdda_sim::creature::Carried(crafter));
+
+    let charges_left = |world: &mut World| {
+        let mut query = world.query::<(&cdda_sim::GroundItem, &cdda_sim::creature::Carried)>();
+        query
+            .iter(world)
+            .filter(|(stack, carried)| {
+                carried.0 == crafter && names.name_of(stack.kind).as_deref() == Some("hammer")
+            })
+            .map(|(stack, _)| stack.charges)
+            .sum::<i32>()
+    };
+    assert_eq!(
+        cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &many, 1, &names),
+        Craft::Started
+    );
+    assert_eq!(
+        charges_left(&mut world),
+        95,
+        "starting the craft takes its twentieth before any work is done"
+    );
+
+    // Twenty turns of a hundred moves is a tenth of the work, which is two fifth-percent steps and two twentieths of the charges.
+    for _ in 0..20 {
+        cdda_sim::creature::give_moves(&mut world, crafter, 100);
+        cdda_sim::turn::run_turn(&mut world);
+    }
+    assert_eq!(
+        charges_left(&mut world),
+        85,
+        "two tenths of the work is two twentieths of the charges"
+    );
+
+    for _ in 0..200 {
+        cdda_sim::creature::give_moves(&mut world, crafter, 100);
+        cdda_sim::turn::run_turn(&mut world);
+    }
+    assert_eq!(
+        charges_left(&mut world),
+        0,
+        "the craft has finished and paid for every charge it owed"
+    );
+}
