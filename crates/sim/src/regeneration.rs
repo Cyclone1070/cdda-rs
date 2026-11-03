@@ -12,7 +12,14 @@ use bevy_ecs::prelude::*;
 /// Reference: `monster::regenerate` reads `type->regenerates`, the type's hit points, its flags and its materials **every turn**. The port works the answer out once, when
 /// the creature is placed, and keeps it: the type cannot change under a monster, and a rule that has already been decided does not need deciding again.
 #[derive(Component, Debug, Clone, Copy, PartialEq)]
-pub struct Mending(pub f64);
+pub struct Mending {
+    /// The hit points it mends in an hour.
+    pub per_hour: f64,
+    /// The speed its type gives it, which is what mending restores it towards.
+    pub type_speed: i32,
+    /// The hit points its type gives it, which is the ceiling both mending and speed read.
+    pub type_hp: i32,
+}
 
 /// How many turns an hour is.
 ///
@@ -73,18 +80,48 @@ pub fn mend_over(world: &mut World, per_hour: f64, turns: i32) -> i32 {
 ///
 /// Returns how many hit points were given back in total, which is what a test can count.
 pub fn mend_everyone(world: &mut World) -> i32 {
-    let rates: Vec<(Entity, f64)> = world
+    let rates: Vec<(Entity, Mending)> = world
         .query::<(Entity, &Mending)>()
         .iter(world)
-        .map(|(entity, rate)| (entity, rate.0))
+        .map(|(entity, rate)| (entity, *rate))
         .collect();
     let mut healed = 0;
     for (entity, rate) in rates {
-        let amount = mend_over(world, rate, 1);
-        if amount > 0 {
-            crate::creature::heal(world, entity, amount);
-            healed += amount;
+        let amount = mend_over(world, rate.per_hour, 1);
+        if amount == 0 {
+            continue;
+        }
+        crate::creature::heal(world, entity, amount);
+        healed += amount;
+        // Reference: the same function puts speed back as the body mends (`monster.cpp:4104-4115`), so a monster that was slowed by its wounds walks faster as it heals.
+        let now = crate::creature::health_of(world, entity).unwrap_or(0);
+        let base = world.get::<crate::creature::Speed>(entity).map(|speed| speed.base);
+        if let Some(base) = base
+            && let Some(faster) = speed_back(base, rate.type_speed, amount, rate.type_hp, now)
+            && let Some(mut speed) = world.get_mut::<crate::creature::Speed>(entity)
+        {
+            speed.base = faster;
         }
     }
     healed
+}
+
+/// What a monster's base speed becomes after mending, or nothing when it is already as fast as its type.
+///
+/// Reference: `monster::regenerate` (`monster.cpp:4104-4115`). The reference only touches the speed while it is below the type's own, then either puts it all back when the hit
+/// points are (`hp >= type->hp`) or gives `max( healed * type_speed / type_hp, 1 )`. The **floor of one** is the reference's, and it is what stops a monster that mends a
+/// sliver from standing still for ever.
+#[must_use]
+pub fn speed_back(base: i32, type_speed: i32, healed: i32, type_hp: i32, hp: i32) -> Option<i32> {
+    if base >= type_speed {
+        return None;
+    }
+    if hp >= type_hp {
+        return Some(type_speed);
+    }
+    if type_hp <= 0 {
+        return None;
+    }
+    let delta = (healed * type_speed / type_hp).max(1);
+    Some((base + delta).min(type_speed))
 }

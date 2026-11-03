@@ -11710,3 +11710,23 @@ own hit points and nothing else in the suite would notice.
 
 **`heal` refuses a creature at or below zero, and that is the reference's own shape.** Mending is for the wounded, not the dead: a body that has been reaped is gone before this
 runs, and one that has not yet been reaped does not stand back up because it mends.
+
+## A mended monster walks fast again (round 1085)
+
+`monster::regenerate` does two things, and last round only did the first. The second is speed.
+
+| Piece | Where |
+|---|---|
+`regeneration::speed_back` | `monster.cpp:4104-4115` - all of it when the hit points are back, `max( healed * type_speed / type_hp, 1 )` before that |
+`Mending { per_hour, type_speed, type_hp }` | the component now carries the two numbers the speed rule needs, worked out at the placing |
+`mend_everyone` | heals, then asks `speed_back` and writes the new base speed |
+Gate | `a_monster_gets_its_speed_back_with_its_body` (the arithmetic) **and** `a_slowed_monster_walks_faster_again_as_it_mends` (the wire, through the turn) |
+
+**The floor of one is the whole rule.** A monster mending a sliver of a hit point gets **one point of speed** back a turn rather than a fraction that never arrives - so a badly
+wounded monster limps, and a nearly whole one runs. A port without the floor leaves a slightly wounded monster **standing still for ever**, which reads as a stuck game.
+
+**I got the argument order wrong in my own gate, and the failure was informative.** `speed_back(70, 30, …)` says "base 70, type 30" - the monster is already faster than its type -
+so it answered `None` and the assertion said so plainly. The corrected test writes the arguments' meaning into the message, which is what I should have done first.
+
+**Two gates for one rule, and they catch different mistakes:** the arithmetic gate would pass with the new speed computed and thrown away; the wire gate would pass with a
+formula wrong in a way that happens to give 31 and then 70. Neither alone is enough.

@@ -517,4 +517,6 @@ component a creature carries goes red there rather than quietly printing a quest
 **Round 1083 ported monster mending**: `crates/sim/src/regeneration.rs` holds `mending_per_hour` (`monster.cpp:4094-4103`: stated rate, then `0.02 * hp` for a non-dormant
 reviver, then `0.005 * hp` for flesh/veggy) and `mend_over` (`roll_remainder` of the rate over the turns). The oracle's `--dump-monsters` is now **version 4** with
 `regenerates`: **41 of 1,154** types state one (`mon_mutant_alpha` 1, `mon_shoggoth` 50). **Round 1084 wired it**: `regeneration::Mending(f64)` is worked out once at `spawn_monster_of_type` and `mend_everyone` runs it inside `TurnStage::Creatures` before anyone
-walks, through `creature::heal` (which clamps at the ceiling and refuses a creature at or below zero). The naming gate caught the new component the moment it existed.
+walks, through `creature::heal` (which clamps at the ceiling and refuses a creature at or below zero). The naming gate caught the new component the moment it existed. **Round 1085 finished the
+function**: `speed_back` restores a monster's base speed as it mends (`monster.cpp:4104-4115`), `Mending` now carries the type's speed and hit points, and `mend_everyone` writes the
+result - gated by its own arithmetic **and** by a test that drives the turn and reads the speed afterwards.

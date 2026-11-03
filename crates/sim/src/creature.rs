@@ -1620,7 +1620,11 @@ pub fn spawn_monster_of_type(
     );
     world
         .entity_mut(entity)
-        .insert(crate::regeneration::Mending(rate));
+        .insert(crate::regeneration::Mending {
+            per_hour: rate,
+            type_speed: monster_type.speed,
+            type_hp: monster_type.hp,
+        });
     if let Some(size) = size_named(&monster_type.size)
         && let Some(mut creature) = world.get_mut::<Creature>(entity)
     {

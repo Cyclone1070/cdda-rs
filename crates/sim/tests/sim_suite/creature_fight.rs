@@ -250,12 +250,12 @@ fn a_wounded_monster_mends_as_the_turns_pass_and_never_past_its_ceiling() {
     world
         .entity_mut(hurt)
         .insert(Health { hp: 40, max_hp: 80 })
-        .insert(Mending(3_600.0));
+        .insert(Mending { per_hour: 3_600.0, type_speed: 100, type_hp: 80 });
     let whole = cdda_sim::creature::spawn_creature(&mut world, "the whole one", (2, 2, 0));
     world
         .entity_mut(whole)
         .insert(Health { hp: 80, max_hp: 80 })
-        .insert(Mending(3_600.0));
+        .insert(Mending { per_hour: 3_600.0, type_speed: 100, type_hp: 80 });
 
     cdda_sim::turn::run_turn(&mut world);
     assert_eq!(
@@ -311,10 +311,73 @@ fn a_monster_placed_from_its_type_carries_the_rate_its_body_gives_it() {
 
     let rate = world
         .get::<cdda_sim::regeneration::Mending>(zombie)
-        .map(|mending| mending.0);
+        .map(|mending| mending.per_hour);
     assert!(
         rate.is_some_and(|rate| (rate - 0.02 * f64::from(monster_type.hp)).abs() < 1e-9),
         "a zombie mends at the reviving rate: {rate:?} for {} hit points",
         monster_type.hp
+    );
+}
+
+/// A wounded monster's speed comes back with its body, and a whole one gets all of it.
+///
+/// Reference: `monster::regenerate` (`monster.cpp:4104-4115`): while the monster's base speed is under its type's, mending **restores speed too** - all of it when the hit points
+/// are back, and `max( healed * type_speed / type_hp, 1 )` at a time before that. A monster that only ever regained hit points would walk slowly for the rest of its life.
+#[test]
+fn a_monster_gets_its_speed_back_with_its_body() {
+    use cdda_sim::regeneration::speed_back;
+
+    // The arguments are (base speed, the type's speed, what mending healed, the type's hit points, hit points now).
+    // Everything back at once when the body is whole.
+    assert_eq!(speed_back(30, 70, 70, 80, 80), Some(70), "a whole body walks at its own speed");
+    // And gradually while it is not: ten healed of a type's eighty puts back ten eightieths of seventy, which is eight whole points.
+    assert_eq!(speed_back(30, 70, 10, 80, 40), Some(38), "eight points for ten healed");
+    // A mending that heals nothing still gives a point - the reference's own floor.
+    assert_eq!(speed_back(30, 70, 0, 80, 40), Some(31), "at least one point");
+    // Nothing to restore means nothing changes, so the caller can skip the write.
+    assert_eq!(speed_back(70, 70, 40, 80, 40), None, "already as fast as its type");
+}
+
+/// A slowed monster walks faster again as its body mends, in the turn stage that mends it.
+///
+/// Reference: `monster::regenerate` restores base speed as it heals (`monster.cpp:4104-4115`). This is the **wire**, not the rule: the test drives the turn and reads the speed
+/// afterwards, so a port that computed the new speed and threw it away would fail here.
+#[test]
+fn a_slowed_monster_walks_faster_again_as_it_mends() {
+    use cdda_sim::creature::{Health, Speed};
+    use cdda_sim::regeneration::Mending;
+
+    let mut world = World::new();
+    singletons::put_rolls(&mut world, Rolls::new(3));
+    let mut level = Level::new();
+    for x in 0..4 {
+        for y in 0..4 {
+            level.set_terrain(x, y, 1, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+
+    let hurt = cdda_sim::creature::spawn_creature(&mut world, "the slowed one", (1, 1, 0));
+    world
+        .entity_mut(hurt)
+        .insert(Health { hp: 40, max_hp: 80 })
+        .insert(Speed { base: 30, bonus: 0 })
+        .insert(Mending { per_hour: 3_600.0, type_speed: 70, type_hp: 80 });
+
+    cdda_sim::turn::run_turn(&mut world);
+    assert_eq!(
+        world.get::<Speed>(hurt).map(|speed| speed.base),
+        Some(31),
+        "one healed point of eighty is one eightieth of seventy, which floors at one point"
+    );
+
+    // Forty turns of mending put all of it back, and never more than the type's own speed.
+    for _ in 0..40 {
+        cdda_sim::turn::run_turn(&mut world);
+    }
+    assert_eq!(
+        world.get::<Speed>(hurt).map(|speed| speed.base),
+        Some(70),
+        "and a whole body walks as fast as its type"
     );
 }
