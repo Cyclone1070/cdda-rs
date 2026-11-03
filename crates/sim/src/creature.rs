@@ -1828,9 +1828,6 @@ pub fn take_turns(world: &mut World) {
 /// Returns whether a blow was swung, which is what decides between attacking and walking. The defence comes
 /// from the target's own components - its size, its armour, and the fact that nothing here is immobile.
 fn strike_what_the_goal_holds(world: &mut World, attacker: Entity, goal: (i32, i32, i32)) -> bool {
-    let Some(attack) = world.get::<MeleeAttack>(attacker).copied() else {
-        return false;
-    };
     let Some(place) = world.get::<Position>(attacker).map(|place| (place.x, place.y, place.z))
     else {
         return false;
@@ -1842,9 +1839,18 @@ fn strike_what_the_goal_holds(world: &mut World, attacker: Entity, goal: (i32, i
     let Some(victim) = creature_at(world, goal).first().copied() else {
         return false;
     };
-    let Some(mut rolls) = crate::singletons::take_rolls(world) else {
-        return false;
-    };
+    strike_at(world, attacker, victim).is_some()
+}
+
+/// Swings one blow at a creature, and answers what it did to it.
+///
+/// Reference: `Creature::deal_melee_hit` (`creature.cpp:959`) picks the part from the spread, `Creature::deal_melee_attack` resolves the damage, and `absorb_hit` is told which
+/// part it landed on. The order is the rule: the margin before the part, the part before what protects it, and the armour's own fate before the armour takes its share.
+///
+/// Answers `None` when there is nothing to hit with or no dice to hit with, which is why the caller can tell a miss (`Some(0)`) from a blow that never happened.
+pub fn strike_at(world: &mut World, attacker: Entity, victim: Entity) -> Option<i32> {
+    let attack = world.get::<MeleeAttack>(attacker).copied()?;
+    let mut rolls = crate::singletons::take_rolls(world)?;
     let defence = defence_of(world, victim);
     // The roll, the landing place and the armour are asked in the order the reference asks them: the margin is
     // known before the part, and the part is known before what protects it - `Creature::deal_melee_hit` picks the
@@ -1877,19 +1883,22 @@ fn strike_what_the_goal_holds(world: &mut World, attacker: Entity, goal: (i32, i
     // the damage has been worked out, so this draw belongs after `resolve` and before the rolls go back.
     let garment_roll = f64::from(rolls.rng_bits()) / f64::from(u32::MAX);
     crate::singletons::put_rolls(world, rolls);
+    let mut dealt = 0;
     if swung.hit {
         if let Some(part) = landed_on.as_deref() {
             let arrived = f64::from(rolled.bash.max(0) + rolled.cut.max(0));
             settle_armour(world, victim, part, arrived, garment_roll);
         }
         hurt(world, victim, swung.damage);
+        #[allow(clippy::cast_possible_truncation)]
+        {
+            dealt = swung.damage as i32;
+        }
         if let Some(part) = landed_on {
-            #[allow(clippy::cast_possible_truncation)]
-            let dealt = swung.damage as i32;
             wound(world, victim, &part, dealt);
         }
     }
-    true
+    Some(dealt)
 }
 
 /// What a creature brings to being hit, read from the components it carries.

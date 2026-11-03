@@ -11730,3 +11730,21 @@ so it answered `None` and the assertion said so plainly. The corrected test writ
 
 **Two gates for one rule, and they catch different mistakes:** the arithmetic gate would pass with the new speed computed and thrown away; the wire gate would pass with a
 formula wrong in a way that happens to give 31 and then 70. Neither alone is enough.
+
+## One blow, two callers (round 1086)
+
+A monster's swing was buried inside the function that decides whether to attack or walk. It is now a rule with a name, and both directions of a fight can call it.
+
+| Piece | Where |
+|---|---|
+`creature::strike_at(world, attacker, victim) -> Option<i32>` | one blow: the margin, the body part, the armour, the garment's fate, the wound - `creature.cpp:959` and its neighbours |
+`strike_what_the_goal_holds` | now resolves its goal to a victim and calls the same function |
+Gate | `a_blow_takes_hit_points_and_a_creature_with_nothing_to_hit_with_cannot_swing` - a creature with no `MeleeAttack` answers **`None`**, not `0` |
+
+**`None` and `Some(0)` are different answers and the difference is the point.** `None` is "that creature cannot swing at all"; `Some(0)` is "it swung and missed". A caller that
+folded them together could not tell a zombie from a statue, which is exactly the class of bug this port keeps finding.
+
+**What the refactor found, and what I did about it:** a scenario step `attack` was written and **refused to work**, because the survivor has no unarmed attack - a character's
+blow comes from `Character::melee_attack` and its body parts, and the port has neither for the avatar. The step and its scenario were **deleted rather than shipped failing**, and
+the gap is named here: **a playtest can watch a monster hit the survivor, and cannot yet make the survivor hit back.** That is the next step in this thread, and it needs the
+avatar's own attack data, not a fixture's.

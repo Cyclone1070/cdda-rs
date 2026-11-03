@@ -520,3 +520,7 @@ reviver, then `0.005 * hp` for flesh/veggy) and `mend_over` (`roll_remainder` of
 walks, through `creature::heal` (which clamps at the ceiling and refuses a creature at or below zero). The naming gate caught the new component the moment it existed. **Round 1085 finished the
 function**: `speed_back` restores a monster's base speed as it mends (`monster.cpp:4104-4115`), `Mending` now carries the type's speed and hit points, and `mend_everyone` writes the
 result - gated by its own arithmetic **and** by a test that drives the turn and reads the speed afterwards.
+
+**Round 1086 split the blow out of the walk**: `creature::strike_at` is one swing with a name (margin, body part, armour, garment fate, wound), and both
+`strike_what_the_goal_holds` and any future caller go through it. Its gate pins `None` (cannot swing) against `Some(0)` (swung and missed). **Named gap:** the survivor has no
+unarmed attack - a scenario `attack` step was written, refused to work for that reason, and was deleted rather than shipped failing.

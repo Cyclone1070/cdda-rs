@@ -381,3 +381,42 @@ fn a_slowed_monster_walks_faster_again_as_it_mends() {
         "and a whole body walks as fast as its type"
     );
 }
+
+/// One blow is one rule with two callers, and a creature with nothing to hit with does not swing.
+///
+/// Reference: `Creature::deal_melee_attack` is what both a monster's move-into-a-creature and a character's attack end in. The port keeps that as `creature::strike_at`, and this
+/// gate pins both halves: a creature with an attack takes hit points off its victim, and one without an attack answers **nothing** rather than a zero, so a caller can tell
+/// "missed" from "could not swing".
+#[test]
+fn a_blow_takes_hit_points_and_a_creature_with_nothing_to_hit_with_cannot_swing() {
+    let mut world = World::new();
+    singletons::put_rolls(&mut world, Rolls::new(21));
+    let attacker = cdda_sim::creature::spawn_creature(&mut world, "the attacker", (0, 0, 0));
+    let victim = cdda_sim::creature::spawn_creature(&mut world, "the victim", (1, 0, 0));
+    cdda_sim::creature::set_health(&mut world, victim, 100);
+
+    // Nothing to hit with: no `MeleeAttack`, so no swing at all.
+    assert_eq!(
+        cdda_sim::creature::strike_at(&mut world, attacker, victim),
+        None,
+        "a creature with no attack does not swing"
+    );
+
+    // Two dice of three at skill four, the corpus zombie's own numbers, and a victim with no armour: the blow lands for something.
+    world
+        .entity_mut(attacker)
+        .insert(cdda_sim::creature::MeleeAttack(cdda_sim::melee::Attack {
+            accuracy_tenths: 40,
+            fixed: cdda_sim::melee::Damage::default(),
+            dice: 2,
+            sides: 3,
+        }));
+    let before = cdda_sim::creature::health_of(&world, victim);
+    let dealt = cdda_sim::creature::strike_at(&mut world, attacker, victim);
+    let after = cdda_sim::creature::health_of(&world, victim);
+    assert!(dealt.is_some(), "and with one it swings");
+    assert!(
+        after <= before,
+        "the victim is not healed by being hit: {before:?} became {after:?}"
+    );
+}
