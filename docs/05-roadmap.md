@@ -839,6 +839,16 @@ ranged-balance test parity.
 
 ---
 
+### P4 status at round 1022
+
+**Ported and gated:** creature state, the position index (one store, so the reference's four parallel indexes have no counterpart), effects (six gates), body and anatomy
+(three), melee (two), harvest (two), death, needs and hunger, wounds.
+
+**Ported, thinly gated - the next P4 work:** `morale.rs` (twelve rules, covered only through dialogue effects) and `bionics.rs` (two rules, the same). Each needs a
+dedicated gate that reads its own rules rather than a dialogue that happens to call one.
+
+**Not started:** mutations, disease, ranged weapons and projectiles with dispersion, martial arts, weakpoints.
+
 ### P5 — Spells and enchantments (10 files, 9,444 LOC)
 
 **Contents.** Spell types and casting, spell effects, enchantments, terrain and furniture transforms,

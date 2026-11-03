@@ -261,19 +261,24 @@ the layer that decides when to shift
 
 | System | Status | Gate | Notes |
 |---|---|---|---|
-| Creature base state | not started | Combat replay (M3b) | |
-| Character state | not started | M3b | The largest single object in the game |
-| Monster state | not started | M3b | |
-| NPC state | not started | M3b | |
-| Creature tracking and lookup | not started | M3b | Four parallel indexes today |
-| Effects | not started | M3b | |
-| Body parts and anatomy | not started | M3b | |
-| Mutations | not started | M3b | |
-| Bionics | not started | M3b | |
-| Morale, needs, wounds, disease | not started | M3b | |
-| Melee, ranged, projectiles, dispersion | not started | M3b | |
-| Martial arts | not started | M3b | |
-| Weakpoints, harvest, death | not started | M3b | |
+| Creature base state | **ported** | `sim_suite::wounds`, `::death` | `creature.rs`: speed, moves, health, death, reaping |
+| Character state | **partial - as components** | `sim_suite::body`, `::needs`, `::hunger_effect` | the reference's 1,269 members are **twenty components**: body, needs, morale, skills, bionics, proficiencies, focus, opinion. Nothing is one object |
+| Monster state | **ported** | `sim_suite::melee_rolls`, `::monster_*` | `monster_registry.rs`, `monster_catalog.rs`, `monster_spawning.rs` |
+| NPC state | **partial** | `sim_suite::eoc_programs` | `npcs.rs` answers *is a person* and *which one*; opinion is `npc_opinion.rs`. No AI, no inventory of its own |
+| Creature tracking and lookup | **ported, and by construction** | `sim_suite::architecture` | the **one** position index; the reference's four parallel indexes have no counterpart because a square is a query |
+| Effects | **ported** | `sim_suite::effect_chances`, `::effect_decay`, `::effect_derived`, `::effect_merge`, `::effect_activated`, `::gas_effects` | `effects.rs`, `applied_effects.rs`, `effect_registry.rs` - a component per creature, not a nested map |
+| Body parts and anatomy | **ported** | `sim_suite::body`, `::body_from_content`, `::player_body` | `body.rs`: 21 rules, armour per part, hit rolls |
+| Mutations | **not started** | M3b | no module |
+| Bionics | **ported**, **thinly gated** | `sim_suite::dialogue_effects`, `::probe` | `bionics.rs`: install and query only; the powers bionics grant are P5's, and there is **no dedicated test file** - the two rules are exercised through dialogue |
+| Morale | **ported**, **thinly gated** | `sim_suite::dialogue_effects`, `::probe` | `morale.rs`: twelve rules; **no dedicated test file**, and what is exercised is the add and the net bonus through dialogue |
+| Needs and hunger | **ported** | `sim_suite::needs`, `::hunger_effect` | `needs.rs`, `body.rs` |
+| Wounds | **ported** | `sim_suite::wounds` | `creature.rs`, `body.rs` |
+| Disease | **not started** | M3b | no module |
+| Melee | **ported** | `sim_suite::melee`, `::melee_rolls` | `melee.rs`: 9 rules, accuracy and damage rolls |
+| Ranged, projectiles, dispersion | **not started** | M3b | no module |
+| Martial arts | **not started** | M3b | no module |
+| Harvest and death | **ported** | `sim_suite::harvest_yield`, `::harvest_damage`, `::death` | harvest yields and damage, the corpse, reaping |
+| Weakpoints | **not started** | M3b | no module |
 
 ## P5 — Spells and enchantments
 
@@ -10240,3 +10245,26 @@ one place a square becomes a glyph.
 **Three are kept, unchanged, and they are genuinely waiting:** `friendly::is_friendly` (no aggro or alliance system calls it yet), `monster_spawning::is_hallucination`
 (no rule asks yet), `monster_spawn_attempts` (the spawn system that will call it does not exist). **Each says so in its own docs**, so the next round finds them by
 reading the module rather than by re-running an audit.
+
+## The ledger said "not started" about systems with twelve test files (round 1022)
+
+The P4 table was written when P4 started and **never revisited**. Every row said *not started*. Reading it against the code:
+
+| What the ledger claimed | What the tree says |
+|---|---|
+Effects: not started | **six test files** - chances, decay, derived, merge, activated, gas - over three modules |
+Body parts: not started | 21 rules in `body.rs`, three test files |
+Harvest and death: not started | yields, damage and the corpse, all gated |
+Creature tracking: not started | **the one position index**, gated by `sim_suite::architecture` |
+
+**A ledger that understates the port is as dangerous as one that overstates it**, because it sends the next round to re-port work that exists. **The table now cites a
+module and a test file per row**, and a row counts as ported only if both can be named.
+
+**Writing the citations down caught two lies I was about to tell.** I had put `sim_suite::morale` and `sim_suite::bionics` in the gate column; **neither file exists.**
+Morale's twelve rules and bionics' two are exercised only **through dialogue effects**, so both rows now say **"thinly gated"** and name what actually covers them. **The
+habit of checking a citation before writing it is the whole difference between a ledger and a story.**
+
+| Row | True state |
+|---|---|
+Mutations, disease, ranged, projectiles, dispersion, martial arts, weakpoints | **not started** - no module, and the table says so with the phase they belong to |
+Morale, bionics | **ported, thinly gated** - and now named as the next P4 work rather than hidden behind "ported" |
