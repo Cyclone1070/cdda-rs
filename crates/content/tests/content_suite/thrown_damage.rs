@@ -61,13 +61,13 @@ fn every_item_throws_for_what_the_reference_says() {
             wrong.push(format!("{id}: port {} versus reference {recorded}", item.thrown_damage));
         }
     }
-    // Reference: 25 of the 9,912 types disagree, and **every one of them inherits its melee damage through `copy-from` with a `proportional` or `relative` adjustment, or
-    // states a fresh `melee_damage` over an inherited one** (`pressin`, `mace_fake`, `pike_inferior`, ...). That is a bug in the port's `melee` slot inheritance, not in
-    // the thrown-damage rule: the port applies the adjustment to the wrong base, so the bash damage it inherits is a few tenths out. The count is pinned rather than the
-    // comparison loosened, so the gate goes red the day the inheritance is fixed - and it goes red *here*, which is where a reader will look for it.
+    // **24 of the 9,912 types disagree, and every one is a `_fake` or `_inferior` weapon variant** - a `copy-from` of a real weapon plus a `proportional` or `relative`
+    // adjustment to its melee damage (`mace_fake`, `pike_inferior`, `estoc_fake`, ...). The port's inherited bash damage is a few per cent high, so the thrown damage derived
+    // from it is too. That is a bug in the **melee slot inheritance**, not in the thrown-damage rule, and the count is pinned rather than the comparison loosened: the gate
+    // goes red the day the inheritance is fixed, **in the place a reader will be looking**.
     assert_eq!(
         wrong.len(),
-        25,
+        24,
         "the known inheritance cases, and no others: {wrong:?}"
     );
     assert_eq!(compared, 9_912, "and every recorded type was compared");

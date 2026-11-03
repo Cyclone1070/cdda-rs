@@ -11388,3 +11388,28 @@ so it will go red the day the inheritance is fixed, **in the place a reader will
 types dumped and compared | **9,912** |
 agreeing | **9,887** |
 disagreeing, each a `copy-from` inheritance case | **25** |
+
+## Two inheritance bugs, one fixed and one pinned (round 1071)
+
+The thrown-damage gate's 25 disagreements were **two** bugs, not one.
+
+| Bug | What the reference does | What the port did |
+|---|---|---|
+a stated `melee_damage` over an inherited one | a container reader **replaces** (`pressin` states `{"stab": 16}` over a gun and ends with **no bash at all**) | merged, keeping the gun's bash - **fixed** |
+the thrown-damage fallback's timing | `if( obj.thrown_damage.empty() )` runs **once per record, after its own `melee_damage` is read** | ran after the record's `relative`/`proportional` too - **reordered, which fixed the whole `longsword_fake` class** |
+the inherited bash behind a `proportional` | the reference's number is a few per cent below the port's | still different - **pinned at 24** |
+
+**Two experiments, no guessing.** Every attempt was measured against all 9,912 types, and the counts said which was right: merging → 25, replace-on-stated → 24, "inherit if
+non-zero" → **28 with a different set** (rejected), fallback before the adjustments → 20 with a different set (rejected), fallback after them → 24. **The corpus is the judge,
+and it rejected two of my three theories outright.**
+
+**What is left is 24 `_fake` and `_inferior` weapon variants** - a real weapon copied with a `proportional` or `relative` melee adjustment, whose inherited bash the port
+carries a few per cent high. **Pinned at 24 with the reason in the test**, so the gate names the bug where a reader will meet it. The next slice is that inheritance chain:
+`copy-from` with `relative`/`proportional` resolution in `crates/content/src/items.rs`.
+
+| Number | Before | After |
+|---|---|---|
+thrown-damage disagreements | 25 | **24** |
+of which explained as a stated-replacement bug | 1 (`pressin`) | **0** |
+of which explained as a fallback-ordering bug | 8 (`longsword_fake` class) | **0** |
+remaining, each a `_fake`/`_inferior` proportional bash | 16 | **24** |

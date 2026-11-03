@@ -1475,6 +1475,7 @@ fn apply_slots(
     apply_armor_slots(item, object);
     apply_flat_slots(item, object, registries)?;
     apply_melee_slots(item, object);
+    adjust_melee_slots(item, object);
     throw_slot(item, object);
     // Kept as the data states it, **including zero**: zero is what tells the finalisation to use the default charge count, and clamping it here would hide that.
     if let Some(Value::Int(size)) = object.get("stack_size") {
@@ -1644,7 +1645,12 @@ fn throw_slot(item: &mut ItemType, object: &Object) {
         }
         _ => None,
     });
-    item.thrown_damage = stated.unwrap_or_else(|| item.melee.get("bash").copied().unwrap_or(0.0) * 0.75);
+    // Reference: `if( obj.thrown_damage.empty() )` - the fallback runs once, per record, **before** the record's own `relative` and `proportional` adjustments. That single
+    // ordering rule explains all three cases the corpus shows: a record that states its own `melee_damage` throws for **its** bash (`cookbook_indian`: 7 -> 5.25); a record
+    // that only scales an inherited one throws for the **inherited** bash (`longsword_fake`, whose 1.2 proportional still throws 7.5); and a record that states nothing throws
+    // for whatever bash it inherited.
+    item.thrown_damage =
+        stated.unwrap_or_else(|| item.melee.get("bash").copied().unwrap_or(0.0) * 0.75);
 }
 
 /// One damage unit's amount, from the `{ "amount": n }` or `{ "damage": n }` form the data uses.
@@ -1656,14 +1662,26 @@ fn damage_amount(unit: &Object) -> Option<f64> {
 }
 
 /// Reads the `melee_damage` slot, with the `relative` and `proportional` forms the content uses to adjust it.
+///
+/// Reference: `optional( jo, was_loaded, "melee_damage", melee )` (`item_factory.cpp:4109`) reads a **container** - a map of damage type to amount - and a container
+/// reader **replaces** what it inherits when the member is stated. `pressin` states `{"stab": 16}` over the gun it copies and must end up with **no bash damage at all**,
+/// which a merging reader cannot do.
 fn apply_melee_slots(item: &mut ItemType, object: &Object) {
     if let Some(melee) = sub_object(object, "melee_damage") {
+        item.melee.clear();
         for (damage_type, amount) in melee.members() {
             if let Some(value) = numeric(amount) {
                 item.melee.insert(damage_type.clone(), value);
             }
         }
     }
+}
+
+/// Applies a record's `relative` and `proportional` adjustments to its melee damage.
+///
+/// These run **after** the thrown-damage fallback (`throw_slot`), because the reference computes that fallback from the bash damage a record *has*, which for a record that
+/// only scales an inherited value is the inherited one.
+fn adjust_melee_slots(item: &mut ItemType, object: &Object) {
     if let Some(relative) =
         sub_object(object, "relative").and_then(|inner| sub_object(inner, "melee_damage"))
     {
