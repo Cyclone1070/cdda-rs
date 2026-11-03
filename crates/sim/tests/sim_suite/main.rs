@@ -75,6 +75,7 @@ mod hearing;
 mod inspect_names;
 mod hit_location;
 mod melee;
+mod melee_rules;
 mod melee_rolls;
 mod death;
 mod degradation;

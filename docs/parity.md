@@ -11748,3 +11748,24 @@ folded them together could not tell a zombie from a statue, which is exactly the
 blow comes from `Character::melee_attack` and its body parts, and the port has neither for the avatar. The step and its scenario were **deleted rather than shipped failing**, and
 the gap is named here: **a playtest can watch a monster hit the survivor, and cannot yet make the survivor hit back.** That is the next step in this thread, and it needs the
 avatar's own attack data, not a fixture's.
+
+## How well the survivor aims (round 1087)
+
+The first half of the avatar's own attack, ported because the survivor's swing needs it and nothing else can supply it.
+
+| Rule | Where |
+|---|---|
+`melee::hit_base_tenths(dex)` | `Character::get_hit_base` - `get_dex() / 4.0f` (`character.cpp:5705-5709`) |
+`melee::hit_weapon_tenths(weapon_skill, melee_skill, to_hit)` | `Character::get_hit_weapon` - `skill / 3 + melee_skill / 2 + weap.get_to_hit()` (`melee.cpp:356-370`) |
+Gate | `how_well_a_character_aims_a_blow` - dexterity, two skills, and a weapon that aims worse as well as better |
+
+**Tenths, because the port already speaks tenths here.** `MeleeAttack::accuracy_tenths` is how every blow in this store describes its accuracy, so the character's aiming is
+worked out in the same unit rather than as a float that would have to be converted at one caller and forgotten at another. Three levels of unarmed is exactly one point; four of
+melee is two; a weapon that aims badly **subtracts**.
+
+**This is a rule waiting for its caller, and it is named as such.** The survivor still cannot swing - the missing half is the unarmed **damage**, which in 0.I-1 comes from the
+null item reference and from `bodypart::unarmed_damage`, and only a debug body part in the data defines the latter. **Guessing a punch's damage would be worse than not having one**,
+so `docs/13-test-inventory.md` carries this rule on its waiting list beside `dispersion::from_skill`, and the CLI `attack` step stays deleted until the damage is real.
+
+**The temptation this round was to invent a fist.** A punch of "about three" would have made the playtest work and would have been the one number in the port that no reference
+behind it. **The data says the reference has no constant to copy here**, which is exactly the case where a port should stop and say so.

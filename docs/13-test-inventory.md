@@ -524,3 +524,8 @@ result - gated by its own arithmetic **and** by a test that drives the turn and 
 **Round 1086 split the blow out of the walk**: `creature::strike_at` is one swing with a name (margin, body part, armour, garment fate, wound), and both
 `strike_what_the_goal_holds` and any future caller go through it. Its gate pins `None` (cannot swing) against `Some(0)` (swung and missed). **Named gap:** the survivor has no
 unarmed attack - a scenario `attack` step was written, refused to work for that reason, and was deleted rather than shipped failing.
+
+**Round 1087 ported the character's aiming half of a melee attack**: `melee::hit_base_tenths` (`get_dex() / 4`, `character.cpp:5705-5709`) and `melee::hit_weapon_tenths`
+(`skill / 3 + melee_skill / 2 + to_hit`, `melee.cpp:356-370`), gated by `melee_rules::how_well_a_character_aims_a_blow`. **Waiting for a caller**, beside
+`dispersion::from_skill`: the survivor still cannot swing because the **unarmed damage** half has no number to copy - 0.I-1 takes it from the null item reference and
+`bodypart::unarmed_damage`, and only a debug body part in the data defines the latter.

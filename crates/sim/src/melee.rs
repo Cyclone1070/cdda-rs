@@ -235,3 +235,22 @@ pub fn monster_melee_damage(
     }
     damage
 }
+
+/// How much a character's dexterity contributes to aiming, in tenths of an accuracy point.
+///
+/// Reference: `Character::get_hit_base` (`src/character.cpp:5705-5709`) is `get_dex() / 4.0f`. The port keeps accuracy in **tenths** everywhere a melee attack is described, which
+/// is the unit `MeleeAttack::accuracy_tenths` already speaks, so this returns `dex * 10 / 4` rather than a float nobody else uses.
+#[must_use]
+pub fn hit_base_tenths(dexterity: i32) -> i32 {
+    dexterity * 10 / 4
+}
+
+/// How much a character's skills and weapon contribute to aiming, in tenths of an accuracy point.
+///
+/// Reference: `Character::get_hit_weapon` (`src/melee.cpp:356-370`) is `skill / 3.0f + melee_skill / 2.0f + weap.get_to_hit()`, where `skill` is the skill of the weapon's own
+/// damage type - unarmed for a fist, bashing for a bat. The division is the reference's own and is **truncating** here because the answer is in tenths: three levels of unarmed
+/// are exactly one point.
+#[must_use]
+pub fn hit_weapon_tenths(weapon_skill: i32, melee_skill: i32, to_hit: i32) -> i32 {
+    weapon_skill * 10 / 3 + melee_skill * 10 / 2 + to_hit * 10
+}
