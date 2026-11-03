@@ -60,6 +60,7 @@ pub fn install(world: &mut World, kinds: &[ItemType]) {
             melee_cut: kind.melee.get("cut").copied().unwrap_or(0.0),
             // The data's melee uses exactly three damage types - bash 1,354 times, cut 225 and stab 147 - so the port keeps those three and no more.
             melee_stab: kind.melee.get("stab").copied().unwrap_or(0.0),
+            to_hit: kind.to_hit,
         })
         .collect();
     item_registry::set_item_types(world, &borrowed);

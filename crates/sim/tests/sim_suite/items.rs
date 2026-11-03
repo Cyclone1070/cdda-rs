@@ -34,6 +34,7 @@ fn a_thing_inside_a_thing_has_no_square_and_adds_its_weight() {
             melee_bash: Vec::new(),
             melee_cut: Vec::new(),
             melee_stab: Vec::new(),
+            to_hit: Vec::new(),
         };
         names.names.truncate(3);
         names

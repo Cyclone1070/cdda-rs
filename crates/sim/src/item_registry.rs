@@ -60,6 +60,8 @@ pub struct ItemTypes {
     melee_cut: Vec<f64>,
     /// What each kind does when swung, in points of stabbing damage.
     melee_stab: Vec<f64>,
+    /// How well each kind is balanced for a swing.
+    to_hit: Vec<i32>,
 }
 
 impl ItemTypes {
@@ -169,6 +171,8 @@ pub struct Kind<'a> {
     pub melee_cut: f64,
     /// What it does when swung, in points of stabbing damage.
     pub melee_stab: f64,
+    /// How well it is balanced for a swing, which is the last term of a character's aiming.
+    pub to_hit: i32,
 }
 
 /// Installs the registry the store will answer from.
@@ -187,6 +191,7 @@ pub fn set_item_types(world: &mut World, kinds: &[Kind<'_>]) {
     let mut melee_bash = vec![0.0];
     let mut melee_cut = vec![0.0];
     let mut melee_stab = vec![0.0];
+    let mut to_hit = vec![-2];
     // Named apart from the loop variable so the borrow of the pocket slice outlives the numbers taken from it.
     for each in kinds {
         let (id, volume, weight) = (each.id, each.volume_ml, each.weight_g);
@@ -201,6 +206,7 @@ pub fn set_item_types(world: &mut World, kinds: &[Kind<'_>]) {
         melee_bash.push(each.melee_bash);
         melee_cut.push(each.melee_cut);
         melee_stab.push(each.melee_stab);
+        to_hit.push(each.to_hit);
         // Reference: `item::get_total_capacity` - a thing can hold as much as its pockets can.
         holds_ml.push(each.pockets.iter().map(|pocket| pocket.capacity_ml).sum());
         #[allow(clippy::cast_possible_truncation)]
@@ -223,6 +229,7 @@ pub fn set_item_types(world: &mut World, kinds: &[Kind<'_>]) {
         melee_bash,
         melee_cut,
         melee_stab,
+        to_hit,
     });
 }
 
@@ -271,6 +278,10 @@ pub struct ItemNames {
     pub melee_cut: Vec<f64>,
     /// What each kind does when swung, in points of stabbing damage, in registry order.
     pub melee_stab: Vec<f64>,
+    /// How well each kind is balanced for a swing, in registry order.
+    ///
+    /// Reference: `itype::m_to_hit` (`itype.h:1540`), read by `item::get_to_hit`. It is the last term of `Character::get_hit_weapon` (`melee.cpp:370`).
+    pub to_hit: Vec<i32>,
 }
 
 impl ItemNames {
@@ -353,6 +364,12 @@ pub fn name_in(world: &World, kind: ItemTypeId) -> Option<String> {
             .unwrap_or(0.0)
     }
 
+    /// How well a kind is balanced for a swing, as `item::get_to_hit` answers.
+    #[must_use]
+    pub fn to_hit_of(&self, kind: ItemTypeId) -> i32 {
+        self.to_hit.get(kind.0 as usize).copied().unwrap_or(-2)
+    }
+
     /// How much a kind can hold, in millilitres.
     #[must_use]
     pub fn holds_ml(&self, kind: ItemTypeId) -> i32 {
@@ -388,6 +405,7 @@ pub fn snapshot(world: &mut World) -> ItemNames {
         melee_bash: registry.melee_bash.clone(),
         melee_cut: registry.melee_cut.clone(),
         melee_stab: registry.melee_stab.clone(),
+        to_hit: registry.to_hit.clone(),
     })
 }
 

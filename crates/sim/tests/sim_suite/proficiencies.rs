@@ -138,6 +138,7 @@ fn a_craft_practises_what_it_teaches_while_it_runs() {
         melee_bash: Vec::new(),
         melee_cut: Vec::new(),
         melee_stab: Vec::new(),
+        to_hit: Vec::new(),
     };
     let recipe = cdda_content::recipes::Recipe {
         id: "patch_a_shirt".to_owned(),
@@ -250,6 +251,7 @@ fn a_craft_does_not_teach_a_trade_whose_prerequisite_is_unknown() {
         melee_bash: Vec::new(),
         melee_cut: Vec::new(),
         melee_stab: Vec::new(),
+        to_hit: Vec::new(),
     };
     let recipe = cdda_content::recipes::Recipe {
         id: "practise_the_expert_trade".to_owned(),

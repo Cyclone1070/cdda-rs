@@ -543,3 +543,8 @@ for every type; the registry keeps only `thrown_damage` because a throw is all t
 (`itype::melee_damage`, `item_factory.cpp:4109`), gated by `melee_rules::the_registry_carries_what_a_swung_thing_is_worth`. **The first version kept bash and cut only and the gate
 caught it at once**: a combat knife does **no** bashing - it stabs for fourteen - and the data's melee uses exactly three damage types (bash 1,354, cut 225, stab 147). **Still
 missing:** the weapon's `to_hit`, which neither the loader nor any dump carries yet, and the `Character::melee_attack` caller itself.
+
+**Round 1091 took the oracle ahead of the loader**: the item dump is version **2** and carries `melee_cut`, `melee_stab` and `to_hit` beside the bash column
+(`itype::melee_damage`, `itype::m_to_hit`); `ItemType::to_hit` loads with the reference's default **-2**, and `melee_rules::the_registry_carries_what_a_swung_thing_is_worth`
+compares **all four columns for all 9,912 types**, printing the first five that disagree. **The named checks pin what a comparison cannot**: a rock `(7, 0, -1)`, a combat knife
+`(0, 21, -1)`, the `null` item `(0, 0, -2)`.

@@ -1458,6 +1458,7 @@ fn a_consume_item_effect_takes_whole_stacks() {
             melee_bash: 0.0,
             melee_cut: 0.0,
             melee_stab: 0.0,
+            to_hit: -2,
         }],
     );
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
@@ -1627,6 +1628,7 @@ fn a_spawn_from_an_item_group_produces_what_the_group_holds() {
             melee_bash: 0.0,
             melee_cut: 0.0,
             melee_stab: 0.0,
+            to_hit: -2,
         }],
     );
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
@@ -1759,7 +1761,7 @@ fn a_spawn_at_a_location_lands_there() {
     let mut world = bevy_ecs::prelude::World::new();
     cdda_sim::item_registry::set_item_types(
         &mut world,
-        &[cdda_sim::item_registry::Kind { id: "bottle_plastic", volume_ml: 250, weight_g: 10, pockets: &[], thrown_damage: 0.0, melee_bash: 0.0, melee_cut: 0.0, melee_stab: 0.0 }],
+        &[cdda_sim::item_registry::Kind { id: "bottle_plastic", volume_ml: 250, weight_g: 10, pockets: &[], thrown_damage: 0.0, melee_bash: 0.0, melee_cut: 0.0, melee_stab: 0.0, to_hit: -2 }],
     );
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     let holder = cdda_sim::dialogue_values::holder_for(&mut world, survivor, false);
@@ -2011,8 +2013,8 @@ fn a_remove_item_with_takes_every_stack_of_its_kind() {
     cdda_sim::item_registry::set_item_types(
         &mut world,
         &[
-            cdda_sim::item_registry::Kind { id: "bandage", volume_ml: 50, weight_g: 20, pockets: &[], thrown_damage: 0.0, melee_bash: 0.0, melee_cut: 0.0, melee_stab: 0.0 },
-            cdda_sim::item_registry::Kind { id: "rock", volume_ml: 50, weight_g: 200, pockets: &[], thrown_damage: 0.0, melee_bash: 0.0, melee_cut: 0.0, melee_stab: 0.0 },
+            cdda_sim::item_registry::Kind { id: "bandage", volume_ml: 50, weight_g: 20, pockets: &[], thrown_damage: 0.0, melee_bash: 0.0, melee_cut: 0.0, melee_stab: 0.0, to_hit: -2 },
+            cdda_sim::item_registry::Kind { id: "rock", volume_ml: 50, weight_g: 200, pockets: &[], thrown_damage: 0.0, melee_bash: 0.0, melee_cut: 0.0, melee_stab: 0.0, to_hit: -2 },
         ],
     );
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
@@ -2349,7 +2351,7 @@ fn a_spawn_count_reads_a_variable_with_a_default() {
     let mut world = bevy_ecs::prelude::World::new();
     cdda_sim::item_registry::set_item_types(
         &mut world,
-        &[cdda_sim::item_registry::Kind { id: "money_twenty", volume_ml: 5, weight_g: 1, pockets: &[], thrown_damage: 0.0, melee_bash: 0.0, melee_cut: 0.0, melee_stab: 0.0 }],
+        &[cdda_sim::item_registry::Kind { id: "money_twenty", volume_ml: 5, weight_g: 1, pockets: &[], thrown_damage: 0.0, melee_bash: 0.0, melee_cut: 0.0, melee_stab: 0.0, to_hit: -2 }],
     );
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     let globals = cdda_sim::dialogue_values::holder_for(&mut world, survivor, true);
@@ -2852,8 +2854,8 @@ fn an_inventory_eoc_runs_once_per_matching_item() {
     cdda_sim::item_registry::set_item_types(
         &mut world,
         &[
-            cdda_sim::item_registry::Kind { id: "smart_phone", volume_ml: 5, weight_g: 1, pockets: &[], thrown_damage: 0.0, melee_bash: 0.0, melee_cut: 0.0, melee_stab: 0.0 },
-            cdda_sim::item_registry::Kind { id: "rock", volume_ml: 5, weight_g: 1, pockets: &[], thrown_damage: 0.0, melee_bash: 0.0, melee_cut: 0.0, melee_stab: 0.0 },
+            cdda_sim::item_registry::Kind { id: "smart_phone", volume_ml: 5, weight_g: 1, pockets: &[], thrown_damage: 0.0, melee_bash: 0.0, melee_cut: 0.0, melee_stab: 0.0, to_hit: -2 },
+            cdda_sim::item_registry::Kind { id: "rock", volume_ml: 5, weight_g: 1, pockets: &[], thrown_damage: 0.0, melee_bash: 0.0, melee_cut: 0.0, melee_stab: 0.0, to_hit: -2 },
         ],
     );
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
@@ -2904,7 +2906,7 @@ fn an_inventory_eoc_can_ask_for_the_wielded_item_or_one_at_random() {
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(3));
     cdda_sim::item_registry::set_item_types(
         &mut world,
-        &[cdda_sim::item_registry::Kind { id: "rock", volume_ml: 5, weight_g: 1, pockets: &[], thrown_damage: 0.0, melee_bash: 0.0, melee_cut: 0.0, melee_stab: 0.0 }],
+        &[cdda_sim::item_registry::Kind { id: "rock", volume_ml: 5, weight_g: 1, pockets: &[], thrown_damage: 0.0, melee_bash: 0.0, melee_cut: 0.0, melee_stab: 0.0, to_hit: -2 }],
     );
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     let kind = cdda_sim::item_registry::id_of(&mut world, "rock").expect("installed");
@@ -3077,7 +3079,7 @@ fn having_a_weapon_follows_the_item_in_hand() {
     let mut world = bevy_ecs::prelude::World::new();
     cdda_sim::item_registry::set_item_types(
         &mut world,
-        &[cdda_sim::item_registry::Kind { id: "knife_combat", volume_ml: 5, weight_g: 1, pockets: &[], thrown_damage: 0.0, melee_bash: 0.0, melee_cut: 0.0, melee_stab: 0.0 }],
+        &[cdda_sim::item_registry::Kind { id: "knife_combat", volume_ml: 5, weight_g: 1, pockets: &[], thrown_damage: 0.0, melee_bash: 0.0, melee_cut: 0.0, melee_stab: 0.0, to_hit: -2 }],
     );
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     let stranger = cdda_sim::creature::spawn_creature(&mut world, "a stranger", (1, 0, 0));
@@ -3106,7 +3108,7 @@ fn an_inventory_eoc_can_ask_for_what_is_worn() {
     let mut world = bevy_ecs::prelude::World::new();
     cdda_sim::item_registry::set_item_types(
         &mut world,
-        &[cdda_sim::item_registry::Kind { id: "shirt", volume_ml: 5, weight_g: 1, pockets: &[], thrown_damage: 0.0, melee_bash: 0.0, melee_cut: 0.0, melee_stab: 0.0 }],
+        &[cdda_sim::item_registry::Kind { id: "shirt", volume_ml: 5, weight_g: 1, pockets: &[], thrown_damage: 0.0, melee_bash: 0.0, melee_cut: 0.0, melee_stab: 0.0, to_hit: -2 }],
     );
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     let kind = cdda_sim::item_registry::id_of(&mut world, "shirt").expect("installed");

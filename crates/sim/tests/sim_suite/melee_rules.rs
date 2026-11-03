@@ -22,11 +22,11 @@ fn how_well_a_character_aims_a_blow() {
     assert_eq!(hit_weapon_tenths(0, 0, 3), 30, "a well balanced one gives it");
 }
 
-/// The registry knows what a swung thing is worth, and the reference's own dump says so.
+/// The registry knows what a swung thing is worth, for every type the reference dumped.
 ///
-/// Reference: `itype::melee_damage` (`item_factory.cpp:4109`) is what a character's blow carries; the throw path has read `thrown_damage` for rounds and nothing read the melee
-/// half, because nothing in the port swung an item. The numbers here come from `corpus/items/thrown-damage.json`, whose `melee_bash` column the oracle now writes beside the thrown
-/// damage.
+/// Reference: `itype::melee_damage` (`item_factory.cpp:4109`) and `itype::m_to_hit` (`itype.h:1540`) are what a character's blow carries and how well it aims. The dump
+/// `corpus/items/thrown-damage.json` version 2 carries all four columns, and this gate compares **all of them for all 9,912 types** - so a registry that dropped a damage type, or a
+/// `to_hit` that quietly became zero, fails here rather than in a swing nobody can see.
 #[test]
 fn the_registry_carries_what_a_swung_thing_is_worth() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/thrown-damage.json");
@@ -40,7 +40,22 @@ fn the_registry_carries_what_a_swung_thing_is_worth() {
     let Some(cdda_json::Value::Array(types)) = root.get("types") else {
         panic!("the dump has no types");
     };
-    let mut kinds = Vec::new();
+
+    let number = |value: Option<&cdda_json::Value>| -> f64 {
+        match value {
+            Some(cdda_json::Value::Float(value)) => *value,
+            Some(cdda_json::Value::Int(value)) => {
+                #[allow(clippy::cast_precision_loss)]
+                {
+                    *value as f64
+                }
+            }
+            _ => 0.0,
+        }
+    };
+
+    // One row per type: id, the three melee damage types, and how well it aims.
+    let mut rows: Vec<(String, f64, f64, f64, i32)> = Vec::new();
     for one in types {
         let cdda_json::Value::Object(fields) = one else {
             continue;
@@ -48,42 +63,22 @@ fn the_registry_carries_what_a_swung_thing_is_worth() {
         let Some(cdda_json::Value::Str(id)) = fields.get("id") else {
             continue;
         };
-        // The three melee damage types the data uses, taken from the dump's own `damage` array rather than from its bash column: a combat knife's whole worth is stabbing.
-        let mut split = (0.0, 0.0, 0.0);
-        if let Some(cdda_json::Value::Array(units)) = fields.get("damage") {
-            for unit in units {
-                let cdda_json::Value::Object(unit) = unit else {
-                    continue;
-                };
-                let Some(cdda_json::Value::Str(kind)) = unit.get("type") else {
-                    continue;
-                };
-                let amount = match unit.get("amount") {
-                    Some(cdda_json::Value::Float(value)) => *value,
-                    Some(cdda_json::Value::Int(value)) => {
-                        #[allow(clippy::cast_precision_loss)]
-                        {
-                            *value as f64
-                        }
-                    }
-                    _ => 0.0,
-                };
-                match kind.as_str() {
-                    "bash" => split.0 = amount,
-                    "cut" => split.1 = amount,
-                    "stab" => split.2 = amount,
-                    _ => {}
-                }
-            }
-        }
-        kinds.push((id.clone(), split));
+        #[allow(clippy::cast_possible_truncation)]
+        let to_hit = number(fields.get("to_hit")) as i32;
+        rows.push((
+            id.clone(),
+            number(fields.get("melee_bash")),
+            number(fields.get("melee_cut")),
+            number(fields.get("melee_stab")),
+            to_hit,
+        ));
     }
-    assert_eq!(kinds.len(), 9_912, "every type in the dump");
+    assert_eq!(rows.len(), 9_912, "every type in the dump");
 
     let mut world = bevy_ecs::prelude::World::new();
-    let borrowed: Vec<cdda_sim::item_registry::Kind<'_>> = kinds
+    let borrowed: Vec<cdda_sim::item_registry::Kind<'_>> = rows
         .iter()
-        .map(|(id, (bash, cut, stab))| cdda_sim::item_registry::Kind {
+        .map(|(id, bash, cut, stab, to_hit)| cdda_sim::item_registry::Kind {
             id,
             volume_ml: 50,
             weight_g: 100,
@@ -92,21 +87,46 @@ fn the_registry_carries_what_a_swung_thing_is_worth() {
             melee_bash: *bash,
             melee_cut: *cut,
             melee_stab: *stab,
+            to_hit: *to_hit,
         })
         .collect();
     cdda_sim::item_registry::set_item_types(&mut world, &borrowed);
     let names = cdda_sim::item_registry::snapshot(&mut world);
 
-    // Three named checks, and the count: a rock is a bash weapon, a knife cuts, and nothing swings for the `null` item.
+    // Every row compared, and the wrong ones counted so a silent zero shows up as a number rather than as a pass.
+    let mut wrong = Vec::new();
+    for (id, bash, cut, stab, to_hit) in &rows {
+        let Some(kind) = names.id_of(id) else {
+            wrong.push(format!("{id}: not in the registry"));
+            continue;
+        };
+        let got = (
+            names.melee_bash_of(kind),
+            names.melee_cut_of(kind),
+            names.melee_stab_of(kind),
+            names.to_hit_of(kind),
+        );
+        if (got.0 - bash).abs() > f64::EPSILON
+            || (got.1 - cut).abs() > f64::EPSILON
+            || (got.2 - stab).abs() > f64::EPSILON
+            || got.3 != *to_hit
+        {
+            wrong.push(format!("{id}: ({bash}, {cut}, {stab}, {to_hit}) became {got:?}"));
+        }
+    }
+    let first_few: Vec<&String> = wrong.iter().take(5).collect();
+    assert!(wrong.is_empty(), "{} of 9,912 wrong: {first_few:?}", wrong.len());
+
+    // Named checks, because a comparison of nine thousand rows says nothing about which rows matter.
     let of = |id: &str| {
         let kind = names.id_of(id).unwrap_or_else(|| panic!("the registry has {id}"));
-        (names.melee_bash_of(kind), names.melee_cut_of(kind))
+        (
+            names.melee_bash_of(kind),
+            names.melee_stab_of(kind),
+            names.to_hit_of(kind),
+        )
     };
-    assert_eq!(of("rock"), (7.0, 0.0), "a rock in the fist");
-    // A combat knife does **no** bash at all and fourteen points of stabbing: a registry that kept only bash and cut would call it worthless.
-    let knife = names
-        .id_of("knife_combat")
-        .unwrap_or_else(|| panic!("the registry has the combat knife"));
-    assert_eq!(names.melee_stab_of(knife), 14.0, "a combat knife stabs");
-    assert_eq!(of("null"), (0.0, 0.0), "and the null item is worth nothing");
+    assert_eq!(of("rock"), (7.0, 0.0, -1), "a rock in the fist");
+    assert_eq!(of("knife_combat"), (0.0, 21.0, -1), "a knife stabs and does not bash");
+    assert_eq!(of("null"), (0.0, 0.0, -2), "and the null item is worth nothing, and aims worst");
 }

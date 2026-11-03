@@ -129,6 +129,11 @@ pub struct ItemType {
     pub thrown_stated: bool,
     /// Damage types and their amounts, from `melee_damage`.
     pub melee: BTreeMap<String, f64>,
+    /// How well the thing is balanced for a swing, from `to_hit`.
+    ///
+    /// Reference: `itype::m_to_hit` (`itype.h:1540`), which starts at **-2** - a thing the data says nothing about is a poor weapon - and `item::get_to_hit` returns it. It is the
+    /// last term of `Character::get_hit_weapon` (`melee.cpp:370`), so a weapon the port cannot rate aims worse than one it can.
+    pub to_hit: i32,
     /// `stackable` as stated, which decides charge counting.
     pub stackable: bool,
     /// `phase`, which separates liquids from solids.
@@ -1297,6 +1302,7 @@ fn resolve(
         qualities: BTreeMap::new(),
         subtypes: BTreeSet::new(),
         melee: BTreeMap::new(),
+        to_hit: -2,
         thrown_damage: 0.0,
         thrown_stated: false,
         stackable: false,
@@ -1586,6 +1592,14 @@ fn apply_flat_slots(
     }
     if let Some(stackable) = boolean(object, "stackable") {
         item.stackable = stackable;
+    }
+    // Reference: `optional( jo, was_loaded, "to_hit", m_to_hit, -2 )` (`item_factory.cpp`) - a record that states it replaces what it copies, and one that does not keeps the
+    // inherited value, which is why this reads through the copy-from chain like every other stated member.
+    if let Some(to_hit) = object.get("to_hit").and_then(numeric) {
+        #[allow(clippy::cast_possible_truncation)]
+        {
+            item.to_hit = to_hit as i32;
+        }
     }
     if let Some(explodes) = boolean(object, "explode_in_fire") {
         item.explode_in_fire = explodes;

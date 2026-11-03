@@ -24,6 +24,7 @@ fn kinds_as(kinds: &[(String, i64, i64, Vec<Pocket>)]) -> Vec<item_registry::Kin
             melee_bash: 0.0,
             melee_cut: 0.0,
             melee_stab: 0.0,
+            to_hit: -2,
         })
         .collect()
 }

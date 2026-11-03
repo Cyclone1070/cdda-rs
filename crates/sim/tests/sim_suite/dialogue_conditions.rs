@@ -246,6 +246,7 @@ fn has_items_counts_the_stacks_and_the_charges_a_creature_carries() {
                 melee_bash: 0.0,
                 melee_cut: 0.0,
                 melee_stab: 0.0,
+                to_hit: -2,
             },
             cdda_sim::item_registry::Kind {
                 id: "rope",
@@ -256,6 +257,7 @@ fn has_items_counts_the_stacks_and_the_charges_a_creature_carries() {
                 melee_bash: 0.0,
                 melee_cut: 0.0,
                 melee_stab: 0.0,
+                to_hit: -2,
             },
         ],
     );
@@ -515,6 +517,7 @@ fn carrying_one_item_answers_the_guard() {
             melee_bash: 0.0,
             melee_cut: 0.0,
             melee_stab: 0.0,
+            to_hit: -2,
         }],
     );
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));

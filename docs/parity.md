@@ -11832,3 +11832,26 @@ port's own dump was already carrying the answer** in each type's `damage` array 
 
 **What is still missing before the survivor swings:** the **weapon's `to_hit`** is not loaded or dumped anywhere yet, so `hit_weapon_tenths` can only be fed a zero for now; and the
 `Character::melee_attack` caller itself needs the avatar's own damage instance. Both are named, neither is guessed.
+
+## The oracle went ahead of the loader again: all four melee columns (round 1091)
+
+Last round's registry kept three damage types from a column the dump already had and **guessed at the fourth thing a swing needs** - how well the thing aims. This round the oracle
+carries it, and the gate compares every type.
+
+| Piece | Where |
+|---|---|
+dump version **2** | `corpus/items/thrown-damage.json`: `melee_bash`, `melee_cut`, **`melee_stab`**, **`to_hit`** per type (`itype::melee_damage`, `itype::m_to_hit`) |
+Loader | `ItemType::to_hit`, from `to_hit`, default **-2** - the reference's own default, not zero |
+Registry | `ItemNames::to_hit` + `to_hit_of`, `Kind::to_hit` |
+Gate | all **9,912** types, **all four columns**, wrong ones counted - plus named checks: rock `(7, 0, -1)`, combat knife `(0, 21, -1)`, `null` `(0, 0, -2)` |
+
+**The default is -2 and that is the whole reason this went through the oracle.** A registry that answered `0` for a type it had not been told about would make an unknown thing aim
+*better* than the reference says a nil weapon aims. `itype::m_to_hit` starts at **-2** (`itype.h:1540`), and the `null` item - what a weaponless character swings - is exactly
+`-2` in the dump, which is the reference telling the port that empty hands aim worst.
+
+**Two mistakes from last round are now impossible to repeat silently.** Keeping two damage types lost every knife (a knife has **zero** bash and **21** stab); keeping the bash
+column as the whole story lost every blade and every edge. **The gate compares all four columns for all 9,912 types and prints the first five that disagree**, so the next such
+mistake is a failing test with a named type rather than a swing that quietly does nothing.
+
+**The oracle build failed first, and the failure was the useful part.** `type->to_hit` does not exist on `itype`; the member is `m_to_hit`. **A failed build and a green gate look
+identical from the outside** - the timestamp check is what caught it, and this round it caught it inside a minute instead of three rounds later.
