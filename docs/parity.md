@@ -10474,3 +10474,25 @@ thresholds and asserts the gain **still waits** - **the only assertion that can 
 **Still not ported:** the **category strength** that a threshold is actually gated on in play (`Character::mutation_category_level`, built from every mutation of a category
 the character holds), and the points a mutation costs. `threshreq` is the part that lives in the mutation's own data; the strength is a number on the character, and it is
 named here rather than half-built.
+
+## The dump was throwing away the thing it was asked for (round 1034)
+
+Two round of harness edits went wrong in the same place, and both were caught by reading the **file** rather than the code:
+
+| Bug | What the dump said | How it was caught |
+|---|---|---|
+`valid: false` branches were skipped | **0 thresholds** in the dump, and 172 `threshreq` lists pointing at ids that were not there | counting what came out: `sum(1 for x if x['threshold'])` |
+a string edit removed the `"prereqs":[` opener | every mutation's prerequisite list was **empty**, so the port's own rule would have read nothing from the corpus | `m['BIOLUM1']['prereqs']` raised `KeyError` |
+an edit renamed the opener but not the loop | `"threshreq":[ <prereqs> ...` - the key said one thing and the values were another | the same key check |
+
+**All three were edits to one long `out << ...` statement**, made by string replacement without re-reading the whole block. **The port's own rule is asserted against a
+fixture, so none of these three would have failed a test in the sim** - the corpus gate is the only thing that reads the real file, and a corpus gate that returns early on a
+missing file would not have caught them either.
+
+**The dump now carries every branch: 959, of which 514 are valid.** The 445 invalid ones include all **30 thresholds**, which is exactly why they have to be there: a
+threshold is `valid: false` and is named by other mutations' `threshreq`, so filtering on validity made the dump **self-inconsistent**.
+
+| Gate | Pins |
+|---|---|
+`the_mutation_dump_reads_with_its_prerequisites_and_conflicts` | 959 read = 959 held; three thresholds marked; `THRESH_URSINE` not valid; `BIOLUM3` names `THRESH_INSECT`; `BIOLUM1` needs `BIOLUM0` |
+`the_category_dump_reads_with_its_removal_chance_and_threshold` | 29 categories; HUMAN 0%, URSINE 33%, threshold 2200 |

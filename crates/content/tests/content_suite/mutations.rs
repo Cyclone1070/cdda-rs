@@ -14,7 +14,14 @@ fn the_mutation_dump_reads_with_its_prerequisites_and_conflicts() {
     let Some((table, read)) = cdda_content::mutations::from_dump(&root) else {
         return;
     };
-    assert_eq!(read, 514, "the dump carries every valid mutation, and it read {read}");
+    // Every branch is in the dump: **959** of them, of which **514** are valid. The 445 that are not include every threshold, and a dump that dropped them would leave
+    // the `threshreq` lists pointing at nothing.
+    assert_eq!(read, 959, "the dump carries every mutation branch, and it read {read}");
+    assert_eq!(
+        table.len(),
+        959,
+        "including the ones the data marks invalid"
+    );
     assert_eq!(read, table.len());
 
     // The three sets are not decoration: most of the tree has prerequisites, a fifth of it cancels something, and some of it cannot be purified away.
@@ -41,6 +48,22 @@ fn the_mutation_dump_reads_with_its_prerequisites_and_conflicts() {
     assert!(
         table.get("ECHOLOCATION").is_some_and(|one| !one.purifiable),
         "and that one is ECHOLOCATION, which the dump marks unpurifiable"
+    );
+
+    // 30 branches are thresholds, none of them valid, and each is named by other mutations' `threshreq`.
+    let thresholds: Vec<&str> = ["THRESH_URSINE", "THRESH_LUPINE", "THRESH_INSECT"]
+        .into_iter()
+        .filter(|id| table.get(id).is_some_and(|one| one.threshold))
+        .collect();
+    assert_eq!(thresholds.len(), 3, "the three thresholds are marked");
+    assert!(
+        table.get("THRESH_URSINE").is_some_and(|one| !one.valid),
+        "and a threshold is not a valid mutation"
+    );
+    assert_eq!(
+        table.get("BIOLUM3").map(|one| one.threshreq.clone()),
+        Some(vec!["THRESH_INSECT".to_owned()]),
+        "a mutation past a threshold names it"
     );
 
     // 85 of the 514 are traits a character may **start** with, and BEAUTIFUL is not one of them while NIGHTVISION is - which is what decides whose removal is a roll.

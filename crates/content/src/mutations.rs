@@ -8,6 +8,10 @@ use std::collections::BTreeMap;
 use cdda_json::{Object, Value};
 
 /// One mutation's place in the tree.
+///
+/// The four flags are the reference's own (`mutation.h:180-200`): a mutation can be purifiable, valid, a starting trait and a threshold **independently**, and the data
+/// uses every combination - a threshold is `valid: false`, and most traits are not starting ones.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Mutation {
     /// How many character-creation points it is worth.
@@ -16,6 +20,8 @@ pub struct Mutation {
     pub visibility: i32,
     /// Whether a purifier can take it away.
     pub purifiable: bool,
+    /// Whether the data marks it a valid mutation; **thresholds are not**, and they are named by other mutations' `threshreq`.
+    pub valid: bool,
     /// Whether a character can start with it, which is what makes its removal a matter of chance rather than certainty.
     pub startingtrait: bool,
     /// Whether the mutation is a category threshold, which cannot be gained on points alone.
@@ -88,6 +94,7 @@ fn mutation_of(entry: &Object) -> Mutation {
         points: whole(entry, "points"),
         visibility: whole(entry, "visibility"),
         purifiable: matches!(entry.get("purifiable"), Some(Value::Bool(true))),
+        valid: matches!(entry.get("valid"), Some(Value::Bool(true))),
         startingtrait: matches!(entry.get("startingtrait"), Some(Value::Bool(true))),
         threshold: matches!(entry.get("threshold"), Some(Value::Bool(true))),
         threshreq: strings(entry, "threshreq"),

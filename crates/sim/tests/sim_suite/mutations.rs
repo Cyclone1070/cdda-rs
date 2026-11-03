@@ -21,7 +21,7 @@ fn table(entries: &[(&str, Mutation)]) -> Mutations {
         };
         let _ = write!(
             text,
-            "{{\"id\":\"{id}\",\"points\":{},\"visibility\":{},\"purifiable\":{},\"startingtrait\":{},\"threshold\":{},\"threshreq\":[{}],\"prereqs\":[{}],\"prereqs2\":[],\"cancels\":[{}],\"category\":[{}]}}",
+            "{{\"id\":\"{id}\",\"points\":{},\"visibility\":{},\"valid\":true,\"purifiable\":{},\"startingtrait\":{},\"threshold\":{},\"threshreq\":[{}],\"prereqs\":[{}],\"prereqs2\":[],\"cancels\":[{}],\"category\":[{}]}}",
             one.points,
             one.visibility,
             one.purifiable,
@@ -48,6 +48,7 @@ fn trait_of(prereqs: &[&str], cancels: &[&str]) -> Mutation {
         points: 0,
         visibility: 0,
         purifiable: true,
+        valid: true,
         startingtrait: false,
         threshold: false,
         threshreq: Vec::new(),
@@ -281,5 +282,63 @@ fn a_threshold_mutation_needs_every_threshold_it_names() {
         cdda_sim::mutations::can_gain(&world, survivor, &data, "PAST_BOTH"),
         cdda_sim::mutations::Gain::Yes,
         "with both held it can be gained"
+    );
+}
+
+/// A creature's strength in a category is the sum of its mutations' heights, and a threshold is worth ten on its own.
+///
+/// Reference: `Character::calc_mutation_levels` (`character.cpp:7641-7672`) with `mutation_height` (`character.cpp:7626-7639`): a root trait counts three, its child four,
+/// its grandchild five, and a threshold ten for each category it names.
+#[test]
+fn a_category_strength_counts_heights_and_thresholds() {
+    let mut root = trait_of(&[], &[]);
+    root.categories = vec!["BEAST".to_owned()];
+    let mut child = trait_of(&["ROOT"], &[]);
+    child.categories = vec!["BEAST".to_owned()];
+    let mut grandchild = trait_of(&["CHILD"], &[]);
+    grandchild.categories = vec!["BEAST".to_owned()];
+    let mut threshold = trait_of(&[], &[]);
+    threshold.threshold = true;
+    threshold.categories = vec!["BEAST".to_owned()];
+    let mut other = trait_of(&[], &[]);
+    other.categories = vec!["FELINE".to_owned()];
+    let data = table(&[
+        ("ROOT", root),
+        ("CHILD", child),
+        ("GRANDCHILD", grandchild),
+        ("THRESH_BEAST", threshold),
+        ("OTHER", other),
+    ]);
+
+    assert_eq!(cdda_sim::mutations::height_of(&data, "ROOT"), 1);
+    assert_eq!(cdda_sim::mutations::height_of(&data, "CHILD"), 2);
+    assert_eq!(cdda_sim::mutations::height_of(&data, "GRANDCHILD"), 3);
+
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let none = cdda_content::mutations::Categories::default();
+    for id in ["ROOT", "CHILD", "GRANDCHILD", "OTHER"] {
+        cdda_sim::mutations::gain(&mut world, survivor, &data, &none, id);
+    }
+    assert_eq!(
+        cdda_sim::mutations::category_level(&world, survivor, &data, "BEAST"),
+        12,
+        "three, four and five, and the other category does not count"
+    );
+    // Crossing the threshold is a **replacement**: the same-category pruning takes the branch away, which leaves the threshold's ten standing alone.
+    cdda_sim::mutations::gain(&mut world, survivor, &data, &none, "THRESH_BEAST");
+    let held = cdda_sim::mutations::mutations_of(&world, survivor);
+    assert!(
+        held.contains(&"THRESH_BEAST".to_owned()) && held.contains(&"OTHER".to_owned()),
+        "the threshold prunes its own branch and leaves the other category alone: {held:?}"
+    );
+    assert!(
+        !held.contains(&"ROOT".to_owned()) && !held.contains(&"GRANDCHILD".to_owned()),
+        "the beast branch is gone: {held:?}"
+    );
+    assert_eq!(
+        cdda_sim::mutations::category_level(&world, survivor, &data, "BEAST"),
+        10,
+        "and the strength is then the threshold's own ten"
     );
 }

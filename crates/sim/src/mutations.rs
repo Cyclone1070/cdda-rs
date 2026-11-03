@@ -166,3 +166,44 @@ pub fn mutations_of(world: &World, creature: Entity) -> Vec<String> {
         .get::<Mutations>(creature)
         .map_or_else(Vec::new, |held| held.0.clone())
 }
+
+/// How far down its own branch a mutation sits: one at the root, and one more for every prerequisite above it.
+///
+/// Reference: `Character::mutation_height` (`character.cpp:7626-7639`): the height is one more than the tallest prerequisite chain, taken over `prereqs` and
+/// `prereqs2` alike, and it is a property of the **data** rather than of what the character holds.
+#[must_use]
+pub fn height_of(data: &MutationData, id: &str) -> i32 {
+    let Some(rule) = data.get(id) else {
+        return 1;
+    };
+    let mut tallest = 0;
+    for need in rule.prereqs.iter().chain(rule.prereqs2.iter()) {
+        tallest = tallest.max(height_of(data, need));
+    }
+    tallest + 1
+}
+
+/// How strongly a creature has become one thing.
+///
+/// Reference: `Character::calc_mutation_levels` (`character.cpp:7641-7672`): a threshold is worth **ten** to each of its categories, and any other mutation is worth its
+/// **height plus two** to each category it belongs to - so a root trait is three, its child four, and its grandchild five. This is the strength a threshold is gated on
+/// and the strength a category's potion threshold reads.
+#[must_use]
+pub fn category_level(world: &World, creature: Entity, data: &MutationData, category: &str) -> i32 {
+    let held = mutations_of(world, creature);
+    let mut level = 0;
+    for id in &held {
+        let Some(rule) = data.get(id) else {
+            continue;
+        };
+        if !rule.categories.iter().any(|cat| cat == category) {
+            continue;
+        }
+        if rule.threshold {
+            level += 10;
+        } else {
+            level += height_of(data, id) + 2;
+        }
+    }
+    level
+}
