@@ -2871,13 +2871,17 @@ pub fn run_effect(
             let Some(creature) = actor(speaker, listener, *about_listener) else {
                 return Applied::CannotAnswer;
             };
-            crate::traits::add_trait(world, creature, trait_name);
+            // Reference: the trait is a `str_or_var`, read when the effect runs, so an earlier effect can have decided which one it is.
+            let Some(named) = crate::conditions::text_of(world, speaker, listener, trait_name) else {
+                return Applied::CannotAnswer;
+            };
+            crate::traits::add_trait(world, creature, &named);
             // Reference: `set_mutation( trait, variant )` keeps the cosmetic choice beside the trait; nothing in the rules reads it yet.
             if let Some(chosen) = variant {
                 let Some(name) = crate::conditions::text_of(world, speaker, listener, chosen) else {
                     return Applied::CannotAnswer;
                 };
-                crate::traits::set_variant(world, creature, trait_name, &name);
+                crate::traits::set_variant(world, creature, &named, &name);
             }
             Applied::Done
         }
@@ -2887,7 +2891,10 @@ pub fn run_effect(
             };
             // Reference: `unset_mutation` on a trait the creature does not have does nothing, and a `lose_trait` that finds
             // nothing to lose has still done its job - so the answer is `Done` either way.
-            crate::traits::remove_trait(world, creature, trait_name);
+            let Some(named) = crate::conditions::text_of(world, speaker, listener, trait_name) else {
+                return Applied::CannotAnswer;
+            };
+            crate::traits::remove_trait(world, creature, &named);
             Applied::Done
         }
         // A cast needs the spell effect table, a named program needs the registry and a depth only the program runner has, and everything else has a rule the port

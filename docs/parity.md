@@ -11188,3 +11188,30 @@ programs refused at their first unreadable entry | 10 | **9** |
 effects runnable | 1,578 | **1,579** |
 leaves unreadable | 40 | **38** |
 one-gap programs | 12 | **14** |
+
+## A trait can be named by a variable (round 1063)
+
+Eight programs refuse now, and this one was a **reader refusing a shape the port already had a rule for**: `add_trait` was there, and only the *name* could not be a variable.
+
+| Piece | Where |
+|---|---|
+`LearnTrait::trait_name` and `LoseTrait::trait_name` are `StringSource` | `get_str_or_var( ..., true )` (`npctalk.cpp:3498-3508`, `3536-3543`) |
+when the name is read | **when the effect runs**, so an effect earlier in the list decides which trait is added |
+the `variant` beside it | already a `StringSource`, kept with `set_mutation( trait, variant )` |
+Gate | `a_trait_may_be_named_by_a_variable` - the table holds one trait, the variable names it, and the creature ends up with it |
+
+**A rule that works for a literal and not for a variable is a rule with a hole in it, and the census counts the hole.** The reference reads almost every id in a dialogue as
+a `str_or_var`; the port has now had this exact conversation about a spell id, a place, a duration, a message and a trait - **one shape, five names, found one at a time
+because the census can only say which entry refused.**
+
+**What is left is eight programs and seven subsystems:** a camp, a trade (two programs), a reveal, an overmap pick, a game event, an active trait. **The census frontier is
+now a roadmap, not a bug list** - each of those needs a rule the port has not written rather than a wire it forgot.
+
+| Number | Before | After |
+|---|---|---|
+programs refused at their first unreadable entry | 9 | **8** |
+programs readable | 596 | **597** |
+leaves unreadable | 38 | **32** |
+effects runnable | 1,579 | **1,580** |
+effect-blamed refusals | 89 | **88** |
+one-gap programs | 14 | **—** (the group dissolved as the leaves fell) |

@@ -156,3 +156,54 @@ fn a_message_may_be_a_variable() {
         "with the variable's text: {lines:?}"
     );
 }
+
+/// A trait can be named by a variable, which is how the data adds whichever trait an earlier effect decided on.
+///
+/// Reference: `f_add_trait` (`npctalk.cpp:3498-3508`) reads the member as `get_str_or_var( ..., true )`, so `{"u_add_trait": {"context_val": "trait_id"}}` is a
+/// trait the dialogue holds - and the `variant` beside it is the cosmetic choice `set_mutation( trait, variant )` keeps.
+#[test]
+fn a_trait_may_be_named_by_a_variable() {
+    let mut world = World::new();
+    let speaker = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    // The store's own trait list is what `add_trait` checks against, so the test gives it one.
+    let mut mutations = cdda_content::mutations::Mutations::default();
+    cdda_sim::mutation_data::install(
+        &mut world,
+        mutations_from(&["WINGS_INSECT_active"]),
+        cdda_content::mutations::Categories::default(),
+    );
+    let _ = &mut mutations;
+
+    let text = r#"{"u_add_trait": {"context_val": "trait_id"}, "variant": "black"}"#;
+    let value = cdda_json::parse(text.as_bytes()).expect("json");
+    let Some(effect) = cdda_content::dialogue::read_effect(&value) else {
+        panic!("the port reads a trait named by a variable");
+    };
+    cdda_sim::dialogue_values::set(
+        &mut world,
+        speaker,
+        "trait_id",
+        cdda_sim::dialogue_values::Value::Text("WINGS_INSECT_active".to_owned()),
+    );
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effects(&mut world, speaker, None, std::slice::from_ref(&effect)),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "and the effect runs"
+    );
+    assert!(
+        cdda_sim::traits::has_trait(&world, speaker, "WINGS_INSECT_active"),
+        "with the trait the variable named"
+    );
+}
+
+/// A mutation table holding just the ids named, built through the dump the loader reads.
+fn mutations_from(ids: &[&str]) -> cdda_content::mutations::Mutations {
+    let branches: Vec<String> = ids
+        .iter()
+        .map(|id| format!(r#"{{"id": "{id}", "valid": true}}"#))
+        .collect();
+    let text = format!(r#"{{"mutations": [{}]}}"#, branches.join(","));
+    let value = cdda_json::parse(text.as_bytes()).expect("json");
+    let (table, _) = cdda_content::mutations::from_dump(&value).expect("the table reads");
+    table
+}

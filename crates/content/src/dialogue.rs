@@ -3197,8 +3197,8 @@ pub enum Effect {
     /// Reference: `f_add_trait` (`npctalk.cpp:3498-3508`), which calls `set_mutation`. Its `variant` member is refused rather than
     /// dropped: a variant changes which mutations are legal to take next, and the port has no mutation graph to change.
     LearnTrait {
-        /// The trait's id.
-        trait_name: String,
+        /// The trait's id, which the data may give as a variable.
+        trait_name: StringSource,
         /// The cosmetic variant to choose, when the data names one.
         variant: Option<StringSource>,
         /// Whether it goes to the listener rather than the speaker.
@@ -3208,8 +3208,8 @@ pub enum Effect {
     ///
     /// Reference: `f_remove_trait` (`npctalk.cpp:3536-3543`), which calls `unset_mutation`.
     LoseTrait {
-        /// The trait's id.
-        trait_name: String,
+        /// The trait's id, which the data may give as a variable.
+        trait_name: StringSource,
         /// Whether it goes from the listener rather than the speaker.
         listener: bool,
     },
@@ -3707,20 +3707,25 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
         ("u_lose_trait", false, false),
         ("npc_lose_trait", true, false),
     ] {
-        if let Some(Value::Str(trait_name)) = object.get(member) {
+        // Reference: `get_str_or_var( jo.get_member( member ), member, true )` (`npctalk.cpp:3498-3508`) - the trait may be named by a variable, and the data
+        // uses that to add whichever trait an earlier effect decided on.
+        if let Some(given) = object.get(member)
+            && matches!(given, Value::Str(_) | Value::Object(_))
+            && let Some(trait_name) = read_string_source(given)
+        {
             let variant = match object.get("variant") {
                 None => None,
                 Some(given) => Some(read_string_source(given)?),
             };
             return Some(if learn {
                 Effect::LearnTrait {
-                    trait_name: trait_name.clone(),
+                    trait_name,
                     variant,
                     listener,
                 }
             } else {
                 Effect::LoseTrait {
-                    trait_name: trait_name.clone(),
+                    trait_name,
                     listener,
                 }
             });
