@@ -111,6 +111,7 @@ mod body_parts;
 mod material_resist;
 mod monsters;
 mod monster_attack;
+mod monster_armour;
 mod npc_classes;
 mod overmap;
 mod overmap_build;

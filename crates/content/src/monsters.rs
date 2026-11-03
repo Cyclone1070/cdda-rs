@@ -47,6 +47,11 @@ pub struct MonsterType {
     pub armor_bash: i32,
     /// Its resistance to cut.
     pub armor_cut: i32,
+    /// Resistance to stabbing damage.
+    ///
+    /// Reference: `mtype::armor` (`monster.h`) holds a `resistances` object, and `armor_cut` and `armor_stab` are two of its types - a monster can be armoured against a blade's
+    /// edge and open to its point, which is why the port keeps them apart rather than borrowing one for the other.
+    pub armor_stab: i32,
     /// Morale.
     pub morale: i32,
     /// Aggression, from -100 to 100.
@@ -303,6 +308,7 @@ fn apply(monster: &mut MonsterType, object: &Object, inherited: bool) -> Result<
     // than as the `armor` object the game's JSON uses, because the dump is what this loader is fed.
     monster.armor_bash = count(object, "armor_bash", monster.armor_bash)?;
     monster.armor_cut = count(object, "armor_cut", monster.armor_cut)?;
+    monster.armor_stab = count(object, "armor_stab", monster.armor_stab)?;
     // A stated rate is a float in the data, so it is read as one rather than through the integer helper - `regenerates: 0.5` is half a hit point an hour and a `count`
     // reader would make it zero.
     match object.get("regenerates") {
@@ -528,6 +534,7 @@ impl MonsterType {
             melee_dice_ap: 0,
             armor_bash: 0,
             armor_cut: 0,
+            armor_stab: 0,
             // The reference's own default: no stated rate, so the fallbacks decide (`mtype::mtype()` leaves `regenerates` at zero).
             regenerates: 0.0,
             // The reference's own defaults for a type that states neither.

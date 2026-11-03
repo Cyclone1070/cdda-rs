@@ -1622,9 +1622,7 @@ pub fn spawn_monster_of_type(
         Armour {
             bash: monster_type.armor_bash,
             cut: monster_type.armor_cut,
-            // Not a guess and not `armor_cut`: the reference keeps `armor_stab` apart from `armor_cut`, and the port does not load it yet - so a monster's stab armour is **zero**
-            // until the loader carries the field. Named here rather than borrowed from the neighbour, which would make every monster quietly sturdier than its data says.
-            stab: 0,
+            stab: monster_type.armor_stab,
         },
         Dodge {
             points: monster_type.dodge,

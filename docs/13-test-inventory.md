@@ -553,3 +553,7 @@ compares **all four columns for all 9,912 types**, printing the first five that 
 after its own armour (`get_effective_resist` per unit's type, `damage.cpp:724-727`), gated by `melee::a_blow_is_worth_all_of_its_damage_and_each_meets_its_own_armour`. **The old
 code made every knife blow worth zero** - a knife has no bash at all. `Armour::stab` is set to **zero** by the monster spawner on purpose: the loader does not carry `armor_stab`
 yet, and borrowing `armor_cut` would have made monsters quietly sturdier than their data.
+
+**Round 1093 closed the stab-armour gap**: the monster dump is version **5** and carries `armor_stab` per prototype, `MonsterType::armor_stab` loads it, the spawner puts it on
+`Armour::stab`, and `content_suite::monster_armour` compares all **1,154** prototypes on all three armour numbers. **The zero from round 1092 is gone** - it existed only because the
+dump did not carry the field.

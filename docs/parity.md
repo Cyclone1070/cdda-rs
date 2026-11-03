@@ -11874,3 +11874,22 @@ game's weaponry runs through the two types the port ignored.
 **`Armour` gained `stab` and the monster spawner sets it to zero, deliberately.** The reference keeps `armor_stab` apart from `armor_cut`, and the port's monster loader does not
 carry it yet. **Borrowing `armor_cut` would have made every monster quietly sturdier than its data says** - so the field is zero and the gap is written down. The next oracle dump of
 monsters adds `armor_stab` and this comment goes away.
+
+## The third armour, dumped and loaded (round 1093)
+
+Last round a blow became worth its bash, cut **and** stab, and the spawner had to answer what a monster resists that third one with. The answer was `0` and a comment saying why. This
+round the oracle answers instead.
+
+| Piece | Where |
+|---|---|
+monster dump **version 5** | `corpus/monsters/monsters.json`: `armor_stab` per prototype, beside bash and cut (`mtype::armor`, a `resistances` object) |
+Loader | `MonsterType::armor_stab`, from `armor_stab`, next to the other two |
+Spawner | `Armour::stab` is the type's own number - the zero and its comment are gone |
+Gate | `a_monsters_three_armours_arrive_as_its_data_states_them` - all **1,154** prototypes, **all three** numbers, wrong ones counted |
+
+**447 of the 1,154 prototypes resist stabbing at all, and the two numbers are not the same number.** The gate asserts that some types resist cutting and stabbing **differently**,
+because that is the reason both fields exist: **borrowing one for the other was the shortcut that would have made a monster that is open to a point as tough as one armoured against
+an edge.**
+
+**A gap that is named is a gap that gets closed.** Round 1092 wrote "the port does not load `armor_stab` yet" beside a deliberate zero; this round the harness carries the field and
+the zero is replaced by the data. **The comment was the work order** - the same pattern the registry's `thrown_damage`-only field went through two rounds ago.
