@@ -62,6 +62,7 @@ pub mod starting_kit;
 pub mod terrain;
 pub mod traps;
 pub mod vitamins;
+pub mod mutations;
 pub mod vehicles;
 
 pub use rules::{id_member, null_prototype, registry_for};

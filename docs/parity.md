@@ -268,7 +268,7 @@ the layer that decides when to shift
 | Creature tracking and lookup | **ported, and by construction** | `sim_suite::architecture` | the **one** position index; the reference's four parallel indexes have no counterpart because a square is a query |
 | Effects | **ported** | `sim_suite::effect_chances`, `::effect_decay`, `::effect_derived`, `::effect_merge`, `::effect_activated`, `::gas_effects` | `effects.rs`, `applied_effects.rs`, `effect_registry.rs` - a component per creature, not a nested map |
 | Body parts and anatomy | **ported** | `sim_suite::body`, `::body_from_content`, `::player_body` | `body.rs`: 21 rules, armour per part, hit rolls |
-| Mutations | **not started** | M3b | no module |
+| Mutations | **started** | `sim_suite::mutations` (three tests) | `mutations.rs`: ids on the creature, sets in the data; `has`, `can_gain`, `gain`. Same-category pruning and `base_removal_chance` are not ported |
 | Bionics | **ported**, **thinly gated** | `sim_suite::dialogue_effects`, `::probe` | `bionics.rs`: install and query only; the powers bionics grant are P5's, and there is **no dedicated test file** - the two rules are exercised through dialogue |
 | Morale | **ported and gated** | `sim_suite::morale` (five tests) | `morale.rs`: stacking, caps, decay, expiry, removal, the fade curve |
 | Needs and hunger | **ported** | `sim_suite::needs`, `::hunger_effect` | `needs.rs`, `body.rs` |
@@ -10290,3 +10290,30 @@ the curve runs from one to zero and stays there | `the_fade_curve_runs_from_one_
 held **bonus** with the new **cap** (`morale.cpp:177`) - where the port compares the two **bonuses**. The two agree for every point with no cap, which is all but a handful in
 the data, and they disagree for a point whose cap has the opposite sign to its bonus. **The port's reading is the one that makes sense; the reference's is the one the game
 ships.** It is named here because **a difference that nobody writes down becomes a difference nobody finds.**
+
+## Mutations begin: ids on the creature, sets in the data (round 1024)
+
+The P4 ledger said mutations were *not started*. They now have their first three rules and a shape that matches the architecture rather than the reference's:
+
+| Reference | Port |
+|---|---|
+`mutation_branch` carries `prereqs`, `prereqs2`, `cancels`, `types` **on the trait object** | one table in `cdda_content::mutations`, keyed by id |
+`Character` holds `std::set<trait_id> my_traits` beside it | one component, `Mutations(Vec<String>)`, holding **ids only** |
+
+| Rule | Gate |
+|---|---|
+a mutation needs **one** of its `prereqs` and one of its `prereqs2` | `a_mutation_needs_one_of_its_prerequisites` |
+gaining **takes away** what it cancels | `gaining_a_mutation_replaces_what_it_cancels` |
+a conflict that **cannot be removed** stops the gain | `a_conflict_that_cannot_be_removed_stops_the_gain` |
+
+**The second test is the one that taught me the rule.** I had written the check as *"holding a cancel blocks the gain"* - the intuitive reading - and the test failed with
+`Conflicting` where it expected `Yes`. The reference (`mutation.cpp:1656-1712`) does the opposite: **a cancel is a thing to remove**, and the only cancellations that block
+are the ones that **cannot be removed**, where it returns false with the comment *"We can't cancel unpurifiable mutations"*. **The test caught an inverted rule that reads
+perfectly.**
+
+**A dump is on its way, and its gate is not written until it lands.** `--dump-mutations` was added to the harness this round; the build is still running, so the content
+table is exercised by a **hand-built dump** in the sim tests (non-vacuous: the same `from_dump` the real file will use) and the corpus gate waits for the file rather than
+shipping a test that returns early. **A gate that returns early when its corpus is missing is not a gate** - the habit that has cost the most time in this port.
+
+**Known and named, not ported:** `mutate_towards` also prunes **same-category** traits and applies a category's `base_removal_chance` roll to starting traits; the port
+does neither yet, and both are P4 work.

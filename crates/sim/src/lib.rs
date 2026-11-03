@@ -24,6 +24,7 @@ pub mod mapgen_update;
 pub mod messages;
 pub mod missions;
 pub mod morale;
+pub mod mutations;
 pub mod seeing;
 pub mod snippets;
 pub mod field_passage;
