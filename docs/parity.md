@@ -11791,3 +11791,24 @@ is the failure this port's conventions exist to prevent.
 **This is the input the aiming rule was missing, not the whole attack.** `hit_base_tenths(effective_dexterity(..))` is now expressible; the survivor's swing still waits on the
 unarmed **damage**, which the reference takes from the null item reference and from `bodypart::unarmed_damage` - and the data defines the latter on a debug body part only. That
 gap is unchanged and still named.
+
+## The reference has no fist, and now the suite says so (round 1089)
+
+Two rounds circled the survivor's unarmed attack without settling it. The corpus settled it in one line.
+
+| Fact | Evidence |
+|---|---|
+the item a weaponless character swings is `null` | `Character::used_weapon()` returns no item, and `melee_attack_abstract` uses `null_item_reference()` |
+its melee bash is **0** | `corpus/items/thrown-damage.json`: `{"id": "null", "melee_bash": 0, "total": 0}` |
+a real item is not 0 | the same field on `rock` is **7** |
+where unarmed damage actually lives | `bodypart::unarmed_damage` (`bodypart.cpp:451`), which the shipped data defines on a **debug body part only** |
+
+**So an unarmed human blow in 0.I-1 carries no weapon damage at all** - the damage comes from body parts the shipped data leaves empty, and from martial arts the port has not
+started. **A port that gave the survivor a punch of "about three" would have been inventing the one number in this game that the reference does not have.**
+
+**The finding is now a gate, not a paragraph.** `content_suite::no_fist` reads the dump, asserts `null`'s melee bash and thrown damage are both zero, asserts `rock`'s is **7**
+(without which the gate would pass on a dump where every value was zero), and counts how many of the 9,912 types state no melee damage at all - so a loader that dropped the field
+fails here rather than in a playtest that cannot fight.
+
+**What this changes about the next step:** the survivor's attack needs the **`melee` half of the item registry** - the port's registry holds each kind's `thrown_damage` and not its
+melee damage, because a throw is all that has needed it so far. That is the next slice, and it is smaller than it looked: the loader already reads `melee` for every item type.

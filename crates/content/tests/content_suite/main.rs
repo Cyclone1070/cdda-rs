@@ -148,3 +148,4 @@ mod zones_probe;
 mod thrown_damage;
 
 mod monster_mending;
+mod no_fist;

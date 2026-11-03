@@ -533,3 +533,8 @@ unarmed attack - a scenario `attack` step was written, refused to work for that 
 **Round 1088 gave the aiming rule its input**: `creature::Dexterity { base }` and `effective_dexterity` (`Character::get_dex`, the base through the mutation enchantment cache's
 `DEXTERITY`), gated by `mutations::a_dexterity_enchantment_reaches_the_creatures_own_dexterity`. **The cache now has three claimants** - carrying capacity, the needs clock and
 dexterity - and they share four lines because `get_dex` and `get_str` are the same shape in the reference.
+
+**Round 1089 settled the punch question with evidence**: `content_suite::no_fist` pins that the `null` item - what a weaponless character swings - has **melee bash 0** in the
+reference's own dump, and that a real item's is not zero. **An unarmed human blow in 0.I-1 carries no weapon damage**; what damage there is comes from `bodypart::unarmed_damage`,
+which the shipped data defines on a debug body part only. **Named next:** the survivor's attack needs the **melee half of the item registry** (the loader already reads `melee`
+for every type; the registry keeps only `thrown_damage` because a throw is all that has needed it).
