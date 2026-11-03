@@ -301,7 +301,7 @@ unexplained | **0** | - |
 item-group model that already exists for **named** groups to grow an **inline** form).
 
 **What P3 still lacks beyond those:** the 5% instalments (one per-turn hook that gives **both** the charge spends and the proficiency practice their reference timing),
-`--dump-proficiencies` so `time_to_learn` is loaded rather than test-installed, focus's other two equilibrium inputs, and the container eligibility rule for liquids.
+focus's other two equilibrium inputs, and the container eligibility rule for liquids.
 
 ### Where the work stands after the dialogue census (updated at round 992)
 
