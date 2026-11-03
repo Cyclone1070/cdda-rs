@@ -104,8 +104,8 @@ pub fn throw_at(world: &mut World, thrower: Entity, item: Entity, target: (i32, 
     };
     // Reference: a projectile heavier than **500 grams** carries `HEAVY_HIT` (`ranged.cpp:1522-1524`), and the landing branch answers it with a thud of volume **8**
     // (`ballistics.cpp:180-186`). A thing too light for that lands in silence, which is the half a test can tell apart from "everything thuds".
-    if names.weight_of(kind) > 500 {
-        crate::sounds::make_sound(world, at, 8);
+    if let Some(volume) = landing_noise(world, at, names.weight_of(kind)) {
+        crate::sounds::make_sound(world, at, volume);
     }
     // The move itself: out of the hand, onto the square. The store finds an item by its position, so this is one component's worth of change.
     world
@@ -151,6 +151,21 @@ pub fn throw_at(world: &mut World, thrower: Entity, item: Entity, target: (i32, 
         missed_by: aim.missed_by,
         hit,
     }
+}
+
+/// How loud a landing is, or nothing at all when the thing is too light to be heard.
+///
+/// Reference: the landing branch of `projectile_attack` (`src/ballistics.cpp:180-186`): inside the `HEAVY_HIT` test, a square carrying `TFLAG_LIQUID` answers "splash!"
+/// at volume **10** and any other square a thud at volume **8**. A thing of 500 grams or less is not heavy (`weight > 500_gram`, `ranged.cpp:1522-1524`), so it says nothing
+/// wherever it lands.
+#[must_use]
+pub fn landing_noise(world: &World, square: (i32, i32, i32), weight_g: i64) -> Option<i32> {
+    if weight_g <= 500 {
+        return None;
+    }
+    let wet = crate::square::terrain_at(world, square)
+        .is_some_and(|code| crate::terrain_types::has_flag(world, code, "LIQUID"));
+    Some(if wet { 10 } else { 8 })
 }
 
 /// What the **arm** adds to a thrown thing's blow, in points of damage.

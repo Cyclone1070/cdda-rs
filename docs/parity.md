@@ -11480,3 +11480,25 @@ character, and every later rule that hears it - a monster waking, a zombie turni
 
 **Still not carried, named:** a landing in **liquid** makes volume 10 with a `splash!` message instead of 8 with a thud (`ballistics.cpp:181-186`), and `TANGLE` nets a
 monster rather than dropping. Both read the terrain under the square, which the store has.
+
+## A splash is louder than a thud (round 1075)
+
+The landing's noise is now read off the square it lands on.
+
+| Piece | Where |
+|---|---|
+`landing_noise(&World, square, weight_g) -> Option<i32>` | `ballistics.cpp:180-186` |
+the rule | over **500 g**, a square carrying `LIQUID` answers **10**, any other square **8** |
+under 500 g | **`None`** - the splash is inside the same `HEAVY_HIT` test, so a light thing is silent in water too |
+Gate | `a_heavy_landing_in_water_is_louder_than_one_on_the_floor` - four cases: 5 kg floor, 5 kg water, 500 g floor, 500 g water |
+
+**The liquid case is inside the heavy test, and that is the part a reader gets wrong.** The reference's splash is not "water makes noise"; it is "a heavy thing landing in
+water is louder than a heavy thing landing on the floor". A port that made water splash unconditionally would be **right about the splash and wrong about the silence**, and
+nothing in play would look broken.
+
+**Two failures in this round were the test's fault, not the port's**, and both were worth keeping: the first asserted silence for a 500 g rock and passed **for the wrong
+reason** (the boundary, not the water), and the second set terrain with the wrong argument order (`set_terrain(x, y, terrain, blank)` - four arguments, not three). The
+diagnostic assertions that found the second one **stay in the test**, because they name the world the test believes in.
+
+**Still not carried, named:** the reference's sound also carries the string `splash!` or `thud.` for the player to read, and the port's `Sound` has only a position and a
+volume because **nothing displays a sound's name yet**. Carrying the string now would be dead state; it arrives with the display rule that reads it.

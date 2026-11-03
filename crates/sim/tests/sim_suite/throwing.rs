@@ -262,3 +262,46 @@ fn a_thing_over_half_a_kilo_landing_makes_a_sound_and_five_hundred_grams_does_no
         "volume eight, which is the reference's own"
     );
 }
+
+/// A heavy thing landing in water splashes louder than one landing on the floor, and a light thing says nothing either way.
+///
+/// Reference: the landing branch of `projectile_attack` (`ballistics.cpp:180-186`) makes volume **10** with a `splash!` when the square carries `TFLAG_LIQUID` and volume
+/// **8** with a thud otherwise - and both live inside the `HEAVY_HIT` test, so a light thing landing in water is as silent as one landing on grass.
+#[test]
+fn a_heavy_landing_in_water_is_louder_than_one_on_the_floor() {
+    use cdda_sim::throwing::landing_noise;
+
+    let mut world = World::new();
+    let mut level = cdda_core_types::level::Level::new();
+    // Four arguments: x, y, the terrain code, and the code an empty square starts as.
+    level.set_terrain(0, 0, 1, 0);
+    level.set_terrain(1, 0, 2, 0);
+    cdda_sim::load_level(&mut world, &level);
+    cdda_sim::terrain_types::set_types(
+        &mut world,
+        [
+            ("t_floor".to_owned(), 1u32),
+            ("t_water_sh".to_owned(), 2u32),
+        ],
+    );
+    cdda_sim::terrain_types::set_flags(
+        &mut world,
+        [("t_water_sh".to_owned(), vec!["LIQUID".to_owned()])],
+    );
+
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (1, 0, 0)),
+        Some(2),
+        "the water is on the square the test thinks it is"
+    );
+    assert!(
+        cdda_sim::terrain_types::has_flag(&world, 2, "LIQUID"),
+        "and its type carries the flag"
+    );
+    // Five kilograms on the floor is the thud, and on water the splash.
+    assert_eq!(landing_noise(&world, (0, 0, 0), 5_000), Some(8), "a thud on the floor");
+    assert_eq!(landing_noise(&world, (1, 0, 0), 5_000), Some(10), "a splash in the water");
+    // Exactly five hundred grams is not heavy, on either.
+    assert_eq!(landing_noise(&world, (0, 0, 0), 500), None, "five hundred grams on the floor");
+    assert_eq!(landing_noise(&world, (1, 0, 0), 500), None, "five hundred grams in the water");
+}

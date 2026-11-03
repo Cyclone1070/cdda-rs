@@ -484,5 +484,6 @@ next step there:** the reference resolves against a **body part**, each with its
 the wiring is the body-part map, not a new rule.
 
 **Round 1074 made a landing audible**: `throw_at` makes volume **8** at the landing square when the thing is **strictly** heavier than 500 g (`ranged.cpp:1522-1524`,
-`ballistics.cpp:180-186`), through the port's own `sounds` store, which is what a creature nearby hears. **Named next:** a landing in liquid makes **10** with a `splash!`, and a
-`TANGLE` net traps a monster instead of dropping - both read the terrain under the square.
+`ballistics.cpp:180-186`), through the port's own `sounds` store, which is what a creature nearby hears. **Round 1075 added the liquid branch**: `throwing::landing_noise` answers **10** for a heavy landing on a `LIQUID` square and **8** otherwise, and **nothing** under 500 g
+because the splash lives inside the same `HEAVY_HIT` test. **Named next:** a landing in liquid also carries the string `splash!` for the player, which waits for the display rule
+that reads a sound's name; and a `TANGLE` net traps a monster instead of dropping.
