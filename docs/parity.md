@@ -10552,3 +10552,29 @@ last of the food clock's modifiers. It is P5's first component, and three P3/P4 
 **What that means concretely:** `enchant_vals::mod` is the enum a cache is keyed by (`magic_enchantment.h:36-40`), a mutation's values are inline enchantments rather than a
 map on the branch, and the cache is a **sum over the sources a creature carries** - mutations today, items and effects later. The next round dumps it, loads it and wires the
 first reader.
+
+## The enchantment cache begins, and its first reader is a pair of hands (round 1037)
+
+The next thing to build was the cache three gaps were waiting on. This round puts the **values** in the port and gives them **one reader that changes the world**:
+
+| Piece | Where it lives |
+|---|---|
+the values, followed from each mutation to its enchantment | `cdda_content::mutations::EnchantmentValue`; the dump now carries `enchant_values` beside the ids |
+summing a stat over every source a creature carries | `mutations::enchantment_values` |
+the reference's arithmetic, `( base + add ) * ( 1 + multiply )` | `mutations::apply_enchantments` |
+**its first reader** | `creature::effective_strength`, and `carrying_capacity` now uses it |
+
+**The dump had to follow a pointer the harness cannot enumerate.** `enchantment` is loaded through a factory that is a `static` in `magic_enchantment.cpp`, so there is no
+`enchantment::get_all()` to walk. **The values are reached from what carries them** - `branch.enchantments` gives ids, and `id->values_add` gives the numbers - which is why
+they ride inside the mutation dump rather than in a table of their own.
+
+| Gate | What it shows |
+|---|---|
+`a_strength_enchantment_reaches_the_carrying_capacity` | `STRENGTH +1` is **nine** strength and **four kilograms** more in the hands |
+`the_mutation_dump_reads_with_its_prerequisites_and_conflicts` | 959 branches; `STR_UP` is exactly `STRENGTH +1` |
+
+**"It reaches the carrying capacity" is the point of the test, not a detail.** A cache that summed correctly and nothing read would pass a unit test and change no game -
+which is this port's oldest failure mode, and the reason the assertion is on **kilograms a survivor can lift** rather than on the sum.
+
+**Declared, not ported:** conditional enchantments (`dbl_or_var` expressions, dumped as zero), the cache's item and effect sources, and the `calc_needs_rates` modifiers that
+were the other two claimants. **The seam is in place for all three**: they add to the same sum.

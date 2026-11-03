@@ -685,7 +685,9 @@ pub fn carrying_capacity(world: &World, entity: Entity) -> i64 {
         crate::CreatureSize::Large => 13_000 * 2,
         crate::CreatureSize::Huge => 13_000 * 4,
     };
-    let strength = world.get::<Strength>(entity).map_or(0, |strength| strength.base);
+    // Reference: `Character::weight_capacity` reads `get_str()`, which is the base plus whatever the character's enchantments add - so a mutant with `STR_UP` carries the
+    // four kilograms a point that its new strength is worth.
+    let strength = effective_strength(world, entity);
     base + i64::from(strength) * 4_000
 }
 
@@ -851,6 +853,24 @@ pub fn can_stash(
         }
     }
     None
+}
+
+/// How strong a creature is, with the enchantments it carries applied.
+///
+/// Reference: `Character::get_str` (`character.cpp:3353`): `str_max` - the base - plus the enchantment cache's `STRENGTH` addition, multiplied by its multiplier. A creature
+/// with no `Strength` is a monster, and answers zero, which is what makes a zombie carry only what its size allows.
+#[must_use]
+pub fn effective_strength(world: &World, entity: Entity) -> i32 {
+    let Some(strength) = world.get::<Strength>(entity) else {
+        return 0;
+    };
+    let Some(data) = crate::mutation_data::holder(world) else {
+        return strength.base;
+    };
+    let (add, multiply) = crate::mutations::enchantment_values(world, entity, &data, "STRENGTH");
+    #[allow(clippy::cast_possible_truncation)]
+    let value = crate::mutations::apply_enchantments(f64::from(strength.base), add, multiply) as i32;
+    value
 }
 
 /// How strong a creature is.

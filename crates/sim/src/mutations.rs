@@ -278,3 +278,35 @@ pub fn mutate_category(
     }
     None
 }
+
+/// What the enchantments a creature carries add to one stat, and what they multiply it by.
+///
+/// Reference: `enchantment_cache::get_value_add` and `get_value_multiply` (`magic_enchantment.h:217-218`): every source's `values_add` for a stat is summed, and every
+/// `values_multiply` is summed too - the reference then applies `( base + add ) * ( 1 + multiply )`, which is what [`apply`] does.
+#[must_use]
+pub fn enchantment_values(world: &World, creature: Entity, data: &MutationData, stat: &str) -> (f64, f64) {
+    let mut add = 0.0;
+    let mut multiply = 0.0;
+    for id in mutations_of(world, creature) {
+        let Some(rule) = data.get(&id) else {
+            continue;
+        };
+        for value in &rule.enchant_values {
+            if value.value != stat {
+                continue;
+            }
+            add += value.add;
+            multiply += value.multiply;
+        }
+    }
+    (add, multiply)
+}
+
+/// A base stat with the enchantments a creature carries applied to it.
+///
+/// Reference: `Character::get_str` and its siblings (`character.cpp`) answer `base + enchantment_cache->get_value_add( STRENGTH )` and the cache's own multiplier is applied
+/// the same way for every stat: `( base + add ) * ( 1 + multiply )`.
+#[must_use]
+pub fn apply_enchantments(base: f64, add: f64, multiply: f64) -> f64 {
+    (base + add) * (1.0 + multiply)
+}

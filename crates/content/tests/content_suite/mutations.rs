@@ -77,6 +77,22 @@ fn the_mutation_dump_reads_with_its_prerequisites_and_conflicts() {
         "and BEAUTIFUL is not"
     );
 
+    // A mutation's stat change is an **enchantment** in this baseline, and the dump follows it to the values: 257 of the 959 carry at least one.
+    let with_values = ["STR_UP", "FASTHEALER", "DEX_UP", "LIGHTEATER"]
+        .into_iter()
+        .filter(|id| table.get(id).is_some_and(|one| !one.enchant_values.is_empty()))
+        .count();
+    assert!(with_values > 0, "an enchantment's values came through");
+    assert_eq!(
+        table.get("STR_UP").map(|one| one.enchant_values.clone()),
+        Some(vec![cdda_content::mutations::EnchantmentValue {
+            value: "STRENGTH".to_owned(),
+            add: 1.0,
+            multiply: 0.0,
+        }]),
+        "and a strong mutant is one point of strength"
+    );
+
     // One mutation read whole, against the dump's own answer.
     let Some(biolum) = table.get("BIOLUM1") else {
         return;

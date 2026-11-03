@@ -21,13 +21,21 @@ fn table(entries: &[(&str, Mutation)]) -> Mutations {
         };
         let _ = write!(
             text,
-            "{{\"id\":\"{id}\",\"points\":{},\"visibility\":{},\"valid\":true,\"purifiable\":{},\"startingtrait\":{},\"threshold\":{},\"threshreq\":[{}],\"prereqs\":[{}],\"prereqs2\":[],\"cancels\":[{}],\"category\":[{}]}}",
+            "{{\"id\":\"{id}\",\"points\":{},\"visibility\":{},\"valid\":true,\"purifiable\":{},\"startingtrait\":{},\"threshold\":{},\"threshreq\":[{}],\"enchant_values\":[{}],\"prereqs\":[{}],\"prereqs2\":[],\"cancels\":[{}],\"category\":[{}]}}",
             one.points,
             one.visibility,
             one.purifiable,
             one.startingtrait,
             one.threshold,
             list(&one.threshreq),
+            one.enchant_values
+                .iter()
+                .map(|value| format!(
+                    "{{\"value\":\"{}\",\"add\":{},\"multiply\":{}}}",
+                    value.value, value.add, value.multiply
+                ))
+                .collect::<Vec<_>>()
+                .join(","),
             list(&one.prereqs),
             list(&one.cancels),
             list(&one.categories)
@@ -52,6 +60,8 @@ fn trait_of(prereqs: &[&str], cancels: &[&str]) -> Mutation {
         startingtrait: false,
         threshold: false,
         threshreq: Vec::new(),
+        enchantments: Vec::new(),
+        enchant_values: Vec::new(),
         prereqs: prereqs.iter().map(|one| (*one).to_owned()).collect(),
         prereqs2: Vec::new(),
         cancels: cancels.iter().map(|one| (*one).to_owned()).collect(),
@@ -394,5 +404,47 @@ fn the_mutate_effect_gives_a_mutation_from_the_strongest_category() {
     assert!(
         !held.iter().any(|id| id == "CAT_EYES"),
         "not the feline one, which is another category: {held:?}"
+    );
+}
+
+/// A mutation that carries a strength enchantment makes its carrier stronger, and carries more with it.
+///
+/// Reference: `Character::get_str` (`character.cpp:3353`) applies the enchantment cache to the base, and `Character::weight_capacity` (`character.cpp:3353-3361`) adds four
+/// kilograms a point of the **result** - so a `STRENGTH +1` mutation is four kilograms in the hands, not four on the character sheet.
+#[test]
+fn a_strength_enchantment_reaches_the_carrying_capacity() {
+    use bevy_ecs::prelude::*;
+
+    let mut strong = trait_of(&[], &[]);
+    strong.enchantments = vec!["INLINE_ENCH_STR_UP_0".to_owned()];
+    strong.enchant_values = vec![cdda_content::mutations::EnchantmentValue {
+        value: "STRENGTH".to_owned(),
+        add: 1.0,
+        multiply: 0.0,
+    }];
+    let data = table(&[("STR_UP", strong)]);
+    let categories = cdda_content::mutations::Categories::default();
+
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    world.entity_mut(survivor).insert(cdda_sim::creature::Strength { base: 8 });
+    cdda_sim::mutation_data::install(&mut world, data.clone(), categories.clone());
+
+    assert_eq!(
+        cdda_sim::creature::effective_strength(&world, survivor),
+        8,
+        "with no mutation the base is the answer"
+    );
+    let without = cdda_sim::creature::carrying_capacity(&world, survivor);
+    cdda_sim::mutations::gain(&mut world, survivor, &data, &categories, "STR_UP");
+    assert_eq!(
+        cdda_sim::creature::effective_strength(&world, survivor),
+        9,
+        "and the enchantment is worth one point of strength"
+    );
+    assert_eq!(
+        cdda_sim::creature::carrying_capacity(&world, survivor),
+        without + 4_000,
+        "which is four kilograms more it can carry"
     );
 }

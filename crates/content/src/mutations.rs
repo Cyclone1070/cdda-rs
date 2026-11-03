@@ -7,12 +7,26 @@ use std::collections::BTreeMap;
 
 use cdda_json::{Object, Value};
 
+/// One stat an enchantment moves, and by how much.
+///
+/// Reference: `enchantment::values_add` / `values_multiply` (`magic_enchantment.h:244-247`): a map from `enchant_vals::mod` to a number, kept as two lists because a
+/// port does not need the enum - the data names the stat with a string.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct EnchantmentValue {
+    /// The stat, by the data's own name: `STRENGTH`, `SPEED`, `HUNGER` and the rest of `enchant_vals::mod`.
+    pub value: String,
+    /// What it adds.
+    pub add: f64,
+    /// What it multiplies by, as a fraction: `0.1` is ten percent more.
+    pub multiply: f64,
+}
+
 /// One mutation's place in the tree.
 ///
 /// The four flags are the reference's own (`mutation.h:180-200`): a mutation can be purifiable, valid, a starting trait and a threshold **independently**, and the data
 /// uses every combination - a threshold is `valid: false`, and most traits are not starting ones.
 #[allow(clippy::struct_excessive_bools)]
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Mutation {
     /// How many character-creation points it is worth.
     pub points: i32,
@@ -28,6 +42,10 @@ pub struct Mutation {
     pub threshold: bool,
     /// The thresholds that must all be held before this one can be - a **different** set from `prereqs`, where one is enough.
     pub threshreq: Vec<String>,
+    /// The ids of the enchantments it carries, for the record.
+    pub enchantments: Vec<String>,
+    /// The stats those enchantments move, followed to the values themselves.
+    pub enchant_values: Vec<EnchantmentValue>,
     /// One of these must be held, if the list is not empty.
     pub prereqs: Vec<String>,
     /// One of these must be held as well, if the list is not empty.
@@ -39,7 +57,7 @@ pub struct Mutation {
 }
 
 /// Every mutation the data defines.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Mutations {
     by_id: BTreeMap<String, Mutation>,
 }
@@ -103,6 +121,8 @@ fn mutation_of(entry: &Object) -> Mutation {
         startingtrait: matches!(entry.get("startingtrait"), Some(Value::Bool(true))),
         threshold: matches!(entry.get("threshold"), Some(Value::Bool(true))),
         threshreq: strings(entry, "threshreq"),
+        enchantments: strings(entry, "enchantments"),
+        enchant_values: values_of(entry),
         prereqs: strings(entry, "prereqs"),
         prereqs2: strings(entry, "prereqs2"),
         cancels: strings(entry, "cancels"),
@@ -194,4 +214,38 @@ pub fn categories_from_dump(root: &Value) -> Option<(Categories, usize)> {
     }
     let read = by_id.len();
     Some((Categories { by_id }, read))
+}
+
+fn values_of(entry: &Object) -> Vec<EnchantmentValue> {
+    match entry.get("enchant_values") {
+        Some(Value::Array(list)) => list
+            .iter()
+            .filter_map(|one| {
+                let Value::Object(one) = one else {
+                    return None;
+                };
+                let Value::Str(value) = one.get("value")? else {
+                    return None;
+                };
+                Some(EnchantmentValue {
+                    value: value.clone(),
+                    add: number(one.get("add")),
+                    multiply: number(one.get("multiply")),
+                })
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn number(member: Option<&Value>) -> f64 {
+    match member {
+        Some(Value::Float(value)) => *value,
+        Some(Value::Int(value)) => {
+            #[allow(clippy::cast_precision_loss)]
+            let value = *value as f64;
+            value
+        }
+        _ => 0.0,
+    }
 }
