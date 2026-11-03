@@ -2246,6 +2246,21 @@ fn roll_duration(
             }
             rolled.or(Some(*shortest))
         }
+        // Reference: the two ends are evaluated, then a draw is made between them - the storm's length depends on the storm's own strength.
+        cdda_content::dialogue::EffectDuration::RangeComputed(shortest, longest) => {
+            let shortest = draw(world, speaker, listener, shortest)?;
+            let longest = draw(world, speaker, listener, longest)?;
+            let shortest = i64::from(as_whole(shortest));
+            let longest = i64::from(as_whole(longest)).max(shortest);
+            let mut dice = crate::singletons::take_rolls(world);
+            let rolled = dice
+                .as_mut()
+                .map(|dice| i64::from(dice.rng(as_turns(shortest), as_turns(longest))));
+            if let Some(dice) = dice.take() {
+                crate::singletons::put_rolls(world, dice);
+            }
+            rolled.or(Some(shortest))
+        }
         cdda_content::dialogue::EffectDuration::Computed(expression) => {
             let value = draw(world, speaker, listener, expression)?;
             Some(i64::from(as_whole(value)))

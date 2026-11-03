@@ -10908,3 +10908,28 @@ programs readable | 586 | **587** |
 leaves unreadable | 68 | **67** |
 one-gap programs | 17 | **16** |
 effect entries runnable | 1,552 | **1,553** |
+
+## A length can be decided by the storm's own strength (round 1053)
+
+The census carries **19 programs** now, and the shape that left is a range with one end the world works out:
+
+```json
+"length": ["1 minutes", {"math": ["ps_str * time(' 1 m')"]}]
+```
+
+| Piece | Where |
+|---|---|
+`EffectDuration::RangeComputed(Expression, Expression)` | each end read as a `dbl_or_var`, which is what `get_duration_or_var` does (`npctalk.cpp:3426-3450`) |
+a fixed end beside a computed one | wrapped as a constant of the same expression, so a range stays **one shape** rather than two |
+the roll | both ends evaluated **when the effect is applied**, then one draw between them - a storm's light lasts as long as the storm is strong |
+Gate | `a_range_may_have_computed_ends` - the reader accepts the shape and keeps it computed |
+
+**The fixed end is the interesting half.** `"1 minutes"` and `{"math": [...]}` are the same *slot* of the range, and a reader that accepted only one kind per slot would have
+refused every mixed range in the data - **which is exactly the entry that was refusing.** Turning the fixed end into a constant expression keeps **one** range variant
+instead of adding a second, so the roll has one place to live.
+
+**The portal storms are the only user, and they are used three times.** A rule written for one effect that appears in one file is still worth porting when it is the
+**only** thing between the port and a whole program - the census says so, which is the reason the census exists.
+
+**Six counts moved by one each.** Readable **588**, leaves **65**, effects runnable **1,554**, refused at run time **196**, silent **286**, programs refusing at their first
+unreadable entry **19**. A round that moves six counts by one is a round that changed one rule - and the census is the only place that shows it.

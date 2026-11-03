@@ -145,7 +145,7 @@ fn the_first_entry_that_refuses_says_which_rule_is_missing() {
     }
     // Pinned so a round that changes the frontier sees it here first: the total has fallen from 35 to **24**, and the biggest single cause is still a **store**
     // (`revert_location` needs a submap baseline the port does not keep), not a reader. The fall from 25 is round 1048 reading `npc_mutate_category`.
-    assert_eq!(refused_programs.len(), 20, "twenty programs refuse at their first unreadable entry");
+    assert_eq!(refused_programs.len(), 19, "nineteen programs refuse at their first unreadable entry");
     assert_eq!(
         ranked
             .iter()

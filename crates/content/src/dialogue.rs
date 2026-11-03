@@ -2361,6 +2361,10 @@ pub enum EffectDuration {
     Turns(Option<i64>),
     /// A roll between two ends, inclusive.
     Range(i64, i64),
+    /// A roll between two ends the dialogue works out when the effect is applied: `["1 minutes", {"math": ["ps_str * time(' 1 m')"]}]`, which the portal storms use.
+    ///
+    /// Reference: `get_duration_or_var` reads each end as a `dbl_or_var` (`npctalk.cpp:3426-3450`), so both ends may be expressions.
+    RangeComputed(crate::dialogue::Expression, crate::dialogue::Expression),
     /// A length the dialogue works out when the effect is applied - `{"math": ["rand(345600) + 86400"]}` in the data.
     Computed(crate::dialogue::Expression),
 }
@@ -3856,18 +3860,31 @@ fn read_effect_duration(value: Option<&Value>, fallback: EffectDuration) -> Opti
         // the data uses, and the data does pass `{"context_val": "duration"}`. Both are worked out where they are used, so both are `Computed`.
         Some(Value::Object(_)) => Some(EffectDuration::Computed(read_math_expression(value?)?)),
         Some(Value::Array(ends)) => {
-            let rolls = ends
-                .iter()
-                .map(|end| match end {
-                    Value::Int(turns) => Some(*turns),
-                    Value::Str(text) => Some(crate::constructions::parse_duration(text)),
-                    _ => None,
-                })
-                .collect::<Option<Vec<_>>>()?;
-            let [shortest, longest] = rolls.as_slice() else {
+            let [shortest, longest] = ends.as_slice() else {
                 return None;
             };
-            Some(EffectDuration::Range(*shortest, *longest))
+            // Each end is a number, a duration in text, or an expression worked out when the effect applies.
+            let fixed = |end: &Value| match end {
+                Value::Int(turns) => Some(*turns),
+                Value::Str(text) => Some(crate::constructions::parse_duration(text)),
+                _ => None,
+            };
+            let as_end = |fixed: Option<i64>, given: &Value| match fixed {
+                Some(turns) => {
+                    #[allow(clippy::cast_precision_loss)]
+                    let as_float = turns as f64;
+                    Some(Expression::Number(as_float))
+                }
+                None => read_math_expression(given),
+            };
+            match (fixed(shortest), fixed(longest)) {
+                (Some(shortest), Some(longest)) => Some(EffectDuration::Range(shortest, longest)),
+                // One end fixed and the other worked out: the fixed end becomes a constant of the same expression, so the range stays one shape.
+                (shortest_fixed, longest_fixed) => Some(EffectDuration::RangeComputed(
+                    as_end(shortest_fixed, shortest)?,
+                    as_end(longest_fixed, longest)?,
+                )),
+            }
         }
         Some(_) => None,
     }

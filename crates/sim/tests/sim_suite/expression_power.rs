@@ -4,7 +4,7 @@
 //! that associates to the **right**. `math_opers::math_pow` is `std::pow`. The data writes `((-1) ^ rand(1))` in `traps.json`, which reads as a random sign rather than
 //! as a bitwise exclusive or - and a port that read it as an operator it did not know refused the whole effect.
 
-#![allow(clippy::panic)]
+#![allow(clippy::panic, clippy::expect_used)]
 
 use bevy_ecs::prelude::*;
 
@@ -51,5 +51,28 @@ fn a_ternary_chooses_one_branch() {
     assert!(
         (value_of("2 * 3 > 5 ? 10 : 20") - 10.0).abs() < f64::EPSILON,
         "and it is looser than every comparison: (2 * 3 > 5) ? 10 : 20"
+    );
+}
+
+/// A duration rolled between two ends the world works out.
+///
+/// Reference: `get_duration_or_var` reads each end of a range as a `dbl_or_var` (`npctalk.cpp:3426-3450`), so `["1 minutes", {"math": [...]}]` is a range whose top the
+/// storm's own strength decides - which is how the portal storms set their light's length.
+#[test]
+fn a_range_may_have_computed_ends() {
+    let text = r#"{"custom_light_level": 125, "length": ["1 minutes", {"math": ["60 * 2"]}]}"#;
+    let value = cdda_json::parse(text.as_bytes()).expect("json");
+    let Some(effect) = cdda_content::dialogue::read_effect(&value) else {
+        panic!("the port reads a range with computed ends");
+    };
+    let cdda_content::dialogue::Effect::CustomLightLevel { length, .. } = effect else {
+        panic!("it reads as the light effect");
+    };
+    assert!(
+        matches!(
+            length,
+            cdda_content::dialogue::EffectDuration::RangeComputed { .. }
+        ),
+        "and the range is the computed one: {length:?}"
     );
 }
