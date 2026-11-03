@@ -21,12 +21,13 @@ fn table(entries: &[(&str, Mutation)]) -> Mutations {
         };
         let _ = write!(
             text,
-            "{{\"id\":\"{id}\",\"points\":{},\"visibility\":{},\"purifiable\":{},\"prereqs\":[{}],\"prereqs2\":[],\"cancels\":[{}],\"category\":[]}}",
+            "{{\"id\":\"{id}\",\"points\":{},\"visibility\":{},\"purifiable\":{},\"prereqs\":[{}],\"prereqs2\":[],\"cancels\":[{}],\"category\":[{}]}}",
             one.points,
             one.visibility,
             one.purifiable,
             list(&one.prereqs),
-            list(&one.cancels)
+            list(&one.cancels),
+            list(&one.categories)
         );
     }
     text.push_str("]}");
@@ -137,4 +138,49 @@ fn a_conflict_that_cannot_be_removed_stops_the_gain() {
         cdda_sim::mutations::Gain::Conflicting
     );
     assert!(cdda_sim::mutations::has(&world, survivor, "GLASSJAW"), "and nothing was taken away");
+}
+
+/// A mutation prunes the other traits of its category, but never the ones it grew out of.
+///
+/// Reference: `Character::mutate_towards` (`mutation.cpp:1643-1652`): `get_mutations_in_types` fills the cancel list with every held trait of the same category, and
+/// the traits in `get_all_mutation_prereqs` are skipped - *"Check mutations of the same type - except for the ones we might need for pre-reqs"*.
+#[test]
+fn a_mutation_prunes_its_own_category_and_spares_its_prerequisites() {
+    // ANTENNAE needs CHITIN, which is what lets the two of them be held at once: a gain spares its own prerequisites.
+    let mut first = trait_of(&["CHITIN"], &[]);
+    first.categories = vec!["INSECT".to_owned()];
+    let mut second = trait_of(&[], &[]);
+    second.categories = vec!["INSECT".to_owned()];
+    let mut grown = trait_of(&["CHITIN"], &[]);
+    grown.categories = vec!["INSECT".to_owned()];
+    let mut chitin = trait_of(&[], &[]);
+    chitin.categories = vec!["INSECT".to_owned()];
+    let mut elsewhere = trait_of(&[], &[]);
+    elsewhere.categories = vec!["FELINE".to_owned()];
+    let data = table(&[
+        ("ANTENNAE", first),
+        ("WINGS_BUG", second),
+        ("CARAPACE", grown),
+        ("CHITIN", chitin),
+        ("TAIL", elsewhere),
+    ]);
+
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    for id in ["CHITIN", "ANTENNAE", "TAIL"] {
+        cdda_sim::mutations::gain(&mut world, survivor, &data, id);
+    }
+    assert_eq!(
+        cdda_sim::mutations::mutations_of(&world, survivor).len(),
+        3,
+        "a gain spares its own prerequisite, so CHITIN and ANTENNAE are held together"
+    );
+
+    // Gaining CARAPACE prunes the insect trait that is not its prerequisite, spares the one that is, and leaves another category alone.
+    cdda_sim::mutations::gain(&mut world, survivor, &data, "CARAPACE");
+    let held = cdda_sim::mutations::mutations_of(&world, survivor);
+    assert!(held.contains(&"CARAPACE".to_owned()), "the new trait is held");
+    assert!(held.contains(&"CHITIN".to_owned()), "the trait it grew out of is spared");
+    assert!(!held.contains(&"ANTENNAE".to_owned()), "another trait of the same category is pruned");
+    assert!(held.contains(&"TAIL".to_owned()), "and a trait of another category is untouched");
 }

@@ -75,13 +75,53 @@ pub fn gain(world: &mut World, creature: Entity, data: &MutationData, id: &str) 
         return Gain::Unknown;
     };
     let conflicts: Vec<String> = rule.cancels.clone();
+    // Reference: `Character::mutate_towards` (`mutation.cpp:1643-1652`): every held mutation **of the same category** is pruned as well, except the ones the new
+    // mutation needs as prerequisites - a mutation never eats the trait it grew out of.
+    let keep: Vec<String> = prerequisite_closure(data, id);
+    let categories = rule.categories.clone();
     let mut held = world.get::<Mutations>(creature).cloned().unwrap_or_default();
-    held.0.retain(|known| !conflicts.contains(known));
+    held.0.retain(|known| {
+        if known == id || keep.contains(known) {
+            return true;
+        }
+        if conflicts.contains(known) {
+            return false;
+        }
+        !shares_a_category(data, known, &categories)
+    });
     if !held.0.iter().any(|known| known == id) {
         held.0.push(id.to_owned());
     }
     world.entity_mut(creature).insert(held);
     Gain::Yes
+}
+
+/// Whether a held mutation belongs to one of the categories the new one does.
+fn shares_a_category(data: &MutationData, held: &str, categories: &[String]) -> bool {
+    data.get(held)
+        .is_some_and(|one| one.categories.iter().any(|cat| categories.contains(cat)))
+}
+
+/// The new mutation's prerequisites, and theirs, and so on.
+///
+/// Reference: `get_all_mutation_prereqs` (`mutation.cpp:1578-1593`), the function `mutate_towards` uses to decide which same-category traits to spare.
+#[must_use]
+pub fn prerequisite_closure(data: &MutationData, id: &str) -> Vec<String> {
+    let mut all: Vec<String> = Vec::new();
+    let mut queue: Vec<String> = vec![id.to_owned()];
+    while let Some(next) = queue.pop() {
+        let Some(rule) = data.get(&next) else {
+            continue;
+        };
+        for need in rule.prereqs.iter().chain(rule.prereqs2.iter()) {
+            if all.contains(need) {
+                continue;
+            }
+            all.push(need.clone());
+            queue.push(need.clone());
+        }
+    }
+    all
 }
 
 /// Every mutation a creature has.

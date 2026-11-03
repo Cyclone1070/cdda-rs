@@ -10320,3 +10320,23 @@ until the real one existed rather than shipping an early return.
 
 **Known and named, not ported:** `mutate_towards` also prunes **same-category** traits and applies a category's `base_removal_chance` roll to starting traits; the port
 does neither yet, and both are P4 work.
+
+## A mutation eats its own category, and the test had to be built to allow it (round 1026)
+
+`mutate_towards` does more than cancel what the data names: it also **prunes every held trait of the mutation's own categories** (`mutation.cpp:1643-1652`), sparing the
+ones the new mutation needs. That rule is now ported and gated:
+
+| Rule | Gate |
+|---|---|
+a gain prunes its **own category**, spares its **prerequisites**, and leaves other categories alone | `a_mutation_prunes_its_own_category_and_spares_its_prerequisites` |
+the prerequisite set is **transitive** (`get_all_mutation_prereqs`) | `prerequisite_closure` |
+
+**The test failed twice, and both failures were the rule being right.**
+
+1. The first run pruned nothing - because my hand-built dump wrote `"category":[]` **hardcoded** and threw away the categories the test set. **A test fixture that drops the
+   field under test tests nothing**, and it fails as a *pass* on the next rule that does not use the field.
+2. The second run held two traits where the test expected three - because **gaining a same-category trait pruned the other one immediately**. My setup assumed traits of one
+   category can be stacked freely, and the game is built so they cannot. **The only way to hold two of a category is for one to be the other's prerequisite** - which is
+   exactly the exception the rule carries, so the test was rewritten to grow `ANTENNAE` out of `CHITIN` and then watch `CARAPACE` prune one and spare the other.
+
+**A test that cannot be set up without bending the rule is telling you what the rule is.**
