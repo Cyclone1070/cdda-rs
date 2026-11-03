@@ -158,6 +158,19 @@ pub fn finish_craft_in_store(world: &mut World, crafter: Entity) -> Option<Strin
 ///
 /// Reference: `Character::consume_tools( map&, tool, batch, ... )` (`crafting.cpp:2458-2482`), which spends `tool.count * batch` charges of the chosen stack. A
 /// held tool (`ToolNeed::Held`) is never spent, which is the whole difference between the two encodings.
+/// The level a craft's roll is centred on.
+///
+/// Reference: `get_recipe_weighted_skill_average` (`crafting.cpp:1110-1116`): a recipe that names **no** skill counts as `MAX_SKILL`, not as zero - which is why a
+/// recipe anybody can make is never at risk, and why reading an absent skill as level zero made every simple craft fail its check every turn.
+#[must_use]
+pub fn skill_for(world: &World, crafter: Entity, recipe: &Recipe) -> i32 {
+    if recipe.skill.is_empty() {
+        crate::skills::MAX_SKILL
+    } else {
+        crate::skills_of::level_of(world, crafter, &recipe.skill)
+    }
+}
+
 /// Which part of a craft's tool charges a spend covers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChargeShare {
@@ -424,6 +437,11 @@ pub struct Making {
     pub recipe: Recipe,
     /// How many at once.
     pub batch: i32,
+    /// When the work will next be checked for failure, in ten-millionths of the craft.
+    ///
+    /// Reference: `item::set_next_failure_point` (`crafting.cpp:1328-1344`), which the craft sets when it starts and again after every failure. `i64::MAX` means
+    /// "never", which is what a craft whose roll leaves nothing to check gets.
+    pub next_failure_point: i64,
 }
 
 /// What the crafter has, answered one question at a time.
@@ -498,9 +516,14 @@ pub fn begin_craft(world: &mut World, crafter: Entity, recipe: &Recipe, batch: i
         moves_total: moves_left,
         subject: None,
     });
+    // Reference: `item::set_next_failure_point` (`crafting.cpp:1328-1344`) - the first check is placed from the crafter's **own** success roll, so someone who
+    // outclasses the recipe is rarely checked at all and someone who does not is checked almost at once.
+    let data = crate::craft_roll::success_data(recipe.difficulty, skill_for(world, crafter, recipe));
+    let first_roll = crate::craft_roll::success_roll(world, data);
     world.entity_mut(crafter).insert(Making {
         recipe: recipe.clone(),
         batch,
+        next_failure_point: crate::craft_roll::next_failure_point(0, first_roll),
     });
     Craft::Started
 }

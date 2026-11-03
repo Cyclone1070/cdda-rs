@@ -28,10 +28,17 @@ pub struct RollData {
 /// narrowed by a quarter of every point it is over, to a floor of one, and the difficulty is the recipe's own plus one.
 #[must_use]
 pub fn success_data(difficulty: i32, skill_level: i32) -> RollData {
+    // Reference: `get_recipe_weighted_skill_average` clamps the difficulty to at least one **before** weighting, so the centre is the crafter's own level even for a
+    // recipe with no difficulty at all - while the difficulty the roll must beat stays the recipe's own, plus one.
+    #[allow(clippy::cast_precision_loss)]
     let difficulty = f64::from(difficulty.max(0));
     #[allow(clippy::cast_precision_loss)]
+    let weight = f64::from(i32::from(difficulty > 0.0) + 1);
+    let _ = weight;
+    #[allow(clippy::cast_precision_loss)]
     let skill = f64::from(skill_level.max(0));
-    let weighted = (2.0 * difficulty * skill) / (2.0f64).mul_add(difficulty, 0.0).max(1.0);
+    let clamped = difficulty.max(1.0);
+    let weighted = (2.0 * clamped * skill) / (2.0 * clamped).max(1.0);
     let final_difficulty = (2.0 * difficulty * difficulty) / (2.0 * difficulty).max(1.0) + 1.0;
     let mut stddev = 2.0;
     if final_difficulty > weighted {

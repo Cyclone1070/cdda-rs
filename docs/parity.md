@@ -10167,3 +10167,29 @@ it over **sixty-four seeds**: some failures must destroy, none may destroy more 
 
 **Not yet wired into the turn**: the failure **check** (`item_counter >= next_failure_point` at `activity_actor.cpp:4299`) still has no caller, so a craft cannot fail in a
 real world. **That is the reach gap this round deliberately leaves named** rather than adding a rule whose trigger nothing fires.
+
+## The failure check has a trigger, and finding it took two bugs (round 1018)
+
+Last round's failure rules had **no caller**. This round wired the check into the turn, and the wiring exposed two mistakes that no amount of reading would have found:
+
+| Bug | What it did | Where the answer was |
+|---|---|---|
+a recipe with **no skill** was read as level **zero** | every simple craft rolled a zero and failed on its first turn | `get_recipe_weighted_skill_average` (`crafting.cpp:1110-1116`): a recipe that names no skill counts as **`MAX_SKILL`** |
+the difficulty was weighted **unclamped** | a difficulty-zero recipe centred the roll on zero whatever the crafter knew | the same function: the difficulty is clamped to **one** before weighting, while the difficulty to beat stays the recipe's own plus one |
+
+**Both are the reference being careful in ways the arithmetic does not announce**: a skillless recipe is a recipe *anyone* can make, so it is not at risk, and a recipe of
+difficulty zero still weighs the crafter's skill. **A port that reads the absent member as zero is wrong in the one direction that ruins every craft.**
+
+**A third mistake was mine, not the reference's**: a failure point of **zero** means the roll was **never placed** (a world with no dice rolls nothing), and treating it as
+"check immediately" made every diceless test fail on turn one. **The check now requires a placed point**, and the reason is in the code where the next reader will look.
+
+| Rule | Gate |
+|---|---|
+the roll's three numbers | `the_roll_widens_when_the_recipe_is_hard_and_narrows_when_it_is_easy` |
+where the next check goes | `the_next_failure_point_is_where_the_roll_puts_it` |
+a better crafter rolls higher | `a_better_crafter_rolls_higher_on_the_same_dice` (32 seeds, both ways) |
+what a failure costs | `a_failure_destroys_what_went_in_and_can_destroy_all_of_it` (64 seeds, capped at three quarters) |
+**the check firing in a real craft** | `a_craft_in_progress_is_checked_where_its_roll_says` (24 seeds, a crafter who cannot do the trade) |
+
+**The last row is the one that would have been missing every previous round.** It fails if the hook is removed, if the point is never placed, and if the failure handling
+is never reached - **three separate regressions, one assertion.**

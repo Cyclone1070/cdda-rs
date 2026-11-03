@@ -1016,6 +1016,8 @@ pub fn spend_a_turn_on(world: &mut World, creature: Entity) -> bool {
         }
     };
     let left = doing.moves_left - spent;
+    // A failure during a craft hands some of the work back, so the moves it returns have to leave this branch with the rest.
+    let mut lost_moves = 0;
     // Reference: `craft_activity_actor::do_turn` (`activity_actor.cpp:4237-4245`) - every **fifth percent** of the craft's progress practises its proficiencies, and the
     // span handed over is `base_total_moves / 2000` seconds per step. Both ends are rounded down, so one turn that crosses two boundaries practises twice - and the
     // hook runs **before** the finish, because the turn that completes the work is the turn that crosses the last boundary.
@@ -1039,6 +1041,41 @@ pub fn spend_a_turn_on(world: &mut World, creature: Entity) -> bool {
                 let crossed = i32::try_from(crossed).unwrap_or(0);
                 crate::crafting::spend_craft_charges(world, creature, &making.recipe, making.batch, &names, crossed);
             }
+            // Reference: `craft_activity_actor::do_turn` (`activity_actor.cpp:4299-4320`) - when the work passes the point the crafter's own roll picked, the craft
+            // is checked: components can be destroyed, progress lost, and a craft that loses every component **ends**. The check runs on the same turn as the work,
+            // because a failure is something that happens while making the thing rather than after it.
+            if !making.recipe.skill.is_empty() || !making.recipe.components.is_empty() {
+                let counter = i64::from(done_now) * 10_000_000 / i64::from(doing.moves_total.max(1));
+                // A point of zero is **a check that was never placed**: a world with no dice rolls nothing, so the craft could not pick where its next check falls. It
+                // is not "check immediately" - treating it that way made every craft in a diceless test fail on its first turn.
+                if making.next_failure_point > 0
+                    && making.next_failure_point != i64::MAX
+                    && counter >= making.next_failure_point
+                {
+                    let names = crate::item_registry::snapshot(world);
+                    let failure = crate::craft_roll::handle_failure(world, creature, &making.recipe, counter, &names);
+                    if failure.catastrophic {
+                        // Reference: a catastrophic failure ends the craft (`:4324-4340`), so the activity and the making both go.
+                        world.entity_mut(creature).remove::<crate::crafting::Making>();
+                        world.entity_mut(creature).remove::<Doing>();
+                        return true;
+                    }
+                    #[allow(clippy::cast_possible_truncation)]
+                    let lost = (failure.progress_lost * i64::from(doing.moves_total) / 10_000_000) as i32;
+                    lost_moves = lost.max(0);
+                    // The next check is placed from the progress the craft fell back to, which is what stops a failure from being re-checked every turn.
+                    let after = i64::from(doing.moves_total - lost_moves.max(0)) * 10_000_000
+                        / i64::from(doing.moves_total.max(1));
+                    let data = crate::craft_roll::success_data(
+                        making.recipe.difficulty,
+                        crate::crafting::skill_for(world, creature, &making.recipe),
+                    );
+                    let roll = crate::craft_roll::success_roll(world, data);
+                    if let Some(mut making) = world.get_mut::<crate::crafting::Making>(creature) {
+                        making.next_failure_point = crate::craft_roll::next_failure_point(after, roll);
+                    }
+                }
+            }
             if !making.recipe.skill.is_empty() {
                 let ticks = done_now / 100 - done_before / 100;
                 if ticks > 0 {
@@ -1048,6 +1085,7 @@ pub fn spend_a_turn_on(world: &mut World, creature: Entity) -> bool {
             }
         }
     }
+    let left = left + lost_moves;
     if left <= 0 {
         world.entity_mut(creature).remove::<Doing>();
         return true;

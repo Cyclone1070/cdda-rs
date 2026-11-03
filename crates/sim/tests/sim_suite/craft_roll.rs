@@ -159,3 +159,79 @@ fn a_failure_destroys_what_went_in_and_can_destroy_all_of_it() {
         "a one-component craft must sometimes lose it, or the catastrophic rule is unreachable"
     );
 }
+
+/// A craft in progress is checked where its roll says, and a hopeless crafter is checked again and again.
+///
+/// Reference: `craft_activity_actor::do_turn` (`activity_actor.cpp:4299`): `craft.item_counter >= craft.get_next_failure_point()` starts the failure handling. The
+/// reach is the point of this test - `handle_failure` was written a round earlier with **nothing firing it**.
+#[test]
+fn a_craft_in_progress_is_checked_where_its_roll_says() {
+    let mut ever_failed = 0;
+    for seed in 0..24 {
+        let mut world = World::new();
+        let crafter = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+        cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(seed));
+        let names = cdda_sim::item_registry::ItemNames {
+            names: vec![String::new(), "rag".to_owned()],
+            by_name: [("rag".to_owned(), cdda_sim::ItemTypeId(1))].into_iter().collect(),
+            volumes_ml: vec![0, 250],
+            weights_g: vec![0, 5],
+            holds_ml: vec![0, 0],
+            pockets: Vec::new(),
+            pocket_ranges: vec![(0, 0)],
+        };
+        // A trade at zero against a recipe that needs a lot of it: the roll is low, so the craft is checked almost at once and again after every failure.
+        let recipe = cdda_content::recipes::Recipe {
+            id: "patch_a_shirt".to_owned(),
+            result: "rag".to_owned(),
+            blacklisted: false,
+            components: vec![vec![cdda_content::recipes::Component {
+                item: "rag".to_owned(),
+                count: 1,
+            }]],
+            tools: Vec::new(),
+            qualities: Vec::new(),
+            skill: "tailor".to_owned(),
+            difficulty: 9,
+            batch_rscale: 0.0,
+            batch_rsize: 0,
+            byproducts: Vec::new(),
+            made_per_batch: 1,
+            byproduct_group: Vec::new(),
+            proficiencies: Vec::new(),
+            container: None,
+            time_moves: 2_000,
+        };
+        for _ in 0..8 {
+            let rag = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 1);
+            world.entity_mut(rag).remove::<cdda_sim::Position>();
+            world.entity_mut(rag).insert(cdda_sim::creature::Carried(crafter));
+        }
+        cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
+        assert_eq!(
+            cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
+            cdda_sim::crafting::Craft::Started
+        );
+        let rags_before = {
+            let mut query = world.query::<&cdda_sim::creature::Carried>();
+            query.iter(&world).filter(|carried| carried.0 == crafter).count()
+        };
+        for _ in 0..40 {
+            cdda_sim::creature::give_moves(&mut world, crafter, 100);
+            cdda_sim::turn::run_turn(&mut world);
+        }
+        let rags_after = {
+            let mut query = world.query::<&cdda_sim::creature::Carried>();
+            query.iter(&world).filter(|carried| carried.0 == crafter).count()
+        };
+        if rags_after < rags_before
+            || world.get::<cdda_sim::crafting::Making>(crafter).is_none()
+        {
+            ever_failed += 1;
+        }
+    }
+    assert!(
+        ever_failed > 0,
+        "a survivor who cannot do the trade must sometimes ruin the work, or the check never fires"
+    );
+}
