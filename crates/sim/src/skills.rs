@@ -314,6 +314,22 @@ pub fn focus_equilibrium(morale: i32) -> i32 {
     equilibrium.clamp(1, 400)
 }
 
+/// The morale a creature effectively has, once pain is taken into account.
+///
+/// Reference: `Character::calc_focus_equilibrium` (`character.cpp:3868-3881`): pain is subtracted from morale - *"it's harder to rest your mind while your body hurts"* -
+/// except for a masochist, who only minds it above twenty, and except for a creature that ignores pain outright (the reference's `CENOBITE`, or a caller that asks it to
+/// be ignored).
+#[must_use]
+pub fn effective_morale(morale: i32, pain: i32, masochist: bool) -> i32 {
+    if masochist {
+        if pain > 20 {
+            return morale - (pain - 20);
+        }
+        return morale;
+    }
+    morale - pain
+}
+
 /// Moves a creature's focus a tenth of the way towards its equilibrium, which is what a minute of game time does.
 ///
 /// Reference: `Character::update_mental_focus` (`character.cpp:3929-3934`), called from `reset_stats` on `once_every( 1_minutes )`, which adds ten times the gap

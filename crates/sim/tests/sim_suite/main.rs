@@ -86,6 +86,7 @@ mod effect_merge;
 mod extinguisher;
 mod falling;
 mod fault_pick;
+mod focus;
 mod field_growth;
 mod field_ids;
 mod field_spread;

@@ -10362,3 +10362,21 @@ a mystery later.
 
 **The category dump is building on the server now** (`--dump-mutation-categories`, with `startingtrait` added to the mutation dump in the same rebuild). Its corpus gate
 lands when the file does.
+
+## Pain reaches focus, and the stage that never ran (round 1028)
+
+`calc_focus_equilibrium` counts **perceived pain** against morale (`character.cpp:3868-3881`), and the port was ignoring it. It now ports the rule and, more importantly,
+**wires it to the stage that already existed**:
+
+| Rule | Gate |
+|---|---|
+pain is subtracted from morale; a masochist minds only the excess past twenty | `pain_is_taken_off_morale_and_a_masochist_minds_only_the_excess` |
+the minute's focus drift is **reached through `run_turn`** | `a_creature_in_pain_settles_at_a_lower_focus` |
+
+**`Pain(pub i32)` was a component nothing read.** The struct existed since P4's earliest days and no rule looked at it, so the field was carried by creatures and never
+consulted - **the same failure as an uncalled function, sitting in the store where a dead-code audit does not look.** Wiring it found it.
+
+**The reach test needed a calendar, and that is the finding.** `focus_stage` returns early unless the world has a calendar (`once_every( 1_minutes )` in the reference), so
+the first version of the test spun six hundred turns and measured **focus 100 against focus 100** - the stage had never run at all. **A test that shows no difference is
+indistinguishable from a system that is not on the path**, and only setting the calendar told the two apart. **The stage had a gate and nothing had ever opened it in a
+test.**

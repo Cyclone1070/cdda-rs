@@ -851,6 +851,10 @@ a dialogue that happens to call one. **Morale got its gate at round 1023** - fiv
 ids, read from the oracle's own dump (**514 valid mutations; 299 with prerequisites, 97 with cancels, 57 unpurifiable**). **Landed at 1026-1027:** same-category pruning, and `base_removal_chance` for starting traits (with a **recorded divergence**: the reference bails out of the gain, the port
 completes it and keeps the trait). **Not yet:** thresholds, and stat modifiers - the category dump that carries `threshold_min` is building.
 
+**Focus (P3 leftover) at round 1028:** pain now reaches `calc_focus_equilibrium` through the minute stage, and the stage's calendar gate is exercised by a test that
+would fail if the wiring went away. **Still not ported:** the sleepiness cap (`focus_equilibrium_sleepiness_cap`, which needs a sleepiness value the port does not store)
+and the reading penalty.
+
 **Not started:** disease, ranged weapons and projectiles with dispersion, martial arts, weakpoints.
 
 ### P5 — Spells and enchantments (10 files, 9,444 LOC)

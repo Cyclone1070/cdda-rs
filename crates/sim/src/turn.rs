@@ -147,8 +147,13 @@ fn focus_stage(world: &mut World) {
         creatures.push(creature);
     }
     for creature in creatures {
+        // Reference: `Character::calc_focus_equilibrium` (`character.cpp:3852-3920`) counts the creature's **perceived pain** against its morale, and a masochist minds it
+        // only past twenty. The pain is the component's own number, the morale the points on the creature.
         let morale = crate::morale::net_bonus_of(world, creature);
-        crate::skills::update_mental_focus(world, creature, morale);
+        let pain = world.get::<crate::creature::Pain>(creature).map_or(0, |pain| pain.0);
+        let masochist = crate::mutations::has(world, creature, "MASOCHIST");
+        let effective = crate::skills::effective_morale(morale, pain, masochist);
+        crate::skills::update_mental_focus(world, creature, effective);
     }
 }
 
