@@ -349,7 +349,22 @@ These 98 files (459 cases) run without a game world, so they can be taken whenev
 * `worldfactory_test.cpp` — 1 cases
 * `zzip_test.cpp` — 4 cases
 
-## Rules that no test can fail (audit at round 1005)
+## Rules that no test can fail (audit at round 1019)
+
+The crafting sweep added six modules and about forty public functions. **An audit of every public function against every call site found twenty-two with no caller**, and
+the ones this sweep created were all mistakes of the same kind: **a helper written for a caller that never arrived.**
+
+| Deleted this round | Why it existed | Why it is gone |
+|---|---|---|
+`skills_of::craft_practice_ticks` | the craft's whole tick count, laid on at the finish | the ticks now come from the **turn** - the hundred-move boundaries it crosses - so a whole-craft count has no meaning |
+`proficiencies::prerequisites` | "for a caller that wants the graph" | `learnable_by` answers the only question the graph is asked, and **a function written for an imagined caller is a guess** |
+
+**Both were mine, both were written this week, and both read as reasonable.** That is the point of the audit: **the failure mode is not a wrong rule, it is a rule whose
+author did not need it yet**, and it hides in a file that otherwise looks finished.
+
+The rest of the list is older and is worked through in the section below.
+
+Rules that no test can fail (audit at round 1005)
 
 A `pub fn` that nothing calls cannot be wrong, and cannot be right either. The audit below counts every `name(` occurrence across `crates/*/src` **and** `crates/*/tests`
 and reports the functions with none beyond their own definition. **It found 31, and they split into three kinds** - the third kind is the one that matters:

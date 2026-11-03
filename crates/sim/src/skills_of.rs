@@ -105,12 +105,6 @@ pub fn practice(world: &mut bevy_ecs::prelude::World, creature: bevy_ecs::prelud
 
 /// How much the practice a craft is worth has been laid on, before focus.
 ///
-/// Reference: `activity_actor.cpp:4232` - the craft's own nominal time in moves over a hundred, which is the number of practice ticks the whole craft performs.
-#[must_use]
-pub fn craft_practice_ticks(time_moves: i64) -> i32 {
-    i32::try_from(time_moves / 100).unwrap_or(i32::MAX)
-}
-
 /// The highest level a recipe's practice can raise a skill to.
 ///
 /// Reference: `recipe::get_skill_cap` (`recipe.cpp:70-77`): `difficulty * 1.25` for an ordinary recipe, truncated to a whole level by the integer return.

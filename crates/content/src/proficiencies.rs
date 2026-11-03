@@ -7,7 +7,7 @@
 //! reference's source.
 
 use cdda_json::Value;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 /// One proficiency, as the data defines it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -94,13 +94,4 @@ pub fn from_dump(root: &Value) -> Option<(Proficiencies, usize)> {
     }
     let count = by_id.len();
     Some((Proficiencies { by_id }, count))
-}
-
-/// The ids every proficiency needs, for a caller that wants the graph rather than one answer.
-#[must_use]
-pub fn prerequisites(dump: &Proficiencies) -> BTreeMap<String, BTreeSet<String>> {
-    dump.by_id
-        .iter()
-        .map(|(id, prof)| (id.clone(), prof.required.iter().cloned().collect()))
-        .collect()
 }
