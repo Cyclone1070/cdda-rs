@@ -112,7 +112,7 @@ fn a_monster_s_damage_is_its_dice_plus_its_type_s_own() {
 
     // A type that does one die of four, on top of a fixed three cut, with two points of penetration.
     let mut rolls = cdda_core_types::rng::Rolls::new(7);
-    let hit = monster_melee_damage(&mut rolls, Damage { bash: 3, cut: 0, penetration: 2 }, 1, 4);
+    let hit = monster_melee_damage(&mut rolls, Damage { bash: 3, cut: 0, stab: 0, penetration: 2 }, 1, 4);
     assert_eq!(hit.penetration, 2, "the penetration comes from the type");
     assert!(
         (4..=7).contains(&hit.bash),
@@ -123,7 +123,7 @@ fn a_monster_s_damage_is_its_dice_plus_its_type_s_own() {
     // And a type with no dice adds nothing, which is how a monster whose only damage is a fixed
     // instance works - the reference tests `melee_dice > 0` before rolling at all.
     let mut rolls = cdda_core_types::rng::Rolls::new(7);
-    let fixed_only = monster_melee_damage(&mut rolls, Damage { bash: 3, cut: 5, penetration: 0 }, 0, 0);
+    let fixed_only = monster_melee_damage(&mut rolls, Damage { bash: 3, cut: 5, stab: 0, penetration: 0 }, 0, 0);
     assert_eq!(fixed_only.bash, 3);
     assert_eq!(fixed_only.cut, 5);
 }
@@ -140,6 +140,7 @@ fn a_swing_runs_from_the_roll_to_what_got_through() {
         fixed: Damage {
             bash: 0,
             cut: 0,
+            stab: 0,
             penetration: 0,
         },
         dice: 1,
@@ -149,19 +150,21 @@ fn a_swing_runs_from_the_roll_to_what_got_through() {
         dodge: 2,
         size: CreatureSize::Medium,
         resist: 1.0,
+        cut_resist: 0.0,
+        stab_resist: 0.0,
         worn_armour: 0.0,
         immobile: false,
     };
     // Accuracy 2.0 means a mean of 10 and a deviation of 25; a roll of 30 is one deviation high. Two dodge
     // is worth ten, so the spread is twenty: a hit, and not close enough to zero to be a dodge as well.
-    let landed = cdda_sim::melee::resolve(30.0, Damage { bash: 3, cut: 0, penetration: 0 }, defence);
+    let landed = cdda_sim::melee::resolve(30.0, Damage { bash: 3, cut: 0, stab: 0, penetration: 0 }, defence);
     assert_eq!(landed.spread, 20, "30 taken down by ten of dodge");
     assert!(landed.hit);
     assert!(!landed.dodged, "a clean hit is not a dodge");
     assert_eq!(landed.damage, 2.0, "three damage less one point of armour");
 
     // And the same swing on a roll of minus thirty: a miss, which costs the target nothing.
-    let missed = cdda_sim::melee::resolve(-30.0, Damage { bash: 3, cut: 0, penetration: 0 }, defence);
+    let missed = cdda_sim::melee::resolve(-30.0, Damage { bash: 3, cut: 0, stab: 0, penetration: 0 }, defence);
     assert_eq!(missed.spread, -40, "minus thirty, less ten for dodge");
     assert!(!missed.hit, "a negative spread is a miss");
     assert!(missed.dodged, "and the target is told it dodged");
@@ -169,7 +172,7 @@ fn a_swing_runs_from_the_roll_to_what_got_through() {
 
     // The dice are none of this function's business, which is the point of splitting it: the same rule with
     // a different damage roll gives a different number and the same spread.
-    let bigger = cdda_sim::melee::resolve(30.0, Damage { bash: 9, cut: 0, penetration: 0 }, defence);
+    let bigger = cdda_sim::melee::resolve(30.0, Damage { bash: 9, cut: 0, stab: 0, penetration: 0 }, defence);
     assert_eq!(bigger.spread, landed.spread, "the spread does not depend on the dice");
     assert_eq!(bigger.damage, 8.0, "and eight of nine gets through one point of armour");
 
@@ -177,4 +180,62 @@ fn a_swing_runs_from_the_roll_to_what_got_through() {
     let mut rolls = Rolls::new(1);
     let drawn = cdda_sim::melee::strike(&mut rolls, attack, defence);
     assert!(drawn.damage >= 0.0, "a rolled swing never deals negative damage");
+}
+
+/// A blow carries every damage type it is made of, and each meets its own armour.
+///
+/// Reference: `Creature::deal_melee_hit` passes the whole `damage_instance` to `absorb_hit`, which walks its units and calls `get_effective_resist` per unit's **type**
+/// (`damage.cpp:724-727`). The port resolved **bash only** until now, so a knife's twenty-one points of stabbing were worth nothing at all - a rule that looked correct and could
+/// never be reached.
+#[test]
+fn a_blow_is_worth_all_of_its_damage_and_each_meets_its_own_armour() {
+    use cdda_sim::melee::{Damage, Defence, resolve};
+
+    let bare = Defence {
+        dodge: 0,
+        size: cdda_sim::CreatureSize::Medium,
+        resist: 0.0,
+        cut_resist: 0.0,
+        stab_resist: 0.0,
+        worn_armour: 0.0,
+        immobile: false,
+    };
+
+    // A knife: no bash, twenty-one stab. A bash-only resolve answers zero here.
+    let knife = Damage {
+        bash: 0,
+        cut: 0,
+        stab: 21,
+        penetration: 0,
+    };
+    let struck = resolve(100.0, knife, bare);
+    assert!(struck.hit, "a hundred is a hit on anything that cannot dodge");
+    assert!(
+        (f64::from(struck.damage) - 21.0).abs() < f64::EPSILON,
+        "all twenty-one points arrive: {}",
+        struck.damage
+    );
+
+    // And a target armoured against cutting but not stabbing takes the stabbing whole.
+    let armoured = Defence {
+        cut_resist: 10.0,
+        ..bare
+    };
+    assert!(
+        (f64::from(resolve(100.0, knife, armoured).damage) - 21.0).abs() < f64::EPSILON,
+        "cut armour does not stop stabbing"
+    );
+
+    // A blow made of two types adds both, each after its own armour.
+    let mixed = Damage {
+        bash: 10,
+        cut: 10,
+        stab: 0,
+        penetration: 0,
+    };
+    assert!(
+        (f64::from(resolve(100.0, mixed, armoured).damage) - 10.0).abs() < f64::EPSILON,
+        "ten of bash arrives and ten of cut is stopped: {}",
+        f64::from(resolve(100.0, mixed, armoured).damage)
+    );
 }

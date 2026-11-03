@@ -11855,3 +11855,22 @@ mistake is a failing test with a named type rather than a swing that quietly doe
 
 **The oracle build failed first, and the failure was the useful part.** `type->to_hit` does not exist on `itype`; the member is `m_to_hit`. **A failed build and a green gate look
 identical from the outside** - the timestamp check is what caught it, and this round it caught it inside a minute instead of three rounds later.
+
+## A blow was only worth its bash (round 1092)
+
+Chasing the survivor's swing turned up a rule that was **correct and could never be reached**: `resolve` computed the blow's damage from `rolled.bash` alone.
+
+| Piece | Where |
+|---|---|
+`melee::Damage` gains `stab` | the reference's `damage_instance` carries every damage type; the data's melee uses bash, cut and stab |
+`melee::Defence` gains `cut_resist` and `stab_resist` | `Creature::deal_melee_hit` hands `absorb_hit` the whole instance, and `get_effective_resist` is asked **per unit's type** (`damage.cpp:724-727`) |
+`resolve` | adds all three, each after its own armour, with the same penetration |
+Gate | `a_blow_is_worth_all_of_its_damage_and_each_meets_its_own_armour` - a knife's 21 stab arrives whole, cut armour does not stop it, and a mixed blow adds what gets through |
+
+**What the old code did to a knife: nothing.** A combat knife has **zero bash and twenty-one stab**, so every knife blow in the port was worth **zero** - a monster would have stood
+there being stabbed forever. The gate names that case first, and the count of types from last round's dump (bash 1,354, cut 225, stab 147 in the raw data) says how much of the
+game's weaponry runs through the two types the port ignored.
+
+**`Armour` gained `stab` and the monster spawner sets it to zero, deliberately.** The reference keeps `armor_stab` apart from `armor_cut`, and the port's monster loader does not
+carry it yet. **Borrowing `armor_cut` would have made every monster quietly sturdier than its data says** - so the field is zero and the gap is written down. The next oracle dump of
+monsters adds `armor_stab` and this comment goes away.

@@ -217,7 +217,7 @@ fn a_noise_brings_a_monster_to_the_survivor_and_it_swings_when_it_arrives() {
     world
         .entity_mut(survivor)
         .insert(Health { hp: 100, max_hp: 100 })
-        .insert(cdda_sim::creature::Armour { bash: 0, cut: 0 });
+        .insert(cdda_sim::creature::Armour { bash: 0, cut: 0, stab: 0 });
 
     // A zombie six squares away, able to hear, walking at a hundred speed, with a blow worth a couple of points.
     let zombie = cdda_sim::creature::spawn_creature(&mut world, "a zombie", (6, 0, 0));

@@ -95,6 +95,11 @@ pub struct Damage {
     pub bash: i32,
     /// Cutting damage.
     pub cut: i32,
+    /// Stabbing damage.
+    ///
+    /// The reference's `damage_instance` carries every damage type; the data's melee uses exactly three - bash, cut and stab - and a knife's whole worth is the third, so a port
+    /// with two of them cannot describe a knife at all.
+    pub stab: i32,
     /// Points of armour this attack ignores.
     pub penetration: i32,
 }
@@ -152,6 +157,10 @@ pub struct Defence {
     pub size: crate::CreatureSize,
     /// Its armour against bash.
     pub resist: f32,
+    /// Its armour against cut.
+    pub cut_resist: f32,
+    /// Its armour against stab.
+    pub stab_resist: f32,
     /// What it is wearing that also resists.
     pub worn_armour: f32,
     /// Whether it cannot move at all, which makes it all but unmissable.
@@ -201,12 +210,24 @@ pub fn resolve(hitroll: f32, rolled: Damage, defence: Defence) -> Strike {
         defence.immobile,
     );
     let hit = is_a_hit(spread);
+    // Each damage type meets its own armour, and the blow carries all three added together.
+    //
+    // Reference: `Creature::deal_melee_hit` passes the whole `damage_instance` to `absorb_hit`, which walks its units and calls `get_effective_resist` per unit's **type**
+    // (`damage.cpp:724-727`) - so a knife's stabbing never meets a target's bash armour, and a blow that is all cutting is not silently worth nothing.
     let damage = if hit {
         #[allow(clippy::cast_precision_loss)]
-        let bash = rolled.bash as f32;
-        #[allow(clippy::cast_precision_loss)]
         let penetration = rolled.penetration as f32;
-        after_armour(bash, defence.resist, defence.worn_armour, penetration)
+        let mut total = 0.0;
+        for (amount, resist) in [
+            (rolled.bash, defence.resist),
+            (rolled.cut, defence.cut_resist),
+            (rolled.stab, defence.stab_resist),
+        ] {
+            #[allow(clippy::cast_precision_loss)]
+            let amount = amount as f32;
+            total += after_armour(amount, resist, defence.worn_armour, penetration);
+        }
+        total
     } else {
         0.0
     };

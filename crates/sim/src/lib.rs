@@ -7054,6 +7054,7 @@ pub fn spawn_player(world: &mut World, square: (i32, i32), hp_max: i32, armour: 
             crate::creature::Armour {
                 bash: armour,
                 cut: armour,
+                stab: armour,
             },
             Player,
         ))
@@ -7168,6 +7169,7 @@ pub fn player_turn(
             fixed: crate::melee::Damage {
                 bash: bonus,
                 cut: 0,
+                stab: 0,
                 penetration: 0,
             },
             dice,

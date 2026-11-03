@@ -202,7 +202,7 @@ fn armour_takes_the_edge_off_a_thrown_blow_and_never_heals() {
         world
             .entity_mut(target)
             .insert(cdda_sim::creature::Health { hp: 100, max_hp: 100 })
-            .insert(cdda_sim::creature::Armour { bash: armour, cut: 0 });
+            .insert(cdda_sim::creature::Armour { bash: armour, cut: 0, stab: 0 });
         let cdda_sim::throwing::Toss::Landed { hit, .. } =
             cdda_sim::throwing::throw_at(&mut world, thrower, rock, (10, 0, 0))
         else {

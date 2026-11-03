@@ -1584,6 +1584,8 @@ pub struct Armour {
     pub bash: i32,
     /// Resistance to cutting damage.
     pub cut: i32,
+    /// Resistance to stabbing damage.
+    pub stab: i32,
 }
 
 /// Puts a monster on a square with everything its type says it has.
@@ -1620,6 +1622,9 @@ pub fn spawn_monster_of_type(
         Armour {
             bash: monster_type.armor_bash,
             cut: monster_type.armor_cut,
+            // Not a guess and not `armor_cut`: the reference keeps `armor_stab` apart from `armor_cut`, and the port does not load it yet - so a monster's stab armour is **zero**
+            // until the loader carries the field. Named here rather than borrowed from the neighbour, which would make every monster quietly sturdier than its data says.
+            stab: 0,
         },
         Dodge {
             points: monster_type.dodge,
@@ -1941,6 +1946,12 @@ pub fn defence_of(world: &World, entity: Entity) -> crate::melee::Defence {
         size,
         #[allow(clippy::cast_precision_loss)]
         resist: armour.bash as f32,
+        // The reference reads each damage type's own armour off the body part (`bodypart::resist`); the port's `Armour` carries the three the melee rules use.
+        #[allow(clippy::cast_precision_loss)]
+        cut_resist: armour.cut as f32,
+        #[allow(clippy::cast_precision_loss)]
+        stab_resist: armour.stab as f32,
+        // Nothing here models worn clothing yet; a monster's protection is its body's.
         worn_armour: 0.0,
         immobile: false,
     }

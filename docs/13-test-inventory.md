@@ -548,3 +548,8 @@ missing:** the weapon's `to_hit`, which neither the loader nor any dump carries 
 (`itype::melee_damage`, `itype::m_to_hit`); `ItemType::to_hit` loads with the reference's default **-2**, and `melee_rules::the_registry_carries_what_a_swung_thing_is_worth`
 compares **all four columns for all 9,912 types**, printing the first five that disagree. **The named checks pin what a comparison cannot**: a rock `(7, 0, -1)`, a combat knife
 `(0, 21, -1)`, the `null` item `(0, 0, -2)`.
+
+**Round 1092 made a blow worth all of its damage**: `melee::Damage` gained `stab`, `melee::Defence` gained `cut_resist` and `stab_resist`, and `resolve` adds the three types each
+after its own armour (`get_effective_resist` per unit's type, `damage.cpp:724-727`), gated by `melee::a_blow_is_worth_all_of_its_damage_and_each_meets_its_own_armour`. **The old
+code made every knife blow worth zero** - a knife has no bash at all. `Armour::stab` is set to **zero** by the monster spawner on purpose: the loader does not carry `armor_stab`
+yet, and borrowing `armor_cut` would have made monsters quietly sturdier than their data.
