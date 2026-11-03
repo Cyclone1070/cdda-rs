@@ -34,6 +34,10 @@ pub enum Step {
     },
     /// Installs the game's own vitamin and effect tables from the reference's JSON, as its factories do at start-up.
     Data,
+    /// Renames the place for an hour, the way the `place_override` dialogue effect does.
+    PlaceOverride(String),
+    /// Asserts what the place is called now.
+    ExpectPlace(String),
     /// The dice every later draw comes from.
     Seed(u32),
     /// Where the character lays its smell, and how much.
@@ -165,6 +169,8 @@ pub fn parse(text: &str) -> Result<Vec<Step>, String> {
                 y: number_of(y, number, "y")?,
             },
             ["items"] => Step::Items,
+            ["place", rest @ ..] => Step::PlaceOverride(rest.join(" ")),
+            ["expect", "place", rest @ ..] => Step::ExpectPlace(rest.join(" ")),
             ["give", item, count] => Step::Give {
                 item: (*item).to_owned(),
                 count: number_of(count, number, "count")?,
@@ -291,6 +297,8 @@ fn take_item_step(world: &mut World, step: &Step, outcome: &mut Outcome) -> bool
                 cdda_sim::creature::set_speed(world, survivor, 100, 0);
                 outcome.lines.push(format!("survivor: at ({x}, {y})"));
             }
+        Step::PlaceOverride(name) => take_place_step(world, name, outcome),
+        Step::ExpectPlace(name) => check_place_step(world, name, outcome),
         Step::Items => {
                 match install_item_data(world) {
                     Some(kinds) => outcome.lines.push(format!("items: {kinds} kinds")),
@@ -370,6 +378,9 @@ pub fn survivor(world: &mut World) -> Option<bevy_ecs::entity::Entity> {
 
 /// Builds a world of `side` by `side` squares, which is what a scenario starts from.
 pub fn build_world(world: &mut World, side: i32, flammable: bool) {
+    // A world without a clock is not a world: the reference's calendar always exists, and every rule that reads a turn - a timed event, a scheduled effect, the sleepiness
+    // clock - asks it. Scenarios used to start with none, so a step that scheduled something found no clock and quietly scheduled nothing.
+    cdda_sim::calendar::set_turn(world, 0);
     let mut level = cdda_core_types::level::Level::new();
     for y in 0..side {
         for x in 0..side {
@@ -440,6 +451,42 @@ pub fn install_item_data(world: &mut World) -> Option<usize> {
     let items = cdda_content::items::load_paths(&[&data]).ok()?;
     cdda_sim::item_data::install(world, &items);
     Some(items.len())
+}
+
+/// Renames the place, and checks what the place is called.
+///
+/// Kept apart from the match for the same reason the item steps are: two arms that only read and write one name would make the scenario interpreter longer without making it
+/// clearer, and the scenario's own vocabulary is worth keeping to one screen.
+fn take_place_step(world: &mut World, name: &str, outcome: &mut Outcome) {
+    let Some(survivor) = survivor(world) else {
+        outcome.failures.push("there is no survivor".to_owned());
+        return;
+    };
+    let effect = cdda_content::dialogue::Effect::PlaceOverride {
+        place: cdda_content::dialogue::StringSource::Literal(name.to_owned()),
+        fallback: None,
+        length: cdda_content::dialogue::EffectDuration::Turns(Some(3_600)),
+        key: None,
+    };
+    cdda_sim::dialogue_effects::run_effects(world, survivor, None, &[effect]);
+    outcome
+        .lines
+        .push(format!("place: renamed to {name} for an hour"));
+}
+
+/// Checks what the place is called.
+///
+/// Reference: `display::current_position_text` (`display.cpp:1243-1246`) answers the overriding name **while the event is pending** and the real name after it, which is why
+/// this asks the timed event rather than a rename store of its own.
+fn check_place_step(world: &World, name: &str, outcome: &mut Outcome) {
+    let named = cdda_sim::timed_events::text_of(world, "OVERRIDE_PLACE");
+    if named.as_deref() == Some(name) {
+        outcome.lines.push(format!("place: {name}"));
+    } else {
+        outcome
+            .failures
+            .push(format!("expected the place to be called {name}, and it is {named:?}"));
+    }
 }
 
 /// Installs the game's own vitamin types, so a body can tell a nutrient from a drug.

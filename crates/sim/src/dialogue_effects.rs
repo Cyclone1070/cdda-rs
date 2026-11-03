@@ -1253,8 +1253,8 @@ fn place_override(world: &mut World, speaker: Entity, listener: Option<Entity>, 
             None => return Applied::CannotAnswer,
         },
     };
-    let _ = named;
-    crate::timed_events::schedule(world, &event, turns.saturating_add(1));
+    // Reference: the name rides in the event (`npctalk.cpp:4810-4814`), and whatever reads the place's name reads it back until the event comes due.
+    crate::timed_events::schedule_carrying(world, &event, turns.saturating_add(1), &named);
     Applied::Done
 }
 

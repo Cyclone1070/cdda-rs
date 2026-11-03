@@ -10765,3 +10765,24 @@ have mutated with an empty blood bag and no test would have noticed - **the defa
 **Two test bugs, both instructive, both the fixture's fault.** The first attempt gave the creature no category at all, so it had no strongest category to mutate into; the
 second gave its free trait no category, so the trait that was meant to point at `BEAST` pointed nowhere. **The fixture is a second implementation of the loader** - this is
 the third time a hand-built dump has lied by omission, and the reason the corpus gates exist beside them.
+
+## A place can be renamed, and remembers its own name (round 1047)
+
+The roadmap's frontier list named `place_override` as one of the **stores the port lacks** - 17 refusals behind it. It has one now:
+
+| Piece | Where |
+|---|---|
+the event's **payload** | `timed_events::TimedEvent { due, text }` - the reference's event carries a string (`timed_event.h:20-60`) |
+scheduling one that carries text | `timed_events::schedule_carrying` |
+reading it back while it is pending | `timed_events::text_of`, the reference's `current_position_text` (`display.cpp:1243-1246`) |
+the effect that fills it | `dialogue_effects::place_override`, which used to discard the name it had just read |
+Gates | `a_rename_lasts_until_its_event_comes_due` (three turns around the expiry) and the scenario `a_place_can_be_renamed.txt` |
+
+**The effect had been reading the name and throwing it away** - `let _ = named;` in the middle of it, with a comment saying the renaming was "the next round's work". **A
+port can read a field, validate it, and drop it**, and no test that only checked the effect's answer would ever notice.
+
+**The scenario found a second bug, and it was not in the rename at all.** `build_world` never installed a calendar, so a scenario began with **no clock** and every rule that
+asks one - a timed event, a scheduled effect, the sleepiness clock - quietly did nothing until the first `turn` step made one. **A scenario that schedules something and a
+scenario that does not were running in two different worlds**, and the fix is one line in the place a world is built.
+
+**Still declared:** `should_show_map_memory` (the reference's other reader of the same event) and the map memory it switches off.

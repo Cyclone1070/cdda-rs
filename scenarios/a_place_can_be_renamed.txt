@@ -1,0 +1,9 @@
+# A place gets a new name for a while, and then its own name back.
+#
+# Reference: the `place_override` effect (`npctalk.cpp:4803-4818`) schedules `OVERRIDE_PLACE` an hour out with the new name in the event, and
+# `display::current_position_text` (`display.cpp:1243-1246`) answers that name while the event is pending. The port had the effect and nowhere to put the name.
+world 6 bare
+seed 11
+survivor 2 2
+place Safe House
+expect place Safe House

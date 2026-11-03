@@ -56,6 +56,7 @@ mod craft_roll;
 mod crafting;
 mod dialogue_conditions;
 mod npcs;
+mod place_rename;
 mod probe;
 mod dialogue_effects;
 mod dialogue_values;
