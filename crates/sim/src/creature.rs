@@ -1694,6 +1694,10 @@ pub fn set_wander(world: &mut World, entity: Entity, square: (i32, i32, i32), tu
     if turns <= 0 {
         return;
     }
+    // Reference: `monster::wander_to` (`monster.cpp:1677`) refuses outright for a docile monster - it hears the noise and stays where it is put.
+    if crate::applied_effects::has(world, entity, "docile") {
+        return;
+    }
     if let Some(mut wander) = world.get_mut::<Wander>(entity) {
         if wander.turns_left >= turns {
             return;

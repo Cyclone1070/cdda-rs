@@ -11581,3 +11581,22 @@ port read it, and `wander_turns` existed for no caller. The memory now has a wal
 
 **Named, not carried:** the reference refuses a wander while the monster is `effect_docile`, and a **provocative** sound (`volume >= normal_roll(30, 5)`) can displace a monster
 that is already following a less interesting one. Both are one condition each on top of the rule that now exists.
+
+## A docile monster stays put (round 1079)
+
+One condition on top of the walk: a creature carrying `docile` hears the noise and does not go to it.
+
+| Piece | Where |
+|---|---|
+the guard | `set_wander` returns at once when the creature carries `docile` - `monster.cpp:1677` |
+Gate | `a_docile_creature_does_not_walk_towards_a_noise` - and it asserts **both** halves: no `Wander` **and** a `HeardSound` |
+
+**The test asserts two things because the rule has two halves and only one of them is the guard.** The reference refuses the walk, not the hearing; a port that skipped the hearing
+too would pass a test that only checked "it did not move", and would then be wrong about everything else that reads a creature's memory - including the message a player gets.
+
+**The mutation check was run in the other order this time, and it is the weaker order.** I wrote the guard before seeing the test fail, so the red state was produced *afterwards*
+by making the guard `false && ...` - which does prove the test can fail, but does not prove it failed for the reason I think. **The honest order is red first**; where it was not
+possible, the mutation is the evidence and it is recorded here as the second-best thing it is.
+
+**Still not carried, named:** a **provocative** sound (`volume >= normal_roll(30, 5)`, `monster.cpp:3941`) can displace a monster already walking towards a quieter one, and the
+reference's own gate on that is `if( provocative_sound && !tmp_provocative && wandf > 0 )` - a condition on the *memory*, not on the new sound.

@@ -497,4 +497,6 @@ the check draws into a scratch file. Mutation-checked both ways.
 `hear_sounds`, which hands the turn's loudest sound to every `HEARS` creature, jitters its guess and clears the list (`sounds.cpp:186-260`). It runs as **`TurnStage::Sounds`**,
 a declared stage between Scent and Falling. **Round 1078 gave that memory a walk**: `creature::Wander { square, turns_left }` is the reference's `wander_pos`/`wandf`, `set_wander` refuses to replace a longer wander
 (`monster.cpp:3968`), `hear_sounds` sets it (`monster.cpp:3974`), and `take_turns` walks a creature to its `Goal` if it has one and **otherwise to its `Wander`**, counting the
-turns down. **Named next:** `effect_docile` refuses a wander, and a `provocative` sound (`volume >= normal_roll(30,5)`) can displace a monster already following a quieter one.
+turns down. **Round 1079 added the docile guard**: `set_wander` returns at once for a creature carrying `docile` (`monster.cpp:1677`), and its gate asserts **both** that no `Wander` was
+made **and** that the creature still heard it. **Named next:** a `provocative` sound (`volume >= normal_roll(30,5)`, `monster.cpp:3941`) can displace a monster already following
+a quieter one.

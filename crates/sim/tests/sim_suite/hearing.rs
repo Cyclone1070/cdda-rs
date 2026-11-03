@@ -146,3 +146,38 @@ fn a_creature_that_hears_a_noise_walks_towards_it_until_the_noise_is_old() {
         "the creature stepped towards the noise: {before:?} became {after:?}"
     );
 }
+
+/// A docile creature does not walk towards a noise.
+///
+/// Reference: `monster::wander_to` refuses while the monster carries `effect_docile` (`monster.cpp:1677`), so a noise cannot make a docile monster break off. The port asks the
+/// same question of the same effect, through the effect store it already uses for every other duration.
+#[test]
+fn a_docile_creature_does_not_walk_towards_a_noise() {
+    let mut world = bevy_ecs::prelude::World::new();
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(7));
+    let listener = cdda_sim::creature::spawn_creature(&mut world, "the tamed one", (6, 0, 0));
+    cdda_sim::creature_flags::add_flag(&mut world, listener, "HEARS");
+    cdda_sim::applied_effects::add(
+        &mut world,
+        listener,
+        cdda_sim::effects::ActiveEffect {
+            id: "docile".to_owned(),
+            intensity: 1,
+            duration: 100,
+            permanent: false,
+        },
+    );
+
+    // A very loud noise, loud enough to be guessed exactly, so the only thing that can stop the walk is the effect.
+    cdda_sim::sounds::make_sound(&mut world, (0, 0, 0), 30);
+    cdda_sim::hearing::hear_sounds(&mut world);
+    assert!(
+        world.get::<cdda_sim::creature::Wander>(listener).is_none(),
+        "a docile creature does not start walking towards a noise"
+    );
+    // It still **hears** it: the reference refuses the walk, not the hearing, and a creature that heard nothing would fail a test that checked the memory instead.
+    assert!(
+        world.get::<cdda_sim::hearing::HeardSound>(listener).is_some(),
+        "but it does hear it"
+    );
+}
