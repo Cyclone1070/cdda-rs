@@ -11269,3 +11269,26 @@ composes this spread with the throw cost and the trajectory in `Creature::projec
 |---|---|---|
 rules in `dispersion.rs` | 2 | **4** |
 gates in `dispersion.rs` | 4 | **6** |
+
+## Where a shot lands (round 1066)
+
+The third piece of the ranged half: an error angle becomes a square.
+
+| Piece | Where |
+|---|---|
+`aim_of(rolled, range, target_size) -> Aim` | `projectile_attack_roll` (`ballistics.cpp:204-231`) |
+the triangle | `iso_tangent(distance, radians) = tan(radians / 2) * distance * 2` (`line.cpp:21-24`) |
+the miss as a fraction | `min(1, tiles / target_size)`, and **1 for a target with no size** - the reference's guard against dividing by zero |
+`landing(&Shot, dice)` | the miss branch of `projectile_attack` (`ballistics.cpp:314-352`) |
+under a tile | the aim **stands**, and **no die is spent** |
+over a tile | turn by the rolled angle **capped at thirty degrees**, walk the range by `rng(-sqrt(miss), +sqrt(miss))`, then round each axis |
+on your own square | one square along the aim by sign, because the reference refuses a shot at its own square |
+Gates | `a_hit_that_misses_by_less_than_a_tile_lands_where_it_was_aimed`, `a_shot_inside_the_target_square_never_moves_and_never_rolls`, `a_wild_miss_walks_out_by_the_root_of_how_far_it_missed` |
+
+**The walk is a diamond, not a circle, and the test says so.** `projectile_attack` rounds **each axis** with `roll_remainder` after turning, so a landing can sit a square
+further out than the range it drew and a square further across than the triangle predicts. Two of the round's three test failures were me asserting the circle I expected
+rather than the diamond the reference writes - **the reference's shape is per-axis, and a property test that assumed otherwise failed immediately**, which is the good
+outcome: the test now documents the corners instead of contradicting them.
+
+**A near miss spends no dice.** The `missed_by_tiles < 1.0` branch returns the aimed square without touching the stream, and the gate proves it by comparing the next draw
+against an untouched stream at the same seed. A port that rolled the angle first and then decided not to use it would land every shot right and every **later** roll wrong.

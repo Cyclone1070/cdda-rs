@@ -76,6 +76,7 @@ mod melee;
 mod melee_rolls;
 mod death;
 mod degradation;
+mod ballistics;
 mod digest;
 mod dispersion;
 mod eating;

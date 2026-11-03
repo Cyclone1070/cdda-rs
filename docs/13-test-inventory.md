@@ -454,3 +454,9 @@ and gated against the reference's arithmetic. **They still have no caller** - th
 **Both of these rules carry a warning worth keeping.** The reference's comments above them are **stale**: they promise 1000 spread at skill zero and 250 at skill ten where the
 code gives 2500 and 119, and 200 per dodge point at zero dexterity where the code gives 50. **A port that transcribed the comments would be wrong in every number and right in
 its shape** - the worst kind of wrong, because the shape is what a reviewer checks.
+
+**Round 1066 added the landing rule**: `crates/sim/src/ballistics.rs` holds `aim_of` (`projectile_attack_roll`, `ballistics.cpp:204-231`) and `landing` (the miss branch of
+`projectile_attack`, `ballistics.cpp:314-352`). They compose the dispersion rules **into a square**, so a caller now needs only three things: an item's weight and volume, a
+shooter's numbers, and a target square. **The caller is the next slice** - `throwing_dispersion` feeds `Dispersion::roll`, that feeds `aim_of`, that feeds `landing`, and the
+item is moved to the answer. The trajectory `Creature::projectile_attack` walks (`creature.cpp:1300-1400`, `find_clear_path`) is what a shot **passes through** along the way,
+which matters for what it hits, not for where it stops.
