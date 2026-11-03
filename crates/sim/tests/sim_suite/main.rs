@@ -175,6 +175,7 @@ mod register;
 mod singletons;
 mod squares;
 mod replay_digest;
+mod revert;
 mod scent_session;
 mod scent_terrain;
 mod set_fault;

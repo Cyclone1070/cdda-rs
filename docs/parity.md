@@ -10933,3 +10933,26 @@ instead of adding a second, so the roll has one place to live.
 
 **Six counts moved by one each.** Readable **588**, leaves **65**, effects runnable **1,554**, refused at run time **196**, silent **286**, programs refusing at their first
 unreadable entry **19**. A round that moves six counts by one is a round that changed one rule - and the census is the only place that shows it.
+
+## A place can be told to remember itself (round 1054)
+
+`revert_location` is the last store-shaped gap in the census - four of the nineteen remaining programs name it - and the store is now in, as a component:
+
+| Piece | Where |
+|---|---|
+`Snapshot { terrain, furniture }` | **on the square entity itself** - `crates/sim/src/revert.rs` |
+when the copy is taken | **when the effect runs**, not when it is scheduled (`f_revert_location`, `npctalk.cpp:4898-4917`) |
+how far it reaches | **twelve squares** each way, because the reference copies four submaps of twelve by twelve |
+what restoring does | terrain and furniture back; a square that had no furniture **loses the one it has** (`set_furniture(.., 0)`) |
+Gates | `a_remembered_square_is_put_back_the_way_it_was`, `a_square_outside_the_reach_is_not_remembered` |
+
+**The copy is a component, so there is no table of remembered coordinates.** The reference keeps a `submap` copy because its map *is* arrays; the port's squares are
+entities, so the memory belongs on the entity. **A parallel map keyed by coordinate would be the second source of truth the architecture gates exist to forbid** - and it
+would be wrong the moment a square was despawned.
+
+**What is not in yet, and is named rather than quietly missing:** the reference's copy also carries traps and the things lying on the floor (`m->trp`, `m->itm`,
+`submap.cpp:335-344`). The port's snapshot carries the two the map's own entities hold; a trap and an item are separate rules that this port has not yet given a change of
+their own, so a revert restores the shape of a room and not its contents. That is recorded here and in `docs/13-test-inventory.md` as the revert's remaining half.
+
+**The effect is not wired yet either**, and this round does not pretend otherwise: `revert_location` still refuses, the store is what came first. The next round reads
+`{"revert_location": {"global_val": …}}`, schedules the `REVERT_SUBMAP` event, and the census number follows.

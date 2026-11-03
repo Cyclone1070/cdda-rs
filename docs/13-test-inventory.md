@@ -413,3 +413,13 @@ and reports the functions with none beyond their own definition. **It found 31, 
 **The two this round deleted were this session's own:** `quality_level` was replaced by `qualities_of` when the crafting check needed the whole map, and
 `nothing_on_hand` was a convenience for a caller that never came. **A session that adds dead code while writing a ledger about dead code deserves the note more than the
 deletion.**
+
+### The revert's remaining half (round 1054)
+
+`crates/sim/src/revert.rs` remembers a square's **terrain and furniture**. The reference's copy also carries the **trap** and the **items** on the tile
+(`submap::revert_submap`, `submap.cpp:335-344`). Waiting, in this order:
+
+1. the trap - the port has a trap code on the square's entities (`Traps`), so a snapshot field is a small change;
+2. the items - the port has no per-tile item stack yet, so this waits on that rather than on revert.
+
+The effect itself (`revert_location`, `f_revert_location`, `npctalk.cpp:4884-4918`) is unread: the store landed first, which is the order this ledger exists to keep.

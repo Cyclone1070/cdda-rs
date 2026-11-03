@@ -101,6 +101,7 @@ pub mod addictions;
 pub mod known_spells;
 pub mod math_functions;
 pub mod recipes_known;
+pub mod revert;
 pub mod scheduled;
 pub mod scent;
 pub mod scent_table;
