@@ -349,7 +349,33 @@ These 98 files (459 cases) run without a game world, so they can be taken whenev
 * `worldfactory_test.cpp` — 1 cases
 * `zzip_test.cpp` — 4 cases
 
-## Rules that no test can fail (audit at round 1019)
+## The wires: what each stage reaches (audit at round 1039)
+
+Two rounds found the same shape - **a rule that is right and nothing calls** - so this is the ledger of what the schedule actually reaches, stage by stage. A rule is
+**reached** only if a stage on `environment_schedule` gets to it, directly or through one of these calls.
+
+| Stage | Set | What it reaches |
+|---|---|---|
+`scheduled_stage` | Scheduled | the scheduled effects that have come due, for the avatar |
+`scent_stage` | Scent | the scent trail's own advance |
+`falling_stage` | Falling | falling, and the support check under it |
+`fields_stage` | Fields | the field sweep, with the wind, the map facts and the refusing-gas set |
+`creatures_stage` | Creatures | **`focus_stage`** (morale, pain, sleepiness, the equilibrium, the drift), then dressing, reaping the dead, and every creature's turn |
+**`needs_stage`** | Creatures | the sleepiness clock **both ways** - climbing while awake, recovering while `Asleep` |
+`light_stage` | Light | clearing the light and casting it again |
+
+**Three things this ledger makes visible, and none of them are visible from a test count:**
+
+1. **The food clock is not on it.** `Body::update_stomach` - hunger, thirst, calories, vitamins, digestion - is called **only from tests**. Everything the port knows about
+   eating is proved and nothing eats.
+2. **`focus_stage` runs inside the creatures stage, not as its own.** The order is still declared (it is first in `creatures_stage`, before anything acts), but a reader
+   looking down `add_systems` will not find it - the ledger is where that is written down.
+3. **Nothing reads a creature's enchantment cache into the body.** `update_stomach` takes the `STOMACH_SIZE_MULTIPLIER` pair and every caller passes `( 0.0, 0.0 )`.
+
+**A rule is not ported because it has a test; it is ported because a turn can reach it.** The three items above are the current backlog, in that order: the food clock's
+stage, its enchantment inputs, and then the two rules that wait on them.
+
+Rules that no test can fail (audit at round 1019)
 
 The crafting sweep added six modules and about forty public functions. **An audit of every public function against every call site found twenty-two with no caller**, and
 the ones this sweep created were all mistakes of the same kind: **a helper written for a caller that never arrived.**

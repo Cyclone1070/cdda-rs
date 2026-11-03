@@ -863,7 +863,9 @@ minus twenty. **Still not ported:** the reading penalty, and the comfort/tempera
 **Mutation reach at 1035:** the `u_mutate` dialogue effect now **gives** a mutation instead of refusing - the two tables live on a marked entity, `mutate_category` draws
 with the reference's two tries, and the category is the creature's strongest. **Declared, not ported:** the good/bad roll and the vitamin cost per mutation.
 
-**The cache's second reader at 1038:** `StomachContents::capacity_of` applies `STOMACH_SIZE_MULTIPLIER` with the floor after the enchantment, and `Body::update_stomach`
+**The wires ledger at 1039:** `docs/13-test-inventory.md` now names what each schedule stage reaches, and the three gaps it made visible: **the food clock is not on the
+schedule** (`update_stomach` is called only from tests), `focus_stage` runs inside `creatures_stage`, and nothing reads a creature's cache into the body. **The next three
+slices are those, in that order.** **The cache's second reader at 1038:** `StomachContents::capacity_of` applies `STOMACH_SIZE_MULTIPLIER` with the floor after the enchantment, and `Body::update_stomach`
 takes the pair - but **the food clock is not on the schedule yet**, so the pair is `(0.0, 0.0)` at every caller. **The next wire is a stage that reads a creature's cache
 into the body update.** **The cache began at 1037:** mutation enchantment values are loaded, summed (`mutations::enchantment_values`), applied (`apply_enchantments`) and **read** by
 `creature::effective_strength` → `carrying_capacity`, so a `STRENGTH +1` mutation is four kilograms. **Order changed at 1036:** a mutation's stat changes are **enchantments** in 0.I-1 (`mutation.h:295`, `magic_enchantment.h:244-247`), not a `modifies` map, and the port has no

@@ -10598,3 +10598,26 @@ everywhere it is called. **The seam is in place and the wire is not**, and that 
 **This is the second time in three rounds** that the honest end of a slice was *"the rule works and nothing calls it"*: round 1036's finding was the same shape one level
 down. **The pattern is worth naming: this port's backlog is not rules, it is wires.** A count of rules would say the port is far along; a count of **systems on the
 schedule that reach them** would say much less.
+
+## The ledger of wires, drawn because rules were the wrong thing to count (round 1039)
+
+Three rounds kept ending on the same sentence - *"the rule works and nothing calls it"* - so this round drew the map instead of the next rule:
+
+| Stage | Reaches |
+|---|---|
+`scheduled_stage` | the scheduled effects that have come due |
+`scent_stage` | the scent trail's advance |
+`falling_stage` | falling and its support check |
+`fields_stage` | the field sweep with wind, map facts and the gas refusals |
+`creatures_stage` | **`focus_stage`** first, then dressing, reaping and every creature's turn |
+`needs_stage` | the sleepiness clock **both ways** |
+`light_stage` | clearing and casting the light |
+
+**Three things the ledger made visible, and none of them is visible from a test count:**
+
+1. **The food clock is not on the schedule.** `Body::update_stomach` is called **only from tests** - everything the port knows about eating is proved, and **nothing eats**.
+2. **`focus_stage` runs inside the creatures stage**, first, before anything acts. The order is declared, but a reader scanning `add_systems` will not find it.
+3. **Nothing reads a creature's cache into the body**: every caller of `update_stomach` passes `( 0.0, 0.0 )`.
+
+**A rule is not ported because it has a test; it is ported because a turn can reach it.** That sentence is now the first line of the ledger, and the three items under it are
+the backlog in the order they block each other: the food clock's stage, its enchantment inputs, then the two rules waiting behind them.
