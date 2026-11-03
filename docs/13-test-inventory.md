@@ -445,3 +445,12 @@ needs the gun table.
 
 What that next round needs, in order: an item's `gun_dispersion` and `gun_skill` (item data), the recoil table (`Character::recoil_total`), and the option
 `GUN_DISPERSION_DIVIDER`, which the port reads from its option table.
+
+**Round 1065 added the throwing half**, which needs nothing the port does not have: `throwing_dispersion` and `throw_dispersion_per_dodge` (`ranged.cpp:1329-1384`) are ported
+and gated against the reference's arithmetic. **They still have no caller** - the next round that touches the ranged half starts at `Character::throw_item`
+(`ranged.cpp:1467-1600`), which composes the spread with the item's weight and volume, the throw cost and the projectile trajectory in `Creature::projectile_attack`
+(`creature.cpp:1300-1400`).
+
+**Both of these rules carry a warning worth keeping.** The reference's comments above them are **stale**: they promise 1000 spread at skill zero and 250 at skill ten where the
+code gives 2500 and 119, and 200 per dodge point at zero dexterity where the code gives 50. **A port that transcribed the comments would be wrong in every number and right in
+its shape** - the worst kind of wrong, because the shape is what a reviewer checks.

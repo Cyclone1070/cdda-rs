@@ -79,3 +79,92 @@ pub fn from_skill(skill: f64, weapon_dispersion: f64) -> f64 {
     penalty += weapon_dispersion * (1.25 + (threshold - skill) * 10.0 / threshold);
     penalty
 }
+
+/// A target that moves, which makes a throw harder.
+///
+/// Reference: `Character::throwing_dispersion`'s `critter` branch (`src/ranged.cpp:1367-1372`).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Dodging {
+    /// The target's dodge score.
+    pub dodge: f64,
+    /// How far away it is, in squares.
+    pub distance: i32,
+    /// The thrower's dexterity, which makes a dodge cheaper to beat.
+    pub dexterity: i32,
+    /// The dexterity modifier, which is `1.0` unless a mutation or an item changes it.
+    pub dex_modifier: f64,
+}
+
+/// What is being thrown, how, and at what.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Throw {
+    /// What it weighs, in grams.
+    pub weight_g: i64,
+    /// How much room it takes, in millilitres.
+    pub volume_ml: i64,
+    /// How many of them go at once: a stack is split, so a handful of pebbles throws like one pebble.
+    pub charges: i32,
+    /// The thrower's arm strength - **not** its strength, which the reference reads separately.
+    pub arm_strength: i32,
+    /// The thrower's throwing skill, out of ten.
+    pub skill: f64,
+    /// The thrower's perception.
+    pub perception: i32,
+    /// What is in the thrower's eyes, from zero to a hundred.
+    pub eye_encumbrance: i32,
+    /// Whether the throw is blind, which the reference multiplies by four.
+    pub blinded: bool,
+    /// The target, when it is a creature that can move out of the way.
+    pub target: Option<Dodging>,
+}
+
+/// The per-dodge cost of a throw, which falls as the thrower's dexterity climbs.
+///
+/// Reference: `Character::throw_dispersion_per_dodge` (`src/ranged.cpp:1329-1340`): `100 / max( 1, 2 + dex / 4 )`, truncated. The reference's comment beside it is
+/// **stale** and says 200 at zero dexterity where the code gives 50; the port follows the code.
+#[must_use]
+pub fn per_dodge(dexterity: i32, dex_modifier: f64) -> i32 {
+    let effective = (2.0 + f64::from(dexterity) / 4.0) * dex_modifier;
+    let divisor = effective.max(1.0);
+    // Reference: `static_cast<int>( 100.0f / std::max( 1.0f, effective_dex ) )` - a truncation toward zero, which is what `as` does here.
+    #[allow(clippy::cast_possible_truncation)]
+    let cost = (100.0 / divisor) as i32;
+    cost
+}
+
+/// How far a throw can wander, as a plain number of dispersion points.
+///
+/// Reference: `Character::throwing_dispersion` (`src/ranged.cpp:1342-1384`). The reference's own comment above it claims 1000 at skill zero and 250 at skill ten; the code
+/// gives 2500 and 119, because the divisor is `8 * skill + 4`. **The comment is stale, and a port that transcribed it would be wrong in every number while keeping the right
+/// shape** - which is the failure this test exists to catch.
+#[must_use]
+pub fn throwing_dispersion(shot: &Throw) -> i32 {
+    let charges = shot.charges.max(1);
+    let weight_g = shot.weight_g / i64::from(charges);
+    let volume_ml = shot.volume_ml / i64::from(charges);
+    let mut difficulty: i64 = 1_000;
+    // A litre is free and every millilitre over it costs one.
+    difficulty += (volume_ml - 1_000).max(0);
+    // Every gram over `arm strength * 100` costs one, so a strong arm throws heavy things straight.
+    difficulty += (weight_g - i64::from(shot.arm_strength) * 100).max(0);
+    // Reference: `10 * throw_difficulty / ( 8 * throw_skill + 4 )`, truncated - the skill term is a float and the answer is an int.
+    let skill = shot.skill.min(MAX_SKILL);
+    // The difficulty is a small number of dispersion points; the cast is exact, where the answer's truncation is the rule.
+    #[allow(clippy::cast_precision_loss)]
+    let difficulty_f = difficulty as f64;
+    #[allow(clippy::cast_possible_truncation)]
+    let mut spread = (10.0 * difficulty_f / (8.0 * skill + 4.0)) as i32;
+    if let Some(target) = &shot.target {
+        // A dodge counts **ten times** at point blank and once from two squares away, because a thrower has to adjust more when the target is close.
+        let scale = (10 - 5 * target.distance).max(1);
+        #[allow(clippy::cast_possible_truncation)]
+        let effective_dodge = (target.dodge * f64::from(scale)) as i32;
+        spread += per_dodge(target.dexterity, target.dex_modifier) * effective_dodge;
+    }
+    // Eyes full of water cost ten points of perception each.
+    spread += (shot.eye_encumbrance - shot.perception).max(0) * 10;
+    if shot.blinded {
+        spread *= 4;
+    }
+    spread.max(0)
+}

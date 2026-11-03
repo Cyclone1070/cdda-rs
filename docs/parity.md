@@ -11239,3 +11239,33 @@ still rolls correctly, and a `roll` that added the spread still has the right ma
 **The curve is ported and has no caller yet, which is written down rather than implied.** `docs/13-test-inventory.md` names it as a rule **waiting for its caller**: the next
 ranged round starts at `Character::get_weapon_dispersion` (`ranged.cpp:2500-2560`), which composes these two from a weapon's own dispersion, the shooter's skill and the
 aiming mode - and that one needs the gun table, which the port does not have.
+
+## A throw's spread, and the comments that lie (round 1065)
+
+The throwing half of P4's ranged work came across without needing a gun table, because a throw's spread is built from what the port already has: an item's weight and volume,
+an arm's strength, a skill, and a target that dodges.
+
+| Piece | Where |
+|---|---|
+`per_dodge(dexterity, dex_modifier)` | `100 / max( 1, 2 + dex / 4 )`, truncated (`ranged.cpp:1329-1340`) |
+`throwing_dispersion(&Throw)` | `ranged.cpp:1342-1384` |
+the difficulty a throw starts at | **1000**, plus one a millilitre over a litre, plus one a gram over `arm strength * 100` |
+the skill divisor | `10 * difficulty / (8 * skill + 4)` - **not** the linear fall the comment promises |
+a dodging target | its dodge counts **ten times** at point blank and once from two squares out |
+eyes and blindness | ten points a point of encumbrance over perception, then **times four** when the throw is blind |
+Gates | `a_throw_s_spread_follows_the_reference_s_code_and_not_its_comments`, `the_per_dodge_cost_is_a_hundred_over_two_plus_a_quarter_of_dexterity` |
+
+**Both comments above these rules are stale, and that is the round's finding.** `throwing_dispersion`'s comment says "perfect situation gives us 1000 dispersion at lvl 0, this
+goes down linearly to 250 at lvl 10"; the code gives **2500** and **119**. `throw_dispersion_per_dodge`'s comment says "+200 per dodge point at 0 dexterity, +100 at 8"; the code
+gives **50** and **25**. **A port that transcribed the comments would be wrong in every number and right in its shape** - and shape is exactly what a reviewer checks, so this
+is the failure mode that survives review.
+
+**The test transcribes the code and says so in its own doc comment**, so the next reader sees the disagreement rather than rediscovering it.
+
+**Still no caller, and named as such.** `docs/13-test-inventory.md` records that the next ranged round starts at `Character::throw_item` (`ranged.cpp:1467-1600`), which
+composes this spread with the throw cost and the trajectory in `Creature::projectile_attack` (`creature.cpp:1300-1400`).
+
+| Number | Before | After |
+|---|---|---|
+rules in `dispersion.rs` | 2 | **4** |
+gates in `dispersion.rs` | 4 | **6** |

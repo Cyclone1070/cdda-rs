@@ -125,3 +125,104 @@ fn skill_becomes_dispersion_on_the_reference_s_curve() {
         "a worse weapon hurts a poor shot more"
     );
 }
+
+/// A thrown object's spread is worked out from what is thrown, how strong the arm is, and who is dodging - and the reference's **own comments disagree with its code**.
+///
+/// Reference: `Character::throwing_dispersion` (`ranged.cpp:1342-1384`) and `throw_dispersion_per_dodge` (`ranged.cpp:1329-1340`). The comment above
+/// `throwing_dispersion` says "perfect situation gives us 1000 dispersion at lvl 0, down linearly to 250 at lvl 10"; the code gives **2500** and **119** for the same
+/// conditions, because it divides by `8 * skill + 4`. The comment above `throw_dispersion_per_dodge` says "+200 per dodge point at 0 dexterity"; the code gives **50**. The
+/// port transcribes the **code** - a transcribed comment would be a port that is wrong in every number and right in its shape.
+#[test]
+fn a_throw_s_spread_follows_the_reference_s_code_and_not_its_comments() {
+    use cdda_sim::dispersion::{Throw, throwing_dispersion};
+
+    let rock = Throw {
+        weight_g: 500,
+        volume_ml: 1_000,
+        charges: 1,
+        arm_strength: 8,
+        skill: 0.0,
+        perception: 10,
+        eye_encumbrance: 0,
+        blinded: false,
+        target: None,
+    };
+    assert_eq!(
+        throwing_dispersion(&rock),
+        2_500,
+        "difficulty 1000 over (8 * 0 + 4): the comment says 1000, the code says 2500"
+    );
+    assert_eq!(
+        throwing_dispersion(&Throw { skill: 10.0, ..rock.clone() }),
+        119,
+        "and at full skill: 10000 / 84, truncated - the comment says 250, the code says 119"
+    );
+
+    // Every gram above `strength * 100` is a point of difficulty, and every millilitre over one litre is another.
+    let heavy = Throw { weight_g: 1_000, ..rock.clone() };
+    assert_eq!(throwing_dispersion(&heavy), 3_000, "1200 of difficulty");
+    let bulky = Throw { volume_ml: 2_000, ..rock.clone() };
+    assert_eq!(throwing_dispersion(&bulky), 5_000, "2000 of difficulty");
+    // Charges are split out first, so a handful of pebbles throws like one pebble.
+    let handful = Throw { weight_g: 2_500, volume_ml: 5_000, charges: 5, ..rock.clone() };
+    assert_eq!(throwing_dispersion(&handful), 2_500, "one 500 g, one litre pebble's worth");
+
+    // A dodging target adds its own term: the per-dodge cost times a dodge that counts **ten times** at point blank and once from two squares out.
+    let dodge_two = Some(cdda_sim::dispersion::Dodging {
+        dodge: 2.0,
+        distance: 0,
+        dexterity: 8,
+        dex_modifier: 1.0,
+    });
+    assert_eq!(
+        throwing_dispersion(&Throw { target: dodge_two.clone(), ..rock.clone() }),
+        3_000,
+        "20 points of dodge at 25 a point"
+    );
+    assert_eq!(
+        throwing_dispersion(&Throw {
+            target: Some(cdda_sim::dispersion::Dodging { distance: 2, ..dodge_far() }),
+            ..rock.clone()
+        }),
+        2_550,
+        "and two squares out the dodge counts once: 2 * 25"
+    );
+
+    // Eyes full of water cost ten points of perception each, and being blind quadruples the whole thing.
+    assert_eq!(
+        throwing_dispersion(&Throw { eye_encumbrance: 20, ..rock.clone() }),
+        2_600,
+        "ten points over perception, ten each"
+    );
+    assert_eq!(
+        throwing_dispersion(&Throw { blinded: true, ..rock.clone() }),
+        10_000,
+        "a blind throw is four times as wide"
+    );
+}
+
+/// The per-dodge cost falls as dexterity climbs, and the reference's comment about it is stale too.
+///
+/// Reference: `throw_dispersion_per_dodge` (`ranged.cpp:1329-1340`): `100 / max( 1, 2 + dex / 4 )`, truncated to a whole number. The comment says 200 at zero dexterity and
+/// 100 at eight; the code gives **50** and **25**.
+#[test]
+fn the_per_dodge_cost_is_a_hundred_over_two_plus_a_quarter_of_dexterity() {
+    use cdda_sim::dispersion::per_dodge;
+    assert_eq!(per_dodge(0, 1.0), 50, "the comment says 200");
+    assert_eq!(per_dodge(8, 1.0), 25, "the comment says 100");
+    assert_eq!(per_dodge(12, 1.0), 20);
+    assert_eq!(per_dodge(24, 1.0), 12, "truncated from 12.5");
+    // A modifier above one makes dexterity worth more, and never lets the cost fall below zero.
+    assert_eq!(per_dodge(8, 2.0), 12, "twice the dexterity of eight is sixteen");
+    assert_eq!(per_dodge(0, 10.0), 5, "and one is the floor of the divisor");
+}
+
+/// A target that dodges two points, one square away: the same dodge, a different distance.
+fn dodge_far() -> cdda_sim::dispersion::Dodging {
+    cdda_sim::dispersion::Dodging {
+        dodge: 2.0,
+        distance: 2,
+        dexterity: 8,
+        dex_modifier: 1.0,
+    }
+}
