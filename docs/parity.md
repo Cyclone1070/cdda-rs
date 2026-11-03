@@ -10701,3 +10701,25 @@ reasons the code did not cause.
 
 **What the three claimants now show, together:** the same sum answered a carrying capacity, a stomach, and a clock, from one table read three ways. **That is what the cache
 being one number-source means in practice** - not that it exists, but that three unrelated rules stopped having their own opinions about how much a mutant is.
+
+## A first mutation is never bad (round 1044)
+
+The declared divergence from round 1035 - *"`mutate_category` ignores the good/bad roll"* - is closed:
+
+| Piece | Where |
+|---|---|
+how far a creature has gone into a category | `mutations::instability_in_category` - **height** a mutation, doubled when it is outside the tree being mutated into (`mutation.cpp:1055-1087`) |
+how many of each kind a category holds | `mutations::total_in_category` with `Count::{Positive,Negative,Neutral}` |
+the roll | `mutations::roll_is_bad` - `0.5 * instability / good`, **capped at 0.67**, drawn as a real (`mutation.cpp:1109-1139`) |
+what it filters | `mutate_category`, which leaves bad-and-neutral on a bad roll and good-and-neutral otherwise (`mutation.cpp:1364-1375`) |
+Gate | `a_first_mutation_is_never_bad` - zero instability, **no bad roll whatever the dice say**, and one mutation of the tree is instability |
+
+**The rule that matters is the zero case.** A creature with no instability **never rolls bad at all** - the reference returns before it draws - so **a survivor's first mutation is
+always good or neutral.** That is not a probability; it is a branch, and it is why the gate asserts the roll is `false` **with dice that would otherwise say yes**.
+
+**The doubling is the reference's judgement, not a rounding:** a mutation outside the tree counts **double**, so a creature that keeps drawing from the wrong category becomes
+unstable faster than one that stays in its own. The port had no notion of instability at all before this round; it now has one number, computed where the reference computes
+it, and a filter that uses it.
+
+**Still declared:** the vitamin each mutation costs (`mutation_ok`'s `mut_vit` check) and the `MUT_INSTABILITY_MOD` enchantment, which scales instability by a multiplier the
+port's sum already knows how to apply.

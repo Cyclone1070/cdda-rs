@@ -262,7 +262,21 @@ pub fn mutate_category(
     category: &str,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) -> Option<String> {
-    let mut valid = candidates(world, creature, data, category);
+    // Reference: `mutate_category` (`mutation.cpp:1364-1375`) rolls for a bad mutation **half** the time once the creature's instability in the category is half the number of
+    // good traits in it, and caps the chance at two thirds. A bad roll leaves bad and neutral traits; a good roll leaves good and neutral ones. A creature that has taken no
+    // mutations yet has no instability, so its first is never bad.
+    let bad = roll_is_bad(world, creature, data, category, rolls);
+    let mut valid: Vec<String> = candidates(world, creature, data, category)
+        .into_iter()
+        .filter(|id| {
+            let points = data.get(id).map_or(0, |rule| rule.points);
+            if bad {
+                points <= 0
+            } else {
+                points >= 0
+            }
+        })
+        .collect();
     for _ in 0..2 {
         if valid.is_empty() {
             return None;
@@ -309,4 +323,91 @@ pub fn enchantment_values(world: &World, creature: Entity, data: &MutationData, 
 #[must_use]
 pub fn apply_enchantments(base: f64, add: f64, multiply: f64) -> f64 {
     (base + add) * (1.0 + multiply)
+}
+
+/// Whether the creature's next mutation in a category may be a bad one.
+///
+/// Reference: `Character::roll_bad_mutation` (`mutation.cpp:1109-1139`): the chance is `0.5 * instability / good traits in the category`, capped at **two thirds**, and a
+/// creature with no instability never rolls a bad mutation at all - which is why a first mutation is always good or neutral.
+#[must_use]
+pub fn roll_is_bad(
+    world: &World,
+    creature: Entity,
+    data: &MutationData,
+    category: &str,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) -> bool {
+    let instability = instability_in_category(world, creature, data, category);
+    if instability == 0 {
+        return false;
+    }
+    let good = total_in_category(data, category, Count::Positive);
+    if good == 0 {
+        return false;
+    }
+    let chance = (0.5 * f64::from(instability) / {
+        #[allow(clippy::cast_precision_loss)]
+        let count = good as f64;
+        count
+    })
+    .min(0.67);
+    // Reference: `rng_float( 0, 1 ) < chance` - a real draw, not a percentage, so the two-thirds cap stays exact.
+    rolls.rng_float(0.0, 1.0) < chance
+}
+
+/// How far a creature has gone into a category, which is what decides whether its next mutation may be bad.
+///
+/// Reference: `Character::get_instability_per_category` (`mutation.cpp:1055-1087`): every mutation held that is not a threshold, has a category and is not a starting trait
+/// counts its **height** - one point if the category is the one being mutated into, **two** otherwise, so a creature that has wandered off its tree is more unstable.
+#[must_use]
+pub fn instability_in_category(world: &World, creature: Entity, data: &MutationData, category: &str) -> i32 {
+    let mut total = 0;
+    for id in mutations_of(world, creature) {
+        let Some(rule) = data.get(&id) else {
+            continue;
+        };
+        if rule.points < 0 || rule.threshold || rule.categories.is_empty() || rule.startingtrait {
+            continue;
+        }
+        let height = height_of(data, &id);
+        if rule.categories.iter().any(|one| one == category) {
+            total += height;
+        } else {
+            total += height * 2;
+        }
+    }
+    total.max(0)
+}
+
+/// How many mutations a category holds, split the way the reference splits them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Count {
+    /// `points` above zero.
+    Positive,
+    /// `points` below zero.
+    Negative,
+    /// `points` at zero.
+    Neutral,
+}
+
+/// How many mutations a category holds of one kind.
+///
+/// Reference: `Character::get_total_in_category` (`mutation.cpp:1089-1094`), which counts the category's valid list by kind.
+#[must_use]
+pub fn total_in_category(data: &MutationData, category: &str, count: Count) -> usize {
+    data.ids()
+        .filter(|id| {
+            let Some(rule) = data.get(id) else {
+                return false;
+            };
+            if !rule.valid || !rule.categories.iter().any(|one| one == category) {
+                return false;
+            }
+            match count {
+                Count::Positive => rule.points > 0,
+                Count::Negative => rule.points < 0,
+                Count::Neutral => rule.points == 0,
+            }
+        })
+        .count()
 }

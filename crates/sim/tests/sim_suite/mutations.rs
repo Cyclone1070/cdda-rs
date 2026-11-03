@@ -448,3 +448,51 @@ fn a_strength_enchantment_reaches_the_carrying_capacity() {
         "which is four kilograms more it can carry"
     );
 }
+
+/// A creature that has taken no mutation never gains a bad one, and one that has wandered from its tree can.
+///
+/// Reference: `Character::roll_bad_mutation` (`mutation.cpp:1109-1139`): the chance of a bad roll is `0.5 * instability / good traits`, capped at **0.67**, and **a creature
+/// with no instability never rolls bad at all** - so a first mutation is always good or neutral. The port drew from the whole category until this test.
+#[test]
+fn a_first_mutation_is_never_bad() {
+    let mut good = trait_of(&[], &[]);
+    good.points = 1;
+    good.categories = vec!["BEAST".to_owned()];
+    let mut bad = trait_of(&[], &[]);
+    bad.points = -3;
+    bad.categories = vec!["BEAST".to_owned()];
+    let data = table(&[("GOOD_ONE", good), ("BAD_ONE", bad)]);
+
+    assert_eq!(
+        cdda_sim::mutations::total_in_category(&data, "BEAST", cdda_sim::mutations::Count::Positive),
+        1,
+        "the category holds one good mutation"
+    );
+    assert_eq!(
+        cdda_sim::mutations::total_in_category(&data, "BEAST", cdda_sim::mutations::Count::Negative),
+        1,
+        "and one bad"
+    );
+
+    let categories = cdda_content::mutations::Categories::default();
+    let mut world = bevy_ecs::prelude::World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::mutation_data::install(&mut world, data.clone(), categories.clone());
+    assert_eq!(
+        cdda_sim::mutations::instability_in_category(&world, survivor, &data, "BEAST"),
+        0,
+        "a creature with nothing yet is not unstable"
+    );
+    let mut rolls = cdda_core_types::rng::Rolls::new(5);
+    assert!(
+        !cdda_sim::mutations::roll_is_bad(&world, survivor, &data, "BEAST", &mut rolls),
+        "and never rolls a bad mutation, whatever the dice say"
+    );
+
+    // Take the good one, then let the creature wander: a mutation from another tree counts double.
+    cdda_sim::mutations::gain(&mut world, survivor, &data, &categories, "GOOD_ONE");
+    assert!(
+        cdda_sim::mutations::instability_in_category(&world, survivor, &data, "BEAST") > 0,
+        "a mutation of its own tree is instability"
+    );
+}
