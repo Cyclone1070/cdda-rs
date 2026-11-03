@@ -1235,14 +1235,21 @@ fn store_terrain_around(world: &mut World, speaker: Entity, listener: Option<Ent
 /// caster's own level in that spell unless the data forces one. The port looks the prototype up in [`crate::spell_types`] and hands it to `spell_effects::apply`, which
 /// is the same table the CLI casts from - so a dialogue cast and a played cast run the same rule.
 fn cast_spell(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::CastSpell { spell, hit_self, listener: theirs } = effect else {
+    let Effect::CastSpell { spell, hit_self, targeted, listener: theirs } = effect else {
         return Applied::CannotAnswer;
     };
+    // A targeted cast asks the player to pick a square (`spell::select_target`, `npctalk.cpp:5650-5657`), and this port has no chooser in a headless world.
+    // Refusing is the honest answer: a spell cast at a square nobody chose is not the effect the data asked for.
+    if *targeted {
+        return Applied::CannotAnswer;
+    }
     let Some(caster) = actor(speaker, listener, *theirs) else {
         return Applied::CannotAnswer;
     };
-    // The data spells the id as a literal, so the reader keeps one - unlike most strings in a dialogue, which may be a variable.
-    let named = spell.clone();
+    // The id is a `str_or_var` like every other id in a dialogue: the data may name a spell it read from a context value.
+    let Some(named) = crate::conditions::text_of(world, speaker, listener, spell) else {
+        return Applied::CannotAnswer;
+    };
     let Some(prototype) = crate::spell_types::find(world, &named) else {
         return Applied::CannotAnswer;
     };

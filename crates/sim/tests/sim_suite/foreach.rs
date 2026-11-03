@@ -70,3 +70,25 @@ fn a_list_the_port_does_not_know_refuses_rather_than_walking_nothing() {
         "a list with no registry behind it refuses"
     );
 }
+
+/// A spell's id may come from a variable, and a cast that needs a chooser refuses.
+///
+/// Reference: `f_cast_spell` (`npctalk.cpp:5591-5657`): the id is a `str_or_var` (`get_str_or_var( spell_jo.get_member( "id" ), "id" )`), and `targeted` makes the
+/// spell pick its own target with `select_target` - a player's choice. The port reads both and refuses the targeted one at run time rather than casting at a square
+/// nobody chose.
+#[test]
+fn a_spell_id_may_be_a_variable() {
+    let text = r#"{"u_cast_spell": {"id": {"context_val": "spell_to_cast"}, "message": "x"}, "targeted": true}"#;
+    let value = cdda_json::parse(text.as_bytes()).expect("json");
+    let Some(effect) = cdda_content::dialogue::read_effect(&value) else {
+        panic!("the port reads a spell whose id is a variable");
+    };
+    let cdda_content::dialogue::Effect::CastSpell { spell, targeted, .. } = effect else {
+        panic!("it reads as the cast effect");
+    };
+    assert!(
+        matches!(spell, cdda_content::dialogue::StringSource::Variable { .. }),
+        "and the id stays a variable: {spell:?}"
+    );
+    assert!(targeted, "with the targeted flag kept");
+}

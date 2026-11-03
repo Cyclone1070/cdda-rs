@@ -11069,3 +11069,35 @@ one-gap programs | 16 | **15** |
 
 **The five remaining leaves are shapes, not registries:** `args` on `trigger_event`, `count` on `u_sell_item`, `false_eocs` on a trade, `if` on a camp, `loc` on an inventory
 menu, `radius` on `reveal_map`, `targeted` on a spell, `title` on a menu, `transform_item` - each one a rule the port has not written rather than a table it cannot read.
+
+## A spell can be named by a variable (round 1059)
+
+Twelve programs refuse now. The one that left was mislabelled by the census - it blamed `targeted`, and the shape that actually blocked it was the **spell's id**:
+
+```json
+{"u_cast_spell": {"id": {"context_val": "spell_to_cast"}, "message": "…"}, "targeted": true}
+```
+
+| Piece | Where |
+|---|---|
+`CastSpell::spell` is now a `StringSource` | `get_str_or_var( spell_jo.get_member( "id" ), "id" )` (`npctalk.cpp:5595`) |
+`targeted` | read and **kept** (`npctalk.cpp:5591`), then refused at run time: a targeted cast asks the player to pick a square (`select_target`, `5650-5657`) |
+why the id matters | the runner resolves it through `conditions::text_of`, so a dialogue can cast a spell whose name came out of a context value |
+Gate | `a_spell_id_may_be_a_variable` - the id stays a variable and the target flag survives |
+
+**The census's blame line is a hint, not a diagnosis.** It names the member the reader stopped on, and the reader stops on the member it tried **first** - here `targeted`
+sorts before `u_cast_spell` in the object's key order, so the census reported the member that was fine to ignore and hid the one that could not be read. **The fix was found
+by reading the entry, not the leaderboard** - which is the same lesson round 1049 recorded, in a different disguise.
+
+**Refusing `targeted` at run time is the honest half.** The port has no chooser: a headless world cannot ask which square the player meant, and **casting at a default square
+would be a different spell**. So the effect reads, runs, and answers "I cannot" - which is what the census counts as a refusal at run time, not as a success.
+
+| Number | Before | After |
+|---|---|---|
+programs refused at their first unreadable entry | 13 | **12** |
+programs readable | 593 | **594** |
+leaves unreadable | 45 | **44** |
+effects runnable | 1,574 | **1,575** |
+effect-blamed refusals | 92 | **91** |
+refused at run time | 201 | **202** |
+one-gap programs | 15 | **14** |

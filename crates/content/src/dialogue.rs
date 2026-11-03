@@ -2273,19 +2273,21 @@ fn read_cast_spell(object: &cdda_json::Object) -> Option<Effect> {
         _ => return None,
     };
     let (spell, hit_self) = match spell {
-        Value::Str(id) => (id.clone(), false),
+        Value::Str(id) => (StringSource::Literal(id.clone()), false),
         Value::Object(inside) => {
-            let Value::Str(id) = inside.get("id")? else {
-                return None;
-            };
+            // Reference: `get_str_or_var( spell_jo.get_member( "id" ), "id" )` (`npctalk.cpp:5595`) - the id may be a variable, and the data names one it read from
+            // a context value.
+            let id = read_string_source(inside.get("id")?)?;
             let hit_self = matches!(inside.get("hit_self"), Some(Value::Bool(true)));
-            (id.clone(), hit_self)
+            (id, hit_self)
         }
         _ => return None,
     };
     Some(Effect::CastSpell {
         spell,
         hit_self,
+        // Reference: `jo.get_bool( "targeted", false )` (`npctalk.cpp:5591`), a member of the effect rather than of the spell.
+        targeted: matches!(object.get("targeted"), Some(Value::Bool(true))),
         listener,
     })
 }
@@ -2954,10 +2956,12 @@ pub enum Effect {
     /// The port **reads** the effect and refuses to run it: casting needs the spell's own effect table, and answering "done" for a spell nobody cast would be a
     /// silent lie the census would count as success.
     CastSpell {
-        /// The spell's id.
-        spell: String,
+        /// The spell's id, which the data may give as a variable.
+        spell: StringSource,
         /// Whether it lands on the caster rather than on a target.
         hit_self: bool,
+        /// Whether the spell picks its own target from the map: `select_target` (`npctalk.cpp:5650-5657`), which needs a player's choice.
+        targeted: bool,
         /// Whether it is the listener who casts.
         listener: bool,
     },
