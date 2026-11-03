@@ -11812,3 +11812,23 @@ fails here rather than in a playtest that cannot fight.
 
 **What this changes about the next step:** the survivor's attack needs the **`melee` half of the item registry** - the port's registry holds each kind's `thrown_damage` and not its
 melee damage, because a throw is all that has needed it so far. That is the next slice, and it is smaller than it looked: the loader already reads `melee` for every item type.
+
+## The melee half of the item registry (round 1090)
+
+The registry has answered "what is this worth when thrown" since the throwing rounds. It now answers "what is this worth when swung", which is what a character's blow carries.
+
+| Piece | Where |
+|---|---|
+`ItemNames::melee_bash/cut/stab` + `melee_bash_of / melee_cut_of / melee_stab_of` | `itype::melee_damage` (`item_factory.cpp:4109`) |
+`Kind::melee_bash/cut/stab` | filled from `ItemType::melee`, which the loader has read since the item rounds |
+Gate | `the_registry_carries_what_a_swung_thing_is_worth` - a rock swings for **7**, a combat knife **stabs for 14**, the `null` item for **0** |
+
+**The first version of this slice was wrong, and the gate caught it in the same minute.** I kept **bash and cut only**; the combat knife then answered `(0, 0)`, because **a knife does no
+bashing at all** - its whole worth is fourteen points of stabbing. The fix was not to special-case knives: **the data's melee uses exactly three damage types** - bash 1,354 times,
+cut 225, stab 147 - so the registry keeps those three and a test that names a knife proves the third.
+
+**Two ways to get this wrong, and both were one keystroke away.** Keeping two types loses every knife; keeping one (`thrown_damage`'s bash) loses every blade *and* every edge. **The
+port's own dump was already carrying the answer** in each type's `damage` array - the bash column beside it is a summary, not the whole thing.
+
+**What is still missing before the survivor swings:** the **weapon's `to_hit`** is not loaded or dumped anywhere yet, so `hit_weapon_tenths` can only be fed a zero for now; and the
+`Character::melee_attack` caller itself needs the avatar's own damage instance. Both are named, neither is guessed.

@@ -80,6 +80,9 @@ fn a_failure_destroys_what_went_in_and_can_destroy_all_of_it() {
         pockets: Vec::new(),
         pocket_ranges: vec![(0, 0)],
         thrown_damage: Vec::new(),
+        melee_bash: Vec::new(),
+        melee_cut: Vec::new(),
+        melee_stab: Vec::new(),
     };
     let mut recipe = cdda_content::recipes::Recipe {
         id: "patch_a_shirt".to_owned(),
@@ -181,6 +184,9 @@ fn a_craft_in_progress_is_checked_where_its_roll_says() {
             pockets: Vec::new(),
             pocket_ranges: vec![(0, 0)],
             thrown_damage: Vec::new(),
+            melee_bash: Vec::new(),
+            melee_cut: Vec::new(),
+            melee_stab: Vec::new(),
         };
         // A trade at zero against a recipe that needs a lot of it: the roll is low, so the craft is checked almost at once and again after every failure.
         let recipe = cdda_content::recipes::Recipe {

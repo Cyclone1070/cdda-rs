@@ -54,6 +54,12 @@ pub struct ItemTypes {
     /// Reference: `item::base_damage_thrown` (`item.cpp:7654-7658`) returns the type's `thrown_damage`, which `item_factory.cpp:324-326` fills with
     /// `melee.damage_map[bash] * 0.75` when the data names none. The port holds it as one number per kind because that is all a throw reads.
     thrown_damage: Vec<f64>,
+    /// What each kind does when swung, in points of bash damage.
+    melee_bash: Vec<f64>,
+    /// What each kind does when swung, in points of cutting damage.
+    melee_cut: Vec<f64>,
+    /// What each kind does when swung, in points of stabbing damage.
+    melee_stab: Vec<f64>,
 }
 
 impl ItemTypes {
@@ -157,6 +163,12 @@ pub struct Kind<'a> {
     pub pockets: &'a [Pocket],
     /// What it does when thrown, in points of damage, before the arm's own share.
     pub thrown_damage: f64,
+    /// What it does when swung, in points of bash damage.
+    pub melee_bash: f64,
+    /// What it does when swung, in points of cutting damage.
+    pub melee_cut: f64,
+    /// What it does when swung, in points of stabbing damage.
+    pub melee_stab: f64,
 }
 
 /// Installs the registry the store will answer from.
@@ -172,6 +184,9 @@ pub fn set_item_types(world: &mut World, kinds: &[Kind<'_>]) {
     let mut pockets: Vec<Pocket> = Vec::new();
     let mut pocket_ranges: Vec<(u32, u32)> = vec![(0, 0)];
     let mut thrown_damage = vec![0.0];
+    let mut melee_bash = vec![0.0];
+    let mut melee_cut = vec![0.0];
+    let mut melee_stab = vec![0.0];
     // Named apart from the loop variable so the borrow of the pocket slice outlives the numbers taken from it.
     for each in kinds {
         let (id, volume, weight) = (each.id, each.volume_ml, each.weight_g);
@@ -183,6 +198,9 @@ pub fn set_item_types(world: &mut World, kinds: &[Kind<'_>]) {
         volumes_ml.push(volume as i32);
         weights_g.push(weight);
         thrown_damage.push(each.thrown_damage);
+        melee_bash.push(each.melee_bash);
+        melee_cut.push(each.melee_cut);
+        melee_stab.push(each.melee_stab);
         // Reference: `item::get_total_capacity` - a thing can hold as much as its pockets can.
         holds_ml.push(each.pockets.iter().map(|pocket| pocket.capacity_ml).sum());
         #[allow(clippy::cast_possible_truncation)]
@@ -202,6 +220,9 @@ pub fn set_item_types(world: &mut World, kinds: &[Kind<'_>]) {
         pockets,
         pocket_ranges,
         thrown_damage,
+        melee_bash,
+        melee_cut,
+        melee_stab,
     });
 }
 
@@ -242,6 +263,14 @@ pub struct ItemNames {
     /// Reference: `item::base_damage_thrown` (`item.cpp:7654-7658`) returns the type's `thrown_damage`, which `item_factory.cpp:324-326` fills with
     /// `melee.damage_map[bash] * 0.75` when the data names none. The port holds it as one number per kind because that is all a throw reads.
     pub thrown_damage: Vec<f64>,
+    /// What each kind does when swung, in points of bash damage, in registry order.
+    ///
+    /// Reference: the `bash` entry of `itype::melee_damage` (`item_factory.cpp:4109`). A character's blow carries it; a throw does not read it.
+    pub melee_bash: Vec<f64>,
+    /// What each kind does when swung, in points of cutting damage, in registry order.
+    pub melee_cut: Vec<f64>,
+    /// What each kind does when swung, in points of stabbing damage, in registry order.
+    pub melee_stab: Vec<f64>,
 }
 
 impl ItemNames {
@@ -294,6 +323,36 @@ pub fn name_in(world: &World, kind: ItemTypeId) -> Option<String> {
             .unwrap_or(0.0)
     }
 
+    /// What a kind does when swung, in points of bash damage.
+    ///
+    /// Reference: the `bash` entry of `itype::melee_damage` (`item_factory.cpp:4109`). A character's own blow carries this plus the weapon's cut, which is why the two are kept
+    /// apart rather than summed here: armour resists them differently.
+    #[must_use]
+    pub fn melee_bash_of(&self, kind: ItemTypeId) -> f64 {
+        self.melee_bash
+            .get(kind.0 as usize)
+            .copied()
+            .unwrap_or(0.0)
+    }
+
+    /// What a kind does when swung, in points of cutting damage.
+    #[must_use]
+    pub fn melee_cut_of(&self, kind: ItemTypeId) -> f64 {
+        self.melee_cut
+            .get(kind.0 as usize)
+            .copied()
+            .unwrap_or(0.0)
+    }
+
+    /// What a kind does when swung, in points of stabbing damage.
+    #[must_use]
+    pub fn melee_stab_of(&self, kind: ItemTypeId) -> f64 {
+        self.melee_stab
+            .get(kind.0 as usize)
+            .copied()
+            .unwrap_or(0.0)
+    }
+
     /// How much a kind can hold, in millilitres.
     #[must_use]
     pub fn holds_ml(&self, kind: ItemTypeId) -> i32 {
@@ -326,6 +385,9 @@ pub fn snapshot(world: &mut World) -> ItemNames {
         pockets: registry.pockets.clone(),
         pocket_ranges: registry.pocket_ranges.clone(),
         thrown_damage: registry.thrown_damage.clone(),
+        melee_bash: registry.melee_bash.clone(),
+        melee_cut: registry.melee_cut.clone(),
+        melee_stab: registry.melee_stab.clone(),
     })
 }
 

@@ -54,6 +54,12 @@ pub fn install(world: &mut World, kinds: &[ItemType]) {
             weight_g: kind.weight,
             pockets,
             thrown_damage: kind.thrown_damage,
+            // Reference: `itype::melee_damage` (`item_factory.cpp:4109`) - the same map a swing reads, kept per damage type there and split here into the two the port's
+            // `Damage` speaks. A weapon's cut and bash are carried apart because armour resists them apart.
+            melee_bash: kind.melee.get("bash").copied().unwrap_or(0.0),
+            melee_cut: kind.melee.get("cut").copied().unwrap_or(0.0),
+            // The data's melee uses exactly three damage types - bash 1,354 times, cut 225 and stab 147 - so the port keeps those three and no more.
+            melee_stab: kind.melee.get("stab").copied().unwrap_or(0.0),
         })
         .collect();
     item_registry::set_item_types(world, &borrowed);

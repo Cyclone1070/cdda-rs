@@ -538,3 +538,8 @@ dexterity - and they share four lines because `get_dex` and `get_str` are the sa
 reference's own dump, and that a real item's is not zero. **An unarmed human blow in 0.I-1 carries no weapon damage**; what damage there is comes from `bodypart::unarmed_damage`,
 which the shipped data defines on a debug body part only. **Named next:** the survivor's attack needs the **melee half of the item registry** (the loader already reads `melee`
 for every type; the registry keeps only `thrown_damage` because a throw is all that has needed it).
+
+**Round 1090 gave the registry the melee half**: `ItemNames::melee_bash/cut/stab` with `melee_bash_of / melee_cut_of / melee_stab_of`, filled from `ItemType::melee`
+(`itype::melee_damage`, `item_factory.cpp:4109`), gated by `melee_rules::the_registry_carries_what_a_swung_thing_is_worth`. **The first version kept bash and cut only and the gate
+caught it at once**: a combat knife does **no** bashing - it stabs for fourteen - and the data's melee uses exactly three damage types (bash 1,354, cut 225, stab 147). **Still
+missing:** the weapon's `to_hit`, which neither the loader nor any dump carries yet, and the `Character::melee_attack` caller itself.

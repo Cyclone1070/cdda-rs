@@ -17,6 +17,9 @@ fn a_survivor_with(world: &mut World, names: &[&str]) -> Vec<Entity> {
             weight_g: 150,
             pockets: &[],
             thrown_damage: 0.0,
+            melee_bash: 0.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
         },
         cdda_sim::item_registry::Kind {
             id: "smart_phone",
@@ -24,6 +27,9 @@ fn a_survivor_with(world: &mut World, names: &[&str]) -> Vec<Entity> {
             weight_g: 150,
             pockets: &[],
             thrown_damage: 0.0,
+            melee_bash: 0.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
         },
         cdda_sim::item_registry::Kind {
             id: "rock",
@@ -31,6 +37,9 @@ fn a_survivor_with(world: &mut World, names: &[&str]) -> Vec<Entity> {
             weight_g: 500,
             pockets: &[],
             thrown_damage: 0.0,
+            melee_bash: 0.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
         },
     ];
     cdda_sim::item_registry::set_item_types(world, &kinds);

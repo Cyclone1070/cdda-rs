@@ -54,6 +54,9 @@ fn names_for(entries: &[(u32, &str)]) -> cdda_sim::item_registry::ItemNames {
         pockets: Vec::new(),
         pocket_ranges: vec![(0, 0); highest as usize + 1],
         thrown_damage: Vec::new(),
+        melee_bash: Vec::new(),
+        melee_cut: Vec::new(),
+        melee_stab: Vec::new(),
     };
     for (number, name) in entries {
         if let Some(slot) = names.names.get_mut(*number as usize) {
@@ -368,6 +371,9 @@ fn a_crafted_thing_lands_in_a_pocket() {
             weight_g: *weight,
             pockets,
             thrown_damage: 0.0,
+            melee_bash: 0.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
         })
         .collect();
     cdda_sim::item_registry::set_item_types(&mut world, &registry);
@@ -457,6 +463,9 @@ fn what_fits_no_pocket_lands_at_your_feet() {
         pockets: Vec::new(),
         pocket_ranges: vec![(0, 0), (0, 0), (0, 0)],
         thrown_damage: Vec::new(),
+        melee_bash: Vec::new(),
+        melee_cut: Vec::new(),
+        melee_stab: Vec::new(),
     };
     cdda_sim::item_registry::set_item_types(
         &mut world,
@@ -467,6 +476,9 @@ fn what_fits_no_pocket_lands_at_your_feet() {
                 weight_g: 100,
                 pockets: &[],
                 thrown_damage: 0.0,
+                melee_bash: 0.0,
+                melee_cut: 0.0,
+                melee_stab: 0.0,
             },
             cdda_sim::item_registry::Kind {
                 id: "rope",
@@ -474,6 +486,9 @@ fn what_fits_no_pocket_lands_at_your_feet() {
                 weight_g: 200,
                 pockets: &[],
                 thrown_damage: 0.0,
+                melee_bash: 0.0,
+                melee_cut: 0.0,
+                melee_stab: 0.0,
             },
         ],
     );
@@ -1041,6 +1056,9 @@ fn tool_charges_are_spent_a_twentieth_at_a_time() {
                 weight_g: 5,
                 pockets: &[],
                 thrown_damage: 0.0,
+                melee_bash: 0.0,
+                melee_cut: 0.0,
+                melee_stab: 0.0,
             },
             cdda_sim::item_registry::Kind {
                 id: "hammer",
@@ -1048,6 +1066,9 @@ fn tool_charges_are_spent_a_twentieth_at_a_time() {
                 weight_g: 900,
                 pockets: &[],
                 thrown_damage: 0.0,
+                melee_bash: 0.0,
+                melee_cut: 0.0,
+                melee_stab: 0.0,
             },
         ],
     );

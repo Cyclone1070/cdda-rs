@@ -16,6 +16,9 @@ fn a_thrower_with_a_rock(world: &mut World) -> (Entity, Entity) {
             weight_g: 500,
             pockets: &[],
             thrown_damage: 0.0,
+            melee_bash: 0.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
         },
         cdda_sim::item_registry::Kind {
             id: "anvil",
@@ -23,6 +26,9 @@ fn a_thrower_with_a_rock(world: &mut World) -> (Entity, Entity) {
             weight_g: 20_000,
             pockets: &[],
             thrown_damage: 0.0,
+            melee_bash: 0.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
         },
     ];
     cdda_sim::item_registry::set_item_types(world, &kinds);
@@ -244,6 +250,9 @@ fn a_thing_over_half_a_kilo_landing_makes_a_sound_and_five_hundred_grams_does_no
             weight_g: 5_000,
             pockets: &[],
             thrown_damage: 0.0,
+            melee_bash: 0.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
         }],
     );
     let Toss::Landed { at, .. } = throw_at(&mut world, thrower, rock, (10, 0, 0)) else {
