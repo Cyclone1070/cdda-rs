@@ -441,6 +441,7 @@ pub fn begin_pick_up(world: &mut World, creature: Entity, item: Entity, volume_m
         return Began::Done;
     }
     world.entity_mut(creature).insert(Doing {
+        moves_total: 0,
         activity: "pickup".to_owned(),
         moves_left: cost,
         basis: Basis::Speed,
@@ -974,6 +975,11 @@ pub struct Doing {
     pub moves_left: i32,
     /// What those moves are counted in.
     pub basis: Basis,
+    /// How many moves the whole activity needs, when it is the kind that reports progress.
+    ///
+    /// Reference: `player_activity::moves_total`/`item_counter`, which the craft actor reads to know **how far along** the work is. A craft needs it to place the
+    /// reference's fifth-percent steps (`activity_actor.cpp:4237-4245`); an activity that does not report progress leaves it at zero.
+    pub moves_total: i32,
     /// What it is being done to, when it is being done to one thing.
     ///
     /// Reference: `player_activity` keeps its target as an index into a list, because the reference's items live in
@@ -1010,6 +1016,21 @@ pub fn spend_a_turn_on(world: &mut World, creature: Entity) -> bool {
         }
     };
     let left = doing.moves_left - spent;
+    // Reference: `craft_activity_actor::do_turn` (`activity_actor.cpp:4237-4245`) - every **fifth percent** of the craft's progress practises its proficiencies, and the
+    // span handed over is `base_total_moves / 2000` seconds per step. Both ends are rounded down, so one turn that crosses two boundaries practises twice - and the
+    // hook runs **before** the finish, because the turn that completes the work is the turn that crosses the last boundary.
+    if doing.activity == "craft" && doing.moves_total > 0 {
+        let steps_of = |spent: i32| i64::from(spent) * 20 / i64::from(doing.moves_total);
+        let done_before = doing.moves_total - doing.moves_left;
+        let done_now = done_before + spent;
+        let crossed = steps_of(done_now) - steps_of(done_before);
+        if crossed > 0
+            && let Some(making) = world.get::<crate::crafting::Making>(creature).cloned()
+        {
+            let seconds = i64::from(doing.moves_total) / 2_000 * crossed;
+            crate::crafting::teach_proficiencies(world, creature, &making.recipe, seconds);
+        }
+    }
     if left <= 0 {
         world.entity_mut(creature).remove::<Doing>();
         return true;
@@ -1331,6 +1352,7 @@ pub fn begin_wear(
         return Began::Done;
     }
     world.entity_mut(creature).insert(Doing {
+        moves_total: 0,
         activity: "wear".to_owned(),
         moves_left: cost,
         basis: Basis::Time,

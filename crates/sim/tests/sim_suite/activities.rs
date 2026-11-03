@@ -38,6 +38,7 @@ fn a_world() -> World {
 
 fn doing(activity: &str, moves: i32, basis: Basis) -> Doing {
     Doing {
+        moves_total: 0,
         activity: activity.to_owned(),
         moves_left: moves,
         basis,
@@ -438,6 +439,7 @@ fn a_pickup_that_was_stopped_is_not_queued() {
     let mut world = World::new();
     let creature = spawn_creature(&mut world, "the survivor", (0, 0, 0));
     world.entity_mut(creature).insert(Doing {
+        moves_total: 0,
         activity: "pickup".to_owned(),
         moves_left: 100,
         basis: Basis::Speed,
@@ -537,6 +539,7 @@ fn pain_interrupts_a_craft_and_the_work_is_kept() {
     // A pickup, interrupted, is not queued - so what waits to be resumed is still the craft, not the errand.
     cdda_sim::creature::stop_doing(&mut world, crafter);
     world.entity_mut(crafter).insert(Doing {
+        moves_total: 0,
         activity: "pickup".to_owned(),
         moves_left: 50,
         basis: Basis::Speed,

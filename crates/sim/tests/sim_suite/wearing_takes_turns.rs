@@ -81,6 +81,7 @@ fn the_turn_loop_puts_the_garment_on_when_the_time_is_up() {
     let shirt = world.spawn(Garment { layers: Vec::new() }).id();
     // Two hundred moves is two turns at a hundred a turn.
     world.entity_mut(survivor).insert(Doing {
+        moves_total: 0,
         activity: "wear".to_owned(),
         moves_left: 200,
         basis: Basis::Time,

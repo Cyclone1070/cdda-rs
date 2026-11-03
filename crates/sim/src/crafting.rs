@@ -97,7 +97,9 @@ pub fn finish_craft(world: &mut World, crafter: Entity, names: &crate::item_regi
     spend_tool_charges(world, crafter, &making.recipe, making.batch, names);
     // Reference: `activity_actor.cpp:4232-4238` spreads the craft's practice across its progress and `craft_skill_gain` (`crafting.cpp:981-1033`) lays it on. The
     // port's craft has no progress hook, so the whole craft's worth is laid on when the thing is made - the same tick count the reference finishes with.
-    teach_proficiencies(world, crafter, &making.recipe);
+    // The whole craft's practice is **not** given here: `teach_proficiencies` runs on every fifth-percent step (`crate::creature::spend_a_turn_on`), which is the
+    // reference's own timing (`activity_actor.cpp:4237-4245`). A craft that finished without ever crossing a step - a test that jumps straight to the end - gets
+    // nothing, which is why the reach test drives the turn loop rather than calling this.
     if !making.recipe.skill.is_empty() {
         let ticks = crate::skills_of::craft_practice_ticks(making.recipe.time_moves);
         let cap = crate::skills_of::craft_skill_cap(making.recipe.difficulty);
@@ -213,9 +215,8 @@ fn spend_tool_charges(
 /// Practises what a recipe teaches, for the whole craft at once.
 ///
 /// Reference: `craft_proficiency_gain` (`crafting.cpp:1036-1090`), which the craft activity calls on **every fifth-percent step** (`activity_actor.cpp:4245`). The port
-/// has no per-step hook yet, so it practises the whole craft when it finishes - the **amount** is right and the **timing** is coarser, which is written down here
-/// rather than left for someone to discover.
-fn teach_proficiencies(world: &mut World, crafter: Entity, recipe: &Recipe) {
+/// divides the span the caller hands over - the fifth-percent slice the reference gives it (`base_total_moves / 2000` seconds per step).
+pub fn teach_proficiencies(world: &mut World, crafter: Entity, recipe: &Recipe, seconds: i64) {
     let taught: Vec<crate::proficiencies::Taught<'_>> = recipe
         .proficiencies
         .iter()
@@ -232,7 +233,6 @@ fn teach_proficiencies(world: &mut World, crafter: Entity, recipe: &Recipe) {
     if taught.is_empty() {
         return;
     }
-    let seconds = recipe.time_moves / 100;
     // The data's own guard, asked **before** the rule borrows the world: a craft cannot teach an expert trade to someone who has not learned the basic one.
     let learnable: Vec<String> = taught
         .iter()
@@ -460,6 +460,8 @@ pub fn begin_craft(world: &mut World, crafter: Entity, recipe: &Recipe, batch: i
         activity: "craft".to_owned(),
         moves_left,
         basis: Basis::Speed,
+        // The whole craft's moves, which is what places the reference's fifth-percent steps.
+        moves_total: moves_left,
         subject: None,
     });
     world.entity_mut(crafter).insert(Making {

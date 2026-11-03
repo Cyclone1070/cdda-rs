@@ -148,6 +148,7 @@ fn a_busy_crafter_cannot_start_something_else() {
     let mut world = World::new();
     let crafter = spawn_creature(&mut world, "the survivor", (0, 0, 0));
     world.entity_mut(crafter).insert(Doing {
+        moves_total: 0,
         activity: "pickup".to_owned(),
         moves_left: 100,
         basis: Basis::Speed,

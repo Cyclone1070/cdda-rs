@@ -112,10 +112,10 @@ fn a_craft_divides_its_time_between_what_it_teaches() {
 
 /// Finishing a craft practises what the recipe teaches, because the craft calls the rule.
 ///
-/// Reference: the craft activity calls `craft_proficiency_gain` on each fifth-percent step (`activity_actor.cpp:4245`). **A rule with no caller is not a ported rule**,
-/// so this goes through `finish_craft` rather than through `gain_from_craft` directly: it is the only test that would notice the call being removed.
+/// Reference: the craft activity calls `craft_proficiency_gain` on each fifth-percent step (`activity_actor.cpp:4237-4245`). **A rule with no caller is not a ported rule**,
+/// so this drives the **turn loop** rather than calling the rule: it is the only test that would notice the hook being removed, or moved to the wrong turn.
 #[test]
-fn finishing_a_craft_practises_what_it_teaches() {
+fn a_craft_practises_what_it_teaches_while_it_runs() {
     let mut world = bevy_ecs::prelude::World::new();
     let crafter = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     // The table the guard reads, installed the way a real world installs it.
@@ -162,13 +162,21 @@ fn finishing_a_craft_practises_what_it_teaches() {
         cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
         cdda_sim::crafting::Craft::Started
     );
-    assert!(
-        cdda_sim::crafting::finish_craft(&mut world, crafter, &names).is_some(),
-        "the craft finished"
+    // The practice comes **while the craft runs**, not when it ends: the reference practises on every fifth-percent step (`activity_actor.cpp:4237-4245`), so the
+    // only way to see it is to run the turns. A minute of recipe time is three thousand moves, which is thirty turns of a hundred.
+    assert_eq!(
+        cdda_sim::proficiencies::practiced_seconds(&world, crafter, "prof_tailor"),
+        0,
+        "nothing has been practised before any work is done"
     );
+    for _ in 0..70 {
+        // A creature gets its moves back each turn; the port's turn loop refills them, and a test that hand-rolls the loop must do the same.
+        cdda_sim::creature::give_moves(&mut world, crafter, 100);
+        cdda_sim::turn::run_turn(&mut world);
+    }
     assert!(
         cdda_sim::proficiencies::knows(&world, crafter, "prof_tailor"),
-        "a minute of practice against a minute of learning is enough to know it"
+        "a minute of work against a minute of learning is enough to know it"
     );
 }
 
@@ -264,7 +272,16 @@ fn a_craft_does_not_teach_a_trade_whose_prerequisite_is_unknown() {
             cdda_sim::crafting::begin_craft_from_carried(world, crafter, &recipe, 1, &names),
             cdda_sim::crafting::Craft::Started
         );
-        assert!(cdda_sim::crafting::finish_craft(world, crafter, &names).is_some());
+        // The practice happens on the turns, so the test runs them; the finish is only what hands the result over.
+        for _ in 0..70 {
+            cdda_sim::creature::give_moves(world, crafter, 100);
+            cdda_sim::turn::run_turn(world);
+        }
+        // The turns finish the craft themselves; what the test reads afterwards is the survivor, not the craft's return value.
+        assert!(
+            world.get::<cdda_sim::crafting::Making>(crafter).is_none(),
+            "the work is done when the turns are over"
+        );
     };
     craft_once(&mut world);
     assert!(

@@ -1142,6 +1142,7 @@ fn assign_activity(world: &mut World, speaker: Entity, listener: Option<Entity>,
     #[allow(clippy::cast_possible_truncation)]
     let moves_left = turns.saturating_mul(100).clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32;
     world.entity_mut(creature).insert(crate::creature::Doing {
+        moves_total: 0,
         activity: named,
         moves_left,
         basis: crate::creature::Basis::Time,

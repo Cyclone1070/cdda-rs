@@ -10066,3 +10066,29 @@ and never let a survivor progress past the first trade they learned.
 **Clippy caught three `expect`s in a test file** - `unwrap_used` and `expect_used` are denied for tests too, and the fix (`let ... else { return; }`) is what the lint
 wants because a corpus that will not parse should fail loudly through the gate that reads it, not panic inside a test. **The lint is stricter than I was, which is
 the point of having it.**
+
+## The practice happens on the fifth percent, not at the end (round 1014)
+
+Last round's proficiency rule was taught **once, when the craft finished**, and the note said so. This round gave it the reference's timing, which is the same hook the
+tool charges have been waiting for.
+
+Reference: `craft_activity_actor::do_turn` (`activity_actor.cpp:4237-4245`).
+
+| Rule | What the port now does |
+|---|---|
+progress | `Doing` carries `moves_total`, so a turn knows **how far along** the work is |
+the boundary | a step is crossed when `spent * 20 / moves_total` passes an integer - the reference's `counter / 500000` |
+the span | `moves_total / 2000` **seconds per step**, times the steps crossed |
+the turn | the hook runs **before** the finish check, because the turn that completes the work is the turn that crosses the last boundary |
+
+**Two things the first attempt got wrong, both caught by the tests rather than by reading:**
+
+1. the hook sat **after** the `left <= 0` early return, so the final segment of every craft was never taught;
+2. `moves_total` was still `0` in `begin_craft`'s literal - **the rule was in place and the number it reads was missing**, which is this port's recurring shape.
+
+**The reach test changed shape again**: it now drives `run_turn` with the creature's moves refilled each turn, because a test that calls `finish_craft` directly can no
+longer see the practice at all. **That is the gate doing its job** - the old test would have passed with the hook removed and the lump sum restored.
+
+**What is still coarse:** the reference also practises the **skill** on its own tick boundary in the same function (`num_practice_ticks`), and consumes **tool charges**
+in the same per-step block. The skill already has its own earn-at-the-finish rule; the charges are still spent at the finish. **Both now have the hook they need**, and
+the roadmap says which is next.
