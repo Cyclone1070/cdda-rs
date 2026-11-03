@@ -500,3 +500,7 @@ a declared stage between Scent and Falling. **Round 1078 gave that memory a walk
 turns down. **Round 1079 added the docile guard**: `set_wander` returns at once for a creature carrying `docile` (`monster.cpp:1677`), and its gate asserts **both** that no `Wander` was
 made **and** that the creature still heard it. **Named next:** a `provocative` sound (`volume >= normal_roll(30,5)`, `monster.cpp:3941`) can displace a monster already following
 a quieter one.
+
+**Round 1080 proved the chain composes**: `a_noise_brings_a_monster_to_the_survivor_and_it_swings_when_it_arrives` runs twelve turns and asserts **both** that a `HEARS` monster
+walked towards a thud and that the survivor standing on it **lost hit points** - four rules from four files (`sounds::make_sound`, `hearing::hear_sounds`, `creature::Wander`,
+`creature::strike_what_the_goal_holds`). Mutation-checked by disabling `hear_sounds` in the schedule: the monster stays put and the test goes red.

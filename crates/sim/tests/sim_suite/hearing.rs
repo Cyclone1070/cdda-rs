@@ -181,3 +181,75 @@ fn a_docile_creature_does_not_walk_towards_a_noise() {
         "but it does hear it"
     );
 }
+
+/// The whole chain: a noise, a monster that hears it, a walk, and a blow.
+///
+/// Reference: `sounds::process_sound` hands the noise over, `monster::hear_sound` ends in `wander_to`, `monster::move` walks the monster there, and `monster::attack` is what
+/// happens when it arrives. Four rules from four files, and this test is the only place they are proved to **compose**: every one of them can be green on its own while the
+/// chain is broken, which is the failure this port keeps meeting.
+#[test]
+fn a_noise_brings_a_monster_to_the_survivor_and_it_swings_when_it_arrives() {
+    use cdda_sim::creature::{Health, MeleeAttack, Speed};
+    use cdda_sim::terrain_table::TerrainTable;
+
+    let mut world = bevy_ecs::prelude::World::new();
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(4242));
+    let mut level = cdda_core_types::level::Level::new();
+    for x in -1..14 {
+        for y in -1..14 {
+            level.set_terrain(x, y, 1, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let mut terrain = TerrainTable::new();
+    terrain.insert(1, true);
+    terrain.insert_move_cost(1, 2);
+    cdda_sim::set_prototypes(
+        &mut world,
+        cdda_sim::Prototypes {
+            terrain,
+            furniture: TerrainTable::new(),
+        },
+    );
+
+    // The survivor stands at the origin and can be hurt.
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    world
+        .entity_mut(survivor)
+        .insert(Health { hp: 100, max_hp: 100 })
+        .insert(cdda_sim::creature::Armour { bash: 0, cut: 0 });
+
+    // A zombie six squares away, able to hear, walking at a hundred speed, with a blow worth a couple of points.
+    let zombie = cdda_sim::creature::spawn_creature(&mut world, "a zombie", (6, 0, 0));
+    world
+        .entity_mut(zombie)
+        .insert(Health { hp: 30, max_hp: 30 })
+        .insert(Speed { base: 100, bonus: 0 })
+        .insert(MeleeAttack(cdda_sim::melee::Attack {
+            accuracy_tenths: 40,
+            fixed: cdda_sim::melee::Damage::default(),
+            dice: 2,
+            sides: 3,
+        }));
+    cdda_sim::creature_flags::add_flag(&mut world, zombie, "HEARS");
+
+    // The thud of a rock landing where the survivor stands.
+    cdda_sim::sounds::make_sound(&mut world, (0, 0, 0), 30);
+    let started = 6;
+    for _ in 0..12 {
+        cdda_sim::turn::run_turn(&mut world);
+    }
+
+    let arrived = world
+        .get::<cdda_sim::Position>(zombie)
+        .map(|place| (place.x, place.y));
+    assert!(
+        arrived.is_some_and(|(x, _)| x < started),
+        "the monster walked towards the noise: it was at x = {started}, now {arrived:?}"
+    );
+    assert!(
+        cdda_sim::creature::health_of(&world, survivor).is_some_and(|hp| hp < 100),
+        "and it swung when it got there: the survivor is at {:?}",
+        cdda_sim::creature::health_of(&world, survivor)
+    );
+}

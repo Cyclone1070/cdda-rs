@@ -11600,3 +11600,25 @@ possible, the mutation is the evidence and it is recorded here as the second-bes
 
 **Still not carried, named:** a **provocative** sound (`volume >= normal_roll(30, 5)`, `monster.cpp:3941`) can displace a monster already walking towards a quieter one, and the
 reference's own gate on that is `if( provocative_sound && !tmp_provocative && wandf > 0 )` - a condition on the *memory*, not on the new sound.
+
+## A noise brings a monster, and the monster swings (round 1080)
+
+The pieces from four files were proved to **compose** for the first time.
+
+| Rule | File |
+|---|---|
+a sound is made | `sounds::make_sound` |
+a creature hears it and remembers where | `hearing::hear_sounds` |
+it walks there | `creature::Wander` + `take_turns` |
+it swings at what is standing there | `creature::strike_what_the_goal_holds` |
+Gate | `a_noise_brings_a_monster_to_the_survivor_and_it_swings_when_it_arrives` - twelve turns, and it asserts **both** that the monster moved **and** that the survivor lost hit points |
+
+**It went green on the first run, and that is why the mutation was run.** A test that passes the first time has proved nothing about its own reach; disabling `hear_sounds` in the
+schedule turned it red with *"the monster walked towards the noise: it was at x = 6, now Some((6, 0))"* - the monster stayed exactly where it was put. **A composition test is only
+worth having if breaking one link breaks it**, and this one does.
+
+**The two assertions are the two halves of the chain, and neither is enough alone.** "It moved" alone passes when the monster wanders by chance; "it bled" alone passes when the
+blow came from somewhere else. Together they say: the noise brought it, and what it found there it hit.
+
+**This is the first end-to-end monster behaviour the port has.** Everything before it was a rule in isolation; a thrown rock now has a consequence twelve turns later, which is
+what the game is made of.
