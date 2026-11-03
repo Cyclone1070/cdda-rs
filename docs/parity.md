@@ -11440,3 +11440,23 @@ numbers** - which is exactly what the corpus is for.
 types compared | 9,912 | **9,912** |
 types agreeing | 9,888 | **9,912** |
 disagreeing | 24 | **0** |
+
+## Armour is between the rock and the rib (round 1073)
+
+The thrown blow now goes through the target's resistance before it touches hit points.
+
+| Piece | Where |
+|---|---|
+the blow | the thing's own damage plus the arm's (`damage_of_throw`) |
+the resistance | the creature's [`Armour`](crates/sim/src/creature.rs) bash value |
+the subtraction | `melee::after_armour` - `damage.cpp:724-727`'s effective resist and `monster.cpp:2085`'s cap |
+Gate | `armour_takes_the_edge_off_a_thrown_blow_and_never_heals` - **four** armours in one test: 0, 3, 4 and 100 against a four-point blow |
+
+**The four-armour gate is deliberately a table, because the rule has two edges and only one of them is obvious.** Armour 0 does the full four; armour 3 leaves one; armour 4
+leaves **zero**; and armour **100 against a four-point blow still leaves zero, never minus ninety-six**. A port that subtracted armour without the cap would **heal** a
+creature every time something bounced off it - and a test with only the "armour 3" case would pass with that bug in place.
+
+**What the port does not have, named:** the reference resolves a projectile against a **body part** and each body part carries its own resistance (`bodypart.cpp`,
+`monster::absorb_hit`'s per-part loop), and `weakpoint_attack` can move the blow to a weaker part. The port has one armour number per damage kind, so a rock that hits a
+plated creature is stopped by the plate whatever part it reached. That is P4's weakpoint half, and it needs the body-part map the port already has for its own `hit_location`
+rule before it can be wired.

@@ -119,13 +119,19 @@ pub fn throw_at(world: &mut World, thrower: Entity, item: Entity, target: (i32, 
     // (`ranged.cpp:1505-1506`) - the thing's own damage **plus** what the arm adds, not the larger of the two.
     let blow = names.thrown_of(kind)
         + damage_of_throw(arm_strength, crate::skills_of::level_of(world, thrower, "throw"), names.weight_of(kind));
-    #[allow(clippy::cast_possible_truncation)]
-    let hurt = blow.floor() as i32;
     let hit = crate::creature::creature_at(world, at)
         .into_iter()
         .find(|standing| *standing != thrower && crate::creature::health_of(world, *standing).is_some())
         .and_then(|struck| {
             let before = crate::creature::health_of(world, struck)?;
+            // Reference: the impact goes through the target's `absorb_hit` (`monster.cpp:2085`), which subtracts the resistance **capped at the blow** - so armour
+            // can stop a rock entirely and can never heal what it hits. The port's armour is one number per damage kind; body parts are the half not written yet.
+            #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+            let resisted = world
+                .get::<crate::creature::Armour>(struck)
+                .map_or(0.0, |armour| armour.bash as f32);
+            #[allow(clippy::cast_possible_truncation)]
+            let hurt = crate::melee::after_armour(blow as f32, resisted, 0.0, 0.0).floor() as i32;
             let fatal = crate::damage_monster(world, struck, hurt);
             let after = if fatal {
                 // A killed creature has no hit points left to read, so the blow it took is the damage itself.

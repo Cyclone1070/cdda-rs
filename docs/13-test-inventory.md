@@ -477,3 +477,8 @@ inherited bash damage is a few per cent high**, pinned in `crates/content/tests/
 `copy-from` with a `proportional` or `relative` adjustment get the wrong base, so their bash damage (and therefore their thrown damage) is a few tenths out. The fix belongs in
 `apply_melee_slots` (`crates/content/src/items.rs`), and the reference's rule is `item_factory.cpp`'s `auto_flags_reader`/`mandatory`/`optional` container semantics: a
 **stated** `melee_damage` replaces what was inherited, `relative` adds to it, and `proportional` scales it - in that order, after the `copy-from` chain has been resolved.
+
+**Round 1073 put armour in front of a thrown blow**: `throw_at` now passes the target's `Armour.bash` through `melee::after_armour` (`damage.cpp:724-727`, `monster.cpp:2085`)
+before `damage_monster`, gated by a four-armour table (0, 3, 4, 100) because the rule has two edges - a floor at zero **and** a cap that stops armour from healing. **Named
+next step there:** the reference resolves against a **body part**, each with its own resistance, plus weakpoints - the port has `hit_location` and a single armour number, so
+the wiring is the body-part map, not a new rule.

@@ -169,3 +169,46 @@ fn a_rock_that_lands_on_a_creature_hurts_it() {
         "and the creature is down by exactly that much"
     );
 }
+
+/// Armour takes the edge off a thrown blow, and can stop it entirely.
+///
+/// Reference: `Creature::deal_projectile_attack` resolves its impact through `absorb_hit` (`creature.cpp:1300-1400`), and `monster::absorb_hit` (`monster.cpp:2085`)
+/// subtracts the target's resistance, never below zero. The fixture's rock has no thrown damage of its own, so the blow is the arm's four points and the armour is the only
+/// thing between them.
+#[test]
+fn armour_takes_the_edge_off_a_thrown_blow_and_never_heals() {
+    for (armour, expected) in [(0, 4), (3, 1), (4, 0), (100, 0)] {
+        let mut world = World::new();
+        let (thrower, rock) = a_thrower_with_a_rock(&mut world);
+        cdda_sim::skills_of::set_level(&mut world, thrower, "throw", 10);
+        let cdda_sim::throwing::Toss::Landed { at, .. } =
+            cdda_sim::throwing::throw_at(&mut world, thrower, rock, (10, 0, 0))
+        else {
+            panic!("the rock is thrown");
+        };
+
+        let mut world = World::new();
+        let (thrower, rock) = a_thrower_with_a_rock(&mut world);
+        cdda_sim::skills_of::set_level(&mut world, thrower, "throw", 10);
+        let target = cdda_sim::creature::spawn_creature(&mut world, "the target", at);
+        world
+            .entity_mut(target)
+            .insert(cdda_sim::creature::Health { hp: 100, max_hp: 100 })
+            .insert(cdda_sim::creature::Armour { bash: armour, cut: 0 });
+        let cdda_sim::throwing::Toss::Landed { hit, .. } =
+            cdda_sim::throwing::throw_at(&mut world, thrower, rock, (10, 0, 0))
+        else {
+            panic!("the rock is thrown");
+        };
+        assert_eq!(
+            hit,
+            Some((target, expected)),
+            "armour {armour} leaves {expected} of the four-point blow"
+        );
+        assert_eq!(
+            cdda_sim::creature::health_of(&world, target),
+            Some(100 - expected),
+            "and the creature is down by that much, never healed by its armour"
+        );
+    }
+}
