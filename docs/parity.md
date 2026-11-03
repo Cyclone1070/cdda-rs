@@ -10041,3 +10041,28 @@ per-step hook is the same one the 5% charge instalments need, so **one piece of 
 
 `time_to_learn` now has a store of its own (`ProficiencyTimes`, a singleton), because it is the **proficiency's** number rather than the recipe's. **Nothing loads it yet**:
 the next oracle dump is `--dump-proficiencies`, and until it exists a proficiency cannot be learned in a real world - which the module's docs say plainly.
+
+## 235 proficiencies, and the prerequisites are a graph rather than a list (round 1013)
+
+`time_to_learn` was installed by tests and by nothing else, which meant **a real world could not learn a trade at all**. So the oracle learned a new dump, and the
+proficiencies came in with their prerequisites:
+
+| Dump | What it answers |
+|---|---|
+`--dump-proficiencies` | for each of the **235** proficiencies: its `time_to_learn` in seconds, whether the data lets it be learned, and the proficiencies it **requires** |
+
+**The prerequisite set is the interesting field**, because `practice` refuses without it (`proficiency.cpp:307`) and `craft_proficiency_gain` builds its subjects from
+what the crafter **can** learn (`crafting.cpp:1052-1062`). The port reads the graph, so:
+
+| Rule | Gate |
+|---|---|
+the data's numbers | `the_proficiency_dump_reads_with_its_times_and_prerequisites` - 235, four hours and eight hours, one prerequisite |
+the graph decides | `an_unmet_prerequisite_does_not_accumulate_practice` - the expert trade waits, a proficiency the data marks unlearnable never learns, and learning the basic one **opens** the expert one |
+the craft asks before it teaches | `a_craft_does_not_teach_a_trade_whose_prerequisite_is_unknown` - the guard lives in **`finish_craft`**, so the reach is what is tested |
+
+**"Learning the basic one opens the expert one" is the assertion that matters**: a port that froze the learnable set at load time would pass every other test in this file
+and never let a survivor progress past the first trade they learned.
+
+**Clippy caught three `expect`s in a test file** - `unwrap_used` and `expect_used` are denied for tests too, and the fix (`let ... else { return; }`) is what the lint
+wants because a corpus that will not parse should fail loudly through the gate that reads it, not panic inside a test. **The lint is stricter than I was, which is
+the point of having it.**

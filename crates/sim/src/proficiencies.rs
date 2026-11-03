@@ -123,6 +123,50 @@ pub fn gain_from_craft(
     learned_any
 }
 
+/// Installs the data's proficiency table, so a real world can learn a trade.
+///
+/// Reference: `proficiency::load_proficiencies` (`proficiency.cpp:40-120`) reads the same three facts. The port takes them from the dump rather than from the
+/// reference's JSON, and installs them here because **the table is data, not a rule**: the rules that read it are `time_to_learn`, `gain_from_craft` and `practice`.
+pub fn install(world: &mut World, dump: &cdda_content::proficiencies::Proficiencies) {
+    let seconds = dump
+        .by_id
+        .iter()
+        .map(|(id, prof)| (id.clone(), prof.seconds))
+        .collect();
+    set_times(world, seconds);
+    let holder = crate::singletons::singleton::<ProficiencyRules, TheProficiencyRules>(world);
+    world.entity_mut(holder).insert(ProficiencyRules {
+        dump: dump.clone(),
+    });
+}
+
+/// The data's proficiency table, kept where the rules can read it.
+#[derive(Component, Debug, Clone, Default, PartialEq, Eq)]
+pub struct ProficiencyRules {
+    /// Every proficiency the data defines.
+    pub dump: cdda_content::proficiencies::Proficiencies,
+}
+
+/// Marks the stored proficiency table.
+#[derive(Component, Debug, Clone, Copy, Default)]
+pub struct TheProficiencyRules;
+
+/// Whether a creature could learn a proficiency now: the data allows it, and the prerequisites are known.
+///
+/// Reference: `proficiency_set::practice`'s guard (`proficiency.cpp:307`): `has_learned( ... ) || !practicing->can_learn() || !has_prereqs( ... )` refuses.
+#[must_use]
+pub fn can_learn(world: &World, creature: Entity, proficiency: &str) -> bool {
+    let Some(holder) = crate::singletons::holder::<TheProficiencyRules>(world) else {
+        return false;
+    };
+    let Some(rules) = world.get::<ProficiencyRules>(holder) else {
+        return false;
+    };
+    rules
+        .dump
+        .learnable_by(proficiency, &|need| knows(world, creature, need))
+}
+
 /// How long each proficiency takes to learn, in seconds, as the data states it.
 ///
 /// Reference: `proficiency::time_to_learn()` (`proficiency.h`), filled from the data's `"time_to_learn": "8 h"`. It is the **proficiency's** number rather than the

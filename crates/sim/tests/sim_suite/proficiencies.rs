@@ -118,9 +118,14 @@ fn a_craft_divides_its_time_between_what_it_teaches() {
 fn finishing_a_craft_practises_what_it_teaches() {
     let mut world = bevy_ecs::prelude::World::new();
     let crafter = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
-    let mut times = std::collections::BTreeMap::new();
-    times.insert("prof_tailor".to_owned(), 60);
-    cdda_sim::proficiencies::set_times(&mut world, times);
+    // The table the guard reads, installed the way a real world installs it.
+    let Ok(dump) = cdda_json::parse(br#"{"count": 1, "proficiencies": [{"id": "prof_tailor", "seconds": 60, "can_learn": true, "required": []}]}"#.as_slice()) else {
+        return;
+    };
+    let Some((proficiencies, _)) = cdda_content::proficiencies::from_dump(&dump) else {
+        return;
+    };
+    cdda_sim::proficiencies::install(&mut world, &proficiencies);
     let names = cdda_sim::item_registry::ItemNames {
         names: vec![String::new(), "rag".to_owned()],
         by_name: [("rag".to_owned(), cdda_sim::ItemTypeId(1))].into_iter().collect(),
@@ -164,5 +169,119 @@ fn finishing_a_craft_practises_what_it_teaches() {
     assert!(
         cdda_sim::proficiencies::knows(&world, crafter, "prof_tailor"),
         "a minute of practice against a minute of learning is enough to know it"
+    );
+}
+
+/// A proficiency with an unmet prerequisite is not practised, and the craft does not pretend otherwise.
+///
+/// Reference: `proficiency_set::practice` (`proficiency.cpp:307`): `has_prereqs` is checked before any time is added, so an expert trade waits for its basic one.
+/// **The guard reads the data's prerequisite graph**, which is why this test installs the dump rather than passing a hand-written closure.
+#[test]
+fn an_unmet_prerequisite_does_not_accumulate_practice() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let crafter = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let Ok(dump) = cdda_json::parse(br#"{"count": 2, "proficiencies": [
+            {"id": "prof_athlete_basic", "seconds": 60, "can_learn": true, "required": []},
+            {"id": "prof_athlete_expert", "seconds": 60, "can_learn": true, "required": ["prof_athlete_basic"]},
+            {"id": "prof_unlearnable", "seconds": 60, "can_learn": false, "required": []}
+        ]}"#.as_slice()) else {
+        return;
+    };
+    let Some((proficiencies, _)) = cdda_content::proficiencies::from_dump(&dump) else {
+        return;
+    };
+    cdda_sim::proficiencies::install(&mut world, &proficiencies);
+
+    assert!(cdda_sim::proficiencies::can_learn(&world, crafter, "prof_athlete_basic"));
+    assert!(
+        !cdda_sim::proficiencies::can_learn(&world, crafter, "prof_athlete_expert"),
+        "an expert trade waits for the basic one"
+    );
+    assert!(
+        !cdda_sim::proficiencies::can_learn(&world, crafter, "prof_unlearnable"),
+        "and the data can say a proficiency is never learned by practising"
+    );
+
+    // Learning the basic one opens the expert one, because the guard asks the graph rather than a list fixed at load time.
+    cdda_sim::proficiencies::learn(&mut world, crafter, "prof_athlete_basic");
+    assert!(cdda_sim::proficiencies::can_learn(&world, crafter, "prof_athlete_expert"));
+}
+
+/// The craft asks the data before it teaches: a trade whose prerequisite is unknown is not practised.
+///
+/// Reference: `proficiency_set::practice` refuses without `has_prereqs` (`proficiency.cpp:307`), and `craft_proficiency_gain` builds its subjects from what the crafter
+/// **can** learn (`crafting.cpp:1052-1062`). The reach matters here: the guard lives in `finish_craft`, not in the rule.
+#[test]
+fn a_craft_does_not_teach_a_trade_whose_prerequisite_is_unknown() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let crafter = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let Ok(dump) = cdda_json::parse(br#"{"count": 2, "proficiencies": [
+            {"id": "prof_basic", "seconds": 20, "can_learn": true, "required": []},
+            {"id": "prof_expert", "seconds": 20, "can_learn": true, "required": ["prof_basic"]}
+        ]}"#.as_slice()) else {
+        return;
+    };
+    let Some((proficiencies, _)) = cdda_content::proficiencies::from_dump(&dump) else {
+        return;
+    };
+    cdda_sim::proficiencies::install(&mut world, &proficiencies);
+
+    let names = cdda_sim::item_registry::ItemNames {
+        names: vec![String::new(), "rag".to_owned()],
+        by_name: [("rag".to_owned(), cdda_sim::ItemTypeId(1))].into_iter().collect(),
+        volumes_ml: vec![0, 250],
+        weights_g: vec![0, 5],
+        holds_ml: vec![0, 0],
+        pockets: Vec::new(),
+        pocket_ranges: vec![(0, 0)],
+    };
+    let recipe = cdda_content::recipes::Recipe {
+        id: "practise_the_expert_trade".to_owned(),
+        result: "rag".to_owned(),
+        blacklisted: false,
+        components: Vec::new(),
+        tools: Vec::new(),
+        qualities: Vec::new(),
+        skill: String::new(),
+        difficulty: 0,
+        batch_rscale: 0.0,
+        batch_rsize: 0,
+        byproducts: Vec::new(),
+        made_per_batch: 1,
+        byproduct_group: Vec::new(),
+        proficiencies: vec![cdda_content::recipes::CraftProficiency {
+            id: "prof_expert".to_owned(),
+            time_multiplier: 1.0,
+            learning_time_mult: 1.0,
+        }],
+        container: None,
+        time_moves: 6_000,
+    };
+    let craft_once = |world: &mut bevy_ecs::prelude::World| {
+        cdda_sim::creature::stop_doing(world, crafter);
+        cdda_sim::recipes_known::learn(world, crafter, &recipe.id);
+        assert_eq!(
+            cdda_sim::crafting::begin_craft_from_carried(world, crafter, &recipe, 1, &names),
+            cdda_sim::crafting::Craft::Started
+        );
+        assert!(cdda_sim::crafting::finish_craft(world, crafter, &names).is_some());
+    };
+    craft_once(&mut world);
+    assert!(
+        !cdda_sim::proficiencies::knows(&world, crafter, "prof_expert"),
+        "a minute of work cannot teach an expert trade to someone with no basic one"
+    );
+    assert_eq!(
+        cdda_sim::proficiencies::practiced_seconds(&world, crafter, "prof_expert"),
+        0,
+        "and nothing was practised toward it, because the guard refused before any time was added"
+    );
+
+    // Learning the basic trade opens the expert one, and the same craft now teaches it.
+    cdda_sim::proficiencies::learn(&mut world, crafter, "prof_basic");
+    craft_once(&mut world);
+    assert!(
+        cdda_sim::proficiencies::knows(&world, crafter, "prof_expert"),
+        "with the prerequisite known, the same craft is a minute against a minute and learns it"
     );
 }

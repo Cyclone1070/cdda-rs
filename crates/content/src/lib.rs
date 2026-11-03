@@ -50,6 +50,7 @@ pub mod body_parts;
 pub mod monsters;
 pub mod npc_classes;
 pub mod overmap;
+pub mod proficiencies;
 pub mod recipes;
 pub mod spells;
 pub mod qualities;

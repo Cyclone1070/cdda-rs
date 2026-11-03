@@ -124,6 +124,7 @@ mod qualities;
 mod recipe_requirements;
 mod recipe_skills;
 mod recipe_tools;
+mod proficiencies;
 mod recipes;
 mod spells;
 mod resolve_placeholders;

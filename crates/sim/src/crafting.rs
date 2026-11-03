@@ -233,7 +233,15 @@ fn teach_proficiencies(world: &mut World, crafter: Entity, recipe: &Recipe) {
         return;
     }
     let seconds = recipe.time_moves / 100;
-    let _ = crate::proficiencies::gain_from_craft(world, crafter, &taught, seconds, &|_| true);
+    // The data's own guard, asked **before** the rule borrows the world: a craft cannot teach an expert trade to someone who has not learned the basic one.
+    let learnable: Vec<String> = taught
+        .iter()
+        .filter(|subject| crate::proficiencies::can_learn(world, crafter, subject.id))
+        .map(|subject| subject.id.to_owned())
+        .collect();
+    let _ = crate::proficiencies::gain_from_craft(world, crafter, &taught, seconds, &|id| {
+        learnable.iter().any(|learnable| learnable == id)
+    });
 }
 
 /// Makes `charges` of a thing inside a new container, which is what a `contained` recipe produces.
