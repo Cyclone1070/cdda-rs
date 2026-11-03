@@ -11016,3 +11016,24 @@ leaves unreadable | 53 | **50** |
 effects runnable | 1,566 | **1,569** |
 effect-blamed refusals | 95 | **94** |
 refused at run time | 198 | **199** |
+
+## The flags are a list the data declares (round 1057)
+
+`foreach` over flags is the largest remaining cause (two programs), and it walks **`json_flag::get_all()`** - so the round began where the rule begins, at the oracle:
+
+| Piece | Where |
+|---|---|
+`--dump-flags` | a new dump on the harness: `{ "harness": "flags", "flags": [ ... ] }` |
+what it carries | **731** flag ids, in the reference's own order - `ABLATIVE_*`, `BELTED`, `WATERPROOF`, `REACH_ATTACK` |
+`FlagTypes(Vec<String>)` + `TheFlagTypes` | `crates/sim/src/flag_registry.rs`, a table something hands to the world |
+Gates | `the_port_carries_every_flag_the_reference_declares` - **731**, one that exists, one that does not |
+
+**`SEALED` is not in the list, and that is the point of dumping rather than typing.** A port that wrote its own flag list would have included the flags it happened to have
+read in a rule (`SEALED` is used on items without being *declared*), and the count would have been its own invention. **The reference declares 731; the port now agrees with
+the reference, not with its own reading.**
+
+**The dump is a list of names and nothing else on purpose.** A flag carries no numbers, so there is nothing to resolve: the table's only job is to answer "what are the
+flags", and the `foreach` rule is the only caller.
+
+**The effect is not wired yet.** `foreach` still refuses; what landed is the list it will walk, plus the oracle change that produces it - **which is the order this port's
+ledger asks for: the oracle ahead of every loader.**
