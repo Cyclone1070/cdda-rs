@@ -76,3 +76,26 @@ fn a_range_may_have_computed_ends() {
         "and the range is the computed one: {length:?}"
     );
 }
+
+/// A length held in a variable, with the data's own fallback for an unset one.
+///
+/// Reference: `get_duration_or_var` (`npctalk.cpp:3426-3450`) reads `{"default": "1 minutes", "u_val": "cell_time"}`, which is how the portal cells decide how long a
+/// place stays reverted. The fallback is what an unset variable means - **not** a refusal, and **not** zero.
+#[test]
+fn a_length_may_be_held_in_a_variable() {
+    let text = r#"{"revert_location": {"global_val": "cell_loc"}, "time_in_future": {"default": "1 minutes", "u_val": "cell_time"}}"#;
+    let value = cdda_json::parse(text.as_bytes()).expect("json");
+    let Some(effect) = cdda_content::dialogue::read_effect(&value) else {
+        panic!("the port reads a length held in a variable");
+    };
+    let cdda_content::dialogue::Effect::RevertLocation { after, .. } = effect else {
+        panic!("it reads as the revert effect");
+    };
+    assert!(
+        matches!(
+            after,
+            cdda_content::dialogue::EffectDuration::Named { fallback: 60, .. }
+        ),
+        "and a minute is the fallback the data writes: {after:?}"
+    );
+}

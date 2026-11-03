@@ -10985,3 +10985,34 @@ refused at run time | 196 | **198** |
 
 **Two refuse at run time now that did not.** A program that reads and runs against a world that has no place variable set **refuses honestly** - the port would rather
 answer "I cannot" than revert a square the data never named.
+
+## A length can be held in a variable (round 1056)
+
+The last `revert_location` refused for a reason that was **not** the revert: its length is
+
+```json
+"time_in_future": {"default": "1 minutes", "u_val": "cell_time"}
+```
+
+| Piece | Where |
+|---|---|
+`EffectDuration::Named { scope, name, fallback }` | a **duration in text** the dialogue holds, read by `get_duration_or_var` (`npctalk.cpp:3426-3450`) |
+the fallback | **sixty turns**, taken from the data's own `default` - an unset variable is a minute, not a refusal and not zero |
+the text | parsed with the same `parse_duration` a literal length goes through, so `"1 minutes"` and `{"default": "1 minutes", ...}` cannot disagree |
+Gate | `a_length_may_be_held_in_a_variable` - the reader keeps the fallback, and the effect that needed it reads |
+
+**The fallback is the whole rule.** `get_duration_or_var`'s third argument is `default = true`, and it means "the data has a value for a variable nobody set" - **a port that
+refused an unset variable would refuse the common case**, because a world starts with no `cell_time` in it. **A port that used zero would close the portal immediately**,
+which looks like the effect not working rather than like a length that came out wrong.
+
+**Fifteen programs refuse now** - from 35 at the start of the stretch, and from 19 four rounds ago. The frontier is **readers**, not a store, for the first time: `foreach`
+twice, and one each of `args`, `count`, `false_eocs`, `if`, `loc`, `radius`, `targeted`, `title`, `transform_item`.
+
+| Number | Before | After |
+|---|---|---|
+programs refused at their first unreadable entry | 16 | **15** |
+programs readable | 590 | **591** |
+leaves unreadable | 53 | **50** |
+effects runnable | 1,566 | **1,569** |
+effect-blamed refusals | 95 | **94** |
+refused at run time | 198 | **199** |

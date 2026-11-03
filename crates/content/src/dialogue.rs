@@ -2384,6 +2384,18 @@ pub enum EffectDuration {
     Turns(Option<i64>),
     /// A roll between two ends, inclusive.
     Range(i64, i64),
+    /// A variable holding a duration **in text**, with the reference's fallback for a variable nobody set.
+    ///
+    /// Reference: `get_duration_or_var` (`npctalk.cpp:3426-3450`) reads `{"default": "1 minutes", "u_val": "cell_time"}` as a duration the dialogue holds - the data's
+    /// portal cells open for as long as the cell's own variable says, and for a minute when it says nothing.
+    Named {
+        /// Which namespace the variable lives in.
+        scope: String,
+        /// The variable's name.
+        name: String,
+        /// The turns to use when the variable holds nothing.
+        fallback: i64,
+    },
     /// A roll between two ends the dialogue works out when the effect is applied: `["1 minutes", {"math": ["ps_str * time(' 1 m')"]}]`, which the portal storms use.
     ///
     /// Reference: `get_duration_or_var` reads each end as a `dbl_or_var` (`npctalk.cpp:3426-3450`), so both ends may be expressions.
@@ -3896,6 +3908,19 @@ fn read_effect_duration(value: Option<&Value>, fallback: EffectDuration) -> Opti
         // length that depends on the world - `{"math": ["rand(432000) + 86400"]}` on a morale point. The value is worked out when the effect is applied.
         // A `math` expression, or a **variable** the dialogue holds when the effect is applied: `get_duration_or_var` reads the same `dbl_or_var` shape the rest of
         // the data uses, and the data does pass `{"context_val": "duration"}`. Both are worked out where they are used, so both are `Computed`.
+        // Reference: a `duration_or_var` with a **default** is a variable holding a duration, and the default is what an unset variable means.
+        Some(Value::Object(given)) if given.get("default").is_some() => {
+            let fallback = match given.get("default")? {
+                Value::Str(text) => crate::constructions::parse_duration(text),
+                Value::Int(turns) => *turns,
+                _ => return None,
+            };
+            let (scope, name) = given.members().iter().find_map(|(scope, value)| match value {
+                Value::Str(name) if scope != "default" => Some((scope.clone(), name.clone())),
+                _ => None,
+            })?;
+            Some(EffectDuration::Named { scope, name, fallback })
+        }
         Some(Value::Object(_)) => Some(EffectDuration::Computed(read_math_expression(value?)?)),
         Some(Value::Array(ends)) => {
             let [shortest, longest] = ends.as_slice() else {

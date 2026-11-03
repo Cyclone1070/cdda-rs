@@ -2294,6 +2294,15 @@ fn roll_duration(
             }
             rolled.or(Some(shortest))
         }
+        // Reference: the variable holds a **duration in text**, and its absence means the data's own fallback (`get_duration_or_var`, `npctalk.cpp:3426-3450`).
+        cdda_content::dialogue::EffectDuration::Named { scope, name, fallback } => {
+            let holder = crate::conditions::holder_for_scope(world, speaker, listener, scope)?;
+            let held = crate::dialogue_values::text_of(world, holder, name);
+            Some(match held {
+                Some(text) => cdda_content::constructions::parse_duration(&text),
+                None => *fallback,
+            })
+        }
         cdda_content::dialogue::EffectDuration::Computed(expression) => {
             let value = draw(world, speaker, listener, expression)?;
             Some(i64::from(as_whole(value)))
