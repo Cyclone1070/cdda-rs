@@ -207,3 +207,74 @@ pub fn category_level(world: &World, creature: Entity, data: &MutationData, cate
     }
     level
 }
+
+/// Every mutation a creature could become next in one category, in the data's own id order.
+#[must_use]
+pub fn candidates(world: &World, creature: Entity, data: &MutationData, category: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for id in data.ids() {
+        let Some(rule) = data.get(id) else {
+            continue;
+        };
+        if !rule.valid || !rule.categories.iter().any(|cat| cat == category) {
+            continue;
+        }
+        if has(world, creature, id) || can_gain(world, creature, data, id) != Gain::Yes {
+            continue;
+        }
+        out.push(id.clone());
+    }
+    out
+}
+
+/// The category a creature has gone furthest into, and how strong it is.
+///
+/// Reference: `f_mutate` (`npctalk.cpp:3560-3570`) asks `Character::mutation_category_level` for every category the creature touches and mutates towards the **highest**.
+#[must_use]
+pub fn strongest_category(world: &World, creature: Entity, data: &MutationData) -> Option<(String, i32)> {
+    let mut best: Option<(String, i32)> = None;
+    for id in mutations_of(world, creature) {
+        let Some(rule) = data.get(&id) else {
+            continue;
+        };
+        for category in &rule.categories {
+            let level = category_level(world, creature, data, category);
+            if best.as_ref().is_none_or(|(_, champion)| level > *champion) {
+                best = Some((category.clone(), level));
+            }
+        }
+    }
+    best
+}
+
+/// Mutates a creature towards one category, trying twice.
+///
+/// Reference: `Character::mutate_category` (`mutation.cpp:1354-1404`) builds the category's valid list and calls `mutate_towards( valid, cat, 2, ... )` - **two tries**,
+/// each a random pick from the list, and the first that succeeds ends it.
+///
+/// **Declared:** the reference also refuses good mutations to a creature on a bad roll (`roll_bad_mutation`) and bad ones on a good roll, and filters on the vitamin each
+/// mutation costs. The port draws from the whole valid list, so a character can gain either kind - a difference that shows up only where the reference would have said no.
+pub fn mutate_category(
+    world: &mut World,
+    creature: Entity,
+    data: &MutationData,
+    categories: &Categories,
+    category: &str,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) -> Option<String> {
+    let mut valid = candidates(world, creature, data, category);
+    for _ in 0..2 {
+        if valid.is_empty() {
+            return None;
+        }
+        let last = i32::try_from(valid.len()).unwrap_or(i32::MAX) - 1;
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let pick = rolls.rng(0, last) as usize;
+        let chosen = valid.get(pick)?.clone();
+        if gain(world, creature, data, categories, &chosen) == Gain::Yes {
+            return Some(chosen);
+        }
+        valid.retain(|id| id != &chosen);
+    }
+    None
+}

@@ -678,7 +678,25 @@ fn mutate(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: 
     if depth <= 0.0 {
         return Applied::Done;
     }
-    Applied::CannotAnswer
+    // A depth above zero asks for a change, and which change comes from **the category the creature has gone furthest into** - `f_mutate` takes the highest of the
+    // creature's own mutation category levels (`npctalk.cpp:3560-3570`) rather than the depth itself.
+    // The tables are cloned out of the world before anything mutates it: `gain` inserts components, and a borrow of the data would be holding the world at the same time.
+    let Some(data) = crate::mutation_data::holder(world) else {
+        return Applied::CannotAnswer;
+    };
+    let Some((category, _)) = crate::mutations::strongest_category(world, speaker, &data) else {
+        return Applied::Done;
+    };
+    let Some(categories) = crate::mutation_data::categories(world) else {
+        return Applied::CannotAnswer;
+    };
+    let mut rolls = crate::singletons::take_rolls(world).unwrap_or_else(|| cdda_core_types::rng::Rolls::new(0));
+    let gained = crate::mutations::mutate_category(world, speaker, &data, &categories, &category, &mut rolls);
+    crate::singletons::put_rolls(world, rolls);
+    match gained {
+        Some(_) => Applied::Done,
+        None => Applied::CannotAnswer,
+    }
 }
 
 /// Stores the square of a monster of a given kind found around the actor.

@@ -342,3 +342,57 @@ fn a_category_strength_counts_heights_and_thresholds() {
         "and the strength is then the threshold's own ten"
     );
 }
+
+/// The dialogue effect that asks for a change now gives one, from the category the creature has gone furthest into.
+///
+/// Reference: `f_mutate` (`npctalk.cpp:3560-3570`) takes the creature's **highest** mutation category and calls `mutate_category`, which draws from that category's valid
+/// list and tries twice (`mutation.cpp:1354-1404`). Until this test the effect answered `CannotAnswer` for every depth above zero.
+#[test]
+fn the_mutate_effect_gives_a_mutation_from_the_strongest_category() {
+    use bevy_ecs::prelude::*;
+
+    let mut worm = trait_of(&[], &[]);
+    worm.categories = vec!["BEAST".to_owned()];
+    let mut wings = trait_of(&[], &[]);
+    wings.categories = vec!["BEAST".to_owned()];
+    let mut cat = trait_of(&[], &[]);
+    cat.categories = vec!["FELINE".to_owned()];
+    let data = table(&[("WORM", worm), ("WINGS", wings), ("CAT_EYES", cat)]);
+
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let categories = cdda_content::mutations::Categories::default();
+    cdda_sim::mutation_data::install(&mut world, data.clone(), categories.clone());
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(11));
+
+    // The creature is already a beast, so the beast category is the one it has gone furthest into.
+    let mut root = trait_of(&[], &[]);
+    root.categories = vec!["BEAST".to_owned()];
+    cdda_sim::mutations::gain(
+        &mut world,
+        survivor,
+        &data,
+        &categories,
+        "WORM",
+    );
+
+    let effect = cdda_content::dialogue::Effect::Mutation {
+        highest_category: cdda_content::dialogue::Expression::Number(1.0),
+        category: None,
+    };
+    let applied = cdda_sim::dialogue_effects::run_effects(&mut world, survivor, None, &[effect]);
+    assert_ne!(
+        applied,
+        cdda_sim::dialogue_effects::Applied::CannotAnswer,
+        "a depth above zero is answered now that there is a pool to draw from"
+    );
+    let held = cdda_sim::mutations::mutations_of(&world, survivor);
+    assert!(
+        held.iter().any(|id| id == "WINGS"),
+        "and it gained the other beast trait: {held:?}"
+    );
+    assert!(
+        !held.iter().any(|id| id == "CAT_EYES"),
+        "not the feline one, which is another category: {held:?}"
+    );
+}

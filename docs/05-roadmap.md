@@ -860,6 +860,9 @@ would fail if the wiring went away. **Sleepiness at 1029:** the value is stored 
 on the creature (`NeedsRatesOf`). **The sleeping side at 1031:** `recovery_rate`, `sleep_off` and an `Asleep` marker - a sleeping creature recovers instead of climbing, and wakes when it would fall below
 minus twenty. **Still not ported:** the reading penalty, and the comfort/temperature modifiers that scale recovery.
 
+**Mutation reach at 1035:** the `u_mutate` dialogue effect now **gives** a mutation instead of refusing - the two tables live on a marked entity, `mutate_category` draws
+with the reference's two tries, and the category is the creature's strongest. **Declared, not ported:** the good/bad roll and the vitamin cost per mutation.
+
 **Not started:** disease, ranged weapons and projectiles with dispersion, martial arts, weakpoints.
 
 ### P5 — Spells and enchantments (10 files, 9,444 LOC)

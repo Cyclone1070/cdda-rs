@@ -51,6 +51,11 @@ impl Mutations {
         self.by_id.get(id)
     }
 
+    /// Every mutation id the table holds, in the data's order.
+    pub fn ids(&self) -> impl Iterator<Item = &String> {
+        self.by_id.keys()
+    }
+
     /// How many mutations the table holds.
     #[must_use]
     pub fn len(&self) -> usize {

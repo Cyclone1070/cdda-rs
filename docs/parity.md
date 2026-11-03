@@ -10496,3 +10496,28 @@ threshold is `valid: false` and is named by other mutations' `threshreq`, so fil
 |---|---|
 `the_mutation_dump_reads_with_its_prerequisites_and_conflicts` | 959 read = 959 held; three thresholds marked; `THRESH_URSINE` not valid; `BIOLUM3` names `THRESH_INSECT`; `BIOLUM1` needs `BIOLUM0` |
 `the_category_dump_reads_with_its_removal_chance_and_threshold` | 29 categories; HUMAN 0%, URSINE 33%, threshold 2200 |
+
+## A refusal became a rule (round 1035)
+
+The dialogue effect `u_mutate` was **ported and refused**: it read its depth, answered `Done` for zero, and returned `CannotAnswer` for anything else, with a comment saying
+the day a mutation pool existed the refusal would go. **This round is that day.**
+
+| Piece | Where it lives |
+|---|---|
+the two tables, as **components on a marked entity** | `mutation_data::MutationTable` / `MutationCategoryTable`, installed by `mutation_data::install` |
+the candidates for a category | `mutations::candidates` - valid, in that category, not held, and `can_gain` says yes |
+the creature's strongest category | `mutations::strongest_category`, the highest `category_level` it has |
+the draw, **two tries** | `mutations::mutate_category`, the reference's own `mutate_towards( valid, cat, 2 )` |
+
+**Gate:** `the_mutate_effect_gives_a_mutation_from_the_strongest_category` runs the real effect through `run_effects` and asserts the creature gained a **beast** trait and
+**not** a feline one.
+
+**The wrapper is the seam.** `cdda_content`'s tables are plain data and know nothing about `bevy_ecs`, so the port wraps each in a component of its own. **The loader stays
+free of the ECS and the store still holds the table as an entity** - which is the architecture's rule applied to data rather than to the world.
+
+**Two things the test taught, again by failing.** The first attempt asserted the creature held *two* beast traits; it held one, because **gaining a beast trait prunes the
+other beast trait** - the same rule as round 1026, arriving uninvited. The second attempt asserted the trait set exactly and saw `WORM` disappear. **The rules are consistent
+enough to keep surprising the tests that forget them**, which is the strongest evidence this port has that they are the reference's and not the author's.
+
+**Declared, not ported:** `roll_bad_mutation` (the good/bad roll that decides which half of a category a creature may draw from) and the vitamin each mutation costs
+(`mutation_ok`). The port draws from the whole valid list, so a character can gain either kind - **a difference that shows up only where the reference would have said no.**
