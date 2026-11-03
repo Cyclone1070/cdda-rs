@@ -145,7 +145,7 @@ fn the_first_entry_that_refuses_says_which_rule_is_missing() {
     }
     // Pinned so a round that changes the frontier sees it here first: the total has fallen from 35 to **16**. The **store** cause is gone - round 1054 built the
     // snapshot and round 1055 read `revert_location` - so what is left is readers: `foreach` twice, and one each of `args`, `count`, `else`, `false_eocs`, `if`, `loc`.
-    assert_eq!(refused_programs.len(), 12, "twelve programs refuse at their first unreadable entry");
+    assert_eq!(refused_programs.len(), 10, "ten programs refuse at their first unreadable entry");
     assert_eq!(
         ranked
             .iter()

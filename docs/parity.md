@@ -11128,3 +11128,33 @@ never aged. Both are closed, and neither was visible from a test count.
 
 **Not in yet:** the item's own effects on being eaten (a drug's `poison`, a mutagen's mutation), and eating from the ground rather than a stomach's worth of facts handed in.
 Both are named in `docs/13-test-inventory.md`.
+
+## The item is the second participant, and an old rule nearly got written twice (round 1061)
+
+Ten programs refuse now. The slice was "an item can be the dialogue's other participant", and it came with a lesson about **not trusting my own grep**:
+
+| Piece | Where |
+|---|---|
+`u_run_inv_eocs` **already existed** | `Effect::RunInvEocs` with `search_data`, `wielded_only`, `worn_only` and `random`, and a probe test that proves all four |
+what was actually missing | the item's **entity** was thrown away - the runner handed each program a name and a count as context values, never the item itself |
+`transform_item` | new: changes the **listener's** kind (`f_transform_item`, `npctalk.cpp:6112-6131`), which is only meaningful now that the listener **is** the item |
+`manual` / `manual_mult` | read and marked, then **refused at run time**: a menu is a choice this headless port cannot make |
+a bare effect in `true_eocs` | read as a one-effect program, which is how the data writes `"true_eocs": [ { "u_message": "…" } ]` |
+Gates | `inventory_eocs::a_program_runs_on_every_item_the_data_asks_for` (two locked phones become phones, the rock untouched), `a_manual_pick_refuses_because_the_port_has_no_chooser`, and the probe updated to the new manual rule |
+
+**I wrote the effect a second time before finding the first.** `RunInventoryEocs` was added, its reader and runner written, and only then did a probe test fail and point at
+`RunInvEocs` - **an older, more complete variant** with four modes and three filters. It is deleted. **The architecture forbids a second store; it forbids a second rule for
+the same name even harder**, and the only reason it was caught inside one round is that the probe test reads the same data the census does.
+
+**What the old rule was missing was one line's worth of meaning.** It ran the right programs on the right items and **dropped the entity**, so the program had a name and a
+count and nothing to act on. `f_run_inv_eocs` hands the item to the dialogue as `beta` (`npctalk.cpp:2890-2905`); the port now passes `Some(item)` as the listener, and
+`transform_item` follows from that with no extra plumbing.
+
+| Number | Before | After |
+|---|---|---|
+programs refused at their first unreadable entry | 12 | **10** |
+programs readable | 594 | **596** |
+leaves unreadable | 44 | **40** |
+effects runnable | 1,575 | **1,578** |
+effect-blamed refusals | 91 | **89** |
+one-gap programs | 14 | **12** |

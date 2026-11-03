@@ -769,6 +769,36 @@ fn store_monster_around(world: &mut World, speaker: Entity, effect: &Effect) -> 
     Applied::Done
 }
 
+/// Changes the item the dialogue is talking about into another kind.
+///
+/// Reference: `f_transform_item` (`npctalk.cpp:6112-6131`): the dialogue's `beta` must be an item, and `convert` replaces its type. The port keeps the item's **entity**
+/// and changes the kind it names, which is what "the same item, a different type" means in a store where an item is an entity.
+fn transform_item(world: &mut World, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::TransformItem { item, active } = effect else {
+        return Applied::CannotAnswer;
+    };
+    let Some(target) = listener else {
+        return Applied::CannotAnswer;
+    };
+    let Some(kind_name) = crate::conditions::text_of(world, target, None, item) else {
+        return Applied::CannotAnswer;
+    };
+    let names = crate::item_registry::snapshot(world);
+    let Some(kind) = names.id_of(&kind_name) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(ground) = world.get::<crate::GroundItem>(target).cloned() else {
+        return Applied::CannotAnswer;
+    };
+    world
+        .entity_mut(target)
+        .insert(crate::GroundItem { kind, ..ground });
+    // Reference: `( *it )->active = activate || ( *it )->has_temperature()` (`npctalk.cpp:6127`). The port's items carry no active flag yet and no temperature, so the
+    // data's own `active` is read and **not stored** - named here rather than pretended, because an item that thinks it is active is a rule the port has not written.
+    let _ = active;
+    Applied::Done
+}
+
 /// Runs an effect list once for every id in a list, naming each one in a variable.
 ///
 /// Reference: `f_foreach` (`npctalk.cpp:7038-7078`): the list is built once, then each element is written into the variable and the effect list is applied.
@@ -929,52 +959,59 @@ fn adjust_location(world: &mut World, speaker: Entity, listener: Option<Entity>,
 /// Reference: `f_run_inv_eocs` (`npctalk.cpp:6760-6805`) with the `"all"` mode runs `true_eocs` on every matching item, handing each one to the program through the
 /// invocation's context. The port sets the context the data reads - `id` for the item's id and `count` for how many the stack holds - and runs the programs.
 fn run_inv_eocs(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::RunInvEocs { search_data, wielded_only, worn_only, random, programs } = effect else {
+    let Effect::RunInvEocs { search_data, wielded_only, worn_only, random, manual, programs } = effect else {
         return Applied::CannotAnswer;
     };
+    // A `manual` menu asks the player which items to act on, and the port has no chooser: refusing is the honest answer, where picking for the player would run the
+    // program on items they did not choose.
+    if *manual {
+        return Applied::CannotAnswer;
+    }
     let Some(holder) = crate::conditions::holder_for_scope(world, speaker, listener, "u_val") else {
         return Applied::CannotAnswer;
     };
-    let mut matches: Vec<(String, i32)> = Vec::new();
+    // Each match keeps its **entity**, because the reference hands the picked item to the program as the dialogue's `beta` - which is what lets an effect inside the
+    // list act on that item (`f_transform_item`, `npctalk.cpp:6119-6129`) rather than on whatever the dialogue was already talking to.
+    let mut matches: Vec<(Entity, String, i32)> = Vec::new();
     // The names are read **before** the query borrows the world mutably: `name_of` needs `&mut World` and a query's iterator holds it for the loop.
-    let mut carried: Vec<(crate::ItemTypeId, i32)> = Vec::new();
+    let mut carried: Vec<(Entity, crate::ItemTypeId, i32)> = Vec::new();
     let wielded = if *wielded_only {
         world
-            .try_query::<(&crate::creature::WieldedBy, &crate::GroundItem)>()
+            .try_query::<(Entity, &crate::creature::WieldedBy, &crate::GroundItem)>()
             .and_then(|mut query| {
                 query
                     .iter(world)
-                    .find(|(who, _)| who.0 == holder)
-                    .map(|(_, item)| (item.kind, item.charges.max(1)))
+                    .find(|(_, who, _)| who.0 == holder)
+                    .map(|(entity, _, item)| (entity, item.kind, item.charges.max(1)))
             })
     } else {
         None
     };
     if *worn_only {
-        let mut query = world.query::<(&crate::creature::WornBy, &crate::GroundItem)>();
-        for (who, item) in query.iter(world) {
+        let mut query = world.query::<(Entity, &crate::creature::WornBy, &crate::GroundItem)>();
+        for (entity, who, item) in query.iter(world) {
             if who.0 == holder {
-                carried.push((item.kind, item.charges.max(1)));
+                carried.push((entity, item.kind, item.charges.max(1)));
             }
         }
     } else if let Some(held) = wielded {
         carried.push(held);
     } else if !*wielded_only {
-        let mut query = world.query::<(&crate::creature::Carried, &crate::GroundItem)>();
-        for (who, item) in query.iter(world) {
+        let mut query = world.query::<(Entity, &crate::creature::Carried, &crate::GroundItem)>();
+        for (entity, who, item) in query.iter(world) {
             if who.0 == holder {
-                carried.push((item.kind, item.charges.max(1)));
+                carried.push((entity, item.kind, item.charges.max(1)));
             }
         }
     }
-    for (kind, charges) in carried {
+    for (entity, kind, charges) in carried {
         let Some(name) = crate::item_registry::name_of(world, kind) else {
             continue;
         };
         if !search_data.is_empty() && !search_data.contains(&name) {
             continue;
         }
-        matches.push((name, charges));
+        matches.push((entity, name, charges));
     }
     if matches.is_empty() {
         return Applied::Done;
@@ -986,14 +1023,14 @@ fn run_inv_eocs(world: &mut World, speaker: Entity, listener: Option<Entity>, ef
         };
         matches = matches.get(picked).cloned().into_iter().collect();
     }
-    for (name, count) in matches {
+    for (item, name, count) in matches {
         let handed = std::collections::BTreeMap::from([
             ("id".to_owned(), name),
             ("count".to_owned(), count.to_string()),
         ]);
         let previous = crate::dialogue_context::put(world, speaker, handed);
         for program in programs {
-            let _ = crate::eoc_registry::run_ref(world, speaker, listener, program, 1);
+            let _ = crate::eoc_registry::run_ref(world, speaker, Some(item), program, 1);
         }
         crate::dialogue_context::restore(world, speaker, previous);
     }
@@ -2717,6 +2754,7 @@ fn run_store_effect(
         Effect::LocationVariableAdjust { .. } => adjust_location(world, speaker, listener, effect),
         Effect::RevertLocation { .. } => revert_location(world, speaker, listener, effect),
         Effect::ForEach { .. } => run_foreach(world, speaker, listener, effect),
+        Effect::TransformItem { .. } => transform_item(world, listener, effect),
         Effect::MonsterAround { .. } => store_monster_around(world, speaker, effect),
         Effect::Mutation { .. } => mutate(world, speaker, listener, effect),
         Effect::OfferMission { .. } => offer_mission(world, speaker, listener, effect),

@@ -141,6 +141,7 @@ mod item_stacking;
 mod item_volume;
 mod item_weight;
 mod proficiencies;
+mod inventory_eocs;
 mod items;
 mod item_data;
 mod item_registry;

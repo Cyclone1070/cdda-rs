@@ -2872,14 +2872,16 @@ fn an_inventory_eoc_runs_once_per_matching_item() {
         "one line per phone and none for the rock: {lines:?}"
     );
 
-    // A mode that needs a menu is refused rather than run on everything.
+    // A mode that needs a menu **reads** - it is a known question, not an unreadable entry - and refuses when it runs, because the port has no chooser.
     let manual = cdda_json::parse(
         br#"{"u_run_inv_eocs": "manual", "true_eocs": ["EOC_note"]}"#.as_slice(),
     )
     .expect("json");
-    assert!(
-        cdda_content::dialogue::read_effect(&manual).is_none(),
-        "the manual mode needs a menu the port has not written"
+    let effect = cdda_content::dialogue::read_effect(&manual).expect("the manual mode reads");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        cdda_sim::dialogue_effects::Applied::CannotAnswer,
+        "and refuses when it runs, because a menu needs a chooser the port has not written"
     );
 }
 

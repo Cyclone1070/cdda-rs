@@ -1841,6 +1841,7 @@ fn read_store_effects(object: &cdda_json::Object) -> Option<Effect> {
         .or_else(|| read_place_override(object))
         .or_else(|| read_revert_location(object))
         .or_else(|| read_foreach(object))
+        .or_else(|| read_transform_item(object))
         .or_else(|| read_remove_item_with(object))
         .or_else(|| read_lose_morale(object))
         .or_else(|| read_set_talker(object))
@@ -1937,6 +1938,17 @@ fn read_place_override(object: &cdda_json::Object) -> Option<Effect> {
             None => None,
             Some(value) => Some(read_string_source(value)?),
         },
+    })
+}
+
+/// Reads a `transform_item` entry.
+///
+/// Reference: `f_transform_item` (`npctalk.cpp:6112-6120`): `str_or_var` required, `active` optional and false by default.
+fn read_transform_item(object: &cdda_json::Object) -> Option<Effect> {
+    let item = object.get("transform_item")?;
+    Some(Effect::TransformItem {
+        item: read_string_source(item)?,
+        active: matches!(object.get("active"), Some(Value::Bool(true))),
     })
 }
 
@@ -2608,6 +2620,9 @@ pub enum Effect {
         worn_only: bool,
         /// Whether **one** match is drawn rather than every match being run on.
         random: bool,
+        /// Whether the data asks the player to pick the items: `manual` or `manual_mult`. The port reads the mode so a program that uses one is a **known**
+        /// question rather than an unreadable entry, and refuses it when it runs, because a menu is a choice this headless port cannot make.
+        manual: bool,
         /// The programs to run on each matching item.
         programs: Vec<ProgramRef>,
     },
@@ -2719,6 +2734,16 @@ pub enum Effect {
         target: (String, String),
         /// Whether it is the listener's id rather than the speaker's.
         listener: bool,
+    },
+    /// Changes the item the dialogue is talking about into another kind.
+    ///
+    /// Reference: `f_transform_item` (`npctalk.cpp:6112-6131`): the member is the new id, `active` decides whether the turned item starts active, and the item is
+    /// the dialogue's `beta` - so a transform inside `u_run_inv_eocs` changes **that** item.
+    TransformItem {
+        /// The kind it becomes.
+        item: StringSource,
+        /// Whether the new kind starts active.
+        active: bool,
     },
     /// Runs an effect list once for every id in a list, naming each one in a variable.
     ///
@@ -3388,6 +3413,7 @@ impl Effect {
             Self::PlaceOverride { .. } => "place_override",
             Self::RevertLocation { .. } => "revert_location",
             Self::ForEach { .. } => "foreach",
+            Self::TransformItem { .. } => "transform_item",
             Self::SpawnItem { .. } => "u_spawn_item",
             Self::ConsumeItem { listener, .. } => {
                 if *listener {
@@ -4289,7 +4315,8 @@ fn read_run_inv_eocs(object: &cdda_json::Object) -> Option<Effect> {
     let Value::Str(mode) = option else {
         return None;
     };
-    if !matches!(mode.as_str(), "all" | "random") {
+    // Reference: `f_run_inv_eocs` (`npctalk.cpp:6760-6805`) takes `all`, `random`, `manual` and `manual_mult`; `manual` and `manual_mult` are menus.
+    if !matches!(mode.as_str(), "all" | "random" | "manual" | "manual_mult") {
         return None;
     }
     let mut search_data = Vec::new();
@@ -4332,6 +4359,7 @@ fn read_run_inv_eocs(object: &cdda_json::Object) -> Option<Effect> {
         wielded_only,
         worn_only,
         random: mode == "random",
+        manual: mode.starts_with("manual"),
         programs: read_program_refs(object.get("true_eocs"))?,
     })
 }
@@ -4884,6 +4912,23 @@ fn read_program_ref(value: &Value) -> Option<ProgramRef> {
             // walk is wrong somewhere the census cannot see, so the next attempt starts from **one refusing program's JSON**, not from a broader rule.
             // A body the port cannot read does **not** make its caller unreadable: the reference installs the body and only complains when something calls it, so
             // the fallback here is the plain name - the call refuses at run time if nothing installs it, exactly as the port answered before it read bodies at all.
+            // A `true_eocs` entry that is **one effect object** is a program with that one effect: the data writes
+            // `"true_eocs": [ { "u_message": "Transported: <npc_name>" } ]`, and the reference loads such an entry as the program's own effect list.
+            if object.get("effect").is_none()
+                && named.is_none()
+                && single_named_variable(object).is_none()
+                && let Some(one) = read_effect(value)
+            {
+                return Some(ProgramRef::Inline {
+                    program: Box::new(Program {
+                        id: String::new(),
+                        condition: None,
+                        effects: vec![one],
+                    }),
+                    id: None,
+                    variables,
+                });
+            }
             let Some(effects) = read_effect_list(object.get("effect")) else {
                 return named.map(|id| ProgramRef::Named {
                     id,
