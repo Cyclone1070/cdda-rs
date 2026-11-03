@@ -77,3 +77,72 @@ fn a_tired_creature_cannot_settle_above_its_ceiling() {
         "while an equilibrium already below the ceiling is left alone"
     );
 }
+
+/// A creature's sleepiness climbs with the clock and stops at the cap.
+///
+/// Reference: `Character::update_needs` (`character.cpp:5155-5175`): `roll_remainder( rates.sleepiness * rate_multiplier )` each five minutes, only while awake and
+/// below 1050.
+#[test]
+fn sleepiness_climbs_with_the_clock_and_stops_at_the_cap() {
+    use bevy_ecs::prelude::*;
+
+    let sleepiness_after = |minutes: i64| {
+        let mut world = World::new();
+        let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+        world
+            .entity_mut(survivor)
+            .insert(cdda_sim::needs::NeedsRatesOf(cdda_sim::needs::NeedsRates {
+                kcal: 0.0,
+                hunger: 1.0,
+                thirst: 1.0,
+                sleepiness: 1.0,
+            }));
+        cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(3));
+        for step in 0..=minutes / 5 {
+            cdda_sim::calendar::set_turn(&mut world, step * 300);
+            cdda_sim::turn::run_turn(&mut world);
+        }
+        cdda_sim::needs::sleepiness_of(&world, survivor)
+    };
+    let short = sleepiness_after(60);
+    assert!(short > 0, "an hour of being awake leaves a creature sleepy, and it was {short}");
+    assert!(
+        (55..=65).contains(&short),
+        "five a step for twelve steps is about sixty, and it was {short}"
+    );
+    // Five points every five minutes reaches the cap of 1050 after about seventeen hours awake.
+    assert_eq!(
+        sleepiness_after(1_200),
+        cdda_sim::needs::MAX_SLEEPINESS,
+        "and enough time at the cap leaves it there"
+    );
+}
+
+/// A creature with no needs clock, or one that is asleep, does not climb.
+///
+/// Reference: the `!asleep && !debug_ls` guard in `update_needs` (`character.cpp:5159`).
+#[test]
+fn a_sleeping_creature_or_one_with_no_needs_does_not_climb() {
+    use bevy_ecs::prelude::*;
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let rates = cdda_sim::needs::NeedsRates {
+        kcal: 0.0,
+        hunger: 1.0,
+        thirst: 1.0,
+        sleepiness: 1.0,
+    };
+    let mut rolls = cdda_core_types::rng::Rolls::new(1);
+    cdda_sim::needs::climb_sleepiness(&mut world, survivor, rates, 5, false, false, &mut rolls);
+    assert_eq!(
+        cdda_sim::needs::sleepiness_of(&world, survivor),
+        0,
+        "a sleeping creature does not get sleeper"
+    );
+    cdda_sim::needs::climb_sleepiness(&mut world, survivor, rates, 5, true, true, &mut rolls);
+    assert_eq!(
+        cdda_sim::needs::sleepiness_of(&world, survivor),
+        0,
+        "and neither does one with no needs at all"
+    );
+}

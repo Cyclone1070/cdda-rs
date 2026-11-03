@@ -135,6 +135,13 @@ pub fn needs_rates(bmr: i32, metabolic_rate: f32, thirst_option: f32, sleepiness
     }
 }
 
+/// The rates a creature's own body burns at, as a component so a system can read them without asking anybody else.
+///
+/// Reference: `needs_rates` (`character.h:493-499`) is a value the character holds; the port keeps it on the creature for the same reason - the clock is a question
+/// about one body.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Component)]
+pub struct NeedsRatesOf(pub NeedsRates);
+
 /// How sleepy a creature is, on the reference's scale: 191 is tired, 383 dead tired, 575 exhausted, 1000 barely awake.
 ///
 /// Reference: `Character::sleepiness` (`character.cpp:4698-4712`): an integer the game adds to and clamps, with `MASSIVE_SLEEPINESS` at 1000 and the `update_needs`
@@ -159,4 +166,30 @@ pub fn mod_sleepiness(world: &mut World, creature: Entity, amount: i32) {
 #[must_use]
 pub fn sleepiness_of(world: &World, creature: Entity) -> i32 {
     world.get::<Sleepiness>(creature).map_or(0, |held| held.0)
+}
+
+/// How much a creature's sleepiness climbs over a span of five-minute intervals.
+///
+/// Reference: `Character::update_needs` (`character.cpp:5155-5175`): the climb is `roll_remainder( rates.sleepiness * rate_multiplier )`, it happens only while the
+/// creature is **awake** and below the cap, and `DEBUG_LS` (a creature with no needs at all) stops it entirely.
+pub fn climb_sleepiness(
+    world: &mut World,
+    creature: Entity,
+    rates: NeedsRates,
+    five_mins: i64,
+    awake: bool,
+    foodless: bool,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) {
+    if !awake || foodless {
+        return;
+    }
+    let current = sleepiness_of(world, creature);
+    if current >= MAX_SLEEPINESS {
+        return;
+    }
+    #[allow(clippy::cast_precision_loss)]
+    let span = five_mins as f32;
+    let climb = crate::roll_remainder(f64::from(rates.sleepiness * span), rolls);
+    mod_sleepiness(world, creature, climb);
 }

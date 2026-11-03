@@ -10401,3 +10401,20 @@ system added later from silently duplicating the rule.
 
 **Still not ported, and named:** the sleepiness **clock** (`update_needs`'s five-minute `roll_remainder( rates.sleepiness * rate_multiplier )`, capped at 1050, stopped by
 sleep and by `DEBUG_LS`). The value is stored, clamped and read; nothing yet makes it climb.
+
+## Now the sleepiness climbs (round 1030)
+
+Last round stored sleepiness and capped it; **nothing made it grow**. This round ports the clock and puts it in the schedule:
+
+| Rule | Gate |
+|---|---|
+`roll_remainder( rates.sleepiness * five_mins )` every five minutes, only while awake and below the cap | `sleepiness_climbs_with_the_clock_and_stops_at_the_cap` |
+a sleeping creature, or one with no needs clock, does not climb | `a_sleeping_creature_or_one_with_no_needs_does_not_climb` |
+the stage that runs it is on the schedule | the first test's `run_turn` loop, which never touches `climb_sleepiness` by name |
+
+**The arithmetic was right and my expectation was wrong, twice.** Five points per five-minute step is `roll_remainder( 1.0 * 5 )`, so an hour is about **sixty**, not the
+five I had in mind - and the cap of 1050 is **seventeen and a half hours** awake, not the four hundred minutes the first test allowed. **Both failures were the test
+telling me the scale of the thing**, which is what a reach test is for when the rule underneath is a per-tick accumulation.
+
+**The rates are a component now (`NeedsRatesOf`), not a hand-in.** The reference holds `needs_rates` on the character for the same reason: the clock is a question about
+**one body**, and a port that handed the numbers in from the stage would have to ask every creature's body questions twice.

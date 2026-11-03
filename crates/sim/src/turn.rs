@@ -116,6 +116,7 @@ pub fn environment_schedule() -> Schedule {
         (
             scheduled_stage.in_set(TurnStage::Scheduled),
             scent_stage.in_set(TurnStage::Scent),
+            needs_stage.in_set(TurnStage::Creatures),
             falling_stage.in_set(TurnStage::Falling),
             fields_stage.in_set(TurnStage::Fields),
             creatures_stage.in_set(TurnStage::Creatures),
@@ -161,6 +162,29 @@ fn focus_stage(world: &mut World) {
         );
         crate::skills::update_focus_towards(world, creature, equilibrium);
     }
+}
+
+/// The body's own clock: every five minutes a creature's sleepiness climbs by `roll_remainder( rates.sleepiness * five_mins )`.
+///
+/// Reference: `Character::update_needs` (`character.cpp:5145-5175`), which the game runs on `once_every( 5_minutes )`. The port keeps the rates on the creature
+/// (`NeedsRatesOf`), so a creature that has no rates stored is one the clock does not touch.
+fn needs_stage(world: &mut World) {
+    let Some(calendar) = crate::calendar::of(world) else {
+        return;
+    };
+    if calendar.turn % 300 != 0 {
+        return;
+    }
+    let mut creatures: Vec<(bevy_ecs::entity::Entity, crate::needs::NeedsRates)> = Vec::new();
+    let mut query = world.query::<(bevy_ecs::entity::Entity, &crate::needs::NeedsRatesOf)>();
+    for (creature, rates) in query.iter(world) {
+        creatures.push((creature, rates.0));
+    }
+    let mut rolls = singletons::take_rolls(world).unwrap_or_else(|| cdda_core_types::rng::Rolls::new(0));
+    for (creature, rates) in creatures {
+        crate::needs::climb_sleepiness(world, creature, rates, 5, true, false, &mut rolls);
+    }
+    singletons::put_rolls(world, rolls);
 }
 
 fn creatures_stage(world: &mut World) {
