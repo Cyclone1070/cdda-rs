@@ -146,6 +146,7 @@ mod light_replay;
 mod light_session;
 mod light_system;
 mod map_facts;
+mod morale;
 mod monster_action;
 mod monster_blocked;
 mod monster_damage;

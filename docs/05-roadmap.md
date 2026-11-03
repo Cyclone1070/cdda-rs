@@ -844,8 +844,8 @@ ranged-balance test parity.
 **Ported and gated:** creature state, the position index (one store, so the reference's four parallel indexes have no counterpart), effects (six gates), body and anatomy
 (three), melee (two), harvest (two), death, needs and hunger, wounds.
 
-**Ported, thinly gated - the next P4 work:** `morale.rs` (twelve rules, covered only through dialogue effects) and `bionics.rs` (two rules, the same). Each needs a
-dedicated gate that reads its own rules rather than a dialogue that happens to call one.
+**Ported, thinly gated - the next P4 work:** `bionics.rs` (two rules, covered only through dialogue effects). It needs a dedicated gate that reads its own rules rather than
+a dialogue that happens to call one. **Morale got its gate at round 1023** - five tests over stacking, caps, decay, expiry, removal and the fade curve.
 
 **Not started:** mutations, disease, ranged weapons and projectiles with dispersion, martial arts, weakpoints.
 

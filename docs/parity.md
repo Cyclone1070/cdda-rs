@@ -270,7 +270,7 @@ the layer that decides when to shift
 | Body parts and anatomy | **ported** | `sim_suite::body`, `::body_from_content`, `::player_body` | `body.rs`: 21 rules, armour per part, hit rolls |
 | Mutations | **not started** | M3b | no module |
 | Bionics | **ported**, **thinly gated** | `sim_suite::dialogue_effects`, `::probe` | `bionics.rs`: install and query only; the powers bionics grant are P5's, and there is **no dedicated test file** - the two rules are exercised through dialogue |
-| Morale | **ported**, **thinly gated** | `sim_suite::dialogue_effects`, `::probe` | `morale.rs`: twelve rules; **no dedicated test file**, and what is exercised is the add and the net bonus through dialogue |
+| Morale | **ported and gated** | `sim_suite::morale` (five tests) | `morale.rs`: stacking, caps, decay, expiry, removal, the fade curve |
 | Needs and hunger | **ported** | `sim_suite::needs`, `::hunger_effect` | `needs.rs`, `body.rs` |
 | Wounds | **ported** | `sim_suite::wounds` | `creature.rs`, `body.rs` |
 | Disease | **not started** | M3b | no module |
@@ -10268,3 +10268,25 @@ habit of checking a citation before writing it is the whole difference between a
 |---|---|
 Mutations, disease, ranged, projectiles, dispersion, martial arts, weakpoints | **not started** - no module, and the table says so with the phase they belong to |
 Morale, bionics | **ported, thinly gated** - and now named as the next P4 work rather than hidden behind "ported" |
+
+## Morale stopped being a rule that only a dialogue happened to exercise (round 1023)
+
+Last round's ledger correction found `morale.rs` with **twelve rules and no test file**. This round gave it one, and writing the tests found the one rule I had wrong in my
+head:
+
+**"Two good things stack by the square root of the sum of their squares" is only true for two *timed* points.** The reference's first branch is
+`if( new_duration == 0_turns ) { sqrt_of_sum_of_squares = new_bonus; }` (`morale.cpp:188-189`): a **permanent** point **replaces** the bonus instead of stacking with it.
+The test asserted five from three and four and got four - **because both points were permanent and the replacement rule was working correctly.**
+
+| Rule | Gate |
+|---|---|
+same-sign stacking, opposite-sign adding | `same_sign_morale_stacks_by_the_square_root_and_opposite_sign_adds` |
+fade from `decay_start`, dropped at `duration` | `morale_fades_and_then_runs_out` |
+the longer time wins, unless capped | `stacking_keeps_the_longer_time_unless_the_point_is_capped` |
+a type removed whole, and what is not felt | `a_morale_type_is_removed_whole` |
+the curve runs from one to zero and stays there | `the_fade_curve_runs_from_one_to_zero` |
+
+**One divergence is now known and written down rather than fixed silently**: the reference decides "same sign" from `( bonus > 0 ) == ( new_max_bonus > 0 )` - it compares the
+held **bonus** with the new **cap** (`morale.cpp:177`) - where the port compares the two **bonuses**. The two agree for every point with no cap, which is all but a handful in
+the data, and they disagree for a point whose cap has the opposite sign to its bonus. **The port's reading is the one that makes sense; the reference's is the one the game
+ships.** It is named here because **a difference that nobody writes down becomes a difference nobody finds.**
