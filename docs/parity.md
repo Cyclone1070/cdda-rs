@@ -10662,3 +10662,22 @@ bug as a rule that never runs.
 
 **Still declared:** the stage's effect table is now filled from the store when one is installed, but nothing in the port installs effect types from the reference's data yet,
 so it stays empty in a game and filled only in tests.
+
+## The tables a real game needs, installed the way the reference installs them (round 1042)
+
+Round 1041 gave the store a vitamin table and filled the stage's effect table. **Neither was ever installed in a game** - only in tests, which may install whatever table they
+like. This round closes that:
+
+| Piece | Where |
+|---|---|
+the vitamin types, read from the reference's JSON | `cli::install_vitamin_data` |
+the effect types, read the same way | `cli::install_effect_data` |
+the scenario step that runs both | `Step::Data`, which reports the counts it installed |
+Gate | `the_binary_s_world_knows_what_a_vitamin_and_an_effect_are` - **> 40 vitamins, > 100 effect types**, and `poison` answers with its own duration |
+
+**The gap was invisible to every test the port had, and that is the point of the round.** A test that installs a two-vitamin table passes whatever the game installs, so the
+port could have shipped with **an empty vitamin table in every real world** and ninety-nine hundred green tests. **The only test that could catch it is one that asks what the
+binary installs**, which is why it lives in `cli` beside `the_binary_s_world_knows_the_game_s_items` rather than in `sim`.
+
+**`Step::Data` exists because a scenario has to say when its world was given its tables.** The reference reads its JSON once, at start-up, and the port's scenarios are
+scripts; a step keeps the moment explicit instead of hiding it in the constructor of whatever runs the script.

@@ -32,6 +32,8 @@ pub enum Step {
         /// Whether the floor feeds a fire.
         flammable: bool,
     },
+    /// Installs the game's own vitamin and effect tables from the reference's JSON, as its factories do at start-up.
+    Data,
     /// The dice every later draw comes from.
     Seed(u32),
     /// Where the character lays its smell, and how much.
@@ -264,6 +266,26 @@ pub fn run(text: &str) -> Result<Outcome, String> {
 /// that grows a dozen item arms stops being readable as the shape of a scenario.
 fn take_item_step(world: &mut World, step: &Step, outcome: &mut Outcome) -> bool {
     match step {
+        Step::Data => {
+                // The tables a game needs before anything asks a question of them: what a vitamin is, what an effect does. Both are the reference's own JSON, read the way
+                // its factories read them at start-up.
+                let mut parts: Vec<String> = Vec::new();
+                match install_vitamin_data(world) {
+                    Some(count) => parts.push(format!("{count} vitamins")),
+                    None => outcome
+                        .failures
+                        .push("the game's vitamin data is not where the scenario expects it".to_owned()),
+                }
+                match install_effect_data(world) {
+                    Some(count) => parts.push(format!("{count} effects")),
+                    None => outcome
+                        .failures
+                        .push("the game's effect data is not where the scenario expects it".to_owned()),
+                }
+                if !parts.is_empty() {
+                    outcome.lines.push(format!("data: {}", parts.join(", ")));
+                }
+            }
         Step::Survivor { x, y } => {
                 let survivor = cdda_sim::spawn_player(world, (*x, *y), 80, 0);
                 cdda_sim::creature::set_speed(world, survivor, 100, 0);
@@ -418,6 +440,40 @@ pub fn install_item_data(world: &mut World) -> Option<usize> {
     let items = cdda_content::items::load_paths(&[&data]).ok()?;
     cdda_sim::item_data::install(world, &items);
     Some(items.len())
+}
+
+/// Installs the game's own vitamin types, so a body can tell a nutrient from a drug.
+///
+/// Reference: the `vitamin` factory reading its JSON at start-up (`src/vitamin.cpp`). Until this ran, a real game's body had no table: every level it held was of
+/// unknown kind, so **every drug was silently absorbed as nothing** - the same quiet wrongness an uninstalled item registry had before round 764.
+///
+/// Answers how many types were installed, or [`None`] when the data is not where the binary expects it.
+pub fn install_vitamin_data(world: &mut World) -> Option<usize> {
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../oracle/src/data/json");
+    if !data.is_dir() {
+        return None;
+    }
+    let vitamins = cdda_content::vitamins::load_paths(&[&data]).ok()?;
+    cdda_sim::vitamin_registry::set_vitamin_types(world, &vitamins);
+    Some(vitamins.len())
+}
+
+/// Installs the game's own effect types, so a rule that asks what an effect does can answer.
+///
+/// Reference: `effect_type`'s factory reading its JSON at start-up (`src/effect.cpp`). The store could answer a type by name before this (round 908) but nothing put the
+/// game's own types in it, so a real world answered "no such effect" for every one the data defines.
+///
+/// Answers how many types were installed, or [`None`] when the data is not where the binary expects it.
+pub fn install_effect_data(world: &mut World) -> Option<usize> {
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../oracle/src/data/json");
+    if !data.is_dir() {
+        return None;
+    }
+    let effects = cdda_content::effects::load_paths(&[&data]).ok()?;
+    let kinds: Vec<cdda_content::effects::EffectType> = effects.into_values().collect();
+    let count = kinds.len();
+    cdda_sim::effect_registry::set_effect_types(world, &kinds);
+    Some(count)
 }
 
 /// Installs the field names, and with them the numbers every field rule is keyed to.
@@ -1040,5 +1096,37 @@ mod field_data_tests {
                 "and back again for {name}"
             );
         }
+    }
+
+    /// The game's own vitamin and effect tables are installed at start-up, so a body can tell a drug from a nutrient and a
+    /// spell can ask what an effect does.
+    ///
+    /// Without this the tables are empty, and an empty vitamin table is not a neutral default: `update_stomach` asks the type
+    /// whether a level skips the guts, so **every drug is absorbed as nothing at all** and no test notices, because a test may
+    /// install whatever table it likes.
+    #[test]
+    fn the_binary_s_world_knows_what_a_vitamin_and_an_effect_are() {
+        let mut world = World::new();
+        let vitamins = super::install_vitamin_data(&mut world).unwrap_or(0);
+        assert!(vitamins > 40, "installed {vitamins} vitamins, which is too few");
+        assert_eq!(
+            cdda_sim::vitamin_registry::count(&world),
+            vitamins,
+            "and the store knows every one"
+        );
+        let effects = super::install_effect_data(&mut world).unwrap_or(0);
+        assert!(effects > 100, "installed {effects} effect types, which is too few");
+        // A known effect, by the name the data uses, is one the store can answer with its own caps.
+        let poison = cdda_sim::effect_registry::kind_of(&mut world, "poison");
+        assert!(poison.is_some(), "the data has a poison effect");
+        let Some(poison) = poison else {
+            return;
+        };
+        assert_eq!(poison.id, "poison", "and it is the one asked for");
+        assert!(
+            poison.max_duration > 0,
+            "with a duration the rules can count against: {}",
+            poison.max_duration
+        );
     }
 }
