@@ -12617,3 +12617,26 @@ that clamped to zero, or applied the five before the one, gets a different monst
 
 **Named, not invented:** the reference's `spooked` effects (three turns of a scream when another monster dies nearby), and `monster::process_turn`'s regeneration of hit points, which the
 port already has. **Nothing yet calls `regen_nerve` from the turn** - the pieces are in place and wiring it is the next round's work, said here rather than implied.
+
+## The turn calms a monster down (round 1127)
+
+Round 1126 wrote the nerve rule and nothing called it. `creatures_stage` now does, right after the mending, because the reference does both in the same pass (`monster.cpp:3493`).
+
+| Piece | Reference | Port |
+|---|---|---|
+when | `monster::process_turn`, in the same block that mends | `creatures_stage`, immediately after `mend_everyone` |
+who | every monster | every entity carrying `Morale`, `Anger`, `Nerve`, `Health` and `Position` |
+the answer | `regen_nerve` | the same function round 1126 gated |
+Gate | - | `the_turn_gives_a_monster_its_nerve_back` - a calm monster gains one morale and one anger in a turn; the same monster **one hit point short** gains nothing |
+
+**The one-hit-point-short case is the gate's real content.** A monster at 79 of 80 is not `hp >= type->hp`, so it does not calm down - which is the reference's way of saying *you cannot talk
+a wounded thing out of its panic by waiting*. **A test that only checked the calm monster would pass with the gate deleted.**
+
+**The survivor's position is read once, outside the loop.** `is_fleeing` needs the distance, and asking the store for the avatar's position per monster would be a query inside a loop over
+the query's own results - the same borrow trap this port has hit before. **The list of what to change is built first, then changed**, which is also what makes the write-back safe.
+
+**`type Nerves` exists because clippy was right and so was the reason it gave.** Seven parts in a tuple, written twice, is a place for two of them to swap - and this port has already had
+one tuple-order bug (the knife that was called a crowbar). **The alias has the seven parts in one place with their meaning next to them.**
+
+**Still dormant in play, and said plainly.** Nothing in the port lowers a monster's morale yet - no pain, no fear effect, no `spooked` reaction to another monster dying nearby - so every
+monster starts at its type's values and the trickle has nothing to do. **The rule is wired and gated; it will start to matter the round something makes a monster more afraid than its type.**

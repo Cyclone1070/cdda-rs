@@ -1263,3 +1263,57 @@ fn a_monster_gets_its_nerve_back_a_point_at_a_time() {
     // Fleeing at full health: straight back to the type's own nerve, and no further arithmetic to do.
     assert_eq!(regen_nerve(100, 100, -50, -50, plain, true), (10, 20), "a fleeing monster at full health snaps back");
 }
+
+/// The turn gives a monster its nerve back, and a wounded one keeps its fear.
+///
+/// Reference: `monster::process_turn` runs the regrowth block for every monster each turn (`monster.cpp:3493-3512`), gated on `type->regen_morale && hp >= type->hp`. The gate drives the
+/// **stage**: a calm monster below its type's morale gains a point, and the same monster with a scratch does not.
+#[test]
+fn the_turn_gives_a_monster_its_nerve_back() {
+    use bevy_ecs::prelude::*;
+
+    let mut world = World::new();
+    singletons::put_rolls(&mut world, Rolls::new(41));
+    let mut level = Level::new();
+    for x in 0..5 {
+        for y in 0..5 {
+            level.set_terrain(x, y, 1, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
+
+    let calm = cdda_sim::creature::spawn_creature(&mut world, "the calm", (3, 3, 0));
+    world
+        .entity_mut(calm)
+        .insert(cdda_sim::creature::Health { hp: 80, max_hp: 80 })
+        .insert(cdda_sim::creature::Morale(10))
+        .insert(cdda_sim::creature::Anger(10))
+        .insert(cdda_sim::creature::Nerve { morale: 20, anger: 20, regenerates: true });
+
+    let hurt = cdda_sim::creature::spawn_creature(&mut world, "the hurt", (1, 3, 0));
+    world
+        .entity_mut(hurt)
+        .insert(cdda_sim::creature::Health { hp: 79, max_hp: 80 })
+        .insert(cdda_sim::creature::Morale(10))
+        .insert(cdda_sim::creature::Anger(10))
+        .insert(cdda_sim::creature::Nerve { morale: 20, anger: 20, regenerates: true });
+
+    cdda_sim::turn::run_turn(&mut world);
+
+    assert_eq!(
+        world.get::<cdda_sim::creature::Morale>(calm).map(|carried| carried.0),
+        Some(11),
+        "a point of morale"
+    );
+    assert_eq!(
+        world.get::<cdda_sim::creature::Anger>(calm).map(|carried| carried.0),
+        Some(11),
+        "and a point of anger"
+    );
+    assert_eq!(
+        world.get::<cdda_sim::creature::Morale>(hurt).map(|carried| carried.0),
+        Some(10),
+        "a wounded monster does not calm down - one hit point short is short"
+    );
+}

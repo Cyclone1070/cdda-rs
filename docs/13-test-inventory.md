@@ -702,3 +702,7 @@ reference asks `is_fleeing` of every monster that moves (`monmove.cpp:489`). Pro
 **Round 1126 brought nerve regrowth across, with new corpus data**: `creature::regen_nerve` (`monster::process_turn`, `monster.cpp:3493-3512`), the `Nerve` component carrying the type's
 morale, anger and `regen_morale`, and monster dump **version 8** adding `regen_morale` (23 of 1,154 types). Gated by
 `creature_fight::a_monster_gets_its_nerve_back_a_point_at_a_time`. **Nothing calls `regen_nerve` from the turn yet** - that wiring is named as the next step.
+
+**Round 1127 wired nerve regrowth into the turn**: `creature::regen_everyones_nerve`, called from `creatures_stage` right after mending (`monster::process_turn`, `monster.cpp:3493`), reading
+the survivor's position once for `is_fleeing`. Gated by `creature_fight::the_turn_gives_a_monster_its_nerve_back` - one point of morale and anger in a turn, and **nothing for a monster one
+hit point short of full**. Dormant in play until something lowers morale (pain, fear, `spooked`).

@@ -1971,6 +1971,54 @@ pub fn take_turns(world: &mut World) {
     }
 }
 
+/// One monster's nerve and the numbers the regrowth rule reads, copied out of the store before it is written back.
+///
+/// The alias is here rather than inline because the tuple has seven parts, and a seven-part tuple written twice is a place for two of them to swap places.
+type Nerves = (Entity, i32, i32, Nerve, i32, i32, (i32, i32, i32));
+
+/// Gives every monster its nerve back a step, once a turn, at full health.
+///
+/// Reference: `monster::process_turn` calls the regrowth block for every monster each turn (`monster.cpp:3493`), and the block's own gate - `type->regen_morale && hp >= type->hp` -
+/// decides whether anything happens. The survivor's position is asked for once here rather than per creature, because `is_fleeing` is the only thing that needs it.
+pub fn regen_everyones_nerve(world: &mut World) {
+    let survivor = {
+        let mut query = world.query_filtered::<(Entity, &Position), bevy_ecs::prelude::With<crate::Player>>();
+        query.iter(world).next().map(|(_, place)| (place.x, place.y, place.z))
+    };
+    let ready: Vec<Nerves> = world
+        .query::<(Entity, &Morale, &Anger, &Nerve, &Health, &Position)>()
+        .iter(world)
+        .map(|(entity, morale, anger, nerve, health, place)| {
+            (
+                entity,
+                morale.0,
+                anger.0,
+                *nerve,
+                health.hp,
+                health.max_hp,
+                (place.x, place.y, place.z),
+            )
+        })
+        .collect();
+    for (entity, morale, anger, nerve, hp, max_hp, here) in ready {
+        let distance = survivor.map_or(i32::MAX, |threat| {
+            (here.0 - threat.0).abs() + (here.1 - threat.1).abs() + (here.2 - threat.2).abs()
+        });
+        let fleeing = is_fleeing(hp, max_hp, morale, anger, distance);
+        let (next_morale, next_anger) = regen_nerve(hp, max_hp, morale, anger, nerve, fleeing);
+        if next_morale != morale
+            && let Some(mut slot) = world.get_mut::<Morale>(entity)
+        {
+            slot.0 = next_morale;
+        }
+        if next_anger != anger
+            && let Some(mut slot) = world.get_mut::<Anger>(entity)
+        {
+            slot.0 = next_anger;
+        }
+    }
+}
+
 /// Every creature that is frightened of the survivor, and the square it is running to.
 ///
 /// Reference: `monmove.cpp:489`, where `is_fleeing` is asked of every monster that moves. The port asks it of every creature carrying `Morale` and `Anger`, because those two are what

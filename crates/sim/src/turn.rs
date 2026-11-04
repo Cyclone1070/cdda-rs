@@ -289,6 +289,9 @@ fn creatures_stage(world: &mut World) {
     crate::creature::dress(world);
     // Reference: `monster::process_turn` mends a monster before it acts (`monster.cpp:4094`), so a creature one point from death this turn can still take its step.
     crate::regeneration::mend_everyone(world);
+    // Reference: `monster::process_turn` regrows a monster's nerve in the same pass that mends it (`monster.cpp:3493-3512`), so a monster that calmed down and one that mended happen
+    // before anything acts this turn.
+    crate::creature::regen_everyones_nerve(world);
     // Reference: `Character::update_stamina` gives a character its wind back every turn (`character.cpp:7022-7082`), which is what makes a long fight cost something and a short
     // one recoverable. A creature with no wind has nothing to recover, so the sweep is written to skip it rather than to give it a pool it never had.
     let windy: Vec<Entity> = world
