@@ -12973,12 +12973,41 @@ the wind | `RAS_time` (`ranged.cpp:2310-2322`): `(25 - percent) * 2` **only belo
 the sum | `attack_moves = time_to_attack + RAS_time` (`ranged.cpp:1060`) | `shot::cost_of_a_shot(...)` |
 Gate | - | `a_gun_s_attack_time_is_its_skill_s_line_floored` and `a_winded_shooter_is_slower_to_fire_but_only_below_a_quarter_wind` |
 
-**The numbers belong to the skill, not the gun, and that is the interesting half.** A rifle's line is `50 - 3 a level, floor 20`; a pistol's is `30 - 1 a level, floor 20`. **Two guns with the
-same `dispersion` can therefore cost different amounts of time to fire, and the gun table the port dumped last round does not carry the figure at all** - it is in `skills.json`, which the
-oracle does not dump yet. **So the port carries the rule and names the missing loader**, rather than reading the JSON directly and calling it ground truth.
+**The numbers belong to the skill, not the gun, and that is the interesting half.** **Archery's** line is `50 - 3 a level, floor 20`; a **rifle's** is `30 - 1 a level, floor 20`; and **marksmanship's** is `220 - 25 a
+level, floor 50`. *This paragraph first said the rifle's line was the 50/3 one - it had read three `time_to_attack` blocks out of `skills.json` and assumed which skill owned which. The dump
+in round 1143 shows the rifle is the 30/1 line and archery is the 50/3 one, and the test now cites each block by the skill that owns it.* **Two guns with the same `dispersion` can therefore
+cost different amounts of time to fire, and the gun table does not carry the figure at all** - it is the skill's, which round 1143 dumped.
 
 **The wind term is a cliff, not a slope**, and the gate pins the edge: 25% free, 24% costs two, 0% costs fifty. **A port that made it a straight line from full wind would be slower in the
 middle of the bar and faster at the bottom** - and no single case would say which of the two it had built.
 
 **Named, not invented:** the skill registry's `time_to_attack` block (the next dump), the reload option's moves (they belong to the round being fetched), `hurt_part_when_fired`, and the
 energy and ammo consumption `fire_gun` interleaves with the burst. **Nothing calls `cost_of_a_shot` yet** - it needs the skills table and a `fire` step.
+
+## The skills table, and the guess it caught (round 1143)
+
+`time_to_attack` reads the **skill's** data, so the port needed the skill registry. The oracle now dumps it: `--dump-skills`, **27 skills**, each with `min_time`, `base_time` and
+`time_reduction_per_level`.
+
+| Piece | Reference | Port |
+|---|---|---|
+data | `struct time_info_t` (`skill.h:23-30`) | `corpus/skills.json`, **version 1** |
+dump | `--dump-skills <file>` in `harness.cpp` | the same command line as the other dumps |
+loader | - | `cdda_content::skills::{SkillTime, read_one, load_dump}` |
+Gate | - | `shot_rules::every_skill_s_attack_time_line_loads_and_the_rifle_is_not_the_default` - **27 skills**, and the four lines a shot is priced with, each by id |
+
+**The dump immediately corrected a falsehood this port had written down.** Round 1142's paragraph said "a rifle's line is `50 - 3 a level`" - it had read three `time_to_attack` blocks out of
+`skills.json` and **assumed** which skill owned which. The truth is:
+
+| Skill | base | per level | floor |
+|---|---|---|---|
+`archery` | 50 | 3 | 20 |
+`rifle`, `pistol`, `shotgun`, `smg` | 30 | 1 | 20 |
+`gun` (marksmanship), `throw` | 220 | 25 | 50 |
+
+**A rifle shot was priced seven times too slow by the port's own documentation**, and the arithmetic gate could not see it because the arithmetic it was handed was consistent - **only the
+corpus could say which skill owned the numbers.** The docs and the test comment now name the skill beside every figure, and the gate reads the four lines **by id**, so the next mistake of this
+kind fails instead of being filed.
+
+**`time_info_t`'s defaults are marksmanship's own line** (50, 220, 25), which is why a port that let the struct default instead of loading the data would be wrong in the same direction.
+**Nothing calls the loader yet** - the next step is `shot::cost_of_a_shot` reading a `SkillTime` for the gun's skill, which is one `find` away.

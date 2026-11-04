@@ -154,3 +154,5 @@ mod monster_mending;
 mod no_fist;
 
 mod gun_rules;
+
+mod shot_rules;

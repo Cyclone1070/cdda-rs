@@ -768,3 +768,7 @@ paid inside `throw_at` before anything is rolled as the reference does. Gated by
 (`RAS_time`, `ranged.cpp:2310-2322` - two moves a percent below a quarter wind, a cliff and not a slope) and `shot::cost_of_a_shot` (their sum plus the round's reach). Gated by
 `shot_rules::a_gun_s_attack_time_is_its_skill_s_line_floored` and `shot_rules::a_winded_shooter_is_slower_to_fire_but_only_below_a_quarter_wind`. **No caller yet**: the skill registry's
 `time_to_attack` block is not dumped, which the docs name.
+
+**Round 1143 dumped and loaded the skills table**: `--dump-skills` (**27 skills**, `corpus/skills.json` version 1) with each skill's `time_info_t` line, and the loader `cdda_content::skills`.
+Gated by `content_suite::shot_rules::every_skill_s_attack_time_line_loads_and_the_rifle_is_not_the_default`, which pins **archery 50/3/20**, **rifle 30/1/20** and **marksmanship 220/25/50**
+by id - and which corrected round 1142's documented claim that the rifle owned the 50/3 line.
