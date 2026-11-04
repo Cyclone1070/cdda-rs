@@ -1619,8 +1619,10 @@ pub fn spawn_monster_of_type(
             // (`monster.cpp:2145`, `damage.add_damage( damage_bash, dice( melee_dice, melee_sides ), melee_dice_ap )`).
             // The type's fixed damage stays the default zero: a monster's blow is dice, and the data states no flat part for it.
             fixed: crate::melee::Damage {
+                bash: monster_type.melee_bash,
+                cut: monster_type.melee_cut,
+                stab: monster_type.melee_stab,
                 penetration: monster_type.melee_dice_ap,
-                ..crate::melee::Damage::default()
             },
             dice: monster_type.melee_dice,
             sides: monster_type.melee_sides,

@@ -41,6 +41,14 @@ pub struct MonsterType {
     pub melee_sides: i32,
     /// How much armour those dice ignore.
     pub melee_dice_ap: i32,
+    /// The flat part of the type's blow, per damage type, which `monster::melee_attack` starts from before adding its dice as bash (`monster.cpp:2149`).
+    ///
+    /// The dump states these as reals because the reference holds a `damage_instance`, and every type in it states a whole number; the loader rounds and says so.
+    pub melee_bash: i32,
+    /// The flat cut part.
+    pub melee_cut: i32,
+    /// The flat stab part.
+    pub melee_stab: i32,
     /// The hit points it mends per hour on its own, when the data states a rate (`mtype::regenerates`).
     pub regenerates: f64,
     /// Its resistance to bash.
@@ -304,6 +312,9 @@ fn apply(monster: &mut MonsterType, object: &Object, inherited: bool) -> Result<
     monster.melee_dice = count(object, "melee_dice", monster.melee_dice)?;
     monster.melee_sides = count(object, "melee_sides", monster.melee_sides)?;
     monster.melee_dice_ap = count(object, "melee_dice_ap", monster.melee_dice_ap)?;
+    monster.melee_bash = real(object, "melee_bash", monster.melee_bash);
+    monster.melee_cut = real(object, "melee_cut", monster.melee_cut);
+    monster.melee_stab = real(object, "melee_stab", monster.melee_stab);
     // Armour is read flat in the dump (`resistance_values` writes one integer per damage type) rather
     // than as the `armor` object the game's JSON uses, because the dump is what this loader is fed.
     monster.armor_bash = count(object, "armor_bash", monster.armor_bash)?;
@@ -343,6 +354,23 @@ fn name_of(object: &Object) -> Option<String> {
 }
 
 /// A plain whole number, adjusted the way `assign` does.
+/// A member the dump states as a real and the world holds as a whole number, rounded the way the reference rounds damage before it is taken off hit points.
+fn real(object: &Object, member: &str, current: i32) -> i32 {
+    let Some(value) = object.get(member) else {
+        return current;
+    };
+    let number = match value {
+        Value::Int(number) => i64::from(i32::try_from(*number).unwrap_or(current)),
+        Value::Float(number) => {
+            #[allow(clippy::cast_possible_truncation)]
+            let whole = *number as i64;
+            whole
+        }
+        _ => return current,
+    };
+    i32::try_from(number).unwrap_or(current)
+}
+
 fn count(object: &Object, member: &str, current: i32) -> Result<i32, LoadError> {
     let value = assigned(object, member, i64::from(current), Unit::Number, 1);
     i32::try_from(value).map_err(|_| LoadError {
@@ -532,6 +560,9 @@ impl MonsterType {
             melee_dice: 0,
             melee_sides: 0,
             melee_dice_ap: 0,
+            melee_bash: 0,
+            melee_cut: 0,
+            melee_stab: 0,
             armor_bash: 0,
             armor_cut: 0,
             armor_stab: 0,

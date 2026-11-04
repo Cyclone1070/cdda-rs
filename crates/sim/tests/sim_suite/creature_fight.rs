@@ -717,3 +717,56 @@ fn a_monster_spawned_from_its_type_carries_that_type_s_armour_piercing() {
         "the flat part of the blow stays zero, because the data states none"
     );
 }
+
+/// A monster whose data states a flat part to its blow hits for that part **as well as** its dice.
+///
+/// Reference: `monster::melee_attack` starts from `type->melee_damage` and then adds the dice as bash (`monster.cpp:2149-2152`). The gate reads the corpus, not a hand-built type:
+/// `mon_crow_mutant_small` states a cut of two and no bash, so a spawn that dropped the flat part would leave the blow with dice alone.
+#[test]
+fn a_monster_whose_data_states_a_flat_blow_hits_for_it() {
+    use bevy_ecs::prelude::*;
+
+    let types = {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+        let text = std::fs::read(path).expect("the monster dump exists");
+        let value = cdda_json::parse(&text).expect("the dump is valid JSON");
+        let cdda_json::Value::Object(root) = value else {
+            panic!("the dump's root is not an object")
+        };
+        let Some(cdda_json::Value::Array(prototypes)) = root.get("prototypes") else {
+            panic!("the dump has no prototypes")
+        };
+        cdda_content::monsters::load_objects(prototypes).expect("the dump loads")
+    };
+    let Some(crow) = types
+        .iter()
+        .find(|one| one.id == "mon_crow_mutant_small")
+    else {
+        panic!("the corpus has the crow")
+    };
+    assert_eq!(crow.melee_cut, 2, "the dump states a cut of two");
+    assert_eq!(crow.melee_bash, 0, "and no bash of its own");
+
+    let mut world = World::new();
+    let mut level = Level::new();
+    for x in 0..3 {
+        for y in 0..3 {
+            level.set_terrain(x, y, 1, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let monster = cdda_sim::creature::spawn_monster_of_type(
+        &mut world,
+        cdda_sim::MonsterKindId(1),
+        crow,
+        (1, 1, 0),
+        100,
+    );
+    let attack = world
+        .get::<cdda_sim::creature::MeleeAttack>(monster)
+        .expect("a spawned monster can hit")
+        .0;
+    assert_eq!(attack.fixed.cut, 2, "the flat cut arrives with the monster");
+    assert_eq!(attack.fixed.bash, 0, "and the flat bash it does not have stays zero");
+    assert!(attack.dice > 0, "and its dice are still there as well: {}", attack.dice);
+}

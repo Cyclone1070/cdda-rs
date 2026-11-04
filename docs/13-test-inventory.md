@@ -616,3 +616,7 @@ and the monster standing again. Gated too at the stage by `creature_fight::a_mon
 (`monster.cpp:2145`). Gated by `creature_fight::a_monster_spawned_from_its_type_carries_that_type_s_armour_piercing`, which reads the **component the spawn writes** rather than swinging,
 because every rule here already worked and only the wiring was missing; its fixture is the corpus's own `mon_zombie` with `melee_dice_ap` changed, so the number cannot drift from the
 data.
+
+**Round 1107 added the flat part of a monster's blow**: dump **version 6** states `melee_bash/cut/stab` from `mtype::melee_damage` (**549 of 1,154** prototypes have one: 518 cut, 22 bash,
+9 stab), the loader reads them, and `spawn_monster_of_type` puts them in the `MeleeAttack` component beside the dice and the piercing. Gated by
+`creature_fight::a_monster_whose_data_states_a_flat_blow_hits_for_it` on the corpus's own `mon_crow_mutant_small` (cut 2, bash 0), so the check is the dump's number reaching the entity.

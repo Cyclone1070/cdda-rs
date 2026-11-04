@@ -12184,3 +12184,26 @@ asks the component. **A rule can be perfect and unreachable in eleven different 
 
 **Named, not done:** `melee_dice_ap` reaches the component but **no monster in the corpus states a non-zero value except a handful**, so the difference it makes is small today and large the
 moment a biting monster is added. That is the right order: the wiring is proved, and the data decides when it matters.
+
+## A blow has a flat part as well as dice - and the dump now states it (round 1107)
+
+`monster::melee_attack` starts from `type->melee_damage` and **then** adds the dice as bash (`monster.cpp:2149-2152`). The port had no column for the flat part, so a clawed creature hit
+for its dice alone.
+
+| Piece | What it says |
+|---|---|
+Dump **version 6** | `melee_bash`, `melee_cut`, `melee_stab` from `proto.melee_damage.type_damage(...)` |
+What the data has | **549 of 1,154** prototypes state a flat part: **518 cut**, **22 bash**, **9 stab** |
+`mon_zombie` | all three zero - a zombie's whole blow is its `2d3`, which is why the port's earlier behaviour looked right |
+Gate | `a_monster_whose_data_states_a_flat_blow_hits_for_it`: `mon_crow_mutant_small` states a cut of two, and the **spawned component** must carry it |
+
+**The dump went first, as it must.** The rule was not written until the reference had stated the numbers; the loader reads a column that exists in a dump on disk, and the gate reads the
+same file the loader reads - so a disagreement between them is a **test failure**, not a mystery in play.
+
+**549 of 1,154 is why this mattered and why it hid.** Half the bestiary hits for a flat cut that the port ignored - but a zombie, the monster every scenario used, states **zero**, so
+nothing the port did looked wrong. **The most-used fixture in a project is the worst place to learn what the data says.**
+
+**Two small disciplines in the loader:**
+- The dump states reals because the reference holds a `damage_instance`, and **every value in it is a whole number** (checked: zero fractional types in 1,154). The loader rounds, with a
+  comment saying why, rather than carrying a float into a world whose damage is counted in whole points.
+- The rounding is the one place clippy's truncation lint is silenced **on purpose**: `as i64` on a whole-valued real is exact, and the comment says so.
