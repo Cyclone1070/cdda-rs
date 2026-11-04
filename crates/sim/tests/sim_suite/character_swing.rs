@@ -128,3 +128,60 @@ fn a_knife_draws_blood_and_empty_hands_do_not() {
         "and the zombie is hurt"
     );
 }
+
+/// A practised hand aims better, by the weapon's own skill and by melee.
+///
+/// Reference: `Character::get_hit_weapon` (`melee.cpp:356-370`) is `skill / 3 + melee_skill / 2 + to_hit`, where `skill` is the one the weapon's **biggest damage type** trains
+/// (`item::melee_skill`, `item.cpp:11071-11090`). A crowbar's damage is bash 19 and cut 1, so its skill is bashing; a combat knife's is stabbing. The melee skill is worth half a
+/// point a level to every weapon, which is why a survivor who has practised anything at all is better with a rock than one who has not.
+#[test]
+fn a_practised_hand_aims_better_by_the_weapons_own_skill() {
+    use std::collections::BTreeMap;
+
+    let (mut world, _null, rock, knife) = world_with_kinds();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Dexterity { base: 8 });
+
+    // Nothing practised: dexterity's two points and the rock's own -1 balance.
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Wielding(rock));
+    let bare = cdda_sim::creature::blow_from_what_the_character_holds(&world, survivor);
+    assert_eq!(
+        bare.accuracy_tenths, 10,
+        "two points of dexterity less one of balance, and no skill at all"
+    );
+
+    // Bashing three and melee four: three tenths a level of bashing and five a level of melee.
+    world.entity_mut(survivor).insert(cdda_sim::creature::Skills(
+        BTreeMap::from([("bashing".to_owned(), 3), ("melee".to_owned(), 4)]),
+    ));
+    assert_eq!(
+        cdda_sim::creature::blow_from_what_the_character_holds(&world, survivor).accuracy_tenths,
+        10 + 10 + 20,
+        "the rock trains bashing, so its skill counts"
+    );
+
+    // A knife trains stabbing, which the survivor has not practised: only the melee skill helps it.
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Wielding(knife));
+    assert_eq!(
+        cdda_sim::creature::blow_from_what_the_character_holds(&world, survivor).accuracy_tenths,
+        10 + 20,
+        "practising bashing does nothing for a blade"
+    );
+}
+
+/// The weapon's skill is the one its **biggest** damage type trains, and a weapon with no damage trains nothing.
+#[test]
+fn a_weapons_skill_is_the_one_its_biggest_damage_trains() {
+    use cdda_sim::melee::weapon_skill;
+    assert_eq!(weapon_skill(19.0, 1.0, 0.0), Some("bashing"), "a crowbar is a club");
+    assert_eq!(weapon_skill(0.0, 0.0, 21.0), Some("stabbing"), "a knife is a point");
+    assert_eq!(weapon_skill(0.0, 12.0, 3.0), Some("cutting"), "a blade is an edge");
+    assert_eq!(weapon_skill(0.0, 3.0, 12.0), Some("stabbing"), "and the point wins when it does more");
+    assert_eq!(weapon_skill(0.0, 0.0, 0.0), None, "a thing that does no damage trains nothing");
+}

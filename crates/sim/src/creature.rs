@@ -1884,6 +1884,23 @@ pub fn strike_at(world: &mut World, attacker: Entity, victim: Entity) -> Option<
     strike_with(world, victim, attack.0)
 }
 
+/// What a character has practised, by skill id, and how far.
+///
+/// Reference: `Character::get_skill_level` (`character.cpp`) reads `_skills`, a map from skill id to a level whose experience is tracked separately. The port keeps the level
+/// alone: nothing practises a skill yet, so an exercise table would be a structure with no rule behind it. A creature with no [`Skills`] answers zero for every skill, the same
+/// convention the stats use.
+#[derive(Component, Debug, Clone, Default)]
+pub struct Skills(pub std::collections::BTreeMap<String, i32>);
+
+/// How far a creature has practised a skill.
+#[must_use]
+pub fn skill_level(world: &World, entity: Entity, skill: &str) -> i32 {
+    world
+        .get::<Skills>(entity)
+        .and_then(|skills| skills.0.get(skill).copied())
+        .unwrap_or(0)
+}
+
 /// What a character is holding out to hit with, as the kind of thing it is.
 ///
 /// Reference: `Character::get_wielded_item` (`character.cpp`) is the item a blow is built from, and `melee_attack_abstract` takes the null item when there is none. The port keeps
@@ -1903,20 +1920,25 @@ pub struct Wielding(pub crate::ItemTypeId);
 pub fn blow_from_what_the_character_holds(world: &World, holder: Entity) -> crate::melee::Attack {
     let kind = world.get::<Wielding>(holder).map(|held| held.0);
     let names = crate::item_registry::peek(world);
-    let names = names.cloned().unwrap_or_default();
     let (to_hit, bash, cut, stab) = kind.map_or((-2, 0.0, 0.0, 0.0), |kind| {
-        (
-            names.to_hit_of(kind),
-            names.melee_bash_of(kind),
-            names.melee_cut_of(kind),
-            names.melee_stab_of(kind),
-        )
+        names.map_or((-2, 0.0, 0.0, 0.0), |names| {
+            (
+                names.to_hit_of(kind),
+                names.melee_bash_of(kind),
+                names.melee_cut_of(kind),
+                names.melee_stab_of(kind),
+            )
+        })
     });
+    // Reference: `get_hit_weapon` (`melee.cpp:356-370`) asks the weapon's own skill - the one its biggest damage type trains - and the melee skill, which every weapon uses.
+    let weapon_skill = crate::melee::weapon_skill(bash, cut, stab);
+    let weapon_level = weapon_skill.map_or(0, |skill| skill_level(world, holder, skill));
+    let melee_level = skill_level(world, holder, "melee");
     #[allow(clippy::cast_possible_truncation)]
     let whole = |amount: f64| amount as i32;
     crate::melee::Attack {
         accuracy_tenths: crate::melee::hit_base_tenths(effective_dexterity(world, holder))
-            + crate::melee::hit_weapon_tenths(0, 0, to_hit),
+            + crate::melee::hit_weapon_tenths(weapon_level, melee_level, to_hit),
         #[allow(clippy::cast_possible_truncation)]
         fixed: crate::melee::Damage {
             bash: whole(bash),

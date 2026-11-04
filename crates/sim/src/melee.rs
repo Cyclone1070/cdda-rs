@@ -275,3 +275,21 @@ pub fn hit_base_tenths(dexterity: i32) -> i32 {
 pub fn hit_weapon_tenths(weapon_skill: i32, melee_skill: i32, to_hit: i32) -> i32 {
     weapon_skill * 10 / 3 + melee_skill * 10 / 2 + to_hit * 10
 }
+
+/// The skill a weapon is swung with: the one its biggest damage type trains.
+///
+/// Reference: `item::melee_skill` (`item.cpp:11071-11090`) walks the **damage types**, keeps the one whose melee damage is highest, and answers that type's `skill`; a type with no
+/// skill is skipped, and an item that is not a melee weapon answers the null skill. The three melee types and their skills are the data's own - `bash` trains `bashing`, `cut`
+/// trains `cutting`, `stab` trains `stabbing` (`data/json/damage_types.json`) - and they are transcribed here rather than loaded because nothing else in the port asks a damage
+/// type what skill it trains. When something does, this table moves into the content crate and the function keeps its shape.
+#[must_use]
+pub fn weapon_skill(bash: f64, cut: f64, stab: f64) -> Option<&'static str> {
+    let mut best: Option<(f64, &'static str)> = None;
+    for (amount, skill) in [(bash, "bashing"), (cut, "cutting"), (stab, "stabbing")] {
+        // The reference's test is `val > hi` **and** the type carries a skill, starting from zero - so a weapon whose every damage type is zero trains nothing.
+        if amount > 0.0 && best.is_none_or(|(highest, _)| amount > highest) {
+            best = Some((amount, skill));
+        }
+    }
+    best.map(|(_, skill)| skill)
+}

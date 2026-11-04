@@ -11960,3 +11960,36 @@ silences, two different numbers.
 
 **The gate caught a stale-directory trap in its own fixture first.** Reusing one scratch directory between cases made the loader answer the **first** record every time; the fix was a
 fresh directory per record, and the doc comment now says why. **A test that loads from a shared directory is a test of whatever the directory last contained.**
+
+## The loader and the reference agree on all 9,912 items (round 1097)
+
+The registry gate proved the registry carries what it is handed. This round a second gate proves **the loader hands it the right thing** - and it found nothing, which is the point.
+
+| Gate | What it compares |
+|---|---|
+`content_suite::item_melee_parity` | **9,912** item types, loaded from the game's own data, against the dump's `to_hit` and its three melee columns - wrong ones counted |
+`sim_suite::melee_rules` | the registry, built from the dump, answers what it was given |
+
+**Two gates, two different mistakes.** Round 1096's bug - an object `to_hit` read as the -2 default - passed every registry test, because **the registry's fixture was built from the dump
+and so was the expectation**: the gate could not see the loader at all. **A fixture built from the same source as the expectation proves only that the source agrees with itself.**
+
+## A weapon is swung with the skill its biggest damage trains (round 1097)
+
+The last piece of `get_hit_weapon` that the port could not supply: which skill a weapon uses.
+
+| Piece | Where |
+|---|---|
+`melee::weapon_skill(bash, cut, stab)` | `item::melee_skill` (`item.cpp:11071-11090`) - the damage type with the **highest** melee damage, its `skill`, skipping types with none |
+`creature::Skills(map)` + `skill_level` | `Character::get_skill_level` - the level alone, because nothing practises yet |
+`blow_from_what_the_character_holds` | weapon level from the weapon's own skill, melee level from `"melee"`, both into `hit_weapon_tenths` |
+Gates | `a_weapons_skill_is_the_one_its_biggest_damage_trains`, `a_practised_hand_aims_better_by_the_weapons_own_skill` |
+
+**The mapping is data and the port transcribes it with a note saying so:** `bash → bashing`, `cut → cutting`, `stab → stabbing` are `data/json/damage_types.json`'s own. The function keeps
+its shape so the table can move into the content crate the day something else asks a damage type what skill it trains.
+
+**`weapon_skill(0, 0, 0)` is `None`, and that is the reference's own guard.** A thing that does no damage trains nothing - which is exactly the null item, so a weaponless blow gets no
+skill bonus and no invented one.
+
+**A test bug worth recording: the fixture's tuple order.** `world_with_kinds` returns `(world, null, rock, knife)` and the new test destructured it as `(world, rock, _, knife)`, so the
+"rock" it swung was **the null item** - and the assertion read **0** where 10 was expected. **The numbers said which slot was wrong**, which is what a gate with an exact expectation is
+for; a looser assertion (`>= 0`) would have passed and taught nothing.

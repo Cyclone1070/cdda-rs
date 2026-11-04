@@ -84,6 +84,7 @@ mod item_groups;
 mod item_length;
 mod item_nutrition;
 mod item_pockets;
+mod item_melee_parity;
 mod items;
 mod link_ups;
 mod map_oracle;

@@ -571,3 +571,8 @@ scenario needs a `turn` between the killing blow and `expect no monster`.
 **Round 1096 ported the `to_hit` object rule**: `melee_accuracy` (`item_factory.cpp:3929-3968`) sums four qualities against a **-7** offset, so an empty object is **0**, not the
 **-2** that a record with no `to_hit` member gets. `content_suite::melee_accuracy` pins the four tables, the crowbar's own 0, a good weapon's 2 and a clumsy one's -7. **Before this
 round every object-stated item - most of the game's weapons - aimed two points worse than its data**, which is why the survivor's playtest missed so often.
+
+**Round 1097 closed the accuracy chain and proved it end to end**: `content_suite::item_melee_parity` compares **all 9,912** loaded item types against the dump's `to_hit` and three
+melee columns - the gate that would have caught round 1096's object-`to_hit` bug, which every registry test missed because both the fixture and the expectation came from the dump.
+Alongside it, `melee::weapon_skill` (`item::melee_skill`, `item.cpp:11071-11090`), `creature::Skills`/`skill_level` and the wiring into `blow_from_what_the_character_holds`: **a weapon
+is swung with the skill its biggest damage type trains**, and a thing that does no damage trains nothing.
