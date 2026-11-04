@@ -35,6 +35,8 @@ pub struct GunType {
     pub ammo_to_fire: i32,
     /// How steady the weapon is in the hands: `gun_type::handling`, in the data's own whole units, which `item::gun_recoil` divides by ten.
     pub handling: i32,
+    /// The sights' own error: `gun_type::sight_dispersion`, which `item::sight_dispersion` hands to `Character::effective_dispersion` and the shooter's eyes make worse.
+    pub sight_dispersion: i32,
 }
 
 
@@ -55,6 +57,7 @@ pub fn read_one(id: &str, object: &Object) -> Result<GunType, String> {
     gun.damage_bullet = number(object, "damage_bullet", gun.damage_bullet)?;
     gun.ammo_to_fire = number(object, "ammo_to_fire", gun.ammo_to_fire)?;
     gun.handling = number(object, "handling", gun.handling)?;
+    gun.sight_dispersion = number(object, "sight_dispersion", gun.sight_dispersion)?;
     if let Some(Value::Float(damage)) = object.get("damage") {
         gun.damage = *damage;
     } else if let Some(Value::Int(damage)) = object.get("damage") {

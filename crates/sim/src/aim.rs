@@ -79,3 +79,21 @@ pub fn point_shooting_limit(skill_level: i32, archery: bool) -> i32 {
         (200.0 - 10.0 * skill) as i32
     }
 }
+
+/// What a gun's sights are worth in a shooter's hands, and how fast those sights would bring the aim down.
+///
+/// Reference: `item::sight_dispersion` (`item.cpp:11134-11160`) hands the gun's own figure to `Character::effective_dispersion`, and `modified_sight_speed` takes the result as its
+/// `effective_sight_dispersion`. The port joins the two here so that the chain - **gun data, shooter's eyes, recoil, speed** - is one call with the reference's own four numbers in it.
+///
+/// `DISABLE_SIGHTS`, which the reference treats as a flat 300, is not read: the flag is in the item data and its handling is named in `docs/parity.md` rather than guessed.
+#[must_use]
+pub fn sight_report(
+    gun: &cdda_content::guns::GunType,
+    perception: i32,
+    recoil: i32,
+    zoom: bool,
+) -> (i32, f64) {
+    let dispersion = effective_dispersion(gun.sight_dispersion, perception, zoom);
+    let speed = sight_speed_with_attenuation(0.0, f64::from(dispersion), f64::from(recoil));
+    (dispersion, speed)
+}

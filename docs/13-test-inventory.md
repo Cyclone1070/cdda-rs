@@ -825,3 +825,7 @@ dispersion the port composed from round 1136 to 1154 was eighteen times too larg
 **Round 1156 ported sight error**: `aim::character_parallax` (`get_character_parallax`, `character.cpp:946-953` - perception's dispersion, a quarter of it through a zoom, clamped at zero after
 rounding) and `aim::effective_dispersion` (`character.cpp:941-944`). Gated by
 `aim_rules::the_same_sights_are_worse_in_weak_eyes_and_a_zoom_takes_a_quarter_off`. The gun's `sight_dispersion` column is **not dumped yet**, which the docs name.
+
+**Round 1157 joined sights, eyes, recoil and speed**: `GunType::sight_dispersion` (guns dump **version 5**) and `aim::sight_report(gun, perception, recoil, zoom)` over round 1156's parallax and
+round 1154's attenuation. Gated by `content_suite::gun_rules::every_gun_states_the_error_its_sights_add` (a Mini-14's 40, a longbow's 200+, and the data's floor of **10**) and
+`sim_suite::aim_rules::a_gun_s_sights_are_worse_in_poor_eyes_and_worth_nothing_while_the_shooter_is_shaking`.

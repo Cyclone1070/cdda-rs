@@ -3,7 +3,7 @@
 //! Reference: `modified_sight_speed` and `point_shooting_limit` (`character.cpp:955-987`). Both are arithmetic over the recoil round 1152 accumulates and the skill a gun names, so the gate
 //! works them by hand and pins the two ends of each curve.
 
-#![allow(clippy::panic)]
+#![allow(clippy::panic, clippy::expect_used)]
 
 /// The sight-speed bonus fades to nothing as the recoil approaches the sights' own precision, and is full once it is well past.
 ///
@@ -84,4 +84,33 @@ fn the_same_sights_are_worse_in_weak_eyes_and_a_zoom_takes_a_quarter_off() {
         effective_dispersion(100, 8, false) > effective_dispersion(100, 10, false),
         "worse eyes, worse sights: 114 against 112"
     );
+}
+
+/// A gun's sights, in a shooter's eyes, against the recoil that shooter is carrying: the whole aiming chain in one call.
+///
+/// Reference: `item::sight_dispersion` → `Character::effective_dispersion` → `modified_sight_speed` (`item.cpp:11134-11160`, `character.cpp:941-975`). The gate uses the corpus's own
+/// Mini-14, whose sights are **40**, and shows the two things a port gets wrong: **the same sights are worse in worse eyes**, and **the speed bonus is nothing until the recoil is past them.**
+#[test]
+fn a_gun_s_sights_are_worse_in_poor_eyes_and_worth_nothing_while_the_shooter_is_shaking() {
+    use cdda_sim::aim::sight_report;
+
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/guns.json");
+    let bytes = std::fs::read(path).expect("the corpus file exists");
+    let value = cdda_json::parse(&bytes).expect("valid JSON");
+    let guns = cdda_content::guns::load_dump(&value).expect("the guns load");
+    let gun = guns.iter().find(|gun| gun.id == "ruger_mini").expect("the Mini-14").clone();
+    assert_eq!(gun.sight_dispersion, 40, "the corpus says its sights are forty");
+
+    let (good_eyes, _) = sight_report(&gun, 20, 1_000, false);
+    let (poor_eyes, _) = sight_report(&gun, 8, 1_000, false);
+    assert_eq!(good_eyes, 40, "in perfect eyes the sights are the sights");
+    assert_eq!(poor_eyes, 54, "and in eight-perception eyes they are 40 + 14");
+    assert!(poor_eyes > good_eyes, "worse eyes, worse sights");
+
+    // The speed bonus: nothing while the recoil is inside the sights, and the full ten once it is past three times them plus one.
+    let (sights, calm) = sight_report(&gun, 20, 20, false);
+    let (_, shaking) = sight_report(&gun, 20, 500, false);
+    assert!(calm.abs() < f64::EPSILON, "no bonus while the aim is inside the sights: {calm}");
+    assert!((shaking - 10.0).abs() < 0.000_1, "and the full ten when it is far outside: {shaking}");
+    assert_eq!(sights, 40, "the sights do not change with the recoil");
 }

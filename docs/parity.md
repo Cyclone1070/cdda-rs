@@ -13303,3 +13303,24 @@ twenty cannot make the sights better than the sights, because the parallax floor
 **Named, not invented:** `character_modifier_ranged_dispersion_vision_mod` (one point zero in the port - no effect it carries states one), eye encumbrance and blindness (the reference's
 `ranged_per_mod` path does not read them; `throwing_dispersion` does, and that is a different rule), and the **gun's own `sight_dispersion` column**, which the guns dump does not carry yet - so
 every number in this round is the rule's, and the data that feeds it is the next dump.
+
+## A gun's sights, in a shooter's eyes, against the recoil they carry (round 1157)
+
+| Piece | Reference | Port |
+|---|---|---|
+data | `gun_type::sight_dispersion` | guns dump **version 5** |
+use | `item::sight_dispersion` → `effective_dispersion` → `modified_sight_speed` | `aim::sight_report(gun, perception, recoil, zoom)` |
+Gates | - | `every_gun_states_the_error_its_sights_add` (content) and `a_gun_s_sights_are_worse_in_poor_eyes_and_worth_nothing_while_the_shooter_is_shaking` (sim) |
+
+**The chain the port has been building in pieces is now one call**, and it reads four numbers from four different places: the gun's sights (**40** for a Mini-14), the shooter's perception,
+the recoil it accumulated last round, and whether the sight is zoomed.
+
+**The data's floor is ten, not zero** - and the first version of the content gate asserted zero because I expected a gun to be able to state no sights at all. **No gun does**: every one in the
+reference's data has some sight error, so the aiming rule's zero case is a hand-built one rather than a data one, and the gate now says so.
+
+**Two rules meet here that disagree about what "better" means.** Better eyes make the sight **number bigger** (54 against 40) and that makes the aiming bonus **smaller** (nothing until the recoil
+is past the sights) - so a port that "improved" the sight figure or "improved" the speed independently would be wrong in the same direction twice. **The gate asserts both in one test, because
+they are one rule.**
+
+**Named, not invented:** `DISABLE_SIGHTS` (the reference's flat 300 for a gun whose sights are disabled), gunmods' sight modifiers, and the aim-method table that decides *which* sights are in
+use - the port reads the gun's own figure and assumes its sights are the ones aimed through.

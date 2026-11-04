@@ -126,3 +126,31 @@ fn a_shot_spends_the_rounds_the_gun_s_own_data_says() {
     let rifle = guns.iter().find(|gun| gun.id == "ruger_mini").expect("the Mini-14");
     assert_eq!(rifle.ammo_to_fire, 1, "a rifle spends one round");
 }
+
+/// Every gun's sights, which is the number the aiming rules were waiting for.
+///
+/// Reference: `gun_type::sight_dispersion`, read by `item::sight_dispersion` (`item.cpp:11134-11160`) and made worse by the shooter's eyes in `Character::effective_dispersion`
+/// (`character.cpp:941-944`). The gate pins the data's own spread rather than a single figure: **a rifle's 40, a bow's 200 or more**, and the floor of the distribution, because the aiming
+/// rules divide by these numbers and a zero would be a division by nothing.
+#[test]
+fn every_gun_states_the_error_its_sights_add() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/guns.json");
+    let bytes = std::fs::read(path).expect("the guns dump exists");
+    let value = cdda_json::parse(&bytes).expect("valid JSON");
+    let guns = cdda_content::guns::load_dump(&value).expect("the dump loads");
+
+    let sight = |id: &str| guns.iter().find(|gun| gun.id == id).expect("the gun is in the dump").sight_dispersion;
+    assert_eq!(sight("ruger_mini"), 40, "a Mini-14's iron sights are forty");
+    assert!(sight("longbow") >= 200, "and a longbow's are at least two hundred: {}", sight("longbow"));
+
+    // The distribution, so a loader that dropped the column would fail even if two guns happened to read zero.
+    let distinct: std::collections::BTreeSet<i32> = guns.iter().map(|gun| gun.sight_dispersion).collect();
+    assert!(distinct.len() > 5, "the data states many different sights: {} distinct values", distinct.len());
+    // The lowest is **ten**, not zero: every gun in the reference's data states some sight error, so the aiming rules' zero case is a hand-built one rather than a data one.
+    assert_eq!(distinct.iter().copied().min(), Some(10), "and the lowest is ten - no gun states no sights at all");
+    assert!(
+        guns.iter().filter(|gun| gun.sight_dispersion > 0).count() > 300,
+        "most guns do state one: {}",
+        guns.iter().filter(|gun| gun.sight_dispersion > 0).count()
+    );
+}
