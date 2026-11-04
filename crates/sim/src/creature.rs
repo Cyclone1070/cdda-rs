@@ -1916,7 +1916,7 @@ pub fn take_turns(world: &mut World) {
     }
     // What a creature is walking towards: its own goal when it has one, and otherwise whatever it heard. Reference: `monster::move` reads `wander_pos` only when the
     // monster has no `goal` of its own, so a monster that has decided something is not pulled off course by a noise.
-    let walkers: Vec<(Entity, (i32, i32, i32), bool)> = world
+    let mut walkers: Vec<(Entity, (i32, i32, i32), bool)> = world
         .query::<(Entity, Option<&Goal>, Option<&Wander>)>()
         .iter(world)
         .filter_map(|(entity, goal, wander)| {
@@ -1924,6 +1924,13 @@ pub fn take_turns(world: &mut World) {
                 .or_else(|| wander.map(|wander| (entity, wander.square, false)))
         })
         .collect();
+    // A frightened creature walks even when nothing told it where to go: the reference asks `is_fleeing` inside `monster::move` (`monmove.cpp:489`), which every monster runs, not only
+    // the ones with a goal. Without this, a panicking civilian stands still until something gives it a destination - which is what the scenario found.
+    for (entity, square) in fleeing_creatures(world) {
+        if !walkers.iter().any(|(walking, _, _)| *walking == entity) {
+            walkers.push((entity, square, false));
+        }
+    }
     for (entity, goal, is_goal) in walkers {
         if working.contains(&entity) {
             continue;
@@ -1957,6 +1964,22 @@ pub fn take_turns(world: &mut World) {
             }
         }
     }
+}
+
+/// Every creature that is frightened of the survivor, and the square it is running to.
+///
+/// Reference: `monmove.cpp:489`, where `is_fleeing` is asked of every monster that moves. The port asks it of every creature carrying `Morale` and `Anger`, because those two are what
+/// the attitude is made of and nothing else in the port has them.
+#[must_use]
+pub fn fleeing_creatures(world: &mut World) -> Vec<(Entity, (i32, i32, i32))> {
+    let candidates: Vec<Entity> = world
+        .query_filtered::<Entity, (bevy_ecs::prelude::With<Morale>, bevy_ecs::prelude::With<Anger>)>()
+        .iter(world)
+        .collect();
+    candidates
+        .into_iter()
+        .filter_map(|entity| fleeing_from_a_scared_monster(world, entity).map(|square| (entity, square)))
+        .collect()
 }
 
 /// Where a creature goes instead of its goal when it is frightened of the survivor, if it is.

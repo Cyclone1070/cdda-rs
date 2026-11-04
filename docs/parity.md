@@ -12540,3 +12540,25 @@ was headed, and the port leaves the goal in place so that is what happens.
 
 **The third one is the round's real lesson: a movement gate in a world without move costs silently tests nothing**, and its failure looks exactly like a broken rule. The test now builds
 the terrain table it needs and says why in a comment.
+
+## Fear moves a creature that was never told where to go (round 1124)
+
+Round 1123 made the walk ask the attitude - but only for creatures that were **already walking**. A panicking civilian has no goal and no noise to follow, so it stood still while a
+scenario watched it. `scenarios/a_wounded_civilian_runs.txt` now proves the fix: one crowbar hit, three turns, and it is **four squares away** with the survivor untouched.
+
+| Piece | Reference | Port |
+|---|---|---|
+who is asked | `is_fleeing` inside `monster::move`, which **every** monster runs (`monmove.cpp:489`) | `fleeing_creatures`, asked of every creature carrying `Morale` and `Anger` |
+what a scared creature does | prefers the farthest square | it is added to the walk list with a flee square, whether or not it has a goal |
+Gate | - | `a_wounded_civilian_runs` - `mon_civilian_panic` (**morale -50, aggression -50**), hit once, then three turns: nothing at the old square, something four squares away, survivor still at 80 |
+
+**The scenario is written from the data, not around it.** Both numbers are negative, so `morale + anger > 0` is false on the very first hit and the reference's negative-morale branch
+answers **flee** immediately - the port does not have to wound the civilian to sixty per cent to make it run. **The scenario's own comment says which branch it is exercising, so the
+next reader does not have to re-derive it.**
+
+**What the scenario caught is the same shape as last round's defect, one layer out.** Round 1123 put the flee square **inside** the walk loop; this round found that the loop's *entry*
+was still "has a goal or a wander". **A rule can be correct, wired, and still unreachable** - and this time it was the data path (the walk list) rather than the arithmetic that made it
+unreachable.
+
+**The daily-morale rule is named and not invented.** The reference drifts `morale` back toward the type's value at one in four a turn (`monster.cpp:1877`), which is what lets a frightened
+monster recover its nerve and come back. The port has no drift yet, so a panicking civilian panics for ever: **that is a gap, and it is written down rather than papered over.**

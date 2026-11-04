@@ -690,3 +690,7 @@ boundaries pinned at `hp > max/3` and `hp <= 0.6 * max`) plus `Morale` and `Ange
 **Round 1123 made the walk ask the attitude**: `creature::flee_goal` (the reference's inverted distance term at `monmove.cpp:489`, **declared divergence**: the reference scores eight
 neighbours, the port reflects the threat and lets the router route) and `fleeing_from_a_scared_monster`, called from the walk loop in `take_turns`. Gated by
 `creature_fight::a_frightened_monster_runs_from_the_survivor_instead_of_walking_to_its_goal`.
+
+**Round 1124 let fear move a creature with no goal**: `creature::fleeing_creatures` adds every frightened creature (those carrying `Morale` and `Anger`) to the walk list, because the
+reference asks `is_fleeing` of every monster that moves (`monmove.cpp:489`). Proved in play by `scenarios/a_wounded_civilian_runs.txt` - `mon_civilian_panic` (morale -50, aggression
+-50) hit once and four squares away three turns later, with the survivor untouched - and the drift that would let it recover its nerve (`monster.cpp:1877`) is named as a gap.

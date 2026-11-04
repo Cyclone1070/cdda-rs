@@ -1,0 +1,19 @@
+# Fear, in play: a panicking civilian runs from the survivor instead of fighting back.
+#
+# `mon_civilian_panic` has morale **-50** and aggression **-50**, so `monster::attitude_to` reaches its negative-morale branch and asks whether `morale + anger > 0` - it is not, so the
+# monster **flees** (`monster.cpp:1809-1814`). `monmove.cpp:489` then turns the distance term of its movement score around, which is why it walks away rather than at the survivor: three
+# turns take it out of reach, and the survivor, who never got hit, is still at eighty.
+world 12 bare
+survivor 2 5
+items
+monsters
+data
+seed 5
+monster mon_civilian_panic 3 5
+wield crowbar
+attack 3 5
+attack 3 5
+turn 3
+expect no monster at 3 5
+expect monster within 6
+expect hurt 0
