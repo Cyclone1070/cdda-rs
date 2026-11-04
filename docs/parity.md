@@ -12392,3 +12392,25 @@ because the rule had been sitting uncalled for a round.
 
 **Named, not invented:** cardio fitness (so the ceiling stays at 3,500), stamina **recovery** (`Character::update_stamina`, `character.cpp:7022-7090`, which needs cardio, stimulants,
 mouth encumbrance and bionics), and the stance penalty, which needs crouching and prone to exist.
+
+## Wind comes back every turn, and panic slows it (round 1118)
+
+Last round gave a character a stamina pool and spent it; this round **refills** it, so the pool means something over a fight rather than only draining.
+
+| Piece | Reference | Port |
+|---|---|---|
+the rate | `PLAYER_BASE_STAMINA_REGEN_RATE` = **20** a turn (`data/core/external_options.json`) | `regeneration::BASE_WIND_BACK_PER_TURN` |
+the multiplier | **one**, or **a tenth when winded**, floored at a tenth (`character.cpp:7033-7036`) | `wind_back_per_turn(rate, winded)` |
+the floor | `std::max( 1.0f, ... )` - there is always some recovery | the same |
+applying it | `ceil( recovery * turns )`, then clamped to `[0, max]` (`character.cpp:7079-7082`) | `recover_wind`, which returns what it gave |
+where | every turn, for a character (`character.cpp:7022`) | `creatures_stage`, before anything acts |
+Gates | - | `a_turn_gives_wind_back_and_panic_slows_it` (the arithmetic and the cap) and `the_turn_gives_a_character_its_wind_back` (the stage, plus a monster being left without a pool) |
+
+**The tenth is the whole idea: panicking costs you the fight.** A winded character recovers two a turn instead of twenty, so the reference makes panic *self-sustaining* - the longer you
+stay scared, the longer you cannot run. **A port that recovered at a flat rate would quietly delete the only penalty in the game that punishes being frightened.**
+
+**The stage gate asserts the negative case too.** A monster is not given a pool: `recover_wind` finds no `Stamina` and answers zero. **A sweep that created one for every creature
+would have made monsters tire, which the reference's monsters never do** - and no ordinary test of the survivor would have noticed.
+
+**Named, not invented:** cardio fitness (the rate is the base rate because `get_cardiofit / get_cardio_acc_base` is one in a port with no cardio), stimulants (which add up to five a turn),
+mouth encumbrance, and `effect_winded` itself - the port reads the flag but nothing puts it on yet.

@@ -958,3 +958,83 @@ fn a_monster_that_hits_and_runs_is_running_after_its_blow() {
     }
     assert!(ran, "and one with the flag runs after a blow that lands");
 }
+
+/// Wind comes back every turn, faster when it has not been lost to panic.
+///
+/// Reference: `Character::update_stamina` (`character.cpp:7022-7082`) recovers `ceil( rate * turns )` a turn, where the rate is `PLAYER_BASE_STAMINA_REGEN_RATE` (20, from
+/// `data/core/external_options.json`) scaled by a multiplier that is **one normally and a tenth when winded** (`has_effect( effect_winded ) ? 0.1f : 1.0f`, floored at 0.1), and then
+/// clamps the result to between zero and the maximum. The port has no cardio fitness, so the effective rate is the base rate; that is named in the roadmap, not invented here.
+#[test]
+fn a_turn_gives_wind_back_and_panic_slows_it() {
+    use cdda_sim::regeneration::{recover_wind, wind_back_per_turn};
+
+    assert!(
+        (wind_back_per_turn(20.0, false) - 20.0).abs() < 0.001,
+        "twenty a turn at rest"
+    );
+    assert!(
+        (wind_back_per_turn(20.0, true) - 2.0).abs() < 0.001,
+        "and two when winded, which is a tenth"
+    );
+    // A rate under one is still at least one a turn: `std::max( 1.0f, ... )`.
+    assert!(
+        (wind_back_per_turn(0.0, false) - 1.0).abs() < 0.001,
+        "there is always some recovery"
+    );
+
+    let mut world = World::new();
+    let survivor = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Stamina { cur: 100.0, max: 3_500.0 });
+    recover_wind(&mut world, survivor, 20.0, false, 1);
+    let after = world
+        .get::<cdda_sim::creature::Stamina>(survivor)
+        .expect("the survivor has wind")
+        .cur;
+    assert!((after - 120.0).abs() < 0.001, "one turn gives twenty back: {after}");
+
+    // And it never goes above the ceiling.
+    recover_wind(&mut world, survivor, 20.0, false, 1_000);
+    let capped = world
+        .get::<cdda_sim::creature::Stamina>(survivor)
+        .expect("still there")
+        .cur;
+    assert!((capped - 3_500.0).abs() < 0.001, "and stops at the ceiling: {capped}");
+}
+
+/// The turn gives a character its wind back, and a creature without wind is left alone.
+///
+/// Reference: `Character::update_stamina` runs every turn for a character (`character.cpp:7022`). The gate drives the **stage**: a survivor drained to nothing comes out of a turn
+/// with twenty, and a monster - which has no stamina pool at all - is not given one by the sweep.
+#[test]
+fn the_turn_gives_a_character_its_wind_back() {
+    use bevy_ecs::prelude::*;
+
+    let mut world = World::new();
+    singletons::put_rolls(&mut world, Rolls::new(29));
+    let mut level = Level::new();
+    for x in 0..4 {
+        for y in 0..4 {
+            level.set_terrain(x, y, 1, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let survivor = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Stamina { cur: 0.0, max: 3_500.0 });
+    let monster = cdda_sim::creature::spawn_creature(&mut world, "a rat", (2, 2, 0));
+
+    cdda_sim::turn::run_turn(&mut world);
+
+    let wind = world
+        .get::<cdda_sim::creature::Stamina>(survivor)
+        .expect("the survivor still has wind")
+        .cur;
+    assert!((wind - 20.0).abs() < 0.001, "a turn gives twenty back: {wind}");
+    assert!(
+        world.get::<cdda_sim::creature::Stamina>(monster).is_none(),
+        "and a creature with no wind is not handed one"
+    );
+}

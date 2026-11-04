@@ -143,3 +143,33 @@ pub fn ready_to_revive(age_hours: i32, damage_level: i32, rolls: &mut cdda_core_
     let rez_factor = 48 - age;
     rez_factor <= 0 || rolls.one_in(rez_factor)
 }
+
+/// How much wind a character gets back in a turn at rest: `PLAYER_BASE_STAMINA_REGEN_RATE` (`data/core/external_options.json`).
+pub const BASE_WIND_BACK_PER_TURN: f64 = 20.0;
+
+/// How much wind comes back in a turn.
+///
+/// Reference: `Character::update_stamina` (`character.cpp:7022-7082`). The multiplier is one normally and **a tenth when winded**, floored at a tenth
+/// (`std::max<float>( 0.1f, base_multiplier )`), and the rate itself is floored at one - `std::max( 1.0f, effective_regen_rate ... )` - so there is always some recovery.
+#[must_use]
+pub fn wind_back_per_turn(base_rate_per_turn: f64, winded: bool) -> f64 {
+    let multiplier: f64 = if winded { 0.1 } else { 1.0 };
+    let multiplier = multiplier.max(0.1);
+    multiplier * base_rate_per_turn.max(1.0)
+}
+
+/// Gives a character its wind back over some turns, clamped to what it can hold.
+///
+/// Reference: `Character::update_stamina`'s tail (`character.cpp:7079-7082`): `ceil( stamina_recovery * turns )`, added, then `std::min( std::max( get_stamina(), 0 ), max_stam )`.
+pub fn recover_wind(world: &mut World, entity: Entity, base_rate_per_turn: f64, winded: bool, turns: i64) -> i32 {
+    let per_turn = wind_back_per_turn(base_rate_per_turn, winded);
+    #[allow(clippy::cast_precision_loss)]
+    let total = (per_turn * turns as f64).ceil();
+    #[allow(clippy::cast_possible_truncation)]
+    let added = total as i32;
+    if let Some(mut stamina) = world.get_mut::<crate::creature::Stamina>(entity) {
+        stamina.cur = (stamina.cur + f64::from(added)).clamp(0.0, stamina.max);
+        return added;
+    }
+    0
+}

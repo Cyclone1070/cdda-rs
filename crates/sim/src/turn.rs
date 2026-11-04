@@ -289,6 +289,23 @@ fn creatures_stage(world: &mut World) {
     crate::creature::dress(world);
     // Reference: `monster::process_turn` mends a monster before it acts (`monster.cpp:4094`), so a creature one point from death this turn can still take its step.
     crate::regeneration::mend_everyone(world);
+    // Reference: `Character::update_stamina` gives a character its wind back every turn (`character.cpp:7022-7082`), which is what makes a long fight cost something and a short
+    // one recoverable. A creature with no wind has nothing to recover, so the sweep is written to skip it rather than to give it a pool it never had.
+    let windy: Vec<Entity> = world
+        .query::<(Entity, &crate::creature::Stamina)>()
+        .iter(world)
+        .map(|(entity, _)| entity)
+        .collect();
+    for entity in windy {
+        let winded = crate::applied_effects::has(world, entity, "winded");
+        let _back = crate::regeneration::recover_wind(
+            world,
+            entity,
+            crate::regeneration::BASE_WIND_BACK_PER_TURN,
+            winded,
+            1,
+        );
+    }
     // The dead are cleared before anything acts, so a creature killed this turn does not also walk.
     // The dead are cleared before anything acts, so a creature killed this turn does not also walk. When the content has said what a corpse is, the sweep leaves one behind -
     // `monster::die` puts a corpse on the map (`monster.cpp`), and a corpse is what can be butchered and what can get up again.

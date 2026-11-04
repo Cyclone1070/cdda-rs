@@ -664,3 +664,7 @@ directions and the exact 600-turn duration.
 `melee.cpp:973-997`, floored at -50), and a swing that both spends it and is scaled by the ratio through `attack_speed`'s penalty. Gated by
 `melee_rules::a_swing_costs_stamina_in_proportion_to_what_it_weighs` (the arithmetic) and `character_swing::swinging_spends_wind_and_a_spent_survivor_swings_slower` (the store).
 **Named gaps:** cardio fitness, recovery (`character.cpp:7022-7090`), and the stance penalty.
+
+**Round 1118 refilled wind**: `regeneration::wind_back_per_turn` and `recover_wind` (`Character::update_stamina`, `character.cpp:7022-7082` - twenty a turn at rest, **a tenth when
+winded**, floored at one a turn, `ceil(recovery * turns)`, clamped to the pool), called from `creatures_stage` for every creature that has a `Stamina`. Gated by
+`creature_fight::a_turn_gives_wind_back_and_panic_slows_it` and `creature_fight::the_turn_gives_a_character_its_wind_back` (the stage, and a monster being left without a pool).
