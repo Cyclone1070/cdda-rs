@@ -45,3 +45,5 @@ expect carried rock 1
 ```
 
 shoot ruger_mini at 4 0 2
+
+`aim ruger_mini 30`

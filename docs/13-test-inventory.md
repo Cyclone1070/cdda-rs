@@ -833,3 +833,8 @@ round 1154's attenuation. Gated by `content_suite::gun_rules::every_gun_states_t
 **Round 1158 ported `aim_per_move`** (`aim::aim_per_move`, `character.cpp:1146-1210`; `MIN_RECOIL_IMPROVEMENT` = 0.01, `ranged.h:24`) - the rule that spends recoil: the base ten plus the
 sights' speed, divided by skill, faded in by the recoil, capped by skill, scaled by 2.4 and finally clipped by the sights. Gated by
 `aim_rules::one_move_of_aiming_buys_aim_and_stops_at_the_sights`, which also pins the **negative** gain a shooter below the sights' limit gets - the reference's way of saying "stop aiming".
+
+**Round 1159 put aiming into play**: `aim::spend_aim` (`character.cpp:1146-1210`'s loop, stopping on `MIN_RECOIL_IMPROVEMENT`), the `aim <gun> [moves]` step in `crates/cli/src/lib.rs` and
+`docs/cli-steps.md`, and `scenarios/a_survivor_shoots_a_zombie.txt` now aims between shots. Gated by `aim_rules::aiming_spends_moves_until_the_floor_stops_it` (ten shrinking gains, the
+stopping condition, and the zero-move case). The scenario caught that a survivor with **no `Strength` component** reads as zero strength and so hit the recoil cap on its first shot; the spawn
+now sets the reference's new-character eight in all three stats.

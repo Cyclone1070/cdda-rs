@@ -122,6 +122,15 @@ pub enum Step {
     },
     /// Draws the view to a PNG, so the screen a scenario produces can be diffed.
     Shot(String),
+    /// Aims a gun the survivor holds, spending moves to take recoil down.
+    ///
+    /// Reference: the `AIM` activity's loop over `Character::aim_per_move` (`character.cpp:1146-1210`) - the gain per move, the floor that stops it, and the limit the sights impose.
+    Aim {
+        /// The gun being aimed, by id.
+        gun: String,
+        /// How many moves to spend aiming.
+        moves: i32,
+    },
     /// Shoots a gun the survivor holds at a square, with a number of rounds in it.
     ///
     /// Reference: `Character::fire_gun` (`src/ranged.cpp:1050-1200`) - the shot's price, its own error, the range it is judged at and the blow it does on landing.
@@ -309,6 +318,7 @@ pub fn parse(text: &str) -> Result<Vec<Step>, String> {
                 y: number_of(y, number, "y")?,
             },
             ["shot", path] => Step::Shot((*path).to_owned()),
+            ["aim", ..] => aim_step(&words, number)?,
             ["shoot", ..] => shoot_step(&words)?,
             ["goal", x, y] => Step::Goal {
                 x: number_of(x, number, "x")?,
@@ -481,6 +491,13 @@ fn take_item_step(world: &mut World, step: &Step, outcome: &mut Outcome) -> bool
         Step::Survivor { x, y } => {
                 let survivor = cdda_sim::spawn_player(world, (*x, *y), 80, 0);
                 cdda_sim::creature::set_speed(world, survivor, 100, 0);
+                // The reference's new character starts at eight in every stat (`newcharacter.cpp:5128-5131`), and a creature with no `Strength` component reads as **zero** - which
+                // would make every kick weightless and every hand perfect. The three components are set here, in the scenario's own spawn, rather than defaulted in the sim.
+                world
+                    .entity_mut(survivor)
+                    .insert(cdda_sim::creature::Strength { base: 8 })
+                    .insert(cdda_sim::creature::Dexterity { base: 8 })
+                    .insert(cdda_sim::creature::Perception { base: 8 });
                 outcome.lines.push(format!("survivor: at ({x}, {y})"));
             }
         Step::PlaceOverride(name) => take_place_step(world, name, outcome),
@@ -515,6 +532,7 @@ fn take_item_step(world: &mut World, step: &Step, outcome: &mut Outcome) -> bool
         Step::Throw { item, x, y } => throw_a_step(world, outcome, item, *x, *y),
         Step::Shot(path) => take_a_shot(world, outcome, path),
         Step::Shoot { gun, x, y, rounds } => fire_a_step(world, outcome, gun, *x, *y, *rounds),
+        Step::Aim { gun, moves } => aim_a_step(world, outcome, gun, *moves),
         Step::Monsters => match install_monster_data(world) {
             Some(kinds) => outcome.lines.push(format!("monsters: {kinds} kinds")),
             None => outcome
@@ -2095,4 +2113,57 @@ fn reloads_and_shoots(id: &str) -> bool {
             |flag| *flag == cdda_json::Value::Str("RELOAD_AND_SHOOT".to_owned())
         ))
     })
+}
+
+/// Parses the `aim` step, which is short enough to keep out of `parse`'s own hundred-line budget.
+fn aim_step(words: &[&str], number: usize) -> Result<Step, String> {
+    let ["aim", gun] = words else {
+        let ["aim", gun, moves] = words else {
+            return Err(format!("line {}: expected `aim <gun> [moves]`", number + 1));
+        };
+        return Ok(Step::Aim {
+            gun: (*gun).to_owned(),
+            moves: number_of(moves, number, "moves")?,
+        });
+    };
+    Ok(Step::Aim {
+        gun: (*gun).to_owned(),
+        moves: 1,
+    })
+}
+
+/// Aim a gun for a number of moves, which is the step that spends the recoil a shot leaves behind.
+///
+/// Reference: the `AIM` activity (`activity_actor.cpp`) looping `Character::aim_per_move` until the gain falls below `MIN_RECOIL_IMPROVEMENT`. The limit is the **point-shooting** limit
+/// (`point_shooting_limit`), because the port has no sights to switch to; the sight speed comes from the gun's own sights in the shooter's eyes.
+///
+/// The moves are spent from the shooter's `Moves`, and the recoil is written back to the shooter's `Recoil` - **one store, one field each**, which is what makes the step a rule rather than a
+/// display.
+#[allow(clippy::cast_possible_truncation)]
+fn aim_a_step(world: &mut World, outcome: &mut Outcome, gun_id: &str, moves: i32) {
+    let Some(survivor) = survivor(world) else {
+        outcome.failures.push("there is no survivor to aim".to_owned());
+        return;
+    };
+    let Some((gun, lines, _)) = fire_tables(gun_id, outcome) else {
+        return;
+    };
+    let skill = lines
+        .iter()
+        .find(|line| line.id == gun.skill)
+        .map_or(0, |line| cdda_sim::creature::skill_level(world, survivor, &line.id));
+    let perception = cdda_sim::creature::effective_perception(world, survivor);
+    let archery = gun.skill == "archery";
+    let limit = f64::from(cdda_sim::aim::point_shooting_limit(skill, archery));
+    let recoil = world.get::<cdda_sim::shot::Recoil>(survivor).map_or(0.0, |recoil| f64::from(recoil.points));
+    let (_, sight_speed) = cdda_sim::aim::sight_report(&gun, perception, recoil as i32, false);
+    let (after, spent) = cdda_sim::aim::spend_aim(recoil, limit, skill, sight_speed, moves);
+    cdda_sim::creature::spend_moves(world, survivor, f64::from(spent));
+    if let Some(mut carried) = world.get_mut::<cdda_sim::shot::Recoil>(survivor) {
+        let points = after.round() as i32;
+        carried.points = points;
+    }
+    outcome.lines.push(format!(
+        "aim: {gun_id} spent {spent} of {moves} moves, recoil {recoil:.1} -> {after:.3}, limit {limit:.0}"
+    ));
 }

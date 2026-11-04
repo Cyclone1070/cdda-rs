@@ -138,3 +138,25 @@ pub fn aim_per_move(recoil: f64, limit: f64, skill: i32, sight_speed: f64) -> f6
 
     aim_speed.max(MIN_RECOIL_IMPROVEMENT).min(recoil - limit)
 }
+
+/// Spend moves on aiming until the reference's floor says stop, and report what the recoil came down to.
+///
+/// Reference: the aiming **activity** (`activity_actor.cpp`, `AIM`), whose loop is `aim_per_move` repeated while the gain stays above [`MIN_RECOIL_IMPROVEMENT`]. The port keeps the loop's
+/// arithmetic here and leaves the move spending to its caller, because a move is a component on the shooter (`creature::Moves`) and this module should not know about the store.
+///
+/// Returns `(recoil after aiming, moves spent)`. The loop stops on the same condition the reference stops on - **a gain at or below the floor, including a negative one** - so a shooter who is
+/// already inside the sights' limit spends **no** moves rather than grinding at nothing.
+#[must_use]
+pub fn spend_aim(recoil: f64, limit: f64, skill: i32, sight_speed: f64, moves: i32) -> (f64, i32) {
+    let mut left = recoil;
+    let mut spent = 0;
+    for _ in 0..moves.max(0) {
+        let gain = aim_per_move(left, limit, skill, sight_speed);
+        if gain <= MIN_RECOIL_IMPROVEMENT {
+            break;
+        }
+        left -= gain;
+        spent += 1;
+    }
+    (left, spent)
+}

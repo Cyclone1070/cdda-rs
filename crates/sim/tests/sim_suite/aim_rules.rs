@@ -153,3 +153,30 @@ fn one_move_of_aiming_buys_aim_and_stops_at_the_sights() {
         "faster sights, faster aim"
     );
 }
+
+/// Aiming spends moves until the floor stops it, and it stops rather than grinding.
+///
+/// Reference: the `AIM` activity's loop over `aim_per_move` (`activity_actor.cpp`), which breaks on `adj <= MIN_RECOIL_IMPROVEMENT`. The point of the gate is the **stopping condition**: a
+/// loop that ran for every move asked for would lower the recoil past the sights' limit and silently make the shooter better than the rule allows.
+#[test]
+fn aiming_spends_moves_until_the_floor_stops_it() {
+    use cdda_sim::aim::spend_aim;
+
+    // Ten moves at the cap, unskilled, no sight speed. The **first** move buys 9.6, and each later one buys slightly less, because the recoil fade is part of the same rule - so the ten
+    // together take off **95.78**, not 96. A port that multiplied the first gain by ten would be off by a fifth of a point and, more importantly, would have dropped the fade from the loop.
+    let (after, spent) = spend_aim(3000.0, 0.0, 0, 0.0, 10);
+    assert_eq!(spent, 10, "every move was spent");
+    let fell = 3000.0 - after;
+    assert!((fell - 95.778_484_341_478_82).abs() < 0.000_001, "and the recoil fell by the sum of ten shrinking gains: {fell}");
+    assert!(fell < 96.0, "which is less than ten times the first: {fell}");
+
+    // With a limit of 90 and a recoil of 95, one move spends the last five and the next finds nothing to do.
+    let (clamped, moves) = spend_aim(95.0, 90.0, 10, 0.0, 10);
+    assert!(clamped >= 90.0, "aiming never goes past what the sights allow: {clamped}");
+    assert!(moves < 10, "and the loop stopped early rather than spending all ten: {moves}");
+
+    // Inside the sights already: nothing to spend, no move spent.
+    assert_eq!(spend_aim(50.0, 90.0, 10, 0.0, 10).1, 0, "no moves spent when there is nothing to gain");
+    // And a shooter who asks for no moves gets none.
+    assert_eq!(spend_aim(3000.0, 0.0, 10, 0.0, 0), (3000.0, 0), "zero moves is zero change");
+}

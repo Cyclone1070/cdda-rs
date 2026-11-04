@@ -13351,3 +13351,28 @@ weapon's bulk, which need the item's volume and whose two factors are **one** in
 
 **A record correction.** Round 1157's commit message stated the suite as "1130 sim, 476 content, 25 cli"; the true figures, taken from the full log afterwards, were **1122 sim_suite + 4 = 1126**,
 **474 content** and **23 cli**. The counts in that message were written from memory rather than from the log, and this line is the correction.
+
+## Aiming is a step you can take (round 1159)
+
+`aim <gun> [moves]` spends the shooter's moves on `aim_per_move` until the reference's floor stops it, and writes the recoil back to the shooter. **The loop is what the last five rounds
+were building toward**: recoil accumulates (1152), a bow resets it (1153), the sights and the eyes price it (1156-1157), `aim_per_move` spends it (1158), and now a scenario can do it.
+
+| Piece | Reference | Port |
+|---|---|---|
+the loop | the `AIM` activity's `while( adj > MIN_RECOIL_IMPROVEMENT )` | `aim::spend_aim(recoil, limit, skill, sight_speed, moves)` |
+the step | - | `aim <gun> [moves]` in `crates/cli/src/lib.rs`, in `docs/cli-steps.md` |
+Gate | - | `aiming_spends_moves_until_the_floor_stops_it` |
+
+**The scenario's receipt, verbatim:** `aim: ruger_mini spent 30 of 30 moves, recoil 615.0 -> 507.251, limit 200`. **615** is round 1152's kick (five times 123), **507.251** is thirty moves of
+`aim_per_move` at eight-eights stats, and **200** is the rifle's point-shooting limit - the three rounds' numbers meeting in one line.
+
+**Thirty moves take off only a hundred and eight, and that is the rule working.** Each move's gain is multiplied by the recoil fade, so at 615 of 3,000 a move is worth about **3.6** rather
+than the 9.6 a shooter at the cap gets. **A port that spent the full gain every move would take the recoil to zero in seventy moves and make aiming a cheat.**
+
+**The scenario also caught a real bug in the go-between, and it was not in the rule.** The survivor spawned with **no `Strength` component**, and `effective_strength` answers **zero** for a
+creature that has none - so the recoil was clamped to its **3,000 cap on the first shot**, every gate green. The scenario's line read `recoil 3000.0` where it should have read `615.0`, and
+that is the only place the mistake was visible: **a missing component is not an error in the port's store, it is a zero.** The spawn now sets the reference's own new-character eight in all
+three stats (`newcharacter.cpp:5128-5131`).
+
+**Named, not invented:** the aiming activity's own move cost (the port charges **one move a step of the loop**, which is the activity's shape, not a data figure), the sights' switching, and
+`aim_speed_skill_mod`'s archery bonus.

@@ -12,6 +12,8 @@ monster mon_zombie 4 0
 # Three rounds, one step each: the first two take 39 apiece, and the third - 117 against 80 hit points - kills it. That is the receipt for damage really being applied through the armour
 # rather than reported.
 shoot ruger_mini at 4 0 3
+# Aiming is the step that **spends** the recoil the shot left behind: thirty moves, at the rifle's point-shooting limit, against the Mini-14's forty-point sights.
+aim ruger_mini 30
 shoot ruger_mini at 4 0 3
 shoot ruger_mini at 4 0 3
 expect no monster at 4 0
