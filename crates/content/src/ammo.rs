@@ -31,6 +31,8 @@ pub struct AmmoType {
     pub recovery_chance: i32,
     /// The reference's per-pellet figure, kept because the dump writes it and a reader will ask what it is.
     pub shot_damage: f64,
+    /// How hard the round kicks: `ammo->recoil`, which `item::gun_recoil` adds to the gun's own.
+    pub recoil: i32,
 }
 
 /// Reads one round from a dump row.
@@ -50,6 +52,7 @@ pub fn read_one(id: &str, object: &Object) -> Result<AmmoType, String> {
         shot_spread: number(object, "shot_spread")?,
         recovery_chance: number(object, "recovery_chance")?,
         shot_damage: float(object, "shot_damage")?,
+        recoil: number(object, "recoil")?,
     })
 }
 

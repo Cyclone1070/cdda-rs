@@ -13169,3 +13169,28 @@ scenario says so with `expect no monster at 4 0`**, which is a claim about the s
 
 **Named, not invented:** the scenario fires three times and the gun is loaded once, because the port has no magazine item yet - `rounds` is a shorthand for "put this many in the gun". The
 reload activity, the burst loop and ammunition as a separate entity are all still absent, and the scenario's shape makes that visible instead of hiding it.
+
+## How hard a shot kicks (round 1151)
+
+| Piece | Reference | Port |
+|---|---|---|
+the rule | `item::gun_recoil` (`item.cpp:11232-11266`) | `shot::gun_recoil(gun_recoil, round_recoil, handling, weight, arm_strength)` |
+data | `gun_type::handling` (guns dump **v4**) and `ammo->recoil` (ammo dump **v2**) | two new columns |
+Gate | - | `a_shot_s_kick_is_the_round_s_less_what_handling_and_weight_take_off` |
+
+**Three things in this formula are easy to get backwards, and the gate pins all three.**
+
+| Step | The reference | What goes wrong |
+|---|---|---|
+weight | `min( gun_weight, arm_strength * 333 g ) / 333 g` | the arm **caps** the weight rather than adding to it |
+the factor | `weight^0.8 * handling^1.2` | a heavier gun is **steadier** - the weight is in the *divisor*, which reads like a penalty and is not |
+the branch | `handling > 1.0` divides, otherwise **multiplies by `1 + |handling|`** | at exactly 1.0 the gun **doubles** its round's kick |
+
+**The gate found the third one by failing.** Its first version asserted that handling 10 at unit weight leaves the kick alone; **the code said 3000 and the code was right** - the reference's
+`>` is strict, so unit handling takes the multiply branch. **A `>=` there would halve every shot's recoil and nothing else would notice.**
+
+**And the arithmetic had to stay in floating point.** Dividing by `factor as i32` gave **750** where the reference gives **652**, because 2.297 truncated to 2 is a different rule; the port now
+divides as a `double` and truncates once, at the end, which is exactly what returning an `int` does.
+
+**Named, not invented:** gunmods' `handling` sum, a real gun **weight** (the gate passes 333 g, and the guns dump does not carry weight yet - the items dump does, and joining the two is the
+next step), `RECOIL_MODIFIER`, and recoil's own accumulation (`recoil += 5 * qty`) and decay, which need a `Recoil` component on the shooter.

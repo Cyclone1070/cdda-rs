@@ -274,3 +274,37 @@ fn a_gun_that_cannot_pay_for_a_round_does_not_fire() {
         "and the gun is empty"
     );
 }
+
+/// How hard a shot kicks, worked by hand from the reference's own formula.
+///
+/// Reference: `item::gun_recoil` (`item.cpp:11232-11266`). The gate takes the corpus's Mini-14 - `recoil` **0**, `handling` **20** - and its .223 round, `recoil` **1500**, and prices the kick
+/// for an eight-strength arm at a gun weight the test chooses, because weight is a separate item column the guns dump does not carry yet. **The handling factor is 2.0 at twenty**, so a light
+/// gun kicks half as hard as its rounds would say.
+#[test]
+fn a_shot_s_kick_is_the_round_s_less_what_handling_and_weight_take_off() {
+    use cdda_sim::shot::gun_recoil;
+
+    // weight 333 g is 1.0 in the reference's units, so the factor is 1^0.8 * 2^1.2 = 2.297…
+    let factor = 2.0_f64.powf(1.2);
+    #[allow(clippy::cast_possible_truncation)]
+    let expected = (1500.0 / factor) as i32;
+    assert_eq!(gun_recoil(0, 1500, 20, 333.0, 8), expected, "1500 over the handling factor");
+    assert!(
+        (gun_recoil(0, 1500, 20, 333.0, 8) - 652).abs() <= 1,
+        "which is about 652 of the round's 1500"
+    );
+
+    // Poor handling (10, so 1.0 in the reference's units) does not reach the reference's divide branch at all: factor 1.0 takes the **multiply** branch, and a gun that handles at unit
+    // weight *doubles* its round's kick - which is the asymmetry the reference's `handling > 1.0` test builds.
+    assert_eq!(gun_recoil(0, 1500, 10, 333.0, 8), 3000, "handling 10 is factor 1.0, which multiplies by two");
+    // Weight enters the **factor** the kick is divided by, so at equal handling a heavier gun kicks **less** - which is the reference's own bias, spelled in its comment ("heavier weapons
+    // benefit more from improved handling") and easy to get backwards if the weight is read as a penalty.
+    let heavy = gun_recoil(0, 1500, 20, 20_000.0, 8);
+    let light = gun_recoil(0, 1500, 20, 333.0, 8);
+    assert!(heavy < light, "the heavier gun is steadier: {heavy} against {light}");
+    // And the arm's strength **caps** how much weight counts, at 333 g a point: a stronger arm on the same heavy gun is steadier still.
+    let strong = gun_recoil(0, 1500, 20, 20_000.0, 40);
+    assert!(strong < heavy, "a stronger arm tames it further: {strong} against {heavy}");
+    // A gun's own recoil adds to the round's rather than replacing it.
+    assert!(gun_recoil(500, 1500, 20, 333.0, 8) > gun_recoil(0, 1500, 20, 333.0, 8), "the gun's own kick adds");
+}

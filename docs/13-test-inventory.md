@@ -801,3 +801,7 @@ and the point-blank case in `shot_rules::firing_a_gun_spends_moves_and_judges_th
 **Round 1150 put the shot into play**: the `shoot <gun> at <x> <y> <rounds>` step (`crates/cli/src/lib.rs`, `docs/cli-steps.md`) reads the guns, skills and ammo dumps at run time and calls
 `shot::fire_at`, and `scenarios/a_survivor_shoots_a_zombie.txt` fires three .223 rounds into a zombie and asserts `expect no monster at 4 0`. The grammar gate
 `grammar_tests::every_line_of_the_documented_grammar_parses` covers the new line; the scenario is run by `tests::every_scenario_in_the_repository_passes` and by QA.
+
+**Round 1151 ported how hard a shot kicks**: `shot::gun_recoil` (`item::gun_recoil`, `item.cpp:11232-11266`) with `GunType::handling` (guns dump **v4**) and `AmmoType::recoil` (ammo dump **v2**).
+Gated by `shot_rules::a_shot_s_kick_is_the_round_s_less_what_handling_and_weight_take_off` - the 652 the handling factor leaves of a .223's 1500, the *multiply* branch at unit handling
+(1500 → 3000), and the weight cap the arm's strength puts on a heavy gun.

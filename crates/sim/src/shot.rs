@@ -243,3 +243,36 @@ pub fn spend_rounds(world: &mut bevy_ecs::prelude::World, gun: bevy_ecs::prelude
     held.charges -= rounds;
     true
 }
+
+/// How hard one shot kicks: `item::gun_recoil` (`item.cpp:11232-11266`).
+///
+/// The reference's shape, in its own order:
+///
+/// 1. **weight is capped by the arm's strength** - `min( gun_weight, arm_strength * 333 g ) / 333 g` - so a stronger arm does not make a light gun kick less but does stop a heavy one from
+///    kicking as much as its whole weight would say;
+/// 2. handling is the gun's own figure (plus its gunmods', which the port has none of) **divided by ten**, because the data writes it in whole units;
+/// 3. the two are combined as `weight^0.8 * handling^1.2`, which is the reference's own bias: **a heavier weapon benefits more from good handling**;
+/// 4. and the kick is the gun's `recoil` plus the round's, **divided** by that factor when it is above one and **multiplied** by `1 + |factor|` when it is below - so poor handling hurts
+///    more than good handling helps.
+#[must_use]
+#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+pub fn gun_recoil(
+    gun_recoil: i32,
+    round_recoil: i32,
+    handling: i32,
+    gun_weight_g: f64,
+    arm_strength: i32,
+) -> i32 {
+    let capped_weight = gun_weight_g.min(f64::from(arm_strength) * 333.0);
+    let weight = capped_weight / 333.0;
+    let handling = f64::from(handling) / 10.0;
+    let factor = weight.powf(0.8) * handling.powf(1.2);
+    let kick = gun_recoil + round_recoil;
+    // The reference divides and multiplies in floating point and returns the cast to an `int`, so the **division keeps its fraction until the end** - rounding the factor first would
+    // turn 2.297 into 2 and halve the kick to 750 instead of 652.
+    if factor > 1.0 {
+        (f64::from(kick) / factor) as i32
+    } else {
+        (f64::from(kick) * (1.0 + factor.abs())) as i32
+    }
+}

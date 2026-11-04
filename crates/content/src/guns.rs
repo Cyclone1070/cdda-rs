@@ -33,6 +33,8 @@ pub struct GunType {
     pub damage_bullet: i32,
     /// How many rounds one shot spends: `item::ammo_required()` (`item.cpp:11535-11550`), which is the type's `ammo_to_fire` before gunmods.
     pub ammo_to_fire: i32,
+    /// How steady the weapon is in the hands: `gun_type::handling`, in the data's own whole units, which `item::gun_recoil` divides by ten.
+    pub handling: i32,
 }
 
 
@@ -52,6 +54,7 @@ pub fn read_one(id: &str, object: &Object) -> Result<GunType, String> {
     gun.damage_stab = number(object, "damage_stab", gun.damage_stab)?;
     gun.damage_bullet = number(object, "damage_bullet", gun.damage_bullet)?;
     gun.ammo_to_fire = number(object, "ammo_to_fire", gun.ammo_to_fire)?;
+    gun.handling = number(object, "handling", gun.handling)?;
     if let Some(Value::Float(damage)) = object.get("damage") {
         gun.damage = *damage;
     } else if let Some(Value::Int(damage)) = object.get("damage") {
