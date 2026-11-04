@@ -12352,3 +12352,22 @@ monster whose claws bounced off armour does not run away** - it stands there and
 
 **The gate spawns the same type twice**, once without the flag and once with it, from **one** loaded prototype: a hand-built flag list would have proved only that the port can copy a list it
 was handed.
+
+## Both directions of a fight now leave a mark (round 1115)
+
+`effect_hit_by_player` is how the reference's AI knows a fight is happening. It is given in two places, with **two very different durations**, and both are now ported.
+
+| Direction | Reference | Duration | Port |
+|---|---|---|---|
+survivor swings at something | `Character::melee_attack` flags a non-avatar target **before** the blow resolves (`melee.cpp:595-599`) | **ten minutes** (600 turns) | `swing_what_the_character_holds`, on the victim |
+a monster swings at the avatar | `monster::melee_attack` flags **itself** (`monster.cpp:2130-2133`) | **three turns** | `strike_at`, on the attacker |
+Gate | - | - | `a_swing_flags_who_it_hit_and_who_it_swung_at` checks **both**, and the ten minutes as an exact count |
+
+**The 200-to-1 ratio is the rule, not an accident of two authors.** A monster that has been attacked **remembers for a fight**; a monster that has attacked the player remembers for a
+moment. Porting both with the same duration would have been "simpler" and would have deleted the difference between *being hunted* and *having hunted*.
+
+**The survivor's flag goes on before the swing is resolved**, which is why it lands on a target the swing then misses: the reference's comment says what the flag is for - *"Flag as attacked
+by us for AI"* - and an AI that only noticed successful hits would forget a survivor who has been missing it for a minute.
+
+**The gate asserts the exact duration and both directions in one test**, because either half alone passes trivially: a flag on the victim proves nothing about the attacker, and a flag with
+no duration proves nothing about how long a fight is remembered.

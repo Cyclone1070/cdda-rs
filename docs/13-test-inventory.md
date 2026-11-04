@@ -655,3 +655,7 @@ the miss path.
 **Round 1114 ported `HIT_AND_RUN`**: `strike_at` puts a monster that dealt damage into `effect_run` for four turns when its flags carry the trait (`monster::melee_attack`,
 `monster.cpp:2134-2136`), and adds nothing when the content has not defined the effect. **121 of 1,154** monsters carry the flag. Gated by
 `creature_fight::a_monster_that_hits_and_runs_is_running_after_its_blow`, which spawns the same corpus type twice - once plain, once with the flag - from one loaded prototype.
+
+**Round 1115 ported `effect_hit_by_player` in both directions**: the survivor's swing flags a non-avatar target for **ten minutes** before the blow resolves (`melee.cpp:595-599`), and a
+monster's blow at the avatar flags the monster for **three turns** (`monster.cpp:2130-2133`). Gated by `character_swing::a_swing_flags_who_it_hit_and_who_it_swung_at`, which checks both
+directions and the exact 600-turn duration.

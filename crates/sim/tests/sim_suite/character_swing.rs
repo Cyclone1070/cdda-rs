@@ -289,3 +289,69 @@ fn a_blow_that_misses_still_teaches_the_skill_it_swung_with() {
         "twenty misses still teach: exercise {exercise}"
     );
 }
+
+/// A survivor's swing flags what it hit, and a monster's blow flags itself.
+///
+/// Reference: two places, both in the attack paths. `Character::melee_attack` gives a non-avatar target `effect_hit_by_player` for **ten minutes** the moment it swings, before the
+/// blow is resolved (`melee.cpp:595-599`, "Flag as attacked by us for AI"). `monster::melee_attack` gives **itself** `effect_hit_by_player` for **three turns** when the target is the
+/// avatar (`monster.cpp:2130-2133`). The two durations differ by three orders of magnitude and that is the point: an AI remembers being attacked for a fight, and a monster remembers
+/// attacking *you* for a moment.
+#[test]
+fn a_swing_flags_who_it_hit_and_who_it_swung_at() {
+    let (mut world, _null, _rock, knife) = world_with_kinds();
+    let flag = cdda_json::parse(br#"{"id":"hit_by_player","max_duration":"1 hours"}"#).expect("valid json");
+    let cdda_json::Value::Object(entry) = flag else {
+        panic!("an effect type is an object")
+    };
+    let kind = cdda_content::effects::read_one("hit_by_player", &entry);
+    cdda_sim::effect_registry::set_effect_types(&mut world, std::slice::from_ref(&kind));
+
+    let survivor = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Wielding(knife));
+    let monster = cdda_sim::creature::spawn_creature(&mut world, "a rat", (1, 0, 0));
+    world
+        .entity_mut(monster)
+        .insert(cdda_sim::creature::Health { hp: 10_000, max_hp: 10_000 });
+    cdda_sim::creature::set_moves(&mut world, survivor, 1_000);
+
+    cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, monster);
+    assert!(
+        cdda_sim::applied_effects::has(&world, monster, "hit_by_player"),
+        "the survivor's swing tells the world who it hit"
+    );
+    let ten_minutes = cdda_sim::applied_effects::worn(&world, monster)
+        .into_iter()
+        .find(|worn| worn.id == "hit_by_player")
+        .map_or(0, |worn| worn.duration);
+    assert_eq!(ten_minutes, 600, "for ten minutes, which is six hundred turns");
+
+    // And the other direction: a monster swinging at the avatar flags itself, for three turns.
+    let mut monster_type = {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+        let text = std::fs::read(path).expect("the monster dump exists");
+        let value = cdda_json::parse(&text).expect("the dump is valid JSON");
+        let cdda_json::Value::Object(root) = value else {
+            panic!("the dump's root is not an object")
+        };
+        let Some(cdda_json::Value::Array(prototypes)) = root.get("prototypes") else {
+            panic!("the dump has no prototypes")
+        };
+        cdda_content::monsters::load_objects(prototypes)
+            .expect("the dump loads")
+            .into_iter()
+            .find(|one| one.id == "mon_zombie")
+            .expect("the corpus has a zombie")
+    };
+    monster_type.melee_dice = 1;
+    let zombie = cdda_sim::creature::spawn_monster_of_type(&mut world, cdda_sim::MonsterKindId(1), &monster_type, (0, 1, 0), 100);
+    let mut flagged = false;
+    for _ in 0..12 {
+        cdda_sim::creature::strike_at(&mut world, zombie, survivor);
+        if cdda_sim::applied_effects::has(&world, zombie, "hit_by_player") {
+            flagged = true;
+        }
+    }
+    assert!(flagged, "a monster that attacks the avatar is flagged for three turns");
+}

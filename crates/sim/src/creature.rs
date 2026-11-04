@@ -1994,6 +1994,17 @@ pub fn strike_at(world: &mut World, attacker: Entity, victim: Entity) -> Option<
     let dealt = strike_with(world, victim, attack.0)?;
     // Reference: `monster::melee_attack` puts a hit-and-run monster into `effect_run` for four turns after its blow (`monster.cpp:2134-2136`). The effect is only given when the
     // world has been told what that effect is: an effect the content does not define cannot be worn, and inventing one here would put a name in the store that nothing can read.
+    // Reference: `monster::melee_attack` gives **itself** `effect_hit_by_player` for three turns when what it hit was the avatar (`monster.cpp:2130-2133`), which is how a monster
+    // remembers it is in a fight. Added before the hit-and-run check because the reference adds it for every blow at the avatar, damage or none.
+    if world.get::<crate::Player>(victim).is_some()
+        && let Some(kind) = crate::effect_registry::kind_of(world, "hit_by_player")
+    {
+        crate::applied_effects::add(
+            world,
+            attacker,
+            crate::effects::ActiveEffect::new(&kind, 3, 1),
+        );
+    }
     if dealt > 0
         && world
             .get::<crate::creature_flags::CreatureFlags>(attacker)
@@ -2154,6 +2165,17 @@ pub fn swing_what_the_character_holds(world: &mut World, holder: Entity, victim:
     // Reference: **both** paths teach. `melee.cpp:2222` trains after a hit and `melee.cpp:713-716` trains after a miss - `melee_train( *this, 2, std::min( 5,
     // skill_training_cap ), cur_weap, ... )` in each - and the skill is the **weapon's** (`item::melee_skill`), not the general melee skill. The reference's miss path also
     // counts `times_combatted_player` on the target, which nothing in this port reads yet.
+    // Reference: `Character::melee_attack` flags a non-avatar target the moment it swings, before the blow is resolved (`melee.cpp:595-599`), for ten minutes.
+    if crate::effect_registry::kind_of(world, "hit_by_player").is_some() {
+        let kind = crate::effect_registry::kind_of(world, "hit_by_player");
+        if let Some(kind) = kind {
+            crate::applied_effects::add(
+                world,
+                victim,
+                crate::effects::ActiveEffect::new(&kind, 600, 1),
+            );
+        }
+    }
     if let Some(learned) = weapon_skill_of(world, holder)
         && let Some(mut rolls) = crate::singletons::take_rolls(world)
     {
