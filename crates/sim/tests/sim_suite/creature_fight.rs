@@ -1513,3 +1513,54 @@ fn a_monster_s_morale_drifts_back_towards_its_type() {
     }
     assert!(bold_drifts > 0, "and it does lose them");
 }
+
+/// An effect the creature is wearing changes how many moves a turn gives it, by the effect data's own number.
+///
+/// Reference: `Character::get_speed_base` sums every effect's `SPEED` modifier into the speed bonus (`character.cpp:12488-12494`). The gate uses the **data's** `winded`, whose
+/// `speed_mod` is `[-10]`: a survivor at speed one hundred banks ninety moves while winded and a hundred when it is not.
+#[test]
+fn an_effect_the_creature_wears_changes_how_many_moves_a_turn_gives_it() {
+    use bevy_ecs::prelude::*;
+
+    let mut world = World::new();
+    singletons::put_rolls(&mut world, Rolls::new(61));
+    // The number lives under `base_mods`, which is where the loader looks for it: a top-level `speed_mod` is not read at all, and the first version of this gate proved that by
+    // failing on its own assertion about the data rather than on the rule.
+    let winded =
+        cdda_json::parse(br#"{"id":"winded","base_mods":{"speed_mod":[-10]},"max_duration":"1 hours"}"#)
+            .expect("valid json");
+    let cdda_json::Value::Object(entry) = winded else {
+        panic!("an effect type is an object")
+    };
+    let kind = cdda_content::effects::read_one("winded", &entry);
+    assert_eq!(
+        kind.mod_value("SPEED", cdda_content::effects::ModAction::Min, 0, 1),
+        -10.0,
+        "the data says a winded creature moves ten speed slower"
+    );
+    cdda_sim::effect_registry::set_effect_types(&mut world, std::slice::from_ref(&kind));
+
+    let restless = cdda_sim::creature::spawn_creature(&mut world, "the restless", (1, 1, 0));
+    let calm = cdda_sim::creature::spawn_creature(&mut world, "the calm", (2, 2, 0));
+    for entity in [restless, calm] {
+        cdda_sim::creature::set_speed(&mut world, entity, 100, 0);
+    }
+    cdda_sim::applied_effects::add(
+        &mut world,
+        restless,
+        cdda_sim::effects::ActiveEffect::new(&kind, 10, 1),
+    );
+
+    cdda_sim::creature::bank_a_turn(&mut world);
+
+    assert_eq!(
+        cdda_sim::creature::moves_left(&world, restless),
+        90,
+        "a winded creature banks ninety moves"
+    );
+    assert_eq!(
+        cdda_sim::creature::moves_left(&world, calm),
+        100,
+        "and one that is not banks a hundred"
+    );
+}

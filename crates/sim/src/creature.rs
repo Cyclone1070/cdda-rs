@@ -91,14 +91,41 @@ fn speed_now(speed: Speed) -> i32 {
 /// (`game.cpp`, `monster::move`). Here it is one system-shaped function over the store: no list of
 /// creatures is kept beside it, because the query is the list.
 pub fn bank_a_turn(world: &mut World) {
-    let earned: Vec<(Entity, i32)> = world
+    let speeds: Vec<(Entity, i32)> = world
         .query::<(Entity, &Speed)>()
         .iter(world)
         .map(|(entity, speed)| (entity, speed_now(*speed)))
         .collect();
+    let earned: Vec<(Entity, i32)> = speeds
+        .into_iter()
+        .map(|(entity, speed)| (entity, speed + effect_speed_modifier(world, entity)))
+        .collect();
     for (entity, points) in earned {
         give_moves(world, entity, points);
     }
+}
+
+/// What the effects a creature is wearing add to its speed, in speed points.
+///
+/// Reference: `Character::get_speed_base` sums every effect's `SPEED` modifier into the speed bonus (`character.cpp:12488-12494`), each at the creature's own intensity for that effect
+/// (`effect::get_mod`, `effect.cpp:866`). The value is the effect data's own: `winded`, for instance, states `speed_mod: [-10]`, which is why running out of breath costs more than the
+/// recovery rate.
+///
+/// An effect the world cannot resolve adds nothing, for the same reason nothing else in the port invents a number: the modifier is the data's, and a missing type has no data.
+#[must_use]
+pub fn effect_speed_modifier(world: &mut World, entity: Entity) -> i32 {
+    let worn = crate::applied_effects::worn(world, entity);
+    let mut total = 0.0_f64;
+    for effect in worn {
+        let Some(kind) = crate::effect_registry::kind_of(world, &effect.id) else {
+            continue;
+        };
+        // Level zero is the creature as a whole: the reference's body-part levels only apply when an effect is on one limb.
+        total += kind.mod_value("SPEED", cdda_content::effects::ModAction::Min, 0, effect.intensity);
+    }
+    #[allow(clippy::cast_possible_truncation)]
+    let total = total as i32;
+    total
 }
 
 /// What entering a square costs, in moves.

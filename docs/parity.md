@@ -12741,3 +12741,26 @@ not one back. **Both are the same lesson in different clothes: a rule about a di
 **A stale gate is a gate that has drifted (pun intended).** Round 1127's `the_turn_gives_a_monster_its_nerve_back` started failing - correctly - because one turn now gives regrowth *and*
 possibly drift. It was repaired by building the wounded fixture with its nerve **already at its type's value**, so drift cannot fire and the gate answers one question again. **When a new
 rule changes an old gate's arithmetic, the fix is to separate the questions, not to loosen the assertion.**
+
+## An effect the creature is wearing changes its speed (round 1132)
+
+The port has had effect types with their whole modifier table since round 1042, and nothing read it. The reference's `Character::get_speed_base` does (`character.cpp:12488-12494`):
+every effect's `SPEED` modifier is summed into the speed bonus.
+
+| Piece | Reference | Port |
+|---|---|---|
+the sum | `for each effect: mod_speed_bonus( get_mod( "SPEED", reduced ) )` | `creature::effect_speed_modifier`, summed over `applied_effects::worn` |
+each term | `effect::get_mod` -> `get_mod_value( argument, action, level, intensity )` (`effect.cpp:866`) | `EffectType::mod_value("SPEED", Min, 0, intensity)` - the loader's existing reader |
+where the number lives | `base_mods.speed_mod` | the same: `load_mod_data` reads `base_mods`, and a **top-level** `speed_mod` is not read at all |
+where it is applied | added to the speed bonus | `bank_a_turn`, added to what a turn banks |
+Gate | - | `an_effect_the_creature_wears_changes_how_many_moves_a_turn_gives_it` - `winded`'s own `[-10]` gives ninety moves instead of a hundred |
+
+**This makes `winded` cost twice.** Round 1118 made it cut recovery to a tenth; this makes it also cost ten speed while it lasts - which is the reference's own data (`winded` states
+`speed_mod: [-10]`), not a number invented to make the effect bite.
+
+**The gate failed first on its own data assertion, and that was the useful failure.** The fixture put `speed_mod` at the top level of the effect JSON and the loader answered zero - **because
+the reference nests modifiers under `base_mods`**, and the port's loader is faithful to that. A test that had only checked the end result would have blamed the rule; the intermediate
+assertion - *the data says a winded creature moves ten speed slower* - put the blame on the fixture in one line.
+
+**Named, not invented:** pain, thirst, underweight and the martial-arts speed bonus, which `get_speed_base` adds in the same block and this port has no sources for; and the reference's
+body-part levels, which only matter when an effect sits on one limb and the port has no per-limb effects.

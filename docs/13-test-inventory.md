@@ -723,3 +723,7 @@ is `Follow` or `Flee` (`monster.cpp:3534-3548`). The crowding query was narrowed
 **Round 1131 added morale drift**: `creature::drift_morale` (`monster::process_turn`, `monster.cpp:1877-1885`) - one in four turns, then either a gap over fifteen or one in two, moving morale and
 anger one point towards the type's value, applied in `regen_everyones_nerve`. Gated by `creature_fight::a_monster_s_morale_drifts_back_towards_its_type`, which measures **both rates over one
 advancing stream** (400 draws each). Round 1127's stage gate was rebuilt so drift cannot muddy its question.
+
+**Round 1132 gave effect modifiers their first reader**: `creature::effect_speed_modifier` (the `SPEED` sum in `Character::get_speed_base`, `character.cpp:12488-12494`), applied in
+`bank_a_turn` so a `winded` creature banks ninety moves instead of a hundred. Gated by
+`creature_fight::an_effect_the_creature_wears_changes_how_many_moves_a_turn_gives_it`, whose first failure was the **fixture** - the modifier lives under `base_mods`, not at the top level.
