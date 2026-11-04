@@ -13401,3 +13401,28 @@ same round across ten tiles at the cap is several squares. **One formula, two be
 
 **Named, not invented:** the target-square rotation itself (`ballistics.cpp:405-420`, which needs the trajectory's tile count and the map's bounds), `projectile_attack`'s per-pellet loop, and
 `NEVER_MISFIRES`.
+
+## The scatter reaches the shot (round 1161)
+
+Round 1160 ported the arithmetic and named the wiring as missing; this round wires it, so a wide round fired across enough squares **misses a target it was aimed at**.
+
+| Piece | Reference | Port |
+|---|---|---|
+the draw | `ballistics.cpp:396-398` | `shot::shot_spread_arcmin(round.shot_spread, dice)` inside `fire_at` |
+the threshold | `max_spread >= 1.0` | the aim's `missed_by` is raised to at least **1.0** |
+Gate | - | `a_birdshot_scatters_off_a_distant_square_and_not_off_a_near_one` |
+
+**The gate is a differential over one variable**: the same gun, the same round, the same four seeds, **only the range changes** - twenty squares against two. Birdshot (300 arcmin) scatters at
+twenty and **cannot** at two, because `spread * (2 - 1)` is under one for any draw the round can make. **Four seeds rather than one, because one seed proves a coincidence and four differing
+ranges prove a rule.**
+
+**The port rotates nothing.** The reference moves the **target square** and carries on with the projectile loop; the port has one pellet and no trajectory, so it records the displacement where
+its consequences are already read - the miss - and says so in the code's own comment.
+
+**A real loader gap surfaced while writing the gate, and it is a data-shape fact rather than a bug.** A gun names the **ammunition type** it takes - the pipe shotgun's `ammo` is `"shot"` -
+while the rounds table is keyed by **round id** - `shot_bird`, `shot_00`. The two agree for `223`, which is why the CLI's `shoot` step has worked so far, and they do **not** agree for shotguns.
+`fire_at` takes the round it is given, so the rule is right; **the CLI's lookup is the piece that assumes the ids match, and that assumption is now named** rather than left to fail quietly
+the first time a scenario fires a shotgun.
+
+**Named, not invented:** the pellet loop (`proj.count`, which a shotgun's eight pellets need), the target square's rotation, `NEVER_MISFIRES`, and the ammunition-type-to-round lookup the CLI
+still takes for granted.

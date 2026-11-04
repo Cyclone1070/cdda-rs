@@ -419,3 +419,58 @@ fn a_round_s_spread_is_absolute_capped_and_only_moves_the_aim_across_tiles() {
     // Enough tiles at a wide enough arc does pass one, which is the only case the reference moves the target square.
     assert!(spread_across_tiles(1800.0, 10) >= 1.0, "ten tiles at the cap is more than a square: {}", spread_across_tiles(1800.0, 10));
 }
+
+/// A wide round scatters off a distant square and never off a near one, and the shot reports it as a miss.
+///
+/// Reference: `ballistics.cpp:395-405`, where a `max_spread` of one or more rotates the target square. **This is the wiring round 1160 left undone**: the pellet's own wander is drawn from the
+/// round in the gun and judged against the range, so a birdshot fired at a zombie across twenty squares can miss a target it was aimed at, and one fired across two cannot.
+#[test]
+fn a_birdshot_scatters_off_a_distant_square_and_not_off_a_near_one() {
+    use bevy_ecs::prelude::*;
+    use cdda_core_types::rng::Rolls;
+
+    let read = |name: &str| {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let bytes = std::fs::read(path).expect("the corpus file exists");
+        cdda_json::parse(&bytes).expect("valid JSON")
+    };
+    let guns = cdda_content::guns::load_dump(&read("items/guns.json")).expect("the guns load");
+    let lines = cdda_content::skills::load_dump(&read("skills.json")).expect("the skills load");
+    let rounds = cdda_content::ammo::load_dump(&read("items/ammo.json")).expect("the ammo loads");
+    // The gun names the **ammunition type** it takes (`shot`), not the round (`shot_bird`); the test passes the round to `fire_at` directly, which is what the port's loader does with
+    // `gun.ammo` when the two ids happen to agree.
+    let gun = guns.iter().find(|gun| gun.id == "pipe_shotgun").expect("a shotgun").clone();
+    assert_eq!(gun.ammo, "shot", "the pipe shotgun takes the `shot` ammunition type");
+    let bird = rounds.iter().find(|round| round.id == "shot_bird").expect("birdshot").clone();
+    assert_eq!(bird.shot_spread, 300, "birdshot is three hundred arcmin wide");
+
+    // One shooter, one world: only the range changes, which is what makes the two runs a differential.
+    let fire = |range: i32, seed: u32| {
+        let mut world = World::new();
+        cdda_sim::singletons::put_rolls(&mut world, Rolls::new(seed));
+        let shooter = cdda_sim::creature::spawn_creature(&mut world, "the shooter", (0, 0, 0));
+        world
+            .entity_mut(shooter)
+            .insert(cdda_sim::creature::Strength { base: 8 })
+            .insert(cdda_sim::creature::Dexterity { base: 20 })
+            .insert(cdda_sim::creature::Perception { base: 20 })
+            .insert(cdda_sim::creature::Moves { left: 1_000 });
+        let target = cdda_sim::creature::spawn_creature(&mut world, "the target", (range, 0, 0));
+        world.entity_mut(target).insert(cdda_sim::creature::Health { hp: 80, max_hp: 80 });
+        cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (range, 0, 0), 18.0, Some(&bird), None, 3_000.0, false)
+    };
+
+    // Four seeds: at twenty squares at least one pellet wanders a whole square, and at two squares none ever can - `spread * (2 - 1)` is under one for any draw within 300 arcmin.
+    let mut scattered_far = 0;
+    let mut scattered_near = 0;
+    for seed in [11_u32, 22, 33, 44] {
+        if fire(20, seed).aim.missed_by >= 1.0 {
+            scattered_far += 1;
+        }
+        if fire(2, seed).aim.missed_by >= 1.0 && fire(2, seed).hit.is_none() {
+            scattered_near += 1;
+        }
+    }
+    assert!(scattered_far > 0, "a birdshot at twenty squares scatters at least once in four seeds: {scattered_far}");
+    assert!(scattered_near < 4, "and at two squares it is not the scatter doing the missing: {scattered_near}");
+}

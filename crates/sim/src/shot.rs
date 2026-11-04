@@ -224,17 +224,28 @@ pub fn fire_at(
         linear: vec![crate::dispersion::weapon_dispersion(shotmaker) + f64::from(carried)],
         ..crate::dispersion::Dispersion::default()
     };
+    let range = range_to(world, shooter, target);
+    // Reference: `ballistics.cpp:395-405` - the round's own spread is drawn **inside the pellet loop**, and a scatter wider than the target square moves the aim off it. The port draws
+    // it once here, because it fires one pellet (the `count` loop is named in `docs/parity.md`), and treats the displacement as a miss rather than rotating a target it does not have.
+    let mut scatter = 0.0;
     let rolled = match crate::singletons::take_rolls(world) {
         Some(mut dice) => {
+            let arcmin = shot_spread_arcmin(round.map_or(0, |round| round.shot_spread), &mut dice);
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            let tiles = range.max(1.0).round() as usize;
+            scatter = spread_across_tiles(arcmin, tiles);
             let drawn = sources.roll(&mut dice);
             crate::singletons::put_rolls(world, dice);
             drawn
         }
         None => 0.0,
     };
-    let range = range_to(world, shooter, target);
     let size = crate::throwing::target_size(world, shooter, target);
-    let aim = crate::ballistics::aim_of(rolled, range, size);
+    let mut aim = crate::ballistics::aim_of(rolled, range, size);
+    // The reference's own threshold: a scatter of a whole square or more takes the pellet off the target square, so the shot misses whatever the aim roll said.
+    if scatter >= 1.0 {
+        aim.missed_by = aim.missed_by.max(1.0);
+    }
     // The reference's convention: a fraction missed of one is a miss, and anything less reached the target.
     let struck = if aim.missed_by < 1.0 {
         crate::creature::creature_at(world, target)

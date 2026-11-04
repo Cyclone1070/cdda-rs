@@ -842,3 +842,7 @@ now sets the reference's new-character eight in all three stats.
 **Round 1160 ported a round's own spread**: `shot::shot_spread_arcmin` (`ballistics.cpp:396-399` - a normal draw, absolute, capped at **1,800** arcmin) and `shot::spread_across_tiles`
 (`ballistics.cpp:399-405` - `tan(arc/2)*2*(tiles-1)`), with `ballistics::arcmin_to_radians` made public for them. Gated by
 `shot_rules::a_round_s_spread_is_absolute_capped_and_only_moves_the_aim_across_tiles`. The target-square rotation is **not** wired yet, and the docs say so.
+
+**Round 1161 wired the round's spread into the shot**: `fire_at` draws `shot_spread_arcmin` from the shot's own dice and, when `spread_across_tiles` reaches **1.0**, raises the aim's `missed_by` to
+a whole miss. Gated by `shot_rules::a_birdshot_scatters_off_a_distant_square_and_not_off_a_near_one` - a differential over range alone, four seeds, a pipe shotgun and 300-arcmin birdshot. The
+gate also recorded that **a gun names its ammunition type while the rounds table is keyed by round id**, which the CLI's `shoot` step assumes are equal.
