@@ -21,6 +21,16 @@ pub struct GunType {
     pub recoil: i32,
     /// The ammo it takes, or the empty string for a launcher that states none.
     pub ammo: String,
+    /// The weapon's own blow before its ammo: `item::gun_damage()`'s total, which is **zero for almost every firearm** because a gun's damage is its cartridge's.
+    pub damage: f64,
+    /// The same blow by kind, which is how the data states it: a bow's is stab, a launcher's is bash.
+    pub damage_bash: i32,
+    /// Cut damage, which a blade launcher states.
+    pub damage_cut: i32,
+    /// Stab damage, which every bow states.
+    pub damage_stab: i32,
+    /// Bullet damage, which the few guns that carry their own state.
+    pub damage_bullet: i32,
 }
 
 
@@ -35,6 +45,17 @@ pub fn read_one(id: &str, object: &Object) -> Result<GunType, String> {
         ..GunType::default()
     };
     gun.dispersion = number(object, "dispersion", gun.dispersion)?;
+    gun.damage_bash = number(object, "damage_bash", gun.damage_bash)?;
+    gun.damage_cut = number(object, "damage_cut", gun.damage_cut)?;
+    gun.damage_stab = number(object, "damage_stab", gun.damage_stab)?;
+    gun.damage_bullet = number(object, "damage_bullet", gun.damage_bullet)?;
+    if let Some(Value::Float(damage)) = object.get("damage") {
+        gun.damage = *damage;
+    } else if let Some(Value::Int(damage)) = object.get("damage") {
+        #[allow(clippy::cast_precision_loss)]
+        let damage = *damage as f64;
+        gun.damage = damage;
+    }
     gun.range = number(object, "range", gun.range)?;
     gun.recoil = number(object, "recoil", gun.recoil)?;
     if let Some(Value::Str(skill)) = object.get("skill") {

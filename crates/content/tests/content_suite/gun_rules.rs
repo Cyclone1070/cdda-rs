@@ -15,6 +15,17 @@ fn the_gun_dump_loads_every_gun_and_keeps_its_numbers() {
     let value = cdda_json::parse(&bytes).expect("the dump is valid JSON");
     let guns = cdda_content::guns::load_dump(&value).expect("the dump loads");
     assert_eq!(guns.len(), 406, "every gun the reference dumped");
+    // Version 2 added the weapon's own blow, and the column says something the port needed to learn: **a firearm's own damage is zero**, because a gun's blow is its cartridge's. Bows are the
+    // exception and state theirs - a longbow's six stab is not ammunition's, it is the limbs'.
+    assert_eq!(guns.iter().filter(|gun| gun.damage > 0.0).count(), 102, "102 weapons carry a blow of their own");
+    assert_eq!(guns.iter().filter(|gun| gun.damage == 0.0).count(), 266, "and the rest - every firearm among them - leave it to their ammo");
+    // Thirty-eight state a **negative** blow, which is the data's way of saying "less than nothing": a .22 pistol and a thrown rock are among them. A port that clamped the sum at zero
+    // would silently make those weapons as good as a fist.
+    assert_eq!(
+        guns.iter().filter(|gun| gun.damage < 0.0).count(),
+        38,
+        "38 weapons state a negative blow, and the loader keeps the sign"
+    );
 
     // One row in full, against the dump's own numbers: a loader that renamed or reordered a column would pass a count and fail this.
     let launcher = guns

@@ -13057,3 +13057,27 @@ aim says** - the reference's own rule that a projectile only reaches a creature 
 
 **Named, not invented:** ammunition (the round in the chamber, the shots a burst fires), the gun's `recoil` accumulating, `hunger`/`thirst` from firing, the `hurt_part_when_fired` injuries, the
 energy drain, and the noise of the shot. **`fire_at` applies no damage** - the aim and the reach are this round's half, and `deal_projectile_attack`'s damage is the next one.
+
+## A gun's own blow, and what the column taught (round 1146)
+
+The guns dump is now **version 2**: `damage`, `damage_bash`, `damage_cut`, `damage_stab`, `damage_bullet` and `shot_spread` beside the firing numbers.
+
+| Piece | Reference | Port |
+|---|---|---|
+data | `item::gun_damage()` (`item.cpp:11160-11180`): the type's `gun->damage` resolved for the barrel | `GunType::{damage, damage_bash, damage_cut, damage_stab, damage_bullet}` |
+dump | `--dump-guns`, **version 2** | `corpus/items/guns.json` |
+Gate | - | `the_gun_dump_loads_every_gun_and_keeps_its_numbers`, extended with the three counts below |
+
+**The column says three things the port did not know, and each is a way to be silently wrong:**
+
+| Count | What it means |
+|---|---|
+**102** weapons carry a blow of their own | a longbow's six stab is the **limbs'**, not its arrow's |
+**266** state zero | **every firearm** - a gun's damage is its **cartridge's**, so a port that read the gun table for a shot's damage would fire blanks |
+**38** state a **negative** blow | a .22 pistol and a thrown rock among them: the data's way of saying "less than nothing", and **clamping the sum at zero would make those weapons as good as a fist** |
+
+**The third row is the one that would have shipped.** Nothing in the load path complains about a negative number; the port would simply have had a `max(0, …)` on the damage a reader would
+call defensive. The gate pins all three counts, so the day the data changes the port says so.
+
+**Named, not invented:** `shot_spread` is dumped as **zero** because `ammo->shot_spread` is the **ammo's** field and the gun has none of its own - the column exists to say that, and the next
+round's ammo table fills it. **`fire_at` still applies no damage**: the blow is now in the port's hands, and where it comes from for a firearm is the next finding.

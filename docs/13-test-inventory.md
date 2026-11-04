@@ -780,3 +780,7 @@ by id - and which corrected round 1142's documented claim that the rifle owned t
 **Round 1145 fired the first shot**: `shot::fire_at(world, shooter, gun, lines, target, divider)` composes the dispersion, charges `cost_of_firing` through `spend_moves`, rolls it, aims with the
 target's size and reports the creature reached (`missed_by < 1.0`), plus `range_to` (`rl_dist`) and `stamina_percent` (`RAS_time`'s integer division). Gated by
 `shot_rules::firing_a_gun_spends_moves_and_judges_the_shot_by_what_stands_there`, which reads the store's moves and uses an empty square as the control. **No damage is applied yet.**
+
+**Round 1146 added a weapon's own blow to the gun table** (`--dump-guns` **version 2**): `damage`, `damage_bash/cut/stab/bullet` and `shot_spread` from `item::gun_damage()` (`item.cpp:11160-11180`),
+loaded into `GunType`. The gate `content_suite::gun_rules::the_gun_dump_loads_every_gun_and_keeps_its_numbers` pins **102** weapons with a positive blow, **266** at zero (every firearm - a gun's
+damage is its cartridge's) and **38** negative (kept with their sign).
