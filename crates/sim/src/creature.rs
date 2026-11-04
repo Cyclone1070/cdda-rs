@@ -1703,31 +1703,89 @@ pub fn reap_dead_creatures_as_corpses(
     corpse_kind: crate::ItemTypeId,
     volume_of: impl Fn(crate::MonsterKindId) -> i64,
 ) -> usize {
-    type Dead = (Entity, (i32, i32, i32), Option<crate::MonsterKindId>);
+    type Dead = (Entity, (i32, i32, i32), Option<crate::MonsterKindId>, bool);
     let dead: Vec<Dead> = world
-        .query::<(Entity, &Health, &Position, Option<&CreatureKind>)>()
+        .query::<(
+            Entity,
+            &Health,
+            &Position,
+            Option<&CreatureKind>,
+            Option<&crate::creature_flags::CreatureFlags>,
+        )>()
         .iter(world)
-        .filter(|(_, health, _, _)| health.hp <= 0)
-        .map(|(entity, _, position, kind)| {
+        .filter(|(_, health, _, _, _)| health.hp <= 0)
+        .map(|(entity, _, position, kind, flags)| {
             (
                 entity,
                 (position.x, position.y, position.z),
                 kind.map(|kind| kind.0),
+                flags.is_some_and(|carried| carried.0.contains("REVIVES")),
             )
         })
         .collect();
-    for (entity, square, kind) in &dead {
+    for (entity, square, kind, revives) in &dead {
         crate::singletons::index_mut(world).remove(*entity, *square);
         world.despawn(*entity);
         if let Some(kind) = kind {
+            let died_on = crate::calendar::of(world).map_or(0, |calendar| calendar.turn);
             let corpse = crate::drop_item(world, (square.0, square.1), corpse_kind, 1);
             world.entity_mut(corpse).insert(crate::CorpseOf {
                 kind: *kind,
+                died_on,
+                revives: *revives,
                 monster_volume_ml: volume_of(*kind),
             });
         }
     }
     dead.len()
+}
+
+/// One corpse that may get up: the corpse, what it was, where it is, and when it died.
+type Candidate = (Entity, crate::MonsterKindId, (i32, i32, i32), i64);
+
+/// Brings back the corpses whose age says they are ready, and answers how many got up.
+///
+/// Reference: `game::revive_corpse` (`game.cpp:5718-5760`) is what a corpse's `ready_to_revive` answer leads to - the corpse is destroyed and the monster it was is placed on its
+/// square. The port asks the same rule with the corpse's own age in hours and, when it answers yes, hands the kind to the caller's `spawn`, because a monster type is content and
+/// this module is not where content lives.
+#[must_use]
+pub fn revive_corpses(
+    world: &mut World,
+    mut spawn: impl FnMut(&mut World, crate::MonsterKindId, (i32, i32, i32)) -> bool,
+) -> i32 {
+    let now = crate::calendar::of(world).map_or(0, |calendar| calendar.turn);
+    // The candidates are read before any of them is asked, because asking spends dice and spending dice needs the world to itself.
+    let candidates: Vec<Candidate> = world
+        .query::<(Entity, &crate::CorpseOf, &Position)>()
+        .iter(world)
+        .filter(|(_, corpse, _)| corpse.revives)
+        .map(|(entity, corpse, position)| {
+            (
+                entity,
+                corpse.kind,
+                (position.x, position.y, position.z),
+                corpse.died_on,
+            )
+        })
+        .collect();
+    let mut risen = 0;
+    for (corpse, kind, square, died_on) in candidates {
+        let Ok(hours) = i32::try_from((now - died_on) / i64::from(crate::regeneration::TURNS_PER_HOUR)) else {
+            continue;
+        };
+        let Some(mut rolls) = crate::singletons::take_rolls(world) else {
+            continue;
+        };
+        let answer = crate::regeneration::ready_to_revive(hours, 0, &mut rolls);
+        crate::singletons::put_rolls(world, rolls);
+        if !answer || !spawn(world, kind, square) {
+            continue;
+        }
+        crate::singletons::index_mut(world).remove(corpse, square);
+        world.despawn(corpse);
+        risen += 1;
+    }
+    risen
 }
 
 /// Where a creature is trying to get to.

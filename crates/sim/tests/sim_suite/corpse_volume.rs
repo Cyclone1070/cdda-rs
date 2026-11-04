@@ -129,6 +129,8 @@ fn a_corpse_in_the_world_is_measured_from_its_creature_and_not_from_its_item_typ
     let corpse = drop_item(&mut world, (3, 3), ItemTypeId(7), 1);
     world.entity_mut(corpse).insert(CorpseOf {
         kind: MonsterKindId(1),
+        died_on: 0,
+        revives: false,
         monster_volume_ml: 100_000,
     });
     // The type says one millilitre, and the corpse says otherwise.

@@ -598,3 +598,7 @@ armour** and some monster's **bashing armour** - rather than for a count, becaus
 past six hours it is ready when the factor runs out or on a one-in-`rez_factor` chance - gated by `creature_fight::a_corpse_gets_up_when_its_age_says_so`. **The gate also pinned a
 dice trap**: two hundred fresh seeds all answer alike because the engine's first output for a small seed is the same number, so a chance must be exercised on **one advancing stream**.
 **Not wired yet:** corpses carry no age (`CorpseOf` has none), so nothing calls the rule.
+
+**Round 1103 wired the revival**: `CorpseOf` now carries `died_on` and `revives` (written at death from the clock and the type's `REVIVES` flag), and
+`creature::revive_corpses` (`game::revive_corpse`, `game.cpp:5718-5760`) destroys the corpse and places the monster again. Gated by
+`creature_fight::a_reviving_corpse_gets_up_and_nothing_else_does` with **three** corpses: age alone is not enough, the flag alone is not enough, only both together rise.

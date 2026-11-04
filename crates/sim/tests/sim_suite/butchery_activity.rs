@@ -30,6 +30,8 @@ fn body(world: &mut World) -> Entity {
     let item = drop_item(world, (0, 0), CORPSE, 1);
     world.entity_mut(item).insert(CorpseOf {
         kind: MonsterKindId(1),
+        died_on: 0,
+        revives: false,
         monster_volume_ml: 62_499,
     });
     item

@@ -517,3 +517,72 @@ fn a_corpse_gets_up_when_its_age_says_so() {
         "a seven-hour corpse is a one-in-forty-one chance: {got_up} up, {stayed_down} down"
     );
 }
+
+/// A reviving corpse gets up once its age says so, and nothing else does.
+///
+/// Reference: `game::revive_corpse` (`game.cpp:5718-5760`) destroys the corpse and places the monster it was. The gate drives the **system**, not the rule: a corpse two days old
+/// whose type revives must become a creature again on its own square, a fresh corpse must stay a corpse, and one whose type does not revive must stay a corpse however old it is.
+#[test]
+fn a_reviving_corpse_gets_up_and_nothing_else_does() {
+    use bevy_ecs::prelude::*;
+
+    let mut world = World::new();
+    singletons::put_rolls(&mut world, Rolls::new(4));
+    let mut level = Level::new();
+    for x in 0..4 {
+        for y in 0..4 {
+            level.set_terrain(x, y, 1, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    cdda_sim::calendar::set_turn(&mut world, 48 * 3_600);
+
+    let corpse_kind = {
+        let mut kind = cdda_sim::item_registry::Kind {
+            id: "corpse",
+            volume_ml: 250,
+            weight_g: 1_000,
+            pockets: &[],
+            thrown_damage: 0.0,
+            melee_bash: 0.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
+            to_hit: -2,
+        };
+        kind.pockets = &[];
+        cdda_sim::item_registry::set_item_types(&mut world, &[kind]);
+        cdda_sim::item_registry::id_of(&mut world, "corpse").expect("the corpse kind")
+    };
+
+    // Two days old and reviving; one hour old and reviving; two days old and not.
+    let mut place = |square: (i32, i32), revives: bool, died_on: i64| {
+        let corpse = cdda_sim::drop_item(&mut world, square, corpse_kind, 1);
+        world.entity_mut(corpse).insert(cdda_sim::CorpseOf {
+            kind: cdda_sim::MonsterKindId(0),
+            died_on,
+            revives,
+            monster_volume_ml: 62_500,
+        });
+        corpse
+    };
+    let old_riser = place((0, 0), true, 0);
+    let fresh = place((1, 0), true, 48 * 3_600 - 3_600);
+    let old_stayer = place((2, 0), false, 0);
+
+    let mut spawned = Vec::new();
+    let risen = cdda_sim::creature::revive_corpses(&mut world, |world, kind, square| {
+        spawned.push((kind, square));
+        cdda_sim::creature::spawn_creature(world, "the risen", square);
+        true
+    });
+
+    assert_eq!(risen, 1, "exactly one corpse got up");
+    assert_eq!(
+        spawned,
+        vec![(cdda_sim::MonsterKindId(0), (0, 0, 0))],
+        "the two-day-old reviving corpse, on its own square"
+    );
+    assert!(world.get_entity(old_riser).is_err(), "and its corpse is gone");
+    assert!(world.get_entity(fresh).is_ok(), "an hour old stays down");
+    assert!(world.get_entity(old_stayer).is_ok(), "and one that does not revive stays down for ever");
+}

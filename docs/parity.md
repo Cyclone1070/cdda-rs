@@ -12098,3 +12098,24 @@ four hundred times from one `Rolls` and counts both outcomes. **A hundred identi
 
 **What is not wired yet, and is named:** nothing calls this rule. The corpse component (`CorpseOf { kind, monster_volume_ml }`) has no **age**, because the port's items carry no
 creation time, and the revival needs one. The next slice adds the clock and the system that asks this rule once a turn.
+
+## The dead can come back (round 1103)
+
+Last round ported "is this corpse ready?" and left it uncalled, because a corpse had no age. This round gives it one and calls it.
+
+| Piece | Where |
+|---|---|
+`CorpseOf` gains `died_on` and `revives` | the turn of death (what `item::age` means for a corpse) and whether the type carries `REVIVES`, copied once because a corpse never changes kind |
+`reap_dead_creatures_as_corpses` | writes both when the monster dies |
+`creature::revive_corpses(world, spawn)` | `game::revive_corpse` (`game.cpp:5718-5760`): the corpse is destroyed and the monster it was is placed on its square |
+Gate | `a_reviving_corpse_gets_up_and_nothing_else_does` - two days old and reviving **rises**, an hour old stays down, two days old and not reviving **stays down for ever** |
+
+**The order of the three corpses in the gate is the rule.** Age alone is not enough (`fresh`), the flag alone is not enough (`old_stayer`), and only both together bring a corpse back -
+which is exactly `item::can_revive`'s `&&` chain, proved by three corpses rather than by one.
+
+**`spawn` is a callback because a monster type is content and `creature.rs` is not where content lives.** The same shape `reap_dead_creatures_as_corpses` already uses for
+`volume_of`: the sim owns the rule and the caller owns the data. **When no dice are installed the corpse simply waits** - `take_rolls` answers `None`, the candidate is skipped, and
+nothing is invented to fill the gap.
+
+**A borrow taught the shape of the system.** Asking the rule spends dice, and spending dice needs the world to itself, so the candidates are **collected first and asked afterwards** -
+the same two-pass shape `mend_everyone` and `take_turns` already use. **The first version did not compile, and the compiler was right about the design, not just the code.**

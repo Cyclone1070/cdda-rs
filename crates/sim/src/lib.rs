@@ -7205,6 +7205,13 @@ pub fn player_turn(
 pub struct CorpseOf {
     /// What kind of creature this was.
     pub kind: MonsterKindId,
+    /// The turn it died on, which is what its age is measured from - `item::age` reads the item's own creation turn, and a corpse's age is the time since its death.
+    pub died_on: i64,
+    /// Whether this corpse is one that can get up again, which the type's `REVIVES` flag says at the moment of death.
+    ///
+    /// Reference: `item::can_revive` (`item.cpp:8872-8876`) asks the corpse's `mtype` for the flag every time; the port copies it once because a corpse's monster kind never
+    /// changes and the flag set is not carried by a corpse item.
+    pub revives: bool,
     /// What that creature took up while it was alive, in millilitres, which is what its corpse is measured from (`item::corpse_volume`).
     pub monster_volume_ml: i64,
 }
