@@ -169,6 +169,31 @@ pub fn throwing_dispersion(shot: &Throw) -> i32 {
     spread.max(0)
 }
 
+/// The `Shotmaker` a character and a gun make together: the gun's own figure, the shooter's **effective** hands and eyes, and the two skills the reference averages.
+///
+/// Reference: `Character::get_weapon_dispersion` (`ranged.cpp:2500-2545`) reads `obj.gun_dispersion()` for the weapon, `get_dex()` and `get_per()` for the body, and then averages
+/// `get_skill_level( skill_gun )` with `get_skill_level( obj.gun_skill() )` before asking the curve. The port reads the same three things from the store, which is why this is a function of
+/// the world rather than of numbers: **the effective stats are the ones that count** (round 1133), not the base ones.
+///
+/// The gun skill is the reference's own `"gun"` - the skill of using firearms at all - and the weapon's skill is the one the gun's data names, such as `rifle` or `archery`.
+#[must_use]
+pub fn shotmaker_for(
+    world: &bevy_ecs::prelude::World,
+    shooter: bevy_ecs::prelude::Entity,
+    gun: &cdda_content::guns::GunType,
+    divider: f64,
+) -> Shotmaker {
+    Shotmaker {
+        weapon_dispersion: f64::from(gun.dispersion),
+        dexterity: crate::creature::effective_dexterity(world, shooter),
+        perception: crate::creature::effective_perception(world, shooter),
+        gun_skill: crate::creature::skill_level(world, shooter, "gun"),
+        weapon_skill: crate::creature::skill_level(world, shooter, &gun.skill),
+        archery: gun.skill == "archery",
+        divider,
+    }
+}
+
 /// The dispersion a shooter's own perception adds, which only ever hurts and hurts faster than dexterity.
 ///
 /// Reference: `Character::ranged_per_mod` (`character.cpp:4369-4373`) - `std::max( ( 20.0 - get_per() ) * 1.2, 0.0 )` - the same floor at twenty, and **1.2 a point** instead of the half

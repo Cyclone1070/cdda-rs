@@ -385,3 +385,55 @@ fn perception_costs_more_dispersion_than_dexterity_and_the_shot_adds_them_up() {
 fn from_dexterity_for_this_test() -> i32 {
     5
 }
+
+/// A gun and a shooter make a `Shotmaker`, and the figure that comes out is the reference's own composition for a real weapon from the corpus.
+///
+/// Reference: `Character::get_weapon_dispersion` (`ranged.cpp:2500-2545`). The gun is the corpus's `barb_launcher` (**dispersion 100, skill `pistol`**), so the weapon's own figure is the
+/// data's rather than a number this test chose, and the skills are the shooter's: nothing at all is a beginner, and ten and ten is mastery.
+#[test]
+fn a_gun_and_a_shooter_compose_the_dispersion_a_shot_starts_with() {
+    use bevy_ecs::prelude::*;
+
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/guns.json");
+    let bytes = std::fs::read(path).expect("the guns dump exists");
+    let value = cdda_json::parse(&bytes).expect("valid JSON");
+    let guns = cdda_content::guns::load_dump(&value).expect("the dump loads");
+    let launcher = guns
+        .iter()
+        .find(|gun| gun.id == "barb_launcher")
+        .expect("the corpus has a barb launcher")
+        .clone();
+
+    let mut world = World::new();
+    let shooter = cdda_sim::creature::spawn_creature(&mut world, "the shooter", (0, 0, 0));
+    world
+        .entity_mut(shooter)
+        .insert(cdda_sim::creature::Dexterity { base: 8 })
+        .insert(cdda_sim::creature::Perception { base: 8 });
+
+    // A beginner: eight and eight cost six and fourteen units of dispersion, and the skill term is the curve's at nothing.
+    let beginner = cdda_sim::dispersion::shotmaker_for(&world, shooter, &launcher, 18.0);
+    assert_eq!(beginner.weapon_dispersion, 100.0, "the launcher's own dispersion, from the corpus");
+    assert_eq!(beginner.dexterity, 8, "the shooter's effective dexterity");
+    assert_eq!(beginner.perception, 8, "and its effective perception");
+    assert_eq!(beginner.gun_skill, 0, "with no skill in guns");
+    assert!(!beginner.archery, "and a launcher is not archery");
+
+    // Mastery: ten in `gun` and ten in `pistol`, so the average is ten, the curve answers zero, and the stats no longer cost anything.
+    world.entity_mut(shooter).insert(cdda_sim::creature::Dexterity { base: 20 });
+    world.entity_mut(shooter).insert(cdda_sim::creature::Perception { base: 20 });
+    world.entity_mut(shooter).insert(cdda_sim::creature::Skills(
+        [("gun".to_owned(), 10), ("pistol".to_owned(), 10)]
+            .into_iter()
+            .collect(),
+    ));
+    let master = cdda_sim::dispersion::shotmaker_for(&world, shooter, &launcher, 18.0);
+    assert_eq!(master.gun_skill, 10, "the gun skill is the reference's own `gun`");
+    assert_eq!(master.weapon_skill, 10, "and the weapon's skill is the one the gun's data names");
+    assert!(
+        cdda_sim::dispersion::weapon_dispersion(master) < cdda_sim::dispersion::weapon_dispersion(beginner),
+        "mastery is narrower than beginnerhood: {} against {}",
+        cdda_sim::dispersion::weapon_dispersion(master),
+        cdda_sim::dispersion::weapon_dispersion(beginner)
+    );
+}

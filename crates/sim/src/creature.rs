@@ -918,6 +918,28 @@ pub struct Dexterity {
     pub base: i32,
 }
 
+/// How sharp a creature's eyes are.
+///
+/// Reference: `Character::per_max` (`character.cpp:4312-4315`), the base perception a character starts at eight with. The port carries the base and reads the effect table over it, the
+/// same way it does for [`Strength`] and [`Dexterity`] - so an effect that costs perception reaches the aiming rule without that rule knowing where the points went.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Perception {
+    /// The creature's own perception, before anything changes it.
+    pub base: i32,
+}
+
+/// A creature's perception with its effects' modifiers applied.
+///
+/// Reference: `Character::get_per` (`character.cpp:4395-4398`) is `std::max( 0, get_per_base() + per_bonus )`, and the bonus is where the worn effects' `PER` modifiers land. A creature
+/// that carries no [`Perception`] answers **zero**, the same convention as the other stats.
+#[must_use]
+pub fn effective_perception(world: &World, entity: Entity) -> i32 {
+    let Some(perception) = world.get::<Perception>(entity) else {
+        return 0;
+    };
+    (perception.base + effect_stat_bonus(world, entity, "PER")).max(0)
+}
+
 /// A creature's dexterity with its mutations' enchantments applied.
 ///
 /// Reference: `Character::get_dex` (`character.cpp`) passes `get_dex_base()` through `enchantment_cache->modify_value( DEXTERITY, ... )`. A creature that carries no

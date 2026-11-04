@@ -747,3 +747,7 @@ has a caller until the gun table exists.
 **Round 1137 built the gun table**: oracle dump `--dump-guns` (**406 guns**, `corpus/items/guns.json` version 1) with `dispersion`, `skill`, `range`, `recoil` and `ammo` from `itype::gun`, and
 the loader `cdda_content::guns` with `read_one`/`load_dump`. Gated by `gun_rules::the_gun_dump_loads_every_gun_and_keeps_its_numbers` - 406 rows, one row field by field, the six firing
 skills, and the 7 zero-dispersion and 271 zero-range guns the data really has.
+
+**Round 1138 joined the gun table to the dispersion rule**: `dispersion::shotmaker_for(world, shooter, gun, divider)` (`get_weapon_dispersion`, `ranged.cpp:2500-2545`) reads the gun's own
+`dispersion`, the shooter's **effective** dexterity and perception, and the `gun` and weapon skills. New this round: the `Perception` component and `effective_perception`
+(`Character::get_per`, `character.cpp:4395-4398`). Gated by `melee_rules::a_gun_and_a_shooter_compose_the_dispersion_a_shot_starts_with` against the corpus's `barb_launcher`.

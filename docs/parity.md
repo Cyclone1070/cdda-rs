@@ -12868,3 +12868,26 @@ would be inventing one**; the gate pins the counts so the day the data changes, 
 
 **The first version of the gate assumed a carbine's numbers and was wrong twice.** Its id is `modular_m4_carbine`, not `m4a1`; and its `range` is zero, because a modular gun's range lives
 on its parts. **Both were caught by reading the corpus rather than by reasoning about it** - which is the whole reason the corpus is the red gate.
+
+## A gun and a shooter compose a shot (round 1138)
+
+Round 1137 dumped the guns; this round makes the first rule read them. `dispersion::shotmaker_for(world, shooter, gun, divider)` builds the `Shotmaker` that round 1136's
+`weapon_dispersion` prices.
+
+| Term | Reference | Port |
+|---|---|---|
+the weapon | `obj.gun_dispersion()` (`ranged.cpp:2503`) | `GunType::dispersion`, from the dump |
+the hands and eyes | `get_dex()` and `get_per()` - the **effective** stats | `effective_dexterity` (1133) and `effective_perception` (**new**) |
+the skills | `get_skill_level( skill_gun )` averaged with `get_skill_level( obj.gun_skill() )` | `skill_level(world, shooter, "gun")` and the skill the gun's data names |
+archery | `obj.gun_skill() == skill_archery` picks the 450 denominator | `gun.skill == "archery"` |
+Gate | - | `a_gun_and_a_shooter_compose_the_dispersion_a_shot_starts_with` - the corpus's `barb_launcher` (**100, pistol**), a beginner at 8/8/0, and a master at 20/20/10 |
+
+**`Perception` is the round's second gift, and it closes a gap named in round 1134.** The port had no perception at all, so `get_per` had nothing to read; it now carries `per_max`'s base and
+reads the effect table over it, exactly as strength and dexterity do - which means **`PER` and `INT` are no longer both unread**: perception is, intelligence still is not.
+
+**The gate is corpus-driven end to end.** The weapon's dispersion is the data's 100 rather than a number the test chose, the skill names come from the dump, and the claim that mastery is
+narrower than beginnerhood is checked with the real composition rather than with a re-derivation. **A gate that invented a weapon would have tested the arithmetic it already gated in 1136
+and nothing about the join**, which is where the bugs live.
+
+**Named, not invented:** the aim-mode multiplier, encumbrance, recoil accumulation, and `item::gun_dispersion`'s own terms beyond `type->dispersion` (gunmods, damage, ammo) - the dump
+carries the field, not the composition. **Nothing fires yet**: the next ranged round is `Character::fire_gun`'s first move, which needs a shot to spend moves on.
