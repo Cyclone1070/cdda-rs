@@ -12272,3 +12272,21 @@ Not ported, named | modifiers, enchantments, martial arts, being on the ground, 
 **The gate caught the port's own recurring failure one more time.** The fixture's third kind is a **knife**, and the first version of the test called it a `crowbar` and asserted a crowbar's numbers - it failed with **328 for 308**, exactly the "assertion read the wrong entity" shape recorded in the roadmap. The fix was not to loosen the number but to **name the variable after the thing the fixture actually returns** and write the knife's arithmetic out in the assertion.
 
 **A quarter of stamina is the boundary and the test says so on both sides:** 0.25 adds nothing, 0.125 adds half the base again. A penalty that starts one turn early or late is invisible in ordinary play and wrong at exactly the moment the player is losing.
+
+## No dice means no permission to hurt anyone (round 1111)
+
+`monster::melee_attack` deals its hit and then returns early: `if( type->melee_dice == 0 ) { return true; }` (`monster.cpp:2128-2131`). The port charged the moves and swung anyway, so
+a type whose data states a **flat part and no dice** was hurting the survivor.
+
+| Evidence | Number |
+|---|---|
+monsters stating no dice | **159 of 1,154** |
+of those, ones that state a flat part too | **5** - a smoker's 2 cut, a skittergun's 8 bash |
+Gate | `a_monster_with_no_dice_hurts_nobody_however_much_flat_damage_its_data_states`: 24 blows, the survivor stays at **80** |
+Mutation check | with the guard removed the same test reads **32** - so the guard is what the test measures, not the fixture |
+
+**The five are the whole point.** A port that reads the flat part and forgets the dice gate looks right against 149 of the 159 - all of them harmless for the same reason by accident - and
+is wrong against exactly the five whose data says "no dice, but a claw". **A rule that is invisible in nine cases out of ten is the kind this project exists to catch.**
+
+**The charge stays on the attempt.** The moves are spent before the early return, which is the reference's order (`mod_moves` first, the dice check second): a monster that cannot hurt
+anyone still spends its turn trying, and a survivor cannot bait free attacks out of a harmless monster.

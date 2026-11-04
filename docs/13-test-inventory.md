@@ -635,3 +635,8 @@ reads it, `spawn_monster_of_type` writes `AttackCost`, and `strike_at` spends it
 `melee::attack_speed` (`Character::attack_speed`, `melee.cpp:2668-2705` - half the weapon's time, the melee skill's discount, half the dexterity, and a stamina penalty from one at a
 quarter stamina to two at none) are called by `swing_what_the_character_holds`, which spends the cost. Gated by `melee_rules::a_swing_costs_...` (the arithmetic, both sides of the
 stamina threshold) and `character_swing::a_survivor_s_swing_costs_the_moves_its_weapon_takes` (the store: a 250 ml, 500 g knife costs **72** moves).
+
+**Round 1111 ported the dice gate on a monster's blow**: `strike_at` now returns before dealing damage when the type states no dice (`monster::melee_attack`, `monster.cpp:2128-2131`),
+while still charging the moves. **159 of 1,154** monsters state no dice and **five** of those state a flat part anyway (2 cut, 8 bash), which is where the port was wrong. Gated by
+`creature_fight::a_monster_with_no_dice_hurts_nobody_however_much_flat_damage_its_data_states` - 24 blows, survivor unchanged - and **mutation-checked**: with the guard removed the same
+test reads 32 instead of 80.

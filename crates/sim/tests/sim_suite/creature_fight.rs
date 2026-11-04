@@ -831,3 +831,65 @@ fn a_monster_pays_for_its_blow_out_of_its_own_moves() {
         "the second costs the same"
     );
 }
+
+/// A monster that states no dice deals no damage, whatever flat part its data states.
+///
+/// Reference: `monster::melee_attack` deals the hit, then returns early - `if( type->melee_dice == 0 ) { return true; }` (`monster.cpp:2128-2131`) - so the dice count is the
+/// type's permission to hurt anyone at all. **159 of the corpus's 1,154 monsters state no dice, and five of them state a flat part too** (a smoker's 2 cut, a skittergun's 8 bash):
+/// those five would hurt the survivor if the port read the flat part and forgot the gate.
+#[test]
+fn a_monster_with_no_dice_hurts_nobody_however_much_flat_damage_its_data_states() {
+    use bevy_ecs::prelude::*;
+
+    let mut world = World::new();
+    singletons::put_rolls(&mut world, Rolls::new(17));
+    let mut level = Level::new();
+    for x in 0..4 {
+        for y in 0..4 {
+            level.set_terrain(x, y, 1, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+
+    let mut monster_type = {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+        let text = std::fs::read(path).expect("the monster dump exists");
+        let value = cdda_json::parse(&text).expect("the dump is valid JSON");
+        let cdda_json::Value::Object(root) = value else {
+            panic!("the dump's root is not an object")
+        };
+        let Some(cdda_json::Value::Array(prototypes)) = root.get("prototypes") else {
+            panic!("the dump has no prototypes")
+        };
+        cdda_content::monsters::load_objects(prototypes)
+            .expect("the dump loads")
+            .into_iter()
+            .find(|one| one.id == "mon_zombie_smoker")
+            .expect("the corpus has a smoker")
+    };
+    // The data's own shape: no dice, and a flat cut of two.
+    monster_type.melee_dice = 0;
+    monster_type.melee_bash = 0;
+    monster_type.melee_cut = 2;
+    monster_type.melee_stab = 0;
+    monster_type.melee_skill = 10;
+
+    let monster = cdda_sim::creature::spawn_monster_of_type(
+        &mut world,
+        cdda_sim::MonsterKindId(1),
+        &monster_type,
+        (1, 1, 0),
+        100,
+    );
+    let survivor = cdda_sim::spawn_player(&mut world, (0, 1), 80, 0);
+
+    // Two dozen blows, so a one-in-a-hundred accident cannot hide a rule that does hurt.
+    for _ in 0..24 {
+        cdda_sim::creature::strike_at(&mut world, monster, survivor);
+    }
+    assert_eq!(
+        cdda_sim::creature::health_of(&world, survivor),
+        Some(80),
+        "no dice means no permission to hurt anyone"
+    );
+}

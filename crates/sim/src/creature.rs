@@ -1985,6 +1985,12 @@ pub fn strike_at(world: &mut World, attacker: Entity, victim: Entity) -> Option<
     // swinging for ever and what makes walking and swinging cost the same purse.
     let cost = world.get::<AttackCost>(attacker).map_or(0, |carried| carried.0);
     spend_moves(world, attacker, f64::from(cost));
+    // Reference: `monster::melee_attack` returns as soon as it has been charged if the type states no dice - `if( type->melee_dice == 0 ) { return true; }`
+    // (`monster.cpp:2128-2131`). **The dice count is the type's permission to hurt anyone at all**: a type with a flat part and no dice does nothing, which is true of five
+    // monsters in the corpus and of every monster the data gives no dice at all (159 of 1,154).
+    if attack.0.dice == 0 {
+        return None;
+    }
     strike_with(world, victim, attack.0)
 }
 
