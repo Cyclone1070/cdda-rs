@@ -12461,3 +12461,23 @@ rather than inventing a `expect winded` verb per effect. **The claim reads the s
 **The parser grew past clippy's hundred lines, and the fix was the right shape anyway.** The `expect` family - eight arms, all reading a square, a count or an id - moved into
 `expect_step`, and the catch-all arm had to go **last**, after the ones that need more than a square. **Two attempts put it in the wrong place: the first made it shadow four later arms, the
 second made it recursive inside the helper.** `unreachable pattern` caught both, and that lint is the reason a grammar this size can grow without silently losing steps.
+
+## The grammar is now written down and executed (round 1121)
+
+Round 1120 found `Step::Data` - a step with a handler and **no parser** - by accident, when a scenario that needed the effect tables could not ask for them. This round makes the
+grammar visible and keeps it executable.
+
+| Piece | What it does |
+|---|---|
+`docs/cli-steps.md` | every step, one line each, with **real values** rather than `<placeholders>` |
+`grammar_tests::every_line_of_the_documented_grammar_parses` | parses **every** line of that document, and asserts it saw at least thirty |
+Why real values | a document of templates would prove only that the parser rejects them; these lines are the ones the gate runs |
+
+**Placeholders were the first attempt and the gate rejected them**, which is the right outcome: `world <side> bare` failed with "`<side>` is not a number for side". **A document that
+cannot be executed is a document that will drift**, and the fix was to write the lines as a player would.
+
+**What this gate can and cannot do, said plainly.** It cannot make a new `Step` variant impossible to add without a line - nothing in Rust can, short of deriving the table. What it does
+is make the grammar **a single readable place** whose every line is known-good, so the question "can a scenario say this?" is answered by opening one short file instead of reading a
+hundred-line `match`. **That is the difference between a defect caught by luck and one caught by reading.**
+
+**And it would have caught round 1120's defect the moment someone wrote `data` into the document** - which is exactly how the next person would have tried to use it.

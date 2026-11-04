@@ -677,3 +677,7 @@ part's windage effect, ten turns), which is what round 1118's tenth-rate recover
 `Step::Data` had a handler but **no parser**, so no scenario could ever install the effect registry. Both fixed; `scenarios/swinging_past_empty_winds_the_survivor.txt` swings an empty hand
 71 times and asserts `expect effect winded` plus `expect hurt 0`. The CLI gained the generic **`expect effect <id>`** step, and the `expect` grammar moved into `expect_step` when it passed
 clippy's hundred-line limit.
+
+**Round 1121 wrote the playtest grammar down and gated it**: `docs/cli-steps.md` lists every step with **real values**, and
+`grammar_tests::every_line_of_the_documented_grammar_parses` parses all of them (at least thirty). Placeholders were the first attempt and the gate rejected them, which is why the
+document holds executable lines rather than templates.

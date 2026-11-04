@@ -1834,3 +1834,39 @@ mod field_data_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod grammar_tests {
+    #![allow(clippy::panic, clippy::expect_used)]
+    use super::parse;
+
+    /// Every line in `docs/cli-steps.md` is a line this runner understands.
+    ///
+    /// The grammar is the one place a scenario and the code can drift apart without either failing: a step with a handler and **no parser** is invisible to the compiler (round 1120
+    /// found `Step::Data` in exactly that state), and a parser arm that is deleted is invisible until a scenario uses it. The document is short enough to read and exact enough to
+    /// execute, so it is executed.
+    #[test]
+    fn every_line_of_the_documented_grammar_parses() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/cli-steps.md");
+        let text = std::fs::read_to_string(path).expect("the grammar document is in the repository");
+        let mut checked = 0;
+        for line in text.lines() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') || line.starts_with("```") || line.contains(" is one of these") {
+                continue;
+            }
+            // Prose lines in the document are skipped; grammar lines all begin with a lowercase keyword followed by a space or nothing.
+            let first = line.split_whitespace().next().unwrap_or("");
+            if !matches!(
+                first,
+                "world" | "seed" | "scent" | "fire" | "turn" | "date" | "data" | "survivor" | "items" | "monsters"
+                    | "place" | "give" | "wield" | "attack" | "throw" | "shot" | "goal" | "monster" | "craft" | "expect"
+            ) {
+                continue;
+            }
+            parse(line).unwrap_or_else(|error| panic!("the document says `{line}`, and the parser says: {error}"));
+            checked += 1;
+        }
+        assert!(checked >= 30, "the grammar document has the whole grammar: {checked} lines");
+    }
+}
