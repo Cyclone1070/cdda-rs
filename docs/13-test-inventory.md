@@ -567,3 +567,7 @@ port has no character skills yet** - an absent component, not a guessed formula.
 `scenarios/the_survivor_hits_back.txt` - crowbar in hand, thirty swings, a snotgobbler dead and reaped by a turn. **The scenario prints every swing** because an unskilled
 survivor misses most of them, and a playtest that showed only the hit would hide the miss rate. **A dead creature stays an entity until the creature stage reaps it**, so the
 scenario needs a `turn` between the killing blow and `expect no monster`.
+
+**Round 1096 ported the `to_hit` object rule**: `melee_accuracy` (`item_factory.cpp:3929-3968`) sums four qualities against a **-7** offset, so an empty object is **0**, not the
+**-2** that a record with no `to_hit` member gets. `content_suite::melee_accuracy` pins the four tables, the crowbar's own 0, a good weapon's 2 and a clumsy one's -7. **Before this
+round every object-stated item - most of the game's weapons - aimed two points worse than its data**, which is why the survivor's playtest missed so often.

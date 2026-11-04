@@ -11938,3 +11938,25 @@ written for the hearing scenario; it now says what it means for any reason a mon
 
 **A 102-line function is a smell even when it compiles.** Adding two arms pushed `take_item_step` over the clippy ceiling, and the fix was not to squeeze lines: **the fight's two
 steps and the `data` step each became a function with a name**, which is what a reader would have looked for anyway.
+
+## `to_hit` was a number when it was usually an object (round 1096)
+
+The survivor's swing was landing about one blow in five, and the reason was not the miss rate: **the port was reading a whole class of items as the worst weapon the reference has.**
+
+| Piece | Where |
+|---|---|
+the rule | `melee_accuracy::sum_values` (`item_factory.cpp:3944-3948`): `acc_offset (-7) + grip + length + surface + balance` |
+the tables | grip bad 0 / none 1 / solid 2 / weapon 3; length hand 0 / short 1 / long 2; surface point 0 / line 1 / any 2 / every 3; balance clumsy 0 / uneven 1 / neutral 2 / good 3 (`item_factory.cpp:3782-3820`) |
+Loader | `accuracy_from_qualities`, used when `to_hit` is an **object**; a plain number still stands |
+Gate | `an_items_accuracy_is_the_sum_of_its_four_qualities` - defaults 0, crowbar 0, a good weapon **2**, a clumsy one **-7**, a stated number 3, silence -2 |
+
+**The crowbar the game ships states `{"grip": "solid", "length": "short", "surface": "any", "balance": "neutral"}` and is worth 0.** The port read the object as `numeric()`
+failing and applied the **-2 default**, so every object-stated item - which is most of the game's weapons - aimed two points worse than its data says. That is why the survivor
+missed so often in last round's playtest: **not the reference's miss rate, the port's.**
+
+**The defaults are the surprising part, and they are why this had to come from the source.** An empty `to_hit` object sums to **0**, not -2, because the four qualities' defaults
+(3, 0, 2, 2) exactly cancel the -7 offset. **The -2 applies only to a record with no `to_hit` member at all** - `m_to_hit`'s own initial value (`itype.h:1540`). Two different
+silences, two different numbers.
+
+**The gate caught a stale-directory trap in its own fixture first.** Reusing one scratch directory between cases made the loader answer the **first** record every time; the fix was a
+fresh directory per record, and the doc comment now says why. **A test that loads from a shared directory is a test of whatever the directory last contained.**

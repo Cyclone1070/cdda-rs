@@ -1593,12 +1593,20 @@ fn apply_flat_slots(
     if let Some(stackable) = boolean(object, "stackable") {
         item.stackable = stackable;
     }
-    // Reference: `optional( jo, was_loaded, "to_hit", m_to_hit, -2 )` (`item_factory.cpp`) - a record that states it replaces what it copies, and one that does not keeps the
-    // inherited value, which is why this reads through the copy-from chain like every other stated member.
-    if let Some(to_hit) = object.get("to_hit").and_then(numeric) {
-        #[allow(clippy::cast_possible_truncation)]
-        {
-            item.to_hit = to_hit as i32;
+    // Reference: `optional( jo, was_loaded, "to_hit", m_to_hit, melee_accuracy_reader{ *this }, -2 )` (`item_factory.cpp:4113`) - a record that states it replaces what it
+    // copies, and one that does not keeps the inherited value, which is why this reads through the copy-from chain like every other stated member. The stated value is **two
+    // shapes**: a plain number, or an object of four qualities that `melee_accuracy` sums.
+    if let Some(to_hit) = object.get("to_hit") {
+        match to_hit {
+            Value::Object(qualities) => item.to_hit = accuracy_from_qualities(qualities),
+            _ => {
+                if let Some(value) = numeric(to_hit) {
+                    #[allow(clippy::cast_possible_truncation)]
+                    {
+                        item.to_hit = value as i32;
+                    }
+                }
+            }
         }
     }
     if let Some(explodes) = boolean(object, "explode_in_fire") {
@@ -1684,6 +1692,25 @@ fn damage_amount(unit: &Object) -> Option<f64> {
         Some(given) => numeric(given),
         None => numeric(unit.get("damage")?),
     }
+}
+
+/// Sums an item's four accuracy qualities the way the reference does.
+///
+/// Reference: `melee_accuracy::sum_values` (`item_factory.cpp:3944-3948`) is `acc_offset + grip + length + surface + balance`, where `acc_offset` is
+/// `base_acc (-2) + grip_offset (-1) + surface_offset (-2) + balance_offset (-2)` = **-7**. The offsets exist because the reference's enums start at zero for the enums themselves,
+/// while `GAME_BALANCE.md` gives the qualities signed ranges. The defaults - `grip WEAPON` (3), `length HAND` (0), `surface ANY` (2), `balance NEUTRAL` (2) - sum to **0**, which
+/// is why an item that states `"to_hit": {}` aims neither well nor badly.
+fn accuracy_from_qualities(qualities: &Object) -> i32 {
+    let of = |member: &str, table: &[(&str, i32)], fallback: i32| -> i32 {
+        string(qualities, member)
+            .and_then(|name| table.iter().find(|(key, _)| *key == name).map(|(_, value)| *value))
+            .unwrap_or(fallback)
+    };
+    let grip = of("grip", &[("bad", 0), ("none", 1), ("solid", 2), ("weapon", 3)], 3);
+    let length = of("length", &[("hand", 0), ("short", 1), ("long", 2)], 0);
+    let surface = of("surface", &[("point", 0), ("line", 1), ("any", 2), ("every", 3)], 2);
+    let balance = of("balance", &[("clumsy", 0), ("uneven", 1), ("neutral", 2), ("good", 3)], 2);
+    -7 + grip + length + surface + balance
 }
 
 /// Reads the `melee_damage` slot, with the `relative` and `proportional` forms the content uses to adjust it.

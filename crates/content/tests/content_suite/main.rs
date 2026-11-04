@@ -97,6 +97,7 @@ mod snippets;
 mod mapgen_place;
 mod material_vitamins;
 mod materials;
+mod melee_accuracy;
 mod math_expr;
 mod mod_graph;
 mod mods;
