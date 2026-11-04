@@ -776,3 +776,7 @@ by id - and which corrected round 1142's documented claim that the rifle owned t
 **Round 1144 priced a shot from the dumped tables**: `shot::cost_of_firing(gun, skills, level, stamina_percent, reload_moves)` looks the gun's own skill up in the corpus's skills table
 (`ranged.cpp:1060`), with `shot::unknown_skill_line()` = 220/25/50 for a skill the table lacks. Gated by `sim_suite::shot_rules::a_gun_is_priced_by_the_line_of_the_skill_its_own_data_names`
 - a Mini-14 (rifle, 26 moves at skill four) against a longbow (archery, 38 at the same level), plus the fallback's floor at seven levels. **No caller yet**: the fire step spends it.
+
+**Round 1145 fired the first shot**: `shot::fire_at(world, shooter, gun, lines, target, divider)` composes the dispersion, charges `cost_of_firing` through `spend_moves`, rolls it, aims with the
+target's size and reports the creature reached (`missed_by < 1.0`), plus `range_to` (`rl_dist`) and `stamina_percent` (`RAS_time`'s integer division). Gated by
+`shot_rules::firing_a_gun_spends_moves_and_judges_the_shot_by_what_stands_there`, which reads the store's moves and uses an empty square as the control. **No damage is applied yet.**

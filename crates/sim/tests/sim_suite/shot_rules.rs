@@ -110,3 +110,63 @@ fn a_gun_is_priced_by_the_line_of_the_skill_its_own_data_names() {
         "which is already under the floor, so the floor is what the shooter pays"
     );
 }
+
+/// Firing a gun spends the moves, rolls the shot's own error, and says which creature it reached.
+///
+/// Reference: `Character::fire_gun` (`ranged.cpp:1050-1200`) - the dispersion composed by `get_weapon_dispersion`, the moves charged by `mod_moves( -attack_moves )`, and the aim rolled by
+/// `projectile_attack_roll` - plus that rule's own convention that **a fraction missed of one is a miss**. The gate stands the shooter between a small thing and a big one, fires the **same
+/// gun** at each from the same square on the same dice, and reads the store's moves in between.
+#[test]
+fn firing_a_gun_spends_moves_and_judges_the_shot_by_what_stands_there() {
+    use bevy_ecs::prelude::*;
+
+    let read = |name: &str| {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let bytes = std::fs::read(path).expect("the corpus file exists");
+        cdda_json::parse(&bytes).expect("valid JSON")
+    };
+    let guns = cdda_content::guns::load_dump(&read("items/guns.json")).expect("the guns load");
+    let lines = cdda_content::skills::load_dump(&read("skills.json")).expect("the skills load");
+    let gun = guns.iter().find(|gun| gun.id == "ruger_mini").expect("the corpus has the Mini-14").clone();
+
+    let mut world = World::new();
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(4_242));
+    let shooter = cdda_sim::creature::spawn_creature(&mut world, "the shooter", (0, 0, 0));
+    world
+        .entity_mut(shooter)
+        .insert(cdda_sim::creature::Dexterity { base: 8 })
+        .insert(cdda_sim::creature::Perception { base: 8 })
+        .insert(cdda_sim::creature::Moves { left: 200 });
+
+    // A small thing four squares away, and the same gun fired at it: the moves fall by the price the corpus's own tables give.
+    let beast = cdda_sim::creature::spawn_creature(&mut world, "a small thing", (4, 0, 0));
+    world.entity_mut(beast).insert(cdda_sim::creature::Creature {
+        name: "a small thing".to_owned(),
+        size: cdda_sim::CreatureSize::Tiny,
+    });
+    world.entity_mut(beast).insert(cdda_sim::creature::Health { hp: 10, max_hp: 10 });
+
+    let before = cdda_sim::creature::moves_left(&world, shooter);
+    let fired = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (4, 0, 0), 18.0);
+    let after = cdda_sim::creature::moves_left(&world, shooter);
+    assert_eq!(before - after, fired.cost, "the shot cost what the shot table says: {}", fired.cost);
+    assert_eq!(
+        fired.cost,
+        cdda_sim::shot::cost_of_firing(&gun, &lines, 0, 100, 0),
+        "which is the rifle line at no skill with a full wind"
+    );
+    assert!(fired.cost > 0, "and a shot is never free");
+
+    // The same shot at bare ground uses a whole tile, so a small target is judged more harshly than nothing at all.
+    let at_nothing = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (4, 4, 0), 18.0);
+    assert!(
+        fired.aim.missed_by >= at_nothing.aim.missed_by,
+        "the small thing is at least as hard to hit as empty ground: {} against {}",
+        fired.aim.missed_by,
+        at_nothing.aim.missed_by
+    );
+    assert!(
+        at_nothing.hit.is_none(),
+        "and firing at an empty square hits nothing, whatever the aim says"
+    );
+}

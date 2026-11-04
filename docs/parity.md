@@ -13034,3 +13034,26 @@ seven times too fast and would never notice; one that fell back to zero would ma
 
 **Named, not invented:** the reload option's moves and `hurt_part_when_fired` (round 1142's list, unchanged). **`cost_of_firing` has no caller yet** - the fire step is what spends it, and it
 is the next ranged round.
+
+## The first shot that is fired (round 1145)
+
+Round 1144 priced a shot; this round **fires** one. `shot::fire_at` is the first function in the port that takes the gun table, the skills table, the shooter's hands and the dice, and
+produces a shot - and it spends the moves the tables say.
+
+| Step | Reference | Port |
+|---|---|---|
+compose | `get_weapon_dispersion` (`ranged.cpp:2500`) | `dispersion::shotmaker_for` (1138) plus `weapon_dispersion` (1136) |
+charge | `mod_moves( -attack_moves )` (`ranged.cpp:1197`) | `cost_of_firing` (1144) and `creature::spend_moves` |
+roll | `dispersion.roll()`, one draw a source | `Dispersion { linear: vec![…] }.roll(dice)` |
+aim | `projectile_attack_roll` (`ballistics.cpp:204-227`) | `ballistics::aim_of` with `throwing::target_size` (1140) |
+decide | `missed_by < 1.0` reaches the target | the same, reporting the creature at `hit` |
+Gate | - | `firing_a_gun_spends_moves_and_judges_the_shot_by_what_stands_there` |
+
+**The gate reads the store, not just the return value**: the shooter's moves fall by `fired.cost`, **and** that cost equals what `cost_of_firing` says the rifle line prices at no skill with a
+full wind. **A port that spent zero moves and reported a cost would pass the second assertion and fail the first** - which is why both are there.
+
+**A shot at empty ground is the control.** The same gun, the same dice, the same range: against a tiny creature the aim is at least as bad, and against nothing the `hit` is `None` **whatever the
+aim says** - the reference's own rule that a projectile only reaches a creature where one stands.
+
+**Named, not invented:** ammunition (the round in the chamber, the shots a burst fires), the gun's `recoil` accumulating, `hunger`/`thirst` from firing, the `hurt_part_when_fired` injuries, the
+energy drain, and the noise of the shot. **`fire_at` applies no damage** - the aim and the reach are this round's half, and `deal_projectile_attack`'s damage is the next one.

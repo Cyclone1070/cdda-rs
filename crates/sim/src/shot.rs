@@ -83,3 +83,85 @@ pub fn cost_of_a_shot(
         + winded_cost(stamina_percent)
         + reload_moves
 }
+
+/// What a shot did, in the terms a caller can act on.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Fired {
+    /// The moves the shot cost, already taken from the shooter.
+    pub cost: i32,
+    /// Where the shot was aimed and how badly it missed.
+    pub aim: crate::ballistics::Aim,
+    /// The creature standing where it was aimed, when the aim says the shot hit; `None` for a miss or an empty square.
+    pub hit: Option<bevy_ecs::prelude::Entity>,
+}
+
+/// Fires a gun at a square, spending the shooter's moves and rolling the shot's own error.
+///
+/// Reference: `Character::fire_gun` (`src/ranged.cpp:1050-1200`) in the order the port can honour: **the dispersion is composed** (`get_weapon_dispersion`), **the moves are charged**
+/// (`mod_moves( -attack_moves )`, `ranged.cpp:1197`), and **the aim is rolled** against the target's size (`projectile_attack_roll`). The reference also consumes ammunition, energy and
+/// cycles the action; **ammunition is the half not written yet**, so this spends moves and decides where the round goes, and `hit` says which creature the aim reached without applying
+/// damage.
+#[allow(clippy::too_many_arguments)]
+pub fn fire_at(
+    world: &mut bevy_ecs::prelude::World,
+    shooter: bevy_ecs::prelude::Entity,
+    gun: &cdda_content::guns::GunType,
+    lines: &[cdda_content::skills::SkillTime],
+    target: (i32, i32, i32),
+    divider: f64,
+) -> Fired {
+    let level = crate::creature::skill_level(world, shooter, &gun.skill);
+    let shotmaker = crate::dispersion::shotmaker_for(world, shooter, gun, divider);
+    let cost = cost_of_firing(gun, lines, level, stamina_percent(world, shooter), 0);
+    crate::creature::spend_moves(world, shooter, f64::from(cost));
+
+    // Reference: the shot's own error is drawn from the composed dispersion, one draw per source.
+    let sources = crate::dispersion::Dispersion {
+        linear: vec![crate::dispersion::weapon_dispersion(shotmaker)],
+        ..crate::dispersion::Dispersion::default()
+    };
+    let rolled = match crate::singletons::take_rolls(world) {
+        Some(mut dice) => {
+            let drawn = sources.roll(&mut dice);
+            crate::singletons::put_rolls(world, dice);
+            drawn
+        }
+        None => 0.0,
+    };
+    let range = range_to(world, shooter, target);
+    let size = crate::throwing::target_size(world, shooter, target);
+    let aim = crate::ballistics::aim_of(rolled, range, size);
+    // The reference's convention: a fraction missed of one is a miss, and anything less reached the target.
+    let hit = if aim.missed_by < 1.0 {
+        crate::creature::creature_at(world, target)
+            .into_iter()
+            .find(|entity| *entity != shooter && crate::creature::health_of(world, *entity).is_some())
+    } else {
+        None
+    };
+    Fired { cost, aim, hit }
+}
+
+/// The shooter's wind as a whole percentage, which is what `RAS_time` compares against twenty-five.
+///
+/// Reference: `int sta_percent = ( 100 * p.get_stamina() ) / p.get_stamina_max()` (`ranged.cpp:2314`), integer division and all. A creature with no [`crate::creature::Stamina`] component is
+/// full, which is the same convention the throw's arm cost uses.
+fn stamina_percent(world: &bevy_ecs::prelude::World, shooter: bevy_ecs::prelude::Entity) -> i32 {
+    world
+        .get::<crate::creature::Stamina>(shooter)
+        .map_or(100, |stamina| {
+            #[allow(clippy::cast_possible_truncation)]
+            let percent = (100.0 * stamina.cur / stamina.max.max(1.0)) as i32;
+            percent
+        })
+}
+
+/// How far the shooter is from the square it aims at, in squares: `rl_dist`, which counts a diagonal as one.
+///
+/// Reference: `rl_dist( source, target )` (`src/point.h`) - the **larger** of the two offsets. A shooter with no position is at zero range, which keeps the aim arithmetic finite.
+fn range_to(world: &bevy_ecs::prelude::World, shooter: bevy_ecs::prelude::Entity, target: (i32, i32, i32)) -> f64 {
+    let Some(from) = world.get::<crate::Position>(shooter) else {
+        return 0.0;
+    };
+    f64::from((target.0 - from.x).abs().max((target.1 - from.y).abs()))
+}

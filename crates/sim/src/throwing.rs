@@ -182,7 +182,7 @@ pub fn damage_of_throw(arm_strength: i32, skill: i32, weight_g: i64) -> f64 {
 ///
 /// Reference: `projectile_attack`'s `target_critter->ranged_target_size()` (`ballistics.cpp:255-264`). An empty square - or the thrower's own - is a whole tile, which is what the reference's
 /// `map::ranged_target_size` answers for terrain; **a creature is the fraction its size fills**.
-fn target_size(world: &World, thrower: Entity, target: (i32, i32, i32)) -> f64 {
+pub(crate) fn target_size(world: &World, thrower: Entity, target: (i32, i32, i32)) -> f64 {
     crate::creature::creature_at(world, target)
         .into_iter()
         .find(|entity| *entity != thrower)
