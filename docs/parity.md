@@ -12787,3 +12787,22 @@ fixture wrote `[-2, -2]` expecting the second number to be a per-intensity step;
 
 **`effect_speed_modifier` collapsing to one line is the point of the round.** Two readers, one sum, one place to change: the next modifier the port reads - `PER`, `INT`, a movement cost -
 is an argument, not a new function.
+
+## An effect the creature is wearing changes its strength (round 1134)
+
+The third reader of the effect modifier table, and the first one with a **consequence the player can feel**: `Character::get_str` is `std::max( 0, get_str_base() + str_bonus )`
+(`character.cpp:4385-4388`), and `effective_strength` is the door `carrying_capacity` reads.
+
+| Piece | Reference | Port |
+|---|---|---|
+the stat | `get_str()` = base + bonus, floored at zero | `effective_strength` = mutation-adjusted base + `effect_stat_bonus`, floored at zero |
+the bonus | each worn effect's `STR` table | the same one-line sum as dexterity and speed |
+Gate | - | `an_effect_the_creature_wears_changes_its_strength` - 8 without, 10 with a `[2]` effect, **and carrying capacity actually rises** |
+
+**The gate's last assertion is the one that makes the round worth having.** Strength going from eight to ten is arithmetic; **carrying capacity going up is the rule reaching something the
+player notices**. A gate that stopped at `effective_strength` would pass with the function wired to nothing, which is this port's oldest failure mode in its most flattering disguise.
+
+**Three readers, one sum.** `SPEED`, `DEX` and `STR` are now all `effect_stat_bonus(world, entity, argument)`. The table has thirty-one members and the pattern is settled: **a new modifier is an
+argument, a gate, and a sentence in this file - not a new function.**
+
+**Named, not invented:** `PER` and `INT`, which have the same shape and no reader yet because nothing in the port asks a perception or intelligence question that depends on a worn effect.

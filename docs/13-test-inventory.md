@@ -731,3 +731,7 @@ advancing stream** (400 draws each). Round 1127's stage gate was rebuilt so drif
 **Round 1133 gave the modifier table a second reader**: `creature::effect_stat_bonus` for `STR`/`DEX`/`PER`/`INT`, and `effective_dexterity` now adds it and floors at zero
 (`Character::get_dex`, `character.cpp:4390-4392`); `effect_speed_modifier` became one line over the same sum, and `effect_registry::kind_named` gave the read side a read-only door. Gated by
 `creature_fight::an_effect_the_creature_wears_changes_its_dexterity` (8, 6, and a floor at 0).
+
+**Round 1134 gave the modifier table its third reader**: `effective_strength` now adds `effect_stat_bonus(world, entity, "STR")` and floors at zero (`Character::get_str`,
+`character.cpp:4385-4388`), so a worn effect changes **carrying capacity**. Gated by `creature_fight::an_effect_the_creature_wears_changes_its_strength` - 8 to 10, and the capacity rising
+with it.

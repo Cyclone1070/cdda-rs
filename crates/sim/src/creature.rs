@@ -896,13 +896,16 @@ pub fn effective_strength(world: &World, entity: Entity) -> i32 {
     let Some(strength) = world.get::<Strength>(entity) else {
         return 0;
     };
-    let Some(data) = crate::mutation_data::holder(world) else {
-        return strength.base;
-    };
-    let (add, multiply) = crate::mutations::enchantment_values(world, entity, &data, "STRENGTH");
-    #[allow(clippy::cast_possible_truncation)]
-    let value = crate::mutations::apply_enchantments(f64::from(strength.base), add, multiply) as i32;
-    value
+    let base = crate::mutation_data::holder(world).map_or(strength.base, |data| {
+        let (add, multiply) = crate::mutations::enchantment_values(world, entity, &data, "STRENGTH");
+        #[allow(clippy::cast_possible_truncation)]
+        let value =
+            crate::mutations::apply_enchantments(f64::from(strength.base), add, multiply) as i32;
+        value
+    });
+    // Reference: `Character::get_str` is `std::max( 0, get_str_base() + str_bonus )` (`character.cpp:4385-4388`), and the bonus is where the worn effects' `STR` modifiers land - the
+    // same shape as dexterity, from the same table.
+    (base + effect_stat_bonus(world, entity, "STR")).max(0)
 }
 
 /// How quick a creature's hands are.

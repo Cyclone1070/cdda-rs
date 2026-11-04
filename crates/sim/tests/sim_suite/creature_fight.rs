@@ -1633,3 +1633,55 @@ fn an_effect_the_creature_wears_changes_its_dexterity() {
         "and the stat floors at zero rather than going negative"
     );
 }
+
+/// An effect the creature is wearing changes its strength, and the strength it is read through is the one carrying capacity uses.
+///
+/// Reference: `Character::get_str` is `std::max( 0, get_str_base() + str_bonus )` (`character.cpp:4385-4388`), and `str_bonus` is where the worn effects' `STR` modifiers land. The gate
+/// asks through `effective_strength`, which is the door `carrying_capacity` reads, so what it proves is that a drug worth two strength is eight kilograms of carrying capacity.
+#[test]
+fn an_effect_the_creature_wears_changes_its_strength() {
+    use bevy_ecs::prelude::*;
+
+    let mut world = World::new();
+    singletons::put_rolls(&mut world, Rolls::new(71));
+    let strong = cdda_json::parse(br#"{"id":"hopped-up","base_mods":{"str_mod":[2]},"max_duration":"1 hours"}"#)
+        .expect("valid json");
+    let cdda_json::Value::Object(entry) = strong else {
+        panic!("an effect type is an object")
+    };
+    let kind = cdda_content::effects::read_one("hopped-up", &entry);
+    assert_eq!(
+        kind.mod_value("STR", cdda_content::effects::ModAction::Min, 0, 1),
+        2.0,
+        "the data says the effect is worth two strength"
+    );
+    cdda_sim::effect_registry::set_effect_types(&mut world, std::slice::from_ref(&kind));
+
+    let plain = cdda_sim::creature::spawn_creature(&mut world, "the plain one", (1, 1, 0));
+    let hopped = cdda_sim::creature::spawn_creature(&mut world, "the hopped-up one", (2, 2, 0));
+    for entity in [plain, hopped] {
+        world.entity_mut(entity).insert(cdda_sim::creature::Strength { base: 8 });
+    }
+    cdda_sim::applied_effects::add(
+        &mut world,
+        hopped,
+        cdda_sim::effects::ActiveEffect::new(&kind, 10, 1),
+    );
+
+    assert_eq!(
+        cdda_sim::creature::effective_strength(&world, plain),
+        8,
+        "nothing worn, nothing gained"
+    );
+    assert_eq!(
+        cdda_sim::creature::effective_strength(&world, hopped),
+        10,
+        "two points of strength"
+    );
+    let plain_kilos = cdda_sim::creature::carrying_capacity(&world, plain);
+    let hopped_kilos = cdda_sim::creature::carrying_capacity(&world, hopped);
+    assert!(
+        hopped_kilos > plain_kilos,
+        "and the strength that is read is the one carrying capacity uses: {plain_kilos} g then {hopped_kilos} g"
+    );
+}
