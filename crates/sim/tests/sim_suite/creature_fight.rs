@@ -463,3 +463,57 @@ fn a_monster_that_reaches_the_survivor_hurts_it_in_the_turn() {
         "the survivor stood next to a zombie for four turns and lost nothing: {before} became {after}"
     );
 }
+
+/// When a corpse is ready to get up again.
+///
+/// Reference: `item::ready_to_revive` (`item.cpp:8877-8912`). The age is worked out in whole hours and **damage makes it younger** - `age_in_hours /= damage_level + 1`, so a battered
+/// corpse revives sooner - and then `rez_factor = 48 - age_in_hours`: a corpse older than six hours is ready when the factor has run out, or on a one-in-`rez_factor` chance. The
+/// six-hour floor is the rule's whole shape: a corpse killed a minute ago does not stand up.
+#[test]
+fn a_corpse_gets_up_when_its_age_says_so() {
+    use cdda_sim::regeneration::ready_to_revive;
+
+    // Younger than six hours: never, whatever the dice say.
+    for seed in 0..20 {
+        let mut rolls = Rolls::new(seed);
+        assert!(
+            !ready_to_revive(5, 0, &mut rolls),
+            "a corpse five hours old stays down (seed {seed})"
+        );
+    }
+
+    // Past forty-eight hours the factor is gone, so the answer is yes with no dice spent at all.
+    let mut rolls = Rolls::new(3);
+    assert!(ready_to_revive(48, 0, &mut rolls), "two days is long enough");
+    assert!(ready_to_revive(72, 0, &mut rolls), "and longer still");
+
+    // Damage makes a corpse younger: twelve hours at damage level one is six, which is not past the floor.
+    let mut rolls = Rolls::new(5);
+    assert!(
+        !ready_to_revive(12, 1, &mut rolls),
+        "an hour of age is halved by each level of damage"
+    );
+    assert!(
+        ready_to_revive(14, 1, &mut rolls),
+        "and fourteen hours at one level is seven, which is past it"
+    );
+
+    // Between seven and forty-seven hours the answer is a die: over many draws both answers appear, which is what makes it a chance rather than a rule.
+    //
+    // The draws come from **one** stream rather than one per seed: the engine's first output for a small seed is the same small number every time, so a hundred fresh seeds all
+    // answer alike. A stream that advances is what a real turn looks like.
+    let mut rolls = Rolls::new(1);
+    let mut got_up = 0;
+    let mut stayed_down = 0;
+    for _ in 0..400 {
+        if ready_to_revive(7, 0, &mut rolls) {
+            got_up += 1;
+        } else {
+            stayed_down += 1;
+        }
+    }
+    assert!(
+        got_up > 0 && stayed_down > 0,
+        "a seven-hour corpse is a one-in-forty-one chance: {got_up} up, {stayed_down} down"
+    );
+}

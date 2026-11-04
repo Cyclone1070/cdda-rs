@@ -12078,3 +12078,23 @@ field can tell "loaded" from "loaded wrongly", and the three chosen are exactly 
 
 **What the decision rejects is worth naming: "be liberal in what you accept".** A tolerant reader turns a wrong file into a wrong world with no error anywhere, and this port's method is
 that **a zero must be a fact from the data, not the absence of one.** That sentence is the reason the loader keeps its shape and the caller is corrected instead.
+
+## When a corpse gets up again (round 1102)
+
+A killed zombie leaves a corpse that carries the monster it was. Whether it **stands back up** is `item::ready_to_revive` (`item.cpp:8877-8912`), and that is now ported.
+
+| Piece | Where |
+|---|---|
+`regeneration::ready_to_revive(age_hours, damage_level, rolls)` | the rule: damage makes a corpse **younger** (`age /= damage_level + 1`), `rez_factor = 48 - age`, and past six hours it is ready when the factor runs out or on a one-in-`rez_factor` chance |
+Gate | `a_corpse_gets_up_when_its_age_says_so` - five hours never, forty-eight always, twelve hours at one damage level is six and stays down, fourteen is seven and may rise, and a seven-hour corpse rises **sometimes** |
+
+**The six-hour floor is the rule's whole shape.** A zombie killed a minute ago does not stand up in front of the survivor; one left on a road for two days does. **Damage pulls the
+clock backwards**, which is the reference saying a pulped corpse comes back **sooner** - the opposite of what "damage delays revival" would guess, and exactly the kind of thing that
+has to come from the source.
+
+**The gate taught me something about the port's own dice that every future chance test needs.** Two hundred **fresh seeds** all answered `true`, because the engine's first output
+for a small seed is the same small number: `one_in` then sees zero every time. **A chance must be exercised on one advancing stream, not on many fresh ones** - the test now draws
+four hundred times from one `Rolls` and counts both outcomes. **A hundred identical streams are one stream.**
+
+**What is not wired yet, and is named:** nothing calls this rule. The corpse component (`CorpseOf { kind, monster_volume_ml }`) has no **age**, because the port's items carry no
+creation time, and the revival needs one. The next slice adds the clock and the system that asks this rule once a turn.

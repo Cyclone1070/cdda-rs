@@ -125,3 +125,21 @@ pub fn speed_back(base: i32, type_speed: i32, healed: i32, type_hp: i32, hp: i32
     let delta = (healed * type_speed / type_hp).max(1);
     Some((base + delta).min(type_speed))
 }
+
+/// Whether a corpse is ready to get up again.
+///
+/// Reference: `item::ready_to_revive` (`item.cpp:8877-8912`). The age comes in whole hours and is worked out from the corpse's own clock; damage makes it **younger**
+/// (`age_in_hours /= damage_level + 1`), and `rez_factor` is `48 - age_in_hours`. A corpse older than six hours is ready when the factor has run out, or on a one-in-`rez_factor`
+/// chance. Everything the reference does with vehicles and the player's distance is left out on purpose: this store has no vehicle and no distance rule for a corpse.
+#[must_use]
+pub fn ready_to_revive(age_hours: i32, damage_level: i32, rolls: &mut cdda_core_types::rng::Rolls) -> bool {
+    let mut age = age_hours;
+    if damage_level > 0 {
+        age /= damage_level + 1;
+    }
+    if age <= 6 {
+        return false;
+    }
+    let rez_factor = 48 - age;
+    rez_factor <= 0 || rolls.one_in(rez_factor)
+}
