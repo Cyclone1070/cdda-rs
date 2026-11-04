@@ -620,3 +620,8 @@ data.
 **Round 1107 added the flat part of a monster's blow**: dump **version 6** states `melee_bash/cut/stab` from `mtype::melee_damage` (**549 of 1,154** prototypes have one: 518 cut, 22 bash,
 9 stab), the loader reads them, and `spawn_monster_of_type` puts them in the `MeleeAttack` component beside the dice and the piercing. Gated by
 `creature_fight::a_monster_whose_data_states_a_flat_blow_hits_for_it` on the corpus's own `mon_crow_mutant_small` (cut 2, bash 0), so the check is the dump's number reaching the entity.
+
+**Round 1108 ported the critical hit chance**: `melee::crit_chance` (`Character::crit_chance`, `melee.cpp:1116-1193`) - weapon, body and skill chances multiplied, plus a pair chance when
+the roll passes one and a half times the target's dodge - gated by `melee_rules::a_swing_is_a_critical_hit_by_three_chances_multiplied` on the reference's **own worked examples**
+(fresh 8/8/8/8 = 50/49/25, expert 10/10/10/10 = 100/55/60) plus a recorded divergence: the comment's godlike figures (100%, 42%) disagree with the constants below it (85%, 95%), and
+the port follows the code. **Nothing calls the rule yet**; the damage multiplier in `deal_melee_hit` is the next slice.

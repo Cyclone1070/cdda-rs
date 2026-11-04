@@ -293,3 +293,69 @@ pub fn weapon_skill(bash: f64, cut: f64, stab: f64) -> Option<&'static str> {
     }
     best.map(|(_, skill)| skill)
 }
+
+/// What a swing's critical chance is worked out from.
+///
+/// Reference: `Character::crit_chance( roll_hit, target_dodge, weap )` reads the weapon's `to_hit`, the unarmed skill when nothing is held, dexterity and perception, the weapon's
+/// own melee skill and the character's melee skill (`melee.cpp:1116-1193`). The struct names them the way the source does rather than in the order the arithmetic happens to use them.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CritInputs {
+    /// The weapon's own accuracy, which is `item::get_to_hit`.
+    pub to_hit: i32,
+    /// Whether nothing is held, which makes the unarmed skill the weapon's chance.
+    pub unarmed: bool,
+    /// The unarmed skill.
+    pub unarmed_skill: i32,
+    /// Dexterity.
+    pub dexterity: i32,
+    /// Perception.
+    pub perception: i32,
+    /// The skill the weapon trains: bashing, cutting, stabbing or unarmed.
+    pub weapon_skill: i32,
+    /// The general melee skill, which adds half again to the weapon's.
+    pub melee_skill: i32,
+    /// Whatever the martial art in use adds, as a fraction rather than a percent.
+    pub martial_arts_bonus: f64,
+}
+
+/// Limits a probability to `[0, 1]`, which the reference does to each of the three chances before multiplying them (`melee.cpp:1111-1114`).
+fn limited(probability: f64) -> f64 {
+    probability.clamp(0.0, 1.0)
+}
+
+/// How likely a swing that lands is a critical hit.
+///
+/// Reference: `Character::crit_chance` (`melee.cpp:1116-1193`). Three chances - weapon, body, skill - multiply into a critical that happens whatever the rolls; a roll past
+/// **one and a half times** the target's dodge adds the chance of a **pair** of them, `0.5 * (wp + ps + ws - 3 * wps)`, which is the sum of the three pairs with the triple
+/// counted three times removed. The two halves are therefore mutually exclusive and the reference simply adds them.
+#[must_use]
+pub fn crit_chance(inputs: &CritInputs, roll_hit: f32, target_dodge: f32) -> f64 {
+    // The weapon's chance: half, improved by the unarmed skill or by a positive accuracy, and worsened by a negative one.
+    let mut weapon = 0.5;
+    if inputs.unarmed {
+        weapon = 0.5 + 0.05 * f64::from(inputs.unarmed_skill);
+    }
+    // An empty hand states no accuracy at all: the reference asks a **null item** for `get_to_hit()`, which answers zero, so neither branch below fires. A caller that leaves a
+    // weapon's `to_hit` in the struct while also saying the hand is empty would otherwise have the empty hand's chance cut by a weapon it is not holding.
+    let to_hit = if inputs.unarmed { 0 } else { inputs.to_hit };
+    if to_hit > 0 {
+        weapon = weapon.max(0.5 + 0.1 * f64::from(to_hit));
+    } else if to_hit < 0 {
+        weapon += 0.1 * f64::from(to_hit);
+    }
+    let weapon = limited(weapon);
+
+    // The body's: a quarter, plus a hundredth a point of dexterity and a fiftieth a point of perception.
+    let body = limited(0.25 + 0.01 * f64::from(inputs.dexterity) + 0.02 * f64::from(inputs.perception));
+
+    // The skill's: a quarter, plus a fortieth a point of the weapon's skill, and half the melee skill on top of that.
+    let skill = limited(0.25 + (f64::from(inputs.weapon_skill) + f64::from(inputs.melee_skill) / 2.5) * 0.025);
+
+    let triple = weapon * body * skill;
+    let bonus = inputs.martial_arts_bonus;
+    if roll_hit > target_dodge * 1.5 {
+        let double = 0.5 * (weapon * body + body * skill + weapon * skill - 3.0 * triple);
+        return triple + double + bonus;
+    }
+    triple + bonus
+}

@@ -130,3 +130,108 @@ fn the_registry_carries_what_a_swung_thing_is_worth() {
     assert_eq!(of("knife_combat"), (0.0, 21.0, -1), "a knife stabs and does not bash");
     assert_eq!(of("null"), (0.0, 0.0, -2), "and the null item is worth nothing, and aims worst");
 }
+
+/// The chance a swing is a critical hit.
+///
+/// Reference: `Character::crit_chance` (`melee.cpp:1116-1193`). Three chances are multiplied - the **weapon's** (its `to_hit`, or the unarmed skill when nothing is held), the
+/// **body's** (dexterity and perception) and the **skill's** (half the melee skill plus the weapon's own) - and their product is a critical whatever the rolls. A good enough
+/// roll against the target's dodge adds a **pair** of them: `0.5 * (wp + ps + ws - 3 * wps)`, which is the arithmetic of "any two of the three" with the triple removed, so
+/// the two halves are mutually exclusive and may simply be added.
+///
+/// The three cases below are the reference's **own worked examples**, quoted in its comment block (`melee.cpp:1148-1158`): fresh 8/8/8/8 unarmed, expert 10/10/10/10 unarmed,
+/// and a godlike 20/20/20/20 with a pipe of accuracy +1 - which is `to_hit` 1 on a bashing weapon at skill 20. They are the strongest kind of fixture this project has: numbers
+/// the reference worked out for itself about its own rule.
+#[test]
+fn a_swing_is_a_critical_hit_by_three_chances_multiplied() {
+    use cdda_sim::melee::{CritInputs, crit_chance};
+
+    // Fresh: dexterity 8, perception 8, every skill zero, nothing in hand.
+    let fresh = CritInputs {
+        to_hit: -2,
+        unarmed: true,
+        unarmed_skill: 0,
+        dexterity: 8,
+        perception: 8,
+        weapon_skill: 0,
+        melee_skill: 0,
+        martial_arts_bonus: 0.0,
+    };
+    let triple = |inputs: &CritInputs| {
+        crit_chance(inputs, 0.0, 0.0)
+    };
+    // 50% * 49% * 25% = 0.06125, the reference's "~1/16".
+    assert!(
+        (triple(&fresh) - 0.061_25).abs() < 0.000_1,
+        "a fresh unarmed survivor's guaranteed critical: {}",
+        triple(&fresh)
+    );
+    // And with a roll past the target's dodge by half again, a pair is added: the reference's "~1/8" on top.
+    let good_roll = crit_chance(&fresh, 10.0, 4.0);
+    assert!(
+        (good_roll - (0.061_25 + 0.5 * (0.5 * 0.49 + 0.49 * 0.25 + 0.5 * 0.25 - 3.0 * 0.061_25))).abs()
+            < 0.000_1,
+        "a roll of ten against a dodge of four is a double chance: {good_roll}"
+    );
+
+    // Expert: dexterity 10, perception 10, every skill 10, unarmed. The reference works out 100%, 55%, 60%.
+    let expert = CritInputs {
+        to_hit: -2,
+        unarmed: true,
+        unarmed_skill: 10,
+        dexterity: 10,
+        perception: 10,
+        weapon_skill: 10,
+        melee_skill: 10,
+        martial_arts_bonus: 0.0,
+    };
+    assert!(
+        (triple(&expert) - (1.0 * 0.55 * 0.6)).abs() < 0.000_1,
+        "an expert's guaranteed critical: {}",
+        triple(&expert)
+    );
+
+    // A pipe at accuracy +1 raises the weapon's chance to its maximum of 0.6 and no further: `max( 0.5, 0.5 + 0.1 * to_hit )`, then capped at one.
+    let pipe = CritInputs {
+        to_hit: 1,
+        unarmed: false,
+        unarmed_skill: 0,
+        dexterity: 0,
+        perception: 0,
+        weapon_skill: 0,
+        melee_skill: 0,
+        martial_arts_bonus: 0.0,
+    };
+    // A body of zero leaves the body's chance at its floor, which is the only weapon-chance factor left once the others are pinned: 0.6 * 0.25 * 0.25.
+    assert!(
+        (triple(&pipe) - (0.6 * 0.25 * 0.25)).abs() < 0.000_1,
+        "an accurate weapon carries the weapon chance: {}",
+        triple(&pipe)
+    );
+    // A **recorded divergence from the reference's own comment**: `melee.cpp:1148-1158` illustrates a godlike survivor as "60%, 100%, 42%", but the arithmetic below the comment
+    // gives a body chance of `0.25 + 0.01 * 20 + 0.02 * 20 = 0.85` and a skill chance of `0.25 + (20 + 20 / 2.5) * 0.025 = 0.95`. The comment predates the constants; the code
+    // is what this port follows, so the test pins the code's arithmetic and records the disagreement rather than copying the stale figure.
+    let godlike = CritInputs {
+        to_hit: 1,
+        unarmed: false,
+        unarmed_skill: 20,
+        dexterity: 20,
+        perception: 20,
+        weapon_skill: 20,
+        melee_skill: 20,
+        martial_arts_bonus: 0.0,
+    };
+    assert!(
+        (triple(&godlike) - (0.6 * 0.85 * 0.95)).abs() < 0.000_1,
+        "a godlike survivor's guaranteed critical follows the constants, not the comment: {}",
+        triple(&godlike)
+    );
+    // The body chance is capped: at dexterity and perception 20 it would be 0.85, but the reference caps every chance at one.
+    assert!(
+        triple(&CritInputs {
+            dexterity: 100,
+            perception: 100,
+            ..godlike
+        }) <= 1.0,
+        "no chance is ever above one"
+    );
+}

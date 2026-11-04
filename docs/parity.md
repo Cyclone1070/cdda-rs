@@ -12207,3 +12207,29 @@ nothing the port did looked wrong. **The most-used fixture in a project is the w
 - The dump states reals because the reference holds a `damage_instance`, and **every value in it is a whole number** (checked: zero fractional types in 1,154). The loader rounds, with a
   comment saying why, rather than carrying a float into a world whose damage is counted in whole points.
 - The rounding is the one place clippy's truncation lint is silenced **on purpose**: `as i64` on a whole-valued real is exact, and the comment says so.
+
+## A swing can be a critical hit (round 1108)
+
+`Character::crit_chance` (`melee.cpp:1116-1193`) is ported: `melee::crit_chance(&CritInputs, roll_hit, target_dodge)`. **Nothing calls it yet** - the blow's damage multiplier is the next
+slice - and that is named rather than hidden.
+
+| Chance | Arithmetic |
+|---|---|
+weapon | `0.5`; the unarmed skill when nothing is held (`0.5 + 0.05 * unarmed`); or `max(0.5, 0.5 + 0.1 * to_hit)` when the weapon is accurate, `- 0.1 * |to_hit|` when it is not |
+body | `0.25 + 0.01 * dex + 0.02 * per` |
+skill | `0.25 + (weapon_skill + melee_skill / 2.5) * 0.025` |
+guaranteed critical | the **product** of the three |
+a pair, when `roll_hit > 1.5 * target_dodge` | `0.5 * (wp + ps + ws - 3 * wps)` - every pair, with the triple counted three times removed |
+everything | capped at one per chance before multiplying, as the reference does |
+
+**Two of the reference's own worked examples are the gate, and the third is a recorded divergence.** Its comment block (`melee.cpp:1148-1158`) works out a fresh 8/8/8/8 unarmed
+survivor as **50%, 49%, 25%** and an expert 10/10/10/10 as **100%, 55%, 60%**; both match the code exactly, and both are pinned. Its third, a godlike 20/20/20/20 with a pipe, says
+**100%, 42%** - but the arithmetic below the comment gives **85%, 95%**. **The comment predates the constants.** The port follows the code and writes the disagreement down, because
+copying a stale illustration into a test would have made the port faithfully wrong.
+
+**A fixture caught one reading error before it shipped.** The first version let an *empty hand* take the weapon's accuracy penalty, so a fresh unarmed survivor scored **0.03675**
+instead of **0.06125** - the `to_hit` of a weapon the character was not holding. The reference asks a **null item** for `get_to_hit()`, which answers zero, so neither branch fires;
+the port now says that in the code.
+
+**What the gate cannot prove, and says so:** the function is arithmetic over six inputs, and the fixture is the reference's numbers rather than a swing. **When the multiplier lands,
+`deal_melee_hit` will be the gate that proves the swing actually crits.**
