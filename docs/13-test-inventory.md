@@ -772,3 +772,7 @@ paid inside `throw_at` before anything is rolled as the reference does. Gated by
 **Round 1143 dumped and loaded the skills table**: `--dump-skills` (**27 skills**, `corpus/skills.json` version 1) with each skill's `time_info_t` line, and the loader `cdda_content::skills`.
 Gated by `content_suite::shot_rules::every_skill_s_attack_time_line_loads_and_the_rifle_is_not_the_default`, which pins **archery 50/3/20**, **rifle 30/1/20** and **marksmanship 220/25/50**
 by id - and which corrected round 1142's documented claim that the rifle owned the 50/3 line.
+
+**Round 1144 priced a shot from the dumped tables**: `shot::cost_of_firing(gun, skills, level, stamina_percent, reload_moves)` looks the gun's own skill up in the corpus's skills table
+(`ranged.cpp:1060`), with `shot::unknown_skill_line()` = 220/25/50 for a skill the table lacks. Gated by `sim_suite::shot_rules::a_gun_is_priced_by_the_line_of_the_skill_its_own_data_names`
+- a Mini-14 (rifle, 26 moves at skill four) against a longbow (archery, 38 at the same level), plus the fallback's floor at seven levels. **No caller yet**: the fire step spends it.

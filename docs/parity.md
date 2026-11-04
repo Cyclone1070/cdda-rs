@@ -13011,3 +13011,26 @@ kind fails instead of being filed.
 
 **`time_info_t`'s defaults are marksmanship's own line** (50, 220, 25), which is why a port that let the struct default instead of loading the data would be wrong in the same direction.
 **Nothing calls the loader yet** - the next step is `shot::cost_of_a_shot` reading a `SkillTime` for the gun's skill, which is one `find` away.
+
+## A gun is priced by the skill its own data names (round 1144)
+
+The skills table is now **read**, not just loaded: `shot::cost_of_firing` takes a gun, the table, the shooter's level in that skill, the wind and the round's reach, and returns the moves.
+
+| Piece | Reference | Port |
+|---|---|---|
+the lookup | `firing.gun->skill_used->time_to_attack()` (`ranged.cpp:1060`) | `skills.iter().find(|line| line.id == gun.skill)` |
+the line | `time_info_t` | `shot::time_to_attack` (1142) |
+the wind | `RAS_time` | `shot::winded_cost` (1142) |
+a skill the table lacks | the struct's defaults, 220/25/50 | `shot::unknown_skill_line()` - named, not silently a rifle |
+Gate | - | `a_gun_is_priced_by_the_line_of_the_skill_its_own_data_names` - a Mini-14 (**30/1/20**) against a longbow (**50/3/20**), both from the corpus |
+
+**The gate is the correction of round 1143 made mechanical.** A rifle at skill four costs **26** moves; a longbow at the same level costs **38** - and the port's own documentation said they were
+the same line for exactly one round. **The test now reads both guns' `skill` from the dump and both lines from the dump, so a future reading of the data cannot drift from the code that prices
+it.**
+
+**A missing skill is priced by the reference's own defaults, and the fallback is a function with a name.** `unknown_skill_line()` returns 220/25/50 - **marksmanship's block, which the struct
+defaults happen to be** - and the gate shows that line reaching its floor at **seven** levels (220 − 175 = 45, floored to 50), not at ten. **A port that fell back to a rifle's line would be
+seven times too fast and would never notice; one that fell back to zero would make an unknown gun free.**
+
+**Named, not invented:** the reload option's moves and `hurt_part_when_fired` (round 1142's list, unchanged). **`cost_of_firing` has no caller yet** - the fire step is what spends it, and it
+is the next ranged round.

@@ -36,6 +36,36 @@ pub fn winded_cost(stamina_percent: i32) -> i32 {
     }
 }
 
+/// The line a skill the port does not know falls back to: `time_info_t`'s **defaults** (`skill.h:23-30`), 220, 25 and 50.
+///
+/// They are marksmanship's own numbers in the data as it stands, which is why a table lookup that misses is not a disaster in the reference - but **it is still a fallback and not a
+/// default**: a port that quietly priced every unknown skill at a rifle's 30/1/20 would be seven times too fast and would never notice.
+#[must_use]
+pub fn unknown_skill_line() -> (i32, i32, i32) {
+    (220, 25, 50)
+}
+
+/// What firing a gun costs the shooter, with the skill's line looked up from the dumped table.
+///
+/// Reference: `Character::fire_gun` (`ranged.cpp:1060`) reads `firing.gun->skill_used->time_to_attack()`. The port takes the same route: **the gun names the skill, and the skill owns the
+/// line** - so a rifle shot is priced by `rifle`'s 30/1/20 and an arrow by `archery`'s 50/3/20, from the corpus rather than from a table this function invented.
+///
+/// A gun whose skill is not in the table gets [`unknown_skill_line`], which the reference's own struct defaults make the marksmanship line.
+#[must_use]
+pub fn cost_of_firing(
+    gun: &cdda_content::guns::GunType,
+    skills: &[cdda_content::skills::SkillTime],
+    skill_level: i32,
+    stamina_percent: i32,
+    reload_moves: i32,
+) -> i32 {
+    let line = skills.iter().find(|line| line.id == gun.skill);
+    let (base, reduction, min) = line.map_or_else(unknown_skill_line, |line| {
+        (line.base_time, line.time_reduction_per_level, line.min_time)
+    });
+    cost_of_a_shot(base, reduction, min, skill_level, stamina_percent, reload_moves)
+}
+
 /// The whole cost of a shot: the skill's line plus the ammunition's reach, which is `RAS_time`'s own sum.
 ///
 /// Reference: `attack_moves = time_to_attack( *this, *gun_id ) + RAS_time( *this, ammo )` (`src/ranged.cpp:1060`). The reload option's moves are the caller's business - they belong to the
