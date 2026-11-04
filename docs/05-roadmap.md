@@ -894,6 +894,19 @@ states accuracy as `{grip, length, surface, balance}`, not a number (`item_facto
 **Fights run both ways at 1097-1100.** A survivor swings what it holds; a monster that walks to its goal swings at what stands there; both are the same `strike_at` in the ordered
 schedule. **The `2d0` defect** (`docs/parity.md`) turned out to be a loader fed the wrong file shape, and the fix is now a decision with a gate rather than a patch.
 
+**The melee path was finished rule by rule at 1106-1115**, each with its own gate: a monster's blow carries its **armour piercing** (`monster.cpp:2145`, `melee_dice_ap`), its **flat
+damage** (dump **v6**: `melee_bash/cut/stab`, **549 of 1,154** prototypes have one), and its **cost in moves** (dump **v7**: `attack_cost`, **1,048** at the default 100 and 106 elsewhere);
+a type with **no dice** hurts nobody however much flat damage it states (`monster.cpp:2128-2131`, 5 monsters in the corpus); a blow that lands gives the survivor's counter-attack a
+target (`hit_by_player`, 10 minutes one way and 3 turns the other); and `HIT_AND_RUN` puts a monster into `effect_run` after a blow that **dealt damage** (121 monsters).
+
+**The survivor's side grew the same way.** A swing costs moves (`attack_speed`, `melee.cpp:2668-2705`) derived from the weapon's own `attack_time` - volume, weight and count, so no new
+dump column - and a swing **teaches the weapon's skill whether it lands or misses** (`melee.cpp:713-716` and `2222`), at a price that squares with the level
+(`100 * 100 * (level + 1)^2`). **The critical-hit chance is ported but unused**: `crit_chance` (`melee.cpp:1116-1193`) is gated against the reference's own worked examples, and its
+**only** consumer is weakpoints, which this port does not have - so nothing multiplies a critical hit yet and the roadmap says so rather than inventing a multiplier.
+
+**Named gaps in the melee path, in the order they matter:** weakpoints (the whole force of a critical hit), stamina (the `attack_speed` penalty is always one until it exists), martial
+arts, `handle_melee_wear` (a weapon does not wear out), and the survivor's own `attack_cost` when it is not the avatar.
+
 **The dead come back at 1102-1105.** `item::ready_to_revive`'s arithmetic (damage makes a corpse **younger**; past six hours, a one-in-`48 - age` chance) is gated, and the whole chain
 runs in a playtest: a crowbar blow, a corpse left by the creature stage, a `date` step that moves the clock two days, and the monster standing again.
 `scenarios/a_killed_zombie_gets_up_two_days_later.txt` is the receipt. **New surface it needed:** `Date` (a clock step), `Goal` (telling monsters where to go) and `CorpseKind` (what a
