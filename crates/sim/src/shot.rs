@@ -107,6 +107,20 @@ pub fn recoil_after_a_shot(current: i32, kick: i32) -> i32 {
     (current + 5 * kick).min(MAX_RECOIL)
 }
 
+/// What a shot leaves behind when the weapon reloads as it fires, which is a bow.
+///
+/// Reference: `ranged.cpp:1230-1233` - **if the weapon has `RELOAD_AND_SHOOT`, the shooter's recoil is reset to `MAX_RECOIL`** rather than added to, because a bow's "recoil" is the draw
+/// that has to be built again from nothing. A gun instead carries its kick forward with [`recoil_after_a_shot`]. **Two rules, one field of data** (`RELOAD_AND_SHOOT` is a flag on the item,
+/// and a longbow and a compound bow both state it while a rifle states nothing), so the port reads the flag rather than guessing from a volume.
+#[must_use]
+pub fn recoil_after_firing(current: i32, kick: i32, reload_and_shoot: bool) -> i32 {
+    if reload_and_shoot {
+        MAX_RECOIL
+    } else {
+        recoil_after_a_shot(current, kick)
+    }
+}
+
 /// The blow a gun and the round in it make together.
 ///
 /// Reference: `item::gun_damage( with_ammo = true )` (`item.cpp:11160-11180`) - the weapon's own damage resolved for the barrel, **plus** the round's `shot_damage` resolved for the same
@@ -161,6 +175,7 @@ pub fn fire_at(
     round: Option<&cdda_content::ammo::AmmoType>,
     gun_entity: Option<bevy_ecs::prelude::Entity>,
     gun_weight_g: f64,
+    reload_and_shoot: bool,
 ) -> Fired {
     // Reference: `fire_gun` checks `gun.ammo_required()` and consumes the rounds **before** the shot is loosed (`ranged.cpp:1168-1172`), and breaks out of the burst when the gun cannot
     // load. A gun the port has no entity for is treated as loaded, which keeps this rule usable without one.
@@ -211,7 +226,7 @@ pub fn fire_at(
         crate::creature::effective_strength(world, shooter),
     );
     let carried = world.get::<Recoil>(shooter).map_or(0, |recoil| recoil.points);
-    let after = recoil_after_a_shot(carried, kick);
+    let after = recoil_after_firing(carried, kick, reload_and_shoot);
     if let Some(mut recoil) = world.get_mut::<Recoil>(shooter) {
         recoil.points = after;
     } else {

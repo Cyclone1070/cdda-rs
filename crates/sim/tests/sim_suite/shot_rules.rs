@@ -147,7 +147,7 @@ fn firing_a_gun_spends_moves_and_judges_the_shot_by_what_stands_there() {
     world.entity_mut(beast).insert(cdda_sim::creature::Health { hp: 10, max_hp: 10 });
 
     let before = cdda_sim::creature::moves_left(&world, shooter);
-    let fired = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (4, 0, 0), 18.0, None, None, 0.0);
+    let fired = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (4, 0, 0), 18.0, None, None, 0.0, false);
     let after = cdda_sim::creature::moves_left(&world, shooter);
     assert_eq!(before - after, fired.cost, "the shot cost what the shot table says: {}", fired.cost);
     assert_eq!(
@@ -158,7 +158,7 @@ fn firing_a_gun_spends_moves_and_judges_the_shot_by_what_stands_there() {
     assert!(fired.cost > 0, "and a shot is never free");
 
     // The same shot at bare ground uses a whole tile, so a small target is judged more harshly than nothing at all.
-    let at_nothing = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (4, 4, 0), 18.0, None, None, 0.0);
+    let at_nothing = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (4, 4, 0), 18.0, None, None, 0.0, false);
     assert!(
         fired.aim.missed_by >= at_nothing.aim.missed_by,
         "the small thing is at least as hard to hit as empty ground: {} against {}",
@@ -178,7 +178,7 @@ fn firing_a_gun_spends_moves_and_judges_the_shot_by_what_stands_there() {
         .entity_mut(standing)
         .insert(cdda_sim::creature::Creature { name: "a thing in the way".to_owned(), size: cdda_sim::CreatureSize::Medium })
         .insert(cdda_sim::creature::Health { hp: 100, max_hp: 100 });
-    let point_blank = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (0, 0, 0), 18.0, Some(&round), None, 0.0);
+    let point_blank = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (0, 0, 0), 18.0, Some(&round), None, 0.0, false);
     assert_eq!(point_blank.hit, Some(standing), "at zero range the shot reaches what is there");
     assert_eq!(point_blank.hurt, 39, "and does the cartridge's thirty-nine, with no armour to stop it");
     assert_eq!(
@@ -259,7 +259,7 @@ fn a_gun_that_cannot_pay_for_a_round_does_not_fire() {
 
     let mut fired = 0;
     for _ in 0..3 {
-        let shot = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (4, 0, 0), 18.0, None, Some(held), 0.0);
+        let shot = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (4, 0, 0), 18.0, None, Some(held), 0.0, false);
         if shot.loaded {
             fired += 1;
         } else {
@@ -346,7 +346,7 @@ fn recoil_accumulates_with_each_shot_and_widens_the_next() {
         .insert(cdda_sim::creature::Moves { left: 1_000 });
 
     // One shot at bare ground, then a second: the first leaves recoil behind, and the second is aimed with it.
-    let first = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (5, 0, 0), 18.0, Some(&round), None, 3180.0);
+    let first = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (5, 0, 0), 18.0, Some(&round), None, 3180.0, false);
     let carried = world.get::<Recoil>(shooter).map_or(0, |recoil| recoil.points);
     assert!(carried > 0, "the shot left recoil behind: {carried}");
     assert_eq!(
@@ -355,7 +355,7 @@ fn recoil_accumulates_with_each_shot_and_widens_the_next() {
         "and it is five times the kick a Mini-14 with a .223 makes: **123**, because its 3,180 g is capped at the arm's 8 * 333 g"
     );
 
-    let second = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (5, 0, 0), 18.0, Some(&round), None, 3180.0);
+    let second = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (5, 0, 0), 18.0, Some(&round), None, 3180.0, false);
     assert!(
         world.get::<Recoil>(shooter).map_or(0, |recoil| recoil.points) > carried,
         "and the second shot adds to it"
@@ -365,5 +365,25 @@ fn recoil_accumulates_with_each_shot_and_widens_the_next() {
         "the second shot is aimed with the first one's recoil in it: {} against {}",
         second.aim.dispersion,
         first.aim.dispersion
+    );
+}
+
+/// A bow resets the shooter's aim to the cap instead of adding to it, and a gun does not.
+///
+/// Reference: `ranged.cpp:1230-1233` - `if( gun.has_flag( flag_RELOAD_AND_SHOOT ) ) { recoil = MAX_RECOIL; }`. The data says which weapons those are: a **longbow** and a **compound bow**
+/// state `RELOAD_AND_SHOOT`, and a rifle states nothing at all - so this is the flag's rule and not the weapon's size.
+#[test]
+fn a_bow_starts_its_aim_over_and_a_rifle_carries_its_recoil() {
+    use cdda_sim::shot::{MAX_RECOIL, recoil_after_firing};
+
+    assert_eq!(recoil_after_firing(0, 123, true), MAX_RECOIL, "a bow resets to the cap whatever its kick");
+    assert_eq!(recoil_after_firing(2_000, 123, true), MAX_RECOIL, "even from a shooter who was already shaking");
+    assert_eq!(recoil_after_firing(0, 123, false), 615, "a gun adds five times its kick");
+    assert_eq!(recoil_after_firing(2_990, 123, false), MAX_RECOIL, "and never passes the cap");
+    // The two rules disagree for every input, which is why the flag has to be read rather than assumed.
+    assert_ne!(
+        recoil_after_firing(0, 123, true),
+        recoil_after_firing(0, 123, false),
+        "a bow and a rifle with the same kick do different things"
     );
 }

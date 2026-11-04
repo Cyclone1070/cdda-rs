@@ -809,3 +809,7 @@ Gated by `shot_rules::a_shot_s_kick_is_the_round_s_less_what_handling_and_weight
 **Round 1152 made recoil accumulate**: `shot::Recoil` (component), `shot::MAX_RECOIL` = 3000, `shot::recoil_after_a_shot` (`recoil += 5 * qty`, `ranged.cpp:1152-1154`), the recoil folded into the
 shot's dispersion (`total_gun_dispersion`, `ranged.cpp:1108`), and the CLI's `gun_weight` reading `weight_mg` from `corpus/prototypes/items.json`. Gated by
 `shot_rules::recoil_accumulates_with_each_shot_and_widens_the_next` - a kick of **123** for a capped 3,180 g rifle, 615 carried, and a second shot that is strictly worse aimed.
+
+**Round 1153 split the recoil rules by the weapon's own flag**: `shot::recoil_after_firing` (`ranged.cpp:1230-1236`) resets a `RELOAD_AND_SHOOT` weapon's shooter to `MAX_RECOIL` and otherwise
+adds `5 * kick`; the CLI reads the flag from `corpus/prototypes/items.json`. Gated by `shot_rules::a_bow_starts_its_aim_over_and_a_rifle_carries_its_recoil`. The docs now state that recoil has
+**no per-turn decay** in the reference - only aiming lowers it, and `pause()` raises it to the cap - so the port's accumulate-only behaviour is named as waiting for the aim subsystem.

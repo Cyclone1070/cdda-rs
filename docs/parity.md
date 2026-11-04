@@ -13214,3 +13214,22 @@ the arm's `8 * 333 g = 2,664 g`, and 8.0^0.8 × 2.0^1.2 divided into 1,500 is 12
 **The scenario's numbers moved, and that is the proof it is wired.** `a_survivor_shoots_a_zombie` used to miss by **0.820** on its first shot and now misses by **0.408** - because the CLI
 joined the **real gun weight** from the item dump in the same round, so the kick is the capped one rather than the weightless one the port had before. **A rule wired but fed a zero weight looks
 identical to a rule that is not wired at all**, which is why the weight came in with it.
+
+## A bow starts its aim over; a rifle carries its recoil (round 1153)
+
+| Piece | Reference | Port |
+|---|---|---|
+the branch | `if( gun.has_flag( flag_RELOAD_AND_SHOOT ) ) { recoil = MAX_RECOIL; } else { recoil += delay; }` (`ranged.cpp:1230-1236`) | `shot::recoil_after_firing(current, kick, reload_and_shoot)` |
+the data | the item's own `RELOAD_AND_SHOOT` flag | the CLI reads it from `corpus/prototypes/items.json` |
+Gate | - | `a_bow_starts_its_aim_over_and_a_rifle_carries_its_recoil` |
+
+**The two rules disagree for every input**, which is why the flag has to be **read** rather than inferred from a weapon's size or its skill: a **longbow** and a **compound bow** state
+`RELOAD_AND_SHOOT`, a **rifle states nothing**, and the two behave in opposite ways - one resets the shooter's whole aim to the cap, the other adds five times the kick.
+
+**Recoil has no per-turn decay, and the port now says so.** The reference's `recoil` falls only through **aiming** (`you.recoil = std::max( min_recoil, you.recoil - aim_amount )`,
+`ranged.cpp:1707`), and `Character::pause` sets it to **`MAX_RECOIL`** rather than to zero (`character.cpp:13549-13552`) - **waiting a turn makes the next shot's aim worse, not better**, because
+the reference models recoil as "how much aim you have to build back". So the port accumulates and does not decay, and **the aiming subsystem that spends it is named as missing rather than
+guessed at**: until `aim_per_move` is ported, a shooter in the port can only get worse, which is the correct behaviour for a game with no aiming UI yet.
+
+**Named, not invented:** `aim_per_move` and the aim activity (which is what actually lowers recoil), `RECOIL_MODIFIER`, the `delay` term that bipods and mech weapons add at the end of a
+burst, and `is_mech_weapon`'s halving.

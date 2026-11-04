@@ -1971,7 +1971,7 @@ fn fire_a_step(world: &mut World, outcome: &mut Outcome, gun_id: &str, x: i32, y
         item.charges = rounds;
     }
     let before = cdda_sim::creature::moves_left(world, survivor);
-    let shot = cdda_sim::shot::fire_at(world, survivor, &gun, &lines, (x, y, 0), 18.0, round.as_ref(), Some(held), gun_weight(gun_id));
+    let shot = cdda_sim::shot::fire_at(world, survivor, &gun, &lines, (x, y, 0), 18.0, round.as_ref(), Some(held), gun_weight(gun_id), reloads_and_shoots(gun_id), );
     let spent = before - cdda_sim::creature::moves_left(world, survivor);
     outcome.lines.push(format!(
         "fire: {gun_id} {} the shot, {spent} moves, missed by {:.3}, hurt {} {:?}",
@@ -2067,4 +2067,32 @@ fn gun_weight(id: &str) -> f64 {
         }
     }
     0.0
+}
+
+/// Whether a weapon reloads as it fires, which the reference calls `RELOAD_AND_SHOOT`.
+///
+/// Reference: `flag_RELOAD_AND_SHOOT` (`ranged.cpp:1230-1233`), read from the item's own flags in the prototypes dump: a **longbow** and a **compound bow** state it and a rifle states
+/// nothing. A weapon the dump does not know answers **no**, which is the cautious answer - it leaves recoil accumulating rather than resetting to the cap.
+fn reloads_and_shoots(id: &str) -> bool {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/items.json");
+    let Ok(bytes) = std::fs::read(&path) else {
+        return false;
+    };
+    let Ok(cdda_json::Value::Object(root)) = cdda_json::parse(&bytes) else {
+        return false;
+    };
+    let Some(cdda_json::Value::Array(items)) = root.get("prototypes") else {
+        return false;
+    };
+    items.iter().any(|item| {
+        let cdda_json::Value::Object(object) = item else {
+            return false;
+        };
+        if object.get("id") != Some(&cdda_json::Value::Str(id.to_owned())) {
+            return false;
+        }
+        matches!(object.get("flags"), Some(cdda_json::Value::Array(flags)) if flags.iter().any(
+            |flag| *flag == cdda_json::Value::Str("RELOAD_AND_SHOOT".to_owned())
+        ))
+    })
 }
