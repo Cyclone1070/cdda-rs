@@ -387,3 +387,35 @@ fn a_bow_starts_its_aim_over_and_a_rifle_carries_its_recoil() {
         "a bow and a rifle with the same kick do different things"
     );
 }
+
+/// A round's own spread is drawn as an angle, capped at thirty degrees, and only displaces the aim when it is wide across several tiles.
+///
+/// Reference: `ballistics.cpp:395-405`. The gate pins the three parts a port gets wrong: **the draw is absolute** (the sign of a normal sample carries no meaning here), **the cap is
+/// thirty degrees** (1,800 arcmin, not 30 arcmin), and **`max_spread` must reach one** before the target square moves - so a birdshot's 300 arcmin is wide yet a one-tile shot never
+/// scatters.
+#[test]
+fn a_round_s_spread_is_absolute_capped_and_only_moves_the_aim_across_tiles() {
+    use cdda_core_types::rng::Rolls;
+    use cdda_sim::shot::{shot_spread_arcmin, spread_across_tiles};
+
+    let mut dice = Rolls::new(1234);
+    // Every draw from a 300-arcmin round is between nothing and 300, and none is negative: the reference takes the absolute value.
+    let mut seen_wide = false;
+    for _ in 0..200 {
+        let drawn = shot_spread_arcmin(300, &mut dice);
+        assert!(drawn >= 0.0, "an absolute draw: {drawn}");
+        assert!(drawn <= 300.0 || (drawn - 1800.0).abs() < f64::EPSILON, "within the round's own spread, or at the cap: {drawn}");
+        if drawn > 100.0 {
+            seen_wide = true;
+        }
+    }
+    assert!(seen_wide, "and two hundred draws from three hundred arcmin reach past a hundred");
+    assert!(shot_spread_arcmin(0, &mut dice).abs() < f64::EPSILON, "a round with no spread draws nothing");
+
+    // One tile: no displacement at all, however wide. Two hundred arcmin across two tiles: 0.058 - under one, so still no displacement.
+    assert!(spread_across_tiles(1800.0, 1).abs() < f64::EPSILON, "one tile never scatters");
+    let two = spread_across_tiles(200.0, 2);
+    assert!(two > 0.0 && two < 1.0, "two tiles and two hundred arcmin is a tenth of a square: {two}");
+    // Enough tiles at a wide enough arc does pass one, which is the only case the reference moves the target square.
+    assert!(spread_across_tiles(1800.0, 10) >= 1.0, "ten tiles at the cap is more than a square: {}", spread_across_tiles(1800.0, 10));
+}

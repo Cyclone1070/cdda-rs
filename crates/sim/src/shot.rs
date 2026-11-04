@@ -84,6 +84,33 @@ pub fn cost_of_a_shot(
         + reload_moves
 }
 
+/// How far a pellet's own flight wanders: the ammunition's `shot_spread`, drawn as a normal angle and capped at thirty degrees.
+///
+/// Reference: `ballistics.cpp:395-403` - `rng_normal( -proj.shot_spread, proj.shot_spread )`, the **absolute value** of the draw, clamped to `30_degrees` of arc, and then turned into a
+/// fraction of the range by `tan( arc / 2 ) * 2.0`. **The cap is the rule that keeps a 300-arcmin birdshot sane**: thirty degrees is 1,800 arcmin, and without the clamp a wide round would
+/// rotate its target square further than the map allows.
+#[must_use]
+pub fn shot_spread_arcmin(shot_spread: i32, dice: &mut cdda_core_types::rng::Rolls) -> f64 {
+    if shot_spread <= 0 {
+        return 0.0;
+    }
+    let spread = f64::from(shot_spread);
+    dice.rng_normal(-spread, spread).abs().min(30.0 * 60.0)
+}
+
+/// What an arc of spread comes to as a fraction of a square's width, and whether it is enough to leave the target square entirely.
+///
+/// Reference: `ballistics.cpp:399-405`: `spread = tan( arc / 2 ) * 2.0` and `max_spread = spread * ( trajectory.size() - 1 )`, and **only a `max_spread` of one or more moves the target
+/// square** - so a single-tile shot's spread never displaces its aim, however wide the round. That is why a shotgun's pellets scatter at range and a rifle's do not, from one formula.
+#[must_use]
+pub fn spread_across_tiles(arcmin: f64, tiles: usize) -> f64 {
+    let radians = crate::ballistics::arcmin_to_radians(arcmin);
+    let spread = (radians / 2.0).tan() * 2.0;
+    #[allow(clippy::cast_precision_loss)]
+    let span = spread * (tiles.saturating_sub(1)) as f64;
+    span
+}
+
 /// How much recoil a creature is carrying, in the reference's own units.
 ///
 /// Reference: `Character::recoil` (`character.h:3115-3120`), a `double` capped at `MAX_RECOIL` = **3000** (`game_constants.h:101`). It accumulates as `5 * gun_recoil` a shot

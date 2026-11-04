@@ -16,7 +16,8 @@ pub struct Aim {
 }
 
 /// An arcminute count as radians: sixty to a degree, and a degree is pi over a hundred and eighty.
-fn arcmin_to_radians(arcmin: f64) -> f64 {
+#[must_use]
+pub fn arcmin_to_radians(arcmin: f64) -> f64 {
     arcmin / 60.0 * std::f64::consts::PI / 180.0
 }
 

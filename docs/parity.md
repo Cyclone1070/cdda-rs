@@ -13376,3 +13376,28 @@ three stats (`newcharacter.cpp:5128-5131`).
 
 **Named, not invented:** the aiming activity's own move cost (the port charges **one move a step of the loop**, which is the activity's shape, not a data figure), the sights' switching, and
 `aim_speed_skill_mod`'s archery bonus.
+
+## A round's own spread (round 1160)
+
+The ammo dump has carried `shot_spread` since round 1150; this round ports the two rules that spend it.
+
+| Piece | Reference | Port |
+|---|---|---|
+the draw | `rng_normal( -proj.shot_spread, proj.shot_spread )`, then **absolute** | `shot::shot_spread_arcmin(shot_spread, dice)` |
+the cap | `min( arcmin, 30_degrees )` | the same, as **1,800 arcmin** |
+the geometry | `spread = tan( arc / 2 ) * 2`, `max_spread = spread * ( tiles - 1 )` | `shot::spread_across_tiles(arcmin, tiles)` |
+Gate | - | `a_round_s_spread_is_absolute_capped_and_only_moves_the_aim_across_tiles` |
+
+**Three things in six lines of the reference are easy to misread, and the gate pins all three.**
+
+| The line | What it does | The misreading |
+|---|---|---|
+`sample >= 0 ? sample : -sample` | the **sign carries no meaning** | keeping it would make half the shots fly left and half right, doubling the scatter |
+`30_degrees` | the clamp is **thirty degrees**, not thirty minutes | 1,800 against 30: a factor of sixty |
+`max_spread >= 1.0` | **only a scatter wider than a whole square moves the aim** | treating any spread as a miss makes every birdshot useless at any range |
+
+**That third one is the rule that makes a shotgun behave**: a birdshot's 300 arcmin is drawn **wide**, and at one tile it never displaces its aim, because `spread * (1 - 1)` is zero - while the
+same round across ten tiles at the cap is several squares. **One formula, two behaviours, no special case** - which is exactly the kind of thing a port is tempted to "fix" with a branch.
+
+**Named, not invented:** the target-square rotation itself (`ballistics.cpp:405-420`, which needs the trajectory's tile count and the map's bounds), `projectile_attack`'s per-pellet loop, and
+`NEVER_MISFIRES`.

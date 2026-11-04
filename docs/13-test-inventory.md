@@ -838,3 +838,7 @@ sights' speed, divided by skill, faded in by the recoil, capped by skill, scaled
 `docs/cli-steps.md`, and `scenarios/a_survivor_shoots_a_zombie.txt` now aims between shots. Gated by `aim_rules::aiming_spends_moves_until_the_floor_stops_it` (ten shrinking gains, the
 stopping condition, and the zero-move case). The scenario caught that a survivor with **no `Strength` component** reads as zero strength and so hit the recoil cap on its first shot; the spawn
 now sets the reference's new-character eight in all three stats.
+
+**Round 1160 ported a round's own spread**: `shot::shot_spread_arcmin` (`ballistics.cpp:396-399` - a normal draw, absolute, capped at **1,800** arcmin) and `shot::spread_across_tiles`
+(`ballistics.cpp:399-405` - `tan(arc/2)*2*(tiles-1)`), with `ballistics::arcmin_to_radians` made public for them. Gated by
+`shot_rules::a_round_s_spread_is_absolute_capped_and_only_moves_the_aim_across_tiles`. The target-square rotation is **not** wired yet, and the docs say so.
