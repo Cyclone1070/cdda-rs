@@ -2135,9 +2135,10 @@ pub fn swing_what_the_character_holds(world: &mut World, holder: Entity, victim:
     let dexterity = effective_dexterity(world, holder);
     let cost = crate::melee::attack_speed(weapon_time / 2, skill, dexterity, 1.0);
     spend_moves(world, holder, f64::from(cost));
-    let dealt = strike_with(world, victim, attack)?;
-    // Reference: a landed blow teaches its weapon's skill by `rng( 2, min( 5, skill_training_cap ) )` (`melee.cpp:2222`), and the skill is the **weapon's**
-    // (`item::melee_skill`), not the general melee skill. A miss teaches nothing here, because the reference's miss path teaches through `times_combatted_player` instead.
+    let dealt = strike_with(world, victim, attack);
+    // Reference: **both** paths teach. `melee.cpp:2222` trains after a hit and `melee.cpp:713-716` trains after a miss - `melee_train( *this, 2, std::min( 5,
+    // skill_training_cap ), cur_weap, ... )` in each - and the skill is the **weapon's** (`item::melee_skill`), not the general melee skill. The reference's miss path also
+    // counts `times_combatted_player` on the target, which nothing in this port reads yet.
     if let Some(learned) = weapon_skill_of(world, holder)
         && let Some(mut rolls) = crate::singletons::take_rolls(world)
     {
@@ -2145,7 +2146,7 @@ pub fn swing_what_the_character_holds(world: &mut World, holder: Entity, victim:
         crate::singletons::put_rolls(world, rolls);
         practise_skill(world, holder, learned, amount);
     }
-    Some(dealt)
+    dealt
 }
 
 /// One blow, from an attack the caller has already worked out.

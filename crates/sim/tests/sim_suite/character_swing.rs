@@ -253,3 +253,39 @@ fn a_landed_blow_teaches_the_skill_it_used() {
         "and nothing about a skill the knife does not use"
     );
 }
+
+/// A blow that misses still teaches, which is the reference's own rule.
+///
+/// Reference: `melee.cpp:713-716` trains after a **miss** exactly as `melee.cpp:2222` trains after a hit - the same `melee_train( *this, 2, std::min( 5,
+/// skill_training_cap ), ... )`. The gate makes the target impossible to hit (a thousand points of dodge), so every swing misses, and the skill must still grow.
+#[test]
+fn a_blow_that_misses_still_teaches_the_skill_it_swung_with() {
+    let (mut world, _null, _rock, knife) = world_with_kinds();
+    let survivor = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Wielding(knife));
+    let victim = cdda_sim::creature::spawn_creature(&mut world, "the wind", (1, 0, 0));
+    world
+        .entity_mut(victim)
+        .insert(cdda_sim::creature::Dodge { points: 1_000 })
+        .insert(cdda_sim::creature::Health { hp: 10_000, max_hp: 10_000 });
+    cdda_sim::creature::set_moves(&mut world, survivor, 100_000);
+
+    for _ in 0..20 {
+        cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, victim);
+    }
+    assert_eq!(
+        cdda_sim::creature::health_of(&world, victim),
+        Some(10_000),
+        "nothing landed, which is what makes this a test about missing"
+    );
+    let exercise = world
+        .get::<cdda_sim::creature::Exercise>(survivor)
+        .and_then(|banked| banked.0.get("stabbing").copied())
+        .unwrap_or(0);
+    assert!(
+        exercise > 0,
+        "twenty misses still teach: exercise {exercise}"
+    );
+}

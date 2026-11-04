@@ -646,3 +646,8 @@ test reads 32 instead of 80.
 `swing_what_the_character_holds` on a landed blow with `rng(2, 5)` of the **weapon's** skill (`melee.cpp:2222`). Gated by
 `melee_rules::practising_a_skill_buys_levels_at_a_rising_price` (including the two-level cascade) and `character_swing::a_landed_blow_teaches_the_skill_it_used` (stabbing rises,
 bashing does not). **Not ported, named:** the knowledge track, the rust accumulator, and the miss path's `times_combatted_player`.
+
+**Round 1113 corrected round 1112's mistake**: the reference trains the weapon's skill after a **miss** too (`melee.cpp:713-716`), with the same `melee_train( *this, 2, min( 5,
+skill_training_cap ), ... )` as after a hit (`melee.cpp:2222`). `swing_what_the_character_holds` now practises on both paths, gated by
+`character_swing::a_blow_that_misses_still_teaches_the_skill_it_swung_with` - a target with a thousand points of dodge takes no damage at all, so the exercise can only have grown through
+the miss path.

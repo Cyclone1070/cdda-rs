@@ -12311,3 +12311,22 @@ has done - and two levels that drift apart. **This port holds one number per ski
 
 **A miss teaches nothing here, and the reference's miss path is named rather than emulated.** The reference counts `times_combatted_player` and teaches through it; the port's swings start
 with the hit path, and the miss path is a named gap rather than an invented amount.
+
+## A miss teaches too - last round's simplification was wrong (round 1113)
+
+Round 1112 trained the weapon's skill only after a **hit**, and wrote down that the reference's miss path "teaches through `times_combatted_player` instead". **That was wrong, and the source
+says so plainly:** `melee.cpp:713-716` trains after a miss with the same call as `melee.cpp:2222` trains after a hit - `melee_train( *this, 2, std::min( 5, skill_training_cap ), cur_weap,
+... )` - and *also* counts `times_combatted_player` on the target.
+
+| Piece | Reference | Port |
+|---|---|---|
+a landed blow | trains `rng( 2, min( 5, cap ) )` of the weapon's skill (`melee.cpp:2222`) | unchanged |
+a missed blow | trains the **same** amount (`melee.cpp:713-716`) | now trains too |
+Gate | - | `a_blow_that_misses_still_teaches_the_skill_it_swung_with`: a target with a thousand points of dodge takes **no** damage and the exercise still grows |
+
+**The gate is built so it cannot pass by accident.** The victim has a thousand dodge, so nothing lands (`health_of` is asserted unchanged) - which means the only way the exercise can move is
+the miss path. **A test that asserted exercise *and* damage together could have passed through the hit path and said nothing about missing.**
+
+**How the error happened is worth recording, because it will happen again.** I read the hit branch at `melee.cpp:2222`, saw a training call there, and inferred the miss branch must differ -
+the two are **fourteen hundred lines apart** in a fourteen-thousand-line file, and an inference about a branch I had not read is exactly the sort of guess this project forbids. **The rule is
+not "train on a hit"; it is "train on the swing".** The correction cost one round; shipping the simplification would have cost a player months of practice that never happened.
