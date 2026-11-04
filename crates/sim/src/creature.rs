@@ -1991,7 +1991,22 @@ pub fn strike_at(world: &mut World, attacker: Entity, victim: Entity) -> Option<
     if attack.0.dice == 0 {
         return None;
     }
-    strike_with(world, victim, attack.0)
+    let dealt = strike_with(world, victim, attack.0)?;
+    // Reference: `monster::melee_attack` puts a hit-and-run monster into `effect_run` for four turns after its blow (`monster.cpp:2134-2136`). The effect is only given when the
+    // world has been told what that effect is: an effect the content does not define cannot be worn, and inventing one here would put a name in the store that nothing can read.
+    if dealt > 0
+        && world
+            .get::<crate::creature_flags::CreatureFlags>(attacker)
+            .is_some_and(|flags| flags.0.contains("HIT_AND_RUN"))
+        && let Some(kind) = crate::effect_registry::kind_of(world, "run")
+    {
+        crate::applied_effects::add(
+            world,
+            attacker,
+            crate::effects::ActiveEffect::new(&kind, 4, 1),
+        );
+    }
+    Some(dealt)
 }
 
 /// What one blow costs this creature in moves.

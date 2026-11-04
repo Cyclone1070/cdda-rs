@@ -651,3 +651,7 @@ bashing does not). **Not ported, named:** the knowledge track, the rust accumula
 skill_training_cap ), ... )` as after a hit (`melee.cpp:2222`). `swing_what_the_character_holds` now practises on both paths, gated by
 `character_swing::a_blow_that_misses_still_teaches_the_skill_it_swung_with` - a target with a thousand points of dodge takes no damage at all, so the exercise can only have grown through
 the miss path.
+
+**Round 1114 ported `HIT_AND_RUN`**: `strike_at` puts a monster that dealt damage into `effect_run` for four turns when its flags carry the trait (`monster::melee_attack`,
+`monster.cpp:2134-2136`), and adds nothing when the content has not defined the effect. **121 of 1,154** monsters carry the flag. Gated by
+`creature_fight::a_monster_that_hits_and_runs_is_running_after_its_blow`, which spawns the same corpus type twice - once plain, once with the flag - from one loaded prototype.

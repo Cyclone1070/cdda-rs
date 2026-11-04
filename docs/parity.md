@@ -12330,3 +12330,25 @@ the miss path. **A test that asserted exercise *and* damage together could have 
 **How the error happened is worth recording, because it will happen again.** I read the hit branch at `melee.cpp:2222`, saw a training call there, and inferred the miss branch must differ -
 the two are **fourteen hundred lines apart** in a fourteen-thousand-line file, and an inference about a branch I had not read is exactly the sort of guess this project forbids. **The rule is
 not "train on a hit"; it is "train on the swing".** The correction cost one round; shipping the simplification would have cost a player months of practice that never happened.
+
+## A monster that hits and runs is running (round 1114)
+
+`monster::melee_attack` puts the attacker into `effect_run` for four turns when it carries `HIT_AND_RUN` (`monster.cpp:2134-2136`). **121 of the corpus's 1,154 monsters carry the
+flag**, and the port read it as decoration.
+
+| Piece | Reference | Port |
+|---|---|---|
+when | after a blow that **dealt damage**, and only then | `dealt > 0` |
+what | `effect_run`, four turns | `applied_effects::add` with a four-turn `ActiveEffect` |
+who | the attacker | the attacker |
+what it needs from the world | the effect's own definition | `effect_registry::kind_of("run")` - **if the content has not defined the effect, nothing is added** |
+
+**The conditional on the effect registry is the architecture, not caution.** A component may only name what the world can resolve: an effect type the content has never loaded would be a
+string in a store that nothing can read, and the honest behaviour is to leave it off. That is also what makes the gate possible at all - a test world that defines `run` sees the effect,
+and a world that does not stays clean.
+
+**"Only when it dealt damage" is the reference's own gate**, and it is not obvious: `hitspread >= 0` decides the landing, but the reference checks `total_dealt` before the flag. **A
+monster whose claws bounced off armour does not run away** - it stands there and tries again, which is the difference between a nuisance and a threat.
+
+**The gate spawns the same type twice**, once without the flag and once with it, from **one** loaded prototype: a hand-built flag list would have proved only that the port can copy a list it
+was handed.

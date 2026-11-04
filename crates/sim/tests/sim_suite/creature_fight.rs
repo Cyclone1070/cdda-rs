@@ -893,3 +893,68 @@ fn a_monster_with_no_dice_hurts_nobody_however_much_flat_damage_its_data_states(
         "no dice means no permission to hurt anyone"
     );
 }
+
+/// A monster that hit and runs is running after its blow lands.
+///
+/// Reference: `monster::melee_attack` gives the monster `effect_run` for four turns when it carries `HIT_AND_RUN` (`monster.cpp:2134-2136`), which is what makes the flag mean
+/// anything. **121 of the corpus's 1,154 monsters carry it.** The gate uses the monster's own flags, so a spawn that dropped them fails here too.
+#[test]
+fn a_monster_that_hits_and_runs_is_running_after_its_blow() {
+    use bevy_ecs::prelude::*;
+
+    let mut world = World::new();
+    singletons::put_rolls(&mut world, Rolls::new(23));
+    let mut level = Level::new();
+    for x in 0..4 {
+        for y in 0..4 {
+            level.set_terrain(x, y, 1, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let run = cdda_json::parse(br#"{"id":"run","max_duration":"10 turns"}"#).expect("valid json");
+    let cdda_json::Value::Object(entry) = run else {
+        panic!("an effect type is an object")
+    };
+    let kind = cdda_content::effects::read_one("run", &entry);
+    cdda_sim::effect_registry::set_effect_types(&mut world, std::slice::from_ref(&kind));
+
+    let mut monster_type = {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+        let text = std::fs::read(path).expect("the monster dump exists");
+        let value = cdda_json::parse(&text).expect("the dump is valid JSON");
+        let cdda_json::Value::Object(root) = value else {
+            panic!("the dump's root is not an object")
+        };
+        let Some(cdda_json::Value::Array(prototypes)) = root.get("prototypes") else {
+            panic!("the dump has no prototypes")
+        };
+        cdda_content::monsters::load_objects(prototypes)
+            .expect("the dump loads")
+            .into_iter()
+            .find(|one| one.id == "mon_zombie")
+            .expect("the corpus has a zombie")
+    };
+    let runner = cdda_sim::creature::spawn_monster_of_type(&mut world, cdda_sim::MonsterKindId(1), &monster_type, (1, 1, 0), 100);
+    let survivor = cdda_sim::spawn_player(&mut world, (0, 1), 80, 0);
+
+    // A plain zombie does not run.
+    for _ in 0..12 {
+        cdda_sim::creature::strike_at(&mut world, runner, survivor);
+    }
+    assert!(
+        !cdda_sim::applied_effects::has(&world, runner, "run"),
+        "a zombie stands and fights"
+    );
+
+    // The same monster with the flag, spawned from the same type.
+    monster_type.flags.insert("HIT_AND_RUN".to_owned());
+    let runner = cdda_sim::creature::spawn_monster_of_type(&mut world, cdda_sim::MonsterKindId(1), &monster_type, (1, 2, 0), 100);
+    let mut ran = false;
+    for _ in 0..12 {
+        cdda_sim::creature::strike_at(&mut world, runner, survivor);
+        if cdda_sim::applied_effects::has(&world, runner, "run") {
+            ran = true;
+        }
+    }
+    assert!(ran, "and one with the flag runs after a blow that lands");
+}
