@@ -611,3 +611,8 @@ the turn**. The attempted scenario (`date` step, two-day wait) was deleted rathe
 when it is installed, and `scenarios/a_killed_zombie_gets_up_two_days_later.txt` runs the **whole chain** - a crowbar blow, a corpse, a `date 180000` step to move the clock two days,
 and the monster standing again. Gated too at the stage by `creature_fight::a_monster_killed_in_a_turn_leaves_a_corpse`, which checks the kind, the volume, the death turn and the
 `REVIVES` flag on the corpse the sweep leaves.
+
+**Round 1106 wired a monster's armour piercing**: `spawn_monster_of_type` now writes `penetration = melee_dice_ap` into the blow, matching `monster::melee_attack`
+(`monster.cpp:2145`). Gated by `creature_fight::a_monster_spawned_from_its_type_carries_that_type_s_armour_piercing`, which reads the **component the spawn writes** rather than swinging,
+because every rule here already worked and only the wiring was missing; its fixture is the corpus's own `mon_zombie` with `melee_dice_ap` changed, so the number cannot drift from the
+data.

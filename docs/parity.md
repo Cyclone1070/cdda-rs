@@ -12164,3 +12164,23 @@ answer and the stage reads it: **a world that never installed it reaps the dead 
 
 **Two clippy findings in the new gate were both worth fixing rather than silencing:** a `clone` on a `Copy` type, and an index into a `Vec` that could be empty. **`corpses.first()`
 with an explicit panic says what the test means; `corpses[0]` says only where it looks.**
+
+## A monster's claws go through armour, and now they say so (round 1106)
+
+The port spawned monsters whose blows carried **no armour piercing**, even though the dump has `melee_dice_ap` for every type and the loader has been reading it since round 1096.
+
+| Piece | Reference | Port |
+|---|---|---|
+the blow's shape | `monster::melee_attack`: `damage.add_damage( damage_bash, dice( melee_dice, melee_sides ), melee_dice_ap )` (`monster.cpp:2145`) | dice as **bash**, `penetration = melee_dice_ap`, flat part zero |
+where the piercing is spent | `get_effective_resist` clamps at zero (`damage.cpp:724-727`) | `melee::effective_resist`, unchanged |
+Gate | - | `a_monster_spawned_from_its_type_carries_that_type_s_armour_piercing` reads the **component the spawn writes** |
+
+**The gate reads the component, not the damage, and that is deliberate.** Every *rule* here already worked - the dice, the penetration clamp, the three damage types - so a test that swings and
+checks hit points would pass with the piercing missing (except against exactly the armour it pierces). **What was wrong was the wiring between the type and the component**, so the gate
+asks the component. **A rule can be perfect and unreachable in eleven different ways; this was the twelfth.**
+
+**The fixture is the corpus's own zombie with one field changed.** A hand-built type would have let the figure 5 drift from the data it claims to stand for; here the base is
+`corpus/monsters/monsters.json`'s `mon_zombie` and only `melee_dice_ap` is set, so the gate is about the **plumbing** and not about a number I typed.
+
+**Named, not done:** `melee_dice_ap` reaches the component but **no monster in the corpus states a non-zero value except a handful**, so the difference it makes is small today and large the
+moment a biting monster is added. That is the right order: the wiring is proved, and the data decides when it matters.

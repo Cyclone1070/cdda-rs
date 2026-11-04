@@ -655,3 +655,65 @@ fn a_monster_killed_in_a_turn_leaves_a_corpse() {
     assert_eq!(corpse.died_on, 500, "and when it died, which is what its age counts from");
     assert!(corpse.revives, "and that it can get up again");
 }
+
+/// A monster's blow carries its type's armour penetration, so a tough hide does not stop it.
+///
+/// Reference: `monster::melee_attack` adds the dice as **bash** with `melee_dice_ap` as penetration (`monster.cpp:2145`), and `get_effective_resist` clamps at zero
+/// (`damage.cpp:724-727`). The gate reads the **component** the spawn writes, so a spawn that forgot the penetration fails here even though every rule still composes.
+#[test]
+fn a_monster_spawned_from_its_type_carries_that_type_s_armour_piercing() {
+    use bevy_ecs::prelude::*;
+
+    let mut world = World::new();
+    let mut level = Level::new();
+    for x in 0..3 {
+        for y in 0..3 {
+            level.set_terrain(x, y, 1, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    cdda_sim::monster_registry::set_monster_types(
+        &mut world,
+        &[cdda_sim::monster_registry::MonsterKind {
+            id: "mon_piercer",
+            hp: 40,
+        }],
+    );
+    let kind = cdda_sim::monster_registry::id_of(&mut world, "mon_piercer").expect("the kind");
+
+    // The type is the corpus's own zombie with one field changed, so the fixture cannot drift from the data it stands for.
+    let mut monster_type = {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+        let text = std::fs::read(path).expect("the monster dump exists");
+        let value = cdda_json::parse(&text).expect("the dump is valid JSON");
+        let cdda_json::Value::Object(root) = value else {
+            panic!("the dump's root is not an object")
+        };
+        let Some(cdda_json::Value::Array(prototypes)) = root.get("prototypes") else {
+            panic!("the dump has no prototypes")
+        };
+        cdda_content::monsters::load_objects(prototypes)
+            .expect("the dump loads")
+            .into_iter()
+            .find(|one| one.id == "mon_zombie")
+            .expect("the corpus has a zombie")
+    };
+    monster_type.id = "mon_piercer".to_owned();
+    monster_type.melee_dice_ap = 5;
+    let monster = cdda_sim::creature::spawn_monster_of_type(&mut world, kind, &monster_type, (1, 1, 0), 100);
+
+    let attack = world
+        .get::<cdda_sim::creature::MeleeAttack>(monster)
+        .expect("a spawned monster can hit")
+        .0;
+    assert_eq!(attack.dice, 2, "two dice");
+    assert_eq!(attack.sides, 3, "of three faces");
+    assert_eq!(
+        attack.fixed.penetration, 5,
+        "and the type's own armour piercing"
+    );
+    assert_eq!(
+        attack.fixed.bash, 0,
+        "the flat part of the blow stays zero, because the data states none"
+    );
+}

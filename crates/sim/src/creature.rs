@@ -1615,7 +1615,13 @@ pub fn spawn_monster_of_type(
     world.entity_mut(entity).insert((
         MeleeAttack(crate::melee::Attack {
             accuracy_tenths: monster_type.melee_skill * 10,
-            fixed: crate::melee::Damage::default(),
+            // Reference: `monster::melee_attack` adds its dice as **bash** with the type's own `melee_dice_ap` as penetration
+            // (`monster.cpp:2145`, `damage.add_damage( damage_bash, dice( melee_dice, melee_sides ), melee_dice_ap )`).
+            // The type's fixed damage stays the default zero: a monster's blow is dice, and the data states no flat part for it.
+            fixed: crate::melee::Damage {
+                penetration: monster_type.melee_dice_ap,
+                ..crate::melee::Damage::default()
+            },
             dice: monster_type.melee_dice,
             sides: monster_type.melee_sides,
         }),
