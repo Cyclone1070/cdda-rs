@@ -12764,3 +12764,26 @@ assertion - *the data says a winded creature moves ten speed slower* - put the b
 
 **Named, not invented:** pain, thirst, underweight and the martial-arts speed bonus, which `get_speed_base` adds in the same block and this port has no sources for; and the reference's
 body-part levels, which only matter when an effect sits on one limb and the port has no per-limb effects.
+
+## An effect the creature is wearing changes its dexterity (round 1133)
+
+Round 1132 gave the effect modifier table its first reader. This gives it a second, on the stat the melee path actually multiplies: `Character::get_dex` is
+`std::max( 0, get_dex_base() + dex_bonus )` (`character.cpp:4390-4392`), and `dex_bonus` is where every worn effect's `DEX` modifier lands.
+
+| Piece | Reference | Port |
+|---|---|---|
+the stat | `get_dex()` = base + bonus, floored at zero | `effective_dexterity` = mutation-adjusted base + `effect_stat_bonus`, floored at zero |
+the bonus | accumulated from each effect's `DEX` table | `creature::effect_stat_bonus(world, entity, "DEX")` |
+the whole table | one reader per argument | `effect_stat_bonus` takes the argument, and `effect_speed_modifier` is now **one line** calling it with `SPEED` |
+read-only door | - | `effect_registry::kind_named` - `kind_of` builds the singleton, so it needs the store mutably; a bonus needs only to read |
+Gate | - | `an_effect_the_creature_wears_changes_its_dexterity` - nothing worn is 8, a `[-2]` effect is 6, and a `[-10]` effect **floors at 0** |
+
+**The gate failed twice, and both times the port was right and the fixture was wrong - the second time about the data's own shape.** An array in `base_mods` is **per body-part level**,
+not per-intensity: index zero is the creature as a whole (`get_effect_modifier_key`, `effect.cpp:310-316`), and intensity scaling comes from a separate `scaling_mods` table. **My first
+fixture wrote `[-2, -2]` expecting the second number to be a per-intensity step; the loader read it as level one, which is a limb, and answered a flat -2.**
+
+**And the first attempt applied the same effect five times and expected it to stack.** It does not: `applied_effects::add` merges into one instance, which is the reference's behaviour too.
+**The heavy case needed a heavier effect, not a repeated one** - and that is a better gate anyway, because it tests the floor with one data value rather than with a stack.
+
+**`effect_speed_modifier` collapsing to one line is the point of the round.** Two readers, one sum, one place to change: the next modifier the port reads - `PER`, `INT`, a movement cost -
+is an argument, not a new function.

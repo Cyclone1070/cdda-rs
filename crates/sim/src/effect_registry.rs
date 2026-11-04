@@ -50,6 +50,17 @@ pub fn kind_of(world: &mut World, id: &str) -> Option<EffectType> {
         .and_then(|at| world.get::<EffectTypes>(entity)?.kinds.get(at).cloned())
 }
 
+/// The type a name refers to, without touching the store.
+///
+/// `kind_of` has to build the singleton when it is missing, which is why it takes the store mutably. A rule that is only **reading** a creature's effects - a speed bonus, a stat bonus -
+/// has nothing to build, and giving it a read-only door is what lets such a rule keep `&World` like the rest of the read side.
+#[must_use]
+pub fn kind_named(world: &World, id: &str) -> Option<EffectType> {
+    let types = world.iter_entities().find_map(|entity| entity.get::<EffectTypes>())?;
+    let at = types.by_id.get(id).copied()?;
+    types.kinds.get(at).cloned()
+}
+
 /// Every type the store holds, for a rule that needs the whole table at once.
 #[must_use]
 pub fn types_of(world: &mut World) -> BTreeMap<String, EffectType> {

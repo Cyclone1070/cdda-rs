@@ -727,3 +727,7 @@ advancing stream** (400 draws each). Round 1127's stage gate was rebuilt so drif
 **Round 1132 gave effect modifiers their first reader**: `creature::effect_speed_modifier` (the `SPEED` sum in `Character::get_speed_base`, `character.cpp:12488-12494`), applied in
 `bank_a_turn` so a `winded` creature banks ninety moves instead of a hundred. Gated by
 `creature_fight::an_effect_the_creature_wears_changes_how_many_moves_a_turn_gives_it`, whose first failure was the **fixture** - the modifier lives under `base_mods`, not at the top level.
+
+**Round 1133 gave the modifier table a second reader**: `creature::effect_stat_bonus` for `STR`/`DEX`/`PER`/`INT`, and `effective_dexterity` now adds it and floors at zero
+(`Character::get_dex`, `character.cpp:4390-4392`); `effect_speed_modifier` became one line over the same sum, and `effect_registry::kind_named` gave the read side a read-only door. Gated by
+`creature_fight::an_effect_the_creature_wears_changes_its_dexterity` (8, 6, and a floor at 0).

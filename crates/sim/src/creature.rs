@@ -113,19 +113,8 @@ pub fn bank_a_turn(world: &mut World) {
 ///
 /// An effect the world cannot resolve adds nothing, for the same reason nothing else in the port invents a number: the modifier is the data's, and a missing type has no data.
 #[must_use]
-pub fn effect_speed_modifier(world: &mut World, entity: Entity) -> i32 {
-    let worn = crate::applied_effects::worn(world, entity);
-    let mut total = 0.0_f64;
-    for effect in worn {
-        let Some(kind) = crate::effect_registry::kind_of(world, &effect.id) else {
-            continue;
-        };
-        // Level zero is the creature as a whole: the reference's body-part levels only apply when an effect is on one limb.
-        total += kind.mod_value("SPEED", cdda_content::effects::ModAction::Min, 0, effect.intensity);
-    }
-    #[allow(clippy::cast_possible_truncation)]
-    let total = total as i32;
-    total
+pub fn effect_speed_modifier(world: &World, entity: Entity) -> i32 {
+    effect_stat_bonus(world, entity, "SPEED")
 }
 
 /// What entering a square costs, in moves.
@@ -935,13 +924,34 @@ pub fn effective_dexterity(world: &World, entity: Entity) -> i32 {
     let Some(dexterity) = world.get::<Dexterity>(entity) else {
         return 0;
     };
-    let Some(data) = crate::mutation_data::holder(world) else {
-        return dexterity.base;
-    };
-    let (add, multiply) = crate::mutations::enchantment_values(world, entity, &data, "DEXTERITY");
+    let base = crate::mutation_data::holder(world).map_or(dexterity.base, |data| {
+        let (add, multiply) = crate::mutations::enchantment_values(world, entity, &data, "DEXTERITY");
+        #[allow(clippy::cast_possible_truncation)]
+        let value =
+            crate::mutations::apply_enchantments(f64::from(dexterity.base), add, multiply) as i32;
+        value
+    });
+    // Reference: `Character::get_dex` is `std::max( 0, get_dex_base() + dex_bonus )` (`character.cpp:4390-4392`), and the bonus is where every worn effect's `DEX` modifier lands.
+    (base + effect_stat_bonus(world, entity, "DEX")).max(0)
+}
+
+/// What the effects a creature is wearing add to one of its stats: `STR`, `DEX`, `PER` or `INT`.
+///
+/// Reference: `Character::get_str`/`get_dex` add `str_bonus`/`dex_bonus` to the base and floor at zero (`character.cpp:4385-4393`), and those bonuses are accumulated from the effects'
+/// own modifier tables with `mod_str_bonus`/`mod_dex_bonus` from `Character::process_effects`. The value is the data's: an effect that states `dex_mod: [-2]` costs two dexterity.
+#[must_use]
+pub fn effect_stat_bonus(world: &World, entity: Entity, argument: &str) -> i32 {
+    let worn = crate::applied_effects::worn(world, entity);
+    let mut total = 0.0_f64;
+    for effect in worn {
+        let Some(kind) = crate::effect_registry::kind_named(world, &effect.id) else {
+            continue;
+        };
+        total += kind.mod_value(argument, cdda_content::effects::ModAction::Min, 0, effect.intensity);
+    }
     #[allow(clippy::cast_possible_truncation)]
-    let value = crate::mutations::apply_enchantments(f64::from(dexterity.base), add, multiply) as i32;
-    value
+    let total = total as i32;
+    total
 }
 
 /// How strong a creature is.

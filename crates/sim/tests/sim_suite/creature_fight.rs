@@ -1564,3 +1564,72 @@ fn an_effect_the_creature_wears_changes_how_many_moves_a_turn_gives_it() {
         "and one that is not banks a hundred"
     );
 }
+
+/// An effect the creature is wearing changes its dexterity, and the stat never goes below zero.
+///
+/// Reference: `Character::get_dex` is `std::max( 0, get_dex_base() + dex_bonus )` (`character.cpp:4390-4392`), and the bonus is where the worn effects' own `DEX` modifiers land. The gate
+/// drives the **same door the accuracy rule uses** - `effective_dexterity` - so what it proves is that a drug which costs two dexterity costs the survivor two points of aim.
+#[test]
+fn an_effect_the_creature_wears_changes_its_dexterity() {
+    use bevy_ecs::prelude::*;
+
+    let mut world = World::new();
+    singletons::put_rolls(&mut world, Rolls::new(67));
+    // An array in `base_mods` is **per body-part level**, not per intensity: index zero is the creature as a whole (`get_effect_modifier_key`, `effect.cpp:310-316`), and intensity scaling
+    // comes from a separate `scaling_mods` table. The first version of this gate assumed otherwise and measured a flat effect when it meant a heavy one.
+    let clumsy = cdda_json::parse(br#"{"id":"clumsy","base_mods":{"dex_mod":[-2]},"max_duration":"1 hours"}"#)
+        .expect("valid json");
+    let heavy = cdda_json::parse(br#"{"id":"made-of-lead","base_mods":{"dex_mod":[-10]},"max_duration":"1 hours"}"#)
+        .expect("valid json");
+    let cdda_json::Value::Object(entry) = clumsy else {
+        panic!("an effect type is an object")
+    };
+    let kind = cdda_content::effects::read_one("clumsy", &entry);
+    let cdda_json::Value::Object(heavy_entry) = heavy else {
+        panic!("an effect type is an object")
+    };
+    let heavy_kind = cdda_content::effects::read_one("made-of-lead", &heavy_entry);
+    assert_eq!(
+        kind.mod_value("DEX", cdda_content::effects::ModAction::Min, 0, 1),
+        -2.0,
+        "the data says the effect costs two dexterity"
+    );
+    cdda_sim::effect_registry::set_effect_types(&mut world, &[kind.clone(), heavy_kind.clone()]);
+
+    let steady = cdda_sim::creature::spawn_creature(&mut world, "the steady one", (1, 1, 0));
+    let fumbling = cdda_sim::creature::spawn_creature(&mut world, "the fumbling one", (2, 2, 0));
+    let wrecked = cdda_sim::creature::spawn_creature(&mut world, "the wrecked one", (3, 3, 0));
+    for entity in [steady, fumbling, wrecked] {
+        world.entity_mut(entity).insert(cdda_sim::creature::Dexterity { base: 8 });
+    }
+    for entity in [fumbling, wrecked] {
+        cdda_sim::applied_effects::add(
+            &mut world,
+            entity,
+            cdda_sim::effects::ActiveEffect::new(&kind, 10, 1),
+        );
+    }
+    // The wrecked one wears something that costs ten, which takes eight dexterity past nothing.
+    let _ = cdda_sim::applied_effects::remove(&mut world, wrecked, "clumsy");
+    cdda_sim::applied_effects::add(
+        &mut world,
+        wrecked,
+        cdda_sim::effects::ActiveEffect::new(&heavy_kind, 10, 1),
+    );
+
+    assert_eq!(
+        cdda_sim::creature::effective_dexterity(&world, steady),
+        8,
+        "nothing worn, nothing lost"
+    );
+    assert_eq!(
+        cdda_sim::creature::effective_dexterity(&world, fumbling),
+        6,
+        "two points of dexterity gone"
+    );
+    assert_eq!(
+        cdda_sim::creature::effective_dexterity(&world, wrecked),
+        0,
+        "and the stat floors at zero rather than going negative"
+    );
+}
