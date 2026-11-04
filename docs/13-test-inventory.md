@@ -743,3 +743,7 @@ has a caller until the gun table exists.
 **Round 1136 composed a shot's starting dispersion**: `dispersion::from_perception` (`ranged_per_mod`, `character.cpp:4369-4373` - 1.2 a point below twenty perception) and
 `dispersion::weapon_dispersion(Shotmaker)` (`get_weapon_dispersion`, `ranged.cpp:2500-2545`) joining the weapon's own figure, both stat terms and the skill curve. Gated by
 `melee_rules::perception_costs_more_dispersion_than_dexterity_and_the_shot_adds_them_up` with one case worked out by hand. **No caller yet** - it needs the gun table and a shot.
+
+**Round 1137 built the gun table**: oracle dump `--dump-guns` (**406 guns**, `corpus/items/guns.json` version 1) with `dispersion`, `skill`, `range`, `recoil` and `ammo` from `itype::gun`, and
+the loader `cdda_content::guns` with `read_one`/`load_dump`. Gated by `gun_rules::the_gun_dump_loads_every_gun_and_keeps_its_numbers` - 406 rows, one row field by field, the six firing
+skills, and the 7 zero-dispersion and 271 zero-range guns the data really has.

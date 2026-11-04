@@ -12850,3 +12850,21 @@ built from the same terms as the code proves only that the code is spelled consi
 
 **Named, not invented:** the encumbrance, body-part, enchantment, vehicle, water and gunmod terms of `get_weapon_dispersion`, and the aim-mode multiplier. **Nothing calls
 `weapon_dispersion` yet**: it needs the gun table (`dispersion`, the weapon's skill, `gunmods`) and a shot to fire, which is the next ranged round.
+
+## The gun table, dumped and loaded (round 1137)
+
+The ranged path was waiting on one thing: the reference's own numbers for every weapon that can be fired. The oracle now dumps them (`--dump-guns`, **406 guns**) and the port reads them.
+
+| Piece | Reference | Port |
+|---|---|---|
+data | `itype::gun` (`itype.h`): `dispersion`, `skill_used`, `range`, `recoil`, `ammo` | `corpus/items/guns.json`, **version 1** |
+dump | `--dump-guns <file>` in `harness.cpp`, beside `--dump-thrown-damage` | the same command line the other dumps use |
+loader | - | `cdda_content::guns::{GunType, read_one, load_dump}` |
+Gate | - | `gun_rules::the_gun_dump_loads_every_gun_and_keeps_its_numbers` - **406 guns**, one row checked field by field, the six firing skills, and the counts of guns that state no dispersion (7) or no range (271) |
+
+**Two numbers in the dump surprised the gate, and both are the data rather than the loader.** Seven guns state a dispersion of zero, and **271 state a range of zero** - most of them modular
+guns whose parts carry the real figures, and some of them monsters' natural attacks, which the item registry holds as items with a `gun` block. **A loader that "corrected" either number
+would be inventing one**; the gate pins the counts so the day the data changes, the port says so.
+
+**The first version of the gate assumed a carbine's numbers and was wrong twice.** Its id is `modular_m4_carbine`, not `m4a1`; and its `range` is zero, because a modular gun's range lives
+on its parts. **Both were caught by reading the corpus rather than by reasoning about it** - which is the whole reason the corpus is the red gate.

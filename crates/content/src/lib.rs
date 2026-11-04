@@ -28,6 +28,7 @@ pub mod emit;
 pub mod eocs;
 pub mod factory;
 pub mod fields;
+pub mod guns;
 pub mod frames;
 pub mod generated;
 pub mod harvest;

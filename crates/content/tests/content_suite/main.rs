@@ -152,3 +152,5 @@ mod thrown_damage;
 
 mod monster_mending;
 mod no_fist;
+
+mod gun_rules;
