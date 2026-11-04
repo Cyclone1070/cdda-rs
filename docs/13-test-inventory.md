@@ -763,3 +763,8 @@ judged against that creature (`projectile_attack`, `ballistics.cpp:255-264`). Ga
 **Round 1141 charged the arm for a throw**: `throwing::throw_cost` (`throw_cost`, `ranged.cpp:1247-1273` - half the attack time, /20 skill, whole dexterity, stamina on the base only, floor 25),
 paid inside `throw_at` before anything is rolled as the reference does. Gated by `throwing::a_throw_costs_action_points_and_mastery_makes_it_cheaper` (hand-worked) and
 `throwing::throwing_spends_the_arm_s_action_points` (the store's moves fall by exactly the cost). The blow's `strike_whatever_stands_there` was extracted from `throw_at` for length.
+
+**Round 1142 ported what a gunshot costs**: `shot::time_to_attack` (`ranged.cpp:2299-2308` - the **skill's** `base_time`/`time_reduction_per_level`/`min_time`), `shot::winded_cost`
+(`RAS_time`, `ranged.cpp:2310-2322` - two moves a percent below a quarter wind, a cliff and not a slope) and `shot::cost_of_a_shot` (their sum plus the round's reach). Gated by
+`shot_rules::a_gun_s_attack_time_is_its_skill_s_line_floored` and `shot_rules::a_winded_shooter_is_slower_to_fire_but_only_below_a_quarter_wind`. **No caller yet**: the skill registry's
+`time_to_attack` block is not dumped, which the docs name.

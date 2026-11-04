@@ -12961,3 +12961,24 @@ to go, and it only worked because the expectation was written down as a sum rath
 
 **A tautology removed from the gate.** One line read `throw_cost(...).min(25) == 55`, which can never be false in the sensible direction and proves nothing; the case it was meant to cover is
 already asserted two lines above.
+
+## What a gunshot costs (round 1142)
+
+A gunshot's price is two rules the reference keeps apart, and the port now keeps them apart too: **the skill's line** and **the wind's cliff**.
+
+| Piece | Reference | Port |
+|---|---|---|
+the line | `time_to_attack` (`ranged.cpp:2299-2308`): `max(min_time, base_time - reduction * skill)` | `shot::time_to_attack(base, reduction, min, skill)` |
+the wind | `RAS_time` (`ranged.cpp:2310-2322`): `(25 - percent) * 2` **only below 25%** | `shot::winded_cost(percent)` |
+the sum | `attack_moves = time_to_attack + RAS_time` (`ranged.cpp:1060`) | `shot::cost_of_a_shot(...)` |
+Gate | - | `a_gun_s_attack_time_is_its_skill_s_line_floored` and `a_winded_shooter_is_slower_to_fire_but_only_below_a_quarter_wind` |
+
+**The numbers belong to the skill, not the gun, and that is the interesting half.** A rifle's line is `50 - 3 a level, floor 20`; a pistol's is `30 - 1 a level, floor 20`. **Two guns with the
+same `dispersion` can therefore cost different amounts of time to fire, and the gun table the port dumped last round does not carry the figure at all** - it is in `skills.json`, which the
+oracle does not dump yet. **So the port carries the rule and names the missing loader**, rather than reading the JSON directly and calling it ground truth.
+
+**The wind term is a cliff, not a slope**, and the gate pins the edge: 25% free, 24% costs two, 0% costs fifty. **A port that made it a straight line from full wind would be slower in the
+middle of the bar and faster at the bottom** - and no single case would say which of the two it had built.
+
+**Named, not invented:** the skill registry's `time_to_attack` block (the next dump), the reload option's moves (they belong to the round being fetched), `hurt_part_when_fired`, and the
+energy and ammo consumption `fire_gun` interleaves with the burst. **Nothing calls `cost_of_a_shot` yet** - it needs the skills table and a `fire` step.

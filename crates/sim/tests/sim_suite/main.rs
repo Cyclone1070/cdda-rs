@@ -216,3 +216,5 @@ mod weather_tick;
 mod weather_world;
 mod wind_reach;
 mod throwing;
+
+mod shot_rules;
