@@ -584,3 +584,8 @@ the scenario returns as the gate when the turn can make a monster hurt the survi
 **Round 1099 found the cause of round 1098's defect**: a monster spawned from its type swings **`2d0`** - dice with zero faces - so it hits the survivor and deals nothing. Proved by
 contrast: `creature_fight::a_monster_that_reaches_the_survivor_hurts_it_in_the_turn` **passes** when the attack is built by hand, so the scheduled swing is sound and the defect is
 in `spawn_monster_of_type`'s copy of `melee_sides`. The `monster` step's report line now prints the spawned attack's dice and accuracy, which is what made the bug visible.
+
+**Round 1100 fixed the `2d0` defect's cause**: `crates/cli` was loading monster types from the game's own JSON while `cdda_content::monsters` is written for the **reference's dump**,
+so `melee_dice_sides` was never read and every monster swung `2d0` with no stab armour. `monster_types()` now reads `corpus/monsters/monsters.json` through `load_objects`, and
+`scenarios/a_zombie_in_reach_hurts_the_survivor.txt` passes: a zombie that reaches the survivor takes hit points off it (`hurt: the survivor is down to 77 of 80`), which is the
+fight's other half proved through the schedule.

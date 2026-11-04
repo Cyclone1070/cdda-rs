@@ -1,0 +1,16 @@
+# The other direction of a fight: a monster with the survivor as its goal swings at it, and the survivor loses hit points.
+#
+# `Goal` is what `take_turns` walks towards, and `strike_what_the_goal_holds` is what swings when the goal square holds a creature in reach. Until round 1100 this scenario failed:
+# the CLI loaded monsters from the game's own JSON, which calls the dice faces `melee_dice_sides`, so every zombie swung `2d0` and dealt nothing while looking like a fight.
+world 10 bare
+survivor 0 0
+items
+monsters
+seed 9
+monster mon_zombie 1 0
+turn 1
+goal 0 0
+turn 1
+goal 0 0
+turn 1
+expect hurt 1

@@ -114,6 +114,13 @@ pub enum Step {
         /// The square's y.
         y: i32,
     },
+    /// Tells every monster to walk towards a square, which is what makes it swing at what stands there.
+    Goal {
+        /// The square's x.
+        x: i32,
+        /// The square's y.
+        y: i32,
+    },
     /// Loads the monster definitions the game's data defines.
     Monsters,
     /// Puts a monster on the map, by the name its type has in the data.
@@ -248,6 +255,10 @@ pub fn parse(text: &str) -> Result<Vec<Step>, String> {
                 y: number_of(y, number, "y")?,
             },
             ["shot", path] => Step::Shot((*path).to_owned()),
+            ["goal", x, y] => Step::Goal {
+                x: number_of(x, number, "x")?,
+                y: number_of(y, number, "y")?,
+            },
             ["monster", id, x, y] => Step::Monster {
                 id: (*id).to_owned(),
                 x: number_of(x, number, "x")?,
@@ -392,6 +403,7 @@ fn take_item_step(world: &mut World, step: &Step, outcome: &mut Outcome) -> bool
                 }
             }
         Step::Wield { .. } | Step::Attack { .. } => take_a_swing(world, step, outcome),
+        Step::Goal { x, y } => send_the_monsters_to(outcome, world, *x, *y),
         Step::Throw { item, x, y } => throw_a_step(world, outcome, item, *x, *y),
         Step::Shot(path) => take_a_shot(world, outcome, path),
         Step::Monsters => match install_monster_data(world) {
@@ -572,11 +584,19 @@ pub fn install_monster_data(world: &mut World) -> Option<usize> {
 
 /// Every monster type the game's data defines.
 fn monster_types() -> Option<Vec<cdda_content::monsters::MonsterType>> {
-    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../oracle/src/data/json");
-    if !data.is_dir() {
+    // The monster loader reads the **reference's dump**, not the game's own JSON: the dump states one number per damage type (`armor_bash`, `armor_cut`, `armor_stab`) where the
+    // game nests an `armor` object, and it names `melee_sides` where the game's JSON calls it `melee_dice_sides` (`monstergenerator.cpp:813`). Feeding the loader the game's own
+    // files therefore gave every monster zero stab armour, zero sides and - once - a `2d0` blow. The dump is the shape this loader speaks, so the dump is what it is fed.
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+    let bytes = std::fs::read(path).ok()?;
+    let root = cdda_json::parse(&bytes).ok()?;
+    let cdda_json::Value::Object(root) = root else {
         return None;
-    }
-    cdda_content::monsters::load_paths(&[&data]).ok()
+    };
+    let Some(cdda_json::Value::Array(prototypes)) = root.get("prototypes") else {
+        return None;
+    };
+    cdda_content::monsters::load_objects(prototypes).ok()
 }
 
 /// Renames the place, and checks what the place is called.
@@ -863,6 +883,20 @@ fn take_up(world: &mut World, outcome: &mut Outcome, item: &str) {
     outcome
         .lines
         .push(format!("wield: the survivor holds {item}"));
+}
+
+/// Plays one `goal` step: every monster is told where to go, which is how a playtest starts a fight the survivor did not.
+fn send_the_monsters_to(outcome: &mut Outcome, world: &mut World, x: i32, y: i32) {
+    let mut told = 0;
+    for entity in cdda_sim::creature::creatures(world) {
+        world
+            .entity_mut(entity)
+            .insert(cdda_sim::creature::Goal { square: (x, y, 0) });
+        told += 1;
+    }
+    outcome
+        .lines
+        .push(format!("goal: {told} creature(s) sent to ({x}, {y})"));
 }
 
 /// Plays one `attack` step: the survivor swings what it holds at whatever stands on a square.

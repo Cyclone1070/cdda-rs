@@ -12037,3 +12037,27 @@ one word - `2d0` - turned a mystery into a field. **A diagnostic that prints the
 **The gate that passes is as important as the defect.** `a_monster_that_reaches_the_survivor_hurts_it_in_the_turn` proves the **scheduled** swing works when the attack is right, so
 the defect is in the **spawning**, not in the turn, the stage order or the dice. The scenario and its `goal` step are deleted again - a failing scenario is not shipped, and the
 defect is written down with the field that causes it.
+
+## The CLI was feeding the monster loader the wrong shape (round 1100)
+
+The `2d0` blow had one cause and it was not a rule: **the CLI loaded monsters from the game's own JSON, and the monster loader is written for the reference's dump.**
+
+| Disagreement | Game's JSON | The dump the loader reads |
+|---|---|---|
+dice faces | `melee_dice_sides` (`monstergenerator.cpp:813`) | `melee_sides` |
+armour | a nested `armor` object | `armor_bash`, `armor_cut`, `armor_stab` |
+Fix | `monster_types()` reads `corpus/monsters/monsters.json` through `load_objects` | the loader keeps the shape it was written for |
+
+**One wrong filename made three numbers zero at once.** Every zombie swung **`2d0`** (no sides), carried **no stab armour** (the nested object was never read) and - before round
+1093 - **no stab armour by design**. None of it showed in a test that loads the *dump*, because the tests load the dump; **only the playtest, which goes through the CLI, saw it.**
+
+**The scenario that failed twice now passes, and it is the fight's other half:**
+
+```
+monster: mon_zombie at (1, 0) with 80 hit points, 2d3 at 40 tenths and 12 flags (it hears)
+hurt: the survivor is down to 77 of 80
+```
+
+**The lesson is about where content comes from.** A loader written against a dump must be fed the dump; a loader written against raw JSON must be fed raw JSON. **This port has both
+kinds and no rule saying which file each one gets**, which is how one file name produced three silent zeros. The report line that prints a monster's dice is what turned it from a
+mystery into a one-line fix, and it stays.

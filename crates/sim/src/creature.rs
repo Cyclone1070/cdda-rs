@@ -2079,7 +2079,18 @@ pub fn spawn_creature(world: &mut World, name: &str, square: (i32, i32, i32)) ->
 ///
 /// A square can hold more than one: two dogs in a doorway is an ordinary state, and the reference's
 /// `creature_at` returns a list for that reason.
+/// Every creature alive, in the store's own order.
+///
+/// A scenario asks this to tell the monsters where to go; the walk itself is `take_turns`, which reads each creature's `Goal`.
 #[must_use]
+pub fn creatures(world: &mut World) -> Vec<Entity> {
+    world
+        .query_filtered::<Entity, bevy_ecs::prelude::With<Creature>>()
+        .iter(world)
+        .collect()
+}
+
+/// Every creature standing on a square, in the store's own order.
 pub fn creature_at(world: &World, square: (i32, i32, i32)) -> Vec<Entity> {
     let Some(index) = crate::singletons::index(world) else {
         return Vec::new();
