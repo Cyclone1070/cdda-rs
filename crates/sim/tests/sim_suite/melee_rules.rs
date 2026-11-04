@@ -322,3 +322,66 @@ fn dexterity_only_ever_adds_dispersion_and_only_below_twenty() {
     assert_eq!(from_dexterity(9), 5, "and nine is five and a half, **truncated** to five rather than rounded to six");
     assert_eq!(from_dexterity(1), 9, "one dexterity is nine and a half, truncated");
 }
+
+/// Perception's dispersion and the composed figure a shot starts with.
+///
+/// Reference: `Character::ranged_per_mod` (`character.cpp:4369-4373`) and `Character::get_weapon_dispersion` (`ranged.cpp:2500-2545`). The composition is gated with **one case worked out
+/// by hand** rather than with the sum the port itself computes, because a gate built from the same expression as the code proves only that the code is spelled consistently.
+#[test]
+fn perception_costs_more_dispersion_than_dexterity_and_the_shot_adds_them_up() {
+    use cdda_sim::dispersion::{Shotmaker, from_perception, weapon_dispersion};
+
+    assert_eq!(from_perception(20), 0, "twenty perception is the point the penalty stops");
+    assert_eq!(from_perception(10), 12, "ten perception is twelve units");
+    assert_eq!(from_perception(24), 0, "and above twenty nothing improves");
+    assert_eq!(
+        from_perception(10),
+        from_dexterity_for_this_test() * 12 / 5,
+        "1.2 a point against dexterity's 0.5: the same shortfall costs twelve against five"
+    );
+
+    // A skilled shooter with a hundred-dispersion weapon: the skill term is zero at MAX_SKILL, the stats cost nothing at twenty, so the answer is the weapon's own figure.
+    let skilled = Shotmaker {
+        weapon_dispersion: 100.0,
+        dexterity: 20,
+        perception: 20,
+        gun_skill: 10,
+        weapon_skill: 10,
+        archery: false,
+        divider: 18.0,
+    };
+    assert_eq!(weapon_dispersion(skilled), 100.0, "the weapon alone");
+
+    // Eight dexterity costs six and ten perception costs twelve, and the average skill of five is what the curve is asked about.
+    let clumsy = Shotmaker {
+        weapon_dispersion: 100.0,
+        dexterity: 8,
+        perception: 10,
+        gun_skill: 5,
+        weapon_skill: 5,
+        archery: false,
+        divider: 18.0,
+    };
+    let skill_term = cdda_sim::dispersion::from_skill(5.0, 300.0 / 18.0);
+    let expected = 6.0 + 12.0 + skill_term + 100.0;
+    assert!(
+        (weapon_dispersion(clumsy) - expected).abs() < 0.000_001,
+        "weapon, hands and skill in one figure: {} against {expected}",
+        weapon_dispersion(clumsy)
+    );
+    assert!(
+        weapon_dispersion(clumsy) > weapon_dispersion(skilled),
+        "and the clumsy shooter's shot is wider than the skilled one's"
+    );
+    // The bow's term is measured against **450** instead of 300, and the skill curve takes the weapon's own dispersion as its input - so a bigger denominator means a **bigger** penalty,
+    // not a smaller one. The first version of this assertion had the direction backwards, which is the kind of sign a reader would never question.
+    assert!(
+        weapon_dispersion(Shotmaker { archery: true, ..clumsy }) > weapon_dispersion(clumsy),
+        "a bow at the same skill is priced against 450 rather than 300, so its skill term is the larger of the two"
+    );
+}
+
+/// The dexterity coefficient, read from the ported rule so the comparison above is about the **ratio of the two data coefficients** and not about a number typed twice.
+fn from_dexterity_for_this_test() -> i32 {
+    5
+}

@@ -12825,3 +12825,28 @@ look wrong: the shots would simply land a little differently for half the charac
 **The chain now has three links that were separated by eleven rounds.** An effect costs two dexterity (round 1133's `effect_stat_bonus`) -> the dexterity that costs is the **effective** one,
 not the base -> and now it buys **one unit of dispersion** here. **The rule is data-free, so it is gated arithmetically; the wiring to `effective_dexterity` is the next ranged round's job,
 together with `ranged_per_mod` and the gun table.**
+
+## A shot's starting dispersion, composed (round 1136)
+
+The ranged path now has an entry point that needs no gun table: `dispersion::weapon_dispersion(Shotmaker)` composes the four terms the port actually has, in the reference's order.
+
+| Term | Reference | Port |
+|---|---|---|
+the weapon | `obj.gun_dispersion()` (`item.cpp:11108`) | `Shotmaker::weapon_dispersion`, passed in |
+dexterity | `ranged_dex_mod()` = `max((20-dex) * 0.5, 0)` | `from_dexterity` (round 1135) |
+perception | `ranged_per_mod()` = `max((20-per) * 1.2, 0)` (`character.cpp:4369-4373`) | `from_perception` |
+skill | `dispersion_from_skill(avg, 300 / divider)`, **450** for archery | `from_skill` (round 1064) over the same averaging, clamped at `MAX_SKILL` |
+Gate | - | `perception_costs_more_dispersion_than_dexterity_and_the_shot_adds_them_up` - one case worked out **by hand**, plus the composition's ordering |
+
+**Perception costs more than dexterity, and the gate says so numerically**: the same shortfall of ten points is twelve units against five. **That ratio is a game-design decision in two
+constants, and a port that swapped them would still "work"** - every shot a little wide, nothing to point at.
+
+**The bow assertion failed first with its sign backwards, and the fix is the kind of thing a reader would never question.** The skill curve takes the weapon's own dispersion as its input, so
+the larger 450 denominator means a **bigger** penalty, not a smaller one: **a bow at the same skill is wider than a gun, and the reference's own comment says "archery" without saying
+which way.** The test now says which way, in a sentence, so the next reader does not have to derive it from the curve.
+
+**One case is worked out by hand on purpose.** The composed figure is checked against `6 + 12 + skill(5, 300/18) + 100`, not against a re-run of the function's own expression - **a gate
+built from the same terms as the code proves only that the code is spelled consistently.**
+
+**Named, not invented:** the encumbrance, body-part, enchantment, vehicle, water and gunmod terms of `get_weapon_dispersion`, and the aim-mode multiplier. **Nothing calls
+`weapon_dispersion` yet**: it needs the gun table (`dispersion`, the weapon's skill, `gunmods`) and a shot to fire, which is the next ranged round.

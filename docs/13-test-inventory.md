@@ -739,3 +739,7 @@ with it.
 **Round 1135 ported dexterity's dispersion**: `dispersion::from_dexterity` (`Character::ranged_dex_mod`, `character.cpp:4363-4367`) - half a unit a point below twenty, floored at zero, and
 **truncated** because the reference returns an `int`. Gated by `melee_rules::dexterity_only_ever_adds_dispersion_and_only_below_twenty`. The third ranged rule in the port; none of the three
 has a caller until the gun table exists.
+
+**Round 1136 composed a shot's starting dispersion**: `dispersion::from_perception` (`ranged_per_mod`, `character.cpp:4369-4373` - 1.2 a point below twenty perception) and
+`dispersion::weapon_dispersion(Shotmaker)` (`get_weapon_dispersion`, `ranged.cpp:2500-2545`) joining the weapon's own figure, both stat terms and the skill curve. Gated by
+`melee_rules::perception_costs_more_dispersion_than_dexterity_and_the_shot_adds_them_up` with one case worked out by hand. **No caller yet** - it needs the gun table and a shot.

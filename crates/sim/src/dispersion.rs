@@ -169,6 +169,57 @@ pub fn throwing_dispersion(shot: &Throw) -> i32 {
     spread.max(0)
 }
 
+/// The dispersion a shooter's own perception adds, which only ever hurts and hurts faster than dexterity.
+///
+/// Reference: `Character::ranged_per_mod` (`character.cpp:4369-4373`) - `std::max( ( 20.0 - get_per() ) * 1.2, 0.0 )` - the same floor at twenty, and **1.2 a point** instead of the half
+/// point dexterity takes. A character at ten perception is worth twelve units of dispersion, and the reference means it: aiming is perception's job.
+#[must_use]
+#[allow(clippy::cast_possible_truncation)]
+pub fn from_perception(perception: i32) -> i32 {
+    let penalty: f64 = (20.0 - f64::from(perception)) * 1.2;
+    penalty.max(0.0) as i32
+}
+
+/// What a shooter's own weapon costs in dispersion before anything is drawn.
+///
+/// Reference: `Character::get_weapon_dispersion` (`ranged.cpp:2500-2560`), in the reference's order: the weapon's own dispersion, then the shooter's dexterity, then the shooter's
+/// perception, then the skill term - which is `dispersion_from_skill` against **300 over `GUN_DISPERSION_DIVIDER`** for anything but archery and **450 over it** for a bow.
+///
+/// Everything the reference adds from the body, the enchantment cache, vehicles, water and gunmods is left out on purpose: **this is the part of the rule that needs no gun table**, and
+/// the whole function is one argument list away from the gun table being filled in.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Shotmaker {
+    /// The weapon's own dispersion, before any modifier: `item::gun_dispersion`'s first term.
+    pub weapon_dispersion: f64,
+    /// The shooter's **effective** dexterity, not the base.
+    pub dexterity: i32,
+    /// The shooter's **effective** perception.
+    pub perception: i32,
+    /// The gun skill, and the weapon's own skill, averaged by the reference before the curve.
+    pub gun_skill: i32,
+    /// The weapon's own skill level.
+    pub weapon_skill: i32,
+    /// Whether the weapon's skill is archery, which uses the gentler 450 denominator.
+    pub archery: bool,
+    /// `GUN_DISPERSION_DIVIDER` from the options, which is **18** in the data.
+    pub divider: f64,
+}
+
+/// The dispersion a shot starts with, from the weapon, the hands and the skill - before anything is rolled.
+///
+/// Reference: `Character::get_weapon_dispersion` (`ranged.cpp:2500-2545`), with the terms this port has: the weapon's own figure, `ranged_dex_mod`, `ranged_per_mod` and
+/// `dispersion_from_skill` over the averaged gun and weapon skill. The reference clamps the average at `MAX_SKILL` before the curve; so does this.
+#[must_use]
+pub fn weapon_dispersion(shotmaker: Shotmaker) -> f64 {
+    let average = f64::from(shotmaker.gun_skill + shotmaker.weapon_skill) / 2.0;
+    let average = average.min(MAX_SKILL);
+    let denominator = if shotmaker.archery { 450.0 } else { 300.0 };
+    f64::from(from_dexterity(shotmaker.dexterity))
+        + f64::from(from_perception(shotmaker.perception))
+        + from_skill(average, denominator / shotmaker.divider)
+        + shotmaker.weapon_dispersion
+}
+
 /// The dispersion a shooter's own dexterity adds, which only ever hurts.
 ///
 /// Reference: `Character::ranged_dex_mod` (`character.cpp:4363-4367`) - `std::max( ( 20.0 - get_dex() ) * 0.5, 0.0 )`, floored at zero and **truncated to an int on the way out**
