@@ -114,3 +114,42 @@ fn a_gun_s_sights_are_worse_in_poor_eyes_and_worth_nothing_while_the_shooter_is_
     assert!((shaking - 10.0).abs() < 0.000_1, "and the full ten when it is far outside: {shaking}");
     assert_eq!(sights, 40, "the sights do not change with the recoil");
 }
+
+/// One move of aiming buys a little aim, more when the shooter is shaking and nothing once the sights are reached.
+///
+/// Reference: `Character::aim_per_move` (`character.cpp:1146-1210`). The gate works four cases by hand, and each is one of the rule's four moving parts: **skill divides**, **recoil fades the
+/// speed in**, **the sight limit caps it**, and a shooter with nothing left to recover gains nothing at all.
+#[test]
+fn one_move_of_aiming_buys_aim_and_stops_at_the_sights() {
+    use cdda_sim::aim::{MIN_RECOIL_IMPROVEMENT, aim_per_move};
+
+    // Skill zero, at the recoil cap, no sight speed: 10 / 2.5 = 4, the fade is 1, the cap is 15, and 2.4 scales it to 9.6.
+    let untrained = aim_per_move(3000.0, 0.0, 0, 0.0);
+    assert!((untrained - 9.6).abs() < 0.000_1, "an unskilled shooter at the cap gains 9.6: {untrained}");
+
+    // Ten skill divides by 1 instead of 2.5, so the same case gains 24 - two and a half times as fast.
+    let master = aim_per_move(3000.0, 0.0, 10, 0.0);
+    assert!((master - 24.0).abs() < 0.000_1, "and at mastery, 24: {master}");
+    assert!(master > untrained, "skill makes aiming faster");
+
+    // At rest the fade is near zero, so almost nothing is gained however skilled the shooter; the floor keeps it above nothing.
+    let at_rest = aim_per_move(0.0, 0.0, 10, 0.0);
+    assert!(at_rest <= MIN_RECOIL_IMPROVEMENT, "at rest there is nothing to aim away: {at_rest}");
+
+    // The sight limit is the last word: with the recoil already inside it, the gain is zero, and it clips a gain that would overshoot.
+    assert!(aim_per_move(20.0, 20.0, 10, 0.0).abs() < f64::EPSILON, "inside the sights, nothing");
+    // Below the sights the reference returns a **negative** improvement - `min( aim_speed, recoil - limit )` with `recoil < limit` - and every caller rejects it with
+    // `if( adj <= MIN_RECOIL_IMPROVEMENT ) break;`. The port keeps the negative rather than clamping it, because the sign is the reference's way of saying "stop aiming", and a port that
+    // clamped it to zero would look identical here and differ at the caller.
+    let below = aim_per_move(5.0, 20.0, 10, 0.0);
+    assert!(below < MIN_RECOIL_IMPROVEMENT, "below the sights the gain is below the floor, which is how a caller knows to stop: {below}");
+    assert!(below < 0.0, "and in fact negative, which is the reference's own answer: {below}");
+    let clipped = aim_per_move(100.0, 90.0, 10, 0.0);
+    assert!(clipped <= 10.0, "and a gain never takes the aim past what the sights allow: {clipped}");
+
+    // The sights' own speed adds to the base ten before anything divides, so a slow sight is worth less than the ten itself.
+    assert!(
+        aim_per_move(3000.0, 0.0, 0, 5.0) > aim_per_move(3000.0, 0.0, 0, 0.0),
+        "faster sights, faster aim"
+    );
+}

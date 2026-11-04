@@ -829,3 +829,7 @@ rounding) and `aim::effective_dispersion` (`character.cpp:941-944`). Gated by
 **Round 1157 joined sights, eyes, recoil and speed**: `GunType::sight_dispersion` (guns dump **version 5**) and `aim::sight_report(gun, perception, recoil, zoom)` over round 1156's parallax and
 round 1154's attenuation. Gated by `content_suite::gun_rules::every_gun_states_the_error_its_sights_add` (a Mini-14's 40, a longbow's 200+, and the data's floor of **10**) and
 `sim_suite::aim_rules::a_gun_s_sights_are_worse_in_poor_eyes_and_worth_nothing_while_the_shooter_is_shaking`.
+
+**Round 1158 ported `aim_per_move`** (`aim::aim_per_move`, `character.cpp:1146-1210`; `MIN_RECOIL_IMPROVEMENT` = 0.01, `ranged.h:24`) - the rule that spends recoil: the base ten plus the
+sights' speed, divided by skill, faded in by the recoil, capped by skill, scaled by 2.4 and finally clipped by the sights. Gated by
+`aim_rules::one_move_of_aiming_buys_aim_and_stops_at_the_sights`, which also pins the **negative** gain a shooter below the sights' limit gets - the reference's way of saying "stop aiming".

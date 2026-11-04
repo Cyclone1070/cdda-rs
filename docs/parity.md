@@ -13324,3 +13324,30 @@ they are one rule.**
 
 **Named, not invented:** `DISABLE_SIGHTS` (the reference's flat 300 for a gun whose sights are disabled), gunmods' sight modifiers, and the aim-method table that decides *which* sights are in
 use - the port reads the gun's own figure and assumes its sights are the ones aimed through.
+
+## One move of aiming buys aim (round 1158)
+
+`Character::aim_per_move` (`character.cpp:1146-1210`) is the rule that **spends** the recoil rounds 1152-1153 accumulate, and the port now has it.
+
+| Step | Reference | Port |
+|---|---|---|
+base | `10.0 + sight_speed_modifier` | `aim::aim_per_move(recoil, limit, skill, sight_speed)` |
+skill divides | `/= max( 1.0, 2.5 - 0.2 * skill )` | the same |
+recoil fades it in | `*= max( recoil / MAX_RECOIL, 1 - logarithmic_range( 0, MAX_RECOIL, recoil ) )` | the same |
+skill cap | `5 + skill + max( 10, 3 * skill )` | the same |
+scale | `*= 2.4`, floored at **0.01** (`MIN_RECOIL_IMPROVEMENT`, `ranged.h:24`) | the same |
+the limit | `min( aim_speed, recoil - limit )` | the same |
+Gate | - | `one_move_of_aiming_buys_aim_and_stops_at_the_sights` |
+
+**The gate's four figures, worked by hand:** an unskilled shooter at the recoil cap gains **9.6** a move (`10 / 2.5 * 1 * 2.4`), a master gains **24** (`10 / 1 * 1 * 2.4`), a shooter at rest gains
+**nothing** (the fade is near zero and the floor keeps it above it), and a shooter whose recoil is already inside what the sights permit gains **less than nothing**.
+
+**That last one is the interesting one, and the port keeps the reference's sign.** `min( aim_speed, recoil - limit )` with `recoil < limit` is **negative**, and every caller in the reference
+rejects it with `if( adj <= MIN_RECOIL_IMPROVEMENT ) break;` - **the negative is how the reference says "stop aiming"**. A port that clamped it to zero would look identical at this call site and
+differ at the caller, which is exactly the class of change that makes a port quietly wrong.
+
+**Named, not invented:** the three modifier hooks (`aim_speed_skill_mod`, `aim_speed_dex_mod`, `aim_speed_mod`), `aim_factor_from_volume` and `aim_factor_from_length` (the barrel's length and the
+weapon's bulk, which need the item's volume and whose two factors are **one** in the port), and the aiming **activity** that calls this in a loop until the gain falls below the floor.
+
+**A record correction.** Round 1157's commit message stated the suite as "1130 sim, 476 content, 25 cli"; the true figures, taken from the full log afterwards, were **1122 sim_suite + 4 = 1126**,
+**474 content** and **23 cli**. The counts in that message were written from memory rather than from the log, and this line is the correction.

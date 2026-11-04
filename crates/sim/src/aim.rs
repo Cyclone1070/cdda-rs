@@ -97,3 +97,44 @@ pub fn sight_report(
     let speed = sight_speed_with_attenuation(0.0, f64::from(dispersion), f64::from(recoil));
     (dispersion, speed)
 }
+
+/// The smallest improvement the reference admits: `MIN_RECOIL_IMPROVEMENT` = **0.01** (`ranged.h:24`), there "just to prevent data anomalies".
+pub const MIN_RECOIL_IMPROVEMENT: f64 = 0.01;
+
+/// How much aim one move buys, which is the rule that **spends** recoil.
+///
+/// Reference: `Character::aim_per_move` (`character.cpp:1146-1210`), transcribed in its own order:
+///
+/// 1. the base is **ten** plus the sights' speed from [`sight_speed_with_attenuation`] - the reference keeps the ten "to prevent extreme rate changes as aim speed approaches 0";
+/// 2. **skill divides**, by `max(1, 2.5 - 0.2 * skill)`, so an unskilled shooter aims at two fifths speed and a five-skill one at full;
+/// 3. the recoil **fades the speed in**: `max( recoil / MAX_RECOIL, 1 - logarithmic_range( 0, MAX_RECOIL, recoil ) )`, which is the reference's replacement for an older logarithmic
+///    attenuation - it is near zero at rest, near one at the cap, and takes whichever of its two terms is larger;
+/// 4. a **cap** from skill, `5 + skill + max(10, 3 * skill)`, which usually only binds in the first half of the aiming;
+/// 5. the whole thing is scaled by **2.4**, floored at [`MIN_RECOIL_IMPROVEMENT`], and finally **limited by the sights**: `min( aim_speed, recoil - limit )`, so a shooter whose recoil is
+///    already inside what the sights permit gains nothing.
+///
+/// The reference's three modifier hooks (`aim_speed_skill_mod`, `aim_speed_dex_mod`, `aim_speed_mod`) and its volume and length factors are **one, one, one and one in the port**: no effect the
+/// port carries states them, and no gun barrel is modelled yet. They are named in `docs/parity.md` rather than guessed at.
+#[must_use]
+pub fn aim_per_move(recoil: f64, limit: f64, skill: i32, sight_speed: f64) -> f64 {
+    let max_recoil = f64::from(crate::shot::MAX_RECOIL);
+    let mut aim_speed = 10.0 + sight_speed;
+
+    // Skill divides, and never multiplies back: `max( 1.0, ... )` is what makes five skill the break-even point.
+    aim_speed /= (2.5 - 0.2 * f64::from(skill)).max(1.0);
+
+    // The recoil fades the speed in, and the `max` of the two terms is the reference's, not a lerp.
+    #[allow(clippy::cast_possible_truncation)]
+    let at = recoil as i64;
+    #[allow(clippy::cast_possible_truncation)]
+    let cap = max_recoil as i64;
+    let fade = (recoil / max_recoil).max(1.0 - logarithmic_range(0, cap, at));
+    aim_speed *= fade;
+
+    // The skill cap, then the reference's flat scale.
+    let skill_cap = 5.0 + f64::from(skill) + (3.0 * f64::from(skill)).max(10.0);
+    aim_speed = aim_speed.min(skill_cap);
+    aim_speed *= 2.4;
+
+    aim_speed.max(MIN_RECOIL_IMPROVEMENT).min(recoil - limit)
+}
