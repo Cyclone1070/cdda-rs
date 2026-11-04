@@ -1990,10 +1990,11 @@ pub fn cornered_fighters_lose_their_nerve(world: &mut World) {
     let Some(spooked_recent) = crate::effect_registry::kind_of(world, "spooked_recent") else {
         return;
     };
-    // Only **creatures** crowd a monster, and the filter is what says so: a square, its ground and its terrain all carry a `Position` too, so a query for position alone finds the floor
-    // the monster is standing on and calls it a neighbour. That is exactly what the first version of this rule did - every monster was cornered by its own tile.
+    // Only **other monsters** crowd a monster: a square, its ground and its terrain all carry a `Position` too, so a query for position alone finds the floor the monster is standing on (round
+    // 1128's bug), and `With<Creature>` alone finds the survivor as well - which made every cornered fighter within two squares of the player spooked whatever it thought of them (round
+    // 1130's). The survivor has its own branch, further down, with an attitude test of its own.
     let neighbours: Vec<(Entity, (i32, i32, i32))> = world
-        .query_filtered::<(Entity, &Position), bevy_ecs::prelude::With<Creature>>()
+        .query_filtered::<(Entity, &Position), (bevy_ecs::prelude::With<Creature>, bevy_ecs::prelude::Without<crate::Player>)>()
         .iter(world)
         .map(|(entity, place)| (entity, (place.x, place.y, place.z)))
         .collect();
@@ -2003,6 +2004,10 @@ pub fn cornered_fighters_lose_their_nerve(world: &mut World) {
         .filter(|(_, _, morale, flags)| morale.0 <= 0 && flags.0.contains("CORNERED_FIGHTER"))
         .map(|(entity, place, _, _)| (entity, (place.x, place.y, place.z)))
         .collect();
+    let survivor = {
+        let mut query = world.query_filtered::<(Entity, &Position), bevy_ecs::prelude::With<crate::Player>>();
+        query.iter(world).next().map(|(_, place)| (place.x, place.y, place.z))
+    };
     for (entity, here) in cornered {
         // `points_in_radius( pos, 2 )` is a square radius, so both axes are compared the same way.
         let crowded = neighbours.iter().any(|(other, there)| {
@@ -2011,7 +2016,25 @@ pub fn cornered_fighters_lose_their_nerve(world: &mut World) {
                 && (there.1 - here.1).abs() <= 2
                 && there.2 == here.2
         });
-        if !crowded {
+        // Reference: the same block's second half (`monster.cpp:3534-3548`) - a **character** within two squares whose attitude this monster would only follow or flee from spooks it just
+        // as another monster does. A cornered animal does not need to be outnumbered; it needs to want to be somewhere else and not be able to get there.
+        let daunted = survivor.is_some_and(|threat| {
+            (threat.0 - here.0).abs() <= 2
+                && (threat.1 - here.1).abs() <= 2
+                && threat.2 == here.2
+                && {
+                    let (hp, max_hp) = world
+                        .get::<Health>(entity)
+                        .map_or((0, 0), |health| (health.hp, health.max_hp));
+                    let morale = world.get::<Morale>(entity).map_or(0, |morale| morale.0);
+                    let anger = world.get::<Anger>(entity).map_or(0, |anger| anger.0);
+                    matches!(
+                        attitude(hp, max_hp, morale, anger),
+                        Attitude::Follow | Attitude::Flee
+                    )
+                }
+        });
+        if !crowded && !daunted {
             continue;
         }
         if crate::applied_effects::has(world, entity, "spooked") {

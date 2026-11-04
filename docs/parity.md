@@ -12690,3 +12690,25 @@ to run.
 **The chain is now complete end to end and provable in a playtest**: a monster's type gives its morale and anger (round 1122) -> its attitude decides whether it fights or runs (1122) ->
 `is_fleeing` adds the four-square rule (1125) -> fear makes it walk away, even with no goal (1123, 1124) -> crowding spooks a cornered fighter for three turns (1128) -> and its nerve
 trickles back or snaps back afterwards (1126, 1127). **Every link has its own gate, and this scenario is the receipt that they are wired to each other.**
+
+## The survivor standing close is enough to daunt a cornered monster (round 1130)
+
+Round 1128 ported the monster half of the `CORNERED_FIGHTER` block. The block has a **second half** (`monster.cpp:3534-3548`): a **character** within two squares whose attitude the monster
+would only *follow* or *flee from* spooks it just as another monster does.
+
+| Reading | Reference | Port |
+|---|---|---|
+crowded by a monster | `creature_at<monster>(p)` in the radius | creatures that are **not** the survivor, within two squares |
+daunted by the survivor | `creature_at<Character>(p)` **and** the attitude is `MATT_FOLLOW` or `MATT_FLEE` | the survivor within two squares **and** `attitude` answers `Follow` or `Flee` |
+either one | spook: 3 turns, and 9 of `spooked_recent` | the same |
+Gate | - | `a_cornered_fighter_is_daunted_by_the_survivor_standing_close` - a timid one two squares away is spooked, a bold one the same distance away is not |
+
+**A monster that would attack is not daunted by the same proximity**, and that is the gate's second half: the branch is about *wanting to be elsewhere and not being able to get there*, not
+about distance. **A port that spooked every cornered fighter near the survivor would make every cornered animal timid, and the flag would stop meaning "cornered".**
+
+**The same query trap fired twice in two rounds, and the second time was finer.** Round 1128: `(Entity, &Position)` found the **floor**. Round 1130: `With<Creature>` found the **survivor**,
+because the player carries a `Creature` component too - so every cornered fighter within two squares of the player was spooked regardless of what it thought of them, and the gate caught it by
+pinning the one that should *not* be. **Each fix was one filter term, and the pattern is now written down: when a rule says "another monster", the query has to say "not the player" as well.**
+
+**Found by the gate's negative case, again.** The timid half passed on the first run; the bold half failed. **A rule that fires too often and a rule that fires too rarely look identical from
+the positive case alone.**

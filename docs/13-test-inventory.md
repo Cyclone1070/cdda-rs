@@ -715,3 +715,7 @@ been spooked before. `spooked` is read by the walk through `is_fleeing`'s effect
 **Round 1129 proved fear in play and added two claim forms**: `scenarios/a_cornered_worm_snake_bolts.txt` - two `mon_wormsnake_baby` (CORNERED_FIGHTER, morale 0) spook each other in one turn,
 asserted as `expect monsters 2 with effect spooked`. The CLI gained `expect monster effect <id> at <x> <y>` and `expect monsters <n> with effect <id>`; the first was too specific for an
 effect that makes monsters run.
+
+**Round 1130 finished the `CORNERED_FIGHTER` block**: `cornered_fighters_lose_their_nerve` now also spooks a cornered monster when the **survivor** stands within two squares and its attitude
+is `Follow` or `Flee` (`monster.cpp:3534-3548`). The crowding query was narrowed to monsters that are **not** the player, and
+`creature_fight::a_cornered_fighter_is_daunted_by_the_survivor_standing_close` pins both halves - timid daunted, bold not.

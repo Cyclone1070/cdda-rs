@@ -1374,6 +1374,10 @@ fn a_cornered_fighter_loses_its_nerve_and_then_finds_it_again() {
         !cdda_sim::applied_effects::has(&world, alone, "spooked"),
         "one on its own is not cornered"
     );
+    assert!(
+        cdda_sim::applied_effects::has(&world, neighbour, "spooked"),
+        "the neighbour is within two squares of a monster too, so it is spooked as well - which is what makes this a rule about crowding rather than about one unlucky monster"
+    );
 
     // Now that it has been spooked before, the next turn snaps its nerve back to its type's values instead of spooking it again.
     let _ = cdda_sim::applied_effects::remove(&mut world, crowded, "spooked");
@@ -1385,5 +1389,62 @@ fn a_cornered_fighter_loses_its_nerve_and_then_finds_it_again() {
         world.get::<cdda_sim::creature::Morale>(crowded).map(|carried| carried.0),
         Some(20),
         "a monster that was spooked recently snaps back to its type's morale and fights"
+    );
+}
+
+/// A cornered fighter is daunted by the survivor standing close, even with no other monster in sight.
+///
+/// Reference: the second half of the `CORNERED_FIGHTER` block (`monster.cpp:3534-3548`) - a **character** within two squares whose attitude the monster would only follow or flee from
+/// spooks it. A monster that would attack is not daunted by the same proximity, which is what the second half of this gate pins: the branch is about *wanting to be elsewhere*, not about
+/// distance alone.
+#[test]
+fn a_cornered_fighter_is_daunted_by_the_survivor_standing_close() {
+    use bevy_ecs::prelude::*;
+
+    let mut world = World::new();
+    singletons::put_rolls(&mut world, Rolls::new(47));
+    let mut level = Level::new();
+    for x in 0..8 {
+        for y in 0..8 {
+            level.set_terrain(x, y, 1, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let spooked = cdda_json::parse(br#"{"id":"spooked","max_duration":"1 hours"}"#).expect("valid json");
+    let recent = cdda_json::parse(br#"{"id":"spooked_recent","max_duration":"1 hours"}"#).expect("valid json");
+    let mut kinds = Vec::new();
+    for (id, value) in [("spooked", spooked), ("spooked_recent", recent)] {
+        let cdda_json::Value::Object(entry) = value else {
+            panic!("an effect type is an object")
+        };
+        kinds.push(cdda_content::effects::read_one(id, &entry));
+    }
+    cdda_sim::effect_registry::set_effect_types(&mut world, &kinds);
+    cdda_sim::spawn_player(&mut world, (3, 3), 80, 0);
+
+    // Two squares from the survivor and angry enough only to follow: daunted.
+    let timid = cdda_sim::creature::spawn_creature(&mut world, "the timid one", (5, 3, 0));
+    // The same distance away and angry enough to attack: not daunted.
+    let bold = cdda_sim::creature::spawn_creature(&mut world, "the bold one", (1, 3, 0));
+    for (entity, anger) in [(timid, 5), (bold, 50)] {
+        world
+            .entity_mut(entity)
+            .insert(cdda_sim::creature::Morale(0))
+            .insert(cdda_sim::creature::Anger(anger))
+            .insert(cdda_sim::creature::Nerve { morale: 20, anger: 20, regenerates: false })
+            .insert(cdda_sim::creature_flags::CreatureFlags(
+                ["CORNERED_FIGHTER".to_owned()].into_iter().collect(),
+            ));
+    }
+
+    cdda_sim::turn::run_turn(&mut world);
+
+    assert!(
+        cdda_sim::applied_effects::has(&world, timid, "spooked"),
+        "a cornered fighter that would only follow is spooked by the survivor standing two squares away"
+    );
+    assert!(
+        !cdda_sim::applied_effects::has(&world, bold, "spooked"),
+        "and one that would attack is not - the branch is about wanting to be elsewhere, not about distance"
     );
 }
