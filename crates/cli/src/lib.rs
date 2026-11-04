@@ -1971,7 +1971,7 @@ fn fire_a_step(world: &mut World, outcome: &mut Outcome, gun_id: &str, x: i32, y
         item.charges = rounds;
     }
     let before = cdda_sim::creature::moves_left(world, survivor);
-    let shot = cdda_sim::shot::fire_at(world, survivor, &gun, &lines, (x, y, 0), 18.0, round.as_ref(), Some(held));
+    let shot = cdda_sim::shot::fire_at(world, survivor, &gun, &lines, (x, y, 0), 18.0, round.as_ref(), Some(held), gun_weight(gun_id));
     let spent = before - cdda_sim::creature::moves_left(world, survivor);
     outcome.lines.push(format!(
         "fire: {gun_id} {} the shot, {spent} moves, missed by {:.3}, hurt {} {:?}",
@@ -2034,4 +2034,37 @@ fn shoot_step(words: &[&str]) -> Result<Step, String> {
         y: number_of(y, number, "y")?,
         rounds: number_of(rounds, number, "rounds")?,
     })
+}
+
+/// What a gun weighs, in grams, from the reference's own item dump.
+///
+/// Reference: `item::weight()` (`item.cpp:7256-7261`), which the recoil rule divides by 333 g. The prototypes dump writes `weight_mg` in **milligrams**, and a gun it does not know
+/// weighs nothing - which prices its kick as if the weapon were weightless rather than inventing a figure.
+fn gun_weight(id: &str) -> f64 {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/items.json");
+    let Ok(bytes) = std::fs::read(&path) else {
+        return 0.0;
+    };
+    let Ok(value) = cdda_json::parse(&bytes) else {
+        return 0.0;
+    };
+    let cdda_json::Value::Object(root) = &value else {
+        return 0.0;
+    };
+    let Some(cdda_json::Value::Array(items)) = root.get("prototypes") else {
+        return 0.0;
+    };
+    for item in items {
+        let cdda_json::Value::Object(object) = item else {
+            continue;
+        };
+        if object.get("id") != Some(&cdda_json::Value::Str(id.to_owned())) {
+            continue;
+        }
+        if let Some(cdda_json::Value::Int(mg)) = object.get("weight_mg") {
+            #[allow(clippy::cast_precision_loss)]
+            return *mg as f64 / 1000.0;
+        }
+    }
+    0.0
 }

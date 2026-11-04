@@ -84,6 +84,29 @@ pub fn cost_of_a_shot(
         + reload_moves
 }
 
+/// How much recoil a creature is carrying, in the reference's own units.
+///
+/// Reference: `Character::recoil` (`character.h:3115-3120`), a `double` capped at `MAX_RECOIL` = **3000** (`game_constants.h:101`). It accumulates as `5 * gun_recoil` a shot
+/// (`ranged.cpp:1152-1154`, the reference's own "temporarily scale by 5x" comment) and it is **added to the shot's dispersion**, so a second shot from the same hands is worse than the
+/// first. Kept as a component so that "how shaken is this shooter" is one field on one entity.
+#[derive(bevy_ecs::prelude::Component, Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Recoil {
+    /// The points of accumulated kick.
+    pub points: i32,
+}
+
+/// The most recoil the reference lets a shooter carry: `MAX_RECOIL` (`game_constants.h:101`).
+pub const MAX_RECOIL: i32 = 3000;
+
+/// What one shot adds to the shooter's recoil: `recoil += 5.0 * qty` (`ranged.cpp:1152-1154`), capped at [`MAX_RECOIL`].
+///
+/// The five is the reference's own: it is there because `MAX_RECOIL` is being rescaled, and a port that "cleaned it up" by dividing everywhere by five would break the cap and the dispersion
+/// it feeds in the same way.
+#[must_use]
+pub fn recoil_after_a_shot(current: i32, kick: i32) -> i32 {
+    (current + 5 * kick).min(MAX_RECOIL)
+}
+
 /// The blow a gun and the round in it make together.
 ///
 /// Reference: `item::gun_damage( with_ammo = true )` (`item.cpp:11160-11180`) - the weapon's own damage resolved for the barrel, **plus** the round's `shot_damage` resolved for the same
@@ -137,6 +160,7 @@ pub fn fire_at(
     divider: f64,
     round: Option<&cdda_content::ammo::AmmoType>,
     gun_entity: Option<bevy_ecs::prelude::Entity>,
+    gun_weight_g: f64,
 ) -> Fired {
     // Reference: `fire_gun` checks `gun.ammo_required()` and consumes the rounds **before** the shot is loosed (`ranged.cpp:1168-1172`), and breaks out of the burst when the gun cannot
     // load. A gun the port has no entity for is treated as loaded, which keeps this rule usable without one.
@@ -151,8 +175,11 @@ pub fn fire_at(
     crate::creature::spend_moves(world, shooter, f64::from(cost));
 
     // Reference: the shot's own error is drawn from the composed dispersion, one draw per source.
+    // Reference: `total_gun_dispersion( gun, recoil_total(), proj.shot_spread )` (`ranged.cpp:1108`) folds the shooter's **accumulated recoil** into the same dispersion the weapon's own
+    // figures make - so a shooter who has already fired is aiming worse with the identical gun.
+    let carried = world.get::<Recoil>(shooter).map_or(0, |recoil| recoil.points);
     let sources = crate::dispersion::Dispersion {
-        linear: vec![crate::dispersion::weapon_dispersion(shotmaker)],
+        linear: vec![crate::dispersion::weapon_dispersion(shotmaker) + f64::from(carried)],
         ..crate::dispersion::Dispersion::default()
     };
     let rolled = match crate::singletons::take_rolls(world) {
@@ -175,6 +202,21 @@ pub fn fire_at(
         None
     };
     let hurt = struck.map_or(0, |struck| hurt_once(world, struck, &blow));
+    // Reference: `recoil += 5 * qty` after the shot (`ranged.cpp:1152-1154`), which is what makes the second shot worse than the first.
+    let kick = gun_recoil(
+        gun.recoil,
+        round.map_or(0, |round| round.recoil),
+        gun.handling,
+        gun_weight_g,
+        crate::creature::effective_strength(world, shooter),
+    );
+    let carried = world.get::<Recoil>(shooter).map_or(0, |recoil| recoil.points);
+    let after = recoil_after_a_shot(carried, kick);
+    if let Some(mut recoil) = world.get_mut::<Recoil>(shooter) {
+        recoil.points = after;
+    } else {
+        world.entity_mut(shooter).insert(Recoil { points: after });
+    }
     Fired { cost, aim, hit: struck, hurt, loaded: true }
 }
 

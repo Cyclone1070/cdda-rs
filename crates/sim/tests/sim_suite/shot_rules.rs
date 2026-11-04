@@ -147,7 +147,7 @@ fn firing_a_gun_spends_moves_and_judges_the_shot_by_what_stands_there() {
     world.entity_mut(beast).insert(cdda_sim::creature::Health { hp: 10, max_hp: 10 });
 
     let before = cdda_sim::creature::moves_left(&world, shooter);
-    let fired = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (4, 0, 0), 18.0, None, None);
+    let fired = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (4, 0, 0), 18.0, None, None, 0.0);
     let after = cdda_sim::creature::moves_left(&world, shooter);
     assert_eq!(before - after, fired.cost, "the shot cost what the shot table says: {}", fired.cost);
     assert_eq!(
@@ -158,7 +158,7 @@ fn firing_a_gun_spends_moves_and_judges_the_shot_by_what_stands_there() {
     assert!(fired.cost > 0, "and a shot is never free");
 
     // The same shot at bare ground uses a whole tile, so a small target is judged more harshly than nothing at all.
-    let at_nothing = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (4, 4, 0), 18.0, None, None);
+    let at_nothing = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (4, 4, 0), 18.0, None, None, 0.0);
     assert!(
         fired.aim.missed_by >= at_nothing.aim.missed_by,
         "the small thing is at least as hard to hit as empty ground: {} against {}",
@@ -178,7 +178,7 @@ fn firing_a_gun_spends_moves_and_judges_the_shot_by_what_stands_there() {
         .entity_mut(standing)
         .insert(cdda_sim::creature::Creature { name: "a thing in the way".to_owned(), size: cdda_sim::CreatureSize::Medium })
         .insert(cdda_sim::creature::Health { hp: 100, max_hp: 100 });
-    let point_blank = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (0, 0, 0), 18.0, Some(&round), None);
+    let point_blank = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (0, 0, 0), 18.0, Some(&round), None, 0.0);
     assert_eq!(point_blank.hit, Some(standing), "at zero range the shot reaches what is there");
     assert_eq!(point_blank.hurt, 39, "and does the cartridge's thirty-nine, with no armour to stop it");
     assert_eq!(
@@ -259,7 +259,7 @@ fn a_gun_that_cannot_pay_for_a_round_does_not_fire() {
 
     let mut fired = 0;
     for _ in 0..3 {
-        let shot = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (4, 0, 0), 18.0, None, Some(held));
+        let shot = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (4, 0, 0), 18.0, None, Some(held), 0.0);
         if shot.loaded {
             fired += 1;
         } else {
@@ -307,4 +307,63 @@ fn a_shot_s_kick_is_the_round_s_less_what_handling_and_weight_take_off() {
     assert!(strong < heavy, "a stronger arm tames it further: {strong} against {heavy}");
     // A gun's own recoil adds to the round's rather than replacing it.
     assert!(gun_recoil(500, 1500, 20, 333.0, 8) > gun_recoil(0, 1500, 20, 333.0, 8), "the gun's own kick adds");
+}
+
+/// Recoil accumulates with each shot and makes the next one worse.
+///
+/// Reference: `recoil += 5.0 * qty` (`ranged.cpp:1152-1154`), capped at `MAX_RECOIL` = 3000 (`game_constants.h:101`), and `total_gun_dispersion( gun, recoil_total(), ... )`
+/// (`ranged.cpp:1108`) feeding that recoil into the shot's dispersion. **This is the rule that makes a burst worse than a series of single shots**, and the gate checks the store and the
+/// shot's own aim rather than the arithmetic alone.
+#[test]
+fn recoil_accumulates_with_each_shot_and_widens_the_next() {
+    use bevy_ecs::prelude::*;
+    use cdda_sim::shot::{MAX_RECOIL, Recoil, recoil_after_a_shot};
+
+    // The cap, and the fivefold scale that makes it matter.
+    assert_eq!(recoil_after_a_shot(0, 100), 500, "a hundred-point kick adds five hundred");
+    assert_eq!(recoil_after_a_shot(2_900, 100), MAX_RECOIL, "and the total stops at three thousand");
+    assert_eq!(recoil_after_a_shot(0, 0), 0, "a kickless shot adds nothing");
+
+    let read = |name: &str| {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let bytes = std::fs::read(path).expect("the corpus file exists");
+        cdda_json::parse(&bytes).expect("valid JSON")
+    };
+    let guns = cdda_content::guns::load_dump(&read("items/guns.json")).expect("the guns load");
+    let lines = cdda_content::skills::load_dump(&read("skills.json")).expect("the skills load");
+    let rounds = cdda_content::ammo::load_dump(&read("items/ammo.json")).expect("the ammo loads");
+    let gun = guns.iter().find(|gun| gun.id == "ruger_mini").expect("the Mini-14").clone();
+    let round = rounds.iter().find(|round| round.id == "223").expect("the .223").clone();
+
+    let mut world = World::new();
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(777));
+    let shooter = cdda_sim::creature::spawn_creature(&mut world, "the shooter", (0, 0, 0));
+    world
+        .entity_mut(shooter)
+        .insert(cdda_sim::creature::Strength { base: 8 })
+        .insert(cdda_sim::creature::Dexterity { base: 8 })
+        .insert(cdda_sim::creature::Perception { base: 8 })
+        .insert(cdda_sim::creature::Moves { left: 1_000 });
+
+    // One shot at bare ground, then a second: the first leaves recoil behind, and the second is aimed with it.
+    let first = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (5, 0, 0), 18.0, Some(&round), None, 3180.0);
+    let carried = world.get::<Recoil>(shooter).map_or(0, |recoil| recoil.points);
+    assert!(carried > 0, "the shot left recoil behind: {carried}");
+    assert_eq!(
+        carried,
+        recoil_after_a_shot(0, 123),
+        "and it is five times the kick a Mini-14 with a .223 makes: **123**, because its 3,180 g is capped at the arm's 8 * 333 g"
+    );
+
+    let second = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (5, 0, 0), 18.0, Some(&round), None, 3180.0);
+    assert!(
+        world.get::<Recoil>(shooter).map_or(0, |recoil| recoil.points) > carried,
+        "and the second shot adds to it"
+    );
+    assert!(
+        second.aim.dispersion > first.aim.dispersion,
+        "the second shot is aimed with the first one's recoil in it: {} against {}",
+        second.aim.dispersion,
+        first.aim.dispersion
+    );
 }

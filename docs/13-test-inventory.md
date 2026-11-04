@@ -805,3 +805,7 @@ and the point-blank case in `shot_rules::firing_a_gun_spends_moves_and_judges_th
 **Round 1151 ported how hard a shot kicks**: `shot::gun_recoil` (`item::gun_recoil`, `item.cpp:11232-11266`) with `GunType::handling` (guns dump **v4**) and `AmmoType::recoil` (ammo dump **v2**).
 Gated by `shot_rules::a_shot_s_kick_is_the_round_s_less_what_handling_and_weight_take_off` - the 652 the handling factor leaves of a .223's 1500, the *multiply* branch at unit handling
 (1500 → 3000), and the weight cap the arm's strength puts on a heavy gun.
+
+**Round 1152 made recoil accumulate**: `shot::Recoil` (component), `shot::MAX_RECOIL` = 3000, `shot::recoil_after_a_shot` (`recoil += 5 * qty`, `ranged.cpp:1152-1154`), the recoil folded into the
+shot's dispersion (`total_gun_dispersion`, `ranged.cpp:1108`), and the CLI's `gun_weight` reading `weight_mg` from `corpus/prototypes/items.json`. Gated by
+`shot_rules::recoil_accumulates_with_each_shot_and_widens_the_next` - a kick of **123** for a capped 3,180 g rifle, 615 carried, and a second shot that is strictly worse aimed.

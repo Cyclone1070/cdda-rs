@@ -13194,3 +13194,23 @@ divides as a `double` and truncates once, at the end, which is exactly what retu
 
 **Named, not invented:** gunmods' `handling` sum, a real gun **weight** (the gate passes 333 g, and the guns dump does not carry weight yet - the items dump does, and joining the two is the
 next step), `RECOIL_MODIFIER`, and recoil's own accumulation (`recoil += 5 * qty`) and decay, which need a `Recoil` component on the shooter.
+
+## Recoil accumulates, and the next shot is worse (round 1152)
+
+| Piece | Reference | Port |
+|---|---|---|
+the limit | `MAX_RECOIL` = **3000** (`game_constants.h:101`) | `shot::MAX_RECOIL` |
+one shot's addition | `recoil += 5.0 * qty` (`ranged.cpp:1152-1154`) - the reference's own "temporarily scale by 5x" | `shot::recoil_after_a_shot(current, kick)` |
+carrying it | `Character::recoil` | the `Recoil { points }` component |
+what it does | `total_gun_dispersion( gun, recoil_total(), proj.shot_spread )` (`ranged.cpp:1108`) | the shot's `linear` source is `weapon_dispersion + recoil` |
+weight | `item::weight()` | the CLI's `gun_weight`, read from `corpus/prototypes/items.json` (`weight_mg` / 1000) |
+Gate | - | `recoil_accumulates_with_each_shot_and_widens_the_next` |
+
+**This is the rule that makes a burst worse than a run of single shots**, and until now the port had no memory of having fired: every shot was the first shot.
+
+**The gate's number is the whole chain in one figure.** A Mini-14 with a .223 kicks **123** points at eight strength - **not** the 107 an uncapped weight would give: its **3,180 g** is capped at
+the arm's `8 * 333 g = 2,664 g`, and 8.0^0.8 × 2.0^1.2 divided into 1,500 is 123.7. Five times that is **615** carried, which the store reports and the gate pins exactly.
+
+**The scenario's numbers moved, and that is the proof it is wired.** `a_survivor_shoots_a_zombie` used to miss by **0.820** on its first shot and now misses by **0.408** - because the CLI
+joined the **real gun weight** from the item dump in the same round, so the kick is the capped one rather than the weightless one the port had before. **A rule wired but fed a zero weight looks
+identical to a rule that is not wired at all**, which is why the weight came in with it.
