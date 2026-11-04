@@ -536,6 +536,18 @@ pub fn take_turn(world: &mut World) -> usize {
     }
     let before = cdda_sim::inspect::world_fingerprints(world);
     cdda_sim::turn::run_turn(world);
+    // Reference: the map asks every corpse whether it is ready to get up once a turn (`game::revive_corpse`, `game.cpp:5718-5760`), and the answer places the monster again.
+    // The spawn is a closure because a monster type is content: this module loads it, the simulation owns the rule.
+    let types = monster_types().unwrap_or_default();
+    let _risen = cdda_sim::creature::revive_corpses(world, |world, kind, square| {
+        let Some(monster_type) = types.iter().find(|each| {
+            cdda_sim::monster_registry::id_of(world, &each.id) == Some(kind)
+        }) else {
+            return false;
+        };
+        cdda_sim::creature::spawn_monster_of_type(world, kind, monster_type, square, 100);
+        true
+    });
     let after = cdda_sim::inspect::world_fingerprints(world);
     cdda_sim::inspect::squares_that_differ(&before, &after).len()
 }

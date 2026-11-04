@@ -602,3 +602,7 @@ dice trap**: two hundred fresh seeds all answer alike because the engine's first
 **Round 1103 wired the revival**: `CorpseOf` now carries `died_on` and `revives` (written at death from the clock and the type's `REVIVES` flag), and
 `creature::revive_corpses` (`game::revive_corpse`, `game.cpp:5718-5760`) destroys the corpse and places the monster again. Gated by
 `creature_fight::a_reviving_corpse_gets_up_and_nothing_else_does` with **three** corpses: age alone is not enough, the flag alone is not enough, only both together rise.
+
+**Round 1104 wired revival into the CLI's turn and found it cannot happen**: the creature stage calls `reap_dead_creatures`, which **despawns the dead and leaves no corpse**, so
+nothing can rot, be butchered in play, or rise. `reap_dead_creatures_as_corpses` exists, writes the corpse with its volume, death turn and `REVIVES` flag, and **is called by nobody in
+the turn**. The attempted scenario (`date` step, two-day wait) was deleted rather than shipped failing; the next slice installs a corpse kind as data and switches the stage over.

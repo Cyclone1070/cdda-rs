@@ -12119,3 +12119,25 @@ nothing is invented to fill the gap.
 
 **A borrow taught the shape of the system.** Asking the rule spends dice, and spending dice needs the world to itself, so the candidates are **collected first and asked afterwards** -
 the same two-pass shape `mend_everyone` and `take_turns` already use. **The first version did not compile, and the compiler was right about the design, not just the code.**
+
+## Revival is wired, and cannot happen yet - because nothing leaves a corpse (round 1104)
+
+The revival system went into the CLI's turn, and the scenario that would prove it in play **failed for a reason worth more than the scenario**.
+
+| Piece | Where |
+|---|---|
+CLI turn | asks `creature::revive_corpses` after every turn, with the monster types it loaded |
+Scenario attempted | kill a reviving zombie, move the clock two days, expect a monster back |
+**Why it cannot pass** | the creature stage calls **`reap_dead_creatures`**, which despawns the dead and leaves **nothing** |
+What exists instead | `reap_dead_creatures_as_corpses` - which writes a corpse, its volume, its death turn and its `REVIVES` flag - and is **called by nobody in the turn** |
+
+**A killed monster in this port leaves no corpse at all.** Butchery's gates build a corpse by hand, so the content that reads corpses works; the **turn** never makes one, so the map
+is never littered, nothing rots, nothing can be butchered in play, and nothing can rise. **The revival rule and its system are correct and unreachable - this port's recurring
+failure mode, caught again by a scenario rather than by a test.**
+
+**What the next slice is, exactly:** the creature stage's reaping must become the corpse-leaving one, and it needs the two things the corpse path asks for - the **corpse item kind**
+and a **volume per monster kind** - which are content. The shapes already exist: `reap_dead_creatures_as_corpses(world, corpse_kind, volume_of)` and the CLI's `install_monster_data`,
+which already loads the types. **A singleton the CLI installs once (a `CorpseKind` component holding the item id) is enough**, and it keeps `creature.rs` free of content.
+
+**The `date` step and the scenario were deleted rather than shipped failing**, and the CLI's call to `revive_corpses` stays: it is a real caller of a real rule, and when corpses arrive
+it starts working with no further change.
