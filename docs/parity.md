@@ -12511,3 +12511,32 @@ uses, instead of being a rule that only fires for a type nobody meets.
 
 **Named, not invented:** the modifiers `attitude_to` applies before the tail (faction, species, the survivor's traits, pheromones, hallucinations), and `monster::is_fleeing`'s four-square
 rule. **Nothing asks `attitude` yet** - the movement code still walks to its `Goal` - and the roadmap now names that as the next step rather than a gap in the rule.
+
+## A frightened monster runs (round 1123)
+
+Round 1122 gave a monster an attitude and nothing asked it. This round makes the walk ask: a creature whose attitude is `Flee` runs from the survivor instead of walking to its goal.
+
+| Piece | Reference | Port |
+|---|---|---|
+the preference | `monmove.cpp:489` - when `is_fleeing`, the distance term of the square score turns around, so the farthest square wins | `walk_bounds` -> `flee_goal` -> the existing router |
+the square | the reference **scores all eight neighbours** | the port **reflects** the threat through the creature: `monster + (monster - threat)` |
+Gates | - | `a_frightened_monster_runs_from_the_survivor_instead_of_walking_to_its_goal` - the same world twice, bold monster closes on the survivor, frightened one moves away |
+
+**This is a declared divergence, not a translation.** The reference chooses among eight scored neighbours; the port chooses one square and lets the router find the way. The observable
+behaviour - a scared thing gets farther away - is the same in the open, and differs when a wall stands between: the reference's score can prefer a *longer* route that keeps distance,
+while the port's router prefers the shortest. **Recorded here rather than smoothed over, because the next person to port `monster::move`'s scoring will need to know this square is a
+placeholder.**
+
+**`Goal` is kept while fleeing.** A monster that recovers its nerve - morale climbing back above zero at one in four a turn in the reference (`monster.cpp:1877`) - should carry on where it
+was headed, and the port leaves the goal in place so that is what happens.
+
+**The gate failed three times before it could fail for the right reason, and each failure was the fixture, not the rule.**
+
+| Attempt | What was wrong |
+|---|---|
+1 | the frightened monster's mirrored square fell **off the map** (`x = -2`), so the router answered "no route" - a rule that never got to run |
+2 | no `Speed`, so the turn granted no moves |
+3 | **no terrain prototypes**, so `square_cost` answered "no prototype" for every square and the router answered "no route" for both monsters |
+
+**The third one is the round's real lesson: a movement gate in a world without move costs silently tests nothing**, and its failure looks exactly like a broken rule. The test now builds
+the terrain table it needs and says why in a comment.

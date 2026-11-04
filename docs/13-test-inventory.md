@@ -686,3 +686,7 @@ document holds executable lines rather than templates.
 boundaries pinned at `hp > max/3` and `hp <= 0.6 * max`) plus `Morale` and `Anger` components set from the type by `spawn_monster_of_type` (`monster.cpp:282-283`). Gated by
 `creature_fight::a_monster_s_attitude_follows_its_morale_its_anger_and_its_wounds` and `creature_fight::a_spawned_monster_starts_with_its_type_s_morale_and_anger`.
 **Nothing reads `attitude` yet** - movement still follows `Goal`.
+
+**Round 1123 made the walk ask the attitude**: `creature::flee_goal` (the reference's inverted distance term at `monmove.cpp:489`, **declared divergence**: the reference scores eight
+neighbours, the port reflects the threat and lets the router route) and `fleeing_from_a_scared_monster`, called from the walk loop in `take_turns`. Gated by
+`creature_fight::a_frightened_monster_runs_from_the_survivor_instead_of_walking_to_its_goal`.

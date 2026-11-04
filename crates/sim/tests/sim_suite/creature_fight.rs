@@ -1123,3 +1123,85 @@ fn a_spawned_monster_starts_with_its_type_s_morale_and_anger() {
         zombie_type.aggression
     );
 }
+
+/// A frightened monster runs from the survivor instead of walking to its goal.
+///
+/// Reference: `monmove.cpp:489` turns the distance term of `monster::move`'s square scoring around when `is_fleeing`, so a monster whose attitude is `Flee` prefers the square farthest
+/// from the survivor. The gate drives the **turn**: the same monster walks *towards* its goal with ten points of anger and *away* when its morale is negative and it is badly hurt.
+#[test]
+fn a_frightened_monster_runs_from_the_survivor_instead_of_walking_to_its_goal() {
+    use bevy_ecs::prelude::*;
+
+    let mut world = World::new();
+    singletons::put_rolls(&mut world, Rolls::new(37));
+    let mut level = Level::new();
+    for x in 0..9 {
+        for y in 0..5 {
+            level.set_terrain(x, y, 1, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    // A terrain table with a move cost for the floor: without one, every step costs nothing because `square_cost` answers "no prototype" and the router answers "no route".
+    // That is what the first version of this gate proved - two monsters standing perfectly still next to a survivor they could see.
+    let mut terrain = cdda_sim::terrain_table::TerrainTable::new();
+    terrain.insert(1, true);
+    terrain.insert_move_cost(1, 2);
+    cdda_sim::singletons::set_prototypes(
+        &mut world,
+        cdda_sim::Prototypes {
+            terrain,
+            furniture: cdda_sim::terrain_table::TerrainTable::new(),
+        },
+    );
+    let survivor = cdda_sim::spawn_player(&mut world, (4, 2), 80, 0);
+
+    let distance_to_survivor = |world: &World, entity: Entity| {
+        let place = world.get::<cdda_sim::Position>(entity).expect("it has a place");
+        (place.x - 4).abs() + (place.y - 2).abs()
+    };
+
+    // Angry and healthy: it walks to its goal, which is straight past the survivor.
+    let bold = cdda_sim::creature::spawn_creature(&mut world, "the bold", (1, 2, 0));
+    world
+        .entity_mut(bold)
+        .insert(cdda_sim::creature::Health { hp: 80, max_hp: 80 })
+        .insert(cdda_sim::creature::Morale(10))
+        .insert(cdda_sim::creature::Anger(100));
+    cdda_sim::creature::set_goal(&mut world, bold, (7, 2, 0));
+    cdda_sim::creature::set_speed(&mut world, bold, 100, 0);
+    let before = distance_to_survivor(&world, bold);
+
+    // Frightened and badly hurt: negative morale, and more than two thirds of its hit points given up.
+    // Next to the survivor but with room behind it: the mirrored square has to be **on the map**, or the router answers "no route" and the monster stands still for a reason
+    // that has nothing to do with being frightened.
+    let scared = cdda_sim::creature::spawn_creature(&mut world, "the scared", (6, 1, 0));
+    world
+        .entity_mut(scared)
+        .insert(cdda_sim::creature::Health { hp: 10, max_hp: 80 })
+        .insert(cdda_sim::creature::Morale(-10))
+        .insert(cdda_sim::creature::Anger(5));
+    cdda_sim::creature::set_goal(&mut world, scared, (0, 1, 0));
+    cdda_sim::creature::set_speed(&mut world, scared, 100, 0);
+    let scared_before = (world.get::<cdda_sim::Position>(scared).expect("a place").x, world.get::<cdda_sim::Position>(scared).expect("a place").y);
+
+    for _ in 0..4 {
+        cdda_sim::turn::run_turn(&mut world);
+    }
+
+    let after = distance_to_survivor(&world, bold);
+    assert!(
+        after < before || world.get::<cdda_sim::creature::Goal>(bold).is_none(),
+        "the bold monster closes on the survivor: {before} then {after}"
+    );
+    let scared_after = world.get::<cdda_sim::Position>(scared).expect("a place");
+    assert!(
+        (scared_after.x, scared_after.y) != scared_before,
+        "the frightened one moved"
+    );
+    assert!(
+        (scared_after.x - 4).abs() + (scared_after.y - 2).abs() > (scared_before.0 - 4).abs() + (scared_before.1 - 2).abs(),
+        "and moved away: {scared_before:?} then {:?}",
+        (scared_after.x, scared_after.y)
+    );
+    let _ = survivor;
+}

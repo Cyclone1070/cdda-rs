@@ -1945,6 +1945,9 @@ pub fn take_turns(world: &mut World) {
             continue;
         }
         let bounds = walk_bounds(world);
+        // A frightened creature runs: `monmove.cpp:489` turns the distance term of the reference's movement scoring around when `is_fleeing`, so the square it prefers is the one
+        // farthest from the survivor. `Goal` is left in place, because a monster that recovers its nerve should carry on where it was headed.
+        let goal = fleeing_from_a_scared_monster(world, entity).unwrap_or(goal);
         let outcome = crate::routing::walk_towards(world, entity, goal, bounds);
         if matches!(outcome, crate::routing::Walk::Arrived | crate::routing::Walk::NoRoute) {
             if is_goal {
@@ -1954,6 +1957,26 @@ pub fn take_turns(world: &mut World) {
             }
         }
     }
+}
+
+/// Where a creature goes instead of its goal when it is frightened of the survivor, if it is.
+///
+/// A creature with no morale and no anger components is not asked: the reference asks the question of every monster, but a component-less creature in this port is a fixture, and
+/// giving it an attitude would be inventing one.
+fn fleeing_from_a_scared_monster(world: &mut World, entity: Entity) -> Option<(i32, i32, i32)> {
+    let morale = world.get::<Morale>(entity)?.0;
+    let anger = world.get::<Anger>(entity)?.0;
+    let health = world.get::<Health>(entity)?;
+    let place = world.get::<Position>(entity)?;
+    let here = (place.x, place.y, place.z);
+    if attitude(health.hp, health.max_hp, morale, anger) != Attitude::Flee {
+        return None;
+    }
+    let survivor = {
+        let mut query = world.query_filtered::<(bevy_ecs::prelude::Entity, &Position), bevy_ecs::prelude::With<crate::Player>>();
+        query.iter(world).next().map(|(_, place)| (place.x, place.y, place.z))
+    }?;
+    Some(flee_goal(here, survivor))
 }
 
 /// Hits whatever stands on a creature's goal square, when it is next to it.
@@ -2062,6 +2085,20 @@ pub enum Attitude {
     Flee,
     /// It is coming.
     Attack,
+}
+
+/// The square a frightened creature runs to: the one straight away from what scares it, as far again from the threat as the creature is now.
+///
+/// Reference: `monmove.cpp:489` turns the distance term of `monster::move`'s square scoring around when `is_fleeing` - the reference scores all eight neighbours and prefers the
+/// farthest. The port has no scoring table for movement yet, so it **reflects** the threat through the creature and lets the router find the way, which is a **declared divergence**:
+/// the same square wins most of the time, and walls between the two are handled by the router rather than by the score.
+#[must_use]
+pub fn flee_goal(monster: (i32, i32, i32), threat: (i32, i32, i32)) -> (i32, i32, i32) {
+    (
+        monster.0 + (monster.0 - threat.0),
+        monster.1 + (monster.1 - threat.1),
+        monster.2,
+    )
 }
 
 /// What a monster makes of the survivor, from its morale, its anger and how hurt it is.
