@@ -12891,3 +12891,26 @@ and nothing about the join**, which is where the bugs live.
 
 **Named, not invented:** the aim-mode multiplier, encumbrance, recoil accumulation, and `item::gun_dispersion`'s own terms beyond `type->dispersion` (gunmods, damage, ammo) - the dump
 carries the field, not the composition. **Nothing fires yet**: the next ranged round is `Character::fire_gun`'s first move, which needs a shot to spend moves on.
+
+## A target's size, which is what a miss is measured against (round 1139)
+
+The aim roll has been ported since the throwing round; what it never had was **a size to divide by**. Every caller passed `1.0`, which is a huge target: **every thrown rock was judged
+against a creature that fills its whole tile.**
+
+| Piece | Reference | Port |
+|---|---|---|
+the five fractions | `occupied_tile_fraction` (`ranged.cpp:603-622`): 0.1, 0.25, 0.5, 0.75, 1.0 | `ballistics::occupied_tile_fraction(CreatureSize)` |
+what they are for | `aim.missed_by = min( 1, missed_by_tiles / target_size )` (`ballistics.cpp:224`) | the port's existing `aim_of`, unchanged |
+Gate | - | `a_target_s_size_is_the_fraction_of_its_tile_a_shot_is_judged_against` - the five numbers, then the same error judged against a cat and a cow |
+
+**The gate's second half is the point.** The error in tiles does not depend on what was aimed at - **it is the same shot** - but the fraction missed does: the same ten arcminutes at ten
+squares is a fifth of a cat and a fortieth of a cow. **A port that hardcoded `1.0` was sentencing every creature to be as easy to hit as a hulk**, and nothing would have failed, because
+nothing asked the question.
+
+**A destructive mistake caught by the compiler, and the workspace is intact.** Writing this round's file **overwrote `ballistics.rs`, which already existed** with the aim roll, the flight
+and the landing. The build failed on the missing `aim_of`, the original was read back out of `git` and restored, and the tree is byte-identical to the last commit (`git status` clean) before
+the one function this round actually adds. **The lesson is not "be careful": it is that a module the port already has is a module to `read` before writing, every time** - and that the
+suite-plus-oracle gates would not have caught it, because a clobbered module that still compiles is a module that quietly lost its rules.
+
+**Named, not invented:** `HARDTOSHOOT` (which shifts a creature's aim size down one class) and the crouch, prone and quadruped stance factors, none of which the port has a source for yet.
+**Nothing passes a real size to `aim_of` yet** - the throw still aims at open ground - which is the wiring the next ranged round does together with the gun's own shot.

@@ -108,6 +108,21 @@ fn sgn(value: i32) -> i32 {
     value.signum()
 }
 
+/// What share of its tile a creature of this size fills: `occupied_tile_fraction` (`src/ranged.cpp:603-622`).
+///
+/// These five numbers are the target size the aim roll divides by, so they are the difference between a shot that is counted as a graze and one that is counted as a clean miss against
+/// the same error. The reference falls back to the medium fraction after a `debugmsg`, which is what a size the port cannot name gets here.
+#[must_use]
+pub fn occupied_tile_fraction(size: crate::CreatureSize) -> f64 {
+    match size {
+        crate::CreatureSize::Tiny => 0.1,
+        crate::CreatureSize::Small => 0.25,
+        crate::CreatureSize::Medium => 0.5,
+        crate::CreatureSize::Large => 0.75,
+        crate::CreatureSize::Huge => 1.0,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

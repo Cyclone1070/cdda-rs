@@ -437,3 +437,33 @@ fn a_gun_and_a_shooter_compose_the_dispersion_a_shot_starts_with() {
         cdda_sim::dispersion::weapon_dispersion(beginner)
     );
 }
+
+/// A target's size is the fraction of its tile the aim roll divides by.
+///
+/// Reference: `occupied_tile_fraction` (`src/ranged.cpp:603-622`), whose five numbers are the whole of "how big is a thing" as far as aiming is concerned. The gate pins them against the
+/// port's own `CreatureSize`, and then shows what they are for: **the same miss is a clean miss against a cat and a graze against a cow.**
+#[test]
+fn a_target_s_size_is_the_fraction_of_its_tile_a_shot_is_judged_against() {
+    use cdda_sim::CreatureSize;
+    use cdda_sim::ballistics::{aim_of, occupied_tile_fraction};
+
+    assert!((occupied_tile_fraction(CreatureSize::Tiny) - 0.1).abs() < f64::EPSILON, "a cat fills a tenth");
+    assert!((occupied_tile_fraction(CreatureSize::Small) - 0.25).abs() < f64::EPSILON, "a dog a quarter");
+    assert!((occupied_tile_fraction(CreatureSize::Medium) - 0.5).abs() < f64::EPSILON, "a person half");
+    assert!((occupied_tile_fraction(CreatureSize::Large) - 0.75).abs() < f64::EPSILON, "a cow three quarters");
+    assert!((occupied_tile_fraction(CreatureSize::Huge) - 1.0).abs() < f64::EPSILON, "and a hulk its whole tile");
+
+    // Ten arcminutes at ten squares misses by about two hundredths of a tile. Against a cat that is a fifth of the target; against a cow, a fortieth.
+    let at_cat = aim_of(10.0, 10.0, occupied_tile_fraction(CreatureSize::Tiny));
+    let at_cow = aim_of(10.0, 10.0, occupied_tile_fraction(CreatureSize::Large));
+    assert!(
+        at_cat.missed_by > at_cow.missed_by,
+        "the same error is worse against the smaller thing: {} against {}",
+        at_cat.missed_by,
+        at_cow.missed_by
+    );
+    assert!(
+        (at_cat.missed_by_tiles - at_cow.missed_by_tiles).abs() < f64::EPSILON,
+        "and the error itself does not depend on what it was aimed at"
+    );
+}
