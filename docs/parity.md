@@ -12562,3 +12562,31 @@ unreachable.
 
 **The daily-morale rule is named and not invented.** The reference drifts `morale` back toward the type's value at one in four a turn (`monster.cpp:1877`), which is what lets a frightened
 monster recover its nerve and come back. The port has no drift yet, so a panicking civilian panics for ever: **that is a gap, and it is written down rather than papered over.**
+
+## "Follow" means keep your distance (round 1125)
+
+Rounds 1122-1124 used `attitude == Flee` as the question "is it running". The reference asks a **different question**, `monster::is_fleeing` (`monster.cpp:1608-1618`), and the
+difference is not cosmetic.
+
+| Step | Rule |
+|---|---|
+the vetoes | `anger >= 100 \|\| morale >= 100` -> **never fleeing**, whatever else is true |
+the attitude | `Flee` -> fleeing |
+**the addition** | **`Follow` while within four squares -> fleeing** |
+the rest | `Ignore` and `Attack` -> not fleeing |
+
+**That middle clause is what makes "follow" mean *keep your distance*.** A monster with a little anger follows the survivor - and the moment it gets within four squares it is running
+again. **A port that read only `attitude == Flee` would have a follower walk right up to the survivor it is trying to stay away from**, which is the opposite of what the flag says.
+
+| Piece | Reference | Port |
+|---|---|---|
+the question | `monster::is_fleeing` | `creature::is_fleeing(hp, max_hp, morale, anger, distance)` |
+who asks it | `monmove.cpp:489`, and `monster::process_turn` for morale regrowth | the walk, through `fleeing_from_a_scared_monster`, which now measures the distance first |
+Gate | - | `a_monster_runs_when_it_is_frightened_or_when_a_follower_gets_too_close` - the two vetoes, both attitude branches, and the four/five square boundary |
+
+**The vetoes are tested before the attitudes because they are checked first, and a monster that is furious but frightened would otherwise be read backwards.** The boundary pair (four is
+too close, five is far enough) pins the `<=` in the reference, which is the kind of sign that flips silently in a port.
+
+**Named, not invented:** the reference's first line reads a `FLEEING` effect cache, which this port has no effects for; the effect only ever mirrors the answer, so leaving it out changes
+nothing. `REVIVE_SPECIAL` was checked this round too and is **declared in `flags.json` but used by no monster in the data**, so the port's corpse rule is complete without it - a fact
+verified rather than assumed.

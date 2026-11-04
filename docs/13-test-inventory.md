@@ -694,3 +694,7 @@ neighbours, the port reflects the threat and lets the router route) and `fleeing
 **Round 1124 let fear move a creature with no goal**: `creature::fleeing_creatures` adds every frightened creature (those carrying `Morale` and `Anger`) to the walk list, because the
 reference asks `is_fleeing` of every monster that moves (`monmove.cpp:489`). Proved in play by `scenarios/a_wounded_civilian_runs.txt` - `mon_civilian_panic` (morale -50, aggression
 -50) hit once and four squares away three turns later, with the survivor untouched - and the drift that would let it recover its nerve (`monster.cpp:1877`) is named as a gap.
+
+**Round 1125 asked the reference's own question about fear**: `creature::is_fleeing` (`monster::is_fleeing`, `monster.cpp:1608-1618`) - the two hundred-point vetoes, then the attitude, then
+**a follower within four squares flees too**, which is what makes "follow" mean keep your distance. The walk now uses it instead of reading `attitude == Flee` alone. Gated by
+`creature_fight::a_monster_runs_when_it_is_frightened_or_when_a_follower_gets_too_close`, including the four/five boundary.

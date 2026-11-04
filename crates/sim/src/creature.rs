@@ -1989,16 +1989,22 @@ pub fn fleeing_creatures(world: &mut World) -> Vec<(Entity, (i32, i32, i32))> {
 fn fleeing_from_a_scared_monster(world: &mut World, entity: Entity) -> Option<(i32, i32, i32)> {
     let morale = world.get::<Morale>(entity)?.0;
     let anger = world.get::<Anger>(entity)?.0;
-    let health = world.get::<Health>(entity)?;
-    let place = world.get::<Position>(entity)?;
-    let here = (place.x, place.y, place.z);
-    if attitude(health.hp, health.max_hp, morale, anger) != Attitude::Flee {
-        return None;
-    }
+    let (hp, max_hp) = {
+        let health = world.get::<Health>(entity)?;
+        (health.hp, health.max_hp)
+    };
+    let here = {
+        let place = world.get::<Position>(entity)?;
+        (place.x, place.y, place.z)
+    };
     let survivor = {
         let mut query = world.query_filtered::<(bevy_ecs::prelude::Entity, &Position), bevy_ecs::prelude::With<crate::Player>>();
         query.iter(world).next().map(|(_, place)| (place.x, place.y, place.z))
     }?;
+    let distance = (here.0 - survivor.0).abs() + (here.1 - survivor.1).abs() + (here.2 - survivor.2).abs();
+    if !is_fleeing(hp, max_hp, morale, anger, distance) {
+        return None;
+    }
     Some(flee_goal(here, survivor))
 }
 
@@ -2108,6 +2114,25 @@ pub enum Attitude {
     Flee,
     /// It is coming.
     Attack,
+}
+
+/// Whether a monster is running from the survivor.
+///
+/// Reference: `monster::is_fleeing` (`monster.cpp:1608-1618`). Two early answers come first - a monster with **anger or morale at a hundred or more never flees**, however the rest of the
+/// rule reads - and then the attitude decides, with the addition that a monster that would **follow** also flees when it is within **four squares**. That last clause is what makes
+/// "follow" mean *keep your distance* rather than *come closer*: a follower that gets close is running away again.
+///
+/// The port has no `FLEEING` effect cache (the reference's first line) and no NPCs, so what is left is exactly the rule above.
+#[must_use]
+pub fn is_fleeing(hp: i32, max_hp: i32, morale: i32, anger: i32, distance: i32) -> bool {
+    if anger >= 100 || morale >= 100 {
+        return false;
+    }
+    match attitude(hp, max_hp, morale, anger) {
+        Attitude::Flee => true,
+        Attitude::Follow => distance <= 4,
+        Attitude::Ignore | Attitude::Attack => false,
+    }
 }
 
 /// The square a frightened creature runs to: the one straight away from what scares it, as far again from the threat as the creature is now.

@@ -1205,3 +1205,28 @@ fn a_frightened_monster_runs_from_the_survivor_instead_of_walking_to_its_goal() 
     );
     let _ = survivor;
 }
+
+/// Whether a monster runs: the hundred-point vetoes, then the attitude, then the four-square rule for a follower.
+///
+/// Reference: `monster::is_fleeing` (`monster.cpp:1608-1618`). The four-square clause is the one worth pinning: a **following** monster is fleeing whenever it is close, which is how the
+/// reference says *keep your distance* - and a port that read only `attitude == Flee` would have a follower walk right up to the survivor it wants to stay away from.
+#[test]
+fn a_monster_runs_when_it_is_frightened_or_when_a_follower_gets_too_close() {
+    use cdda_sim::creature::is_fleeing;
+
+    // The vetoes come first: plenty of anger or morale means it never runs, whatever else is true.
+    assert!(!is_fleeing(1, 100, -10, 100, 1), "a hundred anger is fearless");
+    assert!(!is_fleeing(1, 100, 100, 0, 1), "and a hundred morale too");
+
+    // Attitude says flee, so it flees at any distance.
+    assert!(is_fleeing(10, 80, -10, 5, 9), "negative morale and little anger");
+    assert!(is_fleeing(10, 100, 10, 0, 9), "no anger and badly hurt");
+
+    // Attitude says follow, so distance decides: four squares and closer is running, five is not.
+    assert!(is_fleeing(100, 100, 10, 5, 1), "a follower one square away is running");
+    assert!(is_fleeing(100, 100, 10, 5, 4), "four squares is still too close");
+    assert!(!is_fleeing(100, 100, 10, 5, 5), "five is far enough to follow");
+
+    // And an attacker never runs.
+    assert!(!is_fleeing(100, 100, 10, 50, 1), "a furious monster does not back off");
+}
