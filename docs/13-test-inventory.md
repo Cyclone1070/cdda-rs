@@ -580,3 +580,7 @@ is swung with the skill its biggest damage type trains**, and a thing that does 
 **Round 1098 found a defect and named it**: a monster's blow **inside a turn** leaves the survivor unharmed, while the same blow out of band takes hit points off it. The suspect is
 `take_rolls` in the creature stage - a swing with no dice answers `None` and nothing reports it. The attempt's scenario and its `goal` step were **deleted rather than shipped failing**;
 the scenario returns as the gate when the turn can make a monster hurt the survivor.
+
+**Round 1099 found the cause of round 1098's defect**: a monster spawned from its type swings **`2d0`** - dice with zero faces - so it hits the survivor and deals nothing. Proved by
+contrast: `creature_fight::a_monster_that_reaches_the_survivor_hurts_it_in_the_turn` **passes** when the attack is built by hand, so the scheduled swing is sound and the defect is
+in `spawn_monster_of_type`'s copy of `melee_sides`. The `monster` step's report line now prints the spawned attack's dice and accuracy, which is what made the bug visible.

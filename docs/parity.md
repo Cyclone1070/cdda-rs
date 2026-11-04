@@ -12015,3 +12015,25 @@ the inventory. **When the fight works inside the turn, `goal` comes back with th
 
 **The lesson this round cost two gates and no guesses.** A scenario that failed for an unknown reason is worth **more** than a scenario that was never written: it says exactly which
 half of the game is missing, and it does not pretend the port is further along than it is.
+
+## Found: a spawned monster swings `2d0` (round 1099)
+
+Last round wrote down that a monster's blow inside a turn does nothing. This round found **why**, and it is not the dice holder.
+
+| Evidence | What it says |
+|---|---|
+a gate that swings a hand-built monster inside a turn | **passes** - the survivor loses hit points (`a_monster_that_reaches_the_survivor_hurts_it_in_the_turn`) |
+the playtest's own report line | `monster: mon_zombie at (1, 0) with 80 hit points, **2d0** at 40 tenths` |
+the dump | `mon_zombie` has `melee_dice 2`, `melee_sides 3` |
+the loader | reads both keys (`melee_dice`, `melee_sides`), `count()` truncates nothing, the corpus is current |
+
+**A monster spawned from its type has dice with zero faces, so its blows are worth zero.** That is why the survivor stood at full health: the zombie was swinging, hitting, and
+dealing nothing - **which is worse than not swinging, because it looks like a fight.** `spawn_monster_of_type` copies `monster_type.melee_sides` straight from the loader, so the
+next round starts there: the type the CLI builds and the type the corpus states disagree on one field while agreeing on its neighbour.
+
+**The report line is the fix that made the bug visible.** The playtest used to say how many hit points and flags a monster had; it now says **its dice and its accuracy** too, and that
+one word - `2d0` - turned a mystery into a field. **A diagnostic that prints the numbers a rule will use is worth more than a log line that says the rule ran.**
+
+**The gate that passes is as important as the defect.** `a_monster_that_reaches_the_survivor_hurts_it_in_the_turn` proves the **scheduled** swing works when the attack is right, so
+the defect is in the **spawning**, not in the turn, the stage order or the dice. The scenario and its `goal` step are deleted again - a failing scenario is not shipped, and the
+defect is written down with the field that causes it.

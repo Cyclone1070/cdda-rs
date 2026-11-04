@@ -420,3 +420,46 @@ fn a_blow_takes_hit_points_and_a_creature_with_nothing_to_hit_with_cannot_swing(
         "the victim is not healed by being hit: {before:?} became {after:?}"
     );
 }
+
+/// A monster that reaches the survivor inside a turn takes hit points off it.
+///
+/// This is the half of the fight that has never been proved **through the schedule**: every other gate in this file swings out of band, and the port's own playtest found that a
+/// zombie standing beside the survivor for three turns left it at full health. Reference: `monster::move_to` refuses a square another creature holds, and `monster::attack` is
+/// what it does instead - so the swing happens in the creature stage, with the dice the schedule has.
+#[test]
+fn a_monster_that_reaches_the_survivor_hurts_it_in_the_turn() {
+    use bevy_ecs::prelude::*;
+
+    let mut world = World::new();
+    singletons::put_rolls(&mut world, Rolls::new(11));
+    let mut level = Level::new();
+    for x in 0..5 {
+        for y in 0..5 {
+            level.set_terrain(x, y, 1, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+
+    let survivor = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
+    let zombie = cdda_sim::creature::spawn_creature(&mut world, "the zombie", (1, 0, 0));
+    world
+        .entity_mut(zombie)
+        .insert(cdda_sim::creature::MeleeAttack(cdda_sim::melee::Attack {
+            accuracy_tenths: 40,
+            fixed: cdda_sim::melee::Damage::default(),
+            dice: 2,
+            sides: 3,
+        }))
+        .insert(cdda_sim::creature::Speed { base: 100, bonus: 0 })
+        .insert(cdda_sim::creature::Goal { square: (0, 0, 0) });
+
+    let before = cdda_sim::creature::health_of(&world, survivor).unwrap_or(0);
+    for _ in 0..4 {
+        cdda_sim::turn::run_turn(&mut world);
+    }
+    let after = cdda_sim::creature::health_of(&world, survivor).unwrap_or(0);
+    assert!(
+        after < before,
+        "the survivor stood next to a zombie for four turns and lost nothing: {before} became {after}"
+    );
+}

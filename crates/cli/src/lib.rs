@@ -928,9 +928,15 @@ fn put_a_monster(world: &mut World, outcome: &mut Outcome, id: &str, x: i32, y: 
     let flags = world
         .get::<cdda_sim::creature_flags::CreatureFlags>(monster)
         .map_or(0, |carried| carried.0.len());
+    let dice = world
+        .get::<cdda_sim::creature::MeleeAttack>(monster)
+        .map_or((0, 0, 0), |attack| (attack.0.dice, attack.0.sides, attack.0.accuracy_tenths));
     outcome.lines.push(format!(
-        "monster: {id} at ({x}, {y}) with {} hit points and {flags} flags{}",
+        "monster: {id} at ({x}, {y}) with {} hit points, {}d{} at {} tenths and {flags} flags{}",
         monster_type.hp,
+        dice.0,
+        dice.1,
+        dice.2,
         if cdda_sim::creature_flags::has_flag(world, monster, "HEARS") {
             " (it hears)"
         } else {
