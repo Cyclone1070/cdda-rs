@@ -292,6 +292,8 @@ fn creatures_stage(world: &mut World) {
     // Reference: `monster::process_turn` regrows a monster's nerve in the same pass that mends it (`monster.cpp:3493-3512`), so a monster that calmed down and one that mended happen
     // before anything acts this turn.
     crate::creature::regen_everyones_nerve(world);
+    // Reference: the `CORNERED_FIGHTER` block sits in the same per-turn pass (`monster.cpp:3518`), so a cornered monster is spooked before it decides where to walk.
+    crate::creature::cornered_fighters_lose_their_nerve(world);
     // Reference: `Character::update_stamina` gives a character its wind back every turn (`character.cpp:7022-7082`), which is what makes a long fight cost something and a short
     // one recoverable. A creature with no wind has nothing to recover, so the sweep is written to skip it rather than to give it a pool it never had.
     let windy: Vec<Entity> = world

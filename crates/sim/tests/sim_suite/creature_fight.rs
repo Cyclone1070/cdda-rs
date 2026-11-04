@@ -1317,3 +1317,73 @@ fn the_turn_gives_a_monster_its_nerve_back() {
         "a wounded monster does not calm down - one hit point short is short"
     );
 }
+
+/// A cornered fighter loses its nerve when another monster crowds it, and finds it again when it has been spooked before.
+///
+/// Reference: the `CORNERED_FIGHTER` block in `monster::process_turn` (`monster.cpp:3518-3549`): a monster with the flag, morale at zero or less, and another monster within two squares gets
+/// `spooked` for three turns and `spooked_recent` for nine - and if it already carries `spooked_recent`, its morale and anger snap back to its type's values instead, which is what lets a
+/// cornered animal turn and fight.
+#[test]
+fn a_cornered_fighter_loses_its_nerve_and_then_finds_it_again() {
+    use bevy_ecs::prelude::*;
+
+    let mut world = World::new();
+    singletons::put_rolls(&mut world, Rolls::new(43));
+    let mut level = Level::new();
+    for x in 0..7 {
+        for y in 0..7 {
+            level.set_terrain(x, y, 1, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let spooked = cdda_json::parse(br#"{"id":"spooked","max_duration":"1 hours"}"#).expect("valid json");
+    let recent = cdda_json::parse(br#"{"id":"spooked_recent","max_duration":"1 hours"}"#).expect("valid json");
+    let mut kinds = Vec::new();
+    for (id, value) in [("spooked", spooked), ("spooked_recent", recent)] {
+        let cdda_json::Value::Object(entry) = value else {
+            panic!("an effect type is an object")
+        };
+        kinds.push(cdda_content::effects::read_one(id, &entry));
+    }
+    cdda_sim::effect_registry::set_effect_types(&mut world, &kinds);
+
+    let crowded = cdda_sim::creature::spawn_creature(&mut world, "the cornered one", (2, 2, 0));
+    let neighbour = cdda_sim::creature::spawn_creature(&mut world, "the neighbour", (3, 3, 0));
+    let alone = cdda_sim::creature::spawn_creature(&mut world, "the one on its own", (6, 6, 0));
+    for entity in [crowded, neighbour, alone] {
+        world
+            .entity_mut(entity)
+            .insert(cdda_sim::creature::Morale(0))
+            .insert(cdda_sim::creature::Anger(5))
+            .insert(cdda_sim::creature::Nerve { morale: 20, anger: 20, regenerates: false })
+            .insert(cdda_sim::creature_flags::CreatureFlags(
+                ["CORNERED_FIGHTER".to_owned()].into_iter().collect(),
+            ));
+    }
+
+    cdda_sim::turn::run_turn(&mut world);
+    assert!(
+        cdda_sim::applied_effects::has(&world, crowded, "spooked"),
+        "a cornered fighter with a neighbour within two squares is spooked"
+    );
+    assert!(
+        cdda_sim::applied_effects::has(&world, crowded, "spooked_recent"),
+        "and remembers it for longer"
+    );
+    assert!(
+        !cdda_sim::applied_effects::has(&world, alone, "spooked"),
+        "one on its own is not cornered"
+    );
+
+    // Now that it has been spooked before, the next turn snaps its nerve back to its type's values instead of spooking it again.
+    let _ = cdda_sim::applied_effects::remove(&mut world, crowded, "spooked");
+    if let Some(mut morale) = world.get_mut::<cdda_sim::creature::Morale>(crowded) {
+        morale.0 = -30;
+    }
+    cdda_sim::turn::run_turn(&mut world);
+    assert_eq!(
+        world.get::<cdda_sim::creature::Morale>(crowded).map(|carried| carried.0),
+        Some(20),
+        "a monster that was spooked recently snaps back to its type's morale and fights"
+    );
+}

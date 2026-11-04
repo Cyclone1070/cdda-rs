@@ -706,3 +706,8 @@ morale, anger and `regen_morale`, and monster dump **version 8** adding `regen_m
 **Round 1127 wired nerve regrowth into the turn**: `creature::regen_everyones_nerve`, called from `creatures_stage` right after mending (`monster::process_turn`, `monster.cpp:3493`), reading
 the survivor's position once for `is_fleeing`. Gated by `creature_fight::the_turn_gives_a_monster_its_nerve_back` - one point of morale and anger in a turn, and **nothing for a monster one
 hit point short of full**. Dormant in play until something lowers morale (pain, fear, `spooked`).
+
+**Round 1128 ported the one thing that lowers a monster's morale**: `creature::cornered_fighters_lose_their_nerve` (the `CORNERED_FIGHTER` block of `monster::process_turn`,
+`monster.cpp:3518-3549`) - `spooked` for 3 turns and `spooked_recent` for 9 when another **creature** is within two squares, and the snap back to the type's morale and anger once it has
+been spooked before. `spooked` is read by the walk through `is_fleeing`'s effect-cache line. Gated by
+`creature_fight::a_cornered_fighter_loses_its_nerve_and_then_finds_it_again`. **The gate's first failure was a query that took the floor tile for a neighbour** - fixed with `With<Creature>`.

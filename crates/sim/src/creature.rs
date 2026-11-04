@@ -1976,6 +1976,70 @@ pub fn take_turns(world: &mut World) {
 /// The alias is here rather than inline because the tuple has seven parts, and a seven-part tuple written twice is a place for two of them to swap places.
 type Nerves = (Entity, i32, i32, Nerve, i32, i32, (i32, i32, i32));
 
+/// A cornered fighter loses its nerve when another monster is close by, and finds it again nine turns later.
+///
+/// Reference: the `CORNERED_FIGHTER` block in `monster::process_turn` (`monster.cpp:3518-3549`). Three conditions: the monster carries the flag, its morale is zero or less, and another
+/// monster stands within **two squares**. Then either it has not been spooked recently - and gets `spooked` for **three turns** and `spooked_recent` for **nine** - or it has, and its morale
+/// and anger snap back to its type's values, which is the reference's way of saying *a cornered animal fights once it has nowhere left to run*.
+///
+/// `spooked` is not a mood: it is the AI tag that `is_fleeing` reads through the reference's effect cache, which is why the walk checks for it directly.
+pub fn cornered_fighters_lose_their_nerve(world: &mut World) {
+    let Some(spooked) = crate::effect_registry::kind_of(world, "spooked") else {
+        return;
+    };
+    let Some(spooked_recent) = crate::effect_registry::kind_of(world, "spooked_recent") else {
+        return;
+    };
+    // Only **creatures** crowd a monster, and the filter is what says so: a square, its ground and its terrain all carry a `Position` too, so a query for position alone finds the floor
+    // the monster is standing on and calls it a neighbour. That is exactly what the first version of this rule did - every monster was cornered by its own tile.
+    let neighbours: Vec<(Entity, (i32, i32, i32))> = world
+        .query_filtered::<(Entity, &Position), bevy_ecs::prelude::With<Creature>>()
+        .iter(world)
+        .map(|(entity, place)| (entity, (place.x, place.y, place.z)))
+        .collect();
+    let cornered: Vec<(Entity, (i32, i32, i32))> = world
+        .query::<(Entity, &Position, &Morale, &crate::creature_flags::CreatureFlags)>()
+        .iter(world)
+        .filter(|(_, _, morale, flags)| morale.0 <= 0 && flags.0.contains("CORNERED_FIGHTER"))
+        .map(|(entity, place, _, _)| (entity, (place.x, place.y, place.z)))
+        .collect();
+    for (entity, here) in cornered {
+        // `points_in_radius( pos, 2 )` is a square radius, so both axes are compared the same way.
+        let crowded = neighbours.iter().any(|(other, there)| {
+            *other != entity
+                && (there.0 - here.0).abs() <= 2
+                && (there.1 - here.1).abs() <= 2
+                && there.2 == here.2
+        });
+        if !crowded {
+            continue;
+        }
+        if crate::applied_effects::has(world, entity, "spooked") {
+            continue;
+        }
+        if crate::applied_effects::has(world, entity, "spooked_recent") {
+            let nerve = world.get::<Nerve>(entity).copied();
+            if let Some(nerve) = nerve {
+                if let Some(mut morale) = world.get_mut::<Morale>(entity)
+                    && morale.0 < nerve.morale
+                {
+                    morale.0 = nerve.morale;
+                }
+                if let Some(mut anger) = world.get_mut::<Anger>(entity) {
+                    anger.0 = nerve.anger;
+                }
+            }
+            continue;
+        }
+        crate::applied_effects::add(world, entity, crate::effects::ActiveEffect::new(&spooked, 3, 1));
+        crate::applied_effects::add(
+            world,
+            entity,
+            crate::effects::ActiveEffect::new(&spooked_recent, 9, 1),
+        );
+    }
+}
+
 /// Gives every monster its nerve back a step, once a turn, at full health.
 ///
 /// Reference: `monster::process_turn` calls the regrowth block for every monster each turn (`monster.cpp:3493`), and the block's own gate - `type->regen_morale && hp >= type->hp` -
@@ -2054,6 +2118,10 @@ fn fleeing_from_a_scared_monster(world: &mut World, entity: Entity) -> Option<(i
         let mut query = world.query_filtered::<(bevy_ecs::prelude::Entity, &Position), bevy_ecs::prelude::With<crate::Player>>();
         query.iter(world).next().map(|(_, place)| (place.x, place.y, place.z))
     }?;
+    // Reference: `monster::is_fleeing`'s first line answers from the effect cache (`monster.cpp:1610`), which is what `spooked` sets - so a spooked monster runs whatever its morale says.
+    if crate::applied_effects::has(world, entity, "spooked") {
+        return Some(flee_goal(here, survivor));
+    }
     let distance = (here.0 - survivor.0).abs() + (here.1 - survivor.1).abs() + (here.2 - survivor.2).abs();
     if !is_fleeing(hp, max_hp, morale, anger, distance) {
         return None;

@@ -12640,3 +12640,31 @@ one tuple-order bug (the knife that was called a crowbar). **The alias has the s
 
 **Still dormant in play, and said plainly.** Nothing in the port lowers a monster's morale yet - no pain, no fear effect, no `spooked` reaction to another monster dying nearby - so every
 monster starts at its type's values and the trickle has nothing to do. **The rule is wired and gated; it will start to matter the round something makes a monster more afraid than its type.**
+
+## A cornered fighter loses its nerve, then finds it (round 1128)
+
+Round 1127 wired nerve regrowth and noted it was dormant because nothing lowered a monster's morale. The reference has one thing that does, and it is not a wound: the
+**`CORNERED_FIGHTER` block** in `monster::process_turn` (`monster.cpp:3518-3549`).
+
+| Condition | Effect |
+|---|---|
+the flag, morale at zero or less, **another monster within two squares**, no `spooked` | gets `spooked` for **3 turns** and `spooked_recent` for **9** |
+the same, but it already carries `spooked_recent` | its morale and anger **snap back to its type's values** - the cornered animal turns and fights |
+
+| Piece | Reference | Port |
+|---|---|---|
+the rule | `monster::process_turn`'s `CORNERED_FIGHTER` block | `creature::cornered_fighters_lose_their_nerve`, called from `creatures_stage` |
+what `spooked` does | `monster::is_fleeing`'s first line reads the effect cache (`monster.cpp:1610`) | the walk checks for the effect before asking `is_fleeing` |
+Data | 94 of 1,154 types carry `CORNERED_FIGHTER`, **9 of them at morale zero or less** | the flag comes from the corpus, unchanged |
+Gate | - | `a_cornered_fighter_loses_its_nerve_and_then_finds_it_again` - crowded gets both effects, alone gets neither, and the second turn snaps morale from -30 back to 20 |
+
+**`spooked` is an AI tag, not a mood.** Its own data says so - *"AI tag to let CORNERED_FIGHTER monsters try to flee. This is a bug if you have it."* - and the only thing that reads it is
+`is_fleeing`'s cache line. **So the port does not store a fear value anywhere: it stores a tag, and the tag makes the existing question answer yes.**
+
+**The first version of the gate failed for the most instructive reason this port has seen.** "One on its own is not cornered" failed: the lonesome monster *was* cornered - by **its own floor
+tile**. `Square`, `Ground` and `Terrain` all carry a `Position`, so a query for `(Entity, &Position)` finds the world's furniture as well as its creatures, and every monster had a neighbour
+wherever it stood. **The fix is one word - `With<Creature>` - and the reason it is worth writing down is that the architecture gates say exactly this: a query must never see what it did
+not ask for.** The rule was right; the world it read was wrong.
+
+**`spooked_recent` doubles as the recovery.** The reference does not clear the effect to calm a monster down - it **checks how recently it was frightened** and, if it has been, puts its nerve
+back. That is a nine-turn memory in a tag, and the port honours it rather than inventing a timer.
