@@ -681,3 +681,8 @@ clippy's hundred-line limit.
 **Round 1121 wrote the playtest grammar down and gated it**: `docs/cli-steps.md` lists every step with **real values**, and
 `grammar_tests::every_line_of_the_documented_grammar_parses` parses all of them (at least thirty). Placeholders were the first attempt and the gate rejected them, which is why the
 document holds executable lines rather than templates.
+
+**Round 1122 ported a monster's attitude**: `creature::attitude` (the tail of `monster::attitude_to`, `monster.cpp:1809-1833` - negative morale, no anger and enough anger, with both
+boundaries pinned at `hp > max/3` and `hp <= 0.6 * max`) plus `Morale` and `Anger` components set from the type by `spawn_monster_of_type` (`monster.cpp:282-283`). Gated by
+`creature_fight::a_monster_s_attitude_follows_its_morale_its_anger_and_its_wounds` and `creature_fight::a_spawned_monster_starts_with_its_type_s_morale_and_anger`.
+**Nothing reads `attitude` yet** - movement still follows `Goal`.

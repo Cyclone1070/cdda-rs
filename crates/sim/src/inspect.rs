@@ -48,6 +48,8 @@ named_components! {
     "AttackCost" => crate::creature::AttackCost,
     "Exercise" => crate::creature::Exercise,
     "Stamina" => crate::creature::Stamina,
+    "Morale" => crate::creature::Morale,
+    "Anger" => crate::creature::Anger,
     "Armour" => crate::creature::Armour,
     "Goal" => crate::creature::Goal,
     "Wander" => crate::creature::Wander,

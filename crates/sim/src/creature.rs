@@ -1636,6 +1636,8 @@ pub fn spawn_monster_of_type(
             points: monster_type.dodge,
         },
         AttackCost(monster_type.attack_cost),
+        Morale(monster_type.morale),
+        Anger(monster_type.aggression),
     ));
     // Reference: `monster::monster( const mtype * )` copies `type->flags` onto the monster, and every question about what it can do - `can_hear` among them - is asked of that
     // set (`monster.cpp:1318`). Without this a spawned monster is deaf and blind whatever its type says.
@@ -2045,6 +2047,57 @@ fn weapon_skill_of(world: &World, holder: Entity) -> Option<&'static str> {
         names.melee_stab_of(kind),
     )
 }
+
+/// What a monster thinks of what it is looking at.
+///
+/// Reference: `Creature::Attitude` (`creature.h`), whose attacking, fleeing, following and ignoring cases `monster::attitude_to` decides (`monster.cpp:1591-1833`). The port keeps
+/// the four answers a monster can give about the survivor; friendliness is not among them because nothing in this port is on the monster's side.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Attitude {
+    /// It has not noticed, or does not care.
+    Ignore,
+    /// It is keeping its distance but staying with the survivor.
+    Follow,
+    /// It is running.
+    Flee,
+    /// It is coming.
+    Attack,
+}
+
+/// What a monster makes of the survivor, from its morale, its anger and how hurt it is.
+///
+/// Reference: the tail of `monster::attitude_to` (`monster.cpp:1809-1833`). The reference reaches this point only after faction, species and trait modifiers, which this port does not
+/// have - so the branches here are the whole rule rather than a simplification of it.
+#[must_use]
+pub fn attitude(hp: i32, max_hp: i32, morale: i32, anger: i32) -> Attitude {
+    if morale < 0 {
+        if morale + anger > 0 && hp > max_hp / 3 {
+            return Attitude::Follow;
+        }
+        return Attitude::Flee;
+    }
+    if anger <= 0 {
+        #[allow(clippy::cast_precision_loss)]
+        let hurt = f64::from(hp) <= 0.6 * f64::from(max_hp);
+        return if hurt { Attitude::Flee } else { Attitude::Ignore };
+    }
+    if anger < 10 {
+        return Attitude::Follow;
+    }
+    Attitude::Attack
+}
+
+/// A monster's morale, which starts at its type's and is what `attitude` reads.
+///
+/// Reference: `monster::morale`, set from `type->morale` when a monster is made (`monster.cpp:283`).
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Morale(pub i32);
+
+/// A monster's anger, set from its type's aggression.
+///
+/// Reference: `monster::anger`, set from `type->agro` (`monster.cpp:282`).
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Anger(pub i32);
 
 /// How much wind a character has left.
 ///

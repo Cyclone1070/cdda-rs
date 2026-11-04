@@ -1038,3 +1038,88 @@ fn the_turn_gives_a_character_its_wind_back() {
         "and a creature with no wind is not handed one"
     );
 }
+
+/// What a monster thinks of the survivor, from its morale, its anger and how hurt it is.
+///
+/// Reference: the tail of `monster::attitude_to` (`monster.cpp:1809-1833`), which is the whole decision once the faction, species and trait modifiers are set aside - and this port
+/// has no factions, species bonuses or traits, so setting them aside is exact rather than approximate:
+///
+/// - a monster with **negative morale** follows while it can still fight (`morale + anger > 0` and more than a third of its hit points) and **flees** otherwise;
+/// - a monster with **no anger** flees once it is down to sixty per cent of its hit points and otherwise ignores the survivor;
+/// - a monster with **some anger, under ten**, follows;
+/// - and anything else attacks.
+///
+/// The gate walks the tree in order, including the two boundaries: `hp > max / 3` exactly, and `hp <= 0.6 * max`.
+#[test]
+fn a_monster_s_attitude_follows_its_morale_its_anger_and_its_wounds() {
+    use cdda_sim::creature::{Attitude, attitude};
+
+    // Negative morale: any wound past two thirds and it runs; a scratch and anger to spare and it follows.
+    assert_eq!(attitude(90, 100, -10, 25), Attitude::Follow, "hurt but still game");
+    assert_eq!(attitude(33, 100, -10, 25), Attitude::Flee, "a third of its hit points is not game");
+    assert_eq!(attitude(34, 100, -10, 25), Attitude::Follow, "one point more is");
+    assert_eq!(attitude(90, 100, -10, 5), Attitude::Flee, "anger that does not outweigh the fear runs");
+
+    // No anger at all: it ignores a healthy survivor and runs from a hurt one.
+    assert_eq!(attitude(100, 100, 10, 0), Attitude::Ignore, "nothing to be angry about");
+    assert_eq!(attitude(61, 100, 10, 0), Attitude::Ignore, "sixty-one per cent is above the line");
+    assert_eq!(attitude(60, 100, 10, 0), Attitude::Flee, "sixty is the line, and it runs");
+
+    // Some anger: it follows.
+    assert_eq!(attitude(100, 100, 10, 5), Attitude::Follow, "a little anger is a tail, not a fight");
+
+    // And enough anger: it attacks.
+    assert_eq!(attitude(100, 100, 10, 10), Attitude::Attack, "ten points of anger is a fight");
+    assert_eq!(attitude(1, 100, 10, 50), Attitude::Attack, "one hit point and furious is still furious");
+}
+
+/// A spawned monster starts with its type's morale and anger, which is what its attitude is read from.
+///
+/// Reference: `monster::monster` sets `anger = type->agro` and `morale = type->morale` (`monster.cpp:282-283`). The gate reads the **corpus**, so the numbers are the data's: a zombie's
+/// aggression and morale, whatever the dump says they are.
+#[test]
+fn a_spawned_monster_starts_with_its_type_s_morale_and_anger() {
+    use bevy_ecs::prelude::*;
+
+    let zombie_type = {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+        let text = std::fs::read(path).expect("the monster dump exists");
+        let value = cdda_json::parse(&text).expect("the dump is valid JSON");
+        let cdda_json::Value::Object(root) = value else {
+            panic!("the dump's root is not an object")
+        };
+        let Some(cdda_json::Value::Array(prototypes)) = root.get("prototypes") else {
+            panic!("the dump has no prototypes")
+        };
+        cdda_content::monsters::load_objects(prototypes)
+            .expect("the dump loads")
+            .into_iter()
+            .find(|one| one.id == "mon_zombie")
+            .expect("the corpus has a zombie")
+    };
+    let mut world = World::new();
+    let mut level = Level::new();
+    for x in 0..3 {
+        for y in 0..3 {
+            level.set_terrain(x, y, 1, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let zombie = cdda_sim::creature::spawn_monster_of_type(&mut world, cdda_sim::MonsterKindId(1), &zombie_type, (1, 1, 0), 100);
+
+    assert_eq!(
+        world.get::<cdda_sim::creature::Morale>(zombie).map(|carried| carried.0),
+        Some(zombie_type.morale),
+        "the monster's morale is its type's"
+    );
+    assert_eq!(
+        world.get::<cdda_sim::creature::Anger>(zombie).map(|carried| carried.0),
+        Some(zombie_type.aggression),
+        "and its anger its type's aggression"
+    );
+    assert!(
+        zombie_type.aggression >= 10,
+        "a zombie is angry enough to attack, which is what makes the attitude rule mean something here: {}",
+        zombie_type.aggression
+    );
+}

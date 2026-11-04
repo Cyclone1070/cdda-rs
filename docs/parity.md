@@ -12481,3 +12481,33 @@ is make the grammar **a single readable place** whose every line is known-good, 
 hundred-line `match`. **That is the difference between a defect caught by luck and one caught by reading.**
 
 **And it would have caught round 1120's defect the moment someone wrote `data` into the document** - which is exactly how the next person would have tried to use it.
+
+## A monster now has an opinion of the survivor (round 1122)
+
+`monster::attitude_to` (`monster.cpp:1591-1833`) is a long function: factions, species, mutations, pheromones, hallucinations. **Its tail is the whole decision**, and the port has none
+of the modifiers the head applies - so the tail is not a simplification, it is the rule.
+
+| Branch | Condition | Answer |
+|---|---|---|
+negative morale | `morale + anger > 0` **and** `hp > max_hp / 3` | follow |
+negative morale | otherwise | **flee** |
+no anger | `hp <= 0.6 * max_hp` | **flee** |
+no anger | otherwise | ignore |
+some anger | `anger < 10` | follow |
+anything else | - | **attack** |
+
+| Piece | Reference | Port |
+|---|---|---|
+the decision | `monster::attitude_to`'s tail | `creature::attitude(hp, max_hp, morale, anger)` |
+what it reads | `monster::morale` and `monster::anger`, set from `type->morale` and `type->agro` (`monster.cpp:282-283`) | `Morale` and `Anger` components, written by `spawn_monster_of_type` |
+Gates | - | `a_monster_s_attitude_follows_its_morale_its_anger_and_its_wounds` (every branch and both boundaries) and `a_spawned_monster_starts_with_its_type_s_morale_and_anger` (the corpus's own numbers) |
+
+**Both boundaries are pinned because both are `>`/`<=` in the reference and off-by-one in the wrong direction.** A third of its hit points is **not** enough for a frightened monster to
+stand (`hp > max/3`), and sixty per cent is where an unangry one turns (`hp <= 0.6 * max`). **These are the numbers a player feels without ever seeing: they decide whether the thing that
+just bit you runs or finishes you.**
+
+**The gate's last assertion is not decoration.** It says a zombie's aggression is at least ten - which is what makes the attitude rule *mean* something for the monster every scenario
+uses, instead of being a rule that only fires for a type nobody meets.
+
+**Named, not invented:** the modifiers `attitude_to` applies before the tail (faction, species, the survivor's traits, pheromones, hallucinations), and `monster::is_fleeing`'s four-square
+rule. **Nothing asks `attitude` yet** - the movement code still walks to its `Goal` - and the roadmap now names that as the next step rather than a gap in the rule.
