@@ -364,3 +364,54 @@ fn a_rock_thrown_at_a_creature_is_judged_against_the_size_of_that_creature() {
         "the same throw is worse against a small creature ({at_creature}) than against bare ground ({at_nothing})"
     );
 }
+
+/// A throw costs the arm action points, and the cost falls with skill and dexterity but never below twenty-five.
+///
+/// Reference: `throw_cost` (`src/ranged.cpp:1247-1273`). The gate works one case out **by hand** from the formula rather than from the function: a base of 100, skill 0, dexterity 8 and full
+/// stamina is `50 * 1.0 + 50 - 8 = 92` moves; the same throw at skill 10 is `50 + 25 - 8 = 67`; and a dead-tired thrower at a quarter stamina pays `50 * 1.0` more for the base.
+#[test]
+fn a_throw_costs_action_points_and_mastery_makes_it_cheaper() {
+    use cdda_sim::throwing::throw_cost;
+
+    assert_eq!(throw_cost(100, 0, 8, 1.0), 92, "half the base, half again for no skill, less the dexterity");
+    assert_eq!(throw_cost(100, 10, 8, 1.0), 67, "mastery takes the skill term down to a quarter of the base");
+    assert_eq!(throw_cost(100, 10, 20, 1.0), 55, "and twenty dexterity takes twenty more off");
+    assert_eq!(
+        throw_cost(100, 0, 8, 0.0),
+        142,
+        "at no stamina the base is multiplied by two (a 2.0 penalty at zero stamina) while the skill term is not: 100 + 50 - 8"
+    );
+    // The floor itself, on a throw that would otherwise be free: a light thing, a master, and a quick hand.
+    assert_eq!(throw_cost(10, 10, 20, 1.0), 25, "the reference never charges less than twenty-five moves");
+    // Skill above ten is clamped rather than rewarded, which is what `std::min( MAX_SKILL, ... )` says.
+    assert_eq!(throw_cost(100, 15, 8, 1.0), 67, "skill above ten is clamped to ten, not compounded");
+}
+
+/// Throwing spends the arm's action points, so a thrower with no moves left cannot throw twice in a turn's worth of moves.
+///
+/// Reference: `Character::throw_item` (`ranged.cpp:1474-1475`) takes `throw_cost( *this, to_throw )` and calls `mod_moves( -move_cost )` **before** anything is rolled. The gate checks the
+/// store rather than the return value alone: the moves went down by the cost, and a corpse of a thrower with no moves cannot throw at all.
+#[test]
+fn throwing_spends_the_arm_s_action_points() {
+    let mut world = World::new();
+    let (thrower, rock) = a_thrower_with_a_rock(&mut world);
+    world.entity_mut(thrower).insert(cdda_sim::creature::Moves { left: 100 });
+    // The arm's rule reads **effective** dexterity, so the fixture has to say what the thrower's is: eight, the reference's starting figure.
+    world.entity_mut(thrower).insert(cdda_sim::creature::Dexterity { base: 8 });
+    let cost = {
+        let names = cdda_sim::item_registry::snapshot(&mut world);
+        let kind = names.id_of("rock").expect("a rock");
+        let volume = i64::from(names.volume_of(kind));
+        let weight = names.weight_of(kind);
+        let base = cdda_sim::melee::attack_time(volume, weight, 1);
+        let stamina = world.get::<cdda_sim::creature::Stamina>(thrower).copied().unwrap_or_default();
+        let ratio = stamina.cur / stamina.max.max(1.0);
+        cdda_sim::throwing::throw_cost(base, 0, 8, ratio)
+    };
+    assert!(cost >= 25, "a rock costs at least the floor: {cost}");
+    let before = world.get::<cdda_sim::creature::Moves>(thrower).map_or(0, |moves| moves.left);
+    let tossed = cdda_sim::throwing::throw_at(&mut world, thrower, rock, (3, 0, 0));
+    assert!(matches!(tossed, cdda_sim::throwing::Toss::Landed { .. }), "the rock is thrown: {tossed:?}");
+    let after = world.get::<cdda_sim::creature::Moves>(thrower).map_or(0, |moves| moves.left);
+    assert_eq!(before - after, cost, "the throw cost exactly what the arm's rule says");
+}

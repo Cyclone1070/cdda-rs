@@ -12938,3 +12938,26 @@ restored | passed | passed |
 
 **The extracted helper is the readable half.** `target_size(world, thrower, target)` is four lines with the reference's own question in its name; `throw_at` grew past the hundred-line limit
 and clippy said so before the review did.
+
+## A throw costs the arm that makes it (round 1141)
+
+A throw had a spread, a landing rule and a blow - and **cost the thrower nothing**. `throw_at` now charges the arm before it rolls anything, which is the reference's own order.
+
+| Piece | Reference | Port |
+|---|---|---|
+the rule | `throw_cost` (`ranged.cpp:1247-1273`) | `throwing::throw_cost(base, skill, dexterity, stamina_ratio)` |
+when it is paid | `mod_moves( -move_cost )` **before** anything is rolled (`ranged.cpp:1474-1475`) | the same order, at the top of `throw_at` |
+the base | `to_throw.attack_time( c ) / 2` | `melee::attack_time(volume, weight, charges) / 2` inside the rule |
+the floor | **25** moves | the same |
+Gate | - | `a_throw_costs_action_points_and_mastery_makes_it_cheaper` (worked by hand) and `throwing_spends_the_arm_s_action_points` (the store's moves went down by exactly that) |
+
+**Three deliberate differences from a melee swing, all in the reference's own comment**, and each is a number a reader would otherwise assume was the melee one copied: the base is **halved**;
+the skill divides by **twenty** rather than fifteen, so mastery removes a twentieth a level; and dexterity comes off **whole** rather than halved. **The stamina penalty multiplies the base and
+never the skill term** - which is why a dead-tired beginner's throw costs 142 where the arithmetic-first guess says 122.
+
+**The hand-worked gate was wrong once, in my favour of the code**: I had written the no-stamina case as `100 + 50 - 8` = 122 and the code said 142, because the penalty is **2.0 at zero
+stamina** (it multiplies the halved base, and the halving is already inside it). **The code was right and the arithmetic in the test was wrong** - which is the direction the receipt is supposed
+to go, and it only worked because the expectation was written down as a sum rather than as "bigger than before".
+
+**A tautology removed from the gate.** One line read `throw_cost(...).min(25) == 55`, which can never be false in the sensible direction and proves nothing; the case it was meant to cover is
+already asserted two lines above.

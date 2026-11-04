@@ -759,3 +759,7 @@ what `aim_of` divides the miss by. Gated by `melee_rules::a_target_s_size_is_the
 **Round 1140 wired the target size into throwing**: `throwing::target_size(world, thrower, target)` feeds `ballistics::occupied_tile_fraction` into `aim_of`, so a rock thrown at a creature is
 judged against that creature (`projectile_attack`, `ballistics.cpp:255-264`). Gated by `throwing::a_rock_thrown_at_a_creature_is_judged_against_the_size_of_that_creature`, which is a
 **differential** - the same throw at a creature and at bare ground - and which fails when the size is mutated back to `1.0`.
+
+**Round 1141 charged the arm for a throw**: `throwing::throw_cost` (`throw_cost`, `ranged.cpp:1247-1273` - half the attack time, /20 skill, whole dexterity, stamina on the base only, floor 25),
+paid inside `throw_at` before anything is rolled as the reference does. Gated by `throwing::a_throw_costs_action_points_and_mastery_makes_it_cheaper` (hand-worked) and
+`throwing::throwing_spends_the_arm_s_action_points` (the store's moves fall by exactly the cost). The blow's `strike_whatever_stands_there` was extracted from `throw_at` for length.

@@ -53,6 +53,13 @@ pub fn throw_at(world: &mut World, thrower: Entity, item: Entity, target: (i32, 
     };
     let charges = world.get::<crate::GroundItem>(item).map_or(1, |held| held.charges);
     let names = crate::item_registry::snapshot(world);
+    // Reference: `Character::throw_item` (`ranged.cpp:1474-1475`) charges the arm **before** it rolls anything, so a throw that misses costs the same as one that hits.
+    crate::creature::spend_moves(world, thrower, f64::from(throw_cost(
+        crate::melee::attack_time(i64::from(names.volume_of(kind)), names.weight_of(kind), i64::from(charges)),
+        crate::skills_of::level_of(world, thrower, "throw"),
+        crate::creature::effective_dexterity(world, thrower),
+        stamina_ratio(world, thrower),
+    )));
     // Reference: `throw_dispersion_per_dodge` reads the **arm** strength, which is the strength a creature can put behind a throw.
     let arm_strength = crate::creature::effective_strength(world, thrower);
     // Reference: `get_skill_level( skill_throw )`, from the creature's own skill map.
@@ -127,28 +134,9 @@ pub fn throw_at(world: &mut World, thrower: Entity, item: Entity, target: (i32, 
     // (`ranged.cpp:1505-1506`) - the thing's own damage **plus** what the arm adds, not the larger of the two.
     let blow = names.thrown_of(kind)
         + damage_of_throw(arm_strength, crate::skills_of::level_of(world, thrower, "throw"), names.weight_of(kind));
-    let hit = crate::creature::creature_at(world, at)
-        .into_iter()
-        .find(|standing| *standing != thrower && crate::creature::health_of(world, *standing).is_some())
-        .and_then(|struck| {
-            let before = crate::creature::health_of(world, struck)?;
-            // Reference: the impact goes through the target's `absorb_hit` (`monster.cpp:2085`), which subtracts the resistance **capped at the blow** - so armour
-            // can stop a rock entirely and can never heal what it hits. The port's armour is one number per damage kind; body parts are the half not written yet.
-            #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
-            let resisted = world
-                .get::<crate::creature::Armour>(struck)
-                .map_or(0.0, |armour| armour.bash as f32);
-            #[allow(clippy::cast_possible_truncation)]
-            let hurt = crate::melee::after_armour(blow as f32, resisted, 0.0, 0.0).floor() as i32;
-            let fatal = crate::damage_monster(world, struck, hurt);
-            let after = if fatal {
-                // A killed creature has no hit points left to read, so the blow it took is the damage itself.
-                before - hurt
-            } else {
-                crate::creature::health_of(world, struck).unwrap_or(before)
-            };
-            Some((struck, (before - after).max(0)))
-        });
+    #[allow(clippy::cast_possible_truncation)]
+    let blow_whole = blow as i32;
+    let hit = strike_whatever_stands_there(world, thrower, at, blow_whole);
     Toss::Landed {
         at,
         missed_by: aim.missed_by,
@@ -200,4 +188,65 @@ fn target_size(world: &World, thrower: Entity, target: (i32, i32, i32)) -> f64 {
         .find(|entity| *entity != thrower)
         .and_then(|entity| world.get::<crate::creature::Creature>(entity).map(|creature| creature.size))
         .map_or(1.0, crate::ballistics::occupied_tile_fraction)
+}
+
+/// What a throw costs the arm that makes it, in action points.
+///
+/// Reference: `throw_cost` (`src/ranged.cpp:1247-1273`). It is the melee swing with three deliberate differences the reference's own comment names: **the base is halved**, **the skill
+/// divides by twenty rather than fifteen** (so mastery takes the cost down by a twentieth a level instead of a fifteenth), and **dexterity comes off whole rather than halved**. The stamina
+/// penalty multiplies the base only, never the skill term. The floor is twenty-five moves - a throw is never free - which is the number the reference returns last.
+///
+/// The two melee modifier multipliers (`melee_thrown_move_lift_mod` and `..._balance_mod`) are **one point zero** in the port because no effect it carries states either, and the
+/// reference's `ATTACK_SPEED` enchantment is not applied for the same reason. Said here rather than left to look accidental.
+///
+/// Reference: `item::attack_time( c )` is the port's [`crate::melee::attack_time`], and it already takes the held thing's volume and weight.
+#[must_use]
+pub fn throw_cost(base_move_cost: i32, throw_skill: i32, dexterity: i32, stamina_ratio: f64) -> i32 {
+    let base = f64::from(base_move_cost) / 2.0;
+    let skill = base * f64::from(20 - throw_skill.min(10)) / 20.0;
+    #[allow(clippy::cast_possible_truncation)]
+    let skill_cost = skill as i32;
+    let stamina_penalty = 1.0 + ((0.25 - stamina_ratio) * 4.0).max(0.0);
+    #[allow(clippy::cast_possible_truncation)]
+    let cost = (base * stamina_penalty) as i32 + skill_cost - dexterity;
+    cost.max(25)
+}
+
+/// What share of its wind a creature has left, from zero to one: `get_stamina() / get_stamina_max()`.
+///
+/// A creature that carries no [`crate::creature::Stamina`] is treated as **full**, which is the convention the port's default stamina follows - a thrower the port invented has not been
+/// running.
+fn stamina_ratio(world: &bevy_ecs::prelude::World, thrower: bevy_ecs::prelude::Entity) -> f64 {
+    world.get::<crate::creature::Stamina>(thrower).map_or(1.0, |stamina| stamina.cur / stamina.max.max(1.0))
+}
+
+/// Who the thrown thing struck and how much it took, or nothing when the square was empty.
+///
+/// Reference: `projectile_attack`'s hit branch hands the impact to `deal_projectile_attack`, which calls the target's `absorb_hit` (`monster.cpp:2085`) - that subtracts the resistance
+/// **capped at the blow**, so armour can stop a rock entirely and can never heal what it hits. The port's armour is one number per damage kind; **body parts and weakpoints are the half not
+/// written yet**, and a creature with no hit points takes nothing rather than being invented.
+fn strike_whatever_stands_there(
+    world: &mut World,
+    thrower: Entity,
+    at: (i32, i32, i32),
+    blow: i32,
+) -> Option<(Entity, i32)> {
+    crate::creature::creature_at(world, at)
+        .into_iter()
+        .find(|standing| *standing != thrower && crate::creature::health_of(world, *standing).is_some())
+        .and_then(|struck| {
+            let before = crate::creature::health_of(world, struck)?;
+            #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+            let resisted = world.get::<crate::creature::Armour>(struck).map_or(0.0, |armour| armour.bash as f32);
+            #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+            let hurt = crate::melee::after_armour(blow as f32, resisted, 0.0, 0.0).floor() as i32;
+            let fatal = crate::damage_monster(world, struck, hurt);
+            // A killed creature has no hit points left to read, so the blow it took is the damage itself.
+            let after = if fatal {
+                before - hurt
+            } else {
+                crate::creature::health_of(world, struck).unwrap_or(before)
+            };
+            Some((struck, (before - after).max(0)))
+        })
 }
