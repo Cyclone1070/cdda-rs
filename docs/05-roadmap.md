@@ -885,6 +885,20 @@ sources with the total capped at a full circle (`dispersion.rs`, from `dispersio
 has a caller yet**, which `docs/13-test-inventory.md` names as a rule waiting; the next ranged round starts at `Character::get_weapon_dispersion` (`ranged.cpp:2500-2560`),
 which composes them from a weapon's own dispersion, its skill and the aiming mode - and needs the gun table the port does not have.
 
+**Melee came alive at 1093-1100.** The blow is now four numbers per damage type rather than one: `Damage { bash, cut, stab, penetration }` against `Armour { bash, cut, stab }`, each type
+summed after its own resist, which is `damage_instance`'s shape rather than a single subtraction (`damage.cpp:724-727`). Accuracy is `get_hit_base`'s dexterity quarter plus the weapon's
+own `to_hit` and both skill halves (`character.cpp:5705-5709`, `melee.cpp:356-370`), and the weapon skill is picked by which damage type is largest (`item::melee_skill`,
+`item.cpp:11071-11090`). **The loader and the dump now agree on 9,912 item types across all four columns** (`item_melee_parity`), and the `to_hit` **object** form is read: the game
+states accuracy as `{grip, length, surface, balance}`, not a number (`item_factory.cpp:3929-3968`), which the port had been silently reading as -2 for every weapon that uses it.
+
+**Fights run both ways at 1097-1100.** A survivor swings what it holds; a monster that walks to its goal swings at what stands there; both are the same `strike_at` in the ordered
+schedule. **The `2d0` defect** (`docs/parity.md`) turned out to be a loader fed the wrong file shape, and the fix is now a decision with a gate rather than a patch.
+
+**The dead come back at 1102-1105.** `item::ready_to_revive`'s arithmetic (damage makes a corpse **younger**; past six hours, a one-in-`48 - age` chance) is gated, and the whole chain
+runs in a playtest: a crowbar blow, a corpse left by the creature stage, a `date` step that moves the clock two days, and the monster standing again.
+`scenarios/a_killed_zombie_gets_up_two_days_later.txt` is the receipt. **New surface it needed:** `Date` (a clock step), `Goal` (telling monsters where to go) and `CorpseKind` (what a
+corpse is, installed as data so `creature.rs` stays free of content).
+
 ### P5 — Spells and enchantments (10 files, 9,444 LOC)
 
 **Contents.** Spell types and casting, spell effects, enchantments, terrain and furniture transforms,
