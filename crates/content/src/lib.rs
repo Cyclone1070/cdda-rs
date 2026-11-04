@@ -45,6 +45,7 @@ pub mod materials;
 pub mod weather;
 pub mod mods;
 pub mod monster_groups;
+pub mod ammo;
 pub mod anatomies;
 pub mod armour;
 pub mod body_parts;

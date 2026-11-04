@@ -784,3 +784,8 @@ target's size and reports the creature reached (`missed_by < 1.0`), plus `range_
 **Round 1146 added a weapon's own blow to the gun table** (`--dump-guns` **version 2**): `damage`, `damage_bash/cut/stab/bullet` and `shot_spread` from `item::gun_damage()` (`item.cpp:11160-11180`),
 loaded into `GunType`. The gate `content_suite::gun_rules::the_gun_dump_loads_every_gun_and_keeps_its_numbers` pins **102** weapons with a positive blow, **266** at zero (every firearm - a gun's
 damage is its cartridge's) and **38** negative (kept with their sign).
+
+**Round 1147 dumped and loaded the ammo table** (`--dump-ammo`, **736 rounds**, `corpus/items/ammo.json` version 1): `damage` with its four kinds, `count` (pellets), `shot_spread`,
+`recovery_chance` and the reference's `shot_damage` beside it, via `cdda_content::ammo`. Gated by `content_suite::gun_rules::every_round_s_own_blow_loads_and_it_is_the_blow_a_gun_does_not_carry`
+- `.223` 39 bullet, birdshot 50 over 20 pellets at 300 arcminutes, and the **38 non-bullet rounds** (a rock's 7 bash, a rocket's 500 stab). The first dump read `shot_damage` and was zero for
+every cartridge; the docs record why.

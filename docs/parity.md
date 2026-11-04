@@ -13081,3 +13081,25 @@ call defensive. The gate pins all three counts, so the day the data changes the 
 
 **Named, not invented:** `shot_spread` is dumped as **zero** because `ammo->shot_spread` is the **ammo's** field and the gun has none of its own - the column exists to say that, and the next
 round's ammo table fills it. **`fire_at` still applies no damage**: the blow is now in the port's hands, and where it comes from for a firearm is the next finding.
+
+## Where a bullet's blow actually lives (round 1147)
+
+Round 1146 found that a firearm's own `damage` is zero. This round dumps the table that answers it: **`--dump-ammo`, 736 rounds**.
+
+| Piece | Reference | Port |
+|---|---|---|
+data | `islot_ammo::damage`, `count`, `shot_spread` (`itype.h:1090-1101`) | `corpus/items/ammo.json`, **version 1** |
+loader | - | `cdda_content::ammo::{AmmoType, read_one, load_dump}` |
+Gate | - | `gun_rules::every_round_s_own_blow_loads_and_it_is_the_blow_a_gun_does_not_carry` - **736 rounds**, `.223` 39 bullet, birdshot **50 over 20 pellets with 300 arcminutes of spread**, a rock's 7 bash and a rocket's 500 stab |
+
+**The dump was wrong on its first try, in the most useful way.** Reading `ammo->shot_damage` gave **zero for every cartridge** - `.223` was 0, and only birdshot had a number. That field is the
+**per-pellet** figure, patched only for shot (`item_factory.cpp:527-532`); the round's actual blow is `ammo->damage`. **A port that had trusted the first dump would have had a rifle that does no
+damage and a shotgun that does all of it**, and the count would have looked perfectly plausible: 736 rounds, all loaded.
+
+**So the dump now writes both** - `damage` and `shot_damage` - and the gate's assertion says which one the port reads and why.
+
+**And not every round is a bullet.** 429 rounds do damage; **391 of them are bullet**, and the thirty-eight that are not are the ones a cartridge-shaped port would mishandle: a thrown **rock**
+is seven **bash**, a **120 mm HEAT** is forty **stab**, an **explosive rocket** is five hundred **stab**. **The kinds are the data's, and a shot's damage is a `damage_instance`, not a number.**
+
+**Named, not invented:** `di_considering_length` (the barrel scales the round's blow, and the port has no barrel metric), `ammo_effects` (which are ported separately for explosions),
+`recovery_chance`'s drop, and the `RANGED_DAMAGE` enchantment. **`fire_at` still applies no damage**; the next round joins the gun's kind, the round's blow and `deal_projectile_attack`.

@@ -62,3 +62,43 @@ fn the_gun_dump_loads_every_gun_and_keeps_its_numbers() {
         "a gun with no ammo type is still a gun"
     );
 }
+
+/// Every round's own blow loads, and it is the blow a firearm does not carry.
+///
+/// Reference: `islot_ammo::damage` (`itype.h:1090-1101`), dumped by `--dump-ammo`. **The gun table's damage is zero for every firearm** (round 1146), so this table is where a shot's blow
+/// actually lives - and the gate says so with a number rather than with a sentence.
+#[test]
+fn every_round_s_own_blow_loads_and_it_is_the_blow_a_gun_does_not_carry() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/ammo.json");
+    let bytes = std::fs::read(path).expect("the ammo dump exists");
+    let value = cdda_json::parse(&bytes).expect("valid JSON");
+    let ammo = cdda_content::ammo::load_dump(&value).expect("the dump loads");
+    assert_eq!(ammo.len(), 736, "every round the reference has");
+
+    let round = |id: &str| {
+        ammo.iter().find(|round| round.id == id).expect("the round is in the dump")
+    };
+    let rifle = round("223");
+    assert_eq!(rifle.damage_bullet, 39, "a .223 round is thirty-nine bullet");
+    assert_eq!(rifle.count, 1, "and it is one projectile");
+    assert!(
+        rifle.shot_damage.abs() < f64::EPSILON,
+        "the per-pellet figure says nothing for a rifle round - which is why the port reads `damage`"
+    );
+
+    // Birdshot: fifty bullet over twenty pellets, with three hundred arcminutes between them.
+    let bird = round("shot_bird");
+    assert_eq!(bird.damage_bullet, 50, "birdshot's blow");
+    assert_eq!(bird.count, 20, "spread over twenty pellets");
+    assert_eq!(bird.shot_spread, 300, "and three hundred arcminutes of spread");
+    assert!(bird.count > rifle.count, "which is what makes it shot and not a bullet");
+
+    // Not every round with a blow is a bullet: **429 rounds do damage and 391 of them are bullet**, and the thirty-eight that are not are exactly the ones a port would mis-handle by
+    // assuming a cartridge - a thrown **rock** (seven bash), and the rockets and shells that do **stab** (a 120 mm HEAT's forty, an explosive rocket's five hundred).
+    assert_eq!(ammo.iter().filter(|round| round.damage > 0.0).count(), 429, "rounds that do damage");
+    assert_eq!(ammo.iter().filter(|round| round.damage_bullet > 0).count(), 391, "of which 391 are bullet");
+    let rock = round("rock");
+    assert_eq!(rock.damage_bash, 7, "a thrown rock is seven bash, and it is in this table because it is ammunition");
+    let rocket = round("explosive_hm_rocket");
+    assert_eq!(rocket.damage_stab, 500, "and an explosive rocket is five hundred stab");
+}
