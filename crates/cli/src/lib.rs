@@ -60,6 +60,8 @@ pub enum Step {
     },
     /// Take this many turns.
     Turn(u32),
+    /// Sets the world's clock, in turns since the epoch, which is how a playtest reaches a rule that waits days.
+    Date(i64),
     /// The last turn changed exactly this many squares.
     ExpectChanged(usize),
     /// A fire stands on this square.
@@ -218,6 +220,7 @@ pub fn parse(text: &str) -> Result<Vec<Step>, String> {
                 age: number_of(age, number, "age")?,
             },
             ["turn", count] => Step::Turn(number_of(count, number, "turns")?),
+            ["date", turn] => Step::Date(number_of(turn, number, "turn")?),
             ["expect", "changed", count] => Step::ExpectChanged(number_of(count, number, "squares")?),
             ["expect", "fire", x, y] => {
                 Step::ExpectFireAt(number_of(x, number, "x")?, number_of(y, number, "y")?)
@@ -327,6 +330,10 @@ pub fn run(text: &str) -> Result<Outcome, String> {
                 age,
             } => {
                 light_a_fire(&mut world, x, y, intensity, age);
+            }
+            Step::Date(turn) => {
+                cdda_sim::calendar::set_turn(&mut world, turn);
+                outcome.lines.push(format!("date: the clock is at turn {turn}"));
             }
             Step::Turn(count) => {
                 for _ in 0..count {
@@ -583,6 +590,21 @@ pub fn install_item_data(world: &mut World) -> Option<usize> {
 /// scenario that places `mon_zombie` gets the zombie's own numbers rather than a fixture's.
 pub fn install_monster_data(world: &mut World) -> Option<usize> {
     let monsters = monster_types()?;
+    // What a corpse is, installed with the monsters that make them: the item the content calls `corpse`, and each monster's own volume, which is what its corpse is measured from
+    // (`item::corpse_volume`). A world with no corpse kind sweeps the dead away without leaving anything, which is what every test world before this round did.
+    if let (Some(corpse_item), false) = (
+        cdda_sim::item_registry::id_of(world, "corpse"),
+        monsters.is_empty(),
+    ) {
+        let volumes = monsters
+            .iter()
+            .filter_map(|monster| {
+                let kind = cdda_sim::monster_registry::id_of(world, &monster.id)?;
+                Some((kind, monster.volume))
+            })
+            .collect();
+        cdda_sim::creature::set_corpse_kind(world, corpse_item, volumes);
+    }
     let kinds: Vec<cdda_sim::monster_registry::MonsterKind<'_>> = monsters
         .iter()
         .map(|monster| cdda_sim::monster_registry::MonsterKind {

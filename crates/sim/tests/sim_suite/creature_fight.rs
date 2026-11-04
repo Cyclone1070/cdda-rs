@@ -586,3 +586,72 @@ fn a_reviving_corpse_gets_up_and_nothing_else_does() {
     assert!(world.get_entity(fresh).is_ok(), "an hour old stays down");
     assert!(world.get_entity(old_stayer).is_ok(), "and one that does not revive stays down for ever");
 }
+
+/// A monster killed in a turn leaves a corpse behind, and the corpse knows what it was.
+///
+/// Reference: `monster::die` puts a corpse on the map (`monster.cpp`), and `item::corpse_volume` measures it from the monster's own volume. The gate drives the **stage**: when the
+/// content has installed what a corpse is, the creature stage's sweep leaves one on the square where the monster fell - with the kind, the volume and the turn it died on.
+#[test]
+fn a_monster_killed_in_a_turn_leaves_a_corpse() {
+    use bevy_ecs::prelude::*;
+
+    let mut world = World::new();
+    singletons::put_rolls(&mut world, Rolls::new(13));
+    let mut level = Level::new();
+    for x in 0..4 {
+        for y in 0..4 {
+            level.set_terrain(x, y, 1, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    cdda_sim::calendar::set_turn(&mut world, 500);
+
+    let corpse_item = {
+        let kind = cdda_sim::item_registry::Kind {
+            id: "corpse",
+            volume_ml: 250,
+            weight_g: 1_000,
+            pockets: &[],
+            thrown_damage: 0.0,
+            melee_bash: 0.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
+            to_hit: -2,
+        };
+        cdda_sim::item_registry::set_item_types(&mut world, &[kind]);
+        cdda_sim::item_registry::id_of(&mut world, "corpse").expect("the corpse kind")
+    };
+    cdda_sim::creature::set_corpse_kind(
+        &mut world,
+        corpse_item,
+        std::collections::BTreeMap::from([(cdda_sim::MonsterKindId(0), 62_500)]),
+    );
+
+    let zombie = cdda_sim::creature::spawn_creature(&mut world, "the zombie", (2, 2, 0));
+    world
+        .entity_mut(zombie)
+        .insert(cdda_sim::creature::Health { hp: 0, max_hp: 80 })
+        .insert(cdda_sim::creature::CreatureKind(cdda_sim::MonsterKindId(0)))
+        .insert(cdda_sim::creature_flags::CreatureFlags(
+            ["REVIVES"].iter().map(|flag| (*flag).to_owned()).collect(),
+        ));
+
+    cdda_sim::turn::run_turn(&mut world);
+
+    assert!(world.get_entity(zombie).is_err(), "the dead creature is gone");
+    let corpses: Vec<(Entity, cdda_sim::CorpseOf)> = {
+        let mut query = world.query::<(Entity, &cdda_sim::CorpseOf)>();
+        query
+            .iter(&world)
+            .map(|(entity, corpse)| (entity, *corpse))
+            .collect()
+    };
+    assert_eq!(corpses.len(), 1, "one corpse lies where it fell");
+    let Some((_, corpse)) = corpses.first() else {
+        panic!("a corpse was expected")
+    };
+    assert_eq!(corpse.kind, cdda_sim::MonsterKindId(0), "and knows what it was");
+    assert_eq!(corpse.monster_volume_ml, 62_500, "and how big it was");
+    assert_eq!(corpse.died_on, 500, "and when it died, which is what its age counts from");
+    assert!(corpse.revives, "and that it can get up again");
+}

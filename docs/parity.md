@@ -12141,3 +12141,26 @@ which already loads the types. **A singleton the CLI installs once (a `CorpseKin
 
 **The `date` step and the scenario were deleted rather than shipped failing**, and the CLI's call to `revive_corpses` stays: it is a real caller of a real rule, and when corpses arrive
 it starts working with no further change.
+
+## A blow, a corpse, a clock and a resurrection - the whole chain, in a playtest (round 1105)
+
+Round 1104 found that a killed monster left **nothing**, so revival could not happen. This round gives the world a corpse and proves the chain end to end.
+
+| Piece | Where |
+|---|---|
+`creature::CorpseKind` (installed once) | the item kind a corpse is, and each monster kind's **volume** - both content, so the caller installs them and the creature stage reads them |
+`creatures_stage` | leaves a corpse when the content has said what one is; reaps plainly when it has not, which is what every test world without item data wants |
+CLI | `install_monster_data` installs the corpse kind and the volumes from the types it already loads |
+Gates | `creature_fight::a_monster_killed_in_a_turn_leaves_a_corpse` (the stage) **and** `scenarios/a_killed_zombie_gets_up_two_days_later.txt` (the whole chain) |
+Scenario | kill a snotgobbler, **`turn 1`**, see the corpse square empty, **`date 180000`**, `turn 1`, and a monster is standing there again |
+
+**The scenario is the receipt for five rounds of work**, and it fails at three separate points if any one piece is missing: with no corpse the square is empty for ever; with no clock the
+corpse never ages; with no revival the corpse lies there. **It is also the first time this port has run a rule that takes two in-game days**, which is why the `date` step exists -
+and the step is honest about what it is: a way to move the clock, exactly what the reference's debug menu does.
+
+**The corpse kind is a component, not a constant, and the reason is the architecture.** `creature.rs` may not know what item the content calls `corpse`, so the world carries the
+answer and the stage reads it: **a world that never installed it reaps the dead and leaves nothing**, which keeps every earlier test's behaviour intact without a single conditional on
+"is this a real game".
+
+**Two clippy findings in the new gate were both worth fixing rather than silencing:** a `clone` on a `Copy` type, and an index into a `Vec` that could be empty. **`corpses.first()`
+with an explicit panic says what the test means; `corpses[0]` says only where it looks.**

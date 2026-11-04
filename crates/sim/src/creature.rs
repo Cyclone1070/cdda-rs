@@ -1740,6 +1740,39 @@ pub fn reap_dead_creatures_as_corpses(
     dead.len()
 }
 
+/// What the world leaves behind when a monster dies: the item kind a corpse is, and how big each monster kind was.
+///
+/// Reference: `item::corpse_volume` (`item.cpp`) measures a corpse from the monster's own volume, and the corpse item is the content's `corpse`. Both are **content**, so the caller
+/// installs them once and the creature stage reads them; a world with no corpse kind reaps the dead without leaving anything, which is what a test world with no item data wants.
+#[derive(Component, Debug, Clone, Default)]
+pub struct CorpseKind {
+    /// The item kind every corpse is. Kind zero is the registry's own placeholder, which no data names.
+    pub item: crate::ItemTypeId,
+    /// What each monster kind took up while alive, in millilitres.
+    pub volumes_ml: std::collections::BTreeMap<crate::MonsterKindId, i64>,
+}
+
+/// Marks the entity carrying [`CorpseKind`].
+#[derive(Component, Debug, Clone, Copy, Default)]
+pub struct TheCorpseKind;
+
+/// Installs what a corpse is, replacing whatever was there.
+pub fn set_corpse_kind(world: &mut World, item: crate::ItemTypeId, volumes_ml: std::collections::BTreeMap<crate::MonsterKindId, i64>) {
+    let entity = crate::singletons::singleton::<CorpseKind, TheCorpseKind>(world);
+    world.entity_mut(entity).insert(CorpseKind {
+        item,
+        volumes_ml,
+    });
+}
+
+/// What a corpse is in this world, if the content has said.
+#[must_use]
+pub fn corpse_kind(world: &World) -> Option<(crate::ItemTypeId, std::collections::BTreeMap<crate::MonsterKindId, i64>)> {
+    crate::singletons::holder::<TheCorpseKind>(world)
+        .and_then(|holder| world.get::<CorpseKind>(holder))
+        .map(|kind| (kind.item, kind.volumes_ml.clone()))
+}
+
 /// One corpse that may get up: the corpse, what it was, where it is, and when it died.
 type Candidate = (Entity, crate::MonsterKindId, (i32, i32, i32), i64);
 

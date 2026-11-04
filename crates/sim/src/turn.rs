@@ -290,7 +290,15 @@ fn creatures_stage(world: &mut World) {
     // Reference: `monster::process_turn` mends a monster before it acts (`monster.cpp:4094`), so a creature one point from death this turn can still take its step.
     crate::regeneration::mend_everyone(world);
     // The dead are cleared before anything acts, so a creature killed this turn does not also walk.
-    crate::creature::reap_dead_creatures(world);
+    // The dead are cleared before anything acts, so a creature killed this turn does not also walk. When the content has said what a corpse is, the sweep leaves one behind -
+    // `monster::die` puts a corpse on the map (`monster.cpp`), and a corpse is what can be butchered and what can get up again.
+    if let Some((corpse_item, volumes)) = crate::creature::corpse_kind(world) {
+        let _bodies = crate::creature::reap_dead_creatures_as_corpses(world, corpse_item, |kind| {
+            volumes.get(&kind).copied().unwrap_or(0)
+        });
+    } else {
+        crate::creature::reap_dead_creatures(world);
+    }
     crate::creature::take_turns(world);
 }
 

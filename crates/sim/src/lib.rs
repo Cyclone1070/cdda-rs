@@ -2797,7 +2797,7 @@ fn lay_electricity(world: &mut World, square: (i32, i32), strength: i32) {
 ///
 /// Zero is reserved for "no item", as with fields, so a stack entry can be cleared without
 /// carrying an `Option` in every tile.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ItemTypeId(pub u32);
 
 /// An item lying on the ground.

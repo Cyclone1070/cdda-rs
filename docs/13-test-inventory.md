@@ -606,3 +606,8 @@ dice trap**: two hundred fresh seeds all answer alike because the engine's first
 **Round 1104 wired revival into the CLI's turn and found it cannot happen**: the creature stage calls `reap_dead_creatures`, which **despawns the dead and leaves no corpse**, so
 nothing can rot, be butchered in play, or rise. `reap_dead_creatures_as_corpses` exists, writes the corpse with its volume, death turn and `REVIVES` flag, and **is called by nobody in
 the turn**. The attempted scenario (`date` step, two-day wait) was deleted rather than shipped failing; the next slice installs a corpse kind as data and switches the stage over.
+
+**Round 1105 closed the corpse gap**: `creature::CorpseKind` carries the corpse item kind and each monster's volume (content the caller installs), the creature stage leaves a corpse
+when it is installed, and `scenarios/a_killed_zombie_gets_up_two_days_later.txt` runs the **whole chain** - a crowbar blow, a corpse, a `date 180000` step to move the clock two days,
+and the monster standing again. Gated too at the stage by `creature_fight::a_monster_killed_in_a_turn_leaves_a_corpse`, which checks the kind, the volume, the death turn and the
+`REVIVES` flag on the corpse the sweep leaves.
