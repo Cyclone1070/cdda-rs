@@ -12914,3 +12914,27 @@ suite-plus-oracle gates would not have caught it, because a clobbered module tha
 
 **Named, not invented:** `HARDTOSHOOT` (which shifts a creature's aim size down one class) and the crouch, prone and quadruped stance factors, none of which the port has a source for yet.
 **Nothing passes a real size to `aim_of` yet** - the throw still aims at open ground - which is the wiring the next ranged round does together with the gun's own shot.
+
+## A thrown rock is judged against what it was thrown at (round 1140)
+
+Round 1139 ported the size table; this round **uses** it. `throw_at` now asks what stands on the target square and measures the miss against that creature's size.
+
+| Piece | Reference | Port |
+|---|---|---|
+the lookup | `target_critter->ranged_target_size()` (`ballistics.cpp:255-264`) | `throwing::target_size(world, thrower, target)` |
+a creature | `occupied_tile_fraction(size)` | `ballistics::occupied_tile_fraction` (1139) |
+an empty square | `map::ranged_target_size`, a whole tile | `1.0` |
+Gate | - | `throwing::a_rock_thrown_at_a_creature_is_judged_against_the_size_of_that_creature` - the **same throw**, same dice, same range, at a creature and at bare ground |
+
+**The gate is a differential, and it had to become one.** Its first version asserted that `occupied_tile_fraction(Tiny)` is below one - which is a claim about round 1139's table, not about the
+throw. **Mutating `throw_at` back to `1.0` left it green**, which is exactly the failure mode a gate is supposed to catch. The second version throws twice on the same seed, once at a small
+thing and once at nothing, and asserts the first is a worse miss. **Mutated back to `1.0`, the two numbers are identical and the gate fails** - which is the proof that it tests the wiring
+and not the table.
+
+| Mutation | First gate | Second gate |
+|---|---|---|
+`target_size` → `1.0` | **passed** (proves nothing) | **failed** (0.697… against 0.697…) |
+restored | passed | passed |
+
+**The extracted helper is the readable half.** `target_size(world, thrower, target)` is four lines with the reference's own question in its name; `throw_at` grew past the hundred-line limit
+and clippy said so before the review did.

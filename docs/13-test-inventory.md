@@ -755,3 +755,7 @@ skills, and the 7 zero-dispersion and 271 zero-range guns the data really has.
 **Round 1139 gave the aim roll a target size**: `ballistics::occupied_tile_fraction` (`occupied_tile_fraction`, `ranged.cpp:603-622` - 0.1/0.25/0.5/0.75/1.0 by `CreatureSize`), which is
 what `aim_of` divides the miss by. Gated by `melee_rules::a_target_s_size_is_the_fraction_of_its_tile_a_shot_is_judged_against`. Every caller still passes `1.0`, so the table is ported but
 **not yet wired**, and the docs say so.
+
+**Round 1140 wired the target size into throwing**: `throwing::target_size(world, thrower, target)` feeds `ballistics::occupied_tile_fraction` into `aim_of`, so a rock thrown at a creature is
+judged against that creature (`projectile_attack`, `ballistics.cpp:255-264`). Gated by `throwing::a_rock_thrown_at_a_creature_is_judged_against_the_size_of_that_creature`, which is a
+**differential** - the same throw at a creature and at bare ground - and which fails when the size is mutated back to `1.0`.

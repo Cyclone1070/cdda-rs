@@ -57,6 +57,9 @@ pub fn throw_at(world: &mut World, thrower: Entity, item: Entity, target: (i32, 
     let arm_strength = crate::creature::effective_strength(world, thrower);
     // Reference: `get_skill_level( skill_throw )`, from the creature's own skill map.
     let skill = f64::from(crate::skills_of::level_of(world, thrower, "throw"));
+    // Reference: a throw at a **creature** is dodged and the dodging adds spread (`throw_dispersion_per_dodge`); a throw at open ground is not. The port asks whether a creature stands on
+    // the target square, and reads its size here so the aim roll below judges the miss against the thing that is actually there (`occupied_tile_fraction`).
+    let target_size = target_size(world, thrower, target);
     // The port has no eyes to encumber and no perception score, so those two terms of the reference's sum are zero - said here rather than left to look accidental.
     let spread = throwing_dispersion(&Throw {
         weight_g: names.weight_of(kind),
@@ -85,7 +88,7 @@ pub fn throw_at(world: &mut World, thrower: Entity, item: Entity, target: (i32, 
         }
         None => 0.0,
     };
-    let aim = crate::ballistics::aim_of(rolled, f64::from(range), 1.0);
+    let aim = crate::ballistics::aim_of(rolled, f64::from(range), target_size);
     let flight = crate::ballistics::Shot {
         source,
         target,
@@ -185,4 +188,16 @@ pub fn damage_of_throw(arm_strength: i32, skill: i32, weight_g: i64) -> f64 {
     #[allow(clippy::cast_precision_loss)]
     let from_the_weight = weight_g as f64 / 100.0;
     from_the_arm.min(from_the_weight)
+}
+
+/// How big the thing on the target square is, as a fraction of its tile.
+///
+/// Reference: `projectile_attack`'s `target_critter->ranged_target_size()` (`ballistics.cpp:255-264`). An empty square - or the thrower's own - is a whole tile, which is what the reference's
+/// `map::ranged_target_size` answers for terrain; **a creature is the fraction its size fills**.
+fn target_size(world: &World, thrower: Entity, target: (i32, i32, i32)) -> f64 {
+    crate::creature::creature_at(world, target)
+        .into_iter()
+        .find(|entity| *entity != thrower)
+        .and_then(|entity| world.get::<crate::creature::Creature>(entity).map(|creature| creature.size))
+        .map_or(1.0, crate::ballistics::occupied_tile_fraction)
 }

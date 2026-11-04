@@ -317,3 +317,50 @@ fn a_heavy_landing_in_water_is_louder_than_one_on_the_floor() {
     assert_eq!(landing_noise(&world, (0, 0, 0), 500), None, "five hundred grams on the floor");
     assert_eq!(landing_noise(&world, (1, 0, 0), 500), None, "five hundred grams in the water");
 }
+
+/// A rock thrown at a creature is judged against **that creature's** size, not against a whole tile.
+///
+/// Reference: `projectile_attack` takes `target_critter->ranged_target_size()` (`ballistics.cpp:255-264`), which for an ordinary creature is `occupied_tile_fraction` of its size. Before this
+/// round the port passed `1.0` for every throw - a target that fills its tile - so **every creature was as easy to hit as a hulk**.
+#[test]
+fn a_rock_thrown_at_a_creature_is_judged_against_the_size_of_that_creature() {
+    let mut world = World::new();
+    let (thrower, rock) = a_thrower_with_a_rock(&mut world);
+    // A small thing standing on the square the rock is aimed at, with a size the port's own table can price.
+    let beast = cdda_sim::creature::spawn_creature(&mut world, "a small thing", (3, 0, 0));
+    world.entity_mut(beast).insert(cdda_sim::creature::Creature {
+        name: "a small thing".to_owned(),
+        size: cdda_sim::CreatureSize::Tiny,
+    });
+    assert!(
+        !cdda_sim::creature::creature_at(&world, (3, 0, 0)).is_empty(),
+        "the small thing is on the square the rock is aimed at, which is what makes this the creature case"
+    );
+
+    let tossed = cdda_sim::throwing::throw_at(&mut world, thrower, rock, (3, 0, 0));
+    assert!(
+        matches!(tossed, cdda_sim::throwing::Toss::Landed { .. }),
+        "the rock is thrown at the small thing: {tossed:?}"
+    );
+
+    // The differential is the proof: the **same throw**, from the same hand, on the same dice, at the same range - once at a creature and once at bare ground. Only the size the miss is
+    // measured against differs, so a port that still passed a whole tile for every throw would report the same number twice.
+    let cdda_sim::throwing::Toss::Landed { missed_by: at_creature, .. } = tossed else {
+        panic!("the rock landed");
+    };
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1_234));
+    let rock_kind = {
+        let names = cdda_sim::item_registry::snapshot(&mut world);
+        names.id_of("rock").expect("a rock")
+    };
+    let second = cdda_sim::drop_item(&mut world, (0, 0), rock_kind, 1);
+    world.entity_mut(second).insert(cdda_sim::creature::Carried(thrower));
+    let at_ground = cdda_sim::throwing::throw_at(&mut world, thrower, second, (3, 1, 0));
+    let cdda_sim::throwing::Toss::Landed { missed_by: at_nothing, .. } = at_ground else {
+        panic!("the second rock landed");
+    };
+    assert!(
+        at_creature > at_nothing,
+        "the same throw is worse against a small creature ({at_creature}) than against bare ground ({at_nothing})"
+    );
+}
