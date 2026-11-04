@@ -13125,3 +13125,24 @@ case still passed - **because a rifle's own damage is zero, the rifle case alone
 **Named, not invented:** `di_considering_length` (no barrel metric in the port), the `bullet` damage type (resolved as stab, above), weakpoints, and `RANGED_DAMAGE`/`RANGED_ARMOR_PENETRATION`
 enchantments. **`fire_at` still does not consume ammunition** - a shot is priced and paid for in moves, but the round in the magazine is not decremented, which the next round does with the
 `ammo_required` rule.
+
+## A shot spends a round, and a gun with nothing to spend does not fire (round 1149)
+
+| Piece | Reference | Port |
+|---|---|---|
+how many rounds | `item::ammo_required()` (`item.cpp:11535-11550`): the type's `ammo_to_fire` | `GunType::ammo_to_fire`, guns dump **version 3** |
+taking them | `gun.ammo_consume( required, ... )` (`ranged.cpp:1167-1172`) | `shot::spend_rounds(world, gun_entity, rounds)` |
+the refusal | `fire_gun` **breaks out** of the burst when the gun cannot load | `Fired { loaded: false, cost: 0, hit: None }` |
+Gates | - | `a_shot_spends_the_rounds_the_gun_s_own_data_says` and `a_gun_that_cannot_pay_for_a_round_does_not_fire` |
+
+**The data says the figure is not one.** Of 406 guns, **403 spend a round a shot, two spend a hundred, and one spends fifty.** **A port that hardcoded one would be wrong by two orders of magnitude
+for a machine gun, and would never once look wrong while firing a rifle.**
+
+**The refusal is the half that matters in play.** A shot that cannot load costs **no moves**, hits **nothing**, and says so; **the alternative - a free shot that misses - is indistinguishable from
+a miss and would let a player fire forever**. The gate fires three times at a gun with two rounds and checks the store: two shots, then an empty gun.
+
+**Rounds live where the port keeps counts**: the item entity's `charges`, which is the store's one place for "how many of these are here". **No magazine component, no parallel counter** - a gun is
+an entity with a number on it, and loading it is a component write.
+
+**Named, not invented:** gunmods' `ammo_to_fire_multiplier` and `_modifier` (which the reference multiplies and adds, and the port has no gunmods), the `charges_to_use` branch for a non-gun
+item, and the burst loop (each shot in a burst reloads, and the port fires one shot at a time).

@@ -147,7 +147,7 @@ fn firing_a_gun_spends_moves_and_judges_the_shot_by_what_stands_there() {
     world.entity_mut(beast).insert(cdda_sim::creature::Health { hp: 10, max_hp: 10 });
 
     let before = cdda_sim::creature::moves_left(&world, shooter);
-    let fired = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (4, 0, 0), 18.0, None);
+    let fired = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (4, 0, 0), 18.0, None, None);
     let after = cdda_sim::creature::moves_left(&world, shooter);
     assert_eq!(before - after, fired.cost, "the shot cost what the shot table says: {}", fired.cost);
     assert_eq!(
@@ -158,7 +158,7 @@ fn firing_a_gun_spends_moves_and_judges_the_shot_by_what_stands_there() {
     assert!(fired.cost > 0, "and a shot is never free");
 
     // The same shot at bare ground uses a whole tile, so a small target is judged more harshly than nothing at all.
-    let at_nothing = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (4, 4, 0), 18.0, None);
+    let at_nothing = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (4, 4, 0), 18.0, None, None);
     assert!(
         fired.aim.missed_by >= at_nothing.aim.missed_by,
         "the small thing is at least as hard to hit as empty ground: {} against {}",
@@ -178,7 +178,7 @@ fn firing_a_gun_spends_moves_and_judges_the_shot_by_what_stands_there() {
         .entity_mut(standing)
         .insert(cdda_sim::creature::Creature { name: "a thing in the way".to_owned(), size: cdda_sim::CreatureSize::Medium })
         .insert(cdda_sim::creature::Health { hp: 100, max_hp: 100 });
-    let point_blank = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (0, 0, 0), 18.0, Some(&round));
+    let point_blank = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (0, 0, 0), 18.0, Some(&round), None);
     assert_eq!(point_blank.hit, Some(standing), "at zero range the shot reaches what is there");
     assert_eq!(point_blank.hurt, 39, "and does the cartridge's thirty-nine, with no armour to stop it");
     assert_eq!(
@@ -232,4 +232,45 @@ fn a_shot_s_blow_is_its_gun_s_plus_its_round_s_and_armour_takes_it_off() {
     // A thrown rock is a round in this table too, and it is bash.
     let rock = blow_of(&gun("feral_human_thrown_rock"), Some(&round("rock")));
     assert!(rock.bash > 0, "a thrown rock is bash: {}", rock.bash);
+}
+
+/// A shot spends the gun's rounds, and a gun that cannot pay for one does not fire at all.
+///
+/// Reference: `fire_gun`'s `ammo_consume` and its `break` (`ranged.cpp:1167-1172`). The gate checks the **store**: two rounds in the gun means two shots, the third finds nothing, and a shot
+/// that could not load costs no moves and hits nothing - which is the difference between "out of ammo" reading as a failure and reading as a free action.
+#[test]
+fn a_gun_that_cannot_pay_for_a_round_does_not_fire() {
+    let read = |name: &str| {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let bytes = std::fs::read(path).expect("the corpus file exists");
+        cdda_json::parse(&bytes).expect("valid JSON")
+    };
+    let guns = cdda_content::guns::load_dump(&read("items/guns.json")).expect("the guns load");
+    let lines = cdda_content::skills::load_dump(&read("skills.json")).expect("the skills load");
+    let gun = guns.iter().find(|gun| gun.id == "ruger_mini").expect("the Mini-14").clone();
+
+    let mut world = bevy_ecs::prelude::World::new();
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(99));
+    let shooter = cdda_sim::creature::spawn_creature(&mut world, "the shooter", (0, 0, 0));
+    world.entity_mut(shooter).insert(cdda_sim::creature::Moves { left: 500 });
+    // The gun is an item entity with two rounds in it, which is where the port keeps "how many of this thing are here".
+    let held = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(0), 2);
+    world.entity_mut(held).insert(cdda_sim::creature::WieldedBy(shooter));
+
+    let mut fired = 0;
+    for _ in 0..3 {
+        let shot = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (4, 0, 0), 18.0, None, Some(held));
+        if shot.loaded {
+            fired += 1;
+        } else {
+            assert_eq!(shot.cost, 0, "a shot that could not load costs nothing");
+            assert!(shot.hit.is_none(), "and hits nothing");
+        }
+    }
+    assert_eq!(fired, 2, "two rounds in the gun is two shots");
+    assert_eq!(
+        world.get::<cdda_sim::GroundItem>(held).map(|item| item.charges),
+        Some(0),
+        "and the gun is empty"
+    );
 }

@@ -117,6 +117,8 @@ pub struct Fired {
     pub hit: Option<bevy_ecs::prelude::Entity>,
     /// How much the creature lost, which is zero when nothing was there.
     pub hurt: i32,
+    /// Whether the rounds the shot needed were in the gun and were spent. A shot that could not load is **not fired**: it costs nothing and hits nothing.
+    pub loaded: bool,
 }
 
 /// Fires a gun at a square, spending the shooter's moves and rolling the shot's own error.
@@ -134,7 +136,14 @@ pub fn fire_at(
     target: (i32, i32, i32),
     divider: f64,
     round: Option<&cdda_content::ammo::AmmoType>,
+    gun_entity: Option<bevy_ecs::prelude::Entity>,
 ) -> Fired {
+    // Reference: `fire_gun` checks `gun.ammo_required()` and consumes the rounds **before** the shot is loosed (`ranged.cpp:1168-1172`), and breaks out of the burst when the gun cannot
+    // load. A gun the port has no entity for is treated as loaded, which keeps this rule usable without one.
+    let loaded = gun_entity.is_none_or(|gun_entity| crate::shot::spend_rounds(world, gun_entity, gun.ammo_to_fire));
+    if !loaded {
+        return Fired { cost: 0, aim: crate::ballistics::aim_of(0.0, 0.0, 1.0), hit: None, hurt: 0, loaded };
+    }
     let blow = blow_of(gun, round);
     let level = crate::creature::skill_level(world, shooter, &gun.skill);
     let shotmaker = crate::dispersion::shotmaker_for(world, shooter, gun, divider);
@@ -166,7 +175,7 @@ pub fn fire_at(
         None
     };
     let hurt = struck.map_or(0, |struck| hurt_once(world, struck, &blow));
-    Fired { cost, aim, hit: struck, hurt }
+    Fired { cost, aim, hit: struck, hurt, loaded: true }
 }
 
 /// The shooter's wind as a whole percentage, which is what `RAS_time` compares against twenty-five.
@@ -213,4 +222,24 @@ fn hurt_once(world: &mut bevy_ecs::prelude::World, struck: bevy_ecs::prelude::En
     }
     crate::damage_monster(world, struck, total);
     total
+}
+
+/// Takes the rounds a shot needs out of the gun, and answers whether there were enough.
+///
+/// Reference: `gun.ammo_consume( required, ... )` (`ranged.cpp:1167-1172`) returns how many it took, and `fire_gun` breaks out of the burst when that is fewer than required. The port keeps a
+/// gun's rounds in the item's own `charges`, which is the store's one place for "how many of this thing are here" - so loading a shot is a component write, and a gun with nothing left is a
+/// gun that does not fire rather than one that fires a ghost round.
+#[must_use]
+pub fn spend_rounds(world: &mut bevy_ecs::prelude::World, gun: bevy_ecs::prelude::Entity, rounds: i32) -> bool {
+    let Some(mut held) = world.get_mut::<crate::GroundItem>(gun) else {
+        return true;
+    };
+    if rounds <= 0 {
+        return true;
+    }
+    if held.charges < rounds {
+        return false;
+    }
+    held.charges -= rounds;
+    true
 }

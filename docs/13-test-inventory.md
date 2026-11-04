@@ -793,3 +793,7 @@ every cartridge; the docs record why.
 **Round 1148 joined the gun table, the ammo table and the armour**: `shot::blow_of(gun, round)` (`item::gun_damage( true )`, `item.cpp:11160-11180`) sums the weapon's own damage and the round's,
 and `fire_at` applies it through `hurt_once` (per-kind `melee::after_armour`, then `damage_monster`). Gated by `shot_rules::a_shot_s_blow_is_its_gun_s_plus_its_round_s_and_armour_takes_it_off`
 and the point-blank case in `shot_rules::firing_a_gun_spends_moves_and_judges_the_shot_by_what_stands_there` (39 damage, 100 hp → 61). **Bullet damage resolves as stab**, which the docs name.
+
+**Round 1149 made a shot spend its rounds**: `GunType::ammo_to_fire` (guns dump **version 3**, `item::ammo_required()`, `item.cpp:11535-11550`), `shot::spend_rounds` (`ammo_consume`,
+`ranged.cpp:1167-1172`) and `Fired::loaded` - a gun that cannot load costs no moves and hits nothing. Gated by `content_suite::gun_rules::a_shot_spends_the_rounds_the_gun_s_own_data_says`
+(403 × 1, 2 × 100, 1 × 50) and `sim_suite::shot_rules::a_gun_that_cannot_pay_for_a_round_does_not_fire` (two rounds, two shots, then a refusal that costs nothing).

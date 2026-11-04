@@ -102,3 +102,27 @@ fn every_round_s_own_blow_loads_and_it_is_the_blow_a_gun_does_not_carry() {
     let rocket = round("explosive_hm_rocket");
     assert_eq!(rocket.damage_stab, 500, "and an explosive rocket is five hundred stab");
 }
+
+/// How many rounds a shot spends: one for almost every gun, and a hundred for the two that fire a whole belt.
+///
+/// Reference: `item::ammo_required()` (`item.cpp:11535-11550`) - the type's `ammo_to_fire` times its gunmods' multiplier plus their modifier, none of which the port has, so it is the
+/// type's own figure. The gate's **three-value** distribution is the data's: a port that assumed one round a shot would be wrong for a machine gun by two orders of magnitude.
+#[test]
+fn a_shot_spends_the_rounds_the_gun_s_own_data_says() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/guns.json");
+    let bytes = std::fs::read(path).expect("the guns dump exists");
+    let value = cdda_json::parse(&bytes).expect("valid JSON");
+    let guns = cdda_content::guns::load_dump(&value).expect("the dump loads");
+
+    let count = |rounds: i32| guns.iter().filter(|gun| gun.ammo_to_fire == rounds).count();
+    assert_eq!(count(1), 403, "almost every gun spends one round a shot");
+    assert_eq!(count(100), 2, "two spend a hundred");
+    assert_eq!(count(50), 1, "and one spends fifty");
+    assert_eq!(
+        403 + 2 + 1,
+        guns.len(),
+        "which is every gun in the dump, so no gun states a figure this gate has not seen"
+    );
+    let rifle = guns.iter().find(|gun| gun.id == "ruger_mini").expect("the Mini-14");
+    assert_eq!(rifle.ammo_to_fire, 1, "a rifle spends one round");
+}
