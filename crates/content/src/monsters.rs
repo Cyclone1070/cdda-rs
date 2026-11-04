@@ -66,6 +66,8 @@ pub struct MonsterType {
     pub armor_stab: i32,
     /// Morale.
     pub morale: i32,
+    /// Whether the monster gets its nerve back at all (`mtype::regen_morale`). 23 of the corpus's 1,154 types say yes.
+    pub regen_morale: bool,
     /// Aggression, from -100 to 100.
     pub aggression: i32,
     /// Weight in milligrams.
@@ -340,6 +342,10 @@ fn apply(monster: &mut MonsterType, object: &Object, inherited: bool) -> Result<
     monster.dodge = count(object, "dodge", monster.dodge)?;
     monster.morale = count(object, "morale", monster.morale)?;
     monster.aggression = count(object, "aggression", monster.aggression)?;
+    // A plain JSON boolean in the dump, so it is read directly rather than through a helper that would need its own gate.
+    if let Some(cdda_json::Value::Bool(said)) = object.get("regen_morale") {
+        monster.regen_morale = *said;
+    }
     monster.weight = assigned(object, "weight", monster.weight, Unit::Mass, 1);
     monster.volume = assigned(object, "volume", monster.volume, Unit::Volume, 1);
     species_and_categories(monster, object);
@@ -560,6 +566,8 @@ impl MonsterType {
             melee_skill: 0,
             dodge: 0,
             morale: 0,
+            // `mtype::regen_morale` starts false: most monsters do not get their nerve back, and the 23 that do say so.
+            regen_morale: false,
             aggression: 0,
             // The reference's own defaults: no dice (`mtype::melee_dice` starts at zero) and no armour.
             melee_dice: 0,

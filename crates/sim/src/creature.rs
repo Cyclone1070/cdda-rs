@@ -1638,6 +1638,11 @@ pub fn spawn_monster_of_type(
         AttackCost(monster_type.attack_cost),
         Morale(monster_type.morale),
         Anger(monster_type.aggression),
+        Nerve {
+            morale: monster_type.morale,
+            anger: monster_type.aggression,
+            regenerates: monster_type.regen_morale,
+        },
     ));
     // Reference: `monster::monster( const mtype * )` copies `type->flags` onto the monster, and every question about what it can do - `can_hear` among them - is asked of that
     // set (`monster.cpp:1318`). Without this a spawned monster is deaf and blind whatever its type says.
@@ -2098,6 +2103,60 @@ fn weapon_skill_of(world: &World, holder: Entity) -> Option<&'static str> {
         names.melee_cut_of(kind),
         names.melee_stab_of(kind),
     )
+}
+
+/// The nerve a monster was born with: the morale and anger its type states, and whether it can get them back.
+///
+/// Reference: `mtype::morale`, `mtype::agro` and `mtype::regen_morale`, read by `monster::process_turn` (`monster.cpp:3493-3512`). `Morale` and `Anger` are what the monster feels *now*;
+/// this is what it returns to.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Nerve {
+    /// The type's morale.
+    pub morale: i32,
+    /// The type's anger.
+    pub anger: i32,
+    /// Whether the monster regenerates nerve at all.
+    pub regenerates: bool,
+}
+
+/// Gets a monster's nerve back, one point at a time - and five at a time while it is still in the negative.
+///
+/// Reference: `monster::process_turn` (`monster.cpp:3493-3512`), kept in the reference's own order, because the order is the rule: a monster that is **fleeing** at full health snaps all
+/// the way back first, then gains one morale and one anger, and **then** - if either is still negative and still below the type's value - gains **five** more and is clamped. Applying
+/// the five before the one, or clamping once at the end, gives different numbers for the same monster.
+///
+/// The gate on the whole thing is `type->regen_morale && hp >= hp_max`: a wounded monster does not calm down, and a type that does not regenerate never does.
+#[must_use]
+pub fn regen_nerve(
+    hp: i32,
+    max_hp: i32,
+    morale: i32,
+    anger: i32,
+    nerve: Nerve,
+    fleeing: bool,
+) -> (i32, i32) {
+    if !nerve.regenerates || hp < max_hp {
+        return (morale, anger);
+    }
+    let (mut morale, mut anger) = (morale, anger);
+    if fleeing {
+        morale = nerve.morale;
+        anger = nerve.anger;
+    }
+    if morale < nerve.morale {
+        morale += 1;
+    }
+    if anger < nerve.anger {
+        anger += 1;
+    }
+    if morale < 0 && morale < nerve.morale {
+        // `morale += 5; morale = std::min( morale, type->morale );` - the clamp is what stops the jump from overshooting the type's own value.
+        morale = nerve.morale.min(morale + 5);
+    }
+    if anger < 0 && anger < nerve.anger {
+        anger = nerve.anger.min(anger + 5);
+    }
+    (morale, anger)
 }
 
 /// What a monster thinks of what it is looking at.

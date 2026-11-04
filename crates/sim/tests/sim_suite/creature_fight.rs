@@ -1230,3 +1230,36 @@ fn a_monster_runs_when_it_is_frightened_or_when_a_follower_gets_too_close() {
     // And an attacker never runs.
     assert!(!is_fleeing(100, 100, 10, 50, 1), "a furious monster does not back off");
 }
+
+/// A monster gets its nerve back a point at a time, and five at a time while it is still negative.
+///
+/// Reference: `monster::process_turn` (`monster.cpp:3493-3512`), in the reference's order: the fleeing monster snaps back to its type's values, then one point of morale and one of anger,
+/// and then - only if still negative and still below the type's value - five more, clamped to the type's value.
+#[test]
+fn a_monster_gets_its_nerve_back_a_point_at_a_time() {
+    use cdda_sim::creature::{Nerve, regen_nerve};
+
+    let plain = Nerve { morale: 10, anger: 20, regenerates: true };
+    // Not regenerating, or wounded: nothing changes.
+    let still = Nerve { regenerates: false, ..plain };
+    assert_eq!(regen_nerve(100, 100, -30, 0, still, false), (-30, 0), "a type that does not regenerate never calms");
+    assert_eq!(regen_nerve(99, 100, -30, 0, plain, false), (-30, 0), "and a wounded monster does not calm down");
+
+    // Positive morale below the type's value: exactly one point.
+    assert_eq!(regen_nerve(100, 100, 5, 15, plain, false), (6, 16), "one point each");
+
+    // Negative morale: one point, then five more, then clamped at the type's value.
+    assert_eq!(regen_nerve(100, 100, -30, -30, plain, false), (-24, -24), "six points of recovery from -30");
+    // From three below zero: one point to -2, then five more, and the five lands at +3 rather than stopping at zero - the reference clamps to the **type's** value, not to zero.
+    assert_eq!(regen_nerve(100, 100, -3, -3, plain, false), (3, 3), "the jump lands where the arithmetic puts it");
+    // And it does clamp when the jump would pass the type's own value.
+    assert_eq!(
+        regen_nerve(100, 100, -3, -3, Nerve { morale: 1, anger: 1, regenerates: true }, false),
+        (1, 1),
+        "the five-point jump is clamped to the type's value"
+    );
+    assert_eq!(regen_nerve(100, 100, 5, 5, Nerve { morale: 1, anger: 1, regenerates: true }, false), (5, 5), "already above the type's value: nothing to regain");
+
+    // Fleeing at full health: straight back to the type's own nerve, and no further arithmetic to do.
+    assert_eq!(regen_nerve(100, 100, -50, -50, plain, true), (10, 20), "a fleeing monster at full health snaps back");
+}

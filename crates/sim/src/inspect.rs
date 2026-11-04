@@ -50,6 +50,7 @@ named_components! {
     "Stamina" => crate::creature::Stamina,
     "Morale" => crate::creature::Morale,
     "Anger" => crate::creature::Anger,
+    "Nerve" => crate::creature::Nerve,
     "Armour" => crate::creature::Armour,
     "Goal" => crate::creature::Goal,
     "Wander" => crate::creature::Wander,

@@ -12590,3 +12590,30 @@ too close, five is far enough) pins the `<=` in the reference, which is the kind
 **Named, not invented:** the reference's first line reads a `FLEEING` effect cache, which this port has no effects for; the effect only ever mirrors the answer, so leaving it out changes
 nothing. `REVIVE_SPECIAL` was checked this round too and is **declared in `flags.json` but used by no monster in the data**, so the port's corpse rule is complete without it - a fact
 verified rather than assumed.
+
+## A monster gets its nerve back (round 1126)
+
+Rounds 1122-1125 made fear work and left the other half out: nothing ever calmed a monster down. The reference has `monster::process_turn`'s nerve regrowth (`monster.cpp:3493-3512`), and
+it needed a **new column in the corpus first**.
+
+| Piece | Reference | Port |
+|---|---|---|
+the gate on the whole thing | `type->regen_morale && hp >= type->hp` | `regen_nerve` returns the numbers unchanged otherwise |
+the snap-back | a **fleeing** monster at full health gets `morale = type->morale` and `anger = type->agro` outright | the same, first |
+the trickle | one point each, while below the type's value | the same |
+the jump | while **negative** and below the type's value: five more, clamped to the type's value | the same, in the reference's order |
+New data | `mtype::regen_morale`, which **23 of 1,154** types state | dump **version 8**, `MonsterType::regen_morale`, and a `Nerve` component carrying the type's morale, anger and flag |
+Gate | - | `a_monster_gets_its_nerve_back_a_point_at_a_time` - both gates, the trickle, the jump, the clamp, and the snap-back |
+
+**The oracle had to move first.** `regen_morale` was not in the monster dump at all, so the port could not have written this rule from data - it would have had to regenerate nerve for
+**every** monster or for none. Dump version 8 adds it, and the loader reads a JSON boolean directly rather than inventing a helper for one field.
+
+**The reference's order is the rule, and the gate found where I had mis-read it.** My first expectation for a monster three points below zero was that it would stop at zero; the
+reference adds one, then five, and clamps to the **type's** value - so it lands at **+3**. **Only the clamp against the type's own value (11 below, type 1 -> 1) actually clamps.** A port
+that clamped to zero, or applied the five before the one, gets a different monster for the same data.
+
+**And the naming table caught the new component before the suite did anything else** - `Nerve` printed as `?`. That is the third time this gate has fired for a new component
+(`AttackCost`, `Stamina`, now `Nerve`), which is what it is for: **a component nobody can name is a component nobody can inspect.**
+
+**Named, not invented:** the reference's `spooked` effects (three turns of a scream when another monster dies nearby), and `monster::process_turn`'s regeneration of hit points, which the
+port already has. **Nothing yet calls `regen_nerve` from the turn** - the pieces are in place and wiring it is the next round's work, said here rather than implied.

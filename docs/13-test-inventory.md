@@ -698,3 +698,7 @@ reference asks `is_fleeing` of every monster that moves (`monmove.cpp:489`). Pro
 **Round 1125 asked the reference's own question about fear**: `creature::is_fleeing` (`monster::is_fleeing`, `monster.cpp:1608-1618`) - the two hundred-point vetoes, then the attitude, then
 **a follower within four squares flees too**, which is what makes "follow" mean keep your distance. The walk now uses it instead of reading `attitude == Flee` alone. Gated by
 `creature_fight::a_monster_runs_when_it_is_frightened_or_when_a_follower_gets_too_close`, including the four/five boundary.
+
+**Round 1126 brought nerve regrowth across, with new corpus data**: `creature::regen_nerve` (`monster::process_turn`, `monster.cpp:3493-3512`), the `Nerve` component carrying the type's
+morale, anger and `regen_morale`, and monster dump **version 8** adding `regen_morale` (23 of 1,154 types). Gated by
+`creature_fight::a_monster_gets_its_nerve_back_a_point_at_a_time`. **Nothing calls `regen_nerve` from the turn yet** - that wiring is named as the next step.
