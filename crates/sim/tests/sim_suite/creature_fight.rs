@@ -770,3 +770,64 @@ fn a_monster_whose_data_states_a_flat_blow_hits_for_it() {
     assert_eq!(attack.fixed.bash, 0, "and the flat bash it does not have stays zero");
     assert!(attack.dice > 0, "and its dice are still there as well: {}", attack.dice);
 }
+
+/// A blow is charged to the monster before it lands, so a monster that has walked cannot also swing for free.
+///
+/// Reference: `monster::melee_attack` calls `mod_moves( -type->attack_cost )` **before** it checks its reach (`monster.cpp:2108`) - the charge is for the attempt, not the hit. The
+/// gate gives the monster exactly two turns' worth of moves and watches both blows take their cost, so a strike that forgot to charge would leave the count untouched.
+#[test]
+fn a_monster_pays_for_its_blow_out_of_its_own_moves() {
+    use bevy_ecs::prelude::*;
+
+    let mut world = World::new();
+    singletons::put_rolls(&mut world, Rolls::new(11));
+    let mut level = Level::new();
+    for x in 0..4 {
+        for y in 0..4 {
+            level.set_terrain(x, y, 1, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+
+    let mut monster_type = {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+        let text = std::fs::read(path).expect("the monster dump exists");
+        let value = cdda_json::parse(&text).expect("the dump is valid JSON");
+        let cdda_json::Value::Object(root) = value else {
+            panic!("the dump's root is not an object")
+        };
+        let Some(cdda_json::Value::Array(prototypes)) = root.get("prototypes") else {
+            panic!("the dump has no prototypes")
+        };
+        cdda_content::monsters::load_objects(prototypes)
+            .expect("the dump loads")
+            .into_iter()
+            .find(|one| one.id == "mon_zombie")
+            .expect("the corpus has a zombie")
+    };
+    assert_eq!(monster_type.attack_cost, 100, "a zombie's blow costs a turn");
+    monster_type.attack_cost = 60;
+
+    let zombie = cdda_sim::creature::spawn_monster_of_type(
+        &mut world,
+        cdda_sim::MonsterKindId(1),
+        &monster_type,
+        (1, 1, 0),
+        100,
+    );
+    let survivor = cdda_sim::spawn_player(&mut world, (0, 1), 80, 0);
+    cdda_sim::creature::set_moves(&mut world, zombie, 200);
+
+    cdda_sim::creature::strike_at(&mut world, zombie, survivor).expect("the zombie can swing");
+    assert_eq!(
+        cdda_sim::creature::moves_left(&world, zombie),
+        140,
+        "the first blow costs its sixty, hit or miss"
+    );
+    cdda_sim::creature::strike_at(&mut world, zombie, survivor).expect("and again");
+    assert_eq!(
+        cdda_sim::creature::moves_left(&world, zombie),
+        80,
+        "the second costs the same"
+    );
+}

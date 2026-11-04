@@ -49,6 +49,10 @@ pub struct MonsterType {
     pub melee_cut: i32,
     /// The flat stab part.
     pub melee_stab: i32,
+    /// What a blow costs the monster in moves, which `monster::melee_attack` charges before it even swings (`monster.cpp:2108`).
+    ///
+    /// The reference's default is a hundred moves - one turn's worth - so a monster that has walked cannot also swing, and a monster that swings has no walk left.
+    pub attack_cost: i32,
     /// The hit points it mends per hour on its own, when the data states a rate (`mtype::regenerates`).
     pub regenerates: f64,
     /// Its resistance to bash.
@@ -315,6 +319,7 @@ fn apply(monster: &mut MonsterType, object: &Object, inherited: bool) -> Result<
     monster.melee_bash = real(object, "melee_bash", monster.melee_bash);
     monster.melee_cut = real(object, "melee_cut", monster.melee_cut);
     monster.melee_stab = real(object, "melee_stab", monster.melee_stab);
+    monster.attack_cost = count(object, "attack_cost", monster.attack_cost)?;
     // Armour is read flat in the dump (`resistance_values` writes one integer per damage type) rather
     // than as the `armor` object the game's JSON uses, because the dump is what this loader is fed.
     monster.armor_bash = count(object, "armor_bash", monster.armor_bash)?;
@@ -563,6 +568,7 @@ impl MonsterType {
             melee_bash: 0,
             melee_cut: 0,
             melee_stab: 0,
+            attack_cost: 100,
             armor_bash: 0,
             armor_cut: 0,
             armor_stab: 0,

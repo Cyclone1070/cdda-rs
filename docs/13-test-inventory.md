@@ -625,3 +625,8 @@ data.
 the roll passes one and a half times the target's dodge - gated by `melee_rules::a_swing_is_a_critical_hit_by_three_chances_multiplied` on the reference's **own worked examples**
 (fresh 8/8/8/8 = 50/49/25, expert 10/10/10/10 = 100/55/60) plus a recorded divergence: the comment's godlike figures (100%, 42%) disagree with the constants below it (85%, 95%), and
 the port follows the code. **Nothing calls the rule yet**; the damage multiplier in `deal_melee_hit` is the next slice.
+
+**Round 1109 charged a monster for its blow**: dump **version 7** adds `attack_cost` (**1,048 of 1,154** cost the default 100; the other 106 cost 50, 110, 120, 150 or 200), the loader
+reads it, `spawn_monster_of_type` writes `AttackCost`, and `strike_at` spends it **before** the swing, as `monster.cpp:2108` does. Gated by
+`creature_fight::a_monster_pays_for_its_blow_out_of_its_own_moves` (200 → 140 → 80 over two blows at 60). The QA gate
+`inspect_names::every_component_a_creature_carries_has_a_name` failed first, because the new component had no name in the report table.

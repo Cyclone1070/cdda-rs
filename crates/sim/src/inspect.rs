@@ -45,6 +45,7 @@ named_components! {
     "Moves" => crate::creature::Moves,
     "Dodge" => crate::creature::Dodge,
     "MeleeAttack" => crate::creature::MeleeAttack,
+    "AttackCost" => crate::creature::AttackCost,
     "Armour" => crate::creature::Armour,
     "Goal" => crate::creature::Goal,
     "Wander" => crate::creature::Wander,

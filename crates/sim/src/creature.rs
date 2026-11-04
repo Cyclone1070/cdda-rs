@@ -1635,6 +1635,7 @@ pub fn spawn_monster_of_type(
         Dodge {
             points: monster_type.dodge,
         },
+        AttackCost(monster_type.attack_cost),
     ));
     // Reference: `monster::monster( const mtype * )` copies `type->flags` onto the monster, and every question about what it can do - `can_hear` among them - is asked of that
     // set (`monster.cpp:1318`). Without this a spawned monster is deaf and blind whatever its type says.
@@ -1980,8 +1981,19 @@ fn strike_what_the_goal_holds(world: &mut World, attacker: Entity, goal: (i32, i
 /// Answers `None` when there is nothing to hit with or no dice to hit with, which is why the caller can tell a miss (`Some(0)`) from a blow that never happened.
 pub fn strike_at(world: &mut World, attacker: Entity, victim: Entity) -> Option<i32> {
     let attack = world.get::<MeleeAttack>(attacker).copied()?;
+    // Reference: a blow is charged to the attacker **before** it is thrown, hit or miss (`monster::melee_attack`, `monster.cpp:2108`), which is what stops a fast monster
+    // swinging for ever and what makes walking and swinging cost the same purse.
+    let cost = world.get::<AttackCost>(attacker).map_or(0, |carried| carried.0);
+    spend_moves(world, attacker, f64::from(cost));
     strike_with(world, victim, attack.0)
 }
+
+/// What one blow costs this creature in moves.
+///
+/// Reference: `mtype::attack_cost`, which `monster::melee_attack` charges whether the blow lands or not (`monster.cpp:2108`). A character's own swing has its own cost rule; this
+/// component is what a monster's blow is charged from, and a creature without it is charged nothing.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AttackCost(pub i32);
 
 /// What a character has practised, by skill id, and how far.
 ///

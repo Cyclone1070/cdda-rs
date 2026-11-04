@@ -12233,3 +12233,25 @@ the port now says that in the code.
 
 **What the gate cannot prove, and says so:** the function is arithmetic over six inputs, and the fixture is the reference's numbers rather than a swing. **When the multiplier lands,
 `deal_melee_hit` will be the gate that proves the swing actually crits.**
+
+## A blow costs the monster moves - and the dump now says how many (round 1109)
+
+`monster::melee_attack` calls `mod_moves( -type->attack_cost )` **before it checks its reach** (`monster.cpp:2108`). The port swung for free.
+
+| Piece | What it says |
+|---|---|
+Dump **version 7** | `attack_cost` per prototype |
+What the data has | **1,048 of 1,154** cost the default **100**; the rest are cheaper or dearer: 200 (14), 150 (9), 110 (9), 50 (9), 120 (5) |
+`mon_zombie` | 100 - one turn's worth, so a zombie that swings cannot also walk |
+`AttackCost` component | written by `spawn_monster_of_type`, read by `strike_at` |
+Gate | `a_monster_pays_for_its_blow_out_of_its_own_moves`: two turns of moves, two blows at 60, the count falls 200 → 140 → 80 |
+
+**The charge is for the attempt, not the hit**, and that is the rule rather than a detail: the reference takes the moves before it even asks whether anything is in reach, so a monster
+that swings at air pays as surely as one that connects. A port that charged on the hit would make fumbling free, and a monster's turn would depend on luck.
+
+**1,048 of 1,154 costing exactly 100 is why the default was tempting and why it was not taken.** The remaining **106** cost 50, 110, 120, 150 or 200 - and those are the monsters whose
+turn shape differs: a fast one strikes twice, a heavy one strikes and cannot move. **A default that is right for nine in ten is a default that lies about the tenth.**
+
+**The QA surface caught this round's own omission.** `inspect_names::every_component_a_creature_carries_has_a_name` failed the whole suite because the new `AttackCost` had no line in
+the naming table - the report would have printed `?` for it, which is exactly the "inspection that cannot show you the state" failure the QA surface exists to prevent. **A gate about the
+tools caught a defect in the tools, which is why the tools have gates.**
