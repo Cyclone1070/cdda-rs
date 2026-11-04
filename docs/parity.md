@@ -11993,3 +11993,25 @@ skill bonus and no invented one.
 **A test bug worth recording: the fixture's tuple order.** `world_with_kinds` returns `(world, null, rock, knife)` and the new test destructured it as `(world, rock, _, knife)`, so the
 "rock" it swung was **the null item** - and the assertion read **0** where 10 was expected. **The numbers said which slot was wrong**, which is what a gate with an exact expectation is
 for; a looser assertion (`>= 0`) would have passed and taught nothing.
+
+## A monster's blow inside a turn does nothing, and that is now a named defect (round 1098)
+
+This round tried to add the fourth fight scenario: **a zombie beside the survivor, told where to go, hurting it**. The scenario failed, and the failure is a finding rather than a
+mistake in the scenario.
+
+| What was tried | What happened |
+|---|---|
+`monster mon_zombie 1 0`, then a `goal 0 0` step on every creature, then turns | the survivor kept **all 80 hit points** over three turns |
+outside a turn | `creature_fight`'s gates swing the same zombie at the same survivor and take hit points off it |
+**suspect** | the creature stage's swings run **inside** the schedule, where the dice holder may already be taken - a blow with no dice answers `None` and no one notices |
+Status | **not fixed, not guessed at**; the scenario and its `goal` step were **deleted rather than shipped failing** |
+
+**Why this is written down instead of worked around.** A monster that cannot hurt the survivor inside a turn means **the game's other half does not exist yet**, however green the
+suite looks: every fight test so far swings out of band. The next round starts at `take_rolls` in the creature stage, and the gate is the scenario that just failed - a survivor
+losing hit points to a zombie it did not attack.
+
+**`goal` is deleted with it, and the deletion is deliberate.** A scenario step nothing uses is dead surface, and this port's rule is that every public thing has a caller or a line in
+the inventory. **When the fight works inside the turn, `goal` comes back with the scenario that needs it.**
+
+**The lesson this round cost two gates and no guesses.** A scenario that failed for an unknown reason is worth **more** than a scenario that was never written: it says exactly which
+half of the game is missing, and it does not pretend the port is further along than it is.

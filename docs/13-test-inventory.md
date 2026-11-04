@@ -576,3 +576,7 @@ round every object-stated item - most of the game's weapons - aimed two points w
 melee columns - the gate that would have caught round 1096's object-`to_hit` bug, which every registry test missed because both the fixture and the expectation came from the dump.
 Alongside it, `melee::weapon_skill` (`item::melee_skill`, `item.cpp:11071-11090`), `creature::Skills`/`skill_level` and the wiring into `blow_from_what_the_character_holds`: **a weapon
 is swung with the skill its biggest damage type trains**, and a thing that does no damage trains nothing.
+
+**Round 1098 found a defect and named it**: a monster's blow **inside a turn** leaves the survivor unharmed, while the same blow out of band takes hit points off it. The suspect is
+`take_rolls` in the creature stage - a swing with no dice answers `None` and nothing reports it. The attempt's scenario and its `goal` step were **deleted rather than shipped failing**;
+the scenario returns as the gate when the turn can make a monster hurt the survivor.
