@@ -57,3 +57,31 @@ fn point_shooting_goes_further_with_a_rifle_than_with_a_bow_until_mastery() {
     assert!(point_shooting_limit(0, true) > point_shooting_limit(0, false), "a bow point-shoots further at nothing: 250 against 200");
     assert!(point_shooting_limit(10, false) > point_shooting_limit(10, true), "and a rifle further at mastery: 100 against 50");
 }
+
+/// Sight error is the shooter's perception added to the sights' own figure, and a zoomed sight takes a quarter of it.
+///
+/// Reference: `get_character_parallax` and `effective_dispersion` (`character.cpp:941-953`). The rule exists so that **the same sights are worth different numbers to different shooters** - the
+/// thing a port flattens by storing one "sight dispersion" per gun - and the zoom quarter is the only place the two differ.
+#[test]
+fn the_same_sights_are_worse_in_weak_eyes_and_a_zoom_takes_a_quarter_off() {
+    use cdda_sim::aim::{character_parallax, effective_dispersion};
+
+    // Ten perception is twelve units of parallax (the 1.2 a point from `ranged_per_mod`), and eight is fourteen.
+    assert_eq!(character_parallax(10, false), 12, "ten perception costs twelve");
+    assert_eq!(character_parallax(8, false), 14, "and eight costs fourteen");
+    assert_eq!(character_parallax(20, false), 0, "twenty is free");
+    assert_eq!(character_parallax(24, false), 0, "and above twenty it stays free - the clamp at zero is after rounding");
+
+    assert_eq!(character_parallax(10, true), 3, "a zoomed sight takes a quarter of the twelve");
+    assert_eq!(character_parallax(8, true), 4, "fourteen quarters to three and a half, which rounds to four");
+    assert_eq!(character_parallax(2, true), 5, "twenty-one and a half quarters to five");
+
+    // The sights themselves: a hundred-dispersion sight is 112 in ten-perception hands and 100 in perfect ones.
+    assert_eq!(effective_dispersion(100, 10, false), 112, "the sights plus the parallax");
+    assert_eq!(effective_dispersion(100, 20, false), 100, "and the sights alone in good eyes");
+    assert_eq!(effective_dispersion(100, 10, true), 103, "while a scope takes all but three of it");
+    assert!(
+        effective_dispersion(100, 8, false) > effective_dispersion(100, 10, false),
+        "worse eyes, worse sights: 114 against 112"
+    );
+}

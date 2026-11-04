@@ -13282,3 +13282,24 @@ so changing the expectation there to 6 was wrong: the ÷18 happens in `shotmaker
 shot is aimed with" now has its own function name**, `gun_dispersion`, and that is the fix that makes the next reader's mistake impossible rather than merely unlikely.
 
 **Named, not invented:** gunmods' dispersion, `with_scaling` (which the reference uses for the aiming UI's display and not for the shot), and `sight_dispersion`'s own divider.
+
+## The same sights are worse in weak eyes (round 1156)
+
+| Piece | Reference | Port |
+|---|---|---|
+the parallax | `get_character_parallax` (`character.cpp:946-953`) | `aim::character_parallax(perception, zoom)` |
+the sights | `effective_dispersion` (`character.cpp:941-944`) | `aim::effective_dispersion(sight, perception, zoom)` |
+Gate | - | `the_same_sights_are_worse_in_weak_eyes_and_a_zoom_takes_a_quarter_off` |
+
+**Perception is the whole of it**, at the coefficient `ranged_per_mod` already uses - twelve units at ten perception - and a **zoomed** sight takes a quarter, which is exactly what "zoom" means in
+this rule: the same eyes, a narrower view, four times less error.
+
+**The rule exists so that a set of sights is not a number.** It is worth 112 in ten-perception hands, 100 in perfect ones and 114 in eight-perception ones, **so a port that stored one
+`sight_dispersion` per gun would be wrong for every shooter who is not average** - and the average shooter is exactly the one whose tests pass.
+
+**The clamp is after the rounding, and the gate pins that edge.** Fourteen units quartered is three and a half, which rounds to four; twenty-one and a half rounds to five; and a perception above
+twenty cannot make the sights better than the sights, because the parallax floors at zero rather than going negative.
+
+**Named, not invented:** `character_modifier_ranged_dispersion_vision_mod` (one point zero in the port - no effect it carries states one), eye encumbrance and blindness (the reference's
+`ranged_per_mod` path does not read them; `throwing_dispersion` does, and that is a different rule), and the **gun's own `sight_dispersion` column**, which the guns dump does not carry yet - so
+every number in this round is the rule's, and the data that feeds it is the next dump.

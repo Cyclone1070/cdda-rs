@@ -6,6 +6,35 @@
 
 use crate::morale::logarithmic_range;
 
+/// The error a shooter's own eyes add to a set of sights: `Character::get_character_parallax` (`character.cpp:946-953`).
+///
+/// **Perception is the whole of it**, at the coefficient `ranged_per_mod` already uses (`(20 - per) * 1.2`, round 1136), and a **zoomed** sight takes only a quarter of it - which is what
+/// "zoom" means here: the same eyes, a narrower view, four times less error. The reference's `character_modifier_ranged_dispersion_vision_mod` is one point zero in the port because no effect
+/// it carries states one, and that is said rather than left to look like an omission.
+///
+/// The result is clamped at zero **after rounding**, so a perception above twenty cannot make sights better than the sights.
+#[must_use]
+#[allow(clippy::cast_possible_truncation)]
+pub fn character_parallax(perception: i32, zoom: bool) -> i32 {
+    let dispersion = crate::dispersion::from_perception(perception);
+    let scaled = if zoom {
+        f64::from(dispersion) * 0.25
+    } else {
+        f64::from(dispersion)
+    };
+    let rounded = scaled.round() as i32;
+    rounded.max(0)
+}
+
+/// What a set of sights is worth in a given shooter's hands: `Character::effective_dispersion` (`character.cpp:941-944`).
+///
+/// It is one addition - the sights' own figure plus the shooter's parallax - and the whole point of keeping it as a function is that **the same sights are worth different numbers to different
+/// shooters**, which is the rule a port is most likely to flatten by storing a single "sight dispersion" per gun.
+#[must_use]
+pub fn effective_dispersion(sight_dispersion: i32, perception: i32, zoom: bool) -> i32 {
+    character_parallax(perception, zoom) + sight_dispersion
+}
+
 /// How fast aiming improves while the shooter is still shaking, attenuated by how far past the sights' own precision the recoil is.
 ///
 /// Reference: `modified_sight_speed` (`character.cpp:955-975`):

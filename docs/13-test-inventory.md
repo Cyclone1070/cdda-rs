@@ -821,3 +821,7 @@ which corrected a first reading that had the curves' direction backwards. **No c
 **Round 1155 ported the dispersion divider**: `dispersion::gun_dispersion(raw, damage_level, per_damage, divider)` (`item::gun_dispersion`, `item.cpp:11108-11132`) - damage at **30** a level,
 floored at zero, divided by **18** and floored at **one** - and `shotmaker_for` now uses it. Gated by `melee_rules::a_gun_s_dispersion_is_divided_and_floored_before_anything_is_added_to_it`. Every
 dispersion the port composed from round 1136 to 1154 was eighteen times too large, which the docs record.
+
+**Round 1156 ported sight error**: `aim::character_parallax` (`get_character_parallax`, `character.cpp:946-953` - perception's dispersion, a quarter of it through a zoom, clamped at zero after
+rounding) and `aim::effective_dispersion` (`character.cpp:941-944`). Gated by
+`aim_rules::the_same_sights_are_worse_in_weak_eyes_and_a_zoom_takes_a_quarter_off`. The gun's `sight_dispersion` column is **not dumped yet**, which the docs name.
