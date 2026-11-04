@@ -323,3 +323,28 @@ the game rolls against, but it is a difference and the ledger says so.
 ## The dice follow the oracle's standard library
 
 The standard library's distributions are implementation-defined: the same seeds produce different draws under libc++ (macOS) and libstdc++ (gcc), and `corpus/rng/` holds the two side by side — 64 of 98 draws apart. The port follows **libstdc++**, because the oracle every recording comes from is a gcc build. The consequence to state plainly: a port held to these numbers reproduces the Linux oracle, not a macOS build of the original. CDDA itself does not promise cross-platform dice, so there is no third option to match; choosing the oracle is choosing the only reference we can record.
+
+## A loader is fed the shape it was written for
+
+**Decision.** Every content loader names the source it reads and the shape that source has. A loader written against a **dump** (`cdda_content::monsters`, which reads one number per
+damage type and calls the dice faces `melee_sides`) is fed the reference's dump; a loader written against the **game's own JSON** (`cdda_content::items`, which reads `melee_damage`
+objects and the nested `armor` form) is fed the game's JSON. Nothing is fed a source it was not written for, and nothing quietly falls back to a default when a field is missing in a
+shape it did not expect.
+
+**Why.** Round 1100 found the CLI feeding the monster loader the game's own JSON. The two shapes disagree on field names - `monster.h`'s member is `melee_sides`, the game's JSON
+member is `melee_dice_sides` (`monstergenerator.cpp:813`) - and on structure (armour is a nested `armor` object in the JSON, one flat number per type in the dump). **The loader did
+what any tolerant loader does: it took the fields it recognised and left the rest at zero.** Every monster in every playtest therefore swung **`2d0`**, carried no stab armour and
+looked entirely healthy: a full set of type records, a full set of flags, a full set of hit points, and no fight.
+
+**What this rejects.** *"Be liberal in what you accept."* A tolerant reader turns a wrong file into a wrong world with no error anywhere, and this port's whole method is that a zero
+must be a **fact from the data**, not the absence of one. It also rejects a single generic loader that sniffs the shape of its input: the reference has two shapes because two
+different things write them, and a loader that guesses which it has cannot say which rules it is applying.
+
+**How it is kept.** Three defences, each found by a round that paid for it:
+
+| Defence | Catches |
+|---|---|
+`content_suite::item_melee_parity` | a loader that disagrees with the dump on **9,912** items |
+`creature_fight::a_monster_that_reaches_the_survivor_hurts_it_in_the_turn` | a scheduled blow that cannot hurt anyone |
+`cli::every_table_a_scenario_installs_is_filled_from_the_source_its_loader_speaks` | a table installed from the wrong shape: a zombie's dice faces, some monster's stab armour, some monster's bashing armour |
+Playtest report lines | a monster's **dice and accuracy**, printed where a reader can see `2d0` |

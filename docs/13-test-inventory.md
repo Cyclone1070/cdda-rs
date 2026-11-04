@@ -589,3 +589,7 @@ in `spawn_monster_of_type`'s copy of `melee_sides`. The `monster` step's report 
 so `melee_dice_sides` was never read and every monster swung `2d0` with no stab armour. `monster_types()` now reads `corpus/monsters/monsters.json` through `load_objects`, and
 `scenarios/a_zombie_in_reach_hurts_the_survivor.txt` passes: a zombie that reaches the survivor takes hit points off it (`hurt: the survivor is down to 77 of 80`), which is the
 fight's other half proved through the schedule.
+
+**Round 1101 turned round 1100's defect into a rule**: `docs/03-decisions.md` now states *a loader is fed the shape it was written for*, and
+`cli::every_table_a_scenario_installs_is_filled_from_the_source_its_loader_speaks` asks for the three fields a wrong shape loses - a zombie's **dice faces**, some monster's **stab
+armour** and some monster's **bashing armour** - rather than for a count, because a count is exactly what the defect produced: 1,155 types, every one swinging `2d0`.

@@ -12061,3 +12061,20 @@ hurt: the survivor is down to 77 of 80
 **The lesson is about where content comes from.** A loader written against a dump must be fed the dump; a loader written against raw JSON must be fed raw JSON. **This port has both
 kinds and no rule saying which file each one gets**, which is how one file name produced three silent zeros. The report line that prints a monster's dice is what turned it from a
 mystery into a one-line fix, and it stays.
+
+## The wrong-shape defect is now a rule, a gate and a decision (round 1101)
+
+Round 1100 fixed a file name. This round makes the class of defect hard to repeat.
+
+| Piece | Where |
+|---|---|
+Decision | `docs/03-decisions.md` - *a loader is fed the shape it was written for*, with what it rejects |
+Gate | `cli::every_table_a_scenario_installs_is_filled_from_the_source_its_loader_speaks` - a zombie's **dice faces**, some monster's **stab armour**, some monster's **bashing armour** |
+Counts | items **> 9,000**, monsters **> 1,000**, so an empty or half-read table fails before the field checks run |
+
+**The gate asks for the three fields the wrong shape loses, not for a count.** A count is what the bug produced: **1,155 monster types, all of them with `2d0`.** Only asking for a
+field can tell "loaded" from "loaded wrongly", and the three chosen are exactly the ones the game's JSON spells differently - `melee_dice_sides`, the nested `armor` object, and the
+`melee_skills` family - so a fallback to the old path fails at the first assertion.
+
+**What the decision rejects is worth naming: "be liberal in what you accept".** A tolerant reader turns a wrong file into a wrong world with no error anywhere, and this port's method is
+that **a zero must be a fact from the data, not the absence of one.** That sentence is the reason the loader keeps its shape and the caller is corrected instead.

@@ -1299,6 +1299,40 @@ mod tests {
     #![allow(clippy::panic, clippy::expect_used)]
     use super::*;
 
+    /// Every table the scenarios install is **non-empty**, which is the one check that catches a loader fed the wrong shape.
+    ///
+    /// Round 1100's defect was a file name: the monster loader was handed the game's own JSON, which names dice faces `melee_dice_sides`, so every monster it loaded had **zero
+    /// sides** and the world looked populated. A count of kinds says nothing about that; what says something is asking each installed table for a **specific field** the wrong shape
+    /// would leave empty. Three fields, one per loader, chosen because each is the field the wrong shape loses.
+    #[test]
+    fn every_table_a_scenario_installs_is_filled_from_the_source_its_loader_speaks() {
+        let mut world = World::new();
+        let items = install_item_data(&mut world).expect("the item data is in the repository");
+        assert!(items > 9_000, "every item type: {items}");
+
+        let monsters = install_monster_data(&mut world).expect("the monster data is in the repository");
+        assert!(monsters > 1_000, "every monster prototype: {monsters}");
+
+        let Some(types) = monster_types() else {
+            panic!("the monster data is in the repository")
+        };
+        let zombie = types
+            .iter()
+            .find(|monster| monster.id == "mon_zombie")
+            .expect("the data has a zombie");
+        // The three fields the wrong shape loses: dice faces, stab armour and the bashing armour that lives in a nested object in the game's JSON.
+        assert_eq!(zombie.melee_sides, 3, "a zombie's dice have faces");
+        assert!(zombie.melee_dice > 0, "and there is more than none of them");
+        assert!(
+            types.iter().any(|monster| monster.armor_stab > 0),
+            "and some monster resists stabbing at all"
+        );
+        assert!(
+            types.iter().any(|monster| monster.armor_bash > 0),
+            "and some monster resists bashing, which the game's JSON nests in an object"
+        );
+    }
+
     #[test]
     fn the_avatar_can_be_dressed_from_the_game_s_data() {
         let mut world = World::new();
