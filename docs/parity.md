@@ -13233,3 +13233,29 @@ guessed at**: until `aim_per_move` is ported, a shooter in the port can only get
 
 **Named, not invented:** `aim_per_move` and the aim activity (which is what actually lowers recoil), `RECOIL_MODIFIER`, the `delay` term that bipods and mech weapons add at the end of a
 burst, and `is_mech_weapon`'s halving.
+
+## How fast aiming improves, and how far point shooting goes (round 1154)
+
+The recoil the port accumulates needed something that **spends** it. These two rules are the first half of that, and neither needs the aiming activity to exist.
+
+| Piece | Reference | Port |
+|---|---|---|
+how fast | `modified_sight_speed` (`character.cpp:955-975`) | `aim::sight_speed_with_attenuation(modifier, sight_dispersion, recoil)` |
+how far | `point_shooting_limit` (`character.cpp:977-987`) | `aim::point_shooting_limit(skill, archery)` |
+Gates | - | `the_sight_speed_bonus_fades_as_the_recoil_comes_down_to_the_sights` and `point_shooting_goes_further_with_a_rifle_than_with_a_bow_until_mastery` |
+
+**Two curves, and both were wrong in my first reading of them.**
+
+| Rule | What the gate says | What I had written |
+|---|---|---|
+sight speed | zero inside the sights' precision, **nearly zero** just past it, the full `10 + modifier` at `3 × precision + 1` | that it fades from full - the direction was inverted |
+point shooting | a **bow** starts at **250** and a rifle at 200; at mastery the rifle is 100 and the bow 50 | that the rifle was always ahead, and that the bow started at 140 |
+
+**The bow's branch divides, so it starts higher and falls faster, and the two curves cross.** The reference keeps two formulas because **one would be wrong at one end or the other** - and the
+port nearly "simplified" a rule that exists precisely because the simple version is false.
+
+**The `+ 1` in `3 * eff + 1` is the reference's own comment made arithmetic**: with zero sight dispersion the range would be `min == max`, the logistic would divide by zero, and the bonus would
+be a NaN. **A port that dropped the one would break exactly one case, at zero, which no ordinary gun has** - which is the kind of bug that ships.
+
+**Named, not invented:** the aiming **activity** (`aim_per_move`'s use of these, which is what actually lowers `recoil`), `get_character_parallax`, the aim-method table, and the sight
+dispersion itself (which needs the gun's sights, a data column the port does not carry yet).

@@ -15,6 +15,7 @@ pub mod npcs;
 pub mod outdoors;
 pub mod proficiencies;
 pub mod overmap;
+pub mod aim;
 pub mod ballistics;
 pub mod bash;
 pub mod emit_registry;

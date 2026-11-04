@@ -813,3 +813,7 @@ shot's dispersion (`total_gun_dispersion`, `ranged.cpp:1108`), and the CLI's `gu
 **Round 1153 split the recoil rules by the weapon's own flag**: `shot::recoil_after_firing` (`ranged.cpp:1230-1236`) resets a `RELOAD_AND_SHOOT` weapon's shooter to `MAX_RECOIL` and otherwise
 adds `5 * kick`; the CLI reads the flag from `corpus/prototypes/items.json`. Gated by `shot_rules::a_bow_starts_its_aim_over_and_a_rifle_carries_its_recoil`. The docs now state that recoil has
 **no per-turn decay** in the reference - only aiming lowers it, and `pause()` raises it to the cap - so the port's accumulate-only behaviour is named as waiting for the aim subsystem.
+
+**Round 1154 ported the first half of aiming**: `aim::sight_speed_with_attenuation` (`modified_sight_speed`, `character.cpp:955-975`) and `aim::point_shooting_limit` (`character.cpp:977-987`).
+Gated by `sim_suite::aim_rules::the_sight_speed_bonus_fades_as_the_recoil_comes_down_to_the_sights` and `...::point_shooting_goes_further_with_a_rifle_than_with_a_bow_until_mastery` - both of
+which corrected a first reading that had the curves' direction backwards. **No caller yet**: the aim activity spends them, and the docs say so.
