@@ -84,6 +84,28 @@ pub fn cost_of_a_shot(
         + reload_moves
 }
 
+/// The blow a gun and the round in it make together.
+///
+/// Reference: `item::gun_damage( with_ammo = true )` (`item.cpp:11160-11180`) - the weapon's own damage resolved for the barrel, **plus** the round's `shot_damage` resolved for the same
+/// barrel. The port keeps the four kinds the data uses for firearms, and the round's blow is added to the gun's rather than replacing it: **a bow's six stab and its arrow's three are seven**,
+/// and a rifle's zero plus its cartridge's thirty-nine is thirty-nine.
+///
+/// What the barrel does to the numbers (`di_considering_length`) is **not** ported: the port has no barrel metric, so every round is priced as if fired from the barrel the data was written for.
+/// Said here rather than left to look accidental.
+#[must_use]
+pub fn blow_of(gun: &cdda_content::guns::GunType, round: Option<&cdda_content::ammo::AmmoType>) -> crate::melee::Damage {
+    let round = round.map(|round| (round.damage_bash, round.damage_cut, round.damage_stab, round.damage_bullet));
+    let (bash, cut, stab, bullet) = round.unwrap_or((0, 0, 0, 0));
+    crate::melee::Damage {
+        bash: gun.damage_bash + bash,
+        cut: gun.damage_cut + cut,
+        // A bullet is a stab in the port's three kinds: the reference carries `bullet` as its own damage type, and the port's armour has no bullet column, so a shot's bullet damage is
+        // resolved as **stab** - the closest kind the port can honour - and the docs name it rather than inventing an armour the data does not have.
+        stab: gun.damage_stab + stab + gun.damage_bullet + bullet,
+        penetration: 0,
+    }
+}
+
 /// What a shot did, in the terms a caller can act on.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Fired {
@@ -93,6 +115,8 @@ pub struct Fired {
     pub aim: crate::ballistics::Aim,
     /// The creature standing where it was aimed, when the aim says the shot hit; `None` for a miss or an empty square.
     pub hit: Option<bevy_ecs::prelude::Entity>,
+    /// How much the creature lost, which is zero when nothing was there.
+    pub hurt: i32,
 }
 
 /// Fires a gun at a square, spending the shooter's moves and rolling the shot's own error.
@@ -109,7 +133,9 @@ pub fn fire_at(
     lines: &[cdda_content::skills::SkillTime],
     target: (i32, i32, i32),
     divider: f64,
+    round: Option<&cdda_content::ammo::AmmoType>,
 ) -> Fired {
+    let blow = blow_of(gun, round);
     let level = crate::creature::skill_level(world, shooter, &gun.skill);
     let shotmaker = crate::dispersion::shotmaker_for(world, shooter, gun, divider);
     let cost = cost_of_firing(gun, lines, level, stamina_percent(world, shooter), 0);
@@ -132,14 +158,15 @@ pub fn fire_at(
     let size = crate::throwing::target_size(world, shooter, target);
     let aim = crate::ballistics::aim_of(rolled, range, size);
     // The reference's convention: a fraction missed of one is a miss, and anything less reached the target.
-    let hit = if aim.missed_by < 1.0 {
+    let struck = if aim.missed_by < 1.0 {
         crate::creature::creature_at(world, target)
             .into_iter()
             .find(|entity| *entity != shooter && crate::creature::health_of(world, *entity).is_some())
     } else {
         None
     };
-    Fired { cost, aim, hit }
+    let hurt = struck.map_or(0, |struck| hurt_once(world, struck, &blow));
+    Fired { cost, aim, hit: struck, hurt }
 }
 
 /// The shooter's wind as a whole percentage, which is what `RAS_time` compares against twenty-five.
@@ -164,4 +191,26 @@ fn range_to(world: &bevy_ecs::prelude::World, shooter: bevy_ecs::prelude::Entity
         return 0.0;
     };
     f64::from((target.0 - from.x).abs().max((target.1 - from.y).abs()))
+}
+
+/// Applies a shot's blow to the creature it reached, and answers how much it took.
+///
+/// Reference: `projectile_attack`'s hit branch calls `deal_projectile_attack`, which hands the impact to the target's `absorb_hit` (`monster.cpp:2085`) - the resistance is subtracted
+/// **capped at the blow**, so armour can stop a round and never heals what it hits. The port resolves each kind against the same kind of armour and adds what got through.
+fn hurt_once(world: &mut bevy_ecs::prelude::World, struck: bevy_ecs::prelude::Entity, blow: &crate::melee::Damage) -> i32 {
+    let armour = world.get::<crate::creature::Armour>(struck).copied().unwrap_or_default();
+    let mut total = 0;
+    for (amount, resist) in [
+        (blow.bash, armour.bash),
+        (blow.cut, armour.cut),
+        (blow.stab, armour.stab),
+    ] {
+        #[allow(clippy::cast_precision_loss)]
+        let through = crate::melee::after_armour(amount as f32, resist as f32, 0.0, 0.0).floor();
+        #[allow(clippy::cast_possible_truncation)]
+        let through = through as i32;
+        total += through.max(0);
+    }
+    crate::damage_monster(world, struck, total);
+    total
 }

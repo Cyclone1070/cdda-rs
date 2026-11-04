@@ -789,3 +789,7 @@ damage is its cartridge's) and **38** negative (kept with their sign).
 `recovery_chance` and the reference's `shot_damage` beside it, via `cdda_content::ammo`. Gated by `content_suite::gun_rules::every_round_s_own_blow_loads_and_it_is_the_blow_a_gun_does_not_carry`
 - `.223` 39 bullet, birdshot 50 over 20 pellets at 300 arcminutes, and the **38 non-bullet rounds** (a rock's 7 bash, a rocket's 500 stab). The first dump read `shot_damage` and was zero for
 every cartridge; the docs record why.
+
+**Round 1148 joined the gun table, the ammo table and the armour**: `shot::blow_of(gun, round)` (`item::gun_damage( true )`, `item.cpp:11160-11180`) sums the weapon's own damage and the round's,
+and `fire_at` applies it through `hurt_once` (per-kind `melee::after_armour`, then `damage_monster`). Gated by `shot_rules::a_shot_s_blow_is_its_gun_s_plus_its_round_s_and_armour_takes_it_off`
+and the point-blank case in `shot_rules::firing_a_gun_spends_moves_and_judges_the_shot_by_what_stands_there` (39 damage, 100 hp → 61). **Bullet damage resolves as stab**, which the docs name.

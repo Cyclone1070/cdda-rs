@@ -13103,3 +13103,25 @@ is seven **bash**, a **120 mm HEAT** is forty **stab**, an **explosive rocket** 
 
 **Named, not invented:** `di_considering_length` (the barrel scales the round's blow, and the port has no barrel metric), `ammo_effects` (which are ported separately for explosions),
 `recovery_chance`'s drop, and the `RANGED_DAMAGE` enchantment. **`fire_at` still applies no damage**; the next round joins the gun's kind, the round's blow and `deal_projectile_attack`.
+
+## A shot's blow, and where each half comes from (round 1148)
+
+The three tables now meet in one arithmetic: `shot::blow_of(gun, round)` returns the `Damage` a shot does, and `fire_at` applies it through the target's armour.
+
+| Piece | Reference | Port |
+|---|---|---|
+the sum | `item::gun_damage( with_ammo = true )` (`item.cpp:11160-11180`): the weapon's damage **plus** the round's | `shot::blow_of(gun, round)` |
+the kinds | `damage_instance`: bash, cut, stab, bullet | the port's three - **bullet resolves as stab**, because the port's `Armour` has no bullet column and inventing one would be inventing data |
+the armour | `absorb_hit` (`monster.cpp:2085`), resistance capped at the blow | `melee::after_armour` per kind, summed, through `damage_monster` |
+Gates | - | `a_shot_s_blow_is_its_gun_s_plus_its_round_s_and_armour_takes_it_off` and the point-blank case inside `firing_a_gun_spends_moves_and_judges_the_shot_by_what_stands_there` |
+
+**The point-blank case is the one that proves damage happens at all.** A target on the shooter's own square is zero range, so the aim is a certain hit whatever the dice say: the Mini-14 with a
+.223 does **39**, and the creature goes from **100 to 61**. **A mutation that drops the round's bullet damage fails two gates** - the composition and the store's health - which is the pair the
+port wanted: one for the arithmetic, one for the wiring.
+
+**A bow and its arrow add.** The longbow's own six stab plus the arrow's is the gate's second case, and it is the one a "the round replaces the weapon's damage" port would fail while the rifle
+case still passed - **because a rifle's own damage is zero, the rifle case alone cannot tell the two rules apart.**
+
+**Named, not invented:** `di_considering_length` (no barrel metric in the port), the `bullet` damage type (resolved as stab, above), weakpoints, and `RANGED_DAMAGE`/`RANGED_ARMOR_PENETRATION`
+enchantments. **`fire_at` still does not consume ammunition** - a shot is priced and paid for in moves, but the round in the magazine is not decremented, which the next round does with the
+`ammo_required` rule.
