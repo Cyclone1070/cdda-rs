@@ -306,3 +306,19 @@ fn a_swing_costs_stamina_in_proportion_to_what_it_weighs() {
     assert_eq!(stamina_cost(0, 100, 0), -50, "there is no free swing");
     assert_eq!(stamina_cost(4_000, 0, 0), -300, "a four-kilo maul costs three hundred");
 }
+
+/// Dexterity's contribution to ranged dispersion: half a unit a point below twenty, nothing above it.
+///
+/// Reference: `Character::ranged_dex_mod` (`character.cpp:4363-4367`). The two things worth pinning are the **floor at zero** - dexterity above twenty does not make a shot more accurate
+/// - and the **truncation**, because the reference returns an `int` and a half-unit is dropped rather than rounded.
+#[test]
+fn dexterity_only_ever_adds_dispersion_and_only_below_twenty() {
+    use cdda_sim::dispersion::from_dexterity;
+
+    assert_eq!(from_dexterity(20), 0, "twenty dexterity is the point the penalty stops");
+    assert_eq!(from_dexterity(24), 0, "and above it nothing improves");
+    assert_eq!(from_dexterity(10), 5, "ten dexterity is five units");
+    assert_eq!(from_dexterity(8), 6, "eight is six");
+    assert_eq!(from_dexterity(9), 5, "and nine is five and a half, **truncated** to five rather than rounded to six");
+    assert_eq!(from_dexterity(1), 9, "one dexterity is nine and a half, truncated");
+}

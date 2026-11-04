@@ -168,3 +168,17 @@ pub fn throwing_dispersion(shot: &Throw) -> i32 {
     }
     spread.max(0)
 }
+
+/// The dispersion a shooter's own dexterity adds, which only ever hurts.
+///
+/// Reference: `Character::ranged_dex_mod` (`character.cpp:4363-4367`) - `std::max( ( 20.0 - get_dex() ) * 0.5, 0.0 )`, floored at zero and **truncated to an int on the way out**
+/// because the function returns `int`. Twenty dexterity is the point where the penalty stops: below it every point costs half a unit of dispersion, and above it nothing improves.
+///
+/// The reference's own comment calls it a bonus for low dexterity only in the negative, and the shape is worth naming: **the curve is flat at the top**, so a dexterity of twenty-four
+/// shoots exactly as well as twenty, and a character with an effect that costs two dexterity pays **one** unit of dispersion for it.
+#[must_use]
+#[allow(clippy::cast_possible_truncation)]
+pub fn from_dexterity(dexterity: i32) -> i32 {
+    let penalty: f64 = (20.0 - f64::from(dexterity)) * 0.5;
+    penalty.max(0.0) as i32
+}

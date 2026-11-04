@@ -12806,3 +12806,22 @@ player notices**. A gate that stopped at `effective_strength` would pass with th
 argument, a gate, and a sentence in this file - not a new function.**
 
 **Named, not invented:** `PER` and `INT`, which have the same shape and no reader yet because nothing in the port asks a perception or intelligence question that depends on a worn effect.
+
+## Dexterity's contribution to ranged dispersion (round 1135)
+
+The second term of `Character::get_weapon_dispersion` (`ranged.cpp:2504`) is `ranged_dex_mod()`, and it needs **no new data** - which is why it comes before the gun table does.
+
+| Piece | Reference | Port |
+|---|---|---|
+the rule | `std::max( ( 20.0 - get_dex() ) * 0.5, 0.0 )` (`character.cpp:4363-4367`) | `dispersion::from_dexterity(dexterity)` |
+the floor | zero: above twenty dexterity nothing improves | the same |
+the cast | the function returns `int`, so a half-unit is **truncated** | the same, with the truncation named in the doc comment |
+Gate | - | `dexterity_only_ever_adds_dispersion_and_only_below_twenty` - twenty and twenty-four are both zero, ten is five, **nine is five and not six**, one is nine |
+
+**The truncation is the interesting half.** Nine dexterity is five and a half units of dispersion, and the reference's `int` return makes it five; rounding would make it six. **A port that
+computed in floating point and rounded - which is the natural thing to do in Rust - would mis-price every character at an odd dexterity by one unit of dispersion**, and nothing would
+look wrong: the shots would simply land a little differently for half the characters in the game.
+
+**The chain now has three links that were separated by eleven rounds.** An effect costs two dexterity (round 1133's `effect_stat_bonus`) -> the dexterity that costs is the **effective** one,
+not the base -> and now it buys **one unit of dispersion** here. **The rule is data-free, so it is gated arithmetically; the wiring to `effective_dexterity` is the next ranged round's job,
+together with `ranged_per_mod` and the gun table.**
