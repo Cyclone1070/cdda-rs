@@ -797,3 +797,7 @@ and the point-blank case in `shot_rules::firing_a_gun_spends_moves_and_judges_th
 **Round 1149 made a shot spend its rounds**: `GunType::ammo_to_fire` (guns dump **version 3**, `item::ammo_required()`, `item.cpp:11535-11550`), `shot::spend_rounds` (`ammo_consume`,
 `ranged.cpp:1167-1172`) and `Fired::loaded` - a gun that cannot load costs no moves and hits nothing. Gated by `content_suite::gun_rules::a_shot_spends_the_rounds_the_gun_s_own_data_says`
 (403 × 1, 2 × 100, 1 × 50) and `sim_suite::shot_rules::a_gun_that_cannot_pay_for_a_round_does_not_fire` (two rounds, two shots, then a refusal that costs nothing).
+
+**Round 1150 put the shot into play**: the `shoot <gun> at <x> <y> <rounds>` step (`crates/cli/src/lib.rs`, `docs/cli-steps.md`) reads the guns, skills and ammo dumps at run time and calls
+`shot::fire_at`, and `scenarios/a_survivor_shoots_a_zombie.txt` fires three .223 rounds into a zombie and asserts `expect no monster at 4 0`. The grammar gate
+`grammar_tests::every_line_of_the_documented_grammar_parses` covers the new line; the scenario is run by `tests::every_scenario_in_the_repository_passes` and by QA.

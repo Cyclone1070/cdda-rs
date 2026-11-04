@@ -43,3 +43,5 @@ expect monsters 2 with effect spooked
 expect floor rock 1
 expect carried rock 1
 ```
+
+shoot ruger_mini at 4 0 2

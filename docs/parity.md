@@ -13146,3 +13146,26 @@ an entity with a number on it, and loading it is a component write.
 
 **Named, not invented:** gunmods' `ammo_to_fire_multiplier` and `_modifier` (which the reference multiplies and adds, and the port has no gunmods), the `charges_to_use` branch for a non-gun
 item, and the burst loop (each shot in a burst reloads, and the port fires one shot at a time).
+
+## Shooting, in play (round 1150)
+
+The ranged rules have been ported for eight rounds; this one makes them **playable in a scenario**, which is what turns them from gates into behaviour.
+
+| Piece | Where |
+|---|---|
+the step | `shoot <gun> at <x> <y> <rounds>` in `crates/cli/src/lib.rs`, documented in `docs/cli-steps.md` |
+the tables | the guns, skills and ammo dumps, read at run time - **the corpus is the scenario's data, not the scenario's opinion** |
+the scenario | `scenarios/a_survivor_shoots_a_zombie.txt`: three rounds at a zombie four squares away, ending in `expect no monster at 4 0` |
+
+**The scenario's first run is the receipt for the whole chain:** `fire: ruger_mini made the shot, 30 moves, missed by 0.820, hurt 39`. The **thirty moves** are the rifle line's price
+(round 1144), the **missed by 0.820** is the dispersion composed from a 100-dispersion gun and an unskilled shooter (1136-1138) judged against a zombie's half-tile (1140) at four squares, and
+the **39** is the .223's blow and not the gun's zero (1146-1148).
+
+**A first run did 0 damage**, because the step passed `None` for the round - and that is exactly the failure round 1146 warned about, caught in play rather than in a gate. The step now reads the
+gun's own `ammo` field and looks it up in the ammo table.
+
+**Three shots, not one step with three rounds.** `rounds` is how many the gun **holds**; each `shoot` is one shot, and the third kills the eighty-hit-point zombie with 117 damage. **The
+scenario says so with `expect no monster at 4 0`**, which is a claim about the store rather than about the printed line.
+
+**Named, not invented:** the scenario fires three times and the gun is loaded once, because the port has no magazine item yet - `rounds` is a shorthand for "put this many in the gun". The
+reload activity, the burst loop and ammunition as a separate entity are all still absent, and the scenario's shape makes that visible instead of hiding it.

@@ -1,0 +1,17 @@
+# A shot, in play: the survivor fires a rifle at a zombie four squares away.
+#
+# `fire_at` (`sim::shot`) composes the Mini-14's dispersion with the survivor's hands and the rifle skill's line, charges the moves the skills dump prices, rolls the shot's own error
+# and judges it against the zombie's size. What the step reports is what the store saw: the moves spent, the fraction missed, and what the hit took off the zombie's hit points.
+world 12 bare
+survivor 0 0
+items
+monsters
+data
+seed 12345
+monster mon_zombie 4 0
+# Three rounds, one step each: the first two take 39 apiece, and the third - 117 against 80 hit points - kills it. That is the receipt for damage really being applied through the armour
+# rather than reported.
+shoot ruger_mini at 4 0 3
+shoot ruger_mini at 4 0 3
+shoot ruger_mini at 4 0 3
+expect no monster at 4 0

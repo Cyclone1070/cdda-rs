@@ -122,6 +122,19 @@ pub enum Step {
     },
     /// Draws the view to a PNG, so the screen a scenario produces can be diffed.
     Shot(String),
+    /// Shoots a gun the survivor holds at a square, with a number of rounds in it.
+    ///
+    /// Reference: `Character::fire_gun` (`src/ranged.cpp:1050-1200`) - the shot's price, its own error, the range it is judged at and the blow it does on landing.
+    Shoot {
+        /// The gun's id in the guns table, such as `ruger_mini`.
+        gun: String,
+        /// The square's x.
+        x: i32,
+        /// The square's y.
+        y: i32,
+        /// How many rounds the gun holds when it is handed over.
+        rounds: i32,
+    },
     /// Puts an item in the survivor's hands, which is what a blow is built from.
     Wield {
         /// The item's id.
@@ -296,6 +309,7 @@ pub fn parse(text: &str) -> Result<Vec<Step>, String> {
                 y: number_of(y, number, "y")?,
             },
             ["shot", path] => Step::Shot((*path).to_owned()),
+            ["shoot", ..] => shoot_step(&words)?,
             ["goal", x, y] => Step::Goal {
                 x: number_of(x, number, "x")?,
                 y: number_of(y, number, "y")?,
@@ -500,6 +514,7 @@ fn take_item_step(world: &mut World, step: &Step, outcome: &mut Outcome) -> bool
         Step::Goal { x, y } => send_the_monsters_to(outcome, world, *x, *y),
         Step::Throw { item, x, y } => throw_a_step(world, outcome, item, *x, *y),
         Step::Shot(path) => take_a_shot(world, outcome, path),
+        Step::Shoot { gun, x, y, rounds } => fire_a_step(world, outcome, gun, *x, *y, *rounds),
         Step::Monsters => match install_monster_data(world) {
             Some(kinds) => outcome.lines.push(format!("monsters: {kinds} kinds")),
             None => outcome
@@ -1921,4 +1936,102 @@ mod grammar_tests {
         }
         assert!(checked >= 30, "the grammar document has the whole grammar: {checked} lines");
     }
+}
+
+/// Fires a gun the survivor holds, and reports what the shot cost, where it went and what it did.
+///
+/// Reference: `Character::fire_gun` (`src/ranged.cpp:1050-1200`). The gun and the skills come from the oracle's own dumps - `corpus/items/guns.json` and `corpus/skills.json` - because
+/// **the shot's price is the skill's figure and its accuracy is the gun's**, and a scenario that invented either would be testing the scenario.
+///
+/// The gun is an item entity the survivor wields, with `rounds` in it: the port keeps "how many of these are here" in the item's own charges, so firing is a component write on that entity.
+fn fire_a_step(world: &mut World, outcome: &mut Outcome, gun_id: &str, x: i32, y: i32, rounds: i32) {
+    let Some(survivor) = survivor(world) else {
+        outcome.failures.push("there is no survivor to fire".to_owned());
+        return;
+    };
+    let Some((gun, lines, round)) = fire_tables(gun_id, outcome) else {
+        return;
+    };
+    let names = cdda_sim::item_registry::snapshot(world);
+    // The gun is carried: a weapon in the survivor's own hands, which is what `wield` puts there.
+    let Some(held) = carried_item_of(world, survivor, gun_id, &names).or_else(|| {
+        let kind = cdda_sim::drop_item(world, (0, 0), cdda_sim::ItemTypeId(0), rounds);
+        world.entity_mut(kind).insert(cdda_sim::creature::WieldedBy(survivor));
+        Some(kind)
+    }) else {
+        outcome
+            .failures
+            .push(format!("nothing called {gun_id} is in hand to fire"));
+        return;
+    };
+    // A gun handed over with no rounds is loaded here: the step says how many it holds, and a scenario should not have to. The charges are the store's own count, so this is one write.
+    if let Some(mut item) = world.get_mut::<cdda_sim::GroundItem>(held)
+        && item.charges == 0
+    {
+        item.charges = rounds;
+    }
+    let before = cdda_sim::creature::moves_left(world, survivor);
+    let shot = cdda_sim::shot::fire_at(world, survivor, &gun, &lines, (x, y, 0), 18.0, round.as_ref(), Some(held));
+    let spent = before - cdda_sim::creature::moves_left(world, survivor);
+    outcome.lines.push(format!(
+        "fire: {gun_id} {} the shot, {spent} moves, missed by {:.3}, hurt {} {:?}",
+        if shot.loaded { "made" } else { "could not make" },
+        shot.aim.missed_by,
+        shot.hurt,
+        shot.hit
+    ));
+}
+
+/// The gun and the skills table, read from the oracle's dumps.
+///
+/// Both are the reference's resolved data rather than the port's opinion: the guns dump carries the weapon's dispersion and its skill's name, and the skills dump carries the line that prices
+/// the shot. A missing file is a scenario failure with the path in it, because a silent zero would be a shot priced at nothing.
+fn fire_tables(
+    gun_id: &str,
+    outcome: &mut Outcome,
+) -> Option<(
+    cdda_content::guns::GunType,
+    Vec<cdda_content::skills::SkillTime>,
+    Option<cdda_content::ammo::AmmoType>,
+)> {
+    let read = |name: &str| -> Option<cdda_json::Value> {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let bytes = std::fs::read(&path).ok()?;
+        cdda_json::parse(&bytes).ok()
+    };
+    let Some(guns) = read("items/guns.json").and_then(|value| cdda_content::guns::load_dump(&value).ok()) else {
+        outcome.failures.push("the guns dump is not where the scenario expects it".to_owned());
+        return None;
+    };
+    let Some(lines) = read("skills.json").and_then(|value| cdda_content::skills::load_dump(&value).ok()) else {
+        outcome.failures.push("the skills dump is not where the scenario expects it".to_owned());
+        return None;
+    };
+    // The round is the gun's own `ammo` field, looked up in the ammo table: **a firearm's blow lives there, not in the gun** (rounds 1146 and 1147), so a shot fired without it does
+    // nothing at all - which is what the first run of the shooting scenario showed.
+    let rounds = read("items/ammo.json").and_then(|value| cdda_content::ammo::load_dump(&value).ok());
+    let Some(gun) = guns.into_iter().find(|gun| gun.id == gun_id) else {
+        outcome.failures.push(format!("`{gun_id}` is not a gun in the corpus"));
+        return None;
+    };
+    let round = rounds.and_then(|rounds| rounds.into_iter().find(|round| round.id == gun.ammo));
+    Some((gun, lines, round))
+}
+
+/// `shoot <gun> at <x> <y> <rounds>`: a gun fired at a square with a number of rounds in it.
+///
+/// # Errors
+///
+/// When the line is not that shape, or a coordinate is not a number.
+fn shoot_step(words: &[&str]) -> Result<Step, String> {
+    let ["shoot", gun, "at", x, y, rounds] = words else {
+        return Err(format!("`{}` is not a shoot step", words.join(" ")));
+    };
+    let number = words.len();
+    Ok(Step::Shoot {
+        gun: (*gun).to_owned(),
+        x: number_of(x, number, "x")?,
+        y: number_of(y, number, "y")?,
+        rounds: number_of(rounds, number, "rounds")?,
+    })
 }
