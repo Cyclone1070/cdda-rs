@@ -12438,3 +12438,26 @@ the spend**, or it is a test of nothing.
 
 **Named, not invented:** the body-part windage table (`bodypart.cpp`'s `windage_effect` per part, which the port has no body-part effects for), and the daily-health roll the reference makes
 when stamina crosses a quarter for the fifth time.
+
+## Exhaustion proved in play, and a step that could never be reached (round 1120)
+
+A scenario now runs the whole stamina chain: `scenarios/swinging_past_empty_winds_the_survivor.txt` swings an empty hand **71** times, and the survivor comes out **winded** without a
+scratch (`effect: the survivor is winded`, `hurt: the survivor is down to 80 of 80`).
+
+**The scenario found two things no unit gate had.**
+
+| Finding | Why it was invisible |
+|---|---|
+`spawn_player` never gave the survivor a `Stamina` pool | every stamina gate built its own world and inserted the component by hand, so the **real** spawn path was untested |
+`Step::Data` had **no parser** | the tables step was reachable only from Rust: `install_the_vitamins` and `install_effect_data` could be called, but no scenario could ask for them - so no scenario had ever had the effect registry installed, and `winded` could not be put on even when the rule fired |
+
+**A variant of this port's oldest failure, twice in one round.** The first is the familiar "gate builds the fixture the code should have built"; the second is worse - a **step with a
+handler and no grammar**. `Step::Data` existed, was matched in the executor, and could never be produced by any file. **The compiler is happy with an unreachable enum variant; a
+scenario is not.**
+
+**`expect effect <id>` is the new surface, and it is deliberately generic.** A scenario can now claim any effect by the data's own id, which is what let this scenario assert `winded`
+rather than inventing a `expect winded` verb per effect. **The claim reads the store, not a counter**: `applied_effects::has`, the same call the rules use.
+
+**The parser grew past clippy's hundred lines, and the fix was the right shape anyway.** The `expect` family - eight arms, all reading a square, a count or an id - moved into
+`expect_step`, and the catch-all arm had to go **last**, after the ones that need more than a square. **Two attempts put it in the wrong place: the first made it shadow four later arms, the
+second made it recursive inside the helper.** `unreachable pattern` caught both, and that lint is the reason a grammar this size can grow without silently losing steps.

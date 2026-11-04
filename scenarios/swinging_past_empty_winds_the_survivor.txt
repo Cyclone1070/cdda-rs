@@ -1,0 +1,86 @@
+# Exhaustion, proved in play: seventy-one empty-handed swings spend the last of a survivor's wind and leave it winded.
+#
+# Each swing costs fifty stamina out of three thousand five hundred (`get_total_melee_stamina_cost`), so seventy-one swings take it past zero - and past zero is what puts `winded` on
+# (`Character::mod_stamina`), which cuts everything the survivor gets back to a tenth. The zombie is here only as something to swing at: empty hands do no damage, so it stands there
+# for the whole scenario and the survivor takes nothing.
+world 10 bare
+survivor 0 0
+items
+monsters
+data
+seed 3
+monster mon_zombie 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+expect effect winded
+expect hurt 0

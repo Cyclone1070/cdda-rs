@@ -672,3 +672,8 @@ winded**, floored at one a turn, `ceil(recovery * turns)`, clamped to the pool),
 **Round 1119 closed the exhaustion chain**: `spend_stamina` now makes a character **winded** when a spend goes past zero (`Character::mod_stamina`, `character.cpp:6961-6968` - every body
 part's windage effect, ten turns), which is what round 1118's tenth-rate recovery was waiting for. Gated by
 `character_swing::swinging_past_empty_makes_a_survivor_winded_and_slows_what_comes_back`: past empty, winded for ten turns, and the next turn returns **2** instead of 20.
+
+**Round 1120 proved exhaustion in play and fixed two things only a scenario could find**: `spawn_player` never gave the avatar a `Stamina` pool (every gate inserted one by hand), and
+`Step::Data` had a handler but **no parser**, so no scenario could ever install the effect registry. Both fixed; `scenarios/swinging_past_empty_winds_the_survivor.txt` swings an empty hand
+71 times and asserts `expect effect winded` plus `expect hurt 0`. The CLI gained the generic **`expect effect <id>`** step, and the `expect` grammar moved into `expect_step` when it passed
+clippy's hundred-line limit.

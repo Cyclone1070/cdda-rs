@@ -7056,6 +7056,9 @@ pub fn spawn_player(world: &mut World, square: (i32, i32), hp_max: i32, armour: 
                 cut: armour,
                 stab: armour,
             },
+            // Reference: a character always has wind - `Character::stamina`, with `get_stamina_max` as its ceiling (`character.cpp:6814-6832`). A survivor spawned without it could
+            // swing for ever, which is what the exhaustion scenario found when it expected to be winded and was not.
+            crate::creature::Stamina::default(),
             Player,
         ))
         .id();

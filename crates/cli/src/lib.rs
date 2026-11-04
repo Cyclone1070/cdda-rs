@@ -62,6 +62,8 @@ pub enum Step {
     Turn(u32),
     /// Sets the world's clock, in turns since the epoch, which is how a playtest reaches a rule that waits days.
     Date(i64),
+    /// Says the survivor should be wearing an effect, by the data's own id.
+    ExpectEffect(String),
     /// The last turn changed exactly this many squares.
     ExpectChanged(usize),
     /// A fire stands on this square.
@@ -191,6 +193,38 @@ impl Outcome {
 ///
 /// An error naming the line and the word when a line is not a step this runner knows, or when a
 /// number is not a number.
+/// One `expect` line: a claim about the world that reads a square, a count or an id and nothing else.
+///
+/// # Errors
+///
+/// A word that is not a number where a number belongs, or an `expect` family this runner does not know.
+fn expect_step(words: &[&str], number: usize) -> Result<Step, String> {
+    match words {
+        ["effect", id] => Ok(Step::ExpectEffect((*id).to_owned())),
+        ["changed", count] => Ok(Step::ExpectChanged(number_of(count, number, "squares")?)),
+        ["fire", x, y] => Ok(Step::ExpectFireAt(
+            number_of(x, number, "x")?,
+            number_of(y, number, "y")?,
+        )),
+        ["no", "fire", x, y] => Ok(Step::ExpectNoFireAt(
+            number_of(x, number, "x")?,
+            number_of(y, number, "y")?,
+        )),
+        ["place", rest @ ..] => Ok(Step::ExpectPlace(rest.join(" "))),
+        ["item", item, "at", x, y] => Ok(Step::ExpectItemAt {
+            item: (*item).to_owned(),
+            x: number_of(x, number, "x")?,
+            y: number_of(y, number, "y")?,
+        }),
+        other => Err(format!("`expect {}` is not a step I know", other.join(" "))),
+    }
+}
+
+/// Reads a scenario: one step a line, `#` starting a comment, blank lines ignored.
+///
+/// # Errors
+///
+/// An error naming the line and the word when a line is not a step this runner knows, or when a number is not a number.
 pub fn parse(text: &str) -> Result<Vec<Step>, String> {
     let mut steps = Vec::new();
     for (number, line) in text.lines().enumerate() {
@@ -221,13 +255,7 @@ pub fn parse(text: &str) -> Result<Vec<Step>, String> {
             },
             ["turn", count] => Step::Turn(number_of(count, number, "turns")?),
             ["date", turn] => Step::Date(number_of(turn, number, "turn")?),
-            ["expect", "changed", count] => Step::ExpectChanged(number_of(count, number, "squares")?),
-            ["expect", "fire", x, y] => {
-                Step::ExpectFireAt(number_of(x, number, "x")?, number_of(y, number, "y")?)
-            }
-            ["expect", "no", "fire", x, y] => {
-                Step::ExpectNoFireAt(number_of(x, number, "x")?, number_of(y, number, "y")?)
-            }
+            ["data"] => Step::Data,
             ["survivor", x, y] => Step::Survivor {
                 x: number_of(x, number, "x")?,
                 y: number_of(y, number, "y")?,
@@ -235,7 +263,6 @@ pub fn parse(text: &str) -> Result<Vec<Step>, String> {
             ["items"] => Step::Items,
             ["monsters"] => Step::Monsters,
             ["place", rest @ ..] => Step::PlaceOverride(rest.join(" ")),
-            ["expect", "place", rest @ ..] => Step::ExpectPlace(rest.join(" ")),
             ["give", item, count] => Step::Give {
                 item: (*item).to_owned(),
                 count: number_of(count, number, "count")?,
@@ -248,11 +275,6 @@ pub fn parse(text: &str) -> Result<Vec<Step>, String> {
                 y: number_of(y, number, "y")?,
             },
             ["throw", item, "at", x, y] => Step::Throw {
-                item: (*item).to_owned(),
-                x: number_of(x, number, "x")?,
-                y: number_of(y, number, "y")?,
-            },
-            ["expect", "item", item, "at", x, y] => Step::ExpectItemAt {
                 item: (*item).to_owned(),
                 x: number_of(x, number, "x")?,
                 y: number_of(y, number, "y")?,
@@ -287,6 +309,8 @@ pub fn parse(text: &str) -> Result<Vec<Step>, String> {
                 item: (*item).to_owned(),
                 count: number_of(count, number, "count")?,
             },
+            // The rest of the `expect` family lives in one helper. This arm comes last, after the ones that need more than a square or a count.
+            ["expect", rest @ ..] => expect_step(rest, number)?,
             _ => return Err(format!("line {}: `{line}` is not a step I know", number + 1)),
         };
         steps.push(step);
@@ -334,6 +358,17 @@ pub fn run(text: &str) -> Result<Outcome, String> {
             Step::Date(turn) => {
                 cdda_sim::calendar::set_turn(&mut world, turn);
                 outcome.lines.push(format!("date: the clock is at turn {turn}"));
+            }
+            Step::ExpectEffect(id) => {
+                let wearing = survivor(&mut world)
+                    .is_some_and(|survivor| cdda_sim::applied_effects::has(&world, survivor, id.as_str()));
+                if wearing {
+                    outcome.lines.push(format!("effect: the survivor is {id}"));
+                } else {
+                    outcome
+                        .failures
+                        .push(format!("expected the survivor to be {id}, and it is not"));
+                }
             }
             Step::Turn(count) => {
                 for _ in 0..count {
