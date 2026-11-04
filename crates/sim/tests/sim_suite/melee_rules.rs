@@ -267,3 +267,24 @@ fn a_swing_costs_the_time_its_weapon_takes_and_the_swinger_s_skill_saves() {
     assert_eq!(attack_speed(48, 0, 8, 0.25), 92, "a quarter of stamina is the threshold");
     assert_eq!(attack_speed(48, 0, 8, 0.125), 116, "an eighth of stamina adds half again to the base");
 }
+
+/// Practising a skill adds to its exercise, and the exercise buys levels at a rising price.
+///
+/// Reference: `SkillLevel::on_exercise_change` (`skill.cpp:450-479`) - the price of the next level is `100 * 100 * ( level + 1 )^2`, so level one costs **10,000**, level two
+/// **40,000** and level three **90,000**, and a single big gain may buy several levels in a row, each at its own price. The knowledge half of the reference is not ported: this port
+/// keeps one number per skill, so there is nothing for a second experience track to differ from.
+#[test]
+fn practising_a_skill_buys_levels_at_a_rising_price() {
+    use cdda_sim::skills::{practise, price_of_the_next_level};
+
+    assert_eq!(price_of_the_next_level(0), 10_000, "the first level costs ten thousand");
+    assert_eq!(price_of_the_next_level(1), 40_000, "the second forty thousand");
+    assert_eq!(price_of_the_next_level(2), 90_000, "the third ninety thousand");
+
+    assert_eq!(practise(0, 0, 9_999), (0, 9_999), "nearly there is not there");
+    assert_eq!(practise(0, 9_999, 1), (1, 0), "and the last point buys the level");
+    assert_eq!(practise(0, 9_990, 30), (1, 20), "the overspend carries into the next level");
+    // A huge gain cascades: 50,000 from nothing buys level one, spends 10,000, leaves 40,000, which buys level two exactly.
+    assert_eq!(practise(0, 0, 50_000), (2, 0), "and one big gain may buy two levels");
+    assert_eq!(practise(3, 0, 0), (3, 0), "nothing practises nothing");
+}

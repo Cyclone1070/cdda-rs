@@ -2009,6 +2009,54 @@ pub struct AttackCost(pub i32);
 #[derive(Component, Debug, Clone, Default)]
 pub struct Skills(pub std::collections::BTreeMap<String, i32>);
 
+/// Which skill the thing in hand trains, if it trains any.
+fn weapon_skill_of(world: &World, holder: Entity) -> Option<&'static str> {
+    let kind = world.get::<Wielding>(holder)?.0;
+    let names = crate::item_registry::peek(world)?;
+    crate::melee::weapon_skill(
+        names.melee_bash_of(kind),
+        names.melee_cut_of(kind),
+        names.melee_stab_of(kind),
+    )
+}
+
+/// The exercise each skill has banked towards its next level.
+///
+/// Reference: `SkillLevel::_exercise` (`skill.h`), which the reference keeps beside the level and the knowledge track. The port keeps the level in [`Skills`] and the exercise
+/// here, because a level is what every rule reads and the exercise is only ever spent to buy one.
+#[derive(Component, Debug, Clone, Default)]
+pub struct Exercise(pub std::collections::BTreeMap<String, i32>);
+
+/// Practises a skill: the exercise grows and buys whatever levels it can.
+///
+/// Reference: `Character::practice` reaches `SkillLevel::train` and then `on_exercise_change` (`skill.cpp:450-479`). The amount is the caller's, because what a swing is worth
+/// depends on whether it landed - `melee_train( *this, 2, std::min( 5, skill_training_cap ), ... )` after a hit (`melee.cpp:2222`).
+pub fn practise_skill(world: &mut World, entity: Entity, skill: &str, amount: i32) {
+    if amount <= 0 {
+        return;
+    }
+    let level = skill_level(world, entity, skill);
+    let exercise = world
+        .get::<Exercise>(entity)
+        .and_then(|banked| banked.0.get(skill).copied())
+        .unwrap_or(0);
+    let (new_level, new_exercise) = crate::skills::practise(level, exercise, amount);
+    if let Some(mut skills) = world.get_mut::<Skills>(entity) {
+        skills.0.insert(skill.to_owned(), new_level);
+    } else {
+        world.entity_mut(entity).insert(Skills(
+            [(skill.to_owned(), new_level)].into_iter().collect(),
+        ));
+    }
+    if let Some(mut banked) = world.get_mut::<Exercise>(entity) {
+        banked.0.insert(skill.to_owned(), new_exercise);
+    } else {
+        world.entity_mut(entity).insert(Exercise(
+            [(skill.to_owned(), new_exercise)].into_iter().collect(),
+        ));
+    }
+}
+
 /// How far a creature has practised a skill.
 #[must_use]
 pub fn skill_level(world: &World, entity: Entity, skill: &str) -> i32 {
@@ -2087,7 +2135,17 @@ pub fn swing_what_the_character_holds(world: &mut World, holder: Entity, victim:
     let dexterity = effective_dexterity(world, holder);
     let cost = crate::melee::attack_speed(weapon_time / 2, skill, dexterity, 1.0);
     spend_moves(world, holder, f64::from(cost));
-    strike_with(world, victim, attack)
+    let dealt = strike_with(world, victim, attack)?;
+    // Reference: a landed blow teaches its weapon's skill by `rng( 2, min( 5, skill_training_cap ) )` (`melee.cpp:2222`), and the skill is the **weapon's**
+    // (`item::melee_skill`), not the general melee skill. A miss teaches nothing here, because the reference's miss path teaches through `times_combatted_player` instead.
+    if let Some(learned) = weapon_skill_of(world, holder)
+        && let Some(mut rolls) = crate::singletons::take_rolls(world)
+    {
+        let amount = rolls.rng(2, 5);
+        crate::singletons::put_rolls(world, rolls);
+        practise_skill(world, holder, learned, amount);
+    }
+    Some(dealt)
 }
 
 /// One blow, from an attack the caller has already worked out.

@@ -640,3 +640,9 @@ stamina threshold) and `character_swing::a_survivor_s_swing_costs_the_moves_its_
 while still charging the moves. **159 of 1,154** monsters state no dice and **five** of those state a flat part anyway (2 cut, 8 bash), which is where the port was wrong. Gated by
 `creature_fight::a_monster_with_no_dice_hurts_nobody_however_much_flat_damage_its_data_states` - 24 blows, survivor unchanged - and **mutation-checked**: with the guard removed the same
 test reads 32 instead of 80.
+
+**Round 1112 taught skills**: `skills::price_of_the_next_level` and `skills::practise` (`SkillLevel::on_exercise_change`, `skill.cpp:450-479` - the price is
+`100*100*(level+1)^2`, and the overspend cascades into the next price), a `creature::Exercise` component beside the levels, and `practise_skill` called from
+`swing_what_the_character_holds` on a landed blow with `rng(2, 5)` of the **weapon's** skill (`melee.cpp:2222`). Gated by
+`melee_rules::practising_a_skill_buys_levels_at_a_rising_price` (including the two-level cascade) and `character_swing::a_landed_blow_teaches_the_skill_it_used` (stabbing rises,
+bashing does not). **Not ported, named:** the knowledge track, the rust accumulator, and the miss path's `times_combatted_player`.

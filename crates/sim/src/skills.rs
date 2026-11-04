@@ -374,3 +374,28 @@ pub fn update_focus_towards(world: &mut bevy_ecs::prelude::World, creature: bevy
     let pool = focus.0.saturating_mul(100).saturating_add(10 * (equilibrium - focus.0));
     focus.0 = pool / 100;
 }
+
+/// What the next level of a skill costs in exercise.
+///
+/// Reference: `SkillLevel::on_exercise_change` (`skill.cpp:456-458`), `100 * 100 * ( level + 1 )^2`: **10,000** for the first level, **40,000** for the second, **90,000** for the
+/// third. The price rises with the square of the level, so a master's next point is worth forty times a beginner's first.
+#[must_use]
+pub fn price_of_the_next_level(level: i32) -> i32 {
+    let step = level.saturating_add(1);
+    100 * 100 * step * step
+}
+
+/// Practising a skill: the exercise grows, and every price it can pay buys a level.
+///
+/// Reference: `SkillLevel::on_exercise_change` (`skill.cpp:450-479`) with its multilevel allowed, which is what `SkillLevel::train` passes. The reference's knowledge track and its
+/// rust accumulator are not ported: this port holds one level and one exercise count per skill, and the second track has nothing to disagree with.
+#[must_use]
+pub fn practise(level: i32, exercise: i32, amount: i32) -> (i32, i32) {
+    let mut level = level;
+    let mut exercise = exercise.saturating_add(amount);
+    while exercise >= price_of_the_next_level(level) {
+        exercise -= price_of_the_next_level(level);
+        level += 1;
+    }
+    (level, exercise)
+}

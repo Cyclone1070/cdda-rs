@@ -12290,3 +12290,24 @@ is wrong against exactly the five whose data says "no dice, but a claw". **A rul
 
 **The charge stays on the attempt.** The moves are spent before the early return, which is the reference's order (`mod_moves` first, the dice check second): a monster that cannot hurt
 anyone still spends its turn trying, and a survivor cannot bait free attacks out of a harmless monster.
+
+## A landed blow teaches the skill it used (round 1112)
+
+Skills were numbers nothing ever changed. Now a swing that lands practices the **weapon's** skill.
+
+| Piece | Reference | Port |
+|---|---|---|
+the price of a level | `100 * 100 * ( level + 1 )^2` (`skill.cpp:456-458`) | `skills::price_of_the_next_level`: 10,000, then 40,000, then 90,000 |
+what a gain buys | the level-up loop, carrying the overspend into the next price (`skill.cpp:459-466`) | `skills::practise`, gated on the cascade: 50,000 from nothing buys **two** levels |
+what a swing is worth | `melee_train( *this, 2, std::min( 5, skill_training_cap ), ... )` after a hit (`melee.cpp:2222`) | `rng(2, 5)` of the weapon's skill, on a landed blow only |
+`Exercise` component | `SkillLevel::_experience` beside the level | banked per skill, so a level is what every rule reads and the exercise only ever buys one |
+
+**The price is quadratic and the gate proves it three times over**, because that is the shape that decides how a character grows: a beginner's first level is a few dozen blows; a
+master's next is months. **A flat price would have made the port feel fast and wrong at exactly the point the reference wants it slow.**
+
+**What the port deliberately does not copy: the knowledge track and the rust accumulator.** The reference keeps two experiences - one for what a character has read and one for what it
+has done - and two levels that drift apart. **This port holds one number per skill**, so a second track would be a structure with no rule behind it: the reference's `knowledge_train`,
+`readBook` and the drift between the two experiences all exist because a book is a second way to learn, and there are no books in this port yet.
+
+**A miss teaches nothing here, and the reference's miss path is named rather than emulated.** The reference counts `times_combatted_player` and teaches through it; the port's swings start
+with the hit path, and the miss path is a named gap rather than an invented amount.

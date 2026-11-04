@@ -211,3 +211,45 @@ fn a_survivor_s_swing_costs_the_moves_its_weapon_takes() {
         "a knife swing costs seventy-two moves: 77 / 2 = 38, plus 38 for no melee skill, less 4 for dexterity 8"
     );
 }
+
+/// A survivor that lands a blow practises the skill it swung with.
+///
+/// Reference: `Character::melee_attack` calls `melee_train( *this, 2, std::min( 5, skill_training_cap ), cur_weap, ... )` after a hit (`melee.cpp:2222`), which is a practice of
+/// the **weapon's** skill - not the melee skill, which is the general one. The gate swings a knife twenty times and reads the skill the swing is worth learning.
+#[test]
+fn a_landed_blow_teaches_the_skill_it_used() {
+    let (mut world, _null, _rock, knife) = world_with_kinds();
+    let survivor = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Wielding(knife));
+    // A knife's damage is all stab, so the skill it teaches is stabbing.
+    let victim = cdda_sim::creature::spawn_creature(&mut world, "a rat", (1, 0, 0));
+    world
+        .entity_mut(victim)
+        .insert(cdda_sim::creature::Health { hp: 10_000, max_hp: 10_000 });
+    cdda_sim::creature::set_moves(&mut world, survivor, 100_000);
+
+    assert_eq!(
+        cdda_sim::creature::skill_level(&world, survivor, "stabbing"),
+        0,
+        "nothing practised yet"
+    );
+    for _ in 0..20 {
+        cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, victim);
+    }
+    let stabbing = cdda_sim::creature::skill_level(&world, survivor, "stabbing");
+    let exercise = world
+        .get::<cdda_sim::creature::Exercise>(survivor)
+        .and_then(|banked| banked.0.get("stabbing").copied())
+        .unwrap_or(0);
+    assert!(
+        stabbing > 0 || exercise > 0,
+        "twenty blows teach something: level {stabbing}, exercise {exercise}"
+    );
+    assert_eq!(
+        cdda_sim::creature::skill_level(&world, survivor, "bashing"),
+        0,
+        "and nothing about a skill the knife does not use"
+    );
+}
