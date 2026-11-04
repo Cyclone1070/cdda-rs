@@ -12414,3 +12414,27 @@ would have made monsters tire, which the reference's monsters never do** - and n
 
 **Named, not invented:** cardio fitness (the rate is the base rate because `get_cardiofit / get_cardio_acc_base` is one in a port with no cardio), stimulants (which add up to five a turn),
 mouth encumbrance, and `effect_winded` itself - the port reads the flag but nothing puts it on yet.
+
+## Running out of wind makes you winded, and winded is what slows you down (round 1119)
+
+Round 1118 read `effect_winded` and nothing put it on. This round finds where the reference puts it: **`Character::mod_stamina`**, when the change takes stamina below zero.
+
+| Piece | Reference | Port |
+|---|---|---|
+the trigger | `stamina += mod; if( stamina < 0 )` add every body part's windage effect (`character.cpp:6961-6968`) | `spend_stamina` notices a spend that goes past zero |
+the effect and its length | the data's windage effect is `effect_winded` on the torso and mouth, **ten turns** | `winded`, ten turns, **only when the content defines it** |
+what it costs | `update_stamina`'s multiplier is a **tenth** while winded (`character.cpp:7033-7036`) | already gated in round 1118 |
+Gate | - | `swinging_past_empty_makes_a_survivor_winded_and_slows_what_comes_back`: past empty, winded for 10, and the next turn gives **2** not 20 |
+
+**The whole chain now runs in one test: spend past empty, become winded, and watch the recovery drop by a factor of ten.** Each link was gated on its own before this round, and the chain
+gate is what proves they are connected - **three correct rules in a row still do not make a rule that fires.**
+
+**The trigger is the sign of the change, not the value of the pool.** The reference tests `stamina < 0` **before** clamping, so a character at three points who spends fifty is winded just as
+surely as one at zero who spends one. A port that tested the clamped value would never see a negative at all - `clamp` runs after the check, so it is the **raw** result that decides.
+
+**A wrong fixture taught the same lesson the arithmetic already had.** The first version of the gate started the survivor at a hundred and spent eighty-one, which leaves nineteen - a
+number that is not past anything, so the rule never fired and the test failed on the *second* assertion rather than the first. **A test for "going past empty" has to start with less wind than
+the spend**, or it is a test of nothing.
+
+**Named, not invented:** the body-part windage table (`bodypart.cpp`'s `windage_effect` per part, which the port has no body-part effects for), and the daily-health roll the reference makes
+when stamina crosses a quarter for the fifth time.

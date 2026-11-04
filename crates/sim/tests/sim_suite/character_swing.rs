@@ -400,3 +400,61 @@ fn swinging_spends_wind_and_a_spent_survivor_swings_slower() {
         "a spent survivor pays more for the same swing: {spent_cost} against {fresh_cost}"
     );
 }
+
+/// Spending more wind than there is makes a survivor winded, and the winded survivor recovers at a crawl.
+///
+/// Reference: `Character::mod_stamina` puts the body parts' windage effect on - `effect_winded`, **ten turns** - whenever the stamina change takes it below zero
+/// (`character.cpp:6961-6968`), and `Character::update_stamina` recovers a **tenth** while that effect is on (`character.cpp:7033-7036`). The chain is what makes exhaustion
+/// matter: swing past empty, and the next turns give back two instead of twenty.
+#[test]
+fn swinging_past_empty_makes_a_survivor_winded_and_slows_what_comes_back() {
+    use bevy_ecs::prelude::*;
+
+    let mut world = World::new();
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(31));
+    let mut level = cdda_core_types::level::Level::new();
+    for x in 0..4 {
+        for y in 0..4 {
+            level.set_terrain(x, y, 1, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let winded = cdda_json::parse(br#"{"id":"winded","max_duration":"1 hours"}"#).expect("valid json");
+    let cdda_json::Value::Object(entry) = winded else {
+        panic!("an effect type is an object")
+    };
+    let kind = cdda_content::effects::read_one("winded", &entry);
+    cdda_sim::effect_registry::set_effect_types(&mut world, std::slice::from_ref(&kind));
+
+    let survivor = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Stamina { cur: 50.0, max: 3_500.0 });
+    assert!(
+        !cdda_sim::applied_effects::has(&world, survivor, "winded"),
+        "nothing has winded the survivor yet"
+    );
+
+    // A spend of eighty-one out of fifty takes it past zero. Fifty is the point of the fixture: a hundred would have been left at nineteen, which is not past anything.
+    cdda_sim::creature::spend_stamina(&mut world, survivor, -81);
+    assert!(
+        cdda_sim::applied_effects::has(&world, survivor, "winded"),
+        "and going past empty winds the survivor"
+    );
+    let duration = cdda_sim::applied_effects::worn(&world, survivor)
+        .into_iter()
+        .find(|worn| worn.id == "winded")
+        .map_or(0, |worn| worn.duration);
+    assert_eq!(duration, 10, "for ten turns");
+
+    // And the turn that follows gives a tenth of the rate back: two, not twenty.
+    cdda_sim::turn::run_turn(&mut world);
+    let wind = world
+        .get::<cdda_sim::creature::Stamina>(survivor)
+        .expect("the survivor still has wind")
+        .cur;
+    assert!(
+        (wind - 2.0).abs() < 0.001,
+        "a winded survivor gets two a turn, not twenty: {wind}"
+    );
+}

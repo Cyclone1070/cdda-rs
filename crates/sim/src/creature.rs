@@ -2068,10 +2068,29 @@ impl Default for Stamina {
     }
 }
 
-/// Spends stamina, keeping it at zero or above and never above what the character can hold.
+/// Spends stamina, keeping it at zero or above and never above what the character can hold - and making the character **winded** when the spend goes past zero.
+///
+/// Reference: `Character::mod_stamina` (`character.cpp:6961-6968`) adds the change, and on a result below zero puts every body part's windage effect on for **ten turns** - which in the
+/// data is `effect_winded` on the torso and the mouth. That is what makes panic self-sustaining: the winded multiplier is a tenth, so a character that spent everything recovers at a
+/// crawl until the effect runs out. The effect is only given when the content has defined it, for the same reason `HIT_AND_RUN` checks: a component may only name what the world can
+/// resolve.
 pub fn spend_stamina(world: &mut World, entity: Entity, amount: i32) {
+    let Some(stamina) = world.get::<Stamina>(entity).copied() else {
+        return;
+    };
+    let raw = stamina.cur + f64::from(amount);
+    let winded = raw < 0.0;
     if let Some(mut stamina) = world.get_mut::<Stamina>(entity) {
-        stamina.cur = (stamina.cur + f64::from(amount)).clamp(0.0, stamina.max);
+        stamina.cur = raw.clamp(0.0, stamina.max);
+    }
+    if winded
+        && let Some(kind) = crate::effect_registry::kind_of(world, "winded")
+    {
+        crate::applied_effects::add(
+            world,
+            entity,
+            crate::effects::ActiveEffect::new(&kind, 10, 1),
+        );
     }
 }
 

@@ -668,3 +668,7 @@ directions and the exact 600-turn duration.
 **Round 1118 refilled wind**: `regeneration::wind_back_per_turn` and `recover_wind` (`Character::update_stamina`, `character.cpp:7022-7082` - twenty a turn at rest, **a tenth when
 winded**, floored at one a turn, `ceil(recovery * turns)`, clamped to the pool), called from `creatures_stage` for every creature that has a `Stamina`. Gated by
 `creature_fight::a_turn_gives_wind_back_and_panic_slows_it` and `creature_fight::the_turn_gives_a_character_its_wind_back` (the stage, and a monster being left without a pool).
+
+**Round 1119 closed the exhaustion chain**: `spend_stamina` now makes a character **winded** when a spend goes past zero (`Character::mod_stamina`, `character.cpp:6961-6968` - every body
+part's windage effect, ten turns), which is what round 1118's tenth-rate recovery was waiting for. Gated by
+`character_swing::swinging_past_empty_makes_a_survivor_winded_and_slows_what_comes_back`: past empty, winded for ten turns, and the next turn returns **2** instead of 20.
