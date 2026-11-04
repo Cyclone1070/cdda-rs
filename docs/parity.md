@@ -13259,3 +13259,26 @@ be a NaN. **A port that dropped the one would break exactly one case, at zero, w
 
 **Named, not invented:** the aiming **activity** (`aim_per_move`'s use of these, which is what actually lowers `recoil`), `get_character_parallax`, the aim-method table, and the sight
 dispersion itself (which needs the gun's sights, a data column the port does not carry yet).
+
+## The dispersion divider the port was missing (round 1155)
+
+`item::gun_dispersion` (`item.cpp:11108-11132`) does three things after summing the gun's own figures, and the port had none of them:
+
+| Step | Reference | Port |
+|---|---|---|
+damage | `dispersion_sum += damage_level() * DISPERSION_PER_GUN_DAMAGE` - **30** a level | `gun_dispersion(raw, damage_level, 30, divider)` |
+floor | `std::max( dispersion_sum, 0 )` | the same |
+division | `max( round( sum / GUN_DISPERSION_DIVIDER ), 1 )` - the divider is **18** | the same, and the floor is **one**, not zero |
+Gate | - | `a_gun_s_dispersion_is_divided_and_floored_before_anything_is_added_to_it` |
+
+**Every dispersion the port has composed since round 1136 was eighteen times too large.** The dump carries the raw `dispersion` - a rifle's 100 - and the reference aims with `round(100/18) = 6`.
+**Every gate passed anyway, because the gates were written against the same wrong figure**: the composition gate asserted the weapon's own *input* came through, and it did.
+
+**Nothing but the corpus could have caught it.** The arithmetic was self-consistent, the numbers were the data's, and the shots were merely wild. **The scenario's `missed by` moved from 0.820 to 0.397** when
+the divisor arrived, which is what a rule that changes the scale of every ranged number looks like from the outside.
+
+**A second thing the round tripped over is worth recording.** The composition test builds a `Shotmaker` **by hand** with `weapon_dispersion: 100.0`, and that field is the *already divided* figure -
+so changing the expectation there to 6 was wrong: the ÷18 happens in `shotmaker_for`, and a struct literal is not the place it happens. **The distinction between "the raw column" and "the number a
+shot is aimed with" now has its own function name**, `gun_dispersion`, and that is the fix that makes the next reader's mistake impossible rather than merely unlikely.
+
+**Named, not invented:** gunmods' dispersion, `with_scaling` (which the reference uses for the aiming UI's display and not for the shot), and `sight_dispersion`'s own divider.

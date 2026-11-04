@@ -169,6 +169,21 @@ pub fn throwing_dispersion(shot: &Throw) -> i32 {
     spread.max(0)
 }
 
+/// What a gun's own dispersion becomes before anything is added to it.
+///
+/// Reference: `item::gun_dispersion` (`item.cpp:11108-11132`): the type's `dispersion` plus a penalty per level of **damage the gun has taken**, floored at zero, then **divided by
+/// `GUN_DISPERSION_DIVIDER`** (18 in the data) and floored at **one**. The reference's comment calls the division "a gross adjustment" it intends to bake into the gun definitions later, and
+/// since it has not, the port must divide too: **the dump carries the raw figure, so a port that used it directly would be eighteen times too inaccurate.**
+///
+/// `DISPERSION_PER_GUN_DAMAGE` is **30** in the data, which is the whole reason a battered gun is worse than a new one rather than merely equal to it.
+#[must_use]
+#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+pub fn gun_dispersion(raw: i32, damage_level: i32, per_damage: i32, divider: f64) -> i32 {
+    let sum = f64::from(raw + damage_level * per_damage).max(0.0);
+    let rounded = (sum / divider).round() as i32;
+    rounded.max(1)
+}
+
 /// The `Shotmaker` a character and a gun make together: the gun's own figure, the shooter's **effective** hands and eyes, and the two skills the reference averages.
 ///
 /// Reference: `Character::get_weapon_dispersion` (`ranged.cpp:2500-2545`) reads `obj.gun_dispersion()` for the weapon, `get_dex()` and `get_per()` for the body, and then averages
@@ -184,7 +199,8 @@ pub fn shotmaker_for(
     divider: f64,
 ) -> Shotmaker {
     Shotmaker {
-        weapon_dispersion: f64::from(gun.dispersion),
+        // Reference: `obj.gun_dispersion()` (`ranged.cpp:2503`), which is the **divided and floored** figure and not the raw one the dump carries.
+        weapon_dispersion: f64::from(gun_dispersion(gun.dispersion, 0, 30, divider)),
         dexterity: crate::creature::effective_dexterity(world, shooter),
         perception: crate::creature::effective_perception(world, shooter),
         gun_skill: crate::creature::skill_level(world, shooter, "gun"),

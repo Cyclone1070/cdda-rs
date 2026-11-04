@@ -817,3 +817,7 @@ adds `5 * kick`; the CLI reads the flag from `corpus/prototypes/items.json`. Gat
 **Round 1154 ported the first half of aiming**: `aim::sight_speed_with_attenuation` (`modified_sight_speed`, `character.cpp:955-975`) and `aim::point_shooting_limit` (`character.cpp:977-987`).
 Gated by `sim_suite::aim_rules::the_sight_speed_bonus_fades_as_the_recoil_comes_down_to_the_sights` and `...::point_shooting_goes_further_with_a_rifle_than_with_a_bow_until_mastery` - both of
 which corrected a first reading that had the curves' direction backwards. **No caller yet**: the aim activity spends them, and the docs say so.
+
+**Round 1155 ported the dispersion divider**: `dispersion::gun_dispersion(raw, damage_level, per_damage, divider)` (`item::gun_dispersion`, `item.cpp:11108-11132`) - damage at **30** a level,
+floored at zero, divided by **18** and floored at **one** - and `shotmaker_for` now uses it. Gated by `melee_rules::a_gun_s_dispersion_is_divided_and_floored_before_anything_is_added_to_it`. Every
+dispersion the port composed from round 1136 to 1154 was eighteen times too large, which the docs record.

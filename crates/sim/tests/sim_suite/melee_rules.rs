@@ -340,7 +340,7 @@ fn perception_costs_more_dispersion_than_dexterity_and_the_shot_adds_them_up() {
         "1.2 a point against dexterity's 0.5: the same shortfall costs twelve against five"
     );
 
-    // A skilled shooter with a hundred-dispersion weapon: the skill term is zero at MAX_SKILL, the stats cost nothing at twenty, so the answer is the weapon's own figure.
+    // A skilled shooter with a hundred-dispersion weapon: the skill term is zero at MAX_SKILL, the stats cost nothing at twenty, so the answer is the weapon's own divided figure.
     let skilled = Shotmaker {
         weapon_dispersion: 100.0,
         dexterity: 20,
@@ -350,7 +350,7 @@ fn perception_costs_more_dispersion_than_dexterity_and_the_shot_adds_them_up() {
         archery: false,
         divider: 18.0,
     };
-    assert_eq!(weapon_dispersion(skilled), 100.0, "the weapon alone");
+    assert!((weapon_dispersion(skilled) - 100.0).abs() < f64::EPSILON, "the weapon alone: this struct's field is the **already-divided** figure, which `shotmaker_for` is what builds");
 
     // Eight dexterity costs six and ten perception costs twelve, and the average skill of five is what the curve is asked about.
     let clumsy = Shotmaker {
@@ -413,7 +413,10 @@ fn a_gun_and_a_shooter_compose_the_dispersion_a_shot_starts_with() {
 
     // A beginner: eight and eight cost six and fourteen units of dispersion, and the skill term is the curve's at nothing.
     let beginner = cdda_sim::dispersion::shotmaker_for(&world, shooter, &launcher, 18.0);
-    assert_eq!(beginner.weapon_dispersion, 100.0, "the launcher's own dispersion, from the corpus");
+    assert!(
+        (beginner.weapon_dispersion - 6.0).abs() < f64::EPSILON,
+        "the launcher's own dispersion **divided by eighteen and rounded**: 100 becomes 6, not 100 - the corpus carries the raw figure"
+    );
     assert_eq!(beginner.dexterity, 8, "the shooter's effective dexterity");
     assert_eq!(beginner.perception, 8, "and its effective perception");
     assert_eq!(beginner.gun_skill, 0, "with no skill in guns");
@@ -465,5 +468,28 @@ fn a_target_s_size_is_the_fraction_of_its_tile_a_shot_is_judged_against() {
     assert!(
         (at_cat.missed_by_tiles - at_cow.missed_by_tiles).abs() < f64::EPSILON,
         "and the error itself does not depend on what it was aimed at"
+    );
+}
+
+/// A gun's own dispersion is divided by the option and floored at one, and damage on the gun adds before the division.
+///
+/// Reference: `item::gun_dispersion` (`item.cpp:11108-11132`). **The divider is the number that was missing from the port's first eight ranged rounds**: the dump carries the raw
+/// `dispersion` (a rifle's is 100), the reference divides it by **18** and rounds, so the figure a shot is actually aimed with is **6**. Every dispersion the port composed before this round
+/// was eighteen times too large, and every gate still passed because the gates were written against the same wrong figure.
+#[test]
+fn a_gun_s_dispersion_is_divided_and_floored_before_anything_is_added_to_it() {
+    use cdda_sim::dispersion::gun_dispersion;
+
+    assert_eq!(gun_dispersion(100, 0, 30, 18.0), 6, "a hundred divided by eighteen is six");
+    assert_eq!(gun_dispersion(0, 0, 30, 18.0), 1, "and the reference's floor is one, not zero");
+    assert_eq!(gun_dispersion(9, 0, 30, 18.0), 1, "nine rounds to one, and the floor keeps it there");
+    assert_eq!(gun_dispersion(-50, 0, 30, 18.0), 1, "a negative figure is floored at zero before the division, then at one");
+
+    // Damage on the gun adds thirty a level *before* the division, so a battered rifle is worse than a new one by a fifth of a level's worth.
+    assert_eq!(gun_dispersion(100, 1, 30, 18.0), 7, "one level of damage takes 100 to 7");
+    assert_eq!(gun_dispersion(100, 5, 30, 18.0), 14, "and five levels to 14");
+    assert!(
+        gun_dispersion(100, 5, 30, 18.0) > gun_dispersion(100, 0, 30, 18.0),
+        "which is the whole point of the damage term"
     );
 }
