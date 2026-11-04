@@ -235,3 +235,35 @@ fn a_swing_is_a_critical_hit_by_three_chances_multiplied() {
         "no chance is ever above one"
     );
 }
+
+/// How long a swing takes, and how long a weapon takes to swing.
+///
+/// Reference: `item::attack_time` (`item.cpp:7595-7602`) is the **weapon's own** time, derived from what it weighs and how big it is - `65 + ( volume / 62.5_ml + weight / 60_gram ) /
+/// count` - and `Character::attack_speed` (`melee.cpp:2668-2705`) turns that into the moves a swing costs: half the weapon's time, plus the melee skill's discount
+/// `base * (15 - skill) / 15`, minus half the dexterity, all multiplied by a **stamina penalty** that rises from nothing at a quarter stamina to double at none.
+///
+/// The numbers below are worked out from the reference's own formula and the corpus's own numbers: a crowbar is **520 ml and 1,456 g**, so its attack time is
+/// `65 + (520 / 62.5 + 1456 / 60) = 97`, and a survivor of dexterity 8 with no melee skill swinging it pays `48 + 48 - 4 = 92` moves at full stamina.
+#[test]
+fn a_swing_costs_the_time_its_weapon_takes_and_the_swinger_s_skill_saves() {
+    use cdda_sim::melee::{attack_speed, attack_time};
+
+    assert_eq!(attack_time(520, 1_456, 1), 97, "a crowbar takes ninety-seven");
+    assert_eq!(attack_time(0, 0, 1), 65, "and a thing of no size or weight takes the base sixty-five");
+    assert_eq!(
+        attack_time(520, 1_456, 2),
+        81,
+        "two of them in one stack are quicker per swing, because the sum is divided by the count"
+    );
+
+    // Half a crowbar's time is forty-eight; the skill discount at zero skill is the whole of it; dexterity 8 saves four.
+    assert_eq!(attack_speed(48, 0, 8, 1.0), 92, "a clumsy survivor's swing");
+    // Ten points of melee skill remove two thirds of the base: `48 * 5 / 15 = 16`.
+    assert_eq!(attack_speed(48, 10, 8, 1.0), 60, "an expert's swing");
+    // Half the stamina is no penalty at all; at none it doubles the base.
+    assert_eq!(attack_speed(48, 0, 8, 0.5), 92, "half stamina costs nothing extra");
+    assert_eq!(attack_speed(48, 0, 8, 0.0), 140, "no stamina costs double the base: 96 + 48 - 4");
+    // A quarter of stamina is exactly the threshold, so nothing is added yet.
+    assert_eq!(attack_speed(48, 0, 8, 0.25), 92, "a quarter of stamina is the threshold");
+    assert_eq!(attack_speed(48, 0, 8, 0.125), 116, "an eighth of stamina adds half again to the base");
+}

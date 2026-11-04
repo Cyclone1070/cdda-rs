@@ -12255,3 +12255,20 @@ turn shape differs: a fast one strikes twice, a heavy one strikes and cannot mov
 **The QA surface caught this round's own omission.** `inspect_names::every_component_a_creature_carries_has_a_name` failed the whole suite because the new `AttackCost` had no line in
 the naming table - the report would have printed `?` for it, which is exactly the "inspection that cannot show you the state" failure the QA surface exists to prevent. **A gate about the
 tools caught a defect in the tools, which is why the tools have gates.**
+
+## A swing costs moves, and the weapon decides how many (round 1110)
+
+`Character::attack_speed` (`melee.cpp:2668-2705`) is ported and **called**: the survivor's swing now spends the moves the reference charges.
+
+| Piece | Reference | Port |
+|---|---|---|
+a weapon's swing time | `item::attack_time`: `65 + ( volume / 62.5_ml + weight / 60_gram ) / count` (`item.cpp:7595-7602`) | `melee::attack_time(volume_ml, weight_g, count)`, truncating as the reference does |
+what a swing costs | `attack_speed`: half the weapon's time, plus `base * (15 - skill) / 15`, less half the dexterity, scaled by a stamina penalty from **1 at a quarter stamina to 2 at none** | `melee::attack_speed(base, melee_skill, dexterity, stamina_ratio)` |
+Gate | - | `a_swing_costs_the_moves_its_weapon_takes` on the **store**: a 250 ml, 500 g knife costs a dexterity-8 survivor **72** moves |
+Not ported, named | modifiers, enchantments, martial arts, being on the ground, crouching | each is a system this port does not have; none is invented |
+
+**The weapon's time is derived, not data.** `attack_time` reads only what the item weighs and how big it is - so **the sword's speed came free with the volume and weight the registry already had**, and no dump column was needed. That is worth noticing: not every reference rule needs new data; some need the arithmetic that was already sitting beside the data.
+
+**The gate caught the port's own recurring failure one more time.** The fixture's third kind is a **knife**, and the first version of the test called it a `crowbar` and asserted a crowbar's numbers - it failed with **328 for 308**, exactly the "assertion read the wrong entity" shape recorded in the roadmap. The fix was not to loosen the number but to **name the variable after the thing the fixture actually returns** and write the knife's arithmetic out in the assertion.
+
+**A quarter of stamina is the boundary and the test says so on both sides:** 0.25 adds nothing, 0.125 adds half the base again. A penalty that starts one turn early or late is invisible in ordinary play and wrong at exactly the moment the player is losing.

@@ -630,3 +630,8 @@ the port follows the code. **Nothing calls the rule yet**; the damage multiplier
 reads it, `spawn_monster_of_type` writes `AttackCost`, and `strike_at` spends it **before** the swing, as `monster.cpp:2108` does. Gated by
 `creature_fight::a_monster_pays_for_its_blow_out_of_its_own_moves` (200 → 140 → 80 over two blows at 60). The QA gate
 `inspect_names::every_component_a_creature_carries_has_a_name` failed first, because the new component had no name in the report table.
+
+**Round 1110 charged the survivor for its swing**: `melee::attack_time` (`item::attack_time`, `item.cpp:7595-7602` - derived from volume, weight and count, so no new dump column) and
+`melee::attack_speed` (`Character::attack_speed`, `melee.cpp:2668-2705` - half the weapon's time, the melee skill's discount, half the dexterity, and a stamina penalty from one at a
+quarter stamina to two at none) are called by `swing_what_the_character_holds`, which spends the cost. Gated by `melee_rules::a_swing_costs_...` (the arithmetic, both sides of the
+stamina threshold) and `character_swing::a_survivor_s_swing_costs_the_moves_its_weapon_takes` (the store: a 250 ml, 500 g knife costs **72** moves).

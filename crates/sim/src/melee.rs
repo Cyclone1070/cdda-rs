@@ -359,3 +359,36 @@ pub fn crit_chance(inputs: &CritInputs, roll_hit: f32, target_dodge: f32) -> f64
     }
     triple + bonus
 }
+
+/// How long a weapon takes to swing, in the reference's own points.
+///
+/// Reference: `item::attack_time` (`item.cpp:7595-7602`): `65 + ( volume / 62.5_ml + weight / 60_gram ) / count`. The reference holds the answer as an integer and reaches it by
+/// truncating a real, so the port truncates too rather than rounding - a crowbar of 520 ml and 1,456 g takes **97**, not 98.
+#[must_use]
+pub fn attack_time(volume_ml: i64, weight_g: i64, count: i64) -> i32 {
+    if count <= 0 {
+        return 65;
+    }
+    #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+    let time = 65.0 + (volume_ml as f64 / 62.5 + weight_g as f64 / 60.0) / count as f64;
+    #[allow(clippy::cast_possible_truncation)]
+    let whole = time as i32;
+    whole
+}
+
+/// What one swing costs a character in moves.
+///
+/// Reference: `Character::attack_speed` (`melee.cpp:2668-2705`). Half the weapon's own time, plus `base * (15 - melee_skill) / 15`, less half the dexterity, all scaled by a stamina
+/// penalty that grows from **one at a quarter stamina to two at none**. The reference also applies modifiers, enchantments and martial arts; none of the three exists in this port yet,
+/// and each is named here so its absence is a fact rather than a silence.
+#[must_use]
+pub fn attack_speed(base_move_cost: i32, melee_skill: i32, dexterity: i32, stamina_ratio: f64) -> i32 {
+    let base = f64::from(base_move_cost);
+    #[allow(clippy::cast_possible_truncation)]
+    let skill_cost = (base * f64::from(15 - melee_skill) / 15.0) as i32;
+    let dex_bonus = dexterity / 2;
+    let penalty = 1.0 + ((0.25 - stamina_ratio) * 4.0).max(0.0);
+    #[allow(clippy::cast_possible_truncation)]
+    let cost = (base * penalty) as i32 + skill_cost - dex_bonus;
+    cost.max(0)
+}

@@ -2067,6 +2067,20 @@ pub fn blow_from_what_the_character_holds(world: &World, holder: Entity) -> crat
 /// This is the avatar's half of the fight: the same `strike_with` a monster's blow goes through, fed by `blow_from_what_the_character_holds` instead of a `MeleeAttack` component.
 pub fn swing_what_the_character_holds(world: &mut World, holder: Entity, victim: Entity) -> Option<i32> {
     let attack = blow_from_what_the_character_holds(world, holder);
+    // Reference: `Character::melee_attack` works out `move_cost = attack_speed( cur_weap )` and charges it whatever the outcome (`melee.cpp:628`), which is why a fast weapon is
+    // worth carrying and why swinging while exhausted costs twice as much. The port reads the same three inputs it can: the weapon's own time, the melee skill, and dexterity.
+    let weapon_time = world
+        .get::<Wielding>(holder)
+        .map(|carried| carried.0)
+        .map_or(65, |kind| {
+            let volume = i64::from(crate::item_registry::volume_of(world, kind));
+            let weight = crate::item_registry::weight_of(world, kind);
+            crate::melee::attack_time(volume, weight, 1)
+        });
+    let skill = skill_level(world, holder, "melee");
+    let dexterity = effective_dexterity(world, holder);
+    let cost = crate::melee::attack_speed(weapon_time / 2, skill, dexterity, 1.0);
+    spend_moves(world, holder, f64::from(cost));
     strike_with(world, victim, attack)
 }
 

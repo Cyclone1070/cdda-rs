@@ -185,3 +185,29 @@ fn a_weapons_skill_is_the_one_its_biggest_damage_trains() {
     assert_eq!(weapon_skill(0.0, 3.0, 12.0), Some("stabbing"), "and the point wins when it does more");
     assert_eq!(weapon_skill(0.0, 0.0, 0.0), None, "a thing that does no damage trains nothing");
 }
+
+/// A survivor's swing costs moves, taken from the weapon it holds.
+///
+/// Reference: `Character::melee_attack` charges `attack_speed( cur_weap )` whether the blow lands or not (`melee.cpp:628`), and `attack_speed` starts from the weapon's own
+/// `attack_time` (`item.cpp:7595-7602`). The gate reads the **store**, not the arithmetic: the fixture's combat knife is 250 ml and 500 g, so its attack time is
+/// `65 + (250 / 62.5 + 500 / 60) = 77`, half of it is 38, and a survivor of dexterity 8 with no melee skill pays `38 + 38 - 4 = 72`.
+#[test]
+fn a_survivor_s_swing_costs_the_moves_its_weapon_takes() {
+    // The tuple's third kind is the knife, not a crowbar. Naming it `crowbar` and asserting a crowbar's numbers was the first version of this test, and it failed with 72 for 92
+    // because a hand-built fixture's order is not a promise about which item is in hand.
+    let (mut world, _null, _rock, knife) = world_with_kinds();
+    let survivor = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Wielding(knife))
+        .insert(cdda_sim::creature::Dexterity { base: 8 });
+    let victim = cdda_sim::creature::spawn_creature(&mut world, "a rat", (1, 0, 0));
+    cdda_sim::creature::set_moves(&mut world, survivor, 400);
+
+    cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, victim);
+    assert_eq!(
+        cdda_sim::creature::moves_left(&world, survivor),
+        328,
+        "a knife swing costs seventy-two moves: 77 / 2 = 38, plus 38 for no melee skill, less 4 for dexterity 8"
+    );
+}
