@@ -64,6 +64,22 @@ pub enum Step {
     Date(i64),
     /// Says the survivor should be wearing an effect, by the data's own id.
     ExpectEffect(String),
+    /// Says a monster standing on a square should be wearing an effect.
+    ExpectMonsterEffect {
+        /// The effect's id, as the data spells it.
+        id: String,
+        /// The square the monster should be standing on.
+        x: i32,
+        /// The square the monster should be standing on.
+        y: i32,
+    },
+    /// Says how many monsters in the world are wearing an effect, wherever they have walked to.
+    ExpectMonstersWithEffect {
+        /// How many monsters should be wearing it.
+        count: u32,
+        /// The effect's id, as the data spells it.
+        id: String,
+    },
     /// The last turn changed exactly this many squares.
     ExpectChanged(usize),
     /// A fire stands on this square.
@@ -293,6 +309,15 @@ pub fn parse(text: &str) -> Result<Vec<Step>, String> {
             ["expect", "monster", "within", squares] => {
                 Step::ExpectMonsterNear(number_of(squares, number, "squares")?)
             },
+            ["expect", "monsters", count, "with", "effect", id] => Step::ExpectMonstersWithEffect {
+                count: number_of(count, number, "monsters")?,
+                id: (*id).to_owned(),
+            },
+            ["expect", "monster", "effect", id, "at", x, y] => Step::ExpectMonsterEffect {
+                id: (*id).to_owned(),
+                x: number_of(x, number, "x")?,
+                y: number_of(y, number, "y")?,
+            },
             ["expect", "no", "monster", "at", x, y] => Step::ExpectNoMonsterAt {
                 x: number_of(x, number, "x")?,
                 y: number_of(y, number, "y")?,
@@ -358,6 +383,33 @@ pub fn run(text: &str) -> Result<Outcome, String> {
             Step::Date(turn) => {
                 cdda_sim::calendar::set_turn(&mut world, turn);
                 outcome.lines.push(format!("date: the clock is at turn {turn}"));
+            }
+            Step::ExpectMonstersWithEffect { count, id } => {
+                let wearing = cdda_sim::creature::creatures(&mut world)
+                    .into_iter()
+                    .filter(|entity| cdda_sim::applied_effects::has(&world, *entity, id.as_str()))
+                    .count();
+                if wearing == count as usize {
+                    outcome
+                        .lines
+                        .push(format!("effects: {wearing} monster(s) are {id}"));
+                } else {
+                    outcome.failures.push(format!(
+                        "expected {count} monster(s) to be {id}, and found {wearing}"
+                    ));
+                }
+            }
+            Step::ExpectMonsterEffect { id, x, y } => {
+                let standing = cdda_sim::creature::creature_at(&world, (x, y, 0))
+                    .into_iter()
+                    .find(|entity| cdda_sim::applied_effects::has(&world, *entity, id.as_str()));
+                if standing.is_some() {
+                    outcome.lines.push(format!("effect: something at ({x}, {y}) is {id}"));
+                } else {
+                    outcome
+                        .failures
+                        .push(format!("expected something at ({x}, {y}) to be {id}, and nothing is"));
+                }
             }
             Step::ExpectEffect(id) => {
                 let wearing = survivor(&mut world)

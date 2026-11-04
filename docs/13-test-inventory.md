@@ -711,3 +711,7 @@ hit point short of full**. Dormant in play until something lowers morale (pain, 
 `monster.cpp:3518-3549`) - `spooked` for 3 turns and `spooked_recent` for 9 when another **creature** is within two squares, and the snap back to the type's morale and anger once it has
 been spooked before. `spooked` is read by the walk through `is_fleeing`'s effect-cache line. Gated by
 `creature_fight::a_cornered_fighter_loses_its_nerve_and_then_finds_it_again`. **The gate's first failure was a query that took the floor tile for a neighbour** - fixed with `With<Creature>`.
+
+**Round 1129 proved fear in play and added two claim forms**: `scenarios/a_cornered_worm_snake_bolts.txt` - two `mon_wormsnake_baby` (CORNERED_FIGHTER, morale 0) spook each other in one turn,
+asserted as `expect monsters 2 with effect spooked`. The CLI gained `expect monster effect <id> at <x> <y>` and `expect monsters <n> with effect <id>`; the first was too specific for an
+effect that makes monsters run.

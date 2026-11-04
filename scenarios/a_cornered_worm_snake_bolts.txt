@@ -1,0 +1,18 @@
+# Fear spreads between monsters, proved in play.
+#
+# `mon_wormsnake_baby` carries `CORNERED_FIGHTER` and its morale is not above zero, so `monster::process_turn`'s block (`monster.cpp:3518-3549`) gives it `spooked` for three turns as soon as
+# **another creature** stands within two squares - and `spooked` is the tag `is_fleeing` reads first, so it runs. Two of them side by side is all it takes; the survivor never has to touch
+# them. The gate's three "expect" lines say the tag is on, that the same tag is on the second snake, and that the survivor was never involved.
+world 12 bare
+survivor 0 0
+items
+monsters
+data
+seed 7
+monster mon_wormsnake_baby 5 5
+monster mon_wormsnake_baby 6 5
+turn 1
+# Counted, not located: a spooked monster **runs**, so the square it was spooked on is not the square it is standing on when the turn ends. The first version of this scenario asked for
+# both snakes by position and saw only one - the other had already bolted, which is the rule working.
+expect monsters 2 with effect spooked
+expect hurt 0

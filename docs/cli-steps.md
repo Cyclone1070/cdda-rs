@@ -38,6 +38,8 @@ expect item rock at 5 0
 expect hurt 3
 expect monster within 2
 expect no monster at 1 0
+expect monster effect spooked at 5 5
+expect monsters 2 with effect spooked
 expect floor rock 1
 expect carried rock 1
 ```

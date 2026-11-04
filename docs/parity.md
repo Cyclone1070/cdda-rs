@@ -12668,3 +12668,25 @@ not ask for.** The rule was right; the world it read was wrong.
 
 **`spooked_recent` doubles as the recovery.** The reference does not clear the effect to calm a monster down - it **checks how recently it was frightened** and, if it has been, puts its nerve
 back. That is a nine-turn memory in a tag, and the port honours it rather than inventing a timer.
+
+## Fear spreads between monsters, proved in play (round 1129)
+
+`scenarios/a_cornered_worm_snake_bolts.txt` puts two `mon_wormsnake_baby` - `CORNERED_FIGHTER`, morale at zero - next to each other and takes **one turn**. Neither the survivor nor a blow
+is needed: `effects: 2 monster(s) are spooked`.
+
+| Piece | What it says |
+|---|---|
+`expect monster effect <id> at <x> <y>` | one monster, on a square, wearing an effect |
+`expect monsters <n> with effect <id>` | **how many** monsters anywhere are wearing it |
+
+**The scenario's first version used the first form and failed - which is the rule working.** One snake was spooked where it stood; the other had **bolted**, so the square it was spooked on
+was empty by the end of the turn. **A positional assertion is wrong for any effect that makes a creature move**, and the counting form is what a playtest should say: *two monsters are
+frightened*, not *two particular squares are occupied*.
+
+**This is the round's QA lesson, and it is the reverse of the usual one.** Most of this port's scenario failures have been the world disagreeing with the rule. This time the world agreed and
+**the assertion was too specific** - which is a failure mode a counting gate cannot have. Both forms now exist: position when the thing is expected to stay put, count when it is expected
+to run.
+
+**The chain is now complete end to end and provable in a playtest**: a monster's type gives its morale and anger (round 1122) -> its attitude decides whether it fights or runs (1122) ->
+`is_fleeing` adds the four-square rule (1125) -> fear makes it walk away, even with no goal (1123, 1124) -> crowding spooks a cornered fighter for three turns (1128) -> and its nerve
+trickles back or snaps back afterwards (1126, 1127). **Every link has its own gate, and this scenario is the receipt that they are wired to each other.**
