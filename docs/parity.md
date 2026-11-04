@@ -12371,3 +12371,24 @@ by us for AI"* - and an AI that only noticed successful hits would forget a surv
 
 **The gate asserts the exact duration and both directions in one test**, because either half alone passes trivially: a flag on the victim proves nothing about the attacker, and a flag with
 no duration proves nothing about how long a fight is remembered.
+
+## A swing spends wind, and a spent survivor swings slower (round 1117)
+
+Stamina existed only as an argument `attack_speed` took and nobody supplied. It is now a component, and the swing both spends it and is scaled by it.
+
+| Piece | Reference | Port |
+|---|---|---|
+the ceiling | `PLAYER_MAX_STAMINA_BASE + PLAYER_CARDIOFIT_STAMINA_SCALING * cardiofit` = **3,500** + 5 a point (`character.cpp:6814-6832`, `data/core/external_options.json`) | `Stamina { cur, max }`, both 3,500 - the port has no cardio fitness, which is named, not invented |
+what a swing costs | `- ( weight / 16 + 50 )`, plus the melee skill, less any stance penalty, floored at **-50** (`melee.cpp:973-997`, `character.cpp:3107-3120`) | `melee::stamina_cost(weight_g, melee_skill, stance_malus)` |
+what it does to the swing | the ratio feeds `attack_speed`'s penalty, **1 at a quarter stamina and 2 at none** (`melee.cpp:2678-2685`) | the same rule, now with a real ratio |
+Gates | - | `a_swing_costs_stamina_in_proportion_to_what_it_weighs` (the arithmetic, five cases) and `swinging_spends_wind_and_a_spent_survivor_swings_slower` (the store: 81 of 3,500 a blow, and a drained survivor pays more moves) |
+
+**The floor at -50 is what stops a swing being free**, and the gate says so twice: at a skill of 100 with nothing in hand the cost is still 50. That is the reference refusing to let expertise
+turn a swing into a breath - **and it is the kind of clamp that only matters at the extremes, where no ordinary playtest ever goes.**
+
+**The two gates test different things on purpose.** One proves the arithmetic (five cases, each a boundary), the other proves the **wiring** (a real survivor, a real item weight from the
+registry, a real ratio). **An arithmetic gate cannot tell you whether anything calls the rule; a store gate cannot tell you whether the numbers are right.** Both were needed here
+because the rule had been sitting uncalled for a round.
+
+**Named, not invented:** cardio fitness (so the ceiling stays at 3,500), stamina **recovery** (`Character::update_stamina`, `character.cpp:7022-7090`, which needs cardio, stimulants,
+mouth encumbrance and bionics), and the stance penalty, which needs crouching and prone to exist.

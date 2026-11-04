@@ -355,3 +355,48 @@ fn a_swing_flags_who_it_hit_and_who_it_swung_at() {
     }
     assert!(flagged, "a monster that attacks the avatar is flagged for three turns");
 }
+
+/// Swinging spends wind, and running out of it makes the next swing slower.
+///
+/// Reference: `Character::get_total_melee_stamina_cost` (spent per swing) and `Character::attack_speed`'s stamina penalty (`melee.cpp:2678-2685`), which doubles the moves a swing
+/// costs once the character is spent. The gate drives the **store**: a 500 g knife costs 81 stamina a swing, so twenty blows take 1,620 of 3,500; and the same survivor drained to
+/// nothing pays more moves for the same swing than a fresh one does.
+#[test]
+fn swinging_spends_wind_and_a_spent_survivor_swings_slower() {
+    let (mut world, _null, _rock, knife) = world_with_kinds();
+    let survivor = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Wielding(knife))
+        .insert(cdda_sim::creature::Stamina { cur: 3_500.0, max: 3_500.0 });
+    let victim = cdda_sim::creature::spawn_creature(&mut world, "a rat", (1, 0, 0));
+    world
+        .entity_mut(victim)
+        .insert(cdda_sim::creature::Health { hp: 100_000, max_hp: 100_000 });
+    cdda_sim::creature::set_moves(&mut world, survivor, 100_000);
+
+    let before = cdda_sim::creature::moves_left(&world, survivor);
+    cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, victim);
+    let fresh_cost = before - cdda_sim::creature::moves_left(&world, survivor);
+    let wind = world
+        .get::<cdda_sim::creature::Stamina>(survivor)
+        .expect("the survivor has wind")
+        .cur;
+    assert!(
+        (wind - (3_500.0 - 81.0)).abs() < 0.001,
+        "a 500 g knife costs eighty-one of three and a half thousand: {wind}"
+    );
+
+    // Drained to nothing, the same swing costs more moves: the penalty is two at no wind.
+    world
+        .get_mut::<cdda_sim::creature::Stamina>(survivor)
+        .expect("still there")
+        .cur = 0.0;
+    let before = cdda_sim::creature::moves_left(&world, survivor);
+    cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, victim);
+    let spent_cost = before - cdda_sim::creature::moves_left(&world, survivor);
+    assert!(
+        spent_cost > fresh_cost,
+        "a spent survivor pays more for the same swing: {spent_cost} against {fresh_cost}"
+    );
+}

@@ -392,3 +392,16 @@ pub fn attack_speed(base_move_cost: i32, melee_skill: i32, dexterity: i32, stami
     let cost = (base * penalty) as i32 + skill_cost - dex_bonus;
     cost.max(0)
 }
+
+/// What a swing costs a character in stamina.
+///
+/// Reference: `Character::get_total_melee_stamina_cost` (`melee.cpp:973-997`): the standard cost is `- ( weight / 16_gram + 50 )` (`character.cpp:3107-3120`), and the total adds
+/// the melee skill as a rebate and subtracts any stance penalty, then keeps at least **-50** - `std::min( -50, ... )`. The result is **negative**, because the reference spends it by
+/// adding it: a swing returns the stamina to take.
+#[must_use]
+pub fn stamina_cost(weight_g: i64, melee_skill: i32, stance_malus: i32) -> i32 {
+    let standard = -(weight_g / 16 + 50);
+    #[allow(clippy::cast_possible_truncation)]
+    let total = i32::try_from(standard).unwrap_or(i32::MIN / 2) + melee_skill - stance_malus;
+    total.min(-50)
+}

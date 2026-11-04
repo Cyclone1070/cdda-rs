@@ -2046,6 +2046,43 @@ fn weapon_skill_of(world: &World, holder: Entity) -> Option<&'static str> {
     )
 }
 
+/// How much wind a character has left.
+///
+/// Reference: `Character::stamina` beside `get_stamina_max` (`character.cpp:6814-6832`), which is `PLAYER_MAX_STAMINA_BASE + PLAYER_CARDIOFIT_STAMINA_SCALING * cardiofit` - **3,500**
+/// plus five a point of cardio fitness, from `data/core/external_options.json`. The port has no cardio fitness, so a character starts at the base and its ceiling stays there; that is a
+/// named gap rather than a made-up ceiling.
+#[derive(Component, Debug, Clone, Copy, PartialEq)]
+pub struct Stamina {
+    /// What is left.
+    pub cur: f64,
+    /// What it can hold.
+    pub max: f64,
+}
+
+impl Default for Stamina {
+    fn default() -> Self {
+        Self {
+            cur: 3_500.0,
+            max: 3_500.0,
+        }
+    }
+}
+
+/// Spends stamina, keeping it at zero or above and never above what the character can hold.
+pub fn spend_stamina(world: &mut World, entity: Entity, amount: i32) {
+    if let Some(mut stamina) = world.get_mut::<Stamina>(entity) {
+        stamina.cur = (stamina.cur + f64::from(amount)).clamp(0.0, stamina.max);
+    }
+}
+
+/// What share of its wind a character has left, which is the one number the swing cost reads.
+#[must_use]
+pub fn stamina_ratio(world: &World, entity: Entity) -> f64 {
+    world
+        .get::<Stamina>(entity)
+        .map_or(1.0, |stamina| stamina.cur / stamina.max)
+}
+
 /// The exercise each skill has banked towards its next level.
 ///
 /// Reference: `SkillLevel::_exercise` (`skill.h`), which the reference keeps beside the level and the knowledge track. The port keeps the level in [`Skills`] and the exercise
@@ -2159,7 +2196,15 @@ pub fn swing_what_the_character_holds(world: &mut World, holder: Entity, victim:
         });
     let skill = skill_level(world, holder, "melee");
     let dexterity = effective_dexterity(world, holder);
-    let cost = crate::melee::attack_speed(weapon_time / 2, skill, dexterity, 1.0);
+    // Reference: the swing is charged its stamina (`get_total_melee_stamina_cost`) as well as its moves, and the stamina the character has left scales the moves it pays -
+    // `attack_speed`'s `stamina_penalty` grows from one at a quarter to two at none (`melee.cpp:2678-2685`).
+    let weight = world
+        .get::<Wielding>(holder)
+        .map(|carried| carried.0)
+        .map_or(0, |kind| crate::item_registry::weight_of(world, kind));
+    spend_stamina(world, holder, crate::melee::stamina_cost(weight, skill, 0));
+    let stamina = stamina_ratio(world, holder);
+    let cost = crate::melee::attack_speed(weapon_time / 2, skill, dexterity, stamina);
     spend_moves(world, holder, f64::from(cost));
     let dealt = strike_with(world, victim, attack);
     // Reference: **both** paths teach. `melee.cpp:2222` trains after a hit and `melee.cpp:713-716` trains after a miss - `melee_train( *this, 2, std::min( 5,

@@ -288,3 +288,21 @@ fn practising_a_skill_buys_levels_at_a_rising_price() {
     assert_eq!(practise(0, 0, 50_000), (2, 0), "and one big gain may buy two levels");
     assert_eq!(practise(3, 0, 0), (3, 0), "nothing practises nothing");
 }
+
+/// A swing costs stamina, and a heavier weapon costs more of it.
+///
+/// Reference: `Character::get_total_melee_stamina_cost` (`melee.cpp:973-997`) with `get_standard_stamina_cost` (`character.cpp:3107-3120`): `- ( weight / 16 + 50 )`, plus the melee
+/// skill as a rebate, less a stance penalty, floored at **-50**. A 500 g knife is `-(31 + 50) = -81`; the same knife in expert hands is `-71`; and no weapon's swing is ever cheaper
+/// than 50.
+#[test]
+fn a_swing_costs_stamina_in_proportion_to_what_it_weighs() {
+    use cdda_sim::melee::stamina_cost;
+
+    assert_eq!(stamina_cost(500, 0, 0), -81, "a half-kilo knife costs eighty-one");
+    assert_eq!(stamina_cost(0, 0, 0), -50, "and empty hands cost the floor");
+    assert_eq!(stamina_cost(500, 10, 0), -71, "ten points of melee skill give ten back");
+    assert_eq!(stamina_cost(500, 0, 20), -101, "and crouching costs twenty more");
+    // The floor holds however light the weapon or skilled the hand: `std::min( -50, ... )`.
+    assert_eq!(stamina_cost(0, 100, 0), -50, "there is no free swing");
+    assert_eq!(stamina_cost(4_000, 0, 0), -300, "a four-kilo maul costs three hundred");
+}

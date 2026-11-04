@@ -659,3 +659,8 @@ the miss path.
 **Round 1115 ported `effect_hit_by_player` in both directions**: the survivor's swing flags a non-avatar target for **ten minutes** before the blow resolves (`melee.cpp:595-599`), and a
 monster's blow at the avatar flags the monster for **three turns** (`monster.cpp:2130-2133`). Gated by `character_swing::a_swing_flags_who_it_hit_and_who_it_swung_at`, which checks both
 directions and the exact 600-turn duration.
+
+**Round 1117 ported stamina**: `Stamina { cur, max }` (3,500 from `PLAYER_MAX_STAMINA_BASE`, `data/core/external_options.json`), `melee::stamina_cost` (`get_total_melee_stamina_cost`,
+`melee.cpp:973-997`, floored at -50), and a swing that both spends it and is scaled by the ratio through `attack_speed`'s penalty. Gated by
+`melee_rules::a_swing_costs_stamina_in_proportion_to_what_it_weighs` (the arithmetic) and `character_swing::swinging_spends_wind_and_a_spent_survivor_swings_slower` (the store).
+**Named gaps:** cardio fitness, recovery (`character.cpp:7022-7090`), and the stance penalty.
