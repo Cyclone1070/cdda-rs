@@ -12712,3 +12712,32 @@ pinning the one that should *not* be. **Each fix was one filter term, and the pa
 
 **Found by the gate's negative case, again.** The timid half passed on the first run; the bold half failed. **A rule that fires too often and a rule that fires too rarely look identical from
 the positive case alone.**
+
+## A monster's nerve drifts back towards its type's value (round 1131)
+
+Round 1127's regrowth only runs at full health; the reference has a second, slower return that runs anyway (`monster.cpp:1877-1885`), and it is what stops one bad fight from wrecking a
+monster for ever.
+
+| Roll | Condition | Effect |
+|---|---|---|
+1 | one in **four** turns, and only if morale differs from the type's | continue |
+2 | the gap is **more than fifteen**, or one in **two** | continue |
+then | - | **one point** towards the type's value, whichever side the gap is on |
+
+| Piece | Reference | Port |
+|---|---|---|
+the rule | `monster::process_turn`'s drift block | `creature::drift_morale(morale, type_morale, rolls)` |
+where | the same per-turn pass as regrowth | `regen_everyones_nerve`, after the regrowth write |
+Gate | - | `a_monster_s_morale_drifts_back_towards_its_type` - the two rates over **one advancing stream of 400 draws each**, plus the sign in both directions |
+
+**Two rates, measured, not asserted.** A gap of twenty drifts on about **a quarter** of turns and a gap of five on about **an eighth**, and the gate counts both over 400 draws from a single
+advancing stream. **Reseeding per case would have been the trap this port has already fallen into: a fresh generator's first answer is the same small number for every seed, so two hundred
+fresh seeds all answer alike.**
+
+**The gate failed twice, and both failures were the fixture's arithmetic, not the rule's.** The first version claimed to measure the big-gap rate but used a gap of **ten**, and got 48 of 400
+(an eighth, correctly) while asserting a quarter. The second had the **direction** inverted: with the type at -50, a monster at -30 is *braver* than its type, so the rule takes a point away,
+not one back. **Both are the same lesson in different clothes: a rule about a difference is only as good as the sign of the numbers in the test.**
+
+**A stale gate is a gate that has drifted (pun intended).** Round 1127's `the_turn_gives_a_monster_its_nerve_back` started failing - correctly - because one turn now gives regrowth *and*
+possibly drift. It was repaired by building the wounded fixture with its nerve **already at its type's value**, so drift cannot fire and the gate answers one question again. **When a new
+rule changes an old gate's arithmetic, the fix is to separate the questions, not to loosen the assertion.**

@@ -1291,25 +1291,25 @@ fn the_turn_gives_a_monster_its_nerve_back() {
         .insert(cdda_sim::creature::Anger(10))
         .insert(cdda_sim::creature::Nerve { morale: 20, anger: 20, regenerates: true });
 
+    // The wounded one's nerve is **already at its type's value**, so the drift rule of round 1131 cannot move it: this gate is about the regrowth gate, and a fixture that let drift fire
+    // would answer "did it calm down?" with two rules at once.
     let hurt = cdda_sim::creature::spawn_creature(&mut world, "the hurt", (1, 3, 0));
     world
         .entity_mut(hurt)
         .insert(cdda_sim::creature::Health { hp: 79, max_hp: 80 })
         .insert(cdda_sim::creature::Morale(10))
         .insert(cdda_sim::creature::Anger(10))
-        .insert(cdda_sim::creature::Nerve { morale: 20, anger: 20, regenerates: true });
+        .insert(cdda_sim::creature::Nerve { morale: 10, anger: 10, regenerates: true });
 
     cdda_sim::turn::run_turn(&mut world);
 
-    assert_eq!(
-        world.get::<cdda_sim::creature::Morale>(calm).map(|carried| carried.0),
-        Some(11),
-        "a point of morale"
-    );
-    assert_eq!(
-        world.get::<cdda_sim::creature::Anger>(calm).map(|carried| carried.0),
-        Some(11),
-        "and a point of anger"
+    // Regrowth gives one, and the drift of round 1131 may give another: eleven or twelve, never ten.
+    let calm_morale = world
+        .get::<cdda_sim::creature::Morale>(calm)
+        .map(|carried| carried.0);
+    assert!(
+        matches!(calm_morale, Some(11 | 12)),
+        "a point of morale, and one more if the drift fires: {calm_morale:?}"
     );
     assert_eq!(
         world.get::<cdda_sim::creature::Morale>(hurt).map(|carried| carried.0),
@@ -1447,4 +1447,69 @@ fn a_cornered_fighter_is_daunted_by_the_survivor_standing_close() {
         !cdda_sim::applied_effects::has(&world, bold, "spooked"),
         "and one that would attack is not - the branch is about wanting to be elsewhere, not about distance"
     );
+}
+
+/// A monster's morale drifts back towards its type's value, on two rolls and by one point.
+///
+/// Reference: `monster::process_turn` (`monster.cpp:1877-1885`): one in four turns, and then either a gap of more than fifteen - which always drifts - or another one in two.
+///
+/// The gate counts over **one advancing stream** rather than over fresh seeds, because every fresh stream's first answer is the same number: a test that reseeds per case is a test that
+/// asks one question many times and calls it a sample.
+#[test]
+fn a_monster_s_morale_drifts_back_towards_its_type() {
+    use cdda_sim::creature::drift_morale;
+
+    // A gap of more than fifteen drifts on the first roll alone: about one turn in four. Thirty below fifty is a gap of twenty, which is the point of this fixture - the first version of
+    // this gate used a gap of ten and measured the *small*-gap rate while claiming to be the large one.
+    let mut rolls = Rolls::new(53);
+    let mut drifted = 0;
+    for _ in 0..400 {
+        if drift_morale(-30, -50, &mut rolls) != -30 {
+            drifted += 1;
+        }
+    }
+    assert!(
+        (70..=130).contains(&drifted),
+        "a big gap drifts on roughly a quarter of turns: {drifted} of 400"
+    );
+
+    // A small gap has to pass both rolls, so it drifts on about one turn in eight.
+    let mut rolls = Rolls::new(53);
+    let mut drifted = 0;
+    for _ in 0..400 {
+        if drift_morale(-45, -50, &mut rolls) != -45 {
+            drifted += 1;
+        }
+    }
+    assert!(
+        (25..=80).contains(&drifted),
+        "a small gap drifts on roughly an eighth of turns: {drifted} of 400"
+    );
+
+    // A monster already at its type's value never moves, and the sign follows the gap.
+    let mut rolls = Rolls::new(53);
+    for _ in 0..50 {
+        assert_eq!(drift_morale(10, 10, &mut rolls), 10, "no gap, no drift");
+    }
+    // And the sign always follows the gap, whichever way it points.
+    let mut rolls = Rolls::new(59);
+    let mut frightened_drifts = 0;
+    for _ in 0..200 {
+        match drift_morale(-70, -50, &mut rolls) {
+            -70 => {}
+            -69 => frightened_drifts += 1,
+            other => panic!("a frightened monster only ever gains a point: {other}"),
+        }
+    }
+    assert!(frightened_drifts > 0, "and it does gain them");
+    let mut rolls = Rolls::new(59);
+    let mut bold_drifts = 0;
+    for _ in 0..200 {
+        match drift_morale(-30, -50, &mut rolls) {
+            -30 => {}
+            -31 => bold_drifts += 1,
+            other => panic!("a braver-than-type monster only ever loses a point: {other}"),
+        }
+    }
+    assert!(bold_drifts > 0, "and it does lose them");
 }

@@ -719,3 +719,7 @@ effect that makes monsters run.
 **Round 1130 finished the `CORNERED_FIGHTER` block**: `cornered_fighters_lose_their_nerve` now also spooks a cornered monster when the **survivor** stands within two squares and its attitude
 is `Follow` or `Flee` (`monster.cpp:3534-3548`). The crowding query was narrowed to monsters that are **not** the player, and
 `creature_fight::a_cornered_fighter_is_daunted_by_the_survivor_standing_close` pins both halves - timid daunted, bold not.
+
+**Round 1131 added morale drift**: `creature::drift_morale` (`monster::process_turn`, `monster.cpp:1877-1885`) - one in four turns, then either a gap over fifteen or one in two, moving morale and
+anger one point towards the type's value, applied in `regen_everyones_nerve`. Gated by `creature_fight::a_monster_s_morale_drifts_back_towards_its_type`, which measures **both rates over one
+advancing stream** (400 draws each). Round 1127's stage gate was rebuilt so drift cannot muddy its question.

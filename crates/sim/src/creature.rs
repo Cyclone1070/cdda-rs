@@ -2103,6 +2103,27 @@ pub fn regen_everyones_nerve(world: &mut World) {
         {
             slot.0 = next_anger;
         }
+        // And then one step of drift back towards the type's value, on the reference's two rolls (`monster.cpp:1877-1885`). The dice are taken out of the store for the draw and put back,
+        // which is how every rule in this port draws.
+        let Some(mut rolls) = crate::singletons::take_rolls(world) else {
+            continue;
+        };
+        let (drifted, drift_anger) = {
+            let morale = world.get::<Morale>(entity).map_or(next_morale, |morale| morale.0);
+            let anger = world.get::<Anger>(entity).map_or(next_anger, |anger| anger.0);
+            (drift_morale(morale, nerve.morale, &mut rolls), drift_morale(anger, nerve.anger, &mut rolls))
+        };
+        crate::singletons::put_rolls(world, rolls);
+        if drifted != next_morale
+            && let Some(mut slot) = world.get_mut::<Morale>(entity)
+        {
+            slot.0 = drifted;
+        }
+        if drift_anger != next_anger
+            && let Some(mut slot) = world.get_mut::<Anger>(entity)
+        {
+            slot.0 = drift_anger;
+        }
     }
 }
 
@@ -2296,6 +2317,31 @@ pub fn regen_nerve(
         anger = nerve.anger.min(anger + 5);
     }
     (morale, anger)
+}
+
+/// One step of a monster's morale back towards what its type says - or away from it, when something has made it braver than its type.
+///
+/// Reference: `monster::process_turn` (`monster.cpp:1877-1885`), in the reference's own two rolls:
+///
+/// 1. one in **four** turns and only if the morale is not already the type's own;
+/// 2. and then either the gap is **more than fifteen** - which drifts on every such turn - or one in **two**.
+///
+/// The two rolls are why a monster that has been frightened a little comes back quickly; one that has been frightened a lot comes back at a quarter of a point a turn, and this is what
+/// stops a monster's nerve ever being permanently wrecked by one bad fight.
+#[must_use]
+pub fn drift_morale(morale: i32, type_morale: i32, rolls: &mut cdda_core_types::rng::Rolls) -> i32 {
+    if morale == type_morale || !rolls.one_in(4) {
+        return morale;
+    }
+    let far = (morale - type_morale).abs() > 15;
+    if !far && !rolls.one_in(2) {
+        return morale;
+    }
+    if morale < type_morale {
+        morale + 1
+    } else {
+        morale - 1
+    }
 }
 
 /// What a monster thinks of what it is looking at.

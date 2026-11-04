@@ -1312,3 +1312,33 @@ prevent.
    saves, so this is how a session starts in the port).
 10. Start the semantic frame dump in the oracle (B5) — it is the longest-lead infrastructure item and it
     gates P10.
+
+### P4 status at round 1131
+
+**A monster now wants something.** From 1122 to 1130 the port grew the whole of monster temperament, rule by rule, and each link is gated on its own:
+
+| Round | Rule | Reference | Gate |
+|---|---|---|---|
+1122 | a monster's **attitude** - follow, flee, ignore, attack | the tail of `monster::attitude_to` (`monster.cpp:1809-1833`), which is the whole decision once factions, species and traits are set aside | every branch, both boundaries (`hp > max/3`, `hp <= 0.6 * max`), and the corpus's own zombie |
+1122 | `Morale` and `Anger` components, set from `type->morale` and `type->agro` | `monster.cpp:282-283` | a spawned monster carries its type's numbers |
+1123 | a frightened creature **walks away** | the inverted distance term at `monmove.cpp:489` | bold closes on the survivor, frightened moves away (**declared divergence**: the reference scores eight neighbours, the port reflects the threat and routes) |
+1124 | fear moves a creature that has **no goal** | `is_fleeing` is asked of every monster that moves | `a_wounded_civilian_runs` - `mon_civilian_panic` hit once, four squares away in three turns |
+1125 | **`is_fleeing`**, including "a follower within four squares runs" | `monster.cpp:1608-1618` | the two hundred-point vetoes, both attitudes, and the four/five boundary |
+1126 | **nerve regrowth** - one point a turn, five while negative, clamped to the type's value | `monster.cpp:3493-3512`, on a **new dump column** (`regen_morale`, v8, 23 of 1,154 types) | the gates, the trickle, the jump, both clamps, and the snap-back |
+1127 | the turn calls it | the same block as `mend_everyone` | a calm monster gains one and one; **one hit point short gains nothing** |
+1128 | a **cornered fighter** is spooked by crowding | `monster.cpp:3518-3549` - `spooked` 3 turns, `spooked_recent` 9, and the snap-back that lets it fight | crowded gets both, alone gets neither, and the second turn snaps morale from -30 to 20 |
+1129 | the chain **in play** | - | `a_cornered_worm_snake_bolts`: two worm snakes spook each other in one turn, asserted by **count** |
+1130 | the **survivor** within two squares daunts a cornered monster | `monster.cpp:3534-3548` | timid daunted, **bold the same distance away not** |
+
+**What is still missing from the fear story, named rather than implied:** the `spooked` reaction to *another monster dying* nearby (the reference reads corpses through the creature
+tracker, and this port has no such read), pain as a morale source, and `NO_FEAR`-style flags. **And the morale system has no drift downward**: the port can only lose nerve through
+`CORNERED_FIGHTER` crowding, because nothing else writes `Morale` yet.
+
+**Three QA lessons from these nine rounds, each now a rule of the port's own:**
+
+1. **A gate's fixture must be built the way the game builds it.** Round 1124's scenario found `spawn_player` never gave the avatar a `Stamina` pool, because every stamina gate had
+   inserted the component by hand.
+2. **A query must never see what it did not ask for.** Round 1128's crowded check found the **floor tile**; round 1130's found the **survivor** (`With<Creature>` does not exclude the
+   player). Both were one filter term, and both were caught by the gate's *negative* case.
+3. **Assert the fact, not the coordinates.** Round 1129's positional assertion failed because a spooked monster **runs**, which is the rule working. The CLI now has both forms -
+   `expect monster effect <id> at <x> <y>` and `expect monsters <n> with effect <id>` - and a playtest should use the one that matches what the rule does.
