@@ -942,3 +942,7 @@ pins the gun as `NEVER_JAMS`.
 **Round 1186 ported the sound categories**: `sounds::SoundCategory` (the reference's thirteen `sound_t` values) and `sounds::is_provocative` (`sounds.cpp:287-309`), with the shot making its sound as
 `Combat`. Gated by `sounds::only_speech_and_orders_provoke_and_a_gunshot_does_not`, which walks **all thirteen** categories and pins the counter-intuitive half: **`combat` and `alarm` are not
 provocative; only speech, electronic speech, alert and order are.**
+
+**Round 1187 added the loudness half of provocativeness**: `sounds::heard_as_provocative` (`monster.cpp:3939` - `provocative || volume >= normal_roll( 30, 5 )`) and `HeardSound::provocative`, so
+the hearing rule now answers what the AI asks. Gated by `sounds::a_sound_is_provocative_by_its_kind_or_its_loudness`, which sets the two halves against each other: a quiet gunshot never, a loud
+one almost always, a whisper of speech always.

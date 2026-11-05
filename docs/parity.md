@@ -13983,3 +13983,27 @@ deletes as a bug. **It is not a bug: monsters hear the shot** (the port's `Heard
 
 **Named, not invented:** what the **monster AI does** with a provocative sound (`monster::hear_sound` and its `wander`/`investigate` reaction, `monster.cpp:2020-2100`), the
 **`recent_sounds`** list with its own `is_provocative` flag per event (which is what the AI actually reads), `ambient_sound`, and the `id`/`variant` sound-effect hooks.
+
+## Why monsters come to gunfire after all (round 1187)
+
+Round 1186 said a gunshot's category is **not** provocative and left the obvious question open. This round answers it.
+
+| Piece | Reference | Port |
+|---|---|---|
+the rule | `provocative \|\| volume >= normal_roll( 30, 5 )` (`monster.cpp:3939`) | `sounds::heard_as_provocative(category, volume, dice)` |
+the carrying | `HeardSound`'s disclosure to the AI | `HeardSound::provocative` |
+Gate | - | `a_sound_is_provocative_by_its_kind_or_its_loudness` |
+
+**Two halves, and the louder one wins.** A sound is worth investigating **either** because its **category** is one of the four (round 1186) **or** because it arrived **above a roll of
+`normal( 30, 5 )`**. A gunshot's category is quiet, and a shot **heard at a hundred and fifty-four** beats that roll **every single time** - **so monsters do come to gunfire, and they come for the
+volume rather than for the violence.**
+
+**Round 1186 was not wrong; it was half.** The category answer alone would have monsters ignoring the loudest thing in the game, and **the half that makes it work is the half the reference
+writes as a `||`**. Splitting the rule into two rounds is what made the second half findable: **the first round's gate would have passed with no loudness rule at all.**
+
+**The gate tests the two halves against each other**, which is the only way to see the join: combat at **ten** is provocative **never**, combat at **sixty** nearly **always**, speech at **one**
+**always**, and a .223 at **154** provokes **two hundred times out of two hundred**.
+
+**Named, not invented:** the **`already following a more interesting sound`** guards (`provocative_sound && !tmp_provocative && wandf > 0`, and `wander_turns < wandf`), which need the
+creature's current `wander` target and its age - the port has the wander and not the age-comparison; the `morale < 0` branch that makes a frightened monster flee a noise; `process_trigger`
+`SOUND`; and `recent_sounds`, which is where the reference keeps the flag for the AI's next turn rather than on the hearing event.

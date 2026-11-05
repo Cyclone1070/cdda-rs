@@ -18,6 +18,8 @@ pub struct HeardSound {
     pub volume: i32,
     /// How many turns it will keep walking towards that guess.
     pub wander_turns: i32,
+    /// Whether the sound is something worth investigating: its **category** or its **loudness**, whichever says so (`monster.cpp:3939`).
+    pub provocative: bool,
 }
 
 /// How loud a sound is to a creature `distance` squares away, or nothing when it is out of earshot.
@@ -104,6 +106,14 @@ pub fn hear_sounds(world: &mut World) -> usize {
             if let Some(rolls) = dice {
                 crate::singletons::put_rolls(world, rolls);
             }
+            // Reference: `provocative || volume >= normal_roll( 30, 5 )` (`monster.cpp:3939`) - the loudness half is drawn here, once per sound heard.
+            let mut dice = crate::singletons::take_rolls(world);
+            let provocative = dice
+                .as_mut()
+                .is_some_and(|rolls| crate::sounds::heard_as_provocative(sound.category, volume, rolls));
+            if let Some(rolls) = dice {
+                crate::singletons::put_rolls(world, rolls);
+            }
             loudest = Some(HeardSound {
                 at: (
                     sound.position.0 + wobble.0,
@@ -112,6 +122,7 @@ pub fn hear_sounds(world: &mut World) -> usize {
                 ),
                 volume,
                 wander_turns: wander_turns(volume, good_hearing),
+                provocative,
             });
         }
         if let Some(heard_at) = loudest {

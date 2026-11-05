@@ -139,3 +139,17 @@ pub fn clear(world: &mut World) {
         world.despawn(sound);
     }
 }
+
+/// Whether a sound, once heard at a volume, counts as something worth investigating: `monster::hear_sound`'s own line (`monster.cpp:3939`).
+///
+/// Reference: `int tmp_provocative = provocative || volume >= normal_roll( 30, 5 );` - so a sound is provocative **either** because of its **category** (round 1186) **or** because it arrived
+/// **loud**. The roll is drawn whether or not the category already decided, which matters for the dice stream and nothing else.
+///
+/// **This is what keeps round 1186 from being a bug.** A gunshot's category is not provocative, and the reference still has monsters come to gunfire - because a shot heard at **a hundred and
+/// fifty-four** beats a roll of `normal( 30, 5 )` every time. **The category is the quiet half of the rule; the loudness is the other half**, and a port with only the first would have monsters
+/// ignoring exactly the sounds the game is famous for.
+#[must_use]
+pub fn heard_as_provocative(category: SoundCategory, volume: i32, dice: &mut cdda_core_types::rng::Rolls) -> bool {
+    let loud_enough = f64::from(volume) >= dice.normal_roll(30.0, 5.0);
+    is_provocative(category) || loud_enough
+}

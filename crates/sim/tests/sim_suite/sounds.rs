@@ -120,3 +120,33 @@ fn only_speech_and_orders_provoke_and_a_gunshot_does_not() {
     // Nine and four is the whole enumeration: every category is on one side of the line.
     assert_eq!(9 + 4, 13, "thirteen categories, nine quiet and four provocative");
 }
+
+/// A sound is provocative if its category says so **or** if it arrived loud - which is why monsters come to gunfire after all.
+///
+/// Reference: `monster::hear_sound`'s `int tmp_provocative = provocative || volume >= normal_roll( 30, 5 );` (`monster.cpp:3939`). Round 1186 pinned the category half and **this gate is the other
+/// half**: a `combat` sound at volume ten is not provocative, the same sound at sixty almost always is, and a `speech` sound at two always is - **so the two halves can disagree and the louder
+/// answer wins.**
+#[test]
+fn a_sound_is_provocative_by_its_kind_or_its_loudness() {
+    use cdda_core_types::rng::Rolls;
+    use cdda_sim::sounds::{SoundCategory, heard_as_provocative};
+
+    let mut dice = Rolls::new(77);
+    // Loudness alone: a combat sound of ten never beats a roll around thirty, and one of sixty always does.
+    let quiet = (0..200).filter(|_| heard_as_provocative(SoundCategory::Combat, 10, &mut dice)).count();
+    assert_eq!(quiet, 0, "a quiet gunshot's own category is not provocative, and ten is not loud: {quiet}");
+    let mut dice = Rolls::new(77);
+    let loud = (0..200).filter(|_| heard_as_provocative(SoundCategory::Combat, 60, &mut dice)).count();
+    assert!(loud > 190, "but sixty beats a roll of normal thirty and five nearly always: {loud} of 200");
+
+    // Category alone: speech at a whisper is provocative whatever the volume.
+    let mut dice = Rolls::new(77);
+    for _ in 0..100 {
+        assert!(heard_as_provocative(SoundCategory::Speech, 1, &mut dice), "somebody talking is always worth a look");
+        assert!(heard_as_provocative(SoundCategory::Order, 1, &mut dice), "and an order more so");
+    }
+    // And the famous line: a hundred and fifty-four squares of gunshot is provocative because it is loud, not because it is violent.
+    let mut dice = Rolls::new(77);
+    let shot = (0..200).filter(|_| heard_as_provocative(SoundCategory::Combat, 154, &mut dice)).count();
+    assert_eq!(shot, 200, "a .223 at the shooter's own square is heard as provocative every time: {shot}");
+}
