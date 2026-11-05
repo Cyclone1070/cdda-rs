@@ -994,3 +994,7 @@ charge-counted item), both recorded in `docs/parity.md`.
 
 **Round 1199 ported `get_relative_health`**: `sim::relative_health` (`item.cpp:9419-9426`). Gated by `ground_items::item_health_is_a_fraction_and_a_stack_has_none_to_lose`, which pins the
 constant answer for a charge-counted type and the finiteness that keeps a stack from dividing by zero.
+
+**Round 1200 found the oracle patch gate red and fixed it.** `oracle/apply_harness_patches.py --verify` had been failing since the harness dumps grew `durability`, `effects` and `chip_resistance`
+- the edits were made in `oracle/src/src/harness.cpp` and the patch ledger was never regenerated, so every hunk failed against the working copy. `--regen` rewrote the patch (11,286 lines) and
+`--verify` now passes byte for byte. **It is the one gate outside `tools/remote_test.py`, and it had not been run.**

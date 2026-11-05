@@ -358,10 +358,11 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-10-31 02:25:03
-@@ -0,0 +1,6482 @@
++++ oracle/src/src/harness.cpp	2026-11-05 19:32:17
+@@ -0,0 +1,6971 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
++#include "flag.h"
 +
 +#include "units.h"
 +#include "weather.h"
@@ -1255,6 +1256,145 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    std::fclose( out );
 +}
 +
++/// What a recipe leaves behind for one batch, folded to `(item id, count)`.
++static std::map<std::string, int> byproducts_of( const recipe &r )
++{
++    std::map<std::string, int> spare;
++    for( const item &extra : r.create_byproducts( 1 ) ) {
++        spare[extra.typeId().str()] += extra.count();
++    }
++    return spare;
++}
++
++void dump_proficiencies( const std::string &path )
++{
++    std::ofstream out( path );
++    if( !out.is_open() ) {
++        return;
++    }
++    const std::vector<proficiency> &all = proficiency::get_all();
++    out << "{\"count\":" << all.size() << ",\"proficiencies\":[";
++    bool first = true;
++    for( const proficiency &prof : all ) {
++        if( !first ) {
++            out << ",";
++        }
++        first = false;
++        // `time_to_learn` is the proficiency's own number (`proficiency.h:84`), which is what `practice` compares practised time against; `can_learn` is carried
++        // because the data may mark a proficiency unlearnable, and then no amount of practice learns it.
++        out << "{\"id\":\"" << prof.prof_id().str() << "\",\"seconds\":" << to_seconds<int>( prof.time_to_learn() )
++            << ",\"can_learn\":" << ( prof.can_learn() ? "true" : "false" ) << ",\"required\":[";
++        bool first_req = true;
++        for( const proficiency_id &need : prof.required_proficiencies() ) {
++            if( !first_req ) {
++                out << ",";
++            }
++            first_req = false;
++            out << "\"" << need.str() << "\"";
++        }
++        out << "]}";
++    }
++    out << "]}" << std::endl;
++}
++
++void dump_mutation_categories( const std::string &path )
++{
++    std::ofstream out( path );
++    if( !out.is_open() ) {
++        return;
++    }
++    // The categories carry the numbers a mutation's removal is decided by: `base_removal_chance` is the percent chance a starting trait is removed at all, and
++    // `threshold_min` is the category strength a threshold needs.
++    out << "{\"categories\":[";
++    bool first = true;
++    for( const auto &entry : mutation_category_trait::get_all() ) {
++        if( !first ) {
++            out << ",";
++        }
++        first = false;
++        out << "{\"id\":\"" << entry.first.str() << "\",\"base_removal_chance\":" << entry.second.base_removal_chance
++            << ",\"threshold_min\":" << entry.second.threshold_min << ",\"vitamin\":\"" << entry.second.vitamin.str() << "\"}";
++    }
++    out << "]}" << std::endl;
++}
++
++void dump_mutations( const std::string &path )
++{
++    std::ofstream out( path );
++    if( !out.is_open() ) {
++        return;
++    }
++    // Every mutation the data defines, with the four sets that decide whether it can be gained and what it replaces. Asked of the loaded prototype rather than of
++    // the JSON, so the answer is the one the game works from.
++    out << "{\"mutations\":[";
++    bool first = true;
++    for( const mutation_branch &branch : mutation_branch::get_all() ) {
++        // Every branch, including the ones the data marks invalid: a threshold is `valid: false` and is named by other mutations' `threshreq`, so a dump that dropped
++        // them would leave those lists pointing at nothing.
++        if( !first ) {
++            out << ",";
++        }
++        first = false;
++        out << "{\"id\":\"" << branch.id.str() << "\",\"valid\":" << ( branch.valid ? "true" : "false" ) << ",\"points\":" << branch.points << ",\"visibility\":" << branch.visibility
++            << ",\"purifiable\":" << ( branch.purifiable ? "true" : "false" )
++            << ",\"startingtrait\":" << ( branch.startingtrait ? "true" : "false" )
++            << ",\"threshold\":" << ( branch.threshold ? "true" : "false" ) << ",\"prereqs\":[";
++        bool first_in = true;
++        for( const trait_id &need : branch.prereqs ) {
++            out << ( first_in ? "" : "," ) << "\"" << need.str() << "\"";
++            first_in = false;
++        }
++        out << "],\"threshreq\":[";
++        first_in = true;
++        for( const trait_id &need : branch.threshreq ) {
++            out << ( first_in ? "" : "," ) << "\"" << need.str() << "\"";
++            first_in = false;
++        }
++        out << "],\"prereqs2\":[";
++        first_in = true;
++        for( const trait_id &need : branch.prereqs2 ) {
++            out << ( first_in ? "" : "," ) << "\"" << need.str() << "\"";
++            first_in = false;
++        }
++        out << "],\"enchantments\":[";
++        first_in = true;
++        for( const enchantment_id &id : branch.enchantments ) {
++            out << ( first_in ? "" : "," ) << "\"" << id.str() << "\"";
++            first_in = false;
++        }
++        // The values of those enchantments, followed to the objects themselves: an enchantment is loaded through a factory that is not exported, so the only way to reach
++        // one is from what carries it. `constant()` answers the plain numbers the data uses; an expression would read as zero here and is dumped as such.
++        out << "],\"vitamin_cost\":" << branch.vitamin_cost << ",\"enchant_values\":[";
++        bool first_value = true;
++        for( const enchantment_id &id : branch.enchantments ) {
++            for( const auto &entry : id->values_add ) {
++                out << ( first_value ? "" : "," ) << "{\"value\":\"" << io::enum_to_string<enchant_vals::mod>( entry.first )
++                    << "\",\"add\":" << entry.second.constant() << ",\"multiply\":0}";
++                first_value = false;
++            }
++            for( const auto &entry : id->values_multiply ) {
++                out << ( first_value ? "" : "," ) << "{\"value\":\"" << io::enum_to_string<enchant_vals::mod>( entry.first )
++                    << "\",\"add\":0,\"multiply\":" << entry.second.constant() << "}";
++                first_value = false;
++            }
++        }
++        out << "],\"cancels\":[";
++        first_in = true;
++        for( const trait_id &need : branch.cancels ) {
++            out << ( first_in ? "" : "," ) << "\"" << need.str() << "\"";
++            first_in = false;
++        }
++        out << "],\"category\":[";
++        first_in = true;
++        for( const std::string &cat : branch.types ) {
++            out << ( first_in ? "" : "," ) << "\"" << cat << "\"";
++            first_in = false;
++        }
++        out << "]}";
++    }
++    out << "]}" << std::endl;
++}
++
 +void dump_recipes( const std::string &path )
 +{
 +    std::FILE *out = std::fopen( path.c_str(), "wb" );
@@ -1312,15 +1452,150 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        }
 +        // What the recipe asks of the crafter: the skill it trains, how hard it is, and how long one batch takes
 +        // (`recipe.h:133-137`, `:188`, and `time`, which is a `time_duration` in moves).
-+        std::fprintf( out, "],\"skill\":\"%s\",\"difficulty\":%d,\"time_moves\":%d}",
++        // What one batch makes, what each result holds, and what is left over: `result_mult` and `charges` are private fields whose effect is only visible in what
++        // `create_result` returns, so the dump asks the rules rather than the members (`recipe.cpp:737-825`).
++        std::map<std::string, int> one_made;
++        for( const item &produced : r.create_results( 1 ) ) {
++            one_made[produced.typeId().str()] += produced.count();
++        }
++        int made_count = 0;
++        if( one_made.size() == 1 && one_made.begin()->first == r.result().str() ) {
++            made_count = one_made.begin()->second;
++        }
++        // The **item** the rule produces, which is the container for a `contained` recipe (`create_result`, `recipe.cpp:768-771`) - the field cannot be read directly
++        // because the members are private, and asking the rule is the same discipline the rest of this dump follows.
++        const std::string made_item = one_made.empty() ? std::string() : one_made.begin()->first;
++        std::fprintf( out, "],\"skill\":\"%s\",\"difficulty\":%d,\"time_moves\":%d,\"made_item\":\"%s\",\"made_per_batch\":%d,\"byproducts\":[",
 +                      harness_escape( r.skill_used.str() ).c_str(), r.difficulty,
 +                      // The moves one batch takes for an ordinary crafter: `time_to_craft_moves` returns `time`
 +                      // itself when proficiencies are ignored (`recipe.cpp:100-106`), and `time` is private.
 +                      static_cast<int>( r.time_to_craft_moves(
-+                                            get_player_character(), recipe_time_flag::ignore_proficiencies ) ) );
++                                            get_player_character(), recipe_time_flag::ignore_proficiencies ) ),
++                      harness_escape( made_item ).c_str(), made_count );
++        bool first_spare = true;
++        for( const auto &entry : byproducts_of( r ) ) {
++            std::fprintf( out, "%s[\"%s\",%d]", first_spare ? "" : ",", harness_escape( entry.first ).c_str(),
++                          entry.second );
++            first_spare = false;
++        }
++        std::fprintf( out, "]}" );
 +        first = false;
 +    }
 +    std::fprintf( out, "\n],\"count\":%zu}\n", recipe_dict.size() );
++    std::fclose( out );
++}
++
++/// Writes what every recipe **makes**, rather than what it asks for: the result rule and the byproduct rule are rules about produced things, and reading them out of the
++/// data is exactly the mistake `create_results` exists to prevent. For a batch of one and of two, the produced items are folded to `(item id, count)` - `item::count()`
++/// is the charge count for a stack and one for a single thing, which is the number the port keeps as a stack's charges.
++void dump_crafting( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    std::fprintf( out, "{\"harness\":\"crafting\",\"version\":1,\n\"recipes\":[\n" );
++    bool first = true;
++    for( auto it = recipe_dict.begin(); it != recipe_dict.end(); ++it ) {
++        const recipe &r = it->second;
++        std::fprintf( out, "%s{\"id\":\"%s\",\"results\":[", first ? "" : ",\n",
++                      harness_escape( r.ident().str() ).c_str() );
++        first = false;
++        for( int batch = 1; batch <= 2; batch++ ) {
++            std::map<std::string, int> made;
++            for( const item &produced : r.create_results( batch ) ) {
++                made[produced.typeId().str()] += produced.count();
++            }
++            std::fprintf( out, "%s{\"batch\":%d,\"made\":[", batch == 1 ? "" : ",", batch );
++            bool first_item = true;
++            for( const auto &entry : made ) {
++                std::fprintf( out, "%s[\"%s\",%d]", first_item ? "" : ",", harness_escape( entry.first ).c_str(),
++                              entry.second );
++                first_item = false;
++            }
++            std::fprintf( out, "],\"byproducts\":[" );
++            std::map<std::string, int> spare;
++            for( const item &extra : r.create_byproducts( batch ) ) {
++                spare[extra.typeId().str()] += extra.count();
++            }
++            bool first_spare = true;
++            for( const auto &entry : spare ) {
++                std::fprintf( out, "%s[\"%s\",%d]", first_spare ? "" : ",", harness_escape( entry.first ).c_str(),
++                              entry.second );
++                first_spare = false;
++            }
++            std::fprintf( out, "]}" );
++        }
++        std::fprintf( out, "]}" );
++    }
++    std::fprintf( out, "\n],\"count\":%zu}\n", recipe_dict.size() );
++    std::fclose( out );
++}
++
++/// Every item type's thrown damage, which is what `item::base_damage_thrown` answers and what a thrown thing is worth before the arm.
++///
++/// Reference: `item::base_damage_thrown` (`item.cpp:7654-7658`) returns the type's `thrown_damage`, and `item_factory.cpp:324-326` fills it with
++/// `melee.damage_map[bash] * 0.75` when the data names none. A dump is the only way to read that, because the value is computed at load.
++void dump_thrown_damage( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    std::fprintf( out, "{\"harness\":\"thrown-damage\",\"version\":2,\n\"types\":[\n" );
++    bool first = true;
++    for( const itype *type : item_controller->all() ) {
++        if( type == nullptr ) {
++            continue;
++        }
++        const damage_instance &thrown = type->thrown_damage;
++        // The melee bash damage is dumped beside the thrown damage because the two are bound together: `item_factory.cpp:324-326` derives the second from the first,
++        // and a port that gets the inheritance of one right and the other wrong cannot tell which from a single number.
++        // The melee of each type is dumped whole - the three damage types the data uses - and `to_hit` beside it, because a character's blow is its weapon's damage aimed by its
++        // weapon's balance: a port that read one and guessed the other would be guessing the half that decides whether the blow lands at all.
++        std::fprintf( out, "%s\n{\"id\":\"%s\",\"total\":%.6g,\"melee_bash\":%.6g,\"melee_cut\":%.6g,\"melee_stab\":%.6g,\"to_hit\":%d,\"damage\":[",
++                      first ? "" : ",", harness_escape( type->get_id().str() ).c_str(),
++                      static_cast<double>( thrown.total_damage() ),
++                      static_cast<double>( type->melee.damage_map.count( damage_type_id( "bash" ) )
++                                           ? type->melee.damage_map.at( damage_type_id( "bash" ) ) : type->melee.default_value ),
++                      static_cast<double>( type->melee.damage_map.count( damage_type_id( "cut" ) )
++                                           ? type->melee.damage_map.at( damage_type_id( "cut" ) ) : type->melee.default_value ),
++                      static_cast<double>( type->melee.damage_map.count( damage_type_id( "stab" ) )
++                                           ? type->melee.damage_map.at( damage_type_id( "stab" ) ) : type->melee.default_value ),
++                      type->m_to_hit );
++        bool first_unit = true;
++        for( const damage_unit &unit : thrown.damage_units ) {
++            std::fprintf( out, "%s{\"type\":\"%s\",\"amount\":%.6g,\"res_pen\":%.6g,\"res_mult\":%.6g}",
++                          first_unit ? "" : ",",
++                          harness_escape( unit.type.str() ).c_str(),
++                          static_cast<double>( unit.amount ),
++                          static_cast<double>( unit.res_pen ),
++                          static_cast<double>( unit.res_mult ) );
++            first_unit = false;
++        }
++        std::fprintf( out, "]}" );
++        first = false;
++    }
++    std::fprintf( out, "]}\n" );
++    std::fclose( out );
++}
++
++void dump_flags( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    std::fprintf( out, "{\"harness\":\"flags\",\"version\":1,\n\"flags\":[" );
++    bool first = true;
++    for( const json_flag &flag : json_flag::get_all() ) {
++        std::fprintf( out, "%s\"%s\"", first ? "" : ",", harness_escape( flag.id.str() ).c_str() );
++        first = false;
++    }
++    std::fprintf( out, "]}\n" );
 +    std::fclose( out );
 +}
 +
@@ -4584,6 +4859,183 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    std::fclose( out );
 +}
 +
++/// Every ammunition's own blow: `--dump-ammo`.
++///
++/// Reference: `islot_ammo::shot_damage`, `count` and `shot_spread` (`itype.h:1090-1101`), which `item::gun_damage( true )` adds to a gun's own damage when a shot is fired. **This is where a
++/// firearm's damage actually lives**: the gun table's own `damage` is zero for every firearm, so a port that read the gun alone would fire blanks. `count` is the pellets a single round puts in
++/// the air, and `shot_spread` is the angle between them.
++/// The ammunition type a round belongs to, as the reference states it (`islot_ammo::type`, `itype.h:1063` - **one** type a round, not a set).
++///
++/// The round ids and the ammunition types are **different namespaces**: a pipe shotgun takes `"shot"`, and the rounds it can fire are `shot_bird`, `shot_00` and the rest. A port that
++/// assumed the two agreed would work for `223` and fail for every shotgun.
++static std::string harness_ammo_type( const islot_ammo &ammo )
++{
++    return ammo.type.str();
++}
++
++/// How many shots a gun's default firing mode makes: `islot_gun::modes` (`itype.h:826`) holds at least a `DEFAULT` entry, and its `qty` is the burst size a trigger pull makes
++/// (`item::burst_size`, `item.cpp:11640-11650`). A gun whose data states no mode at all answers **one**, which is what a single-shot weapon is.
++static int harness_burst( const islot_gun &gun )
++{
++    const auto found = gun.modes.find( gun_mode_id( "DEFAULT" ) );
++    if( found == gun.modes.end() ) {
++        return 1;
++    }
++    return std::max( found->second.qty(), 1 );
++}
++
++/// A round's ammunition effects, comma separated: `islot_ammo::ammo_effects` (`itype.h:1100`), the set `item::ammo_effects` folds into a gun's own (`item.cpp:11963-11979`).
++///
++/// These are the flags that change what a shot does to the *world* rather than to its target: `BLACKPOWDER` fouls a gun far faster, `NON_FOULING` not at all, `INCENDIARY` sets fires,
++/// `FLARE` lights the way. The port reads them by name rather than as a bitmask, because the data names them.
++static std::string harness_effects( const std::set<ammo_effect_str_id> &effects )
++{
++    std::string joined;
++    for( const auto &effect : effects ) {
++        if( !joined.empty() ) {
++            joined += ",";
++        }
++        joined += effect.str();
++    }
++    return joined;
++}
++
++void dump_ammo( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    std::fprintf( out, "{\"harness\":\"ammo\",\"version\":5,\n\"ammo\":[\n" );
++    bool first = true;
++    for( const itype *type : item_controller->all() ) {
++        if( type == nullptr || !type->ammo ) {
++            continue;
++        }
++        double dam_total = 0.0;
++        int dam_bash = 0;
++        int dam_cut = 0;
++        int dam_stab = 0;
++        int dam_bullet = 0;
++        // A round's blow is `ammo->damage`, not `shot_damage`: the second is the **per-pellet** figure that `item_factory.cpp:527-532` patches only for shot, and reading it for a rifle round
++        // reports zero for every cartridge the port cares about. The two are dumped side by side so the difference is visible rather than inferred.
++        for( const damage_unit &unit : type->ammo->damage.damage_units ) {
++            dam_total += unit.amount;
++            const std::string &kind = unit.type.str();
++            if( kind == "bash" ) {
++                dam_bash += static_cast<int>( unit.amount );
++            } else if( kind == "cut" ) {
++                dam_cut += static_cast<int>( unit.amount );
++            } else if( kind == "stab" ) {
++                dam_stab += static_cast<int>( unit.amount );
++            } else if( kind == "bullet" ) {
++                dam_bullet += static_cast<int>( unit.amount );
++            }
++        }
++        std::fprintf( out, "%s\n{\"id\":\"%s\",\"damage\":%.6g,\"damage_bash\":%d,\"damage_cut\":%d,\"damage_stab\":%d,"
++                      "\"damage_bullet\":%d,\"count\":%d,\"shot_spread\":%d,\"recovery_chance\":%d,\"shot_damage\":%.6g,\"recoil\":%d,\"ammo_types\":\"%s\",\"loudness\":%d,\"effects\":\"%s\"}",
++                      first ? "" : ",",
++                      harness_escape( type->get_id().str() ).c_str(),
++                      dam_total, dam_bash, dam_cut, dam_stab, dam_bullet,
++                      type->ammo->count,
++                      type->ammo->shot_spread,
++                      type->ammo->recovery_chance,
++                      static_cast<double>( type->ammo->shot_damage.total_damage() ),
++                      type->ammo->recoil,
++                      harness_ammo_type( *type->ammo ).c_str(),
++                      type->ammo->loudness,
++                      harness_effects( type->ammo->ammo_effects ).c_str() );
++        first = false;
++    }
++    std::fprintf( out, "\n]}\n" );
++    std::fclose( out );
++}
++
++/// Every skill's own attack-time line: `--dump-skills`.
++///
++/// Reference: `struct time_info_t` (`src/skill.h:23-30`) - `min_time`, `base_time` and `time_reduction_per_level` - which `time_to_attack` (`ranged.cpp:2299-2308`) reads through the gun's
++/// own skill. The defaults in the struct (50, 220, 25) are **not** what the data usually says, so a port that assumed them would make every shot four times as slow.
++void dump_skills( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    std::fprintf( out, "{\"harness\":\"skills\",\"version\":1,\n\"skills\":[\n" );
++    bool first = true;
++    for( const Skill &skill : Skill::skills ) {
++        const time_info_t &time = skill.time_to_attack();
++        std::fprintf( out, "%s\n{\"id\":\"%s\",\"name\":\"%s\",\"min_time\":%d,\"base_time\":%d,\"time_reduction_per_level\":%d}",
++                      first ? "" : ",",
++                      harness_escape( skill.ident().str() ).c_str(),
++                      harness_escape( skill.name() ).c_str(),
++                      time.min_time,
++                      time.base_time,
++                      time.time_reduction_per_level );
++        first = false;
++    }
++    std::fprintf( out, "\n]}\n" );
++    std::fclose( out );
++}
++
++/// Every gun's own firing numbers: `--dump-guns`.
++///
++/// Reference: `mtype`-style, the gun is the item's `gun_type` (`itype::gun`), and the reason it is dumped apart from the rest of the item is that a shot's accuracy is built from
++/// three numbers the item layer otherwise never touches: the weapon's own `dispersion`, the skill it is fired with (`gun_type::skill_used`), and its `range`. The port's ranged path is
++/// gated on the first two - `Character::get_weapon_dispersion` (`ranged.cpp:2500`) starts from `item::gun_dispersion`, which is that `dispersion` plus its gunmods.
++void dump_guns( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    std::fprintf( out, "{\"harness\":\"guns\",\"version\":8,\n\"guns\":[\n" );
++    bool first = true;
++    for( const itype *type : item_controller->all() ) {
++        if( type == nullptr || !type->gun ) {
++            continue;
++        }
++        // The gun's own blow, which is what a shot does when it lands: `item::gun_damage()` (`item.cpp:11160-11180`) is the type's `gun->damage` resolved for the barrel, and the four
++        // damage kinds the data uses for firearms are written beside it. A port that read the count as the damage would price every bullet at zero.
++        const damage_instance impact = type->gun->damage.di_considering_length( 0_mm );
++        double dam_total = 0.0;
++        int dam_bash = 0;
++        int dam_cut = 0;
++        int dam_stab = 0;
++        int dam_bullet = 0;
++        for( const damage_unit &unit : impact.damage_units ) {
++            dam_total += unit.amount;
++            const std::string &kind = unit.type.str();
++            if( kind == "bash" ) {
++                dam_bash += static_cast<int>( unit.amount );
++            } else if( kind == "cut" ) {
++                dam_cut += static_cast<int>( unit.amount );
++            } else if( kind == "stab" ) {
++                dam_stab += static_cast<int>( unit.amount );
++            } else if( kind == "bullet" ) {
++                dam_bullet += static_cast<int>( unit.amount );
++            }
++        }
++        std::fprintf( out, "%s\n{\"id\":\"%s\",\"dispersion\":%d,\"skill\":\"%s\",\"range\":%d,\"recoil\":%d,\"ammo\":\"%s\","
++                      "\"damage\":%.6g,\"damage_bash\":%d,\"damage_cut\":%d,\"damage_stab\":%d,\"damage_bullet\":%d,\"shot_spread\":%d,\"ammo_to_fire\":%d,\"handling\":%d,\"sight_dispersion\":%d,\"loudness\":%d,\"burst\":%d,\"durability\":%d}",
++                      first ? "" : ",",
++                      harness_escape( type->get_id().str() ).c_str(),
++                      type->gun->dispersion,
++                      harness_escape( type->gun->skill_used.str() ).c_str(),
++                      type->gun->range,
++                      type->gun->recoil,
++                      // A gun with no ammo type is still a gun (a thrown-only launcher), so the field is written empty rather than skipped.
++                      harness_escape( type->gun->ammo.empty() ? "" : type->gun->ammo.begin()->str() ).c_str(),
++                      dam_total, dam_bash, dam_cut, dam_stab, dam_bullet, 0, type->gun->ammo_to_fire, type->gun->handling, type->gun->sight_dispersion, type->gun->loudness, harness_burst( *type->gun ), type->gun->durability );
++        first = false;
++    }
++    std::fprintf( out, "\n]}\n" );
++    std::fclose( out );
++}
++
 +void dump_items( const std::string &path )
 +{
 +    std::FILE *out = std::fopen( path.c_str(), "wb" );
@@ -4591,7 +5043,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
 +        return;
 +    }
-+    std::fprintf( out, "{\"harness\":\"items\",\"version\":1,\n\"prototypes\":[\n" );
++    std::fprintf( out, "{\"harness\":\"items\",\"version\":2,\n\"prototypes\":[\n" );
 +    bool first = true;
 +    for( const itype *proto : item_controller->all() ) {
 +        std::fprintf( out, "%s\n{\"id\":\"%s\",\"name\":\"%s\",\"name_plural\":\"%s\","
@@ -4599,7 +5051,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +                      "\"weight_mg\":%lld,\"integral_weight_mg\":%lld,"
 +                      "\"volume\":%lld,\"integral_volume\":%lld,"
 +                      "\"price\":%lld,\"category\":\"%s\",\"stack_size\":%lld,\"count_by_charges\":%s,"
-+                      "\"materials\":[",
++                      "\"chip_resistance\":%d,\"materials\":[",
 +                      first ? "" : ",", harness_escape( proto->id.str() ).c_str(),
 +                      harness_escape( proto->nname( 1 ) ).c_str(),
 +                      harness_escape( proto->nname( 2 ) ).c_str(),
@@ -4624,7 +5076,10 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +                      // **What a stack's volume is divided by.** `item::volume` multiplies a charge-counted item's volume by its charges and then **divides by
 +                      // `stack_size`, rounding up a millilitre** (`src/item.cpp:7546-7562`), so a port without the divisor cannot say what a pile takes up.
 +                      static_cast<long long>( proto->stack_size ),
-+                      proto->count_by_charges() ? "true" : "false" );
++                      proto->count_by_charges() ? "true" : "false",
++                      // `item::chip_resistance()` (`item.cpp:9375-9409`): how well the thing resists being chipped by use, which is what
++                      // `Character::handle_melee_wear` divides the wear chance by. The **item's** figure, which is its materials' weighted by their portions.
++                      item( proto->id, calendar::turn, 1 ).chip_resistance( false ) );
 +        bool first_material = true;
 +        for( const std::pair<const material_id, int> &entry : proto->materials ) {
 +            std::fprintf( out, "%s[\"%s\",%d]", first_material ? "" : ",",
@@ -6243,7 +6698,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        std::fprintf( stderr, "harness: cannot open %s\n", path.c_str() );
 +        return;
 +    }
-+    std::fprintf( out, "{\"harness\":\"monsters\",\"version\":2,\n\"prototypes\":[\n" );
++    std::fprintf( out, "{\"harness\":\"monsters\",\"version\":8,\n\"prototypes\":[\n" );
 +    bool first = true;
 +    for( const mtype &proto : MonsterGenerator::generator().get_all_mtypes() ) {
 +        std::fprintf( out, "%s\n{\"id\":\"%s\",\"name\":\"%s\",\"symbol\":\"%s\",\"color\":\"%s\","
@@ -6292,15 +6747,49 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        }
 +        // Version two adds what an attack needs and what armour it must get through: the melee dice and
 +        // their faces, the dice's armour penetration, and the monster's own resistance to bash and cut.
++        // Version three adds the type's **flags**. They are the whole of what a monster can do that is not a number: `HEARS` is what makes it hear a thrown rock,
++        // `SEES` what makes it see, and `GOODHEARING` doubles both its earshot and how long it remembers. A dump without them gives every monster in the port a body
++        // with hit points and no senses.
++        std::fprintf( out, "],\"flags\":[" );
++        // The flag set is a bitset with no iteration of its own, so the flags the data defines are walked and each is asked of the monster: `mon_flag::get_all()` is the
++        // registry every string flag was loaded into, which is the only complete list. The set is not the list, and asking it for its members is not possible.
++        bool first_flag = true;
++        for( const mon_flag &flag : mon_flag::get_all() ) {
++            if( !proto.has_flag( flag.id ) ) {
++                continue;
++            }
++            std::fprintf( out, "%s\"%s\"", first_flag ? "" : ",",
++                          harness_escape( flag.id.str() ).c_str() );
++            first_flag = false;
++        }
 +        std::fprintf( out, "],\"harvest\":\"%s\",\"dissect\":\"%s\",\"size\":\"%s\","
 +                      "\"melee_dice\":%d,\"melee_sides\":%d,\"melee_dice_ap\":%d,"
-+                      "\"armor_bash\":%d,\"armor_cut\":%d}",
++                      "\"armor_bash\":%d,\"armor_cut\":%d,\"armor_stab\":%d,\"regenerates\":%.6g,"
++                      "\"melee_bash\":%.6g,\"melee_cut\":%.6g,\"melee_stab\":%.6g,\"attack_cost\":%d,"
++                      "\"regen_morale\":%s}",
 +                      harness_escape( proto.harvest.str() ).c_str(),
 +                      harness_escape( proto.dissect.str() ).c_str(),
 +                      size_name,
 +                      proto.melee_dice, proto.melee_sides, proto.melee_dice_ap,
 +                      static_cast<int>( proto.armor.type_resist( damage_type_id( "bash" ) ) ),
-+                      static_cast<int>( proto.armor.type_resist( damage_type_id( "cut" ) ) ) );
++                      static_cast<int>( proto.armor.type_resist( damage_type_id( "cut" ) ) ),
++                      // Version five adds the third of the melee damage types. A blow is worth its bash, its cut **and** its stab (round 1092), so a monster's resistance to the
++                      // third is not optional: the port was setting it to zero and every monster was softer than its data says.
++                      static_cast<int>( proto.armor.type_resist( damage_type_id( "stab" ) ) ),
++                      // Version four adds the hit points a monster mends per hour on its own (`monster::regenerate`, `monster.cpp:4094-4103`). Without it a port can
++                      // only ever use the two fallbacks - the flesh rate and the reviving rate - and every monster type that states its own would mend at the wrong pace.
++                      static_cast<double>( proto.regenerates ),
++                      // Version six adds the type's **fixed** melee damage (`mtype::melee_damage`), which `monster::melee_attack` starts from before adding its dice as bash
++                      // (`monster.cpp:2149`). The port had no column for it, so a monster whose data states a flat part hit for its dice alone.
++                      static_cast<double>( proto.melee_damage.type_damage( damage_type_id( "bash" ) ) ),
++                      static_cast<double>( proto.melee_damage.type_damage( damage_type_id( "cut" ) ) ),
++                      static_cast<double>( proto.melee_damage.type_damage( damage_type_id( "stab" ) ) ),
++                      // Version seven adds what a blow costs the monster in moves (`mtype::attack_cost`, charged by `monster::melee_attack` before it even swings:
++                      // `monster.cpp:2108`). Without it a port can only assume the default and a fast attacker would be charged as if it were a slow one.
++                      proto.attack_cost,
++                      // Version eight adds the flag that decides whether a monster gets its nerve back at all (`mtype::regen_morale`, read by `monster::process_turn`:
++                      // `monster.cpp:3494`). Without it a port either regenerates nerve for every monster or for none, and the data says which.
++                      proto.regen_morale ? "true" : "false" );
 +        first = false;
 +    }
 +    std::fprintf( out, "\n]}\n" );
@@ -6844,8 +7333,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-10-30 16:20:55
-@@ -0,0 +1,398 @@
++++ oracle/src/src/harness.h	2026-11-04 23:52:59
+@@ -0,0 +1,418 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -6962,6 +7451,11 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +
 +/** Writes every crafting recipe id and result to a JSON file. */
 +void dump_recipes( const std::string &path );
++void dump_proficiencies( const std::string &path );
++void dump_mutations( const std::string &path );
++void dump_mutation_categories( const std::string &path );
++/// Writes what every recipe produces, for a batch of one and of two - see `harness.cpp`.
++void dump_crafting( const std::string &path );
 +
 +/** Writes every item group id to a JSON file. */
 +void dump_item_groups( const std::string &path );
@@ -6979,6 +7473,21 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +
 +/** Writes every vehicle part id and every vehicle prototype id. */
 +void dump_vehicle_parts( const std::string &path );
++
++// `--dump-flags <file>`: every flag id the game knows, which is what `foreach` with `target: "flag"` walks.
++void dump_flags( const std::string &path );
++
++/// Every item type's thrown damage, as `item::base_damage_thrown` answers it.
++void dump_thrown_damage( const std::string &path );
++
++/// Every ammunition's own blow, which is where a firearm's damage lives.
++void dump_ammo( const std::string &path );
++
++/// Every skill's own attack-time line: the numbers a shot's price is built from.
++void dump_skills( const std::string &path );
++
++/// Every gun's own dispersion, skill, range and recoil: the numbers a shot's accuracy is built from.
++void dump_guns( const std::string &path );
 +
 +// `--dump-materials <file>`: every material's resolved fields.
 +void dump_materials( const std::string &path );
@@ -7418,7 +7927,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-10-30 18:13:01
++++ oracle/src/src/main.cpp	2026-11-04 23:52:59
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -7429,7 +7938,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,152 @@
+@@ -272,6 +275,161 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -7568,7 +8077,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_geometry;
 +    std::string dump_traps;
 +    std::string dump_materials;
++    std::string dump_flags;
++    std::string dump_thrown_damage;
++    std::string dump_guns;
++    std::string dump_skills;
++    std::string dump_ammo;
 +    std::string dump_recipes;
++    std::string dump_proficiencies;
++    std::string dump_mutations;
++    std::string dump_mutation_categories;
++    std::string dump_crafting;
 +    std::string dump_item_groups;
 +    std::string dump_mapgens;
 +    std::string dump_starting_kit;
@@ -7582,7 +8100,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +449,1290 @@
+@@ -300,6 +458,1380 @@
                  }
              },
              {
@@ -7736,12 +8254,102 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                }
 +            },
 +            {
++                "--dump-mutation-categories", "<file>",
++                "Writes every mutation category's removal chance and threshold minimum to <file>",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_mutation_categories = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-mutations", "<file>",
++                "Writes every valid mutation's points, prerequisite and conflict sets to <file>",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_mutations = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-proficiencies", "<file>",
++                "Writes every proficiency's learning time and prerequisites to <file>",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_proficiencies = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-crafting", "<file>",
++                "Writes what every crafting recipe produces, for a batch of one and of two, to <file>",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_crafting = params[0];
++                    return 1;
++                }
++            },
++            {
 +                "--dump-materials", "<file>",
 +                "Writes every resolved material prototype to <file>",
 +                section_default,
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_materials = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-flags", "<file>",
++                "Dumps every flag id the game knows, which is what a foreach over flags walks.",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_flags = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-ammo", "<file>",
++                "Dumps every ammunition's own damage, pellet count and spread.",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_ammo = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-skills", "<file>",
++                "Dumps every skill's attack-time line.",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_skills = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-guns", "<file>",
++                "Dumps every gun's own dispersion, skill, range and recoil.",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_guns = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-thrown-damage", "<file>",
++                "Dumps every item type's thrown damage, which is what a thrown thing is worth before the arm.",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_thrown_damage = params[0];
 +                    return 1;
 +                }
 +            },
@@ -8873,7 +9481,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2219,695 @@
+@@ -786,6 +2318,749 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -9134,10 +9742,64 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            harness::dump_item_groups( cli.dump_item_groups );
 +            exit_handler( 0 );
 +        }
++        if( !cli.dump_mutation_categories.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_mutation_categories( cli.dump_mutation_categories );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_mutations.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_mutations( cli.dump_mutations );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_proficiencies.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_proficiencies( cli.dump_proficiencies );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_crafting.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_crafting( cli.dump_crafting );
++            exit_handler( 0 );
++        }
 +        if( !cli.dump_recipes.empty() ) {
 +            test_mode = true;
 +            g->check_mod_data( { mod_id( "dda" ) } );
 +            harness::dump_recipes( cli.dump_recipes );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_thrown_damage.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_thrown_damage( cli.dump_thrown_damage );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_ammo.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_ammo( cli.dump_ammo );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_skills.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_skills( cli.dump_skills );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_guns.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_guns( cli.dump_guns );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_flags.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_flags( cli.dump_flags );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_materials.empty() ) {

@@ -14240,3 +14240,15 @@ perform. **The constant is doing two jobs**, and a port that read it as an optim
 
 **Named, not invented:** `item::set_damage`'s clamping (ported), the degraded-item names the reference derives from this fraction, `item::damage_bar` and its glyphs, and the armour durability
 path that asks the same question of a worn garment.
+
+## A gate that had been failing quietly (round 1200)
+
+`oracle/apply_harness_patches.py --verify` was **red**, and had been for some time: every hunk failed, because the harness edits of the last several rounds - the guns dump's `durability`, the ammo
+dump's `effects`, the prototypes dump's `chip_resistance` - were made **straight into `oracle/src/src/harness.cpp`** and the patch ledger was never regenerated. **`--verify` is the gate that
+notices exactly that, and it is the one gate that is not in `tools/remote_test.py`, which is why the suite stayed green while it rotted.**
+
+**The fix is its own documented path**: `python3 oracle/apply_harness_patches.py --regen` rewrites the patch from the working copy (`diff -ruN` against the pinned checkout), and `--verify` then
+proves that patch rebuilds the working copy byte for byte in a scratch tree. Both now pass: **11,286 lines of patch, verified.**
+
+**The lesson is about gates, not patches.** A gate that nobody types is a gate that is not running: `--tests`, `--clippy` and `--docs` are in one command and were run every round; the oracle gate is
+a separate script and was run **never**. The honest repair is to keep running it as part of the round, which this entry records as the practice from here on.
