@@ -474,3 +474,56 @@ fn a_birdshot_scatters_off_a_distant_square_and_not_off_a_near_one() {
     assert!(scattered_far > 0, "a birdshot at twenty squares scatters at least once in four seeds: {scattered_far}");
     assert!(scattered_near < 4, "and at two squares it is not the scatter doing the missing: {scattered_near}");
 }
+
+/// A round with a count fires that many pellets, and a cartridge's count of one fires one.
+///
+/// Reference: `for( int j = 0; j < proj.count; ++j )` (`ballistics.cpp:388`) with `proj.count` from `islot_ammo::count` - **twenty** for birdshot, one for a .223. This is the rule that makes
+/// a shotgun a shotgun: the same shot step, the same price, twenty times the blow if the pellets land.
+#[test]
+fn a_shotgun_fires_its_round_s_whole_count_and_a_rifle_fires_one() {
+    use bevy_ecs::prelude::*;
+    use cdda_core_types::rng::Rolls;
+
+    let read = |name: &str| {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let bytes = std::fs::read(path).expect("the corpus file exists");
+        cdda_json::parse(&bytes).expect("valid JSON")
+    };
+    let guns = cdda_content::guns::load_dump(&read("items/guns.json")).expect("the guns load");
+    let lines = cdda_content::skills::load_dump(&read("skills.json")).expect("the skills load");
+    let rounds = cdda_content::ammo::load_dump(&read("items/ammo.json")).expect("the ammo loads");
+    let round = |id: &str| rounds.iter().find(|round| round.id == id).expect("the round is in the dump").clone();
+    let gun = |id: &str| guns.iter().find(|gun| gun.id == id).expect("the gun is in the dump").clone();
+    assert_eq!(round("shot_bird").count, 20, "birdshot is twenty pellets");
+    assert_eq!(round("223").count, 1, "a cartridge is one");
+
+    // The same shooter and the same dice, once with a shotgun and once with a rifle, at one square - so the count is the only thing that differs.
+    let fire = |gun: &cdda_content::guns::GunType, round: &cdda_content::ammo::AmmoType| {
+        let mut world = World::new();
+        cdda_sim::singletons::put_rolls(&mut world, Rolls::new(99));
+        let shooter = cdda_sim::creature::spawn_creature(&mut world, "the shooter", (0, 0, 0));
+        world
+            .entity_mut(shooter)
+            .insert(cdda_sim::creature::Strength { base: 8 })
+            .insert(cdda_sim::creature::Dexterity { base: 20 })
+            .insert(cdda_sim::creature::Perception { base: 20 })
+            .insert(cdda_sim::creature::Moves { left: 1_000 });
+        let target = cdda_sim::creature::spawn_creature(&mut world, "the target", (1, 0, 0));
+        world.entity_mut(target).insert(cdda_sim::creature::Health { hp: 500, max_hp: 500 });
+        let fired = cdda_sim::shot::fire_at(&mut world, shooter, gun, &lines, (1, 0, 0), 18.0, Some(round), None, 3_000.0, false);
+        fired.hurt
+    };
+
+    let shotgun_hurt = fire(&gun("pipe_shotgun"), &round("shot_bird"));
+    let rifle_hurt = fire(&gun("ruger_mini"), &round("223"));
+    assert!(rifle_hurt > 0, "the rifle's single pellet lands at one square: {rifle_hurt}");
+    assert_eq!(rifle_hurt, 39, "and does the .223's whole blow");
+    assert!(
+        shotgun_hurt > rifle_hurt,
+        "while twenty pellets do far more: {shotgun_hurt} against {rifle_hurt}"
+    );
+    assert!(
+        shotgun_hurt > 39,
+        "which is more than any one pellet could: {shotgun_hurt}"
+    );
+}

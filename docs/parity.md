@@ -13450,3 +13450,25 @@ necessary rather than decorative.
 
 **Named, not invented:** `item::ammo_current`'s choice between rounds of the same type (the port takes the first in table order, because it has no magazine to read), `ammo_remaining`, and the
 `charges` a round stacks in.
+
+## A shotgun fires twenty pellets (round 1163)
+
+`ballistics.cpp:388`'s `for( int j = 0; j < proj.count; ++j )` is the loop that makes a shotgun a shotgun, and the port fires it now.
+
+| Piece | Reference | Port |
+|---|---|---|
+the count | `islot_ammo::count` - **20** for birdshot, **1** for a cartridge | `round.count`, already in the ammo dump |
+the loop | one spread draw, one aim roll and one blow **per pellet** | the same, inside `shot::fire_at` |
+Gate | - | `a_shotgun_fires_its_round_s_whole_count_and_a_rifle_fires_one` |
+
+**The gate is a differential with the count as the only variable**: the same shooter, the same dice seed, the same one-square range, a pipe shotgun with birdshot against a Mini-14 with a .223.
+The rifle does **39** - the cartridge's whole blow - and the shotgun does **more than any one pellet could**, because twenty of them were rolled.
+
+**Each pellet draws its own numbers, and that is the point of the loop rather than an implementation detail.** The spread, the aim roll and the landing are inside the loop; a port that drew
+once and multiplied by twenty would give every pellet the same trajectory, and the scatter that round 1161 wired would never take a single pellet off the target.
+
+**The rifle is unchanged by construction, not by a special case**: its `count` is one, so the loop runs once. **That is what makes the differential meaningful** - the same code path, two data
+values, two behaviours.
+
+**Named, not invented:** the pellet loop's `multishot` term (`ballistics.cpp:390`, which shifts each pellet's aim by its index), `proj.count` for a **gunmod's** `shot_count` multiplier, and the
+`hurt_part_when_fired` that a hit on a body part carries.

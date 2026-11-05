@@ -225,36 +225,48 @@ pub fn fire_at(
         ..crate::dispersion::Dispersion::default()
     };
     let range = range_to(world, shooter, target);
-    // Reference: `ballistics.cpp:395-405` - the round's own spread is drawn **inside the pellet loop**, and a scatter wider than the target square moves the aim off it. The port draws
-    // it once here, because it fires one pellet (the `count` loop is named in `docs/parity.md`), and treats the displacement as a miss rather than rotating a target it does not have.
-    let mut scatter = 0.0;
-    let rolled = match crate::singletons::take_rolls(world) {
-        Some(mut dice) => {
-            let arcmin = shot_spread_arcmin(round.map_or(0, |round| round.shot_spread), &mut dice);
-            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-            let tiles = range.max(1.0).round() as usize;
-            scatter = spread_across_tiles(arcmin, tiles);
-            let drawn = sources.roll(&mut dice);
-            crate::singletons::put_rolls(world, dice);
-            drawn
-        }
-        None => 0.0,
-    };
     let size = crate::throwing::target_size(world, shooter, target);
-    let mut aim = crate::ballistics::aim_of(rolled, range, size);
-    // The reference's own threshold: a scatter of a whole square or more takes the pellet off the target square, so the shot misses whatever the aim roll said.
-    if scatter >= 1.0 {
-        aim.missed_by = aim.missed_by.max(1.0);
+    // Reference: `for( int j = 0; j < proj.count; ++j )` (`ballistics.cpp:388`) - **a round with a count fires that many pellets**, each with its own spread, its own aim and its own blow.
+    // A cartridge's count is one, so a rifle is unchanged; a birdshot's is twenty, which is what makes a shotgun a shotgun rather than a heavy rifle.
+    let pellets = round.map_or(1, |round| round.count).max(1);
+    let mut hits = 0;
+    let mut hurt = 0;
+    let mut last_aim = crate::ballistics::aim_of(0.0, range, size);
+    for _ in 0..pellets {
+        let mut scatter = 0.0;
+        let rolled = match crate::singletons::take_rolls(world) {
+            Some(mut dice) => {
+                let arcmin = shot_spread_arcmin(round.map_or(0, |round| round.shot_spread), &mut dice);
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                let tiles = range.max(1.0).round() as usize;
+                scatter = spread_across_tiles(arcmin, tiles);
+                let drawn = sources.roll(&mut dice);
+                crate::singletons::put_rolls(world, dice);
+                drawn
+            }
+            None => 0.0,
+        };
+        let mut aim = crate::ballistics::aim_of(rolled, range, size);
+        // The reference's own threshold: a scatter of a whole square or more takes the pellet off the target square, so it misses whatever the aim roll said.
+        if scatter >= 1.0 {
+            aim.missed_by = aim.missed_by.max(1.0);
+        }
+        last_aim = aim;
+        // The reference's convention: a fraction missed of one is a miss, and anything less reached the target.
+        if aim.missed_by < 1.0
+            && let Some(struck) = crate::creature::creature_at(world, target)
+                .into_iter()
+                .find(|entity| *entity != shooter && crate::creature::health_of(world, *entity).is_some())
+        {
+            hits += 1;
+            hurt += hurt_once(world, struck, &blow);
+        }
     }
-    // The reference's convention: a fraction missed of one is a miss, and anything less reached the target.
-    let struck = if aim.missed_by < 1.0 {
-        crate::creature::creature_at(world, target)
-            .into_iter()
-            .find(|entity| *entity != shooter && crate::creature::health_of(world, *entity).is_some())
-    } else {
-        None
-    };
-    let hurt = struck.map_or(0, |struck| hurt_once(world, struck, &blow));
+    let aim = last_aim;
+    let struck = crate::creature::creature_at(world, target)
+        .into_iter()
+        .find(|entity| *entity != shooter && crate::creature::health_of(world, *entity).is_some())
+        .filter(|_| hits > 0);
     // Reference: `recoil += 5 * qty` after the shot (`ranged.cpp:1152-1154`), which is what makes the second shot worse than the first.
     let kick = gun_recoil(
         gun.recoil,

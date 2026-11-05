@@ -850,3 +850,6 @@ gate also recorded that **a gun names its ammunition type while the rounds table
 **Round 1162 closed the ammunition-type gap**: `AmmoType::ammo_type` (ammo dump **version 3**, `islot_ammo::type`) and the CLI's `round_of_type`, so a gun naming `"shot"` finds `shot_bird` while
 `223` still resolves by id. Gated by `content_suite::ammo_rules::every_round_states_the_ammunition_type_it_belongs_to` and
 `cdda-cli::tests::a_gun_that_names_an_ammunition_type_finds_a_round_of_that_type`.
+
+**Round 1163 ported the pellet loop**: `shot::fire_at` now fires `round.count` pellets, each drawing its own spread, aim and blow (`ballistics.cpp:388`). Gated by
+`shot_rules::a_shotgun_fires_its_round_s_whole_count_and_a_rifle_fires_one` - a differential with the count as the only variable: a .223 does 39, birdshot does more than any single pellet.
