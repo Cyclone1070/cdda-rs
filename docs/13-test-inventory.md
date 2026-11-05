@@ -1145,3 +1145,6 @@ nothing, 90 adds the same as 60) and the worse-eyes doubling.
 
 **Round 1266 ported `Character::thirst_speed_penalty`** as `needs::thirst_speed_penalty` (`character.cpp:12439-12451`) with `multi_lerp` inlined, gated by
 `reading::thirst_slows_a_character_along_its_thresholds` - including the truncate-toward-zero halves (−12.5 → −12).
+
+**Round 1267 ported `Character::kcal_speed_penalty`** as `needs::kcal_speed_penalty` (`character.cpp:4531-4549`), keyed on fat category with `std::round`. Gated by
+`reading::being_starved_slows_a_character_by_their_fat_category`; its half case (−12.5 → −13) is the counterpart of round 1266's truncation case.

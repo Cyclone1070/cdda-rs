@@ -64,3 +64,23 @@ fn thirst_slows_a_character_along_its_thresholds() {
     assert_eq!(thirst_speed_penalty(1200), -75, "at the fourth, where a character dies");
     assert_eq!(thirst_speed_penalty(5000), -75, "and beyond it, the last value");
 }
+
+/// Being starved slows a character by their fat category, and only when they actually need food.
+///
+/// Reference: `Character::kcal_speed_penalty` (`character.cpp:4531-4549`): nothing when `!needs_food()`, nothing when `get_kcal_percent() > 0.95`, otherwise `std::round( multi_lerp( thresholds,
+/// get_bmi_fat() ) )` over **fat category** values, not BMI - `0 -> -90`, `emaciated (1) -> -50`, `underweight (2) -> -25`, `normal (3) -> 0` (`game_constants.h:170-179`).
+///
+/// **`std::round` takes halves away from zero**, so −12.5 becomes **−13** - the opposite of the truncation `thirst_speed_penalty` uses, and the reason both gates exist.
+#[test]
+fn being_starved_slows_a_character_by_their_fat_category() {
+    use cdda_sim::needs::kcal_speed_penalty;
+
+    assert_eq!(kcal_speed_penalty(false, 0.5, 1.0), 0, "**not needing food means no penalty**, however thin");
+    assert_eq!(kcal_speed_penalty(true, 0.99, 1.0), 0, "a character over 95% fed does not pay for weight");
+    assert_eq!(kcal_speed_penalty(true, 0.5, 3.0), 0, "normal weight costs nothing");
+    assert_eq!(kcal_speed_penalty(true, 0.5, 2.0), -25, "underweight");
+    assert_eq!(kcal_speed_penalty(true, 0.5, 1.0), -50, "emaciated");
+    assert_eq!(kcal_speed_penalty(true, 0.5, 0.0), -90, "**zero fat is the floor**");
+    assert_eq!(kcal_speed_penalty(true, 0.5, 2.5), -13, "halfway is -12.5, and `round` takes it away from zero to -13");
+    assert_eq!(kcal_speed_penalty(true, 0.5, 5.0), 0, "above normal the last value stands: no bonus for fat");
+}

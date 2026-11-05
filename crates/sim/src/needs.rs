@@ -307,3 +307,44 @@ pub fn thirst_speed_penalty(thirst: i32) -> i32 {
     let penalty = value as i32;
     penalty
 }
+
+/// What being starved costs a character's speed, by **fat category** rather than by BMI.
+///
+/// Reference: `Character::kcal_speed_penalty` (`character.cpp:4531-4549`):
+///
+/// ```text
+/// if( !needs_food() ) return 0;
+/// { 0 -> -90, emaciated -> -50, underweight -> -25, normal -> 0 }   // fat categories 0, 1, 2, 3
+/// if( get_kcal_percent() > 0.95f ) return 0;
+/// return std::round( multi_lerp( starv_thresholds, get_bmi_fat() ) );
+/// ```
+///
+/// **The x axis is the fat category, not the BMI**: `get_bmi_fat()` returns a bucket from `character_weight_category` (`game_constants.h:170-179`), so the interpolation happens between buckets and a
+/// character sitting between two of them pays the average. **`std::round` takes halves away from zero**, which for a penalty means −12.5 becomes **−13** - the opposite direction from the truncation
+/// `thirst_speed_penalty` uses, and the reason both have gates of their own.
+#[must_use]
+pub fn kcal_speed_penalty(needs_food: bool, kcal_percent: f64, fat_category: f64) -> i32 {
+    if !needs_food || kcal_percent > 0.95 {
+        return 0;
+    }
+    /// The reference's `starv_thresholds`, in fat-category order.
+    const THRESHOLDS: [(f64, f64); 4] = [(0.0, -90.0), (1.0, -50.0), (2.0, -25.0), (3.0, 0.0)];
+    let mut index = 0;
+    while index < THRESHOLDS.len() && THRESHOLDS[index].0 <= fat_category {
+        index += 1;
+    }
+    let value = if index == 0 {
+        THRESHOLDS[0].1
+    } else if index >= THRESHOLDS.len() {
+        THRESHOLDS[THRESHOLDS.len() - 1].1
+    } else {
+        let (low_x, low_value) = THRESHOLDS[index - 1];
+        let (high_x, high_value) = THRESHOLDS[index];
+        let t = (fat_category - low_x) / (high_x - low_x);
+        t * high_value + (1.0 - t) * low_value
+    };
+    // `std::round`: halves away from zero, which is what `f64::round` does.
+    #[allow(clippy::cast_possible_truncation)]
+    let penalty = value.round() as i32;
+    penalty
+}

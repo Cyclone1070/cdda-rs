@@ -14973,3 +14973,21 @@ because a port that landed on −13 would be wrong by exactly the amount the ref
 
 **Named, not invented:** where the penalty is applied. The port stores thirst and has a speed recorder, but nothing reads this penalty yet - the function is ported and gated ahead of its caller, which is
 the same order this port has used for every curve it did not want to wire blind.
+
+## Starvation slows you by your fat category (round 1267)
+
+| Piece | Reference | Port |
+|---|---|---|
+the curve | `Character::kcal_speed_penalty` (`character.cpp:4531-4549`) | `needs::kcal_speed_penalty(needs_food, kcal_percent, fat_category)` |
+Gate | - | `reading::being_starved_slows_a_character_by_their_fat_category` |
+
+**The x axis is the fat category, not the BMI.** `get_bmi_fat()` returns a bucket from `character_weight_category` (`game_constants.h:170-179`), and the thresholds are `0 -> -90`, `emaciated (1) -> -50`,
+`underweight (2) -> -25`, `normal (3) -> 0` - so a character **between** two buckets pays the average, and one **above normal pays nothing rather than gaining speed**.
+
+**Two guards come first and either cancels everything:** `!needs_food()` and `kcal_percent > 0.95`. A character who is fat but fed is not slowed, which is the rule a player notices as "eat before you
+faint".
+
+**`std::round` takes halves away from zero**, so −12.5 is **−13** - the **opposite direction** from `thirst_speed_penalty`'s `static_cast<int>` truncation. Both are gated with their half cases, because
+they are one line apart in the reference and disagree about the same number.
+
+**Named, not invented:** `needs_food()`, which the port answers from its own stomach rule at call time; and where the penalty is applied, which is the speed bonus list the port has not built yet.
