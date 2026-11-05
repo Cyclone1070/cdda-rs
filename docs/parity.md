@@ -14805,3 +14805,18 @@ technique at all**. The gate asserts the chain from both ends: each technique al
 on something actually worn, and then picks the best worn shield when its value is `>=` the weapon's. That comparison is `>=` and not `>`, so **a worn shield ties the weapon and wins**.
 
 **Named, not invented:** `block_hit` itself, which needs martial arts, limbs, `blocks_left` and shields; and the technique tables, which the port reads as plain name lists until the martial-arts data lands.
+
+## A worn shield that ties the weapon wins (round 1257)
+
+| Piece | Reference | Port |
+|---|---|---|
+the choice | `best_shield` (`melee.cpp:1967-1976`) | `melee::best_shield(weapon_value, best_worn_value) -> Shield` |
+Gate | - | `the_best_shield_is_the_worn_one_when_it_ties_or_beats_the_weapon` |
+
+**Two comparisons decide it, and both are easy to get wrong:**
+
+- `best_value = best_value == 2 ? 0 : best_value` - **a weapon's worn bonus is worth nothing**, because `BLOCK_WHILE_WORN` only pays on something actually worn. A weapon whose only blocking value is
+  that flag blocks with **nothing**, which reads like a bug until you see why.
+- the worn test is `>=`, not `>` - **a worn shield that merely ties the weapon wins the tie**, which is the opposite of "the thing in your hand has priority".
+
+The gate walks the whole table: weapon only, worse worn, **tied** worn, better worn, the discarded two, and nothing at all.

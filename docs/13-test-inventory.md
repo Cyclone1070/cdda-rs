@@ -1115,3 +1115,6 @@ flag rather than inventing a pocket field. Gated by `ground_items::a_no_unload_c
 
 **Round 1256 ported `melee::blocking_ability`** (`melee.cpp:1950-1965`): the `WBLOCK_3/2/1` chain at ten, six and four, then two for `BLOCK_WHILE_WORN`. Gated by
 `creature_fight::what_a_thing_is_worth_as_a_block`, which asserts the chain's fall-through order and that several techniques give the **best**.
+
+**Round 1257 ported `Character::best_shield`** as `melee::best_shield` + `Shield` (`melee.cpp:1967-1976`): the `== 2` discard and the `>=` tie. Gated by
+`creature_fight::the_best_shield_is_the_worn_one_when_it_ties_or_beats_the_weapon`.

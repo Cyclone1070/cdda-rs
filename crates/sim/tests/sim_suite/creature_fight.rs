@@ -2435,3 +2435,28 @@ fn what_a_thing_is_worth_as_a_block() {
     assert_eq!(blocking_ability(&[], false), 0, "nothing else blocks");
     assert_eq!(blocking_ability(&["WBLOCK_1", "WBLOCK_3"], false), 10, "**the chain takes the best**, whatever the order of the list");
 }
+
+/// Which thing a character blocks with: the best worn shield when it ties or beats the weapon, and never a worn bonus counted in the hand.
+///
+/// Reference: `Character::best_shield` (`melee.cpp:1967-1976`):
+///
+/// ```text
+/// int best_value = blocking_ability( weapon );
+/// best_value = best_value == 2 ? 0 : best_value;              // the worn flag is worth nothing in the hand
+/// item_location best = best_value > 0 ? get_wielded_item() : none;
+/// if( best_worn && blocking_ability( *best_worn ) >= best_value ) best = worn;
+/// ```
+///
+/// **Two comparisons decide it, and both are easy to get wrong:** the `== 2` discards a weapon's worn bonus, and the worn test is `>=` - so **a worn shield that merely ties the weapon wins**.
+#[test]
+fn the_best_shield_is_the_worn_one_when_it_ties_or_beats_the_weapon() {
+    use cdda_sim::melee::{Shield, best_shield};
+
+    assert_eq!(best_shield(10, None), Shield::Weapon, "a technique weapon with nothing worn");
+    assert_eq!(best_shield(10, Some(9)), Shield::Weapon, "a worse worn shield stays worn and is not used");
+    assert_eq!(best_shield(10, Some(10)), Shield::Worn, "**a tie goes to the worn one**");
+    assert_eq!(best_shield(10, Some(12)), Shield::Worn, "and so does anything better");
+    assert_eq!(best_shield(2, None), Shield::None, "**a worn bonus in the hand is worth nothing** - two is discarded");
+    assert_eq!(best_shield(2, Some(2)), Shield::Worn, "and against that zero, any worn shield wins");
+    assert_eq!(best_shield(0, None), Shield::None, "nothing to block with");
+}

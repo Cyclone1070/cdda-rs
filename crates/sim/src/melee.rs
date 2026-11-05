@@ -588,3 +588,43 @@ pub fn blocking_ability(techniques: &[&str], block_while_worn: bool) -> i32 {
     }
     if block_while_worn { 2 } else { 0 }
 }
+
+/// What a character blocks with.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Shield {
+    /// Nothing worth blocking with.
+    None,
+    /// The thing in the hand.
+    Weapon,
+    /// Something worn: the reference's `BLOCK_WHILE_WORN` gear.
+    Worn,
+}
+
+/// Which thing `Character::best_shield` would pick, given the weapon's value and the best worn one's.
+///
+/// Reference: `melee.cpp:1967-1976`:
+///
+/// ```text
+/// int best_value = blocking_ability( weapon );
+/// best_value = best_value == 2 ? 0 : best_value;
+/// item_location best = best_value > 0 ? get_wielded_item() : item_location();
+/// if( best_worn && blocking_ability( *best_worn ) >= best_value ) best = item_location( *this, best_worn );
+/// ```
+///
+/// **Two comparisons decide it and both are easy to get wrong.** The `== 2` throws away a weapon's worn bonus, because `BLOCK_WHILE_WORN` only pays when the thing is **worn**; and the worn test is
+/// `>=`, so **a worn shield that merely ties the weapon wins the tie**.
+#[must_use]
+pub fn best_shield(weapon_value: i32, best_worn_value: Option<i32>) -> Shield {
+    // A worn bonus in the hand counts for nothing, so a weapon worth exactly two is worth none.
+    let mut best_value = weapon_value;
+    if best_value == 2 {
+        best_value = 0;
+    }
+    let mut choice = if best_value > 0 { Shield::Weapon } else { Shield::None };
+    if let Some(worn) = best_worn_value
+        && worn >= best_value
+    {
+        choice = Shield::Worn;
+    }
+    choice
+}
