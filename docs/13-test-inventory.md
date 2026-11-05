@@ -979,3 +979,7 @@ destroys**.
 **Round 1195 ported the weighted fault pick**: `sim::pick_a_fault` (`item::set_random_fault_of_type`, `item.cpp:7854-7868`). Gated by
 `ground_items::a_fault_is_picked_by_weight_and_only_from_what_the_item_can_have` (three-to-one over 4,000 draws, a single candidate always, and an **empty list sets nothing**). The fault
 catalogue's `type` field is not loaded yet, so the caller filters and `mod_damage` does not call it - both recorded in `docs/parity.md`.
+
+**Round 1196 removed round 1195's duplicate.** `sim::pick_fault` already ported `weighted_int_list::pick` faithfully - including the **one-entry list that spends no die** - and was already gated by
+`sim_suite/fault_pick.rs`; the round-1195 `pick_a_fault` was a plain weighted draw with a different distribution and no kind filter. Both the function and its gate are gone, and
+`docs/parity.md` records why. `remove_single_fault_of_type` remains unported and is now named there.

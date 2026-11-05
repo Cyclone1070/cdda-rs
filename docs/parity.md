@@ -14175,3 +14175,19 @@ and an empty list or a zero weight returns **nothing**.
 **Named, not invented:** the **fault catalogue** (`faults.json`'s `type` field, which is what makes "mechanical damage" a filter at all) - the port loads fault *ids* with weights on the type but not
 their types, so the caller filters; the message; `remove_single_fault_of_type` and `remove_fault`; and **the wiring** - `mod_damage` does not call this yet, because the swing does not know which
 faults the kind can have.
+
+## A duplicate the corpus already had (round 1196)
+
+**Round 1195's `pick_a_fault` was a duplicate, and this round removed it.** `sim::pick_fault` already existed (`lib.rs:7351-7380`) with the *better* rule: it reads
+`weighted_int_list::pick`'s actual implementation - **`rng_bits()`, reduced modulo the total and walked from the front**, and a list of one that **returns without touching a die at all**
+(`weighted_list.h:120-129`, `247-267`) - and it is gated by `sim_suite/fault_pick.rs`, which walks the eligible kinds and the blocking faults as well. My version was a plain weighted draw, which is
+**not the same distribution** for a list of one (mine spent a die; the reference spends none) and had no gate on the fault-type filter at all.
+
+**The round-1195 gate went with it**, because it asserted the duplicate's behaviour rather than the reference's - and two gates for one rule that disagree is worse than one.
+
+**The lesson is the round's whole content, and it is the port's most repeated one: read before writing.** I read `set_random_fault_of_type`, wrote what it said, and never grepped for a `pick_fault`
+that had been there for a hundred rounds. **A search for the name in the reference is not a search for the rule in the port** - the port's names are its own (`pick_fault`, not
+`set_random_fault_of_type`), so the grep has to be for the *behaviour* ("fault"), not the reference's identifier.
+
+**Named, not invented:** `remove_single_fault_of_type` (`item.cpp:7874-7882`) is **still unported**: `remove_fault` is one `erase` and has no "first of a type" sibling in the port. It is recorded
+here rather than written twice.
