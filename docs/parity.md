@@ -13426,3 +13426,27 @@ the first time a scenario fires a shotgun.
 
 **Named, not invented:** the pellet loop (`proj.count`, which a shotgun's eight pellets need), the target square's rotation, `NEVER_MISFIRES`, and the ammunition-type-to-round lookup the CLI
 still takes for granted.
+
+## A gun names an ammunition type, and a round is not that type (round 1162)
+
+Round 1161 found the gap while writing a gate and named it; this round closes it, in the data first.
+
+| Piece | Reference | Port |
+|---|---|---|
+the data | `islot_ammo::type` (`itype.h:1063`) - **one** type a round | ammo dump **version 3**, field `ammo_types` |
+the lookup | `item::ammo_current` - whichever round is loaded | `round_of_type` in the CLI: the first round of the type in the table's order |
+Gates | - | `every_round_states_the_ammunition_type_it_belongs_to` (content) and `a_gun_that_names_an_ammunition_type_finds_a_round_of_that_type` (cli) |
+
+**Two namespaces, and only an accident makes them look like one.** A gun's `ammo` is an **ammunition type**: a pipe shotgun's is `"shot"`. The rounds are items with their own ids:
+`shot_bird`, `shot_00`. They agree for `223`, which is the one case the port had exercised - **so the CLI worked for the only gun anyone had fired and would have failed silently on the
+first shotgun**, with the shot's blow reading zero because no round was found.
+
+**The first version of the dump helper would not compile, and the reference said why.** I wrote it over `ammo.type` as if it were a set - the field is **one** `ammotype` (`itype.h:1063`), not a
+collection, and the compiler's `'begin' was not declared` was the data's shape asserting itself. The comment now carries the field's line and its arity, because that is the fact a reader would
+otherwise re-derive by failing.
+
+**The gate is a differential again**: `223` resolves **by id** and `shot` resolves **by type**, and the test asserts that `shot` is **not** any round's id - which is what makes the second lookup
+necessary rather than decorative.
+
+**Named, not invented:** `item::ammo_current`'s choice between rounds of the same type (the port takes the first in table order, because it has no magazine to read), `ammo_remaining`, and the
+`charges` a round stacks in.

@@ -846,3 +846,7 @@ now sets the reference's new-character eight in all three stats.
 **Round 1161 wired the round's spread into the shot**: `fire_at` draws `shot_spread_arcmin` from the shot's own dice and, when `spread_across_tiles` reaches **1.0**, raises the aim's `missed_by` to
 a whole miss. Gated by `shot_rules::a_birdshot_scatters_off_a_distant_square_and_not_off_a_near_one` - a differential over range alone, four seeds, a pipe shotgun and 300-arcmin birdshot. The
 gate also recorded that **a gun names its ammunition type while the rounds table is keyed by round id**, which the CLI's `shoot` step assumes are equal.
+
+**Round 1162 closed the ammunition-type gap**: `AmmoType::ammo_type` (ammo dump **version 3**, `islot_ammo::type`) and the CLI's `round_of_type`, so a gun naming `"shot"` finds `shot_bird` while
+`223` still resolves by id. Gated by `content_suite::ammo_rules::every_round_states_the_ammunition_type_it_belongs_to` and
+`cdda-cli::tests::a_gun_that_names_an_ammunition_type_finds_a_round_of_that_type`.

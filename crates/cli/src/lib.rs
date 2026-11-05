@@ -1453,6 +1453,44 @@ mod tests {
     #![allow(clippy::panic, clippy::expect_used)]
     use super::*;
 
+    /// A gun that names an ammunition type which is not a round id still finds its round.
+    ///
+    /// The two namespaces are the reference's own (`gun_type::ammo` against `islot_ammo::type`), and the `shoot` step assumed they agreed until a shotgun was tried: a pipe shotgun's `ammo`
+    /// is `"shot"`, and the rounds are `shot_bird` and `shot_00`. **This is the gate for the second lookup**, and it is a differential: `223` resolves by id, `shot` by type.
+    #[test]
+    fn a_gun_that_names_an_ammunition_type_finds_a_round_of_that_type() {
+        let read = |name: &str| {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+            let bytes = std::fs::read(path).expect("the corpus file exists");
+            cdda_json::parse(&bytes).expect("valid JSON")
+        };
+        let rounds = cdda_content::ammo::load_dump(&read("items/ammo.json")).expect("the ammo loads");
+        let guns = cdda_content::guns::load_dump(&read("items/guns.json")).expect("the guns load");
+
+        let gun = |id: &str| guns.iter().find(|gun| gun.id == id).expect("the gun is in the dump").clone();
+        let by_id = gun("ruger_mini").ammo;
+        assert_eq!(by_id, "223", "a rifle names a type that is also a round's id");
+        assert!(rounds.iter().any(|round| round.id == by_id), "so the id lookup finds it");
+
+        let by_type = gun("pipe_shotgun").ammo;
+        assert_eq!(by_type, "shot", "and a shotgun names a type that is no round's id");
+        assert!(
+            !rounds.iter().any(|round| round.id == by_type),
+            "which is what makes the second lookup necessary rather than decorative"
+        );
+        let found: Vec<&str> = rounds
+            .iter()
+            .filter(|round| round.ammo_type == by_type)
+            .map(|round| round.id.as_str())
+            .collect();
+        assert!(found.len() > 1, "and there are several rounds of it: {found:?}");
+        assert!(found.contains(&"shot_bird"), "birdshot among them: {found:?}");
+        assert!(
+            round_of_type(&rounds, &by_type).is_some_and(|round| round.ammo_type == by_type),
+            "and the resolver the step uses finds one"
+        );
+    }
+
     /// Every table the scenarios install is **non-empty**, which is the one check that catches a loader fed the wrong shape.
     ///
     /// Round 1100's defect was a file name: the monster loader was handed the game's own JSON, which names dice faces `melee_dice_sides`, so every monster it loaded had **zero
@@ -2032,7 +2070,14 @@ fn fire_tables(
         outcome.failures.push(format!("`{gun_id}` is not a gun in the corpus"));
         return None;
     };
-    let round = rounds.and_then(|rounds| rounds.into_iter().find(|round| round.id == gun.ammo));
+    // Two namespaces, and the port tries both: the round's **id** (which is what `223` is) and, failing that, the **ammunition type** the gun names (which is what `shot` is).
+    let round = rounds.and_then(|rounds| {
+        rounds
+            .iter()
+            .find(|round| round.id == gun.ammo)
+            .or_else(|| round_of_type(&rounds, &gun.ammo))
+            .cloned()
+    });
     Some((gun, lines, round))
 }
 
@@ -2166,4 +2211,13 @@ fn aim_a_step(world: &mut World, outcome: &mut Outcome, gun_id: &str, moves: i32
     outcome.lines.push(format!(
         "aim: {gun_id} spent {spent} of {moves} moves, recoil {recoil:.1} -> {after:.3}, limit {limit:.0}"
     ));
+}
+
+/// The round a gun's ammunition type names, when the round's own id does not.
+///
+/// Reference: a gun states an **ammunition type** (`gun_type::ammo`, `"shot"`), and the rounds that fit it are separate items keyed by their own ids (`shot_bird`, `shot_00`). The reference
+/// picks between them by what is **loaded** (`item::ammo_current`); the port has no magazine entity yet, so it takes the **first round of that type in the table's order** and says so - a
+/// deterministic choice from the data rather than an invented favourite. When no round carries the type, the answer is `None` and the step fails rather than firing nothing.
+fn round_of_type<'a>(rounds: &'a [cdda_content::ammo::AmmoType], kind: &str) -> Option<&'a cdda_content::ammo::AmmoType> {
+    rounds.iter().find(|round| round.ammo_type == kind)
 }
