@@ -575,3 +575,44 @@ pub fn dirt_after_a_shot(dirt: i32, blackpowder: bool, blackpowder_tolerance: i3
         dirt
     }
 }
+
+/// How long an incendiary round sets its target alight for, when it does at all.
+///
+/// Reference: `Creature::deal_damage`'s incendiary branch (`creature.cpp:1013-1029`):
+///
+/// ```text
+/// int amount = dam > 2 ? dam / 2 : one_in( 2 );
+/// if( proj_effects.count( INCENDIARY ) ) {
+///     if( x_in_y( amount, 50 ) ) {
+///         if( vegetable || flammable ) target.add_effect( onfire, rng( 2_turns, 6_turns ) * amount, bp_hit );
+///         else if( flesh && one_in( 4 ) ) target.add_effect( onfire, rng( 1_turns, 2_turns ) * amount, bp_hit );
+///     }
+/// }
+/// ```
+///
+/// **Three dice and a ratio, and the ratio is what makes an incendiary round worth carrying**: `amount` is half the damage, and the ignition chance is `amount` in **fifty** - so a heavy
+/// round ignites far more often than a light one, and the **burn time is the amount times a two-to-six roll**, which means a big round also burns longer.
+///
+/// `vegetable` and `flammable` take a two-in-six-times-amount burn; **flesh** only catches **once in four** and burns for one-to-two times the amount. The reference distinguishes them because
+/// a zombie's meat is not tinder - **and the port keeps the distinction rather than treating "alive" as "flammable".**
+#[must_use]
+pub fn incendiary_turns(
+    damage: i32,
+    vegetable: bool,
+    flammable: bool,
+    flesh: bool,
+    dice: &mut cdda_core_types::rng::Rolls,
+) -> Option<i32> {
+    // `dam > 2 ? dam / 2 : one_in( 2 )` - the reference's bool-to-int, kept as a one-or-nothing.
+    let amount = if damage > 2 { damage / 2 } else { i32::from(dice.one_in(2)) };
+    if amount <= 0 || !dice.x_in_y(f64::from(amount), 50.0) {
+        return None;
+    }
+    if vegetable || flammable {
+        return Some(dice.rng(2, 6) * amount);
+    }
+    if flesh && dice.one_in(4) {
+        return Some(dice.rng(1, 2) * amount);
+    }
+    None
+}

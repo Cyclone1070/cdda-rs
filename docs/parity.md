@@ -13711,3 +13711,31 @@ rather than on the structure is how a patch lands in the wrong place**, and the 
 
 **Named, not invented:** the gun's and gunmods' own `ammo_effects` (which `item::ammo_effects` unions into the round's, `item.cpp:11963-11979`), the **behaviour** of `INCENDIARY`, `FLARE`,
 `EXPLOSIVE` and the rest (each is a rule of its own and several are ported elsewhere), and `NON_FOULING` as a gun flag.
+
+## An incendiary round sets things alight (round 1175)
+
+| Piece | Reference | Port |
+|---|---|---|
+the rule | `Creature::deal_damage`'s incendiary branch (`creature.cpp:1013-1029`) | `shot::incendiary_turns(damage, vegetable, flammable, flesh, dice)` |
+Gate | - | `an_incendiary_round_burns_tinder_and_rarely_burns_flesh` |
+
+**Three dice and a ratio, and the ratio is what makes the round worth carrying.** `amount` is **half the damage**; the ignition chance is `amount` in **fifty**; and the burn is
+`amount * rng(2, 6)` turns. **A heavier round therefore ignites more often *and* burns longer** - one number driving two different effects, which is exactly the shape a port flattens into
+"incendiary rounds set things on fire" and loses.
+
+**The material decides, and the reference treats three cases differently.**
+
+| Target | Catches | Burns |
+|---|---|---|
+vegetable or flammable | on `amount in 50` | `rng(2, 6) * amount` turns |
+flesh | **and** one in four | `rng(1, 2) * amount` turns |
+anything else | never | - |
+
+**"Alive" is not "flammable"**, which is the mistake the third row exists to prevent - a zombie's meat catches far less readily than a haystack, and **the port keeps the distinction rather than
+treating every creature as tinder.**
+
+**The gate asserts ranges and counts rather than one draw**, because the rule's own output is three dice deep: two hundred tries must produce **some** burns, **not all of them**, all inside
+`2..=6` times six, and **fewer** for flesh than for tinder.
+
+**Named, not invented:** the wiring into `hurt_once` (which needs the target's **materials** - the monsters dump carries them, and the port's `MonsterType` has the field, but the shot does not yet
+read them), the **body part** the burn is applied to (`dealt_dam.bp_hit`), `IGNITE` and `IGNITE_FLARE`'s own branches, and the pyromania morale the reference grants for the pleasure of it.

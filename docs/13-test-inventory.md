@@ -896,3 +896,7 @@ gun's `Dirt` component inside `fire_at`. Gated by `shot_rules::a_shot_dirties_th
 **Round 1174 dumped the round's ammunition effects**: `AmmoType::effects` and `has_effect` (ammo dump **version 5**, `islot_ammo::ammo_effects`), and the fouling rule now reads `BLACKPOWDER` and
 `NON_FOULING` from the round. Gated by `content_suite::ammo_rules::every_round_states_the_ammunition_effects_it_carries` (125 black-powder rounds, most with none) and
 `shot_rules::a_blackpowder_round_dirties_the_gun_faster_than_a_cartridge`, which is the differential round 1173 had to write by hand.
+
+**Round 1175 ported the incendiary rule's arithmetic**: `shot::incendiary_turns` (`creature.cpp:1013-1029`) - `amount` at half the damage, ignition at `amount in 50`, and a burn of
+`rng(2,6)*amount` for vegetable or flammable targets against `one_in(4)` and `rng(1,2)*amount` for flesh. Gated by `shot_rules::an_incendiary_round_burns_tinder_and_rarely_burns_flesh`, which
+counts two hundred tries at each material. The **wiring** needs the target's materials and is named as missing.

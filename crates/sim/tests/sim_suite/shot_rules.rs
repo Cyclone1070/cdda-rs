@@ -976,3 +976,52 @@ fn a_blackpowder_round_dirties_the_gun_faster_than_a_cartridge() {
     assert!(powder_dirt > plain_dirt, "and black powder leaves far more: {powder_dirt} against {plain_dirt}");
     assert!(powder_dirt >= 100, "which is the two hundred less the weapon's tolerance and plus one: {powder_dirt}");
 }
+
+/// An incendiary round sets a vegetable or a tinder target alight, burns flesh far less often, and does nothing to stone.
+///
+/// Reference: `Creature::deal_damage`'s incendiary branch (`creature.cpp:1013-1029`). The gate checks the **range** the burn can fall in - `2..=6` times half the damage - rather than a single
+/// number, because the rule's own output depends on three dice; and it checks that the **material** decides whether there is a burn at all, which is the branch a port is most likely to flatten.
+#[test]
+fn an_incendiary_round_burns_tinder_and_rarely_burns_flesh() {
+    use cdda_core_types::rng::Rolls;
+    use cdda_sim::shot::incendiary_turns;
+
+    // A hundred tries at twelve damage: `amount` is six, so the ignition chance is six in fifty and the burn is twelve to thirty-six turns.
+    let mut dice = Rolls::new(2024);
+    let mut burns = Vec::new();
+    for _ in 0..200 {
+        if let Some(turns) = incendiary_turns(12, true, false, false, &mut dice) {
+            burns.push(turns);
+        }
+    }
+    assert!(!burns.is_empty(), "a vegetable target does catch fire sometimes");
+    assert!(burns.iter().all(|turns| (12..=36).contains(turns)), "and burns for two-to-six times six: {burns:?}");
+    assert!(burns.len() < 200, "but not every round: {} of 200", burns.len());
+    assert!(burns.len() > 5, "and more than a handful: {}", burns.len());
+
+    // Flesh needs a second one-in-four and burns half as long, so it catches less often over the same number of tries.
+    let mut dice = Rolls::new(2024);
+    let mut flesh_burns = 0;
+    for _ in 0..200 {
+        if incendiary_turns(12, false, false, true, &mut dice).is_some() {
+            flesh_burns += 1;
+        }
+    }
+    assert!(flesh_burns < burns.len(), "flesh catches fire less often than tinder: {flesh_burns} against {}", burns.len());
+    assert!(flesh_burns > 0, "but it does catch: {flesh_burns}");
+
+    // Stone catches nothing at all, however hard it is hit.
+    let mut dice = Rolls::new(2024);
+    for _ in 0..200 {
+        assert!(incendiary_turns(100, false, false, false, &mut dice).is_none(), "a target that is none of the three never burns");
+    }
+    // And a round that does almost no damage ignites only on a coin: `dam > 2` fails, so `amount` is one or nothing.
+    let mut dice = Rolls::new(77);
+    let mut lit = 0;
+    for _ in 0..200 {
+        if incendiary_turns(1, true, false, false, &mut dice).is_some() {
+            lit += 1;
+        }
+    }
+    assert!(lit > 0 && lit < 60, "a scratch ignites rarely: {lit} of 200");
+}
