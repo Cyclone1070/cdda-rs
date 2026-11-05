@@ -975,3 +975,7 @@ been read off the wrong component.
 **Round 1194 wired the destruction branch**: the swing now calls the port's own `ItemDamage::mod_damage` (`item.cpp:9441-9465`, ported round 1149 and **caller-less until now**) and despawns the
 weapon when it is destroyed. Gated by `creature_fight::a_weapon_worn_past_its_maximum_is_destroyed_by_the_blow`, which pins the off-by-one: **worn to exactly 4,000 survives; the next swing
 destroys**.
+
+**Round 1195 ported the weighted fault pick**: `sim::pick_a_fault` (`item::set_random_fault_of_type`, `item.cpp:7854-7868`). Gated by
+`ground_items::a_fault_is_picked_by_weight_and_only_from_what_the_item_can_have` (three-to-one over 4,000 draws, a single candidate always, and an **empty list sets nothing**). The fault
+catalogue's `type` field is not loaded yet, so the caller filters and `mod_damage` does not call it - both recorded in `docs/parity.md`.

@@ -68,3 +68,38 @@ fn a_taken_item_is_gone_and_the_rest_stay_in_order() {
         .collect();
     assert_eq!(remaining, vec![1, 3], "what is left keeps its order");
 }
+
+/// A damaged weapon can pick up a fault, and the pick is weighted, filtered and often empty.
+///
+/// Reference: `item::set_random_fault_of_type` (`item.cpp:7848-7868`). Three behaviours, and the third is the one a port invents: **a list of faults the item cannot have sets no fault at
+/// all** - the reference does not fall back to forcing one, it does nothing.
+#[test]
+fn a_fault_is_picked_by_weight_and_only_from_what_the_item_can_have() {
+    use cdda_core_types::rng::Rolls;
+    use cdda_sim::pick_a_fault;
+
+    // Two mechanical faults, one three times as likely as the other: three quarters against one quarter.
+    let candidates = vec![("dented".to_owned(), 3), ("cracked".to_owned(), 1)];
+    let mut dice = Rolls::new(99);
+    let mut dented = 0;
+    for _ in 0..4_000 {
+        match pick_a_fault(&candidates, &mut dice).as_deref() {
+            Some("dented") => dented += 1,
+            Some("cracked") => {}
+            other => panic!("only the two candidates can come back: {other:?}"),
+        }
+    }
+    assert!((2_800..3_200).contains(&dented), "three to one: {dented} of 4000 dented");
+
+    // A single candidate always wins, because the roll has nowhere else to go.
+    let only = vec![("dented".to_owned(), 5)];
+    let mut dice = Rolls::new(1);
+    for _ in 0..100 {
+        assert_eq!(pick_a_fault(&only, &mut dice).as_deref(), Some("dented"));
+    }
+
+    // Nothing eligible, nothing set - the reference's silent no-op.
+    let mut dice = Rolls::new(1);
+    assert_eq!(pick_a_fault(&[], &mut dice), None, "an empty list sets no fault");
+    assert_eq!(pick_a_fault(&[("dented".to_owned(), 0)], &mut dice), None, "and a zero weight is no weight");
+}

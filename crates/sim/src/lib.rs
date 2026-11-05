@@ -8058,3 +8058,27 @@ pub fn butcher_finish(
     world.despawn(corpse);
     dropped
 }
+
+/// Picks one fault out of a weighted list of the ones an item **can** have, or nothing when it can have none.
+///
+/// Reference: `item::set_random_fault_of_type` (`item.cpp:7848-7868`) - the reference first builds a `weighted_int_list` of the type's faults whose **fault type** matches
+/// (mechanical damage, for a weapon that took a blow) and whose `can_have_fault` says yes, and then `pick()`s one. **The two filters are both real and both silent**: a fault the item
+/// cannot have is dropped from the list rather than retried, and a list that ends up empty sets **no** fault at all instead of forcing one.
+///
+/// The caller filters, because "can this item have this fault" and "is this fault of the type asked for" are questions about data this crate does not own. What is here is the
+/// **weighted pick**, which is the part that would otherwise be written differently in every caller.
+#[must_use]
+pub fn pick_a_fault(candidates: &[(String, i32)], dice: &mut cdda_core_types::rng::Rolls) -> Option<String> {
+    let total: i32 = candidates.iter().map(|(_, weight)| (*weight).max(0)).sum();
+    if total <= 0 {
+        return None;
+    }
+    let mut roll = dice.rng(1, total);
+    for (fault, weight) in candidates {
+        roll -= (*weight).max(0);
+        if roll <= 0 {
+            return Some(fault.clone());
+        }
+    }
+    candidates.last().map(|(fault, _)| fault.clone())
+}

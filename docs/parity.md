@@ -14157,3 +14157,21 @@ rule with no caller is zero until the day something asks it. The swing now does,
 **Named, not invented:** the "your %s is destroyed by the blow!" **message**, the contents spill (`spill_contents`), `FRAGILE_MELEE`'s component breakdown and the "breaks apart!" path,
 `set_random_fault_of_type( "mechanical_damage" )` which is the reference's own `TODO`, the `UNBREAKABLE` check being read off the kind table rather than the item (a world that never installed the
 kind table therefore never refuses), and the per-type `damage_max` - the port uses the reference's constant 4,000 because every non-charge type has it.
+
+## A damaged weapon can pick up a fault (round 1195)
+
+| Piece | Reference | Port |
+|---|---|---|
+the pick | `weighted_int_list::pick()` inside `item::set_random_fault_of_type` (`item.cpp:7854-7868`) | `sim::pick_a_fault(candidates, dice)` |
+Gate | - | `a_fault_is_picked_by_weight_and_only_from_what_the_item_can_have` |
+
+**Two filters, both silent.** The reference keeps only the type's faults whose **fault type** matches the damage asked for (mechanical damage, for a blow) **and** that `can_have_fault` allows -
+**dropped, not retried** - and then picks one by weight. **An empty list sets no fault at all**: the reference does not fall back to forcing one, which is the behaviour a port invents when it
+"helpfully" picks the nearest fault.
+
+**The gate pins the weights and both ends of the empty rule**: three-to-one comes back about three quarters of the time over 4,000 draws from one advancing `Rolls`, a single candidate always wins,
+and an empty list or a zero weight returns **nothing**.
+
+**Named, not invented:** the **fault catalogue** (`faults.json`'s `type` field, which is what makes "mechanical damage" a filter at all) - the port loads fault *ids* with weights on the type but not
+their types, so the caller filters; the message; `remove_single_fault_of_type` and `remove_fault`; and **the wiring** - `mod_damage` does not call this yet, because the swing does not know which
+faults the kind can have.
