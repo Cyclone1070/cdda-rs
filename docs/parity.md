@@ -15711,3 +15711,21 @@ assumed kind seven was really asking about a different item, and the first versi
 
 **Named, not invented:** `broken_itype`, the data's own override, which is not in the monster dump yet - the rule reads it and the caller passes an empty string, so the day it is dumped this
 is a one-line change.
+
+## The dump says which broken item and which loot group (round 1308)
+
+| Piece | Reference | Port |
+|---|---|---|
+the broken item | `mtype::broken_itype` (`mtype.h:367`) | dumped, `MonsterType::broken_itype`, `monster_registry::set_broken_itype`, used by the reaping step |
+the loot group | `mtype::death_drops` (`mtype.h:404`) | dumped when it is a **name**, `MonsterType::death_drops` |
+Gate | - | `crafting::the_monster_dump_carries_its_broken_item_and_drops` |
+
+**The answers are lopsided, and that is the finding.** **Not one of the 1,154 types sets `broken_itype`**, so the reference's own string rule is the *whole* rule for this corpus - the field
+exists for the data's sake and the port now honours it without a path that has never run being untested. **339 types name a death-drop group**; the rest leave their loot to an **inline**
+group.
+
+**An inline group has no name to dump.** Its id is generated when the data loads and comes back as a debug marker (`U+01F7 <n>`), so the first dump wrote numbers that change between loads into
+the corpus and called it parity. The emitter now **only dumps a named group**, and the gate asserts every id is a name the data wrote.
+
+**Named, not invented:** the item group behind `death_drops` itself - weights, counts, nested groups - is the monster-loot step, and the port has the *id* rather than the group. `quiet_death`
+is not dumped because it is a **monster instance** field (`monster.h:574`), not a type's: the port keeps the `QUIETDEATH` flag's half and names the rest.

@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-06 09:19:57
-@@ -0,0 +1,7017 @@
++++ oracle/src/src/harness.cpp	2026-11-06 10:21:17
+@@ -0,0 +1,7034 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "flag.h"
@@ -6712,6 +6712,15 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    std::fclose( out );
 +}
 +
++/// Whether a string id is a **name** rather than the debug marker an inline group is given when it loads.
++///
++/// Interned anonymous ids come back as `<marker> <number>`; a name is the data's own text. The marker is U+01F7, two bytes in UTF-8, which is why the test is on the bytes.
++static bool is_named_group( const std::string &id )
++{
++    return !id.empty() && !( id.size() > 1 && static_cast<unsigned char>( id[0] ) == 0xC7 &&
++                             static_cast<unsigned char>( id[1] ) == 0xB7 );
++}
++
 +void dump_monsters( const std::string &path )
 +{
 +    std::FILE *out = std::fopen( path.c_str(), "wb" );
@@ -6719,7 +6728,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        std::fprintf( stderr, "harness: cannot open %s\n", path.c_str() );
 +        return;
 +    }
-+    std::fprintf( out, "{\"harness\":\"monsters\",\"version\":10,\n\"prototypes\":[\n" );
++    std::fprintf( out, "{\"harness\":\"monsters\",\"version\":11,\n\"prototypes\":[\n" );
 +    bool first = true;
 +    std::set<std::string> species_named_by_monsters;
 +    for( const mtype &proto : MonsterGenerator::generator().get_all_mtypes() ) {
@@ -6792,7 +6801,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +                      "\"armor_bash\":%d,\"armor_cut\":%d,\"armor_stab\":%d,\"regenerates\":%.6g,"
 +                      "\"melee_bash\":%.6g,\"melee_cut\":%.6g,\"melee_stab\":%.6g,\"attack_cost\":%d,"
 +                      "\"regen_morale\":%s,\"bleed_rate\":%d,"
-+                      "\"death_message\":\"%s\",\"corpse_type\":\"%s\"}",
++                      "\"death_message\":\"%s\",\"corpse_type\":\"%s\","
++                      "\"broken_itype\":\"%s\",\"death_drops\":\"%s\"}",
 +                      harness_escape( proto.harvest.str() ).c_str(),
 +                      harness_escape( proto.dissect.str() ).c_str(),
 +                      size_name,
@@ -6825,7 +6835,14 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +                      proto.mdeath_effect.corpse_type == mdeath_type::BROKEN ? "broken"
 +                      : proto.mdeath_effect.corpse_type == mdeath_type::SPLATTER ? "splatter"
 +                      : proto.mdeath_effect.corpse_type == mdeath_type::NO_CORPSE ? "none"
-+                      : "normal" );
++                      : "normal",
++                      // Version eleven adds what the broken branch leaves, when the data names it itself (`mtype::broken_itype`, `mtype.h:367`) - the rest of the corpus leaves the
++                      // id to `mdeath::broken`'s string rule - and the **item group** a body drops when it dies (`mtype::death_drops`, `mtype.h:404`), which is where a monster's
++                      // loot actually comes from.
++                      harness_escape( proto.broken_itype.str() ).c_str(),
++                      // **Only a named group is dumped.** An inline `death_drops` is given a generated id when the data loads, and that id is a debug marker (`\u01F7 <n>`) rather
++                      // than a name - dumping it would put a number that changes between loads into the corpus and call it parity. The named groups are the ones a reader can follow.
++                      harness_escape( is_named_group( proto.death_drops.str() ) ? proto.death_drops.str() : std::string() ).c_str() );
 +        first = false;
 +    }
 +    // The **species table**, because `get_bleed_type` reads `species.bleeds` and the monster only names its species. The species the monsters name are the ones that matter, so they are

@@ -41,6 +41,8 @@ pub struct MonsterTypes {
     death_messages: Vec<String>,
     /// What each kind leaves behind (`mdeath_effect::corpse_type`, `mtype.h:285`).
     corpse_types: Vec<String>,
+    /// The item a `broken` kind leaves when the data names it itself (`mtype::broken_itype`, `mtype.h:367`).
+    broken_itypes: Vec<String>,
 }
 
 impl MonsterTypes {
@@ -79,6 +81,7 @@ pub fn set_monster_types(world: &mut World, kinds: &[MonsterKind<'_>]) {
         gibs: Vec::new(),
         death_messages: Vec::new(),
         corpse_types: Vec::new(),
+        broken_itypes: Vec::new(),
     });
 }
 
@@ -205,5 +208,28 @@ pub fn corpse_type_of(world: &mut World, kind: MonsterKindId) -> String {
     world
         .get::<MonsterTypes>(entity)
         .and_then(|registry| registry.corpse_types.get(kind.0 as usize).cloned())
+        .unwrap_or_default()
+}
+
+/// Says which item a `broken` kind leaves, when the data names it rather than leaving it to the id rule.
+pub fn set_broken_itype(world: &mut World, kind: MonsterKindId, item: &str) {
+    let entity = singletons::singleton::<MonsterTypes, TheMonsterTypes>(world);
+    let Some(mut registry) = world.get_mut::<MonsterTypes>(entity) else {
+        return;
+    };
+    let at = kind.0 as usize;
+    if registry.broken_itypes.len() <= at {
+        registry.broken_itypes.resize(at + 1, String::new());
+    }
+    registry.broken_itypes[at] = item.to_owned();
+}
+
+/// The item a `broken` kind leaves when the data names one, or empty.
+#[must_use]
+pub fn broken_itype_of(world: &mut World, kind: MonsterKindId) -> String {
+    let entity = singletons::singleton::<MonsterTypes, TheMonsterTypes>(world);
+    world
+        .get::<MonsterTypes>(entity)
+        .and_then(|registry| registry.broken_itypes.get(kind.0 as usize).cloned())
         .unwrap_or_default()
 }

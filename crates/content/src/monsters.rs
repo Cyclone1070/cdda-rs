@@ -75,6 +75,15 @@ pub struct MonsterType {
     pub death_message: String,
     /// What it leaves behind, from the data's `corpse_type` (`mtype.h:272-285`): `normal`, `broken`, `splatter` or `none`.
     pub corpse_type: String,
+    /// The item a `broken` body leaves, when the data names it itself (`mtype::broken_itype`, `mtype.h:367`).
+    ///
+    /// Empty for almost every type: the reference's own fallback builds `broken_<id>` from the monster's name (`mondeath.cpp:210-222`), and this field is the exception to that rule.
+    pub broken_itype: String,
+    /// The item group a body drops when it dies (`mtype::death_drops`, `mtype.h:404`).
+    ///
+    /// This is where a monster's loot comes from - the group is an **inline item group** with its own weights and counts, which the port has as `byproduct_group` for recipes but not
+    /// yet for monsters.
+    pub death_drops: String,
     /// How readily it bleeds (`mtype::bleed_rate`, `mtype.h:486`).
     ///
     /// `mtype::get_bleed_type` (`mtype.cpp:412-422`) checks this **before** it looks at a species at all: a rate of zero means the monster never bleeds its species' blood, however the
@@ -366,6 +375,12 @@ fn apply(monster: &mut MonsterType, object: &Object, inherited: bool) -> Result<
     if let Some(cdda_json::Value::Str(kind)) = object.get("corpse_type") {
         monster.corpse_type.clone_from(kind);
     }
+    if let Some(cdda_json::Value::Str(item)) = object.get("broken_itype") {
+        monster.broken_itype.clone_from(item);
+    }
+    if let Some(cdda_json::Value::Str(group)) = object.get("death_drops") {
+        monster.death_drops.clone_from(group);
+    }
     monster.weight = assigned(object, "weight", monster.weight, Unit::Mass, 1);
     monster.volume = assigned(object, "volume", monster.volume, Unit::Volume, 1);
     species_and_categories(monster, object);
@@ -593,6 +608,8 @@ impl MonsterType {
             // `monster_death_effect` starts with no message and a normal corpse (`mtype.h:274-285`).
             death_message: String::new(),
             corpse_type: "normal".to_owned(),
+            broken_itype: String::new(),
+            death_drops: String::new(),
             aggression: 0,
             // The reference's own defaults: no dice (`mtype::melee_dice` starts at zero) and no armour.
             melee_dice: 0,

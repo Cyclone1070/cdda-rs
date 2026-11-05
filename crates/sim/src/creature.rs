@@ -1873,8 +1873,9 @@ pub fn reap_dead_creatures_as_corpses(
             // Reference: `mdeath::broken` (`mondeath.cpp:204-228`) leaves **the broken thing**, not a corpse - the id comes from the type's own name by
             // `broken_item_id`, and a kind whose broken item is not in the item registry leaves nothing rather than a thing the world cannot name.
             if declared == "broken" {
+                let declared_item = crate::monster_registry::broken_itype_of(world, *kind);
                 let broken = crate::monster_registry::name_of(world, *kind)
-                    .map(|name| broken_item_id(&name, ""))
+                    .map(|name| broken_item_id(&name, &declared_item))
                     .and_then(|id| crate::item_registry::snapshot(world).id_of(&id));
                 if let Some(kind_of_scrap) = broken {
                     let scrap = crate::drop_item(world, (square.0, square.1), kind_of_scrap, 1);

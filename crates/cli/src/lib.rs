@@ -795,6 +795,7 @@ pub fn install_monster_data(world: &mut World) -> Option<usize> {
         cdda_sim::monster_registry::set_remains(world, kind, blood, gibs);
         cdda_sim::monster_registry::set_death_message(world, kind, &monster.death_message);
         cdda_sim::monster_registry::set_corpse_type(world, kind, &monster.corpse_type);
+        cdda_sim::monster_registry::set_broken_itype(world, kind, &monster.broken_itype);
     }
     Some(monsters.len())
 }

@@ -1261,3 +1261,6 @@ one that really revives. `broken` is still an ordinary corpse and is named as th
 
 **Round 1307 ported `mdeath::broken`'s id rule and made the reaping step spawn the broken item** (`mondeath.cpp:204-228`), with the same overkill damage a corpse takes and no `CorpseOf`.
 `broken_itype` is named as the dump field still missing.
+
+**Round 1308 dumped `broken_itype` and `death_drops`** (`mtype.h:367`, `:404`) and found that **no type sets the first** (so the string rule is the whole rule) while the second is often an
+**inline group whose generated id is not a name** - the emitter now filters those, which is what the gate checks.

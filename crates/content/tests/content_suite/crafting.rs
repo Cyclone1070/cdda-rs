@@ -229,3 +229,40 @@ fn the_monster_dump_carries_its_death_data() {
         "and the ordinary type still leaves a corpse"
     );
 }
+
+/// The dump says which types name their own broken item and which name a death-drop group - and the answers are lopsided.
+///
+/// Reference: `mtype::broken_itype` (`mtype.h:367`) and `mtype::death_drops` (`mtype.h:404`). **Not one of the 1,154 types sets `broken_itype`**, so the reference's own string rule
+/// (`mon_manhack` -> `broken_manhack`) is the whole rule for this corpus, and **339 name a death-drop group** while the rest leave their loot to an inline group the dump cannot name.
+#[test]
+fn the_monster_dump_carries_its_broken_item_and_drops() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return;
+    };
+    let value = cdda_json::parse(text.as_bytes()).expect("the monster dump parses");
+    let cdda_json::Value::Object(root) = &value else {
+        return;
+    };
+    let Some(cdda_json::Value::Array(prototypes)) = root.get("prototypes") else {
+        return;
+    };
+    let monsters = cdda_content::monsters::load_objects(prototypes).expect("the monster dump loads");
+
+    assert_eq!(
+        monsters.iter().filter(|monster| !monster.broken_itype.is_empty()).count(),
+        0,
+        "**no type names its own broken item**, which is what makes the string rule the whole rule"
+    );
+    let droppers = monsters.iter().filter(|monster| !monster.death_drops.is_empty()).count();
+    assert_eq!(droppers, 339, "339 types name the group their loot comes from");
+    assert!(
+        monsters.iter().any(|monster| monster.death_drops == "default_zombie_death_drops"),
+        "and the ordinary zombie is one of them"
+    );
+    assert!(
+        monsters.iter().all(|monster| monster.death_drops.is_empty()
+            || monster.death_drops.chars().all(|letter| letter.is_ascii_graphic() || letter == '_')),
+        "with every id a name the data wrote, not a number the loader generated"
+    );
+}
