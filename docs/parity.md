@@ -14839,3 +14839,20 @@ Gate | - | `a_block_is_attempted_only_by_someone_able_to_react_and_costs_only_wh
 
 **Named, not invented:** the caller. `block_hit` still needs martial arts' on-getting-hit effects, `best_shield`, limbs and the damage reduction that follows - this slice is the gate in front of all
 of them, and `blocks_left` stays the caller's state by design.
+
+## A block score becomes a fraction, on a logistic curve (round 1259)
+
+| Piece | Reference | Port |
+|---|---|---|
+the curve | `logarithmic( t )` and `logarithmic_range( min, max, pos )` (`cata_utility.cpp:161-193`) | `melee::logarithmic_range` |
+Gate | - | `a_block_score_becomes_a_fraction_of_the_damage_stopped` |
+
+**The answer is the fraction of damage that keeps coming**, which is why the direction reads backwards at first: `logarithmic_range( 0, 40, block_score )` returns **`1.0` at the minimum - nothing is
+stopped - and `0.0` at the maximum - everything is**. The gate says it in the player's terms (`blocked = 1 - answer`) and checks the reference's own three datapoints: a beginner around **10** blocks
+roughly a tenth to a fifth, a proficient character around **20** about **45%**, an expert around **28** about **80%**.
+
+**The first run failed on the direction, and the failure was useful**: it returned `0.895` for a beginner, which is the *damage remaining*. **The rule was already right; my reading of it was
+inverted** - so the fix was to the gate and the doc comment, not to the maths.
+
+**Named, not invented:** the caller. `block_hit` still needs the block score itself (`arm_str + unarmed_skill` for limbs, `arm_str + block_bonus + melee_skill` for a shield), the flat
+`mabuff_block_bonus` spent before the multiplier, and the per-damage-unit loop - all of which need martial arts and limbs the port does not have.

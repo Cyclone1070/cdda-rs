@@ -672,3 +672,37 @@ pub fn block_attempt(
         BlockAttempt::RollFailed
     }
 }
+
+/// The reference's logistic curve, cut off at four and normalised to `[0, 1]`.
+///
+/// Reference: `logarithmic( t ) = 1 / ( 1 + exp( -t ) )` and `logarithmic_range( min, max, pos )` (`cata_utility.cpp:161-193`). The curve is cut at `±LOGI_CUTOFF = 4` so its ends are usable, the
+/// position is scaled onto that cut, and the result is normalised by the cut's own range.
+///
+/// **The clamps and the caller together fix the direction.** `block_hit` asks `logarithmic_range( 0, 40, block_score )` and uses the answer as the **multiplier the damage keeps**, so at the
+/// minimum (`pos <= min`) it returns `1.0` and **nothing is stopped**, and at the maximum (`pos >= max`) it returns `0.0` and **everything is**. The reference's own comment gives the feel: a beginner
+/// around 10 blocks about 15%, a proficient character around 20 about 45%, an expert in the high twenties about 80%.
+#[must_use]
+pub fn logarithmic_range(min: i32, max: i32, pos: i32) -> f64 {
+    const LOGI_CUTOFF: f64 = 4.0;
+    /// `1 / ( 1 + exp( -t ) )`, the raw logistic.
+    fn logarithmic(t: f64) -> f64 {
+        1.0 / (1.0 + (-t).exp())
+    }
+    let logi_min = logarithmic(-LOGI_CUTOFF);
+    let logi_max = logarithmic(LOGI_CUTOFF);
+    let logi_range = logi_max - logi_min;
+    if min >= max {
+        // The reference reports a debug message and answers zero; the port answers zero for the same reason.
+        return 0.0;
+    }
+    if pos <= min {
+        return 1.0;
+    }
+    if pos >= max {
+        return 0.0;
+    }
+    let range = f64::from(max - min);
+    let unit_pos = f64::from(pos - min) / range;
+    let scaled_pos = LOGI_CUTOFF - 2.0 * LOGI_CUTOFF * unit_pos;
+    (logarithmic(scaled_pos) - logi_min) / logi_range
+}

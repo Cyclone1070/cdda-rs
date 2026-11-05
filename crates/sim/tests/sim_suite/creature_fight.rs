@@ -2500,3 +2500,29 @@ fn a_block_is_attempted_only_by_someone_able_to_react_and_costs_only_when_it_lan
     let mut dice = Rolls::new(1);
     assert_eq!(block_attempt(true, 2, 0.0, 1.0, &mut dice), BlockAttempt::RollFailed);
 }
+
+/// A block score becomes a fraction of damage stopped, on the reference's own curve.
+///
+/// Reference: `logarithmic_range( min, max, pos )` (`cata_utility.cpp:161-193`): a logistic curve cut off at `±4`, clamped so **anything at or below the minimum stops everything and anything at or above
+/// the maximum stops nothing** - the direction surprises because the score is a *strength*. `block_hit` calls it as `logarithmic_range( 0, 40, block_score )` and the reference documents what that
+/// means in its own comment: **a beginner around 10 blocks about 15% of the damage, a proficient character around 20 about 45%, an expert in the high twenties about 80%**.
+#[test]
+fn a_block_score_becomes_a_fraction_of_the_damage_stopped() {
+    use cdda_sim::melee::logarithmic_range;
+
+    // The answer is **the fraction of damage that keeps coming**, so blocked = 1 - answer.
+    let blocked = |score| 1.0 - logarithmic_range(0, 40, score);
+    let beginner = blocked(10);
+    assert!((0.08..0.20).contains(&beginner), "a beginner blocks about a tenth to a fifth: {beginner:.3}");
+    let proficient = blocked(20);
+    assert!((0.40..0.55).contains(&proficient), "a proficient character about 45%: {proficient:.3}");
+    let expert = blocked(28);
+    assert!((0.75..0.90).contains(&expert), "an expert about 80%: {expert:.3}");
+
+    // The clamps, and the direction they fix: **a score at the minimum stops nothing, a score at the maximum stops everything.**
+    assert!((logarithmic_range(0, 40, 0) - 1.0).abs() < 1e-9, "the minimum lets everything through");
+    assert!((logarithmic_range(0, 40, -5) - 1.0).abs() < 1e-9, "and below it too");
+    assert!(logarithmic_range(0, 40, 40).abs() < 1e-9, "the maximum stops everything");
+    assert!(logarithmic_range(0, 40, 99).abs() < 1e-9, "and above it too");
+    assert!(logarithmic_range(10, 10, 10).abs() < 1e-9, "an empty interval answers zero, as the reference's error path does");
+}

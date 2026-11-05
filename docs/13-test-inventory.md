@@ -1121,3 +1121,7 @@ flag rather than inventing a pocket field. Gated by `ground_items::a_no_unload_c
 
 **Round 1258 ported `block_hit`'s guards and roll** as `melee::block_attempt` (`melee.cpp:1983-2005`), with `BlockAttempt::{NotAttempted, RollFailed, Blocked}`. Gated by
 `creature_fight::a_block_is_attempted_only_by_someone_able_to_react_and_costs_only_when_it_lands`, which **compares dice to prove no roll happened**.
+
+**Round 1259 ported `logarithmic_range`** (`cata_utility.cpp:161-193`), the logistic curve `block_hit` maps a block score through. Gated by
+`creature_fight::a_block_score_becomes_a_fraction_of_the_damage_stopped`, whose **first run inverted the direction in the gate rather than in the rule**: `0.895` for a beginner is the damage that
+remains, not the damage stopped.
