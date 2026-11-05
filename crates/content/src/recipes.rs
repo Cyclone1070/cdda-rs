@@ -49,6 +49,11 @@ pub struct Recipe {
     pub result: String,
     /// Whether the reference has blacklisted it, which removes it from play without deleting it.
     pub blacklisted: bool,
+    /// Whether the recipe **can never be learned**, which `learn_recipe` refuses (`character_crafting.cpp:32-40`).
+    ///
+    /// The data uses it for practice recipes and the companions alike - **1,114 of the 6,291 recipes in the reference's own dump** carry it, so a loader that dropped the field would leave more than a
+    /// thousand recipes learnable that the reference refuses to teach.
+    pub never_learn: bool,
     /// What the recipe needs, as groups of alternatives.
     ///
     /// The nesting is the meaning: each inner list is a set of items *any one of which*
@@ -316,6 +321,7 @@ pub fn from_dump(value: &Value) -> Option<(Vec<Recipe>, usize)> {
             id: string_of(object, "id")?,
             result: string_of(object, "result")?,
             blacklisted: matches!(member(object, "blacklisted"), Some(Value::Bool(true))),
+            never_learn: matches!(member(object, "never_learn"), Some(Value::Bool(true))),
             components: components_of(object)?,
             tools: tools_of(object)?,
             qualities: qualities_of(object)?,

@@ -26,6 +26,7 @@ mod build_check;
 mod city_settings;
 mod comestibles;
 mod constructions;
+mod crafting;
 mod crafting_results;
 mod consume_drugs;
 mod corpus;

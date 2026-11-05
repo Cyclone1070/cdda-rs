@@ -89,6 +89,7 @@ fn a_failure_destroys_what_went_in_and_can_destroy_all_of_it() {
         id: "patch_a_shirt".to_owned(),
         result: "rag".to_owned(),
         blacklisted: false,
+        never_learn: false,
         components: vec![vec![cdda_content::recipes::Component {
             item: "rag".to_owned(),
             count: 1,
@@ -195,6 +196,7 @@ fn a_craft_in_progress_is_checked_where_its_roll_says() {
             id: "patch_a_shirt".to_owned(),
             result: "rag".to_owned(),
             blacklisted: false,
+            never_learn: false,
             components: vec![vec![cdda_content::recipes::Component {
                 item: "rag".to_owned(),
                 count: 1,

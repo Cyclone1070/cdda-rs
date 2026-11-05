@@ -290,6 +290,7 @@ fn cancelling_a_craft_keeps_the_ingredients_and_loses_the_work() {
         id: "tie_a_rope".to_owned(),
         result: "rope".to_owned(),
         blacklisted: false,
+        never_learn: false,
         components: vec![vec![cdda_content::recipes::Component {
             item: "rag".to_owned(),
             count: 2,
@@ -401,6 +402,7 @@ fn a_paused_craft_is_resumed_where_it_stopped() {
         id: "tie_a_rope".to_owned(),
         result: "rope".to_owned(),
         blacklisted: false,
+        never_learn: false,
         components: vec![vec![cdda_content::recipes::Component {
             item: "rag".to_owned(),
             count: 2,
@@ -507,6 +509,7 @@ fn pain_interrupts_a_craft_and_the_work_is_kept() {
         id: "tie_a_rope".to_owned(),
         result: "rope".to_owned(),
         blacklisted: false,
+        never_learn: false,
         components: vec![vec![cdda_content::recipes::Component {
             item: "rag".to_owned(),
             count: 2,
@@ -614,6 +617,7 @@ fn a_blow_stops_a_craft_without_anyone_asking_it_to() {
         id: "tie_a_rope".to_owned(),
         result: "rope".to_owned(),
         blacklisted: false,
+        never_learn: false,
         components: vec![vec![cdda_content::recipes::Component {
             item: "rag".to_owned(),
             count: 2,

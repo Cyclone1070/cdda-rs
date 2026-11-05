@@ -16,6 +16,7 @@ fn recipe(
         id: "test".to_owned(),
         result: "thing".to_owned(),
         blacklisted: false,
+        never_learn: false,
         components,
         tools,
         qualities,

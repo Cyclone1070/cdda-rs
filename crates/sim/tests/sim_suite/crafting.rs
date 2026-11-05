@@ -82,6 +82,7 @@ fn recipe(time_moves: i64, needs: &str, count: i32) -> Recipe {
         id: "test_recipe".to_owned(),
         result: "thing".to_owned(),
         blacklisted: false,
+        never_learn: false,
         components: vec![vec![cdda_content::recipes::Component {
             item: needs.to_owned(),
             count,
@@ -536,6 +537,7 @@ fn a_craft_without_its_tool_does_not_start() {
         id: "test_recipe".to_owned(),
         result: "test_result".to_owned(),
         blacklisted: false,
+        never_learn: false,
         components: vec![vec![Component {
             item: "rag".to_owned(),
             count: 2,
@@ -605,6 +607,7 @@ fn a_craft_that_needs_a_quality_asks_the_items_that_carry_it() {
         id: "pound_a_rag".to_owned(),
         result: "rag".to_owned(),
         blacklisted: false,
+        never_learn: false,
         components: vec![vec![Component {
             item: "rag".to_owned(),
             count: 1,
@@ -735,6 +738,7 @@ fn a_tool_that_burns_charges_has_them_spent_and_a_held_one_does_not() {
         id: "electrified_rag".to_owned(),
         result: "rag".to_owned(),
         blacklisted: false,
+        never_learn: false,
         components: vec![vec![Component {
             item: "rag".to_owned(),
             count: 1,

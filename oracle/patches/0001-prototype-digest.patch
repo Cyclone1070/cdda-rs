@@ -358,7 +358,7 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-05 21:08:02
++++ oracle/src/src/harness.cpp	2026-11-06 04:49:44
 @@ -0,0 +1,6983 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
@@ -1406,9 +1406,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    bool first = true;
 +    for( auto it = recipe_dict.begin(); it != recipe_dict.end(); ++it ) {
 +        const recipe &r = it->second;
-+        std::fprintf( out, "%s{\"id\":\"%s\",\"result\":\"%s\",\"blacklisted\":%s,\"components\":[",
++        std::fprintf( out, "%s{\"id\":\"%s\",\"result\":\"%s\",\"blacklisted\":%s,\"never_learn\":%s,\"components\":[",
 +                      first ? "" : ",\n", r.ident().str().c_str(), r.result().str().c_str(),
-+                      r.is_blacklisted() ? "true" : "false" );
++                      r.is_blacklisted() ? "true" : "false", r.never_learn ? "true" : "false" );
 +        // Alternatives are the structure that matters: each inner list is a set of things any
 +        // one of which satisfies that requirement, so flattening them would change the recipe.
 +        bool first_group = true;

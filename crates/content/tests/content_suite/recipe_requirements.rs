@@ -12,6 +12,7 @@ fn recipe(components: Vec<Vec<Component>>) -> Recipe {
         id: "test".to_owned(),
         result: "thing".to_owned(),
         blacklisted: false,
+        never_learn: false,
         components,
         tools: Vec::new(),
         qualities: Vec::new(),

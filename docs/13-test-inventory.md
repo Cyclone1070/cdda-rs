@@ -1199,3 +1199,6 @@ required skill from a capping one.
 
 **Round 1286 ported the recipe requirement pair** - `theoretical_recipe_requirements` and `has_recipe_requirements` (`skill.cpp:615-632`) - gated on knowledge carrying a crafter whose practical level is
 short. The refactor dropped a redundant `practical_known` argument the first draft had added.
+
+**Round 1287 put `never_learn` in the harness dump** (1,114 of 6,291 recipes), re-dumped `corpus/recipes.json`, and taught the loader the field. Gated by
+`crafting::the_never_learn_flag_survives_the_dump`; the refusal in `learn_recipe` is the next slice.
