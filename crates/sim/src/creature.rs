@@ -1810,7 +1810,7 @@ pub fn reap_dead_creatures_as_corpses(
     corpse_kind: crate::ItemTypeId,
     volume_of: impl Fn(crate::MonsterKindId) -> i64,
 ) -> usize {
-    type Dead = (Entity, (i32, i32, i32), Option<crate::MonsterKindId>, bool, i32, i32);
+    type Dead = (Entity, (i32, i32, i32), Option<crate::MonsterKindId>, bool, i32, i32, bool);
     let dead: Vec<Dead> = world
         .query::<(
             Entity,
@@ -1818,10 +1818,11 @@ pub fn reap_dead_creatures_as_corpses(
             &Position,
             Option<&CreatureKind>,
             Option<&crate::creature_flags::CreatureFlags>,
+            Option<&Hallucination>,
         )>()
         .iter(world)
-        .filter(|(_, health, _, _, _)| health.hp <= 0)
-        .map(|(entity, health, position, kind, flags)| {
+        .filter(|(_, health, _, _, _, _)| health.hp <= 0)
+        .map(|(entity, health, position, kind, flags, phantom)| {
             (
                 entity,
                 (position.x, position.y, position.z),
@@ -1829,12 +1830,17 @@ pub fn reap_dead_creatures_as_corpses(
                 flags.is_some_and(|carried| carried.0.contains("REVIVES")),
                 health.hp,
                 health.max_hp,
+                phantom.is_some(),
             )
         })
         .collect();
-    for (entity, square, kind, revives, hp, max_hp) in &dead {
+    for (entity, square, kind, revives, hp, max_hp, phantom) in &dead {
         crate::singletons::index_mut(world).remove(*entity, *square);
         world.despawn(*entity);
+        // Reference: `monster::die`'s hallucination branch (`monster.cpp:3046-3050`) returns before anything is left behind - no corpse, no blood, no gibs.
+        if *phantom {
+            continue;
+        }
         if let Some(kind) = kind {
             // Reference: `mdeath::normal` (`mondeath.cpp:58-68`) - a body pulverised by its overkill is a **splatter** and leaves no corpse item, and an ordinary one carries
             // `floor( corpse_damage * damage_scale )` of damage, which is the overkill written into the thing the world keeps.
@@ -3207,6 +3213,14 @@ pub fn wear_the_wielded_weapon(world: &mut World, holder: Entity, melee_skill: i
         }
     }
 }
+
+/// Marks a creature that is not really there.
+///
+/// Reference: `monster::is_hallucination` (`monster.h`), which `monster::die` checks **first** (`monster.cpp:3046-3050`): a figment that dies calls `mdeath::disappear` and returns, so it
+/// never runs the death message, the death effects, the corpse or the drops. A component rather than a field on the creature, because "is this real" is a fact the whole death path asks about
+/// and the store can answer with a query.
+#[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Hallucination;
 
 /// What a monster's death leaves on the ground.
 ///

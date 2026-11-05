@@ -1248,3 +1248,5 @@ fields where the body fell.
 
 **Round 1302 ported `get_bleed_type`'s fall-through** (`mtype.cpp:412-422`): the monster dump grew `bleed_rate` and a **31-species table**, the loader reads both, and `blood::bleed_field` gates
 on the rate then takes the first species that bleeds. `fd_null` becomes `None`, because the reference's null field is not a field the port may write.
+
+**Round 1303 ported `monster::die`'s hallucination branch** (`monster.cpp:3046-3050`): a `Hallucination` component, and a reaping step that leaves no corpse, no blood and no gibs.

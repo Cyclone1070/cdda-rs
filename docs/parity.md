@@ -15618,3 +15618,19 @@ the splatter a field id the registry does not define. The answer is the same and
 
 **Named, not invented:** the `MAP_EXTRA`/`MONSTER_SPECIES` JSON loading of species from the game's own files (the port reads the reference's dumped table) and the `bleeds` field's effect on
 `add_splatter`, which is the field write the splatter already performs.
+
+## A hallucination leaves nothing behind (round 1303)
+
+| Piece | Reference | Port |
+|---|---|---|
+the figment | `monster::is_hallucination` | `creature::Hallucination` |
+the early return | `monster::die` (`monster.cpp:3046-3050`) | the reaping step skips the corpse, the blood and the gibs |
+Gate | - | `creature_fight::a_hallucination_leaves_nothing_behind` |
+
+**The early return is the whole rule.** Everything after it - the death message, the death effects, the corpse, the drops - belongs to a real body; a figment left any of it behind would be a
+**figment a player could butcher**.
+
+**The port had to skip two things, not one**, because it writes the blood before it decides on the corpse: a hallucination that bled would be the same mistake in a smaller place.
+
+**Named, not invented:** `mdeath::disappear`'s own effects (the sound and the message the reference plays when a figment winks out) and the spawn-side rules that decide *when* a monster is a
+hallucination (`monster::set_hallucination`, `MonsterGroupManager`'s hallucination weight) - the port stores the fact and honours it at death, which is the half the reaping step needs.

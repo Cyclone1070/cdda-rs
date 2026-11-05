@@ -2800,3 +2800,39 @@ fn a_splattered_body_writes_its_gibs_into_the_world() {
     );
     assert!(cdda_sim::field_strength_at(&world, (4, 4, 0), blood) > 0, "and blood with them");
 }
+
+/// A hallucination that dies simply disappears: no message, no corpse, and no blood.
+///
+/// Reference: `monster::die` (`monster.cpp:3046-3050`):
+///
+/// ```text
+/// if( is_hallucination() ) {
+///     mdeath::disappear( *this );
+///     return;
+/// }
+/// ```
+///
+/// **The early return is the whole rule**: everything after it - the death message, the death effects, the corpse, the drops - belongs to a real body, and a hallucination left any of them
+/// behind would be a figment a player could butcher. The port's reaping has to skip the corpse **and** the blood for the same reason.
+#[test]
+fn a_hallucination_leaves_nothing_behind() {
+    let mut world = World::new();
+    let phantom = cdda_sim::spawn_monster(&mut world, (5, 5), cdda_sim::MonsterKindId(1), 40);
+    cdda_sim::monster_registry::set_monster_types(
+        &mut world,
+        &[cdda_sim::monster_registry::MonsterKind { id: "mon_fixture", hp: 40 }],
+    );
+    cdda_sim::monster_registry::set_remains(&mut world, cdda_sim::MonsterKindId(1), Some("fd_blood"), Some("fd_gibs_flesh"));
+    cdda_sim::field_registry::set_field_names(&mut world, &[("fd_blood", 3, 0), ("fd_gibs_flesh", 3, 0)]);
+    cdda_sim::creature::set_kind(&mut world, phantom, cdda_sim::MonsterKindId(1));
+    world.entity_mut(phantom).insert(cdda_sim::creature::Hallucination);
+    world.entity_mut(phantom).insert(cdda_sim::creature::Health { hp: -40, max_hp: 40 });
+
+    let cleared = cdda_sim::creature::reap_dead_creatures_as_corpses(&mut world, cdda_sim::ItemTypeId(7), |_| 62_500);
+
+    assert_eq!(cleared, 1, "it is gone");
+    assert!(world.get_entity(phantom).is_err(), "and no creature remains");
+    assert_eq!(cdda_sim::items_at(&mut world, (5, 5)).len(), 0, "**no corpse to butcher**");
+    let blood = cdda_sim::field_registry::id_of(&mut world, "fd_blood").expect("known");
+    assert_eq!(cdda_sim::field_strength_at(&world, (5, 5, 0), blood), 0, "and no blood either");
+}
