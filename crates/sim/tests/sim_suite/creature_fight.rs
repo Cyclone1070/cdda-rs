@@ -2703,3 +2703,29 @@ fn a_dead_body_takes_no_further_blows() {
     cdda_sim::creature::hurt(&mut world, alive, 15.0);
     assert_eq!(cdda_sim::creature::health_of(&world, alive), Some(25), "while a living body still takes its damage");
 }
+
+/// A splatter's gibs follow the body's own damage and health, and a body of one health can be owed none.
+///
+/// Reference: `mdeath::splatter` (`mondeath.cpp:135-141`):
+///
+/// ```text
+/// int number_of_gibs = std::min( std::floor( corpse_damage ) - 1, 1 + max_hp / 5.0f );
+/// if( z.type->size >= creature_size::medium ) number_of_gibs += rng( 1, 6 );
+/// ```
+///
+/// **The count can be negative**, and the reference's `for` loop then simply does nothing - so the port keeps the arithmetic rather than clamping, because clamping at the rule would hide an
+/// ordinary small body's answer of zero behind the same value as a body that was never hit hard enough to splatter at all.
+#[test]
+fn a_splatter_gets_gibs_from_its_damage_and_its_health() {
+    use cdda_sim::creature::gib_count;
+
+    assert_eq!(gib_count(2.5, 40), 1, "floor(2.5) - 1 is one, and 1 + 40/5 is nine, so the damage decides");
+    assert_eq!(gib_count(10.0, 100), 9, "and a big one is capped by the damage: nine against twenty-one");
+    assert_eq!(gib_count(1.0, 40), 0, "a body killed barely is owed no gibs");
+    assert_eq!(
+        gib_count(1.9, 4),
+        0,
+        "**the health side can decide too**: floor(1.9) - 1 is zero and 1 + 4/5 is one, so the smaller wins"
+    );
+    assert_eq!(gib_count(0.4, 40), -1, "and under a whole point of corpse damage the answer is negative, as the reference's is");
+}

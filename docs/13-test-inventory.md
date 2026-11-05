@@ -1236,3 +1236,6 @@ crafting". No rules changed this round - the table is the deliverable, and `chec
 **Round 1298 wired the overkill rule into reaping** and found a real divergence: the reference dies **inside** `deal_damage`, so the port's deferred reaping let dead bodies absorb later blows and turn
 corpses into splatters - which broke the crowbar zombie's revival scenario. `creature::hurt` now refuses a body at or below zero, and four fixtures whose 1-health monsters took five damage were
 corrected to real kills.
+
+**Round 1299 ported a splatter's gib count** (`mondeath.cpp:135-141`) as `creature::gib_count` / `gibs_scattered`, gated on both sides of the `min` and on the **negative** answer the reference's loop
+tolerates.

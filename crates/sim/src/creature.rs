@@ -3243,3 +3243,43 @@ pub fn death_remains(hp: i32, max_hp: i32) -> DeathRemains {
         damage: (damage * DAMAGE_SCALE).floor() as i32,
     }
 }
+
+/// How many gibs a splattered body leaves.
+///
+/// Reference: `mdeath::splatter` (`mondeath.cpp:135-141`):
+///
+/// ```text
+/// int number_of_gibs = std::min( std::floor( corpse_damage ) - 1, 1 + max_hp / 5.0f );
+/// if( z.type->size >= creature_size::medium ) number_of_gibs += rng( 1, 6 );
+/// ```
+///
+/// **Both sides matter and either can decide**: a hard-hit small body is limited by its health, a large one by its damage. The result can be **negative** - a body under a whole point of
+/// corpse damage is owed fewer than none - and the reference's `for` loop then does nothing, so the port returns the arithmetic rather than clamping it: a clamped rule would report the same
+/// zero for "barely a splatter" and for "not one at all".
+#[must_use]
+pub fn gib_count(corpse_damage: f32, max_hp: i32) -> i32 {
+    #[allow(clippy::cast_precision_loss)]
+    let by_health = 1.0 + max_hp as f32 / 5.0;
+    let by_damage = corpse_damage.floor() - 1.0;
+    #[allow(clippy::cast_possible_truncation)]
+    let count = by_damage.min(by_health) as i32;
+    count
+}
+
+/// The gibs a body of this size actually scatters, which is the count plus a die for anything medium or larger.
+///
+/// Reference: `mdeath::splatter` (`mondeath.cpp:137-139`): `number_of_gibs += rng( 1, 6 )` when the monster's size is `medium` or bigger - one extra **die** rather than a flat add, which is
+/// what makes a big body's splatter vary.
+pub fn gibs_scattered(
+    corpse_damage: f32,
+    max_hp: i32,
+    medium_or_bigger: bool,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) -> i32 {
+    let count = gib_count(corpse_damage, max_hp);
+    if medium_or_bigger {
+        count + rolls.rng(1, 6)
+    } else {
+        count
+    }
+}

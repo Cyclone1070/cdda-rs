@@ -15539,3 +15539,21 @@ forty-health body and strike it for forty: **a kill, not an overkill**, which is
 
 **Named, not invented:** the gibs and the splatter's blood fields (`mdeath::splatter`'s `number_of_gibs`, `add_splatter`), and `death_drops`/`corpse_type`'s choice between normal, broken and
 splatter - the port applies the normal branch's damage rule to every corpse it makes.
+
+## A splatter's gibs come from its damage and its health (round 1299)
+
+| Piece | Reference | Port |
+|---|---|---|
+the count | `mdeath::splatter` (`mondeath.cpp:135-141`) | `creature::gib_count` |
+the size die | `mdeath::splatter`'s `number_of_gibs += rng( 1, 6 )` | `creature::gibs_scattered` |
+Gate | - | `creature_fight::a_splatter_gets_gibs_from_its_damage_and_its_health` |
+
+**Both sides of the `std::min` can decide**, and the gate pins each: a hard-hit small body is limited by its health, a big one by its damage.
+
+**The count can be negative.** A body under a whole point of corpse damage is owed *fewer than none*, and the reference's `for` loop simply does nothing - so the port returns the arithmetic rather than
+clamping, because a clamped rule would answer the same zero for "barely a splatter" and for "not one at all".
+
+**The size bonus is a die, not a flat add**: anything medium or larger scatters `+ rng( 1, 6 )` more, which is what makes a big body's splatter vary rather than scale.
+
+**Named, not invented:** where the gibs land. `mdeath::splatter` picks a square in a one-square radius with `random_entry` per gib and adds `fd_gib` and `fd_blood` at a rolled strength; the port has
+fields and `add_field_strength`, but the **blood and gib types come from the monster's prototype**, which is content the port does not load yet.
