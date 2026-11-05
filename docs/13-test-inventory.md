@@ -1001,3 +1001,7 @@ constant answer for a charge-counted type and the finiteness that keeps a stack 
 
 **Round 1202 put the oracle patch verification inside the routine gate command**: `python3 tools/remote_test.py` now runs the suite, the document check and
 `oracle/apply_harness_patches.py --verify`, with `--oracle` for that check alone. Round 1200's failure was that the check was outside the command everybody types.
+
+**Round 1204 corrected round 1203's blocker.** The fault catalogue is ported (`content::faults::Fault::fault_type`, read from the data and gated); what the swing lacks is the **kind's weighted
+fault list** in the sim's item registry (`content::items::ItemType::faults` exists, the registry does not carry it). No code changed this round; the fourth-round pattern - a "blocked on data" claim
+that a single grep dissolves - is recorded in `docs/parity.md`.

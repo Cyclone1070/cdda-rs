@@ -14287,3 +14287,20 @@ the fault pick and its removal | `pick_fault`, `remove_one_fault_of_type` | `fau
 **What is still missing from the thread, in the reference's own order:** `set_random_fault_of_type` **called from `mod_damage`** (the pick is ported, the caller is not, because the swing does
 not know a kind's fault list - the fault catalogue's `type` field is not loaded), the **destruction message and the contents spill**, `FRAGILE_MELEE`'s **component breakdown**, and
 `EQUIPMENT_DAMAGE_CHANCE` enchantments. **Four named pieces, none of them invented elsewhere.**
+
+## The fault catalogue was never the gap (round 1204)
+
+Round 1203 said the swing could not call `set_random_fault_of_type` because "the fault catalogue's `type` field is not loaded". **That was wrong, and the check took one grep:** `crates/content/src/faults.rs` has
+carried `Fault::fault_type` all along - *"which is the key `faults::all_of_type` and `random_of_type` are asked with - `mechanical_damage` for the ones a hit adds"* - read from the data and covered by the
+content suite. **The catalogue is ported. What is missing is a different table entirely.**
+
+| Question the swing needs to ask | Where the answer already lives | What is missing |
+|---|---|---|
+what fault type is this fault? | `content::faults::Fault::fault_type` | nothing |
+can this item have this fault? | `sim::can_have_fault` | nothing |
+which faults can **this kind** catch, and how likely? | `content::items::ItemType::faults`, a weighted list | **the sim's item registry does not carry it** - the registry files weights, volumes, damage figures and flags, and not the faults |
+what does this item already have? | `ItemFaults` on the item entity | nothing but the caller |
+
+**So the gap is one column in the registry, not a missing loader.** That is the third time in four rounds that a "blocked on data" claim dissolved under a single grep - rounds 1192, 1196 and now
+1204 - and the pattern is the same each time: **the claim came from what I had read, not from what the repository holds.** The check that would have caught all three is one command, and it is the one
+now written down as the habit: **grep the behaviour's words (`fault`, `chip`, `damage`) across `crates/` before naming a blocker.**
