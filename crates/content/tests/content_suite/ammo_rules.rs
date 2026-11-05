@@ -98,3 +98,33 @@ fn the_dump_carries_each_kinds_faults_with_weights() {
     assert!(weights.values().any(|list| list.len() > 1), "some types catch several faults");
     assert!(weights.values().all(|list| list.iter().all(|(_, weight)| *weight > 0)), "and every weight is positive");
 }
+
+/// Kinds are numbered from the sorted ids, not from the order the files were read in.
+///
+/// The rule round 1213 wrote down: the prototypes dump keys its columns by **id string** and the store keys everything by a number, so **the number must not depend on file order** - otherwise a mod
+/// that adds one item renumbers every kind after it and the chip table disagrees with the fault table.
+#[test]
+fn kinds_are_numbered_from_the_sorted_ids() {
+    use std::collections::BTreeMap;
+
+    let ids = vec![
+        "rock".to_owned(),
+        "arrow".to_owned(),
+        "knife".to_owned(),
+        // A duplicate, because two data files may define the same id and the reference's own loader keeps one.
+        "rock".to_owned(),
+    ];
+    let numbers = cdda_content::items::kind_numbers(&ids);
+    let expected: BTreeMap<String, u32> = [
+        ("arrow".to_owned(), 0),
+        ("knife".to_owned(), 1),
+        ("rock".to_owned(), 2),
+    ]
+    .into_iter()
+    .collect();
+    assert_eq!(numbers, expected, "sorted, deduplicated and numbered from zero");
+
+    // The same list in a different order numbers exactly the same, which is the whole point.
+    let reordered = vec!["knife".to_owned(), "rock".to_owned(), "arrow".to_owned()];
+    assert_eq!(cdda_content::items::kind_numbers(&reordered), expected, "file order cannot change a kind's number");
+}

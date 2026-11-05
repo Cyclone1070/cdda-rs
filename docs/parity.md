@@ -14418,3 +14418,19 @@ once, from a sorted id list, and used by every table** - which is exactly what r
 **So the next slice is one function in `crates/cli`**: sort the loaded `ItemType`s by id, number them `0..n` in that order, merge the dump's chip figure by id, build a `KindFacts` per kind, and call
 `install_kind_facts` **once**. Its gate belongs in the CLI tests (`crates/cli/tests/`), not the sim suite, because the thing it proves is that the *data* reaches the store - and the receipt is a
 scenario that drops a rock and finds **chip resistance 20** where today it would find the fallback **2**.
+
+## Kinds get their numbers once (round 1214)
+
+| Piece | Reference | Port |
+|---|---|---|
+the numbering | none - `itype_id` is a **string**, and every lookup hashes it | `items::kind_numbers(ids)`: sorted, deduplicated, numbered from zero |
+Gate | - | `kinds_are_numbered_from_the_sorted_ids` |
+
+**The reference pays for this one every time and the port pays once.** In the reference an item type is addressed by its **string id**, so every chip-resistance question, every flag question and every
+fault question is a hash lookup on a string. The port addresses kinds by number - which is the architecture's whole point - and **the price of a number is that somebody must decide what it means.**
+That somebody is this function: **sorted ids, deduplicated, numbered from zero**, so a mod that adds one file cannot renumber the world.
+
+**The gate proves the property rather than the output**: it asks the same three ids in two different orders and requires **identical** answers, then pins the numbering itself. **A loader that numbered
+by position would pass the first half and fail the second**, and a loader that sorted but did not deduplicate would shift every number after a repeated id.
+
+**Named, not invented:** the caller. `kind_numbers` has none yet - round 1213's CLI loader is what consumes it, and this function exists so that loader is a merge rather than a decision.

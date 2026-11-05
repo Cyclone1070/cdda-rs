@@ -2184,3 +2184,24 @@ pub fn fault_weights(dump: &Value) -> BTreeMap<String, Vec<(String, i32)>> {
     }
     found
 }
+
+/// Numbers item kinds **once, from a sorted id list**, so a kind's number never depends on the order the data files happened to be read in.
+///
+/// This is the rule round 1213 wrote down: the dump keys chip resistance by **id string**, the store keys everything by `ItemTypeId`, and `load_paths` returns a `Vec` in file order. **Numbering that
+/// `Vec` by position gives kind seven a different meaning every time a mod adds a file** - so the numbers come from the sorted ids and every table is filled from the same numbering.
+///
+/// The reference has no analogue: `itype_id` is a **string** there, and the reference pays for it with hash lookups everywhere. The port pays once, here.
+#[must_use]
+pub fn kind_numbers(ids: &[String]) -> std::collections::BTreeMap<String, u32> {
+    let mut sorted: Vec<&String> = ids.iter().collect();
+    sorted.sort();
+    sorted.dedup();
+    sorted
+        .iter()
+        .enumerate()
+        .map(|(number, id)| {
+            #[allow(clippy::cast_possible_truncation)]
+            ((*id).clone(), number as u32)
+        })
+        .collect()
+}

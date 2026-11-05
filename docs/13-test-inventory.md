@@ -1032,3 +1032,6 @@ named in `docs/parity.md` as the next slice, ahead of any further combat rule.
 **Round 1213 scoped the loader that feeds round 1211's seam**: flags/qualities/faults from `items::load_paths`, chip resistance from the prototypes dump v3 **keyed by id string**, and the
 `ItemTypeId` numbering that must be assigned **once from a sorted id list** rather than from `Vec` position. The function belongs in `crates/cli`, its gate in the CLI tests, and its receipt is a rock
 whose chip resistance reads **20** instead of the fallback **2**. Design recorded in `docs/parity.md`.
+
+**Round 1214 ported the numbering rule the port needs and the reference does not**: `items::kind_numbers` (sorted, deduplicated, numbered from zero), gated by
+`content_suite::ammo_rules::kinds_are_numbered_from_the_sorted_ids`, which proves **file order cannot change a kind's number**. Its caller - the CLI loader - is named in `docs/parity.md`.
