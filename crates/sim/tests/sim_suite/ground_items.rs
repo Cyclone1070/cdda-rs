@@ -313,3 +313,33 @@ fn a_blocked_fault_is_never_picked() {
     );
     assert_eq!(picked, None, "every mechanical fault is blocked by the broken blade");
 }
+
+/// A fault that names a line says it when it is caught, and a silent fault says nothing.
+///
+/// Reference: `item::set_fault` prints `f_id.obj().message()` when told to speak (`item.cpp:7840-7842`). **Most faults in this data version name no line**, so the gate proves the speaking path with a
+/// fault that does and the silent path with one that does not - a port that printed the empty string would put a blank line in the log, which is visible to a player and caught here.
+#[test]
+fn a_caught_fault_says_its_own_line() {
+    use bevy_ecs::prelude::World;
+
+    let mut world = World::new();
+    cdda_sim::item_registry::set_fault_messages(
+        &mut world,
+        &[("loud".to_owned(), "Your blade has a bad case of the dents.".to_owned())],
+    );
+    assert_eq!(
+        cdda_sim::item_registry::message_of(&mut world, "loud").as_deref(),
+        Some("Your blade has a bad case of the dents."),
+        "a fault that names a line answers it"
+    );
+    assert_eq!(cdda_sim::item_registry::message_of(&mut world, "quiet"), None, "a fault nobody described says nothing");
+    // And it lands in the log when pushed, which is what the swing does - **before** the table is replaced below, because installing a new table replaces the old one.
+    if let Some(line) = cdda_sim::item_registry::message_of(&mut world, "loud") {
+        cdda_sim::messages::push(&mut world, &line);
+    }
+
+    // An empty string is silence, not a blank line.
+    cdda_sim::item_registry::set_fault_messages(&mut world, &[("quiet".to_owned(), String::new())]);
+    assert_eq!(cdda_sim::item_registry::message_of(&mut world, "quiet"), None, "an empty line is no line");
+    assert_eq!(cdda_sim::messages::lines(&world).len(), 1, "one line in the log");
+}

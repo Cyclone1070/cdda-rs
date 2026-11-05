@@ -3013,10 +3013,14 @@ pub fn wear_the_wielded_weapon(world: &mut World, holder: Entity, melee_skill: i
             &mut rolls,
         );
         crate::singletons::put_rolls(world, rolls);
-        if let Some(fault) = picked
-            && let Some(mut faults) = world.get_mut::<crate::ItemFaults>(held)
-        {
-            faults.0.insert(fault);
+        if let Some(fault) = picked {
+            // Reference: `set_fault` prints the fault's own line when told to speak (`item.cpp:7840-7842`); a silent fault says nothing, which is most of them in this data version.
+            if let Some(line) = crate::item_registry::message_of(world, &fault) {
+                crate::messages::push(world, &line);
+            }
+            if let Some(mut faults) = world.get_mut::<crate::ItemFaults>(held) {
+                faults.0.insert(fault);
+            }
         }
     }
 }

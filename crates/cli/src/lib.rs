@@ -730,8 +730,10 @@ pub fn install_item_data(world: &mut World) -> Option<usize> {
         let typed: Vec<(String, String)> = faults.iter().map(|fault| (fault.id.clone(), fault.fault_type.clone())).collect();
         cdda_sim::item_registry::set_fault_types(world, &typed);
         let blocks: Vec<(String, std::collections::BTreeSet<String>)> =
-            faults.into_iter().map(|fault| (fault.id, fault.block_faults)).collect();
+            faults.iter().map(|fault| (fault.id.clone(), fault.block_faults.clone())).collect();
         cdda_sim::item_registry::set_fault_blocks(world, &blocks);
+        let spoken: Vec<(String, String)> = faults.into_iter().map(|fault| (fault.id, fault.message)).collect();
+        cdda_sim::item_registry::set_fault_messages(world, &spoken);
     }
     Some(items.len())
 }

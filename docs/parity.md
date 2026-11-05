@@ -14563,3 +14563,20 @@ next**.
 **Named, not invented:** the **push into the log**. `set_fault` prints the line when it is told to speak, and the port's `set_fault` takes no message flag - so the swing catches a fault silently today,
 even when the record names a line. **One `messages::push` away, and it needs the message carried from the catalogue into the store beside the types and blocks** - the same pattern as rounds 1221 and
 1223.
+
+## A caught fault speaks when it has something to say (round 1230)
+
+| Piece | Reference | Port |
+|---|---|---|
+the line | `Fault::message()`, printed by `set_fault` when told to speak (`item.cpp:7840-7842`) | `item_registry::set_fault_messages` / `message_of`, filled by `install_item_data` |
+Gate | - | `a_caught_fault_says_its_own_line` |
+
+**An empty line is silence, not a blank line.** The store filters an empty message to `None`, so a fault with no text pushes **nothing** - and since **every fault in this data version is silent**, that
+filter is what keeps the log clean until data names one. **A port that pushed the empty string would put a blank line in front of the player for every dent**, which no assertion about the fault's
+*identity* would catch; this gate asserts the log's **length**.
+
+**The gate's first run failed on its own order, not on the rule**: it installed the silent fault's table **before** reading the loud one, and installing a table replaces it - so the loud line was gone by
+the time it was read. The fix moved the push above the replacement, and the comment now says why an installer's replace semantics matter to the test's order.
+
+**Named, not invented:** the `%s` substitution in the reference's lines (`m_bad` formatting with the item's name), which the data does not exercise here; and the fault messages' **translation
+machinery** (`translation::translated()`), which the port treats as plain text everywhere.

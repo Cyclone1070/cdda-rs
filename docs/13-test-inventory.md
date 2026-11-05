@@ -1066,3 +1066,7 @@ channel" was wrong** - the third wrong blocker in seven rounds, all dissolved by
 
 **Round 1229 read `Fault::message` into the catalogue type** (`fault.cpp:186`, `:251`). Gated by `content_suite::ammo_rules::a_fault_carries_the_line_it_prints`, which proves the field from a record and
 then asserts that **no fault in this data version names one** - honest about a field the loader supports and the data leaves empty. The push into the log is named in `docs/parity.md`.
+
+**Round 1230 carried the fault messages into the store** (`item_registry::FaultMessages` / `set_fault_messages` / `message_of`) and made the swing push one when it catches a fault. Gated by
+`ground_items::a_caught_fault_says_its_own_line`, which asserts the log's **length** (so an empty line cannot pass) and the empty-message filter. Its first run failed on fixture **order** - a table
+install replaces the old table - which the comment now records.

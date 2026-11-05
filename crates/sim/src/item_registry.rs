@@ -653,3 +653,30 @@ pub fn blocks_of(world: &mut World, fault: &str) -> std::collections::BTreeSet<S
         .and_then(|table| table.0.get(fault).cloned())
         .unwrap_or_default()
 }
+
+/// The line each fault prints when an item catches it: `Fault::message()`, printed by `item::set_fault` when it is told to speak (`item.cpp:7840-7842`).
+///
+/// Kept beside the types and the blocks, from the same catalogue read: **a fault's type decides whether it is eligible, its blocks decide what it takes away, and its message is what the player is
+/// told** - three questions, one record, one install.
+#[derive(Debug, Clone, Default, PartialEq, Component)]
+pub struct FaultMessages(pub std::collections::BTreeMap<String, String>);
+
+/// Marks the entity holding [`FaultMessages`].
+#[derive(Debug, Clone, Copy, Default, Component)]
+pub struct TheFaultMessages;
+
+/// Installs the line each fault prints.
+pub fn set_fault_messages(world: &mut World, messages: &[(String, String)]) {
+    let holder = singletons::singleton::<FaultMessages, TheFaultMessages>(world);
+    world.entity_mut(holder).insert(FaultMessages(messages.iter().cloned().collect()));
+}
+
+/// What a fault says when it is caught, or nothing when the catalogue has never been installed or the fault is silent.
+#[must_use]
+pub fn message_of(world: &mut World, fault: &str) -> Option<String> {
+    let holder = singletons::singleton::<FaultMessages, TheFaultMessages>(world);
+    world
+        .get::<FaultMessages>(holder)
+        .and_then(|table| table.0.get(fault).cloned())
+        .filter(|line| !line.is_empty())
+}
