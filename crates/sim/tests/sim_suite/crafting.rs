@@ -1396,3 +1396,32 @@ fn a_helper_who_understands_earns_five_times_the_practice() {
     }
     assert!(seen.0 > 40 && seen.1 > 40, "**the half is rolled, not dropped**: {seen:?} across 200 seeds");
 }
+
+/// A craft hands out one practice tick per turn of work, counted off the progress bar as it moves.
+///
+/// Reference: `craft_activity_actor::do_turn` (`activity_actor.cpp:4229-4240`):
+///
+/// ```text
+/// const double total_practice_ticks = rec.time_to_craft_moves( crafter, ignore_proficiencies ) / 100.0;
+/// const int ticks_per_practice = 10000000.0 / total_practice_ticks;
+/// int num_practice_ticks = craft.item_counter / ticks_per_practice - old_counter / ticks_per_practice;
+/// ```
+///
+/// **Three integer divisions stacked on a double**: moves are hundredths of a turn, so a recipe's moves over 100 are its practice ticks; the counter is out of ten million, so `ticks_per_practice` is the
+/// counter steps between ticks - **truncated to an int**; and the two counter readings are divided as **ints** before subtracting, which is what makes the answer a count of whole ticks rather than a
+/// difference of fractions.
+#[test]
+fn a_craft_hands_out_one_practice_tick_per_turn_of_work() {
+    use cdda_sim::crafting::practice_ticks;
+
+    // An hour's recipe: 360,000 moves, 3,600 practice ticks, so the counter steps 2,777 per tick.
+    assert_eq!(practice_ticks(360_000, 0, 500_000), 180, "the first five percent is 180 ticks");
+    assert_eq!(practice_ticks(360_000, 0, 10_000_000), 3601, "**and a whole one is 3,601, not 3,600** - the truncation lands on the generous side");
+    assert_eq!(practice_ticks(360_000, 10_000_000, 10_000_000), 0, "no movement, no practice");
+    assert_eq!(
+        practice_ticks(360_000, 9_997_200, 10_000_000),
+        1,
+        "the last step still counts: 3,600 against 3,601"
+    );
+    assert_eq!(practice_ticks(0, 0, 10_000_000), 0, "and a recipe with no time cannot divide by zero: the port answers none");
+}

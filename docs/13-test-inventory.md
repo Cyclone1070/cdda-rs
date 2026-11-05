@@ -1217,3 +1217,6 @@ rather than fixtures.
 
 **Round 1292 ported the helper practice share** as `crafting::helper_practice_ticks` (`crafting.cpp:993-1033`), gated on the five-to-one ratio between understanding and watching **and** on the fractional
 draw appearing on both sides across 200 seeds.
+
+**Round 1293 ported the craft's practice-tick count** as `crafting::practice_ticks` (`activity_actor.cpp:4229-4240`), gated on the three divisions - including the truncation that makes an hour's craft worth
+3,601 ticks.

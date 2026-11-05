@@ -15424,3 +15424,22 @@ that truncated would pass every exact case and still be wrong on every odd tick.
 
 **Named, not invented:** the crafter's own full-tick practice and its `skill_cap`, which belong to the skill-gain step of a finished craft rather than to the helper rule; the `ONE_IN( 300 )` flavour lines
 ("*%s assists with crafting…*", "*%s watches you craft…*"); and the "could assist you with a batch" hint that only fires for a batch of one.
+
+## A craft hands out one practice tick per turn of work (round 1293)
+
+| Piece | Reference | Port |
+|---|---|---|
+the tick count | `craft_activity_actor::do_turn` (`activity_actor.cpp:4229-4240`) | `crafting::practice_ticks` |
+Gate | - | `crafting::a_craft_hands_out_one_practice_tick_per_turn_of_work` |
+
+**Three integer divisions stacked on a double, each one load-bearing:** moves are hundredths of a turn (so moves over 100 are the ticks the craft is worth); the progress counter runs to ten million, so
+`ticks_per_practice` is the counter steps between ticks - **truncated to an integer**, which is why an hour's craft answers **3,601 rather than 3,600**; and the two counter readings are divided **as
+integers** before subtracting, so a partial tick is carried to the next turn rather than lost.
+
+**The truncation lands on the generous side**, and the gate says so with both the whole-craft number and the last single step: at 9,997,200 the count is 3,600 and the final step still earns one.
+
+**A recipe with no time would divide by zero.** The reference never meets one - a recipe without a time is rejected at load - and the port answers zero rather than panicking, because a rule that can reach a
+division by zero through data is a rule that will.
+
+**Named, not invented:** `roll_remainder`'s share for helpers (ported in round 1292), the proficiency step's separate 5% cadence (`craft_proficiency_gain`), and the `set_moves( 0 )` the reference does
+alongside - all of those belong to the activity's turn, which is P6.

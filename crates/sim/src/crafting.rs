@@ -788,3 +788,42 @@ pub fn helper_practice_ticks(ticks: i32, understands: bool, rolls: &mut cdda_cor
     };
     crate::roll_remainder(share, rolls)
 }
+
+/// How many practice ticks a stretch of crafting progress is worth.
+///
+/// Reference: `craft_activity_actor::do_turn` (`activity_actor.cpp:4229-4240`):
+///
+/// ```text
+/// const double total_practice_ticks = rec.time_to_craft_moves( crafter, recipe_time_flag::ignore_proficiencies ) / 100.0;
+/// const int ticks_per_practice = 10000000.0 / total_practice_ticks;
+/// int num_practice_ticks = craft.item_counter / ticks_per_practice - old_counter / ticks_per_practice;
+/// ```
+///
+/// **Three integer divisions stacked on a double**, and each one is load-bearing:
+///
+/// * moves are hundredths of a turn, so a recipe's moves over 100 are how many ticks it is worth;
+/// * the progress counter runs to ten million, so `ticks_per_practice` is the counter steps between ticks - **truncated to an integer**, which is what makes an hour's craft answer 3,601 rather than
+///   3,600;
+/// * and the two counter readings are divided **as integers** before subtracting, so the answer is a count of whole ticks and a partial tick is carried to the next turn rather than lost.
+///
+/// A recipe with no time would divide by zero; the reference never meets one (the loader rejects a recipe without a time), and the port answers zero rather than a panic.
+#[must_use]
+pub fn practice_ticks(time_moves: i64, old_counter: i64, new_counter: i64) -> i32 {
+    /// The progress counter's full scale (`item::item_counter` reaching 10,000,000 at one craft).
+    const COUNTER_SCALE: f64 = 10_000_000.0;
+    /// Moves in a turn: practice is counted in turns.
+    const MOVES_PER_TURN: f64 = 100.0;
+    #[allow(clippy::cast_precision_loss)]
+    let total_ticks = time_moves as f64 / MOVES_PER_TURN;
+    if total_ticks <= 0.0 {
+        return 0;
+    }
+    #[allow(clippy::cast_possible_truncation)]
+    let ticks_per_practice = (COUNTER_SCALE / total_ticks) as i64;
+    if ticks_per_practice <= 0 {
+        return 0;
+    }
+    #[allow(clippy::cast_possible_truncation)]
+    let ticks = (new_counter / ticks_per_practice - old_counter / ticks_per_practice) as i32;
+    ticks
+}
