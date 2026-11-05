@@ -192,3 +192,33 @@ pub fn smiley_slots(message: &str) -> Vec<usize> {
     }
     slots
 }
+
+/// Writes a smiley at each of these positions, in the order given, keeping the later ones straight.
+///
+/// Reference: `modify_msg_with_exclamations` (`messages.cpp:318-334`): the smiley is `" :)"` - **three bytes, space included** - inserted at its position, and then
+///
+/// ```text
+/// for( size_t &smil_loc : smiley_locations ) if( smil_loc > smiley_location ) smil_loc += 3;
+/// ```
+///
+/// The reference's own comment is *"we increment to account for the insertion of the smiley string"*. **The positions the caller passes are the ones collected before any insertion**, so the shift is the
+/// rule: applying the raw offsets in order would drift three bytes per smiley and silently mangle the message.
+#[must_use]
+pub fn apply_smileys(message: &str, positions: &[usize]) -> String {
+    /// What one smiley adds, including its leading space - the reference's `" :)"`.
+    const SMILEY_BYTES: usize = 3;
+    let mut text = message.to_owned();
+    for position in positions {
+        let shift = positions
+            .iter()
+            .take_while(|earlier| *earlier != position)
+            .filter(|earlier| *earlier < position)
+            .count()
+            * SMILEY_BYTES;
+        let at = position + shift;
+        if at <= text.len() {
+            text.insert_str(at, " :)");
+        }
+    }
+    text
+}

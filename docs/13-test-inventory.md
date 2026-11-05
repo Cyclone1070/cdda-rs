@@ -1182,3 +1182,5 @@ debug mode is off**. The empty-string refusal was a real bug the gate caught in 
 
 **Round 1280 ported the smiley placement rule** as `messages::smiley_slots` (`messages.cpp:271-318`): the end first, then the spaces the reference allows, with the forked-words list compared **with its
 leading space**.
+
+**Round 1281 ported the smiley insertion** as `messages::apply_smileys` (`messages.cpp:318-334`), gated on the three-byte shift that keeps later candidates straight.

@@ -223,3 +223,24 @@ fn a_smiley_only_goes_where_a_word_is_long_enough() {
 
     assert_eq!(smiley_slots("Hi"), vec![2], "a message with no spaces still has its end");
 }
+
+/// Inserting a smiley at a position shifts every later candidate by its own three characters.
+///
+/// Reference: `modify_msg_with_exclamations` (`messages.cpp:318-334`): each insertion writes `" :)"` (**three bytes, including the space**) at its position and then adds 3 to **every remaining
+/// candidate beyond it** - the reference's own comment says *"we increment to account for the insertion of the smiley string"*.
+///
+/// **The positions handed in are the ones collected before any insertion**, so the bookkeeping is the rule: a port that inserted at the raw offsets in order would drift by three bytes per smiley and
+/// quietly mangle the message.
+#[test]
+fn inserting_a_smiley_shifts_every_later_candidate() {
+    use cdda_sim::messages::apply_smileys;
+
+    let message = "You feel fine today.";
+    let one = apply_smileys(message, &[20, 8]);
+    assert_eq!(
+        one, "You feel :) fine today. :)",
+        "**two smileys, in the order drawn**, each three bytes: the later candidate shifted by the one inserted before it"
+    );
+    assert_eq!(apply_smileys(message, &[]), message, "and no smileys leaves the message alone");
+    assert_eq!(apply_smileys(message, &[8]), "You feel :) fine today.", "a single early smiley");
+}

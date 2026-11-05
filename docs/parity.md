@@ -15216,3 +15216,19 @@ part of the data because `random_entry_removed` draws from it.
 
 **Named, not invented:** the draw itself (`random_entry_removed`, `one_in( 5 )` for the `:D` variant, the `rng_normal( 0, max_per_msg )` count), and the trailing *"Woah." / "Dude."* exclamations, which add
 to the message rather than into it.
+
+## Inserting a smiley shifts every later candidate (round 1281)
+
+| Piece | Reference | Port |
+|---|---|---|
+the insertion | `modify_msg_with_exclamations` (`messages.cpp:318-334`) | `messages::apply_smileys(message, positions)` |
+Gate | - | `identification::inserting_a_smiley_shifts_every_later_candidate` |
+
+**The smiley is three bytes, space included** (`" :)"`), and every remaining candidate beyond the insertion point moves by exactly those three - the reference's own comment is *"we increment to account
+for the insertion of the smiley string"*.
+
+**The positions are the ones collected before any insertion**, so the shift is the whole rule: applying the raw offsets in order would drift three bytes per smiley and **silently mangle the message**,
+which no count-based assertion would notice. The gate asserts the finished string, both smileys in place, in the order drawn.
+
+**Named, not invented:** `random_entry_removed`, which decides **which** candidates are drawn and removes each as it is used; `one_in( 5 )` for the `:D` variant on good and critical messages; and the
+`msg.size() > 16` exclamation tail.
