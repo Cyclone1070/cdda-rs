@@ -14688,3 +14688,23 @@ undid them. The gate now installs **one** fact list for all three kinds.
 
 **Named, not invented:** the breakdown messages ("Your %s breaks apart!", "The %s is destroyed!"), the `wield`-the-biggest step, the `has_wield_conflicts` check, and the `EQUIPMENT_DAMAGE_CHANCE`
 enchantment multiplier that still needs P5.
+
+## A fragile weapon does not break, it comes apart (round 1250)
+
+| Piece | Reference | Port |
+|---|---|---|
+the branch | `has_flag( FRAGILE_MELEE ) && !components.empty()` (`melee.cpp:313-340`) | `creature::break_apart_the_weapon`, called before the ordinary destruction line |
+Gate | - | `a_fragile_weapon_breaks_apart_instead_of_being_destroyed` |
+
+**The two messages are alternatives, not a sequence.** A fragile weapon that comes apart is **never also** reported as "destroyed by the blow", which is the whole reason the `else` exists - so telling
+the player their parts vanished when two of them are lying on the ground would be the one wrong outcome here. The gate asserts **both** sides: `"breaks apart"` is present **and** `"is destroyed by the
+blow"` is absent.
+
+**Every part is accounted for, and the gate counts them:** one `"The %s is destroyed!"` line per part that is gone, and every survivor carries **no `PartOf`** any more - it is nobody's part, which is
+the port's honest version of "drop it on the map".
+
+**Fixture lessons this round cost two runs, and both are the same class:** five blows produced two, first because the fixture's part chips gave a *chance* the die could miss (the fragile factor is
+`weak/6`, not zero), then because the parts' resistance was set to 1 and 40 - so the weapon wore at `1/6` and only about one blow in six landed. **Both parts at zero makes the chance zero, and a
+chance of zero always damages** - the reference's inverted guard.
+
+**Named, not invented:** dropping a survivor on the map at the player's position, the `wield`-the-biggest step and the `has_wield_conflicts` check before it, and irremovable gunmods being destroyed first.

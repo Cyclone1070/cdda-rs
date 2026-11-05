@@ -2163,3 +2163,92 @@ fn a_fragile_weapon_wears_at_its_weakest_part_when_it_is_swung() {
         "no parts, no factor"
     );
 }
+
+/// A fragile weapon does not just break: it comes apart, and it says so - and the parts that survive stay on the ground as themselves.
+///
+/// Reference: `handle_melee_wear`'s destruction branch (`melee.cpp:313-340`): a weapon with `FRAGILE_MELEE` **and** components prints *"Your %s breaks apart!"* instead of *"is destroyed by the
+/// blow!"*, then rolls each component and **drops what survives**. The port must not print the ordinary destruction line for such a weapon - **that would tell the player their parts vanished when
+/// they did not**.
+#[test]
+fn a_fragile_weapon_breaks_apart_instead_of_being_destroyed() {
+    use bevy_ecs::prelude::*;
+    use cdda_core_types::rng::Rolls;
+
+    let mut world = World::new();
+    let weapon = cdda_sim::ItemTypeId(1);
+    let cloth = cdda_sim::ItemTypeId(2);
+    let iron = cdda_sim::ItemTypeId(3);
+    let facts = |flags: Vec<String>, chip: i32| cdda_sim::item_registry::KindFacts {
+        flags,
+        qualities: Vec::new(),
+        chip_resistance: chip,
+        faults: Vec::new(),
+    };
+    // Chip resistance zero makes the wear chance zero, and a chance of zero **always** damages - the reference's inverted guard (`melee.cpp:291`).
+    cdda_sim::item_registry::install_kind_facts(
+        &mut world,
+        &[
+            (weapon, facts(vec!["FRAGILE_MELEE".to_owned()], 0)),
+            // **Both parts at zero chip resistance**, so the fragile factor is zero and the wear chance is zero - and a chance of zero always damages.
+            (cloth, facts(Vec::new(), 0)),
+            (iron, facts(Vec::new(), 0)),
+        ],
+    );
+    cdda_sim::singletons::put_rolls(&mut world, Rolls::new(99));
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let zombie = cdda_sim::creature::spawn_creature(&mut world, "the zombie", (1, 0, 0));
+    world.entity_mut(zombie).insert(cdda_sim::creature::Health { hp: 9_000, max_hp: 9_000 });
+    world.entity_mut(survivor).insert(cdda_sim::creature::Speed { base: 100, bonus: 0 });
+    for _ in 0..2 {
+        cdda_sim::creature::bank_a_turn(&mut world);
+    }
+    let held = world
+        .spawn((
+            cdda_sim::GroundItem { kind: weapon, charges: 1, age: 0, burnt: 0, damage: 0, burn: None },
+            cdda_sim::ItemDamage::default(),
+            cdda_sim::creature::Carried(survivor),
+        ))
+        .id();
+    assert_eq!(
+        cdda_sim::creature::wield(&mut world, survivor, held, 250),
+        cdda_sim::creature::Wielded::Done
+    );
+    let cloth_part = world
+        .spawn(cdda_sim::GroundItem { kind: cloth, charges: 1, age: 0, burnt: 0, damage: 0, burn: None })
+        .id();
+    let iron_part = world
+        .spawn(cdda_sim::GroundItem { kind: iron, charges: 1, age: 0, burnt: 0, damage: 0, burn: None })
+        .id();
+    cdda_sim::item_parts::add_part(&mut world, held, cloth_part);
+    cdda_sim::item_parts::add_part(&mut world, held, iron_part);
+
+    // Five blows: the fifth takes the weapon past its maximum. Swings do not cost moves on this path, which is why the log-based gate needs no banking between them.
+    for _ in 0..5 {
+        cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, zombie);
+    }
+    let said = cdda_sim::messages::lines(&world);
+    assert!(
+        said.iter().any(|line| line.contains("breaks apart")),
+        "the fragile weapon comes apart: {said:?}"
+    );
+    assert!(
+        !said.iter().any(|line| line.contains("is destroyed by the blow")),
+        "and it is not reported as an ordinary destruction: {said:?}"
+    );
+    assert!(!world.get_entity(held).is_ok_and(|_| true), "the weapon itself is gone");
+
+    // **Every part is accounted for**: either it was destroyed (its line is in the log and its entity is gone) or it survived as itself, with no parent any more.
+    let destroyed_lines = said.iter().filter(|line| line.contains("is destroyed!")).count();
+    let mut gone = 0;
+    let mut free = 0;
+    for part in [cloth_part, iron_part] {
+        if world.get_entity(part).is_ok() {
+            free += 1;
+            assert!(world.get::<cdda_sim::item_parts::PartOf>(part).is_none(), "a survivor is nobody's part any more");
+        } else {
+            gone += 1;
+        }
+    }
+    assert_eq!(gone, destroyed_lines, "one line per part that is gone: {said:?}");
+    assert_eq!(gone + free, 2, "two parts, each destroyed or free");
+}

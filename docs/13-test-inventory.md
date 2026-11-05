@@ -1092,3 +1092,6 @@ nothing-counts fallback. Gated by `creature_fight::a_fragile_weapon_wears_at_its
 **Round 1249 wired the fragile factor into the swing**: `creature::weapon_material_factor` (`melee.cpp:246-274`), used by `wear_the_wielded_weapon`. Gated by
 `creature_fight::a_fragile_weapon_wears_at_its_weakest_part_when_it_is_swung` - 6-resistance part on a 30-resistance weapon answers `1.0`, no parts answers `30`. **The gate's first run failed on fixture
 order**: `install_kind_facts` writes the chip table, so chips set before it were undone.
+
+**Round 1250 ported `handle_melee_wear`'s break-apart branch**: `creature::break_apart_the_weapon` (`melee.cpp:313-340`) - "breaks apart!" **instead of** "destroyed by the blow!", one destruction line per
+lost part, survivors detached. Gated by `creature_fight::a_fragile_weapon_breaks_apart_instead_of_being_destroyed`, which asserts both messages' presence/absence and **counts** the parts.

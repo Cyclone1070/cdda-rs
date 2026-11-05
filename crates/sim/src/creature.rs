@@ -2918,6 +2918,69 @@ pub fn heat_sets_alight(damage: i32, dice: &mut cdda_core_types::rng::Rolls) -> 
 ///
 /// Reference: `Character::handle_melee_wear( cur_weapon )` (`melee.cpp:214-300`), called from `melee_attack` after the blow is resolved and before the messages. `item::inc_damage` raises the
 /// damage by **one thousandth scale** (`item.cpp:9467-9470`, `itype::damage_scale`), and the port keeps that unit rather than inventing a friendlier one.
+/// Comes a weapon apart, if it is fragile and made of parts, and answers whether it did.
+///
+/// Reference: `Character::handle_melee_wear` (`melee.cpp:313-340`):
+///
+/// ```text
+/// if( temp.has_flag( flag_FRAGILE_MELEE ) && !temp.components.empty() ) {
+///     add_msg_player_or_npc( m_bad, _( "Your %s breaks apart!" ), ... , str );
+///     for( comp ) { int break_chance = comp == weak_comp ? 2 : 8;
+///         if( one_in( break_chance ) ) { "The %s is destroyed!"; continue; }
+///         if( comp == big_comp && !has_wield_conflicts( comp ) ) wield( comp ); else drop( comp ); }
+/// } else { "Your %s is destroyed by the blow!" }
+/// ```
+///
+/// **The two messages are alternatives, not a sequence**: a fragile weapon that comes apart is never also reported as destroyed by the blow, which is the whole point of the branch. Survivors
+/// **stop being parts** - the port detaches them instead of dropping them on the map, and dropping them where the player stands is named as unported.
+#[must_use]
+pub fn break_apart_the_weapon(world: &mut World, weapon: Entity, name: &str) -> bool {
+    let kind = world.get::<crate::GroundItem>(weapon).map(|ground| ground.kind);
+    let fragile = kind.is_some_and(|kind| crate::item_registry::kind_has_flag(&*world, kind, "FRAGILE_MELEE"));
+    let parts = crate::item_parts::parts_of(world, weapon);
+    if !fragile || parts.is_empty() {
+        return false;
+    }
+    crate::messages::push(world, &format!("Your {name} breaks apart!"));
+    let mut facts: Vec<(Entity, String, i32, i32)> = Vec::with_capacity(parts.len());
+    for part in parts {
+        let Some(part_kind) = world.get::<crate::GroundItem>(part).map(|ground| ground.kind) else {
+            continue;
+        };
+        let chip = crate::item_registry::chip_resistance_of(world, part_kind);
+        let volume = crate::item_registry::volume_of(world, part_kind);
+        facts.push((part, crate::item_registry::name_of(world, part_kind).unwrap_or_default(), chip, volume));
+    }
+    let borrowed: Vec<crate::melee::PartFacts<'_>> = facts
+        .iter()
+        .map(|(_, id, chip, volume)| crate::melee::PartFacts { kind: id.as_str(), chip_resistance: *chip, volume_ml: *volume })
+        .collect();
+    let (weak, _big) = crate::melee::weak_and_big_parts(&borrowed);
+    let weak = weak.map(str::to_owned);
+    let Some(mut rolls) = crate::singletons::take_rolls(world) else {
+        return true;
+    };
+    let mut lost = Vec::new();
+    for (part, id, _, _) in &facts {
+        let chance = if weak.as_deref() == Some(id.as_str()) { 2 } else { 8 };
+        if rolls.one_in(chance) {
+            lost.push(*part);
+        }
+    }
+    crate::singletons::put_rolls(world, rolls);
+    for (part, id, _, _) in &facts {
+        if lost.contains(part) {
+            crate::messages::push(world, &format!("The {id} is destroyed!"));
+            world.entity_mut(*part).despawn();
+        } else {
+            // A survivor is nobody's part any more: the plainest honest port of "drop it", with the map placement named as unported.
+            world.entity_mut(*part).remove::<crate::item_parts::PartOf>();
+        }
+    }
+    world.entity_mut(weapon).despawn();
+    true
+}
+
 /// The material factor a blow wears a weapon at: its weakest counted part for a fragile weapon, its own chip resistance otherwise.
 ///
 /// Reference: `Character::handle_melee_wear` (`melee.cpp:246-274`). The two branches are one assignment in the reference and **two different questions here**, because a fragile weapon needs its part
@@ -2998,6 +3061,10 @@ pub fn wear_the_wielded_weapon(world: &mut World, holder: Entity, melee_skill: i
         .unwrap_or_else(|| "weapon".to_owned());
     let (after, destroyed) = current.mod_damage(crate::DAMAGE_SCALE, &limits);
     if destroyed {
+        // Reference: **a fragile weapon with parts does not merely break - it comes apart** (`melee.cpp:313-340`), and the branch is taken before the ordinary destruction line.
+        if break_apart_the_weapon(world, held, &name) {
+            return;
+        }
         // Reference: `Character::handle_melee_wear`'s destruction branch - the item "is destroyed by the blow" and leaves the hand (`melee.cpp:293-330`). The port
         // despawns the entity, which is what "the thing is gone" means in one store; the message and the contents spill are named, not invented.
         world.entity_mut(held).despawn();
