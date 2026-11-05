@@ -14924,3 +14924,21 @@ wrong: `ANY` on a creature with nothing, and a name that answers for a **differe
 
 **Named, not invented:** `ANY` also holds for a **full power store** (`condition.cpp:946-949`); the port has no power store, so `ANY` asks only about the list - the divergence the module's doc comment
 already records.
+
+## A cleverer character reads faster, on a curve the reference spells out (round 1264)
+
+| Piece | Reference | Port |
+|---|---|---|
+the curve | `Character::read_speed()` (`character.cpp:3669-3684`) | `reading::read_speed_percent(intelligence)` |
+Gate | - | `reading::intelligence_turns_into_a_reading_time` |
+
+**The reference's own comment is the oracle**: *4 int = 72 seconds, 8 int = 60, 12 int = 51, 16 = 45, 20 = 40* - nine percent a point at the bottom, under four at the top. The gate asserts those
+five values exactly, which pins the **truncation** as well: `180 / ( 2 + int/8 )` is 51.43 seconds at int 12 and the duration takes **51**.
+
+**The answer is a percentage of a minute, so a lower number reads faster** - the opposite of what "speed" suggests. At intelligence 8 the answer is **100**, one minute per unit, which is the sane
+midpoint to check first.
+
+**A first run corrected the fixture, not the rule:** I used intelligence 400 for the one-second clamp, but 400 is still 3.46 seconds - the clamp needs 1000. **A fixture that does not reach the branch it
+names is the vacuous gate again**, one branch down.
+
+**Named, not invented:** `READING_SPEED_MULTIPLIER` from the enchantment cache, which sits between the duration and the clamp in the reference and needs P5.

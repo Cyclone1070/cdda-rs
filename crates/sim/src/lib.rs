@@ -75,6 +75,7 @@ pub mod inventory;
 pub mod item_data;
 pub mod item_groups;
 pub mod item_parts;
+pub mod reading;
 pub mod item_registry;
 pub mod monster_catalog;
 pub mod monster_groups;

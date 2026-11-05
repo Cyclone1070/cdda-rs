@@ -1136,3 +1136,6 @@ remains, not the damage stopped.
 
 **Round 1263 gave `bionics.rs` its own gates** - the roadmap's "thinly gated" note, closed: `bionics::a_bionic_installed_twice_is_still_one_bionic` (dedupe and order) and
 `bionics::any_asks_whether_there_is_a_bionic_and_a_name_asks_for_that_one` (`ANY` vs exact naming).
+
+**Round 1264 ported `Character::read_speed`** as `reading::read_speed_percent` (`character.cpp:3669-3684`), gated against the reference's own five-datapoint comment, truncation included. Its fixture's
+first run aimed the clamp test at intelligence 400, which never reaches the clamp.
