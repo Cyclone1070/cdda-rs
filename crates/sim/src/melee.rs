@@ -706,3 +706,54 @@ pub fn logarithmic_range(min: i32, max: i32, pos: i32) -> f64 {
     let scaled_pos = LOGI_CUTOFF - 2.0 * LOGI_CUTOFF * unit_pos;
     (logarithmic(scaled_pos) - logi_min) / logi_range
 }
+
+/// One unit of incoming damage, as far as a block is concerned.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct DamageUnit {
+    /// Whether the damage type is physical.
+    pub physical: bool,
+    /// Whether it comes from a melee blow (`damage_type::melee_only`).
+    pub melee_only: bool,
+    /// How much of it there is.
+    pub amount: f64,
+}
+
+/// Applies a block to a set of damage units and answers how much was stopped.
+///
+/// Reference: `Character::block_hit`'s damage loop (`melee.cpp:2117-2145`):
+///
+/// ```text
+/// for( damage_unit &elem : dam.damage_units ) {
+///     if( elem.type->physical && elem.type->melee_only ) {
+///         float block_amount = std::min( total_phys_block, elem.amount );
+///         total_phys_block -= block_amount; elem.amount -= block_amount; damage_blocked += block_amount;
+///         if( elem.amount <= epsilon ) continue;
+///         float previous = elem.amount; elem.amount *= physical_block_multiplier;
+///         damage_blocked += previous - elem.amount;
+///     }
+/// }
+/// ```
+///
+/// **Two orderings live in those lines, and both are visible:** the **flat bonus is spent before the multiplier**, so a bonus big enough to swallow a blow stops it whole and the curve never sees it;
+/// and the flat bonus is spent **unit by unit in order**, so the first unit that needs it takes it rather than every unit getting a share. **Damage that is not both physical and melee-only is never
+/// touched** - a block does nothing against fire or against a bullet.
+pub fn block_damage(units: &mut [DamageUnit], flat_block: f64, multiplier: f64) -> f64 {
+    let mut flat_left = flat_block;
+    let mut blocked = 0.0;
+    for unit in units.iter_mut() {
+        if !(unit.physical && unit.melee_only) {
+            continue;
+        }
+        let taken = flat_left.min(unit.amount);
+        flat_left -= taken;
+        unit.amount -= taken;
+        blocked += taken;
+        if unit.amount <= f64::EPSILON {
+            continue;
+        }
+        let before = unit.amount;
+        unit.amount *= multiplier;
+        blocked += before - unit.amount;
+    }
+    blocked
+}

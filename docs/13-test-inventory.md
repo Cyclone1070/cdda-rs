@@ -1125,3 +1125,6 @@ flag rather than inventing a pocket field. Gated by `ground_items::a_no_unload_c
 **Round 1259 ported `logarithmic_range`** (`cata_utility.cpp:161-193`), the logistic curve `block_hit` maps a block score through. Gated by
 `creature_fight::a_block_score_becomes_a_fraction_of_the_damage_stopped`, whose **first run inverted the direction in the gate rather than in the rule**: `0.895` for a beginner is the damage that
 remains, not the damage stopped.
+
+**Round 1260 ported `block_hit`'s damage loop** as `melee::block_damage` + `DamageUnit` (`melee.cpp:2117-2145`): flat bonus before multiplier, spent per unit, physical-and-melee-only only. Gated by
+`creature_fight::a_block_spends_its_flat_bonus_before_it_scales_anything`.

@@ -2526,3 +2526,31 @@ fn a_block_score_becomes_a_fraction_of_the_damage_stopped() {
     assert!(logarithmic_range(0, 40, 99).abs() < 1e-9, "and above it too");
     assert!(logarithmic_range(10, 10, 10).abs() < 1e-9, "an empty interval answers zero, as the reference's error path does");
 }
+
+/// A block spends its flat bonus first and then scales what is left, and only on physical damage that a melee blow deals.
+///
+/// Reference: `Character::block_hit`'s damage loop (`melee.cpp:2117-2145`): for each damage unit, if it is `physical && melee_only`, the **flat block bonus is taken off first**, and only then is the
+/// remainder multiplied by the logistic fraction. **Two orderings live in five lines**: flat before multiplier (so a big flat bonus absorbs a blow whole and the multiplier never sees it), and per unit
+/// in turn (so the flat bonus is spent by the first unit that needs it, not shared out).
+#[test]
+fn a_block_spends_its_flat_bonus_before_it_scales_anything() {
+    use cdda_sim::melee::{DamageUnit, block_damage};
+
+    // Two physical units and one that is not: flat 10 comes off the first two in turn.
+    let mut units = vec![
+        DamageUnit { physical: true, melee_only: true, amount: 8.0 },
+        DamageUnit { physical: true, melee_only: true, amount: 9.0 },
+        DamageUnit { physical: false, melee_only: true, amount: 5.0 },
+    ];
+    let blocked = block_damage(&mut units, 10.0, 0.5);
+    assert!((units[0].amount - 0.0).abs() < 1e-9, "the first unit is absorbed whole by the flat bonus: 8 of 10");
+    assert!((units[1].amount - 3.5).abs() < 1e-9, "the last 2 of the bonus come off the second, and half of the remaining 7 is blocked: {:.3}", units[1].amount);
+    assert!((units[2].amount - 5.0).abs() < 1e-9, "**a non-physical unit is untouched**, however big the block");
+    assert!((blocked - 8.0 - 2.0 - 3.5).abs() < 1e-9, "and the blocked total counts both halves: flat 10 plus the 3.5 the multiplier took");
+
+    // Setting the flat bonus to zero leaves the multiplier alone to do the work.
+    let mut units = vec![DamageUnit { physical: true, melee_only: true, amount: 10.0 }];
+    let blocked = block_damage(&mut units, 0.0, 0.25);
+    assert!((units[0].amount - 2.5).abs() < 1e-9, "a quarter gets through");
+    assert!((blocked - 7.5).abs() < 1e-9, "and three quarters is blocked");
+}

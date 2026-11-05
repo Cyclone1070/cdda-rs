@@ -14856,3 +14856,21 @@ inverted** - so the fix was to the gate and the doc comment, not to the maths.
 
 **Named, not invented:** the caller. `block_hit` still needs the block score itself (`arm_str + unarmed_skill` for limbs, `arm_str + block_bonus + melee_skill` for a shield), the flat
 `mabuff_block_bonus` spent before the multiplier, and the per-damage-unit loop - all of which need martial arts and limbs the port does not have.
+
+## A block spends its flat bonus before it scales anything (round 1260)
+
+| Piece | Reference | Port |
+|---|---|---|
+the damage loop | `block_hit`'s per-unit loop (`melee.cpp:2117-2145`) | `melee::block_damage(units, flat_block, multiplier)` |
+Gate | - | `a_block_spends_its_flat_bonus_before_it_scales_anything` |
+
+**Two orderings live in five lines of reference, and both are visible to a player:**
+
+- the **flat bonus is spent before the multiplier**, so a bonus big enough to swallow a blow stops it **whole** and the logistic curve never sees it;
+- the flat bonus is spent **unit by unit in order**, so the first unit that needs it takes it - it is not shared out between units.
+
+**And one exclusion:** damage that is not **both** physical **and** melee-only is never touched. A block does nothing against fire, and nothing against a bullet - which is the rule a player learns the
+first time they try to block a turret.
+
+**The gate pins the arithmetic where all three meet:** flat 10 against units of 8, 9 and 5 - the first absorbed whole, the second halved after the last 2 of the bonus, the third untouched - and the
+blocked total counted from both halves, `10 + 3.5`.
