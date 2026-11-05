@@ -767,6 +767,23 @@ pub fn install_monster_data(world: &mut World) -> Option<usize> {
         })
         .collect();
     cdda_sim::monster_registry::set_monster_types(world, &kinds);
+    // What each kind bleeds and splatters into, computed once from its own flags, materials and species (`mtype.cpp:431-470`) and kept where a death can ask for it. A monster
+    // whose blood falls through to `get_bleed_type` registers **nothing**, which is the honest answer until the species' `bleeds` field is dumped.
+    for monster in &monsters {
+        let Some(kind) = cdda_sim::monster_registry::id_of(world, &monster.id) else {
+            continue;
+        };
+        let traits = cdda_content::blood::BloodTraits {
+            acid: monster.flags.contains("ACID_BLOOD"),
+            bile: monster.flags.contains("BILE_BLOOD"),
+            arthropod: monster.flags.contains("ARTHROPOD_BLOOD"),
+            warm: monster.flags.contains("WARM"),
+        };
+        let materials: Vec<&str> = monster.materials.keys().map(String::as_str).collect();
+        let blood = cdda_content::blood::blood_field(&traits, &materials);
+        let gibs = cdda_content::blood::gib_field(&materials, monster.species.contains("MOLLUSK"));
+        cdda_sim::monster_registry::set_remains(world, kind, blood, gibs);
+    }
     Some(monsters.len())
 }
 

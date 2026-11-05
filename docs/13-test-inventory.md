@@ -1242,3 +1242,6 @@ tolerates.
 
 **Round 1300 ported the blood and gib ladders** (`mtype.cpp:431-470`) as `content::blood` (re-exported from the sim), gated rung by rung and then over **all 1,154 monster prototypes** - including the
 count that falls through to `get_bleed_type`, which the port cannot answer and says so.
+
+**Round 1301 wired the splatter into the world**: `monster_registry::set_remains` keeps each kind's resolved blood and gib fields, the CLI fills them from the corpus, and reaping writes them as
+fields where the body fell.

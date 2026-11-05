@@ -33,6 +33,10 @@ pub struct MonsterTypes {
     hit_points: Vec<i32>,
     /// The number of each kind, by name.
     by_name: BTreeMap<String, MonsterKindId>,
+    /// What each kind bleeds, by registry order (`mtype::bloodType`, `mtype.cpp:431-454`).
+    blood: Vec<Option<String>>,
+    /// What each kind splatters into, by registry order (`mtype::gibType`, `mtype.cpp:456-470`).
+    gibs: Vec<Option<String>>,
 }
 
 impl MonsterTypes {
@@ -67,6 +71,8 @@ pub fn set_monster_types(world: &mut World, kinds: &[MonsterKind<'_>]) {
         names,
         hit_points,
         by_name,
+        blood: Vec::new(),
+        gibs: Vec::new(),
     });
 }
 
@@ -106,4 +112,40 @@ pub fn count(world: &mut World) -> usize {
     world
         .get::<MonsterTypes>(entity)
         .map_or(0, |registry| registry.by_name.len())
+}
+
+/// Says what a kind bleeds and splatters into, which the death rules need and the type's own data answers.
+///
+/// Reference: `mtype::bloodType` and `mtype::gibType` (`mtype.cpp:431-470`), whose answers are computed from the monster's flags, materials and species by
+/// [`cdda_content::blood`]. This keeps the **answer** rather than the inputs, because a death happens long after the data was loaded and the ladder's two functions are pure.
+pub fn set_remains(world: &mut World, kind: MonsterKindId, blood: Option<&str>, gibs: Option<&str>) {
+    let entity = singletons::singleton::<MonsterTypes, TheMonsterTypes>(world);
+    let Some(mut registry) = world.get_mut::<MonsterTypes>(entity) else {
+        return;
+    };
+    let at = kind.0 as usize;
+    if registry.blood.len() <= at {
+        registry.blood.resize(at + 1, None);
+        registry.gibs.resize(at + 1, None);
+    }
+    registry.blood[at] = blood.map(str::to_owned);
+    registry.gibs[at] = gibs.map(str::to_owned);
+}
+
+/// What a kind bleeds, as the field's id.
+#[must_use]
+pub fn blood_of(world: &mut World, kind: MonsterKindId) -> Option<String> {
+    let entity = singletons::singleton::<MonsterTypes, TheMonsterTypes>(world);
+    world
+        .get::<MonsterTypes>(entity)
+        .and_then(|registry| registry.blood.get(kind.0 as usize).cloned().flatten())
+}
+
+/// What a kind splatters into, as the field's id.
+#[must_use]
+pub fn gibs_of(world: &mut World, kind: MonsterKindId) -> Option<String> {
+    let entity = singletons::singleton::<MonsterTypes, TheMonsterTypes>(world);
+    world
+        .get::<MonsterTypes>(entity)
+        .and_then(|registry| registry.gibs.get(kind.0 as usize).cloned().flatten())
 }

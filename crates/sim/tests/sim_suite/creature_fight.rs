@@ -2768,3 +2768,35 @@ fn a_monster_bleeds_by_its_flags_before_its_flesh() {
     assert_eq!(gib_field(&["flesh"], false), Some("fd_gibs_flesh"), "and flesh into flesh gibs");
     assert_eq!(gib_field(&["steel"], false), None, "while steel gibs into nothing at all");
 }
+
+/// A pulverised body writes its gibs and its blood into the world, and an ordinary corpse bleeds where it fell.
+///
+/// Reference: `mdeath::splatter` (`mondeath.cpp:143-150`) adds `fd_gib` per gib and `fd_blood` with it, and `mdeath::normal`'s `z.bleed( *here )` (`mondeath.cpp:63`) leaves blood without
+/// gibs. **The field is the record**: the corpse item says what died, and the field says what it left on the ground, which is the only thing a later player sees.
+#[test]
+fn a_splattered_body_writes_its_gibs_into_the_world() {
+    let mut world = World::new();
+    let shambler = cdda_sim::spawn_monster(&mut world, (4, 4), cdda_sim::MonsterKindId(42), 40);
+    cdda_sim::monster_registry::set_monster_types(
+        &mut world,
+        &[cdda_sim::monster_registry::MonsterKind { id: "mon_fixture", hp: 40 }],
+    );
+    cdda_sim::monster_registry::set_remains(&mut world, cdda_sim::MonsterKindId(1), Some("fd_blood"), Some("fd_gibs_flesh"));
+    // The two fields the corpse will write, with the intensity range the data gives them.
+    cdda_sim::field_registry::set_field_names(&mut world, &[("fd_blood", 3, 0), ("fd_gibs_flesh", 3, 0)]);
+    cdda_sim::creature::set_kind(&mut world, shambler, cdda_sim::MonsterKindId(1));
+    world
+        .entity_mut(shambler)
+        .insert(cdda_sim::creature::Health { hp: -120, max_hp: 40 });
+
+    let corpse_kind = cdda_sim::ItemTypeId(7);
+    cdda_sim::creature::reap_dead_creatures_as_corpses(&mut world, corpse_kind, |_| 62_500);
+
+    let gibs = cdda_sim::field_registry::id_of(&mut world, "fd_gibs_flesh").expect("the field id is known");
+    let blood = cdda_sim::field_registry::id_of(&mut world, "fd_blood").expect("the field id is known");
+    assert!(
+        cdda_sim::field_strength_at(&world, (4, 4, 0), gibs) > 0,
+        "**the splatter left gibs on the square**"
+    );
+    assert!(cdda_sim::field_strength_at(&world, (4, 4, 0), blood) > 0, "and blood with them");
+}

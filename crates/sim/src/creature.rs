@@ -1838,7 +1838,25 @@ pub fn reap_dead_creatures_as_corpses(
         if let Some(kind) = kind {
             // Reference: `mdeath::normal` (`mondeath.cpp:58-68`) - a body pulverised by its overkill is a **splatter** and leaves no corpse item, and an ordinary one carries
             // `floor( corpse_damage * damage_scale )` of damage, which is the overkill written into the thing the world keeps.
-            let DeathRemains::Corpse { damage } = death_remains(*hp, *max_hp) else {
+            let remains = death_remains(*hp, *max_hp);
+            // Reference: `mdeath::normal`'s `z.bleed( *here )` (`mondeath.cpp:63`) and `mdeath::splatter`'s gib loops (`mondeath.cpp:143-150`). **Both leave the same two fields**;
+            // the splatter leaves many gibs, the corpse leaves blood alone. The kinds come from the monster's own data (`mtype.cpp:431-470`) and a kind the port never registered
+            // leaves nothing at all, because a colour it does not know is not one it may invent.
+            let blood = crate::monster_registry::blood_of(world, *kind);
+            let gibs = crate::monster_registry::gibs_of(world, *kind);
+            if let Some(field) = blood.as_deref().and_then(|name| crate::field_registry::id_of(world, name)) {
+                crate::add_field_strength(world, *square, field, 1);
+            }
+            if matches!(remains, DeathRemains::Pulverized) {
+                if let Some(field) = gibs.as_deref().and_then(|name| crate::field_registry::id_of(world, name)) {
+                    let scattered = gib_count(corpse_damage(*hp, *max_hp), *max_hp).max(1);
+                    for _ in 0..scattered {
+                        crate::add_field_strength(world, *square, field, 1);
+                    }
+                }
+                continue;
+            }
+            let DeathRemains::Corpse { damage } = remains else {
                 continue;
             };
             let died_on = crate::calendar::of(world).map_or(0, |calendar| calendar.turn);

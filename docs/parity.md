@@ -15577,3 +15577,23 @@ of the test as much as the others: a port that invented `fd_blood` for the unkno
 
 **Named, not invented:** `get_bleed_type` itself (`mtype.cpp:412-422`), which needs the monster's `bleed_rate` and its species' `bleeds` field - neither is in the dump. `blood_field` answers `None`
 for those and the splatter leaves no blood rather than inventing a colour.
+
+## A splatter writes its gibs into the world (round 1301)
+
+| Piece | Reference | Port |
+|---|---|---|
+what a kind leaves | `mtype::bloodType` / `gibType` (`mtype.cpp:431-470`) computed once at load | `monster_registry::set_remains`, `blood_of`, `gibs_of` |
+the fields | `mdeath::splatter`'s gib loops, `mdeath::normal`'s `z.bleed` (`mondeath.cpp:63`, `:143-150`) | the reaping step calls `add_field_strength` |
+Gates | - | `creature_fight::a_splattered_body_writes_its_gibs_into_the_world` |
+
+**The field is the record.** The corpse item says *what* died and the field says *what it left on the ground*, which is the only part a later player sees - so the splatter now actually
+splatters instead of the gib count being a number nothing used.
+
+**The answer is kept, not the inputs.** The ladder's two functions are pure and the data is loaded long before a death, so the registry stores the resolved field ids: a death then costs one lookup
+rather than walking materials and species again.
+
+**A kind the port never registered leaves nothing**, and a monster whose blood falls through to `get_bleed_type` registers **nothing at all** - the honest answer until the species' `bleeds` field is
+dumped. Both are the same rule: **a colour the port does not know is not one it may invent.**
+
+**Named, not invented:** `add_splatter`'s scatter across a one-square radius (`random_entry( area )` per gib, which needs a die and the map's field-merge rules), the gibs' strength ramp
+(`rng( 1, i + 1 )`), and the blood's own intensity - the port writes one unit of each on the square the body fell on.
