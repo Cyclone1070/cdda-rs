@@ -562,3 +562,67 @@ pub fn morale_speed_multiplier(morale: i32, difficulty: i32, skill_level: i32, r
     let morale_effect = 1.0 + (morale_mult * as_float(morale)) / HALVING_MORALE;
     1.0 / morale_effect
 }
+
+/// How much the light slows a craft down - and whether it forbids it.
+///
+/// Reference: `Character::lighting_craft_speed_multiplier` (`crafting.cpp:170-207`):
+///
+/// ```text
+/// float darkness = fine_detail_vision_mod( p ) - 4.0f;   // negative is bright, +7.0f is pitch black
+/// if( darkness <= 0 ) return 1.0f;
+/// if( has_flag( CRAFT_IN_DARKNESS ) ) return 1.0f;
+/// if( darkness > 0 && !( BLIND_HARD || BLIND_EASY ) ) return 0.0f;
+/// if( BLIND_EASY ) return skill ? 1 - ( darkness / ( 7.0 / 0.75 ) ) * max( 0, 2 - exceeds ) / 2 : 1.0f;
+/// if( BLIND_HARD && ( !skill || exceeds >= 2 ) )
+///                  return skill ? 1 - ( darkness / ( 7.0 / 0.75 ) ) * max( 0, 8 - exceeds ) / 6 : 0.5f;
+/// return 0.0f;
+/// ```
+///
+/// **The last `return 0.0f` is a refusal, not a slow craft**: a `BLIND_HARD` recipe whose crafter is below requirement-plus-two gives **zero**, the same answer as never carrying the flag. The flag
+/// only helps a crafter skilled enough for it to help, and that is precisely the case a port would get wrong by treating "blind hard" as "possible in the dark".
+///
+/// `vision_modifier` is [`crate::sight::fine_detail_vision_mod`]'s answer for the square; `exceeds` is how far the crafter's skill is past the recipe's requirement
+/// (`exceeds_recipe_requirements`).
+#[must_use]
+pub fn lighting_speed_multiplier(
+    vision_modifier: f32,
+    craft_in_darkness: bool,
+    blind_easy: bool,
+    blind_hard: bool,
+    skill_used: bool,
+    exceeds: i32,
+) -> f32 {
+    /// `fine_detail_vision_mod` treats 4 as "bright enough"; above it the reference counts darkness.
+    const BRIGHT_ENOUGH: f32 = 4.0;
+    /// The reference's own scale: pitch black is `+7`, and the ladders divide by `7 / 0.75`.
+    const PITCH_DARK_DIVISOR: f32 = 7.0 / 0.75;
+    #[allow(clippy::cast_precision_loss)]
+    let as_float = |value: i32| value as f32;
+    let darkness = vision_modifier - BRIGHT_ENOUGH;
+    if darkness <= 0.0 {
+        return 1.0;
+    }
+    if craft_in_darkness {
+        return 1.0;
+    }
+    if !blind_easy && !blind_hard {
+        return 0.0;
+    }
+    let shortfall = |allowed: i32| (as_float(allowed) - as_float(exceeds)).max(0.0);
+    if blind_easy {
+        return if skill_used {
+            1.0 - (darkness / PITCH_DARK_DIVISOR) * shortfall(2) / 2.0
+        } else {
+            // No skill is involved, so there is nothing to be bad at.
+            1.0
+        };
+    }
+    if !skill_used {
+        // The reference's own comment: "No skill involved, so apply arbitrary penalty."
+        return 0.5;
+    }
+    if exceeds >= 2 {
+        return 1.0 - (darkness / PITCH_DARK_DIVISOR) * shortfall(8) / 6.0;
+    }
+    0.0
+}

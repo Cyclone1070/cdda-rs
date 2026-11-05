@@ -1178,3 +1178,43 @@ fn a_miserable_crafter_is_slower_and_harder_work_costs_more() {
     let with_extra = morale_speed_multiplier(-50, 5, 6, &[(5, 5)]);
     assert!(with_extra < 0.5, "a second required skill at the difficulty doubles the multiplier: {with_extra}");
 }
+
+/// Working in the dark is impossible unless the recipe says otherwise, and then it is a skill ladder.
+///
+/// Reference: `Character::lighting_craft_speed_multiplier` (`crafting.cpp:170-207`):
+///
+/// ```text
+/// float darkness = fine_detail_vision_mod( p ) - 4.0f;    // negative is bright, +7 is pitch black
+/// if( darkness <= 0 ) return 1.0f;
+/// if( CRAFT_IN_DARKNESS ) return 1.0f;
+/// if( darkness > 0 && !rec_blind ) return 0.0f;           // cannot craft this in the dark at all
+/// if( blind_easy )  return skill ? 1 - ( darkness / ( 7/0.75 ) ) * max( 0, 2 - exceeds ) / 2 : 1.0f;
+/// if( blind_hard && ( !skill || exceeds >= 2 ) )
+///                   return skill ? 1 - ( darkness / ( 7/0.75 ) ) * max( 0, 8 - exceeds ) / 6 : 0.5f;
+/// return 0.0f;                                            // **dark, and you could do it with more skill**
+/// ```
+///
+/// **The last `return 0.0f` is a refusal and not a multiplier**: a `BLIND_HARD` recipe whose crafter is below the skill it needs produces **zero**, which is the same answer as never having the flag - so the
+/// flag only helps a crafter who is skilled enough for it to help. The gate pins that, and the two ladders' ends: `blind_easy` reaches full speed two levels above the requirement, `blind_hard` six.
+#[test]
+fn working_in_the_dark_is_a_skill_ladder_or_a_refusal() {
+    use cdda_sim::crafting::lighting_speed_multiplier;
+
+    let bright = |vision: f32| lighting_speed_multiplier(vision, false, false, false, true, 0);
+
+    assert!((bright(4.0) - 1.0).abs() < 1e-6, "vision 4 is `darkness` 0, the edge of bright");
+    assert!((bright(2.0) - 1.0).abs() < 1e-6, "and brighter is still one: **no bonus for light**");
+    assert!((bright(11.0) - 0.0).abs() < 1e-6, "**pitch black with no flag is a refusal**, not a slow craft");
+    assert!((lighting_speed_multiplier(11.0, true, false, false, true, 0) - 1.0).abs() < 1e-6, "unless the crafter can see in the dark");
+
+    // blind_easy: 100% at the requirement, 25% at pitch black, full speed two levels up.
+    assert!((lighting_speed_multiplier(11.0, false, true, false, true, 0) - 0.25).abs() < 1e-6, "cheap in the dark: a quarter speed at the requirement");
+    assert!((lighting_speed_multiplier(11.0, false, true, false, true, 2) - 1.0).abs() < 1e-6, "two levels above it, no penalty at all");
+    assert!((lighting_speed_multiplier(11.0, false, true, false, false, 0) - 1.0).abs() < 1e-6, "a recipe with no skill loses nothing in the dark");
+
+    // blind_hard: needs the requirement plus two before it is even allowed.
+    assert!((lighting_speed_multiplier(11.0, false, false, true, true, 1) - 0.0).abs() < 1e-6, "**one level short is a refusal**");
+    assert!((lighting_speed_multiplier(11.0, false, false, true, true, 2) - 0.25).abs() < 1e-6, "at requirement plus two, a quarter speed");
+    assert!((lighting_speed_multiplier(11.0, false, false, true, true, 8) - 1.0).abs() < 1e-6, "and six levels above it, full speed");
+    assert!((lighting_speed_multiplier(11.0, false, false, true, false, 0) - 0.5).abs() < 1e-6, "a hard-in-the-dark recipe with no skill is a flat half");
+}

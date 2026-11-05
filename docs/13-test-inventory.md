@@ -1187,3 +1187,6 @@ leading space**.
 
 **Round 1282 ported `morale_crafting_speed_multiplier`** (`crafting.cpp:209-233`) as `crafting::morale_speed_multiplier`, gated on the 1/3 at skill-equals-difficulty that the reference's own comment
 ("halve at -50") hides - the gate expected 0.375 and then 1/3 before the arithmetic settled.
+
+**Round 1283 ported `lighting_craft_speed_multiplier`** (`crafting.cpp:170-207`) as `crafting::lighting_speed_multiplier`, gated on the refusal at the end of the function and on both skill ladders' full-speed
+ends (two levels for `BLIND_EASY`, six for `BLIND_HARD`).

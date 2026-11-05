@@ -15249,3 +15249,22 @@ worse than either alone.
 
 **Named, not invented:** the **brightness** multiplier that sits beside this one (`light_level_crafting_speed_multiplier`, whose darkness penalty depends on `exceeds_recipe_requirements`), the workbench
 multiplier with its 25% floor, and `add_msg_debug`'s debug line.
+
+## Working in the dark is a skill ladder, or a refusal (round 1283)
+
+| Piece | Reference | Port |
+|---|---|---|
+the light multiplier | `Character::lighting_craft_speed_multiplier` (`crafting.cpp:170-207`) | `crafting::lighting_speed_multiplier`, over `sight::fine_detail_vision_mod` |
+Gate | - | `crafting::working_in_the_dark_is_a_skill_ladder_or_a_refusal` |
+
+**The final `return 0.0f` is a refusal, not a slow craft.** A `BLIND_HARD` recipe whose crafter is below requirement-plus-two produces **zero** - the same answer as never carrying the flag - so the flag
+only helps a crafter skilled enough for it to help. Treating "blind hard" as "possible in the dark" is exactly the mistake the gate is shaped against.
+
+**Both ladders end at full speed and the gate pins both ends:** `BLIND_EASY` reaches 100% **two** levels above the requirement (25% at requirement, in pitch black), `BLIND_HARD` reaches it **six** levels
+above (and needs `+2` just to be allowed at all). Two recipes, two ladders, one function.
+
+**A recipe with no skill is treated differently by each flag, on purpose:** `BLIND_EASY` with no skill loses **nothing** (there is nothing to be bad at), `BLIND_HARD` with no skill pays a **flat 0.5** -
+the reference's own comment calls that "arbitrary penalty" and the port keeps the number rather than tidying it into a ladder.
+
+**Named, not invented:** `exceeds_recipe_requirements` itself (how many levels past the requirement the crafter is), the `CRAFT_IN_DARKNESS` flag's source in the mutation data, and the `p` argument - the
+port takes the point's resolved vision modifier, because the reference's `p` is only used for that one call.
