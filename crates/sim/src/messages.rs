@@ -20,10 +20,21 @@ pub struct MessageLog {
 #[derive(Component, Debug, Clone, Copy, Default)]
 pub struct TheMessageLog;
 
-/// Appends a message.
+/// How many messages the log keeps before it starts dropping the oldest.
+///
+/// Reference: `messages.cpp:203-206` is `while( messages.size() > message_limit ) messages.pop_front();` **followed by** `messages.emplace_back( m )` - so the list is trimmed *before* the new line goes in and
+/// its steady state is the limit **plus one**, which is the sort of off-by-one a hand-written trim loses and this gate pins. The limit is `get_option<int>( "MESSAGE_LIMIT" )`, default 255. The port does not have an options
+/// table yet, so this is the default as a constant - **named, not invented**, and the option is recorded here rather than silently ignored.
+pub const MESSAGE_LIMIT: usize = 255;
+
+/// Appends a message, dropping the oldest lines once the log is over [`MESSAGE_LIMIT`].
 pub fn push(world: &mut World, text: &str) {
     let holder = singletons::singleton::<MessageLog, TheMessageLog>(world);
     if let Some(mut log) = world.get_mut::<MessageLog>(holder) {
+        // Reference: the trim is **after** the append test and **before** the push, so the log never holds more than the limit and the newest line always survives.
+        while log.lines.len() > MESSAGE_LIMIT {
+            log.lines.remove(0);
+        }
         log.lines.push(text.to_owned());
         return;
     }

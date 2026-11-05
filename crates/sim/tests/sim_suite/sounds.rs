@@ -257,3 +257,26 @@ fn a_deaf_monster_hears_nothing_though_its_type_says_it_has_ears() {
     assert_eq!(cdda_sim::hearing::hear_sounds(&mut world), 0, "and a loud sound reaches nobody who cannot hear");
     assert!(world.get::<cdda_sim::creature::Wander>(zombie).is_none(), "so it does not walk anywhere");
 }
+
+/// The log keeps the newest lines and drops the oldest, at the reference's default limit.
+///
+/// Reference: `messages.cpp:203-206` trims to `MESSAGE_LIMIT` (default 255) after appending and before the new line goes in. **The direction matters**: a log full of old lines must lose the *oldest*,
+/// because what a player reads is the news.
+#[test]
+fn the_message_log_drops_the_oldest_lines_first() {
+    use bevy_ecs::prelude::World;
+
+    let mut world = World::new();
+    for number in 0..(cdda_sim::messages::MESSAGE_LIMIT + 10) {
+        cdda_sim::messages::push(&mut world, &format!("line {number}"));
+    }
+    let lines = cdda_sim::messages::lines(&world);
+    // **The steady state is the limit plus one**, because the reference trims *before* pushing: `while( size > limit ) pop; push;` leaves the list one over.
+    assert_eq!(lines.len(), cdda_sim::messages::MESSAGE_LIMIT + 1, "the trim runs before the push, so one line sits over the limit");
+    assert_eq!(lines.first().map(String::as_str), Some("line 9"), "and the oldest lines are the ones dropped");
+    assert_eq!(
+        lines.last().map(String::as_str),
+        Some(format!("line {}", cdda_sim::messages::MESSAGE_LIMIT + 9).as_str()),
+        "with the newest line last"
+    );
+}

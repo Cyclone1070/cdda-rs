@@ -14580,3 +14580,19 @@ the time it was read. The fix moved the push above the replacement, and the comm
 
 **Named, not invented:** the `%s` substitution in the reference's lines (`m_bad` formatting with the item's name), which the data does not exercise here; and the fault messages' **translation
 machinery** (`translation::translated()`), which the port treats as plain text everywhere.
+
+## The log drops the oldest line, and the limit is off by one (round 1233)
+
+| Piece | Reference | Port |
+|---|---|---|
+the trim | `while( size > message_limit ) pop_front; push_back;` (`messages.cpp:203-206`) | `messages::push` with `MESSAGE_LIMIT` **255**, the option's default |
+Gate | - | `the_message_log_drops_the_oldest_lines_first` |
+
+**The reference trims *before* it pushes, so its steady state is the limit plus one.** The gate's first run expected 255 and got **256** - and the rule was right: `while( size > limit ) pop_front(); push_back();`
+leaves the list one over the limit, and the next push trims again. **A port that trimmed after pushing would hold 255 and be wrong by exactly one line for ever**, which nobody would ever notice without a
+gate that counts.
+
+**The direction is the rule a player feels:** the *oldest* lines go, because what a player reads is the news. The gate asserts the first and last line of a full log, not just its length.
+
+**Named, not invented:** the **`MESSAGE_LIMIT` option**. The port has no options table, so the limit is the option's **default** as a constant, and the doc comment says so at the place a reader will look -
+**a constant that stands in for an option is honest only when it says it is standing in.**
