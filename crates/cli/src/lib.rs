@@ -131,6 +131,21 @@ pub enum Step {
         /// How many moves to spend aiming.
         moves: i32,
     },
+    /// Fires a burst from a gun the survivor holds: several shots, one after another, each carrying the last one's recoil.
+    ///
+    /// Reference: `Character::fire_gun`'s `for( curshot < burst_size )` (`src/ranged.cpp:1130-1240`).
+    Burst {
+        /// The gun's id in the guns table.
+        gun: String,
+        /// The square's x.
+        x: i32,
+        /// The square's y.
+        y: i32,
+        /// How many shots to ask for. A gun that runs dry fires fewer.
+        shots: i32,
+        /// How many rounds the gun holds when it is handed over.
+        rounds: i32,
+    },
     /// Shoots a gun the survivor holds at a square, with a number of rounds in it.
     ///
     /// Reference: `Character::fire_gun` (`src/ranged.cpp:1050-1200`) - the shot's price, its own error, the range it is judged at and the blow it does on landing.
@@ -312,14 +327,11 @@ pub fn parse(text: &str) -> Result<Vec<Step>, String> {
                 x: number_of(x, number, "x")?,
                 y: number_of(y, number, "y")?,
             },
-            ["throw", item, "at", x, y] => Step::Throw {
-                item: (*item).to_owned(),
-                x: number_of(x, number, "x")?,
-                y: number_of(y, number, "y")?,
-            },
+            ["throw", ..] => throw_step(&words, number)?,
             ["shot", path] => Step::Shot((*path).to_owned()),
             ["aim", ..] => aim_step(&words, number)?,
             ["shoot", ..] => shoot_step(&words)?,
+            ["burst", ..] => burst_step(&words)?,
             ["goal", x, y] => Step::Goal {
                 x: number_of(x, number, "x")?,
                 y: number_of(y, number, "y")?,
@@ -533,6 +545,7 @@ fn take_item_step(world: &mut World, step: &Step, outcome: &mut Outcome) -> bool
         Step::Shot(path) => take_a_shot(world, outcome, path),
         Step::Shoot { gun, x, y, rounds } => fire_a_step(world, outcome, gun, *x, *y, *rounds),
         Step::Aim { gun, moves } => aim_a_step(world, outcome, gun, *moves),
+        Step::Burst { gun, x, y, shots, rounds } => burst_a_step(world, outcome, gun, *x, *y, *shots, *rounds),
         Step::Monsters => match install_monster_data(world) {
             Some(kinds) => outcome.lines.push(format!("monsters: {kinds} kinds")),
             None => outcome
@@ -1453,6 +1466,37 @@ mod tests {
     #![allow(clippy::panic, clippy::expect_used)]
     use super::*;
 
+    /// A burst step fires several shots, and each one costs moves and is aimed worse than the one before.
+    ///
+    /// Reference: `ranged.cpp:1130-1240`. The gate plays the step through the scenario machinery rather than calling the sim directly, because the claim is about **the step**: a burst is a
+    /// line in a scenario, it spends the survivor's moves shot by shot, and its report lists what each shot did.
+    #[test]
+    fn a_burst_step_fires_every_shot_and_charges_for_each() {
+        let outcome = run(
+            "world 12 bare\nsurvivor 0 0\nitems\nmonsters\ndata\nseed 31\nmonster mon_zombie 6 0\nwield ruger_mini\nburst ruger_mini at 6 0 3 3\n",
+        )
+        .expect("the scenario parses and runs");
+        assert!(outcome.failures.is_empty(), "the scenario's own claims held: {:?}", outcome.failures);
+        let fired: Vec<&String> = outcome.lines.iter().filter(|line| line.starts_with("burst:")).collect();
+        assert_eq!(fired.len(), 1, "one burst report: {fired:?}");
+        assert!(fired.first().is_some_and(|line| line.contains("fired 3 of 3")), "and it fired three: {fired:?}");
+        let shots: Vec<&String> = outcome.lines.iter().filter(|line| line.trim_start().starts_with("shot:")).collect();
+        assert_eq!(shots.len(), 3, "with three shot lines under it: {shots:?}");
+        // The dispersion climbs with the recoil, so the misses are not all the same number.
+        let misses: Vec<f64> = shots
+            .iter()
+            .filter_map(|line| line.split("missed by ").nth(1).and_then(|rest| rest.split(',').next()).and_then(|text| text.parse().ok()))
+            .collect();
+        assert_eq!(misses.len(), 3, "three parsed misses: {misses:?}");
+        // **The `seed` line is what puts dice in the world**: without it `take_rolls` answers `None` and every roll is zero, so three shots would report the same 0.000 miss. The
+        // first version of this gate did exactly that and the identical misses were the evidence.
+        assert!(misses.iter().any(|missed| *missed > 0.0), "the seed line put dice in the world: {misses:?}");
+        assert!(
+            misses.windows(2).any(|pair| matches!(pair, [a, b] if (a - b).abs() > f64::EPSILON)),
+            "and the shots are not identical: {misses:?}"
+        );
+    }
+
     /// A gun that names an ammunition type which is not a round id still finds its round.
     ///
     /// The two namespaces are the reference's own (`gun_type::ammo` against `islot_ammo::type`), and the `shoot` step assumed they agreed until a shotgun was tried: a pipe shotgun's `ammo`
@@ -2161,6 +2205,22 @@ fn reloads_and_shoots(id: &str) -> bool {
     })
 }
 
+/// Parses the `throw` step: an item thrown at a square.
+///
+/// # Errors
+///
+/// When the line is not `throw <item> at <x> <y>`, or a coordinate is not a number.
+fn throw_step(words: &[&str], number: usize) -> Result<Step, String> {
+    let ["throw", item, "at", x, y] = words else {
+        return Err(format!("line {}: expected `throw <item> at <x> <y>`", number + 1));
+    };
+    Ok(Step::Throw {
+        item: (*item).to_owned(),
+        x: number_of(x, number, "x")?,
+        y: number_of(y, number, "y")?,
+    })
+}
+
 /// Parses the `aim` step, which is short enough to keep out of `parse`'s own hundred-line budget.
 fn aim_step(words: &[&str], number: usize) -> Result<Step, String> {
     let ["aim", gun] = words else {
@@ -2221,4 +2281,76 @@ fn aim_a_step(world: &mut World, outcome: &mut Outcome, gun_id: &str, moves: i32
 /// deterministic choice from the data rather than an invented favourite. When no round carries the type, the answer is `None` and the step fails rather than firing nothing.
 fn round_of_type<'a>(rounds: &'a [cdda_content::ammo::AmmoType], kind: &str) -> Option<&'a cdda_content::ammo::AmmoType> {
     rounds.iter().find(|round| round.ammo_type == kind)
+}
+
+/// `burst <gun> at <x> <y> <shots> <rounds>`: several shots in one step.
+///
+/// # Errors
+///
+/// When the line is not that shape, or a number is not a number.
+fn burst_step(words: &[&str]) -> Result<Step, String> {
+    let ["burst", gun, "at", x, y, shots, rounds] = words else {
+        return Err(format!("`{}` is not a burst step", words.join(" ")));
+    };
+    let number = words.len();
+    Ok(Step::Burst {
+        gun: (*gun).to_owned(),
+        x: number_of(x, number, "x")?,
+        y: number_of(y, number, "y")?,
+        shots: number_of(shots, number, "shots")?,
+        rounds: number_of(rounds, number, "rounds")?,
+    })
+}
+
+/// Fires a burst, and reports each shot the gun actually made.
+///
+/// Reference: `ranged.cpp:1130-1240` - the loop that spends a round, charges a shot and adds recoil per shot, and stops when the gun will not load.
+fn burst_a_step(world: &mut World, outcome: &mut Outcome, gun_id: &str, x: i32, y: i32, shots: i32, rounds: i32) {
+    let Some(survivor) = survivor(world) else {
+        outcome.failures.push("there is no survivor to fire".to_owned());
+        return;
+    };
+    let Some((gun, lines, round)) = fire_tables(gun_id, outcome) else {
+        return;
+    };
+    let names = cdda_sim::item_registry::snapshot(world);
+    // The same rule the single shot uses: a gun in hand, or one put into it by the step itself.
+    let Some(held) = carried_item_of(world, survivor, gun_id, &names).or_else(|| {
+        let kind = cdda_sim::drop_item(world, (0, 0), cdda_sim::ItemTypeId(0), rounds);
+        world.entity_mut(kind).insert(cdda_sim::creature::WieldedBy(survivor));
+        Some(kind)
+    }) else {
+        outcome.lines.push(format!("nothing called {gun_id} is in hand to fire"));
+        return;
+    };
+    if let Some(mut item) = world.get_mut::<cdda_sim::GroundItem>(held)
+        && item.charges == 0
+    {
+        item.charges = rounds;
+    }
+    let before = cdda_sim::creature::moves_left(world, survivor);
+    let made = cdda_sim::shot::fire_burst(
+        world,
+        survivor,
+        &gun,
+        &lines,
+        (x, y, 0),
+        18.0,
+        round.as_ref(),
+        Some(held),
+        gun_weight(gun_id),
+        reloads_and_shoots(gun_id),
+        shots,
+    );
+    let spent = before - cdda_sim::creature::moves_left(world, survivor);
+    outcome.lines.push(format!("burst: {gun_id} fired {} of {shots} shots for {spent} moves", made.len()));
+    for shot in &made {
+        outcome.lines.push(format!(
+            "  shot: missed by {:.3}, hurt {}, noise {}",
+            shot.aim.missed_by, shot.hurt, shot.noise
+        ));
+    }
+    if made.is_empty() {
+        outcome.failures.push(format!("{gun_id} fired no shot at all"));
+    }
 }

@@ -865,3 +865,7 @@ rather than the return value.
 **Round 1166 ported the burst loop**: `shot::fire_burst` (`ranged.cpp:1130-1240`) fires shot after shot, stopping when the gun will not load, and returns one `Fired` per shot made. Gated by
 `shot_rules::a_burst_fires_until_the_gun_runs_dry_and_gets_worse_as_it_goes` - a two-round gun asked for three fires two, empties, and the second shot is aimed worse than the first. The gun's
 `burst_size` column is **not dumped yet**, which the docs name.
+
+**Round 1167 put the burst into the scenario language**: the `burst <gun> at <x> <y> <shots> <rounds>` step (`crates/cli/src/lib.rs`, `docs/cli-steps.md`) over round 1166's `shot::fire_burst`.
+Gated by `cdda-cli::tests::a_burst_step_fires_every_shot_and_charges_for_each`, which plays the step through `run` and checks the burst report, the three `shot:` lines and that the misses differ -
+the last of which caught that **a scenario with no `seed` line has no dice at all**.

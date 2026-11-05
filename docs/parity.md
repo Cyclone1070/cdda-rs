@@ -13531,3 +13531,21 @@ spread is drawn per pellet - **five separate rules, all inside the loop, and the
 
 **Named, not invented:** `burst_size` from the gun's own data (the port takes the count as an argument, because the guns dump does not carry `burst_size` yet - **a named gap, not a guess**),
 `delay += qty * absorb` for a bipod, `if( !gun.is_gun() ) break;` for a gun destroyed mid-burst, and `curshot`'s own shot counter that gunmods read.
+
+## A burst is a step you can take (round 1167)
+
+| Piece | Reference | Port |
+|---|---|---|
+the step | - | `burst <gun> at <x> <y> <shots> <rounds>`, in `docs/cli-steps.md` |
+the loop | `ranged.cpp:1130-1240` | round 1166's `shot::fire_burst` |
+Gate | - | `a_burst_step_fires_every_shot_and_charges_for_each` |
+
+**The gate plays the step through the scenario machinery, not the sim**, because the claim is about the **step**: a burst is a line in a scenario, it spends the survivor's moves shot by shot, and
+its report lists what each shot did. The report reads `burst: ruger_mini fired 3 of 3 shots for 90 moves`, with a `shot:` line under it per shot.
+
+**The first version of the gate found a silent zero in the scenario language.** All three shots reported a miss of **0.000**, and the reason was that the scenario had no `seed` line - so
+`take_rolls` answered `None`, every roll was zero, and the shots were not "identical by chance" but **identical by absence**. The gate now asserts that at least one miss is above zero *and* that
+the misses differ, and it names the seed line as the thing that puts dice in the world. **A scenario without a seed is a scenario with no chance in it**, which is worth knowing before a
+playtest is written that expects a scatter.
+
+**Named, not invented:** the burst's `burst_size` (the step states the count, because the guns dump does not carry the gun's own burst mode yet), and the `delay += qty * absorb` a bipod adds.
