@@ -160,3 +160,23 @@ fn a_sad_reader_is_refused_only_by_a_book_they_already_know() {
     assert!(!morale_permits_reading(false, -41, true), "**a dull book already read, read while miserable, is refused**");
     assert!(morale_permits_reading(false, -100, false), "but an unread book is always readable: there is still something to learn");
 }
+
+/// What a reader could get out of a book: nothing at all, nothing more, or something.
+///
+/// Reference: `Character::get_book_mastery` (`character.cpp:11925-11951`), four verdicts in a fixed order: an **unidentified** book cannot be judged (`CANT_DETERMINE`); a book that teaches **no
+/// skill** is `MASTERED` at once; too low a level is `CANT_UNDERSTAND`; **at or above** the level it teaches is `MASTERED`; and anything between is `LEARNING`.
+///
+/// **Two boundaries carry the rule:** `req > knowledge` is the understanding gate, so **exactly the required level understands** - and `knowledge >= level` is the mastery gate, so **exactly the level it
+/// teaches is already mastered**, not one short.
+#[test]
+fn what_a_reader_could_get_out_of_a_book() {
+    use cdda_sim::reading::{BookMastery, book_mastery};
+
+    assert_eq!(book_mastery(false, true, 9, 5, 7), BookMastery::CantDetermine, "an unidentified book cannot be judged");
+    assert_eq!(book_mastery(true, false, 0, 0, 0), BookMastery::Mastered, "a book that teaches nothing is mastered on sight");
+    assert_eq!(book_mastery(true, true, 4, 5, 7), BookMastery::CantUnderstand, "one level short of the requirement");
+    assert_eq!(book_mastery(true, true, 5, 5, 7), BookMastery::Learning, "**exactly the requirement understands**");
+    assert_eq!(book_mastery(true, true, 6, 5, 7), BookMastery::Learning, "and so does anything below what it teaches");
+    assert_eq!(book_mastery(true, true, 7, 5, 7), BookMastery::Mastered, "**exactly the level it teaches is mastery**");
+    assert_eq!(book_mastery(true, true, 9, 5, 7), BookMastery::Mastered, "and anything above it");
+}

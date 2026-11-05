@@ -15093,3 +15093,20 @@ learn from it. A book that is still fun needs no cheering up either - so misery 
 
 **Named, not invented:** `get_book_mastery` and its three verdicts (`CANT_UNDERSTAND`, `MASTERED`, and the third), which need the skill registry's knowledge levels; the `DRIVING` refusal, which needs
 the vehicle the reader is in; and the `NOT_BOOK` case, which the port's `Option<Book>` makes impossible to reach.
+
+## What a reader could get out of a book (round 1274)
+
+| Piece | Reference | Port |
+|---|---|---|
+the four verdicts | `get_book_mastery` (`character.cpp:11925-11951`) | `reading::book_mastery` + `BookMastery` |
+Gate | - | `reading::what_a_reader_could_get_out_of_a_book` |
+
+**Two boundaries carry the whole rule**, and both are one character wide:
+
+- `req > knowledge` is the understanding gate, so **exactly the required level understands** - a `>=` would lock out every reader who meets the requirement;
+- `knowledge >= level` is the mastery gate, so **exactly the level the book teaches is already mastered**, not one short.
+
+**A book that teaches no skill is mastered on sight**, which is not the same as useless: it is the `fun_to_read` and proficiency part that remains, and the verdict is what the reading UI keys on.
+
+**Named, not invented:** `has_identified`, which needs the item-identification model; and `get_knowledge_level`, which the port answers from `SkillLevel::knowledge_level` - the caller supplies the
+number so the rule stays testable without a body.

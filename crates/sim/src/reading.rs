@@ -152,3 +152,53 @@ pub fn fun_to_read(book: FunBook, traits: &[&str], inspirational: bool, human_co
 pub const fn morale_permits_reading(fun_to_read: bool, morale_level: i32, identified: bool) -> bool {
     fun_to_read || crate::morale::has_morale_to_read(morale_level) || !identified
 }
+
+/// What a reader could get out of a book.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BookMastery {
+    /// The book has not been identified, so nobody can say what is in it.
+    CantDetermine,
+    /// It teaches nothing the reader can use - either it teaches no skill at all, or they already know everything in it.
+    Mastered,
+    /// The reader is below the level it requires.
+    CantUnderstand,
+    /// There is something to learn.
+    Learning,
+}
+
+/// Which of the four verdicts a book gets from a reader.
+///
+/// Reference: `Character::get_book_mastery` (`character.cpp:11925-11951`):
+///
+/// ```text
+/// if( !book.is_book() || !has_identified( book.typeId() ) ) return CANT_DETERMINE;
+/// if( !skill ) return MASTERED;                     // the book gives no skill
+/// if( skill_requirement > skill_level ) return CANT_UNDERSTAND;
+/// if( skill_level >= max_skill_learnable ) return MASTERED;
+/// return LEARNING;
+/// ```
+///
+/// **Two boundaries carry the whole rule.** `req > knowledge` is the understanding gate, so **exactly the required level understands** - a `>=` there would lock out every reader who meets the
+/// requirement. And `knowledge >= level` is the mastery gate, so **exactly the level the book teaches is already mastered**, not one short.
+#[must_use]
+pub fn book_mastery(
+    identified: bool,
+    has_skill: bool,
+    knowledge_level: i32,
+    skill_requirement: i32,
+    max_skill_learnable: i32,
+) -> BookMastery {
+    if !identified {
+        return BookMastery::CantDetermine;
+    }
+    if !has_skill {
+        return BookMastery::Mastered;
+    }
+    if skill_requirement > knowledge_level {
+        return BookMastery::CantUnderstand;
+    }
+    if knowledge_level >= max_skill_learnable {
+        return BookMastery::Mastered;
+    }
+    BookMastery::Learning
+}
