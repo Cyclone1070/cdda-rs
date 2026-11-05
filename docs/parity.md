@@ -13472,3 +13472,24 @@ values, two behaviours.
 
 **Named, not invented:** the pellet loop's `multishot` term (`ballistics.cpp:390`, which shifts each pellet's aim by its index), `proj.count` for a **gunmod's** `shot_count` multiplier, and the
 `hurt_part_when_fired` that a hit on a body part carries.
+
+## A shot's noise comes from the round (round 1164)
+
+| Piece | Reference | Port |
+|---|---|---|
+the gun's own | `gun_type::loudness` | guns dump **version 6** |
+the round's | `islot_ammo::loudness` (`itype.h:1111`, defaulting to -1 and filled by the factory from the round's damage) | ammo dump **version 4** |
+the rule | `item::gun_noise` (`ranged.cpp:2394-2409`) | `shot::gun_noise(gun_loudness, round_loudness)` |
+Gate | - | `a_shot_s_noise_comes_from_the_round_and_not_from_the_gun` |
+
+**The data says the surprising thing and the gate records it:** a **Mini-14 states a loudness of zero**, and its **.223 states more than a hundred**. The gun's figure is the *mechanism* - a
+suppressor's, a gunmod's, a grenade launcher's own - and the round's is the shot. **A port that read only the gun would report a rifle as silent**, and it would do so while every number it
+printed came from the data.
+
+**One addition and one floor is the whole general rule.** The reference's shape is `noise = gun`, `+= ammo`, then each gunmod's own add and multiply, then `max( noise, 0 )`; the port has no
+gunmods, so it has the two terms and the floor - and the floor is a real branch rather than defensive noise, because the ammo field **defaults to -1** in the data and a round that never had a
+loudness stated would otherwise make a shot quieter than silence.
+
+**Named, not invented:** the reference's **special cases by ammunition type** - a grenade launcher's `8`, a railgun's `24`, a rocket's `4`, the arrows' `whizz!`, the bolts' `thonk!` and the
+lasers' four-way sound - which are a table keyed by ammunition type and belong with the sound system, not with this addition; gunmod `loudness` and `loudness_multiplier`; and the
+`sounds::sound` call that puts the number into the world, which needs the sound store.

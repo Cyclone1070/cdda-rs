@@ -36,6 +36,8 @@ pub struct AmmoType {
     /// The **ammunition type** the round belongs to - `islot_ammo::type` (`itype.h:1063`), one a round. A gun names a type (`"shot"`); the rounds that fit it are keyed by their own ids
     /// (`shot_bird`, `shot_00`), so the two namespaces must not be confused.
     pub ammo_type: String,
+    /// How loud the round is: `islot_ammo::loudness` (`itype.h:1111`), which the factory fills from the round's damage when the data leaves it unstated.
+    pub loudness: i32,
 }
 
 /// Reads one round from a dump row.
@@ -56,6 +58,7 @@ pub fn read_one(id: &str, object: &Object) -> Result<AmmoType, String> {
         recovery_chance: number(object, "recovery_chance")?,
         shot_damage: float(object, "shot_damage")?,
         recoil: number(object, "recoil")?,
+        loudness: number(object, "loudness")?,
         ammo_type: match object.get("ammo_types") {
             Some(Value::Str(kind)) => kind.clone(),
             _ => String::new(),

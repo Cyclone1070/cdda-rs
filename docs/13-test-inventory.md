@@ -853,3 +853,7 @@ gate also recorded that **a gun names its ammunition type while the rounds table
 
 **Round 1163 ported the pellet loop**: `shot::fire_at` now fires `round.count` pellets, each drawing its own spread, aim and blow (`ballistics.cpp:388`). Gated by
 `shot_rules::a_shotgun_fires_its_round_s_whole_count_and_a_rifle_fires_one` - a differential with the count as the only variable: a .223 does 39, birdshot does more than any single pellet.
+
+**Round 1164 ported a shot's noise**: `GunType::loudness` (guns dump **v6**), `AmmoType::loudness` (ammo dump **v4**) and `shot::gun_noise` (`item::gun_noise`, `ranged.cpp:2394-2409` - the gun's
+figure plus the round's, floored at zero). Gated by `shot_rules::a_shot_s_noise_comes_from_the_round_and_not_from_the_gun`, which records that a Mini-14 states **zero** and its .223 more than a
+hundred.

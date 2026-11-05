@@ -527,3 +527,40 @@ fn a_shotgun_fires_its_round_s_whole_count_and_a_rifle_fires_one() {
         "which is more than any one pellet could: {shotgun_hurt}"
     );
 }
+
+/// A shot's noise is the gun's figure plus the round's, and the round carries almost all of it.
+///
+/// Reference: `item::gun_noise` (`ranged.cpp:2394-2409`) - `noise = type->gun->loudness`, `+= ammo->loudness` when the gun has a round, then clamped at zero. **The corpus says the gun's own
+/// figure is zero for a rifle and the round's is not**, which is the fact a port that read only the gun would get exactly backwards.
+#[test]
+fn a_shot_s_noise_comes_from_the_round_and_not_from_the_gun() {
+    use cdda_sim::shot::gun_noise;
+
+    let read = |name: &str| {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let bytes = std::fs::read(path).expect("the corpus file exists");
+        cdda_json::parse(&bytes).expect("valid JSON")
+    };
+    let guns = cdda_content::guns::load_dump(&read("items/guns.json")).expect("the guns load");
+    let rounds = cdda_content::ammo::load_dump(&read("items/ammo.json")).expect("the ammo loads");
+    let gun = |id: &str| guns.iter().find(|gun| gun.id == id).expect("the gun is in the dump").clone();
+    let round = |id: &str| rounds.iter().find(|round| round.id == id).expect("the round is in the dump").clone();
+
+    let rifle = gun("ruger_mini");
+    let cartridge = round("223");
+    assert_eq!(rifle.loudness, 0, "the rifle itself states no loudness at all");
+    assert!(cartridge.loudness > 100, "while the .223 is loud: {}", cartridge.loudness);
+    assert_eq!(
+        gun_noise(rifle.loudness, cartridge.loudness),
+        cartridge.loudness,
+        "so the shot's noise is the round's, to the point"
+    );
+
+    let bird = round("shot_bird");
+    assert!(bird.loudness > 0, "and birdshot states its own: {}", bird.loudness);
+    assert_eq!(gun_noise(0, bird.loudness), bird.loudness, "the same rule, another round");
+
+    // The floor, which is the one branch: a round that somehow stated negative loudness cannot make a shot quieter than nothing.
+    assert_eq!(gun_noise(0, -50), 0, "a negative round is floored at zero");
+    assert_eq!(gun_noise(10, 5), 15, "and the two add when both state a figure");
+}

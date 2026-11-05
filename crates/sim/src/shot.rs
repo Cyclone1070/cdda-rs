@@ -383,3 +383,15 @@ pub fn gun_recoil(
         (f64::from(kick) * (1.0 + factor.abs())) as i32
     }
 }
+
+/// How loud a shot is: `item::gun_noise` (`ranged.cpp:2394-2445`), before the reference's per-ammunition special cases.
+///
+/// The rule is one addition and a floor - the gun's own `loudness` plus the round's, clamped at zero - and **the round carries almost all of it**: a Mini-14's own figure is **zero** while its
+/// .223 is loud, which is why a port that read only the gun would think a rifle silent.
+///
+/// The reference's gunmod terms (`loudness` and `loudness_multiplier`) are absent because the port has no gunmods, and its **special cases by ammunition type** - a grenade launcher's
+/// `8`, a railgun's `24`, a rocket's `4`, and the arrows' and lasers' own sounds - are named in `docs/parity.md` rather than folded in as if they were the general rule.
+#[must_use]
+pub fn gun_noise(gun_loudness: i32, round_loudness: i32) -> i32 {
+    (gun_loudness + round_loudness).max(0)
+}

@@ -37,6 +37,8 @@ pub struct GunType {
     pub handling: i32,
     /// The sights' own error: `gun_type::sight_dispersion`, which `item::sight_dispersion` hands to `Character::effective_dispersion` and the shooter's eyes make worse.
     pub sight_dispersion: i32,
+    /// How loud the weapon itself is: `gun_type::loudness`, which `item::gun_noise` adds to the round's own.
+    pub loudness: i32,
 }
 
 
@@ -58,6 +60,7 @@ pub fn read_one(id: &str, object: &Object) -> Result<GunType, String> {
     gun.ammo_to_fire = number(object, "ammo_to_fire", gun.ammo_to_fire)?;
     gun.handling = number(object, "handling", gun.handling)?;
     gun.sight_dispersion = number(object, "sight_dispersion", gun.sight_dispersion)?;
+    gun.loudness = number(object, "loudness", gun.loudness)?;
     if let Some(Value::Float(damage)) = object.get("damage") {
         gun.damage = *damage;
     } else if let Some(Value::Int(damage)) = object.get("damage") {
