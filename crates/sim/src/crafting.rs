@@ -711,3 +711,32 @@ pub fn exceeds_recipe_requirements(main_skill: Option<i32>, difficulty: i32, req
     }
     over
 }
+
+/// Whether a crafter knows the **theory** of a recipe, regardless of how rusty their hands are.
+///
+/// Reference: `SkillLevelMap::theoretical_recipe_requirements` (`skill.cpp:615-626`): every skill - the main one **and** each required one - is asked about its **knowledge level**, not its practical
+/// level. A recipe with no main skill only asks about the required ones.
+#[must_use]
+pub fn theoretical_recipe_requirements(main_knowledge: Option<i32>, difficulty: i32, required: &[(i32, i32)]) -> bool {
+    if main_knowledge.is_some_and(|level| level < difficulty) {
+        return false;
+    }
+    required.iter().all(|&(level, needed)| level >= needed)
+}
+
+/// Whether a recipe can be attempted at all: the hands know it **or** the head does.
+///
+/// Reference: `SkillLevelMap::has_recipe_requirements` (`skill.cpp:630-632`):
+///
+/// ```text
+/// return exceeds_recipe_requirements( rec ) >= 0 || theoretical_recipe_requirements( rec );
+/// ```
+///
+/// **The `||` is the whole rule.** A character whose practical skill has fallen below the requirement - rusted, injured, or simply never practised - can still craft it if their **knowledge** is intact.
+/// That is what a survivor who read the book but has not practised lately relies on, and a port that asked only the practical question would lock them out of work they legitimately know.
+///
+/// The two answers are taken as arguments because they are computed from different skill numbers; [`exceeds_recipe_requirements`] and [`theoretical_recipe_requirements`] produce them.
+#[must_use]
+pub fn has_recipe_requirements(practical_excess: i32, theory_known: bool) -> bool {
+    practical_excess >= 0 || theory_known
+}

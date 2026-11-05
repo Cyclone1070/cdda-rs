@@ -1196,3 +1196,6 @@ ends (two levels for `BLIND_EASY`, six for `BLIND_HARD`).
 
 **Round 1285 ported `exceeds_recipe_requirements`** (`skill.cpp:591-613`) as `crafting::exceeds_recipe_requirements`, gated on the dropped **zero** difference - the rule that separates an exactly-met
 required skill from a capping one.
+
+**Round 1286 ported the recipe requirement pair** - `theoretical_recipe_requirements` and `has_recipe_requirements` (`skill.cpp:615-632`) - gated on knowledge carrying a crafter whose practical level is
+short. The refactor dropped a redundant `practical_known` argument the first draft had added.

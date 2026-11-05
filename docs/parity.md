@@ -15307,3 +15307,22 @@ crafter who is good at one thing and short on another.
 
 **Named, not invented:** `get_skill_level`'s `context` item argument (which lets a tool or state change an effective level) and `theoretical_recipe_requirements`, the knowledge-side twin used by
 `knows_recipe`'s theory check.
+
+## A recipe is attemptable if the hands know it or the head does (round 1286)
+
+| Piece | Reference | Port |
+|---|---|---|
+the theory check | `theoretical_recipe_requirements` (`skill.cpp:615-626`) | `crafting::theoretical_recipe_requirements` |
+the attempt check | `has_recipe_requirements` (`skill.cpp:630-632`) | `crafting::has_recipe_requirements` |
+Gate | - | `crafting::a_recipe_is_attemptable_if_the_hands_know_it_or_the_head_does` |
+
+**The `||` is the whole rule.** A character whose practical skill has fallen below the requirement - rusted, injured, or simply never practised - can still craft it if their **knowledge** is intact.
+That is what a survivor who read the book but has not practised lately relies on, and a port that asked only the practical question would lock them out of work they legitimately know.
+
+**The theory check asks the same questions of a different number:** the main skill and **each required skill**, all against knowledge level rather than practical level, and a recipe with no main
+skill only asks about the required ones.
+
+**A first draft carried a redundant `practical_known` flag** next to the excess, which is the same fact said twice; the refactor dropped it, so the function is now literally the reference's expression.
+
+**Named, not invented:** `get_knowledge_level`'s own source (the port keeps knowledge and practice in `SkillLevel`), and `knows_recipe`, which uses this pair as its first gate before its book and
+character checks.

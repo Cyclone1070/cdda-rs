@@ -1276,3 +1276,24 @@ fn a_skill_met_exactly_does_not_cap_the_excess() {
     assert_eq!(exceeds_recipe_requirements(None, 0, &[(5, 4)]), 0, "a recipe with no main skill starts at zero and a met requirement leaves it there");
     assert_eq!(exceeds_recipe_requirements(None, 0, &[(2, 4)]), -2, "but a short one still pulls it down");
 }
+
+/// A recipe is attemptable if the hands know it **or** the head does.
+///
+/// Reference: `has_recipe_requirements` (`skill.cpp:630-632`) is `exceeds_recipe_requirements( rec ) >= 0 || theoretical_recipe_requirements( rec )`, and the theory half (`skill.cpp:615-626`) asks the
+/// same questions about **knowledge level** instead of practical level - for the main skill and every required skill alike.
+///
+/// **The `||` is the whole rule**: a character whose practical skill has rusted below the requirement can still make the thing if their knowledge is intact, which is what a survivor who has read the
+/// book but not practised lately relies on. A port that asked only the practical question would lock them out.
+#[test]
+fn a_recipe_is_attemptable_if_the_hands_know_it_or_the_head_does() {
+    use cdda_sim::crafting::{has_recipe_requirements, theoretical_recipe_requirements};
+
+    assert!(theoretical_recipe_requirements(Some(5), 5, &[]), "**knowledge exactly at the requirement is enough**");
+    assert!(!theoretical_recipe_requirements(Some(4), 5, &[]), "one level short is not");
+    assert!(!theoretical_recipe_requirements(Some(9), 5, &[(4, 5)]), "and a required skill short is not either, whatever the main skill");
+    assert!(theoretical_recipe_requirements(None, 0, &[(4, 4)]), "a recipe with no main skill only needs its required skills");
+
+    assert!(has_recipe_requirements(2, false), "practical excess is enough on its own");
+    assert!(has_recipe_requirements(-3, true), "**and knowledge carries a crafter whose practical level is short**");
+    assert!(!has_recipe_requirements(-1, false), "but neither one means no");
+}
