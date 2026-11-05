@@ -76,6 +76,23 @@ inherits its mistakes.
 
 M1 is the first milestone that proves anything. Everything before it is scaffolding.
 
+### Where the port actually stands
+
+| Phase | State | Evidence |
+|---|---|---|
+P0 foundation | ported and gated (RNG draw-for-draw, JSON, units, coordinates) | [parity.md](parity.md), the sim suite's `rng::` and `json::` gates |
+P1 registry & saves | **in progress**: 160 registries load, the prototypes dump is at version 3, the kind tables are filled from the data (rounds 1218-1219) | `content_suite`, `corpus/prototypes/` |
+P2 world grid | ported: terrain, furniture, fields, fire, light, scent, sounds | `sim_suite::{terrain, field, fire, light, scent, sounds}` |
+P3 items | **in progress**: kinds, weights, volumes, pockets, damage, faults, wear; **not** crafting or components | `sim_suite::{ground_items, item_data, item_burn, creature_fight}` |
+P4 creatures & combat | **in progress and the current focus**: melee, ranged, armour, effects, monster AI's hearing and wandering | `sim_suite::{creature_fight, shot, aim, hearing}` |
+P5 spells & enchantments | **not started** - and it is what `EQUIPMENT_DAMAGE_CHANCE` waits on | - |
+P6 activities | **not started** | - |
+P7 AI | **partly**: hearing, wandering, attitudes; **not** the behaviour tree or NPC decisions | `sim_suite::hearing`, `sounds` |
+P8-P11 | not started | - |
+
+**The honest summary: the simulation is correct for what a scenario builds, and a scenario builds by hand.** The next phase boundary is P3's crafting and components, because `FRAGILE_MELEE`, repairs and
+every recipe wait on the item model rather than on another rule.
+
 **Where the work stands.** M0 is passed. The id half of M1 is **finished**: all 90
 registries the reference reports are now reproduced exactly, with nothing invented
 - terrain and its types, overmap specials, effect-on-conditions, items, monsters,
