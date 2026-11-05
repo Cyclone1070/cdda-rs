@@ -270,3 +270,40 @@ pub fn rates_with_enchantments(world: &World, creature: bevy_ecs::entity::Entity
         sleepiness: modify("SLEEPINESS", rates.sleepiness),
     }
 }
+
+/// What being thirsty costs a character's speed, along the reference's own thresholds.
+///
+/// Reference: `Character::thirst_speed_penalty` (`character.cpp:12439-12451`):
+///
+/// ```text
+/// { 40 -> 0, 300 -> -25, 600 -> -50, 1200 -> -75 }   // and 1200 is where a character dies
+/// return static_cast<int>( multi_lerp( thirst_thresholds, thirst ) );
+/// ```
+///
+/// `multi_lerp` (`cata_utility.cpp:267-286`) walks past every threshold `<= x`, answers the **first** value below the range and the **last** above it, and interpolates linearly between the two that
+/// bracket the value. **The cast truncates toward zero**, so a penalty of −12.5 is **−12** and −37.5 is **−37** - the reference rounds *up* towards zero for penalties, which is the opposite of what
+/// "round down" would do to a negative number, and the gate says so with both halves.
+#[must_use]
+pub fn thirst_speed_penalty(thirst: i32) -> i32 {
+    /// The reference's `thirst_thresholds`, in order.
+    const THRESHOLDS: [(f64, f64); 4] = [(40.0, 0.0), (300.0, -25.0), (600.0, -50.0), (1200.0, -75.0)];
+    let x = f64::from(thirst);
+    let mut index = 0;
+    while index < THRESHOLDS.len() && THRESHOLDS[index].0 <= x {
+        index += 1;
+    }
+    let value = if index == 0 {
+        THRESHOLDS[0].1
+    } else if index >= THRESHOLDS.len() {
+        THRESHOLDS[THRESHOLDS.len() - 1].1
+    } else {
+        let (low_x, low_value) = THRESHOLDS[index - 1];
+        let (high_x, high_value) = THRESHOLDS[index];
+        let t = (x - low_x) / (high_x - low_x);
+        t * high_value + (1.0 - t) * low_value
+    };
+    // `static_cast<int>` truncates toward zero; Rust's cast does the same, so the sign is the reference's.
+    #[allow(clippy::cast_possible_truncation)]
+    let penalty = value as i32;
+    penalty
+}

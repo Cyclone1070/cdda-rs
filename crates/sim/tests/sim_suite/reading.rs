@@ -45,3 +45,22 @@ fn a_book_takes_the_time_the_book_the_reader_and_their_eyes_say() {
     assert_eq!(time_to_read(60, 100, 1, 90), 120, "and 90 seconds is still one minute");
     assert_eq!(skimmed(65), 6, "skimming divides by ten and truncates");
 }
+
+/// Being thirsty slows a character down along a set of thresholds, not a straight line.
+///
+/// Reference: `Character::thirst_speed_penalty` (`character.cpp:12439-12451`): a `multi_lerp` over four points - **40 thirst is no penalty, 300 is −25, 600 is −50, and 1200 is −75**, where the
+/// character dies. `multi_lerp` (`cata_utility.cpp:267-286`) walks past every threshold at or below the value, answers the **first** point's value below the range and the **last** point's above it, and
+/// interpolates between the two that bracket it. **The `static_cast<int>` truncates toward zero**, so halfway to 300 is −12, not −13.
+#[test]
+fn thirst_slows_a_character_along_its_thresholds() {
+    use cdda_sim::needs::thirst_speed_penalty;
+
+    assert_eq!(thirst_speed_penalty(0), 0, "below the first threshold, the first value - and `<= x` means 40 itself also answers");
+    assert_eq!(thirst_speed_penalty(40), 0, "40 is exactly the first threshold: still no penalty");
+    assert_eq!(thirst_speed_penalty(170), -12, "**halfway to 300 is -12.5, and the cast truncates toward zero**");
+    assert_eq!(thirst_speed_penalty(300), -25, "at the second threshold");
+    assert_eq!(thirst_speed_penalty(450), -37, "-37.5 truncates to -37, not -38");
+    assert_eq!(thirst_speed_penalty(600), -50, "at the third");
+    assert_eq!(thirst_speed_penalty(1200), -75, "at the fourth, where a character dies");
+    assert_eq!(thirst_speed_penalty(5000), -75, "and beyond it, the last value");
+}

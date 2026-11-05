@@ -1142,3 +1142,6 @@ first run aimed the clamp test at intelligence 400, which never reaches the clam
 
 **Round 1265 ported `Character::time_to_read`'s numeric steps** as `reading::time_to_read` + `reading::skimmed` (`character.cpp:12411-12436`), gated on the whole-minute intelligence penalty (30 adds
 nothing, 90 adds the same as 60) and the worse-eyes doubling.
+
+**Round 1266 ported `Character::thirst_speed_penalty`** as `needs::thirst_speed_penalty` (`character.cpp:12439-12451`) with `multi_lerp` inlined, gated by
+`reading::thirst_slows_a_character_along_its_thresholds` - including the truncate-toward-zero halves (−12.5 → −12).

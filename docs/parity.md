@@ -14957,3 +14957,19 @@ nothing**, 60 adds a whole book's worth, and **90 adds the same as 60** - three 
 
 **Named, not invented:** `try_understand` and the `fun_to_read` that decides it (which needs P5's fun), the `PROF_DICEMASTER` exemption, and `has_identified`, which needs book identification - the
 skim step is ported as its own one-line rule so the missing half is visible rather than folded in.
+
+## Thirst slows a character along thresholds, not a line (round 1266)
+
+| Piece | Reference | Port |
+|---|---|---|
+the curve | `Character::thirst_speed_penalty` (`character.cpp:12439-12451`) over `multi_lerp` (`cata_utility.cpp:267-286`) | `needs::thirst_speed_penalty` |
+Gate | - | `reading::thirst_slows_a_character_along_its_thresholds` |
+
+**The thresholds are `40 -> 0`, `300 -> -25`, `600 -> -50`, `1200 -> -75`**, and 1200 is where a character dies. `multi_lerp` walks past every threshold `<= x` - so **40 itself is already "no penalty"
+rather than the start of one** - answers the first value below the range and the last above it, and interpolates between the pair that brackets the value.
+
+**The cast is the second rule, and it points the opposite way from "round down":** `static_cast<int>` truncates **toward zero**, so −12.5 is **−12** and −37.5 is **−37**. The gate asserts both halves,
+because a port that landed on −13 would be wrong by exactly the amount the reference chose not to take.
+
+**Named, not invented:** where the penalty is applied. The port stores thirst and has a speed recorder, but nothing reads this penalty yet - the function is ported and gated ahead of its caller, which is
+the same order this port has used for every curve it did not want to wire blind.
