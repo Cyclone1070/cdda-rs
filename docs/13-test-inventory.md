@@ -955,3 +955,6 @@ and "the wander did not change" was true for no reason. The second half of the g
 (`monster.cpp:3969-3981`). Gated by `sounds::a_frightened_monster_walks_away_from_the_noise_and_an_uninterested_one_does_not_move`, which pins the mirror arithmetic. **Three existing hearing gates
 had to gain an `Anger` component** - a missing component reads as zero, so the new branch made their monsters uninterested - recorded in `docs/parity.md` as the second time a hand-built fixture,
 not the rule, was the thing at fault.
+
+**Round 1190 ported `monster::can_hear`**: `hearing::can_hear` (`monster.cpp:1318-1321` - the `HEARS` flag **and** the absence of the `deaf` effect), which the hearing rule now asks instead of the
+flag alone. Gated by `sounds::a_deaf_monster_hears_nothing_though_its_type_says_it_has_ears`, which deafens the **same** monster between assertions so a missing effect check cannot pass.

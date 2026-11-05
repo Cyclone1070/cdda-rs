@@ -226,3 +226,34 @@ fn a_frightened_monster_walks_away_from_the_noise_and_an_uninterested_one_does_n
 
     assert!(hearing(0, 5).is_none(), "a monster with morale but no anger walks nowhere at all");
 }
+
+/// A deaf monster hears nothing, even though its type says it has ears.
+///
+/// Reference: `monster::can_hear` (`monster.cpp:1318-1321`) is `has_flag( mon_flag_HEARS ) && !has_effect( effect_deaf )` - **one line and two conditions**, and the port had only the first.
+/// A gate that only ever built hearing monsters would have passed either way, so this one **deafens the same monster** and asks again.
+#[test]
+fn a_deaf_monster_hears_nothing_though_its_type_says_it_has_ears() {
+    use bevy_ecs::prelude::*;
+    use cdda_core_types::rng::Rolls;
+
+    let mut world = World::new();
+    cdda_sim::singletons::put_rolls(&mut world, Rolls::new(9));
+    let entry = cdda_json::parse(br#"{"id":"deaf","max_duration":"1 hours"}"#).expect("valid json");
+    let cdda_json::Value::Object(entry) = entry else {
+        panic!("an effect type is an object")
+    };
+    let kind = cdda_content::effects::read_one("deaf", &entry);
+    cdda_sim::effect_registry::set_effect_types(&mut world, std::slice::from_ref(&kind));
+
+    let zombie = cdda_sim::creature::spawn_creature(&mut world, "the zombie", (2, 0, 0));
+    cdda_sim::creature_flags::add_flag(&mut world, zombie, "HEARS");
+    world.entity_mut(zombie).insert(cdda_sim::creature::Anger(100));
+    assert!(cdda_sim::hearing::can_hear(&world, zombie), "it has ears and is not deaf");
+
+    // The same monster, deafened: the flag is still there and it hears nothing.
+    cdda_sim::applied_effects::add(&mut world, zombie, cdda_sim::effects::ActiveEffect::new(&kind, 100, 1));
+    assert!(!cdda_sim::hearing::can_hear(&world, zombie), "deaf beats ears");
+    cdda_sim::sounds::make_a_sound_of_kind(&mut world, (0, 0, 0), 40, "bang!", cdda_sim::sounds::SoundCategory::Combat);
+    assert_eq!(cdda_sim::hearing::hear_sounds(&mut world), 0, "and a loud sound reaches nobody who cannot hear");
+    assert!(world.get::<cdda_sim::creature::Wander>(zombie).is_none(), "so it does not walk anywhere");
+}

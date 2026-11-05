@@ -14046,3 +14046,23 @@ thing that was wrong.**
 
 **Named, not invented:** the `TODO`s the reference itself leaves in this function - **the fleeing distance does not scale with the sound, and a creature on exactly the noise's square needs a random
 direction** - the `friendly`/player-source exemption, and `process_trigger` `SOUND`.
+
+## A deaf monster hears nothing (round 1190)
+
+| Piece | Reference | Port |
+|---|---|---|
+the rule | `monster::can_hear` (`monster.cpp:1318-1321`) | `hearing::can_hear(world, creature)` |
+Gate | - | `a_deaf_monster_hears_nothing_though_its_type_says_it_has_ears` |
+
+**One line, two conditions, and the port had one.** `return has_flag( MON_HEARS ) && !has_effect( effect_deaf );` - the port asked the flag and never the effect, so **anything that deafened a
+monster changed nothing about what it heard.** The `deaf` effect, a flashbang and every other deafening rule were writing to a field nobody read.
+
+**The gate deafens the same monster rather than comparing two.** A gate that only ever built healthy monsters would have passed with the effect check missing entirely; this one asserts
+`can_hear` **true**, then adds `deaf`, then asserts **false** - and that a loud sound reaches **nobody** and the monster **does not walk**. **Four assertions, one creature, and the only thing that
+changed between them is the effect.**
+
+**A monster the data spawns already carries `Anger`, `Morale` and its type's flags** - round 1189's failures were **hand-built fixtures** and not the spawn path, which this round checked before
+touching anything: `spawn_monster_of_type` sets all four (`creature.rs:1716-1752`). **The rule was right; the tests were thin.**
+
+**Named, not invented:** `is_immune_effect( effect_deaf )` for the **character** half of the reference's deafness (`character.cpp:5867`), the `DEAF`/`PARTIAL_DEAF` worn flags, and
+`Creature::can_hear`'s other callers - the monster's `hear_sound` and the character's own.

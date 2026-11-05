@@ -22,6 +22,15 @@ pub struct HeardSound {
     pub provocative: bool,
 }
 
+/// Whether a creature can hear at all: `monster::can_hear` (`monster.cpp:1318-1321`), one line and two conditions.
+///
+/// Reference: `return has_flag( mon_flag_HEARS ) && !has_effect( effect_deaf );` - **a deaf monster is still a monster with ears**, so the flag alone is not the answer. The port had the flag
+/// and not the effect, which meant anything that deafened a monster changed nothing about what it heard.
+#[must_use]
+pub fn can_hear(world: &World, creature: Entity) -> bool {
+    crate::creature_flags::has_flag(world, creature, "HEARS") && !crate::applied_effects::has(world, creature, "deaf")
+}
+
 /// How loud a sound is to a creature `distance` squares away, or nothing when it is out of earshot.
 ///
 /// Reference: `monster::hear_sound` (`monster.cpp:3932-3937`): `volume = goodhearing ? 2 * vol - dist : vol - dist`, and a volume of zero or less is not heard at all.
@@ -77,7 +86,7 @@ pub fn hear_sounds(world: &mut World) -> usize {
     {
         let mut query = world.query::<(Entity, &crate::Position)>();
         for (entity, place) in query.iter(world) {
-            if crate::creature_flags::has_flag(world, entity, "HEARS") {
+            if can_hear(world, entity) {
                 listeners.push((entity, (place.x, place.y, place.z)));
             }
         }
