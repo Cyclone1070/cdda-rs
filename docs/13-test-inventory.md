@@ -869,3 +869,6 @@ rather than the return value.
 **Round 1167 put the burst into the scenario language**: the `burst <gun> at <x> <y> <shots> <rounds>` step (`crates/cli/src/lib.rs`, `docs/cli-steps.md`) over round 1166's `shot::fire_burst`.
 Gated by `cdda-cli::tests::a_burst_step_fires_every_shot_and_charges_for_each`, which plays the step through `run` and checks the burst report, the three `shot:` lines and that the misses differ -
 the last of which caught that **a scenario with no `seed` line has no dice at all**.
+
+**Round 1168 dumped the gun's burst size**: `GunType::burst` (guns dump **version 7**, `islot_gun::modes`' `DEFAULT` qty), and the `burst` step now fires the gun's own trigger pull when the line
+says `0` shots. Gated by `content_suite::gun_rules::every_gun_states_how_many_shots_one_trigger_pull_makes` - a Mini-14's 1, 20 automatics out of 406 guns, and the data's ceiling of 50.

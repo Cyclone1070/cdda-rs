@@ -154,3 +154,28 @@ fn every_gun_states_the_error_its_sights_add() {
         guns.iter().filter(|gun| gun.sight_dispersion > 0).count()
     );
 }
+
+/// Every gun states how many shots a trigger pull makes, and most of them are one.
+///
+/// Reference: `islot_gun::modes` (`itype.h:826`) always holds a `DEFAULT` entry, and its `qty` is `item::burst_size` (`item.cpp:11640-11650`). **This is the column round 1167 named as
+/// missing**: a burst is the gun's own property and not a number a scenario should have to invent.
+#[test]
+fn every_gun_states_how_many_shots_one_trigger_pull_makes() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/guns.json");
+    let bytes = std::fs::read(path).expect("the guns dump exists");
+    let value = cdda_json::parse(&bytes).expect("valid JSON");
+    let guns = cdda_content::guns::load_dump(&value).expect("the dump loads");
+
+    let burst = |id: &str| guns.iter().find(|gun| gun.id == id).expect("the gun is in the dump").burst;
+    assert_eq!(burst("ruger_mini"), 1, "a Mini-14 is single-shot");
+    let automatic = guns.iter().filter(|gun| gun.burst > 1).count();
+    assert!(automatic >= 20, "and the data has automatics: {automatic} of {} guns", guns.len());
+    assert!(guns.iter().all(|gun| gun.burst >= 1), "no gun fires fewer than one shot a pull");
+    let most = guns.iter().map(|gun| gun.burst).max();
+    assert_eq!(most, Some(50), "the highest is fifty, which is the data's own ceiling: {most:?}");
+    assert!(
+        guns.iter().filter(|gun| gun.burst == 1).count() > 300,
+        "and single-shot is the common case: {}",
+        guns.iter().filter(|gun| gun.burst == 1).count()
+    );
+}

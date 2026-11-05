@@ -2329,6 +2329,8 @@ fn burst_a_step(world: &mut World, outcome: &mut Outcome, gun_id: &str, x: i32, 
         item.charges = rounds;
     }
     let before = cdda_sim::creature::moves_left(world, survivor);
+    // Zero shots means **the gun's own trigger pull**: the data's `DEFAULT` mode qty, which is what a burst really is. A scenario that says a number overrides it.
+    let shots = if shots == 0 { gun.burst } else { shots };
     let made = cdda_sim::shot::fire_burst(
         world,
         survivor,

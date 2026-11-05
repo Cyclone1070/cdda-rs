@@ -13549,3 +13549,24 @@ the misses differ, and it names the seed line as the thing that puts dice in the
 playtest is written that expects a scatter.
 
 **Named, not invented:** the burst's `burst_size` (the step states the count, because the guns dump does not carry the gun's own burst mode yet), and the `delay += qty * absorb` a bipod adds.
+
+## How many shots one trigger pull makes (round 1168)
+
+| Piece | Reference | Port |
+|---|---|---|
+the data | `islot_gun::modes` (`itype.h:826`) always holds a `DEFAULT` entry whose `qty` is the burst size (`item::burst_size`, `item.cpp:11640-11650`) | guns dump **version 7**, field `burst` |
+the use | - | `burst` step with `0` shots fires the gun's own trigger pull |
+Gate | - | `every_gun_states_how_many_shots_one_trigger_pull_makes` |
+
+**This closes the gap round 1167 named.** A burst is the **gun's** property, not a scenario's invention: a Mini-14's `DEFAULT` mode is **one** shot, the data's automatics go up to **fifty**,
+and only **20 of 406** guns are automatic at all - **which is the distribution that makes the column worth dumping rather than assuming a number**.
+
+**The helper's first version would not compile, and the header said why.** I typed the parameter as `gun_type`; the structure is `islot_gun` (`itype.h:826`) - `gun_type` is not a type in the
+reference at all. **A port's own naming drifting toward the reference's vocabulary is exactly how a transcription error looks**, and the compiler caught it because the reference's name was the
+one in the header.
+
+**A data quirk surfaced while reading the dump and is worth recording**: `modular_m4_carbine` states an **ammunition type of `NULL`**, because it takes its ammunition from a gunmod's magazine
+rather than its own chamber. The port's `round_of_type` therefore finds nothing for it, which is the **honest** outcome until gunmods are ported - named, not invented.
+
+**Named, not invented:** gunmods that add or replace firing modes (`islot_gunmod::add_modes`, `itype.h:965`), the `AUTO` and `BURST` modes as distinct from `DEFAULT`, and `item::burst_size`'s
+own gunmod search.

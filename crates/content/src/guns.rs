@@ -39,6 +39,9 @@ pub struct GunType {
     pub sight_dispersion: i32,
     /// How loud the weapon itself is: `gun_type::loudness`, which `item::gun_noise` adds to the round's own.
     pub loudness: i32,
+    /// How many shots one trigger pull makes: the `qty` of the gun's `DEFAULT` firing mode (`islot_gun::modes`, `itype.h:826`; `item::burst_size`, `item.cpp:11640-11650`). **One for a
+    /// single-shot weapon**, and the data goes as high as fifty.
+    pub burst: i32,
 }
 
 
@@ -61,6 +64,7 @@ pub fn read_one(id: &str, object: &Object) -> Result<GunType, String> {
     gun.handling = number(object, "handling", gun.handling)?;
     gun.sight_dispersion = number(object, "sight_dispersion", gun.sight_dispersion)?;
     gun.loudness = number(object, "loudness", gun.loudness)?;
+    gun.burst = number(object, "burst", gun.burst)?;
     if let Some(Value::Float(damage)) = object.get("damage") {
         gun.damage = *damage;
     } else if let Some(Value::Int(damage)) = object.get("damage") {
