@@ -760,43 +760,8 @@ pub fn has_recipe_requirements(practical_excess: i32, theory_known: bool) -> boo
     practical_excess >= 0 || theory_known
 }
 
-/// A practice recipe's difficulty, which follows the crafter inside the range the data gives it.
+/// A practice recipe's difficulty and teaching cap, which live beside the recipe they describe.
 ///
-/// Reference: `recipe::get_difficulty` (`recipe.cpp:61-68`):
-///
-/// ```text
-/// if( is_practice() && skill_used )
-///     return clamp( crafter's skill level, practice_data->min_difficulty, practice_data->max_difficulty );
-/// return difficulty;
-/// ```
-///
-/// **The clamp is what keeps a practice recipe teaching**: it is never too easy to teach and never out of reach, because once the crafter is inside the range the difficulty **is** their level. The caller
-/// passes the three numbers because the practice block is the recipe's, and this rule is only about the clamp.
-#[must_use]
-pub fn practice_difficulty(skill_level: i32, min_difficulty: i32, max_difficulty: i32) -> i32 {
-    skill_level.clamp(min_difficulty, max_difficulty)
-}
-
-/// The level at which a recipe stops teaching.
-///
-/// Reference: `recipe::get_skill_cap` (`recipe.cpp:70-77`):
-///
-/// ```text
-/// if( is_practice() ) return practice_data->skill_limit - 1;
-/// return difficulty * 1.25;
-/// ```
-///
-/// **The ordinary branch truncates**, because the function answers an `int`: a difficulty of five caps at **six**, not seven. The practice branch is one **below** its limit, which is the other off-by-one a
-/// port would lose by reading "skill limit" as the cap itself.
-#[must_use]
-pub fn skill_cap(practice_skill_limit: Option<i32>, difficulty: i32) -> i32 {
-    match practice_skill_limit {
-        Some(limit) => limit - 1,
-        // `difficulty * 1.25` with an integer answer: the reference's implicit conversion towards zero.
-        None => {
-            #[allow(clippy::cast_possible_truncation)]
-            let cap = (f64::from(difficulty) * 1.25) as i32;
-            cap
-        }
-    }
-}
+/// Reference: `recipe::get_difficulty` and `recipe::get_skill_cap` (`recipe.cpp:61-77`). They are re-exported here because the crafting rules are read from this module, and because a second copy of the
+/// clamp and the `1.25` truncation would be a second place to disagree with the reference.
+pub use cdda_content::recipes::{practice_difficulty, skill_cap};

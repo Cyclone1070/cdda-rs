@@ -559,3 +559,43 @@ fn practice_of(object: &Object) -> Option<Practice> {
         skill_limit: number("skill_limit")?,
     })
 }
+
+/// A practice recipe's difficulty, which follows the crafter inside the range the data gives it.
+///
+/// Reference: `recipe::get_difficulty` (`recipe.cpp:61-68`): a practice recipe answers `clamp( skill level, min_difficulty, max_difficulty )` and every other recipe answers its own `difficulty`.
+/// **The clamp is what keeps a practice recipe teaching**: it is never too easy and never out of reach, because inside the range the difficulty **is** the crafter's level.
+#[must_use]
+pub fn practice_difficulty(skill_level: i32, min_difficulty: i32, max_difficulty: i32) -> i32 {
+    skill_level.clamp(min_difficulty, max_difficulty)
+}
+
+/// The level at which a recipe stops teaching.
+///
+/// Reference: `recipe::get_skill_cap` (`recipe.cpp:70-77`): a practice recipe stops at `skill_limit - 1`; an ordinary one at `difficulty * 1.25`, **truncated** - so a difficulty of five caps at six.
+#[must_use]
+pub fn skill_cap(practice_skill_limit: Option<i32>, difficulty: i32) -> i32 {
+    match practice_skill_limit {
+        Some(limit) => limit - 1,
+        None => {
+            #[allow(clippy::cast_possible_truncation)]
+            let cap = (f64::from(difficulty) * 1.25) as i32;
+            cap
+        }
+    }
+}
+
+impl Recipe {
+    /// How hard this recipe is for a crafter of this level - the reference's `get_difficulty`.
+    #[must_use]
+    pub fn difficulty_for(&self, skill_level: i32) -> i32 {
+        self.practice.map_or(self.difficulty, |practice| {
+            practice_difficulty(skill_level, practice.min_difficulty, practice.max_difficulty)
+        })
+    }
+
+    /// The level at which this recipe stops teaching - the reference's `get_skill_cap`.
+    #[must_use]
+    pub fn teaching_cap(&self) -> i32 {
+        skill_cap(self.practice.map(|practice| practice.skill_limit), self.difficulty)
+    }
+}

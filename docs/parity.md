@@ -15393,3 +15393,19 @@ recipe has no block at all, which is the same "absent is not zero" distinction t
 
 **Named, not invented:** `get_difficulty`'s clamp and `get_skill_cap` already take these three numbers as arguments (round 1289) and will read them from `Recipe::practice` when the crafting path is wired;
 `practice_data`'s JSON defaults (`max_difficulty` to `MAX_SKILL - 1`, `skill_limit` to `MAX_SKILL`) are resolved by the reference before the dump, so the port sees numbers rather than defaults.
+
+## A recipe answers its own difficulty and cap (round 1291)
+
+| Piece | Reference | Port |
+|---|---|---|
+the two answers | `recipe::get_difficulty` / `get_skill_cap` (`recipe.cpp:61-77`) | `Recipe::difficulty_for` and `Recipe::teaching_cap` |
+Gate | - | `crafting::a_recipe_answers_its_own_difficulty_and_cap`, on **real recipes** from the dump |
+
+**The rules moved next to the thing they describe.** They were ported in `sim::crafting` ahead of the loader (round 1289) and are now `content::recipes`, with the sim re-exporting them - so there is one
+clamp and one `1.25` truncation in the tree, not two places to disagree with the reference.
+
+**The gate reads the reference's own recipes**, not fixtures: a practice recipe answers the minimum below its range and the maximum above it, its cap is the limit minus one; an ordinary recipe ignores the
+crafter entirely and caps at `difficulty * 1.25` truncated.
+
+**Named, not invented:** `get_skill_cap`'s use in the practice **XP** path (which needs the activity's skill-gain step, P6) and `difficulty_for`'s caller in `can_make`, which needs the crafting
+inventory.

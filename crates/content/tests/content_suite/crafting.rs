@@ -50,3 +50,37 @@ fn practice_recipes_carry_their_range() {
         "while an ordinary recipe has no block at all"
     );
 }
+
+/// A recipe answers its own difficulty and teaching cap, with practice recipes following the crafter.
+///
+/// Reference: `recipe::get_difficulty` / `recipe::get_skill_cap` (`recipe.cpp:61-77`). The gate reads **real recipes** from the reference's dump: a practice recipe's difficulty is the crafter's level
+/// inside its range and its cap is `skill_limit - 1`, while an ordinary recipe answers its stated difficulty and caps at `difficulty * 1.25` truncated.
+#[test]
+fn a_recipe_answers_its_own_difficulty_and_cap() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/recipes.json");
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return;
+    };
+    let value = cdda_json::parse(text.as_bytes()).expect("the recipe dump parses");
+    let (recipes, _) = cdda_content::recipes::from_dump(&value).expect("the recipe dump loads");
+
+    let practice = recipes
+        .iter()
+        .find(|recipe| recipe.practice.is_some())
+        .expect("a practice recipe exists");
+    let block = practice.practice.expect("just found");
+    assert_eq!(practice.difficulty_for(0), block.min_difficulty, "**below the range, the minimum**");
+    assert_eq!(practice.difficulty_for(99), block.max_difficulty, "and above it, the maximum");
+    assert_eq!(practice.teaching_cap(), block.skill_limit - 1, "the cap is the limit minus one");
+
+    let ordinary = recipes
+        .iter()
+        .find(|recipe| recipe.practice.is_none() && recipe.difficulty > 0)
+        .expect("an ordinary recipe exists");
+    assert_eq!(ordinary.difficulty_for(0), ordinary.difficulty, "an ordinary recipe ignores the crafter");
+    assert_eq!(
+        ordinary.teaching_cap(),
+        (f64::from(ordinary.difficulty) * 1.25) as i32,
+        "and caps at its difficulty times one and a quarter, truncated"
+    );
+}

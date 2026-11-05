@@ -1211,3 +1211,6 @@ one, the truncated 1.25). The practice block is not in the recipe dump yet and i
 
 **Round 1290 put the practice block in the harness dump** (124 of 6,291 recipes), re-dumped `corpus/recipes.json`, and added `Practice` to the recipe loader - after the first emission produced
 invalid JSON and had to be fixed and re-dumped.
+
+**Round 1291 moved the practice rules beside `Recipe`** as `Recipe::difficulty_for` / `Recipe::teaching_cap` (`recipe.cpp:61-77`), with the sim re-exporting them, and gated them on real recipes from the dump
+rather than fixtures.
