@@ -564,3 +564,47 @@ fn a_shot_s_noise_comes_from_the_round_and_not_from_the_gun() {
     assert_eq!(gun_noise(0, -50), 0, "a negative round is floored at zero");
     assert_eq!(gun_noise(10, 5), 15, "and the two add when both state a figure");
 }
+
+/// A shot is a sound the world hears, placed where the shooter stands and as loud as its round.
+///
+/// Reference: `ranged.cpp:1180-1190` calls `sounds::sound( pos, gun_noise.volume, ... )` after the shot. **This is the wiring round 1164 left undone**, and the gate asks the store rather than
+/// the return value: a `Sound` entity exists, it is at the shooter's square, and its volume is the round's own.
+#[test]
+fn a_shot_puts_a_sound_in_the_world_at_the_shooter_s_square() {
+    use bevy_ecs::prelude::*;
+    use cdda_core_types::rng::Rolls;
+
+    let read = |name: &str| {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let bytes = std::fs::read(path).expect("the corpus file exists");
+        cdda_json::parse(&bytes).expect("valid JSON")
+    };
+    let guns = cdda_content::guns::load_dump(&read("items/guns.json")).expect("the guns load");
+    let lines = cdda_content::skills::load_dump(&read("skills.json")).expect("the skills load");
+    let rounds = cdda_content::ammo::load_dump(&read("items/ammo.json")).expect("the ammo loads");
+    let gun = guns.iter().find(|gun| gun.id == "ruger_mini").expect("the Mini-14").clone();
+    let cartridge = rounds.iter().find(|round| round.id == "223").expect("the .223").clone();
+
+    let mut world = World::new();
+    cdda_sim::singletons::put_rolls(&mut world, Rolls::new(7));
+    let shooter = cdda_sim::creature::spawn_creature(&mut world, "the shooter", (3, 4, 0));
+    world
+        .entity_mut(shooter)
+        .insert(cdda_sim::creature::Strength { base: 8 })
+        .insert(cdda_sim::creature::Dexterity { base: 8 })
+        .insert(cdda_sim::creature::Perception { base: 8 })
+        .insert(cdda_sim::creature::Moves { left: 1_000 });
+
+    assert!(cdda_sim::sounds::heard_this_turn(&mut world).is_empty(), "nothing has been heard yet");
+    let fired = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (6, 4, 0), 18.0, Some(&cartridge), None, 3_180.0, false);
+    assert!(fired.loaded, "the shot fired");
+
+    let heard = cdda_sim::sounds::heard_this_turn(&mut world);
+    assert_eq!(heard.len(), 1, "and it made exactly one sound");
+    let Some(sound) = heard.first() else {
+        return;
+    };
+    assert_eq!(sound.volume, cartridge.loudness, "as loud as the round: {}", cartridge.loudness);
+    assert_eq!(sound.position, (3, 4, 0), "and at the shooter's own square, not the target's");
+    assert_eq!(fired.noise, cartridge.loudness, "and the report says the same number the world heard");
+}

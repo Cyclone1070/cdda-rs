@@ -183,6 +183,8 @@ pub struct Fired {
     pub hurt: i32,
     /// Whether the rounds the shot needed were in the gun and were spent. A shot that could not load is **not fired**: it costs nothing and hits nothing.
     pub loaded: bool,
+    /// How loud the shot was, in the reference's units - the number of squares over which it is still heard. Zero for a shot that never loaded.
+    pub noise: i32,
 }
 
 /// Fires a gun at a square, spending the shooter's moves and rolling the shot's own error.
@@ -208,7 +210,7 @@ pub fn fire_at(
     // load. A gun the port has no entity for is treated as loaded, which keeps this rule usable without one.
     let loaded = gun_entity.is_none_or(|gun_entity| crate::shot::spend_rounds(world, gun_entity, gun.ammo_to_fire));
     if !loaded {
-        return Fired { cost: 0, aim: crate::ballistics::aim_of(0.0, 0.0, 1.0), hit: None, hurt: 0, loaded };
+        return Fired { cost: 0, aim: crate::ballistics::aim_of(0.0, 0.0, 1.0), hit: None, hurt: 0, loaded, noise: 0 };
     }
     let blow = blow_of(gun, round);
     let level = crate::creature::skill_level(world, shooter, &gun.skill);
@@ -282,7 +284,13 @@ pub fn fire_at(
     } else {
         world.entity_mut(shooter).insert(Recoil { points: after });
     }
-    Fired { cost, aim, hit: struck, hurt, loaded: true }
+    // Reference: `sounds::sound( pos, gun_noise.volume, ... )` after the shot (`ranged.cpp:1180-1190`), which is what makes firing a gun a thing the world hears rather than a private
+    // transaction between the shooter and its target.
+    let noise = gun_noise(gun.loudness, round.map_or(0, |round| round.loudness));
+    if let Some(place) = world.get::<crate::Position>(shooter) {
+        crate::sounds::make_sound(world, (place.x, place.y, place.z), noise);
+    }
+    Fired { cost, aim, hit: struck, hurt, loaded: true, noise }
 }
 
 /// The shooter's wind as a whole percentage, which is what `RAS_time` compares against twenty-five.

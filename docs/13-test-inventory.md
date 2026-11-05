@@ -857,3 +857,7 @@ gate also recorded that **a gun names its ammunition type while the rounds table
 **Round 1164 ported a shot's noise**: `GunType::loudness` (guns dump **v6**), `AmmoType::loudness` (ammo dump **v4**) and `shot::gun_noise` (`item::gun_noise`, `ranged.cpp:2394-2409` - the gun's
 figure plus the round's, floored at zero). Gated by `shot_rules::a_shot_s_noise_comes_from_the_round_and_not_from_the_gun`, which records that a Mini-14 states **zero** and its .223 more than a
 hundred.
+
+**Round 1165 put the shot's noise into the world**: `fire_at` calls `sounds::make_sound` at the shooter's square with `gun_noise(gun, round)` and reports it as `Fired::noise`; the CLI's fire line
+prints it. Gated by `shot_rules::a_shot_puts_a_sound_in_the_world_at_the_shooter_s_square`, which asks the **store** (a `Sound` entity exists, at the shooter's square, at the round's volume)
+rather than the return value.

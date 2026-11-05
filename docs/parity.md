@@ -13493,3 +13493,24 @@ loudness stated would otherwise make a shot quieter than silence.
 **Named, not invented:** the reference's **special cases by ammunition type** - a grenade launcher's `8`, a railgun's `24`, a rocket's `4`, the arrows' `whizz!`, the bolts' `thonk!` and the
 lasers' four-way sound - which are a table keyed by ammunition type and belong with the sound system, not with this addition; gunmod `loudness` and `loudness_multiplier`; and the
 `sounds::sound` call that puts the number into the world, which needs the sound store.
+
+## The shot is heard (round 1165)
+
+Round 1164 computed a number; this round puts it in the world.
+
+| Piece | Reference | Port |
+|---|---|---|
+the call | `sounds::sound( pos, gun_noise.volume, ... )` (`ranged.cpp:1180-1190`) | `sounds::make_sound` at the shooter's square, inside `fire_at` |
+the report | - | `Fired::noise` |
+Gate | - | `a_shot_puts_a_sound_in_the_world_at_the_shooter_s_square` |
+
+**The gate asks the store, not the return value.** It checks that a `Sound` entity **exists**, that it is at the **shooter's** square and not the target's, and that its volume is the round's
+own - three claims about the world, where a gate on `Fired::noise` alone would pass even if nothing were ever inserted.
+
+**The scenario now prints it**: `fire: ruger_mini made the shot, 30 moves, missed by 0.069, hurt 39 Some(445v0), noise 154`. **154** is the .223's own loudness, and it is a **radius**: the
+reference's `volume - distance` means a zombie fifteen squares away hears a rifle and one a hundred and fifty-five squares away does not. **That is the number the hearing code already
+consumes** (`hearing::heard_volume`, ported earlier), so the chain from the cartridge to a monster's ears is now closed.
+
+**Named, not invented:** the reference's `sounds::sound` also carries a **description** ("Bang!"), which the port's `Sound` component does not hold - the port's sounds are volumes at squares and
+the words are a UI concern that is not ported; the sound's own **decay across turns** (`sounds_since_last_turn` being drained by the turn loop, which the port does with `sounds::clear`), and
+the per-ammunition special cases named in round 1164.

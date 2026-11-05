@@ -2030,11 +2030,12 @@ fn fire_a_step(world: &mut World, outcome: &mut Outcome, gun_id: &str, x: i32, y
     let shot = cdda_sim::shot::fire_at(world, survivor, &gun, &lines, (x, y, 0), 18.0, round.as_ref(), Some(held), gun_weight(gun_id), reloads_and_shoots(gun_id), );
     let spent = before - cdda_sim::creature::moves_left(world, survivor);
     outcome.lines.push(format!(
-        "fire: {gun_id} {} the shot, {spent} moves, missed by {:.3}, hurt {} {:?}",
+        "fire: {gun_id} {} the shot, {spent} moves, missed by {:.3}, hurt {} {:?}, noise {}",
         if shot.loaded { "made" } else { "could not make" },
         shot.aim.missed_by,
         shot.hurt,
-        shot.hit
+        shot.hit,
+        shot.noise
     ));
 }
 
