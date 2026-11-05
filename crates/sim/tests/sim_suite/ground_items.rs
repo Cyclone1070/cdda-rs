@@ -154,3 +154,44 @@ fn the_registry_knows_which_faults_a_kind_catches() {
         "a kind nobody described catches nothing"
     );
 }
+
+/// One pass fills every kind table, and all four answer from it.
+///
+/// Reference: the reference's `item_factory` fills `itype`'s flags, qualities, chip resistance and faults from **one** load, so a kind's four answers cannot disagree. This gate installs two kinds in
+/// one call and asks every table about both, plus a third kind nobody described - which must answer the missing-table values throughout.
+#[test]
+fn one_pass_fills_every_kind_table() {
+    use bevy_ecs::prelude::World;
+    use cdda_sim::ItemTypeId;
+    use cdda_sim::item_registry::{KindFacts, install_kind_facts};
+
+    let mut world = World::new();
+    install_kind_facts(
+        &mut world,
+        &[
+            (
+                ItemTypeId(7),
+                KindFacts {
+                    flags: vec!["DURABLE_MELEE".to_owned()],
+                    qualities: vec![("CUT".to_owned(), 1)],
+                    chip_resistance: 9,
+                    faults: vec![("dented".to_owned(), 3)],
+                },
+            ),
+            (ItemTypeId(8), KindFacts { chip_resistance: 20, ..KindFacts::default() }),
+        ],
+    );
+
+    assert!(cdda_sim::item_registry::kind_has_flag(&world, ItemTypeId(7), "DURABLE_MELEE"), "the flag came through");
+    assert_eq!(cdda_sim::item_registry::chip_resistance_of(&mut world, ItemTypeId(7)), 9, "and the chip figure");
+    assert_eq!(cdda_sim::item_registry::chip_resistance_of(&mut world, ItemTypeId(8)), 20, "for the second kind too");
+    assert_eq!(
+        cdda_sim::item_registry::fault_weights_of(&mut world, ItemTypeId(7)).first().map(|(fault, weight)| (fault.as_str(), *weight)),
+        Some(("dented", 3)),
+        "and the faults"
+    );
+    // Nobody described kind nine: no flags, the reference's fallback chip figure, no faults.
+    assert!(!cdda_sim::item_registry::kind_has_flag(&world, ItemTypeId(9), "DURABLE_MELEE"), "no flags");
+    assert_eq!(cdda_sim::item_registry::chip_resistance_of(&mut world, ItemTypeId(9)), 2, "and the reference's fallback of two");
+    assert!(cdda_sim::item_registry::fault_weights_of(&mut world, ItemTypeId(9)).is_empty(), "and no faults");
+}

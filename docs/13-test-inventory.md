@@ -1024,3 +1024,7 @@ three pieces that unblock the pick are named in `docs/parity.md`: dump column, i
 **Round 1210 found that the kind tables are installed only by tests.** No caller in `crates/cli` fills the flag, quality, chip-resistance or fault-weight tables; scenarios drop items by hardcoded
 `ItemTypeId`. The simulation is correct for what a scenario builds, and a scenario builds by hand. The installer - one loader that assigns kind ids and fills all four tables in a single pass - is
 named in `docs/parity.md` as the next slice, ahead of any further combat rule.
+
+**Round 1211 added the one-pass kind installer**: `item_registry::KindFacts` and `install_kind_facts` fill the flags, qualities, chip-resistance and fault-weight tables from **one** list, gated by
+`ground_items::one_pass_fills_every_kind_table` (two described kinds plus one undescribed, whose answers are the reference's missing-table fallbacks). The CLI loader that produces the list is named in
+`docs/parity.md`.

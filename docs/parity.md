@@ -14382,3 +14382,20 @@ state today is therefore: *the simulation is right for what a scenario builds, a
 **What the installer needs, in order:** the CLI has to load the item prototypes into the store (it already reads the prototypes dump for gun weights and flags), assign each prototype a `ItemTypeId`
 in one place, and then fill **all four kind tables** from the same pass - because four installers fed from four walks is how the tables drift apart. **That is P3 work and it is the next slice, before
 any further combat rule.**
+
+## One pass, four tables (round 1211)
+
+| Piece | Reference | Port |
+|---|---|---|
+the seam | `item_factory` fills a kind's flags, qualities, chip resistance and faults in **one** load | `item_registry::install_kind_facts(world, kinds)` |
+Gate | - | `one_pass_fills_every_kind_table` |
+
+**Four tables, one walk, and that is the whole point of the function.** Round 1210 found that none of them is installed in the binary; the fix is not four installers but **one** that takes a
+`KindFacts` per kind and fills all four, **because four installers fed by four walks is how two of them end up disagreeing about what kind seven is** - and a disagreement between the flags table and the
+chip table is a weapon that is durable in one rule and soft in another.
+
+**The gate installs two kinds in one call and asks every table about both**, then asks about a third kind nobody described: **no flags, chip resistance 2** (the reference's fallback), **no faults,
+no qualities** - so the missing-table answers are pinned as well as the present ones.
+
+**Still open, and now one step away:** the CLI has to *produce* the `KindFacts` list, which needs the prototypes walk to assign `ItemTypeId`s in one place. **The seam exists; the loader that feeds it does
+not.**

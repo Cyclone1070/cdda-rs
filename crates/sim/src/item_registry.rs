@@ -565,3 +565,38 @@ pub fn fault_weights_of(world: &mut World, kind: ItemTypeId) -> Vec<(String, i32
         .and_then(|table| table.0.get(&kind).cloned())
         .unwrap_or_default()
 }
+
+/// Everything the store needs to know about one item kind, in one value.
+///
+/// **Four tables, one pass.** The flags, the qualities, the chip resistance and the fault weights are all questions asked of a *kind*, and they are filled from the same walk over the prototypes -
+/// four installers fed by four separate walks is how two of them end up disagreeing about what kind seven is.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct KindFacts {
+    /// The flags the kind carries.
+    pub flags: Vec<String>,
+    /// Its qualities and their levels.
+    pub qualities: Vec<(String, i32)>,
+    /// How well it resists being chipped, `item::chip_resistance()`.
+    pub chip_resistance: i32,
+    /// The faults it can catch, with weights, in the data's order.
+    pub faults: Vec<(String, i32)>,
+}
+
+/// Fills every kind table from one list, so no two of them can disagree about what a kind is.
+pub fn install_kind_facts(world: &mut World, kinds: &[(ItemTypeId, KindFacts)]) {
+    let flags: Vec<(ItemTypeId, Vec<&str>)> = kinds
+        .iter()
+        .map(|(kind, facts)| (*kind, facts.flags.iter().map(String::as_str).collect()))
+        .collect();
+    let flag_slices: Vec<(ItemTypeId, &[&str])> = flags.iter().map(|(kind, names)| (*kind, names.as_slice())).collect();
+    set_item_flags(world, &flag_slices);
+    let qualities: Vec<(ItemTypeId, Vec<(String, i32)>)> =
+        kinds.iter().map(|(kind, facts)| (*kind, facts.qualities.clone())).collect();
+    let quality_slices: Vec<(ItemTypeId, &[(String, i32)])> =
+        qualities.iter().map(|(kind, levels)| (*kind, levels.as_slice())).collect();
+    set_item_qualities(world, &quality_slices);
+    let chip: Vec<(ItemTypeId, i32)> = kinds.iter().map(|(kind, facts)| (*kind, facts.chip_resistance)).collect();
+    set_item_chip_resistance(world, &chip);
+    let faults: Vec<(ItemTypeId, Vec<(String, i32)>)> = kinds.iter().map(|(kind, facts)| (*kind, facts.faults.clone())).collect();
+    set_item_fault_weights(world, &faults);
+}
