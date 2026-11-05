@@ -15376,3 +15376,20 @@ not seven.
 
 **Named, not invented:** `practice_data` itself. The recipe dump does not carry the practice block (`min_difficulty`, `max_difficulty`, `skill_limit`), so the loader has nothing to read and the caller
 passes the three numbers - **the next oracle dump is where that block has to come from**, and this rule is gated ahead of it rather than guessed at.
+
+## Practice recipes carry their range (round 1290)
+
+| Piece | Reference | Port |
+|---|---|---|
+the block | `recipe::practice_data` (`recipe.h:72-84`) | `content::recipes::Practice`, `Recipe::practice` |
+the dump | the harness's recipe emitter | the practice block added, patch regenerated, `corpus/recipes.json` re-dumped |
+Gate | - | `crafting::practice_recipes_carry_their_range` |
+
+**The oracle went first again**, and it took **two dumps to get right**: the first emission put the block before the byproduct array closed, which is invalid JSON for every recipe with no byproducts - the
+reference's own recipes caught it, not the port. The fix put the block **after** the array closes, and the dump then loaded.
+
+**124 of 6,291 recipes are practice recipes**, and that count is the gate: a loader that invented a block for every recipe, or dropped it for all, fails on it. `Practice` is `Option`al because an ordinary
+recipe has no block at all, which is the same "absent is not zero" distinction the book slot and the message kind already use.
+
+**Named, not invented:** `get_difficulty`'s clamp and `get_skill_cap` already take these three numbers as arguments (round 1289) and will read them from `Recipe::practice` when the crafting path is wired;
+`practice_data`'s JSON defaults (`max_difficulty` to `MAX_SKILL - 1`, `skill_limit` to `MAX_SKILL`) are resolved by the reference before the dump, so the port sees numbers rather than defaults.

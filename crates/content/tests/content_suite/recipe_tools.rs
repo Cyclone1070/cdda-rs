@@ -17,6 +17,7 @@ fn recipe(
         result: "thing".to_owned(),
         blacklisted: false,
         never_learn: false,
+        practice: None,
         components,
         tools,
         qualities,

@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-06 04:49:44
-@@ -0,0 +1,6983 @@
++++ oracle/src/src/harness.cpp	2026-11-06 06:02:50
+@@ -0,0 +1,6992 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "flag.h"
@@ -1478,7 +1478,16 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +                          entry.second );
 +            first_spare = false;
 +        }
-+        std::fprintf( out, "]}" );
++        // The byproduct array closes first, then the **practice block** when the recipe has one (`recipe.h:72-84`): a practice recipe sets its difficulty from
++        // the crafter's skill between `min_difficulty` and `max_difficulty`, and stops teaching at `skill_limit`. Dumped as three numbers so the port's clamp has
++        // the reference's own range - and printed **after** the array closes, so a recipe with no byproducts is still valid JSON.
++        std::fprintf( out, "]" );
++        if( r.practice_data ) {
++            std::fprintf( out, ",\"practice\":{\"min_difficulty\":%d,\"max_difficulty\":%d,\"skill_limit\":%d}",
++                          r.practice_data->min_difficulty, r.practice_data->max_difficulty,
++                          r.practice_data->skill_limit );
++        }
++        std::fprintf( out, "}" );
 +        first = false;
 +    }
 +    std::fprintf( out, "\n],\"count\":%zu}\n", recipe_dict.size() );

@@ -1208,3 +1208,6 @@ which had been stopping at the first failing crate: 137 test modules gained `ind
 
 **Round 1289 ported `recipe::get_difficulty`'s practice clamp and `get_skill_cap`** (`recipe.cpp:61-77`) as `crafting::practice_difficulty` / `crafting::skill_cap`, gated on both off-by-ones (the limit minus
 one, the truncated 1.25). The practice block is not in the recipe dump yet and is named as the next oracle gap.
+
+**Round 1290 put the practice block in the harness dump** (124 of 6,291 recipes), re-dumped `corpus/recipes.json`, and added `Practice` to the recipe loader - after the first emission produced
+invalid JSON and had to be fixed and re-dumped.

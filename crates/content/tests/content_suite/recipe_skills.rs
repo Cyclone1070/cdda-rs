@@ -13,6 +13,7 @@ fn recipe(skill: &str, difficulty: i32) -> Recipe {
         result: "thing".to_owned(),
         blacklisted: false,
         never_learn: false,
+        practice: None,
         components: Vec::new(),
         tools: Vec::new(),
         qualities: Vec::new(),

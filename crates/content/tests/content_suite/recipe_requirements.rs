@@ -13,6 +13,7 @@ fn recipe(components: Vec<Vec<Component>>) -> Recipe {
         result: "thing".to_owned(),
         blacklisted: false,
         never_learn: false,
+        practice: None,
         components,
         tools: Vec::new(),
         qualities: Vec::new(),

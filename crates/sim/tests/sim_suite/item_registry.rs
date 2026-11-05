@@ -101,6 +101,7 @@ fn a_craft_can_be_finished_without_a_caller_supplying_the_item_table() {
         result: "rope".to_owned(),
         blacklisted: false,
         never_learn: false,
+        practice: None,
         components: vec![vec![cdda_content::recipes::Component {
             item: "rag".to_owned(),
             count: 2,
@@ -330,6 +331,7 @@ fn the_turn_loop_finishes_what_it_started() {
         result: "rope".to_owned(),
         blacklisted: false,
         never_learn: false,
+        practice: None,
         components: vec![vec![cdda_content::recipes::Component {
             item: "rag".to_owned(),
             count: 2,

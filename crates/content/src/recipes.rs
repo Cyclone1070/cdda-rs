@@ -39,6 +39,17 @@ pub struct Quality {
     pub count: i32,
 }
 
+/// A practice recipe's difficulty range and skill limit (`recipe.h:72-84`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Practice {
+    /// The difficulty is never below this.
+    pub min_difficulty: i32,
+    /// Nor above this.
+    pub max_difficulty: i32,
+    /// The crafter's primary skill cannot pass this through this recipe.
+    pub skill_limit: i32,
+}
+
 /// One crafting recipe, as far as this loader reads it.
 #[derive(Debug, Clone, PartialEq)]
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -49,6 +60,11 @@ pub struct Recipe {
     pub result: String,
     /// Whether the reference has blacklisted it, which removes it from play without deleting it.
     pub blacklisted: bool,
+    /// The practice block, when this recipe is a **practice** recipe (`recipe::practice_data`, `recipe.h:72-84`).
+    ///
+    /// A practice recipe trains a skill instead of making a thing, and its difficulty is not stated: it follows the crafter's level between `min_difficulty` and `max_difficulty`, and it stops teaching
+    /// at `skill_limit`. **124 of the 6,291 recipes are practice recipes**, so the port needs the block to answer `get_difficulty` without inventing numbers.
+    pub practice: Option<Practice>,
     /// Whether the recipe **can never be learned**, which `learn_recipe` refuses (`character_crafting.cpp:32-40`).
     ///
     /// The data uses it for practice recipes and the companions alike - **1,114 of the 6,291 recipes in the reference's own dump** carry it, so a loader that dropped the field would leave more than a
@@ -322,6 +338,7 @@ pub fn from_dump(value: &Value) -> Option<(Vec<Recipe>, usize)> {
             result: string_of(object, "result")?,
             blacklisted: matches!(member(object, "blacklisted"), Some(Value::Bool(true))),
             never_learn: matches!(member(object, "never_learn"), Some(Value::Bool(true))),
+            practice: practice_of(object),
             components: components_of(object)?,
             tools: tools_of(object)?,
             qualities: qualities_of(object)?,
@@ -525,4 +542,20 @@ impl Recipe {
             && self.tools_available(batch, held_count, charges_of)
             && self.qualities_available(batch, items_with)
     }
+}
+
+/// The practice block, when the dump carries one.
+fn practice_of(object: &Object) -> Option<Practice> {
+    let Value::Object(block) = member(object, "practice")? else {
+        return None;
+    };
+    let number = |key: &str| match member(block, key) {
+        Some(Value::Int(value)) => i32::try_from(*value).ok(),
+        _ => None,
+    };
+    Some(Practice {
+        min_difficulty: number("min_difficulty")?,
+        max_difficulty: number("max_difficulty")?,
+        skill_limit: number("skill_limit")?,
+    })
 }
