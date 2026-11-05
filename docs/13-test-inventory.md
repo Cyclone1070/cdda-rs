@@ -1130,3 +1130,6 @@ remains, not the damage stopped.
 `creature_fight::a_block_spends_its_flat_bonus_before_it_scales_anything`.
 
 **Round 1261 ported `block_hit`'s description ladder** as `melee::blocked_description` (`melee.cpp:2149-2178`), with the inverted variable name documented and every boundary gated.
+
+**Round 1262 ported `block_hit`'s counter-attack guards** as `melee::counter_attack` (`melee.cpp:2190-2198`): a third of stamina (integer division, strict) and a rounded fifth of glass. Gated by
+`creature_fight::a_counter_attack_needs_stamina_and_a_weapon_that_is_not_mostly_glass`, whose first run corrected the gate's own fractional reading of an integer line.

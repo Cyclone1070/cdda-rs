@@ -14890,3 +14890,21 @@ exactly `0.4` is "a lot".
 reaches the `else`. It exists because the reference's chain has it, and **a port that quietly dropped it would be a port that could not be diffed against the original's control flow**.
 
 **Named, not invented:** the message itself ("You block %1$s of the damage with your %2$s!"), the `thing_blocked_with` that fills the second slot, and the counter-attack that follows.
+
+## A counter-attack needs stamina and a weapon that is not glass (round 1262)
+
+| Piece | Reference | Port |
+|---|---|---|
+the guards | `block_hit`'s tail (`melee.cpp:2190-2198`) | `melee::counter_attack` + `CounterAttack` |
+Gate | - | `a_counter_attack_needs_stamina_and_a_weapon_that_is_not_mostly_glass` |
+
+**Both comparisons are strict, and both are the kind nobody notices:**
+
+- a character on **exactly a third** of their stamina still counters - and the third is **integer division**, so `100 / 3` is `33`, and 33 is not under 33;
+- a weapon **exactly at** the glass allowance still counts as sound - `made_of(glass) > round( 20 * total / 100 )`, with the allowance **rounded** rather than floored, so a total of 108 allows
+  22, not 21.
+
+**The gate's first run failed on my own fixture, not on the rule**: I asserted that 33 of 100 was "under a third", which is the fractional reading of a line the reference writes in integers. **The
+integer division is the rule** - it is what makes the boundary land on 33 rather than 33.3 - and the fixture now says so in a comment.
+
+**Named, not invented:** the two messages ("too exhausted!", "too fragile to counterattack with!"), the martial-arts technique that decides whether a counter exists at all, and `melee_attack` itself.

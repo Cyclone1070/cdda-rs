@@ -782,3 +782,42 @@ pub fn blocked_description(blocked_ratio: f64) -> &'static str {
         "none"
     }
 }
+
+/// Why a counter-attack did or did not happen.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CounterAttack {
+    /// The character is under a third of their stamina.
+    TooExhausted,
+    /// The weapon is more glass than the fifth the reference allows.
+    TooFragile,
+    /// It happens.
+    Yes,
+}
+
+/// Whether a block leads to a counter-attack.
+///
+/// Reference: `Character::block_hit`'s tail (`melee.cpp:2190-2198`):
+///
+/// ```text
+/// int twenty_percent = std::round( ( 20 * weapon.type->mat_portion_total ) / 100.0f );
+/// if( get_stamina() < get_stamina_max() / 3 ) { "too exhausted!" }
+/// else if( weapon.made_of( material_glass ) > twenty_percent ) { "too fragile to counterattack with!" }
+/// else { melee_attack( *source, false, tec ); }
+/// ```
+///
+/// **Both comparisons are strict, and both are easy to get wrong in a way nobody notices:** a character on **exactly a third** of their stamina still counters (`<`, and the third is integer division),
+/// and a weapon **exactly at** the glass threshold is still sound (`>` against a rounded allowance). The allowance is rounded rather than floored, so a weapon with a total portion of 108 allows
+/// `round( 21.6 ) = 22` glass, not 21.
+#[must_use]
+pub fn counter_attack(stamina: i32, stamina_max: i32, glass_ml: f64, material_total_ml: f64) -> CounterAttack {
+    // Integer division, as the reference's `/ 3` on integers is.
+    if stamina < stamina_max / 3 {
+        return CounterAttack::TooExhausted;
+    }
+    let allowance = (20.0 * material_total_ml / 100.0).round();
+    if glass_ml > allowance {
+        CounterAttack::TooFragile
+    } else {
+        CounterAttack::Yes
+    }
+}

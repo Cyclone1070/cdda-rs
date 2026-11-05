@@ -2575,3 +2575,21 @@ fn how_much_of_a_blow_a_block_stopped_in_words() {
     assert_eq!(blocked_description(0.8), "a little", "four fifths through is still a little blocked");
     assert_eq!(blocked_description(0.99), "a little");
 }
+
+/// A counter-attack needs stamina and a weapon that is not mostly glass.
+///
+/// Reference: `block_hit`'s tail (`melee.cpp:2190-2198`): `if( get_stamina() < get_stamina_max() / 3 )` says the character is too exhausted, `else if( weapon.made_of( material_glass ) >
+/// twenty_percent )` says the weapon is too fragile, `else` it counter-attacks. **Both comparisons are strict**, so a character on exactly a third of their stamina still counters, and a weapon exactly at
+/// the glass threshold still counts as sound.
+#[test]
+fn a_counter_attack_needs_stamina_and_a_weapon_that_is_not_mostly_glass() {
+    use cdda_sim::melee::{CounterAttack, counter_attack};
+
+    // **Integer division**: 100 / 3 is 33, so 32 is under a third and 33 is not.
+    assert_eq!(counter_attack(32, 100, 0.0, 100.0), CounterAttack::TooExhausted, "32 is under the third");
+    assert_eq!(counter_attack(33, 100, 0.0, 100.0), CounterAttack::Yes, "**33 is exactly the third, and the test is strict**");
+    assert_eq!(counter_attack(33, 99, 0.0, 100.0), CounterAttack::Yes, "**integer division**: 99 / 3 is exactly 33, so a third is not under a third");
+    assert_eq!(counter_attack(100, 100, 25.0, 100.0), CounterAttack::TooFragile, "25 of 100 is over the fifth");
+    assert_eq!(counter_attack(100, 100, 20.0, 100.0), CounterAttack::Yes, "**exactly a fifth is not over it**");
+    assert_eq!(counter_attack(100, 100, 0.0, 0.0), CounterAttack::Yes, "a weapon with no materials has no glass in it");
+}
