@@ -15160,3 +15160,24 @@ and says nothing. The gate asserts three lines the first time and **still three*
 **The log is the game's own store, not a test double:** the messages go through `messages::push`, the same channel the melee and blocking rules use, so the count and ordering are the ones the player has.
 
 **Named, not invented:** the reference's `m_info` **category** on four of the six lines (the port's log has no severity yet), and `clear_identified` on death.
+
+## A message has a severity, and empty or debug lines are not stored (round 1278)
+
+| Piece | Reference | Port |
+|---|---|---|
+the severities | `game_message_type` (`enums.h:361-379`) | `messages::MessageKind`, all ten values |
+the two refusals | `add_msg_string` (`messages.cpp:182-205`) | `messages::push_kind` |
+Gate | - | `identification::a_message_has_a_severity_and_empty_or_debug_lines_are_not_stored` |
+
+**An untyped message is `Neutral`, not `Info`** - `add_msg_string( msg )` forwards to `m_neutral` (`messages.cpp:174-176`). That is easy to get wrong because the most common call sites in the reference are
+the typed `m_info` ones.
+
+**Two rules come before anything is stored**, and the port was breaking the first: **an empty message is refused** (`if( msg.empty() ) return;`). The old log would have stored `""` as a line - a line the
+player sees and the **turn digest counts** - which is exactly the sort of invisible bug a count-based gate finds.
+
+**`m_debug` is refused while debug mode is off**, which is the port's only mode, so the ten-value enum is stored but its `Debug` arm never reaches the log.
+
+**The text and its severity now live together** (`Message { text, kind }`), so `lines()` stays the plain-text view the older gates use and `entries()` is the one the interface will draw.
+
+**Named, not invented:** `modify_msg_with_exclamations`, which appends `!` and `!!` by severity; the `refresh_cooldown` / `coalesce_messages` pair, which merges repeated lines; `gmf_*` flags; and
+`MESSAGE_LIMIT` as a real option table rather than a constant.

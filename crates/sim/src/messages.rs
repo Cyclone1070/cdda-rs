@@ -10,10 +10,48 @@ use bevy_ecs::prelude::*;
 
 use crate::singletons;
 
+/// How a message reads: the reference's `game_message_type` (`enums.h:361-379`), in its own order.
+///
+/// The names are the reference's, shortened only where C++ spells the same idea: `m_good` is [`MessageKind::Good`]. **`Neutral` is the default for an untyped message**, which is easy to get wrong
+/// because the most common call site in the reference is the typed one, `m_info`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum MessageKind {
+    /// Something good happened to the player.
+    Good,
+    /// Something bad happened to the player.
+    Bad,
+    /// Both at once, such as a mutation with a good and a bad half.
+    Mixed,
+    /// A warning about a danger.
+    Warning,
+    /// Information about something - the type most examine and inventory messages use.
+    Info,
+    /// Nothing notable happened, such as a miss.
+    #[default]
+    Neutral,
+    /// Only shown while debug mode is on.
+    Debug,
+    /// A hit to the head, for the floating damage numbers.
+    Headshot,
+    /// A critical hit, for the same.
+    Critical,
+    /// A glancing hit, for the same.
+    Grazing,
+}
+
+/// One message, with the severity it carries.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Message {
+    /// What it said.
+    pub text: String,
+    /// How it reads.
+    pub kind: MessageKind,
+}
+
 /// What the game has said, oldest first.
 #[derive(Component, Debug, Clone, Default)]
 pub struct MessageLog {
-    lines: Vec<String>,
+    entries: Vec<Message>,
 }
 
 /// Marks the entity holding the log.
@@ -27,20 +65,39 @@ pub struct TheMessageLog;
 /// table yet, so this is the default as a constant - **named, not invented**, and the option is recorded here rather than silently ignored.
 pub const MESSAGE_LIMIT: usize = 255;
 
-/// Appends a message, dropping the oldest lines once the log is over [`MESSAGE_LIMIT`].
+/// Appends an untyped message, which the reference stores as [`MessageKind::Neutral`].
+///
+/// Reference: `add_msg_string( msg )` forwards to `m_neutral` (`messages.cpp:174-176`).
 pub fn push(world: &mut World, text: &str) {
-    let holder = singletons::singleton::<MessageLog, TheMessageLog>(world);
-    if let Some(mut log) = world.get_mut::<MessageLog>(holder) {
-        // Reference: the trim is **after** the append test and **before** the push, so the log never holds more than the limit and the newest line always survives.
-        while log.lines.len() > MESSAGE_LIMIT {
-            log.lines.remove(0);
-        }
-        log.lines.push(text.to_owned());
+    push_kind(world, text, MessageKind::Neutral);
+}
+
+/// Appends a message with a severity, dropping the oldest lines once the log is over [`MESSAGE_LIMIT`].
+///
+/// Reference: `add_msg_string( msg, type, flags )` (`messages.cpp:182-205`). Three rules come before anything is stored:
+///
+/// * **an empty message is refused** (`if( msg.empty() ... ) return;`) - an empty line would otherwise be a line the player sees and the turn digest counts;
+/// * **`m_debug` is refused while debug mode is off**, which is the port's only mode;
+/// * and only then does the trim run, **before** the push, so the newest line always survives.
+pub fn push_kind(world: &mut World, text: &str, kind: MessageKind) {
+    if text.is_empty() || kind == MessageKind::Debug {
         return;
     }
-    world
-        .entity_mut(holder)
-        .insert(MessageLog { lines: vec![text.to_owned()] });
+    let entry = Message {
+        text: text.to_owned(),
+        kind,
+    };
+    let holder = singletons::singleton::<MessageLog, TheMessageLog>(world);
+    if let Some(mut log) = world.get_mut::<MessageLog>(holder) {
+        while log.entries.len() > MESSAGE_LIMIT {
+            log.entries.remove(0);
+        }
+        log.entries.push(entry);
+        return;
+    }
+    world.entity_mut(holder).insert(MessageLog {
+        entries: vec![entry],
+    });
 }
 
 /// Every message the log holds, oldest first.
@@ -49,13 +106,25 @@ pub fn lines(world: &World) -> Vec<String> {
     let Some(mut query) = world.try_query_filtered::<&MessageLog, With<TheMessageLog>>() else {
         return Vec::new();
     };
-    query.iter(world).next().map_or_else(Vec::new, |log| log.lines.clone())
+    query
+        .iter(world)
+        .next()
+        .map_or_else(Vec::new, |log| log.entries.iter().map(|entry| entry.text.clone()).collect())
+}
+
+/// Every message with its severity, oldest first.
+#[must_use]
+pub fn entries(world: &World) -> Vec<Message> {
+    let Some(mut query) = world.try_query_filtered::<&MessageLog, With<TheMessageLog>>() else {
+        return Vec::new();
+    };
+    query.iter(world).next().map_or_else(Vec::new, |log| log.entries.clone())
 }
 
 /// Empties the log, which is what the interface does once it has drawn a turn.
 pub fn clear(world: &mut World) {
     let holder = singletons::singleton::<MessageLog, TheMessageLog>(world);
     if let Some(mut log) = world.get_mut::<MessageLog>(holder) {
-        log.lines.clear();
+        log.entries.clear();
     }
 }

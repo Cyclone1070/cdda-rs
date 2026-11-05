@@ -141,3 +141,35 @@ fn skimming_puts_its_lines_in_the_log_once() {
     );
     assert_eq!(messages::lines(&world).len(), 3, "**and it says nothing the second time** - the early return is the silence");
 }
+
+/// A message carries a severity, an empty message is not stored, and debug chatter is dropped.
+///
+/// Reference: `messages.cpp:174-205`. `add_msg_string( msg )` forwards to **`m_neutral`** - not `m_info` - so an untyped message is neutral. Before anything is stored, `add_msg_string` returns on
+/// **`msg.empty()`** and on **`m_debug` while `debug_mode` is off**. The port's log stored an empty string as a line, which is the shape of bug this gate exists for: an empty line in the log is a line
+/// the player sees and the turn digest counts.
+///
+/// The severities are `game_message_type` (`enums.h:361-379`), in its own order.
+#[test]
+fn a_message_has_a_severity_and_empty_or_debug_lines_are_not_stored() {
+    use cdda_sim::messages::{self, MessageKind};
+
+    let mut world = World::new();
+    messages::push(&mut world, "");
+    assert!(messages::entries(&world).is_empty(), "**an empty message is not stored at all**");
+
+    messages::push(&mut world, "plain");
+    assert_eq!(
+        messages::entries(&world).first().map(|entry| entry.kind),
+        Some(MessageKind::Neutral),
+        "**an untyped message is neutral**, which is the reference's default and not one of the louder kinds"
+    );
+
+    messages::push_kind(&mut world, "debug chatter", MessageKind::Debug);
+    assert_eq!(messages::lines(&world), vec!["plain".to_string()], "**debug chatter is dropped while debug mode is off**");
+
+    messages::push_kind(&mut world, "you are hurt", MessageKind::Bad);
+    let entries = messages::entries(&world);
+    assert_eq!(entries.len(), 2, "the text and the severity live together, in order");
+    assert_eq!(entries[1].text, "you are hurt");
+    assert_eq!(entries[1].kind, MessageKind::Bad, "and the severity is the one the caller chose");
+}
