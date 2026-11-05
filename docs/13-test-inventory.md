@@ -1258,3 +1258,6 @@ not obeyed yet, and that is written down rather than left to be discovered.
 
 **Round 1306 made the reaping step obey `corpse_type`** (`monster.cpp:3093-3106`), and the change exposed a scenario that killed a `corpse_type: none` monster and expected a corpse - it now kills
 one that really revives. `broken` is still an ordinary corpse and is named as the remaining gap.
+
+**Round 1307 ported `mdeath::broken`'s id rule and made the reaping step spawn the broken item** (`mondeath.cpp:204-228`), with the same overkill damage a corpse takes and no `CorpseOf`.
+`broken_itype` is named as the dump field still missing.

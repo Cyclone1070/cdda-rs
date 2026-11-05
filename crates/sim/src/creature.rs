@@ -1870,6 +1870,24 @@ pub fn reap_dead_creatures_as_corpses(
             if declared == "none" {
                 continue;
             }
+            // Reference: `mdeath::broken` (`mondeath.cpp:204-228`) leaves **the broken thing**, not a corpse - the id comes from the type's own name by
+            // `broken_item_id`, and a kind whose broken item is not in the item registry leaves nothing rather than a thing the world cannot name.
+            if declared == "broken" {
+                let broken = crate::monster_registry::name_of(world, *kind)
+                    .map(|name| broken_item_id(&name, ""))
+                    .and_then(|id| crate::item_registry::snapshot(world).id_of(&id));
+                if let Some(kind_of_scrap) = broken {
+                    let scrap = crate::drop_item(world, (square.0, square.1), kind_of_scrap, 1);
+                    let damage = match death_remains(*hp, *max_hp) {
+                        DeathRemains::Corpse { damage } => damage,
+                        DeathRemains::Pulverized => 0,
+                    };
+                    if let Some(mut item) = world.get_mut::<crate::GroundItem>(scrap) {
+                        item.damage = damage;
+                    }
+                }
+                continue;
+            }
             // Reference: `mdeath::normal` (`mondeath.cpp:58-68`) - a body pulverised by its overkill is a **splatter** and leaves no corpse item, and an ordinary one carries
             // `floor( corpse_damage * damage_scale )` of damage, which is the overkill written into the thing the world keeps.
             let remains = if declared == "splatter" {
@@ -3284,6 +3302,30 @@ pub fn typed_death_message(data_message: &str, name: &str) -> Option<String> {
         return None;
     }
     Some(data_message.replacen("%s", name, 1))
+}
+
+/// The item a `broken` body leaves, made from the monster's own id.
+///
+/// Reference: `mdeath::broken` (`mondeath.cpp:210-222`):
+///
+/// ```text
+/// if( !z.type->broken_itype.is_empty() ) item_id = z.type->broken_itype.str();
+/// else {
+///     item_id = z.type->id.str();
+///     if( item_id.compare( 0, 4, "mon_" ) == 0 ) item_id.erase( 0, 4 );
+///     item_id.insert( 0, "broken_" );
+/// }
+/// ```
+///
+/// **The data's own id wins when it states one**, and the fallback is a **string rule, not a lookup**: `mon_manhack` leaves a `broken_manhack`. The reference's own comment calls it a FIXME,
+/// which is why the port keeps it as a rule with a name rather than hiding it in a format string.
+#[must_use]
+pub fn broken_item_id(monster_id: &str, broken_itype: &str) -> String {
+    if !broken_itype.is_empty() {
+        return broken_itype.to_owned();
+    }
+    let stripped = monster_id.strip_prefix("mon_").unwrap_or(monster_id);
+    format!("broken_{stripped}")
 }
 
 /// What a monster's death leaves on the ground.

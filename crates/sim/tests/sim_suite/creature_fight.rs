@@ -2963,3 +2963,67 @@ fn the_type_decides_what_the_body_leaves() {
         "**but it does splatter**"
     );
 }
+
+/// A `broken` body leaves the broken thing, not a corpse, and the id is made from the monster's own.
+///
+/// Reference: `mdeath::broken` (`mondeath.cpp:204-228`): the item is the type's `broken_itype` when the data states one, and otherwise the monster's id with `mon_` stripped and
+/// `broken_` put in front - so `mon_manhack` leaves a `broken_manhack`. **The damage is the same overkill rule as a corpse** (`set_damage( floor( corpse_damage * damage_scale ) )`).
+#[test]
+fn a_broken_body_leaves_the_broken_thing() {
+    use cdda_sim::creature::broken_item_id;
+
+    assert_eq!(broken_item_id("mon_manhack", ""), "broken_manhack", "**the id is made from the monster's own**");
+    assert_eq!(broken_item_id("mon_zombie", ""), "broken_zombie");
+    assert_eq!(
+        broken_item_id("mon_manhack", "broken_drone"),
+        "broken_drone",
+        "and the data's own id wins when it states one"
+    );
+    assert_eq!(broken_item_id("manhack", ""), "broken_manhack", "an id without the prefix is left alone");
+}
+
+/// A `broken` body really leaves the broken item, found by the id the rule makes.
+///
+/// Reference: `mdeath::broken` (`mondeath.cpp:224-226`): the item is made and given `set_damage`, then `add_item_or_charges` puts it on the square. **It is not a corpse**: it carries no
+/// `CorpseOf`, because there is nothing to butcher - the machine is scrap.
+#[test]
+fn a_broken_body_drops_the_broken_item() {
+    let mut world = World::new();
+    cdda_sim::monster_registry::set_monster_types(
+        &mut world,
+        &[cdda_sim::monster_registry::MonsterKind { id: "mon_manhack", hp: 40 }],
+    );
+    cdda_sim::monster_registry::set_corpse_type(&mut world, cdda_sim::MonsterKindId(1), "broken");
+    // The item the broken id rule makes has to exist in the registry, exactly as the loader would leave it.
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[cdda_sim::item_registry::Kind {
+            id: "broken_manhack",
+            volume_ml: 250,
+            weight_g: 1_000,
+            pockets: &[],
+            thrown_damage: 0.0,
+            melee_bash: 0.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
+            to_hit: 0,
+        }],
+    );
+    let scrap = cdda_sim::spawn_monster(&mut world, (10, 10), cdda_sim::MonsterKindId(1), 40);
+    cdda_sim::creature::set_health_left(&mut world, scrap, 0);
+
+    cdda_sim::creature::reap_dead_creatures_as_corpses(&mut world, cdda_sim::ItemTypeId(99), |_| 62_500);
+
+    let left = cdda_sim::items_at(&mut world, (10, 10));
+    assert_eq!(left.len(), 1, "**one broken thing on the square**");
+    let expected = cdda_sim::item_registry::id_of(&mut world, "broken_manhack").expect("the item is registered");
+    assert_eq!(
+        world.get::<cdda_sim::GroundItem>(left[0]).map(|item| item.kind),
+        Some(expected),
+        "and it is the broken item the id rule named"
+    );
+    assert!(
+        world.get::<cdda_sim::CorpseOf>(left[0]).is_none(),
+        "**it is scrap, not a corpse** - there is nothing to butcher"
+    );
+}

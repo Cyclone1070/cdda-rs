@@ -15690,3 +15690,24 @@ really does get up, and says in its own comment why.
 **Named, not invented:** `broken` still leaves an ordinary corpse. The reference's broken branch makes a **different item** (`broken_<id>`, or the type's `broken_itype`), which needs the
 item-id lookup the port does not have in the reaping step yet; **199 types say `none`, 49 say `broken`**, so this is 4% of the corpus away from complete and it is recorded rather than
 approximated.
+
+## A broken body leaves the broken thing (round 1307)
+
+| Piece | Reference | Port |
+|---|---|---|
+the id | `mdeath::broken` (`mondeath.cpp:210-222`) | `creature::broken_item_id` |
+the drop | `mdeath::broken`'s `add_item_or_charges` (`:224-226`) | the reaping step spawns it with the overkill damage |
+Gates | - | `creature_fight::a_broken_body_leaves_the_broken_thing`, `a_broken_body_drops_the_broken_item` |
+
+**The fallback is a string rule, not a lookup**: `mon_manhack` leaves a `broken_manhack`, and the data's own `broken_itype` wins when it states one - the reference calls its own manipulation a
+FIXME, which is exactly why the port gives it a name instead of hiding it in a format string.
+
+**It is scrap, not a corpse**: no `CorpseOf`, because there is nothing to butcher. The damage is the same overkill rule the corpse takes, so a machine wrecked at zero health is undamaged.
+
+**A kind whose broken item is not in the item registry leaves nothing** rather than a thing the world cannot name - the same rule as the unknown blood colour.
+
+**Two test fixtures were wrong on the way**, and both for the same reason the port keeps counts: the item registry numbers its kinds from **one** (the null item holds zero), so a fixture that
+assumed kind seven was really asking about a different item, and the first version of the test compared against a number instead of the registry's own answer.
+
+**Named, not invented:** `broken_itype`, the data's own override, which is not in the monster dump yet - the rule reads it and the caller passes an empty string, so the day it is dumped this
+is a one-line change.
