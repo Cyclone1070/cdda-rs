@@ -2918,6 +2918,32 @@ pub fn heat_sets_alight(damage: i32, dice: &mut cdda_core_types::rng::Rolls) -> 
 ///
 /// Reference: `Character::handle_melee_wear( cur_weapon )` (`melee.cpp:214-300`), called from `melee_attack` after the blow is resolved and before the messages. `item::inc_damage` raises the
 /// damage by **one thousandth scale** (`item.cpp:9467-9470`, `itype::damage_scale`), and the port keeps that unit rather than inventing a friendlier one.
+/// Whether taking `item` into a hand would conflict with what is already there.
+///
+/// Reference: `Character::has_wield_conflicts` (`character.cpp:8023-8026`):
+///
+/// ```text
+/// return is_wielding( it ) || ( is_armed() && !it.can_combine( weapon ) );
+/// ```
+///
+/// **The second clause reads backwards on purpose**: an armed character has **no** conflict when the new thing **can combine** with what is held.
+///
+/// **The port's simplification, named:** `item::can_combine` (`item.cpp`) also weighs charges, containers and mods; the port answers "the same kind can combine", which is what the reference's own
+/// stacking path ends in for the kinds this port models. Everything else is a conflict, which is the conservative half and the one the caller needs before it wields.
+#[must_use]
+pub fn has_wield_conflicts(world: &mut World, creature: Entity, item: Entity) -> bool {
+    let held = wielding(world, creature);
+    if held == Some(item) {
+        return true;
+    }
+    let Some(held) = held else {
+        return false;
+    };
+    let held_kind = world.get::<crate::GroundItem>(held).map(|ground| ground.kind);
+    let item_kind = world.get::<crate::GroundItem>(item).map(|ground| ground.kind);
+    held_kind != item_kind
+}
+
 /// Comes a weapon apart, if it is fragile and made of parts, and answers whether it did.
 ///
 /// Reference: `Character::handle_melee_wear` (`melee.cpp:313-340`):

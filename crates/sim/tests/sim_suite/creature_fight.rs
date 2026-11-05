@@ -2252,3 +2252,44 @@ fn a_fragile_weapon_breaks_apart_instead_of_being_destroyed() {
     assert_eq!(gone, destroyed_lines, "one line per part that is gone: {said:?}");
     assert_eq!(gone + free, 2, "two parts, each destroyed or free");
 }
+
+/// A thing can be picked up into a hand only when the hand is free or already holds the same kind.
+///
+/// Reference: `Character::has_wield_conflicts` (`character.cpp:8023-8026`): `is_wielding( it ) || ( is_armed() && !it.can_combine( weapon ) )`. **The second clause is the one that reads
+/// backwards**: an armed character has no conflict when the new thing **can combine** with what is held - the same kind stacks into the same hand - and a conflict whenever it cannot.
+#[test]
+fn a_hand_takes_a_thing_when_it_is_free_or_holds_the_same_kind() {
+    use bevy_ecs::prelude::*;
+
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let stone = cdda_sim::ItemTypeId(1);
+    let rock = cdda_sim::ItemTypeId(2);
+    let spawn = |world: &mut World, kind| {
+        world
+            .spawn((
+                cdda_sim::GroundItem { kind, charges: 1, age: 0, burnt: 0, damage: 0, burn: None },
+                cdda_sim::ItemDamage::default(),
+            ))
+            .id()
+    };
+    let first = spawn(&mut world, stone);
+    let same_kind = spawn(&mut world, stone);
+    let other_kind = spawn(&mut world, rock);
+
+    assert!(!cdda_sim::creature::has_wield_conflicts(&mut world, survivor, first), "empty hands take anything");
+    // **The gate must not depend on the wield succeeding by luck**: wielding costs moves, so the turn is banked and the result asserted, or the three clauses below would be skipped and pass vacuously.
+    // A thing is in a hand only once it is carried: the wield path refuses anything else (`Wielded::NotInHand`).
+    world.entity_mut(first).insert(cdda_sim::creature::Carried(survivor));
+    world.entity_mut(survivor).insert(cdda_sim::creature::Speed { base: 100, bonus: 0 });
+    cdda_sim::creature::bank_a_turn(&mut world);
+    cdda_sim::creature::bank_a_turn(&mut world);
+    assert_eq!(
+        cdda_sim::creature::wield(&mut world, survivor, first, 250),
+        cdda_sim::creature::Wielded::Done,
+        "the fixture's wield has to happen, or the three rules below are never asked"
+    );
+    assert!(cdda_sim::creature::has_wield_conflicts(&mut world, survivor, first), "the same thing twice is a conflict");
+    assert!(!cdda_sim::creature::has_wield_conflicts(&mut world, survivor, same_kind), "the same kind combines into the held hand");
+    assert!(cdda_sim::creature::has_wield_conflicts(&mut world, survivor, other_kind), "a different kind does not");
+}

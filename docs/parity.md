@@ -14708,3 +14708,21 @@ the port's honest version of "drop it on the map".
 chance of zero always damages** - the reference's inverted guard.
 
 **Named, not invented:** dropping a survivor on the map at the player's position, the `wield`-the-biggest step and the `has_wield_conflicts` check before it, and irremovable gunmods being destroyed first.
+
+## A hand takes a thing when it is free or holds the same kind (round 1251)
+
+| Piece | Reference | Port |
+|---|---|---|
+the conflict | `is_wielding( it ) || ( is_armed() && !it.can_combine( weapon ) )` (`character.cpp:8023-8026`) | `creature::has_wield_conflicts` |
+Gate | - | `a_hand_takes_a_thing_when_it_is_free_or_holds_the_same_kind` |
+
+**The second clause reads backwards, and that is the rule:** an armed character has **no** conflict when the new thing **can combine** with what is held - the same kind goes into the same hand - and a
+conflict for everything else. A port that read it as "armed means conflict" would refuse to pick up a second rock while holding one.
+
+**Named simplification:** `item::can_combine` also weighs charges, containers and mods; the port answers **"the same kind can combine"**, which is where the reference's stacking path ends for the kinds the
+port models. Everything else is a conflict - the conservative half, which is the one a caller needs before it wields.
+
+**Two fixture lessons, both about a gate that could pass vacuously:** the first version wrapped its three assertions in `if the wield worked`, and the wielder had no banked moves - so a `NotInHand`
+would have made the whole test silent. It now **asserts the wield result** and carries the item first, which is what `NotInHand` was telling it.
+
+**Named, not invented:** `can_unwield` and its failure message, two-handed wielding across body parts, and the `wield`-the-biggest-survivor step that will call this rule when a fragile weapon comes apart.

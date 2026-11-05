@@ -1095,3 +1095,7 @@ order**: `install_kind_facts` writes the chip table, so chips set before it were
 
 **Round 1250 ported `handle_melee_wear`'s break-apart branch**: `creature::break_apart_the_weapon` (`melee.cpp:313-340`) - "breaks apart!" **instead of** "destroyed by the blow!", one destruction line per
 lost part, survivors detached. Gated by `creature_fight::a_fragile_weapon_breaks_apart_instead_of_being_destroyed`, which asserts both messages' presence/absence and **counts** the parts.
+
+**Round 1251 ported `Character::has_wield_conflicts`** (`character.cpp:8023-8026`) as `creature::has_wield_conflicts`, with the "same kind can combine" simplification named. Gated by
+`creature_fight::a_hand_takes_a_thing_when_it_is_free_or_holds_the_same_kind`, which **asserts the wield result** rather than wrapping its assertions in an `if` - the vacuous-gate trap this port has hit
+before.
