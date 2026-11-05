@@ -794,6 +794,7 @@ pub fn install_monster_data(world: &mut World) -> Option<usize> {
         let gibs = cdda_content::blood::gib_field(&materials, monster.species.contains("MOLLUSK"));
         cdda_sim::monster_registry::set_remains(world, kind, blood, gibs);
         cdda_sim::monster_registry::set_death_message(world, kind, &monster.death_message);
+        cdda_sim::monster_registry::set_corpse_type(world, kind, &monster.corpse_type);
     }
     Some(monsters.len())
 }

@@ -2,6 +2,9 @@
 #
 # `item::ready_to_revive` needs more than six hours of age, and a two-day-old corpse needs no luck at all. The corpus zombie carries `REVIVES`, so this scenario kills one, moves the
 # clock two days, and proves a monster is standing where nothing was - the first time the port has run the whole chain: a blow, a corpse, a clock, and a resurrection.
+#
+# **`mon_zombie`, not `mon_zombie_snotgobbler`**: the snotgobbler's own data says `corpse_type: none` (it explodes), so killing it leaves nothing to get up - the scenario used to pass
+# only because the port made a corpse for every kind alike. A body that revives is a body that leaves one.
 world 10 bare
 survivor 0 0
 items
@@ -9,7 +12,7 @@ monsters
 seed 7
 give crowbar 1
 wield crowbar
-monster mon_zombie_snotgobbler 1 0
+monster mon_zombie 1 0
 attack 1 0
 attack 1 0
 attack 1 0

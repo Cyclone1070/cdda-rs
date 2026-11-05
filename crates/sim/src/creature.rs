@@ -1863,9 +1863,20 @@ pub fn reap_dead_creatures_as_corpses(
             }
         }
         if let Some(kind) = kind {
+            // Reference: `monster::die`'s `corpse_type` switch (`monster.cpp:3093-3106`). **The data has the last word**: `none` leaves nothing at all (not even blood, because the
+            // bleeding lives inside the normal branch), and `splatter` splatters however gently the body was killed. `broken` is loaded and still leaves a corpse - the reference's
+            // broken branch makes a *different item* (`broken_<id>`), which waits on the item-id lookup, and that is recorded in `docs/parity.md`.
+            let declared = crate::monster_registry::corpse_type_of(world, *kind);
+            if declared == "none" {
+                continue;
+            }
             // Reference: `mdeath::normal` (`mondeath.cpp:58-68`) - a body pulverised by its overkill is a **splatter** and leaves no corpse item, and an ordinary one carries
             // `floor( corpse_damage * damage_scale )` of damage, which is the overkill written into the thing the world keeps.
-            let remains = death_remains(*hp, *max_hp);
+            let remains = if declared == "splatter" {
+                DeathRemains::Pulverized
+            } else {
+                death_remains(*hp, *max_hp)
+            };
             // Reference: `mdeath::normal`'s `z.bleed( *here )` (`mondeath.cpp:63`) and `mdeath::splatter`'s gib loops (`mondeath.cpp:143-150`). **Both leave the same two fields**;
             // the splatter leaves many gibs, the corpse leaves blood alone. The kinds come from the monster's own data (`mtype.cpp:431-470`) and a kind the port never registered
             // leaves nothing at all, because a colour it does not know is not one it may invent.

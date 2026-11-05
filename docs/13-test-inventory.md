@@ -1255,3 +1255,6 @@ on the rate then takes the first species that bleeds. `fd_null` becomes `None`, 
 
 **Round 1305 dumped and ported the monster's own death sentence and `corpse_type`** (`mtype.h:274-285`), gated on the corpus counts (321 sentences, 199 "leaves nothing"). `corpse_type` is loaded but
 not obeyed yet, and that is written down rather than left to be discovered.
+
+**Round 1306 made the reaping step obey `corpse_type`** (`monster.cpp:3093-3106`), and the change exposed a scenario that killed a `corpse_type: none` monster and expected a corpse - it now kills
+one that really revives. `broken` is still an ordinary corpse and is named as the remaining gap.

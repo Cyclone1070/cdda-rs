@@ -15672,3 +15672,21 @@ printed as it stands.
 
 **Named, not invented:** `corpse_type` is **loaded** and **not yet obeyed** - the reaping step still makes a normal corpse for every kind, so `none` and `broken` are the next wiring step and are
 recorded here rather than half-honoured; `mdeath_effect.has_effect`, its `fake_spell` and its `eoc` are the death effects, which wait on spells and dialogue P5/P6.
+
+## The type decides what the body leaves (round 1306)
+
+| Piece | Reference | Port |
+|---|---|---|
+the switch | `monster::die`'s `corpse_type` (`monster.cpp:3093-3106`) | `monster_registry::set_corpse_type` / `corpse_type_of`, obeyed by the reaping step |
+Gate | - | `creature_fight::the_type_decides_what_the_body_leaves` |
+
+**The data has the last word, both ways**: a `NO_CORPSE` body killed to exactly zero leaves **nothing** (not even blood, because the bleeding lives inside the normal branch), and a `SPLATTER`
+body killed exactly still splatters.
+
+**Obeying the data found a scenario asserting behaviour the reference does not have.** The port's own "the dead come back" scenario killed a **`mon_zombie_snotgobbler`** - whose data says
+`corpse_type: none` and whose death line is *"The %s explodes!"*. It used to pass only because the port made a corpse for every kind alike; it now kills a `mon_zombie`, which is a body that
+really does get up, and says in its own comment why.
+
+**Named, not invented:** `broken` still leaves an ordinary corpse. The reference's broken branch makes a **different item** (`broken_<id>`, or the type's `broken_itype`), which needs the
+item-id lookup the port does not have in the reaping step yet; **199 types say `none`, 49 say `broken`**, so this is 4% of the corpus away from complete and it is recorded rather than
+approximated.

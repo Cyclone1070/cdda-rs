@@ -2917,3 +2917,49 @@ fn a_type_can_have_its_own_death_sentence() {
         "and one with no placeholder is printed as it stands"
     );
 }
+
+/// The type's own `corpse_type` decides what is left, and it can overrule the overkill rule both ways.
+///
+/// Reference: `monster::die`'s switch (`monster.cpp:3093-3106`): `NORMAL` goes to `mdeath::normal` (which may still splatter), `SPLATTER` goes straight to `mdeath::splatter`, and
+/// `NO_CORPSE` does nothing at all - no corpse, and no blood either, because the bleeding lives inside the normal branch.
+///
+/// **The data has the last word**: a `NO_CORPSE` body killed gently still leaves nothing, and a `SPLATTER` body killed exactly still splatters.
+#[test]
+fn the_type_decides_what_the_body_leaves() {
+    let mut world = World::new();
+    cdda_sim::monster_registry::set_monster_types(
+        &mut world,
+        &[
+            cdda_sim::monster_registry::MonsterKind { id: "mon_none", hp: 40 },
+            cdda_sim::monster_registry::MonsterKind { id: "mon_splatter", hp: 40 },
+        ],
+    );
+    cdda_sim::monster_registry::set_remains(&mut world, cdda_sim::MonsterKindId(1), Some("fd_blood"), Some("fd_gibs_flesh"));
+    cdda_sim::monster_registry::set_remains(&mut world, cdda_sim::MonsterKindId(2), Some("fd_blood"), Some("fd_gibs_flesh"));
+    cdda_sim::monster_registry::set_corpse_type(&mut world, cdda_sim::MonsterKindId(1), "none");
+    cdda_sim::monster_registry::set_corpse_type(&mut world, cdda_sim::MonsterKindId(2), "splatter");
+    cdda_sim::field_registry::set_field_names(&mut world, &[("fd_blood", 3, 0), ("fd_gibs_flesh", 3, 0)]);
+
+    // A `NO_CORPSE` body killed to exactly zero: nothing, where an ordinary one would leave a corpse.
+    let nothing = cdda_sim::spawn_monster(&mut world, (8, 8), cdda_sim::MonsterKindId(1), 40);
+    cdda_sim::creature::set_health_left(&mut world, nothing, 0);
+    // A `SPLATTER` body killed to exactly zero: a splatter, where an ordinary one would leave an undamaged corpse.
+    let splat = cdda_sim::spawn_monster(&mut world, (9, 8), cdda_sim::MonsterKindId(2), 40);
+    cdda_sim::creature::set_health_left(&mut world, splat, 0);
+
+    cdda_sim::creature::reap_dead_creatures_as_corpses(&mut world, cdda_sim::ItemTypeId(7), |_| 62_500);
+
+    assert_eq!(cdda_sim::items_at(&mut world, (8, 8)).len(), 0, "**none leaves nothing**");
+    let blood = cdda_sim::field_registry::id_of(&mut world, "fd_blood").expect("known");
+    assert_eq!(
+        cdda_sim::field_strength_at(&world, (8, 8, 0), blood),
+        0,
+        "and no blood either, because the bleeding lives in the normal branch"
+    );
+    assert_eq!(cdda_sim::items_at(&mut world, (9, 8)).len(), 0, "splatter leaves no corpse on a gentle kill");
+    let gibs = cdda_sim::field_registry::id_of(&mut world, "fd_gibs_flesh").expect("known");
+    assert!(
+        cdda_sim::field_strength_at(&world, (9, 8, 0), gibs) > 0,
+        "**but it does splatter**"
+    );
+}

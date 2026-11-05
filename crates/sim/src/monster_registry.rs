@@ -39,6 +39,8 @@ pub struct MonsterTypes {
     gibs: Vec<Option<String>>,
     /// Each kind's own death sentence, or empty (`mdeath_effect::death_message`, `mtype.h:280`).
     death_messages: Vec<String>,
+    /// What each kind leaves behind (`mdeath_effect::corpse_type`, `mtype.h:285`).
+    corpse_types: Vec<String>,
 }
 
 impl MonsterTypes {
@@ -76,6 +78,7 @@ pub fn set_monster_types(world: &mut World, kinds: &[MonsterKind<'_>]) {
         blood: Vec::new(),
         gibs: Vec::new(),
         death_messages: Vec::new(),
+        corpse_types: Vec::new(),
     });
 }
 
@@ -176,5 +179,31 @@ pub fn death_message_of(world: &mut World, kind: MonsterKindId) -> String {
     world
         .get::<MonsterTypes>(entity)
         .and_then(|registry| registry.death_messages.get(kind.0 as usize).cloned())
+        .unwrap_or_default()
+}
+
+/// Says what a kind leaves behind when it dies.
+///
+/// Reference: `mdeath_effect::corpse_type` (`mtype.h:285`), which `monster::die` switches on (`monster.cpp:3093-3106`): a normal corpse, a broken one, a splatter, or **nothing at all**. The
+/// port keeps the data's word rather than a bool per branch, because the four answers are the reference's and collapsing them would lose which one the data gave.
+pub fn set_corpse_type(world: &mut World, kind: MonsterKindId, corpse_type: &str) {
+    let entity = singletons::singleton::<MonsterTypes, TheMonsterTypes>(world);
+    let Some(mut registry) = world.get_mut::<MonsterTypes>(entity) else {
+        return;
+    };
+    let at = kind.0 as usize;
+    if registry.corpse_types.len() <= at {
+        registry.corpse_types.resize(at + 1, String::new());
+    }
+    registry.corpse_types[at] = corpse_type.to_owned();
+}
+
+/// What a kind leaves behind when it dies, or empty for a kind never registered.
+#[must_use]
+pub fn corpse_type_of(world: &mut World, kind: MonsterKindId) -> String {
+    let entity = singletons::singleton::<MonsterTypes, TheMonsterTypes>(world);
+    world
+        .get::<MonsterTypes>(entity)
+        .and_then(|registry| registry.corpse_types.get(kind.0 as usize).cloned())
         .unwrap_or_default()
 }
