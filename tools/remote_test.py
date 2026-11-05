@@ -15,6 +15,7 @@ Usage:
     python3 tools/remote_test.py --docs       # the document check only
     python3 tools/remote_test.py --clippy     # clippy only
     python3 tools/remote_test.py --sync       # sync without running anything
+    python3 tools/remote_test.py --oracle     # the oracle harness patch check only
     python3 tools/remote_test.py --jobs 8     # how many test binaries at once over there
 """
 
@@ -102,13 +103,14 @@ def main() -> int:
     parser.add_argument("--tests", action="store_true", help="run the fast suite")
     parser.add_argument("--docs", action="store_true", help="run the document check")
     parser.add_argument("--clippy", action="store_true", help="run clippy")
+    parser.add_argument("--oracle", action="store_true", help="check the oracle harness patch reproduces the working copy")
     parser.add_argument("--sync", action="store_true", help="sync only")
     parser.add_argument("--jobs", type=int, default=0, help="test binaries at once, default the remote cores less one")
     parser.add_argument("--remote", default=REMOTE, help="user@host to run on")
     options = parser.parse_args()
     REMOTE = options.remote
 
-    everything = not (options.tests or options.docs or options.clippy or options.sync)
+    everything = not (options.tests or options.docs or options.clippy or options.oracle or options.sync)
     sync()
     if options.sync:
         return 0
@@ -128,6 +130,13 @@ def main() -> int:
     if options.clippy:
         if run("cargo clippy --workspace --all-targets -- -D warnings", "clippy", jobs) != 0:
             failed.append("clippy")
+    # The gate that rotted for several rounds because it was the one command nobody typed (round 1200). It is cheap - it runs
+    # on this machine, against the pinned checkout - so it rides along with everything else.
+    if everything or options.oracle:
+        if subprocess.run([sys.executable, "oracle/apply_harness_patches.py", "--verify"]).returncode != 0:
+            failed.append("oracle")
+        else:
+            print("the oracle patch reproduces the working copy", flush=True)
 
     print()
     if failed:

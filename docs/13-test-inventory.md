@@ -998,3 +998,6 @@ constant answer for a charge-counted type and the finiteness that keeps a stack 
 **Round 1200 found the oracle patch gate red and fixed it.** `oracle/apply_harness_patches.py --verify` had been failing since the harness dumps grew `durability`, `effects` and `chip_resistance`
 - the edits were made in `oracle/src/src/harness.cpp` and the patch ledger was never regenerated, so every hunk failed against the working copy. `--regen` rewrote the patch (11,286 lines) and
 `--verify` now passes byte for byte. **It is the one gate outside `tools/remote_test.py`, and it had not been run.**
+
+**Round 1202 put the oracle patch verification inside the routine gate command**: `python3 tools/remote_test.py` now runs the suite, the document check and
+`oracle/apply_harness_patches.py --verify`, with `--oracle` for that check alone. Round 1200's failure was that the check was outside the command everybody types.

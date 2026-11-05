@@ -14252,3 +14252,11 @@ proves that patch rebuilds the working copy byte for byte in a scratch tree. Bot
 
 **The lesson is about gates, not patches.** A gate that nobody types is a gate that is not running: `--tests`, `--clippy` and `--docs` are in one command and were run every round; the oracle gate is
 a separate script and was run **never**. The honest repair is to keep running it as part of the round, which this entry records as the practice from here on.
+
+## The gate that nobody typed now runs itself (round 1202)
+
+Round 1200 found `oracle/apply_harness_patches.py --verify` red and repaired it. The **cause** was not the patch: it was that the check lived in a command **outside** the routine one. So it now rides
+along with everything else - `python3 tools/remote_test.py` runs the suite, the documents **and** the oracle patch verification, and `--oracle` runs that one check alone.
+
+**A gate belongs in the command people type.** Anything else is a gate that depends on somebody remembering, and the whole of round 1200 is what that costs: eleven thousand lines of harness patch
+drifting away from the dump columns three rounds of behaviour were built on.
