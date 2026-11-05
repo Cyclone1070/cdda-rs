@@ -1229,3 +1229,6 @@ not improve.
 
 **Round 1296 refreshed the roadmap's standing table** against the five crafting gate modules (`crafting`, `craft_time`, `craft_roll`, `craft_progress`, `craft_activity`); it had still claimed P3 was "not
 crafting". No rules changed this round - the table is the deliverable, and `check_docs.py` is what says it is consistent.
+
+**Round 1297 ported the overkill rule** (`mondeath.cpp:58-68`) as `creature::death_remains` / `DeathRemains`, and established by sweep that the reference's `pulverized` conjunction has a
+**redundant second half**.

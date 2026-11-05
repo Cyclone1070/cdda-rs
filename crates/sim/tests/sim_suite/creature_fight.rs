@@ -2593,3 +2593,46 @@ fn a_counter_attack_needs_stamina_and_a_weapon_that_is_not_mostly_glass() {
     assert_eq!(counter_attack(100, 100, 20.0, 100.0), CounterAttack::Yes, "**exactly a fifth is not over it**");
     assert_eq!(counter_attack(100, 100, 0.0, 0.0), CounterAttack::Yes, "a weapon with no materials has no glass in it");
 }
+
+/// A body's overkill decides what is left of it: a corpse with damage scaled to the blow, or a splatter.
+///
+/// Reference: `mdeath::normal` (`mondeath.cpp:42-68`) and `mdeath::splatter` (`mondeath.cpp:124-135`):
+///
+/// ```text
+/// const int max_hp = std::max( z.get_hp_max(), 1 );
+/// const float overflow_damage = std::max( -z.get_hp(), 0 );
+/// const float corpse_damage = 2.5 * overflow_damage / max_hp;
+/// const bool pulverized = corpse_damage > 5 && overflow_damage > z.get_hp_max();
+/// damage = std::floor( corpse_damage * itype::damage_scale );   // damage_scale is 1000
+/// ```
+///
+/// **The `&&` has a redundant half, and the gate proves it**: corpse damage is `2.5 * overkill / health`, so "damage above five" already means "overkill above twice the health", which
+/// implies the reference's second test. The second test can therefore never change the answer - it is kept here as the reference states it, and the gate sweeps the range where the two
+/// could disagree to show there is none.
+#[test]
+fn overkill_decides_what_is_left_of_a_body() {
+    use cdda_sim::creature::{DeathRemains, death_remains};
+
+    assert_eq!(
+        death_remains(-40, 40),
+        DeathRemains::Corpse { damage: 2500 },
+        "**twice and a half the health over is a corpse at 2,500 damage**: 2.5 * 40 / 40 * 1,000"
+    );
+    assert_eq!(death_remains(0, 40), DeathRemains::Corpse { damage: 0 }, "a body killed exactly is undamaged");
+    assert_eq!(death_remains(-120, 40), DeathRemains::Pulverized, "three times its health over is a splatter");
+
+    // A body killed for two and a half times its health over is 6.25 of corpse damage, and pulverised.
+    assert_eq!(death_remains(-100, 40), DeathRemains::Pulverized, "**two and a half times over splatters**");
+    // And there is no health and overkill where the two halves of the `&&` disagree: damage above five *is* overkill above twice the health.
+    for max_hp in 1..200 {
+        for over in 0..=2 * max_hp + 2 {
+            let hp = -over;
+            let pulverized = matches!(death_remains(hp, max_hp), DeathRemains::Pulverized);
+            assert_eq!(
+                pulverized,
+                over > 2 * max_hp,
+                "**at health {max_hp} and {over} over, the two tests agree** - so the second half of the `&&` never decides anything"
+            );
+        }
+    }
+}

@@ -15500,3 +15500,21 @@ makes a roadmap stop being read.
 
 **Named, not invented:** the item-component model (`item::components`, repairs, the nested-container depth rules) is still open and is the next P3 boundary; P5's enchantments are what the two
 `*_MULTIPLIER` enchantment hooks wait on; P6's activity step is what would give the craft turn its progress bar and interrupts.
+
+## Overkill decides what is left of a body (round 1297)
+
+| Piece | Reference | Port |
+|---|---|---|
+the corpse damage | `mdeath::normal` (`mondeath.cpp:58-68`) | `creature::corpse_damage`, `creature::death_remains`, `DeathRemains` |
+Gate | - | `creature_fight::overkill_decides_what_is_left_of_a_body` |
+
+**The reference's `pulverized` test has a redundant half, and the gate proves it.** Corpse damage is `2.5 * overkill / health`, so "damage above five" already means "overkill above twice the
+health", which implies the reference's second test (`overflow > get_hp_max()`). The gate sweeps **health 1 to 199 and every overkill up to twice the health** and asserts the two agree everywhere - so the
+port keeps the reference's expression but knows which half decides.
+
+**Corpse damage is in thousandths** (`itype::damage_scale = 1000`, `itype.h:1588`): a body killed for its own health over takes **2,500** damage, not 2.5, which is the unit every other item rule reads.
+
+**`max_hp` is floored at one** so a zero-health creature cannot divide by zero - the same defensive floor the light rules use - and a body killed to exactly zero takes **no** overkill.
+
+**Named, not invented:** the gibs themselves (`mdeath::splatter`'s `number_of_gibs` and its `rng( 1, 6 )` for a medium body) and the corpse item's own damage write, which belong to the reaping step;
+`monster::die`'s `death_drops` flag and its `corpse_type` switch are named in the parity record and are what `DeathRemains` will hang on when the reaping step is wired to it.

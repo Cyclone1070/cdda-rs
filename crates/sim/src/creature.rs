@@ -3172,3 +3172,57 @@ pub fn wear_the_wielded_weapon(world: &mut World, holder: Entity, melee_skill: i
         }
     }
 }
+
+/// What a monster's death leaves on the ground.
+///
+/// Reference: `monster::die`'s `corpse_type` switch (`monster.cpp:3093-3106`), and `mdeath::normal`'s own `pulverized` branch (`mondeath.cpp:59-68`): a body whose overkill is severe
+/// enough is not a corpse at all but a **splatter**.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DeathRemains {
+    /// A corpse, with the damage the blow left in it (`item` damage units, where 1000 is one point).
+    Corpse {
+        /// `floor( corpse_damage * itype::damage_scale )`.
+        damage: i32,
+    },
+    /// Nothing whole left: a splatter of gibs instead.
+    Pulverized,
+}
+
+/// `itype::damage_scale` (`itype.h:1588`): item damage is an integer in thousandths.
+const DAMAGE_SCALE: f32 = 1000.0;
+
+/// How much corpse damage an overkill does, before any rounding.
+///
+/// Reference: `mdeath::normal` (`mondeath.cpp:59-66`): `max_hp` is floored at one so a zero-health creature cannot divide by zero, and the overflow is the **negative** health floored at
+/// zero - a body killed to exactly zero has taken no overkill.
+#[must_use]
+pub fn corpse_damage(hp: i32, max_hp: i32) -> f32 {
+    let ceiling = max_hp.max(1);
+    #[allow(clippy::cast_precision_loss)]
+    let overflow = (-hp).max(0) as f32;
+    2.5 * overflow / ceiling as f32
+}
+
+/// What a death leaves behind, given the health it ended on and the health it started with.
+///
+/// Reference: `mdeath::normal` (`mondeath.cpp:58-68`):
+///
+/// ```text
+/// const bool pulverized = corpse_damage > 5 && overflow_damage > z.get_hp_max();
+/// if( pulverized ) return splatter( ... );
+/// const float damage = std::floor( corpse_damage * itype::damage_scale );
+/// ```
+///
+/// **The two tests are separate on purpose.** A body is pulverised only when the corpse damage is above five *and* the raw overkill is above its health, so a creature killed for six times its
+/// health over is 6.75 of corpse damage - past the first test, short of the second - and leaves an ordinary, very damaged corpse.
+#[must_use]
+pub fn death_remains(hp: i32, max_hp: i32) -> DeathRemains {
+    let damage = corpse_damage(hp, max_hp);
+    let overflow = -hp;
+    if damage > 5.0 && overflow > max_hp {
+        return DeathRemains::Pulverized;
+    }
+    DeathRemains::Corpse {
+        damage: (damage * DAMAGE_SCALE).floor() as i32,
+    }
+}
