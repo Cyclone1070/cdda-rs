@@ -626,3 +626,30 @@ pub fn fault_type_of(world: &mut World, fault: &str) -> Option<String> {
         .get::<FaultTypes>(holder)
         .and_then(|table| table.0.get(fault).cloned())
 }
+
+/// Which faults each fault prevents: `Fault::block_faults` from the catalogue, which `set_fault` and the pick both read.
+///
+/// The reference's rule is that **a thing cannot have a chipped blade when the blade is gone** - so a broken fault blocks a chipped one, and the pick must not offer a fault the item's existing faults
+/// have already ruled out.
+#[derive(Debug, Clone, Default, PartialEq, Component)]
+pub struct FaultBlocks(pub std::collections::BTreeMap<String, std::collections::BTreeSet<String>>);
+
+/// Marks the entity holding [`FaultBlocks`].
+#[derive(Debug, Clone, Copy, Default, Component)]
+pub struct TheFaultBlocks;
+
+/// Installs what each fault prevents.
+pub fn set_fault_blocks(world: &mut World, blocks: &[(String, std::collections::BTreeSet<String>)]) {
+    let holder = singletons::singleton::<FaultBlocks, TheFaultBlocks>(world);
+    world.entity_mut(holder).insert(FaultBlocks(blocks.iter().cloned().collect()));
+}
+
+/// What one fault prevents, or nothing when the catalogue has never been installed or the fault blocks nothing.
+#[must_use]
+pub fn blocks_of(world: &mut World, fault: &str) -> std::collections::BTreeSet<String> {
+    let holder = singletons::singleton::<FaultBlocks, TheFaultBlocks>(world);
+    world
+        .get::<FaultBlocks>(holder)
+        .and_then(|table| table.0.get(fault).cloned())
+        .unwrap_or_default()
+}

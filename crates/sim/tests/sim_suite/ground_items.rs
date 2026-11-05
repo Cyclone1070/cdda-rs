@@ -268,3 +268,48 @@ fn the_catalogue_says_what_kind_of_fault_an_id_is() {
     assert_eq!(cdda_sim::item_registry::fault_type_of(&mut world, "wet").as_deref(), Some("wet"), "and wetness is its own kind");
     assert_eq!(cdda_sim::item_registry::fault_type_of(&mut world, "cracked"), None, "an id the catalogue has never seen has no type");
 }
+
+/// A fault the item's own faults block is never picked, and the catalogue supplies the blocks.
+///
+/// Reference: `item::set_random_fault_of_type` keeps only faults that `can_have_fault( f.obj )` allows (`item.cpp:7857`), and `can_have_fault` refuses anything one of the item's existing faults
+/// **blocks** - "a thing cannot have a chipped blade when the blade is gone". Round 1222 answered this callback with an empty set; this gate holds the real one.
+#[test]
+fn a_blocked_fault_is_never_picked() {
+    use bevy_ecs::prelude::World;
+
+    let mut world = World::new();
+    cdda_sim::item_registry::set_fault_blocks(
+        &mut world,
+        &[(
+            "broken".to_owned(),
+            ["cracked".to_owned(), "dented".to_owned()].into_iter().collect(),
+        )],
+    );
+    let blocks = cdda_sim::item_registry::blocks_of(&mut world, "broken");
+    assert_eq!(blocks.len(), 2, "a broken blade blocks two faults");
+    assert!(blocks.contains("cracked") && blocks.contains("dented"), "and names both");
+
+    // A fault that blocks nothing answers an empty set, and a fault nobody described does too.
+    assert!(cdda_sim::item_registry::blocks_of(&mut world, "wet").is_empty(), "wetness blocks nothing");
+    assert!(cdda_sim::item_registry::blocks_of(&mut world, "unknown").is_empty(), "and an unknown id blocks nothing");
+
+    // With "broken" among the item's own faults, neither blocked fault can be caught - the pick has no eligible candidate and sets nothing.
+    let existing: std::collections::BTreeSet<String> = ["broken".to_owned()].into_iter().collect();
+    let candidates = vec![("cracked".to_owned(), 100), ("dented".to_owned(), 100)];
+    let mut rolls = cdda_core_types::rng::Rolls::new(5);
+    // The blocks are read before the pick, because the pick's callback cannot borrow the world.
+    // **Keyed by the faults the item has, not by the candidates**: `can_have_fault` asks each *present* fault what it prevents.
+    let inline: std::collections::BTreeMap<String, std::collections::BTreeSet<String>> = existing
+        .iter()
+        .map(|fault| (fault.clone(), cdda_sim::item_registry::blocks_of(&mut world, fault)))
+        .collect();
+    let picked = cdda_sim::pick_fault(
+        &candidates,
+        &existing,
+        "mechanical_damage",
+        |_| Some("mechanical_damage".to_owned()),
+        |fault| inline.get(fault).cloned().unwrap_or_default(),
+        &mut rolls,
+    );
+    assert_eq!(picked, None, "every mechanical fault is blocked by the broken blade");
+}

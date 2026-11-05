@@ -2986,6 +2986,12 @@ pub fn wear_the_wielded_weapon(world: &mut World, holder: Entity, melee_skill: i
             }
         }
         let existing = world.get::<crate::ItemFaults>(held).map_or_else(std::collections::BTreeSet::new, |faults| faults.0.clone());
+        // What the item's own faults prevent, read before the pick for the same reason the types are.
+        // **Keyed by the faults the item already has**, because that is what `can_have_fault` asks: "what does this fault of mine prevent?"
+        let mut blocked = std::collections::BTreeMap::new();
+        for fault in &existing {
+            blocked.insert(fault.clone(), crate::item_registry::blocks_of(world, fault));
+        }
         let Some(mut rolls) = crate::singletons::take_rolls(world) else {
             return;
         };
@@ -2994,7 +3000,8 @@ pub fn wear_the_wielded_weapon(world: &mut World, holder: Entity, melee_skill: i
             &existing,
             "mechanical_damage",
             |fault| types.get(fault).cloned(),
-            |_| std::collections::BTreeSet::new(),
+            // Reference: `can_have_fault( f.obj )` refuses a fault that one of the item's own faults blocks (`item.cpp:7857`), which is what stops a broken blade being chipped afterwards.
+            |fault| blocked.get(fault).cloned().unwrap_or_default(),
             &mut rolls,
         );
         crate::singletons::put_rolls(world, rolls);

@@ -14504,3 +14504,20 @@ did passes the last two and fails the first.
 
 **Two named simplifications, both honest:** the **`blocks`** callback answers "nothing blocks anything", because the port does not yet read `Fault::block_faults` from the catalogue into the store - so
 a chipped blade cannot prevent a cracked one; and the **message** the reference shows is not ported. Both are recorded rather than invented.
+
+## A broken blade cannot also be chipped (round 1223)
+
+| Piece | Reference | Port |
+|---|---|---|
+the blocks | `Fault::block_faults`, read by `can_have_fault` (`item.cpp:7857`) | `item_registry::set_fault_blocks` / `blocks_of`, filled by `install_item_data` |
+Gate | - | `a_blocked_fault_is_never_picked` |
+
+**Round 1222 named this simplification; this round removed it.** A fault may **prevent** others - "a thing cannot have a chipped blade when the blade is gone" - and the pick must not offer a fault the
+item's own faults have ruled out.
+
+**And the wiring was wrong in a way the gate caught on its first run.** `can_have_fault` calls `blocks( present )` with a fault the item **already has**, asking *what does this one prevent* - and I
+built the lookup **keyed by the candidates** instead. The first run returned `Some("cracked")` where the reference returns nothing, which is exactly the wrong-direction bug the gate existed to find:
+**the map was right, the question was backwards.** Both the swing and the gate now key by the **existing** faults, and the comment says why in the place a reader will look.
+
+**Named, not invented:** the fault catalogue's **`block_faults` graph is now real data** (installed from `faults.json` along with the types), and the reference's message on catching a fault is still not
+ported.

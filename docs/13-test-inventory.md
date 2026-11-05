@@ -1051,3 +1051,7 @@ the store; only the call in the swing remains.
 **Round 1222 wired the fault pick into the swing** (the tail of `wear_the_wielded_weapon`, from `item.cpp:9458-9461`), closing the six-round chain from dump column to call. Gated by
 `creature_fight::a_damaged_weapon_catches_a_mechanical_fault`, which holds **both directions**: a mechanical fault at full weight always caught, the same fault typed `wet` never, and a kind with no
 list nothing. The `blocks` callback is named as a simplification in `docs/parity.md`.
+
+**Round 1223 installed `Fault::block_faults`** (`item_registry::FaultBlocks` / `set_fault_blocks` / `blocks_of`, filled by `install_item_data`) and gave the swing's pick its real `blocks` callback, which
+round 1222 had stubbed to "nothing blocks anything". Gated by `ground_items::a_blocked_fault_is_never_picked`. **The first run failed in the useful direction**: the lookup was keyed by the candidates
+while `can_have_fault` asks each *present* fault what it prevents, so a blocked fault was still picked.
