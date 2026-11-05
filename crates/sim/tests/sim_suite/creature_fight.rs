@@ -2293,3 +2293,67 @@ fn a_hand_takes_a_thing_when_it_is_free_or_holds_the_same_kind() {
     assert!(!cdda_sim::creature::has_wield_conflicts(&mut world, survivor, same_kind), "the same kind combines into the held hand");
     assert!(cdda_sim::creature::has_wield_conflicts(&mut world, survivor, other_kind), "a different kind does not");
 }
+
+/// The biggest part that survives a weapon's break goes into the hand.
+///
+/// Reference: `handle_melee_wear` (`melee.cpp:327-332`): `if( comp.typeId() == big_comp && !has_wield_conflicts( comp ) ) { wield( comp ); } else { drop it }`. **The hand is free by then** - the
+/// weapon that held it has just been destroyed - so the biggest survivor is taken rather than dropped, and a smaller one is not.
+///
+/// The fixture is one part, so it is both the weakest and the biggest; the seed is probed first, so the test knows the part survives before it asks what happened to it.
+#[test]
+fn the_biggest_part_of_a_broken_weapon_goes_into_the_hand() {
+    use bevy_ecs::prelude::*;
+    use cdda_core_types::rng::Rolls;
+
+    let mut seed = 1;
+    loop {
+        let mut probe = Rolls::new(seed);
+        if !probe.one_in(2) {
+            break;
+        }
+        seed += 1;
+    }
+
+    let mut world = World::new();
+    let weapon = cdda_sim::ItemTypeId(1);
+    let shaft = cdda_sim::ItemTypeId(2);
+    let facts = |flags: Vec<String>, chip: i32| cdda_sim::item_registry::KindFacts {
+        flags,
+        qualities: Vec::new(),
+        chip_resistance: chip,
+        faults: Vec::new(),
+    };
+    cdda_sim::item_registry::install_kind_facts(
+        &mut world,
+        &[(weapon, facts(vec!["FRAGILE_MELEE".to_owned()], 0)), (shaft, facts(Vec::new(), 5))],
+    );
+    cdda_sim::item_registry::set_item_volumes(&mut world, &[(shaft, 500)]);
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let held = world
+        .spawn((
+            cdda_sim::GroundItem { kind: weapon, charges: 1, age: 0, burnt: 0, damage: 0, burn: None },
+            cdda_sim::ItemDamage::default(),
+        ))
+        .id();
+    let part = world
+        .spawn(cdda_sim::GroundItem { kind: shaft, charges: 1, age: 0, burnt: 0, damage: 0, burn: None })
+        .id();
+    cdda_sim::item_parts::add_part(&mut world, held, part);
+    cdda_sim::singletons::put_rolls(&mut world, Rolls::new(seed));
+    // Wielding costs moves, so the survivor banks two turns before the weapon breaks - otherwise the part is refused for a reason that has nothing to do with the rule.
+    world.entity_mut(survivor).insert(cdda_sim::creature::Speed { base: 100, bonus: 0 });
+    cdda_sim::creature::bank_a_turn(&mut world);
+    cdda_sim::creature::bank_a_turn(&mut world);
+
+    assert!(
+        cdda_sim::creature::break_apart_the_weapon(&mut world, held, survivor, "a fragile thing"),
+        "the weapon comes apart"
+    );
+    assert!(world.get_entity(part).is_ok(), "the part survived the roll");
+    assert_eq!(
+        cdda_sim::creature::wielding(&mut world, survivor),
+        Some(part),
+        "**and it is in the hand**, because it was the biggest thing that came out"
+    );
+    assert!(world.get::<cdda_sim::item_parts::PartOf>(part).is_none(), "it is nobody's part any more");
+}

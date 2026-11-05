@@ -537,6 +537,35 @@ pub fn chip_resistance_of(world: &mut World, kind: ItemTypeId) -> i32 {
         .unwrap_or(2)
 }
 
+/// Sets how much room a kind takes, for a store whose types were installed without one.
+///
+/// The volume table is filled by `set_item_types`; this is the targeted way to say what a kind measures, for a caller that built a world from facts rather than from the data.
+pub fn set_item_volumes(world: &mut World, volumes: &[(ItemTypeId, i32)]) {
+    let holder = singletons::singleton::<ItemTypes, TheItemTypes>(world);
+    if let Some(mut types) = world.get_mut::<ItemTypes>(holder) {
+        for (kind, volume) in volumes {
+            #[allow(clippy::cast_possible_truncation)]
+            let at = kind.0 as usize;
+            if types.volumes_ml.len() <= at {
+                // **Grow rather than skip**: a store built from facts has a short table, and a silently skipped kind would answer a volume of zero.
+                types.volumes_ml.resize(at + 1, 0);
+            }
+            types.volumes_ml[at] = *volume;
+        }
+        return;
+    }
+    let mut types = ItemTypes::default();
+    for (kind, volume) in volumes {
+        #[allow(clippy::cast_possible_truncation)]
+        let at = kind.0 as usize;
+        if types.volumes_ml.len() <= at {
+            types.volumes_ml.resize(at + 1, 0);
+        }
+        types.volumes_ml[at] = *volume;
+    }
+    world.entity_mut(holder).insert(types);
+}
+
 /// Which faults each kind can catch, with their weights - the column `item::set_random_fault_of_type` picks from (`item.cpp:7854-7868`).
 ///
 /// Reference: `itype::faults`, a weighted list the item factory fills from the data. The **fault type** is a property of the fault, not of this list, so the filter "mechanical damage only" is

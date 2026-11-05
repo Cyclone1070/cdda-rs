@@ -14726,3 +14726,21 @@ port models. Everything else is a conflict - the conservative half, which is the
 would have made the whole test silent. It now **asserts the wield result** and carries the item first, which is what `NotInHand` was telling it.
 
 **Named, not invented:** `can_unwield` and its failure message, two-handed wielding across body parts, and the `wield`-the-biggest-survivor step that will call this rule when a fragile weapon comes apart.
+
+## The biggest part goes into the hand (round 1252)
+
+| Piece | Reference | Port |
+|---|---|---|
+the survivor's landing | `if( comp == big_comp && !has_wield_conflicts( comp ) ) wield( comp )` (`melee.cpp:327-330`) | `break_apart_the_weapon` wields the biggest survivor after detaching the rest |
+Gate | - | `the_biggest_part_of_a_broken_weapon_goes_into_the_hand` |
+
+**The hand is free by the time the parts come out**, because the weapon that held them has just been destroyed - so the only thing that can refuse the biggest survivor is the survivor itself, which is
+exactly what round 1251's `has_wield_conflicts` answers.
+
+**The fixture proves the roll before it asks about the landing:** it probes seeds until `one_in( 2 )` says the single part survives, then sets that seed. **A test that hoped for a surviving part would pass
+or fail on the seed rather than on the rule.**
+
+**One bug the gate found, in the new setter rather than the rule:** `set_item_volumes` skipped a kind whose index was past the table's end, so a store built from facts answered a volume of **zero** and
+the biggest survivor was never chosen. It grows the table now, and the comment says why - **a silently skipped kind is a zero, not an error**, the same failure shape recorded in round 1198.
+
+**Named, not invented:** dropping a non-big survivor on the map (it is detached and unparented here, not placed), `can_unwield`, and the irremovable-gunmod destruction that precedes the branch.

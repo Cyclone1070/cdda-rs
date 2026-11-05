@@ -1099,3 +1099,7 @@ lost part, survivors detached. Gated by `creature_fight::a_fragile_weapon_breaks
 **Round 1251 ported `Character::has_wield_conflicts`** (`character.cpp:8023-8026`) as `creature::has_wield_conflicts`, with the "same kind can combine" simplification named. Gated by
 `creature_fight::a_hand_takes_a_thing_when_it_is_free_or_holds_the_same_kind`, which **asserts the wield result** rather than wrapping its assertions in an `if` - the vacuous-gate trap this port has hit
 before.
+
+**Round 1252 wired the biggest survivor into the hand**: `break_apart_the_weapon` now takes the holder and wields the biggest surviving part when `has_wield_conflicts` allows (`melee.cpp:327-330`). Gated by
+`creature_fight::the_biggest_part_of_a_broken_weapon_goes_into_the_hand`, whose fixture **probes the seed** so the survival is proved, not hoped for. The new `item_registry::set_item_volumes` grew a
+table it used to skip, which the gate caught.

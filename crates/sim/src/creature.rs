@@ -2960,7 +2960,7 @@ pub fn has_wield_conflicts(world: &mut World, creature: Entity, item: Entity) ->
 /// **The two messages are alternatives, not a sequence**: a fragile weapon that comes apart is never also reported as destroyed by the blow, which is the whole point of the branch. Survivors
 /// **stop being parts** - the port detaches them instead of dropping them on the map, and dropping them where the player stands is named as unported.
 #[must_use]
-pub fn break_apart_the_weapon(world: &mut World, weapon: Entity, name: &str) -> bool {
+pub fn break_apart_the_weapon(world: &mut World, weapon: Entity, holder: Entity, name: &str) -> bool {
     let kind = world.get::<crate::GroundItem>(weapon).map(|ground| ground.kind);
     let fragile = kind.is_some_and(|kind| crate::item_registry::kind_has_flag(&*world, kind, "FRAGILE_MELEE"));
     let parts = crate::item_parts::parts_of(world, weapon);
@@ -2981,8 +2981,9 @@ pub fn break_apart_the_weapon(world: &mut World, weapon: Entity, name: &str) -> 
         .iter()
         .map(|(_, id, chip, volume)| crate::melee::PartFacts { kind: id.as_str(), chip_resistance: *chip, volume_ml: *volume })
         .collect();
-    let (weak, _big) = crate::melee::weak_and_big_parts(&borrowed);
+    let (weak, big) = crate::melee::weak_and_big_parts(&borrowed);
     let weak = weak.map(str::to_owned);
+    let big = big.map(str::to_owned);
     let Some(mut rolls) = crate::singletons::take_rolls(world) else {
         return true;
     };
@@ -3004,6 +3005,17 @@ pub fn break_apart_the_weapon(world: &mut World, weapon: Entity, name: &str) -> 
         }
     }
     world.entity_mut(weapon).despawn();
+    // Reference: **the biggest survivor goes into the hand** when the hand takes it (`melee.cpp:327-330`). The hand is free by now - the weapon that held the part has just been destroyed - so the
+    // only thing that can refuse is the item itself, which is what `has_wield_conflicts` answers.
+    if let Some(big_kind) = big
+        && let Some((survivor, _, _, _)) = facts.iter().find(|(part, id, _, _)| world.get_entity(*part).is_ok() && big_kind == *id)
+        && !has_wield_conflicts(world, holder, *survivor)
+        && let Some(survivor_kind) = world.get::<crate::GroundItem>(*survivor).map(|ground| ground.kind)
+    {
+        let volume_ml = crate::item_registry::volume_of(world, survivor_kind);
+        world.entity_mut(*survivor).insert(Carried(holder));
+        let _ = wield(world, holder, *survivor, volume_ml);
+    }
     true
 }
 
@@ -3088,7 +3100,7 @@ pub fn wear_the_wielded_weapon(world: &mut World, holder: Entity, melee_skill: i
     let (after, destroyed) = current.mod_damage(crate::DAMAGE_SCALE, &limits);
     if destroyed {
         // Reference: **a fragile weapon with parts does not merely break - it comes apart** (`melee.cpp:313-340`), and the branch is taken before the ordinary destruction line.
-        if break_apart_the_weapon(world, held, &name) {
+        if break_apart_the_weapon(world, held, holder, &name) {
             return;
         }
         // Reference: `Character::handle_melee_wear`'s destruction branch - the item "is destroyed by the blow" and leaves the hand (`melee.cpp:293-330`). The port
