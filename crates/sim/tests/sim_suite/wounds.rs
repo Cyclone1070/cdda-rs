@@ -5,7 +5,7 @@
 //! parts come from the game's own anatomy (`corpus/anatomy-parts.json`) crossed with the reference's body part
 //! numbers (`corpus/anatomy.json`), so this is the join of the two halves rather than a third opinion.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::level::Level;

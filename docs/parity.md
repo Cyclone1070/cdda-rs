@@ -15343,3 +15343,20 @@ silence about the flag was wrong by more than a thousand recipes - exactly the s
 
 **Named, not invented:** `learn_recipe`'s refusal itself, which is the next slice (the set's `learn` does not yet take the flag), and `recipe_companion.json`'s role as a *file* rather than as the whole
 population.
+
+## A never-learn recipe is refused by the teaching path (round 1288)
+
+| Piece | Reference | Port |
+|---|---|---|
+the refusal | `Character::learn_recipe` (`character_crafting.cpp:32-40`) | `recipes_known::learn(world, creature, recipe, never_learn, override)` |
+Gate | - | `crafting::a_never_learn_recipe_is_refused_unless_overridden` |
+
+**The refusal is silent and complete**: the recipe is not added **and the set is not created**, so a character who was only ever offered never-learn recipes carries no component at all - the same
+"missing means none" rule the identification set follows. `override_never_learn` exists because **reading a book** can teach a recipe the character could not otherwise learn.
+
+**The flag is now an argument, not a guess.** The recipe prototype is the caller's to look up, so the teaching path cannot invent it; the dialogue effect passes `false` because an effect names an id and
+carries no prototype, and that gap is written down at the call site rather than hidden.
+
+**The lint sweep this round was real work, not tidying:** `-D warnings` had never reached the sim and content test crates, because clippy stopped at the first crate that failed. Once the library errors
+were fixed, **137 test modules** showed the same missing `indexing_slicing` allowance, plus three genuine faults - a dead `chip_resistance` binding, an ignored `spill_contents` return, and a duplicated
+threshold walk. The duplicated walk was removed in favour of the `multi_lerp` the module already had, which is what the reference does with its own single helper.

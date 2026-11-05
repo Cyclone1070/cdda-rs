@@ -5,7 +5,7 @@
 //! through `map::combined_movecost`'s rule, and a square described as impassable is refused rather than
 //! charged for.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_sim::creature::combined_move_cost;

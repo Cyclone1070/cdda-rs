@@ -3,7 +3,7 @@
 //! Reference: `modified_sight_speed` and `point_shooting_limit` (`character.cpp:955-987`). Both are arithmetic over the recoil round 1152 accumulates and the skill a gun names, so the gate
 //! works them by hand and pins the two ends of each curve.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 /// The sight-speed bonus fades to nothing as the recoil approaches the sights' own precision, and is full once it is well past.
 ///

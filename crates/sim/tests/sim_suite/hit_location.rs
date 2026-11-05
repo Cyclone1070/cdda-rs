@@ -5,7 +5,7 @@
 //! the **boundary** it is testing: a rule that picked with `>` instead of `>=`, or that forgot to triple a lower
 //! limb, moves the boundary and these tests notice.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_sim::hit_location::{BodyPart, hit_weights, pick_by_weight, select_body_part};
 

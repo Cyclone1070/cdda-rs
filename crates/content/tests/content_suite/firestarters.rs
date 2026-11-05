@@ -2,7 +2,7 @@
 //!
 //! `corpus/items/firestarters.json` is `--dump-firestarters`, from `firestarter_actor` (`src/iuse_actor.h:481-511`) and its loader (`src/iuse_actor.cpp:1460-1465`).
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_content::items::{ItemType, load_paths};
 use cdda_content::use_actions::{Firestarter, UseAction};

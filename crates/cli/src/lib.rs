@@ -922,8 +922,9 @@ pub fn craft_a_recipe(
     let recipe = recipes.iter().find(|recipe| recipe.id == recipe_id)?.clone();
 
     // The QA surface teaches the recipe it is asked to make: `Character::can_make` refuses a recipe the crafter never learned (`crafting.cpp:602-616`), and a
-    // scenario that hands over the components without the knowledge would be asking about bookkeeping rather than about making things.
-    cdda_sim::recipes_known::learn(world, avatar, recipe_id);
+    // scenario that hands over the components without the knowledge would be asking about bookkeeping rather than about making things. It passes the recipe's own
+    // `never_learn` and overrides it, because the scenario has explicitly named the recipe it wants made - the same authority reading a book has.
+    cdda_sim::recipes_known::learn(world, avatar, recipe_id, recipe.never_learn, true);
     let names = cdda_sim::item_registry::snapshot(world);
     // A craft already under way is continued rather than begun again: a scenario that splits a long recipe across two
     // lines is asking about the same craft, and `Busy` would make the second line do nothing.

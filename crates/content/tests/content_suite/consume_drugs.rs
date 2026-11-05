@@ -4,7 +4,7 @@
 //! collection because taking a drug does several things at once: effects with durations and body parts, fields in the world, stat adjustments, vitamins as a range
 //! to roll between, and the item left behind.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_content::items::{ItemType, load_paths};
 use cdda_content::use_actions::{ConsumeDrug, DrugDamage, DrugEffect, UseAction};

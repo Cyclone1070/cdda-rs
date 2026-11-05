@@ -5,7 +5,7 @@
 //! item **active** because liquids have a temperature, a result whose type has a `countdown_interval` arms a timer the actor never mentions, and the charges survive
 //! only while the count-by-charges-ness does.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_content::items::{ItemType, load_paths};
 use cdda_content::use_actions::UseAction;

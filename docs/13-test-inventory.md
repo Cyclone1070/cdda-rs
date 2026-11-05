@@ -1202,3 +1202,6 @@ short. The refactor dropped a redundant `practical_known` argument the first dra
 
 **Round 1287 put `never_learn` in the harness dump** (1,114 of 6,291 recipes), re-dumped `corpus/recipes.json`, and taught the loader the field. Gated by
 `crafting::the_never_learn_flag_survives_the_dump`; the refusal in `learn_recipe` is the next slice.
+
+**Round 1288 wired the never-learn refusal into `recipes_known::learn`** (`character_crafting.cpp:32-40`), gated on the silent, set-less refusal and the override. The same round repaired the clippy gate,
+which had been stopping at the first failing crate: 137 test modules gained `indexing_slicing`, and three real faults were fixed (a dead binding, an ignored return, a duplicated `multi_lerp`).

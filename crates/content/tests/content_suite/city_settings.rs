@@ -1,6 +1,6 @@
 //! The city's building lists, from the reference's own regional settings.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_content::overmap_special::{CitySettings, read_city_settings};
 

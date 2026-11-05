@@ -5,7 +5,7 @@
 //! sharp edges: the subtraction is unguarded, so a quiet noise in a storm is a **negative** volume, and the signal has a floor, a cap
 //! and a minimum volume below which nothing is sent at all.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_core_types::sound::{heard_volume, horde_signal};
 

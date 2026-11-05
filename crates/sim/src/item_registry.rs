@@ -550,7 +550,9 @@ pub fn set_item_volumes(world: &mut World, volumes: &[(ItemTypeId, i32)]) {
                 // **Grow rather than skip**: a store built from facts has a short table, and a silently skipped kind would answer a volume of zero.
                 types.volumes_ml.resize(at + 1, 0);
             }
-            types.volumes_ml[at] = *volume;
+            if let Some(slot) = types.volumes_ml.get_mut(at) {
+                *slot = *volume;
+            }
         }
         return;
     }
@@ -561,7 +563,9 @@ pub fn set_item_volumes(world: &mut World, volumes: &[(ItemTypeId, i32)]) {
         if types.volumes_ml.len() <= at {
             types.volumes_ml.resize(at + 1, 0);
         }
-        types.volumes_ml[at] = *volume;
+        if let Some(slot) = types.volumes_ml.get_mut(at) {
+            *slot = *volume;
+        }
     }
     world.entity_mut(holder).insert(types);
 }

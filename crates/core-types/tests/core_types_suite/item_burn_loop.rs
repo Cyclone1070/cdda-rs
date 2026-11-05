@@ -17,7 +17,7 @@
 //! big pile burns slowly. `time_added` is an **assignment**, not an addition - the item block runs before the ground block, and the ground adds to what the
 //! items gave. And the two `roll_remainder` calls are the only dice the block spends beyond the per-item ones that round `burnt`.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_core_types::fire::{BurningItem, MaterialBurn, burn_the_items};
 use cdda_core_types::rng::{Recording, Rolls};

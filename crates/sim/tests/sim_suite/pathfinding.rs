@@ -5,7 +5,7 @@
 //! are cases the reference asserts about itself, so they are the red gate here rather than an invented
 //! grid.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_sim::pathfinding::{Direction, Score, greedy_path, manhattan_distance};
 

@@ -5,7 +5,7 @@
 //! different directions: the item must leave the square it was on - or the index would claim two surfaces hold it -
 //! and it must still be the same item afterwards.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::level::Level;

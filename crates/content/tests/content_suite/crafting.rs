@@ -1,6 +1,6 @@
 //! Recipes and the flags that decide whether they can be learned.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 /// A recipe the reference refuses to teach is marked, and the loader keeps the mark.
 ///

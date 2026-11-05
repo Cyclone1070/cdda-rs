@@ -9,7 +9,7 @@
 //! The lesson is worth the file: a scan is a model of the loader, and a model that disagrees with the loader is wrong until
 //! proven otherwise - the direction a port must never assume.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use std::collections::BTreeMap;
 

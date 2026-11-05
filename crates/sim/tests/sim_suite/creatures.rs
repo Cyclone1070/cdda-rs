@@ -5,7 +5,7 @@
 //! a pool of action points, and the name it is known by. Everything that happens to a creature is a
 //! system that reads those components, and nothing about it lives in a side table.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_sim::creature::{

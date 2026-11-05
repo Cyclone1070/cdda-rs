@@ -7,7 +7,7 @@
 //! that only checked a constant spell - so the test counts how many spells carry expressions and fails if the count
 //! moves, because that is the loader's blind spot changing size.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_content::spells::{self, Spell};
 use cdda_json::parse;

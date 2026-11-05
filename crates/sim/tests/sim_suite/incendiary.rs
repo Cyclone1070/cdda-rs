@@ -4,7 +4,7 @@
 //! square it looks at is drawn **before** anything else happens, it can be the field's own square, and the hot air is made whether or not anything caught. The
 //! item half (`flammable_items_at`) belongs to the item layer, which does not exist yet, so it is recorded as a gap rather than guessed at.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::FieldEntry;

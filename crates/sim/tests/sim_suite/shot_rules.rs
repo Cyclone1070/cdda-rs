@@ -3,7 +3,7 @@
 //! Reference: `time_to_attack` (`ranged.cpp:2299-2308`) and `RAS_time` (`ranged.cpp:2310-2322`). Both are arithmetic over data the port names rather than data it has, so the gate works the
 //! numbers out by hand and says where they come from.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 /// A skill's line: `base_time` down by `time_reduction_per_level` a level, floored at `min_time`.
 ///

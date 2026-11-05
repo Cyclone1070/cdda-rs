@@ -7,7 +7,7 @@
 //! A real is recorded with its bounds and its value at full precision, because a replay must reach the *same* value the reference reached, not a value in
 //! the same range: the whole point of `roll_remainder( 0.0484 )` is whether it landed.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_core_types::rng::{Draw, Recording, Rolls};
 

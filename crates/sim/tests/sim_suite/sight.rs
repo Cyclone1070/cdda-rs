@@ -1,6 +1,6 @@
 //! Fine detail vision, against the reference's own arithmetic.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 /// A lamp in the hand beats the same light on the floor, and nothing beats full light.
 ///

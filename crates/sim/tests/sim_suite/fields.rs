@@ -3,7 +3,7 @@
 //! The behaviour here was ported and gated against the reference before the storage moved;
 //! these tests exist to prove the move did not change it.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::{FieldEntry, FieldId};

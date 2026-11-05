@@ -4,7 +4,7 @@
 //! tests is not that the shield works: it is that the port draws the same dice as the reference
 //! while failing to shield anything, because that is what the reference does.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_core_types::rng::Rolls;
 use cdda_sim::wind_reach;

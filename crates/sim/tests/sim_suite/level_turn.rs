@@ -4,7 +4,7 @@
 //! then decays. The port splits that into three systems for clarity - `process_fires`, the gas systems, and `process_field_turns` for the decay - and this
 //! is the function that runs them in the reference's order, so a test can burn a room for twenty turns instead of calling three systems by hand.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::FieldEntry;

@@ -4,7 +4,7 @@
 //! this is the whole path - reference data, port loader, world - rather than a hand-built type. A zombie is the
 //! case because its numbers are all non-trivial: eighty hit points, seventy speed, four melee skill, two dice.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_json::{Value, parse};
 use cdda_sim::creature::{Armour, MeleeAttack, health_of, spawn_monster_of_type, speed_of};

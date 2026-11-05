@@ -3,7 +3,7 @@
 //! The reference's pockets each have volume, weight and length limits (`item::can_contain`); the port
 //! keeps one capacity per container, which is the part every caller needs first.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_sim::{

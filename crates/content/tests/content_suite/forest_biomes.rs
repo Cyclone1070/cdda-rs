@@ -1,6 +1,6 @@
 //! Which terrains own a forest biome, and how dense each one is.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_content::overmap_special::load_forest_mapgens;
 

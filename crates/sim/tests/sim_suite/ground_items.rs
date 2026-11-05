@@ -4,7 +4,7 @@
 //! The order is not cosmetic: a fire that burns a pile consumes it front to back, so the order is
 //! part of what a replay has to reproduce.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_sim::{GroundItem, ItemTypeId, drop_item, items_at, take_item};

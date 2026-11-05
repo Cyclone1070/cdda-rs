@@ -3,7 +3,7 @@
 //! Transcribed from `field_processor_fd_fire` (`src/map_field.cpp:1128-1132`): with nothing burned
 //! this turn, a fire whose tile has no fuel gains ten seconds of age per point of intensity.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::FieldEntry;

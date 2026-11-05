@@ -4,7 +4,7 @@
 //! pinning: its **unburied** half reads the actor's own object and its **buried** half reads a nested `"bury"` object, and only when there is a `bury_question` to
 //! ask (`src/iuse_actor.cpp:4174-4187`) — so the same keys mean different things at the two levels.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_content::items::{ItemType, load_paths};
 use cdda_content::use_actions::{DeployFurn, PlaceTrap, TrapData, UseAction};

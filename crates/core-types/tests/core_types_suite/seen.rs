@@ -2,7 +2,7 @@
 //!
 //! Reference: `map::seen` over the cache `map::build_seen_cache` fills (`src/lightmap.cpp:1039-1100`).
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_core_types::level::Level;
 use cdda_core_types::light::TRANSPARENCY_OPEN_AIR;

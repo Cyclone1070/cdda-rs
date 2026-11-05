@@ -1,6 +1,6 @@
 //! What makes a corpse a corpse, and when it is too late to use it.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_sim::{

@@ -5,7 +5,7 @@
 //! values. Without them a spawned monster can walk and be hit but cannot hit back, which is exactly the shape
 //! the port had before this.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_content::monsters::MonsterType;
 use cdda_json::{Value, parse};

@@ -5,7 +5,7 @@
 //! furniture is neither flammable nor a container - draws **nothing**: no `one_in( 3 )`, no bash roll. The recording caught this as a missing die: the port
 //! asked for fuel where the reference went straight on to the wind.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_core_types::fire::{Ground, ground_fuel};
 use cdda_core_types::rng::{Recording, Rolls};

@@ -3,7 +3,7 @@
 //! Transcribed from `field_processor_fd_fire` (`src/map_field.cpp:1240-1262`). The ceiling comes
 //! from fuel age first, then neighbours; growth costs ten minutes of age per point of intensity.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_sim::{grow_fire, growth_ceiling};
 

@@ -1,6 +1,6 @@
 //! Woodland placed from the noise field, and what it refuses to paint over.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_core_types::noise::forest_noise;
 use cdda_core_types::overmap::{

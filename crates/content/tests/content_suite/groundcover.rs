@@ -1,6 +1,6 @@
 //! The ground a region lays down before anything else is placed on it.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_content::overmap_special::read_groundcover;
 

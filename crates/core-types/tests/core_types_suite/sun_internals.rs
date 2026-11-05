@@ -9,7 +9,7 @@
 //! It exists because the environment dump's sunrise disagreed by 3,422 turns and every function in
 //! the chain read identically. One answer cannot say which input is wrong; six can.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_core_types::calendar::{CalendarConfig, TimePoint, sun_internals};
 use cdda_json::{Value, parse};

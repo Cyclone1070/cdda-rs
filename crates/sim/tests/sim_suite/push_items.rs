@@ -4,7 +4,7 @@
 //! least a turn old, thrown to one of the neighbouring squares that also holds the field, losing
 //! their age on landing.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::FieldEntry;

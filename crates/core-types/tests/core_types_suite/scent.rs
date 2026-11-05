@@ -1,6 +1,6 @@
 //! Scent spreading and fading.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_core_types::scent::{ScentCell, decay, diffuse_step};
 

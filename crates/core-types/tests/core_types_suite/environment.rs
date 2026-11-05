@@ -9,7 +9,7 @@
 //! unconfigured four-day year and disagreed with every later run by 3,422 turns. The port was right;
 //! the dump was measuring an object before it was built.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_core_types::calendar::{
     CalendarConfig, TimePoint, day_of_season, hour_of_day, season_of_year, sunrise, sunset,

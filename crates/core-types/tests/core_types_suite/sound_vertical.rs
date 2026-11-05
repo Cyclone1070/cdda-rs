@@ -5,7 +5,7 @@
 //! the first level below adds four to the attenuation *before* the five-times scaling, and every further level adds twenty more. A port
 //! that took the comment at face value would be wrong in the second digit everywhere below ground.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_core_types::sound::sound_distance_3d;
 

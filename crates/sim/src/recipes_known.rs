@@ -3,9 +3,9 @@
 //! Reference: `learned_recipes` (`src/character_crafting.cpp:28-53`). A character knows the recipes in this set, and nothing else: `knows_recipe` is a membership
 //! test, so a recipe the character can make only because it can see the ingredients is **not** known, and the two questions stay apart.
 //!
-//! What the reference refuses to teach is the part worth naming: `learn_recipe` (`:32-40`) returns without adding anything when the recipe carries
-//! `never_learn`, which the data uses for the seventeen companion recipes (`recipes/recipe_companion.json`). The port has no recipe prototype to ask, so it
-//! teaches what it is told - and no effect-on-condition in the data names one of those seventeen, which is why that gap is recorded here rather than guessed at.
+//! **The refusal is the interesting half.** `learn_recipe` (`:32-40`) returns without teaching anything when the recipe carries `never_learn` and the caller did not
+//! ask to override it - and the reference's own dump marks **1,114 of 6,291 recipes** that way, practice recipes and companions alike. The flag arrives as an
+//! argument because the recipe prototype is the caller's to look up; a `learn` that guessed would be a second opinion about what can be taught.
 
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
@@ -16,17 +16,29 @@ use std::collections::BTreeSet;
 #[derive(Component, Debug, Clone, Default, PartialEq, Eq)]
 pub struct KnownRecipes(pub BTreeSet<String>);
 
-/// Teaches a character a recipe, which is adding it to the set it carries.
+/// Teaches a character a recipe, and answers whether it was taught.
 ///
-/// Reference: `Character::learn_recipe` (`src/character_crafting.cpp:32-40`). The set has no duplicates: teaching the same recipe twice leaves one copy.
-pub fn learn(world: &mut World, creature: Entity, recipe: &str) {
+/// Reference: `Character::learn_recipe` (`src/character_crafting.cpp:32-40`):
+///
+/// ```text
+/// if( rec->never_learn && !override_never_learn ) return;
+/// learned_recipes->include( rec );
+/// ```
+///
+/// **The refusal is silent and complete**: nothing is added and the set is not created, so a character who was only ever offered never-learn recipes carries no component at all - the same
+/// "missing means none" rule [`crate::identification`] follows. `override_never_learn` exists because **reading a book** can teach a recipe the character could not otherwise learn.
+pub fn learn(world: &mut World, creature: Entity, recipe: &str, never_learn: bool, override_never_learn: bool) -> bool {
+    if never_learn && !override_never_learn {
+        return false;
+    }
     if let Some(mut known) = world.get_mut::<KnownRecipes>(creature) {
         known.0.insert(recipe.to_owned());
-        return;
+        return true;
     }
     let mut known = KnownRecipes::default();
     known.0.insert(recipe.to_owned());
     world.entity_mut(creature).insert(known);
+    true
 }
 
 /// Makes a character forget a recipe. Forgetting one it never knew changes nothing, which the reference also allows.

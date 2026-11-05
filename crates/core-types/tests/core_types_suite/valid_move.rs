@@ -4,7 +4,7 @@
 //! fall is possible at all, an open-air square above is a ledge that overrides that floor, and `bash` short-circuits everything after those checks. Since the
 //! gas calls it with `bash = true, flying = true`, the vehicle and creature halves of the rule are out of scope here - and are recorded as such below.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_core_types::movement::{StepFacts, can_step_vertically};
 

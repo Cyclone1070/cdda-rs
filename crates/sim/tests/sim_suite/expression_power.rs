@@ -4,7 +4,7 @@
 //! that associates to the **right**. `math_opers::math_pow` is `std::pow`. The data writes `((-1) ^ rand(1))` in `traps.json`, which reads as a random sign rather than
 //! as a bitwise exclusive or - and a port that read it as an operator it did not know refused the whole effect.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 

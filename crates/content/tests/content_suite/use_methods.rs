@@ -7,7 +7,7 @@
 //! * two entries with the same name **collapse**, the first winning, because the loader `emplace`s (`src/generic_factory.h:1040-1050`);
 //! * a `repair_item` actor is registered under its **`item_action_type`** (`src/item_factory.cpp:1858-1865`), so a repairkit answers to `repair_metal`.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_content::items::{ItemType, load_paths};
 use cdda_json::Value;

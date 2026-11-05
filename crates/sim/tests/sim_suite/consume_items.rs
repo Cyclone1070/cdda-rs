@@ -2,7 +2,7 @@
 //!
 //! Transcribed from `map::use_amount_square` (`src/map.cpp:5877-5897`).
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_sim::{Consumed, GroundItem, ItemTypeId, consume_items, drop_item, items_at};

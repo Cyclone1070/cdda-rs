@@ -5,7 +5,7 @@
 //! that started without its components would silently produce something from nothing, and one that started with no
 //! duration would finish before it began.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_content::recipes::Recipe;
@@ -246,7 +246,7 @@ fn a_recipe_is_satisfied_by_what_is_in_hand_and_nothing_else() {
     let carried = cdda_sim::inventory::carried_by_id(&mut world, crafter, |kind| names.name_of(kind));
     assert_eq!(carried.get("rag"), Some(&2), "two rags are in hand");
 
-    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id, false, false);
     assert_eq!(
         cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
         Craft::Started,
@@ -260,7 +260,7 @@ fn a_recipe_is_satisfied_by_what_is_in_hand_and_nothing_else() {
     world
         .entity_mut(rag)
         .insert(cdda_sim::creature::Carried(other));
-    cdda_sim::recipes_known::learn(&mut world, other, &recipe.id);
+    cdda_sim::recipes_known::learn(&mut world, other, &recipe.id, false, false);
     assert_eq!(
         cdda_sim::crafting::begin_craft_from_carried(&mut world, other, &recipe, 1, &names),
         Craft::MissingComponents,
@@ -288,7 +288,7 @@ fn finishing_a_craft_consumes_the_components_and_makes_the_result() {
     }
     let mut recipe = recipe(100, "rag", 2);
     recipe.result = "rope".to_owned();
-    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id, false, false);
     assert_eq!(
         cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
         Craft::Started
@@ -329,7 +329,7 @@ fn a_craft_that_lost_its_components_makes_nothing_and_takes_nothing() {
     let mut recipe = recipe(100, "rag", 2);
     recipe.result = "rope".to_owned();
     // Started with two, then one was dropped.
-    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id, false, false);
     assert_eq!(
         cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
         Craft::MissingComponents,
@@ -397,7 +397,7 @@ fn a_crafted_thing_lands_in_a_pocket() {
 
     let mut recipe = recipe(100, "rag", 2);
     recipe.result = "rope".to_owned();
-    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id, false, false);
     assert_eq!(
         cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
         Craft::Started
@@ -509,7 +509,7 @@ fn what_fits_no_pocket_lands_at_your_feet() {
     }
     let mut recipe = recipe(100, "rag", 2);
     recipe.result = "rope".to_owned();
-    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id, false, false);
     assert_eq!(
         cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
         Craft::Started
@@ -632,7 +632,7 @@ fn a_craft_that_needs_a_quality_asks_the_items_that_carry_it() {
     let rag = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 1);
     world.entity_mut(rag).remove::<cdda_sim::Position>();
     world.entity_mut(rag).insert(cdda_sim::creature::Carried(crafter));
-    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id, false, false);
     assert_eq!(
         cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
         Craft::MissingQualities,
@@ -648,7 +648,7 @@ fn a_craft_that_needs_a_quality_asks_the_items_that_carry_it() {
             &[("HAMMER".to_owned(), 3)],
         )],
     );
-    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id, false, false);
     assert_eq!(
         cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
         Craft::Started,
@@ -711,7 +711,7 @@ fn a_recipe_that_was_never_learned_does_not_start() {
         world.get::<Making>(crafter).is_none(),
         "and nothing was started"
     );
-    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id, false, false);
     let learned = cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names);
     assert_eq!(learned, Craft::Started, "learned, and with the rag in hand, it starts");
 }
@@ -767,7 +767,7 @@ fn a_tool_that_burns_charges_has_them_spent_and_a_held_one_does_not() {
         world.entity_mut(rag).remove::<cdda_sim::Position>();
         world.entity_mut(rag).insert(cdda_sim::creature::Carried(crafter));
     }
-    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id, false, false);
     assert_eq!(
         cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 2, &names),
         Craft::Started,
@@ -807,7 +807,7 @@ fn a_craft_teaches_the_skill_it_names() {
         world.entity_mut(rag).remove::<cdda_sim::Position>();
         world.entity_mut(rag).insert(cdda_sim::creature::Carried(crafter));
     }
-    cdda_sim::recipes_known::learn(&mut world, crafter, &learned.id);
+    cdda_sim::recipes_known::learn(&mut world, crafter, &learned.id, false, false);
     assert_eq!(
         cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &learned, 1, &names),
         Craft::Started
@@ -875,7 +875,7 @@ fn a_recipe_that_makes_more_than_one_makes_that_many() {
             world.entity_mut(rag).remove::<cdda_sim::Position>();
             world.entity_mut(rag).insert(cdda_sim::creature::Carried(crafter));
         }
-        cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
+        cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id, false, false);
         assert_eq!(
             cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, recipe, 2, &names),
             Craft::Started
@@ -919,7 +919,7 @@ fn a_craft_leaves_its_byproducts_behind() {
         world.entity_mut(rag).remove::<cdda_sim::Position>();
         world.entity_mut(rag).insert(cdda_sim::creature::Carried(crafter));
     }
-    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id, false, false);
     assert_eq!(
         cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 2, &names),
         Craft::Started
@@ -953,7 +953,7 @@ fn a_byproduct_group_is_drawn_between_its_ends() {
     let mut recipe = recipe(100, "rag", 1);
     recipe.result = "cord".to_owned();
     recipe.byproduct_group = vec![("arrow".to_owned(), 0, 4)];
-    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id, false, false);
     let mut totals = Vec::new();
     for seed in 0..8 {
         let rag = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 2);
@@ -1010,7 +1010,7 @@ fn a_contained_recipe_makes_the_container_with_the_thing_inside() {
     let rag = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 1);
     world.entity_mut(rag).remove::<cdda_sim::Position>();
     world.entity_mut(rag).insert(cdda_sim::creature::Carried(crafter));
-    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id, false, false);
     assert_eq!(
         cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
         Craft::Started
@@ -1092,7 +1092,7 @@ fn tool_charges_are_spent_a_twentieth_at_a_time() {
         item: "hammer".to_owned(),
         count: 100,
     }]];
-    cdda_sim::recipes_known::learn(&mut world, crafter, &many.id);
+    cdda_sim::recipes_known::learn(&mut world, crafter, &many.id, false, false);
     let rag = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 1);
     world.entity_mut(rag).remove::<cdda_sim::Position>();
     world.entity_mut(rag).insert(cdda_sim::creature::Carried(crafter));
@@ -1204,23 +1204,31 @@ fn a_miserable_crafter_is_slower_and_harder_work_costs_more() {
 fn working_in_the_dark_is_a_skill_ladder_or_a_refusal() {
     use cdda_sim::crafting::lighting_speed_multiplier;
 
-    let bright = |vision: f32| lighting_speed_multiplier(vision, false, false, false, true, 0);
+    use cdda_sim::crafting::Blindness;
+
+    // One recipe, described once: no flags, a skill, nothing special in the dark.
+    let plain = cdda_sim::crafting::DarkRecipe {
+        craft_in_darkness: false,
+        blindness: Blindness::No,
+        skill_used: true,
+    };
+    let bright = |vision: f32| lighting_speed_multiplier(vision, &plain, 0);
 
     assert!((bright(4.0) - 1.0).abs() < 1e-6, "vision 4 is `darkness` 0, the edge of bright");
     assert!((bright(2.0) - 1.0).abs() < 1e-6, "and brighter is still one: **no bonus for light**");
     assert!((bright(11.0) - 0.0).abs() < 1e-6, "**pitch black with no flag is a refusal**, not a slow craft");
-    assert!((lighting_speed_multiplier(11.0, true, false, false, true, 0) - 1.0).abs() < 1e-6, "unless the crafter can see in the dark");
+    assert!((lighting_speed_multiplier(11.0, &cdda_sim::crafting::DarkRecipe { craft_in_darkness: true, ..plain }, 0) - 1.0).abs() < 1e-6, "unless the crafter can see in the dark");
 
     // blind_easy: 100% at the requirement, 25% at pitch black, full speed two levels up.
-    assert!((lighting_speed_multiplier(11.0, false, true, false, true, 0) - 0.25).abs() < 1e-6, "cheap in the dark: a quarter speed at the requirement");
-    assert!((lighting_speed_multiplier(11.0, false, true, false, true, 2) - 1.0).abs() < 1e-6, "two levels above it, no penalty at all");
-    assert!((lighting_speed_multiplier(11.0, false, true, false, false, 0) - 1.0).abs() < 1e-6, "a recipe with no skill loses nothing in the dark");
+    assert!((lighting_speed_multiplier(11.0, &cdda_sim::crafting::DarkRecipe { blindness: Blindness::Easy, ..plain }, 0) - 0.25).abs() < 1e-6, "cheap in the dark: a quarter speed at the requirement");
+    assert!((lighting_speed_multiplier(11.0, &cdda_sim::crafting::DarkRecipe { blindness: Blindness::Easy, ..plain }, 2) - 1.0).abs() < 1e-6, "two levels above it, no penalty at all");
+    assert!((lighting_speed_multiplier(11.0, &cdda_sim::crafting::DarkRecipe { blindness: Blindness::Easy, skill_used: false, ..plain }, 0) - 1.0).abs() < 1e-6, "a recipe with no skill loses nothing in the dark");
 
     // blind_hard: needs the requirement plus two before it is even allowed.
-    assert!((lighting_speed_multiplier(11.0, false, false, true, true, 1) - 0.0).abs() < 1e-6, "**one level short is a refusal**");
-    assert!((lighting_speed_multiplier(11.0, false, false, true, true, 2) - 0.25).abs() < 1e-6, "at requirement plus two, a quarter speed");
-    assert!((lighting_speed_multiplier(11.0, false, false, true, true, 8) - 1.0).abs() < 1e-6, "and six levels above it, full speed");
-    assert!((lighting_speed_multiplier(11.0, false, false, true, false, 0) - 0.5).abs() < 1e-6, "a hard-in-the-dark recipe with no skill is a flat half");
+    assert!((lighting_speed_multiplier(11.0, &cdda_sim::crafting::DarkRecipe { blindness: Blindness::Hard, ..plain }, 1) - 0.0).abs() < 1e-6, "**one level short is a refusal**");
+    assert!((lighting_speed_multiplier(11.0, &cdda_sim::crafting::DarkRecipe { blindness: Blindness::Hard, ..plain }, 2) - 0.25).abs() < 1e-6, "at requirement plus two, a quarter speed");
+    assert!((lighting_speed_multiplier(11.0, &cdda_sim::crafting::DarkRecipe { blindness: Blindness::Hard, ..plain }, 8) - 1.0).abs() < 1e-6, "and six levels above it, full speed");
+    assert!((lighting_speed_multiplier(11.0, &cdda_sim::crafting::DarkRecipe { blindness: Blindness::Hard, skill_used: false, ..plain }, 0) - 0.5).abs() < 1e-6, "a hard-in-the-dark recipe with no skill is a flat half");
 }
 
 /// A workbench only helps until the workpiece outgrows it, and pain costs speed one percent a point.
@@ -1300,4 +1308,36 @@ fn a_recipe_is_attemptable_if_the_hands_know_it_or_the_head_does() {
     assert!(has_recipe_requirements(2, false), "practical excess is enough on its own");
     assert!(has_recipe_requirements(-3, true), "**and knowledge carries a crafter whose practical level is short**");
     assert!(!has_recipe_requirements(-1, false), "but neither one means no");
+}
+
+/// A recipe marked never-learn is refused by the teaching path, unless the caller overrides it.
+///
+/// Reference: `Character::learn_recipe` (`character_crafting.cpp:32-40`):
+///
+/// ```text
+/// if( rec->never_learn && !override_never_learn ) return;   // nothing is taught, and nothing is said
+/// learned_recipes->include( rec );
+/// ```
+///
+/// **The refusal is silent and complete**: the recipe is not added, and the set is not created either, so a character who was only ever offered never-learn recipes carries no component at all - which
+/// is the same "missing means none" rule the identification set follows. The override exists because **reading a book** can teach a recipe the character could not otherwise learn.
+#[test]
+fn a_never_learn_recipe_is_refused_unless_overridden() {
+    use cdda_sim::recipes_known::{KnownRecipes, learn, knows};
+
+    let mut world = World::new();
+    let learner = world.spawn_empty().id();
+
+    assert!(!learn(&mut world, learner, "practice_make_rag", true, false), "**never-learn and no override: refused**");
+    assert!(!knows(&world, learner, "practice_make_rag"), "and it is not known");
+    assert!(
+        world.get::<KnownRecipes>(learner).is_none(),
+        "**a refusal creates no set at all**, so the refusal leaves no trace"
+    );
+
+    assert!(learn(&mut world, learner, "practice_make_rag", true, true), "the override teaches it anyway");
+    assert!(knows(&world, learner, "practice_make_rag"), "and now it is known");
+
+    assert!(learn(&mut world, learner, "rag", false, false), "an ordinary recipe needs no override");
+    assert!(knows(&world, learner, "rag"));
 }

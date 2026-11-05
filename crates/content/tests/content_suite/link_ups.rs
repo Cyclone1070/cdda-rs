@@ -4,7 +4,7 @@
 //! defaults are what matter here, because 106 of the 108 leave them alone: an efficiency of **0.85** and a move cost of **5**, so a cable nobody described still
 //! loses a sixth of its power and still costs a moment to attach.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_content::items::{ItemType, load_paths};
 use cdda_content::use_actions::{LinkUp, UseAction};

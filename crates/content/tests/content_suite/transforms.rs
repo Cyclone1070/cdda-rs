@@ -3,7 +3,7 @@
 //! `corpus/items/transforms.json` is `--dump-transforms`: 459 actions over 459 types, 431 `transform` and 28 `delayed_transform`. `delayed_transform` is not a
 //! different shape — the reference loads it with the **same** loader and adds a `not_ready_msg` — so the port reads both through one reader.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_content::items::{ItemType, load_paths};
 use cdda_content::use_actions::{Transform, UseAction};

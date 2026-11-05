@@ -4,7 +4,7 @@
 //! `one_in(3)`, then five minutes of age handed over per neighbour fed, with a fed fire under 2
 //! growing to 2.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::FieldEntry;

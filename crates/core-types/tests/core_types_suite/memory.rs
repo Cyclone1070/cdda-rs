@@ -1,6 +1,6 @@
 //! Map memory: what stays on the character's map after the light goes out.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_core_types::level::Level;
 use cdda_core_types::memory::{MapMemory, RememberedLight, remember_seen};

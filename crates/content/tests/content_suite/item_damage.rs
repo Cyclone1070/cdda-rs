@@ -9,7 +9,7 @@
 //! * the degradation increments are **zero for almost everything**, because the loader throws away the stated multiplier unless the type is a vehicle part;
 //! * the damage level multiplies before it divides, which is what makes its four bands equal.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_content::items::{ItemType, load_paths};
 use cdda_json::Value;

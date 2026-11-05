@@ -2,7 +2,7 @@
 //!
 //! Transcribed from `map::create_burnproducts` (`src/map_field.cpp:116-143`).
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_sim::burn_products;
 

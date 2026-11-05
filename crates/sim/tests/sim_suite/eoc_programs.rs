@@ -4,7 +4,7 @@
 //! `run_eocs` runs a name from it (`npctalk.cpp`). This is the piece that makes the machine compose: until a program could
 //! name another, every effect was a leaf.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_sim::eoc_registry::{self, DEPTH_LIMIT};

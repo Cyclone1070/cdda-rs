@@ -9,7 +9,7 @@
 //! the component it claims to install has to be there afterwards. A setter added later without a line here is a setter nobody has
 //! read back.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 

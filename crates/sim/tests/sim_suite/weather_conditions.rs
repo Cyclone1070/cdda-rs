@@ -4,7 +4,7 @@
 //! `Weather` carries only the sight penalty the light needs, so the id is its own component - data beside a number, and the
 //! condition asks the store rather than a table the caller built.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_sim::weather;

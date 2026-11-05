@@ -7,7 +7,7 @@
 //! The array shape is the one that is easy to lose: a reader that only accepts strings and objects drops those entries **without an error**, which leaves a
 //! repairkit with a shorter action list than the reference's.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_content::items::{ItemType, load_paths};
 use std::collections::BTreeMap;

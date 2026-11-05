@@ -3,7 +3,7 @@
 //! Reference: `item::set_random_fault_of_type` (`src/item.cpp:7848-7865`), `item::can_have_fault` (`src/item.cpp:7809-7826`), and the weighted pick itself
 //! (`src/weighted_list.h:120-129` and `247-267`), which draws `rng_bits()` — a raw 32-bit number — and not an `rng( lo, hi )` pair.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_core_types::rng::{Recording, Rolls};
 use cdda_sim::{can_have_fault, pick_fault};

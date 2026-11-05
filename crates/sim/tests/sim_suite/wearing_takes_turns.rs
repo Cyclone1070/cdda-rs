@@ -4,7 +4,7 @@
 //! puts the garment on once its time is spent. The port had `wear` charging its cost and changing the store in the same
 //! breath, which is right for an instant act and wrong for one the turn loop has to be able to interrupt.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_sim::creature::{

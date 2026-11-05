@@ -1,6 +1,6 @@
 //! Putting buildings beside a town's streets.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_content::overmap_build::{PLACEMENT_RETRIES, build_town};
 use cdda_content::overmap_special::{

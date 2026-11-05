@@ -4,7 +4,7 @@
 //! encumbrance numbers and both modifier lists. It is small enough to compare completely, which is the point — a fault's numbers reach the player through the item's
 //! displayed name, its price, its repair ceiling and its melee damage.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_content::faults::{DamageMod, Fault, load_paths};
 use cdda_json::Value;

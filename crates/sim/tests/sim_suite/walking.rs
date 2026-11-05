@@ -6,7 +6,7 @@
 //! rule is that a creature spends its points and stands where it walked, and the four pieces are
 //! already gated against the reference on their own.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::level::Level;

@@ -3,7 +3,7 @@
 //! Transcribed from `field_processor_fd_fire` (`src/map_field.cpp:1051-1090`), including the order
 //! of the dice: the `FLAMMABLE_HARD` check, then the wrecking check, then the ash.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_core_types::rng::Rolls;
 use cdda_sim::{TerrainBurn, TerrainFuel, burn_terrain};

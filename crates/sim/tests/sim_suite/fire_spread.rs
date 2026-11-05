@@ -4,7 +4,7 @@
 //! transcription of `field_processor_fd_fire` (`src/map_field.cpp:1290-1345`) compared against the
 //! port over many seeds and every combination of fuel facts.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::FieldEntry;

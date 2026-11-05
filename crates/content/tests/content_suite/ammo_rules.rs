@@ -1,4 +1,4 @@
-#![allow(clippy::expect_used)]
+#![allow(clippy::expect_used, clippy::panic)]
 
 
 /// Every round states the ammunition type it belongs to, and that type is **not** its own id for most of them.

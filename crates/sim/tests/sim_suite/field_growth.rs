@@ -3,7 +3,7 @@
 //! Transcribed from `field_processor_underwater_dissipation` and `field_processor_upgrade_intensity`
 //! (`src/map_field.cpp:503-523`).
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::{FieldEntry, FieldId};

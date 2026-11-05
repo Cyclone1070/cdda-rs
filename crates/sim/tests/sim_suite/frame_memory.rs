@@ -7,7 +7,7 @@
 //! The other half of the rule is where the memory comes from: the draw loop memorizes what it draws (`drawsqu_params().memorize( true )`, `map.cpp:7216`), so the memory is
 //! filled by looking and read back by not being able to look.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::level::Level;

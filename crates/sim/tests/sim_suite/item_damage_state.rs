@@ -3,7 +3,7 @@
 //! Reference: `src/item.cpp:9440-9468` (the three-way branch and the destruction test), `src/item.cpp:967-979` (the two setters and the invariant between them), and
 //! `get_degrade_amount` (`src/item.cpp:9428-9439`), whose `-1` for undamaged is the reason the first hit degrades an item twice as fast as the second.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_sim::{DamageLimits, ItemDamage, degrade_amount, mod_damage_charges};
 

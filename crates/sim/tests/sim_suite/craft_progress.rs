@@ -2,7 +2,7 @@
 //!
 //! Transcribed from `craft_activity_actor::do_turn` (`src/activity_actor.cpp:4163-4240`).
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_sim::{CraftingWork, WorkOutcome, craft_turn};
 

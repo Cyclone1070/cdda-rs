@@ -1,6 +1,6 @@
 //! Every road tile named after the neighbours it reaches.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_core_types::overmap::{
     CitySettings, Direction, Overmap, StreetView, grow_town, lay_out_street, render, road_glyph,

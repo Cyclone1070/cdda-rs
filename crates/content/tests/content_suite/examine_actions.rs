@@ -8,7 +8,7 @@
 //! `consume_card`, `allow_hacking`, `despawn_monsters` and `query` are all **true** when unstated, its `radius` is **3**, and a reader that states a `mapgen_id` does
 //! **not** read the radius at all.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_content::examine::ExamineAction;
 use cdda_content::mapdata::{MapData, MapDataKind, load_paths};

@@ -5,7 +5,7 @@
 //! dice roll and is not ported here - `cases` takes the square the caller decided on, so the
 //! arithmetic can be gated on its own.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::{FieldEntry, FieldId};

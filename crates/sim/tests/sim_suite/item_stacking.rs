@@ -3,7 +3,7 @@
 //! Transcribed from `item::stacks_with` (`src/item.cpp:1693-1760`), keeping the comparisons the
 //! port's ground items can actually make.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_sim::{GroundItem, ItemTypeId, StackFacts, drop_and_merge, items_at, stacks_with};

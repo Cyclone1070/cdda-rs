@@ -3,7 +3,7 @@
 //! Transcribed from `field_processor_fd_toxic_gas` and `field_processor_fd_nuke_gas`
 //! (`src/map_field.cpp:1966-1990`).
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::rng::Rolls;

@@ -3,7 +3,7 @@
 //! Reference: the smoke block at the end of `field_processor_fd_fire` (`src/map_field.cpp:1407-1425`). Two conditions decide whether any smoke is
 //! made, and where it goes depends on what is overhead: **up** if the square above has no floor, otherwise **here**, thicker.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_core_types::fire::{Smoke, smoke_from_fire};
 use cdda_core_types::rng::Rolls;

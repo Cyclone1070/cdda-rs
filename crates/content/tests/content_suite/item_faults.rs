@@ -4,7 +4,7 @@
 //! list is **not** what the type states: a type may point at a `fault_group`, and the group is expanded in a finalisation pass (`item_factory.cpp:919-936`), so the
 //! resolved list mixes direct weights, replaced weights and appended ones in the order the type happens to state them.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_content::faults::load_groups;
 use cdda_content::items::{ItemType, expand_fault_groups, load_paths};

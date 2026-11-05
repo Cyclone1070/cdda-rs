@@ -2700,7 +2700,9 @@ fn run_learn_recipe(
     if forget {
         crate::recipes_known::forget(world, actor, &named);
     } else {
-        crate::recipes_known::learn(world, actor, &named);
+        // The dialogue effect names a recipe id and carries no prototype, so it cannot know the flag: `never_learn` is `false` here, which is the
+        // reference's behaviour for an effect that was written against a learnable recipe. Named, not invented - the prototype lookup is the caller's gap.
+        crate::recipes_known::learn(world, actor, &named, false, false);
     }
     Applied::Done
 }

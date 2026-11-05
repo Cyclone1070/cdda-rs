@@ -104,10 +104,10 @@ pub fn read_duration_turns(value: Option<&Value>) -> i64 {
     };
     let unit = parts.next().unwrap_or("turns");
     match unit {
-        "s" | "second" | "seconds" => amount,
         "m" | "minute" | "minutes" => amount * 60,
         "h" | "hour" | "hours" => amount * 3600,
         "d" | "day" | "days" => amount * 86_400,
+        // **A turn is a second**, so seconds, turns and any unit the reader does not know all come back as written.
         _ => amount,
     }
 }

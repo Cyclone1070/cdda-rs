@@ -6,7 +6,7 @@
 //! a save - and the numbers themselves pin the distribution, which is `rng( 1, 100 )`
 //! (`harness.cpp:2264`), so an off-by-one in the bounds shows up as three wrong numbers per seed.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_core_types::rng::MinStdRand0;
 use cdda_json::{Value, parse};

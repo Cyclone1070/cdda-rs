@@ -1,6 +1,6 @@
 //! How far a noise carries, and who hears it.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_core_types::sound::{SoundEvent, heard, sound_distance};
 

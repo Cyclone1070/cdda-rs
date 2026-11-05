@@ -4,7 +4,7 @@
 //! that walks the fire entities and hands each one its turn. Two of the processor's inputs are the map's rather than the fire's - how many
 //! fires touch it, and whether the ground under it can burn - so they arrive as answers the environment layer supplies.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::FieldEntry;

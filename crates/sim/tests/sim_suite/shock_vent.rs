@@ -5,7 +5,7 @@
 //! independent transcription of the same C++ draw the same numbers in the same order and light the
 //! same squares. The shadow below is written from the reference, not from the port.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::FieldEntry;

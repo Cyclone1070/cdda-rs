@@ -2,7 +2,7 @@
 //!
 //! Reference: `item::set_fault` (`src/item.cpp:7828-7845`), `item::remove_fault` (`7869-7872`) and `item::remove_single_fault_of_type` (`7874-7882`).
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_sim::{ItemFaults, remove_fault, set_fault};
 use std::collections::BTreeSet;

@@ -4,7 +4,7 @@
 //! (`item.cpp:7654-7658`). The value is **computed at load** - `item_factory.cpp:324-326` fills it with `melee.damage_map[bash] * 0.75` when the data names no
 //! `thrown_damage` - so a port that only read a stated member would give zero to almost every thrown thing, and a rock would stop hurting.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_content::items::{ItemType, load_paths};
 use cdda_json::Value;

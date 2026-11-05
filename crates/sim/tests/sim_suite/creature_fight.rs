@@ -5,7 +5,7 @@
 //! what is checked is that the behaviour is wired into the declared stage rather than existing as a function
 //! nobody calls.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 // The mending rates are compared exactly: they are the reference's own constants (0.02, 0.005), and a rate that arrives a hair off is a port that reordered the branches.
 #![allow(clippy::float_cmp)]

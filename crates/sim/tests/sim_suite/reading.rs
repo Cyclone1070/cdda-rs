@@ -1,6 +1,6 @@
 //! Reading speed, against the reference's own comment.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 /// Intelligence turns into a reading time, on the curve the reference writes out in its own comment.
 ///

@@ -4,7 +4,7 @@
 //! the square above, and an older per-field one that only ever looked sideways. Two rules that disagree are worse than one rule that is wrong, because the session
 //! gates were green while the older path quietly dropped every fall. These tests hold the older door to the same rule: down first, then the neighbours, then up.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::FieldEntry;

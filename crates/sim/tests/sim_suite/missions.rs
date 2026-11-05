@@ -4,7 +4,7 @@
 //! the type id the guard names. It is the biggest single refused leaf in the data - 281 occurrences, and 114 of the 3,708
 //! condition objects.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_sim::missions;

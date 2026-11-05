@@ -4,7 +4,7 @@
 //! `rng(0, 100 - windpower)`, then `rng(3, 35)`, then hot air's `rng(0, 4 - adjacent)`, and the
 //! first two are skipped entirely when the terrain suppresses smoke.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::FieldEntry;

@@ -4,7 +4,7 @@
 //! (`character.cpp`) reads the character's own set. Measured against the data, `u_has_trait` is the second biggest guard the port
 //! could not answer - 36 of 692 programs were refused because of it.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_sim::traits;

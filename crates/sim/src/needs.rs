@@ -26,6 +26,17 @@ pub const STARVATION_THRESHOLDS: [Point; 3] = [(0.0, 6_000.0), (0.8, 300.0), (0.
 /// The metabolic multiplier curve: `( effective hunger, multiplier )` (`:775-780`).
 pub const METABOLIC_THRESHOLDS: [Point; 4] = [(300.0, 1.0), (2_000.0, 0.8), (5_000.0, 0.6), (8_000.0, 0.5)];
 
+/// An integer as a float for the curves, named so the cast is visible at every call.
+#[allow(clippy::cast_precision_loss)]
+fn as_float(value: i32) -> f32 {
+    value as f32
+}
+
+/// A float already, kept so the two curves read alike at their call sites.
+fn as_float_of(value: f32) -> f32 {
+    value
+}
+
 /// Piecewise linear interpolation: `multi_lerp` (`src/cata_utility.cpp:267-288`).
 ///
 /// The points are **ascending by their first member** and the answer outside the curve is the nearest end, not an extrapolation. The reference finds the first point
@@ -286,27 +297,13 @@ pub fn rates_with_enchantments(world: &World, creature: bevy_ecs::entity::Entity
 #[must_use]
 pub fn thirst_speed_penalty(thirst: i32) -> i32 {
     /// The reference's `thirst_thresholds`, in order.
-    const THRESHOLDS: [(f64, f64); 4] = [(40.0, 0.0), (300.0, -25.0), (600.0, -50.0), (1200.0, -75.0)];
-    let x = f64::from(thirst);
-    let mut index = 0;
-    while index < THRESHOLDS.len() && THRESHOLDS[index].0 <= x {
-        index += 1;
-    }
-    let value = if index == 0 {
-        THRESHOLDS[0].1
-    } else if index >= THRESHOLDS.len() {
-        THRESHOLDS[THRESHOLDS.len() - 1].1
-    } else {
-        let (low_x, low_value) = THRESHOLDS[index - 1];
-        let (high_x, high_value) = THRESHOLDS[index];
-        let t = (x - low_x) / (high_x - low_x);
-        t * high_value + (1.0 - t) * low_value
-    };
-    // `static_cast<int>` truncates toward zero; Rust's cast does the same, so the sign is the reference's.
+    const THRESHOLDS: [Point; 4] = [(40.0, 0.0), (300.0, -25.0), (600.0, -50.0), (1200.0, -75.0)];
+    // `static_cast<int>` truncates toward zero, and Rust's `as` does the same, so the sign is the reference's.
     #[allow(clippy::cast_possible_truncation)]
-    let penalty = value as i32;
+    let penalty = multi_lerp(&THRESHOLDS, as_float(thirst)) as i32;
     penalty
 }
+
 
 /// What being starved costs a character's speed, by **fat category** rather than by BMI.
 ///
@@ -323,28 +320,14 @@ pub fn thirst_speed_penalty(thirst: i32) -> i32 {
 /// character sitting between two of them pays the average. **`std::round` takes halves away from zero**, which for a penalty means −12.5 becomes **−13** - the opposite direction from the truncation
 /// `thirst_speed_penalty` uses, and the reason both have gates of their own.
 #[must_use]
-pub fn kcal_speed_penalty(needs_food: bool, kcal_percent: f64, fat_category: f64) -> i32 {
+pub fn kcal_speed_penalty(needs_food: bool, kcal_percent: f32, fat_category: f32) -> i32 {
+    /// The reference's `starv_thresholds`, in fat-category order.
+    const THRESHOLDS: [Point; 4] = [(0.0, -90.0), (1.0, -50.0), (2.0, -25.0), (3.0, 0.0)];
     if !needs_food || kcal_percent > 0.95 {
         return 0;
     }
-    /// The reference's `starv_thresholds`, in fat-category order.
-    const THRESHOLDS: [(f64, f64); 4] = [(0.0, -90.0), (1.0, -50.0), (2.0, -25.0), (3.0, 0.0)];
-    let mut index = 0;
-    while index < THRESHOLDS.len() && THRESHOLDS[index].0 <= fat_category {
-        index += 1;
-    }
-    let value = if index == 0 {
-        THRESHOLDS[0].1
-    } else if index >= THRESHOLDS.len() {
-        THRESHOLDS[THRESHOLDS.len() - 1].1
-    } else {
-        let (low_x, low_value) = THRESHOLDS[index - 1];
-        let (high_x, high_value) = THRESHOLDS[index];
-        let t = (fat_category - low_x) / (high_x - low_x);
-        t * high_value + (1.0 - t) * low_value
-    };
-    // `std::round`: halves away from zero, which is what `f64::round` does.
+    // `std::round`: halves away from zero, which is what `f32::round` does.
     #[allow(clippy::cast_possible_truncation)]
-    let penalty = value.round() as i32;
+    let penalty = multi_lerp(&THRESHOLDS, as_float_of(fat_category)).round() as i32;
     penalty
 }

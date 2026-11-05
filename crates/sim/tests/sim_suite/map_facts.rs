@@ -4,7 +4,7 @@
 //! smoke - is in the terrain the reference loaded. `MapFacts` is that terrain arranged so the fire chain can ask about a square, and these tests check the
 //! answers against the reference's own flag rules.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_content::mapdata::{MapData, MapDataKind};
 use cdda_sim::{FireMap, MapFacts, TerrainFacts};

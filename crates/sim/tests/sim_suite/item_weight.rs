@@ -2,7 +2,7 @@
 //!
 //! Transcribed from `item::weight` (`src/item.cpp:7229-7300`).
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_sim::{

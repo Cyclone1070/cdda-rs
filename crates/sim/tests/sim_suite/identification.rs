@@ -1,6 +1,6 @@
 //! Identification of book types, against the reference's set-on-the-avatar rule.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_sim::identification::{has_identified, identify_book, Identification, IdentifiedItems};
@@ -105,7 +105,8 @@ fn skimming_a_book_says_what_it_can_do_for_you() {
         time_seconds: 60,
     });
     assert_eq!(zero_requirement.len(), 3, "the skim line, the skill line and the chapter line - and nothing about a requirement of zero");
-    assert!(zero_requirement[2].contains("1 minute"), "**a single minute is singular**: {}", zero_requirement[2]);
+    let chapter_line = zero_requirement.get(2).cloned().unwrap_or_default();
+    assert!(chapter_line.contains("1 minute"), "**a single minute is singular**: {chapter_line}");
 }
 
 /// Skimming a book says what it can do for you **in the game's log**, once, at the moment it is learned.
@@ -132,7 +133,7 @@ fn skimming_puts_its_lines_in_the_log_once() {
     assert_eq!(identify_book_and_say(&mut world, reader, "a_book", true, &facts), Identification::NewlyIdentified);
     let lines = messages::lines(&world);
     assert_eq!(lines.len(), 3, "**the skim line, the skill line and the chapter line** - and none about a requirement of zero: {lines:?}");
-    assert_eq!(lines[0], "You skim A Book to find out what's in it.");
+    assert_eq!(lines.first().map(String::as_str), Some("You skim A Book to find out what's in it."));
 
     assert_eq!(
         identify_book_and_say(&mut world, reader, "a_book", true, &facts),
@@ -170,8 +171,12 @@ fn a_message_has_a_severity_and_empty_or_debug_lines_are_not_stored() {
     messages::push_kind(&mut world, "you are hurt", MessageKind::Bad);
     let entries = messages::entries(&world);
     assert_eq!(entries.len(), 2, "the text and the severity live together, in order");
-    assert_eq!(entries[1].text, "you are hurt");
-    assert_eq!(entries[1].kind, MessageKind::Bad, "and the severity is the one the caller chose");
+    assert_eq!(entries.get(1).map(|entry| entry.text.as_str()), Some("you are hurt"));
+    assert_eq!(
+        entries.get(1).map(|entry| entry.kind),
+        Some(MessageKind::Bad),
+        "and the severity is the one the caller chose"
+    );
 }
 
 /// A high character gets smileys in their messages, on a curve that rises slowly and never reaches three.

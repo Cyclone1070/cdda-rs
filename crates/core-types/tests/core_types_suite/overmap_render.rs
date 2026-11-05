@@ -1,6 +1,6 @@
 //! Growing a town onto a map, and drawing it.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_core_types::overmap::{CitySettings, Overmap, grow_town, render};
 use cdda_core_types::rng::Rolls;

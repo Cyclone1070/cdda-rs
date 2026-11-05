@@ -4,7 +4,7 @@
 //! byproducts it leaves; the crafting dump asks the reference for the products of a batch of one and two. The two must agree with the port's model of both rules -
 //! `made_per_batch` and `byproducts` - for every recipe in the data, which is the only way to know that reading them was right.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use std::collections::BTreeMap;
 

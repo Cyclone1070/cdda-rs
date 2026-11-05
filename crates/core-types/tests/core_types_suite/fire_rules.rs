@@ -4,7 +4,7 @@
 //! how fast it dies when it has nothing to eat, and how eagerly it jumps to a neighbour. None needs items or terrain, so all four can be
 //! ported and pinned now - and each is a number a world's fire spread depends on.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_core_types::fire::{dying_out_cost, fire_turn, growth_cap, growth_cost, spread_chance};
 

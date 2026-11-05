@@ -5,7 +5,7 @@
 //! world. The comparison is against a manual composition of the same steps - so it proves the
 //! sequence, not the steps.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::FieldEntry;

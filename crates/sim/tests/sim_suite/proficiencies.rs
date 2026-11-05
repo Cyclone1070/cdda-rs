@@ -163,7 +163,7 @@ fn a_craft_practises_what_it_teaches_while_it_runs() {
         container: None,
         time_moves: 6_000,
     };
-    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id, false, false);
     assert_eq!(
         cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
         cdda_sim::crafting::Craft::Started
@@ -279,7 +279,7 @@ fn a_craft_does_not_teach_a_trade_whose_prerequisite_is_unknown() {
     };
     let craft_once = |world: &mut bevy_ecs::prelude::World| {
         cdda_sim::creature::stop_doing(world, crafter);
-        cdda_sim::recipes_known::learn(world, crafter, &recipe.id);
+        cdda_sim::recipes_known::learn(world, crafter, &recipe.id, false, false);
         assert_eq!(
             cdda_sim::crafting::begin_craft_from_carried(world, crafter, &recipe, 1, &names),
             cdda_sim::crafting::Craft::Started

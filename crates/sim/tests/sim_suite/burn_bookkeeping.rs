@@ -2,7 +2,7 @@
 //!
 //! Transcribed from `item::burn` (`src/item.cpp:12609-12643`) and `roll_remainder` (`src/rng.cpp`).
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_core_types::rng::Rolls;
 use cdda_sim::{BurnState, burn_item, roll_remainder};

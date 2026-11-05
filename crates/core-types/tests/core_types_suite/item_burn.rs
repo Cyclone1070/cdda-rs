@@ -10,7 +10,7 @@
 //! Two cases escape the division: a material with `volume_per_turn` of zero burns at a flat rate whatever the item's size (which is how the reference keeps
 //! big fires burning), and a **contained** fire (a brazier, an oven) burns everything flat, because the fire is being fed on purpose.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_core_types::fire::{MaterialBurn, simulate_burn};
 

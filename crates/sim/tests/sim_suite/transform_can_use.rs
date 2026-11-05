@@ -8,7 +8,7 @@
 //! what comes before the name and end with what comes after it. That is enough to tell the four refusals apart, because their prefixes are distinct and one of them
 //! (`"Your internal reservoir is empty."`) has no name in it at all.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_content::items::{ItemType, load_paths};
 use cdda_content::use_actions::UseAction;

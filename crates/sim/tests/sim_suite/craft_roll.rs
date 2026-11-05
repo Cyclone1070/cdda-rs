@@ -219,7 +219,7 @@ fn a_craft_in_progress_is_checked_where_its_roll_says() {
             world.entity_mut(rag).remove::<cdda_sim::Position>();
             world.entity_mut(rag).insert(cdda_sim::creature::Carried(crafter));
         }
-        cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
+        cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id, false, false);
         assert_eq!(
             cdda_sim::crafting::begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
             cdda_sim::crafting::Craft::Started

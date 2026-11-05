@@ -3,7 +3,7 @@
 //! The reference's map is three dimensional and its rules depend on it - gas falls before it drifts, smoke rises, a fire on one floor does not thicken the
 //! smoke on the next. These tests are about the store keeping floors apart at all, which has to be true before any of those rules can be right.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::FieldEntry;

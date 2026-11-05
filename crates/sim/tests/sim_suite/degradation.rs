@@ -2,7 +2,7 @@
 //!
 //! Reference: `item::rand_degradation` (`src/item.cpp:903-909`) and `item::degradation_symbol` (`src/item.cpp:6918-6941`).
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_core_types::rng::{Recording, Rolls};
 use cdda_sim::{degradation_symbol, rand_degradation};

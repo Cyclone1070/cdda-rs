@@ -3049,6 +3049,11 @@ pub fn weapon_material_factor(world: &mut World, weapon: Entity) -> f64 {
     crate::melee::fragile_material_factor(&borrowed, own)
 }
 
+/// Wears the wielded weapon when a blow lands, which is the reference's `avatar::on_hit`'s fragile-weapon branch.
+///
+/// Reference: `Character::on_hit` / `item::handle_potential_break` (`melee.cpp:246-274`): a `FRAGILE_MELEE` weapon that is not `DURABLE_MELEE` takes a wear check on every hit, and a weapon whose
+/// material is fragile (cotton, leather, fur) pays a factor from its weakest part. The wear is **applied through the item's own damage path** (`crate::item_damage`), so the message the player sees is the
+/// one that path prints - "damaged by the force of the blow!" or "destroyed by the blow!".
 pub fn wear_the_wielded_weapon(world: &mut World, holder: Entity, melee_skill: i32, dexterity: i32) {
     // **The thing in the hand is an entity**, and its damage is that entity's own `ItemDamage` - which is where the reference keeps it too (`item::damage_`). A character with empty hands
     // wears nothing, which is the reference's own first check (`if( !shield ) return false;`).
@@ -3058,7 +3063,6 @@ pub fn wear_the_wielded_weapon(world: &mut World, holder: Entity, melee_skill: i
     let kind = world
         .get::<crate::GroundItem>(held)
         .map_or_else(|| world.get::<Wielding>(holder).map(|carried| carried.0), |ground| Some(ground.kind));
-    let chip_resistance = kind.map_or(2, |kind| crate::item_registry::chip_resistance_of(world, kind));
     // **A fragile weapon wears at its weakest part**, which is the only reason the part list exists on this path (`melee.cpp:246-274`).
     let material_factor = weapon_material_factor(world, held);
     let durable_melee = kind.is_some_and(|kind| crate::item_registry::kind_has_flag(&*world, kind, "DURABLE_MELEE"));
@@ -3102,7 +3106,7 @@ pub fn wear_the_wielded_weapon(world: &mut World, holder: Entity, melee_skill: i
         // Reference: **the contents spill before anything else happens to the item** (`melee.cpp:305-312`), so what was inside survives the weapon that held it. Spilling after the despawn would have
         // nothing left to read the contents from.
         if let Some(square) = world.get::<crate::Position>(holder).map(|at| (at.x, at.y, at.z)) {
-            crate::containment::spill_contents(world, held, square);
+            let _spilled = crate::containment::spill_contents(world, held, square);
         }
         // Reference: **a fragile weapon with parts does not merely break - it comes apart** (`melee.cpp:313-340`), and the branch is taken before the ordinary destruction line.
         if break_apart_the_weapon(world, held, holder, &name) {

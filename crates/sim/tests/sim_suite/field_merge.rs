@@ -4,7 +4,7 @@
 //! it writes `prev_intensity + new_intensity`, and the setter clamps that to the type's maximum. Two patches of smoke one and two thick make three,
 //! not two - and a port that took the maximum would leave a room half as smoky as the reference's.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::FieldEntry;

@@ -5,7 +5,7 @@
 //! alone would be weaker: the first says which names appear, the second says which names exist, and only together
 //! do they say an anatomy lists parts that are real.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_content::anatomies::Anatomy;
 use cdda_content::body_parts::BodyPartType;

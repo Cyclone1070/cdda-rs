@@ -4,7 +4,7 @@
 //! of items - carried, worn, wielded - and the port had two and a half. A wielded thing being *also* carried is the part
 //! worth pinning: it is the same entity, marked, and out of its pocket.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_sim::ItemTypeId;

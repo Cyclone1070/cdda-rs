@@ -3,7 +3,7 @@
 //! The roadmap's P4 note records that `bionics.rs` was "ported, thinly gated - covered only through dialogue effects". These gates are that fix: they ask the module's own questions, so a change to
 //! the list (a duplicate, an emptied component) fails here rather than somewhere downstream.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::World;
 

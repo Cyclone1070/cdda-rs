@@ -5,7 +5,7 @@
 //! and a **speed**-based one takes everything the creature has. A quick creature therefore finishes a speed-based job
 //! sooner and a time-based one no sooner at all - which is the difference between reading a book and digging a hole.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::level::Level;
@@ -308,7 +308,7 @@ fn cancelling_a_craft_keeps_the_ingredients_and_loses_the_work() {
         container: None,
         byproducts: Vec::new(),
     };
-    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id, false, false);
     assert_eq!(
         begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
         Craft::Started
@@ -329,7 +329,7 @@ fn cancelling_a_craft_keeps_the_ingredients_and_loses_the_work() {
         "giving up on nothing answers that there was nothing"
     );
     // Starting again costs the whole recipe: a new craft is a new craft.
-    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id, false, false);
     assert_eq!(
         begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
         Craft::Started
@@ -420,7 +420,7 @@ fn a_paused_craft_is_resumed_where_it_stopped() {
         container: None,
         byproducts: Vec::new(),
     };
-    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id, false, false);
     assert_eq!(
         begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
         Craft::Started
@@ -527,7 +527,7 @@ fn pain_interrupts_a_craft_and_the_work_is_kept() {
         container: None,
         byproducts: Vec::new(),
     };
-    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id, false, false);
     assert_eq!(
         begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
         Craft::Started
@@ -635,7 +635,7 @@ fn a_blow_stops_a_craft_without_anyone_asking_it_to() {
         container: None,
         byproducts: Vec::new(),
     };
-    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id);
+    cdda_sim::recipes_known::learn(&mut world, crafter, &recipe.id, false, false);
     assert_eq!(
         begin_craft_from_carried(&mut world, crafter, &recipe, 1, &names),
         Craft::Started

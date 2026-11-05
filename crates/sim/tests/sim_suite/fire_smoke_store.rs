@@ -4,7 +4,7 @@
 //! field like any other and lands on the square the fire chose. The port's store is two dimensional, so the "above" branch has no square to go to and
 //! the smoke settles on the fire - which is the reference's own fallback when it cannot rise.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::FieldEntry;

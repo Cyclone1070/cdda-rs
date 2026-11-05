@@ -5,7 +5,7 @@
 //! rules apply at once: the member is **cleared when stated**, `extend` **adds** to what was inherited, and `delete` **takes names away**. 231 items `extend` their
 //! effects and 177 `delete` some, which is why a port that only reads a stated list quietly loses the effects those rounds inherited.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_content::items::{ItemType, load_paths};
 use cdda_json::Value;

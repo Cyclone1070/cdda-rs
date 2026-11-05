@@ -4,7 +4,7 @@
 //! `map::get_wind_blockers` (`src/map_field.cpp:2081-2105`). The neighbour order is the
 //! reference's: north-west, north, north-east, west, east, south-west, south, south-east.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::{FieldEntry, FieldId};

@@ -1,6 +1,6 @@
 //! The locations a special may be placed on, against the reference's own definitions.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_content::overmap_special::{OvermapLocation, load_locations};
 

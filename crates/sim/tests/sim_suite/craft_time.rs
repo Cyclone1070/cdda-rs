@@ -2,7 +2,7 @@
 //!
 //! Transcribed from `recipe::batch_time` (`src/recipe.cpp:108-149`).
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_sim::batch_time_moves;
 

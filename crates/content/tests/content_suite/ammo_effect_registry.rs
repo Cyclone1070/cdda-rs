@@ -4,7 +4,7 @@
 //! reference refuses one it does not know (`ammo_effect_str_id`, `src/ammo_effect.h:16-32`) — and the port has to refuse it too, or a typo becomes "no effect",
 //! which for a round means no fire, no smoke, and no fence to stop it.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_content::ammo_effects;
 use cdda_json::Value;

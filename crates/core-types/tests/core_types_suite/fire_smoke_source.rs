@@ -14,7 +14,7 @@
 //! The port used to ask a map method for this number, and every map it ever asked answered zero. The recording disagreed within one processor: the reference
 //! drew `int 3 35` where the port went straight on to the hot air.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_core_types::fire::{Ground, ground_fuel};
 use cdda_core_types::rng::{Recording, Rolls};

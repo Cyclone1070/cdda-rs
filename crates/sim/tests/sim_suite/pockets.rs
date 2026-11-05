@@ -4,7 +4,7 @@
 //! a holster that already has a pistol says "full" before it says "too heavy", and the one-item limit beats the room
 //! left, because a holster is shaped for one thing whatever its capacity says.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_sim::pockets::{Contents, Fits, Pocket, fits};
 

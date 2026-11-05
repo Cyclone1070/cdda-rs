@@ -5,7 +5,7 @@
 //! that was derived before the vest was in hand. The reference has no single function for this either; it is what a
 //! player does with three keys, and it is the first thing anyone will try in the port.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::level::Level;

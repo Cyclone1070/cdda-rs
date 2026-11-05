@@ -3,7 +3,7 @@
 //! Transcribed from `craft_activity_actor` (`src/activity_actor.cpp:4163-4335`): the unfinished craft is an
 //! item that holds its components, so cancelling loses nothing.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_sim::{

@@ -4,7 +4,7 @@
 //! three squares facing the wind are each asked `x_in_y( 1, max( 2, windpower ) )` - one draw per blocked candidate, in the order the clockwise scan collected them.
 //! A port that asked once for the whole branch, or asked in the wrong order, would spread the same gas differently under the same seed.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_core_types::fire::{Around, GasDirection, spread_gas};
 use cdda_core_types::rng::{Recording, Rolls};

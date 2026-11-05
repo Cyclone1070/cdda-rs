@@ -3,7 +3,7 @@
 //! Transcribed from `map::process_fields_in_submap` (`src/map_field.cpp:160-460`): age, dissipate,
 //! upgrade, spread - and a field that aged away is gone before the later steps run.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::{FieldEntry, FieldId};

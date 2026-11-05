@@ -5,7 +5,7 @@
 //! name the constants instead of numbers, which is how this file caught that its own filter
 //! depended on the placeholders' ordering.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::{FieldEntry, FieldId};

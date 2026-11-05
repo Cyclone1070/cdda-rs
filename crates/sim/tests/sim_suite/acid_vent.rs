@@ -5,7 +5,7 @@
 //! implementation can hold one - so the port keeps only what can happen, and the divergence is in
 //! the ledger rather than hidden.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::FieldEntry;

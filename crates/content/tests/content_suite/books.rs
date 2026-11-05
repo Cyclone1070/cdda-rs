@@ -1,6 +1,6 @@
 //! The book slot, against the game's own data.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 /// A book record reads into the slot, and its duration becomes turns.
 ///

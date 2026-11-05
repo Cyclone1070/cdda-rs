@@ -3,7 +3,7 @@
 //! Transcribed from `visitable::amount_of` (`src/visitable.cpp:964-978`) and `visitable::charges_of` (`src/visitable.cpp:819-875`), whose walks are the counting half of
 //! the same `visit_items` the port already uses for `use_amount` and `use_charges`.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_sim::{

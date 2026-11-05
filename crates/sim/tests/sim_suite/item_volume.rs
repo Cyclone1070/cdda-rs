@@ -2,7 +2,7 @@
 //!
 //! Transcribed from `item::charges_per_volume` (`src/item.cpp:1391-1420`).
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_sim::charges_per_volume;
 

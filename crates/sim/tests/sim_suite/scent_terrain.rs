@@ -4,7 +4,7 @@
 //! which is pinned by its own tests; the question here is whether a wall flags *itself*. The port used to make the caller mark squares by hand, which let a wall's flag and the
 //! mark disagree.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::level::Level;

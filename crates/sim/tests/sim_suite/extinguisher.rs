@@ -3,7 +3,7 @@
 //! Transcribed from `field_processor_fd_extinguisher` (`src/map_field.cpp:559-569`): both lose the
 //! smaller of the two strengths, so the weaker one is spent and the stronger one survives smaller.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::{FieldEntry, FieldId};

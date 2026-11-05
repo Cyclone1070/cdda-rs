@@ -4,7 +4,7 @@
 //! pins the census). This test compares that list with the port's dispatch table, so "spell effects are 4 of 33" is a
 //! measurement rather than a memory - and so the next effect to port is chosen by how many spells it unlocks.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use std::collections::BTreeMap;
 

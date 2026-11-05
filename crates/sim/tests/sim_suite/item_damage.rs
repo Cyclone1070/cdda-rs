@@ -2,7 +2,7 @@
 //!
 //! Transcribed from `itype::damage_level` (`src/itype.cpp:117-126`).
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_sim::damage_level;
 

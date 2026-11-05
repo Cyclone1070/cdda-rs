@@ -3,7 +3,7 @@
 //! `corpus/items/holsters.json` is `--dump-holsters`. The actor carries no storage data at all — the pocket stores — so the gate is short, and the rule worth testing
 //! is the one line in `holster_actor::can_holster` (`src/iuse_actor.cpp:2911-2914`): **an active item cannot go into a holster even when it fits**.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use cdda_content::items::{ItemType, load_paths};
 use cdda_content::use_actions::{Holster, UseAction, can_holster};

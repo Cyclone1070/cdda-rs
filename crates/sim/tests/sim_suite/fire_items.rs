@@ -2,7 +2,7 @@
 //!
 //! Transcribed from the item loop in `field_processor_fd_fire` (`src/map_field.cpp:980-1031`).
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::rng::Rolls;
