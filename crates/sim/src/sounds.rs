@@ -10,12 +10,15 @@
 use bevy_ecs::prelude::*;
 
 /// Something that made a sound this turn.
-#[derive(Component, Debug, Clone, Copy, PartialEq)]
+#[derive(Component, Debug, Clone, PartialEq)]
 pub struct Sound {
     /// Where it came from.
     pub position: (i32, i32, i32),
     /// How loud, in the reference's units - the number of squares over which it is still audible.
     pub volume: i32,
+    /// What it sounded like: `bang!`, `Thunk!`, `whizz!` - the reference's `sound_event::description`, which its own comment calls **"not an optional parameter"**
+    /// (`sounds.cpp:326-329`). A QA run and a player both read this line, so a port that dropped it could not say what was heard.
+    pub description: String,
 }
 
 /// Makes a sound, and answers the entity holding it.
@@ -23,17 +26,33 @@ pub struct Sound {
 /// Reference: `sounds::sound` refuses a negative volume and says nothing about it. The port refuses the same way: a volume
 /// below zero is not a quiet sound, it is a mistake, and creating a silent sound would hide it.
 pub fn make_sound(world: &mut World, position: (i32, i32, i32), volume: i32) -> Option<Entity> {
+    make_sound_saying(world, position, volume, "")
+}
+
+/// Makes a sound that says something, and answers the entity holding it.
+///
+/// Reference: `sounds::sound( p, vol, category, description )` (`sounds.cpp:317-337`). The reference treats an **empty** description as a bug and complains, but still makes the sound -
+/// so the port keeps the sound and the empty string, which is what a caller with nothing to say passes.
+pub fn make_sound_saying(world: &mut World, position: (i32, i32, i32), volume: i32, description: &str) -> Option<Entity> {
     if volume < 0 {
         return None;
     }
-    Some(world.spawn(Sound { position, volume }).id())
+    Some(
+        world
+            .spawn(Sound {
+                position,
+                volume,
+                description: description.to_owned(),
+            })
+            .id(),
+    )
 }
 
 /// Every sound made this turn, in the order the store holds them.
 #[must_use]
 pub fn heard_this_turn(world: &mut World) -> Vec<Sound> {
     let mut query = world.query::<&Sound>();
-    query.iter(world).copied().collect()
+    query.iter(world).cloned().collect()
 }
 
 /// How loud a sound is at a distance, which is the reference's `volume - distance`, and never less than nothing.

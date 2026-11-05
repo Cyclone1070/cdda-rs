@@ -59,6 +59,7 @@ fn a_sound_is_louder_the_closer_you_stand_and_ends_with_the_turn() {
     let sound = sounds::Sound {
         position: (0, 0, 0),
         volume: 10,
+        description: "bang!".to_owned(),
     };
     assert_eq!(sounds::volume_at(&sound, (0, 0, 0)), 10, "at the source");
     assert_eq!(sounds::volume_at(&sound, (3, 0, 0)), 7, "three squares away");

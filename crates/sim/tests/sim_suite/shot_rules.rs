@@ -1370,3 +1370,44 @@ fn a_gunshot_says_its_own_word_and_a_grenade_launcher_is_quiet() {
     // A silent weapon says nothing at all, which is the branch that returns zero.
     assert_eq!(gun_noise_word(0, "223", &none, false), (0, ""), "a silent weapon");
 }
+
+/// A shot's sound says what it sounded like, in the store rather than in the caller's head.
+///
+/// Reference: `sounds::sound( p, vol, category, description )` (`sounds.cpp:317-337`), whose own comment calls the description **"not an optional parameter"**. Round 1184 computed the word and
+/// dropped it at the boundary; this gate asks the **store** what was heard, which is what a QA run and a player both need.
+#[test]
+fn a_shot_s_sound_says_what_it_sounded_like() {
+    use bevy_ecs::prelude::*;
+    use cdda_core_types::rng::Rolls;
+
+    let read = |name: &str| {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let bytes = std::fs::read(path).expect("the corpus file exists");
+        cdda_json::parse(&bytes).expect("valid JSON")
+    };
+    let guns = cdda_content::guns::load_dump(&read("items/guns.json")).expect("the guns load");
+    let lines = cdda_content::skills::load_dump(&read("skills.json")).expect("the skills load");
+    let rounds = cdda_content::ammo::load_dump(&read("items/ammo.json")).expect("the ammo loads");
+    let gun = guns.iter().find(|gun| gun.id == "ruger_mini").expect("the Mini-14").clone();
+    let cartridge = rounds.iter().find(|round| round.id == "223").expect("the .223").clone();
+
+    let mut world = World::new();
+    cdda_sim::singletons::put_rolls(&mut world, Rolls::new(19));
+    let shooter = cdda_sim::creature::spawn_creature(&mut world, "the shooter", (0, 0, 0));
+    world
+        .entity_mut(shooter)
+        .insert(cdda_sim::creature::Strength { base: 8 })
+        .insert(cdda_sim::creature::Dexterity { base: 20 })
+        .insert(cdda_sim::creature::Perception { base: 20 })
+        .insert(cdda_sim::creature::Moves { left: 1_000 });
+    // A `NEVER_JAMS` gun, so the sound cannot be missing because the shot misfired.
+    let held = world.spawn((cdda_sim::shot::NeverJams, cdda_sim::Position { x: 0, y: 0, z: 0 })).id();
+    let fired = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (6, 0, 0), 18.0, Some(&cartridge), Some(held), 3_180.0, false);
+    assert!(!fired.misfired, "the shot fired");
+
+    let heard = cdda_sim::sounds::heard_this_turn(&mut world);
+    assert_eq!(heard.len(), 1, "one shot, one sound: {}", heard.len());
+    let sound = heard.first().expect("the sound is there");
+    assert_eq!(sound.volume, 154, "a .223 carries a hundred and fifty-four squares");
+    assert_eq!(sound.description, "blam!", "and says what it sounded like - a hundred and fifty-four is in the `blam!` band");
+}

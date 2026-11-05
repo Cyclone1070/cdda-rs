@@ -13937,3 +13937,28 @@ the ammunition type first, then the effects, then the noise. **Reordering it wou
 **Named, not invented:** the sound's **description text** reaching the world (`Sound` carries position and volume; the word is computed and dropped at the boundary - **the next step, not a
 claim**), gunmods' `loudness` and `loudness_multiplier` in the composition, `sfx::generate_gun_sound` (the reference's audio, which a headless port has nothing to do with), and the
 `You shoot your %s` message.
+
+## A sound says what it sounded like (round 1185)
+
+Round 1184 computed the word and dropped it at the boundary; this round keeps it.
+
+| Piece | Reference | Port |
+|---|---|---|
+the description | `sound_event::description` (`sounds.cpp:317-337`) | `Sound::description`, set by `sounds::make_sound_saying` |
+the shot's own | `make_gun_sound_effect` passes `data.sound` or `Bang!` | `make_the_gun_s_sound` passes the word from `gun_noise_word` |
+Gate | - | `a_shot_s_sound_says_what_it_sounded_like` |
+
+**The reference calls the description "not an optional parameter" in its own comment** - it even complains when one is missing - and the port had a sound that could not say what was heard. Now
+`heard_this_turn` answers `(position, volume, "blam!")`, which is what a message log, a QA digest and a player all read.
+
+**`make_sound` kept its signature and gained a sibling.** Fifteen callers had nothing to say and still do not, so they go through `make_sound`, which passes the empty string - **exactly what the
+reference does with its own no-description overload**, complaint included in spirit.
+
+**The gate's first run found the seed, not the rule.** It asserted one sound and found **zero**, and the shot had **misfired**: a durability-8 gun jams once in 1,536 draws, and this seed drew it.
+The fix is the one the port keeps learning - **a gate about the sound must pin the gun as `NEVER_JAMS`**, or it is a gate about the dice.
+
+**The volume and the word agree in the gate**, which is the point of storing both: **154 squares and `blam!`**, because 154 sits in the `150..175` band. A port that stored a word without its
+volume could not check that the two came from the same call.
+
+**Named, not invented:** the **category** (`sound_t::combat`, which decides `is_provocative` and therefore whether a monster comes to look), the **ambient** flag, the season string the reference
+attaches for its own footstep sounds, `recent_sounds` (which the port's `HeardSound` covers), and every other caller's description - **melee, footsteps and spells still pass the empty string**.

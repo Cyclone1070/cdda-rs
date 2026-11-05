@@ -792,10 +792,10 @@ fn make_the_gun_s_sound(
     noise: i32,
     round: Option<&cdda_content::ammo::AmmoType>,
 ) {
-    let (carried, _word) = round.map_or((noise, "bang!"), |round| {
+    let (audible_to, saying) = round.map_or((noise, "bang!"), |round| {
         gun_noise_word(noise, &round.ammo_type, &round.effects, false)
     });
-    if carried > 0 {
-        crate::sounds::make_sound(world, place, carried);
+    if audible_to > 0 {
+        crate::sounds::make_sound_saying(world, place, audible_to, saying);
     }
 }

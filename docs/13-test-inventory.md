@@ -934,3 +934,7 @@ rule with no caller - and asserts the burn, that it repeats, and that a creature
 **Round 1184 ported what a gunshot sounds like**: `shot::gun_noise_word` (`item::gun_noise`, `ranged.cpp:2395-2482`) - four special volumes (grenade launcher **8**, railgun **24**, rocket **4**,
 arrow/bolt keeping the gun's own), the laser/lightning/whip effect ladders, and the ordinary ladder with its **burst words** - and `make_the_gun_s_sound`, so the shot makes its sound at the
 reference's volume. Gated by `shot_rules::a_gunshot_says_its_own_word_and_a_grenade_launcher_is_quiet`.
+
+**Round 1185 put the description on the sound**: `sounds::Sound::description` and `sounds::make_sound_saying` (`sounds.cpp:317-337`), which the shot's sound uses so the store says `blam!` rather than
+nothing. Gated by `shot_rules::a_shot_s_sound_says_what_it_sounded_like` - volume **154** and the word `blam!` from the same call - whose first run found a **misfire** rather than a bug, and now
+pins the gun as `NEVER_JAMS`.
