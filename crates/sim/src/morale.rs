@@ -198,3 +198,12 @@ pub fn remove_kind(world: &mut World, creature: Entity, kind: &str) -> bool {
     morale.0.retain(|point| point.kind != kind);
     morale.0.len() != before
 }
+
+/// Whether a character is cheerful enough to read something they have already read.
+///
+/// Reference: `Character::has_morale_to_read` (`character_morale.cpp:171-174`): `get_morale_level() >= -40`. **The floor is inclusive**, so a character at exactly −40 may still read - which is the
+/// kind of boundary a `<` would move without anyone noticing.
+#[must_use]
+pub const fn has_morale_to_read(morale_level: i32) -> bool {
+    morale_level >= -40
+}

@@ -137,3 +137,18 @@ pub fn book_fun_for(book: FunBook, traits: &[&str], inspirational: bool, human_c
 pub fn fun_to_read(book: FunBook, traits: &[&str], inspirational: bool, human_cookbook: bool) -> bool {
     book_fun_for(book, traits, inspirational, human_cookbook) > 0
 }
+
+/// Whether a reader is allowed to read this book at all.
+///
+/// Reference: `avatar::read`'s condition table (`character.cpp:12267-12271`):
+///
+/// ```text
+/// if( !fun_to_read( book ) && !has_morale_to_read() && has_identified( book.typeId() ) ) result |= MORALE_LOW;
+/// ```
+///
+/// **All three conditions must hold for the refusal**, and the third is the half a reader notices: an **unidentified** book can always be read, however miserable the character, because there is still
+/// something to learn from it. A book that is still fun needs no cheering up either.
+#[must_use]
+pub const fn morale_permits_reading(fun_to_read: bool, morale_level: i32, identified: bool) -> bool {
+    fun_to_read || crate::morale::has_morale_to_read(morale_level) || !identified
+}

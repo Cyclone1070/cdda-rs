@@ -140,3 +140,23 @@ fn how_much_fun_a_book_is_depends_on_who_reads_it() {
     assert_eq!(book_fun_for(book(4, 6, 3), &[], false, false), 4, "with chapters left, no halving");
     assert_eq!(book_fun_for(book(1, 6, 0), &[], false, false), 1, "and a book of fun one is not halved: the test is `> 1`");
 }
+
+/// A reader too sad to enjoy a book they have already read is told so - and an unread book does not need cheering up.
+///
+/// Reference: `avatar::read`'s condition table (`character.cpp:12267-12271`): `if( !fun_to_read( book ) && !has_morale_to_read() && has_identified( book.typeId() ) )` is `MORALE_LOW`, and
+/// `has_morale_to_read` is **`get_morale_level() >= -40`** (`character_morale.cpp:171-174`).
+///
+/// **All three conditions must hold**, and the last one is the surprising half: an **unidentified** book can always be read, however miserable the reader, because there is still something to learn from it.
+#[test]
+fn a_sad_reader_is_refused_only_by_a_book_they_already_know() {
+    use cdda_sim::morale::has_morale_to_read;
+    use cdda_sim::reading::morale_permits_reading;
+
+    assert!(has_morale_to_read(-40), "**-40 is the floor and it is inclusive**");
+    assert!(!has_morale_to_read(-41), "one below it is too sad");
+
+    assert!(morale_permits_reading(true, -100, true), "a fun book is fine however sad the reader");
+    assert!(morale_permits_reading(false, -39, true), "a dull book is fine while morale holds");
+    assert!(!morale_permits_reading(false, -41, true), "**a dull book already read, read while miserable, is refused**");
+    assert!(morale_permits_reading(false, -100, false), "but an unread book is always readable: there is still something to learn");
+}

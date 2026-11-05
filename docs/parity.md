@@ -15077,3 +15077,19 @@ Gate | - | `reading::how_much_fun_a_book_is_depends_on_who_reads_it` |
 
 **Named, not invented:** `To Serve Man`'s own id (the `cookbook_human` comparison arrives as a flag), `INSPIRATIONAL` as a per-book boolean the caller passes, and `has_morale_to_read`, the second
 route the reading code lets a reader take when the book is no fun.
+
+## A sad reader is refused only by a book they already know (round 1273)
+
+| Piece | Reference | Port |
+|---|---|---|
+the morale floor | `has_morale_to_read` (`character_morale.cpp:171-174`) | `morale::has_morale_to_read` |
+the refusal | `avatar::read`'s `MORALE_LOW` (`character.cpp:12267-12271`) | `reading::morale_permits_reading` |
+Gate | - | `reading::a_sad_reader_is_refused_only_by_a_book_they_already_know` |
+
+**All three conditions must hold to refuse**, and the third is the half a player notices: **an unidentified book can always be read**, however miserable the character, because there is still something to
+learn from it. A book that is still fun needs no cheering up either - so misery only ever blocks a book the character has **already read and does not enjoy**.
+
+**The floor is inclusive:** exactly −40 may still read, −41 may not. A `<` slipped into that comparison would move the boundary by one point and nothing else in the game would notice.
+
+**Named, not invented:** `get_book_mastery` and its three verdicts (`CANT_UNDERSTAND`, `MASTERED`, and the third), which need the skill registry's knowledge levels; the `DRIVING` refusal, which needs
+the vehicle the reader is in; and the `NOT_BOOK` case, which the port's `Option<Book>` makes impossible to reach.
