@@ -685,3 +685,29 @@ pub fn lerped_multiplier(value: f32, low: f32, high: f32) -> f32 {
     }
     1.0 + (value - low) * (BOTTOM - 1.0) / (high - low)
 }
+
+/// How many levels past a recipe's requirements a crafter is - the number both darkness ladders read.
+///
+/// Reference: `SkillLevelMap::exceeds_recipe_requirements` (`skill.cpp:606-613`):
+///
+/// ```text
+/// int over = rec.skill_used ? get_skill_level( rec.skill_used ) - rec.difficulty : 0;
+/// for( const auto &elem : compare_skill_requirements( rec.required_skills ) ) over = std::min( over, elem.second );
+/// ```
+///
+/// **The subtlety is in `compare_skill_requirements`, not in the `min`** (`skill.cpp:591-604`): it drops every entry whose difference is **zero** (`if( diff != 0 )`). A required skill met **exactly**
+/// therefore contributes **nothing** instead of a zero, so it cannot cap a crafter who is well past the main skill. A port that compared against zero would answer 0 where the reference answers 2 - and
+/// both callers in [`lighting_speed_multiplier`] would then refuse a craft the reference allows.
+///
+/// `main_skill` is `None` when the recipe uses no skill; `required` is `(the crafter's level, the required level)` per extra skill.
+#[must_use]
+pub fn exceeds_recipe_requirements(main_skill: Option<i32>, difficulty: i32, required: &[(i32, i32)]) -> i32 {
+    let mut over = main_skill.map_or(0, |level| level - difficulty);
+    for &(level, needed) in required {
+        let difference = level - needed;
+        if difference != 0 {
+            over = over.min(difference);
+        }
+    }
+    over
+}

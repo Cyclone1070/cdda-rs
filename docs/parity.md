@@ -15290,3 +15290,20 @@ functions already produce.
 **Named, not invented:** the `limb_score_manip` limb score (needs the limb model's handling scores), the `NO_MANIP` and `AFFECTED_BY_PAIN` recipe flags' data source, the `CRAFTING_SPEED_MULTIPLIER`
 enchantment (P5), and the vehicle workbench's `vpslot_workbench` - the port's ladder takes the bench's own allowance as an argument, so the furniture and vehicle tables can supply it later without
 touching the rule.
+
+## A skill met exactly does not cap the excess (round 1285)
+
+| Piece | Reference | Port |
+|---|---|---|
+the excess | `exceeds_recipe_requirements` (`skill.cpp:606-613`) over `compare_skill_requirements` (`skill.cpp:591-604`) | `crafting::exceeds_recipe_requirements` |
+Gate | - | `crafting::a_skill_met_exactly_does_not_cap_the_excess` |
+
+**The subtlety is in `compare_skill_requirements`, not in the `min`.** It drops every entry whose difference is **zero** (`if( diff != 0 )`), so a required skill met **exactly** contributes **nothing**
+rather than a zero - and therefore cannot cap a crafter who is well past the main skill. **A port that compared against zero would answer 0 where the reference answers 2**, and both darkness ladders in
+`lighting_speed_multiplier` would then **refuse a craft the reference allows**.
+
+**A required skill below its level does cap the whole answer**, even under a generous main skill: this number is the *worst* excess across the recipe, which is what makes the two ladders fair to a
+crafter who is good at one thing and short on another.
+
+**Named, not invented:** `get_skill_level`'s `context` item argument (which lets a tool or state change an effective level) and `theoretical_recipe_requirements`, the knowledge-side twin used by
+`knows_recipe`'s theory check.

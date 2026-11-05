@@ -1193,3 +1193,6 @@ ends (two levels for `BLIND_EASY`, six for `BLIND_HARD`).
 
 **Round 1284 ported the craft speed product and its two ladder rules** - `crafting::pain_speed_multiplier`, `crafting::crafting_speed_multiplier` and `crafting::lerped_multiplier`
 (`crafting.cpp:235-246, 303-320`), gated on the pain floor and the workbench's quarter floor.
+
+**Round 1285 ported `exceeds_recipe_requirements`** (`skill.cpp:591-613`) as `crafting::exceeds_recipe_requirements`, gated on the dropped **zero** difference - the rule that separates an exactly-met
+required skill from a capping one.

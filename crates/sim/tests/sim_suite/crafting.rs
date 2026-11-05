@@ -1247,3 +1247,32 @@ fn pain_costs_a_percent_a_point_and_a_workbench_bottoms_out_at_a_quarter() {
     assert!((lerped_multiplier(5_000_000.0, 1000.0, 1_000_000.0) - 0.25).abs() < 1e-6, "**and heavier stays a quarter, never zero**");
     assert!((lerped_multiplier(500_500.0, 1000.0, 1_000_000.0) - 0.625).abs() < 0.001, "halfway between is 0.625");
 }
+
+/// How many levels a crafter is past a recipe's requirements - and a skill met exactly does not cap the answer.
+///
+/// Reference: `SkillLevelMap::exceeds_recipe_requirements` (`skill.cpp:606-613`) and `compare_skill_requirements` (`skill.cpp:591-604`):
+///
+/// ```text
+/// int over = rec.skill_used ? get_skill_level( rec.skill_used ) - rec.difficulty : 0;
+/// for( elem : compare_skill_requirements( rec.required_skills ) ) over = std::min( over, elem.second );
+/// // and compare skips every entry whose diff is **zero**:  if( diff != 0 ) res[...] = diff;
+/// ```
+///
+/// **The `diff != 0` filter is the rule that hides**, not the `min`: a required skill met **exactly** is dropped from the comparison instead of contributing a zero, so it cannot cap a crafter who is well
+/// past the main skill. A port that compared against zero would answer 0 where the reference answers 2, and every caller of this number - both darkness ladders in
+/// `lighting_craft_speed_multiplier` - would then refuse a craft the reference allows.
+#[test]
+fn a_skill_met_exactly_does_not_cap_the_excess() {
+    use cdda_sim::crafting::exceeds_recipe_requirements;
+
+    assert_eq!(exceeds_recipe_requirements(Some(5), 3, &[]), 2, "two levels past the main skill");
+    assert_eq!(
+        exceeds_recipe_requirements(Some(5), 3, &[(5, 5)]),
+        2,
+        "**a required skill met exactly is dropped, not counted as zero**"
+    );
+    assert_eq!(exceeds_recipe_requirements(Some(5), 3, &[(5, 4)]), 1, "a required skill one level over caps at one");
+    assert_eq!(exceeds_recipe_requirements(Some(5), 3, &[(2, 4)]), -2, "**and one below caps the whole answer**, even under the main skill's excess");
+    assert_eq!(exceeds_recipe_requirements(None, 0, &[(5, 4)]), 0, "a recipe with no main skill starts at zero and a met requirement leaves it there");
+    assert_eq!(exceeds_recipe_requirements(None, 0, &[(2, 4)]), -2, "but a short one still pulls it down");
+}
