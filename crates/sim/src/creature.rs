@@ -2974,4 +2974,34 @@ pub fn wear_the_wielded_weapon(world: &mut World, holder: Entity, melee_skill: i
     if world.get::<crate::ItemFaults>(held).is_none() {
         world.entity_mut(held).insert(crate::ItemFaults::default());
     }
+    // Reference: `item::mod_damage`'s last act for a surviving item is `set_random_fault_of_type( "mechanical_damage" )` (`item.cpp:9458-9461`) - **a damaged weapon may catch a fault, and the
+    // type asked for is mechanical damage**. Every input is now in the store: the kind's weighted list, the catalogue's type per fault id, and the faults the item already has.
+    let candidates = kind.map_or_else(Vec::new, |kind| crate::item_registry::fault_weights_of(world, kind));
+    if !candidates.is_empty() {
+        // The types are read before the pick because the pick borrows the dice and the world; a closure that asked the world mid-pick would need both at once.
+        let mut types = std::collections::BTreeMap::new();
+        for (fault, _) in &candidates {
+            if let Some(fault_type) = crate::item_registry::fault_type_of(world, fault) {
+                types.insert(fault.clone(), fault_type);
+            }
+        }
+        let existing = world.get::<crate::ItemFaults>(held).map_or_else(std::collections::BTreeSet::new, |faults| faults.0.clone());
+        let Some(mut rolls) = crate::singletons::take_rolls(world) else {
+            return;
+        };
+        let picked = crate::pick_fault(
+            &candidates,
+            &existing,
+            "mechanical_damage",
+            |fault| types.get(fault).cloned(),
+            |_| std::collections::BTreeSet::new(),
+            &mut rolls,
+        );
+        crate::singletons::put_rolls(world, rolls);
+        if let Some(fault) = picked
+            && let Some(mut faults) = world.get_mut::<crate::ItemFaults>(held)
+        {
+            faults.0.insert(fault);
+        }
+    }
 }

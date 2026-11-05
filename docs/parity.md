@@ -14487,3 +14487,20 @@ fault set (round 1207), and `can_have_fault` and `pick_fault` (ported rounds 114
 
 **An uninstalled or unknown id has no type, and that is the honest answer rather than an error**: the reference's filter is a string comparison that simply fails to match, so a fault nobody has
 described is **ineligible**, not "mechanical damage by default". The gate asserts the missing case first and again at the end, because that is the branch a "helpful" default would break.
+
+## A damaged weapon catches a fault (round 1222)
+
+| Piece | Reference | Port |
+|---|---|---|
+the call | `set_random_fault_of_type( "mechanical_damage" )` at the end of `item::mod_damage` (`item.cpp:9458-9461`) | the tail of `wear_the_wielded_weapon` |
+Gate | - | `a_damaged_weapon_catches_a_mechanical_fault` |
+
+**The chain that took six rounds is finished, and the last link was one call.** The dump carries the faults (1208), the port reads them (1209), one pass fills the tables (1211), the numbering is
+fixed (1214), the data reaches the tables (1218-1219), the catalogue's types reach the store (1221) - and then the swing asks the question the reference asks.
+
+**The gate holds both directions in one place**, which is the only way this rule can be tested honestly: **one mechanical fault at full weight always comes back**; **the same fault typed `wet` never
+does**, because the reference filters by type before picking; and **a kind with no list catches nothing**. A port that always added a fault passes the first and fails the other two; a port that never
+did passes the last two and fails the first.
+
+**Two named simplifications, both honest:** the **`blocks`** callback answers "nothing blocks anything", because the port does not yet read `Fault::block_faults` from the catalogue into the store - so
+a chipped blade cannot prevent a cracked one; and the **message** the reference shows is not ported. Both are recorded rather than invented.

@@ -1047,3 +1047,7 @@ weights) are installed from the game's own data in one pass. `ground_items::load
 **Round 1221 installed the fault catalogue into the store**: `item_registry::FaultTypes` / `set_fault_types` / `fault_type_of`, filled by `install_item_data` from the same data directory as the item
 records, gated by `ground_items::the_catalogue_says_what_kind_of_fault_an_id_is` (including the unknown-id case, which is **ineligible** rather than defaulted). Every input to `pick_fault` is now in
 the store; only the call in the swing remains.
+
+**Round 1222 wired the fault pick into the swing** (the tail of `wear_the_wielded_weapon`, from `item.cpp:9458-9461`), closing the six-round chain from dump column to call. Gated by
+`creature_fight::a_damaged_weapon_catches_a_mechanical_fault`, which holds **both directions**: a mechanical fault at full weight always caught, the same fault typed `wet` never, and a kind with no
+list nothing. The `blocks` callback is named as a simplification in `docs/parity.md`.
