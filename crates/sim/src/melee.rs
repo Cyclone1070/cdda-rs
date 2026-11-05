@@ -628,3 +628,47 @@ pub fn best_shield(weapon_value: i32, best_worn_value: Option<i32>) -> Shield {
     }
     choice
 }
+
+/// What a block attempt came to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BlockAttempt {
+    /// The character never tried: asleep, winded, out of blocks. **No die was rolled.**
+    NotAttempted,
+    /// The attempt was made and failed. **A die was rolled and a block was not spent.**
+    RollFailed,
+    /// The attempt landed. The caller spends the block.
+    Blocked,
+}
+
+/// Whether a character gets to block, and whether the attempt lands.
+///
+/// Reference: `Character::block_hit` (`melee.cpp:1983-2005`), whose first steps decide before any block exists:
+///
+/// ```text
+/// if( in_sleep_state() || has_effect( effect_narcosis ) || has_effect( effect_winded ) || ... ) return false;
+/// if( blocks_left < 1 ) return false;
+/// if( !x_in_y( melee_skill * 20.0 * get_limb_score( limb_score_reaction ), 100 ) ) return false;
+/// blocks_left--;
+/// ```
+///
+/// **The order is the rule, and two parts of it are visible to a player:** someone asleep or winded **rolls nothing and spends nothing**, and `blocks_left--` sits **after** the roll - so a failed
+/// attempt **spends a die but not a block**, and only a landed one costs.
+///
+/// The caller owns `blocks_left`: this answers what happened, and the decrement is the caller's because it is state, not a decision.
+#[must_use]
+pub fn block_attempt(
+    can_react: bool,
+    blocks_left: i32,
+    melee_skill: f64,
+    reaction_score: f64,
+    dice: &mut cdda_core_types::rng::Rolls,
+) -> BlockAttempt {
+    if !can_react || blocks_left < 1 {
+        return BlockAttempt::NotAttempted;
+    }
+    if dice.x_in_y(melee_skill * 20.0 * reaction_score, 100.0) {
+        BlockAttempt::Blocked
+    } else {
+        BlockAttempt::RollFailed
+    }
+}

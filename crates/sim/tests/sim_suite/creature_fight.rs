@@ -2460,3 +2460,43 @@ fn the_best_shield_is_the_worn_one_when_it_ties_or_beats_the_weapon() {
     assert_eq!(best_shield(2, Some(2)), Shield::Worn, "and against that zero, any worn shield wins");
     assert_eq!(best_shield(0, None), Shield::None, "nothing to block with");
 }
+
+/// Whether a character gets to block at all, and whether the attempt lands.
+///
+/// Reference: `Character::block_hit` (`melee.cpp:1983-2005`), whose first four steps decide before any block happens:
+///
+/// ```text
+/// if( in_sleep_state() || has_effect( winded ) || ... ) return false;     // no die is rolled
+/// if( blocks_left < 1 ) return false;                                      // no die is rolled
+/// if( !x_in_y( melee_skill * 20.0 * get_limb_score( reaction ), 100 ) ) return false;
+/// blocks_left--;
+/// ```
+///
+/// **The order is the rule, in two ways that a player notices:** a sleeper or a winded character **spends no die and no block**, and a character who fails the roll **spends the die but not the
+/// block** - `blocks_left--` sits *after* the roll, so a failed attempt is free and a successful one costs a block.
+#[test]
+fn a_block_is_attempted_only_by_someone_able_to_react_and_costs_only_when_it_lands() {
+    use cdda_core_types::rng::Rolls;
+    use cdda_sim::melee::{BlockAttempt, block_attempt};
+
+    // **No die is spent by someone who cannot react at all**: the same seed's first roll is the same afterwards.
+    let mut untouched = Rolls::new(7);
+    let expected = untouched.rng(0, 99);
+    let mut dice = Rolls::new(7);
+    assert_eq!(block_attempt(false, 3, 5.0, 1.0, &mut dice), BlockAttempt::NotAttempted);
+    assert_eq!(dice.rng(0, 99), expected, "the die a sleeper never rolled is still there");
+
+    // No blocks left: the same, and no die.
+    let mut untouched = Rolls::new(7);
+    let expected = untouched.rng(0, 99);
+    let mut dice = Rolls::new(7);
+    assert_eq!(block_attempt(true, 0, 5.0, 1.0, &mut dice), BlockAttempt::NotAttempted, "no blocks left means no attempt");
+    assert_eq!(dice.rng(0, 99), expected, "and no die spent");
+
+    // A skill of five with a full reaction score is five times twenty in a hundred: certain.
+    let mut dice = Rolls::new(1);
+    assert_eq!(block_attempt(true, 2, 5.0, 1.0, &mut dice), BlockAttempt::Blocked);
+    // And no skill at all never lands.
+    let mut dice = Rolls::new(1);
+    assert_eq!(block_attempt(true, 2, 0.0, 1.0, &mut dice), BlockAttempt::RollFailed);
+}

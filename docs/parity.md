@@ -14820,3 +14820,22 @@ Gate | - | `the_best_shield_is_the_worn_one_when_it_ties_or_beats_the_weapon` |
 - the worn test is `>=`, not `>` - **a worn shield that merely ties the weapon wins the tie**, which is the opposite of "the thing in your hand has priority".
 
 The gate walks the whole table: weapon only, worse worn, **tied** worn, better worn, the discarded two, and nothing at all.
+
+## A sleeper rolls no die, and a failed block costs nothing (round 1258)
+
+| Piece | Reference | Port |
+|---|---|---|
+the guards and the roll | `block_hit`'s first steps (`melee.cpp:1983-2005`) | `melee::block_attempt` + `BlockAttempt` |
+Gate | - | `a_block_is_attempted_only_by_someone_able_to_react_and_costs_only_when_it_lands` |
+
+**The order is the rule, and two parts of it are visible to a player:**
+
+- someone **asleep, narcotised, winded, fear-paralysed or driving** never gets to the roll, so **no die is spent** - and a die that is not rolled is a die the recording never contains;
+- `blocks_left--` sits **after** the roll, so a **failed attempt spends a die but not a block**, and only a landed one costs. Reading the decrement as part of "attempted" would let a character burn their
+  blocks on misses.
+
+**The gate proves the invisible half with the dice themselves:** it compares the roll a non-attempting character would make against the first roll of an untouched generator seeded identically. **A
+`sleep` guard that quietly rolled would fail that comparison and nothing else.**
+
+**Named, not invented:** the caller. `block_hit` still needs martial arts' on-getting-hit effects, `best_shield`, limbs and the damage reduction that follows - this slice is the gate in front of all
+of them, and `blocks_left` stays the caller's state by design.

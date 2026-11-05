@@ -1118,3 +1118,6 @@ flag rather than inventing a pocket field. Gated by `ground_items::a_no_unload_c
 
 **Round 1257 ported `Character::best_shield`** as `melee::best_shield` + `Shield` (`melee.cpp:1967-1976`): the `== 2` discard and the `>=` tie. Gated by
 `creature_fight::the_best_shield_is_the_worn_one_when_it_ties_or_beats_the_weapon`.
+
+**Round 1258 ported `block_hit`'s guards and roll** as `melee::block_attempt` (`melee.cpp:1983-2005`), with `BlockAttempt::{NotAttempted, RollFailed, Blocked}`. Gated by
+`creature_fight::a_block_is_attempted_only_by_someone_able_to_react_and_costs_only_when_it_lands`, which **compares dice to prove no roll happened**.
