@@ -142,3 +142,23 @@ pub fn clipped_duration(seconds: i64) -> String {
     let weeks = seconds / 604_800;
     format!("{weeks} {}", if weeks == 1 { "week" } else { "weeks" })
 }
+
+/// Identifies a book and says what it can do for the reader - the whole of `avatar::identify`'s effect.
+///
+/// Reference: `avatar::identify` (`avatar.cpp:722-770`). The messages are pushed **only when the identification is new**, because the reference returns early on a type it already knows; a second copy
+/// of the same book is silently already known, which is exactly the behaviour a player sees as "I have read this one".
+pub fn identify_book_and_say(
+    world: &mut World,
+    character: Entity,
+    item_type: &str,
+    is_book: bool,
+    facts: &SkimFacts<'_>,
+) -> Identification {
+    let outcome = identify_book(world, character, item_type, is_book);
+    if outcome == Identification::NewlyIdentified {
+        for line in skim_messages(facts) {
+            crate::messages::push(world, &line);
+        }
+    }
+    outcome
+}

@@ -15146,3 +15146,17 @@ port's own ladder stops at weeks; the reference's season and year rungs depend o
 
 **Named, not invented:** the `%s` name substitutions come from the caller (the port has no translation machinery), the martial-arts branch ("A training session with this book takes ..."), and the recipe
 lines, which need the recipe registry.
+
+## The skim lines reach the game log, once (round 1277)
+
+| Piece | Reference | Port |
+|---|---|---|
+the effect | `avatar::identify` (`avatar.cpp:722-770`) | `identification::identify_book_and_say` |
+Gate | - | `identification::skimming_puts_its_lines_in_the_log_once` |
+
+**The early return is the silence.** Because `avatar::identify` returns when the type is already known, the skim lines appear **only the first time a type is identified** - a second copy is already known
+and says nothing. The gate asserts three lines the first time and **still three** the second, which is the behaviour a player reads as "I have read this one".
+
+**The log is the game's own store, not a test double:** the messages go through `messages::push`, the same channel the melee and blocking rules use, so the count and ordering are the ones the player has.
+
+**Named, not invented:** the reference's `m_info` **category** on four of the six lines (the port's log has no severity yet), and `clear_identified` on death.

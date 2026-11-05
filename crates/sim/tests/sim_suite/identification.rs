@@ -107,3 +107,37 @@ fn skimming_a_book_says_what_it_can_do_for_you() {
     assert_eq!(zero_requirement.len(), 3, "the skim line, the skill line and the chapter line - and nothing about a requirement of zero");
     assert!(zero_requirement[2].contains("1 minute"), "**a single minute is singular**: {}", zero_requirement[2]);
 }
+
+/// Skimming a book says what it can do for you **in the game's log**, once, at the moment it is learned.
+///
+/// Reference: `avatar::identify` (`avatar.cpp:722-770`) - it returns early when the type is already known, so the messages appear **only the first time** a type is identified; every later copy is
+/// silent.
+#[test]
+fn skimming_puts_its_lines_in_the_log_once() {
+    use cdda_sim::identification::{SkimFacts, identify_book_and_say};
+    use cdda_sim::messages;
+
+    let mut world = World::new();
+    let reader = world.spawn_empty().id();
+    let facts = SkimFacts {
+        book_name: "A Book",
+        skill_name: Some("chemistry"),
+        level: 7,
+        req: 0,
+        intel: 0,
+        fun: 0,
+        time_seconds: 60,
+    };
+
+    assert_eq!(identify_book_and_say(&mut world, reader, "a_book", true, &facts), Identification::NewlyIdentified);
+    let lines = messages::lines(&world);
+    assert_eq!(lines.len(), 3, "**the skim line, the skill line and the chapter line** - and none about a requirement of zero: {lines:?}");
+    assert_eq!(lines[0], "You skim A Book to find out what's in it.");
+
+    assert_eq!(
+        identify_book_and_say(&mut world, reader, "a_book", true, &facts),
+        Identification::AlreadyKnown,
+        "a second copy is already known"
+    );
+    assert_eq!(messages::lines(&world).len(), 3, "**and it says nothing the second time** - the early return is the silence");
+}

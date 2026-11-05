@@ -1172,3 +1172,5 @@ refusal leaving no trace.
 
 **Round 1276 ported the skim summary** as `identification::skim_messages` (`avatar.cpp:740-770`) with a clipped-duration formatter (`calendar.cpp:445-556`), gated on the zero-suppressed lines and on 90
 seconds reading as "1 minute".
+
+**Round 1277 wired the skim lines into the message log** as `identification::identify_book_and_say` (`avatar.cpp:722-770`), gated on **saying nothing the second time** - the reference's early return.
