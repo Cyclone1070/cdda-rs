@@ -725,6 +725,11 @@ pub fn install_item_data(world: &mut World) -> Option<usize> {
         .and_then(|bytes| cdda_json::parse(&bytes).ok())
         .map_or_else(std::collections::BTreeMap::new, |value| cdda_content::items::chip_resistance(&value));
     cdda_sim::item_data::install(world, &items, &chip_resistance);
+    // The fault catalogue's types, from the same data directory: `set_random_fault_of_type` filters a kind's faults by this, and without it every fault is ineligible.
+    if let Ok(faults) = cdda_content::faults::load_paths(&[&data]) {
+        let typed: Vec<(String, String)> = faults.into_iter().map(|fault| (fault.id, fault.fault_type)).collect();
+        cdda_sim::item_registry::set_fault_types(world, &typed);
+    }
     Some(items.len())
 }
 

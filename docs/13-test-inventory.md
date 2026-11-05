@@ -1043,3 +1043,7 @@ game data and asks the store for `bio_adrenaline`'s `fault_bionic_salvaged` (wei
 
 **Round 1219 closed the kind-table chain**: `item_data::install` now takes the prototypes dump's chip figures and joins them by id, so **all four tables** (flags, qualities, chip resistance, fault
 weights) are installed from the game's own data in one pass. `ground_items::loading_the_item_data_fills_the_kind_tables` gained the assertion that **rock answers 20, not the fallback 2**.
+
+**Round 1221 installed the fault catalogue into the store**: `item_registry::FaultTypes` / `set_fault_types` / `fault_type_of`, filled by `install_item_data` from the same data directory as the item
+records, gated by `ground_items::the_catalogue_says_what_kind_of_fault_an_id_is` (including the unknown-id case, which is **ineligible** rather than defaulted). Every input to `pick_fault` is now in
+the store; only the call in the swing remains.

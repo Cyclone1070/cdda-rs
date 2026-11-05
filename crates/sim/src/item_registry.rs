@@ -600,3 +600,29 @@ pub fn install_kind_facts(world: &mut World, kinds: &[(ItemTypeId, KindFacts)]) 
     let faults: Vec<(ItemTypeId, Vec<(String, i32)>)> = kinds.iter().map(|(kind, facts)| (*kind, facts.faults.clone())).collect();
     set_item_fault_weights(world, &faults);
 }
+
+/// What kind of damage each fault is, filed by fault id: `Fault::fault_type` from the catalogue, which is what `set_random_fault_of_type` filters on.
+///
+/// This is the **catalogue's** half of the fault pick: `ItemFaultWeights` says which faults a kind can catch and how likely, and this says which of those are mechanical damage. A fault whose
+/// id is not here has no type, so it is never eligible - the reference's `f.obj.obj().type() == fault_type` simply fails to match.
+#[derive(Debug, Clone, Default, PartialEq, Component)]
+pub struct FaultTypes(pub std::collections::BTreeMap<String, String>);
+
+/// Marks the entity holding [`FaultTypes`].
+#[derive(Debug, Clone, Copy, Default, Component)]
+pub struct TheFaultTypes;
+
+/// Installs the fault catalogue's types.
+pub fn set_fault_types(world: &mut World, faults: &[(String, String)]) {
+    let holder = singletons::singleton::<FaultTypes, TheFaultTypes>(world);
+    world.entity_mut(holder).insert(FaultTypes(faults.iter().cloned().collect()));
+}
+
+/// What kind of fault an id names, or nothing when the catalogue has never been installed or does not name it.
+#[must_use]
+pub fn fault_type_of(world: &mut World, fault: &str) -> Option<String> {
+    let holder = singletons::singleton::<FaultTypes, TheFaultTypes>(world);
+    world
+        .get::<FaultTypes>(holder)
+        .and_then(|table| table.0.get(fault).cloned())
+}

@@ -242,3 +242,29 @@ fn loading_the_item_data_fills_the_kind_tables() {
         assert!(cdda_sim::item_registry::kind_has_flag(&world, number, &flag), "{id} answers {flag}");
     }
 }
+
+/// The catalogue says what kind of fault an id is, and says nothing about an id it has never seen.
+///
+/// Reference: `Fault::type()`, which `item::set_random_fault_of_type` compares against `"mechanical_damage"` (`item.cpp:7856-7860`). **An uninstalled catalogue answers nothing for every id**, which
+/// makes every fault ineligible - the pick sets no fault rather than guessing one's type.
+#[test]
+fn the_catalogue_says_what_kind_of_fault_an_id_is() {
+    use bevy_ecs::prelude::World;
+
+    let mut world = World::new();
+    assert_eq!(cdda_sim::item_registry::fault_type_of(&mut world, "dented"), None, "nothing installed, nothing known");
+    cdda_sim::item_registry::set_fault_types(
+        &mut world,
+        &[
+            ("dented".to_owned(), "mechanical_damage".to_owned()),
+            ("wet".to_owned(), "wet".to_owned()),
+        ],
+    );
+    assert_eq!(
+        cdda_sim::item_registry::fault_type_of(&mut world, "dented").as_deref(),
+        Some("mechanical_damage"),
+        "a dent is mechanical damage"
+    );
+    assert_eq!(cdda_sim::item_registry::fault_type_of(&mut world, "wet").as_deref(), Some("wet"), "and wetness is its own kind");
+    assert_eq!(cdda_sim::item_registry::fault_type_of(&mut world, "cracked"), None, "an id the catalogue has never seen has no type");
+}

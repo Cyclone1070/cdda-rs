@@ -14473,3 +14473,17 @@ numbering rule exists to make impossible.
 
 **Named, not invented:** `item::chip_resistance()`'s own **recomputation** from materials and the `FRAGILE_MELEE` worst-component variant - the port takes the reference's answer from the dump rather than
 recomputing it, which is honest as long as the dump keeps being regenerated (it is, and `--verify` now runs with the suite).
+
+## The catalogue reaches the store (round 1221)
+
+| Piece | Reference | Port |
+|---|---|---|
+the types | `Fault::type()`, compared against `"mechanical_damage"` (`item.cpp:7856-7860`) | `item_registry::set_fault_types` / `fault_type_of` |
+the install | `faults::load` at start-up | `install_item_data` installs the catalogue from the same data directory |
+Gate | - | `the_catalogue_says_what_kind_of_fault_an_id_is` |
+
+**Every input the fault pick needs is now in the store.** A kind's weighted fault list (round 1205, filled from data in round 1218), the catalogue's type for each fault id (this round), the item's own
+fault set (round 1207), and `can_have_fault` and `pick_fault` (ported rounds 1149 and 1195). **What is left is the call.**
+
+**An uninstalled or unknown id has no type, and that is the honest answer rather than an error**: the reference's filter is a string comparison that simply fails to match, so a fault nobody has
+described is **ineligible**, not "mechanical damage by default". The gate asserts the missing case first and again at the end, because that is the branch a "helpful" default would break.
