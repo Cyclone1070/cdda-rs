@@ -1365,3 +1365,34 @@ fn a_practice_recipe_follows_the_crafter_within_its_range() {
     assert_eq!(skill_cap(None, 4), 5, "and an ordinary difficulty of four caps at five");
     assert_eq!(skill_cap(None, 5), 6, "**six and a quarter truncates to six**, not seven");
 }
+
+/// A helper who understands the craft earns twice what a watcher does, and the halves are rolled rather than dropped.
+///
+/// Reference: `Character::craft_skill_gain` (`crafting.cpp:981-1033`): an assistant or bystander whose skill **reaches the recipe's difficulty** practises `roll_remainder( ticks / 2.0 )`, and one below it
+/// practises `roll_remainder( ticks / 10.0 )`. `roll_remainder` (`rng.cpp:222-233`) keeps the fraction as a **chance**: it truncates and then bumps by one when a uniform draw falls under the remainder.
+///
+/// **The `/2` against the `/10` is the whole reward for understanding the work** - five times the practice for a helper at or above the difficulty - and the remainder is not rounded away, which is why the
+/// gate asserts both an exact case and the fractional spread across seeds.
+#[test]
+fn a_helper_who_understands_earns_five_times_the_practice() {
+    use cdda_sim::crafting::helper_practice_ticks;
+    use cdda_core_types::rng::Rolls;
+
+    let mut rolls = Rolls::new(1);
+    assert_eq!(helper_practice_ticks(10, true, &mut rolls), 5, "ten ticks, understanding: five whole");
+    assert_eq!(helper_practice_ticks(10, false, &mut rolls), 1, "**and one, not none**, for a watcher");
+    assert_eq!(helper_practice_ticks(20, true, &mut rolls), 10, "twenty: ten");
+    assert_eq!(helper_practice_ticks(20, false, &mut rolls), 2, "and two");
+
+    // The fraction is a chance: 11 / 2 is 5.5, so the answer is five or six and both must appear.
+    let mut seen = (0, 0);
+    for seed in 0..200 {
+        let mut rolls = Rolls::new(seed);
+        match helper_practice_ticks(11, true, &mut rolls) {
+            5 => seen.0 += 1,
+            6 => seen.1 += 1,
+            other => panic!("11 / 2 must roll five or six, got {other}"),
+        }
+    }
+    assert!(seen.0 > 40 && seen.1 > 40, "**the half is rolled, not dropped**: {seen:?} across 200 seeds");
+}

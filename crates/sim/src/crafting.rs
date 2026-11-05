@@ -765,3 +765,26 @@ pub fn has_recipe_requirements(practical_excess: i32, theory_known: bool) -> boo
 /// Reference: `recipe::get_difficulty` and `recipe::get_skill_cap` (`recipe.cpp:61-77`). They are re-exported here because the crafting rules are read from this module, and because a second copy of the
 /// clamp and the `1.25` truncation would be a second place to disagree with the reference.
 pub use cdda_content::recipes::{practice_difficulty, skill_cap};
+
+/// How much practice an assistant or a watcher earns from someone else's craft.
+///
+/// Reference: `Character::craft_skill_gain` (`crafting.cpp:993-1033`):
+///
+/// ```text
+/// if( helper->get_skill_level( making.skill_used ) >= making.difficulty )
+///     helper->practice( skill, roll_remainder( num_practice_ticks / 2.0 ), skill_cap );
+/// else
+///     helper->practice( skill, roll_remainder( num_practice_ticks / 10.0 ), skill_cap );
+/// ```
+///
+/// **The factor of five between the two is the whole reward for understanding the work**, and `roll_remainder` (`rng.cpp:222-233`) keeps the fraction as a **chance** rather than rounding it away - which is
+/// why the answer is a draw and not a division. The crafter's own share is the full `num_practice_ticks` and is applied without this function.
+#[must_use]
+pub fn helper_practice_ticks(ticks: i32, understands: bool, rolls: &mut cdda_core_types::rng::Rolls) -> i32 {
+    let share = if understands {
+        f64::from(ticks) / 2.0
+    } else {
+        f64::from(ticks) / 10.0
+    };
+    crate::roll_remainder(share, rolls)
+}

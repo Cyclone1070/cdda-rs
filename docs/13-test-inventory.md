@@ -1214,3 +1214,6 @@ invalid JSON and had to be fixed and re-dumped.
 
 **Round 1291 moved the practice rules beside `Recipe`** as `Recipe::difficulty_for` / `Recipe::teaching_cap` (`recipe.cpp:61-77`), with the sim re-exporting them, and gated them on real recipes from the dump
 rather than fixtures.
+
+**Round 1292 ported the helper practice share** as `crafting::helper_practice_ticks` (`crafting.cpp:993-1033`), gated on the five-to-one ratio between understanding and watching **and** on the fractional
+draw appearing on both sides across 200 seeds.

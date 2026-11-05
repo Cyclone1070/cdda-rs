@@ -15409,3 +15409,18 @@ crafter entirely and caps at `difficulty * 1.25` truncated.
 
 **Named, not invented:** `get_skill_cap`'s use in the practice **XP** path (which needs the activity's skill-gain step, P6) and `difficulty_for`'s caller in `can_make`, which needs the crafting
 inventory.
+
+## A helper who understands earns five times the practice (round 1292)
+
+| Piece | Reference | Port |
+|---|---|---|
+the helper's share | `craft_skill_gain` (`crafting.cpp:993-1033`) | `crafting::helper_practice_ticks` over `roll_remainder` |
+Gate | - | `crafting::a_helper_who_understands_earns_five_times_the_practice` |
+
+**The factor of five is the whole reward for understanding the work**: an assistant or bystander whose skill **reaches the recipe's difficulty** practises `ticks / 2`, one below it `ticks / 10`.
+
+**`roll_remainder` keeps the fraction as a chance**, not a rounding: `11 / 2` is 5.5, so the answer is five or six and **both must appear**. The gate draws 200 seeds and asserts both sides, because a port
+that truncated would pass every exact case and still be wrong on every odd tick.
+
+**Named, not invented:** the crafter's own full-tick practice and its `skill_cap`, which belong to the skill-gain step of a finished craft rather than to the helper rule; the `ONE_IN( 300 )` flavour lines
+("*%s assists with crafting…*", "*%s watches you craft…*"); and the "could assist you with a batch" hint that only fires for a batch of one.
