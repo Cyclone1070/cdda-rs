@@ -14399,3 +14399,22 @@ no qualities** - so the missing-table answers are pinned as well as the present 
 
 **Still open, and now one step away:** the CLI has to *produce* the `KindFacts` list, which needs the prototypes walk to assign `ItemTypeId`s in one place. **The seam exists; the loader that feeds it does
 not.**
+
+## The loader that feeds the seam, spelled out (round 1213)
+
+Round 1211 built the seam (`install_kind_facts`) and round 1210 showed nothing feeds it. This round walked the data path so the next session does not have to, and **the answer is a merge of two
+sources the port already reads separately**:
+
+| What the table needs | Where it already comes from | Shape |
+|---|---|---|
+flags, qualities, faults | `items::load_paths(&dirs) -> Vec<ItemType>` (`items.rs:891`) | one `ItemType` per prototype, from the data files |
+chip resistance | `items::chip_resistance(&dump)` (`items.rs:2129`), prototypes dump **v3** | a map from **id string** to number |
+the `ItemTypeId` | `item_registry` numbers kinds as it loads them | a `u32` per kind, in one order |
+
+**The hard part is the third row, and it is the reason this is not a five-line function.** The dump is keyed by **id string**; the store is keyed by **`ItemTypeId`**; and `load_paths` returns a
+**`Vec` whose order is whatever the data files say**. A loader that numbers that `Vec` by position gives kind seven a different meaning every time a mod adds a file. **The numbering has to be assigned
+once, from a sorted id list, and used by every table** - which is exactly what round 1211's one-pass installer is shaped for.
+
+**So the next slice is one function in `crates/cli`**: sort the loaded `ItemType`s by id, number them `0..n` in that order, merge the dump's chip figure by id, build a `KindFacts` per kind, and call
+`install_kind_facts` **once**. Its gate belongs in the CLI tests (`crates/cli/tests/`), not the sim suite, because the thing it proves is that the *data* reaches the store - and the receipt is a
+scenario that drops a rock and finds **chip resistance 20** where today it would find the fallback **2**.

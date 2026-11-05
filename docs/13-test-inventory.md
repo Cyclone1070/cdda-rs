@@ -1028,3 +1028,7 @@ named in `docs/parity.md` as the next slice, ahead of any further combat rule.
 **Round 1211 added the one-pass kind installer**: `item_registry::KindFacts` and `install_kind_facts` fill the flags, qualities, chip-resistance and fault-weight tables from **one** list, gated by
 `ground_items::one_pass_fills_every_kind_table` (two described kinds plus one undescribed, whose answers are the reference's missing-table fallbacks). The CLI loader that produces the list is named in
 `docs/parity.md`.
+
+**Round 1213 scoped the loader that feeds round 1211's seam**: flags/qualities/faults from `items::load_paths`, chip resistance from the prototypes dump v3 **keyed by id string**, and the
+`ItemTypeId` numbering that must be assigned **once from a sorted id list** rather than from `Vec` position. The function belongs in `crates/cli`, its gate in the CLI tests, and its receipt is a rock
+whose chip resistance reads **20** instead of the fallback **2**. Design recorded in `docs/parity.md`.
