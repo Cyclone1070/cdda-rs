@@ -327,6 +327,16 @@ pub fn fire_at(
     if let Some(place) = world.get::<crate::Position>(shooter) {
         crate::sounds::make_sound(world, (place.x, place.y, place.z), noise);
     }
+    // Reference: `it.set_var( "dirt", ... )` at the end of `handle_gun_damage` (`ranged.cpp:864-872`), which is why a gun that keeps firing eventually jams.
+    if let Some(gun_entity) = gun_entity {
+        let dirt = world.get::<Dirt>(gun_entity).map_or(0, |dirt| dirt.points);
+        let fouled = dirt_after_a_shot(dirt, false, 0, false);
+        if let Some(mut holder) = world.get_mut::<Dirt>(gun_entity) {
+            holder.points = fouled;
+        } else {
+            world.entity_mut(gun_entity).insert(Dirt { points: fouled });
+        }
+    }
     Fired { cost, aim, hit: struck, hurt, loaded: true, noise, misfired: false }
 }
 
@@ -533,4 +543,32 @@ pub fn misfires(dirt: i32, durability: i32, never_jams: bool, dice: &mut cdda_co
     let shift = u32::try_from(durability.clamp(0, 20)).unwrap_or(0);
     let odds = i32::try_from((2_i64 << shift) * 3).unwrap_or(i32::MAX);
     dice.one_in(odds)
+}
+
+/// The dirt one shot leaves behind: `ranged.cpp:864-872`, the fouling half of `handle_gun_damage`.
+///
+/// Reference, in its own order:
+///
+/// 1. **nothing at all** if the round's effects or the gun's flags say `NON_FOULING`;
+/// 2. otherwise, while the gun is below the maximum, a normal cartridge adds **one**, and the reference **caps ordinary ammunition at 7,150** - not at the absolute 10,000 - because
+///    "firing with regular gunpowder can never make the gun quite as bad as firing it with black gunpowder";
+/// 3. black powder adds `200 - blackpowder_tolerance * 2` more, floored at zero, and **is** allowed all the way to the maximum.
+///
+/// The port takes the black-powder terms as arguments because the ammo dump does not carry the round's `ammo_effects` yet, so every round it knows is ordinary - **a named gap, and the cap of
+/// 7,150 is the half that matters on every shot**.
+#[must_use]
+pub fn dirt_after_a_shot(dirt: i32, blackpowder: bool, blackpowder_tolerance: i32, non_fouling: bool) -> i32 {
+    if non_fouling || dirt >= MAX_DIRT {
+        return dirt.clamp(0, MAX_DIRT);
+    }
+    let added = if blackpowder {
+        (200 - blackpowder_tolerance * 2).max(0)
+    } else {
+        0
+    };
+    if blackpowder || dirt < 7_150 {
+        (dirt + added + 1).min(MAX_DIRT)
+    } else {
+        dirt
+    }
 }

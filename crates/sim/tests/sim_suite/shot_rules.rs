@@ -833,3 +833,84 @@ fn a_filthy_gun_misfires_instead_of_firing_and_keeps_its_round() {
     assert_eq!(left, Some(4), "and spends its round: {left:?}");
     assert!(clean.hurt > 0, "and lands on the target it was aimed at: {}", clean.hurt);
 }
+
+/// Every ordinary shot adds one point of dirt, and ordinary ammunition stops fouling at 7,150 while black powder goes to the maximum.
+///
+/// Reference: `ranged.cpp:864-872`. **The two caps are the whole point**: 10,000 is where a misfire is certain, and 7,150 is where *ordinary* ammunition stops - so a gun fired with cartridges
+/// can never get as bad as one fired with black powder, which is a rule a single "cap at the maximum" would lose.
+#[test]
+fn a_shot_dirties_the_gun_by_one_until_ordinary_ammunition_stops_at_7150() {
+    use cdda_sim::shot::{MAX_DIRT, dirt_after_a_shot};
+
+    assert_eq!(dirt_after_a_shot(0, false, 0, false), 1, "a clean gun takes one point");
+    assert_eq!(dirt_after_a_shot(100, false, 0, false), 101, "and one more with every shot");
+    assert_eq!(dirt_after_a_shot(7_149, false, 0, false), 7_150, "until the ordinary cap");
+    assert_eq!(dirt_after_a_shot(7_150, false, 0, false), 7_150, "where it stops, well short of the maximum");
+    assert_eq!(dirt_after_a_shot(MAX_DIRT, false, 0, false), MAX_DIRT, "and nothing goes past the maximum");
+
+    // Black powder jumps by `200 - tolerance * 2` and is allowed to the top.
+    assert_eq!(dirt_after_a_shot(0, true, 0, false), 201, "black powder adds two hundred and one");
+    assert_eq!(dirt_after_a_shot(0, true, 5, false), 191, "less the weapon's tolerance, two a point");
+    assert_eq!(dirt_after_a_shot(9_950, true, 0, false), MAX_DIRT, "and reaches the maximum, where cartridges cannot");
+    assert!(dirt_after_a_shot(0, true, 200, false) >= 1, "a tolerance past the additive still leaves one point: {}", dirt_after_a_shot(0, true, 200, false));
+
+    // A non-fouling round leaves the gun exactly as it was, which is the branch the flag exists for.
+    assert_eq!(dirt_after_a_shot(500, false, 0, true), 500, "NON_FOULING adds nothing");
+    assert_eq!(dirt_after_a_shot(0, true, 0, true), 0, "not even black powder");
+}
+
+/// Every shot leaves the gun dirtier, so a gun that keeps firing tends towards a misfire.
+///
+/// Reference: `ranged.cpp:864-872`. The gate asks the **store** after the shot rather than the rule's return value, because the claim is that the number on the gun's entity moved - which is what
+/// makes round 1171's misfire reachable in play rather than only in a hand-built world.
+#[test]
+fn every_shot_leaves_the_gun_dirtier() {
+    use bevy_ecs::prelude::*;
+    use cdda_core_types::rng::Rolls;
+
+    let read = |name: &str| {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let bytes = std::fs::read(path).expect("the corpus file exists");
+        cdda_json::parse(&bytes).expect("valid JSON")
+    };
+    let guns = cdda_content::guns::load_dump(&read("items/guns.json")).expect("the guns load");
+    let lines = cdda_content::skills::load_dump(&read("skills.json")).expect("the skills load");
+    let rounds = cdda_content::ammo::load_dump(&read("items/ammo.json")).expect("the ammo loads");
+    let gun = guns.iter().find(|gun| gun.id == "ruger_mini").expect("the Mini-14").clone();
+    let cartridge = rounds.iter().find(|round| round.id == "223").expect("the .223").clone();
+
+    let mut world = World::new();
+    cdda_sim::singletons::put_rolls(&mut world, Rolls::new(91));
+    let shooter = cdda_sim::creature::spawn_creature(&mut world, "the shooter", (0, 0, 0));
+    world
+        .entity_mut(shooter)
+        .insert(cdda_sim::creature::Strength { base: 8 })
+        .insert(cdda_sim::creature::Dexterity { base: 20 })
+        .insert(cdda_sim::creature::Perception { base: 20 })
+        .insert(cdda_sim::creature::Moves { left: 1_000 });
+    let held = world
+        .spawn((
+            cdda_sim::GroundItem {
+                kind: cdda_sim::ItemTypeId(7),
+                charges: 10,
+                age: 0,
+                burnt: 0,
+                damage: 0,
+                burn: None,
+            },
+            cdda_sim::Position { x: 0, y: 0, z: 0 },
+            cdda_sim::shot::NeverJams,
+        ))
+        .id();
+    assert_eq!(world.get::<cdda_sim::shot::Dirt>(held).map(|dirt| dirt.points), None, "a new gun carries no dirt component at all");
+
+    for expected in 1..=3 {
+        let fired = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (5, 0, 0), 18.0, Some(&cartridge), Some(held), 3_180.0, false);
+        assert!(!fired.misfired, "the gun cannot jam, so the shot fired");
+        assert_eq!(
+            world.get::<cdda_sim::shot::Dirt>(held).map(|dirt| dirt.points),
+            Some(expected),
+            "and after shot {expected} the gun is that much dirtier"
+        );
+    }
+}

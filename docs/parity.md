@@ -13668,3 +13668,25 @@ along. **The scenario changed too**: three shots no longer kill the zombie, beca
 
 **Named, not invented:** where the dirt **comes from** (`it.set_var( "dirt", ... )` at the end of `handle_gun_damage`, which needs the fouling rule and `NO_FOULING`), `handle_gun_overheat`, and
 the magazine, underwater and consumable-gunmod branches.
+
+## Every shot dirties the gun (round 1173)
+
+| Piece | Reference | Port |
+|---|---|---|
+the rule | `it.set_var( "dirt", ... )` (`ranged.cpp:864-872`) | `shot::dirt_after_a_shot(dirt, blackpowder, tolerance, non_fouling)`, written back to the gun's `Dirt` |
+the caps | **7,150** for ordinary ammunition, **10,000** absolute | the same, as two different branches |
+Gate | - | `a_shot_dirties_the_gun_by_one_until_ordinary_ammunition_stops_at_7150` and `every_shot_leaves_the_gun_dirtier` |
+
+**There are two caps, and the pair is the rule.** A cartridge adds **one** point a shot and stops at **7,150**; black powder adds `200 - tolerance * 2` and is allowed to **10,000** - because, in
+the reference's own words, *"firing with regular gunpowder can never make the gun quite as bad as firing with black gunpowder"*. **A port with one cap would lose exactly the distinction the
+mechanic was written for**, and would do so invisibly, since both caps produce the same behaviour until somebody fires seven thousand rounds.
+
+**This makes round 1171's misfire reachable in play.** The gate asks the **store** after the shot - `Dirt` goes 0 → 1 → 2 → 3 on the gun's entity - so the chain is now closed end to end: fire,
+foul, foul more, and eventually the dirt dice that round 1171 ported begin to matter.
+
+**The second gate asserts the component appears at all.** A new gun has **no `Dirt` component** - the port's components are not defaulted into existence - and the first shot inserts it. **A
+missing component reads as zero and a present one at zero reads the same**, so the gate checks the value on every shot rather than the presence once.
+
+**Named, not invented:** `BLACKPOWDER` and `NON_FOULING` as **ammo effects**, which the ammo dump does not carry yet - so every round the port knows is ordinary, and the black-powder branch is
+gated by hand rather than by data; `NON_FOULING` as a **gun** flag (read from the prototypes dump when a step needs it); the `NO_DIRTYING` fault flag, `UNLUBRICATED`'s screech and damage, and
+the `gun_chamber_spent` cycling fault.

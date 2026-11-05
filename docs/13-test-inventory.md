@@ -888,3 +888,7 @@ The CLI's two prototypes-dump readers were folded into one `has_item_flag`.
 **Round 1172 wired the misfire into the shot**: `shot::Dirt` and `shot::NeverJams` components on the gun's entity, the misfire roll ahead of the round being spent (`ranged.cpp:1078`), and
 `Fired::misfired`. Gated by `shot_rules::a_filthy_gun_misfires_instead_of_firing_and_keeps_its_round`. The new dice draw shifted three other gates and the shooting scenario, all of which now pin
 their gun with `NeverJams` - recorded in the docs because **a rule that consumes dice changes every rule after it**.
+
+**Round 1173 closed the fouling loop**: `shot::dirt_after_a_shot` (`ranged.cpp:864-872` - one point a shot, ordinary ammunition capped at **7,150**, black powder to **10,000**) and the write-back to the
+gun's `Dirt` component inside `fire_at`. Gated by `shot_rules::a_shot_dirties_the_gun_by_one_until_ordinary_ammunition_stops_at_7150` (the two caps, black powder, `NON_FOULING`) and
+`shot_rules::every_shot_leaves_the_gun_dirtier` (the store's `Dirt` moves 1, 2, 3 across three shots).
