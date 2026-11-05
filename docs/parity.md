@@ -14138,3 +14138,22 @@ fixture was wrong, not the rule.**
 
 **Named, not invented:** the **destruction branch** (`inc_damage` returning true destroys the item after spilling its contents, `melee.cpp:293-330`), `FRAGILE_MELEE`'s component breakdown,
 `UNBREAKABLE`/`UNBREAKABLE_MELEE`, `EQUIPMENT_DAMAGE_CHANCE`, the charge-counted wear path, and the messages.
+
+## The blow that destroys the weapon (round 1194)
+
+| Piece | Reference | Port |
+|---|---|---|
+the damage | `item::mod_damage` (`item.cpp:9441-9465`) | `ItemDamage::mod_damage` (ported round 1149, **first caller here**) |
+the destruction | the same function's `destroy` answer, and `handle_melee_wear`'s removal (`melee.cpp:293-330`) | the weapon entity is despawned |
+Gate | - | `a_weapon_worn_past_its_maximum_is_destroyed_by_the_blow` |
+
+**The boundary is the whole rule, and it is off by one in the direction nobody guesses.** `destroy = ( damage_ + qty ) > max_damage()` is tested **before** `set_damage` clamps, so **the hit that takes
+an item *exactly* to its maximum is not the one that destroys it** - the next one is. The gate wears a weapon to exactly **4,000** and asserts it is **still there**, then swings once more and asserts
+it is **gone** and the hand is empty. **Four swings survive, five destroy**, and a port that wrote `>=` would destroy one swing early and pass any single-assertion test.
+
+**`ItemDamage::mod_damage` had waited 45 rounds for a caller.** The port ported it in round 1149 with the degradation rule and the charge branch, and **nothing ever called it** - the worth of a
+rule with no caller is zero until the day something asks it. The swing now does, which also retires the hand-rolled `+= DAMAGE_SCALE` of round 1193.
+
+**Named, not invented:** the "your %s is destroyed by the blow!" **message**, the contents spill (`spill_contents`), `FRAGILE_MELEE`'s component breakdown and the "breaks apart!" path,
+`set_random_fault_of_type( "mechanical_damage" )` which is the reference's own `TODO`, the `UNBREAKABLE` check being read off the kind table rather than the item (a world that never installed the
+kind table therefore never refuses), and the per-type `damage_max` - the port uses the reference's constant 4,000 because every non-charge type has it.

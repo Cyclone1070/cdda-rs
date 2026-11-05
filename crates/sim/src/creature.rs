@@ -2947,7 +2947,25 @@ pub fn wear_the_wielded_weapon(world: &mut World, holder: Entity, melee_skill: i
     if !wears {
         return;
     }
-    if let Some(mut damage) = world.get_mut::<crate::ItemDamage>(held) {
-        damage.damage += crate::DAMAGE_SCALE;
+    // The damage is applied by the port's own `item::mod_damage` (round 1149), which has waited ever since for a caller: it refuses an `UNBREAKABLE` item, applies the
+    // **degradation** the new damage level crossed, and answers whether the hit **destroyed** the thing - the destruction test being `( damage + qty ) > max_damage`, so the
+    // hit that takes an item exactly to its maximum is not the one that destroys it.
+    let limits = crate::DamageLimits {
+        max_damage: 4_000,
+        degrade_increments: 0,
+        stack_size: 1,
+        count_by_charges: false,
+        unbreakable: kind.is_some_and(|kind| crate::item_registry::kind_has_flag(&*world, kind, "UNBREAKABLE")),
+    };
+    let Some(current) = world.get::<crate::ItemDamage>(held).copied() else {
+        return;
+    };
+    let (after, destroyed) = current.mod_damage(crate::DAMAGE_SCALE, &limits);
+    if destroyed {
+        // Reference: `Character::handle_melee_wear`'s destruction branch - the item "is destroyed by the blow" and leaves the hand (`melee.cpp:293-330`). The port
+        // despawns the entity, which is what "the thing is gone" means in one store; the message and the contents spill are named, not invented.
+        world.entity_mut(held).despawn();
+        return;
     }
+    world.entity_mut(held).insert(after);
 }

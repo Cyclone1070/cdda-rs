@@ -1812,3 +1812,61 @@ fn a_swing_dents_the_thing_in_the_hand() {
     let dents = world.get::<cdda_sim::ItemDamage>(weapon).map_or(0, |damage| damage.damage) / 1000;
     assert!(dents < 5, "a chipping-resistant weapon takes few dents in twenty swings: {dents}");
 }
+
+/// A weapon taken past its maximum is destroyed by the blow, and the hand is empty.
+///
+/// Reference: `item::mod_damage` (`item.cpp:9449-9464`) is `destroy = ( damage_ + qty ) > max_damage()`, then `set_damage`, which clamps - so **the hit that takes an item exactly to its
+/// maximum is not the hit that destroys it**, and the next one is. `Character::handle_melee_wear` then removes the item from the hand (`melee.cpp:293-330`).
+#[test]
+fn a_weapon_worn_past_its_maximum_is_destroyed_by_the_blow() {
+    use bevy_ecs::prelude::*;
+    use cdda_core_types::rng::Rolls;
+
+    let mut world = World::new();
+    cdda_sim::singletons::put_rolls(&mut world, Rolls::new(11));
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let zombie = cdda_sim::creature::spawn_creature(&mut world, "the zombie", (1, 0, 0));
+    world.entity_mut(zombie).insert(cdda_sim::creature::Health { hp: 9_000, max_hp: 9_000 });
+    world.entity_mut(survivor).insert(cdda_sim::creature::Speed { base: 100, bonus: 0 });
+    for _ in 0..2 {
+        cdda_sim::creature::bank_a_turn(&mut world);
+    }
+    let weapon = world
+        .spawn((
+            cdda_sim::GroundItem {
+                kind: cdda_sim::ItemTypeId(7),
+                charges: 1,
+                age: 0,
+                burnt: 0,
+                damage: 0,
+                burn: None,
+            },
+            cdda_sim::ItemDamage::default(),
+            cdda_sim::creature::Carried(survivor),
+        ))
+        .id();
+    assert_eq!(
+        cdda_sim::creature::wield(&mut world, survivor, weapon, 250),
+        cdda_sim::creature::Wielded::Done
+    );
+    // A weapon that resists chipping not at all, so every swing adds a thousandth scale and the maximum is reached in four.
+    cdda_sim::item_registry::set_item_chip_resistance(&mut world, &[(cdda_sim::ItemTypeId(7), 0)]);
+
+    for swing in 1..=4 {
+        cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, zombie);
+        let alive = world.get_entity(weapon).is_ok();
+        assert!(alive, "still there after swing {swing}");
+    }
+    // Four thousand is exactly the maximum, which is **not** destruction; the fifth is.
+    assert_eq!(
+        world.get::<cdda_sim::ItemDamage>(weapon).map(|damage| damage.damage),
+        Some(4_000),
+        "worn to its maximum and still in one piece"
+    );
+    cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, zombie);
+    assert!(world.get_entity(weapon).is_err(), "the fifth swing destroys it");
+    assert!(
+        cdda_sim::creature::wielding(&mut world, survivor).is_none(),
+        "and the hand is empty afterwards"
+    );
+}

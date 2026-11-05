@@ -971,3 +971,7 @@ truth the architecture forbids. The blocker and the slice that unblocks it are r
 **Round 1193 wired the wear rule into the swing** (`wear_the_wielded_weapon`, from `melee.cpp:930`), damaging the held **item entity's** `ItemDamage` by one `DAMAGE_SCALE`. Gated by
 `creature_fight::a_swing_dents_the_thing_in_the_hand`. It also corrected round 1192's blocker: the port **did** have a place for a held item's damage (`WieldedBy` + `ItemDamage`), and the blocker had
 been read off the wrong component.
+
+**Round 1194 wired the destruction branch**: the swing now calls the port's own `ItemDamage::mod_damage` (`item.cpp:9441-9465`, ported round 1149 and **caller-less until now**) and despawns the
+weapon when it is destroyed. Gated by `creature_fight::a_weapon_worn_past_its_maximum_is_destroyed_by_the_blow`, which pins the off-by-one: **worn to exactly 4,000 survives; the next swing
+destroys**.
