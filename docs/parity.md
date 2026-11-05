@@ -14991,3 +14991,20 @@ faint".
 they are one line apart in the reference and disagree about the same number.
 
 **Named, not invented:** `needs_food()`, which the port answers from its own stomach rule at call time; and where the penalty is applied, which is the speed bonus list the port has not built yet.
+
+## A lamp beats the floor, and light has a floor of its own (round 1268)
+
+| Piece | Reference | Port |
+|---|---|---|
+the multiplier | `Character::fine_detail_vision_mod()` (`character.cpp:2916-2947`) | `sight::fine_detail_vision_mod(impaired, active_light, ambient_light)` |
+Gate | - | `sight::a_lamp_beats_the_floor_and_nothing_beats_full_light` |
+
+**Light in the hand is worth three more than the same light on the floor** - `own_light = max( 1, 10 - active - 2 )` against `ambient = max( 1, 10 - ambient + 1 )` - because a character can point a
+lamp where they need it and cannot point the room.
+
+**Both sides are floored at one**, so the answer never improves past `1.0`: **there is no bonus for standing in the sun**, and the multiplier is a penalty on fine work from the first point of darkness.
+
+**The gate's first run was wrong about ambient light, not about the rule:** I expected `8` for a character standing in full ambient light with nothing in hand, but the ambient side floors at one and the
+**smaller** answer wins. That is the whole shape of the function - *the best light decides* - and the fixture now asserts it on both sides.
+
+**Named, not invented:** `is_blind()` and the `boomered`/`darkness` effects are one flag here; `PER_SLIME_OK` (a trait exemption) and the off-z-level assumption of `1.0` for NPCs are not modelled.

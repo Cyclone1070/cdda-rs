@@ -1148,3 +1148,6 @@ nothing, 90 adds the same as 60) and the worse-eyes doubling.
 
 **Round 1267 ported `Character::kcal_speed_penalty`** as `needs::kcal_speed_penalty` (`character.cpp:4531-4549`), keyed on fat category with `std::round`. Gated by
 `reading::being_starved_slows_a_character_by_their_fat_category`; its half case (−12.5 → −13) is the counterpart of round 1266's truncation case.
+
+**Round 1268 ported `Character::fine_detail_vision_mod`** as `sight::fine_detail_vision_mod` (`character.cpp:2916-2947`): the three-point advantage of carried light, both floors at one, and blind at
+eleven. Gated by `sight::a_lamp_beats_the_floor_and_nothing_beats_full_light`, whose first run corrected the gate's reading of the ambient side.
