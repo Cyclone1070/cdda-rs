@@ -14304,3 +14304,22 @@ what does this item already have? | `ItemFaults` on the item entity | nothing bu
 **So the gap is one column in the registry, not a missing loader.** That is the third time in four rounds that a "blocked on data" claim dissolved under a single grep - rounds 1192, 1196 and now
 1204 - and the pattern is the same each time: **the claim came from what I had read, not from what the repository holds.** The check that would have caught all three is one command, and it is the one
 now written down as the habit: **grep the behaviour's words (`fault`, `chip`, `damage`) across `crates/` before naming a blocker.**
+
+## The column the pick needed (round 1205)
+
+Round 1204 said the gap was "one column in the registry". This round adds it: `ItemFaultWeights` - **which faults a kind can catch, and how likely each is** - filed beside the flags, the qualities and
+the chip resistance, because it is another question asked *of a kind*.
+
+| Question | Answer now lives in |
+|---|---|
+which faults can this kind catch, and how likely? | `item_registry::fault_weights_of(kind)` |
+is this fault of the type asked for? | `content::faults::Fault::fault_type` |
+can the item have it, given what it already has? | `sim::can_have_fault` |
+which one does the die choose? | `sim::pick_fault` |
+
+**All four answers exist; the swing does not ask them yet.** The remaining step is one call in `wear_the_wielded_weapon` after a blow that damaged the weapon: build the eligible list from
+`fault_weights_of`, filter with the catalogue's type and `can_have_fault`, pick with `pick_fault`, and set it on the item's `ItemFaults`. **That is the next round's work and it is now a wiring job
+with every input in hand.**
+
+**Named, not invented:** the **installer** - nothing in the binary calls `set_item_fault_weights` yet, so a real game would still catch no faults; the CLI's loader has to fill it from the same prototypes
+dump that carries `chip_resistance` (the dump does **not** yet carry the faults column, so that dump change is part of the wiring too).

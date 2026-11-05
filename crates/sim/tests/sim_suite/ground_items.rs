@@ -129,3 +129,28 @@ fn item_health_is_a_fraction_and_a_stack_has_none_to_lose() {
     // A type with no maximum that somehow holds damage still answers whole rather than dividing by zero.
     assert!(relative_health(500, 0).is_finite(), "no infinity, ever");
 }
+
+/// The registry can say which faults a kind catches, and says nothing for a kind nobody described.
+///
+/// Reference: `itype::faults`, the weighted list `item::set_random_fault_of_type` filters by fault type before picking (`item.cpp:7854-7868`). **A kind with no entry answers an empty list**, which
+/// is the same "missing is a zero" rule the chip-resistance table follows - and it means the pick sets no fault rather than inventing one.
+#[test]
+fn the_registry_knows_which_faults_a_kind_catches() {
+    use bevy_ecs::prelude::World;
+
+    let mut world = World::new();
+    cdda_sim::item_registry::set_item_fault_weights(
+        &mut world,
+        &[(
+            cdda_sim::ItemTypeId(7),
+            vec![("dented".to_owned(), 3), ("cracked".to_owned(), 1)],
+        )],
+    );
+    let weights = cdda_sim::item_registry::fault_weights_of(&mut world, cdda_sim::ItemTypeId(7));
+    assert_eq!(weights.len(), 2, "two faults, with their weights");
+    assert_eq!(weights.first().map(|(fault, weight)| (fault.as_str(), *weight)), Some(("dented", 3)), "in the data's own order");
+    assert!(
+        cdda_sim::item_registry::fault_weights_of(&mut world, cdda_sim::ItemTypeId(8)).is_empty(),
+        "a kind nobody described catches nothing"
+    );
+}

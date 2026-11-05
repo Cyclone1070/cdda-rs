@@ -1005,3 +1005,7 @@ constant answer for a charge-counted type and the finiteness that keeps a stack 
 **Round 1204 corrected round 1203's blocker.** The fault catalogue is ported (`content::faults::Fault::fault_type`, read from the data and gated); what the swing lacks is the **kind's weighted
 fault list** in the sim's item registry (`content::items::ItemType::faults` exists, the registry does not carry it). No code changed this round; the fourth-round pattern - a "blocked on data" claim
 that a single grep dissolves - is recorded in `docs/parity.md`.
+
+**Round 1205 added the missing registry column**: `ItemFaultWeights` / `set_item_fault_weights` / `fault_weights_of` (`itype::faults`), gated by
+`ground_items::the_registry_knows_which_faults_a_kind_catches`. With the catalogue's `fault_type`, `can_have_fault` and `pick_fault` all ported, the swing's fault step is now a wiring job; the
+installer and the dump column are named in `docs/parity.md`.

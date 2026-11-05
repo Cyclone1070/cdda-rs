@@ -536,3 +536,32 @@ pub fn chip_resistance_of(world: &mut World, kind: ItemTypeId) -> i32 {
         .and_then(|table| table.0.get(&kind).copied())
         .unwrap_or(2)
 }
+
+/// Which faults each kind can catch, with their weights - the column `item::set_random_fault_of_type` picks from (`item.cpp:7854-7868`).
+///
+/// Reference: `itype::faults`, a weighted list the item factory fills from the data. The **fault type** is a property of the fault, not of this list, so the filter "mechanical damage only" is
+/// applied by the caller; what lives here is what the kind can catch and how likely each one is.
+#[derive(Debug, Clone, Default, PartialEq, Component)]
+pub struct ItemFaultWeights(pub std::collections::BTreeMap<ItemTypeId, Vec<(String, i32)>>);
+
+/// Marks the entity holding [`ItemFaultWeights`].
+#[derive(Debug, Clone, Copy, Default, Component)]
+pub struct TheItemFaultWeights;
+
+/// Installs which faults each kind can catch.
+pub fn set_item_fault_weights(world: &mut World, weights: &[(ItemTypeId, Vec<(String, i32)>)]) {
+    let holder = singletons::singleton::<ItemFaultWeights, TheItemFaultWeights>(world);
+    world
+        .entity_mut(holder)
+        .insert(ItemFaultWeights(weights.iter().cloned().collect()));
+}
+
+/// The faults a kind can catch, or nothing at all for a kind nobody has described.
+#[must_use]
+pub fn fault_weights_of(world: &mut World, kind: ItemTypeId) -> Vec<(String, i32)> {
+    let holder = singletons::singleton::<ItemFaultWeights, TheItemFaultWeights>(world);
+    world
+        .get::<ItemFaultWeights>(holder)
+        .and_then(|table| table.0.get(&kind).cloned())
+        .unwrap_or_default()
+}
