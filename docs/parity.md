@@ -14366,3 +14366,19 @@ the same die choose a different fault. The reader keeps the data's order, and th
 
 **Two links of the chain are now closed** - the dump carries the column, and the port can read it back for **over five hundred** prototypes, with `bio_adrenaline` catching `fault_bionic_salvaged` at
 weight **100**. **What is still open is the two ends:** nothing installs the table into the store (`set_item_fault_weights` has no production caller), and the swing does not ask it.
+
+## The kind tables are installed only by tests (round 1210)
+
+The fault chain is three links long and **two of them are closed**: the dump carries `faults` (round 1208) and the port reads it back (round 1209). This round went to close the third - the installer -
+and found something bigger than one missing call.
+
+**Nothing in the binary builds a kind table at all.** `grep` for the installers across `crates/cli` finds **no call to `set_item_flags`, `set_item_qualities`, `set_item_chip_resistance` or
+`set_item_fault_weights`**; the scenarios drop items with **hardcoded kind numbers** (`ItemTypeId(0)`, `ItemTypeId(7)`), and every table those numbers index is filled **only inside tests**. **So a real game
+would drop a rock whose flags, qualities, chip resistance and faults are all the "missing table" answers** - no flags, no qualities, chip resistance 2, no faults.
+
+**That is not a fault of the port's architecture; it is a missing seam.** The store is right, the tables are right, and **the loader that fills them has no caller**. The honest description of the port's
+state today is therefore: *the simulation is right for what a scenario builds, and a scenario builds by hand.*
+
+**What the installer needs, in order:** the CLI has to load the item prototypes into the store (it already reads the prototypes dump for gun weights and flags), assign each prototype a `ItemTypeId`
+in one place, and then fill **all four kind tables** from the same pass - because four installers fed from four walks is how the tables drift apart. **That is P3 work and it is the next slice, before
+any further combat rule.**

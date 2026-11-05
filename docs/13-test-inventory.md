@@ -1020,3 +1020,7 @@ three pieces that unblock the pick are named in `docs/parity.md`: dump column, i
 **Round 1209 added `items::fault_weights`**, reading prototypes dump version 3's `faults` column back into a per-kind weighted list **in the data's order**, gated by
 `content_suite::ammo_rules::the_dump_carries_each_kinds_faults_with_weights` (over 500 kinds, `bio_adrenaline` → `fault_bionic_salvaged` at 100, some kinds with several). Open ends named in
 `docs/parity.md`: the installer and the swing's call.
+
+**Round 1210 found that the kind tables are installed only by tests.** No caller in `crates/cli` fills the flag, quality, chip-resistance or fault-weight tables; scenarios drop items by hardcoded
+`ItemTypeId`. The simulation is correct for what a scenario builds, and a scenario builds by hand. The installer - one loader that assigns kind ids and fills all four tables in a single pass - is
+named in `docs/parity.md` as the next slice, ahead of any further combat rule.
