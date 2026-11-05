@@ -1077,3 +1077,7 @@ install replaces the old table - which the comment now records.
 **Round 1245 ported the `FRAGILE_MELEE` breakdown roll**: `melee::break_apart` (`melee.cpp:301-330`), the weakest component at `one_in(2)` and the rest at `one_in(8)`. Gated by
 `creature_fight::a_broken_fragile_weapon_loses_its_weakest_part_four_times_as_often`, which asserts **both** rates over 4,000 draws. The component list, the message and the wield-the-biggest step are
 named in `docs/parity.md`.
+
+**Round 1246 modelled an item's parts as entities**: `item_parts::PartOf { parent, order }` with `add_part` / `parts_of`, so `parts_of` is a **query** rather than the reference's nested
+`std::map<itype_id, std::vector<item>>`. Gated by `ground_items::a_thing_knows_the_parts_it_is_made_of`, which asserts the order and that **a despawned part leaves no ghost**; mutation-checked by
+forcing every order to `0`.

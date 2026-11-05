@@ -14613,3 +14613,22 @@ item's component list, which the port does not keep. The port takes `is_weakest`
 
 **Named, not invented:** the component list itself (`item::components`), the "The %s is destroyed!" line, the `wield`-the-biggest-one step, and the `has_wield_conflicts` check that decides between
 wielding and dropping a survivor.
+
+## A thing is made of parts, and a part is an entity (round 1246)
+
+| Piece | Reference | Port |
+|---|---|---|
+the parts | `item::components`, `std::map<itype_id, std::vector<item>>` (`item.h`) | `item_parts::PartOf { parent, order }` + `add_part` / `parts_of` |
+Gate | - | `a_thing_knows_the_parts_it_is_made_of` |
+
+**The one place the port deliberately refuses to carry the reference's shape.** The reference nests items inside items; a `item` holds a map of `std::vector<item>`. The port cannot, because **nesting
+containers is the second store** - so a part is an **entity of its own** carrying `PartOf`, and "made of" is a **derived query**, not a copy.
+
+**What that buys, stated as a test:** `parts_of` after despawning the middle part returns the other two. **A destroyed part leaves no ghost**, which is exactly the bookkeeping the reference's dangling
+`item_location`s exist to survive.
+
+**`order` is data because the reference's list is a `std::vector`.** A query promises no order, and the rules that take a thing apart walk the list in installation order, so the order is carried
+explicitly. **Mutation-checked:** forcing every part's order to `0` makes the gate fail with the parts in reverse, so the assertion is about the rule and not about hash order.
+
+**Named, not invented:** what fills a part list (crafting's consumed components - the reference's `item::components` are the *inputs* a recipe consumed), and the rules that walk it: the `FRAGILE_MELEE`
+breakdown is ported as a roll (`melee::break_apart`) and **not yet wired to a part list**, disassembly and repair are not started.

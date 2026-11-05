@@ -343,3 +343,29 @@ fn a_caught_fault_says_its_own_line() {
     assert_eq!(cdda_sim::item_registry::message_of(&mut world, "quiet"), None, "an empty line is no line");
     assert_eq!(cdda_sim::messages::lines(&world).len(), 1, "one line in the log");
 }
+
+/// A thing made of other things knows its parts, and a part that is gone is not in the list.
+///
+/// Reference: `item::components` is a `std::map<itype_id, std::vector<item>>` inside every item (`item.h`), and every rule that takes a thing apart walks it - the `FRAGILE_MELEE` breakdown
+/// (`melee.cpp:301-330`), disassembly, and repair. **The port does not nest containers**: a part is an entity, and "made of" is a link, so the same part can be asked for by whoever needs it and
+/// **a destroyed part leaves no ghost in its parent's list**.
+#[test]
+fn a_thing_knows_the_parts_it_is_made_of() {
+    use bevy_ecs::prelude::*;
+    use cdda_sim::item_parts::{PartOf, add_part, parts_of};
+
+    let mut world = World::new();
+    let blade = world.spawn_empty().id();
+    let handle = world.spawn_empty().id();
+    let string = world.spawn_empty().id();
+    let weapon = world.spawn_empty().id();
+    add_part(&mut world, weapon, blade);
+    add_part(&mut world, weapon, handle);
+    add_part(&mut world, weapon, string);
+    assert_eq!(parts_of(&world, weapon), vec![blade, handle, string], "the parts, in the order they were added");
+    assert!(parts_of(&world, blade).is_empty(), "and a part of a part is nothing until someone makes it one");
+    assert_eq!(world.get::<PartOf>(blade).map(|link| link.parent), Some(weapon), "the link points at the whole");
+
+    world.entity_mut(handle).despawn();
+    assert_eq!(parts_of(&world, weapon), vec![blade, string], "**a destroyed part leaves no ghost**: the list is a query, not a copy");
+}
