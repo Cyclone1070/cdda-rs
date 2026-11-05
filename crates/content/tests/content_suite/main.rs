@@ -20,6 +20,7 @@ pub fn spread_seed(attempt: u32) -> u32 {
 mod ammo_effect_registry;
 mod ammo_effects;
 mod ammo_rules;
+mod books;
 mod bash_info;
 mod build_check;
 mod city_settings;

@@ -15008,3 +15008,23 @@ lamp where they need it and cannot point the room.
 **smaller** answer wins. That is the whole shape of the function - *the best light decides* - and the fixture now asserts it on both sides.
 
 **Named, not invented:** `is_blind()` and the `boomered`/`darkness` effects are one flag here; `PER_SLIME_OK` (a trait exemption) and the off-z-level assumption of `1.0` for NPCs are not modelled.
+
+## The book slot (round 1269)
+
+| Piece | Reference | Port |
+|---|---|---|
+the slot | `islot_book` (`itype.h:569-620`) | `content::books::Book` + `Book::read` |
+durations | the JSON reader's `time_duration`, one turn a second | `content::books::read_duration_turns` |
+Gates | - | `books::a_book_record_reads_into_its_slot`, `books::the_corpus_books_read` |
+
+**`time` is the one field that does not survive as written.** The data spells it `"35 m"` and the reference stores **turns**, a turn being a second - so 35 minutes is **2,100 turns**, and the gate asserts
+that number rather than the string.
+
+**The record reader does not resolve `copy-from`, and says so.** The port's item loader already inherits for everything else; a second walk that invented its own inheritance would be **a second
+source of truth about what a book is**. So `Book::read` keeps the reference's per-field defaults and leaves inheritance where it belongs - which is why the corpus gate counts **records**, not "books with
+every field filled".
+
+**The corpus gate's counts are its non-vacuity:** over **500** records carry the `BOOK` subtype, over **100** state both a skill and a time, and **most are measured in minutes rather than hours** - a
+ratio that would flip if `read_duration_turns` mis-read the unit.
+
+**Named, not invented:** wiring the slot onto `ItemType` (the item loader reads no book fields yet) and `recipe_with_description_t`, which needs the recipe registry's ids.

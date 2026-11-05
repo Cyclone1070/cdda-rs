@@ -16,6 +16,7 @@ pub mod snippets;
 pub mod flags;
 pub mod ammo_effects;
 pub mod catalog;
+pub mod books;
 pub mod comestible;
 pub mod condition;
 pub mod constructions;

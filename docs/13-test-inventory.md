@@ -1151,3 +1151,6 @@ nothing, 90 adds the same as 60) and the worse-eyes doubling.
 
 **Round 1268 ported `Character::fine_detail_vision_mod`** as `sight::fine_detail_vision_mod` (`character.cpp:2916-2947`): the three-point advantage of carried light, both floors at one, and blind at
 eleven. Gated by `sight::a_lamp_beats_the_floor_and_nothing_beats_full_light`, whose first run corrected the gate's reading of the ambient side.
+
+**Round 1269 added the book slot** (`content::books::Book`, `itype.h:569-620`) and a duration reader that turns `"35 m"` into **2,100 turns**. Gated on a record and on the corpus
+(`books::the_corpus_books_read`, over 500 records). Inheriting the slot onto `ItemType` is named in `docs/parity.md`.
