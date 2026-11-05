@@ -14776,3 +14776,17 @@ survived" alone would pass for a flask left dangling.
 
 **Named, not invented:** the `NO_UNLOAD` pocket exemption (`melee.cpp:308` keeps such a pocket shut), and the irremovable gunmods destroyed before the spill (`:298-303`), which the port has no gunmods
 for.
+
+## A sealed container keeps what it holds (round 1255)
+
+| Piece | Reference | Port |
+|---|---|---|
+the flag | `NO_UNLOAD` → every pocket's `_no_unload` (`item_factory.cpp:892-896`) | `spill_contents` asks `kind_has_flag( "NO_UNLOAD" )` |
+Gate | - | `a_no_unload_container_keeps_what_it_holds` |
+
+**`_no_unload` is derived, not data, and finding that out changed the port.** The spill rule reads a **pocket** field (`item_contents.cpp:1232`), which looked like a pocket fact the port would have to
+add to its pocket data - but the only thing that ever sets that field is `item_factory`, for **every pocket of a type carrying the `NO_UNLOAD` flag**. So the port asks the flag and gets the reference's
+answer without inventing a pocket field: **a battery that breaks does not spill its charge, and nothing else changes.**
+
+**The gate proves both sides in one fixture:** nothing comes out of the sealed container, and the very next block spills one item out of an ordinary container - so the assertion is about the flag and not
+about the fixture never spilling at all.

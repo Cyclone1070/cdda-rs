@@ -1109,3 +1109,6 @@ consequence. Gated by `ground_items::emptying_a_container_puts_what_it_held_on_t
 
 **Round 1254 wired `spill_contents` into the swing** before the destruction branch (`melee.cpp:305-312`), gated by `creature_fight::a_weapon_that_breaks_drops_what_was_inside_it`. **The gate's first run
 found the dangling link**: the flask survived but still pointed at a despawned weapon, which is why the assertion is that the container is *gone from the flask*, not merely that the flask exists.
+
+**Round 1255 closed the `NO_UNLOAD` exemption in `spill_contents`**: the pocket field `_no_unload` is **derived from the item type's `NO_UNLOAD` flag** (`item_factory.cpp:892-896`), so the port asks the
+flag rather than inventing a pocket field. Gated by `ground_items::a_no_unload_container_keeps_what_it_holds`, which spills an ordinary container in the same fixture.

@@ -407,3 +407,58 @@ fn emptying_a_container_puts_what_it_held_on_the_floor() {
         );
     }
 }
+
+/// A container marked `NO_UNLOAD` keeps what it holds, even when it is broken.
+///
+/// Reference: `item_contents::spill_contents` skips every pocket whose `_no_unload` is set (`item_contents.cpp:1232`), and `_no_unload` is **derived, not written in the data**: `item_factory` sets it
+/// on **every** pocket of a type that carries the `NO_UNLOAD` flag (`item_factory.cpp:892-896`). So the rule the port needs is the flag, and the per-pocket check follows from it.
+#[test]
+fn a_no_unload_container_keeps_what_it_holds() {
+    use bevy_ecs::prelude::*;
+
+    let mut world = World::new();
+    let battery = cdda_sim::ItemTypeId(1);
+    let loose = cdda_sim::ItemTypeId(2);
+    let charge = cdda_sim::ItemTypeId(3);
+    let facts = |flags: Vec<String>| cdda_sim::item_registry::KindFacts {
+        flags,
+        qualities: Vec::new(),
+        chip_resistance: 10,
+        faults: Vec::new(),
+    };
+    cdda_sim::item_registry::install_kind_facts(
+        &mut world,
+        &[
+            (battery, facts(vec!["NO_UNLOAD".to_owned()])),
+            (loose, facts(Vec::new())),
+            (charge, facts(Vec::new())),
+        ],
+    );
+    let square = (1, 1, 0);
+    let sealed = world
+        .spawn((
+            cdda_sim::GroundItem { kind: battery, charges: 1, age: 0, burnt: 0, damage: 0, burn: None },
+            cdda_sim::Position { x: square.0, y: square.1, z: square.2 },
+        ))
+        .id();
+    let kept = world
+        .spawn(cdda_sim::GroundItem { kind: charge, charges: 1, age: 0, burnt: 0, damage: 0, burn: None })
+        .id();
+    assert!(cdda_sim::containment::put_inside(&mut world, kept, sealed), "the charge is inside the battery");
+
+    assert_eq!(cdda_sim::containment::spill_contents(&mut world, sealed, square), 0, "**nothing comes out** of a NO_UNLOAD container");
+    assert_eq!(cdda_sim::containment::contents_of(&world, sealed), vec![kept], "the charge is still inside");
+
+    // The same contents in an ordinary container do spill, so the flag is the rule and not the fixture.
+    let ordinary = world
+        .spawn((
+            cdda_sim::GroundItem { kind: loose, charges: 1, age: 0, burnt: 0, damage: 0, burn: None },
+            cdda_sim::Position { x: square.0, y: square.1, z: square.2 },
+        ))
+        .id();
+    let moved = world
+        .spawn(cdda_sim::GroundItem { kind: charge, charges: 1, age: 0, burnt: 0, damage: 0, burn: None })
+        .id();
+    assert!(cdda_sim::containment::put_inside(&mut world, moved, ordinary), "the second charge goes in the loose container");
+    assert_eq!(cdda_sim::containment::spill_contents(&mut world, ordinary, square), 1, "and that one does come out");
+}

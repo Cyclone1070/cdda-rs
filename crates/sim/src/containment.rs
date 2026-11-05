@@ -124,6 +124,14 @@ pub fn weight_of(
 /// of a `NO_UNLOAD` pocket in place.
 #[must_use]
 pub fn spill_contents(world: &mut World, container: Entity, square: (i32, i32, i32)) -> usize {
+    // Reference: `_no_unload` is **derived, not data** - `item_factory` sets it on every pocket of a type carrying the `NO_UNLOAD` flag (`item_factory.cpp:892-896`), which is the only thing that ever
+    // sets it. So the flag is the rule, and a sealed container keeps what it holds however it dies.
+    if world
+        .get::<GroundItem>(container)
+        .is_some_and(|ground| crate::item_registry::kind_has_flag(&*world, ground.kind, "NO_UNLOAD"))
+    {
+        return 0;
+    }
     let mut spilled = 0;
     for thing in contents_of(world, container) {
         if take_out(world, thing, square) {
