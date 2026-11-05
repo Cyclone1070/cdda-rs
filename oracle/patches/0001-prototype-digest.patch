@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-05 19:32:17
-@@ -0,0 +1,6971 @@
++++ oracle/src/src/harness.cpp	2026-11-05 21:08:02
+@@ -0,0 +1,6983 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "flag.h"
@@ -5043,7 +5043,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
 +        return;
 +    }
-+    std::fprintf( out, "{\"harness\":\"items\",\"version\":2,\n\"prototypes\":[\n" );
++    std::fprintf( out, "{\"harness\":\"items\",\"version\":3,\n\"prototypes\":[\n" );
 +    bool first = true;
 +    for( const itype *proto : item_controller->all() ) {
 +        std::fprintf( out, "%s\n{\"id\":\"%s\",\"name\":\"%s\",\"name_plural\":\"%s\","
@@ -5121,6 +5121,18 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        // What eating it does, for the comestibles (`itype.cpp:151-159` and the ingest rules).
 +        // Whether it is a gun, and whether it is a gun *mod*: the two flags that decide whether the reference invents a turret vehicle part for it
 +        // (`veh_type.cpp:473-491`), which is where 239 of the 701 vehicle parts come from. Without them a port cannot reproduce that registry at all.
++        // **The faults this type can catch, with their weights** (`itype::faults`), which is the list `item::set_random_fault_of_type` filters and picks from
++        // (`item.cpp:7854-7868`). Emitted as its own array with its own writer, because a vararg added in the wrong place misaligns every later argument - the
++        // mistake round 1191 made with `chip_resistance`.
++        std::fprintf( out, "],\"faults\":[" );
++        {
++            bool first_fault = true;
++            for( const weighted_object<int, fault_id> &entry : proto->faults ) {
++                std::fprintf( out, "%s[\"%s\",%d]", first_fault ? "" : ",",
++                              harness_escape( entry.obj.str() ).c_str(), entry.weight );
++                first_fault = false;
++            }
++        }
 +        std::fprintf( out, "],\"is_gun\":%s,\"is_gunmod\":%s,"
 +                      "\"nutr\":%d,\"quench\":%d,\"charges_to_use\":%d,"
 +                      "\"explode_in_fire\":%s,\"cookoff\":%s,\"special_cookoff\":%s}",

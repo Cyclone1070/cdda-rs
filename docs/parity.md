@@ -14338,3 +14338,18 @@ half-filled set behind without this test noticing.
 
 **Named, not invented:** every part of the pick. `set_item_fault_weights` has **no installer**, the prototypes dump carries **no faults column**, and the swing therefore asks no die. **Three named
 pieces, in the order that unblocks them: dump column → installer → swing call.**
+
+## The dump learns what a kind can catch (round 1208)
+
+| Piece | Reference | Port |
+|---|---|---|
+the column | `itype::faults`, a weighted list | prototypes dump **version 3**, `"faults": [ [ id, weight ], ... ]` |
+Gate | - | `every_prototype_states_the_faults_it_can_catch` |
+next | - | the installer, then the swing's call |
+
+**The emit is written as its own array with its own writer, and that is the round's only real decision.** Round 1191's `chip_resistance` was added to a vararg list in the **wrong position**, and every
+later argument shifted - `"stack_size":140733251590112` and `(null)` in the dump, with the file truncated when the process died. **A column with a loop of its own cannot misalign anything**, so that is
+how this one is written.
+
+**The data proves itself on the first three rows:** `bio_adrenaline`, `bio_ads` and `bio_alarm` each carry `fault_bionic_salvaged` at weight **100** - the salvaged-bionic fault every bionic in the game
+can catch. That is the shape the pick was waiting for, and the installer is now a table fill rather than a question.

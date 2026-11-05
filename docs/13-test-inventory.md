@@ -1013,3 +1013,6 @@ installer and the dump column are named in `docs/parity.md`.
 **Round 1207 gave a struck weapon an empty `ItemFaults`** (the reference's own starting state before `set_random_fault_of_type` picks), gated by
 `creature_fight::a_blow_leaves_room_for_a_fault_even_before_one_is_picked`, which asserts **both** that the set appears and that it is **empty** - so a half-made pick cannot pass unnoticed. The
 three pieces that unblock the pick are named in `docs/parity.md`: dump column, installer, swing call.
+
+**Round 1208 added the faults column to the prototypes dump** (version 3, emitted by its own writer so it cannot misalign the vararg list - round 1191's mistake). The corpus now carries
+`itype::faults` for all 9,912 prototypes, e.g. every bionic with `fault_bionic_salvaged` at weight 100. The harness patch was regenerated and verifies byte for byte.
