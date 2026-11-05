@@ -2554,3 +2554,24 @@ fn a_block_spends_its_flat_bonus_before_it_scales_anything() {
     assert!((units[0].amount - 2.5).abs() < 1e-9, "a quarter gets through");
     assert!((blocked - 7.5).abs() < 1e-9, "and three quarters is blocked");
 }
+
+/// How much of a blow a block stopped, in words - on a ladder whose first word is the opposite of its condition.
+///
+/// Reference: `block_hit`'s description ladder (`melee.cpp:2149-2178`). The variable is called `blocked_ratio` but holds **the fraction that got through**: `( total_damage - damage_blocked ) /
+/// total_damage`. Every threshold below is therefore read backwards - **less than 0.2 through means "nearly all" blocked** - and the first rung, `< epsilon`, is **"all"**, which a reader who trusts
+/// the variable's name will get wrong. A total of zero also lands on "all", because the ratio is zero.
+#[test]
+fn how_much_of_a_blow_a_block_stopped_in_words() {
+    use cdda_sim::melee::blocked_description;
+
+    assert_eq!(blocked_description(0.0), "all", "nothing got through");
+    assert_eq!(blocked_description(0.1), "nearly all", "a tenth got through");
+    assert_eq!(blocked_description(0.2), "most", "**0.2 is not under 0.2**, so it is a rung down");
+    assert_eq!(blocked_description(0.39), "most", "just under two fifths");
+    assert_eq!(blocked_description(0.4), "a lot", "two fifths exactly moves a rung");
+    assert_eq!(blocked_description(0.59), "a lot");
+    assert_eq!(blocked_description(0.6), "some");
+    assert_eq!(blocked_description(0.79), "some");
+    assert_eq!(blocked_description(0.8), "a little", "four fifths through is still a little blocked");
+    assert_eq!(blocked_description(0.99), "a little");
+}

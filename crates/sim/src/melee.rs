@@ -757,3 +757,28 @@ pub fn block_damage(units: &mut [DamageUnit], flat_block: f64, multiplier: f64) 
     }
     blocked
 }
+
+/// How much of a blow a block stopped, in the words the game shows the player.
+///
+/// Reference: `block_hit`'s ladder (`melee.cpp:2149-2178`), keyed on `blocked_ratio = ( total_damage - damage_blocked ) / total_damage` - **which is the fraction that got through, despite the
+/// name**. So every rung is read backwards: **under a fifth through is "nearly all" blocked**, and `< epsilon` is **"all"**. The last two rungs are the awkward pair: anything above epsilon is
+/// "a little", and the `else` is "none", which is reached only when the ratio is **not** above epsilon - a blow that did no damage at all lands on "all" through the first rung, so "none" is
+/// effectively unreachable from this function and exists for the `if` chain's completeness. The port keeps it for the same reason.
+#[must_use]
+pub fn blocked_description(blocked_ratio: f64) -> &'static str {
+    if blocked_ratio < f64::EPSILON {
+        "all"
+    } else if blocked_ratio < 0.2 {
+        "nearly all"
+    } else if blocked_ratio < 0.4 {
+        "most"
+    } else if blocked_ratio < 0.6 {
+        "a lot"
+    } else if blocked_ratio < 0.8 {
+        "some"
+    } else if blocked_ratio > f64::EPSILON {
+        "a little"
+    } else {
+        "none"
+    }
+}

@@ -14874,3 +14874,19 @@ first time they try to block a turret.
 
 **The gate pins the arithmetic where all three meet:** flat 10 against units of 8, 9 and 5 - the first absorbed whole, the second halved after the last 2 of the bonus, the third untouched - and the
 blocked total counted from both halves, `10 + 3.5`.
+
+## "You block nearly all of the damage" (round 1261)
+
+| Piece | Reference | Port |
+|---|---|---|
+the ladder | `block_hit`'s description chain (`melee.cpp:2149-2178`) | `melee::blocked_description(blocked_ratio)` |
+Gate | - | `how_much_of_a_blow_a_block_stopped_in_words` |
+
+**The variable is named `blocked_ratio` and holds the fraction that got through** - `( total_damage - damage_blocked ) / total_damage`. Every rung is therefore read backwards: **under a fifth through is
+"nearly all" blocked**, and a ratio of zero is **"all"**. The gate walks every boundary, including the two that a `<` versus `<=` slip would move: **exactly `0.2` is "most"**, not "nearly all", and
+exactly `0.4` is "a lot".
+
+**One rung is unreachable, and the port keeps it anyway.** The final `else` returns "none", but the first rung catches every value below epsilon, and the fifth catches everything above it - so nothing
+reaches the `else`. It exists because the reference's chain has it, and **a port that quietly dropped it would be a port that could not be diffed against the original's control flow**.
+
+**Named, not invented:** the message itself ("You block %1$s of the damage with your %2$s!"), the `thing_blocked_with` that fills the second slot, and the counter-attack that follows.

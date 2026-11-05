@@ -1128,3 +1128,5 @@ remains, not the damage stopped.
 
 **Round 1260 ported `block_hit`'s damage loop** as `melee::block_damage` + `DamageUnit` (`melee.cpp:2117-2145`): flat bonus before multiplier, spent per unit, physical-and-melee-only only. Gated by
 `creature_fight::a_block_spends_its_flat_bonus_before_it_scales_anything`.
+
+**Round 1261 ported `block_hit`'s description ladder** as `melee::blocked_description` (`melee.cpp:2149-2178`), with the inverted variable name documented and every boundary gated.
