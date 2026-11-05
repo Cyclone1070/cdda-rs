@@ -909,3 +909,7 @@ added to the inspection register, which `inspect_names::every_component_a_creatu
 **Round 1177 ported the second fire round**: `shot::ignite_turns` (`creature.cpp:1035-1045` - a flat coin, then `10 * amount` for anything that burns or `6 * amount` for flesh) and the wiring that
 makes `set_alight_if_fire_round` cover both fire rounds in the reference's `else if` order. Gated by `shot_rules::an_ignite_round_burns_for_ten_times_the_amount_and_six_on_flesh` (exact
 durations against the incendiary branch's drawn ones) and `shot_rules::an_ignite_round_also_sets_a_burnable_target_alight` (the store's `onfire` effect from a real shot).
+
+**Round 1178 let a scenario name its round**: `shoot <gun> [<round>] at <x> <y> <rounds>` and `round_of_id` in `crates/cli/src/lib.rs`, so the ammunition effects rounds 1174-1177 ported are
+reachable from a playtest. Gated by `round_naming_tests::a_shoot_step_can_name_the_round_it_fires` (both shapes, and the named round really carries `INCENDIARY`), with the existing shooting
+scenario as the guard that the old shape still parses.

@@ -152,6 +152,10 @@ pub enum Step {
     Shoot {
         /// The gun's id in the guns table, such as `ruger_mini`.
         gun: String,
+        /// Which round it fires, when the line names one: `shoot ruger_mini 556_incendiary at 4 0 1`. **The round is what carries the ammunition
+        /// effects** (round 1174's dump column), so a scenario that wants a fire round has to be able to name it rather than take whatever the gun's
+        /// ammunition type happens to resolve to first.
+        round: Option<String>,
         /// The square's x.
         x: i32,
         /// The square's y.
@@ -543,7 +547,7 @@ fn take_item_step(world: &mut World, step: &Step, outcome: &mut Outcome) -> bool
         Step::Goal { x, y } => send_the_monsters_to(outcome, world, *x, *y),
         Step::Throw { item, x, y } => throw_a_step(world, outcome, item, *x, *y),
         Step::Shot(path) => take_a_shot(world, outcome, path),
-        Step::Shoot { gun, x, y, rounds } => fire_a_step(world, outcome, gun, *x, *y, *rounds),
+        Step::Shoot { gun, round, x, y, rounds } => fire_a_step(world, outcome, gun, round.as_deref(), *x, *y, *rounds),
         Step::Aim { gun, moves } => aim_a_step(world, outcome, gun, *moves),
         Step::Burst { gun, x, y, shots, rounds } => burst_a_step(world, outcome, gun, *x, *y, *shots, *rounds),
         Step::Monsters => match install_monster_data(world) {
@@ -2044,14 +2048,22 @@ mod grammar_tests {
 /// **the shot's price is the skill's figure and its accuracy is the gun's**, and a scenario that invented either would be testing the scenario.
 ///
 /// The gun is an item entity the survivor wields, with `rounds` in it: the port keeps "how many of these are here" in the item's own charges, so firing is a component write on that entity.
-fn fire_a_step(world: &mut World, outcome: &mut Outcome, gun_id: &str, x: i32, y: i32, rounds: i32) {
+fn fire_a_step(world: &mut World, outcome: &mut Outcome, gun_id: &str, round_id: Option<&str>, x: i32, y: i32, rounds: i32) {
     let Some(survivor) = survivor(world) else {
         outcome.failures.push("there is no survivor to fire".to_owned());
         return;
     };
-    let Some((gun, lines, round)) = fire_tables(gun_id, outcome) else {
+    let Some((gun, lines, mut round)) = fire_tables(gun_id, outcome) else {
         return;
     };
+    // A named round wins over the gun's own ammunition type, which is the only way a scenario can ask for an incendiary load.
+    if let Some(round_id) = round_id {
+        let Some(named) = round_of_id(round_id) else {
+            outcome.failures.push(format!("no round called {round_id}"));
+            return;
+        };
+        round = Some(named);
+    }
     let names = cdda_sim::item_registry::snapshot(world);
     // The gun is carried: a weapon in the survivor's own hands, which is what `wield` puts there.
     let Some(held) = carried_item_of(world, survivor, gun_id, &names).or_else(|| {
@@ -2130,22 +2142,29 @@ fn fire_tables(
     Some((gun, lines, round))
 }
 
-/// `shoot <gun> at <x> <y> <rounds>`: a gun fired at a square with a number of rounds in it.
+/// `shoot <gun> [<round>] at <x> <y> <rounds>`: a gun fired at a square with a number of rounds in it.
 ///
 /// # Errors
 ///
 /// When the line is not that shape, or a coordinate is not a number.
 fn shoot_step(words: &[&str]) -> Result<Step, String> {
-    let ["shoot", gun, "at", x, y, rounds] = words else {
-        return Err(format!("`{}` is not a shoot step", words.join(" ")));
-    };
-    let number = words.len();
-    Ok(Step::Shoot {
-        gun: (*gun).to_owned(),
-        x: number_of(x, number, "x")?,
-        y: number_of(y, number, "y")?,
-        rounds: number_of(rounds, number, "rounds")?,
-    })
+        // Two shapes: the round is named, or the gun's own ammunition type decides.
+        let (gun, round, rest) = match words {
+            ["shoot", gun, "at", rest @ ..] => (*gun, None, rest),
+            ["shoot", gun, round, "at", rest @ ..] => (*gun, Some((*round).to_owned()), rest),
+            _ => return Err(format!("`{}` is not a shoot step", words.join(" "))),
+        };
+        let [x, y, rounds] = rest else {
+            return Err(format!("`{}` is not a shoot step", words.join(" ")));
+        };
+        let number = words.len();
+        Ok(Step::Shoot {
+            gun: gun.to_owned(),
+            round,
+            x: number_of(x, number, "x")?,
+            y: number_of(y, number, "y")?,
+            rounds: number_of(rounds, number, "rounds")?,
+        })
 }
 
 /// What a gun weighs, in grams, from the reference's own item dump.
@@ -2369,4 +2388,51 @@ fn has_item_flag(id: &str, flag: &str) -> bool {
             |stated| *stated == cdda_json::Value::Str(flag.to_owned())
         ))
     })
+}
+
+/// A round by its own id, from the reference's ammo dump.
+///
+/// Reference: `itype_ammo`'s table keyed by `itype_id`, which is what a magazine holds and what `guns` name in `ammo`. The two namespaces differ (round 1148): a gun names an
+/// **ammunition type** (`"223"`), and the round it fires is an id in the ammo table (`556_incendiary`), so a scenario that wants a particular load has to name the round.
+#[must_use]
+fn round_of_id(id: &str) -> Option<cdda_content::ammo::AmmoType> {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/ammo.json");
+    let bytes = std::fs::read(&path).ok()?;
+    let value = cdda_json::parse(&bytes).ok()?;
+    cdda_content::ammo::load_dump(&value)
+        .ok()?
+        .into_iter()
+        .find(|round| round.id == id)
+}
+
+#[cfg(test)]
+mod round_naming_tests {
+    #![allow(clippy::panic, clippy::expect_used)]
+
+    /// A shoot step can name the round it fires, and the named round is the one the corpus holds.
+    ///
+    /// Reference: a magazine's contents are `itype_id`s (`item::ammo_current`), not ammunition types - so a scenario that wants an incendiary load names `556_incendiary` rather than
+    /// hoping the gun's `"223"` resolves to it. Round 1148's namespace split is the reason the two shapes exist at all.
+    #[test]
+    fn a_shoot_step_can_name_the_round_it_fires() {
+        let one = |line: &str| -> super::Step {
+            let mut steps = super::parse(line).expect("the line parses");
+            steps.pop().expect("one step")
+        };
+        let without = one("shoot ruger_mini at 4 0 1");
+        assert!(matches!(without, super::Step::Shoot { round: None, .. }), "no round named: {without:?}");
+        let with = one("shoot ruger_mini 556_incendiary at 4 0 1");
+        match with {
+            super::Step::Shoot { round: Some(round), x, y, rounds, gun } => {
+                assert_eq!(round, "556_incendiary");
+                assert_eq!((gun.as_str(), x, y, rounds), ("ruger_mini", 4, 0, 1));
+            }
+            other => panic!("a named round should parse: {other:?}"),
+        }
+        // And the round is in the dump with the effect the fire rules read.
+        let round = super::round_of_id("556_incendiary").expect("the round is in the corpus");
+        assert_eq!(round.ammo_type, "223", "it fits a .223 chamber, which the Mini-14 has");
+        assert!(round.has_effect("INCENDIARY"), "and it is an incendiary round");
+        assert!(super::round_of_id("no_such_round").is_none(), "an unknown round is nothing rather than a guess");
+    }
 }

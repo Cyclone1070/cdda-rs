@@ -13791,3 +13791,29 @@ later round might be tempted to apply both.
 
 **Named, not invented:** the `amount` recomputation per hit (the reference computes it once from `dam` before the branch, and the port's `hurt` is the post-armour figure it uses in its place -
 **the reference's `dam` is the pre-armour total, which is a difference worth naming rather than smoothing over**), the body part, `IGNITE_FLARE`, `ROBOT_DAZZLE` and the pyromania morale.
+
+## A scenario can name the round it fires (round 1178)
+
+| Piece | Reference | Port |
+|---|---|---|
+the grammar | a magazine holds `itype_id`s (`item::ammo_current`) | `shoot <gun> [<round>] at <x> <y> <rounds>` |
+the lookup | `itype_ammo`'s table by id | `round_of_id` |
+Gate | - | `round_naming_tests::a_shoot_step_can_name_the_round_it_fires` |
+
+**This is what rounds 1174-1177 needed to be testable in play.** The round carries the ammunition effects, and a gun names only an **ammunition type** - so until a step could name a round, every
+scenario fired whatever `"223"` happened to resolve to first, and **an incendiary load was unreachable from a playtest however well the rule was ported.**
+
+**Two shapes, one step.** `shoot ruger_mini at 4 0 3` keeps working - the round comes from the gun's ammunition type, as every scenario so far assumed - and
+`shoot ruger_mini 556_incendiary at 4 0 3` names it. **The gate checks both shapes parse and that the named round is really in the corpus with the effect the fire rules read**, because a grammar
+that accepts a name and then silently falls back would pass a parse test and do nothing.
+
+**The 556 is the right round to name, and the data says why:** `556_incendiary`'s ammunition **type** is `223`, which is the Mini-14's chamber - so the scenario can fire a fire round without
+inventing a weapon to go with it.
+
+**Three small mistakes on the way, all worth recording because each was caught by a gate rather than by me:** a `match` on a single pattern (clippy asked for `let … else`), a slice taken as
+`&words[2..]` (clippy's `indexing_slicing`, replaced by a rest pattern), and - the one that mattered - **a rest pattern that had already consumed the `"at"` while the next line still expected
+it**, which the scenario gate caught immediately with `` `shoot ruger_mini at 4 0 3` is not a shoot step ``. **A grammar change that breaks the old shape is the failure mode to guard against, and the
+scenario was the guard.**
+
+**Named, not invented:** whether a **named round is one the gun can chamber** (the reference checks the magazine and the ammunition type; the port fires what it is told, and says so), and the
+`burst` step, which still takes the gun's own ammunition type.
