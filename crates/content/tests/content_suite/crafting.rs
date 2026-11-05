@@ -135,3 +135,64 @@ fn the_monster_corpus_walks_both_ladders() {
     );
     assert!(gibbed > 1000, "most of the corpus gibs into something: {gibbed}");
 }
+
+/// A monster with no blood of its own falls through to its species', and a rate of zero stops it dead.
+///
+/// Reference: `mtype::get_bleed_type` (`mtype.cpp:412-422`), the fall-through at the end of `bloodType`. The dump carries **1,154 prototypes with their `bleed_rate` and 34 species with
+/// their `bleeds` field**, so the rule can be checked against the reference's own numbers rather than a fixture: the counts are the gate.
+#[test]
+fn a_monster_falls_through_to_its_species_blood() {
+    // The **dump**, not the game's own files: it is the shape these loaders speak, and it carries the species table the reference's generator keeps beside the prototypes.
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return;
+    };
+    let value = cdda_json::parse(text.as_bytes()).expect("the monster dump parses");
+    let cdda_json::Value::Object(root) = &value else {
+        return;
+    };
+    let Some(cdda_json::Value::Array(prototypes)) = root.get("prototypes") else {
+        return;
+    };
+    let monsters = cdda_content::monsters::load_objects(prototypes).expect("the monster dump loads");
+    let species: std::collections::BTreeMap<String, cdda_content::monsters::SpeciesType> =
+        cdda_content::monsters::species_from_dump(&value)
+            .into_iter()
+            .map(|entry| (entry.id.clone(), entry))
+            .collect();
+    assert_eq!(species.len(), 31, "**every species the monsters name** is in the dump");
+
+    let mut falls_through = 0;
+    let mut answered_by_species = 0;
+    let mut rate_zero = 0;
+    for monster in &monsters {
+        let traits = cdda_content::blood::BloodTraits {
+            acid: monster.flags.contains("ACID_BLOOD"),
+            bile: monster.flags.contains("BILE_BLOOD"),
+            arthropod: monster.flags.contains("ARTHROPOD_BLOOD"),
+            warm: monster.flags.contains("WARM"),
+        };
+        let materials: Vec<&str> = monster.materials.keys().map(String::as_str).collect();
+        if cdda_content::blood::blood_field(&traits, &materials).is_some() {
+            continue;
+        }
+        falls_through += 1;
+        if monster.bleed_rate <= 0 {
+            rate_zero += 1;
+        }
+        let names: Vec<&str> = monster.species.iter().map(String::as_str).collect();
+        let found = cdda_content::blood::bleed_field(monster.bleed_rate, &names, |kind| {
+            species.get(kind).map(|entry| entry.bleeds.as_str())
+        });
+        if found.is_some() {
+            answered_by_species += 1;
+        }
+    }
+
+    assert!(falls_through > 0, "some prototypes have no blood of their own: {falls_through}");
+    assert!(
+        answered_by_species > 0,
+        "**and some of those are answered by their species**, which is what the fall-through is for: {answered_by_species}"
+    );
+    assert!(rate_zero > 0, "while a bleed rate of zero stops the fall-through: {rate_zero}");
+}

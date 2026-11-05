@@ -769,6 +769,10 @@ pub fn install_monster_data(world: &mut World) -> Option<usize> {
     cdda_sim::monster_registry::set_monster_types(world, &kinds);
     // What each kind bleeds and splatters into, computed once from its own flags, materials and species (`mtype.cpp:431-470`) and kept where a death can ask for it. A monster
     // whose blood falls through to `get_bleed_type` registers **nothing**, which is the honest answer until the species' `bleeds` field is dumped.
+    let species_bleeds: std::collections::BTreeMap<String, String> = monster_species()
+        .into_iter()
+        .map(|species| (species.id, species.bleeds))
+        .collect();
     for monster in &monsters {
         let Some(kind) = cdda_sim::monster_registry::id_of(world, &monster.id) else {
             continue;
@@ -780,7 +784,13 @@ pub fn install_monster_data(world: &mut World) -> Option<usize> {
             warm: monster.flags.contains("WARM"),
         };
         let materials: Vec<&str> = monster.materials.keys().map(String::as_str).collect();
-        let blood = cdda_content::blood::blood_field(&traits, &materials);
+        // The fall-through last: a monster with no blood of its own bleeds its **species'** (`get_bleed_type`, `mtype.cpp:412-422`), which the dump answers.
+        let species: Vec<&str> = monster.species.iter().map(String::as_str).collect();
+        let blood = cdda_content::blood::blood_field(&traits, &materials).or_else(|| {
+            cdda_content::blood::bleed_field(monster.bleed_rate, &species, |kind| {
+                species_bleeds.get(kind).map(String::as_str)
+            })
+        });
         let gibs = cdda_content::blood::gib_field(&materials, monster.species.contains("MOLLUSK"));
         cdda_sim::monster_registry::set_remains(world, kind, blood, gibs);
     }
@@ -802,6 +812,18 @@ fn monster_types() -> Option<Vec<cdda_content::monsters::MonsterType>> {
         return None;
     };
     cdda_content::monsters::load_objects(prototypes).ok()
+}
+
+/// Every monster species the reference's dump names, with the field each bleeds.
+fn monster_species() -> Vec<cdda_content::monsters::SpeciesType> {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+    let Ok(bytes) = std::fs::read(path) else {
+        return Vec::new();
+    };
+    let Ok(root) = cdda_json::parse(&bytes) else {
+        return Vec::new();
+    };
+    cdda_content::monsters::species_from_dump(&root)
 }
 
 /// Renames the place, and checks what the place is called.

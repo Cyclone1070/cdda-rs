@@ -80,3 +80,33 @@ pub fn gib_field(materials: &[&str], in_mollusk_species: bool) -> Option<&'stati
     }
     None
 }
+
+/// The blood a monster falls through to when its flags and materials say nothing: its **species'** bleed type.
+///
+/// Reference: `mtype::get_bleed_type` (`mtype.cpp:412-422`):
+///
+/// ```text
+/// if( bleed_rate > 0 )
+///     for( const species_id &s : species )
+///         if( !s->bleeds.is_empty() ) return s->bleeds;
+/// return fd_null;
+/// ```
+///
+/// **Two things make this a rule rather than a lookup.** The rate is a **gate**: zero means the monster never bleeds its species' blood, however the species is written. And the species are
+/// walked **in order, first non-empty wins** - a monster with two bleeding species takes the first, not the most specific and not the strongest.
+///
+/// `None` is `fd_null`, which is the reference's answer for a monster with no bleeding species at all.
+#[must_use]
+pub fn bleed_field<'a>(
+    bleed_rate: i32,
+    species: &[&'a str],
+    bleeds_of: impl Fn(&str) -> Option<&'a str>,
+) -> Option<&'a str> {
+    if bleed_rate <= 0 {
+        return None;
+    }
+    let found = species.iter().find_map(|kind| bleeds_of(kind).filter(|field| !field.is_empty()))?;
+    // `fd_null` is the reference's own "no field" id and the data spells it out for species that bleed nothing (`species_type::bleeds` defaults to it). Returning it would have the
+    // splatter look up a field the registry does not define, so the rule answers `None` - the same answer, said in the port's own voice.
+    if found == "fd_null" { None } else { Some(found) }
+}

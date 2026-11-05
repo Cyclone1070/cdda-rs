@@ -15597,3 +15597,24 @@ dumped. Both are the same rule: **a colour the port does not know is not one it 
 
 **Named, not invented:** `add_splatter`'s scatter across a one-square radius (`random_entry( area )` per gib, which needs a die and the map's field-merge rules), the gibs' strength ramp
 (`rng( 1, i + 1 )`), and the blood's own intensity - the port writes one unit of each on the square the body fell on.
+
+## A monster with no blood of its own bleeds its species' (round 1302)
+
+| Piece | Reference | Port |
+|---|---|---|
+the bleed rate | `mtype::bleed_rate` (`mtype.h:486`) | `MonsterType::bleed_rate`, dumped |
+the species table | `species_type::bleeds` (`monstergenerator.h:43`) | `monsters::SpeciesType`, `species_from_dump` |
+the fall-through | `mtype::get_bleed_type` (`mtype.cpp:412-422`) | `blood::bleed_field` |
+Gates | - | `crafting::a_monster_falls_through_to_its_species_blood` |
+
+**The oracle went first again, and the dump grew a whole table for it**: `bleed_rate` on every prototype and **31 species** with their `bleeds` field, gathered by walking the monsters' species
+ids - the generator has no public iterator over its species factory, so the reference's own monsters are what ask for the table.
+
+**Two things make this a rule rather than a lookup.** The rate is a **gate** (zero means the monster never bleeds its species' blood, and **117 prototypes say zero**), and the species are walked
+**in order, first non-empty wins** - not the most specific and not the strongest.
+
+**`fd_null` is an answer, not an absence.** The data spells it for species that bleed nothing, and the reference's `get_bleed_type` returns it; the port turns it into `None` rather than handing
+the splatter a field id the registry does not define. The answer is the same and the voice is the port's.
+
+**Named, not invented:** the `MAP_EXTRA`/`MONSTER_SPECIES` JSON loading of species from the game's own files (the port reads the reference's dumped table) and the `bleeds` field's effect on
+`add_splatter`, which is the field write the splatter already performs.

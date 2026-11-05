@@ -1245,3 +1245,6 @@ count that falls through to `get_bleed_type`, which the port cannot answer and s
 
 **Round 1301 wired the splatter into the world**: `monster_registry::set_remains` keeps each kind's resolved blood and gib fields, the CLI fills them from the corpus, and reaping writes them as
 fields where the body fell.
+
+**Round 1302 ported `get_bleed_type`'s fall-through** (`mtype.cpp:412-422`): the monster dump grew `bleed_rate` and a **31-species table**, the loader reads both, and `blood::bleed_field` gates
+on the rate then takes the first species that bleeds. `fd_null` becomes `None`, because the reference's null field is not a field the port may write.

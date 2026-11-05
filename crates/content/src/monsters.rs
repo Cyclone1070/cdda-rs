@@ -68,6 +68,11 @@ pub struct MonsterType {
     pub morale: i32,
     /// Whether the monster gets its nerve back at all (`mtype::regen_morale`). 23 of the corpus's 1,154 types say yes.
     pub regen_morale: bool,
+    /// How readily it bleeds (`mtype::bleed_rate`, `mtype.h:486`).
+    ///
+    /// `mtype::get_bleed_type` (`mtype.cpp:412-422`) checks this **before** it looks at a species at all: a rate of zero means the monster never bleeds its species' blood, however the
+    /// species is written. The dump defaults it to a hundred, as the reference does.
+    pub bleed_rate: i32,
     /// Aggression, from -100 to 100.
     pub aggression: i32,
     /// Weight in milligrams.
@@ -346,6 +351,7 @@ fn apply(monster: &mut MonsterType, object: &Object, inherited: bool) -> Result<
     if let Some(cdda_json::Value::Bool(said)) = object.get("regen_morale") {
         monster.regen_morale = *said;
     }
+    monster.bleed_rate = count(object, "bleed_rate", monster.bleed_rate)?;
     monster.weight = assigned(object, "weight", monster.weight, Unit::Mass, 1);
     monster.volume = assigned(object, "volume", monster.volume, Unit::Volume, 1);
     species_and_categories(monster, object);
@@ -568,6 +574,8 @@ impl MonsterType {
             morale: 0,
             // `mtype::regen_morale` starts false: most monsters do not get their nerve back, and the 23 that do say so.
             regen_morale: false,
+            // `mtype::bleed_rate` starts at a hundred (`mtype.h:486`), which is the ordinary case: a species' bleed type is used unless the data says otherwise.
+            bleed_rate: 100,
             aggression: 0,
             // The reference's own defaults: no dice (`mtype::melee_dice` starts at zero) and no armour.
             melee_dice: 0,
@@ -598,3 +606,60 @@ impl MonsterType {
 }
 
 use cdda_core_types::colors::NcColor;
+
+/// One monster species, as far as the bleed rule needs it.
+///
+/// Reference: `species_type` (`monstergenerator.h:33-53`), whose `bleeds` field is what `mtype::get_bleed_type` falls through to (`mtype.cpp:412-422`). The dump carries one entry per
+/// species a monster names - **31 of them** - with the field id the data gives, `fd_null` included because the data spells it out.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpeciesType {
+    /// Its id, as the monsters name it.
+    pub id: String,
+    /// The field it bleeds, or empty when the data says nothing.
+    pub bleeds: String,
+}
+
+/// Reads the species table from a monster dump.
+///
+/// The species are **not** in the prototype list: they are their own table beside it, which is the reference's own shape (`MonsterGenerator`'s `mon_species`), and a loader that
+/// searched the prototypes for them would find monsters instead.
+#[must_use]
+pub fn species_from_dump(value: &cdda_json::Value) -> Vec<SpeciesType> {
+    let cdda_json::Value::Object(root) = value else {
+        return Vec::new();
+    };
+    let Some(cdda_json::Value::Array(entries)) = root.get("species") else {
+        return Vec::new();
+    };
+    entries
+        .iter()
+        .filter_map(|entry| {
+            let cdda_json::Value::Object(object) = entry else {
+                return None;
+            };
+            let id = string(object, "id")?;
+            let bleeds = string(object, "bleeds").unwrap_or_default();
+            Some(SpeciesType { id, bleeds })
+        })
+        .collect()
+}
+
+/// Loads the species tables from the given data files.
+///
+/// # Errors
+/// Returns the first file that could not be read.
+pub fn load_species_paths(dirs: &[&std::path::Path]) -> Result<Vec<SpeciesType>, LoadError> {
+    let mut out = Vec::new();
+    for dir in dirs {
+        let files = crate::json_files_in_load_order(dir).map_err(|error| LoadError {
+            message: format!("{}: {error}", dir.display()),
+        })?;
+        for path in files {
+            let Some(value) = crate::read_json(&path) else {
+                continue;
+            };
+            out.extend(species_from_dump(&value));
+        }
+    }
+    Ok(out)
+}

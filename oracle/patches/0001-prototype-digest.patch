@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-06 06:02:50
-@@ -0,0 +1,6992 @@
++++ oracle/src/src/harness.cpp	2026-11-06 08:11:09
+@@ -0,0 +1,7009 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "flag.h"
@@ -6719,9 +6719,13 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        std::fprintf( stderr, "harness: cannot open %s\n", path.c_str() );
 +        return;
 +    }
-+    std::fprintf( out, "{\"harness\":\"monsters\",\"version\":8,\n\"prototypes\":[\n" );
++    std::fprintf( out, "{\"harness\":\"monsters\",\"version\":9,\n\"prototypes\":[\n" );
 +    bool first = true;
++    std::set<std::string> species_named_by_monsters;
 +    for( const mtype &proto : MonsterGenerator::generator().get_all_mtypes() ) {
++        for( const species_id &entry : proto.species ) {
++            species_named_by_monsters.insert( entry.str() );
++        }
 +        std::fprintf( out, "%s\n{\"id\":\"%s\",\"name\":\"%s\",\"symbol\":\"%s\",\"color\":\"%s\","
 +                      "\"bodytype\":\"%s\",\"hp\":%d,\"speed\":%d,\"diff\":%d,\"melee_skill\":%d,"
 +                      "\"dodge\":%d,\"morale\":%d,\"aggression\":%d,\"weight\":%lld,\"volume\":%lld,"
@@ -6787,7 +6791,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +                      "\"melee_dice\":%d,\"melee_sides\":%d,\"melee_dice_ap\":%d,"
 +                      "\"armor_bash\":%d,\"armor_cut\":%d,\"armor_stab\":%d,\"regenerates\":%.6g,"
 +                      "\"melee_bash\":%.6g,\"melee_cut\":%.6g,\"melee_stab\":%.6g,\"attack_cost\":%d,"
-+                      "\"regen_morale\":%s}",
++                      "\"regen_morale\":%s,\"bleed_rate\":%d}",
 +                      harness_escape( proto.harvest.str() ).c_str(),
 +                      harness_escape( proto.dissect.str() ).c_str(),
 +                      size_name,
@@ -6810,10 +6814,23 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +                      proto.attack_cost,
 +                      // Version eight adds the flag that decides whether a monster gets its nerve back at all (`mtype::regen_morale`, read by `monster::process_turn`:
 +                      // `monster.cpp:3494`). Without it a port either regenerates nerve for every monster or for none, and the data says which.
-+                      proto.regen_morale ? "true" : "false" );
++                      proto.regen_morale ? "true" : "false",
++                      // Version nine adds `mtype::bleed_rate`, the gate `mtype::get_bleed_type` checks before it looks at a species at all (`mtype.cpp:412-422`): a monster whose
++                      // rate is zero never bleeds its species' blood however its species is written.
++                      proto.bleed_rate );
 +        first = false;
 +    }
-+    std::fprintf( out, "\n]}\n" );
++    // The **species table**, because `get_bleed_type` reads `species.bleeds` and the monster only names its species. The species the monsters name are the ones that matter, so they are
++    // gathered while walking the types and each is asked for its own `bleeds` field - the generator has no public iterator over the species factory.
++    std::fprintf( out, "],\n\"species\":[" );
++    bool first_kind = true;
++    for( const std::string &name : species_named_by_monsters ) {
++        const std::string bleeds = species_id( name ).obj().bleeds.str();
++        std::fprintf( out, "%s{\"id\":\"%s\",\"bleeds\":\"%s\"}", first_kind ? "" : ",",
++                      harness_escape( name ).c_str(), harness_escape( bleeds ).c_str() );
++        first_kind = false;
++    }
++    std::fprintf( out, "]}\n" );
 +    std::fclose( out );
 +}
 +
