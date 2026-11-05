@@ -195,3 +195,31 @@ fn a_high_character_gets_smileys_on_a_slowly_rising_curve() {
     assert!(weed_smiley_cap(450.0) > 2.9, "though at 450 minutes it is already 2.97");
     assert!(weed_smiley_cap(45.0) > weed_smiley_cap(22.5), "and the curve only rises");
 }
+
+/// A smiley only goes where a word is long enough and not on the reference's forbidden list.
+///
+/// Reference: `modify_msg_with_exclamations` (`messages.cpp:271-318`). The end of the message is always a candidate; a space is a candidate unless it follows **the first word**, **a forbidden word**
+/// (`" that"`, `" with"`, `" this"`, `" over"`, `" your"`, `" onto"`), **a word of one to four characters**, or **another space**.
+///
+/// **The forbidden list is compared with its leading space**, which is why `" that"` is five characters: the reference builds `msg.substr( prev_space, j - prev_space )` and that slice starts at the
+/// space. A port that compared bare words would let a smiley after "that" through and be wrong in exactly the case the list exists for.
+#[test]
+fn a_smiley_only_goes_where_a_word_is_long_enough() {
+    use cdda_sim::messages::smiley_slots;
+
+    let fine = "You feel fine today.";
+    assert_eq!(
+        smiley_slots(fine),
+        vec![20, 8, 13],
+        "**the end is collected first**, then the spaces: `that` word is forbidden, but `feel` and `fine` are not - and the first word's space is skipped"
+    );
+
+    let short = "You that cat sat.";
+    assert_eq!(
+        smiley_slots(short),
+        vec![17],
+        "`that` is forbidden and `cat`/`sat` are too short, so only the end is left"
+    );
+
+    assert_eq!(smiley_slots("Hi"), vec![2], "a message with no spaces still has its end");
+}

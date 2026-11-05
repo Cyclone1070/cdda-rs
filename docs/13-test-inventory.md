@@ -1179,3 +1179,6 @@ seconds reading as "1 minute".
 debug mode is off**. The empty-string refusal was a real bug the gate caught in the port's own log.
 
 **Round 1279 ported the weed-high smiley curve** as `messages::weed_smiley_cap` (`messages.cpp:255-268`), gated on the reference's own three datapoints (0 at 0, ~1 at 22.5, ~2 at 45, asymptote 3).
+
+**Round 1280 ported the smiley placement rule** as `messages::smiley_slots` (`messages.cpp:271-318`): the end first, then the spaces the reference allows, with the forked-words list compared **with its
+leading space**.

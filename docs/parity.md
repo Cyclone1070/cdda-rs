@@ -15197,3 +15197,22 @@ message and no length of high ever gives four.
 
 **Named, not invented:** the smiley's **placement** (the reference collects every space and the message's end as candidate positions and refuses certain words), the `rng_normal( 0, max_per_msg )`
 draw that decides how many of the cap a message gets, and the `effect_weed_high` duration that supplies `minutes` - the port has effects but has not wired this one.
+
+## A smiley only goes where the word is long enough (round 1280)
+
+| Piece | Reference | Port |
+|---|---|---|
+the candidate positions | `modify_msg_with_exclamations` (`messages.cpp:271-318`) | `messages::smiley_slots(message)` |
+Gate | - | `identification::a_smiley_only_goes_where_a_word_is_long_enough` |
+
+**Four ways a space is refused**, and the gate pins three of them: it follows the **first word**, a **forbidden word**, a **one-to-four character word**, or **another space**. The message's end is always a
+candidate.
+
+**The forbidden list is compared with its leading space** - `" that"`, not `"that"` - because the reference slices `msg.substr( prev_space, j - prev_space )` from the previous space. A port comparing bare
+words would allow a smiley after *that* and be wrong in exactly the case the list exists for.
+
+**The end comes first in the list**, not last: the reference pushes `msg.size()` before it walks the spaces. The gate's first run expected ascending order and the implementation was right - the order is
+part of the data because `random_entry_removed` draws from it.
+
+**Named, not invented:** the draw itself (`random_entry_removed`, `one_in( 5 )` for the `:D` variant, the `rng_normal( 0, max_per_msg )` count), and the trailing *"Woah." / "Dude."* exclamations, which add
+to the message rather than into it.

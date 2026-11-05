@@ -148,3 +148,47 @@ pub fn weed_smiley_cap(minutes: f64) -> f64 {
     const CURVE: f64 = 0.001;
     ASYMPTOTE - ASYMPTOTE / CURVE.mul_add(minutes * minutes, 1.0)
 }
+
+/// Where a smiley may be inserted into a message: the end, and the spaces the reference allows.
+///
+/// Reference: `modify_msg_with_exclamations` (`messages.cpp:271-318`). The message's **end** is always a candidate. A space is a candidate unless it follows:
+///
+/// * **the first word** (`space_locations` is empty, so the first space is `wordskip`),
+/// * one of the reference's six **forbidden words**, compared **with its leading space** - `" that"`, `" with"`, `" this"`, `" over"`, `" your"`, `" onto"`,
+/// * a word of **one to four characters** (`word.size() > 1 && word.size() <= 4`; a one-character word cannot occur, because two spaces in a row are skipped first),
+/// * or **another space** (`prev_space == j - 1`).
+///
+/// **The forbidden list carries its leading space because the reference slices from the previous space**, so its comparison is against `" that"` rather than `"that"`. A port that compared bare
+/// words would allow a smiley after "that" and be wrong in the one case the list exists for.
+///
+/// The positions are **byte offsets before any insertion**, which is what the reference's own `smil_loc += 3` bookkeeping corrects for as it inserts.
+#[must_use]
+pub fn smiley_slots(message: &str) -> Vec<usize> {
+    /// The reference's `forbidden_words`, each with the leading space its comparison uses.
+    const FORBIDDEN: [&str; 6] = [" that", " with", " this", " over", " your", " onto"];
+    let mut slots = vec![message.len()];
+    let mut spaces: Vec<usize> = Vec::new();
+    for (index, character) in message.char_indices() {
+        if character != ' ' {
+            continue;
+        }
+        let mut skip = spaces.is_empty();
+        if let Some(previous) = spaces.last().copied() {
+            if previous + 1 == index {
+                skip = true;
+            }
+            let word = message.get(previous..index).unwrap_or("");
+            if FORBIDDEN.contains(&word) {
+                skip = true;
+            }
+            if word.len() > 1 && word.len() <= 4 {
+                skip = true;
+            }
+        }
+        spaces.push(index);
+        if !skip {
+            slots.push(index);
+        }
+    }
+    slots
+}
