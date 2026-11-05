@@ -1205,3 +1205,6 @@ short. The refactor dropped a redundant `practical_known` argument the first dra
 
 **Round 1288 wired the never-learn refusal into `recipes_known::learn`** (`character_crafting.cpp:32-40`), gated on the silent, set-less refusal and the override. The same round repaired the clippy gate,
 which had been stopping at the first failing crate: 137 test modules gained `indexing_slicing`, and three real faults were fixed (a dead binding, an ignored return, a duplicated `multi_lerp`).
+
+**Round 1289 ported `recipe::get_difficulty`'s practice clamp and `get_skill_cap`** (`recipe.cpp:61-77`) as `crafting::practice_difficulty` / `crafting::skill_cap`, gated on both off-by-ones (the limit minus
+one, the truncated 1.25). The practice block is not in the recipe dump yet and is named as the next oracle gap.

@@ -15360,3 +15360,19 @@ carries no prototype, and that gap is written down at the call site rather than 
 **The lint sweep this round was real work, not tidying:** `-D warnings` had never reached the sim and content test crates, because clippy stopped at the first crate that failed. Once the library errors
 were fixed, **137 test modules** showed the same missing `indexing_slicing` allowance, plus three genuine faults - a dead `chip_resistance` binding, an ignored `spill_contents` return, and a duplicated
 threshold walk. The duplicated walk was removed in favour of the `multi_lerp` the module already had, which is what the reference does with its own single helper.
+
+## A practice recipe follows the crafter, inside its range (round 1289)
+
+| Piece | Reference | Port |
+|---|---|---|
+the difficulty | `recipe::get_difficulty` (`recipe.cpp:61-68`) | `crafting::practice_difficulty` |
+the cap | `recipe::get_skill_cap` (`recipe.cpp:70-77`) | `crafting::skill_cap` |
+Gate | - | `crafting::a_practice_recipe_follows_the_crafter_within_its_range` |
+
+**The clamp is what keeps a practice recipe teaching**: never too easy to teach and never out of reach, because once the crafter is inside the range the difficulty **is** their level.
+
+**Both halves have an off-by-one a reader would lose:** a practice recipe stops teaching at `skill_limit - 1`, and an ordinary one at `difficulty * 1.25` **truncated** - so difficulty five caps at **six**,
+not seven.
+
+**Named, not invented:** `practice_data` itself. The recipe dump does not carry the practice block (`min_difficulty`, `max_difficulty`, `skill_limit`), so the loader has nothing to read and the caller
+passes the three numbers - **the next oracle dump is where that block has to come from**, and this rule is gated ahead of it rather than guessed at.

@@ -1341,3 +1341,23 @@ fn a_never_learn_recipe_is_refused_unless_overridden() {
     assert!(learn(&mut world, learner, "rag", false, false), "an ordinary recipe needs no override");
     assert!(knows(&world, learner, "rag"));
 }
+
+/// A practice recipe's difficulty follows the crafter, inside the range the data gives it.
+///
+/// Reference: `recipe::get_difficulty` (`recipe.cpp:61-68`) - a **practice** recipe, one whose `practice_data` is set, answers
+/// `clamp( crafter's skill level, practice_data->min_difficulty, practice_data->max_difficulty )`, while any other recipe answers its own stated `difficulty`.
+///
+/// **The clamp is what makes practice recipes keep teaching**: they are never too easy and never out of reach, because the difficulty *is* the crafter's level once they are inside the range. The same
+/// file's `get_skill_cap` (`:70-77`) is the other half - a practice recipe stops at `skill_limit - 1`, and an ordinary one at `difficulty * 1.25` truncated.
+#[test]
+fn a_practice_recipe_follows_the_crafter_within_its_range() {
+    use cdda_sim::crafting::{practice_difficulty, skill_cap};
+
+    assert_eq!(practice_difficulty(4, 2, 6), 4, "inside the range, the crafter's level is the difficulty");
+    assert_eq!(practice_difficulty(1, 2, 6), 2, "below it, the minimum");
+    assert_eq!(practice_difficulty(9, 2, 6), 6, "above it, the maximum");
+
+    assert_eq!(skill_cap(Some(6), 0), 5, "a practice recipe caps at its skill limit minus one");
+    assert_eq!(skill_cap(None, 4), 5, "and an ordinary difficulty of four caps at five");
+    assert_eq!(skill_cap(None, 5), 6, "**six and a quarter truncates to six**, not seven");
+}
