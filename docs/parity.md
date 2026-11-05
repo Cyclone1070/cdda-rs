@@ -14208,3 +14208,21 @@ one-of-a-type sibling - **before a line was written.**
 
 **Named, not invented:** the fault catalogue's `type` field (again - the caller answers it), the message the reference shows when a fault is repaired, and the `faults.json` reader that would let
 `kinds` be a table lookup instead of a closure.
+
+## How much of a worn item is worth repairing (round 1198)
+
+| Piece | Reference | Port |
+|---|---|---|
+the rule | `item::repairable_levels` (`item.cpp:9472-9479`) | `sim::repairable_levels(damage, degradation, damage_max, by_charges)` |
+Gate | - | `repair_levels_fall_back_to_a_yes_or_no` |
+
+**The answer changes units halfway through.** `levels > 0 ? levels : damage() > degradation()` - when the two damage levels differ the function answers in **levels**, and when they are equal it
+answers **yes or no**. So a blade one thousandth past its degradation is repairable **once**, a weapon worn through is repairable **not at all**, and a caller cannot tell which unit it got except by
+knowing the rule.
+
+**The gate's first run had the arithmetic wrong and the rule right.** I expected `2` repair levels for damage `2,000` of `4,000`; the port answered `3`, because `damage_level` is
+`1 + 4 * damage / max` - **halfway is level three, not two**, and the docstring for it had said so all along. Second error in the same gate: a charge-counted item with any damage at all is **level 5**,
+not zero. **Both were fixture arithmetic, and the failure message ("left: 3, right: 2") was the rule telling me so.**
+
+**Named, not invented:** `item::repair` and the repair action's move and tool costs, `damage_level`'s five-band glyphs, the degradation cap (`set_degradation` clamping to zero for a type that
+does not degrade), and the repair messages.

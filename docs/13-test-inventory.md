@@ -987,3 +987,7 @@ catalogue's `type` field is not loaded yet, so the caller filters and `mod_damag
 **Round 1197 ported `remove_single_fault_of_type`**: `sim::remove_one_fault_of_type` (`item.cpp:7874-7882`). Gated by `ground_items::one_fault_of_a_type_comes_off_per_call`, which asserts the
 **count** after each call rather than which fault went, because the reference's set order decides and the port does not invent one. Checked first that no sibling already existed (round 1196's
 lesson).
+
+**Round 1198 ported `repairable_levels`**: `sim::repairable_levels` (`item.cpp:9472-9479`), which answers in **levels** while they differ and in **yes-or-no** when they do not. Gated by
+`ground_items::repair_levels_fall_back_to_a_yes_or_no`; its first run failed on two **fixture** errors (`damage_level` is `1 + 4 * damage / max`, and any damage at all is level 5 for a
+charge-counted item), both recorded in `docs/parity.md`.

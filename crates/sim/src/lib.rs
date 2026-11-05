@@ -8077,3 +8077,25 @@ pub fn remove_one_fault_of_type(
     faults.0.remove(&found);
     Some(found)
 }
+
+/// How many repair levels an item still has in it, and whether a partial one counts.
+///
+/// Reference: `item::repairable_levels` (`item.cpp:9472-9479`):
+///
+/// ```text
+/// int levels = type->damage_level( damage_ ) - type->damage_level( degradation_ );
+/// return levels > 0 ? levels : damage() > degradation();
+/// ```
+///
+/// **The fallback is a different unit from the answer.** When the two levels are equal the function returns a *boolean* - `1` if any damage is repairable at all, `0` if not - so the result is
+/// "levels, or else whether anything at all can be undone". A port that returned the subtraction alone would repair nothing on a blade one thousandth past its degradation, and a port that
+/// returned the boolean alone would repair a worn-through weapon in one action.
+#[must_use]
+pub fn repairable_levels(damage: i32, degradation: i32, damage_max: i32, by_charges: bool) -> i32 {
+    let levels = damage_level(damage, damage_max, by_charges) - damage_level(degradation, damage_max, by_charges);
+    if levels > 0 {
+        levels
+    } else {
+        i32::from(damage > degradation)
+    }
+}

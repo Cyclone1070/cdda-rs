@@ -93,3 +93,23 @@ fn one_fault_of_a_type_comes_off_per_call() {
     assert_eq!(faults.0.len(), 1, "and the wet fault was never touched");
     assert_eq!(remove_one_fault_of_type(&mut faults, kinds, "wet").as_deref(), Some("wet"), "which the wet type still finds");
 }
+
+/// How much of a worn item can still be repaired - levels when they differ, and a plain yes-or-no when they do not.
+///
+/// Reference: `item::repairable_levels` (`item.cpp:9472-9479`). **The fallback answers in a different unit from the main answer**: levels when `damage_level( damage ) > damage_level( degradation )`,
+/// and otherwise `damage > degradation`, which is one or zero - so a blade a thousandth past its degradation is repairable **once**, and one worn through is not repairable at all.
+#[test]
+fn repair_levels_fall_back_to_a_yes_or_no() {
+    use cdda_sim::repairable_levels;
+
+    // Halfway through the damage is level 3 (`1 + 4 * 2000 / 4000`), and a whole level is one repair.
+    assert_eq!(repairable_levels(2_000, 0, 4_000, false), 3, "level 3 against level 0");
+    // Damage and degradation in the same level: the fallback says yes, once.
+    assert_eq!(repairable_levels(2_000, 1_500, 4_000, false), 1, "same level, but damage is past the degradation");
+    // Nothing to repair.
+    assert_eq!(repairable_levels(1_500, 1_500, 4_000, false), 0, "identical numbers repair nothing");
+    assert_eq!(repairable_levels(0, 0, 4_000, false), 0, "and a new item has nothing to repair");
+    // A charge-counted item is **level 5 the moment it takes any damage at all** - the scale has no partials for it - so it always reads as five levels to repair.
+    assert_eq!(repairable_levels(100, 0, 0, true), 5, "a leaking bottle is ruined, not scratched");
+    assert_eq!(repairable_levels(0, 0, 0, true), 0, "and an untouched one is level zero");
+}
