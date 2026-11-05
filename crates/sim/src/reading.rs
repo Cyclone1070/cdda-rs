@@ -61,3 +61,22 @@ pub fn time_to_read(base_seconds: i64, speed_percent: i32, vision_modifier: i32,
 pub fn skimmed(seconds: i64) -> i64 {
     seconds / 10
 }
+
+/// A book's own reading time, put through every scaling its reader brings.
+///
+/// Reference: `Character::time_to_read` (`character.cpp:12411-12436`) - the speed, the worse of the two vision modifiers, the whole-minute intelligence shortfall, **and then** `retval /= 10` for a
+/// book the character has not identified.
+///
+/// **The order is the rule, and it is the end that surprises:** skimming tenths a time that has **already been stretched**, so a slow reader in the dark skims a longer ten minutes than a quick one;
+/// doing the division first and the scaling after would compress every difference the reader brings into a tenth of itself.
+#[must_use]
+pub fn book_time_seconds(
+    base_seconds: i64,
+    speed_percent: i32,
+    vision_modifier: i32,
+    intel_shortfall: i32,
+    identified: bool,
+) -> i64 {
+    let full = time_to_read(base_seconds, speed_percent, vision_modifier, intel_shortfall);
+    if identified { full } else { skimmed(full) }
+}

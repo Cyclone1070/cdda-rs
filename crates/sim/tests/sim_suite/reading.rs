@@ -84,3 +84,28 @@ fn being_starved_slows_a_character_by_their_fat_category() {
     assert_eq!(kcal_speed_penalty(true, 0.5, 2.5), -13, "halfway is -12.5, and `round` takes it away from zero to -13");
     assert_eq!(kcal_speed_penalty(true, 0.5, 5.0), 0, "above normal the last value stands: no bonus for fat");
 }
+
+/// A book's own time, put through every scaling the reader brings - and skimmed when they have not identified it.
+///
+/// Reference: `Character::time_to_read` (`character.cpp:12411-12436`) applies the reader's speed, the worse of two vision modifiers and the intelligence shortfall, **and then** divides by ten for a
+/// book the character has not identified. **The order matters**: skimming tenths a time that has already been stretched, so a slow reader in the dark skims a longer ten minutes than a quick one.
+#[test]
+fn a_book_s_own_time_takes_every_scaling_and_the_skim_last() {
+    use cdda_sim::reading::{book_time_seconds, skimmed};
+
+    // A book of 35 minutes, as the corpus writes it (`"time": "35 m"`).
+    let base = 35 * 60;
+    assert_eq!(book_time_seconds(base, 100, 1, 0, true), base, "no scaling at all: the book's own time");
+    assert_eq!(book_time_seconds(base, 120, 1, 0, true), 2520, "a slow reader: 35 minutes becomes 42");
+    assert_eq!(book_time_seconds(base, 100, 2, 0, true), 4200, "bad eyes double it");
+    assert_eq!(book_time_seconds(base, 100, 1, 60, true), 4200, "a minute short of its intelligence adds the book again");
+    assert_eq!(
+        book_time_seconds(base, 100, 1, 0, false),
+        skimmed(base),
+        "**unidentified skims the whole scaled time**, not the book's own"
+    );
+    assert!(
+        book_time_seconds(base, 120, 1, 0, false) > skimmed(base),
+        "and a slow reader still skims more than a fast one's skim"
+    );
+}

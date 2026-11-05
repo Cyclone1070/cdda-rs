@@ -15044,3 +15044,19 @@ reading rules by accident, and the gate asserts that a non-book in the same dire
 the parent's slot object with `was_loaded`. **An array would have cleared first** - the two behaviours sit a few lines apart in the factory and mean opposite things for a derived record.
 
 **Named, not invented:** `recipe_with_description_t`, which needs the recipe registry's ids; and `martial_art`'s `matype_id` resolution, which the port keeps as the data's string until martial arts land.
+
+## A book's own time takes every scaling, and skims last (round 1271)
+
+| Piece | Reference | Port |
+|---|---|---|
+the composition | `Character::time_to_read` (`character.cpp:12411-12436`) | `reading::book_time_seconds` over `time_to_read` and `skimmed` |
+Gate | - | `a_book_s_own_time_takes_every_scaling_and_the_skim_last` |
+
+**The order is the rule, and the end of it surprises:** skimming **tenths a time that has already been stretched**. A slow reader in the dark therefore skims a longer ten minutes than a quick one -
+dividing first and scaling after would compress everything the reader brings into a tenth of itself. The gate asserts both: unidentified equals `skimmed(base)` at ordinary speed, and is **more** at
+slow speed.
+
+**The numbers come from the corpus itself:** 35 minutes is the `"35 m"` the book records write, so the gate's base is the same number the data carries rather than a round test value.
+
+**Named, not invented:** `try_understand`, which decides whether the reader's speed even applies (`fun_to_read` needs P5's fun, and the knowledge level needs the skill registry's knowledge), and the
+`fine_detail_vision_mod` call site - the composed function takes the vision modifier its caller resolved, because the worse of two characters' eyes is the caller's question.

@@ -1157,3 +1157,5 @@ eleven. Gated by `sight::a_lamp_beats_the_floor_and_nothing_beats_full_light`, w
 
 **Round 1270 wired the book slot onto `ItemType`** with a per-field `copy-from` merge (`item_factory.cpp:2859-2868`), gated by
 `books::the_item_loader_fills_the_book_slot_and_inherits_field_by_field`. **`None` means "not a book"**, which the gate proves with a non-book in the same directory.
+
+**Round 1271 composed the reading time end to end** as `reading::book_time_seconds` (`character.cpp:12411-12436`), gated on the skim-last ordering and the corpus's own 35-minute book.
