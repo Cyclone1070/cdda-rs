@@ -14323,3 +14323,18 @@ with every input in hand.**
 
 **Named, not invented:** the **installer** - nothing in the binary calls `set_item_fault_weights` yet, so a real game would still catch no faults; the CLI's loader has to fill it from the same prototypes
 dump that carries `chip_resistance` (the dump does **not** yet carry the faults column, so that dump change is part of the wiring too).
+
+## Room for a fault, and no invented fault (round 1207)
+
+| Piece | Reference | Port |
+|---|---|---|
+the set | `item::faults`, a set that starts empty (`item.h`) | the struck item gains an empty `ItemFaults` |
+the pick | `set_random_fault_of_type( "mechanical_damage" )` (`item.cpp:9458-9461`) | **not wired** - the kind's weighted list is in the registry and nothing installs it |
+Gate | - | `a_blow_leaves_room_for_a_fault_even_before_one_is_picked` |
+
+**One step of the reference, and the honest half of it.** A blow that damages a weapon makes it **able to carry faults**; which fault it catches is a second question that needs a table the binary
+still does not build. **The gate asserts the half that is true** - the item has a fault set after the blow, and **the set is empty** - so the next round cannot "finish" the wiring and leave a
+half-filled set behind without this test noticing.
+
+**Named, not invented:** every part of the pick. `set_item_fault_weights` has **no installer**, the prototypes dump carries **no faults column**, and the swing therefore asks no die. **Three named
+pieces, in the order that unblocks them: dump column → installer → swing call.**

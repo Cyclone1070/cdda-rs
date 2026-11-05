@@ -1009,3 +1009,7 @@ that a single grep dissolves - is recorded in `docs/parity.md`.
 **Round 1205 added the missing registry column**: `ItemFaultWeights` / `set_item_fault_weights` / `fault_weights_of` (`itype::faults`), gated by
 `ground_items::the_registry_knows_which_faults_a_kind_catches`. With the catalogue's `fault_type`, `can_have_fault` and `pick_fault` all ported, the swing's fault step is now a wiring job; the
 installer and the dump column are named in `docs/parity.md`.
+
+**Round 1207 gave a struck weapon an empty `ItemFaults`** (the reference's own starting state before `set_random_fault_of_type` picks), gated by
+`creature_fight::a_blow_leaves_room_for_a_fault_even_before_one_is_picked`, which asserts **both** that the set appears and that it is **empty** - so a half-made pick cannot pass unnoticed. The
+three pieces that unblock the pick are named in `docs/parity.md`: dump column, installer, swing call.

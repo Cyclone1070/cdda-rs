@@ -1870,3 +1870,46 @@ fn a_weapon_worn_past_its_maximum_is_destroyed_by_the_blow() {
         "and the hand is empty afterwards"
     );
 }
+
+/// A weapon that has taken a blow gains the place a fault would live, and an untouched one has none.
+///
+/// Reference: `item::mod_damage`'s `set_random_fault_of_type( "mechanical_damage" )` (`item.cpp:9458-9461`) writes into `item::faults`, which starts empty. **The port stops one step short of the
+/// reference here on purpose**: the pick needs the kind's weighted fault list installed, and nothing installs it yet, so the swing gives the item its empty fault set and no invented fault.
+#[test]
+fn a_blow_leaves_room_for_a_fault_even_before_one_is_picked() {
+    use bevy_ecs::prelude::*;
+    use cdda_core_types::rng::Rolls;
+
+    let mut world = World::new();
+    cdda_sim::singletons::put_rolls(&mut world, Rolls::new(3));
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let zombie = cdda_sim::creature::spawn_creature(&mut world, "the zombie", (1, 0, 0));
+    world.entity_mut(zombie).insert(cdda_sim::creature::Health { hp: 9_000, max_hp: 9_000 });
+    world.entity_mut(survivor).insert(cdda_sim::creature::Speed { base: 100, bonus: 0 });
+    for _ in 0..2 {
+        cdda_sim::creature::bank_a_turn(&mut world);
+    }
+    let weapon = world
+        .spawn((
+            cdda_sim::GroundItem {
+                kind: cdda_sim::ItemTypeId(7),
+                charges: 1,
+                age: 0,
+                burnt: 0,
+                damage: 0,
+                burn: None,
+            },
+            cdda_sim::ItemDamage::default(),
+            cdda_sim::creature::Carried(survivor),
+        ))
+        .id();
+    assert!(world.get::<cdda_sim::ItemFaults>(weapon).is_none(), "a fresh weapon carries no fault set");
+    assert_eq!(
+        cdda_sim::creature::wield(&mut world, survivor, weapon, 250),
+        cdda_sim::creature::Wielded::Done
+    );
+    cdda_sim::item_registry::set_item_chip_resistance(&mut world, &[(cdda_sim::ItemTypeId(7), 0)]);
+    cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, zombie);
+    let faults = world.get::<cdda_sim::ItemFaults>(weapon).expect("the weapon can now carry faults");
+    assert!(faults.0.is_empty(), "but nothing invented one: the pick is not wired to a kind's list yet");
+}
