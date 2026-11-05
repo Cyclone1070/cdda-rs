@@ -15129,3 +15129,20 @@ half-identified.
 
 **Named, not invented:** the messages `avatar::identify` prints when a book is first skimmed ("You skim %s to find out what's in it." and the skill lines), which need the message channel wired to the
 reading activity; and `clear_identified`, which the reference calls on death.
+
+## What the game says when you skim a book (round 1276)
+
+| Piece | Reference | Port |
+|---|---|---|
+the six lines | `avatar::identify` (`avatar.cpp:740-770`) | `identification::skim_messages` over `SkimFacts` |
+the duration in them | `clipped_time` / `to_string_clipped` (`calendar.cpp:445-556`) | `identification::clipped_duration` |
+Gate | - | `identification::skimming_a_book_says_what_it_can_do_for_you` |
+
+**Three of the six lines are conditional on a number being non-zero**, which is not the same as the field being absent: a book requiring intelligence 0 says **nothing** about intelligence, and the player is
+never told "Requires intelligence of 0". The gate asserts the two-line book, the six-line book, and the three-line one in between.
+
+**The duration ladder asks for *less than* the unit before it counts the unit**, so **90 seconds is already "1 minute"** - the gate's first run expected "90 seconds" and the implementation was right. The
+port's own ladder stops at weeks; the reference's season and year rungs depend on a calendar season length the port has not ported.
+
+**Named, not invented:** the `%s` name substitutions come from the caller (the port has no translation machinery), the martial-arts branch ("A training session with this book takes ..."), and the recipe
+lines, which need the recipe registry.

@@ -1169,3 +1169,6 @@ zeroing dislike, the last-run halving, and the trait-then-threshold case.
 
 **Round 1275 ported identification** as `identification::IdentifiedItems` with `has_identified`/`identify_book` (`avatar.cpp:717-760`), gated on identification **by type, not by copy**, and on the
 refusal leaving no trace.
+
+**Round 1276 ported the skim summary** as `identification::skim_messages` (`avatar.cpp:740-770`) with a clipped-duration formatter (`calendar.cpp:445-556`), gated on the zero-suppressed lines and on 90
+seconds reading as "1 minute".
