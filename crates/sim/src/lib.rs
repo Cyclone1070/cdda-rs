@@ -8059,4 +8059,21 @@ pub fn butcher_finish(
     dropped
 }
 
-
+/// Takes off **one** fault of a given type, the first the set holds, and answers which one it was.
+///
+/// Reference: `item::remove_single_fault_of_type` (`item.cpp:7874-7882`), which walks the item's faults and `return`s on the first whose fault type matches. **The singular is the rule**: an
+/// item with two mechanical faults loses one per call, and the reference says nothing about which - the set's order decides. The type is asked of the caller, because a fault's type is
+/// catalogue data this crate does not own.
+pub fn remove_one_fault_of_type(
+    faults: &mut ItemFaults,
+    kinds: impl Fn(&str) -> Option<String>,
+    fault_type: &str,
+) -> Option<String> {
+    let found = faults
+        .0
+        .iter()
+        .find(|fault| kinds(fault).as_deref() == Some(fault_type))
+        .cloned()?;
+    faults.0.remove(&found);
+    Some(found)
+}

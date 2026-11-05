@@ -14191,3 +14191,20 @@ that had been there for a hundred rounds. **A search for the name in the referen
 
 **Named, not invented:** `remove_single_fault_of_type` (`item.cpp:7874-7882`) is **still unported**: `remove_fault` is one `erase` and has no "first of a type" sibling in the port. It is recorded
 here rather than written twice.
+
+## One fault of a type at a time (round 1197)
+
+| Piece | Reference | Port |
+|---|---|---|
+the removal | `item::remove_single_fault_of_type` (`item.cpp:7874-7882`) | `sim::remove_one_fault_of_type(faults, kinds, fault_type)` |
+Gate | - | `one_fault_of_a_type_comes_off_per_call` |
+
+**The singular is the whole rule.** The reference walks the item's faults and returns on the **first** whose type matches, so an item carrying two mechanical faults loses **one per call** - a
+caller that "cleared the damage" would leave one behind and never notice. The gate asserts the count after each call rather than the identity, because the reference does not promise which of the
+two comes off: **the set's order decides**, and a port that promised an order would be inventing one.
+
+**This round grepped for the behaviour first**, which is the lesson round 1196 paid for: `grep "pub fn .*fault"` showed `set_fault`, `remove_fault`, `pick_fault` and `can_have_fault` - and no
+one-of-a-type sibling - **before a line was written.**
+
+**Named, not invented:** the fault catalogue's `type` field (again - the caller answers it), the message the reference shows when a fault is repaired, and the `faults.json` reader that would let
+`kinds` be a table lookup instead of a closure.

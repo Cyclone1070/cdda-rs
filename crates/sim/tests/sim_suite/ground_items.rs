@@ -68,3 +68,28 @@ fn a_taken_item_is_gone_and_the_rest_stay_in_order() {
         .collect();
     assert_eq!(remaining, vec![1, 3], "what is left keeps its order");
 }
+
+/// Faults come off one at a time, and the singular in the name is the rule.
+///
+/// Reference: `item::remove_single_fault_of_type` (`item.cpp:7874-7882`): it walks the item's faults and `return`s on the first whose type matches - **an item with two mechanical faults loses
+/// one per call, not both**, which is what a caller clearing a blow's damage would get wrong.
+#[test]
+fn one_fault_of_a_type_comes_off_per_call() {
+    use cdda_sim::{ItemFaults, remove_one_fault_of_type};
+
+    let mut faults = ItemFaults::default();
+    for fault in ["dented", "cracked", "wet"] {
+        faults.0.insert(fault.to_owned());
+    }
+    // The fault catalogue says what each id is; this crate does not own it.
+    let kinds = |fault: &str| Some(if fault == "wet" { "wet" } else { "mechanical_damage" }.to_owned());
+
+    let first = remove_one_fault_of_type(&mut faults, kinds, "mechanical_damage");
+    assert!(first.is_some(), "one came off");
+    assert_eq!(faults.0.len(), 2, "**one**, not both mechanical faults");
+    let second = remove_one_fault_of_type(&mut faults, kinds, "mechanical_damage");
+    assert!(second.is_some() && second != first, "the next call takes the other");
+    assert!(remove_one_fault_of_type(&mut faults, kinds, "mechanical_damage").is_none(), "then none is left");
+    assert_eq!(faults.0.len(), 1, "and the wet fault was never touched");
+    assert_eq!(remove_one_fault_of_type(&mut faults, kinds, "wet").as_deref(), Some("wet"), "which the wet type still finds");
+}

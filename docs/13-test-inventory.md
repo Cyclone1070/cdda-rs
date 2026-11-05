@@ -983,3 +983,7 @@ catalogue's `type` field is not loaded yet, so the caller filters and `mod_damag
 **Round 1196 removed round 1195's duplicate.** `sim::pick_fault` already ported `weighted_int_list::pick` faithfully - including the **one-entry list that spends no die** - and was already gated by
 `sim_suite/fault_pick.rs`; the round-1195 `pick_a_fault` was a plain weighted draw with a different distribution and no kind filter. Both the function and its gate are gone, and
 `docs/parity.md` records why. `remove_single_fault_of_type` remains unported and is now named there.
+
+**Round 1197 ported `remove_single_fault_of_type`**: `sim::remove_one_fault_of_type` (`item.cpp:7874-7882`). Gated by `ground_items::one_fault_of_a_type_comes_off_per_call`, which asserts the
+**count** after each call rather than which fault went, because the reference's set order decides and the port does not invent one. Checked first that no sibling already existed (round 1196's
+lesson).
