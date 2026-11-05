@@ -861,3 +861,7 @@ hundred.
 **Round 1165 put the shot's noise into the world**: `fire_at` calls `sounds::make_sound` at the shooter's square with `gun_noise(gun, round)` and reports it as `Fired::noise`; the CLI's fire line
 prints it. Gated by `shot_rules::a_shot_puts_a_sound_in_the_world_at_the_shooter_s_square`, which asks the **store** (a `Sound` entity exists, at the shooter's square, at the round's volume)
 rather than the return value.
+
+**Round 1166 ported the burst loop**: `shot::fire_burst` (`ranged.cpp:1130-1240`) fires shot after shot, stopping when the gun will not load, and returns one `Fired` per shot made. Gated by
+`shot_rules::a_burst_fires_until_the_gun_runs_dry_and_gets_worse_as_it_goes` - a two-round gun asked for three fires two, empties, and the second shot is aimed worse than the first. The gun's
+`burst_size` column is **not dumped yet**, which the docs name.

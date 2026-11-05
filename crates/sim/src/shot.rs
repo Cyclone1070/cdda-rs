@@ -403,3 +403,37 @@ pub fn gun_recoil(
 pub fn gun_noise(gun_loudness: i32, round_loudness: i32) -> i32 {
     (gun_loudness + round_loudness).max(0)
 }
+
+/// Fires a burst, one shot at a time, and stops when the gun will not load.
+///
+/// Reference: `Character::fire_gun` (`ranged.cpp:1130-1240`): `for( int curshot = 0; curshot < burst_size; ++curshot )`, with `ammo_required()` spent inside the loop and
+/// `if( !gun.is_gun() ) { break; }` guarding the rest of the body - **so a burst that runs dry fires fewer shots rather than failing**. Each shot carries its own recoil into the next, which is
+/// what makes a burst worse than the same number of separate shots made a turn apart.
+///
+/// The port keeps the loop here and returns one [`Fired`] per shot actually made, so a caller can read the whole burst - including the one that found the gun empty, which is **not**
+/// included because the reference does not fire it.
+#[must_use]
+#[allow(clippy::too_many_arguments)]
+pub fn fire_burst(
+    world: &mut bevy_ecs::prelude::World,
+    shooter: bevy_ecs::prelude::Entity,
+    gun: &cdda_content::guns::GunType,
+    lines: &[cdda_content::skills::SkillTime],
+    target: (i32, i32, i32),
+    divider: f64,
+    round: Option<&cdda_content::ammo::AmmoType>,
+    gun_entity: Option<bevy_ecs::prelude::Entity>,
+    gun_weight_g: f64,
+    reload_and_shoot: bool,
+    burst: i32,
+) -> Vec<Fired> {
+    let mut made = Vec::new();
+    for _ in 0..burst.max(0) {
+        let shot = fire_at(world, shooter, gun, lines, target, divider, round, gun_entity, gun_weight_g, reload_and_shoot);
+        if !shot.loaded {
+            break;
+        }
+        made.push(shot);
+    }
+    made
+}

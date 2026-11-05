@@ -608,3 +608,67 @@ fn a_shot_puts_a_sound_in_the_world_at_the_shooter_s_square() {
     assert_eq!(sound.position, (3, 4, 0), "and at the shooter's own square, not the target's");
     assert_eq!(fired.noise, cartridge.loudness, "and the report says the same number the world heard");
 }
+
+/// A burst fires until the gun runs dry, and each shot is worse aimed than the one before it.
+///
+/// Reference: `ranged.cpp:1130-1240` - `for( curshot < burst_size )` with the rounds spent inside the loop and a `break` when the gun cannot fire. **The two claims are different**: the first is
+/// about the loop stopping (a two-round gun asked for three shots fires two), the second is about the recoil the loop carries (the third shot's dispersion is wider than the first's).
+#[test]
+fn a_burst_fires_until_the_gun_runs_dry_and_gets_worse_as_it_goes() {
+    use bevy_ecs::prelude::*;
+    use cdda_core_types::rng::Rolls;
+
+    let read = |name: &str| {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let bytes = std::fs::read(path).expect("the corpus file exists");
+        cdda_json::parse(&bytes).expect("valid JSON")
+    };
+    let guns = cdda_content::guns::load_dump(&read("items/guns.json")).expect("the guns load");
+    let lines = cdda_content::skills::load_dump(&read("skills.json")).expect("the skills load");
+    let rounds = cdda_content::ammo::load_dump(&read("items/ammo.json")).expect("the ammo loads");
+    let gun = guns.iter().find(|gun| gun.id == "ruger_mini").expect("the Mini-14").clone();
+    let cartridge = rounds.iter().find(|round| round.id == "223").expect("the .223").clone();
+
+    let mut world = World::new();
+    cdda_sim::singletons::put_rolls(&mut world, Rolls::new(4242));
+    let shooter = cdda_sim::creature::spawn_creature(&mut world, "the shooter", (0, 0, 0));
+    world
+        .entity_mut(shooter)
+        .insert(cdda_sim::creature::Strength { base: 8 })
+        .insert(cdda_sim::creature::Dexterity { base: 20 })
+        .insert(cdda_sim::creature::Perception { base: 20 })
+        .insert(cdda_sim::creature::Moves { left: 1_000 });
+    // A gun entity holding **two** rounds, so a burst of three must stop at two.
+    let held = world
+        .spawn((
+            cdda_sim::GroundItem {
+                kind: cdda_sim::ItemTypeId(7),
+                charges: 2,
+                age: 0,
+                burnt: 0,
+                damage: 0,
+                burn: None,
+            },
+            cdda_sim::Position { x: 0, y: 0, z: 0 },
+        ))
+        .id();
+
+    let burst = cdda_sim::shot::fire_burst(&mut world, shooter, &gun, &lines, (8, 0, 0), 18.0, Some(&cartridge), Some(held), 3_180.0, false, 3);
+    assert_eq!(burst.len(), 2, "two rounds in the gun, three asked for: two shots and a stop");
+    assert!(burst.iter().all(|shot| shot.loaded), "and both of them fired");
+    assert_eq!(
+        world.get::<cdda_sim::GroundItem>(held).map(|item| item.charges),
+        Some(0),
+        "the gun is empty afterwards"
+    );
+    // The recoil the first shot left is in the second shot's dispersion.
+    assert!(
+        burst.last().map(|shot| shot.aim.dispersion) > burst.first().map(|shot| shot.aim.dispersion),
+        "the second shot is aimed worse than the first: {:?} against {:?}",
+        burst.last().map(|shot| shot.aim.dispersion),
+        burst.first().map(|shot| shot.aim.dispersion)
+    );
+    // A burst of one is one shot, and a burst of none is none.
+    assert_eq!(cdda_sim::shot::fire_burst(&mut world, shooter, &gun, &lines, (8, 0, 0), 18.0, Some(&cartridge), None, 3_180.0, false, 1).len(), 1, "one shot asked for");
+    assert!(cdda_sim::shot::fire_burst(&mut world, shooter, &gun, &lines, (8, 0, 0), 18.0, Some(&cartridge), None, 3_180.0, false, 0).is_empty(), "and none for none");
+}

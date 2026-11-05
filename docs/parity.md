@@ -13514,3 +13514,20 @@ consumes** (`hearing::heard_volume`, ported earlier), so the chain from the cart
 **Named, not invented:** the reference's `sounds::sound` also carries a **description** ("Bang!"), which the port's `Sound` component does not hold - the port's sounds are volumes at squares and
 the words are a UI concern that is not ported; the sound's own **decay across turns** (`sounds_since_last_turn` being drained by the turn loop, which the port does with `sounds::clear`), and
 the per-ammunition special cases named in round 1164.
+
+## A burst fires until the gun runs dry (round 1166)
+
+| Piece | Reference | Port |
+|---|---|---|
+the loop | `for( int curshot = 0; curshot < burst_size; ++curshot )` (`ranged.cpp:1130-1240`) | `shot::fire_burst(...) -> Vec<Fired>` |
+the stop | `ammo_required()` spent inside the loop, and `break` when the gun cannot fire | the same: a shot that could not load ends the burst and is **not** in the result |
+Gate | - | `a_burst_fires_until_the_gun_runs_dry_and_gets_worse_as_it_goes` |
+
+**Two claims, and they are different rules wearing one loop.** The first is that the loop **stops**: a gun holding two rounds, asked for three shots, fires two and empties. The second is that the
+loop **carries its own consequences**: the second shot's dispersion is wider than the first's, because round 1152's recoil is written to the shooter between shots.
+
+**A port that fired the burst as one shot with a bigger cost would satisfy neither.** The price is charged per shot, the rounds are spent per shot, the recoil accumulates per shot, and the
+spread is drawn per pellet - **five separate rules, all inside the loop, and the loop is the only thing that keeps them in order.**
+
+**Named, not invented:** `burst_size` from the gun's own data (the port takes the count as an argument, because the guns dump does not carry `burst_size` yet - **a named gap, not a guess**),
+`delay += qty * absorb` for a bipod, `if( !gun.is_gun() ) break;` for a gun destroyed mid-burst, and `curshot`'s own shot counter that gunmods read.
