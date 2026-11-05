@@ -13570,3 +13570,31 @@ rather than its own chamber. The port's `round_of_type` therefore finds nothing 
 
 **Named, not invented:** gunmods that add or replace firing modes (`islot_gunmod::add_modes`, `itype.h:965`), the `AUTO` and `BURST` modes as distinct from `DEFAULT`, and `item::burst_size`'s
 own gunmod search.
+
+## A burst trains what it should (round 1169)
+
+| Piece | Reference | Port |
+|---|---|---|
+the rule | `ranged.cpp:1207-1213` | `shot::practise_after_a_burst(world, shooter, gun_skill, hits, shots, launcher, wont_train)` |
+the data | `WONT_TRAIN_MARKSMANSHIP` on the weapon | read from `corpus/prototypes/items.json` |
+Gate | - | `a_burst_trains_the_skills_it_should_and_a_flagged_weapon_trains_none` |
+
+**Two skills, two rules, and the difference is the whole point.**
+
+| Skill | Amount | Why |
+|---|---|---|
+the base `gun` skill | `(hits + 1) * 5`, **at least five a burst** | a shooter who missed every shot still learns from having fired |
+the weapon's own skill | `(units + 1) * 5`, `units` = **hits** | hitting is what trains a rifle |
+the weapon's own skill, **launcher** | `(units + 1) * 5`, `units` = **shots fired** | aiming a grenade launcher is the hard part, not hitting with it |
+
+**A flagged weapon trains neither base-skill rule** - a nail gun and a water cannon carry `WONT_TRAIN_MARKSMANSHIP` in the data - **but its own weapon skill still trains**, which the gate asserts
+separately, because "the flag turns training off" is the reading a port is most likely to over-apply.
+
+**This closes the loop the port has been circling for twenty rounds**: firing trains the skill, the skill prices the shot (`time_to_attack`, round 1144), and a cheaper shot is a faster one.
+**The feedback exists because both halves are ported, not because either was special-cased.**
+
+**A refactor came with it**: `reloads_and_shoots` had its own copy of the prototypes-dump reader, and the new flag needed the same walk. Both now go through one `has_item_flag`, so **the next
+flag a step needs is a one-line call rather than a third copy of the same JSON walk**.
+
+**Named, not invented:** `practice()`'s own focus and `MAX_SKILL` caps inside the port's `practise_skill` (ported earlier, unchanged), the `skill_gun`/`skill_launcher` ids' archery equivalent,
+and gunmods' `WONT_TRAIN_MARKSMANSHIP` inheritance.

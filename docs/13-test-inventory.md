@@ -872,3 +872,8 @@ the last of which caught that **a scenario with no `seed` line has no dice at al
 
 **Round 1168 dumped the gun's burst size**: `GunType::burst` (guns dump **version 7**, `islot_gun::modes`' `DEFAULT` qty), and the `burst` step now fires the gun's own trigger pull when the line
 says `0` shots. Gated by `content_suite::gun_rules::every_gun_states_how_many_shots_one_trigger_pull_makes` - a Mini-14's 1, 20 automatics out of 406 guns, and the data's ceiling of 50.
+
+**Round 1169 ported the burst's practice**: `shot::practise_after_a_burst` (`ranged.cpp:1207-1213`) trains the base `gun` skill by `(hits+1)*5` unless the weapon carries `WONT_TRAIN_MARKSMANSHIP`,
+and the weapon's own skill by hits - or by shots for a launcher. `fire_burst` calls it once per burst. Gated by
+`shot_rules::a_burst_trains_the_skills_it_should_and_a_flagged_weapon_trains_none`, which reads the store's `Exercise` bank and checks that the flag stops the base skill but **not** the weapon's.
+The CLI's two prototypes-dump readers were folded into one `has_item_flag`.

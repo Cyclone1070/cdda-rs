@@ -426,6 +426,7 @@ pub fn fire_burst(
     gun_weight_g: f64,
     reload_and_shoot: bool,
     burst: i32,
+    wont_train_marksmanship: bool,
 ) -> Vec<Fired> {
     let mut made = Vec::new();
     for _ in 0..burst.max(0) {
@@ -435,5 +436,39 @@ pub fn fire_burst(
         }
         made.push(shot);
     }
+    // Reference: `ranged.cpp:1207-1213`, once per burst and not once per shot.
+    let hits = i32::try_from(made.iter().filter(|shot| shot.hit.is_some()).count()).unwrap_or(0);
+    let shots = i32::try_from(made.len()).unwrap_or(0);
+    practise_after_a_burst(world, shooter, &gun.skill, hits, shots, gun.skill == "launcher", wont_train_marksmanship);
     made
+}
+
+/// Practices the skills a burst trains, once per burst and in the reference's own proportions.
+///
+/// Reference: `ranged.cpp:1207-1213`:
+///
+/// ```text
+/// if( !gun.has_flag( flag_WONT_TRAIN_MARKSMANSHIP ) ) practice( skill_gun, ( hits + 1 ) * 5 );
+/// int practice_units = gun_skill == skill_launcher ? curshot : hits;
+/// practice( gun_skill, ( practice_units + 1 ) * 5 );
+/// ```
+///
+/// **Two skills and two rules.** The **base gun skill** trains by hits but **always by at least five**, so a shooter who missed every shot still learns from having fired; the **weapon's own
+/// skill** trains by hits too, except that a **launcher trains by shots fired** whether they landed or not - because aiming a grenade launcher is the hard part, not hitting with it.
+///
+/// A weapon carrying `WONT_TRAIN_MARKSMANSHIP` (a nail gun, a water cannon) trains **neither**, and the flag is the data's own.
+pub fn practise_after_a_burst(
+    world: &mut bevy_ecs::prelude::World,
+    shooter: bevy_ecs::prelude::Entity,
+    gun_skill: &str,
+    hits: i32,
+    shots: i32,
+    launcher: bool,
+    wont_train_marksmanship: bool,
+) {
+    if !wont_train_marksmanship {
+        crate::creature::practise_skill(world, shooter, "gun", (hits + 1) * 5);
+    }
+    let units = if launcher { shots } else { hits };
+    crate::creature::practise_skill(world, shooter, gun_skill, (units + 1) * 5);
 }

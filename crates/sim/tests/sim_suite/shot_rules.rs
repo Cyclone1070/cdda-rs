@@ -653,7 +653,7 @@ fn a_burst_fires_until_the_gun_runs_dry_and_gets_worse_as_it_goes() {
         ))
         .id();
 
-    let burst = cdda_sim::shot::fire_burst(&mut world, shooter, &gun, &lines, (8, 0, 0), 18.0, Some(&cartridge), Some(held), 3_180.0, false, 3);
+    let burst = cdda_sim::shot::fire_burst(&mut world, shooter, &gun, &lines, (8, 0, 0), 18.0, Some(&cartridge), Some(held), 3_180.0, false, 3, false);
     assert_eq!(burst.len(), 2, "two rounds in the gun, three asked for: two shots and a stop");
     assert!(burst.iter().all(|shot| shot.loaded), "and both of them fired");
     assert_eq!(
@@ -669,6 +669,55 @@ fn a_burst_fires_until_the_gun_runs_dry_and_gets_worse_as_it_goes() {
         burst.first().map(|shot| shot.aim.dispersion)
     );
     // A burst of one is one shot, and a burst of none is none.
-    assert_eq!(cdda_sim::shot::fire_burst(&mut world, shooter, &gun, &lines, (8, 0, 0), 18.0, Some(&cartridge), None, 3_180.0, false, 1).len(), 1, "one shot asked for");
-    assert!(cdda_sim::shot::fire_burst(&mut world, shooter, &gun, &lines, (8, 0, 0), 18.0, Some(&cartridge), None, 3_180.0, false, 0).is_empty(), "and none for none");
+    assert_eq!(cdda_sim::shot::fire_burst(&mut world, shooter, &gun, &lines, (8, 0, 0), 18.0, Some(&cartridge), None, 3_180.0, false, 1, false).len(), 1, "one shot asked for");
+    assert!(cdda_sim::shot::fire_burst(&mut world, shooter, &gun, &lines, (8, 0, 0), 18.0, Some(&cartridge), None, 3_180.0, false, 0, false).is_empty(), "and none for none");
+}
+
+/// A burst trains the shooter's skills, and a weapon that says it will not train marksmanship trains neither.
+///
+/// Reference: `ranged.cpp:1207-1213` - the base `gun` skill by `(hits + 1) * 5` unless the weapon carries `WONT_TRAIN_MARKSMANSHIP`, and the weapon's own skill by `(units + 1) * 5`, where
+/// `units` is the hits except for a **launcher**, which trains by shots fired. The gate checks the store's skill bank, because that is where practice lands.
+#[test]
+fn a_burst_trains_the_skills_it_should_and_a_flagged_weapon_trains_none() {
+    use bevy_ecs::prelude::*;
+    use cdda_core_types::rng::Rolls;
+
+    let read = |name: &str| {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let bytes = std::fs::read(path).expect("the corpus file exists");
+        cdda_json::parse(&bytes).expect("valid JSON")
+    };
+    let guns = cdda_content::guns::load_dump(&read("items/guns.json")).expect("the guns load");
+    let lines = cdda_content::skills::load_dump(&read("skills.json")).expect("the skills load");
+    let rounds = cdda_content::ammo::load_dump(&read("items/ammo.json")).expect("the ammo loads");
+    let gun = guns.iter().find(|gun| gun.id == "ruger_mini").expect("the Mini-14").clone();
+    let cartridge = rounds.iter().find(|round| round.id == "223").expect("the .223").clone();
+
+    let exercise_of = |wont_train: bool| {
+        let mut world = World::new();
+        cdda_sim::singletons::put_rolls(&mut world, Rolls::new(808));
+        let shooter = cdda_sim::creature::spawn_creature(&mut world, "the shooter", (0, 0, 0));
+        world
+            .entity_mut(shooter)
+            .insert(cdda_sim::creature::Strength { base: 8 })
+            .insert(cdda_sim::creature::Dexterity { base: 20 })
+            .insert(cdda_sim::creature::Perception { base: 20 })
+            .insert(cdda_sim::creature::Moves { left: 1_000 });
+        let target = cdda_sim::creature::spawn_creature(&mut world, "the target", (1, 0, 0));
+        world.entity_mut(target).insert(cdda_sim::creature::Health { hp: 500, max_hp: 500 });
+        let made = cdda_sim::shot::fire_burst(&mut world, shooter, &gun, &lines, (1, 0, 0), 18.0, Some(&cartridge), None, 3_180.0, false, 2, wont_train);
+        assert_eq!(made.len(), 2, "two shots were asked for and the gun was loaded");
+        let banked = world.get::<cdda_sim::creature::Exercise>(shooter).cloned().unwrap_or_default();
+        (banked.0.get("gun").copied().unwrap_or(0), banked.0.get("rifle").copied().unwrap_or(0))
+    };
+
+    let (gun_skill, rifle_skill) = exercise_of(false);
+    assert!(gun_skill > 0, "the base gun skill was trained: {gun_skill}");
+    assert!(rifle_skill > 0, "and the rifle skill with it: {rifle_skill}");
+    // At least five a burst for the base skill, because `( hits + 1 ) * 5` counts the shot even when it misses.
+    assert!(gun_skill >= 5, "the base skill gains at least five a burst: {gun_skill}");
+
+    let (flagged_gun, flagged_rifle) = exercise_of(true);
+    assert_eq!(flagged_gun, 0, "a weapon flagged WONT_TRAIN_MARKSMANSHIP trains no gun skill");
+    assert!(flagged_rifle > 0, "but its own weapon skill still trains, because that rule is not the flagged one: {flagged_rifle}");
 }
