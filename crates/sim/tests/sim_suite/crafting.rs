@@ -1489,3 +1489,28 @@ fn a_finished_practice_craft_stops_at_its_limit() {
         "**the craft stops at the recipe's limit**, where the difficulty's own cap would have let it climb"
     );
 }
+
+/// What one proficiency gets of the craft's time: an even share, times the recipe's multiplier, doubled by a helper who knows it.
+///
+/// Reference: `craft_proficiency_gain` (`crafting.cpp:1057-1078`):
+///
+/// ```text
+/// const time_duration learn_time = time / subjects.size();
+/// int helper_bonus = 1;
+/// for( other : all_crafters ) if( p != other && other->has_proficiency( subject ) ) helper_bonus = 2;
+/// p->practice_proficiency( subject, subject.time_multiplier * learn_time * helper_bonus, ... );
+/// ```
+///
+/// **The time is divided before the multiplier, not after**, so four subjects on a hundred seconds each practise from a twenty-five-second share - which a port that multiplied first and divided last would
+/// get wrong only when the division does not come out even. The helper bonus is a **flat doubling** rather than a per-helper count, so a second knowledgeable assistant adds nothing.
+#[test]
+fn a_proficiency_gets_an_even_share_doubled_by_a_knowledgeable_helper() {
+    use cdda_sim::crafting::proficiency_share;
+
+    assert_eq!(proficiency_share(100, 4, 1.0, false), 25, "an even share of the time");
+    assert_eq!(proficiency_share(100, 4, 2.0, false), 50, "the recipe's multiplier scales it");
+    assert_eq!(proficiency_share(100, 4, 1.0, true), 50, "**a helper who already knows it doubles the share**");
+    assert_eq!(proficiency_share(100, 4, 2.0, true), 100, "and the two compose");
+    assert_eq!(proficiency_share(100, 0, 1.0, false), 0, "no subject, no share - the reference skips before dividing");
+    assert_eq!(proficiency_share(10, 4, 1.0, false), 2, "and an uneven division truncates: a quarter of ten is two");
+}

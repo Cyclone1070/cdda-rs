@@ -15461,3 +15461,18 @@ for a practice recipe and the `1.25` cap otherwise.
 **`practice` refuses above the cap, not at it** (`level > cap`), so a limit of two lets a crafter reach two and no further - the reason the gate asserts exactly two rather than "at most two".
 
 **Named, not invented:** `craft_skill_cap`, a port-side helper that duplicated the ordinary branch, is gone - one rule, one place.
+
+## A proficiency gets an even share, doubled by a knowledgeable helper (round 1295)
+
+| Piece | Reference | Port |
+|---|---|---|
+the share | `craft_proficiency_gain` (`crafting.cpp:1057-1078`) | `crafting::proficiency_share` |
+Gate | - | `crafting::a_proficiency_gets_an_even_share_doubled_by_a_knowledgeable_helper` |
+
+**The time is divided before the multiplier, not after.** Four subjects on a hundred seconds each practise from a **twenty-five-second** share; a port that multiplied first and divided last would agree on
+every even case and disagree on every uneven one - so the gate includes `10 / 4`, which is two.
+
+**The helper bonus is a flat doubling, not a count.** The reference's loop only ever assigns 2, so **two knowledgeable assistants are worth exactly as much as one**. That is precisely the "obviously
+additive" rule a port would improve on, and improving it is inventing behaviour.
+
+**Named, not invented:** `practice_proficiency`'s own accumulation (the port's `proficiencies::gain_from_craft` already owns it) and `max_experience`, the cap a subject can teach toward.

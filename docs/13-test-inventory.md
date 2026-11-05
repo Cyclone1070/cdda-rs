@@ -1223,3 +1223,6 @@ draw appearing on both sides across 200 seeds.
 
 **Round 1294 wired `Recipe::teaching_cap` into the craft turn hook** (`crafting.cpp:1032`, `recipe.cpp:70-77`), gated differentially: with the old difficulty-based cap the crafter reached level 3 against a
 recipe limit of 2. The duplicate `craft_skill_cap` helper was deleted. The gate took three runs to become non-vacuous, because a turn-driven test must **grant the moves** the turn loop would.
+
+**Round 1295 ported the proficiency share** as `crafting::proficiency_share` (`crafting.cpp:1057-1078`), gated on the divide-then-multiply order and on the flat doubling a second knowledgeable helper does
+not improve.

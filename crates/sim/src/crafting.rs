@@ -827,3 +827,31 @@ pub fn practice_ticks(time_moves: i64, old_counter: i64, new_counter: i64) -> i3
     let ticks = (new_counter / ticks_per_practice - old_counter / ticks_per_practice) as i32;
     ticks
 }
+
+/// What one proficiency learns from a stretch of crafting time.
+///
+/// Reference: `Character::craft_proficiency_gain` (`crafting.cpp:1057-1078`):
+///
+/// ```text
+/// const time_duration learn_time = time / subjects.size();
+/// int helper_bonus = 1;
+/// for( other : all_crafters ) if( p != other && other->has_proficiency( subject ) ) helper_bonus = 2;
+/// p->practice_proficiency( subject, subject.time_multiplier * learn_time * helper_bonus, subject.max_experience );
+/// ```
+///
+/// **The time is divided before the multiplier, not after**, so four subjects on a hundred seconds each practise from a **twenty-five-second** share. A port that multiplied first and divided last would
+/// agree on the even cases and disagree on every uneven one.
+///
+/// **The helper bonus is a flat doubling, not a count**: the loop only ever assigns 2, so two knowledgeable assistants are worth exactly as much as one. That is the sort of "obviously additive" rule a port
+/// would improve on - and improving it is inventing behaviour.
+#[must_use]
+pub fn proficiency_share(seconds: i64, subject_count: usize, time_multiplier: f32, helper_knows_it: bool) -> i64 {
+    if subject_count == 0 {
+        return 0;
+    }
+    #[allow(clippy::cast_possible_truncation)]
+    let share = seconds / subject_count as i64;
+    #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+    let scaled = (share as f32 * time_multiplier * if helper_knows_it { 2.0 } else { 1.0 }) as i64;
+    scaled
+}
