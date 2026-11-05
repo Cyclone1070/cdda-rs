@@ -1166,3 +1166,6 @@ zeroing dislike, the last-run halving, and the trait-then-threshold case.
 **Round 1273 ported `has_morale_to_read` and the `MORALE_LOW` refusal** (`character_morale.cpp:171-174`, `character.cpp:12267-12271`), gated on the inclusive −40 floor and the unidentified-book exemption.
 
 **Round 1274 ported `Character::get_book_mastery`** as `reading::book_mastery` (`character.cpp:11925-11951`), gated on both one-character boundaries - the requirement met, the taught level already owned.
+
+**Round 1275 ported identification** as `identification::IdentifiedItems` with `has_identified`/`identify_book` (`avatar.cpp:717-760`), gated on identification **by type, not by copy**, and on the
+refusal leaving no trace.

@@ -31,6 +31,7 @@ mod attack_spells;
 mod bash_hits;
 mod blast;
 mod bionics;
+mod identification;
 mod reading;
 mod body;
 mod bound_mod;

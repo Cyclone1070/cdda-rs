@@ -74,6 +74,7 @@ pub mod inspect;
 pub mod inventory;
 pub mod item_data;
 pub mod item_groups;
+pub mod identification;
 pub mod item_parts;
 pub mod reading;
 pub mod sight;

@@ -15110,3 +15110,22 @@ Gate | - | `reading::what_a_reader_could_get_out_of_a_book` |
 
 **Named, not invented:** `has_identified`, which needs the item-identification model; and `get_knowledge_level`, which the port answers from `SkillLevel::knowledge_level` - the caller supplies the
 number so the rule stays testable without a body.
+
+## A book is identified by type, not by copy (round 1275)
+
+| Piece | Reference | Port |
+|---|---|---|
+the set | `avatar::has_identified` / `identify` (`avatar.cpp:717-760`) | `identification::IdentifiedItems` (a component), `has_identified`, `identify_book` |
+the refusal | `item::is_identifiable` = `is_book()` (`item.cpp:10361-10364`) | `Identification::NotABook` |
+Gates | - | `identification::a_book_is_identified_by_type_not_by_copy`, `identification::a_thing_that_is_not_a_book_cannot_be_identified` |
+
+**The reference's set holds `itype_id`s, not item instances**, so identifying one copy identifies every copy of that type - the rule a player relies on when they find a second printing. The gate says it in
+those words: the second copy is known **without being opened**.
+
+**A missing component means "nothing known", not an error** - the reference's empty set - and **a refusal leaves no trace**: the character does not even gain the component, so a rock cannot be
+half-identified.
+
+**In the port the set is a component on the character entity**, not a global: one piece of data, one owner, and the same rule.
+
+**Named, not invented:** the messages `avatar::identify` prints when a book is first skimmed ("You skim %s to find out what's in it." and the skill lines), which need the message channel wired to the
+reading activity; and `clear_identified`, which the reference calls on death.
