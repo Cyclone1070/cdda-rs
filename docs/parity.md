@@ -13817,3 +13817,25 @@ scenario was the guard.**
 
 **Named, not invented:** whether a **named round is one the gun can chamber** (the reference checks the magazine and the ammunition type; the port fires what it is told, and says so), and the
 `burst` step, which still takes the gun's own ammunition type.
+
+## The fire round, in play (round 1179)
+
+| Piece | Reference | Port |
+|---|---|---|
+the scenario | - | `scenarios/a_survivor_fires_incendiary_rounds.txt` |
+Gate | - | the scenario's own `expect monster effect onfire at 2 0` |
+
+**Everything from rounds 1174-1178 meets in one playtest:** the round's `effects` column, `fire_at`'s incendiary branch, the target's `Materials`, and round 1178's grammar that lets a step
+name the round. **Its receipt is one line of the reference's own rule: `effect: something at (2, 0) is onfire`** - an effect only the incendiary branch can put there.
+
+**Three attempts, and the first two are the interesting part.** The first fired twelve rounds at a **vine beast** four squares away and missed everything: **`hurt 0` on every shot**, because the
+shots were missing and an incendiary roll against zero damage is zero. The second lesson was arithmetic: even had they landed, a hundred hit points is **three bullets**, so the target would
+have died before the fire could be the thing proven.
+
+**The third attempt is the port's own shape and it works:** a **triffid heart at two squares**, five hundred hit points, and an `aim` step between every shot to keep the recoil down. **An
+incendiary round lands, the rule rolls against `veggy`, and the heart burns while still standing** - which is exactly the claim, since a dead triffid proves nothing about fire.
+
+**The failure line is worth keeping in mind for future playtests:** a scenario that asserts on an *effect* must keep its target **alive**, and the data has to supply one tough enough. That is a
+property of the test, not of the rule.
+
+**Named, not invented:** the `onfire` effect's own **damage per turn** (the reference's `effect_onfire` ticks and consumes), the body part, and the pyromania morale.

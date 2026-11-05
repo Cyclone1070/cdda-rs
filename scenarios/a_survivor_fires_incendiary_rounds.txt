@@ -1,0 +1,36 @@
+# A fire round, in play: the survivor fires incendiary bullets at a triffid heart.
+#
+# This is the scenario rounds 1174-1178 were building for. `556_incendiary` carries the `INCENDIARY` ammunition effect, which the ammo dump now states; `fire_at` rolls the incendiary
+# branch against the target's **own materials** - a triffid's heart is `veggy`, which the reference checks separately from `cmat_flammable` - and puts `onfire` on it when the rule says so.
+# Until round 1178 a step could not name a round at all, so nothing in play could reach this rule however well it was ported.
+#
+# The target is chosen for its **hit points**, not its temper: five hundred is a dozen bullets' worth, so the proof is the fire rather than the kill, and aiming between shots keeps the
+# recoil low enough that the bullets keep landing.
+world 12 bare
+survivor 0 0
+items
+monsters
+data
+seed 12345
+monster mon_triffid_heart 2 0
+shoot ruger_mini 556_incendiary at 2 0 20
+aim ruger_mini 30
+shoot ruger_mini 556_incendiary at 2 0 20
+aim ruger_mini 30
+shoot ruger_mini 556_incendiary at 2 0 20
+aim ruger_mini 30
+shoot ruger_mini 556_incendiary at 2 0 20
+aim ruger_mini 30
+shoot ruger_mini 556_incendiary at 2 0 20
+aim ruger_mini 30
+shoot ruger_mini 556_incendiary at 2 0 20
+aim ruger_mini 30
+shoot ruger_mini 556_incendiary at 2 0 20
+aim ruger_mini 30
+shoot ruger_mini 556_incendiary at 2 0 20
+aim ruger_mini 30
+shoot ruger_mini 556_incendiary at 2 0 20
+aim ruger_mini 30
+shoot ruger_mini 556_incendiary at 2 0 20
+# The receipt: the triffid heart is alight, which only the incendiary branch can make happen.
+expect monster effect onfire at 2 0

@@ -913,3 +913,7 @@ durations against the incendiary branch's drawn ones) and `shot_rules::an_ignite
 **Round 1178 let a scenario name its round**: `shoot <gun> [<round>] at <x> <y> <rounds>` and `round_of_id` in `crates/cli/src/lib.rs`, so the ammunition effects rounds 1174-1177 ported are
 reachable from a playtest. Gated by `round_naming_tests::a_shoot_step_can_name_the_round_it_fires` (both shapes, and the named round really carries `INCENDIARY`), with the existing shooting
 scenario as the guard that the old shape still parses.
+
+**Round 1179 put the fire round in play**: `scenarios/a_survivor_fires_incendiary_rounds.txt` fires `556_incendiary` at a **triffid heart** - five hundred hit points, so the target survives long
+enough for the fire to be the claim - and asserts `expect monster effect onfire at 2 0`. It is the playtest the rounds 1174-1178 chain exists for, and it reaches the rule only because round 1178
+let a step name its round.
