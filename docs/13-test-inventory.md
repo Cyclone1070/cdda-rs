@@ -1226,3 +1226,6 @@ recipe limit of 2. The duplicate `craft_skill_cap` helper was deleted. The gate 
 
 **Round 1295 ported the proficiency share** as `crafting::proficiency_share` (`crafting.cpp:1057-1078`), gated on the divide-then-multiply order and on the flat doubling a second knowledgeable helper does
 not improve.
+
+**Round 1296 refreshed the roadmap's standing table** against the five crafting gate modules (`crafting`, `craft_time`, `craft_roll`, `craft_progress`, `craft_activity`); it had still claimed P3 was "not
+crafting". No rules changed this round - the table is the deliverable, and `check_docs.py` is what says it is consistent.

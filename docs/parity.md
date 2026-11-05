@@ -15476,3 +15476,27 @@ every even case and disagree on every uneven one - so the gate includes `10 / 4`
 additive" rule a port would improve on, and improving it is inventing behaviour.
 
 **Named, not invented:** `practice_proficiency`'s own accumulation (the port's `proficiencies::gain_from_craft` already owns it) and `max_experience`, the cap a subject can teach toward.
+
+## The crafting rules in one place (round 1296)
+
+| Piece | Reference | Port |
+|---|---|---|
+the whole craft path | `crafting.cpp`, `character_crafting.cpp`, `activity_actor.cpp:4229-4260` | `crafting`, `craft_time`, `craft_roll`, `craft_progress`, `craft_activity` gate modules |
+Gates | - | 40+ tests across those five modules |
+
+What a player notices is now gated end to end:
+
+| Behaviour | Rule |
+|---|---|
+the craft's length | `recipe::batch_time` with the batch factors and the round-up |
+the two speed ladders | morale (harder work frustrates more) and light (a refusal at the end of it) |
+the failure roll | `success_roll` / `handle_failure` with the progress it takes back |
+practice | one tick a turn, the helper share, the practice-recipe cap |
+proficiencies | the even share, the flat doubling, `gain_from_craft` |
+what can be learned | `never_learn`, the override, and the practice block's own range |
+
+**The standing table in [05-roadmap.md](05-roadmap.md) is refreshed against those modules** - it claimed P3 was "not crafting" when five crafting gate modules exist, which is the kind of drift that
+makes a roadmap stop being read.
+
+**Named, not invented:** the item-component model (`item::components`, repairs, the nested-container depth rules) is still open and is the next P3 boundary; P5's enchantments are what the two
+`*_MULTIPLIER` enchantment hooks wait on; P6's activity step is what would give the craft turn its progress bar and interrupts.
