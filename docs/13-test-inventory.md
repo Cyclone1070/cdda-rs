@@ -1250,3 +1250,5 @@ fields where the body fell.
 on the rate then takes the first species that bleeds. `fd_null` becomes `None`, because the reference's null field is not a field the port may write.
 
 **Round 1303 ported `monster::die`'s hallucination branch** (`monster.cpp:3046-3050`): a `Hallucination` component, and a reaping step that leaves no corpse, no blood and no gibs.
+
+**Round 1304 wired the death line**: `creature::death_message` (`mondeath.cpp:50-56`) pushed as good news by the reaping step, gated both on the rule and on the **log** it reaches.

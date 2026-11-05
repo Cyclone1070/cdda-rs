@@ -15634,3 +15634,20 @@ Gate | - | `creature_fight::a_hallucination_leaves_nothing_behind` |
 
 **Named, not invented:** `mdeath::disappear`'s own effects (the sound and the message the reference plays when a figment winks out) and the spawn-side rules that decide *when* a monster is a
 hallucination (`monster::set_hallucination`, `MonsterGroupManager`'s hallucination weight) - the port stores the fact and honours it at death, which is the half the reaping step needs.
+
+## The game log says that a body died (round 1304)
+
+| Piece | Reference | Port |
+|---|---|---|
+the line | `mdeath::normal` (`mondeath.cpp:50-56`) | `creature::death_message`, pushed as `MessageKind::Good` |
+Gate | - | `creature_fight::a_death_says_so_unless_the_body_is_quiet`, `creature_fight::the_game_log_says_that_a_body_died` |
+
+**The line is good news** (`m_good`): it tells a player the fight is over, and a death the log filed as neutral would read like a warning. **A `QUIETDEATH` body writes nothing** - not an empty line,
+which is why `death_message` answers `Option<String>` and the caller refuses to push a `None`.
+
+**The second gate reads the log, not the helper.** A rule that produced the right sentence and never pushed it would pass a test of the sentence and fail the player; the count of "dies!" lines
+is what says the quiet body stayed quiet.
+
+**Named, not invented:** `monster::quiet_death`, the other half of the reference's test, which is a monster field the dump does not carry yet; `add_msg_if_player_sees`' visibility test (the port
+has no per-creature sight of the player yet, so the line is written when the reap runs); and `type->mdeath_effect.death_message`, the data's own sentence, which needs the monster's death-effect block
+in the dump.

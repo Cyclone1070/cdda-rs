@@ -1810,7 +1810,7 @@ pub fn reap_dead_creatures_as_corpses(
     corpse_kind: crate::ItemTypeId,
     volume_of: impl Fn(crate::MonsterKindId) -> i64,
 ) -> usize {
-    type Dead = (Entity, (i32, i32, i32), Option<crate::MonsterKindId>, bool, i32, i32, bool);
+    type Dead = (Entity, (i32, i32, i32), Option<crate::MonsterKindId>, bool, i32, i32, bool, bool);
     let dead: Vec<Dead> = world
         .query::<(
             Entity,
@@ -1831,15 +1831,28 @@ pub fn reap_dead_creatures_as_corpses(
                 health.hp,
                 health.max_hp,
                 phantom.is_some(),
+                flags.is_some_and(|carried| carried.0.contains("QUIETDEATH")),
             )
         })
         .collect();
-    for (entity, square, kind, revives, hp, max_hp, phantom) in &dead {
+    for (entity, square, kind, revives, hp, max_hp, phantom, quiet_death) in &dead {
         crate::singletons::index_mut(world).remove(*entity, *square);
         world.despawn(*entity);
         // Reference: `monster::die`'s hallucination branch (`monster.cpp:3046-3050`) returns before anything is left behind - no corpse, no blood, no gibs.
         if *phantom {
             continue;
+        }
+        // Reference: `mdeath::normal` (`mondeath.cpp:50-56`) says "The %s dies!" as **good news** unless the body is quiet. The flag is the data's; `monster::quiet_death`, the
+        // other half of the reference's test, is a monster field the dump does not carry yet and is named in `docs/parity.md`.
+        let quiet = *quiet_death;
+        let name = world
+            .get::<Creature>(*entity)
+            .map(|creature| creature.name.clone())
+            .filter(|name| !name.is_empty())
+            .or_else(|| kind.and_then(|kind| crate::monster_registry::name_of(world, kind)))
+            .unwrap_or_else(|| "monster".to_owned());
+        if let Some(line) = death_message(&name, quiet) {
+            crate::messages::push_kind(world, &line, crate::messages::MessageKind::Good);
         }
         if let Some(kind) = kind {
             // Reference: `mdeath::normal` (`mondeath.cpp:58-68`) - a body pulverised by its overkill is a **splatter** and leaves no corpse item, and an ordinary one carries
@@ -3221,6 +3234,26 @@ pub fn wear_the_wielded_weapon(world: &mut World, holder: Entity, melee_skill: i
 /// and the store can answer with a query.
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Hallucination;
+
+/// What the game says when a body dies, and nothing when the body is quiet.
+///
+/// Reference: `mdeath::normal` (`mondeath.cpp:50-56`):
+///
+/// ```text
+/// if( !z.quiet_death && !z.has_flag( mon_flag_QUIETDEATH ) ) {
+///     add_msg_if_player_sees( z, m_good, _( "The %s dies!" ), z.name() );
+/// }
+/// ```
+///
+/// **The line is good news** (`m_good`), because it is what tells a player the fight is over; a monster with `QUIETDEATH` dies silently, which is the flag's whole purpose. `None` is the
+/// reference's silence, and it is not the same as an empty line - a caller must not push one.
+#[must_use]
+pub fn death_message(name: &str, quiet: bool) -> Option<String> {
+    if quiet {
+        return None;
+    }
+    Some(format!("The {name} dies!"))
+}
 
 /// What a monster's death leaves on the ground.
 ///

@@ -2836,3 +2836,62 @@ fn a_hallucination_leaves_nothing_behind() {
     let blood = cdda_sim::field_registry::id_of(&mut world, "fd_blood").expect("known");
     assert_eq!(cdda_sim::field_strength_at(&world, (5, 5, 0), blood), 0, "and no blood either");
 }
+
+/// A body the player can see says that it died, and a quiet one does not.
+///
+/// Reference: `mdeath::normal` (`mondeath.cpp:50-56`):
+///
+/// ```text
+/// if( !z.quiet_death && !z.has_flag( mon_flag_QUIETDEATH ) ) {
+///     ...
+///     add_msg_if_player_sees( z, m_good, _( "The %s dies!" ), z.name() );
+/// }
+/// ```
+///
+/// **The line is good news** (`m_good`) and it is what tells a player the fight is over; a `QUIETDEATH` monster dies silently, which is the flag's whole purpose. The port writes it as a
+/// message of the Good kind, because a death the log files as neutral would read like a warning.
+#[test]
+fn a_death_says_so_unless_the_body_is_quiet() {
+    let line = cdda_sim::creature::death_message("shambler", false);
+    assert_eq!(line.as_deref(), Some("The shambler dies!"), "the ordinary body says so");
+    assert_eq!(
+        cdda_sim::creature::death_message("shambler", true),
+        None,
+        "**and a quiet one says nothing at all**"
+    );
+}
+
+/// The reaping step writes the death line into the game log, as good news, and a quiet body writes none.
+///
+/// Reference: `mdeath::normal` (`mondeath.cpp:50-56`) with `m_good`. The gate reads the **log**, not the helper: a rule that produced the right sentence and never pushed it would pass a
+/// test of the sentence and fail the player.
+#[test]
+fn the_game_log_says_that_a_body_died() {
+    let mut world = World::new();
+    cdda_sim::monster_registry::set_monster_types(
+        &mut world,
+        &[cdda_sim::monster_registry::MonsterKind { id: "mon_fixture", hp: 40 }],
+    );
+    let loud = cdda_sim::spawn_monster(&mut world, (6, 6), cdda_sim::MonsterKindId(1), 40);
+    cdda_sim::creature::set_health_left(&mut world, loud, 0);
+    let quiet = cdda_sim::spawn_monster(&mut world, (7, 6), cdda_sim::MonsterKindId(1), 40);
+    cdda_sim::creature::set_health_left(&mut world, quiet, 0);
+    world
+        .entity_mut(quiet)
+        .insert(cdda_sim::creature_flags::CreatureFlags(std::collections::BTreeSet::from([
+            "QUIETDEATH".to_owned(),
+        ])));
+
+    cdda_sim::creature::reap_dead_creatures_as_corpses(&mut world, cdda_sim::ItemTypeId(7), |_| 62_500);
+
+    let lines = cdda_sim::messages::lines(&world);
+    assert!(
+        lines.iter().any(|line| line.contains("mon_fixture") && line.contains("dies!")),
+        "**the loud body's death is in the log**: {lines:?}"
+    );
+    assert_eq!(
+        lines.iter().filter(|line| line.contains("dies!")).count(),
+        1,
+        "and the quiet one wrote nothing, so there is exactly one line"
+    );
+}
