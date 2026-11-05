@@ -991,3 +991,6 @@ lesson).
 **Round 1198 ported `repairable_levels`**: `sim::repairable_levels` (`item.cpp:9472-9479`), which answers in **levels** while they differ and in **yes-or-no** when they do not. Gated by
 `ground_items::repair_levels_fall_back_to_a_yes_or_no`; its first run failed on two **fixture** errors (`damage_level` is `1 + 4 * damage / max`, and any damage at all is level 5 for a
 charge-counted item), both recorded in `docs/parity.md`.
+
+**Round 1199 ported `get_relative_health`**: `sim::relative_health` (`item.cpp:9419-9426`). Gated by `ground_items::item_health_is_a_fraction_and_a_stack_has_none_to_lose`, which pins the
+constant answer for a charge-counted type and the finiteness that keeps a stack from dividing by zero.

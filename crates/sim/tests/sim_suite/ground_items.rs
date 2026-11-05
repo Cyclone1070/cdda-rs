@@ -113,3 +113,19 @@ fn repair_levels_fall_back_to_a_yes_or_no() {
     assert_eq!(repairable_levels(100, 0, 0, true), 5, "a leaking bottle is ruined, not scratched");
     assert_eq!(repairable_levels(0, 0, 0, true), 0, "and an untouched one is level zero");
 }
+
+/// An item's health is a fraction of its maximum, and a stack has none to lose.
+///
+/// Reference: `item::get_relative_health` (`item.cpp:9419-9426`). **A charge-counted type answers 1.0 whatever its damage says** - it loses charges, not health - which is also what stops the
+/// division by a maximum of zero that every stack would otherwise perform.
+#[test]
+fn item_health_is_a_fraction_and_a_stack_has_none_to_lose() {
+    use cdda_sim::relative_health;
+
+    assert!((relative_health(0, 4_000) - 1.0).abs() < f64::EPSILON, "undamaged is whole");
+    assert!((relative_health(1_000, 4_000) - 0.75).abs() < f64::EPSILON, "a quarter worn is three quarters there");
+    assert!((relative_health(4_000, 4_000) - 0.0).abs() < f64::EPSILON, "at the maximum there is nothing left");
+    assert!((relative_health(3_000, 0) - 1.0).abs() < f64::EPSILON, "a stack is always whole, because its health is not what it loses");
+    // A type with no maximum that somehow holds damage still answers whole rather than dividing by zero.
+    assert!(relative_health(500, 0).is_finite(), "no infinity, ever");
+}

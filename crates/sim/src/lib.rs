@@ -8099,3 +8099,16 @@ pub fn repairable_levels(damage: i32, degradation: i32, damage_max: i32, by_char
         i32::from(damage > degradation)
     }
 }
+
+/// What fraction of an item's health is left: `item::get_relative_health` (`item.cpp:9419-9426`).
+///
+/// **Two answers, one of them constant.** A type counted in charges has **no health to lose** - it loses charges - so the reference answers **1.0** whatever its damage number says; everything
+/// else is `1 - damage / max_damage`, which reaches zero exactly at the maximum and cannot go below it because the damage is clamped. A port that divided by the maximum for both would divide by
+/// zero for every stack in the game.
+#[must_use]
+pub fn relative_health(damage: i32, damage_max: i32) -> f64 {
+    if damage_max == 0 {
+        return 1.0;
+    }
+    1.0 - f64::from(damage) / f64::from(damage_max)
+}

@@ -14226,3 +14226,17 @@ not zero. **Both were fixture arithmetic, and the failure message ("left: 3, rig
 
 **Named, not invented:** `item::repair` and the repair action's move and tool costs, `damage_level`'s five-band glyphs, the degradation cap (`set_degradation` clamping to zero for a type that
 does not degrade), and the repair messages.
+
+## A stack has no health to lose (round 1199)
+
+| Piece | Reference | Port |
+|---|---|---|
+the fraction | `item::get_relative_health` (`item.cpp:9419-9426`) | `sim::relative_health(damage, damage_max)` |
+Gate | - | `item_health_is_a_fraction_and_a_stack_has_none_to_lose` |
+
+**Two answers, one of them constant.** Everything with health is `1 - damage / max_damage`, which reaches zero exactly at the maximum and cannot go below it. A type **counted in charges**
+answers **1.0 whatever its damage says** - it loses charges, not health - and that branch is also what stops a division by the maximum of zero that **every stack in the game** would otherwise
+perform. **The constant is doing two jobs**, and a port that read it as an optimisation would divide by zero on the first nail it picked up.
+
+**Named, not invented:** `item::set_damage`'s clamping (ported), the degraded-item names the reference derives from this fraction, `item::damage_bar` and its glyphs, and the armour durability
+path that asks the same question of a worn garment.
