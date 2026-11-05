@@ -18,6 +18,7 @@ pub mod overmap;
 pub mod aim;
 pub mod ballistics;
 pub mod bash;
+pub mod burning;
 pub mod emit_registry;
 pub mod falling;
 pub mod memory;

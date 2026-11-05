@@ -1262,3 +1262,41 @@ fn heat_sets_a_creature_alight_with_a_chance_equal_to_its_damage() {
         assert!(heat_sets_alight(-5, &mut dice).is_none(), "and neither does negative heat");
     }
 }
+
+/// Standing in a fire burns the parts a fire of that intensity reaches, one draw each, and lying in it burns everything.
+///
+/// Reference: `map_field.cpp:1663-1701`. **The ladder and the span are two different rules** - which parts burn depends on the intensity's `switch` with its fallthroughs, and how much each
+/// takes is `rng( intensity, 3 * intensity + 3 )` - so the gate checks both, and checks that a creature on the ground takes **every** part however weak the fire.
+#[test]
+fn a_fire_burns_the_parts_its_intensity_reaches_and_every_part_on_the_ground() {
+    use cdda_core_types::rng::Rolls;
+    use cdda_sim::burning::{burn_span, fire_burn, parts_burned};
+
+    assert_eq!(burn_span(1), (1, 6), "intensity one burns for one to six");
+    assert_eq!(burn_span(3), (3, 12), "and three for three to twelve, which is three times and three");
+
+    // The ladder: feet and legs, then the torso, then hands and arms - and never the other way round.
+    let legs = parts_burned(1, false, &[]);
+    assert_eq!(legs, vec!["foot_l", "foot_r", "leg_l", "leg_r"], "intensity one reaches the feet and legs");
+    let torso = parts_burned(2, false, &[]);
+    assert_eq!(torso.len(), 5, "two adds the torso: {torso:?}");
+    // The switch **falls through downward**, so the parts of the higher intensity are pushed **first**: a two-intensity fire's list starts at the torso and ends at the legs.
+    assert_eq!(torso.first(), Some(&"torso"), "and puts it first, because the switch falls through from two into one: {torso:?}");
+    assert_eq!(torso.iter().skip(1).copied().collect::<Vec<_>>(), vec!["foot_l", "foot_r", "leg_l", "leg_r"], "with the feet and legs after it: {torso:?}");
+    let all = parts_burned(3, false, &[]);
+    assert_eq!(all.len(), 9, "and three adds the hands and arms: {all:?}");
+    assert_eq!(all.iter().take(4).copied().collect::<Vec<_>>(), vec!["hand_l", "hand_r", "arm_l", "arm_r"], "which come first, because the switch falls through into them: {all:?}");
+    assert_eq!(all.get(4), Some(&"torso"), "then the torso: {all:?}");
+
+    // A creature on the ground burns everywhere, whatever the fire's strength.
+    let every = ["head", "torso", "foot_l"];
+    assert_eq!(parts_burned(1, true, &every), every.to_vec(), "lying down burns every part");
+
+    // One draw per part, each inside the span.
+    let mut dice = Rolls::new(64);
+    let burns = fire_burn(3, false, &[], &mut dice);
+    assert_eq!(burns.len(), 9, "nine parts for a three-intensity fire: {}", burns.len());
+    assert!(burns.iter().all(|(_, damage)| (3..=12).contains(damage)), "each inside three to twelve: {burns:?}");
+    let mut dice = Rolls::new(64);
+    assert!(fire_burn(0, false, &every, &mut dice).is_empty(), "a fire that is out burns nothing");
+}

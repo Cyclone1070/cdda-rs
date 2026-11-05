@@ -921,3 +921,8 @@ let a step name its round.
 **Round 1180 ported heat ignition**: `creature::heat_sets_alight` (`creature.cpp:1482-1500`) - `rng( 0, 100 ) < damage` then `rng( 1, 3 )` turns of `onfire`. Gated by
 `shot_rules::heat_sets_a_creature_alight_with_a_chance_equal_to_its_damage`, which pins the **inclusive hundred** by counting misses over two thousand draws. The per-turn heat tick that drives it
 (`map_field.cpp:1696-1701`) is named as missing.
+
+**Round 1182 ported what a fire does to the creature in it**: `crates/sim/src/burning.rs` - `burn_span` (`intensity` to `3 * intensity + 3`), `parts_burned` (the reference's `switch` ladder
+with its fallthrough order, and every part for a creature on the ground) and `fire_burn` (one draw per part), all from `map_field.cpp:1663-1701`. Gated by
+`shot_rules::a_fire_burns_the_parts_its_intensity_reaches_and_every_part_on_the_ground`, whose first run proved the **fallthrough order** was the opposite of what the test assumed and the code
+was right. The turn-loop wiring is named as missing.

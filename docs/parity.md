@@ -13860,3 +13860,29 @@ port's field system does not yet burn the creatures standing in it. **Named, not
 
 **Named, not invented, besides that:** the body part the burn is applied to, the pyromania morale, `damage_electric`'s speed debuff in the same chain, and the heat branch's `adjusted_damage`
 preceding it (skill, critical and graze multipliers, `creature.cpp:1471`), which the port computes in its own damage path rather than here.
+
+## Standing in a fire (round 1182)
+
+Round 1180 ported heat *igniting* a creature; this round ports what a fire does to the creature standing in it.
+
+| Piece | Reference | Port |
+|---|---|---|
+the thing | `map_field.cpp:1626-1702`, the fire field's per-turn creature work | `crates/sim/src/burning.rs` |
+the span | `burn_min = intensity`, `burn_max = 3 * intensity + 3` (`:1663-1664`) | `burning::burn_span` |
+the ladder | the `switch( adjusted_intensity )` with its fallthroughs (`:1668-1691`) | `burning::parts_burned` |
+the draws | one `rng( burn_min, burn_max )` per burning part (`:1696-1701`) | `burning::fire_burn` |
+Gate | - | `a_fire_burns_the_parts_its_intensity_reaches_and_every_part_on_the_ground` |
+
+**A fire does not damage a creature once - it burns a set of parts, each for its own draw.** Feet and legs at intensity one, the torso at two, hands and arms at three; and a creature **on the
+ground** burns **every part at once**, which is why falling over in a fire is worse than standing in it. **A port that dealt one total would lose which limb caught the fire**, so the answer is a
+list of `(part, damage)`.
+
+**The gate caught the one thing I had backwards, and the source was right.** The reference's `switch` **falls through downward** - case 3 pushes hands and arms and then falls into case 2's torso
+and case 1's feet - so the **higher intensity's parts come first**: an intensity-two fire's list is `torso, foot_l, foot_r, leg_l, leg_r`. I wrote the test expecting the torso last, **the code
+was right, and the run said so**: `Some("leg_r")` against `Some("torso")`. **A fallthrough is an order, and the order is the rule.**
+
+**The span widens faster than the floor rises.** Intensity one burns one to six; intensity three burns three to twelve - **three times the intensity plus three**, so a stronger fire raises the
+floor slowly and the ceiling fast. That is the shape a port flattening to "intensity to intensity times three" would lose at the top end only, where it matters most.
+
+**Named, not invented:** the `HEATSINK` and RM13-armour immunity, the **vehicle** adjustment (`adjusted_intensity -= 2` inside, `- 1` on top), the quadruped bundle, the messages, and the
+**wiring into the turn loop** - the rule is ported and gated, and the schedule does not yet call it for creatures standing in a fire, which is the next step rather than a claim.
