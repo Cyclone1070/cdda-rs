@@ -1154,3 +1154,6 @@ eleven. Gated by `sight::a_lamp_beats_the_floor_and_nothing_beats_full_light`, w
 
 **Round 1269 added the book slot** (`content::books::Book`, `itype.h:569-620`) and a duration reader that turns `"35 m"` into **2,100 turns**. Gated on a record and on the corpus
 (`books::the_corpus_books_read`, over 500 records). Inheriting the slot onto `ItemType` is named in `docs/parity.md`.
+
+**Round 1270 wired the book slot onto `ItemType`** with a per-field `copy-from` merge (`item_factory.cpp:2859-2868`), gated by
+`books::the_item_loader_fills_the_book_slot_and_inherits_field_by_field`. **`None` means "not a book"**, which the gate proves with a non-book in the same directory.

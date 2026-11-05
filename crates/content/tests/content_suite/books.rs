@@ -72,3 +72,27 @@ fn the_corpus_books_read() {
     assert!(usable > 100, "and many of them state a skill and a time: {usable}");
     assert!(minutes > hours, "**most books are measured in minutes**: {minutes} against {hours} hours");
 }
+
+/// The item loader fills the book slot, and a `copy-from` child keeps the fields it does not state.
+///
+/// Reference: `Item_factory::load_slot` (`src/item_factory.cpp:2859-2868`) reads into the parent's slot object with `was_loaded`, so **a child that states only `time` keeps the parent's skill, level
+/// and intelligence**. That per-field keep-if-absent merge is the opposite of a stated array, which clears first - and it is the rule that makes a whole shelf of derived books readable.
+#[test]
+fn the_item_loader_fills_the_book_slot_and_inherits_field_by_field() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../oracle/src/data/json/items/book");
+    if !dir.is_dir() {
+        return;
+    }
+    let types = cdda_content::items::load_paths(&[dir.as_path()]).expect("the book records load");
+    let books: Vec<_> = types.iter().filter(|kind| kind.book.is_some()).collect();
+    assert!(books.len() > 100, "the loader keeps the slot for the books it reads: {}", books.len());
+    // Every kept slot is usable, and at least one of them **inherited** its skill rather than stating it: a child with a `time` and no `read_skill` of its own.
+    assert!(
+        books.iter().any(|kind| kind.book.as_ref().is_some_and(|book| book.time_turns > 0 && !book.skill.is_empty())),
+        "at least one book states a skill and a time, so the slot is not an empty shell"
+    );
+    assert!(
+        types.iter().filter(|kind| kind.book.is_none()).count() > 0,
+        "and a non-book in the same directory does not get a slot"
+    );
+}

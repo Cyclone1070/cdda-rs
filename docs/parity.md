@@ -15028,3 +15028,19 @@ every field filled".
 ratio that would flip if `read_duration_turns` mis-read the unit.
 
 **Named, not invented:** wiring the slot onto `ItemType` (the item loader reads no book fields yet) and `recipe_with_description_t`, which needs the recipe registry's ids.
+
+## The book slot reaches the item type (round 1270)
+
+| Piece | Reference | Port |
+|---|---|---|
+the slot on the type | `itype::book` (`itype.h:569-620`) | `ItemType::book: Option<Book>`, filled by `items::load_paths` |
+the merge | `load_slot`'s `was_loaded` (`item_factory.cpp:2859-2868`) | `merge_book`, per field |
+Gate | - | `books::the_item_loader_fills_the_book_slot_and_inherits_field_by_field` |
+
+**`None` is "not a book", not "a book with nothing in it".** The reference's slot exists on every type and is only read for a book; the port keeps the distinction so a non-book cannot be handed to the
+reading rules by accident, and the gate asserts that a non-book in the same directory gets no slot.
+
+**The merge is per field, which is the difference between a slot and an array.** A child that states only `time` keeps the **inherited** skill, level, intelligence and fun, because `load_slot` reads into
+the parent's slot object with `was_loaded`. **An array would have cleared first** - the two behaviours sit a few lines apart in the factory and mean opposite things for a derived record.
+
+**Named, not invented:** `recipe_with_description_t`, which needs the recipe registry's ids; and `martial_art`'s `matype_id` resolution, which the port keeps as the data's string until martial arts land.

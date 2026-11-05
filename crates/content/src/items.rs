@@ -73,6 +73,11 @@ pub struct ItemType {
     pub price: i64,
     /// Category id, empty when the item states none.
     pub category: String,
+    /// The book slot, when this type is a book: what it teaches and what it costs in time (`islot_book`, `src/itype.h:569-620`).
+    ///
+    /// **`None` is "not a book", not "a book with nothing in it"** - the reference's `islot_book` exists on every type but is only read for a book, and the port keeps the distinction so a non-book
+    /// cannot be handed to the reading rules by accident.
+    pub book: Option<crate::books::Book>,
     /// Materials and their portions.
     pub materials: BTreeMap<String, i32>,
     /// The faults this type can acquire, with their weights, after `fault_group` expansion has run.
@@ -1288,6 +1293,7 @@ fn resolve(
         integral_volume: -1,
         price: 0,
         category: String::new(),
+        book: None,
         materials: BTreeMap::new(),
         flags: BTreeSet::new(),
         is_gun: false,
@@ -1392,6 +1398,13 @@ fn apply(
     }
     if let Some(category) = string(object, "category") {
         item.category = category;
+    }
+    // **The book slot is read only for a record that says it is a book**, and a `copy-from` child that says nothing keeps the slot it inherited - which is what `optional` does for a slot object
+    // (`src/item_factory.cpp:2859-2868`). A record that states book fields without the subtype is not a book, and the port does not invent one.
+    if is_a_book(object) {
+        let inherited_slot = item.book.take();
+        let read = crate::books::Book::read(object);
+        item.book = Some(merge_book(inherited_slot, read, object));
     }
     apply_slots(item, object, registries)?;
     if let Some(entries) = object.get("material") {
@@ -2204,4 +2217,32 @@ pub fn kind_numbers(ids: &[String]) -> std::collections::BTreeMap<String, u32> {
             ((*id).clone(), number as u32)
         })
         .collect()
+}
+
+/// Whether a record says it is a book: its `subtypes` list contains `BOOK`.
+fn is_a_book(object: &Object) -> bool {
+    matches!(object.get("subtypes"), Some(Value::Array(list)) if list.iter().any(|kind| matches!(kind, Value::Str(name) if name == "BOOK")))
+}
+
+/// A child's book slot over its parent's, field by field - the reference's `optional` keep-if-absent rule.
+///
+/// **The merge is per field, not per slot**, which is the difference between a slot and an array: a child that states only `time` keeps every other field it inherited
+/// (`src/item_factory.cpp:2859-2868`).
+fn merge_book(inherited: Option<crate::books::Book>, read: crate::books::Book, object: &Object) -> crate::books::Book {
+    let Some(parent) = inherited else {
+        return read;
+    };
+    let stated = |key: &str| object.get(key).is_some();
+    crate::books::Book {
+        skill: if stated("read_skill") || stated("skill") { read.skill } else { parent.skill },
+        martial_art: if stated("martial_art") { read.martial_art } else { parent.martial_art },
+        level: if stated("max_level") { read.level } else { parent.level },
+        req: if stated("required_level") { read.req } else { parent.req },
+        fun: if stated("read_fun") { read.fun } else { parent.fun },
+        intel: if stated("intelligence") { read.intel } else { parent.intel },
+        time_turns: if stated("time") { read.time_turns } else { parent.time_turns },
+        chapters: if stated("chapters") { read.chapters } else { parent.chapters },
+        generic: if stated("generic") { read.generic } else { parent.generic },
+        proficiencies: if stated("proficiencies") { read.proficiencies } else { parent.proficiencies },
+    }
 }
