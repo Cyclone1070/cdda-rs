@@ -14650,3 +14650,21 @@ Gate | - | `the_weak_part_and_the_big_part_are_chosen_the_reference_way` |
 **Mutation-checked:** neutering the blacklist makes the gate pick `sheet_cotton` where the reference picks `pipe` - the failure names the rule, not the plumbing.
 
 **Named, not invented:** the **fragile material factor** (`weak_chip / 6.0`, with the weapon's own chip resistance as fallback when nothing qualifies, `:272-273`), which changes the wear *chance* rather than the *choice*; and the volumes and chip resistances themselves, which the caller must supply from the kind tables.
+
+## A fragile weapon wears at its weakest part, six times over (round 1248)
+
+| Piece | Reference | Port |
+|---|---|---|
+the factor | `material_factor = weak_chip / 6.0`, falling back to the weapon's own (`melee.cpp:272-273`) | `melee::fragile_material_factor` |
+Gate | - | `a_fragile_weapon_wears_at_its_weakest_part_six_times_over` |
+
+**The division is what the flag means.** A weapon whose weakest counted part is resistance **12** wears as if it were **2** - so **one cheap bolt makes a good blade fall apart**, which is the reference's
+own phrasing: *"fragile items that fall apart easily when used as a weapon due to poor construction quality"* (`:254-255`).
+
+**The fallback is narrower than it looks.** `weak_chip` starts at `INT_MAX` and any counted part replaces it, so the weapon's own chip resistance is read **only when nothing counts** - no parts, or every
+part blacklisted. It is not a tie-breaker and not an average. The gate proves both halves: `12 / 6 = 2` with a weapon of 30, and 30 from a cloth-only and from an empty part list.
+
+**Mutation-checked:** changing the divisor from `6.0` to `3.0` fails this gate and leaves the choice gate green, so the two rules are pinned separately.
+
+**Named, not invented:** the *wiring* into `melee_wear_chance` - the port computes the chance from a caller-supplied chip resistance today, and the caller has yet to pass a part list's factor in; and the
+volumes and chip resistances themselves, which come from the kind tables.

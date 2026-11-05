@@ -2096,3 +2096,23 @@ fn the_weak_part_and_the_big_part_are_chosen_the_reference_way() {
     let flat = [PartFacts { kind: "scrap", chip_resistance: 5, volume_ml: 0 }];
     assert_eq!(weak_and_big_parts(&flat), (Some("scrap"), None), "the weak part is still chosen");
 }
+
+/// A fragile weapon wears at its weakest part, six times over - and at its own material when no part counts.
+///
+/// Reference: `handle_melee_wear`'s fragile prologue (`melee.cpp:272-273`): `material_factor = ( weak_chip < INT_MAX ? weak_chip : shield->chip_resistance() ) / fragile_factor;` with
+/// `fragile_factor = 6.0f`. **The division is the whole point**: a weapon whose weakest part is resistance 12 wears as if it were resistance 2, which is why a well-made blade with one cheap bolt
+/// falls apart - the reference calls these *"fragile items that fall apart easily when used as a weapon due to poor construction quality"* (`:254-255`).
+#[test]
+fn a_fragile_weapon_wears_at_its_weakest_part_six_times_over() {
+    use cdda_sim::melee::{PartFacts, fragile_material_factor};
+
+    let parts = [
+        PartFacts { kind: "pipe", chip_resistance: 12, volume_ml: 250 },
+        PartFacts { kind: "steel_chunk", chip_resistance: 20, volume_ml: 250 },
+    ];
+    assert!((fragile_material_factor(&parts, 30.0) - 2.0).abs() < 1e-9, "12 / 6, and the weapon's own 30 never enters");
+    // **The fallback is for a weapon with nothing that counts**, and only then: the reference's `weak_chip` stays `INT_MAX` exactly when every part was blacklisted or there were none.
+    let only_cloth = [PartFacts { kind: "leather", chip_resistance: 1, volume_ml: 90 }];
+    assert!((fragile_material_factor(&only_cloth, 30.0) - 30.0).abs() < 1e-9, "cloth gives no factor, so the weapon answers for itself");
+    assert!((fragile_material_factor(&[], 30.0) - 30.0).abs() < 1e-9, "and so does a weapon with no parts at all");
+}

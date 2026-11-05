@@ -517,7 +517,13 @@ pub const FRAGILE_BLACKLIST: [&str; 3] = ["sheet_cotton", "leather", "fur"];
 ///
 /// Returns the chosen kinds, or `None` for a part that nothing qualifies as.
 #[must_use]
-pub fn weak_and_big_parts<'a>(parts: &[PartFacts<'a>]) -> (Option<&'a str>, Option<&'a str>) {
+pub fn weak_and_big_parts<'a>(parts: &'a [PartFacts<'a>]) -> (Option<&'a str>, Option<&'a str>) {
+    let (weak, big) = weak_and_big(parts);
+    (weak.map(|part| part.kind), big.map(|part| part.kind))
+}
+
+/// The same choice, keeping the parts themselves: a caller that wants the chosen part's numbers must not have to find it again by kind, which would pick the wrong one when two parts share a kind.
+fn weak_and_big<'a>(parts: &'a [PartFacts<'a>]) -> (Option<&'a PartFacts<'a>>, Option<&'a PartFacts<'a>>) {
     let mut weak: Option<&PartFacts<'a>> = None;
     let mut big: Option<&PartFacts<'a>> = None;
     for part in parts {
@@ -532,6 +538,26 @@ pub fn weak_and_big_parts<'a>(parts: &[PartFacts<'a>]) -> (Option<&'a str>, Opti
         }
     }
     // A zero-volume part can win the loop only by being the first; the reference's `big_vol` staying at zero means it never wins at all.
-    let big = big.filter(|part| part.volume_ml > 0);
-    (weak.map(|part| part.kind), big.map(|part| part.kind))
+    (weak, big.filter(|part| part.volume_ml > 0))
+}
+
+/// How hard a `FRAGILE_MELEE` weapon is to damage: its weakest counted part, divided by six.
+///
+/// Reference: `handle_melee_wear` (`melee.cpp:272-273`):
+///
+/// ```text
+/// const float fragile_factor = 6.0f;
+/// material_factor = ( weak_chip < INT_MAX ? weak_chip : shield->chip_resistance() ) / fragile_factor;
+/// ```
+///
+/// **The division is what the flag means.** A weapon whose weakest part is resistance 12 wears as if it were resistance 2, so **one cheap bolt makes a good blade fall apart** - the reference's own words
+/// are *"fragile items that fall apart easily when used as a weapon due to poor construction quality"* (`:254-255`).
+///
+/// The **fallback** is reached exactly when nothing counts - no parts, or every part blacklisted - because `weak_chip` starts at `INT_MAX` and any counted part replaces it. It is **not** a
+/// tie-breaker and not an average: the weapon then answers for itself with its own chip resistance.
+#[must_use]
+pub fn fragile_material_factor(parts: &[PartFacts<'_>], own_chip_resistance: f64) -> f64 {
+    const FRAGILE_FACTOR: f64 = 6.0;
+    let (weak, _) = weak_and_big(parts);
+    weak.map_or(own_chip_resistance, |part| f64::from(part.chip_resistance) / FRAGILE_FACTOR)
 }

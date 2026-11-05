@@ -1084,3 +1084,7 @@ forcing every order to `0`.
 
 **Round 1247 ported the `FRAGILE_MELEE` part choice**: `melee::weak_and_big_parts` + `FRAGILE_BLACKLIST` (`melee.cpp:255-270`) - the blacklist, the strict comparisons (first of equal wins) and the zero-volume rule. Gated by
 `creature_fight::the_weak_part_and_the_big_part_are_chosen_the_reference_way`; mutation-checked by disabling the blacklist.
+
+**Round 1248 ported the `FRAGILE_MELEE` material factor**: `melee::fragile_material_factor` (`melee.cpp:272-273`), the weakest counted part over `6.0` with the weapon's own resistance as the
+nothing-counts fallback. Gated by `creature_fight::a_fragile_weapon_wears_at_its_weakest_part_six_times_over`; mutation-checked by changing the divisor to `3.0`. The refactor split a private
+`weak_and_big` that returns the **parts** rather than their kinds, so the factor cannot re-find a part by kind and pick the wrong one.
