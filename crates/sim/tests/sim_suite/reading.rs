@@ -109,3 +109,34 @@ fn a_book_s_own_time_takes_every_scaling_and_the_skim_last() {
         "and a slow reader still skims more than a fast one's skim"
     );
 }
+
+/// How much fun a book is depends on who is reading it, and on whether there is anything left in it.
+///
+/// Reference: `Character::book_fun_for` and `fun_to_read` (`character.cpp:11953-11992`). The rules run **in this order**, and the order is what makes them:
+///
+/// * a cannibal (or psychopath, or sapiovore) reading *To Serve Man* gets the **absolute** fun - a −3 book becomes 3;
+/// * otherwise a spiritual character gets **triple** the absolute fun of an `INSPIRATIONAL` book, but only in the `else` branch, so a cannibal spiritualist gets the cannibal rule alone;
+/// * `LOVES_BOOKS` adds **one**; `HATES_BOOKS` **zeroes** a book with positive fun rather than flipping it, and takes one **more** off a book that was already no fun;
+/// * and only then, a book with more than one fun whose **chapters are all read** is halved.
+#[test]
+fn how_much_fun_a_book_is_depends_on_who_reads_it() {
+    use cdda_sim::reading::{book_fun_for, fun_to_read};
+
+    let book = |fun: i32, chapters: i32, remaining: i32| cdda_sim::reading::FunBook { fun, chapters, remaining };
+    let plain = book(2, 0, 0);
+    assert_eq!(book_fun_for(plain, &[], false, false), 2, "nobody's traits apply");
+    assert!(fun_to_read(plain, &[], false, false), "and a book with fun is fun to read");
+
+    assert_eq!(book_fun_for(plain, &["LOVES_BOOKS"], false, false), 3, "loves books: one more");
+    assert_eq!(book_fun_for(plain, &["HATES_BOOKS"], false, false), 0, "**hates books: zeroes a good book rather than flipping it**");
+    assert!(!fun_to_read(plain, &["HATES_BOOKS"], false, false), "so it is not fun to read any more");
+    assert_eq!(book_fun_for(book(-1, 0, 0), &["HATES_BOOKS"], false, false), -2, "and takes one more off a bad one");
+
+    assert_eq!(book_fun_for(plain, &["SPIRITUAL"], true, false), 6, "**spiritual and inspirational: tripled**");
+    assert_eq!(book_fun_for(plain, &["SPIRITUAL"], false, false), 2, "without the flag, the trait does nothing");
+    assert_eq!(book_fun_for(book(-3, 0, 0), &["CANNIBAL"], false, true), 3, "a cannibal enjoys the human cookbook in reverse");
+
+    assert_eq!(book_fun_for(book(4, 6, 0), &[], false, false), 2, "**chapters all read halves it**");
+    assert_eq!(book_fun_for(book(4, 6, 3), &[], false, false), 4, "with chapters left, no halving");
+    assert_eq!(book_fun_for(book(1, 6, 0), &[], false, false), 1, "and a book of fun one is not halved: the test is `> 1`");
+}

@@ -80,3 +80,60 @@ pub fn book_time_seconds(
     let full = time_to_read(base_seconds, speed_percent, vision_modifier, intel_shortfall);
     if identified { full } else { skimmed(full) }
 }
+
+/// The parts of a book that decide how much fun it is, and of a reader that change the answer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FunBook {
+    /// Its stated fun, which may be negative (`islot_book::fun`).
+    pub fun: i32,
+    /// How many chapters it has (`item::get_chapters`).
+    pub chapters: i32,
+    /// How many of them this reader has left (`item::get_remaining_chapters`).
+    pub remaining: i32,
+}
+
+/// How much fun a particular reader gets from a particular book.
+///
+/// Reference: `Character::book_fun_for` (`character.cpp:11958-11992`), whose rules run **in this order**:
+///
+/// ```text
+/// int fun_bonus = book.type->book->fun;
+/// if( ( CANNIBAL || PSYCHOPATH || SAPIOVORE ) && book == cookbook_human ) fun_bonus = abs( fun_bonus );
+/// else if( SPIRITUAL && book.has_flag( INSPIRATIONAL ) )            fun_bonus = abs( fun_bonus * 3 );
+/// if( LOVES_BOOKS ) fun_bonus++;
+/// else if( HATES_BOOKS ) { if( book.fun > 0 ) fun_bonus = 0; else fun_bonus--; }
+/// if( fun_bonus > 1 && book.get_chapters() > 0 && book.get_remaining_chapters( p ) == 0 ) fun_bonus /= 2;
+/// ```
+///
+/// **Four things about that order are easy to lose.** The first two are an `if / else if`, so a cannibal spiritualist gets the cannibal rule alone. `HATES_BOOKS` **zeroes** a good book instead of
+/// flipping it, and takes one more off a book that was already no fun - so hate makes a bad book worse and a good book merely dull. The chapter halving comes **last**, so it halves what the traits did
+/// rather than what the book stated. And the halving needs `fun_bonus > 1` **after** the traits, so a book of fun one that loves-books makes two is halved.
+#[must_use]
+pub fn book_fun_for(book: FunBook, traits: &[&str], inspirational: bool, human_cookbook: bool) -> i32 {
+    let has = |trait_name: &str| traits.contains(&trait_name);
+    let mut fun = book.fun;
+    if (has("CANNIBAL") || has("PSYCHOPATH") || has("SAPIOVORE")) && human_cookbook {
+        fun = fun.abs();
+    } else if has("SPIRITUAL") && inspirational {
+        fun = (fun * 3).abs();
+    }
+    if has("LOVES_BOOKS") {
+        fun += 1;
+    } else if has("HATES_BOOKS") {
+        if book.fun > 0 {
+            fun = 0;
+        } else {
+            fun -= 1;
+        }
+    }
+    if fun > 1 && book.chapters > 0 && book.remaining == 0 {
+        fun /= 2;
+    }
+    fun
+}
+
+/// Whether a reader would call the book fun at all - the reference's `fun_to_read` (`character.cpp:11953-11956`), which is `book_fun_for > 0`.
+#[must_use]
+pub fn fun_to_read(book: FunBook, traits: &[&str], inspirational: bool, human_cookbook: bool) -> bool {
+    book_fun_for(book, traits, inspirational, human_cookbook) > 0
+}

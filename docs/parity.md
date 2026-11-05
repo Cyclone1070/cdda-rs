@@ -15060,3 +15060,20 @@ slow speed.
 
 **Named, not invented:** `try_understand`, which decides whether the reader's speed even applies (`fun_to_read` needs P5's fun, and the knowledge level needs the skill registry's knowledge), and the
 `fine_detail_vision_mod` call site - the composed function takes the vision modifier its caller resolved, because the worse of two characters' eyes is the caller's question.
+
+## How much fun a book is depends on who reads it (round 1272)
+
+| Piece | Reference | Port |
+|---|---|---|
+the traits and the chapters | `book_fun_for` / `fun_to_read` (`character.cpp:11953-11992`) | `reading::book_fun_for` / `fun_to_read` over `FunBook` |
+Gate | - | `reading::how_much_fun_a_book_is_depends_on_who_reads_it` |
+
+**Four things about the order are easy to lose, and the gate pins each:**
+
+- the first two rules are an `if / else if`, so **a cannibal spiritualist gets the cannibal rule alone** - the spiritual tripling never runs;
+- `HATES_BOOKS` **zeroes a good book instead of flipping it**, and takes one more off a book that was already no fun - so hatred makes a bad book worse and a good book merely dull;
+- the chapter halving comes **last**, so it halves what the traits produced rather than what the book stated;
+- and the halving needs `fun_bonus > 1` **after** the traits, so a book of fun one that `LOVES_BOOKS` makes two **is** halved - the one case where a trait changes whether the last rule fires.
+
+**Named, not invented:** `To Serve Man`'s own id (the `cookbook_human` comparison arrives as a flag), `INSPIRATIONAL` as a per-book boolean the caller passes, and `has_morale_to_read`, the second
+route the reading code lets a reader take when the book is no fun.

@@ -1159,3 +1159,6 @@ eleven. Gated by `sight::a_lamp_beats_the_floor_and_nothing_beats_full_light`, w
 `books::the_item_loader_fills_the_book_slot_and_inherits_field_by_field`. **`None` means "not a book"**, which the gate proves with a non-book in the same directory.
 
 **Round 1271 composed the reading time end to end** as `reading::book_time_seconds` (`character.cpp:12411-12436`), gated on the skim-last ordering and the corpus's own 35-minute book.
+
+**Round 1272 ported `Character::book_fun_for` and `fun_to_read`** (`character.cpp:11953-11992`) as `reading::book_fun_for`/`fun_to_read`, gated on the four order-sensitive rules - the `else if`, the
+zeroing dislike, the last-run halving, and the trait-then-threshold case.
