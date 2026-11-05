@@ -1948,6 +1948,9 @@ pub struct Wander {
     pub square: (i32, i32, i32),
     /// How many turns it will keep walking, counted down as it goes.
     pub turns_left: i32,
+    /// Whether the sound it is walking towards was worth investigating - the reference's `monster::provocative_sound` (`monster.cpp:3975`), which decides whether a duller sound can
+    /// distract it before it arrives.
+    pub provocative: bool,
 }
 
 /// Points a creature at a noise for a number of turns, keeping whichever wander it already had only if that one lasts longer.
@@ -1969,7 +1972,11 @@ pub fn set_wander(world: &mut World, entity: Entity, square: (i32, i32, i32), tu
         wander.square = square;
         wander.turns_left = turns;
     } else {
-        world.entity_mut(entity).insert(Wander { square, turns_left: turns });
+        world.entity_mut(entity).insert(Wander {
+            square,
+            turns_left: turns,
+            provocative: false,
+        });
     }
 }
 

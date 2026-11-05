@@ -150,3 +150,43 @@ fn a_sound_is_provocative_by_its_kind_or_its_loudness() {
     let shot = (0..200).filter(|_| heard_as_provocative(SoundCategory::Combat, 154, &mut dice)).count();
     assert_eq!(shot, 200, "a .223 at the shooter's own square is heard as provocative every time: {shot}");
 }
+
+/// A monster already walking towards something interesting is not distracted by something duller.
+///
+/// Reference: `monster::hear_sound`'s two guards (`monster.cpp:3940-3944`, `:3966-3970`): a **provocative** sound it is following cannot be replaced by a **dull** one while the wander has
+/// turns left, and any sound that would not hold it **as long** is ignored. **The second guard is the one that is easy to miss**: a loud dull noise that lasts fewer turns than the current
+/// wander changes nothing, even though its volume is greater.
+#[test]
+fn a_monster_following_something_interesting_ignores_a_duller_sound() {
+    use bevy_ecs::prelude::*;
+    use cdda_core_types::rng::Rolls;
+
+    let mut world = World::new();
+    cdda_sim::singletons::put_rolls(&mut world, Rolls::new(31));
+    let zombie = cdda_sim::creature::spawn_creature(&mut world, "the zombie", (0, 0, 0));
+    // A listener is a creature that **hears**: `hear_sounds` asks for the `HEARS` flag (`hearing.rs:78`), so a zombie without it would make this gate pass by doing nothing at all.
+    cdda_sim::creature_flags::add_flag(&mut world, zombie, "HEARS");
+    cdda_sim::creature::set_wander(&mut world, zombie, (5, 5, 0), 40);
+    // Mark the wander as worth investigating, the way the hearing rule does for a provocative sound.
+    if let Some(mut wander) = world.get_mut::<cdda_sim::creature::Wander>(zombie) {
+        wander.provocative = true;
+    }
+    // A dull sound that would hold it only ten turns, and a louder dull one that would hold it twenty.
+    cdda_sim::sounds::make_a_sound_of_kind(&mut world, (9, 0, 0), 30, "bang!", cdda_sim::sounds::SoundCategory::Combat);
+    cdda_sim::hearing::hear_sounds(&mut world);
+
+    let wander = world.get::<cdda_sim::creature::Wander>(zombie).copied().expect("it is still wandering");
+    assert_eq!(wander.turns_left, 40, "the dull sound did not replace a provocative wander");
+    assert_eq!(wander.square, (5, 5, 0), "and it is still heading where the interesting sound was");
+
+    // A sound that would hold it sixty turns wins, because it lasts longer - the second guard is about duration, not volume.
+    let mut world = World::new();
+    cdda_sim::singletons::put_rolls(&mut world, Rolls::new(31));
+    let zombie = cdda_sim::creature::spawn_creature(&mut world, "the zombie", (0, 0, 0));
+    cdda_sim::creature_flags::add_flag(&mut world, zombie, "HEARS");
+    cdda_sim::creature::set_wander(&mut world, zombie, (5, 5, 0), 10);
+    cdda_sim::sounds::make_a_sound_of_kind(&mut world, (9, 0, 0), 60, "bang!", cdda_sim::sounds::SoundCategory::Combat);
+    cdda_sim::hearing::hear_sounds(&mut world);
+    let wander = world.get::<cdda_sim::creature::Wander>(zombie).copied().expect("it is wandering");
+    assert!(wander.turns_left > 40, "a longer-lasting sound does take over: {}", wander.turns_left);
+}

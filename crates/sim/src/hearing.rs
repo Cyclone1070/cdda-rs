@@ -126,6 +126,20 @@ pub fn hear_sounds(world: &mut World) -> usize {
             });
         }
         if let Some(heard_at) = loudest {
+            // Reference: `monster::hear_sound`'s two guards (`monster.cpp:3940-3944` and `:3966-3970`), which are what stop a monster on the trail of something interesting from being
+            // distracted by something duller: **a provocative sound always wins over a dull one that is already being followed**, and **a sound that would not hold it as long is ignored**.
+            let walking = world.get::<crate::creature::Wander>(entity).copied();
+            let following = walking.map_or(0, |wander| wander.turns_left);
+            let already_provoked = walking.is_some_and(|wander| wander.provocative);
+            if already_provoked && !heard_at.provocative && following > 0 {
+                continue;
+            }
+            if heard_at.wander_turns < following {
+                continue;
+            }
+            if let Some(mut wander) = world.get_mut::<crate::creature::Wander>(entity) {
+                wander.provocative = heard_at.provocative;
+            }
             world.entity_mut(entity).insert(heard_at);
             // The guess is **also** where the creature now walks: `monster::hear_sound` ends in `wander_to`, which is what turns a noise into a monster arriving.
             crate::creature::set_wander(world, entity, heard_at.at, heard_at.wander_turns);

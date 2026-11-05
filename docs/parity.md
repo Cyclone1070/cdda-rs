@@ -14007,3 +14007,23 @@ writes as a `||`**. Splitting the rule into two rounds is what made the second h
 **Named, not invented:** the **`already following a more interesting sound`** guards (`provocative_sound && !tmp_provocative && wandf > 0`, and `wander_turns < wandf`), which need the
 creature's current `wander` target and its age - the port has the wander and not the age-comparison; the `morale < 0` branch that makes a frightened monster flee a noise; `process_trigger`
 `SOUND`; and `recent_sounds`, which is where the reference keeps the flag for the AI's next turn rather than on the hearing event.
+
+## A monster on a trail is not distracted (round 1188)
+
+| Piece | Reference | Port |
+|---|---|---|
+the flag | `monster::provocative_sound` (`monster.cpp:3975`) | `creature::Wander::provocative` |
+the two guards | `monster.cpp:3940-3944` and `:3966-3970` | the same two, at the top of the hearing rule |
+Gate | - | `a_monster_following_something_interesting_ignores_a_duller_sound` |
+
+**Two guards, and the second is the surprising one.** A monster already walking towards a **provocative** sound ignores a **dull** one while its wander has turns left; and **any** sound that
+would not hold it **as long** as the current wander is ignored - **so a louder sound can lose to a quieter one that lasts longer.** Volume decides *whether* it is heard; **duration decides
+whether it wins**.
+
+**The gate's first run passed its first assertion for the wrong reason, and its second failed.** The zombie was not a listener at all: `hear_sounds` only considers a creature carrying `HEARS`, so
+**nothing was heard and the "wander unchanged" assertion was vacuously true.** The fix is one `add_flag` - and the lesson is the port's recurring one: **a gate whose subject never happened passes
+for the wrong reason, and only a second, positive assertion exposes it.** The second half of the gate is what caught it: the louder sound *should* have taken over and did not.
+
+**Named, not invented:** the `morale < 0` branch (a frightened monster flees the noise instead of walking to it), `process_trigger` `SOUND`, the `friendly`/player-source exemption, `can_hear()`
+beyond the `HEARS` flag, and **`recent_sounds`** - the reference keeps the provocative flag on a *list of the turn's sounds* that the AI reads on its next turn, where the port keeps it on the
+creature's own wander. **Same answer, one fewer table.**

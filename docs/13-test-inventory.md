@@ -946,3 +946,7 @@ provocative; only speech, electronic speech, alert and order are.**
 **Round 1187 added the loudness half of provocativeness**: `sounds::heard_as_provocative` (`monster.cpp:3939` - `provocative || volume >= normal_roll( 30, 5 )`) and `HeardSound::provocative`, so
 the hearing rule now answers what the AI asks. Gated by `sounds::a_sound_is_provocative_by_its_kind_or_its_loudness`, which sets the two halves against each other: a quiet gunshot never, a loud
 one almost always, a whisper of speech always.
+
+**Round 1188 ported `hear_sound`'s two "already following something" guards** (`monster.cpp:3940-3970`) and the flag they read, `Wander::provocative`. Gated by
+`sounds::a_monster_following_something_interesting_ignores_a_duller_sound`, whose first run exposed a **vacuous** assertion: the test's zombie carried no `HEARS` flag, so nothing was heard at all
+and "the wander did not change" was true for no reason. The second half of the gate - a longer-lasting sound *does* take over - is what found it.
