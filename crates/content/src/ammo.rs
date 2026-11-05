@@ -38,6 +38,9 @@ pub struct AmmoType {
     pub ammo_type: String,
     /// How loud the round is: `islot_ammo::loudness` (`itype.h:1111`), which the factory fills from the round's damage when the data leaves it unstated.
     pub loudness: i32,
+    /// The round's ammunition effects, by name: `islot_ammo::ammo_effects` (`itype.h:1100`). **These change what a shot does to the world**, not to its target: `BLACKPOWDER` fouls a gun
+    /// far faster (round 1173's other branch), `NON_FOULING` not at all, `INCENDIARY` sets fires, `FLARE` lights the way.
+    pub effects: Vec<String>,
 }
 
 /// Reads one round from a dump row.
@@ -59,6 +62,10 @@ pub fn read_one(id: &str, object: &Object) -> Result<AmmoType, String> {
         shot_damage: float(object, "shot_damage")?,
         recoil: number(object, "recoil")?,
         loudness: number(object, "loudness")?,
+        effects: match object.get("effects") {
+            Some(Value::Str(joined)) => joined.split(',').filter(|name| !name.is_empty()).map(str::to_owned).collect(),
+            _ => Vec::new(),
+        },
         ammo_type: match object.get("ammo_types") {
             Some(Value::Str(kind)) => kind.clone(),
             _ => String::new(),
@@ -124,5 +131,13 @@ fn float(object: &Object, key: &str) -> Result<f64, String> {
         }
         Some(_) => Err(format!("`{key}` is not a number")),
         None => Err(format!("`{key}` is missing")),
+    }
+}
+
+impl AmmoType {
+    /// Whether the round carries a named effect, which is how the reference asks (`it.ammo_effects().count( ammo_effect_BLACKPOWDER )`).
+    #[must_use]
+    pub fn has_effect(&self, name: &str) -> bool {
+        self.effects.iter().any(|effect| effect == name)
     }
 }

@@ -330,7 +330,10 @@ pub fn fire_at(
     // Reference: `it.set_var( "dirt", ... )` at the end of `handle_gun_damage` (`ranged.cpp:864-872`), which is why a gun that keeps firing eventually jams.
     if let Some(gun_entity) = gun_entity {
         let dirt = world.get::<Dirt>(gun_entity).map_or(0, |dirt| dirt.points);
-        let fouled = dirt_after_a_shot(dirt, false, 0, false);
+        // The round's own effects decide the fouling, which is what the ammo dump's `effects` column is for.
+        let blackpowder = round.is_some_and(|round| round.has_effect("BLACKPOWDER"));
+        let non_fouling = round.is_some_and(|round| round.has_effect("NON_FOULING"));
+        let fouled = dirt_after_a_shot(dirt, blackpowder, 0, non_fouling);
         if let Some(mut holder) = world.get_mut::<Dirt>(gun_entity) {
             holder.points = fouled;
         } else {

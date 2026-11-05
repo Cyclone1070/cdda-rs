@@ -28,3 +28,31 @@ fn every_round_states_the_ammunition_type_it_belongs_to() {
     assert!(shared > 50, "most ammunition types have several rounds: {shared} types of {}", by_type.len());
     assert_eq!(by_type.get("shot").copied(), Some(rounds.iter().filter(|round| round.ammo_type == "shot").count()).filter(|count| *count > 1), "and `shot` is one of the crowded ones");
 }
+
+/// Every round states the ammunition effects it carries, and black powder is one of them.
+///
+/// Reference: `islot_ammo::ammo_effects` (`itype.h:1100`). **This is the data round 1173's black-powder branch was waiting for**, and the gate counts rather than sampling: the set is not small,
+/// most rounds carry none, and the named ones the rules read are all present in it.
+#[test]
+fn every_round_states_the_ammunition_effects_it_carries() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/ammo.json");
+    let bytes = std::fs::read(path).expect("the ammo dump exists");
+    let value = cdda_json::parse(&bytes).expect("valid JSON");
+    let rounds = cdda_content::ammo::load_dump(&value).expect("the dump loads");
+
+    let carrying = |name: &str| rounds.iter().filter(|round| round.has_effect(name)).count();
+    let powder = carrying("BLACKPOWDER");
+    assert!(powder > 50, "black powder rounds exist and are not rare: {powder} of {}", rounds.len());
+    assert!(carrying("NON_FOULING") > 0, "as do non-fouling rounds: {}", carrying("NON_FOULING"));
+    assert!(carrying("INCENDIARY") > 0, "and incendiaries: {}", carrying("INCENDIARY"));
+
+    // The shape of the set: most rounds carry nothing at all, and the ones that do carry several.
+    let empty = rounds.iter().filter(|round| round.effects.is_empty()).count();
+    assert!(empty > 100, "most rounds carry no effects: {empty} of {}", rounds.len());
+    let most = rounds.iter().map(|round| round.effects.len()).max();
+    assert!(most.is_some_and(|count| count >= 3), "and some carry several: {most:?}");
+    assert!(
+        rounds.iter().find(|round| round.id == "223").is_some_and(|round| !round.has_effect("BLACKPOWDER")),
+        "a .223 is not black powder"
+    );
+}

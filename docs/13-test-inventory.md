@@ -892,3 +892,7 @@ their gun with `NeverJams` - recorded in the docs because **a rule that consumes
 **Round 1173 closed the fouling loop**: `shot::dirt_after_a_shot` (`ranged.cpp:864-872` - one point a shot, ordinary ammunition capped at **7,150**, black powder to **10,000**) and the write-back to the
 gun's `Dirt` component inside `fire_at`. Gated by `shot_rules::a_shot_dirties_the_gun_by_one_until_ordinary_ammunition_stops_at_7150` (the two caps, black powder, `NON_FOULING`) and
 `shot_rules::every_shot_leaves_the_gun_dirtier` (the store's `Dirt` moves 1, 2, 3 across three shots).
+
+**Round 1174 dumped the round's ammunition effects**: `AmmoType::effects` and `has_effect` (ammo dump **version 5**, `islot_ammo::ammo_effects`), and the fouling rule now reads `BLACKPOWDER` and
+`NON_FOULING` from the round. Gated by `content_suite::ammo_rules::every_round_states_the_ammunition_effects_it_carries` (125 black-powder rounds, most with none) and
+`shot_rules::a_blackpowder_round_dirties_the_gun_faster_than_a_cartridge`, which is the differential round 1173 had to write by hand.

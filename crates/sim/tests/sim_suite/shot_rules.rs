@@ -914,3 +914,65 @@ fn every_shot_leaves_the_gun_dirtier() {
         );
     }
 }
+
+/// A black-powder round fouls the gun far faster than a cartridge, and the difference comes from the dump.
+///
+/// Reference: `ranged.cpp:864-872` reads `it.ammo_effects().count( ammo_effect_BLACKPOWDER )`. **This is the differential round 1173 could not write**, because the ammo dump carried no effects:
+/// the same gun, the same shooter, the same dirt, and only the round changes.
+#[test]
+fn a_blackpowder_round_dirties_the_gun_faster_than_a_cartridge() {
+    use bevy_ecs::prelude::*;
+    use cdda_core_types::rng::Rolls;
+
+    let read = |name: &str| {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let bytes = std::fs::read(path).expect("the corpus file exists");
+        cdda_json::parse(&bytes).expect("valid JSON")
+    };
+    let guns = cdda_content::guns::load_dump(&read("items/guns.json")).expect("the guns load");
+    let lines = cdda_content::skills::load_dump(&read("skills.json")).expect("the skills load");
+    let rounds = cdda_content::ammo::load_dump(&read("items/ammo.json")).expect("the ammo loads");
+    let gun = guns.iter().find(|gun| gun.id == "ruger_mini").expect("the Mini-14").clone();
+    let plain = rounds.iter().find(|round| round.id == "223").expect("the .223").clone();
+    let powder = rounds
+        .iter()
+        .find(|round| round.has_effect("BLACKPOWDER"))
+        .expect("a black powder round is in the dump")
+        .clone();
+
+    let dirt_after = |round: &cdda_content::ammo::AmmoType| {
+        let mut world = World::new();
+        cdda_sim::singletons::put_rolls(&mut world, Rolls::new(17));
+        let shooter = cdda_sim::creature::spawn_creature(&mut world, "the shooter", (0, 0, 0));
+        world
+            .entity_mut(shooter)
+            .insert(cdda_sim::creature::Strength { base: 8 })
+            .insert(cdda_sim::creature::Dexterity { base: 20 })
+            .insert(cdda_sim::creature::Perception { base: 20 })
+            .insert(cdda_sim::creature::Moves { left: 1_000 });
+        let held = world
+            .spawn((
+                cdda_sim::GroundItem {
+                    kind: cdda_sim::ItemTypeId(7),
+                    charges: 10,
+                    age: 0,
+                    burnt: 0,
+                    damage: 0,
+                    burn: None,
+                },
+                cdda_sim::Position { x: 0, y: 0, z: 0 },
+                cdda_sim::shot::NeverJams,
+            ))
+            .id();
+        cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (5, 0, 0), 18.0, Some(round), Some(held), 3_180.0, false);
+        world.get::<cdda_sim::shot::Dirt>(held).map_or(0, |dirt| dirt.points)
+    };
+
+    assert!(!plain.has_effect("BLACKPOWDER"), "the .223 is ordinary ammunition");
+    assert!(powder.has_effect("BLACKPOWDER"), "and `{}` is not", powder.id);
+    let plain_dirt = dirt_after(&plain);
+    let powder_dirt = dirt_after(&powder);
+    assert_eq!(plain_dirt, 1, "an ordinary round leaves one point behind");
+    assert!(powder_dirt > plain_dirt, "and black powder leaves far more: {powder_dirt} against {plain_dirt}");
+    assert!(powder_dirt >= 100, "which is the two hundred less the weapon's tolerance and plus one: {powder_dirt}");
+}

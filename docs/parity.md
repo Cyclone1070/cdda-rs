@@ -13690,3 +13690,24 @@ missing component reads as zero and a present one at zero reads the same**, so t
 **Named, not invented:** `BLACKPOWDER` and `NON_FOULING` as **ammo effects**, which the ammo dump does not carry yet - so every round the port knows is ordinary, and the black-powder branch is
 gated by hand rather than by data; `NON_FOULING` as a **gun** flag (read from the prototypes dump when a step needs it); the `NO_DIRTYING` fault flag, `UNLUBRICATED`'s screech and damage, and
 the `gun_chamber_spent` cycling fault.
+
+## Black powder fouls faster, and the data says so (round 1174)
+
+| Piece | Reference | Port |
+|---|---|---|
+the data | `islot_ammo::ammo_effects` (`itype.h:1100`) | ammo dump **version 5**, field `effects`, read by `AmmoType::has_effect` |
+the rule | `it.ammo_effects().count( ammo_effect_BLACKPOWDER )` (`ranged.cpp:864-872`) | the fouling call in `fire_at` now reads the round |
+Gate | - | `every_round_states_the_ammunition_effects_it_carries` and `a_blackpowder_round_dirties_the_gun_faster_than_a_cartridge` |
+
+**This is the differential round 1173 could not write.** That round gated the black-powder branch **by hand** and said so, because the ammo dump carried no effects; this round dumps them, so the
+claim can be made the way it should be - **the same gun, the same shooter, the same dirt, and only the round changes.**
+
+**The counts, not a sample:** **125 of 736** rounds carry black powder, **most** carry no effects at all, and the ones that do carry several (`MUZZLE_SMOKE,BLACKPOWDER,RECYCLED,COOKOFF` for one
+10mm load). **The set is large enough that "an effect" is a real column and small enough that it has to be counted rather than assumed.**
+
+**The `effects` field took two attempts, and the first one is worth recording.** I inserted it into the `AmmoType` struct *after* the loader had already been changed - the edit anchored on a field
+that the previous round's doc comment had moved, so the field landed in a doc comment's tail and the compiler said `struct AmmoType has no field named effects`. **An edit that anchors on a line
+rather than on the structure is how a patch lands in the wrong place**, and the fix is to anchor on the closing brace that ends the struct.
+
+**Named, not invented:** the gun's and gunmods' own `ammo_effects` (which `item::ammo_effects` unions into the round's, `item.cpp:11963-11979`), the **behaviour** of `INCENDIARY`, `FLARE`,
+`EXPLOSIVE` and the rest (each is a rule of its own and several are ported elsewhere), and `NON_FOULING` as a gun flag.
