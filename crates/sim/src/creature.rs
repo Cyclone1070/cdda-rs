@@ -1863,6 +1863,20 @@ pub fn reap_dead_creatures_as_corpses(
             }
         }
         if let Some(kind) = kind {
+            // Reference: `monster::die` -> `drop_items_on_death` (`monster.cpp:3128-3131`, `:3248-3272`): the body drops what its `death_drops` group produces, on the square it fell
+            // on. **Every body does this**, whatever it left behind - a robot that leaves scrap still drops what it carried, and a group the world does not hold drops nothing rather
+            // than inventing an item.
+            let group = crate::monster_registry::death_drops_of(world, *kind);
+            if !group.is_empty()
+                && let Some(produced) = crate::item_groups::draw(world, &group)
+            {
+                let names = crate::item_registry::snapshot(world);
+                for (item, count) in produced {
+                    if let Some(kind_of_item) = names.id_of(&item) {
+                        crate::drop_item(world, (square.0, square.1), kind_of_item, count.max(1));
+                    }
+                }
+            }
             // Reference: `monster::die`'s `corpse_type` switch (`monster.cpp:3093-3106`). **The data has the last word**: `none` leaves nothing at all (not even blood, because the
             // bleeding lives inside the normal branch), and `splatter` splatters however gently the body was killed. `broken` is loaded and still leaves a corpse - the reference's
             // broken branch makes a *different item* (`broken_<id>`), which waits on the item-id lookup, and that is recorded in `docs/parity.md`.

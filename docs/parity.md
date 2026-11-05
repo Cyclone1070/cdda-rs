@@ -15729,3 +15729,20 @@ the corpus and called it parity. The emitter now **only dumps a named group**, a
 
 **Named, not invented:** the item group behind `death_drops` itself - weights, counts, nested groups - is the monster-loot step, and the port has the *id* rather than the group. `quiet_death`
 is not dumped because it is a **monster instance** field (`monster.h:574`), not a type's: the port keeps the `QUIETDEATH` flag's half and names the rest.
+
+## A body drops what its group says (round 1309)
+
+| Piece | Reference | Port |
+|---|---|---|
+the draw | `drop_items_on_death` (`monster.cpp:3248-3272`) over `mtype::death_drops` | `monster_registry::set_death_drops` / `death_drops_of`, drawn by `item_groups::draw` |
+the placement | `add_item_or_charges( pos, it )` | `drop_item` on the square the body fell on |
+Gate | - | `creature_fight::a_body_drops_what_its_group_says` |
+
+**Every body does this, whatever it left behind**: the drop is not part of the corpse branch, so a machine that leaves scrap still drops what its group produced. **A group the world does not
+hold drops nothing** rather than inventing an item - the same rule as the unknown blood colour and the unknown broken item.
+
+**The group is drawn from the world's own dice**, so the loot is part of the turn's draw sequence rather than a second stream, which is what makes a scenario's seed reproducible end to end.
+
+**Named, not invented:** the corpse's **pockets** - the reference puts wearable drops *on* the corpse and nests the rest into them (`:3274-3300`), which is the container model the item
+component work still owes; the port drops everything on the square, which is the reference's own branch for a body with **no** corpse. `FILTHY` marking, `DESTROY_ITEM_ON_MON_DEATH`, the
+dissectables and `no_extra_death_drops` are named with it.

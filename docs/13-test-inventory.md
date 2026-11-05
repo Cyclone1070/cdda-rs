@@ -1264,3 +1264,6 @@ one that really revives. `broken` is still an ordinary corpse and is named as th
 
 **Round 1308 dumped `broken_itype` and `death_drops`** (`mtype.h:367`, `:404`) and found that **no type sets the first** (so the string rule is the whole rule) while the second is often an
 **inline group whose generated id is not a name** - the emitter now filters those, which is what the gate checks.
+
+**Round 1309 made a body drop its `death_drops` group** (`monster.cpp:3128-3131`, `:3248-3272`), drawn from the world's own dice and dropped on the square it fell on. The corpse's pockets are
+the named gap.

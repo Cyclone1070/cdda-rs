@@ -3027,3 +3027,61 @@ fn a_broken_body_drops_the_broken_item() {
         "**it is scrap, not a corpse** - there is nothing to butcher"
     );
 }
+
+/// A body drops what its `death_drops` group says, on the square it fell on.
+///
+/// Reference: `monster::die` (`monster.cpp:3128-3131`) -> `drop_items_on_death` (`monster.cpp:3248-3272`), which draws the group with `item_group::items_from` and puts every
+/// produced item on the square. **A hallucination drops nothing** (`:3250-3252`), and a type with no group drops nothing (`:3253-3255`) - two early returns that look the same and are
+/// not: one is about the body being real, the other about the data saying nothing.
+#[test]
+fn a_body_drops_what_its_group_says() {
+    let mut world = World::new();
+    cdda_sim::monster_registry::set_monster_types(
+        &mut world,
+        &[cdda_sim::monster_registry::MonsterKind { id: "mon_looter", hp: 40 }],
+    );
+    cdda_sim::monster_registry::set_death_drops(&mut world, cdda_sim::MonsterKindId(1), "loot_group");
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[cdda_sim::item_registry::Kind {
+            id: "rag",
+            volume_ml: 250,
+            weight_g: 100,
+            pockets: &[],
+            thrown_damage: 0.0,
+            melee_bash: 0.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
+            to_hit: 0,
+        }],
+    );
+    // The group's data, as a reader would find it: a collection with one entry, always one rag.
+    let mut definitions = std::collections::BTreeMap::new();
+    definitions.insert(
+        "loot_group".to_owned(),
+        cdda_content::item_group_draw::Definition {
+            id: "loot_group".to_owned(),
+            distribution: false,
+            entries: vec![cdda_content::item_group_draw::Entry::Item {
+                id: "rag".to_owned(),
+                probability: 100,
+                count: (1, 1),
+                event: None,
+            }],
+        },
+    );
+    cdda_sim::item_groups::set_groups(&mut world, definitions);
+    let mut dice = cdda_core_types::rng::Rolls::new(1);
+    cdda_sim::singletons::put_rolls(&mut world, dice);
+
+    let looter = cdda_sim::spawn_monster(&mut world, (11, 11), cdda_sim::MonsterKindId(1), 40);
+    cdda_sim::creature::set_health_left(&mut world, looter, 0);
+    cdda_sim::creature::reap_dead_creatures_as_corpses(&mut world, cdda_sim::ItemTypeId(99), |_| 62_500);
+
+    let left = cdda_sim::items_at(&mut world, (11, 11));
+    let rag = cdda_sim::item_registry::id_of(&mut world, "rag").expect("the item is registered");
+    assert!(
+        left.iter().any(|item| world.get::<cdda_sim::GroundItem>(*item).is_some_and(|held| held.kind == rag)),
+        "**the group's rag is on the square**: {left:?}"
+    );
+}

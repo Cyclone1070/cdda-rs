@@ -43,6 +43,8 @@ pub struct MonsterTypes {
     corpse_types: Vec<String>,
     /// The item a `broken` kind leaves when the data names it itself (`mtype::broken_itype`, `mtype.h:367`).
     broken_itypes: Vec<String>,
+    /// The item group a kind's body drops (`mtype::death_drops`, `mtype.h:404`).
+    death_drops: Vec<String>,
 }
 
 impl MonsterTypes {
@@ -82,6 +84,7 @@ pub fn set_monster_types(world: &mut World, kinds: &[MonsterKind<'_>]) {
         death_messages: Vec::new(),
         corpse_types: Vec::new(),
         broken_itypes: Vec::new(),
+        death_drops: Vec::new(),
     });
 }
 
@@ -231,5 +234,31 @@ pub fn broken_itype_of(world: &mut World, kind: MonsterKindId) -> String {
     world
         .get::<MonsterTypes>(entity)
         .and_then(|registry| registry.broken_itypes.get(kind.0 as usize).cloned())
+        .unwrap_or_default()
+}
+
+/// Says which item group a kind's body drops when it dies.
+///
+/// Reference: `mtype::death_drops` (`mtype.h:404`), drawn by `drop_items_on_death` (`monster.cpp:3248-3272`). **339 of the 1,154 types name one**; the rest leave their loot to an inline
+/// group, which the dump does not name and the port therefore does not have.
+pub fn set_death_drops(world: &mut World, kind: MonsterKindId, group: &str) {
+    let entity = singletons::singleton::<MonsterTypes, TheMonsterTypes>(world);
+    let Some(mut registry) = world.get_mut::<MonsterTypes>(entity) else {
+        return;
+    };
+    let at = kind.0 as usize;
+    if registry.death_drops.len() <= at {
+        registry.death_drops.resize(at + 1, String::new());
+    }
+    registry.death_drops[at] = group.to_owned();
+}
+
+/// The item group a kind's body drops, or empty.
+#[must_use]
+pub fn death_drops_of(world: &mut World, kind: MonsterKindId) -> String {
+    let entity = singletons::singleton::<MonsterTypes, TheMonsterTypes>(world);
+    world
+        .get::<MonsterTypes>(entity)
+        .and_then(|registry| registry.death_drops.get(kind.0 as usize).cloned())
         .unwrap_or_default()
 }
