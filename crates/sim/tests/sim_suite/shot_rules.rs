@@ -457,7 +457,9 @@ fn a_birdshot_scatters_off_a_distant_square_and_not_off_a_near_one() {
             .insert(cdda_sim::creature::Moves { left: 1_000 });
         let target = cdda_sim::creature::spawn_creature(&mut world, "the target", (range, 0, 0));
         world.entity_mut(target).insert(cdda_sim::creature::Health { hp: 80, max_hp: 80 });
-        cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (range, 0, 0), 18.0, Some(&bird), None, 3_000.0, false)
+        // A `NEVER_JAMS` gun, so the misfire roll round 1172 added does not eat one of the four seeds' draws.
+        let held = world.spawn((cdda_sim::shot::NeverJams, cdda_sim::Position { x: 0, y: 0, z: 0 })).id();
+        cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (range, 0, 0), 18.0, Some(&bird), Some(held), 3_000.0, false)
     };
 
     // Four seeds: at twenty squares at least one pellet wanders a whole square, and at two squares none ever can - `spread * (2 - 1)` is under one for any draw within 300 arcmin.
@@ -510,7 +512,9 @@ fn a_shotgun_fires_its_round_s_whole_count_and_a_rifle_fires_one() {
             .insert(cdda_sim::creature::Moves { left: 1_000 });
         let target = cdda_sim::creature::spawn_creature(&mut world, "the target", (1, 0, 0));
         world.entity_mut(target).insert(cdda_sim::creature::Health { hp: 500, max_hp: 500 });
-        let fired = cdda_sim::shot::fire_at(&mut world, shooter, gun, &lines, (1, 0, 0), 18.0, Some(round), None, 3_000.0, false);
+        // `NEVER_JAMS`, because round 1172 put a misfire roll ahead of every shot and this gate is about the pellet count rather than the dice.
+        let held = world.spawn((cdda_sim::shot::NeverJams, cdda_sim::Position { x: 0, y: 0, z: 0 })).id();
+        let fired = cdda_sim::shot::fire_at(&mut world, shooter, gun, &lines, (1, 0, 0), 18.0, Some(round), Some(held), 3_000.0, false);
         fired.hurt
     };
 
@@ -596,7 +600,10 @@ fn a_shot_puts_a_sound_in_the_world_at_the_shooter_s_square() {
         .insert(cdda_sim::creature::Moves { left: 1_000 });
 
     assert!(cdda_sim::sounds::heard_this_turn(&mut world).is_empty(), "nothing has been heard yet");
-    let fired = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (6, 4, 0), 18.0, Some(&cartridge), None, 3_180.0, false);
+    // The gun is given `NEVER_JAMS` **because round 1172 added a misfire roll ahead of every shot**: a durability-8 gun jams once in 1,536 tries, and this gate is about the sound rather than
+    // about the dice. A scenario that wants a specific shot has to say the gun cannot jam.
+    let held = world.spawn((cdda_sim::shot::NeverJams, cdda_sim::Position { x: 3, y: 4, z: 0 })).id();
+    let fired = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (6, 4, 0), 18.0, Some(&cartridge), Some(held), 3_180.0, false);
     assert!(fired.loaded, "the shot fired");
 
     let heard = cdda_sim::sounds::heard_this_turn(&mut world);
@@ -756,4 +763,73 @@ fn a_filthy_gun_misfires_and_a_never_jams_gun_never_does() {
     // And the flag skips both branches, even at maximum dirt.
     let mut dice = Rolls::new(5);
     assert!(!misfires(10_000, 8, true, &mut dice), "NEVER_JAMS ignores the dirt entirely");
+}
+
+/// A filthy gun does not fire at all, and the round it would have used is still in it.
+///
+/// Reference: `if( !handle_gun_damage( gun ) ) break;` (`ranged.cpp:1078`) - the check is **before** the projectile and before the round is spent, so a misfire costs nothing but the attempt. The
+/// gate sets the gun's dirt to the reference's maximum, where the chance is a certainty, so the claim does not depend on a lucky seed.
+#[test]
+fn a_filthy_gun_misfires_instead_of_firing_and_keeps_its_round() {
+    use bevy_ecs::prelude::*;
+    use cdda_core_types::rng::Rolls;
+
+    let read = |name: &str| {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let bytes = std::fs::read(path).expect("the corpus file exists");
+        cdda_json::parse(&bytes).expect("valid JSON")
+    };
+    let guns = cdda_content::guns::load_dump(&read("items/guns.json")).expect("the guns load");
+    let lines = cdda_content::skills::load_dump(&read("skills.json")).expect("the skills load");
+    let rounds = cdda_content::ammo::load_dump(&read("items/ammo.json")).expect("the ammo loads");
+    let gun = guns.iter().find(|gun| gun.id == "ruger_mini").expect("the Mini-14").clone();
+    let cartridge = rounds.iter().find(|round| round.id == "223").expect("the .223").clone();
+
+    let fire = |dirt: i32, never_jams: bool| {
+        let mut world = World::new();
+        cdda_sim::singletons::put_rolls(&mut world, Rolls::new(3));
+        let shooter = cdda_sim::creature::spawn_creature(&mut world, "the shooter", (0, 0, 0));
+        world
+            .entity_mut(shooter)
+            .insert(cdda_sim::creature::Strength { base: 8 })
+            .insert(cdda_sim::creature::Dexterity { base: 20 })
+            .insert(cdda_sim::creature::Perception { base: 20 })
+            .insert(cdda_sim::creature::Moves { left: 1_000 });
+        let target = cdda_sim::creature::spawn_creature(&mut world, "the target", (1, 0, 0));
+        world.entity_mut(target).insert(cdda_sim::creature::Health { hp: 500, max_hp: 500 });
+        let held = world
+            .spawn((
+                cdda_sim::GroundItem {
+                    kind: cdda_sim::ItemTypeId(7),
+                    charges: 5,
+                    age: 0,
+                    burnt: 0,
+                    damage: 0,
+                    burn: None,
+                },
+                cdda_sim::Position { x: 0, y: 0, z: 0 },
+                cdda_sim::shot::Dirt { points: dirt },
+            ))
+            .id();
+        if never_jams {
+            world.entity_mut(held).insert(cdda_sim::shot::NeverJams);
+        }
+        let fired = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (1, 0, 0), 18.0, Some(&cartridge), Some(held), 3_180.0, false);
+        let left = world.get::<cdda_sim::GroundItem>(held).map(|item| item.charges);
+        (fired, left)
+    };
+
+    let (fired, left) = fire(cdda_sim::shot::MAX_DIRT, false);
+    assert!(fired.misfired, "a gun at maximum dirt misfires");
+    assert!(!fired.loaded || fired.hurt == 0, "and nothing was hurt: {}", fired.hurt);
+    assert_eq!(left, Some(5), "and the round is still in the gun: {left:?}");
+    assert_eq!(fired.cost, 0, "and no moves were spent: {}", fired.cost);
+    assert!(fired.hit.is_none(), "and nothing was hit");
+
+    // The clean case carries `NEVER_JAMS`, **so the gate does not depend on the dice**: a durability-8 gun misfires once in 1,536 shots, and a seed that happened to roll it would make this
+    // assertion flake rather than fail. The claim being tested is that a gun which *can* misfire does so at maximum dirt and a gun which cannot never does.
+    let (clean, left) = fire(0, true);
+    assert!(!clean.misfired, "a gun that cannot jam fires even with a seed that would jam another");
+    assert_eq!(left, Some(4), "and spends its round: {left:?}");
+    assert!(clean.hurt > 0, "and lands on the target it was aimed at: {}", clean.hurt);
 }

@@ -2070,6 +2070,10 @@ fn fire_a_step(world: &mut World, outcome: &mut Outcome, gun_id: &str, x: i32, y
     {
         item.charges = rounds;
     }
+    // The gun's own flag, put on the gun's own entity: `flag_NEVER_JAMS` is a fact about the weapon, and the misfire rule reads it from there.
+    if has_item_flag(gun_id, "NEVER_JAMS") {
+        world.entity_mut(held).insert(cdda_sim::shot::NeverJams);
+    }
     let before = cdda_sim::creature::moves_left(world, survivor);
     let shot = cdda_sim::shot::fire_at(world, survivor, &gun, &lines, (x, y, 0), 18.0, round.as_ref(), Some(held), gun_weight(gun_id), reloads_and_shoots(gun_id), );
     let spent = before - cdda_sim::creature::moves_left(world, survivor);

@@ -13642,3 +13642,29 @@ never** and a durability-3 gun misfiring **more**, with only the durability diff
 
 **Named, not invented:** the reference's **magazine** branch (`mag_jam_mult`, magazine damage), its **underwater** branch (`WATERPROOF_GUN`, `one_in( durability )`), the **consumable gunmod**
 branch, `gun_jam_mult`, and where the dirt **comes from** (`it.set_var( "dirt", dirt )` at the end of the rule, which needs the gun's own component and the fouling flag).
+
+## A misfire stops the shot before it starts (round 1172)
+
+Round 1171 ported the dice; this round puts them where the reference puts them - **ahead of the shot**.
+
+| Piece | Reference | Port |
+|---|---|---|
+the check | `if( !handle_gun_damage( gun ) ) break;` at the top of the shot loop (`ranged.cpp:1078`) | the misfire roll before the round is spent |
+dirt | `it.get_var( "dirt", 0 )` on the gun | the `Dirt` component on the gun's entity |
+the flag | `flag_NEVER_JAMS` | the `NeverJams` marker component |
+the report | - | `Fired::misfired` |
+Gate | - | `a_filthy_gun_misfires_instead_of_firing_and_keeps_its_round` |
+
+**The order is the whole rule.** A misfire spends **no round**, costs **no moves** and makes **no sound** - because the reference checks the gun *before* the projectile, the ammunition consume
+and the noise. **The gate's first run failed on exactly that**: the round had been spent, because the port's `spend_rounds` sat above the check. Moving the check up is a two-line change and the
+difference between "the gun jammed" and "the gun jammed after firing".
+
+**The flag is a component, not a parameter.** `NEVER_JAMS` is a fact about the **weapon**, so it lives on the weapon's entity (`NeverJams`), exactly as `Dirt` does - **the store is the place a
+gun's facts live, and a shot reads them**, which is the architecture's whole point and not a stylistic choice.
+
+**The new roll shifted every downstream die, and three gates said so.** The birdshot scatter, the shot's sound and the twenty-pellet blow all changed their outcomes, because **a rule that consumes
+dice changes the sequence of every rule after it**. None of them was wrong: each pinned its gun with `NeverJams`, which is what a test that is about *something else* should have been doing all
+along. **The scenario changed too**: three shots no longer kill the zombie, because the third now lands on a different roll - it fires four, and the gate that says so is the scenario itself.
+
+**Named, not invented:** where the dirt **comes from** (`it.set_var( "dirt", ... )` at the end of `handle_gun_damage`, which needs the fouling rule and `NO_FOULING`), `handle_gun_overheat`, and
+the magazine, underwater and consumable-gunmod branches.

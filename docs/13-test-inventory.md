@@ -884,3 +884,7 @@ The CLI's two prototypes-dump readers were folded into one `has_item_flag`.
 **Round 1171 ported the misfire dice**: `shot::misfires` (`handle_gun_damage`'s first two branches, `ranged.cpp:709-800`) - dirt at `dirt^3 / 10^12` and the mechanical roll at
 `one_in( ( 2 << durability ) * 3 )`, with `NEVER_JAMS` skipping both - and `GunType::durability` (guns dump **version 8**). Gated by
 `shot_rules::a_filthy_gun_misfires_and_a_never_jams_gun_never_does`, which counts a thousand draws at two durabilities.
+
+**Round 1172 wired the misfire into the shot**: `shot::Dirt` and `shot::NeverJams` components on the gun's entity, the misfire roll ahead of the round being spent (`ranged.cpp:1078`), and
+`Fired::misfired`. Gated by `shot_rules::a_filthy_gun_misfires_instead_of_firing_and_keeps_its_round`. The new dice draw shifted three other gates and the shooting scenario, all of which now pin
+their gun with `NeverJams` - recorded in the docs because **a rule that consumes dice changes every rule after it**.

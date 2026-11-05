@@ -122,6 +122,26 @@ pub struct Recoil {
     pub points: i32,
 }
 
+/// How fouled a weapon is: the reference's `dirt` variable on the gun item (`ranged.cpp:704`), whose maximum is **10,000**.
+///
+/// Reference: `it.get_var( "dirt", 0 )` read at the top of `handle_gun_damage` and written back at its end. Kept as a component on the gun entity, so "how dirty is this gun" is one field on the
+/// thing that is dirty.
+#[derive(bevy_ecs::prelude::Component, Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Dirt {
+    /// The points of fouling, capped by the reference at 10,000.
+    pub points: i32,
+}
+
+/// A weapon that cannot jam: the reference's `flag_NEVER_JAMS` (`ranged.cpp:709`), carried by the item and read by every gun-damage branch.
+///
+/// A marker component rather than a boolean parameter, because it is a **fact about the gun** and not about the shot: the flag lives on the item in the reference too, and the port puts it on the
+/// item's entity.
+#[derive(bevy_ecs::prelude::Component, Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct NeverJams;
+
+/// The most dirt a gun can carry: the reference's own `dirt_max_dbl` (`ranged.cpp:695`), which is also where the misfire chance reaches one.
+pub const MAX_DIRT: i32 = 10_000;
+
 /// The most recoil the reference lets a shooter carry: `MAX_RECOIL` (`game_constants.h:101`).
 pub const MAX_RECOIL: i32 = 3000;
 
@@ -185,6 +205,10 @@ pub struct Fired {
     pub loaded: bool,
     /// How loud the shot was, in the reference's units - the number of squares over which it is still heard. Zero for a shot that never loaded.
     pub noise: i32,
+    /// Whether the gun misfired instead of firing: the round was **not** spent, nothing was hit, and no moves were charged.
+    ///
+    /// Reference: `if( !handle_gun_damage( gun ) ) break;` at the top of the shot loop (`ranged.cpp:1078`), which stops the burst **before** the projectile is made.
+    pub misfired: bool,
 }
 
 /// Fires a gun at a square, spending the shooter's moves and rolling the shot's own error.
@@ -206,11 +230,24 @@ pub fn fire_at(
     gun_weight_g: f64,
     reload_and_shoot: bool,
 ) -> Fired {
+    // Reference: `handle_gun_damage` is called **before** the shot is loosed (`ranged.cpp:1078`), and a gun that misfires spends no round, hits nothing and costs no moves.
+    let dirt = gun_entity
+        .and_then(|gun_entity| world.get::<Dirt>(gun_entity))
+        .map_or(0, |dirt| dirt.points);
+    let mut misfired = false;
+    if let Some(mut dice) = crate::singletons::take_rolls(world) {
+        let never_jams = gun_entity.is_some_and(|gun_entity| world.get::<NeverJams>(gun_entity).is_some());
+        misfired = misfires(dirt, gun.durability, never_jams, &mut dice);
+        crate::singletons::put_rolls(world, dice);
+    }
+    if misfired {
+        return Fired { cost: 0, aim: crate::ballistics::aim_of(0.0, 0.0, 1.0), hit: None, hurt: 0, loaded: true, noise: 0, misfired: true };
+    }
     // Reference: `fire_gun` checks `gun.ammo_required()` and consumes the rounds **before** the shot is loosed (`ranged.cpp:1168-1172`), and breaks out of the burst when the gun cannot
     // load. A gun the port has no entity for is treated as loaded, which keeps this rule usable without one.
     let loaded = gun_entity.is_none_or(|gun_entity| crate::shot::spend_rounds(world, gun_entity, gun.ammo_to_fire));
     if !loaded {
-        return Fired { cost: 0, aim: crate::ballistics::aim_of(0.0, 0.0, 1.0), hit: None, hurt: 0, loaded, noise: 0 };
+        return Fired { cost: 0, aim: crate::ballistics::aim_of(0.0, 0.0, 1.0), hit: None, hurt: 0, loaded, noise: 0, misfired: false };
     }
     let blow = blow_of(gun, round);
     let level = crate::creature::skill_level(world, shooter, &gun.skill);
@@ -290,7 +327,7 @@ pub fn fire_at(
     if let Some(place) = world.get::<crate::Position>(shooter) {
         crate::sounds::make_sound(world, (place.x, place.y, place.z), noise);
     }
-    Fired { cost, aim, hit: struck, hurt, loaded: true, noise }
+    Fired { cost, aim, hit: struck, hurt, loaded: true, noise, misfired: false }
 }
 
 /// The shooter's wind as a whole percentage, which is what `RAS_time` compares against twenty-five.
