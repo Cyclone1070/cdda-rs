@@ -2064,3 +2064,35 @@ fn a_broken_fragile_weapon_loses_its_weakest_part_four_times_as_often() {
     let ratio = f64::from(others_lost) / f64::from(others_total);
     assert!((0.10..0.15).contains(&ratio), "the others go about one in eight: {ratio:.3} of {others_total}");
 }
+
+/// The weak part is the least chip-resistant one that counts, and the big part is the largest one - and cloth never counts.
+///
+/// Reference: `Character::handle_melee_wear`'s `FRAGILE_MELEE` prologue (`melee.cpp:255-270`). Two choices, each with a rule that is easy to lose:
+///
+/// * **the blacklist** - `sheet_cotton`, `leather` and `fur` are skipped entirely, because a grip or a strap "should have no bearing on durability";
+/// * **strict comparison** - `weak_chip > comp.chip_resistance()` and `comp.volume() > big_vol` mean **the first of equal candidates wins**, and a part of zero volume never becomes the big one.
+#[test]
+fn the_weak_part_and_the_big_part_are_chosen_the_reference_way() {
+    use cdda_sim::melee::{PartFacts, weak_and_big_parts};
+
+    let parts = [
+        PartFacts { kind: "sheet_cotton", chip_resistance: 1, volume_ml: 50 },
+        PartFacts { kind: "steel_chunk", chip_resistance: 20, volume_ml: 250 },
+        PartFacts { kind: "pipe", chip_resistance: 12, volume_ml: 250 },
+        PartFacts { kind: "scrap", chip_resistance: 12, volume_ml: 0 },
+    ];
+    let (weak, big) = weak_and_big_parts(&parts);
+    assert_eq!(weak, Some("pipe"), "the least resistant that is not blacklisted - and the first of two equal ones");
+    assert_eq!(big, Some("steel_chunk"), "the largest, first of equal volumes, and never a zero-volume part");
+
+    // Cloth is the least resistant thing here and it still does not count: the blacklist is a rule, not a tie-breaker.
+    let cloth_only = [
+        PartFacts { kind: "sheet_cotton", chip_resistance: 1, volume_ml: 50 },
+        PartFacts { kind: "fur", chip_resistance: 2, volume_ml: 200 },
+    ];
+    assert_eq!(weak_and_big_parts(&cloth_only), (None, None), "nothing that counts is left to choose");
+
+    // And a part with no volume is never the big one, even alone: `big_vol` starts at zero and the test is strict.
+    let flat = [PartFacts { kind: "scrap", chip_resistance: 5, volume_ml: 0 }];
+    assert_eq!(weak_and_big_parts(&flat), (Some("scrap"), None), "the weak part is still chosen");
+}

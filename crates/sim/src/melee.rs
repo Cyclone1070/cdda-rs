@@ -486,3 +486,52 @@ pub fn break_apart(
     }
     (kept, destroyed)
 }
+
+/// What one part of a thing is, as far as choosing the weak and the big part goes.
+#[derive(Debug, Clone, Copy)]
+pub struct PartFacts<'a> {
+    /// The kind of part it is.
+    pub kind: &'a str,
+    /// How hard it is to chip, from the kind's facts.
+    pub chip_resistance: i32,
+    /// How much space it takes.
+    pub volume_ml: i32,
+}
+
+/// The parts that "should have no bearing on durability" (`melee.cpp:259`).
+pub const FRAGILE_BLACKLIST: [&str; 3] = ["sheet_cotton", "leather", "fur"];
+
+/// Picks the part a `FRAGILE_MELEE` weapon wears at first, and the part a breakdown offers to wield.
+///
+/// Reference: `handle_melee_wear`'s prologue (`melee.cpp:255-270`):
+///
+/// ```text
+/// int weak_chip = INT_MAX; units::volume big_vol = 0_ml;
+/// for( comp ) { if( blacklist.count( tvp.first ) ) continue;
+///   if( weak_chip > comp.chip_resistance() ) { weak_chip = ...; weak_comp = ...; }
+///   if( comp.volume() > big_vol )            { big_vol  = ...; big_comp  = ...; } }
+/// ```
+///
+/// **Three rules in four lines, and each one is easy to lose:** the blacklist is checked **per type**, so cloth never becomes either part however weak or thick it is; both comparisons are
+/// **strict**, so among equal candidates **the first one wins**; and a part of **zero volume is never the big one**, because `big_vol` starts at zero and nothing is greater than it.
+///
+/// Returns the chosen kinds, or `None` for a part that nothing qualifies as.
+#[must_use]
+pub fn weak_and_big_parts<'a>(parts: &[PartFacts<'a>]) -> (Option<&'a str>, Option<&'a str>) {
+    let mut weak: Option<&PartFacts<'a>> = None;
+    let mut big: Option<&PartFacts<'a>> = None;
+    for part in parts {
+        if FRAGILE_BLACKLIST.contains(&part.kind) {
+            continue;
+        }
+        if weak.is_none_or(|chosen| chosen.chip_resistance > part.chip_resistance) {
+            weak = Some(part);
+        }
+        if big.is_none_or(|chosen| part.volume_ml > chosen.volume_ml) {
+            big = Some(part);
+        }
+    }
+    // A zero-volume part can win the loop only by being the first; the reference's `big_vol` staying at zero means it never wins at all.
+    let big = big.filter(|part| part.volume_ml > 0);
+    (weak.map(|part| part.kind), big.map(|part| part.kind))
+}

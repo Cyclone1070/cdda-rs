@@ -1081,3 +1081,6 @@ named in `docs/parity.md`.
 **Round 1246 modelled an item's parts as entities**: `item_parts::PartOf { parent, order }` with `add_part` / `parts_of`, so `parts_of` is a **query** rather than the reference's nested
 `std::map<itype_id, std::vector<item>>`. Gated by `ground_items::a_thing_knows_the_parts_it_is_made_of`, which asserts the order and that **a despawned part leaves no ghost**; mutation-checked by
 forcing every order to `0`.
+
+**Round 1247 ported the `FRAGILE_MELEE` part choice**: `melee::weak_and_big_parts` + `FRAGILE_BLACKLIST` (`melee.cpp:255-270`) - the blacklist, the strict comparisons (first of equal wins) and the zero-volume rule. Gated by
+`creature_fight::the_weak_part_and_the_big_part_are_chosen_the_reference_way`; mutation-checked by disabling the blacklist.

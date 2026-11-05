@@ -14632,3 +14632,21 @@ explicitly. **Mutation-checked:** forcing every part's order to `0` makes the ga
 
 **Named, not invented:** what fills a part list (crafting's consumed components - the reference's `item::components` are the *inputs* a recipe consumed), and the rules that walk it: the `FRAGILE_MELEE`
 breakdown is ported as a roll (`melee::break_apart`) and **not yet wired to a part list**, disassembly and repair are not started.
+
+## Which part is weak and which is big (round 1247)
+
+| Piece | Reference | Port |
+|---|---|---|
+the blacklist | `sheet_cotton`, `leather`, `fur` skipped (`melee.cpp:259-262`) | `melee::FRAGILE_BLACKLIST` |
+the two choices | strict minima and maxima over the parts (`:263-270`) | `melee::weak_and_big_parts` |
+Gate | - | `the_weak_part_and_the_big_part_are_chosen_the_reference_way` |
+
+**Four lines of reference hold three rules, and each is easy to lose:**
+
+- the blacklist is checked **per type**, so cloth never becomes either part however weak or thick it is - *"items that should have no bearing on durability"*;
+- both comparisons are **strict**, so among equal candidates **the first wins**, which is a fact about a `for` loop over a `std::map`, not an arbitrary choice;
+- a part of **zero volume is never the big one**, because `big_vol` starts at `0_ml` and nothing is greater than it.
+
+**Mutation-checked:** neutering the blacklist makes the gate pick `sheet_cotton` where the reference picks `pipe` - the failure names the rule, not the plumbing.
+
+**Named, not invented:** the **fragile material factor** (`weak_chip / 6.0`, with the weapon's own chip resistance as fallback when nothing qualifies, `:272-273`), which changes the wear *chance* rather than the *choice*; and the volumes and chip resistances themselves, which the caller must supply from the kind tables.
