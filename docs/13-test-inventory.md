@@ -967,3 +967,7 @@ the **prototypes dump version 2** column of the same name (`item::chip_resistanc
 **Round 1192 did not add a test, and says why.** It went to wire round 1191's wear rule into a swing and found the port has **no place to record a held item's damage**: a wielded item is
 `Wielding(ItemTypeId)`, a kind, while `GroundItem::damage` lives only on the floor. Wiring the wear into a kind would give every rifle of that kind one shared damage number - the second source of
 truth the architecture forbids. The blocker and the slice that unblocks it are recorded in `docs/parity.md`.
+
+**Round 1193 wired the wear rule into the swing** (`wear_the_wielded_weapon`, from `melee.cpp:930`), damaging the held **item entity's** `ItemDamage` by one `DAMAGE_SCALE`. Gated by
+`creature_fight::a_swing_dents_the_thing_in_the_hand`. It also corrected round 1192's blocker: the port **did** have a place for a held item's damage (`WieldedBy` + `ItemDamage`), and the blocker had
+been read off the wrong component.

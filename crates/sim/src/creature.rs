@@ -2626,6 +2626,19 @@ pub fn skill_level(world: &World, entity: Entity, skill: &str) -> i32 {
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Wielding(pub crate::ItemTypeId);
 
+/// How damaged the thing in a character's hand is, in the reference's own units - thousandths (`itype::damage_scale`, `itype.h:1588`).
+///
+/// Reference: `item::damage_`, which `item::inc_damage` raises by one scale (`item.cpp:9467-9470`). **A number about what is in the hand, and there is only ever one thing in the hand** - the
+/// reference's `wield` swaps, it does not stack. That is what makes a component on the holder an honest home for it while the port's item registry still files items by kind.
+#[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct WieldedDamage(pub i32);
+
+/// How damaged the thing in the hand is, in thousandths.
+#[must_use]
+pub fn wielded_damage(world: &World, holder: Entity) -> i32 {
+    world.get::<WieldedDamage>(holder).map_or(0, |damage| damage.0)
+}
+
 /// What a character swings with, worked out from what it holds.
 ///
 /// Reference: `Character::melee_attack_abstract` (`melee.cpp:625-630`) builds the blow from `used_weapon()`, which is the wielded item or `null_item_reference()`. The accuracy is
@@ -2697,6 +2710,9 @@ pub fn swing_what_the_character_holds(world: &mut World, holder: Entity, victim:
     let cost = crate::melee::attack_speed(weapon_time / 2, skill, dexterity, stamina);
     spend_moves(world, holder, f64::from(cost));
     let dealt = strike_with(world, victim, attack);
+    // Reference: `Character::melee_attack` wears the weapon it swung **whatever the outcome** - the call sits outside the hit branch (`melee.cpp:930`) - so a miss dents a weapon just as a hit
+    // does. The chance is round 1191's arithmetic and the guard is its inverted `one_in`; what is new here is the **place**, which is the hand.
+    crate::creature::wear_the_wielded_weapon(world, holder, skill, dexterity);
     // Reference: **both** paths teach. `melee.cpp:2222` trains after a hit and `melee.cpp:713-716` trains after a miss - `melee_train( *this, 2, std::min( 5,
     // skill_training_cap ), cur_weap, ... )` in each - and the skill is the **weapon's** (`item::melee_skill`), not the general melee skill. The reference's miss path also
     // counts `times_combatted_player` on the target, which nothing in this port reads yet.
@@ -2896,4 +2912,42 @@ pub fn heat_sets_alight(damage: i32, dice: &mut cdda_core_types::rng::Rolls) -> 
         return None;
     }
     Some(i64::from(dice.rng(1, 3)))
+}
+
+/// Dents whatever the character is holding, by the reference's arithmetic and the reference's dice.
+///
+/// Reference: `Character::handle_melee_wear( cur_weapon )` (`melee.cpp:214-300`), called from `melee_attack` after the blow is resolved and before the messages. `item::inc_damage` raises the
+/// damage by **one thousandth scale** (`item.cpp:9467-9470`, `itype::damage_scale`), and the port keeps that unit rather than inventing a friendlier one.
+pub fn wear_the_wielded_weapon(world: &mut World, holder: Entity, melee_skill: i32, dexterity: i32) {
+    // **The thing in the hand is an entity**, and its damage is that entity's own `ItemDamage` - which is where the reference keeps it too (`item::damage_`). A character with empty hands
+    // wears nothing, which is the reference's own first check (`if( !shield ) return false;`).
+    let Some(held) = wielding(world, holder) else {
+        return;
+    };
+    let kind = world
+        .get::<crate::GroundItem>(held)
+        .map_or_else(|| world.get::<Wielding>(holder).map(|carried| carried.0), |ground| Some(ground.kind));
+    let chip_resistance = kind.map_or(2, |kind| crate::item_registry::chip_resistance_of(world, kind));
+    let durable_melee = kind.is_some_and(|kind| crate::item_registry::kind_has_flag(&*world, kind, "DURABLE_MELEE"));
+    let arm_strength = f64::from(effective_strength(world, holder));
+    let chance = crate::melee::melee_wear_chance(
+        f64::from(dexterity),
+        melee_skill,
+        arm_strength,
+        f64::from(chip_resistance),
+        1.0,
+        1.0,
+        durable_melee,
+    );
+    let Some(mut rolls) = crate::singletons::take_rolls(world) else {
+        return;
+    };
+    let wears = crate::melee::wear_damages(chance, &mut rolls);
+    crate::singletons::put_rolls(world, rolls);
+    if !wears {
+        return;
+    }
+    if let Some(mut damage) = world.get_mut::<crate::ItemDamage>(held) {
+        damage.damage += crate::DAMAGE_SCALE;
+    }
 }

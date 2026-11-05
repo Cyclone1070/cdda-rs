@@ -14113,3 +14113,28 @@ would be the second source of truth the architecture forbids: two rifles of the 
 
 **The slice that unblocks it**, in order: a held item is an entity (spawned on wield, destroyed on drop), `Wielding` carries the **entity** rather than the kind, `GroundItem::damage` moves to the item's own
 component shared by both places, and then the swing calls `wear_damages` and adds the damage the reference adds - with the destruction branch the reference has and the port does not.
+
+## The swing finally dents what it holds (round 1193)
+
+Round 1192 said the wear rule had nowhere to land because a wielded item was a **kind**. **That was wrong, and the port's own code said so**: `Wielding(ItemTypeId)` is a legacy field, while
+`wield()` takes an **item entity** and marks it `WieldedBy` (`creature.rs:756`, `:775`), and that entity carries `ItemDamage { damage, degradation }` (`lib.rs:7242-7249`). **The place existed. I looked
+at the wrong component and wrote a blocker instead of reading one more file.** The correction is the round's first lesson: **a "blocker" that comes from reading one struct is a hypothesis, not a
+finding.**
+
+| Piece | Reference | Port |
+|---|---|---|
+the call | `handle_melee_wear( cur_weapon )` after the blow, outside the hit branch (`melee.cpp:930`) | `wear_the_wielded_weapon` at the end of `swing_what_the_character_holds` |
+the increment | `item::inc_damage()` = `mod_damage( itype::damage_scale )` (`item.cpp:9467-9470`) | `ItemDamage.damage += DAMAGE_SCALE` on the held **entity** |
+the chip figure | `item::chip_resistance()` | `item_registry::chip_resistance_of`, fallback **2** |
+Gate | - | `a_swing_dents_the_thing_in_the_hand` |
+
+**The gate uses the deterministic end of the rule, which is the quirk.** `chip_resistance` zero makes the chance zero, and `wear_damages` damages on a zero chance **every time** - so **three swings
+put exactly three thousandths on the weapon**, and the assertion is an equality rather than a range. The other half swings a chipping-resistant weapon twenty times and asserts **fewer than five
+dents**, which is what stops the gate from passing on a rule that always fires.
+
+**Two `TooSlow`s on the way, and both were the fixture.** `wield` charges handling moves, and a hand-built creature has **none banked**, so the first two runs never took the weapon in hand at all -
+the swing then wore nothing and the second assertion failed for a reason that had nothing to do with wear. **A gate that skips its own setup must fail, and mine did; but the honest reading is that the
+fixture was wrong, not the rule.**
+
+**Named, not invented:** the **destruction branch** (`inc_damage` returning true destroys the item after spilling its contents, `melee.cpp:293-330`), `FRAGILE_MELEE`'s component breakdown,
+`UNBREAKABLE`/`UNBREAKABLE_MELEE`, `EQUIPMENT_DAMAGE_CHANCE`, the charge-counted wear path, and the messages.

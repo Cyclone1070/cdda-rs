@@ -1717,3 +1717,98 @@ fn a_weapon_wears_by_its_own_arithmetic_and_a_zero_chance_is_the_worst_case() {
     let mut dice = Rolls::new(1234);
     assert!((0..200).all(|_| wear_damages(0, &mut dice)), "and so does a chance of zero, which is the reference's own quirk");
 }
+
+/// A swing dents the thing in the hand - a soft one every time, a rock hardly ever.
+///
+/// Reference: `Character::melee_attack` calls `handle_melee_wear( cur_weapon )` **after** the blow and outside the hit branch (`melee.cpp:930`), so a miss wears a weapon too, and `item::inc_damage`
+/// raises the damage by one thousandth scale (`item.cpp:9467-9470`). **The soft case is deterministic and that is why the gate can use it**: `chip_resistance` zero makes the chance zero, and the
+/// reference's inverted guard damages the weapon **every** time - so a weapon the arithmetic called indestructible is the fastest-wearing one in the game.
+#[test]
+fn a_swing_dents_the_thing_in_the_hand() {
+    use bevy_ecs::prelude::*;
+    use cdda_core_types::rng::Rolls;
+
+    let mut world = World::new();
+    cdda_sim::singletons::put_rolls(&mut world, Rolls::new(4));
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let zombie = cdda_sim::creature::spawn_creature(&mut world, "the zombie", (1, 0, 0));
+    world
+        .entity_mut(zombie)
+        .insert(cdda_sim::creature::Health { hp: 900, max_hp: 900 });
+    // A weapon of a kind that resists chipping not at all, taken in hand as a thing.
+    // A turn's worth of moves, because taking a heavy thing in hand costs some and a creature with none cannot.
+    world.entity_mut(survivor).insert(cdda_sim::creature::Speed { base: 100, bonus: 0 });
+    for _ in 0..2 {
+        cdda_sim::creature::bank_a_turn(&mut world);
+    }
+    let weapon = world
+        .spawn((
+            cdda_sim::GroundItem {
+                kind: cdda_sim::ItemTypeId(7),
+                charges: 1,
+                age: 0,
+                burnt: 0,
+                damage: 0,
+                burn: None,
+            },
+            cdda_sim::ItemDamage::default(),
+            cdda_sim::creature::Carried(survivor),
+        ))
+        .id();
+    assert_eq!(
+        cdda_sim::creature::wield(&mut world, survivor, weapon, 250),
+        cdda_sim::creature::Wielded::Done
+    );
+    cdda_sim::item_registry::set_item_chip_resistance(&mut world, &[(cdda_sim::ItemTypeId(7), 0)]);
+    let damage_of = |world: &bevy_ecs::prelude::World| {
+        world.get::<cdda_sim::ItemDamage>(weapon).map_or(-1, |damage| damage.damage)
+    };
+    assert_eq!(damage_of(&world), 0, "a new weapon is undamaged");
+
+    let dealt = cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, zombie);
+    assert!(dealt.is_some(), "the swing happened at all");
+    assert_eq!(damage_of(&world), 1000, "and cost the weapon one thousandth scale");
+
+    // The same swing twice more: three swings, three thousandths, because a zero chance is the worst case and not the best.
+    for _ in 0..2 {
+        cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, zombie);
+    }
+    assert_eq!(damage_of(&world), 3000, "three swings, three dents");
+
+    // And a weapon that resists chipping well keeps its edge across the same three swings most of the time.
+    let mut world = World::new();
+    cdda_sim::singletons::put_rolls(&mut world, Rolls::new(4));
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let zombie = cdda_sim::creature::spawn_creature(&mut world, "the zombie", (1, 0, 0));
+    world
+        .entity_mut(zombie)
+        .insert(cdda_sim::creature::Health { hp: 9_000, max_hp: 9_000 });
+    world.entity_mut(survivor).insert(cdda_sim::creature::Speed { base: 100, bonus: 0 });
+    for _ in 0..2 {
+        cdda_sim::creature::bank_a_turn(&mut world);
+    }
+    let weapon = world
+        .spawn((
+            cdda_sim::GroundItem {
+                kind: cdda_sim::ItemTypeId(7),
+                charges: 1,
+                age: 0,
+                burnt: 0,
+                damage: 0,
+                burn: None,
+            },
+            cdda_sim::ItemDamage::default(),
+            cdda_sim::creature::Carried(survivor),
+        ))
+        .id();
+    assert_eq!(
+        cdda_sim::creature::wield(&mut world, survivor, weapon, 250),
+        cdda_sim::creature::Wielded::Done
+    );
+    cdda_sim::item_registry::set_item_chip_resistance(&mut world, &[(cdda_sim::ItemTypeId(7), 20)]);
+    for _ in 0..20 {
+        cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, zombie);
+    }
+    let dents = world.get::<cdda_sim::ItemDamage>(weapon).map_or(0, |damage| damage.damage) / 1000;
+    assert!(dents < 5, "a chipping-resistant weapon takes few dents in twenty swings: {dents}");
+}

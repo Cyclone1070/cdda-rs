@@ -506,3 +506,33 @@ pub fn count(world: &mut World) -> usize {
     let entity = singletons::singleton::<ItemTypes, TheItemTypes>(world);
     world.get::<ItemTypes>(entity).map_or(0, |registry| registry.by_name.len())
 }
+
+/// How well each kind resists being chipped by use, filed by the number the registry gave it.
+///
+/// Reference: `item::chip_resistance()` (`item.cpp:9375-9409`), the figure `Character::handle_melee_wear` divides a weapon's wear chance by. **Kept beside the flags and for the same reason**:
+/// it is a question asked *of a kind*, not part of the kind's identity, and a table that nothing has installed answers the reference's own fallback - **2**, the number it returns for an item
+/// made of nothing (`:9400-9402`).
+#[derive(Debug, Clone, Default, PartialEq, Component)]
+pub struct ItemChipResistance(pub std::collections::BTreeMap<ItemTypeId, i32>);
+
+/// Marks the entity holding [`ItemChipResistance`].
+#[derive(Debug, Clone, Copy, Default, Component)]
+pub struct TheItemChipResistance;
+
+/// Installs how well each kind resists chipping.
+pub fn set_item_chip_resistance(world: &mut World, resistance: &[(ItemTypeId, i32)]) {
+    let holder = singletons::singleton::<ItemChipResistance, TheItemChipResistance>(world);
+    world
+        .entity_mut(holder)
+        .insert(ItemChipResistance(resistance.iter().copied().collect()));
+}
+
+/// How well a kind resists chipping, or **2** for a kind nobody has described - the reference's own fallback.
+#[must_use]
+pub fn chip_resistance_of(world: &mut World, kind: ItemTypeId) -> i32 {
+    let holder = singletons::singleton::<ItemChipResistance, TheItemChipResistance>(world);
+    world
+        .get::<ItemChipResistance>(holder)
+        .and_then(|table| table.0.get(&kind).copied())
+        .unwrap_or(2)
+}
