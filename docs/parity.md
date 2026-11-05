@@ -13962,3 +13962,24 @@ volume could not check that the two came from the same call.
 
 **Named, not invented:** the **category** (`sound_t::combat`, which decides `is_provocative` and therefore whether a monster comes to look), the **ambient** flag, the season string the reference
 attaches for its own footstep sounds, `recent_sounds` (which the port's `HeardSound` covers), and every other caller's description - **melee, footsteps and spells still pass the empty string**.
+
+## Gunfire does not make monsters curious (round 1186)
+
+| Piece | Reference | Port |
+|---|---|---|
+the categories | `sounds::sound_t` (`sounds.h:23-38`), thirteen of them | `sounds::SoundCategory` |
+the rule | `is_provocative` (`sounds.cpp:287-309`) | `sounds::is_provocative` |
+the shot's own | `sounds::sound_t::combat` (`ranged.cpp:2385`) | the shot makes its sound as `Combat` |
+Gate | - | `only_speech_and_orders_provoke_and_a_gunshot_does_not` |
+
+**The reference's answer is not the intuitive one, and that is the whole round.** `is_provocative` returns `true` for exactly **speech, electronic speech, alert and order** - and `false` for
+**everything else, including `combat` and `alarm`**. **A gunshot does not draw a monster by this rule.** A port that "fixed" the obvious omission would change the game's behaviour from the first
+shot onward, and no single-case test would catch it.
+
+**Nine quiet and four provocative is the whole enumeration.** The gate walks **all thirteen** and asserts each side, because a rule this counter-intuitive is exactly the one a later reader
+deletes as a bug. **It is not a bug: monsters hear the shot** (the port's `HeardSound` is fed by volume) - **they simply do not treat it as something to investigate on this path.**
+
+**The category is `combat` for a shot and `background` by default**, so the fifteen callers that predate categories keep the quiet answer rather than silently becoming provocative.
+
+**Named, not invented:** what the **monster AI does** with a provocative sound (`monster::hear_sound` and its `wander`/`investigate` reaction, `monster.cpp:2020-2100`), the
+**`recent_sounds`** list with its own `is_provocative` flag per event (which is what the AI actually reads), `ambient_sound`, and the `id`/`variant` sound-effect hooks.

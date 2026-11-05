@@ -9,6 +9,54 @@
 
 use bevy_ecs::prelude::*;
 
+/// What kind of sound was made: the reference's `sounds::sound_t` (`sounds.h:23-38`).
+///
+/// The distinction is not decoration - [`is_provocative`] reads it, and the reference's own answer **surprises everyone who assumes it**: **`combat` is *not* provocative**, and neither is
+/// `alarm`. Only `speech`, `electronic_speech`, `alert` and `order` are.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SoundCategory {
+    /// The world going about its business.
+    #[default]
+    Background,
+    /// Wind, rain, thunder.
+    Weather,
+    /// A sonar ping or another sound the player should be shown.
+    Sensory,
+    /// Music.
+    Music,
+    /// Something moving.
+    Movement,
+    /// Somebody talking.
+    Speech,
+    /// A robot talking, a radio.
+    ElectronicSpeech,
+    /// Somebody working.
+    Activity,
+    /// Somebody breaking something.
+    DestructiveActivity,
+    /// An alarm.
+    Alarm,
+    /// Violence: a gunshot, a blow.
+    Combat,
+    /// Loud enough to get attention.
+    Alert,
+    /// An order, which is the loudest kind of attention.
+    Order,
+}
+
+/// Whether a sound makes a monster want to investigate: `is_provocative` (`sounds.cpp:287-309`).
+///
+/// Reference, verbatim: **`speech`, `electronic_speech`, `alert` and `order` return `true`; everything else returns `false`** - including `combat`, `alarm`, `destructive_activity`, `movement` and
+/// the rest. **A gunshot does not provoke anything by this rule**, which is the single most counter-intuitive line in the file and the reason it is a function rather than a field: the answer is
+/// the reference's, not a guess about what ought to be scary.
+#[must_use]
+pub fn is_provocative(category: SoundCategory) -> bool {
+    matches!(
+        category,
+        SoundCategory::Speech | SoundCategory::ElectronicSpeech | SoundCategory::Alert | SoundCategory::Order
+    )
+}
+
 /// Something that made a sound this turn.
 #[derive(Component, Debug, Clone, PartialEq)]
 pub struct Sound {
@@ -16,6 +64,8 @@ pub struct Sound {
     pub position: (i32, i32, i32),
     /// How loud, in the reference's units - the number of squares over which it is still audible.
     pub volume: i32,
+    /// What kind of sound it was, which decides whether a monster treats it as something worth looking into.
+    pub category: SoundCategory,
     /// What it sounded like: `bang!`, `Thunk!`, `whizz!` - the reference's `sound_event::description`, which its own comment calls **"not an optional parameter"**
     /// (`sounds.cpp:326-329`). A QA run and a player both read this line, so a port that dropped it could not say what was heard.
     pub description: String,
@@ -34,6 +84,19 @@ pub fn make_sound(world: &mut World, position: (i32, i32, i32), volume: i32) -> 
 /// Reference: `sounds::sound( p, vol, category, description )` (`sounds.cpp:317-337`). The reference treats an **empty** description as a bug and complains, but still makes the sound -
 /// so the port keeps the sound and the empty string, which is what a caller with nothing to say passes.
 pub fn make_sound_saying(world: &mut World, position: (i32, i32, i32), volume: i32, description: &str) -> Option<Entity> {
+    make_a_sound_of_kind(world, position, volume, description, SoundCategory::Background)
+}
+
+/// Makes a sound of a stated kind, which is what a caller that wants to be heard as combat, speech or an order says.
+///
+/// Reference: `sounds::sound( p, vol, category, description )` (`sounds.cpp:317-337`), whose third argument decides `is_provocative`.
+pub fn make_a_sound_of_kind(
+    world: &mut World,
+    position: (i32, i32, i32),
+    volume: i32,
+    description: &str,
+    category: SoundCategory,
+) -> Option<Entity> {
     if volume < 0 {
         return None;
     }
@@ -42,6 +105,7 @@ pub fn make_sound_saying(world: &mut World, position: (i32, i32, i32), volume: i
             .spawn(Sound {
                 position,
                 volume,
+                category,
                 description: description.to_owned(),
             })
             .id(),

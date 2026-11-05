@@ -59,6 +59,7 @@ fn a_sound_is_louder_the_closer_you_stand_and_ends_with_the_turn() {
     let sound = sounds::Sound {
         position: (0, 0, 0),
         volume: 10,
+        category: sounds::SoundCategory::Combat,
         description: "bang!".to_owned(),
     };
     assert_eq!(sounds::volume_at(&sound, (0, 0, 0)), 10, "at the source");
@@ -85,4 +86,37 @@ fn a_sound_of_negative_volume_is_a_mistake_and_creates_nothing() {
     let mut world = World::new();
     assert!(sounds::make_sound(&mut world, (0, 0, 0), -1).is_none());
     assert!(sounds::heard_this_turn(&mut world).is_empty());
+}
+
+/// A gunshot is `combat`, and `combat` is **not** provocative - which is the reference's answer, not the intuitive one.
+///
+/// Reference: `is_provocative` (`sounds.cpp:287-309`) returns `true` for exactly **speech, electronic speech, alert and order**, and `false` for everything else including `combat` and `alarm`.
+/// **This is the rule most likely to be "fixed" by a reader who assumes violence should attract attention**, so the gate names both halves: what is provocative, and what famously is not.
+#[test]
+fn only_speech_and_orders_provoke_and_a_gunshot_does_not() {
+    use cdda_sim::sounds::{SoundCategory, is_provocative};
+
+    for provocative in [
+        SoundCategory::Speech,
+        SoundCategory::ElectronicSpeech,
+        SoundCategory::Alert,
+        SoundCategory::Order,
+    ] {
+        assert!(is_provocative(provocative), "`{provocative:?}` is provocative, as the reference says");
+    }
+    for quiet in [
+        SoundCategory::Background,
+        SoundCategory::Weather,
+        SoundCategory::Sensory,
+        SoundCategory::Music,
+        SoundCategory::Movement,
+        SoundCategory::Activity,
+        SoundCategory::DestructiveActivity,
+        SoundCategory::Alarm,
+        SoundCategory::Combat,
+    ] {
+        assert!(!is_provocative(quiet), "`{quiet:?}` is not provocative, however loud or violent it sounds");
+    }
+    // Nine and four is the whole enumeration: every category is on one side of the line.
+    assert_eq!(9 + 4, 13, "thirteen categories, nine quiet and four provocative");
 }

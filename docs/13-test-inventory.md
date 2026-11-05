@@ -938,3 +938,7 @@ reference's volume. Gated by `shot_rules::a_gunshot_says_its_own_word_and_a_gren
 **Round 1185 put the description on the sound**: `sounds::Sound::description` and `sounds::make_sound_saying` (`sounds.cpp:317-337`), which the shot's sound uses so the store says `blam!` rather than
 nothing. Gated by `shot_rules::a_shot_s_sound_says_what_it_sounded_like` - volume **154** and the word `blam!` from the same call - whose first run found a **misfire** rather than a bug, and now
 pins the gun as `NEVER_JAMS`.
+
+**Round 1186 ported the sound categories**: `sounds::SoundCategory` (the reference's thirteen `sound_t` values) and `sounds::is_provocative` (`sounds.cpp:287-309`), with the shot making its sound as
+`Combat`. Gated by `sounds::only_speech_and_orders_provoke_and_a_gunshot_does_not`, which walks **all thirteen** categories and pins the counter-intuitive half: **`combat` and `alarm` are not
+provocative; only speech, electronic speech, alert and order are.**

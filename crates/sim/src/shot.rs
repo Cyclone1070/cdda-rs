@@ -796,6 +796,7 @@ fn make_the_gun_s_sound(
         gun_noise_word(noise, &round.ammo_type, &round.effects, false)
     });
     if audible_to > 0 {
-        crate::sounds::make_sound_saying(world, place, audible_to, saying);
+        // `sounds::sound_t::combat` (`ranged.cpp:2385`), which the reference's own `is_provocative` says is **not** provocative - a gunshot does not make a monster curious by this rule.
+        crate::sounds::make_a_sound_of_kind(world, place, audible_to, saying, crate::sounds::SoundCategory::Combat);
     }
 }
