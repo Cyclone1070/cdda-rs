@@ -15746,3 +15746,23 @@ hold drops nothing** rather than inventing an item - the same rule as the unknow
 **Named, not invented:** the corpse's **pockets** - the reference puts wearable drops *on* the corpse and nests the rest into them (`:3274-3300`), which is the container model the item
 component work still owes; the port drops everything on the square, which is the reference's own branch for a body with **no** corpse. `FILTHY` marking, `DESTROY_ITEM_ON_MON_DEATH`, the
 dissectables and `no_extra_death_drops` are named with it.
+
+## A mending monster says how well it is mending (round 1310)
+
+| Piece | Reference | Port |
+|---|---|---|
+the three grades | `monster::process_effects` (`monster.cpp:3473-3486`) | `creature::regeneration_message` |
+the dark curve | `monster.cpp:3487-3494` | `creature::dark_regeneration` |
+Gate | - | `creature_fight::a_mending_monster_says_how_well_it_is_mending` |
+
+**The grades are on what was actually healed**, not on what the type asked for: a monster at full health heals nothing and says nothing. A port keyed off `regenerates` would report a mending
+body at full health.
+
+**`10000` is the reference's own magic number**, kept and explained rather than tidied into a made-up constant: it was chosen so a floodlight stops regeneration twenty tiles away. The answer is
+**truncated**, so the curve stops healing at about light **214** - long before the number stops being positive (0.91 at light 200 is zero already).
+
+**The line is a warning** (`m_warning`): a mending enemy is bad news, which is the message kind its caller pushes.
+
+**Named, not invented:** the per-turn **system** that would call these - the reference runs them from `monster::process_effects` inside `process_turn`, and the port's monster turn is the P7
+behaviour step; the `one_in( 2 )` gate on saying it; `regeneration_modifiers` (effect-driven, needs `mtype::regeneration_modifiers` dumped) and the `REGEN_HP` enchantment, which is P5;
+`regenerates_in_dark`'s sunlight test, which the port has light for but does not yet assemble into `is_in_sunlight`.

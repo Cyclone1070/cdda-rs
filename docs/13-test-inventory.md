@@ -1267,3 +1267,6 @@ one that really revives. `broken` is still an ordinary corpse and is named as th
 
 **Round 1309 made a body drop its `death_drops` group** (`monster.cpp:3128-3131`, `:3248-3272`), drawn from the world's own dice and dropped on the square it fell on. The corpse's pockets are
 the named gap.
+
+**Round 1310 ported the regeneration grades and the dark curve** (`monster.cpp:3473-3494`) as `creature::regeneration_message` and `creature::dark_regeneration`, gated on the thresholds being
+read from **what was healed** and on the truncation that stops the curve at about light 214.

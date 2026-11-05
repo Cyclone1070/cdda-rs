@@ -3343,6 +3343,54 @@ pub fn broken_item_id(monster_id: &str, broken_itype: &str) -> String {
     format!("broken_{stripped}")
 }
 
+/// What a mending monster says about it, in the reference's three grades.
+///
+/// Reference: `monster::process_effects` (`monster.cpp:3473-3486`):
+///
+/// ```text
+/// if( healed_amount > 0 && one_in( 2 ) ) {
+///     if( healed_amount >= 50 )       "The %s is visibly regenerating!"
+///     else if( healed_amount >= 10 )  "The %s seems a little healthier."
+///     else                            "The %s is healing slowly."
+/// }
+/// ```
+///
+/// **The grades are on what was actually healed**, not on what the type asked for: a monster at full health heals nothing and says nothing. `%s` is where the name goes, and the line is a
+/// **warning** (`m_warning`) - a mending enemy is bad news, which is the kind the caller pushes.
+#[must_use]
+pub fn regeneration_message(healed: i32) -> Option<&'static str> {
+    if healed <= 0 {
+        return None;
+    }
+    if healed >= 50 {
+        Some("The %s is visibly regenerating!")
+    } else if healed >= 10 {
+        Some("The %s seems a little healthier.")
+    } else {
+        Some("The %s is healing slowly.")
+    }
+}
+
+/// What the dark mends a monster for, given the light where it stands.
+///
+/// Reference: `monster::process_effects` (`monster.cpp:3487-3494`):
+///
+/// ```text
+/// const float dHP = 50.0 * std::exp( - light * light / 10000 );
+/// if( heal( static_cast<int>( dHP ) ) > 0 && one_in( 2 ) ) { ... }
+/// ```
+///
+/// **`10000` is the reference's own magic number**, chosen so a floodlight stops regeneration twenty tiles away; the port keeps it and says so rather than tidying it into a constant with a
+/// made-up name. The answer is **truncated**, so the curve stops healing at about light 214 - long before the number stops being positive.
+#[must_use]
+pub fn dark_regeneration(ambient_light: f32) -> i32 {
+    /// The reference's `10000`, which makes a floodlight's reach about twenty tiles.
+    const LIGHT_FALLOFF: f32 = 10_000.0;
+    #[allow(clippy::cast_possible_truncation)]
+    let healed = (50.0 * (-(ambient_light * ambient_light) / LIGHT_FALLOFF).exp()) as i32;
+    healed
+}
+
 /// What a monster's death leaves on the ground.
 ///
 /// Reference: `monster::die`'s `corpse_type` switch (`monster.cpp:3093-3106`), and `mdeath::normal`'s own `pulverized` branch (`mondeath.cpp:59-68`): a body whose overkill is severe

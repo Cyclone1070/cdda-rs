@@ -3085,3 +3085,37 @@ fn a_body_drops_what_its_group_says() {
         "**the group's rag is on the square**: {left:?}"
     );
 }
+
+/// A monster says how well it is mending, in three grades, and a dark one mends by a curve that a light snuffs out.
+///
+/// Reference: `monster::process_effects` (`monster.cpp:3460-3497`):
+///
+/// ```text
+/// int regeneration_amount = type->regenerates;              // plus effect and enchantment modifiers, floored at zero
+/// const int healed_amount = heal( regeneration_amount );
+/// if( healed_amount > 0 && one_in( 2 ) )
+///     healed >= 50 -> "The %s is visibly regenerating!"
+///     healed >= 10 -> "The %s seems a little healthier."
+///     else         -> "The %s is healing slowly."
+/// if( type->regenerates_in_dark && !is_in_sunlight() )
+///     dHP = 50.0 * exp( - light * light / 10000 )
+/// ```
+///
+/// **The thresholds are on what was actually healed, not on what was asked for**: a monster at full health heals nothing and says nothing, which is the branch a port that keyed off
+/// `regenerates` would get wrong. **The dark curve is the reference's own magic number**: `10000` was chosen so a floodlight stops regeneration twenty tiles away.
+#[test]
+fn a_mending_monster_says_how_well_it_is_mending() {
+    use cdda_sim::creature::{dark_regeneration, regeneration_message};
+
+    assert_eq!(regeneration_message(0), None, "**nothing healed, nothing said**");
+    assert_eq!(regeneration_message(1), Some("The %s is healing slowly."), "under ten is slow");
+    assert_eq!(regeneration_message(10), Some("The %s seems a little healthier."), "ten is a little healthier");
+    assert_eq!(regeneration_message(49), Some("The %s seems a little healthier."), "and forty-nine is still that");
+    assert_eq!(regeneration_message(50), Some("The %s is visibly regenerating!"), "fifty is visible");
+
+    // 50 * e^0 at full dark, and the curve halves every time light^2/10000 grows by ln 2 - so light 100 is 50 * e^-1.
+    assert_eq!(dark_regeneration(0.0), 50, "in pitch dark, fifty");
+    assert_eq!(dark_regeneration(100.0), 18, "at a hundred, 50/e truncated to eighteen");
+    // At two hundred the curve is 50 * e^-4, which is 0.91 - **truncated to zero**, so the light has stopped it.
+    assert_eq!(dark_regeneration(200.0), 0, "and at two hundred the light has stopped it");
+}
