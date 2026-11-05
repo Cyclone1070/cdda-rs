@@ -13770,3 +13770,24 @@ reads better as its own function anyway.**
 
 **Named, not invented:** the body part the burn is applied to (`dealt_dam.bp_hit`), `IGNITE` and `IGNITE_FLARE`'s own branches, the pyromania morale, and the reference's post-shot dirt
 re-read that decides whether an **unlubricated** gun screeches.
+
+## The other fire round: `IGNITE` (round 1177)
+
+| Piece | Reference | Port |
+|---|---|---|
+the rule | `creature.cpp:1035-1045`, the `else if` after the incendiary branch | `shot::ignite_turns(damage, vegetable, flammable, flesh, dice)` |
+the wiring | the same `deal_damage` chain | `set_alight_if_fire_round`, which now covers both and keeps the reference's `else if` |
+Gate | - | `an_ignite_round_burns_for_ten_times_the_amount_and_six_on_flesh` and `an_ignite_round_also_sets_a_burnable_target_alight` |
+
+**Two fire rounds, two rules, and the difference is not a constant.** `INCENDIARY` ignites on `amount in 50` and burns `rng(2, 6) * amount`; `IGNITE` ignites on a **flat coin** and burns exactly
+`10 * amount`, or `6 * amount` on flesh. **The chance and the duration both differ in kind** - one is weighted by the round's damage and drawn, the other is a coin and a multiplication.
+
+**That is what the gate checks, and it is why the gate is two tests rather than one.** The arithmetic gate asserts the burn is **always sixty** for twelve damage on a vegetable - not "in a
+range" - because the ignite rule has no die in its duration at all; and then asserts the incendiary burn **varies** at the same damage, so a port that shared one function between the two
+branches cannot pass both.
+
+**The reference's `else if` is a rule, not a style.** A round carrying both effects takes the **incendiary** branch; the port keeps the order, and `set_alight_if_fire_round` says so where a
+later round might be tempted to apply both.
+
+**Named, not invented:** the `amount` recomputation per hit (the reference computes it once from `dam` before the branch, and the port's `hurt` is the post-armour figure it uses in its place -
+**the reference's `dam` is the pre-armour total, which is a difference worth naming rather than smoothing over**), the body part, `IGNITE_FLARE`, `ROBOT_DAZZLE` and the pyromania morale.

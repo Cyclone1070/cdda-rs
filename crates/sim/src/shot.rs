@@ -299,7 +299,7 @@ pub fn fire_at(
         {
             hits += 1;
             hurt += hurt_once(world, struck, &blow);
-            set_alight_if_incendiary(world, struck, round, hurt);
+            set_alight_if_fire_round(world, struck, round, hurt);
         }
     }
     let aim = last_aim;
@@ -635,17 +635,22 @@ pub fn is_flesh(materials: &std::collections::BTreeMap<String, i32>) -> bool {
     materials.keys().any(|material| matches!(material.as_str(), "flesh" | "iflesh"))
 }
 
-/// Sets a creature alight when the round was incendiary and its materials say it should burn.
+/// Sets a creature alight when the round was incendiary or igniting and its materials say it should burn.
 ///
-/// Reference: `Creature::deal_damage`'s incendiary branch (`creature.cpp:1016-1029`). Split out of [`fire_at`] because the shot's own line count had passed the project's limit, and because it
-/// is a rule about the **target** rather than about the shot.
-fn set_alight_if_incendiary(
+/// Reference: `Creature::deal_damage`'s two fire branches (`creature.cpp:1016-1045`). Split out of [`fire_at`] because the shot's own line count had passed the project's limit, and because it
+/// is a rule about the **target** rather than about the shot. **The branches are `else if` in the reference**, so an incendiary round takes the incendiary rule and never the ignite one.
+fn set_alight_if_fire_round(
     world: &mut bevy_ecs::prelude::World,
     struck: bevy_ecs::prelude::Entity,
     round: Option<&cdda_content::ammo::AmmoType>,
     damage: i32,
 ) {
-    if !round.is_some_and(|round| round.has_effect("INCENDIARY")) {
+    let Some(round) = round else {
+        return;
+    };
+    let incendiary = round.has_effect("INCENDIARY");
+    let igniting = round.has_effect("IGNITE");
+    if !incendiary && !igniting {
         return;
     }
     let Some(kind) = crate::effect_registry::kind_of(world, "onfire") else {
@@ -655,8 +660,51 @@ fn set_alight_if_incendiary(
         return;
     };
     let made = crate::creature::materials_of(world, struck);
-    if let Some(turns) = incendiary_turns(damage, catches_fire_readily(&made), false, is_flesh(&made), &mut dice) {
+    let (readily, flesh) = (catches_fire_readily(&made), is_flesh(&made));
+    let lit = if incendiary {
+        incendiary_turns(damage, readily, false, flesh, &mut dice)
+    } else {
+        ignite_turns(damage, readily, false, flesh, &mut dice)
+    };
+    if let Some(turns) = lit {
         crate::applied_effects::add(world, struck, crate::effects::ActiveEffect::new(&kind, i64::from(turns), 1));
     }
     crate::singletons::put_rolls(world, dice);
+}
+
+/// How long an `IGNITE` round sets its target alight for: the branch after the incendiary one (`creature.cpp:1035-1045`).
+///
+/// Reference:
+///
+/// ```text
+/// } else if( proj_effects.count( ammo_effect_IGNITE ) ) {
+///     if( x_in_y( 1, 2 ) ) {                                              // a coin
+///         if( vegetable || flammable ) add_effect( onfire, 10_turns * amount );
+///         else if( flesh )            add_effect( onfire, 6_turns * amount );
+///     }
+/// }
+/// ```
+///
+/// **Two differences from `INCENDIARY`, and both matter.** The chance is a flat **coin** rather than `amount in 50`, so a light round ignites as readily as a heavy one; and the burn is
+/// **ten turns times the amount** for anything that burns and **six** for flesh, with no second die - so the duration is a **multiple of the amount**, which is the shape the gate can check
+/// exactly. The reference's `else if` is kept: an incendiary round takes the incendiary branch and never this one.
+#[must_use]
+pub fn ignite_turns(
+    damage: i32,
+    vegetable: bool,
+    flammable: bool,
+    flesh: bool,
+    dice: &mut cdda_core_types::rng::Rolls,
+) -> Option<i32> {
+    let amount = if damage > 2 { damage / 2 } else { i32::from(dice.one_in(2)) };
+    if amount <= 0 || !dice.x_in_y(1.0, 2.0) {
+        return None;
+    }
+    if vegetable || flammable {
+        return Some(10 * amount);
+    }
+    if flesh {
+        return Some(6 * amount);
+    }
+    None
 }

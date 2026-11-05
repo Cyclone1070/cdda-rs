@@ -905,3 +905,7 @@ counts two hundred tries at each material. The **wiring** needs the target's mat
 `cmat_flammable` and `cmat_flesh` name lists, `creature.cpp:171-178`), and `set_alight_if_incendiary` inside the pellet loop (`creature.cpp:1016-1029`). Gated by
 `shot_rules::an_incendiary_round_sets_a_veggy_target_alight_and_not_a_stony_one`, which asks the store for the `onfire` effect on a haystack against a stone golem. The new component had to be
 added to the inspection register, which `inspect_names::every_component_a_creature_carries_has_a_name` demanded.
+
+**Round 1177 ported the second fire round**: `shot::ignite_turns` (`creature.cpp:1035-1045` - a flat coin, then `10 * amount` for anything that burns or `6 * amount` for flesh) and the wiring that
+makes `set_alight_if_fire_round` cover both fire rounds in the reference's `else if` order. Gated by `shot_rules::an_ignite_round_burns_for_ten_times_the_amount_and_six_on_flesh` (exact
+durations against the incendiary branch's drawn ones) and `shot_rules::an_ignite_round_also_sets_a_burnable_target_alight` (the store's `onfire` effect from a real shot).

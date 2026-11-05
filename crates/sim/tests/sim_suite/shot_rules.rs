@@ -1108,3 +1108,118 @@ fn an_incendiary_round_sets_a_veggy_target_alight_and_not_a_stony_one() {
     assert!(veggy.is_some_and(|turns| turns >= 1), "for at least a turn: {veggy:?}");
     assert_eq!(burn_after(&incendiary, "stone"), None, "and a stone target never catches, however many rounds land");
 }
+
+/// An `IGNITE` round burns for ten times the amount, or six on flesh, and ignites on a flat coin rather than by weight.
+///
+/// Reference: `creature.cpp:1035-1045`. **The two branches differ in more than their numbers** - incendiary ignition is `amount in 50` and its burn is `rng(2, 6) * amount`; ignite's is a
+/// coin and its burn is exactly `10 * amount` or `6 * amount`. A port that shared one function between them would pass a "sets things on fire" test and be wrong about how long.
+#[test]
+fn an_ignite_round_burns_for_ten_times_the_amount_and_six_on_flesh() {
+    use cdda_core_types::rng::Rolls;
+    use cdda_sim::shot::{ignite_turns, incendiary_turns};
+
+    // Twelve damage is an amount of six, so a vegetable burns for sixty turns and a flesh target for thirty-six.
+    let mut dice = Rolls::new(31);
+    let mut veggy = Vec::new();
+    let mut flesh = Vec::new();
+    for _ in 0..200 {
+        if let Some(turns) = ignite_turns(12, true, false, false, &mut dice) {
+            veggy.push(turns);
+        }
+        if let Some(turns) = ignite_turns(12, false, false, true, &mut dice) {
+            flesh.push(turns);
+        }
+    }
+    assert!(veggy.len() > 20 && veggy.len() < 180, "a coin, not a certainty: {} of 200", veggy.len());
+    assert!(veggy.iter().all(|turns| *turns == 60), "and always ten times six: {veggy:?}");
+    assert!(!flesh.is_empty(), "flesh burns too: {}", flesh.len());
+    assert!(flesh.iter().all(|turns| *turns == 36), "for six times six: {flesh:?}");
+
+    // Stone catches nothing, and a light round halves to one rather than needing a big amount.
+    let mut dice = Rolls::new(31);
+    for _ in 0..100 {
+        assert!(ignite_turns(100, false, false, false, &mut dice).is_none(), "stone never burns");
+    }
+    let mut dice = Rolls::new(31);
+    let light: Vec<i32> = (0..100).filter_map(|_| ignite_turns(2, true, false, false, &mut dice)).collect();
+    assert!(!light.is_empty() && light.iter().all(|turns| *turns <= 10), "a two-damage round burns for ten at most: {light:?}");
+
+    // And the two rules are not one rule: at the same damage the incendiary burn varies, while the ignite burn does not.
+    let mut dice = Rolls::new(31);
+    let incendiary: Vec<i32> = (0..200).filter_map(|_| incendiary_turns(12, true, false, false, &mut dice)).collect();
+    let first = incendiary.first().copied().unwrap_or_default();
+    assert!(incendiary.iter().any(|turns| *turns != first), "an incendiary burn is drawn: {incendiary:?}");
+}
+
+/// An `IGNITE` round that lands also sets a burnable target alight, by its own rule rather than the incendiary one.
+///
+/// Reference: `creature.cpp:1035-1045`, the `else if` after the incendiary branch. The gate asks the store for the effect and checks the **duration is a multiple of the amount**, which is what
+/// distinguishes the two rules from the outside: an ignite burn is exactly ten or six times it, where an incendiary burn varies.
+#[test]
+fn an_ignite_round_also_sets_a_burnable_target_alight() {
+    use bevy_ecs::prelude::*;
+    use cdda_core_types::rng::Rolls;
+
+    let read = |name: &str| {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let bytes = std::fs::read(path).expect("the corpus file exists");
+        cdda_json::parse(&bytes).expect("valid JSON")
+    };
+    let guns = cdda_content::guns::load_dump(&read("items/guns.json")).expect("the guns load");
+    let lines = cdda_content::skills::load_dump(&read("skills.json")).expect("the skills load");
+    let rounds = cdda_content::ammo::load_dump(&read("items/ammo.json")).expect("the ammo loads");
+    let gun = guns.iter().find(|gun| gun.id == "ruger_mini").expect("the Mini-14").clone();
+    let igniting = rounds
+        .iter()
+        .find(|round| round.has_effect("IGNITE") && !round.has_effect("INCENDIARY"))
+        .expect("a round that ignites without being incendiary is in the dump")
+        .clone();
+
+    let mut world = World::new();
+    cdda_sim::singletons::put_rolls(&mut world, Rolls::new(8080));
+    let entry = cdda_json::parse(br#"{"id":"onfire","max_duration":"1 hours"}"#).expect("valid json");
+    let cdda_json::Value::Object(entry) = entry else {
+        panic!("an effect type is an object")
+    };
+    let kind = cdda_content::effects::read_one("onfire", &entry);
+    cdda_sim::effect_registry::set_effect_types(&mut world, std::slice::from_ref(&kind));
+
+    let shooter = cdda_sim::creature::spawn_creature(&mut world, "the shooter", (0, 0, 0));
+    world
+        .entity_mut(shooter)
+        .insert(cdda_sim::creature::Strength { base: 8 })
+        .insert(cdda_sim::creature::Dexterity { base: 20 })
+        .insert(cdda_sim::creature::Perception { base: 20 })
+        .insert(cdda_sim::creature::Moves { left: 40_000 });
+    let target = cdda_sim::creature::spawn_creature(&mut world, "the target", (1, 0, 0));
+    world
+        .entity_mut(target)
+        .insert(cdda_sim::creature::Health { hp: 50_000, max_hp: 50_000 })
+        .insert(cdda_sim::creature::Materials([("veggy".to_owned(), 1)].into_iter().collect()));
+    let held = world
+        .spawn((
+            cdda_sim::GroundItem {
+                kind: cdda_sim::ItemTypeId(7),
+                charges: 60,
+                age: 0,
+                burnt: 0,
+                damage: 0,
+                burn: None,
+            },
+            cdda_sim::Position { x: 0, y: 0, z: 0 },
+            cdda_sim::shot::NeverJams,
+        ))
+        .id();
+
+    let mut burned = None;
+    for _ in 0..40 {
+        cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (1, 0, 0), 18.0, Some(&igniting), Some(held), 3_180.0, false);
+        if let Some(effect) = cdda_sim::applied_effects::worn(&world, target).into_iter().find(|effect| effect.id == "onfire") {
+            burned = Some(effect.duration);
+            break;
+        }
+    }
+    let turns = burned.expect("an igniting round sets a veggy target alight within forty shots");
+    assert!(turns > 0, "for a positive number of turns: {turns}");
+    assert!(turns % 10 == 0 || turns % 6 == 0, "and by the ignite rule's own arithmetic, a multiple of ten or six: {turns}");
+}
