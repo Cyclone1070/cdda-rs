@@ -54,6 +54,9 @@ fn the_creature_that_hears_a_thud_gets_a_place_to_walk_towards() {
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(31));
     let near = cdda_sim::creature::spawn_creature(&mut world, "the listener", (3, 0, 0));
     cdda_sim::creature_flags::add_flag(&mut world, near, "HEARS");
+    // Reference: `monster::hear_sound` walks towards a noise only when `morale >= 0 && anger >= 10` (`monster.cpp:3969-3971`). A creature the port never gave an `Anger` reads as
+    // **zero anger**, which is "uninterested" - the same lesson round 1159 learned about `Strength`: **a missing component is not an error in the store, it is a zero.**
+    world.entity_mut(near).insert(cdda_sim::creature::Anger(100));
     let far = cdda_sim::creature::spawn_creature(&mut world, "the distant one", (30, 0, 0));
     cdda_sim::creature_flags::add_flag(&mut world, far, "HEARS");
     let deaf = cdda_sim::creature::spawn_creature(&mut world, "the deaf one", (1, 1, 0));
@@ -110,7 +113,9 @@ fn a_creature_that_hears_a_noise_walks_towards_it_until_the_noise_is_old() {
     // A speed of one hundred, so each turn banks one step's worth of moves.
     world
         .entity_mut(listener)
-        .insert(cdda_sim::creature::Speed { base: 100, bonus: 0 });
+        .insert(cdda_sim::creature::Speed { base: 100, bonus: 0 })
+        // The anger a monster gets from its type; without it the reference's own condition (`anger >= 10`) says it is uninterested and it stays put.
+        .insert(cdda_sim::creature::Anger(100));
 
     // A very loud noise at the origin is heard exactly (volume 20 or more has no error), ten squares away.
     cdda_sim::sounds::make_sound(&mut world, (0, 0, 0), 30);
@@ -232,6 +237,8 @@ fn a_noise_brings_a_monster_to_the_survivor_and_it_swings_when_it_arrives() {
             sides: 3,
         }));
     cdda_sim::creature_flags::add_flag(&mut world, zombie, "HEARS");
+    // The anger the reference's own monsters carry from their type (`monster.cpp:282`); without it the port reads zero and the monster is uninterested rather than angry.
+    world.entity_mut(zombie).insert(cdda_sim::creature::Anger(100));
 
     // The thud of a rock landing where the survivor stands.
     cdda_sim::sounds::make_sound(&mut world, (0, 0, 0), 30);

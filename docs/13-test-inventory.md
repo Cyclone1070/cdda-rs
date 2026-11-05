@@ -950,3 +950,8 @@ one almost always, a whisper of speech always.
 **Round 1188 ported `hear_sound`'s two "already following something" guards** (`monster.cpp:3940-3970`) and the flag they read, `Wander::provocative`. Gated by
 `sounds::a_monster_following_something_interesting_ignores_a_duller_sound`, whose first run exposed a **vacuous** assertion: the test's zombie carried no `HEARS` flag, so nothing was heard at all
 and "the wander did not change" was true for no reason. The second half of the gate - a longer-lasting sound *does* take over - is what found it.
+
+**Round 1189 ported `hear_sound`'s three outcomes**: walks towards the noise at `morale >= 0 && anger >= 10`, to the **mirror point** at `morale < 0`, and nowhere when the anger is under ten
+(`monster.cpp:3969-3981`). Gated by `sounds::a_frightened_monster_walks_away_from_the_noise_and_an_uninterested_one_does_not_move`, which pins the mirror arithmetic. **Three existing hearing gates
+had to gain an `Anger` component** - a missing component reads as zero, so the new branch made their monsters uninterested - recorded in `docs/parity.md` as the second time a hand-built fixture,
+not the rule, was the thing at fault.

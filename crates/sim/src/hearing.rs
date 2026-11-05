@@ -141,8 +141,35 @@ pub fn hear_sounds(world: &mut World) -> usize {
                 wander.provocative = heard_at.provocative;
             }
             world.entity_mut(entity).insert(heard_at);
+            // Reference: `monster::hear_sound`'s tail (`monster.cpp:3969-3981`), which is **three** outcomes and not one:
+            //
+            // | Morale | Anger | What it does |
+            // |---|---|---|
+            // | `>= 0` | `>= 10` | walks **towards** the noise |
+            // | `< 0` | anything | walks to the **mirror point** - `pos + ( pos - target )`, the same distance the other side - because "monsters afraid of sound should not go towards sound" |
+            // | `>= 0` | `< 10` | walks nowhere at all |
+            //
+            // **A frightened monster flees the noise and an uninterested one ignores it**, and a port that always walked towards the sound would have both wrong in the same line.
+            let morale = world.get::<crate::creature::Morale>(entity).map_or(0, |morale| morale.0);
+            let anger = world.get::<crate::creature::Anger>(entity).map_or(0, |anger| anger.0);
+            let destination = if morale < 0 {
+                let here_at = world.get::<crate::Position>(entity).copied().unwrap_or(crate::Position {
+                    x: here.0,
+                    y: here.1,
+                    z: here.2,
+                });
+                (
+                    here_at.x + (here_at.x - heard_at.at.0),
+                    here_at.y + (here_at.y - heard_at.at.1),
+                    here_at.z,
+                )
+            } else if anger < 10 {
+                continue;
+            } else {
+                heard_at.at
+            };
             // The guess is **also** where the creature now walks: `monster::hear_sound` ends in `wander_to`, which is what turns a noise into a monster arriving.
-            crate::creature::set_wander(world, entity, heard_at.at, heard_at.wander_turns);
+            crate::creature::set_wander(world, entity, destination, heard_at.wander_turns);
             convinced += 1;
         }
     }

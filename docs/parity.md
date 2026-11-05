@@ -14027,3 +14027,22 @@ for the wrong reason, and only a second, positive assertion exposes it.** The se
 **Named, not invented:** the `morale < 0` branch (a frightened monster flees the noise instead of walking to it), `process_trigger` `SOUND`, the `friendly`/player-source exemption, `can_hear()`
 beyond the `HEARS` flag, and **`recent_sounds`** - the reference keeps the provocative flag on a *list of the turn's sounds* that the AI reads on its next turn, where the port keeps it on the
 creature's own wander. **Same answer, one fewer table.**
+
+## Three things a monster can do with a noise (round 1189)
+
+| Morale | Anger | What it does | Reference |
+|---|---|---|---|
+`>= 0` | `>= 10` | walks **towards** the noise | `monster.cpp:3969-3971` |
+`< 0` | anything | walks to the **mirror point** - `pos + ( pos - target )` - because "monsters afraid of sound should not go towards sound" | `monster.cpp:3972-3980` |
+`>= 0` | `< 10` | walks **nowhere** | the absence of both branches |
+
+**The mirror point is the rule a port loses.** It is not "away" in general: it is **the same distance on the other side**, computed from the creature's own square, so a noise four squares east
+sends a frightened monster **four squares west**. The gate pins the arithmetic - a shout at (14, 10) from a monster at (10, 10) sends it to **(6, 10)** - rather than just "somewhere else".
+
+**The gate that found this was not a new gate: it was three old ones, failing.** Three hearing gates had monsters with **no `Anger` component at all**, and the port reads a missing component as
+**zero** - so the new `anger < 10` branch made them all "uninterested" and they stopped walking. **The source is right and the fixtures were incomplete**: the reference's own monsters carry anger
+from their type (`monster.cpp:282`), and a test that builds a creature by hand has to say so. **Same lesson as `Strength` in round 1159, twice in one codebase, and both times the gate was the
+thing that was wrong.**
+
+**Named, not invented:** the `TODO`s the reference itself leaves in this function - **the fleeing distance does not scale with the sound, and a creature on exactly the noise's square needs a random
+direction** - the `friendly`/player-source exemption, and `process_trigger` `SOUND`.

@@ -184,9 +184,45 @@ fn a_monster_following_something_interesting_ignores_a_duller_sound() {
     cdda_sim::singletons::put_rolls(&mut world, Rolls::new(31));
     let zombie = cdda_sim::creature::spawn_creature(&mut world, "the zombie", (0, 0, 0));
     cdda_sim::creature_flags::add_flag(&mut world, zombie, "HEARS");
+    world.entity_mut(zombie).insert(cdda_sim::creature::Anger(100));
     cdda_sim::creature::set_wander(&mut world, zombie, (5, 5, 0), 10);
     cdda_sim::sounds::make_a_sound_of_kind(&mut world, (9, 0, 0), 60, "bang!", cdda_sim::sounds::SoundCategory::Combat);
     cdda_sim::hearing::hear_sounds(&mut world);
     let wander = world.get::<cdda_sim::creature::Wander>(zombie).copied().expect("it is wandering");
     assert!(wander.turns_left > 40, "a longer-lasting sound does take over: {}", wander.turns_left);
+}
+
+/// A hearing monster walks towards the noise, a frightened one walks away from it, and an uninterested one does not move - three outcomes, not one.
+///
+/// Reference: `monster::hear_sound`'s tail (`monster.cpp:3969-3981`): `morale >= 0 && anger >= 10` walks to the sound, `morale < 0` walks to the **mirror point** `pos + ( pos - target )`, and
+/// anything else (`anger < 10` with morale at or above zero) walks nowhere. **The mirror point is the rule a port loses**: it is not "away" in general, it is the same distance on the other side.
+#[test]
+fn a_frightened_monster_walks_away_from_the_noise_and_an_uninterested_one_does_not_move() {
+    use bevy_ecs::prelude::*;
+    use cdda_core_types::rng::Rolls;
+
+    let hearing = |morale: i32, anger: i32| {
+        let mut world = World::new();
+        cdda_sim::singletons::put_rolls(&mut world, Rolls::new(5));
+        let zombie = cdda_sim::creature::spawn_creature(&mut world, "the zombie", (10, 10, 0));
+        cdda_sim::creature_flags::add_flag(&mut world, zombie, "HEARS");
+        world
+            .entity_mut(zombie)
+            .insert(cdda_sim::creature::Morale(morale))
+            .insert(cdda_sim::creature::Anger(anger));
+        // A loud shout to the east, at a square whose x differs by four, so the mirror point is unambiguous.
+        cdda_sim::sounds::make_a_sound_of_kind(&mut world, (14, 10, 0), 60, "shout", cdda_sim::sounds::SoundCategory::Speech);
+        cdda_sim::hearing::hear_sounds(&mut world);
+        world.get::<cdda_sim::creature::Wander>(zombie).copied()
+    };
+
+    let bold = hearing(0, 100).expect("a bold monster walks somewhere");
+    assert_eq!(bold.square.0, 14, "it walks towards the noise");
+    assert_eq!(bold.square.1, 10, "and stays on the same line");
+
+    let scared = hearing(-50, 100).expect("a frightened monster walks somewhere too");
+    assert_eq!(scared.square.0, 6, "but to the mirror point, four squares the other way");
+    assert_eq!(scared.square.1, 10, "on the same line");
+
+    assert!(hearing(0, 5).is_none(), "a monster with morale but no anger walks nowhere at all");
 }
