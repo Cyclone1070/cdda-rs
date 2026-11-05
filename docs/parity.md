@@ -13598,3 +13598,24 @@ flag a step needs is a one-line call rather than a third copy of the same JSON w
 
 **Named, not invented:** `practice()`'s own focus and `MAX_SKILL` caps inside the port's `practise_skill` (ported earlier, unchanged), the `skill_gun`/`skill_launcher` ids' archery equivalent,
 and gunmods' `WONT_TRAIN_MARKSMANSHIP` inheritance.
+
+## How long a shot takes to line up (round 1170)
+
+| Piece | Reference | Port |
+|---|---|---|
+the count | `Character::gun_engagement_moves` (`ranged.cpp:675-691`) | `aim::moves_to_reach(recoil, target, skill, sight_speed)` |
+the step's report | - | the `aim` line now ends with `…, 175 more to reach it` |
+Gate | - | `the_moves_a_shot_needs_are_exactly_enough_and_not_one_more` |
+
+**The gate checks the edge, not a magic number**: the moves the function reports **reach** the target, and **one fewer does not**. That is what "how long will this take" has to mean, and it is the
+claim a port that rounded the count either way would break - **the reference's loop stops on `penalty > target`, so the count is the smallest one that arrives**.
+
+**The scenario's receipt, verbatim:** `aim: ruger_mini spent 30 of 30 moves, recoil 615.0 -> 507.251, limit 200, 175 more to reach it`. **One hundred and seventy-five moves** is what a rifle at
+615 recoil really costs to bring inside its own point-shooting limit - about **three seconds of game time** at a hundred moves a turn - and it is the number the reference shows a player who asks how
+long the shot will take.
+
+**And the number explains the rule that produced it.** Thirty moves took the recoil down by only a hundred and eight, because each move's gain is faded by the recoil itself; **the fade makes the
+tail of the aim long**, which is why the reference has a point-shooting limit at all rather than asking a player to aim to nothing.
+
+**Named, not invented:** `gun_engagement_moves`'s own `aim_cache` (the port recomputes, because it has no cache and the reference's is a pure memo), the aim UI that shows the count, and
+`MIN_RECOIL_IMPROVEMENT`'s other caller, which is the activity's own loop.

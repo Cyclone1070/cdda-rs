@@ -160,3 +160,33 @@ pub fn spend_aim(recoil: f64, limit: f64, skill: i32, sight_speed: f64, moves: i
     }
     (left, spent)
 }
+
+/// How many moves of aiming it takes to bring the recoil down to a target, which is the question a player asks of the aim UI.
+///
+/// Reference: `Character::gun_engagement_moves` (`ranged.cpp:675-691`):
+///
+/// ```text
+/// while( penalty > target ) {
+///     const double adj = aim_per_move( gun, penalty, ... );
+///     if( adj <= MIN_RECOIL_IMPROVEMENT ) break;
+///     penalty -= adj;
+///     mv++;
+/// }
+/// ```
+///
+/// **The loop stops on the same floor as [`spend_aim`], and that is what keeps the answer finite**: a shooter whose recoil cannot improve any further is told so by a count that stops rising
+/// rather than by a search that never ends. The count is moves, so it is the price of the aim, and the reference uses it to tell a player how long a shot will take to line up.
+#[must_use]
+pub fn moves_to_reach(recoil: f64, target: f64, skill: i32, sight_speed: f64) -> i32 {
+    let mut penalty = recoil;
+    let mut moves = 0;
+    while penalty > target {
+        let gain = aim_per_move(penalty, 0.0, skill, sight_speed);
+        if gain <= MIN_RECOIL_IMPROVEMENT {
+            break;
+        }
+        penalty -= gain;
+        moves += 1;
+    }
+    moves
+}

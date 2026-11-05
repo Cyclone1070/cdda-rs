@@ -2249,8 +2249,10 @@ fn aim_a_step(world: &mut World, outcome: &mut Outcome, gun_id: &str, moves: i32
         let points = after.round() as i32;
         carried.points = points;
     }
+    // The aim UI's own question, answered by the same rule: how many moves a shot needs to line up at the point-shooting limit.
+    let needed = cdda_sim::aim::moves_to_reach(recoil, limit, skill, sight_speed);
     outcome.lines.push(format!(
-        "aim: {gun_id} spent {spent} of {moves} moves, recoil {recoil:.1} -> {after:.3}, limit {limit:.0}"
+        "aim: {gun_id} spent {spent} of {moves} moves, recoil {recoil:.1} -> {after:.3}, limit {limit:.0}, {needed} more to reach it"
     ));
 }
 

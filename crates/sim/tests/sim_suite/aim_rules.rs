@@ -180,3 +180,26 @@ fn aiming_spends_moves_until_the_floor_stops_it() {
     // And a shooter who asks for no moves gets none.
     assert_eq!(spend_aim(3000.0, 0.0, 10, 0.0, 0), (3000.0, 0), "zero moves is zero change");
 }
+
+/// How many moves of aiming a shot needs, and the count is exactly the one that reaches the target.
+///
+/// Reference: `Character::gun_engagement_moves` (`ranged.cpp:675-691`). The gate checks the **edge** rather than a magic number: the moves the function reports take the recoil to the target, and
+/// **one fewer does not** - which is what "how long will this take" has to mean, and what a port that rounded the count either way would get wrong.
+#[test]
+fn the_moves_a_shot_needs_are_exactly_enough_and_not_one_more() {
+    use cdda_sim::aim::{moves_to_reach, spend_aim};
+
+    let (recoil, target, skill) = (615.0, 200.0, 0);
+    let moves = moves_to_reach(recoil, target, skill, 0.0);
+    assert!(moves > 0, "a shot from 615 down to 200 takes some aiming: {moves}");
+    let (reached, _) = spend_aim(recoil, 0.0, skill, 0.0, moves);
+    assert!(reached <= target, "and that many moves reaches the target: {reached} against {target}");
+    let (short, _) = spend_aim(recoil, 0.0, skill, 0.0, moves - 1);
+    assert!(short > target, "while one fewer does not: {short} against {target}");
+
+    // A shooter already inside the target needs nothing, and a target at zero needs everything.
+    assert_eq!(moves_to_reach(150.0, 200.0, 0, 0.0), 0, "already inside it: no moves");
+    assert!(moves_to_reach(3000.0, 0.0, 10, 0.0) > moves_to_reach(615.0, 0.0, 10, 0.0), "and further to go, more moves");
+    // The floor stops the count rather than the loop running forever: at rest nothing improves, so the count is finite whatever the target.
+    assert_eq!(moves_to_reach(0.5, 0.0, 10, 0.0), 0, "a recoil the floor will not improve costs no moves");
+}

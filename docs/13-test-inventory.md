@@ -877,3 +877,6 @@ says `0` shots. Gated by `content_suite::gun_rules::every_gun_states_how_many_sh
 and the weapon's own skill by hits - or by shots for a launcher. `fire_burst` calls it once per burst. Gated by
 `shot_rules::a_burst_trains_the_skills_it_should_and_a_flagged_weapon_trains_none`, which reads the store's `Exercise` bank and checks that the flag stops the base skill but **not** the weapon's.
 The CLI's two prototypes-dump readers were folded into one `has_item_flag`.
+
+**Round 1170 ported the aim's price**: `aim::moves_to_reach` (`Character::gun_engagement_moves`, `ranged.cpp:675-691`) and the `aim` step's `…, N more to reach it` report. Gated by
+`aim_rules::the_moves_a_shot_needs_are_exactly_enough_and_not_one_more`, which asserts the **edge**: the reported moves reach the target and one fewer does not.
