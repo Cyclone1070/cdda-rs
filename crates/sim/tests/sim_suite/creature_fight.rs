@@ -2357,3 +2357,64 @@ fn the_biggest_part_of_a_broken_weapon_goes_into_the_hand() {
     );
     assert!(world.get::<cdda_sim::item_parts::PartOf>(part).is_none(), "it is nobody's part any more");
 }
+
+/// A weapon that breaks drops what was inside it where the survivor stands.
+///
+/// Reference: `handle_melee_wear` spills the contents **before** the item is removed (`melee.cpp:305-312`), so a broken weapon's magazine, water bottle or holstered knife ends up on the floor rather
+/// than ceasing to exist with the weapon. **The order is the rule**: spilling after the weapon is despawned would have nothing left to read the contents from.
+#[test]
+fn a_weapon_that_breaks_drops_what_was_inside_it() {
+    use bevy_ecs::prelude::*;
+    use cdda_core_types::rng::Rolls;
+
+    let mut world = World::new();
+    let weapon = cdda_sim::ItemTypeId(1);
+    let flask = cdda_sim::ItemTypeId(2);
+    let facts = |chip: i32| cdda_sim::item_registry::KindFacts {
+        flags: Vec::new(),
+        qualities: Vec::new(),
+        chip_resistance: chip,
+        faults: Vec::new(),
+    };
+    cdda_sim::item_registry::install_kind_facts(&mut world, &[(weapon, facts(0)), (flask, facts(10))]);
+    cdda_sim::singletons::put_rolls(&mut world, Rolls::new(11));
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (5, 7, 0));
+    let zombie = cdda_sim::creature::spawn_creature(&mut world, "the zombie", (6, 7, 0));
+    world.entity_mut(zombie).insert(cdda_sim::creature::Health { hp: 9_000, max_hp: 9_000 });
+    world.entity_mut(survivor).insert(cdda_sim::creature::Speed { base: 100, bonus: 0 });
+    for _ in 0..2 {
+        cdda_sim::creature::bank_a_turn(&mut world);
+    }
+    let held = world
+        .spawn((
+            cdda_sim::GroundItem { kind: weapon, charges: 1, age: 0, burnt: 0, damage: 0, burn: None },
+            cdda_sim::ItemDamage::default(),
+            cdda_sim::creature::Carried(survivor),
+        ))
+        .id();
+    assert_eq!(
+        cdda_sim::creature::wield(&mut world, survivor, held, 250),
+        cdda_sim::creature::Wielded::Done,
+        "the fixture's weapon goes into the hand"
+    );
+    let inside = world
+        .spawn(cdda_sim::GroundItem { kind: flask, charges: 1, age: 0, burnt: 0, damage: 0, burn: None })
+        .id();
+    assert!(cdda_sim::containment::put_inside(&mut world, inside, held), "the flask goes inside the weapon");
+
+    // Five blows: the last destroys the weapon.
+    for _ in 0..5 {
+        cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, zombie);
+    }
+    assert!(world.get_entity(held).is_err(), "the weapon is gone");
+    assert!(world.get_entity(inside).is_ok(), "**the flask is not**: it was spilled, not destroyed");
+    assert!(
+        world.get::<cdda_sim::containment::ContainedIn>(inside).is_none(),
+        "and it is nobody's content any more"
+    );
+    assert_eq!(
+        world.get::<cdda_sim::Position>(inside).map(|at| (at.x, at.y, at.z)),
+        Some((5, 7, 0)),
+        "it is on the square the survivor stood on"
+    );
+}

@@ -14759,3 +14759,20 @@ consequence, not a second cleanup that could forget one. The gate asserts all th
 ones the reference would keep shut.
 
 **Named, not invented:** the caller. `handle_melee_wear` spills a destroyed weapon's contents before breaking it apart (`melee.cpp:305-312`), and the swing does not call this yet.
+
+## What was inside survives the weapon (round 1254)
+
+| Piece | Reference | Port |
+|---|---|---|
+the order | spill `:305-312`, remove the item, then break it apart | `wear_the_wielded_weapon` spills into the holder's square before the destruction branch |
+Gate | - | `a_weapon_that_breaks_drops_what_was_inside_it` |
+
+**The order is the rule.** Spilling after the despawn would have **nothing left to read the contents from** - and the failure would be silent, because a destroyed weapon's contents are destroyed with it
+and nobody sees what is missing. The gate's first run failed exactly there: the flask survived but still carried a `ContainedIn` pointing at a weapon that no longer existed, which is the dangling-link
+shape the port's containment model exists to make impossible.
+
+**What the gate asserts, in the player's terms:** the weapon is gone, the flask **is not**, it is nobody's content, and it is on the square the survivor stood on - all three, because "the contents
+survived" alone would pass for a flask left dangling.
+
+**Named, not invented:** the `NO_UNLOAD` pocket exemption (`melee.cpp:308` keeps such a pocket shut), and the irremovable gunmods destroyed before the spill (`:298-303`), which the port has no gunmods
+for.

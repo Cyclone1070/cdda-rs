@@ -3099,6 +3099,11 @@ pub fn wear_the_wielded_weapon(world: &mut World, holder: Entity, melee_skill: i
         .unwrap_or_else(|| "weapon".to_owned());
     let (after, destroyed) = current.mod_damage(crate::DAMAGE_SCALE, &limits);
     if destroyed {
+        // Reference: **the contents spill before anything else happens to the item** (`melee.cpp:305-312`), so what was inside survives the weapon that held it. Spilling after the despawn would have
+        // nothing left to read the contents from.
+        if let Some(square) = world.get::<crate::Position>(holder).map(|at| (at.x, at.y, at.z)) {
+            crate::containment::spill_contents(world, held, square);
+        }
         // Reference: **a fragile weapon with parts does not merely break - it comes apart** (`melee.cpp:313-340`), and the branch is taken before the ordinary destruction line.
         if break_apart_the_weapon(world, held, holder, &name) {
             return;
