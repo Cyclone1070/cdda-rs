@@ -1239,3 +1239,6 @@ corrected to real kills.
 
 **Round 1299 ported a splatter's gib count** (`mondeath.cpp:135-141`) as `creature::gib_count` / `gibs_scattered`, gated on both sides of the `min` and on the **negative** answer the reference's loop
 tolerates.
+
+**Round 1300 ported the blood and gib ladders** (`mtype.cpp:431-470`) as `content::blood` (re-exported from the sim), gated rung by rung and then over **all 1,154 monster prototypes** - including the
+count that falls through to `get_bleed_type`, which the port cannot answer and says so.

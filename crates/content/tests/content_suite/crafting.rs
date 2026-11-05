@@ -84,3 +84,54 @@ fn a_recipe_answers_its_own_difficulty_and_cap() {
         "and caps at its difficulty times one and a quarter, truncated"
     );
 }
+
+/// Every monster in the reference's dump is classified by the two ladders, and the counts show which rung does the work.
+///
+/// Reference: `mtype::bloodType` / `mtype::gibType` (`mtype.cpp:431-470`). The dump carries **1,154 monster prototypes** with their flags, materials and species, so the ladders can be
+/// walked over all of them rather than over a fixture: the counts are the gate, and they say how much of the corpus each rung decides.
+#[test]
+fn the_monster_corpus_walks_both_ladders() {
+    let monsters = crate::corpus::monsters_loaded();
+    assert_eq!(monsters.len(), 1154, "**every prototype**, not a sample");
+
+    let mut acid = 0;
+    let mut bile = 0;
+    let mut arthropod = 0;
+    let mut veggy = 0;
+    let mut insect = 0;
+    let mut blood = 0;
+    let mut falls_through = 0;
+    let mut gibbed = 0;
+    for monster in &monsters {
+        let traits = cdda_content::blood::BloodTraits {
+            acid: monster.flags.contains("ACID_BLOOD"),
+            bile: monster.flags.contains("BILE_BLOOD"),
+            arthropod: monster.flags.contains("ARTHROPOD_BLOOD"),
+            warm: monster.flags.contains("WARM"),
+        };
+        let materials: Vec<&str> = monster.materials.keys().map(String::as_str).collect();
+        match cdda_content::blood::blood_field(&traits, &materials) {
+            Some("fd_acid") => acid += 1,
+            Some("fd_bile") => bile += 1,
+            Some("fd_blood_invertebrate") => arthropod += 1,
+            Some("fd_blood_veggy") => veggy += 1,
+            Some("fd_blood_insect") => insect += 1,
+            Some("fd_blood") => blood += 1,
+            _ => falls_through += 1,
+        }
+        if cdda_content::blood::gib_field(&materials, monster.species.contains("MOLLUSK")).is_some() {
+            gibbed += 1;
+        }
+    }
+
+    assert_eq!(acid, 20, "twenty acid-blooded prototypes");
+    assert_eq!(bile, 8, "eight bile-blooded");
+    assert_eq!(arthropod, 24, "twenty-four with an arthropod's blood");
+    assert!(veggy > 0 && insect > 0, "and plants and insects are both represented: {veggy} and {insect}");
+    assert!(blood > 500, "while the ordinary warm fleshy thing is the common case: {blood}");
+    assert!(
+        falls_through > 0,
+        "**and some fall through to a bleed type the port does not load yet**: {falls_through}"
+    );
+    assert!(gibbed > 1000, "most of the corpus gibs into something: {gibbed}");
+}

@@ -15557,3 +15557,23 @@ clamping, because a clamped rule would answer the same zero for "barely a splatt
 
 **Named, not invented:** where the gibs land. `mdeath::splatter` picks a square in a one-square radius with `random_entry` per gib and adds `fd_gib` and `fd_blood` at a rolled strength; the port has
 fields and `add_field_strength`, but the **blood and gib types come from the monster's prototype**, which is content the port does not load yet.
+
+## A monster bleeds by its flags before its flesh (round 1300)
+
+| Piece | Reference | Port |
+|---|---|---|
+what it bleeds | `mtype::bloodType` (`mtype.cpp:431-454`) | `blood::blood_field` |
+what it splatters into | `mtype::gibType` (`mtype.cpp:456-470`) | `blood::gib_field` |
+Gates | - | `creature_fight::a_monster_bleeds_by_its_flags_before_its_flesh`, `crafting::the_monster_corpus_walks_both_ladders` |
+
+**Both are ladders, and the order is the rule**: an acid-blooded monster made of flesh bleeds **acid**, not blood. The gate walks every rung in the reference's order, because a port that checked
+material first would be right about most monsters and wrong about exactly the ones a player notices.
+
+**The rules live beside the monster data they read** (`content::blood`, re-exported from the sim) - they were written in the sim first and moved when the corpus gate showed the sim was not where
+the data is.
+
+**The corpus gate is a count over all 1,154 prototypes**: 20 acid, 8 bile, 24 arthropod, ordinary blood the common case, and **some falling through** to `get_bleed_type`. That last count is the point
+of the test as much as the others: a port that invented `fd_blood` for the unknowns would have no fall-through at all.
+
+**Named, not invented:** `get_bleed_type` itself (`mtype.cpp:412-422`), which needs the monster's `bleed_rate` and its species' `bleeds` field - neither is in the dump. `blood_field` answers `None`
+for those and the splatter leaves no blood rather than inventing a colour.

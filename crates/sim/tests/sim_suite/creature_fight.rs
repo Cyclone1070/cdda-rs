@@ -2729,3 +2729,42 @@ fn a_splatter_gets_gibs_from_its_damage_and_its_health() {
     );
     assert_eq!(gib_count(0.4, 40), -1, "and under a whole point of corpse damage the answer is negative, as the reference's is");
 }
+
+/// What a monster bleeds, and what it splatters into, follow its flags before its flesh.
+///
+/// Reference: `mtype::bloodType` (`mtype.cpp:431-454`) and `mtype::gibType` (`mtype.cpp:456-470`):
+///
+/// ```text
+/// blood: ACID_BLOOD -> fd_acid; BILE_BLOOD -> fd_bile; ARTHROPOD_BLOOD -> fd_blood_invertebrate;
+///        veggy -> fd_blood_veggy; iflesh -> fd_blood_insect; WARM && flesh -> fd_blood; else get_bleed_type()
+/// gibs:  MOLLUSK species -> fd_gibs_invertebrate; veggy -> fd_gibs_veggy; iflesh -> fd_gibs_insect;
+///        flesh -> fd_gibs_flesh; else fd_null
+/// ```
+///
+/// **The order is the rule**: an acid-blooded zombie made of flesh bleeds acid, not blood, and the port's ladder has to be walked in the reference's order rather than by "most specific material".
+#[test]
+fn a_monster_bleeds_by_its_flags_before_its_flesh() {
+    use cdda_sim::blood::{BloodTraits, blood_field, gib_field};
+
+    let acid_blooded = BloodTraits { acid: true, bile: true, arthropod: true, warm: true };
+    assert_eq!(blood_field(&acid_blooded, &["flesh"]), Some("fd_acid"), "**acid wins over everything below it**");
+
+    let bile_blooded = BloodTraits { acid: false, bile: true, arthropod: true, warm: true };
+    assert_eq!(blood_field(&bile_blooded, &["flesh"]), Some("fd_bile"), "then bile");
+
+    let arthropod = BloodTraits { acid: false, bile: false, arthropod: true, warm: true };
+    assert_eq!(blood_field(&arthropod, &["flesh"]), Some("fd_blood_invertebrate"), "then an arthropod's");
+
+    let plain = BloodTraits { acid: false, bile: false, arthropod: false, warm: true };
+    assert_eq!(blood_field(&plain, &["flesh"]), Some("fd_blood"), "a warm fleshy thing bleeds blood");
+    assert_eq!(blood_field(&plain, &["veggy"]), Some("fd_blood_veggy"), "a plant bleeds sap");
+    assert_eq!(blood_field(&plain, &["iflesh"]), Some("fd_blood_insect"), "and an insect its own");
+    let cold = BloodTraits { acid: false, bile: false, arthropod: false, warm: false };
+    assert_eq!(blood_field(&cold, &["flesh"]), None, "**a cold flesh thing falls through**, and its bleed type is not loaded yet");
+
+    assert_eq!(gib_field(&["flesh"], true), Some("fd_gibs_invertebrate"), "a mollusc gibs as an invertebrate");
+    assert_eq!(gib_field(&["veggy"], false), Some("fd_gibs_veggy"), "plants into veggy gibs");
+    assert_eq!(gib_field(&["iflesh"], false), Some("fd_gibs_insect"), "insects into insect gibs");
+    assert_eq!(gib_field(&["flesh"], false), Some("fd_gibs_flesh"), "and flesh into flesh gibs");
+    assert_eq!(gib_field(&["steel"], false), None, "while steel gibs into nothing at all");
+}
